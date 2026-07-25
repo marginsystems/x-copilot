@@ -3,21 +3,52 @@
  * Personal tooling only; GraphQL query IDs can rotate when X ships a new web client.
  */
 
+export type SessionCreds = {
+  authToken: string;
+  ct0: string;
+  configured: boolean;
+};
+
+export type VerifyOk = {
+  ok: true;
+  method: string;
+  user: {
+    id: string;
+    screen_name: string;
+    name: string;
+    protected: boolean;
+  };
+  warning?: string;
+};
+
+export type VerifyFail = {
+  ok: false;
+  status: number;
+  error: string;
+  message?: string;
+};
+
+export type VerifyResult = VerifyOk | VerifyFail;
+
 /** Public web-client bearer (same token the X website ships in JS). Not an API secret. */
-export function getWebBearer() {
-  return process.env.X_BEARER_TOKEN ||
-    "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
+export function getWebBearer(): string {
+  return (
+    process.env.X_BEARER_TOKEN ||
+    "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
+  );
 }
 
 /** Current web Viewer operation — override with X_VIEWER_QUERY_ID if X rotates it. */
-export function getViewerQueryId() {
+export function getViewerQueryId(): string {
   return process.env.X_VIEWER_QUERY_ID || "u4ni7JqpqdAQxWQfkLsdUQ";
 }
 
 const BADGE_URL =
   "https://x.com/i/api/2/badge_count/badge_count.json?supports_ntab_urt=1";
 
-export function getSessionFromEnv(env = process.env) {
+export function getSessionFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): SessionCreds {
   const authToken = (env.X_AUTH_TOKEN || "").trim();
   const ct0 = (env.X_CT0 || "").trim();
   return {
@@ -27,7 +58,10 @@ export function getSessionFromEnv(env = process.env) {
   };
 }
 
-export function buildSessionHeaders({ authToken, ct0 }) {
+export function buildSessionHeaders({
+  authToken,
+  ct0,
+}: Pick<SessionCreds, "authToken" | "ct0">): Record<string, string> {
   return {
     authorization: `Bearer ${getWebBearer()}`,
     cookie: `auth_token=${authToken}; ct0=${ct0}`,
@@ -43,7 +77,7 @@ export function buildSessionHeaders({ authToken, ct0 }) {
   };
 }
 
-function viewerUrl() {
+function viewerUrl(): string {
   const variables = { withCommunitiesMemberships: true };
   const features = {
     subscriptions_upsells_api_enabled: true,
@@ -63,9 +97,10 @@ function viewerUrl() {
 
 /**
  * Prove the session works (GraphQL Viewer → identity; badge_count fallback).
- * @returns {{ ok: true, user: object, method: string } | { ok: false, status: number, error: string, message?: string }}
  */
-export async function verifySession(session = getSessionFromEnv()) {
+export async function verifySession(
+  session: SessionCreds = getSessionFromEnv(),
+): Promise<VerifyResult> {
   if (!session.configured) {
     return {
       ok: false,
@@ -80,16 +115,34 @@ export async function verifySession(session = getSessionFromEnv()) {
   try {
     const ac1 = new AbortController();
     const tm1 = setTimeout(() => ac1.abort(), 10000);
-    const viewer = await fetch(viewerUrl(), { method: "GET", headers, redirect: "manual", signal: ac1.signal }).finally(() => clearTimeout(tm1));
+    const viewer = await fetch(viewerUrl(), {
+      method: "GET",
+      headers,
+      redirect: "manual",
+      signal: ac1.signal,
+    }).finally(() => clearTimeout(tm1));
     const viewerText = await viewer.text();
 
     if (viewer.ok) {
       try {
-        const data = JSON.parse(viewerText);
+        const data = JSON.parse(viewerText) as {
+          data?: {
+            viewer?: {
+              user_results?: {
+                result?: {
+                  rest_id?: string;
+                  id?: string;
+                  core?: { screen_name?: string; name?: string };
+                  privacy?: { protected?: boolean };
+                };
+              };
+            };
+          };
+        };
         const result = data?.data?.viewer?.user_results?.result;
         const core = result?.core;
         const restId = result?.rest_id || result?.id;
-        if (core?.screen_name) {
+        if (result && core?.screen_name) {
           return {
             ok: true,
             method: "graphql_viewer",
@@ -97,7 +150,7 @@ export async function verifySession(session = getSessionFromEnv()) {
               id: String(result.rest_id || decodeUserRestId(restId) || ""),
               screen_name: core.screen_name,
               name: core.name || core.screen_name,
-              protected: Boolean(result?.privacy?.protected),
+              protected: Boolean(result.privacy?.protected),
             },
           };
         }
@@ -106,17 +159,27 @@ export async function verifySession(session = getSessionFromEnv()) {
       }
     }
 
-    // Auth-only fallback if Viewer queryId rotated
     const ac2 = new AbortController();
     const tm2 = setTimeout(() => ac2.abort(), 10000);
-    const badge = await fetch(BADGE_URL, { method: "GET", headers, redirect: "manual", signal: ac2.signal }).finally(() => clearTimeout(tm2));
+    const badge = await fetch(BADGE_URL, {
+      method: "GET",
+      headers,
+      redirect: "manual",
+      signal: ac2.signal,
+    }).finally(() => clearTimeout(tm2));
     const badgeText = await badge.text();
     if (badge.ok) {
       return {
-        ok: false,
-        status: viewer.status,
-        error: "viewer_failed",
-        message: "Session cookies work, but GraphQL Viewer failed. Update X_VIEWER_QUERY_ID for identity.",
+        ok: true,
+        method: "badge_count",
+        user: {
+          id: "",
+          screen_name: "unknown",
+          name: "unknown",
+          protected: false,
+        },
+        warning:
+          "Session cookies work, but GraphQL Viewer failed. Update X_VIEWER_QUERY_ID for identity.",
       };
     }
 
@@ -124,7 +187,10 @@ export async function verifySession(session = getSessionFromEnv()) {
       ok: false,
       status: viewer.status || badge.status,
       error: "verify_failed",
-      message: summarizeFailure(viewer.status || badge.status, viewerText || badgeText),
+      message: summarizeFailure(
+        viewer.status || badge.status,
+        viewerText || badgeText,
+      ),
     };
   } catch (err) {
     return {
@@ -136,9 +202,8 @@ export async function verifySession(session = getSessionFromEnv()) {
   }
 }
 
-function decodeUserRestId(id) {
+function decodeUserRestId(id: string | undefined): string {
   if (!id || typeof id !== "string") return "";
-  // Relay id like VXNlcjoyOTM2OTk3Mzc0 → User:2936997374
   if (!id.startsWith("VXNlcjo")) return id;
   try {
     const decoded = Buffer.from(id, "base64").toString("utf8");
@@ -149,7 +214,7 @@ function decodeUserRestId(id) {
   }
 }
 
-function summarizeFailure(status, body) {
+function summarizeFailure(status: number, body: string): string {
   if (status === 401 || status === 403) {
     return "Session rejected — re-copy auth_token and ct0 from a logged-in x.com tab.";
   }
@@ -159,7 +224,10 @@ function summarizeFailure(status, body) {
   if (status >= 300 && status < 400) {
     return "Unexpected redirect — cookies may be incomplete or expired.";
   }
-  if (body.includes("Could not authenticate") || body.includes("Not authorized")) {
+  if (
+    body.includes("Could not authenticate") ||
+    body.includes("Not authorized")
+  ) {
     return "Not authorized — check auth_token / ct0.";
   }
   return `X session verify HTTP ${status}`;

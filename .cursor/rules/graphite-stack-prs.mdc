@@ -1,0 +1,35 @@
+---
+description: Stacked PRs must use Graphite gt submit, never gh pr create
+alwaysApply: true
+---
+
+# Graphite stack PRs
+
+For stacked or multi-PR work in this repo, use **Graphite only**.
+
+## Do
+
+- Create stack branches with `gt create` (child branch while checked out on its parent).
+- Submit with `gt submit` or `gt submit --stack`.
+- Use `gh` for read-only ops (`gh pr view`, `gh issue view`, `gh pr checks`) when useful.
+
+## Do not
+
+- Do **not** open stacked PRs with `gh pr create`, `gh pr create --fill`, or the GitHub UI “compare & pull request” flow for a stack.
+- Do **not** push a child branch and independently `gh pr create` against `main` when it should stack on another feature branch.
+
+## Examples
+
+```bash
+# Good — real Graphite stack
+gt create feat/ts-sidecar -m "Migrate sidecar to TypeScript"
+# ... implement, commit ...
+gt create feat/pm2-manager -m "Add PM2 manager and logrotate"
+# ... implement, commit ...
+gt submit --stack
+
+# Bad — breaks the stack
+gh pr create --title "..." --body "..."
+```
+
+After submit, confirm in Graphite that the upper PR targets the lower branch (not both → `main` unless that is intentional for a single PR).

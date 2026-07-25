@@ -2,34 +2,20 @@
  * Local sidecar — holds X session cookies + DeepSeek calls off the browser.
  */
 import http from "node:http";
-import { readFileSync, existsSync } from "node:fs";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
-import { getSessionFromEnv, verifySession } from "./xSession.mjs";
+import { loadEnv } from "./loadEnv.js";
+import { getSessionFromEnv, verifySession } from "./xSession.js";
 
 loadEnv(resolve(process.cwd(), ".env"));
 
 const PORT = Number(process.env.PORT || 8787);
 
-function loadEnv(path) {
-  if (!existsSync(path)) return;
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const i = trimmed.indexOf("=");
-    if (i === -1) continue;
-    const key = trimmed.slice(0, i).trim();
-    let val = trimmed.slice(i + 1).trim();
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
-    }
-    if (!(key in process.env)) process.env[key] = val;
-  }
-}
-
-function send(res, status, body) {
+function send(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+): void {
   const json = JSON.stringify(body);
   res.writeHead(status, {
     "Content-Type": "application/json",
@@ -40,10 +26,10 @@ function send(res, status, body) {
   res.end(json);
 }
 
-function readBody(req) {
+function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolveBody, reject) => {
-    const chunks = [];
-    req.on("data", (c) => chunks.push(c));
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf8");
       if (!raw) return resolveBody({});
@@ -65,7 +51,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, 204, {});
     }
 
-    if (req.method === "GET" && (url.pathname === "/api/health" || url.pathname === "/health")) {
+    if (
+      req.method === "GET" &&
+      (url.pathname === "/api/health" || url.pathname === "/health")
+    ) {
       const session = getSessionFromEnv();
       const hasDeepseek = Boolean(process.env.DEEPSEEK_API_KEY);
       return send(res, 200, {
@@ -80,7 +69,7 @@ const server = http.createServer(async (req, res) => {
       (url.pathname === "/api/session/verify" || url.pathname === "/api/session")
     ) {
       const result = await verifySession();
-      return send(res, result.ok ? 200 : (result.status || 401), result);
+      return send(res, result.ok ? 200 : result.status || 401, result);
     }
 
     if (req.method === "POST" && url.pathname === "/api/search") {

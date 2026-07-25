@@ -1,6 +1,7 @@
 # Dependencies / build
 node_modules/
 dist/
+server/dist/
 *.local
 
 # Env / secrets (session cookies, API keys)
