@@ -98,9 +98,37 @@ This path is **experimental**: X can change shapes, rate-limit, or lock accounts
 | `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
 | `scripts/test-session.ts` | CLI session smoke test |
 | `tsconfig.server.json` | Server emit config |
+| `pm2-manager.sh` | start/stop/restart/status/logs/setup-logrotate |
+| `ecosystem.config.example.cjs` | PM2 template (copy → local `ecosystem.config.cjs`) |
 | `.cursor/rules/` | Agent rules (e.g. Graphite stack PRs) |
 | `docs/MVP_PLAN.md` | Stream 1 scope |
 | `.env.example` | Required secrets (no real values) |
+
+## PM2 (prod-shaped API)
+
+The sidecar can run under PM2 with logs under `./logs/` (rotated; **never wiped on restart**).
+
+```bash
+cp ecosystem.config.example.cjs ecosystem.config.cjs   # once; gitignored
+npm i -g pm2                                           # if needed
+./pm2-manager.sh setup-logrotate                       # once: pm2-logrotate defaults
+./pm2-manager.sh start                                 # build:server + start x-copilot-api
+./pm2-manager.sh restart                               # or: ./pm2-manager.sh restart prod
+./pm2-manager.sh restart --skip-build                  # reuse server/dist
+./pm2-manager.sh status
+./pm2-manager.sh logs                                  # tail x-copilot-api
+./pm2-manager.sh stop
+```
+
+| Item | Value |
+|------|--------|
+| App name | `x-copilot-api` |
+| Port | `8787` (bind `127.0.0.1` in server) |
+| Out log | `logs/x-copilot-api.out.log` |
+| Err log | `logs/x-copilot-api.err.log` |
+| Ecosystem | `ecosystem.config.cjs` (from example; **not** tracked) |
+
+`setup-logrotate` sets `pm2-logrotate` to `max_size=10M`, `retain=14`, `compress=true`. Restart/start/stop **do not** truncate `logs/`.
 
 ## Stream 1 definition of done
 

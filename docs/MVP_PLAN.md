@@ -11,7 +11,7 @@ Ship a demoable loop in ~2 hours on stream:
 ## In scope
 
 - Vite + React dashboard
-- Local Node sidecar holding `X_AUTH_TOKEN` + `X_CT0`
+- TypeScript sidecar holding `X_AUTH_TOKEN` + `X_CT0` (PM2 via `./pm2-manager.sh` for prod-shaped deploys)
 - Search or timeline pull → normalized thread cards
 - DeepSeek relevance + draft replies
 - Copy-to-clipboard
