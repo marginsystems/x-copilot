@@ -2,12 +2,12 @@
 
 Research + reply assistant for X (Twitter): **session-backed search → DeepSeek analysis → draft replies** in a Vite dashboard. You review and post manually.
 
-**Status:** Stream 1 — agenda → DeepSeek V4 Flash queries → session SearchTimeline → thread cards. Draft API still stub.
+**Status:** Stream 1 — agenda → DeepSeek Chat queries → session SearchTimeline → thread cards. Draft API still stub.
 
 ## Idea
 
 1. Paste an **agenda** (who/what to engage, voice, avoid list).
-2. **DeepSeek V4 Flash** expands the agenda into 2–4 short X search queries (one LLM call).
+2. **DeepSeek Chat** expands the agenda into 2–4 short X search queries (one LLM call).
 3. Sidecar runs those queries via session-backed **SearchTimeline** (not the official paid API).
 4. Review thread cards; **draft** replies come next (stub for now).
 5. **Copy** and post yourself (no auto-engage in MVP).

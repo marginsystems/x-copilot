@@ -82,7 +82,7 @@ export default function App() {
       setSelectedId(list[0]?.id ?? null);
       const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
       setStatus(
-        `Loaded ${list.length} threads via ${data.model || "deepseek-v4-flash"} — ${qLabel}`,
+        `Loaded ${list.length} threads via ${data.model || "deepseek-chat"} — ${qLabel}`,
       );
     } catch {
       setThreads([]);

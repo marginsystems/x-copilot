@@ -1,5 +1,5 @@
 /**
- * Agenda → short X search queries via DeepSeek V4 Flash (single call).
+ * Agenda → short X search queries via DeepSeek (single call).
  */
 import { chatCompletions, resolveFlashModel } from "./deepseek.js";
 
@@ -58,6 +58,13 @@ export async function planQueriesFromAgenda(
       message: "Agenda is empty.",
     };
   }
+  if (trimmed.length > 5000) {
+    return {
+      ok: false,
+      error: "agenda_too_long",
+      message: "Agenda exceeds 5000 characters.",
+    };
+  }
 
   const model = resolveFlashModel();
   const first = await chatCompletions({
@@ -66,7 +73,7 @@ export async function planQueriesFromAgenda(
       { role: "system", content: SYSTEM },
       {
         role: "user",
-        content: `Agenda:\n${trimmed}\n\nRespond with JSON only.`,
+        content: `Agenda: ${JSON.stringify(trimmed)}\n\nRespond with JSON only.`,
       },
     ],
   });
@@ -90,7 +97,7 @@ export async function planQueriesFromAgenda(
       { role: "system", content: SYSTEM },
       {
         role: "user",
-        content: `Agenda:\n${trimmed}\n\nRespond with JSON only.`,
+        content: `Agenda: ${JSON.stringify(trimmed)}\n\nRespond with JSON only.`,
       },
       { role: "assistant", content: first.content },
       {

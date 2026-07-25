@@ -1,9 +1,9 @@
 /**
  * DeepSeek OpenAI-compatible chat client.
- * Query planning always uses V4 Flash (never Pro).
+ * Query planning always uses deepseek-chat (never Pro).
  */
 
-export const DEEPSEEK_FLASH_MODEL = "deepseek-v4-flash";
+export const DEEPSEEK_FLASH_MODEL = "deepseek-chat";
 
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -14,17 +14,7 @@ export type ChatCompletionResult =
   | { ok: true; content: string; model: string }
   | { ok: false; status: number; error: string; message: string };
 
-export function resolveFlashModel(env: NodeJS.ProcessEnv = process.env): string {
-  const requested = (env.DEEPSEEK_MODEL || DEEPSEEK_FLASH_MODEL).trim();
-  if (requested === "deepseek-v4-pro") {
-    return DEEPSEEK_FLASH_MODEL;
-  }
-  if (!requested) return DEEPSEEK_FLASH_MODEL;
-  // Prefer explicit flash; allow deepseek-chat alias only if someone still has it
-  if (requested === DEEPSEEK_FLASH_MODEL || requested === "deepseek-chat") {
-    return DEEPSEEK_FLASH_MODEL;
-  }
-  // Any other model → force Flash for planner path
+export function resolveFlashModel(): string {
   return DEEPSEEK_FLASH_MODEL;
 }
 
@@ -53,57 +43,61 @@ export async function chatCompletions(opts: {
   try {
     const ac = new AbortController();
     const tm = setTimeout(() => ac.abort(), 60000);
-    const res = await fetch(`${base}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: opts.messages,
-        temperature: opts.temperature ?? 0.3,
-        thinking: { type: "disabled" },
-      }),
-      signal: ac.signal,
-    }).finally(() => clearTimeout(tm));
-
-    const text = await res.text();
-    if (!res.ok) {
-      return {
-        ok: false,
-        status: res.status,
-        error: "deepseek_http",
-        message: `DeepSeek HTTP ${res.status}: ${text.slice(0, 240)}`,
-      };
-    }
-
-    let data: {
-      choices?: Array<{ message?: { content?: string } }>;
-      model?: string;
-    };
     try {
-      data = JSON.parse(text);
-    } catch {
-      return {
-        ok: false,
-        status: res.status,
-        error: "invalid_json",
-        message: "DeepSeek returned non-JSON.",
-      };
-    }
+      const res = await fetch(`${base}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: opts.messages,
+          temperature: opts.temperature ?? 0.3,
+          thinking: { type: "disabled" },
+        }),
+        signal: ac.signal,
+      });
 
-    const content = data.choices?.[0]?.message?.content;
-    if (!content?.trim()) {
-      return {
-        ok: false,
-        status: res.status,
-        error: "empty_content",
-        message: "DeepSeek returned empty content.",
-      };
-    }
+      const text = await res.text();
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          error: "deepseek_http",
+          message: `DeepSeek HTTP ${res.status}: ${text.slice(0, 240)}`,
+        };
+      }
 
-    return { ok: true, content, model: data.model || model };
+      let data: {
+        choices?: Array<{ message?: { content?: string } }>;
+        model?: string;
+      };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return {
+          ok: false,
+          status: res.status,
+          error: "invalid_json",
+          message: "DeepSeek returned non-JSON.",
+        };
+      }
+
+      const content = data.choices?.[0]?.message?.content;
+      if (!content?.trim()) {
+        return {
+          ok: false,
+          status: res.status,
+          error: "empty_content",
+          message: "DeepSeek returned empty content.",
+        };
+      }
+
+      return { ok: true, content, model: data.model || model };
+    } finally {
+      clearTimeout(tm);
+    }
   } catch (err) {
     return {
       ok: false,
