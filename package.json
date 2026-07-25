@@ -9,7 +9,8 @@
     "dev:server": "node --watch server/index.mjs",
     "dev:all": "npm run dev:server & npm run dev",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:session": "node scripts/test-session.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

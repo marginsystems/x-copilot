@@ -38,6 +38,29 @@ export default function App() {
     [threads, selectedId],
   );
 
+  async function onVerifySession() {
+    setBusy(true);
+    setStatus("Verifying X session…");
+    try {
+      const res = await fetch("/api/session/verify");
+      const data = (await res.json()) as {
+        ok?: boolean;
+        user?: { screen_name: string; name: string };
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        setStatus(`Session fail: ${data.message || data.error || res.status}`);
+        return;
+      }
+      setStatus(`Session OK — @${data.user?.screen_name} (${data.user?.name})`);
+    } catch {
+      setStatus("Sidecar offline — run npm run dev:server");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onSearch() {
     setBusy(true);
     setStatus("Searching… (stream 1: wire /api/search)");
@@ -60,7 +83,7 @@ export default function App() {
     } catch {
       setThreads(PLACEHOLDER_THREADS);
       setSelectedId(PLACEHOLDER_THREADS[0].id);
-      setStatus("Sidecar offline — showing placeholder cards");
+      setStatus("Sidecar offline — run npm run dev:server");
     } finally {
       setBusy(false);
     }
@@ -123,6 +146,9 @@ export default function App() {
             placeholder="What should we look for and how should we sound?"
           />
           <div className="row">
+            <button className="ghost" disabled={busy} onClick={onVerifySession}>
+              Verify session
+            </button>
             <button className="primary" disabled={busy} onClick={onSearch}>
               Search threads
             </button>
