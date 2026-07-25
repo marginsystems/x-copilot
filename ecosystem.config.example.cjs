@@ -17,8 +17,8 @@ const tsx = path.join(root, "node_modules", ".bin", "tsx");
 function runner(distEntry, srcEntry) {
   const dist = path.join(root, distEntry);
   if (fs.existsSync(dist)) {
-    // PM2 `script` is the entry file; node is auto-detected for .js
-    return { script: distEntry };
+    // PM2 `script` is the entry file; node interpreter is set explicitly
+    return { script: distEntry, interpreter: "node" };
   }
   return { script: srcEntry, interpreter: tsx };
 }
