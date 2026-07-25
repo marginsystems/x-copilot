@@ -2,7 +2,7 @@
 
 Research + reply assistant for X (Twitter): **session-backed search → DeepSeek analysis → draft replies** in a Vite dashboard. You review and post manually.
 
-**Status:** Stream 1 scaffold — dashboard shell + local sidecar stubs. Search and draft wiring are next.
+**Status:** Stream 1 — TypeScript sidecar + Vite dashboard. Search and draft wiring are next.
 
 ## Idea
 
@@ -30,7 +30,8 @@ cp .env.example .env
 
 npm install
 npm run test:session   # prove cookies work (GraphQL Viewer)
-npm run dev:server     # http://127.0.0.1:8787
+npm run build:server   # emit server/dist for production-shaped runs
+npm run dev:server     # tsx watch → http://127.0.0.1:8787
 npm run dev            # http://127.0.0.1:5173  (proxies /api → sidecar)
 ```
 
@@ -38,6 +39,16 @@ Health: `curl http://127.0.0.1:8787/api/health`
 Session: `curl http://127.0.0.1:8787/api/session/verify`
 
 **Important:** Vite alone is not enough. If you only run `npm run dev`, Search hits a dead proxy and shows a proxy/500 error. Always run `dev:server` too.
+
+### TypeScript sidecar
+
+| Script | What it runs |
+|--------|----------------|
+| `npm run dev:server` | `tsx watch server/src/index.ts` |
+| `npm run build:server` | `tsc -p tsconfig.server.json` → `server/dist/` |
+| `npm run test:session` | `tsx scripts/test-session.ts` |
+
+UI typecheck stays on root `tsconfig.json` (`noEmit`); the API uses `tsconfig.server.json` (NodeNext emit).
 
 ## Session cookies
 
@@ -83,9 +94,11 @@ This path is **experimental**: X can change shapes, rate-limit, or lock accounts
 | Path | Role |
 |------|------|
 | `src/` | Vite dashboard (agenda, threads, draft) |
-| `server/xSession.mjs` | Cookie headers + GraphQL Viewer verify |
-| `server/index.mjs` | Local sidecar HTTP API |
-| `scripts/test-session.mjs` | CLI session smoke test |
+| `server/src/` | TypeScript sidecar (HTTP API + X session) |
+| `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
+| `scripts/test-session.ts` | CLI session smoke test |
+| `tsconfig.server.json` | Server emit config |
+| `.cursor/rules/` | Agent rules (e.g. Graphite stack PRs) |
 | `docs/MVP_PLAN.md` | Stream 1 scope |
 | `.env.example` | Required secrets (no real values) |
 
