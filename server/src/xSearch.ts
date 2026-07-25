@@ -195,7 +195,6 @@ async function healSearchQueryId(session: SessionCreds): Promise<string | null> 
     const headers = buildSessionHeaders(session);
     const page = await fetch("https://x.com/explore", {
       headers: {
-        cookie: headers.cookie,
         "user-agent": headers["user-agent"],
       },
     });
@@ -223,8 +222,8 @@ async function healSearchQueryId(session: SessionCreds): Promise<string | null> 
         return m[1];
       }
     }
-  } catch {
-    // ignore heal failures
+  } catch (err) {
+    console.error("healSearchQueryId failed:", err);
   }
   return null;
 }
@@ -297,66 +296,62 @@ export async function searchTimeline(opts: {
     });
     const url = `https://x.com/i/api/graphql/${qid}/SearchTimeline?${params}`;
 
+    let res: Response;
     try {
       const ac = new AbortController();
       const tm = setTimeout(() => ac.abort(), 15000);
-      const res = await fetch(url, {
+      res = await fetch(url, {
         method: "POST",
         headers,
         body: JSON.stringify({ features, queryId: qid }),
         signal: ac.signal,
       }).finally(() => clearTimeout(tm));
-      const text = await res.text();
-      lastStatus = res.status;
-      lastBody = text;
+    } catch {
+      continue;
+    }
+    const text = await res.text();
+    lastStatus = res.status;
+    lastBody = text;
 
-      if (res.status === 404 || text.includes("Query not found")) {
-        continue;
-      }
-      if (!res.ok) {
-        return {
-          ok: false,
-          status: res.status,
-          error: "search_failed",
-          message: `SearchTimeline HTTP ${res.status}`,
-        };
-      }
-
-      let data: unknown;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        return {
-          ok: false,
-          status: res.status,
-          error: "invalid_json",
-          message: "SearchTimeline returned non-JSON.",
-        };
-      }
-
-      const errors = (data as { errors?: Array<{ message?: string }> }).errors;
-      if (errors?.length) {
-        const msg = errors.map((e) => e.message).join("; ");
-        if (/query/i.test(msg)) continue;
-        return {
-          ok: false,
-          status: 200,
-          error: "graphql_error",
-          message: msg,
-        };
-      }
-
-      cachedSearchQueryId = qid;
-      const threads = parseSearchTimelineResponse(data);
-      return { ok: true, threads, queryId: qid };
-    } catch (err) {
+    if (res.status === 404 || text.includes("Query not found")) {
+      continue;
+    }
+    if (!res.ok) {
       return {
         ok: false,
-        status: 0,
+        status: res.status,
         error: "search_failed",
-        message: err instanceof Error ? err.message : String(err),
+        message: `SearchTimeline HTTP ${res.status}`,
       };
     }
+
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return {
+        ok: false,
+        status: res.status,
+        error: "invalid_json",
+        message: "SearchTimeline returned non-JSON.",
+      };
+    }
+
+    const errors = (data as { errors?: Array<{ message?: string }> }).errors;
+    if (errors?.length) {
+      const msg = errors.map((e) => e.message).join("; ");
+      if (/query/i.test(msg)) continue;
+      return {
+        ok: false,
+        status: 200,
+        error: "graphql_error",
+        message: msg,
+      };
+    }
+
+    cachedSearchQueryId = qid;
+    const threads = parseSearchTimelineResponse(data);
+    return { ok: true, threads, queryId: qid };
   }
 
   return {

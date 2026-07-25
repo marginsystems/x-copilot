@@ -30,14 +30,24 @@ function send(
 function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolveBody, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (c: Buffer) => chunks.push(c));
+    let size = 0;
+    const MAX_SIZE = 1_048_576;
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > MAX_SIZE) {
+        req.destroy();
+        reject(new Error("Request body exceeds 1 MB limit"));
+        return;
+      }
+      chunks.push(c);
+    });
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf8");
       if (!raw) return resolveBody({});
       try {
         resolveBody(JSON.parse(raw));
-      } catch (err) {
-        reject(err);
+      } catch {
+        reject(new Error("Invalid JSON"));
       }
     });
     req.on("error", reject);
