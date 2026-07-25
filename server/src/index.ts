@@ -27,6 +27,14 @@ function send(
   res.end(json);
 }
 
+class BodyError extends Error {
+  statusCode: number;
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolveBody, reject) => {
     const chunks: Buffer[] = [];
@@ -35,8 +43,7 @@ function readBody(req: IncomingMessage): Promise<unknown> {
     req.on("data", (c: Buffer) => {
       size += c.length;
       if (size > MAX_SIZE) {
-        req.destroy();
-        reject(new Error("Request body exceeds 1 MB limit"));
+        reject(new BodyError("Request body exceeds 1 MB limit", 413));
         return;
       }
       chunks.push(c);
@@ -47,7 +54,7 @@ function readBody(req: IncomingMessage): Promise<unknown> {
       try {
         resolveBody(JSON.parse(raw));
       } catch {
-        reject(new Error("Invalid JSON"));
+        reject(new BodyError("Invalid JSON", 400));
       }
     });
     req.on("error", reject);
@@ -84,10 +91,19 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/search") {
-      const body = (await readBody(req).catch(() => ({}))) as {
-        queries?: unknown;
-        agenda?: unknown;
-      };
+      let body: { queries?: unknown; agenda?: unknown };
+      try {
+        body = (await readBody(req)) as {
+          queries?: unknown;
+          agenda?: unknown;
+        };
+      } catch (err) {
+        const statusCode = err instanceof BodyError ? err.statusCode : 400;
+        return send(res, statusCode, {
+          error: "bad_request",
+          message: err instanceof Error ? err.message : "Invalid request body",
+        });
+      }
       const session = getSessionFromEnv();
       if (!session.configured) {
         return send(res, 401, {
