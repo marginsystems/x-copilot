@@ -17,9 +17,10 @@ const tsx = path.join(root, "node_modules", ".bin", "tsx");
 function runner(distEntry, srcEntry) {
   const dist = path.join(root, distEntry);
   if (fs.existsSync(dist)) {
-    return { script: "node", args: distEntry };
+    // PM2 `script` is the entry file; node interpreter is set explicitly
+    return { script: distEntry, interpreter: "node" };
   }
-  return { script: tsx, args: srcEntry };
+  return { script: srcEntry, interpreter: tsx };
 }
 
 const api = runner("server/dist/index.js", "server/src/index.ts");
@@ -29,7 +30,7 @@ module.exports = {
     {
       name: "x-copilot-api",
       script: api.script,
-      args: api.args,
+      ...(api.interpreter ? { interpreter: api.interpreter } : {}),
       cwd: root,
       autorestart: true,
       max_restarts: 10,
