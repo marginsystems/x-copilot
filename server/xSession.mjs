@@ -60,7 +60,7 @@ function viewerUrl() {
 
 /**
  * Prove the session works (GraphQL Viewer → identity; badge_count fallback).
- * @returns {{ ok: true, user: object, method: string } | { ok: false, status: number, error: string, message?: string, body?: string }}
+ * @returns {{ ok: true, user: object, method: string } | { ok: false, status: number, error: string, message?: string }}
  */
 export async function verifySession(session = getSessionFromEnv()) {
   if (!session.configured) {
@@ -74,7 +74,9 @@ export async function verifySession(session = getSessionFromEnv()) {
 
   const headers = buildSessionHeaders(session);
 
-  const viewer = await fetch(viewerUrl(), { method: "GET", headers, redirect: "manual" });
+  const ac1 = new AbortController();
+  const tm1 = setTimeout(() => ac1.abort(), 10000);
+  const viewer = await fetch(viewerUrl(), { method: "GET", headers, redirect: "manual", signal: ac1.signal }).finally(() => clearTimeout(tm1));
   const viewerText = await viewer.text();
 
   if (viewer.ok) {
@@ -101,22 +103,16 @@ export async function verifySession(session = getSessionFromEnv()) {
   }
 
   // Auth-only fallback if Viewer queryId rotated
-  const badge = await fetch(BADGE_URL, { method: "GET", headers, redirect: "manual" });
+  const ac2 = new AbortController();
+  const tm2 = setTimeout(() => ac2.abort(), 10000);
+  const badge = await fetch(BADGE_URL, { method: "GET", headers, redirect: "manual", signal: ac2.signal }).finally(() => clearTimeout(tm2));
   const badgeText = await badge.text();
   if (badge.ok) {
     return {
-      ok: true,
-      method: "badge_count",
-      user: {
-        id: "",
-        screen_name: "(session ok — Viewer query rotated; set X_VIEWER_QUERY_ID)",
-        name: "authenticated",
-        protected: false,
-      },
-      warning:
-        "Session cookies work, but GraphQL Viewer failed. Update X_VIEWER_QUERY_ID for identity.",
-      viewerStatus: viewer.status,
-      viewerBody: viewerText.slice(0, 240),
+      ok: false,
+      status: viewer.status,
+      error: "viewer_failed",
+      message: "Session cookies work, but GraphQL Viewer failed. Update X_VIEWER_QUERY_ID for identity.",
     };
   }
 
@@ -125,7 +121,6 @@ export async function verifySession(session = getSessionFromEnv()) {
     status: viewer.status || badge.status,
     error: "verify_failed",
     message: summarizeFailure(viewer.status || badge.status, viewerText || badgeText),
-    body: (viewerText || badgeText).slice(0, 400),
   };
 }
 

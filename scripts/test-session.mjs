@@ -48,11 +48,16 @@ if (!session.configured) {
   process.exit(1);
 }
 
-const result = await verifySession(session);
+let result;
+try {
+  result = await verifySession(session);
+} catch (err) {
+  console.error(`\nFAIL: ${err.message || err}`);
+  process.exit(1);
+}
 if (!result.ok) {
   console.error(`\nFAIL: ${result.message || result.error}`);
   if (result.status) console.error(`  HTTP ${result.status}`);
-  if (result.body) console.error(`  body: ${result.body}`);
   process.exit(1);
 }
 
