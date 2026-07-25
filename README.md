@@ -2,15 +2,15 @@
 
 Research + reply assistant for X (Twitter): **session-backed search → DeepSeek analysis → draft replies** in a Vite dashboard. You review and post manually.
 
-**Status:** Stream 1 — TypeScript sidecar + Vite dashboard. Search and draft wiring are next.
+**Status:** Stream 1 — agenda → DeepSeek V4 Flash queries → session SearchTimeline → thread cards. Draft API still stub.
 
 ## Idea
 
 1. Paste an **agenda** (who/what to engage, voice, avoid list).
-2. Pull candidate threads via your own **X session cookies** (For You or query) — not the official paid API.
-3. **DeepSeek** ranks relevance and drafts 1–3 reply options.
-4. **Copy** a draft and post yourself (no auto-engage in MVP).
-5. Optional later: **OpenCode** multi-turn dig on a hard thread.
+2. **DeepSeek V4 Flash** expands the agenda into 2–4 short X search queries (one LLM call).
+3. Sidecar runs those queries via session-backed **SearchTimeline** (not the official paid API).
+4. Review thread cards; **draft** replies come next (stub for now).
+5. **Copy** and post yourself (no auto-engage in MVP).
 
 ## Architecture
 

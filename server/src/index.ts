@@ -5,6 +5,7 @@ import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import { loadEnv } from "./loadEnv.js";
+import { planQueriesFromAgenda } from "./queryPlan.js";
 import { searchMany } from "./xSearch.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
@@ -112,16 +113,36 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      const queries = Array.isArray(body.queries)
+      let queries = Array.isArray(body.queries)
         ? body.queries.filter((q): q is string => typeof q === "string")
         : [];
+      let plannedBy: "client" | "deepseek" = "client";
+      let planModel: string | undefined;
 
       if (queries.length === 0) {
-        return send(res, 400, {
-          error: "missing_queries",
-          message:
-            "PR1: pass { queries: string[] }. Agenda + DeepSeek planning lands in the next PR.",
-        });
+        const agenda = typeof body.agenda === "string" ? body.agenda.trim() : "";
+        if (!agenda) {
+          return send(res, 400, {
+            error: "missing_agenda",
+            message: "Pass { agenda: string } or { queries: string[] }.",
+          });
+        }
+        if (!process.env.DEEPSEEK_API_KEY?.trim()) {
+          return send(res, 503, {
+            error: "missing_deepseek_key",
+            message: "Set DEEPSEEK_API_KEY for agenda → query planning.",
+          });
+        }
+        const plan = await planQueriesFromAgenda(agenda);
+        if (!plan.ok) {
+          return send(res, 502, {
+            error: plan.error,
+            message: plan.message,
+          });
+        }
+        queries = plan.queries;
+        plannedBy = "deepseek";
+        planModel = plan.model;
       }
 
       const result = await searchMany(queries, { session });
@@ -129,6 +150,8 @@ const server = http.createServer(async (req, res) => {
         queries: result.queries,
         threads: result.threads,
         errors: result.errors,
+        plannedBy,
+        model: planModel,
       });
     }
 
