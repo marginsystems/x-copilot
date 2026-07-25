@@ -8,6 +8,9 @@ server/dist/
 .env
 .env.*.local
 
+# PM2 (machine-local; copy from ecosystem.config.example.cjs)
+ecosystem.config.cjs
+
 # IDE / OS
 .DS_Store
 Thumbs.db
@@ -17,5 +20,6 @@ Thumbs.db
 *.swo
 
 # Logs
+logs/
 *.log
 npm-debug.log*
