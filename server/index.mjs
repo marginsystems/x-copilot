@@ -80,7 +80,7 @@ const server = http.createServer(async (req, res) => {
       (url.pathname === "/api/session/verify" || url.pathname === "/api/session")
     ) {
       const result = await verifySession();
-      return send(res, result.ok ? 200 : 401, result);
+      return send(res, result.ok ? 200 : (result.status || 401), result);
     }
 
     if (req.method === "POST" && url.pathname === "/api/search") {

@@ -77,54 +77,63 @@ export async function verifySession(session = getSessionFromEnv()) {
 
   const headers = buildSessionHeaders(session);
 
-  const ac1 = new AbortController();
-  const tm1 = setTimeout(() => ac1.abort(), 10000);
-  const viewer = await fetch(viewerUrl(), { method: "GET", headers, redirect: "manual", signal: ac1.signal }).finally(() => clearTimeout(tm1));
-  const viewerText = await viewer.text();
+  try {
+    const ac1 = new AbortController();
+    const tm1 = setTimeout(() => ac1.abort(), 10000);
+    const viewer = await fetch(viewerUrl(), { method: "GET", headers, redirect: "manual", signal: ac1.signal }).finally(() => clearTimeout(tm1));
+    const viewerText = await viewer.text();
 
-  if (viewer.ok) {
-    try {
-      const data = JSON.parse(viewerText);
-      const result = data?.data?.viewer?.user_results?.result;
-      const core = result?.core;
-      const restId = result?.rest_id || result?.id;
-      if (core?.screen_name) {
-        return {
-          ok: true,
-          method: "graphql_viewer",
-          user: {
-            id: String(result.rest_id || decodeUserRestId(restId) || ""),
-            screen_name: core.screen_name,
-            name: core.name || core.screen_name,
-            protected: Boolean(result?.privacy?.protected),
-          },
-        };
+    if (viewer.ok) {
+      try {
+        const data = JSON.parse(viewerText);
+        const result = data?.data?.viewer?.user_results?.result;
+        const core = result?.core;
+        const restId = result?.rest_id || result?.id;
+        if (core?.screen_name) {
+          return {
+            ok: true,
+            method: "graphql_viewer",
+            user: {
+              id: String(result.rest_id || decodeUserRestId(restId) || ""),
+              screen_name: core.screen_name,
+              name: core.name || core.screen_name,
+              protected: Boolean(result?.privacy?.protected),
+            },
+          };
+        }
+      } catch {
+        // fall through to badge_count
       }
-    } catch {
-      // fall through to badge_count
     }
-  }
 
-  // Auth-only fallback if Viewer queryId rotated
-  const ac2 = new AbortController();
-  const tm2 = setTimeout(() => ac2.abort(), 10000);
-  const badge = await fetch(BADGE_URL, { method: "GET", headers, redirect: "manual", signal: ac2.signal }).finally(() => clearTimeout(tm2));
-  const badgeText = await badge.text();
-  if (badge.ok) {
+    // Auth-only fallback if Viewer queryId rotated
+    const ac2 = new AbortController();
+    const tm2 = setTimeout(() => ac2.abort(), 10000);
+    const badge = await fetch(BADGE_URL, { method: "GET", headers, redirect: "manual", signal: ac2.signal }).finally(() => clearTimeout(tm2));
+    const badgeText = await badge.text();
+    if (badge.ok) {
+      return {
+        ok: false,
+        status: viewer.status,
+        error: "viewer_failed",
+        message: "Session cookies work, but GraphQL Viewer failed. Update X_VIEWER_QUERY_ID for identity.",
+      };
+    }
+
     return {
       ok: false,
-      status: viewer.status,
-      error: "viewer_failed",
-      message: "Session cookies work, but GraphQL Viewer failed. Update X_VIEWER_QUERY_ID for identity.",
+      status: viewer.status || badge.status,
+      error: "verify_failed",
+      message: summarizeFailure(viewer.status || badge.status, viewerText || badgeText),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      error: "verify_failed",
+      message: err instanceof Error ? err.message : String(err),
     };
   }
-
-  return {
-    ok: false,
-    status: viewer.status || badge.status,
-    error: "verify_failed",
-    message: summarizeFailure(viewer.status || badge.status, viewerText || badgeText),
-  };
 }
 
 function decodeUserRestId(id) {
