@@ -7,8 +7,8 @@
  * Exit 0 on success, 1 on failure. Never prints full cookie values.
  */
 import { resolve } from "node:path";
-import { loadEnv } from "../server/src/loadEnv.ts";
-import { getSessionFromEnv, verifySession } from "../server/src/xSession.ts";
+import { loadEnv } from "../server/src/loadEnv.js";
+import { getSessionFromEnv, verifySession } from "../server/src/xSession.js";
 
 const envPath = resolve(process.cwd(), ".env");
 if (!loadEnv(envPath)) {

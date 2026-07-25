@@ -170,10 +170,15 @@ export async function verifySession(
     const badgeText = await badge.text();
     if (badge.ok) {
       return {
-        ok: false,
-        status: viewer.status,
-        error: "viewer_failed",
-        message:
+        ok: true,
+        method: "badge_count",
+        user: {
+          id: "",
+          screen_name: "unknown",
+          name: "unknown",
+          protected: false,
+        },
+        warning:
           "Session cookies work, but GraphQL Viewer failed. Update X_VIEWER_QUERY_ID for identity.",
       };
     }
