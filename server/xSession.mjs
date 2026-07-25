@@ -4,12 +4,15 @@
  */
 
 /** Public web-client bearer (same token the X website ships in JS). Not an API secret. */
-export const X_WEB_BEARER =
-  process.env.X_BEARER_TOKEN ||
-  "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
+export function getWebBearer() {
+  return process.env.X_BEARER_TOKEN ||
+    "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
+}
 
 /** Current web Viewer operation — override with X_VIEWER_QUERY_ID if X rotates it. */
-export const X_VIEWER_QUERY_ID = process.env.X_VIEWER_QUERY_ID || "u4ni7JqpqdAQxWQfkLsdUQ";
+export function getViewerQueryId() {
+  return process.env.X_VIEWER_QUERY_ID || "u4ni7JqpqdAQxWQfkLsdUQ";
+}
 
 const BADGE_URL =
   "https://x.com/i/api/2/badge_count/badge_count.json?supports_ntab_urt=1";
@@ -26,7 +29,7 @@ export function getSessionFromEnv(env = process.env) {
 
 export function buildSessionHeaders({ authToken, ct0 }) {
   return {
-    authorization: `Bearer ${X_WEB_BEARER}`,
+    authorization: `Bearer ${getWebBearer()}`,
     cookie: `auth_token=${authToken}; ct0=${ct0}`,
     "x-csrf-token": ct0,
     "x-twitter-auth-type": "OAuth2Session",
@@ -55,7 +58,7 @@ function viewerUrl() {
     variables: JSON.stringify(variables),
     features: JSON.stringify(features),
   });
-  return `https://x.com/i/api/graphql/${X_VIEWER_QUERY_ID}/Viewer?${qs}`;
+  return `https://x.com/i/api/graphql/${getViewerQueryId()}/Viewer?${qs}`;
 }
 
 /**
