@@ -1,0 +1,20 @@
+# Dependencies / build
+node_modules/
+dist/
+*.local
+
+# Env / secrets (session cookies, API keys)
+.env
+.env.*.local
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
