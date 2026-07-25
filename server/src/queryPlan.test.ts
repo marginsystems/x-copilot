@@ -39,14 +39,7 @@ describe("validateQueries", () => {
 });
 
 describe("resolveFlashModel", () => {
-  it("forces flash when pro is requested", () => {
-    assert.equal(
-      resolveFlashModel({ DEEPSEEK_MODEL: "deepseek-v4-pro" }),
-      DEEPSEEK_FLASH_MODEL,
-    );
-  });
-
-  it("defaults to flash", () => {
-    assert.equal(resolveFlashModel({}), DEEPSEEK_FLASH_MODEL);
+  it("returns flash model", () => {
+    assert.equal(resolveFlashModel(), DEEPSEEK_FLASH_MODEL);
   });
 });
