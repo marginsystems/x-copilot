@@ -11,7 +11,9 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build": "npm run build:server && tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
-    "test:session": "tsx scripts/test-session.ts"
+    "test": "tsx --test server/src/**/*.test.ts",
+    "test:session": "tsx scripts/test-session.ts",
+    "test:search": "tsx scripts/test-search.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

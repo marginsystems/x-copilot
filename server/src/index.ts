@@ -5,6 +5,7 @@ import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import { loadEnv } from "./loadEnv.js";
+import { searchMany } from "./xSearch.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
 loadEnv(resolve(process.cwd(), ".env"));
@@ -73,10 +74,35 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/search") {
-      await readBody(req).catch(() => ({}));
-      return send(res, 501, {
-        error: "not_implemented",
-        message: "Wire session-backed X search here (For You / query).",
+      const body = (await readBody(req).catch(() => ({}))) as {
+        queries?: unknown;
+        agenda?: unknown;
+      };
+      const session = getSessionFromEnv();
+      if (!session.configured) {
+        return send(res, 401, {
+          error: "missing_credentials",
+          message: "Set X_AUTH_TOKEN and X_CT0 in .env.",
+        });
+      }
+
+      const queries = Array.isArray(body.queries)
+        ? body.queries.filter((q): q is string => typeof q === "string")
+        : [];
+
+      if (queries.length === 0) {
+        return send(res, 400, {
+          error: "missing_queries",
+          message:
+            "PR1: pass { queries: string[] }. Agenda + DeepSeek planning lands in the next PR.",
+        });
+      }
+
+      const result = await searchMany(queries, { session });
+      return send(res, 200, {
+        queries: result.queries,
+        threads: result.threads,
+        errors: result.errors,
       });
     }
 

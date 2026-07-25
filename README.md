@@ -47,6 +47,8 @@ Session: `curl http://127.0.0.1:8787/api/session/verify`
 | `npm run dev:server` | `tsx watch server/src/index.ts` |
 | `npm run build:server` | `tsc -p tsconfig.server.json` → `server/dist/` |
 | `npm run test:session` | `tsx scripts/test-session.ts` |
+| `npm test` | Unit tests (`node:test` via tsx) |
+| `npm run test:search -- "query"` | Live SearchTimeline smoke |
 
 UI typecheck stays on root `tsconfig.json` (`noEmit`); the API uses `tsconfig.server.json` (NodeNext emit).
 
@@ -94,7 +96,7 @@ This path is **experimental**: X can change shapes, rate-limit, or lock accounts
 | Path | Role |
 |------|------|
 | `src/` | Vite dashboard (agenda, threads, draft) |
-| `server/src/` | TypeScript sidecar (HTTP API + X session) |
+| `server/src/` | TypeScript sidecar (HTTP API + X session + SearchTimeline) |
 | `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
 | `scripts/test-session.ts` | CLI session smoke test |
 | `tsconfig.server.json` | Server emit config |
