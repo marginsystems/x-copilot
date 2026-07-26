@@ -5,6 +5,7 @@ import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import { loadEnv } from "./loadEnv.js";
+import { searchMany } from "./xSearch.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
 loadEnv(resolve(process.cwd(), ".env"));
@@ -26,17 +27,34 @@ function send(
   res.end(json);
 }
 
+class BodyError extends Error {
+  statusCode: number;
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolveBody, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (c: Buffer) => chunks.push(c));
+    let size = 0;
+    const MAX_SIZE = 1_048_576;
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > MAX_SIZE) {
+        reject(new BodyError("Request body exceeds 1 MB limit", 413));
+        return;
+      }
+      chunks.push(c);
+    });
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf8");
       if (!raw) return resolveBody({});
       try {
         resolveBody(JSON.parse(raw));
-      } catch (err) {
-        reject(err);
+      } catch {
+        reject(new BodyError("Invalid JSON", 400));
       }
     });
     req.on("error", reject);
@@ -73,10 +91,44 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/search") {
-      await readBody(req).catch(() => ({}));
-      return send(res, 501, {
-        error: "not_implemented",
-        message: "Wire session-backed X search here (For You / query).",
+      let body: { queries?: unknown; agenda?: unknown };
+      try {
+        body = (await readBody(req)) as {
+          queries?: unknown;
+          agenda?: unknown;
+        };
+      } catch (err) {
+        const statusCode = err instanceof BodyError ? err.statusCode : 400;
+        return send(res, statusCode, {
+          error: "bad_request",
+          message: err instanceof Error ? err.message : "Invalid request body",
+        });
+      }
+      const session = getSessionFromEnv();
+      if (!session.configured) {
+        return send(res, 401, {
+          error: "missing_credentials",
+          message: "Set X_AUTH_TOKEN and X_CT0 in .env.",
+        });
+      }
+
+      const queries = Array.isArray(body.queries)
+        ? body.queries.filter((q): q is string => typeof q === "string")
+        : [];
+
+      if (queries.length === 0) {
+        return send(res, 400, {
+          error: "missing_queries",
+          message:
+            "PR1: pass { queries: string[] }. Agenda + DeepSeek planning lands in the next PR.",
+        });
+      }
+
+      const result = await searchMany(queries, { session });
+      return send(res, 200, {
+        queries: result.queries,
+        threads: result.threads,
+        errors: result.errors,
       });
     }
 
