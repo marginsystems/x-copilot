@@ -32,6 +32,10 @@ The agenda is passed along, so a specific on-agenda question scores low even tho
 
 **Mark interacted** (or **Copy reply**) records the thread + author in a local sidecar file `data/interactions.json` (gitignored). For the next **24 hours**, later searches drop other posts from that same `@handle` *before* triage, so we do not keep hammering the same account or waste DeepSeek tokens on them. The search status line reports how many posts were filtered. Restarting the sidecar keeps the cooldown (file persist).
 
+## Length filter
+
+Before triage, posts with more than **480** characters (or obvious `N/M` thread openers like `1/17 …`) are dropped so walls of text never reach DeepSeek or the accordion. Override with `X_MAX_THREAD_CHARS` in `.env`. The search status line reports how many were dropped.
+
 ## Architecture
 
 ```

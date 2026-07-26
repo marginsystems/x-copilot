@@ -244,6 +244,7 @@ export default function App() {
         model?: string;
         triageWarning?: string;
         cooldownWarning?: string;
+        lengthWarning?: string;
       };
       if (!res.ok) {
         setThreads([]);
@@ -262,7 +263,8 @@ export default function App() {
       setStatus(
         `Loaded ${list.length} threads via ${data.model || "deepseek-chat"} — ${qLabel}` +
           (data.triageWarning ? ` · ${data.triageWarning}` : "") +
-          (data.cooldownWarning ? ` · ${data.cooldownWarning}` : ""),
+          (data.cooldownWarning ? ` · ${data.cooldownWarning}` : "") +
+          (data.lengthWarning ? ` · ${data.lengthWarning}` : ""),
       );
     } catch {
       setThreads([]);

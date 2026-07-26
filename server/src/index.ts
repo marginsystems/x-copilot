@@ -13,6 +13,10 @@ import {
 } from "./interactionStore.js";
 import { loadEnv } from "./loadEnv.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
+import {
+  filterThreadsByLength,
+  resolveMaxThreadChars,
+} from "./threadFilters.js";
 import { triageThreads } from "./threadTriage.js";
 import { searchMany } from "./xSearch.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
@@ -156,9 +160,11 @@ const server = http.createServer(async (req, res) => {
       const result = await searchMany(queries, { session });
       const cooled = await getCooledAuthorKeys();
       const filtered = filterThreadsByCooldown(result.threads, cooled);
+      const maxChars = resolveMaxThreadChars(process.env.X_MAX_THREAD_CHARS);
+      const byLength = filterThreadsByLength(filtered.threads, maxChars);
       const triaged = await triageThreads({
         agenda,
-        threads: filtered.threads,
+        threads: byLength.threads,
       });
       return send(res, 200, {
         queries: result.queries,
@@ -172,6 +178,10 @@ const server = http.createServer(async (req, res) => {
         cooldownAuthors: filtered.filteredAuthors,
         cooldownWarning: filtered.filteredCount
           ? `Filtered ${filtered.filteredCount} posts from cooled-down authors.`
+          : undefined,
+        lengthFiltered: byLength.filteredCount,
+        lengthWarning: byLength.filteredCount
+          ? `Dropped ${byLength.filteredCount} posts (${byLength.openerFilteredCount} thread openers, ${byLength.filteredCount - byLength.openerFilteredCount} over ${maxChars} chars).`
           : undefined,
       });
     }
