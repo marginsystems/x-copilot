@@ -54,7 +54,7 @@ function ThreadRow({
   const bait = baitRisk(thread);
   const ago = formatTimeAgo(thread.createdAt);
   const absolute = formatAbsoluteTime(thread.createdAt);
-  const tags = [thread.intent, ...(thread.flags ?? [])].filter(Boolean);
+  const tags = [...new Set([thread.intent, ...(thread.flags ?? [])].filter(Boolean))];
   const classes = ["thread-row"];
   if (open) classes.push("open");
   if (thread.engage === "skip") classes.push("skip");
