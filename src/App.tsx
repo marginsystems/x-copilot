@@ -1,4 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  SCOUT_SEARCH_TIMELINE,
+  SCOUT_STAGE_TICK_MS,
+  scoutStageMessage,
+  type ScoutStageId,
+} from "./lib/scoutStages";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 
 type ThreadCard = {
@@ -146,13 +152,48 @@ export default function App() {
   const [agenda, setAgenda] = useState(
     "Find builders talking about shipping AI tools in public. Prefer questions I can answer helpfully.",
   );
-  const [status, setStatus] = useState("Idle — verify session, then search from agenda");
+  const [status, setStatus] = useState(
+    "Idle — verify session, then let Scout search from your agenda",
+  );
   const [plannedQueries, setPlannedQueries] = useState<string[]>([]);
   const [threads, setThreads] = useState<ThreadCard[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
+  const [scoutLog, setScoutLog] = useState<string[]>([]);
   const [interactedIds, setInteractedIds] = useState<Set<string>>(() => new Set());
+  const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function stopScoutTimeline() {
+    if (stageTimerRef.current) {
+      clearInterval(stageTimerRef.current);
+      stageTimerRef.current = null;
+    }
+  }
+
+  function startScoutTimeline() {
+    stopScoutTimeline();
+    let idx = 0;
+    setScoutStage(SCOUT_SEARCH_TIMELINE[0]);
+    setScoutLog([scoutStageMessage(SCOUT_SEARCH_TIMELINE[0])]);
+    stageTimerRef.current = setInterval(() => {
+      idx = Math.min(idx + 1, SCOUT_SEARCH_TIMELINE.length - 1);
+      const stage = SCOUT_SEARCH_TIMELINE[idx];
+      setScoutStage(stage);
+      setScoutLog((prev) => {
+        const line = scoutStageMessage(stage);
+        if (prev[prev.length - 1] === line) return prev;
+        return [...prev.slice(-4), line];
+      });
+      if (idx >= SCOUT_SEARCH_TIMELINE.length - 1) {
+        stopScoutTimeline();
+      }
+    }, SCOUT_STAGE_TICK_MS);
+  }
+
+  useEffect(() => () => stopScoutTimeline(), []);
 
   async function hydrateInteracted() {
     try {
@@ -233,8 +274,13 @@ export default function App() {
 
   async function onSearch() {
     setBusy(true);
+    setSearching(true);
     setPlannedQueries([]);
-    setStatus("Planning search queries with DeepSeek V4 Flash…");
+    setThreads([]);
+    setExpandedId(null);
+    setDraft(null);
+    startScoutTimeline();
+    setStatus(scoutStageMessage("planning"));
     try {
       const res = await fetch("/api/search", {
         method: "POST",
@@ -251,10 +297,12 @@ export default function App() {
         cooldownWarning?: string;
         lengthWarning?: string;
       };
+      stopScoutTimeline();
       if (!res.ok) {
+        setScoutStage(null);
+        setScoutLog((prev) => [...prev.slice(-4), scoutStageMessage("error")]);
         setThreads([]);
-        setExpandedId(null);
-        setStatus(`Search fail: ${data.message || data.error || res.status}`);
+        setStatus(`Scout failed: ${data.message || data.error || res.status}`);
         return;
       }
       const qs = data.queries ?? [];
@@ -264,18 +312,22 @@ export default function App() {
       setExpandedId(null);
       setDraft(null);
       await hydrateInteracted();
+      setScoutStage("done");
       const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
-      setStatus(
-        `Loaded ${list.length} threads via ${data.model || "deepseek-chat"} — ${qLabel}` +
-          (data.triageWarning ? ` · ${data.triageWarning}` : "") +
-          (data.cooldownWarning ? ` · ${data.cooldownWarning}` : "") +
-          (data.lengthWarning ? ` · ${data.lengthWarning}` : ""),
-      );
+      const summary =
+        `Scout found ${list.length} threads — ${qLabel}` +
+        (data.triageWarning ? ` · ${data.triageWarning}` : "") +
+        (data.cooldownWarning ? ` · ${data.cooldownWarning}` : "") +
+        (data.lengthWarning ? ` · ${data.lengthWarning}` : "");
+      setStatus(summary);
+      setScoutLog((prev) => [...prev.slice(-3), summary]);
     } catch {
+      stopScoutTimeline();
+      setScoutStage(null);
       setThreads([]);
-      setExpandedId(null);
       setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
     } finally {
+      setSearching(false);
       setBusy(false);
     }
   }
@@ -342,7 +394,7 @@ export default function App() {
       <header className="brand">
         <h1>x-copilot</h1>
         <p>
-          Agenda → DeepSeek V4 Flash queries → session X search. You review and post.
+          Agenda → Scout searches X and scores threads. You review and post.
         </p>
       </header>
 
@@ -372,13 +424,38 @@ export default function App() {
             Queries: {plannedQueries.map((q) => `"${q}"`).join(" · ")}
           </p>
         ) : null}
+        {searching || scoutStage ? (
+          <div
+            className={searching ? "scout-strip active" : "scout-strip"}
+            aria-live="polite"
+          >
+            <div className="scout-strip-head">
+              <span className="scout-label">Scout</span>
+              <span className="scout-stage">
+                {scoutStage ? scoutStageMessage(scoutStage) : status}
+              </span>
+            </div>
+            {searching ? <div className="scout-bar" aria-hidden="true" /> : null}
+            {scoutLog.length > 0 ? (
+              <ul className="scout-log">
+                {scoutLog.map((line, i) => (
+                  <li key={`${i}-${line}`}>{line}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <h2 className="section-label">
         Threads{threads.length > 0 ? ` (${threads.length})` : ""}
       </h2>
       {threads.length === 0 ? (
-        <p className="empty">No threads yet. Set an agenda and search.</p>
+        <p className="empty">
+          {searching
+            ? "Scout is working…"
+            : "No threads yet. Set an agenda and search."}
+        </p>
       ) : (
         <div className="threads">
           {threads.map((t) => (
