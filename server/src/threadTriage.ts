@@ -39,7 +39,7 @@ One item per input post, same "id" values, no extra keys, no markdown fences.
 Fields:
 - summary: ONE sentence on what the post is about and why it was likely posted. Not a paraphrase of the whole text.
 - baitScore: integer 0-100. HIGHER = more engagement bait / less worth replying to.
-- flags: short snake_case tags from: engagement_bait, generic_question, promo, github_plug, low_substance, thread_farm, giveaway, rage_bait, on_agenda, genuine_question.
+- flags: short snake_case tags from: engagement_bait, generic_question, promo, github_plug, low_substance, thread_farm, wall_of_text, giveaway, rage_bait, on_agenda, genuine_question.
 - intent: 2-4 words, e.g. "engagement farming", "genuine help request", "product promo".
 - engage: "skip" | "consider" | "priority".
 - reason: one short clause explaining the score.
@@ -49,8 +49,11 @@ Bait patterns (score high, 70-100):
 - Reply-gated promos ("comment 'AI' and I'll DM the link"), giveaways, follow-for-follow.
 - Posts whose main payload is a GitHub/product link with hollow framing ("I built this, thoughts?" with no detail).
 - Listicle/thread farming, rage bait, engagement pods.
+- Essay / wall-of-text posts and multi-part thread openers — prefer engage "skip" and flag wall_of_text or thread_farm even if under a hard length filter.
 
-Low bait (0-30): specific technical questions with real context, concrete build reports with detail, posts that clearly match the agenda.
+Prefer punchy, concrete opinions and specific questions over long explanations.
+
+Low bait (0-30): specific technical questions with real context, short concrete build reports, posts that clearly match the agenda.
 
 Agenda awareness: a question is NOT bait just because it is a question. If it is genuine, specific, and on-agenda, score it low and prefer engage "priority" or "consider". Use "skip" when baitScore is high or the post is off-agenda noise.`;
 
