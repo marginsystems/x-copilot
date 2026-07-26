@@ -132,6 +132,20 @@ async function writeStore(path: string, store: StoreFile): Promise<void> {
   await writeFile(path, `${JSON.stringify(store, null, 2)}\n`, "utf8");
 }
 
+let writeLock: Promise<void> = Promise.resolve();
+
+async function serialized<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = writeLock;
+  let release: () => void;
+  writeLock = new Promise<void>((resolve) => { release = resolve; });
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release!();
+  }
+}
+
 /** Upsert by threadId; prune expired; persist. */
 export async function markInteracted(opts: {
   threadId: string;
@@ -157,13 +171,15 @@ export async function markInteracted(opts: {
     source,
   };
 
-  const store = await readStore(path);
-  const pruned = pruneExpired(store.interactions, nowMs).filter(
-    (i) => i.threadId !== threadId,
-  );
-  pruned.push(next);
-  await writeStore(path, { interactions: pruned });
-  return next;
+  return serialized(async () => {
+    const store = await readStore(path);
+    const pruned = pruneExpired(store.interactions, nowMs).filter(
+      (i) => i.threadId !== threadId,
+    );
+    pruned.push(next);
+    await writeStore(path, { interactions: pruned });
+    return next;
+  });
 }
 
 export async function listActiveInteractions(opts?: {
