@@ -306,13 +306,14 @@ export default function App() {
 
   async function onCopy(thread: ThreadCard) {
     if (!draft || draft.threadId !== thread.id) return;
+    setBusy(true);
     try {
       await navigator.clipboard.writeText(draft.text);
     } catch {
+      setBusy(false);
       setStatus("Copy failed — clipboard API unavailable or permission denied");
       return;
     }
-    setBusy(true);
     const ok = await postInteracted(thread, "copy");
     setBusy(false);
     if (ok) {

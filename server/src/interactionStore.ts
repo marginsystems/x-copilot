@@ -142,7 +142,8 @@ export async function markInteracted(opts: {
 }): Promise<Interaction> {
   const threadId = opts.threadId.trim();
   const author = opts.author.trim();
-  if (!threadId || !author) {
+  const authorKey = normalizeAuthorKey(author);
+  if (!threadId || !author || !authorKey) {
     throw new Error("threadId and author are required");
   }
   const nowMs = opts.nowMs ?? Date.now();
@@ -151,7 +152,7 @@ export async function markInteracted(opts: {
   const next: Interaction = {
     threadId,
     author,
-    authorKey: normalizeAuthorKey(author),
+    authorKey,
     at: new Date(nowMs).toISOString(),
     source,
   };

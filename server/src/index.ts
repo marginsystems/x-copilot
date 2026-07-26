@@ -9,6 +9,7 @@ import {
   getCooledAuthorKeys,
   listActiveInteractions,
   markInteracted,
+  normalizeAuthorKey,
 } from "./interactionStore.js";
 import { loadEnv } from "./loadEnv.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
@@ -197,7 +198,7 @@ const server = http.createServer(async (req, res) => {
       }
       const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
       const author = typeof body.author === "string" ? body.author.trim() : "";
-      if (!threadId || !author) {
+      if (!threadId || !author || !normalizeAuthorKey(author)) {
         return send(res, 400, {
           error: "bad_request",
           message: "Pass { threadId: string, author: string }.",
