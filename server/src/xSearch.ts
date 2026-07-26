@@ -14,6 +14,15 @@ export type ThreadCard = {
   text: string;
   url: string;
   createdAt?: string;
+  /** Triage fields (filled by threadTriage after search). */
+  summary?: string;
+  /** 0–100, higher = more engagement bait / less worth replying to. */
+  baitScore?: number;
+  flags?: string[];
+  intent?: string;
+  engage?: "skip" | "consider" | "priority";
+  reason?: string;
+  /** Mirrors baitScore for the existing card meta line. */
   score?: number;
 };
 

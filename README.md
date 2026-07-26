@@ -2,15 +2,31 @@
 
 Research + reply assistant for X (Twitter): **session-backed search → DeepSeek analysis → draft replies** in a Vite dashboard. You review and post manually.
 
-**Status:** Stream 1 — agenda → DeepSeek Chat queries → session SearchTimeline → thread cards. Draft API still stub.
+**Status:** Stream 1 — agenda → DeepSeek Chat queries → session SearchTimeline → triaged thread cards. Draft API still stub.
 
 ## Idea
 
 1. Paste an **agenda** (who/what to engage, voice, avoid list).
 2. **DeepSeek Chat** expands the agenda into 2–4 short X search queries (one LLM call).
 3. Sidecar runs those queries via session-backed **SearchTimeline** (not the official paid API).
-4. Review thread cards; **draft** replies come next (stub for now).
-5. **Copy** and post yourself (no auto-engage in MVP).
+4. A second DeepSeek call **triages** the results (summary + bait risk) so bait never reaches a draft.
+5. Review thread cards; **draft** replies come next (stub for now).
+6. **Copy** and post yourself (no auto-engage in MVP).
+
+## Thread triage
+
+After search, `POST /api/search` sends the returned threads (max 20) to DeepSeek in **one batched call** and enriches each card with:
+
+| Field | Meaning |
+|-------|---------|
+| `summary` | One sentence: what the post is about and why it was likely posted |
+| `baitScore` | `0–100` engagement-bait risk — **higher is worse** (mirrored onto `score`) |
+| `flags` | e.g. `engagement_bait`, `promo`, `github_plug`, `genuine_question`, `on_agenda` |
+| `intent` | Short read, e.g. "engagement farming" |
+| `engage` | `skip` \| `consider` \| `priority` |
+| `reason` | One clause explaining the score |
+
+The agenda is passed along, so a specific on-agenda question scores low even though it is a question. Triage **fails soft**: if DeepSeek errors or returns bad JSON, search still returns 200 with the raw threads plus a `triageWarning`. In the UI, summaries replace the tweet text as the card headline (original stays underneath) and `skip` threads are dimmed.
 
 ## Architecture
 

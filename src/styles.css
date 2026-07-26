@@ -154,6 +154,41 @@ button.ghost {
   font-size: 0.85rem;
 }
 
+.thread.skip {
+  opacity: 0.55;
+  border-left: 2px solid #6b3f3f;
+}
+
+.thread .original {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.thread .reason {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chip-skip {
+  color: #d98b8b;
+  border-color: #6b3f3f;
+}
+
+.chip-priority {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
 .draft {
   white-space: pre-wrap;
   background: #0c1118;
