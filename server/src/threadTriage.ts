@@ -90,15 +90,21 @@ export function parseTriageJson(raw: string): TriageItem[] | null {
   let text = raw.trim();
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fenced) text = fenced[1].trim();
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) return null;
-
   let data: { items?: unknown };
+
+  // Direct parse handles {/} inside string values correctly
   try {
-    data = JSON.parse(text.slice(start, end + 1)) as { items?: unknown };
+    data = JSON.parse(text) as { items?: unknown };
   } catch {
-    return null;
+    // Fallback: extract outermost {...} block
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) return null;
+    try {
+      data = JSON.parse(text.slice(start, end + 1)) as { items?: unknown };
+    } catch {
+      return null;
+    }
   }
   if (!Array.isArray(data.items)) return null;
 

@@ -71,6 +71,25 @@ describe("parseTriageJson", () => {
     assert.deepEqual(items, [{ id: "1", baitScore: 10 }]);
   });
 
+  it("handles {} characters inside string values", () => {
+    const json =
+      '{"items":[{"id":"1","summary":"Shows code: { x = 1 }","reason":"Contains } brace"}]}';
+    const items = parseTriageJson(json);
+    assert.deepEqual(items, [
+      {
+        id: "1",
+        summary: "Shows code: { x = 1 }",
+        reason: "Contains } brace",
+      },
+    ]);
+  });
+
+  it("parses JSON when extra text surrounds it", () => {
+    const json = 'Some prefix text {"items":[{"id":"1"}]} trailing stuff';
+    const items = parseTriageJson(json);
+    assert.deepEqual(items, [{ id: "1" }]);
+  });
+
   it("returns null for non-json and missing items array", () => {
     assert.equal(parseTriageJson("just text"), null);
     assert.equal(parseTriageJson('{"threads":[]}'), null);
