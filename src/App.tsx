@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 
 type ThreadCard = {
@@ -27,52 +27,99 @@ function baitRisk(thread: ThreadCard): number | null {
   return typeof value === "number" ? value : null;
 }
 
-function ThreadMeta({ thread }: { thread: ThreadCard }) {
-  const ago = formatTimeAgo(thread.createdAt);
-  const absolute = formatAbsoluteTime(thread.createdAt);
-  const bait = baitRisk(thread);
-
-  return (
-    <div className="meta">
-      {thread.author}
-      {ago ? (
-        <>
-          {" · "}
-          <span title={absolute ?? undefined}>{ago}</span>
-        </>
-      ) : null}
-      {bait !== null ? (
-        <span title="Engagement-bait risk — higher is worse">
-          {" · "}bait {bait}
-        </span>
-      ) : null}
-      {thread.engage === "skip" || thread.engage === "priority" ? (
-        <>
-          {" · "}
-          <span className={`chip chip-${thread.engage}`}>{thread.engage}</span>
-        </>
-      ) : null}
-      {" · "}
-      <a
-        href={thread.url}
-        target="_blank"
-        rel="noreferrer"
-        onClick={(e) => e.stopPropagation()}
-      >
-        open
-      </a>
-    </div>
-  );
+function baitClass(bait: number | null): string {
+  if (bait === null) return "bait";
+  if (bait >= 65) return "bait high";
+  if (bait >= 35) return "bait mid";
+  return "bait low";
 }
 
-function ThreadBody({ thread }: { thread: ThreadCard }) {
-  if (!thread.summary) return <div>{thread.text}</div>;
+function ThreadRow({
+  thread,
+  open,
+  draft,
+  busy,
+  onToggle,
+  onDraft,
+  onCopy,
+}: {
+  thread: ThreadCard;
+  open: boolean;
+  draft: Draft | null;
+  busy: boolean;
+  onToggle: () => void;
+  onDraft: () => void;
+  onCopy: () => void;
+}) {
+  const bait = baitRisk(thread);
+  const ago = formatTimeAgo(thread.createdAt);
+  const absolute = formatAbsoluteTime(thread.createdAt);
+  const tags = [thread.intent, ...(thread.flags ?? [])].filter(Boolean);
+  const classes = ["thread-row"];
+  if (open) classes.push("open");
+  if (thread.engage === "skip") classes.push("skip");
+
   return (
-    <>
-      <div>{thread.summary}</div>
-      <div className="original">{thread.text}</div>
-      {thread.reason ? <div className="reason">{thread.reason}</div> : null}
-    </>
+    <article className={classes.join(" ")}>
+      <button
+        type="button"
+        className="row-head"
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <span
+          className={baitClass(bait)}
+          title="Engagement-bait risk — higher is worse"
+        >
+          {bait ?? "—"}
+        </span>
+        <span className="row-main">
+          <span className="row-summary">{thread.summary ?? thread.text}</span>
+          <span className="row-meta">
+            <span>{thread.author}</span>
+            {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
+            {thread.engage === "skip" || thread.engage === "priority" ? (
+              <span className={`chip chip-${thread.engage}`}>
+                {thread.engage}
+              </span>
+            ) : null}
+          </span>
+        </span>
+        <span className="caret" aria-hidden="true">
+          {open ? "–" : "+"}
+        </span>
+      </button>
+
+      {open ? (
+        <div className="row-detail">
+          <p className="original">{thread.text}</p>
+          {thread.reason ? <p className="reason">{thread.reason}</p> : null}
+          {tags.length > 0 ? (
+            <div className="tags">
+              {tags.map((tag) => (
+                <span className="tag" key={tag}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="row">
+            <a className="ghost" href={thread.url} target="_blank" rel="noreferrer">
+              Open on X
+            </a>
+            <button className="primary" disabled={busy} onClick={onDraft}>
+              Draft reply
+            </button>
+            {draft ? (
+              <button className="ghost" onClick={onCopy}>
+                Copy reply
+              </button>
+            ) : null}
+          </div>
+          {draft ? <div className="draft">{draft.text}</div> : null}
+        </div>
+      ) : null}
+    </article>
   );
 }
 
@@ -83,14 +130,9 @@ export default function App() {
   const [status, setStatus] = useState("Idle — verify session, then search from agenda");
   const [plannedQueries, setPlannedQueries] = useState<string[]>([]);
   const [threads, setThreads] = useState<ThreadCard[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const selected = useMemo(
-    () => threads.find((t) => t.id === selectedId) ?? null,
-    [threads, selectedId],
-  );
 
   async function onVerifySession() {
     setBusy(true);
@@ -135,7 +177,7 @@ export default function App() {
       };
       if (!res.ok) {
         setThreads([]);
-        setSelectedId(null);
+        setExpandedId(null);
         setStatus(`Search fail: ${data.message || data.error || res.status}`);
         return;
       }
@@ -143,7 +185,8 @@ export default function App() {
       const list = data.threads ?? [];
       setPlannedQueries(qs);
       setThreads(list);
-      setSelectedId(list[0]?.id ?? null);
+      setExpandedId(null);
+      setDraft(null);
       const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
       setStatus(
         `Loaded ${list.length} threads via ${data.model || "deepseek-chat"} — ${qLabel}` +
@@ -151,39 +194,33 @@ export default function App() {
       );
     } catch {
       setThreads([]);
-      setSelectedId(null);
+      setExpandedId(null);
       setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
     } finally {
       setBusy(false);
     }
   }
 
-  async function onDraft() {
-    if (!selected) return;
+  async function onDraft(thread: ThreadCard) {
     setBusy(true);
     setStatus("Drafting with DeepSeek… (draft API still stub)");
+    const placeholder = `Thanks for raising this — here's a concise take based on: "${thread.text.slice(0, 80)}…"`;
     try {
       const res = await fetch("/api/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agenda, thread: selected }),
+        body: JSON.stringify({ agenda, thread }),
       });
       if (!res.ok) {
-        setDraft({
-          threadId: selected.id,
-          text: `Thanks for raising this — here's a concise take based on: "${selected.text.slice(0, 80)}…"`,
-        });
+        setDraft({ threadId: thread.id, text: placeholder });
         setStatus(`Draft API ${res.status} — local placeholder draft`);
         return;
       }
       const data = (await res.json()) as { draft: string };
-      setDraft({ threadId: selected.id, text: data.draft });
+      setDraft({ threadId: thread.id, text: data.draft });
       setStatus("Draft ready — edit, then copy");
     } catch {
-      setDraft({
-        threadId: selected.id,
-        text: `Thanks for raising this — here's a concise take based on: "${selected.text.slice(0, 80)}…"`,
-      });
+      setDraft({ threadId: thread.id, text: placeholder });
       setStatus("Draft API offline — local placeholder draft");
     } finally {
       setBusy(false);
@@ -205,74 +242,55 @@ export default function App() {
         </p>
       </header>
 
-      <div className="layout">
-        <section className="panel">
-          <h2>Agenda</h2>
-          <textarea
-            className="agenda"
-            value={agenda}
-            onChange={(e) => setAgenda(e.target.value)}
-            placeholder="What should we look for and how should we sound?"
-          />
-          <div className="row">
-            <button className="ghost" disabled={busy} onClick={onVerifySession}>
-              Verify session
-            </button>
-            <button className="primary" disabled={busy || !agenda.trim()} onClick={onSearch}>
-              Search threads
-            </button>
-            <button className="ghost" disabled={busy || !selected} onClick={onDraft}>
-              Draft reply
-            </button>
-          </div>
-          <p className="status">{status}</p>
-          {plannedQueries.length > 0 ? (
-            <p className="status">
-              Queries: {plannedQueries.map((q) => `"${q}"`).join(" · ")}
-            </p>
-          ) : null}
+      <section className="panel">
+        <h2>Agenda</h2>
+        <textarea
+          className="agenda"
+          value={agenda}
+          onChange={(e) => setAgenda(e.target.value)}
+          placeholder="What should we look for and how should we sound?"
+        />
+        <div className="row">
+          <button className="ghost" disabled={busy} onClick={onVerifySession}>
+            Verify session
+          </button>
+          <button
+            className="primary"
+            disabled={busy || !agenda.trim()}
+            onClick={onSearch}
+          >
+            Search threads
+          </button>
+        </div>
+        <p className="status">{status}</p>
+        {plannedQueries.length > 0 ? (
+          <p className="status">
+            Queries: {plannedQueries.map((q) => `"${q}"`).join(" · ")}
+          </p>
+        ) : null}
+      </section>
 
-          <h2>Threads</h2>
-          {threads.length === 0 ? (
-            <p className="empty">No threads yet. Set an agenda and search.</p>
-          ) : (
-            threads.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className={t.engage === "skip" ? "thread skip" : "thread"}
-                onClick={() => setSelectedId(t.id)}
-                style={{
-                  textAlign: "left",
-                  cursor: "pointer",
-                  outline: t.id === selectedId ? "1px solid var(--accent)" : undefined,
-                }}
-              >
-                <ThreadMeta thread={t} />
-                <ThreadBody thread={t} />
-              </button>
-            ))
-          )}
-        </section>
-
-        <section className="panel">
-          <h2>Draft</h2>
-          {selected ? (
-            <div className="thread">
-              <ThreadMeta thread={selected} />
-              <ThreadBody thread={selected} />
-            </div>
-          ) : (
-            <p className="empty">Select a thread to draft against.</p>
-          )}
-          <div className="draft">{draft?.text ?? "Drafts appear here."}</div>
-          <div className="row">
-            <button className="primary" disabled={!draft} onClick={onCopy}>
-              Copy reply
-            </button>
-          </div>
-        </section>
-      </div>
+      <h2 className="section-label">
+        Threads{threads.length > 0 ? ` (${threads.length})` : ""}
+      </h2>
+      {threads.length === 0 ? (
+        <p className="empty">No threads yet. Set an agenda and search.</p>
+      ) : (
+        <div className="threads">
+          {threads.map((t) => (
+            <ThreadRow
+              key={t.id}
+              thread={t}
+              open={expandedId === t.id}
+              draft={draft?.threadId === t.id ? draft : null}
+              busy={busy}
+              onToggle={() => setExpandedId(expandedId === t.id ? null : t.id)}
+              onDraft={() => onDraft(t)}
+              onCopy={onCopy}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
