@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
+import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 
 type ThreadCard = {
   id: string;
   author: string;
   text: string;
   url: string;
+  createdAt?: string;
   score?: number;
 };
 
@@ -12,6 +14,33 @@ type Draft = {
   threadId: string;
   text: string;
 };
+
+function ThreadMeta({ thread }: { thread: ThreadCard }) {
+  const ago = formatTimeAgo(thread.createdAt);
+  const absolute = formatAbsoluteTime(thread.createdAt);
+
+  return (
+    <div className="meta">
+      {thread.author}
+      {ago ? (
+        <>
+          {" · "}
+          <span title={absolute ?? undefined}>{ago}</span>
+        </>
+      ) : null}
+      {typeof thread.score === "number" ? ` · score ${thread.score}` : ""}
+      {" · "}
+      <a
+        href={thread.url}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
+      >
+        open
+      </a>
+    </div>
+  );
+}
 
 export default function App() {
   const [agenda, setAgenda] = useState(
@@ -183,19 +212,7 @@ export default function App() {
                   outline: t.id === selectedId ? "1px solid var(--accent)" : undefined,
                 }}
               >
-                <div className="meta">
-                  {t.author}
-                  {typeof t.score === "number" ? ` · score ${t.score}` : ""}
-                  {" · "}
-                  <a
-                    href={t.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    open
-                  </a>
-                </div>
+                <ThreadMeta thread={t} />
                 <div>{t.text}</div>
               </button>
             ))
@@ -206,12 +223,7 @@ export default function App() {
           <h2>Draft</h2>
           {selected ? (
             <div className="thread">
-              <div className="meta">
-                {selected.author} ·{" "}
-                <a href={selected.url} target="_blank" rel="noreferrer">
-                  open
-                </a>
-              </div>
+              <ThreadMeta thread={selected} />
               <div>{selected.text}</div>
             </div>
           ) : (
