@@ -22,7 +22,7 @@ export function isOversizedThread(text: string, maxChars: number): boolean {
 
 /** Obvious multi-part openers like "1/17 Here's the thread". */
 export function isThreadOpener(text: string): boolean {
-  return THREAD_OPENER_RE.test(text);
+  return THREAD_OPENER_RE.test(text) && /\bthread\b/i.test(text);
 }
 
 export function filterThreadsByLength(

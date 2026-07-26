@@ -43,10 +43,16 @@ describe("isOversizedThread", () => {
 });
 
 describe("isThreadOpener", () => {
-  it("matches N/M openers", () => {
+  it("matches N/M openers that mention thread", () => {
     assert.equal(isThreadOpener("1/12 Starting a thread about AI"), true);
-    assert.equal(isThreadOpener("  3 / 7  More thoughts"), true);
+    assert.equal(isThreadOpener("  3 / 7  A thread about AI"), true);
     assert.equal(isThreadOpener("Here's a short take on AI tools"), false);
+  });
+
+  it("rejects N/M-like patterns without thread keyword", () => {
+    assert.equal(isThreadOpener("2020/2021 in review — my top AI reads"), false);
+    assert.equal(isThreadOpener("1/2 cup coffee then 1/2 coding"), false);
+    assert.equal(isThreadOpener("42/42 test suite is green"), false);
   });
 });
 
