@@ -4,6 +4,13 @@
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
+import {
+  filterThreadsByCooldown,
+  getCooledAuthorKeys,
+  listActiveInteractions,
+  markInteracted,
+  normalizeAuthorKey,
+} from "./interactionStore.js";
 import { loadEnv } from "./loadEnv.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
 import { triageThreads } from "./threadTriage.js";
@@ -147,9 +154,11 @@ const server = http.createServer(async (req, res) => {
       }
 
       const result = await searchMany(queries, { session });
+      const cooled = await getCooledAuthorKeys();
+      const filtered = filterThreadsByCooldown(result.threads, cooled);
       const triaged = await triageThreads({
         agenda,
-        threads: result.threads,
+        threads: filtered.threads,
       });
       return send(res, 200, {
         queries: result.queries,
@@ -159,7 +168,52 @@ const server = http.createServer(async (req, res) => {
         model: planModel,
         triageModel: triaged.model,
         triageWarning: triaged.warning,
+        cooldownFiltered: filtered.filteredCount,
+        cooldownAuthors: filtered.filteredAuthors,
+        cooldownWarning: filtered.filteredCount
+          ? `Filtered ${filtered.filteredCount} posts from cooled-down authors.`
+          : undefined,
       });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/interacted") {
+      const interactions = await listActiveInteractions();
+      return send(res, 200, { interactions });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/interacted") {
+      let body: { threadId?: unknown; author?: unknown; source?: unknown };
+      try {
+        body = (await readBody(req)) as {
+          threadId?: unknown;
+          author?: unknown;
+          source?: unknown;
+        };
+      } catch (err) {
+        const statusCode = err instanceof BodyError ? err.statusCode : 400;
+        return send(res, statusCode, {
+          error: "bad_request",
+          message: err instanceof Error ? err.message : "Invalid request body",
+        });
+      }
+      const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
+      const author = typeof body.author === "string" ? body.author.trim() : "";
+      if (!threadId || !author || !normalizeAuthorKey(author)) {
+        return send(res, 400, {
+          error: "bad_request",
+          message: "Pass { threadId: string, author: string }.",
+        });
+      }
+      const source = body.source === "copy" ? "copy" : "manual";
+      try {
+        const interaction = await markInteracted({ threadId, author, source });
+        return send(res, 200, { ok: true, interaction });
+      } catch (err) {
+        return send(res, 500, {
+          error: "store_failed",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
 
     if (req.method === "POST" && url.pathname === "/api/draft") {

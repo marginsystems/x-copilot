@@ -11,6 +11,9 @@ server/dist/
 # PM2 (machine-local; copy from ecosystem.config.example.cjs)
 ecosystem.config.cjs
 
+# Local interaction / cooldown store (Mark interacted)
+data/
+
 # IDE / OS
 .DS_Store
 Thumbs.db
