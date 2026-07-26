@@ -217,6 +217,11 @@ export default function App() {
         return;
       }
       const data = (await res.json()) as { draft: string };
+      if (typeof data.draft !== "string") {
+        setDraft({ threadId: thread.id, text: placeholder });
+        setStatus("Draft API returned invalid response — local placeholder draft");
+        return;
+      }
       setDraft({ threadId: thread.id, text: data.draft });
       setStatus("Draft ready — edit, then copy");
     } catch {
