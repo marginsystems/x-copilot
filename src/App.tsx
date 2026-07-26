@@ -234,8 +234,12 @@ export default function App() {
 
   async function onCopy() {
     if (!draft) return;
-    await navigator.clipboard.writeText(draft.text);
-    setStatus("Copied — paste manually on X");
+    try {
+      await navigator.clipboard.writeText(draft.text);
+      setStatus("Copied — paste manually on X");
+    } catch {
+      setStatus("Copy failed — clipboard API unavailable or permission denied");
+    }
   }
 
   return (
