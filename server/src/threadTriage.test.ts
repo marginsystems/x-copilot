@@ -1,8 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  isCompleteTriageItem,
   mergeTriage,
+  missingTriageIds,
   parseTriageJson,
+  selectScoredThreads,
   triageThreads,
   MAX_TRIAGE_THREADS,
 } from "./threadTriage.ts";
@@ -17,10 +20,49 @@ function thread(id: string): ThreadCard {
   };
 }
 
+function completeJson(
+  items: Array<{
+    id: string;
+    summary?: string;
+    baitScore?: number;
+    flags?: string[];
+    intent?: string;
+    engage?: string;
+    reason?: string;
+  }>,
+): string {
+  return JSON.stringify({ items });
+}
+
+describe("isCompleteTriageItem", () => {
+  it("requires id, summary, and baitScore", () => {
+    assert.equal(
+      isCompleteTriageItem({ id: "1", summary: "Ok", baitScore: 10 }),
+      true,
+    );
+    assert.equal(isCompleteTriageItem({ id: "1", summary: "Ok" }), false);
+    assert.equal(isCompleteTriageItem({ id: "1", baitScore: 10 }), false);
+    assert.equal(
+      isCompleteTriageItem({ id: "1", summary: "   ", baitScore: 10 }),
+      false,
+    );
+  });
+});
+
 describe("parseTriageJson", () => {
   it("parses a full item", () => {
     const items = parseTriageJson(
-      '{"items":[{"id":"1","summary":"Asks for AI tips to farm replies.","baitScore":82,"flags":["engagement_bait","generic_question"],"intent":"engagement farming","engage":"skip","reason":"Generic question, no context."}]}',
+      completeJson([
+        {
+          id: "1",
+          summary: "Asks for AI tips to farm replies.",
+          baitScore: 82,
+          flags: ["engagement_bait", "generic_question"],
+          intent: "engagement farming",
+          engage: "skip",
+          reason: "Generic question, no context.",
+        },
+      ]),
     );
     assert.deepEqual(items, [
       {
@@ -35,14 +77,35 @@ describe("parseTriageJson", () => {
     ]);
   });
 
-  it("strips markdown fences", () => {
-    const items = parseTriageJson('```json\n{"items":[{"id":"7"}]}\n```');
-    assert.deepEqual(items, [{ id: "7" }]);
+  it("strips markdown fences for complete items", () => {
+    const items = parseTriageJson(
+      '```json\n{"items":[{"id":"7","summary":"Short take.","baitScore":20}]}\n```',
+    );
+    assert.deepEqual(items, [
+      { id: "7", summary: "Short take.", baitScore: 20 },
+    ]);
+  });
+
+  it("rejects incomplete items without baitScore or summary", () => {
+    const items = parseTriageJson(
+      completeJson([
+        { id: "1", engage: "skip", summary: "Has summary only" },
+        { id: "2", baitScore: 50 },
+        { id: "3", summary: "Complete.", baitScore: 40 },
+      ]),
+    );
+    assert.deepEqual(items, [
+      { id: "3", summary: "Complete.", baitScore: 40 },
+    ]);
   });
 
   it("clamps and rounds baitScore", () => {
     const items = parseTriageJson(
-      '{"items":[{"id":"a","baitScore":140},{"id":"b","baitScore":-20},{"id":"c","baitScore":42.6}]}',
+      completeJson([
+        { id: "a", summary: "A", baitScore: 140 },
+        { id: "b", summary: "B", baitScore: -20 },
+        { id: "c", summary: "C", baitScore: 42.6 },
+      ]),
     );
     assert.deepEqual(
       items?.map((i) => i.baitScore),
@@ -50,49 +113,86 @@ describe("parseTriageJson", () => {
     );
   });
 
-  it("drops invalid engage values but keeps the item", () => {
+  it("drops invalid engage values but keeps complete items", () => {
     const items = parseTriageJson(
-      '{"items":[{"id":"1","engage":"maybe","summary":"Ships a CLI."}]}',
+      completeJson([
+        {
+          id: "1",
+          engage: "maybe",
+          summary: "Ships a CLI.",
+          baitScore: 15,
+        },
+      ]),
     );
-    assert.deepEqual(items, [{ id: "1", summary: "Ships a CLI." }]);
+    assert.deepEqual(items, [
+      { id: "1", summary: "Ships a CLI.", baitScore: 15 },
+    ]);
   });
 
   it("normalizes flags and drops empty ones", () => {
     const items = parseTriageJson(
-      '{"items":[{"id":"1","flags":["Engagement Bait","promo","promo","",3]}]}',
+      '{"items":[{"id":"1","summary":"Promo.","baitScore":70,"flags":["Engagement Bait","promo","promo","",3]}]}',
     );
     assert.deepEqual(items?.[0].flags, ["engagement_bait", "promo"]);
   });
 
   it("skips items without an id and dedupes repeats", () => {
     const items = parseTriageJson(
-      '{"items":[{"summary":"no id"},{"id":"1","baitScore":10},{"id":"1","baitScore":90}]}',
+      '{"items":[{"summary":"no id","baitScore":1},{"id":"1","summary":"First","baitScore":10},{"id":"1","summary":"Second","baitScore":90}]}',
     );
-    assert.deepEqual(items, [{ id: "1", baitScore: 10 }]);
+    assert.deepEqual(items, [{ id: "1", summary: "First", baitScore: 10 }]);
   });
 
   it("handles {} characters inside string values", () => {
     const json =
-      '{"items":[{"id":"1","summary":"Shows code: { x = 1 }","reason":"Contains } brace"}]}';
+      '{"items":[{"id":"1","summary":"Shows code: { x = 1 }","baitScore":25,"reason":"Contains } brace"}]}';
     const items = parseTriageJson(json);
     assert.deepEqual(items, [
       {
         id: "1",
         summary: "Shows code: { x = 1 }",
+        baitScore: 25,
         reason: "Contains } brace",
       },
     ]);
   });
 
-  it("parses JSON when extra text surrounds it", () => {
-    const json = 'Some prefix text {"items":[{"id":"1"}]} trailing stuff';
+  it("ignores incomplete items when extra text surrounds JSON", () => {
+    const json =
+      'Some prefix {"items":[{"id":"1","summary":"Ok.","baitScore":11}]} trailing';
     const items = parseTriageJson(json);
-    assert.deepEqual(items, [{ id: "1" }]);
+    assert.deepEqual(items, [{ id: "1", summary: "Ok.", baitScore: 11 }]);
   });
 
   it("returns null for non-json and missing items array", () => {
     assert.equal(parseTriageJson("just text"), null);
     assert.equal(parseTriageJson('{"threads":[]}'), null);
+  });
+});
+
+describe("missingTriageIds", () => {
+  it("returns batch ids without a complete item", () => {
+    assert.deepEqual(
+      missingTriageIds(
+        ["1", "2", "3"],
+        [{ id: "2", summary: "Ok", baitScore: 10 }],
+      ),
+      ["1", "3"],
+    );
+  });
+});
+
+describe("selectScoredThreads", () => {
+  it("keeps only threads with a numeric baitScore", () => {
+    const scored = selectScoredThreads([
+      { ...thread("1"), baitScore: 12 },
+      thread("2"),
+      { ...thread("3"), score: 40 },
+    ]);
+    assert.deepEqual(
+      scored.map((t) => t.id),
+      ["1"],
+    );
   });
 });
 
@@ -134,10 +234,10 @@ describe("triageThreads", () => {
     assert.equal(result.warning, undefined);
   });
 
-  it("degrades softly without an api key", async () => {
+  it("returns empty list without an api key (no unscored fallback)", async () => {
     const threads = [thread("1")];
     const result = await triageThreads({ threads, apiKey: "" });
-    assert.deepEqual(result.threads, threads);
+    assert.deepEqual(result.threads, []);
     assert.match(result.warning ?? "", /DEEPSEEK_API_KEY/);
   });
 });

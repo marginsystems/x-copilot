@@ -26,7 +26,7 @@ After search, `POST /api/search` sends the returned threads (max 20) to DeepSeek
 | `engage` | `skip` \| `consider` \| `priority` |
 | `reason` | One clause explaining the score |
 
-The agenda is passed along, so a specific on-agenda question scores low even though it is a question. Triage **fails soft**: if DeepSeek errors or returns bad JSON, search still returns 200 with the raw threads plus a `triageWarning`. In the UI, summaries replace the tweet text as the card headline (original stays underneath) and `skip` threads are dimmed.
+The agenda is passed along, so a specific on-agenda question scores low even though it is a question. **Only posts with a numeric bait score are returned** to the UI — incomplete triage items, omitted ids (after one repair), and overflow past the 20-thread triage cap are dropped and noted in `triageWarning`. If triage fails entirely, search still returns 200 with an empty thread list plus the warning (never a wall of unscored `—` rows). In the UI, summaries replace the tweet text as the card headline (original stays underneath) and `skip` threads are dimmed.
 
 ## Interacted + author cooldown
 
