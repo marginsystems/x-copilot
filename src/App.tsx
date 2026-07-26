@@ -7,6 +7,13 @@ type ThreadCard = {
   text: string;
   url: string;
   createdAt?: string;
+  summary?: string;
+  /** 0–100, higher = more engagement bait. */
+  baitScore?: number;
+  flags?: string[];
+  intent?: string;
+  engage?: "skip" | "consider" | "priority";
+  reason?: string;
   score?: number;
 };
 
@@ -15,9 +22,15 @@ type Draft = {
   text: string;
 };
 
+function baitRisk(thread: ThreadCard): number | null {
+  const value = thread.baitScore ?? thread.score;
+  return typeof value === "number" ? value : null;
+}
+
 function ThreadMeta({ thread }: { thread: ThreadCard }) {
   const ago = formatTimeAgo(thread.createdAt);
   const absolute = formatAbsoluteTime(thread.createdAt);
+  const bait = baitRisk(thread);
 
   return (
     <div className="meta">
@@ -28,7 +41,17 @@ function ThreadMeta({ thread }: { thread: ThreadCard }) {
           <span title={absolute ?? undefined}>{ago}</span>
         </>
       ) : null}
-      {typeof thread.score === "number" ? ` · score ${thread.score}` : ""}
+      {bait !== null ? (
+        <span title="Engagement-bait risk — higher is worse">
+          {" · "}bait {bait}
+        </span>
+      ) : null}
+      {thread.engage === "skip" || thread.engage === "priority" ? (
+        <>
+          {" · "}
+          <span className={`chip chip-${thread.engage}`}>{thread.engage}</span>
+        </>
+      ) : null}
       {" · "}
       <a
         href={thread.url}
@@ -39,6 +62,17 @@ function ThreadMeta({ thread }: { thread: ThreadCard }) {
         open
       </a>
     </div>
+  );
+}
+
+function ThreadBody({ thread }: { thread: ThreadCard }) {
+  if (!thread.summary) return <div>{thread.text}</div>;
+  return (
+    <>
+      <div>{thread.summary}</div>
+      <div className="original">{thread.text}</div>
+      {thread.reason ? <div className="reason">{thread.reason}</div> : null}
+    </>
   );
 }
 
@@ -97,6 +131,7 @@ export default function App() {
         message?: string;
         error?: string;
         model?: string;
+        triageWarning?: string;
       };
       if (!res.ok) {
         setThreads([]);
@@ -111,7 +146,8 @@ export default function App() {
       setSelectedId(list[0]?.id ?? null);
       const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
       setStatus(
-        `Loaded ${list.length} threads via ${data.model || "deepseek-chat"} — ${qLabel}`,
+        `Loaded ${list.length} threads via ${data.model || "deepseek-chat"} — ${qLabel}` +
+          (data.triageWarning ? ` · ${data.triageWarning}` : ""),
       );
     } catch {
       setThreads([]);
@@ -204,7 +240,7 @@ export default function App() {
               <button
                 key={t.id}
                 type="button"
-                className="thread"
+                className={t.engage === "skip" ? "thread skip" : "thread"}
                 onClick={() => setSelectedId(t.id)}
                 style={{
                   textAlign: "left",
@@ -213,7 +249,7 @@ export default function App() {
                 }}
               >
                 <ThreadMeta thread={t} />
-                <div>{t.text}</div>
+                <ThreadBody thread={t} />
               </button>
             ))
           )}
@@ -224,7 +260,7 @@ export default function App() {
           {selected ? (
             <div className="thread">
               <ThreadMeta thread={selected} />
-              <div>{selected.text}</div>
+              <ThreadBody thread={selected} />
             </div>
           ) : (
             <p className="empty">Select a thread to draft against.</p>

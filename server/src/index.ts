@@ -6,6 +6,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import { loadEnv } from "./loadEnv.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
+import { triageThreads } from "./threadTriage.js";
 import { searchMany } from "./xSearch.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
@@ -118,9 +119,9 @@ const server = http.createServer(async (req, res) => {
         : [];
       let plannedBy: "client" | "deepseek" = "client";
       let planModel: string | undefined;
+      const agenda = typeof body.agenda === "string" ? body.agenda.trim() : "";
 
       if (queries.length === 0) {
-        const agenda = typeof body.agenda === "string" ? body.agenda.trim() : "";
         if (!agenda) {
           return send(res, 400, {
             error: "missing_agenda",
@@ -146,12 +147,18 @@ const server = http.createServer(async (req, res) => {
       }
 
       const result = await searchMany(queries, { session });
+      const triaged = await triageThreads({
+        agenda,
+        threads: result.threads,
+      });
       return send(res, 200, {
         queries: result.queries,
-        threads: result.threads,
+        threads: triaged.threads,
         errors: result.errors,
         plannedBy,
         model: planModel,
+        triageModel: triaged.model,
+        triageWarning: triaged.warning,
       });
     }
 
