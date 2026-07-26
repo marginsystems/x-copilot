@@ -75,12 +75,16 @@ function ThreadRow({
         aria-expanded={open}
         onClick={onToggle}
       >
-        <span
-          className={baitClass(bait)}
-          title="Engagement-bait risk — higher is worse"
-        >
-          {bait ?? "—"}
-        </span>
+        {bait !== null ? (
+          <span
+            className={baitClass(bait)}
+            title="Engagement-bait risk — higher is worse"
+          >
+            {bait}
+          </span>
+        ) : (
+          <span className="bait" aria-hidden="true" />
+        )}
         <span className="row-main">
           <span className="row-summary">{thread.summary ?? thread.text}</span>
           <span className="row-meta">
@@ -89,7 +93,8 @@ function ThreadRow({
             {interacted ? (
               <span className="chip chip-interacted">interacted</span>
             ) : null}
-            {thread.engage === "skip" || thread.engage === "priority" ? (
+            {bait !== null &&
+            (thread.engage === "skip" || thread.engage === "priority") ? (
               <span className={`chip chip-${thread.engage}`}>
                 {thread.engage}
               </span>

@@ -1,6 +1,6 @@
 /**
  * Post-search thread triage via DeepSeek (one batched call).
- * Adds a one-line summary + bait risk so we do not draft replies into engagement bait.
+ * Only threads with a numeric baitScore are returned — never silent unscored rows.
  */
 import { chatCompletions, resolveFlashModel } from "./deepseek.js";
 import type { ThreadCard } from "./xSearch.js";
@@ -35,6 +35,7 @@ const SYSTEM = `You triage X (Twitter) posts for a human who replies manually. F
 
 Return ONLY valid JSON: {"items":[{"id":"...","summary":"...","baitScore":0,"flags":["..."],"intent":"...","engage":"skip","reason":"..."}]}
 One item per input post, same "id" values, no extra keys, no markdown fences.
+Every item MUST include id, summary, and baitScore (integer 0-100).
 
 Fields:
 - summary: ONE sentence on what the post is about and why it was likely posted. Not a paraphrase of the whole text.
@@ -88,7 +89,48 @@ function cleanEngage(value: unknown): Engage | undefined {
   return ENGAGE_VALUES.find((v) => v === normalized);
 }
 
-/** Strip fences and parse {"items":[...]} into validated triage items (exported for tests). */
+/** Complete triage item: id + summary + baitScore required. */
+export function isCompleteTriageItem(
+  item: TriageItem,
+): item is TriageItem & { summary: string; baitScore: number } {
+  return (
+    Boolean(item.id) &&
+    typeof item.summary === "string" &&
+    item.summary.trim().length > 0 &&
+    typeof item.baitScore === "number" &&
+    Number.isFinite(item.baitScore)
+  );
+}
+
+/** Batch ids that have no complete triage item yet. */
+export function missingTriageIds(
+  batchIds: string[],
+  items: TriageItem[],
+): string[] {
+  const have = new Set(
+    items.filter(isCompleteTriageItem).map((i) => i.id),
+  );
+  return batchIds.filter((id) => !have.has(id));
+}
+
+/** Keep only threads that received a numeric baitScore. */
+export function selectScoredThreads(threads: ThreadCard[]): ThreadCard[] {
+  return threads.filter((t) => typeof t.baitScore === "number");
+}
+
+function mergeItemMaps(
+  a: TriageItem[],
+  b: TriageItem[],
+): TriageItem[] {
+  const map = new Map<string, TriageItem>();
+  for (const item of [...a, ...b]) {
+    if (!isCompleteTriageItem(item)) continue;
+    map.set(item.id, item);
+  }
+  return [...map.values()];
+}
+
+/** Strip fences and parse {"items":[...]} into complete triage items (exported for tests). */
 export function parseTriageJson(raw: string): TriageItem[] | null {
   let text = raw.trim();
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -133,6 +175,8 @@ export function parseTriageJson(raw: string): TriageItem[] | null {
     if (engage) item.engage = engage;
     const reason = cleanText(row.reason);
     if (reason) item.reason = reason;
+
+    if (!isCompleteTriageItem(item)) continue;
     items.push(item);
   }
 
@@ -144,16 +188,16 @@ export function mergeTriage(
   threads: ThreadCard[],
   items: TriageItem[],
 ): ThreadCard[] {
-  const byId = new Map(items.map((item) => [item.id, item]));
+  const byId = new Map(
+    items.filter(isCompleteTriageItem).map((item) => [item.id, item]),
+  );
   return threads.map((thread) => {
     const item = byId.get(thread.id);
     if (!item) return thread;
     const merged: ThreadCard = { ...thread };
-    if (item.summary) merged.summary = item.summary;
-    if (item.baitScore !== undefined) {
-      merged.baitScore = item.baitScore;
-      merged.score = item.baitScore;
-    }
+    merged.summary = item.summary;
+    merged.baitScore = item.baitScore;
+    merged.score = item.baitScore;
     if (item.flags) merged.flags = item.flags;
     if (item.intent) merged.intent = item.intent;
     if (item.engage) merged.engage = item.engage;
@@ -171,12 +215,17 @@ function buildUserMessage(agenda: string, threads: ThreadCard[]): string {
   const agendaLine = agenda.trim()
     ? `Agenda: ${JSON.stringify(agenda.trim())}`
     : "Agenda: (none provided — judge bait risk on the post alone)";
-  return `${agendaLine}\n\nPosts:\n${JSON.stringify(compact)}\n\nRespond with JSON only, one item per post.`;
+  return `${agendaLine}\n\nPosts:\n${JSON.stringify(compact)}\n\nRespond with JSON only, one item per post. Every item needs id, summary, and baitScore.`;
+}
+
+function buildWarning(parts: string[]): string | undefined {
+  const cleaned = parts.filter(Boolean);
+  return cleaned.length ? cleaned.join(" ") : undefined;
 }
 
 /**
  * Triage threads with one batched DeepSeek call.
- * Never throws: on any failure the original threads come back with a warning.
+ * Returns only scored threads. On failure returns [] + warning (never raw unscored rows).
  */
 export async function triageThreads(opts: {
   agenda?: string;
@@ -189,13 +238,14 @@ export async function triageThreads(opts: {
   const apiKey = (opts.apiKey ?? process.env.DEEPSEEK_API_KEY ?? "").trim();
   if (!apiKey) {
     return {
-      threads,
+      threads: [],
       warning: "Triage skipped — set DEEPSEEK_API_KEY for summaries and bait scores.",
     };
   }
 
   const batch = threads.slice(0, MAX_TRIAGE_THREADS);
   const overflow = threads.length - batch.length;
+  const batchIds = batch.map((t) => t.id);
   const model = resolveFlashModel();
   const userMessage = buildUserMessage(opts.agenda ?? "", batch);
 
@@ -208,7 +258,7 @@ export async function triageThreads(opts: {
     ],
   });
   if (!first.ok) {
-    return { threads, warning: `Triage failed — ${first.message}` };
+    return { threads: [], warning: `Triage failed — ${first.message}` };
   }
 
   let items = parseTriageJson(first.content);
@@ -225,24 +275,62 @@ export async function triageThreads(opts: {
         {
           role: "user",
           content:
-            'Your previous reply was not valid JSON of the form {"items":[{"id":"...","summary":"...","baitScore":0,"flags":[],"intent":"...","engage":"consider","reason":"..."}]}. Reply again with ONLY that JSON.',
+            'Your previous reply was not valid JSON of the form {"items":[{"id":"...","summary":"...","baitScore":0,"flags":[],"intent":"...","engage":"consider","reason":"..."}]}. Reply again with ONLY that JSON. Every item MUST include id, summary, and baitScore.',
         },
       ],
     });
     if (!repair.ok) {
-      return { threads, warning: `Triage failed — ${repair.message}` };
+      return { threads: [], warning: `Triage failed — ${repair.message}` };
     }
     items = parseTriageJson(repair.content);
     used = repair;
   }
 
   if (!items?.length) {
-    return { threads, warning: "Triage failed — DeepSeek did not return valid JSON." };
+    return {
+      threads: [],
+      warning: "Triage failed — DeepSeek did not return valid JSON.",
+    };
   }
 
+  let missing = missingTriageIds(batchIds, items);
+  if (missing.length) {
+    const missingThreads = batch.filter((t) => missing.includes(t.id));
+    const repairMissing = await chatCompletions({
+      model,
+      apiKey,
+      messages: [
+        { role: "system", content: SYSTEM },
+        {
+          role: "user",
+          content: `${buildUserMessage(opts.agenda ?? "", missingThreads)}\n\nYou omitted these ids: ${JSON.stringify(missing)}. Return JSON items ONLY for those ids, each with id, summary, and baitScore.`,
+        },
+      ],
+    });
+    if (repairMissing.ok) {
+      const extra = parseTriageJson(repairMissing.content);
+      if (extra?.length) {
+        items = mergeItemMaps(items, extra);
+        used = repairMissing;
+      }
+    }
+    missing = missingTriageIds(batchIds, items);
+  }
+
+  const merged = mergeTriage(batch, items);
+  const scored = selectScoredThreads(merged);
+  const dropped = batch.length - scored.length;
+
+  const warning = buildWarning([
+    dropped > 0 ? `Dropped ${dropped} posts missing triage scores.` : "",
+    overflow > 0
+      ? `Omitted ${overflow} posts beyond the ${MAX_TRIAGE_THREADS}-thread triage cap.`
+      : "",
+  ]);
+
   return {
-    threads: mergeTriage(threads, items),
+    threads: scored,
     model: used.model,
-    warning: overflow > 0 ? `Triaged first ${batch.length} of ${threads.length} threads.` : undefined,
+    warning,
   };
 }
