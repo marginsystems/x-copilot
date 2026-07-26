@@ -181,7 +181,7 @@ const server = http.createServer(async (req, res) => {
           : undefined,
         lengthFiltered: byLength.filteredCount,
         lengthWarning: byLength.filteredCount
-          ? `Dropped ${byLength.filteredCount} posts over ${maxChars} chars (or thread openers).`
+          ? `Dropped ${byLength.filteredCount} posts (${byLength.openerFilteredCount} thread openers, ${byLength.filteredCount - byLength.openerFilteredCount} over ${maxChars} chars).`
           : undefined,
       });
     }
