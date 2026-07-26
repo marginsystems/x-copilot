@@ -13,21 +13,12 @@ type Draft = {
   text: string;
 };
 
-const PLACEHOLDER_THREADS: ThreadCard[] = [
-  {
-    id: "demo-1",
-    author: "@example",
-    text: "Scaffold placeholder — real threads land when the session sidecar is wired.",
-    url: "https://x.com",
-    score: 0,
-  },
-];
-
 export default function App() {
   const [agenda, setAgenda] = useState(
     "Find builders talking about shipping AI tools in public. Prefer questions I can answer helpfully.",
   );
-  const [status, setStatus] = useState("Idle — sidecar not connected yet");
+  const [status, setStatus] = useState("Idle — verify session, then search from agenda");
+  const [plannedQueries, setPlannedQueries] = useState<string[]>([]);
   const [threads, setThreads] = useState<ThreadCard[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -55,7 +46,7 @@ export default function App() {
       }
       setStatus(`Session OK — @${data.user?.screen_name} (${data.user?.name})`);
     } catch {
-      setStatus("Sidecar offline — run npm run dev:server");
+      setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
     } finally {
       setBusy(false);
     }
@@ -63,27 +54,40 @@ export default function App() {
 
   async function onSearch() {
     setBusy(true);
-    setStatus("Searching… (stream 1: wire /api/search)");
+    setPlannedQueries([]);
+    setStatus("Planning search queries with DeepSeek V4 Flash…");
     try {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agenda, source: "for_you" }),
+        body: JSON.stringify({ agenda }),
       });
+      const data = (await res.json()) as {
+        threads?: ThreadCard[];
+        queries?: string[];
+        message?: string;
+        error?: string;
+        model?: string;
+      };
       if (!res.ok) {
-        setThreads(PLACEHOLDER_THREADS);
-        setSelectedId(PLACEHOLDER_THREADS[0].id);
-        setStatus(`Sidecar ${res.status} — showing placeholder cards`);
+        setThreads([]);
+        setSelectedId(null);
+        setStatus(`Search fail: ${data.message || data.error || res.status}`);
         return;
       }
-      const data = (await res.json()) as { threads: ThreadCard[] };
-      setThreads(data.threads);
-      setSelectedId(data.threads[0]?.id ?? null);
-      setStatus(`Loaded ${data.threads.length} threads`);
+      const qs = data.queries ?? [];
+      const list = data.threads ?? [];
+      setPlannedQueries(qs);
+      setThreads(list);
+      setSelectedId(list[0]?.id ?? null);
+      const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
+      setStatus(
+        `Loaded ${list.length} threads via ${data.model || "deepseek-chat"} — ${qLabel}`,
+      );
     } catch {
-      setThreads(PLACEHOLDER_THREADS);
-      setSelectedId(PLACEHOLDER_THREADS[0].id);
-      setStatus("Sidecar offline — run npm run dev:server");
+      setThreads([]);
+      setSelectedId(null);
+      setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
     } finally {
       setBusy(false);
     }
@@ -92,7 +96,7 @@ export default function App() {
   async function onDraft() {
     if (!selected) return;
     setBusy(true);
-    setStatus("Drafting with DeepSeek… (stream 1: wire /api/draft)");
+    setStatus("Drafting with DeepSeek… (draft API still stub)");
     try {
       const res = await fetch("/api/draft", {
         method: "POST",
@@ -132,7 +136,7 @@ export default function App() {
       <header className="brand">
         <h1>x-copilot</h1>
         <p>
-          Research and reply assistant for X. Session-backed search, DeepSeek drafts, you post.
+          Agenda → DeepSeek V4 Flash queries → session X search. You review and post.
         </p>
       </header>
 
@@ -149,7 +153,7 @@ export default function App() {
             <button className="ghost" disabled={busy} onClick={onVerifySession}>
               Verify session
             </button>
-            <button className="primary" disabled={busy} onClick={onSearch}>
+            <button className="primary" disabled={busy || !agenda.trim()} onClick={onSearch}>
               Search threads
             </button>
             <button className="ghost" disabled={busy || !selected} onClick={onDraft}>
@@ -157,6 +161,11 @@ export default function App() {
             </button>
           </div>
           <p className="status">{status}</p>
+          {plannedQueries.length > 0 ? (
+            <p className="status">
+              Queries: {plannedQueries.map((q) => `"${q}"`).join(" · ")}
+            </p>
+          ) : null}
 
           <h2>Threads</h2>
           {threads.length === 0 ? (
@@ -177,6 +186,15 @@ export default function App() {
                 <div className="meta">
                   {t.author}
                   {typeof t.score === "number" ? ` · score ${t.score}` : ""}
+                  {" · "}
+                  <a
+                    href={t.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    open
+                  </a>
                 </div>
                 <div>{t.text}</div>
               </button>
@@ -188,7 +206,12 @@ export default function App() {
           <h2>Draft</h2>
           {selected ? (
             <div className="thread">
-              <div className="meta">{selected.author}</div>
+              <div className="meta">
+                {selected.author} ·{" "}
+                <a href={selected.url} target="_blank" rel="noreferrer">
+                  open
+                </a>
+              </div>
               <div>{selected.text}</div>
             </div>
           ) : (
