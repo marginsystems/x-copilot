@@ -299,7 +299,7 @@ export default function App() {
       };
       stopScoutTimeline();
       if (!res.ok) {
-        setScoutStage("error");
+        setScoutStage(null);
         setScoutLog((prev) => [...prev.slice(-4), scoutStageMessage("error")]);
         setThreads([]);
         setStatus(`Scout failed: ${data.message || data.error || res.status}`);
@@ -323,7 +323,7 @@ export default function App() {
       setScoutLog((prev) => [...prev.slice(-3), summary]);
     } catch {
       stopScoutTimeline();
-      setScoutStage("error");
+      setScoutStage(null);
       setThreads([]);
       setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
     } finally {
