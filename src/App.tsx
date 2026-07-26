@@ -365,8 +365,13 @@ export default function App() {
         setScoutStage("done");
         setStatus(summary);
         pushScoutLine(summary);
+<<<<<<< HEAD
       } else if (!sawError) {
         setScoutStage(null);
+=======
+      } else {
+        setScoutStage("error");
+>>>>>>> a7403c1 (Fix: handle error events without done event leaving UI stuck in searching state)
         setStatus("Scout failed: stream ended without results");
         pushScoutLine(scoutStageMessage("error"));
       } else {
