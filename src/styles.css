@@ -300,6 +300,11 @@ button:disabled {
   border-color: var(--accent-dim);
 }
 
+.chip-interacted {
+  color: #9bb7a5;
+  border-color: #3a5244;
+}
+
 /* Expanded detail */
 
 .row-detail {

@@ -28,6 +28,10 @@ After search, `POST /api/search` sends the returned threads (max 20) to DeepSeek
 
 The agenda is passed along, so a specific on-agenda question scores low even though it is a question. Triage **fails soft**: if DeepSeek errors or returns bad JSON, search still returns 200 with the raw threads plus a `triageWarning`. In the UI, summaries replace the tweet text as the card headline (original stays underneath) and `skip` threads are dimmed.
 
+## Interacted + author cooldown
+
+**Mark interacted** (or **Copy reply**) records the thread + author in a local sidecar file `data/interactions.json` (gitignored). For the next **24 hours**, later searches drop other posts from that same `@handle` *before* triage, so we do not keep hammering the same account or waste DeepSeek tokens on them. The search status line reports how many posts were filtered. Restarting the sidecar keeps the cooldown (file persist).
+
 ## Architecture
 
 ```

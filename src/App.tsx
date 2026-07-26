@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 
 type ThreadCard = {
@@ -22,6 +22,10 @@ type Draft = {
   text: string;
 };
 
+function normalizeAuthorKey(author: string): string {
+  return author.trim().replace(/^@+/, "").toLowerCase();
+}
+
 function baitRisk(thread: ThreadCard): number | null {
   const value = thread.baitScore ?? thread.score;
   return typeof value === "number" ? value : null;
@@ -39,17 +43,21 @@ function ThreadRow({
   open,
   draft,
   busy,
+  interacted,
   onToggle,
   onDraft,
   onCopy,
+  onMark,
 }: {
   thread: ThreadCard;
   open: boolean;
   draft: Draft | null;
   busy: boolean;
+  interacted: boolean;
   onToggle: () => void;
   onDraft: () => void;
   onCopy: () => void;
+  onMark: () => void;
 }) {
   const bait = baitRisk(thread);
   const ago = formatTimeAgo(thread.createdAt);
@@ -78,6 +86,9 @@ function ThreadRow({
           <span className="row-meta">
             <span>{thread.author}</span>
             {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
+            {interacted ? (
+              <span className="chip chip-interacted">interacted</span>
+            ) : null}
             {thread.engage === "skip" || thread.engage === "priority" ? (
               <span className={`chip chip-${thread.engage}`}>
                 {thread.engage}
@@ -111,10 +122,13 @@ function ThreadRow({
               Draft reply
             </button>
             {draft ? (
-              <button className="ghost" onClick={onCopy}>
+              <button className="ghost" disabled={busy} onClick={onCopy}>
                 Copy reply
               </button>
             ) : null}
+            <button className="ghost" disabled={busy || interacted} onClick={onMark}>
+              {interacted ? "Interacted" : "Mark interacted"}
+            </button>
           </div>
           {draft ? <div className="draft">{draft.text}</div> : null}
         </div>
@@ -133,6 +147,61 @@ export default function App() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [interactedIds, setInteractedIds] = useState<Set<string>>(() => new Set());
+
+  async function hydrateInteracted() {
+    try {
+      const res = await fetch("/api/interacted");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        interactions?: Array<{ threadId?: string }>;
+      };
+      const ids = new Set(
+        (data.interactions ?? [])
+          .map((i) => i.threadId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      );
+      setInteractedIds(ids);
+    } catch {
+      // Sidecar may be offline on first paint — ignore.
+    }
+  }
+
+  useEffect(() => {
+    void hydrateInteracted();
+  }, []);
+
+  async function postInteracted(
+    thread: ThreadCard,
+    source: "manual" | "copy",
+  ): Promise<boolean> {
+    try {
+      const res = await fetch("/api/interacted", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          threadId: thread.id,
+          author: thread.author,
+          source,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        setStatus(`Mark fail: ${data.message || res.status}`);
+        return false;
+      }
+      const key = normalizeAuthorKey(thread.author);
+      setInteractedIds((prev) => new Set(prev).add(thread.id));
+      // Drop this author from the live list so we stop engaging the same account.
+      setThreads((prev) => prev.filter((t) => normalizeAuthorKey(t.author) !== key));
+      setExpandedId((id) => (id === thread.id ? null : id));
+      setDraft((d) => (d?.threadId === thread.id ? null : d));
+      return true;
+    } catch {
+      setStatus("Sidecar offline — could not mark interacted");
+      return false;
+    }
+  }
 
   async function onVerifySession() {
     setBusy(true);
@@ -174,6 +243,7 @@ export default function App() {
         error?: string;
         model?: string;
         triageWarning?: string;
+        cooldownWarning?: string;
       };
       if (!res.ok) {
         setThreads([]);
@@ -187,10 +257,12 @@ export default function App() {
       setThreads(list);
       setExpandedId(null);
       setDraft(null);
+      await hydrateInteracted();
       const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
       setStatus(
         `Loaded ${list.length} threads via ${data.model || "deepseek-chat"} — ${qLabel}` +
-          (data.triageWarning ? ` · ${data.triageWarning}` : ""),
+          (data.triageWarning ? ` · ${data.triageWarning}` : "") +
+          (data.cooldownWarning ? ` · ${data.cooldownWarning}` : ""),
       );
     } catch {
       setThreads([]);
@@ -232,13 +304,28 @@ export default function App() {
     }
   }
 
-  async function onCopy() {
-    if (!draft) return;
+  async function onCopy(thread: ThreadCard) {
+    if (!draft || draft.threadId !== thread.id) return;
     try {
       await navigator.clipboard.writeText(draft.text);
-      setStatus("Copied — paste manually on X");
     } catch {
       setStatus("Copy failed — clipboard API unavailable or permission denied");
+      return;
+    }
+    setBusy(true);
+    const ok = await postInteracted(thread, "copy");
+    setBusy(false);
+    if (ok) {
+      setStatus("Copied — marked interacted (24h author cooldown)");
+    }
+  }
+
+  async function onMark(thread: ThreadCard) {
+    setBusy(true);
+    const ok = await postInteracted(thread, "manual");
+    setBusy(false);
+    if (ok) {
+      setStatus(`Marked ${thread.author} interacted — cooled down for 24h`);
     }
   }
 
@@ -293,9 +380,11 @@ export default function App() {
               open={expandedId === t.id}
               draft={draft?.threadId === t.id ? draft : null}
               busy={busy}
+              interacted={interactedIds.has(t.id)}
               onToggle={() => setExpandedId(expandedId === t.id ? null : t.id)}
               onDraft={() => onDraft(t)}
-              onCopy={onCopy}
+              onCopy={() => onCopy(t)}
+              onMark={() => onMark(t)}
             />
           ))}
         </div>
