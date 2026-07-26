@@ -307,7 +307,6 @@ export default function App() {
       const decoder = new TextDecoder();
       let buffer = "";
       let doneEvent: ScoutStreamEvent | null = null;
-      let sawError = false;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -328,7 +327,6 @@ export default function App() {
             doneEvent = ev;
             applyScoutEvent(ev);
           } else if (ev.stage === "error") {
-            sawError = true;
             applyScoutEvent(ev);
             setThreads([]);
           } else {
@@ -341,7 +339,6 @@ export default function App() {
         try {
           const ev = JSON.parse(buffer.trim()) as ScoutStreamEvent;
           if (ev.stage === "done") doneEvent = ev;
-          if (ev.stage === "error") sawError = true;
           applyScoutEvent(ev);
         } catch {
           /* ignore trailing junk */
