@@ -209,6 +209,12 @@ export default function App() {
     void hydrateInteracted();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
   async function postInteracted(
     thread: ThreadCard,
     source: "manual" | "copy",
@@ -307,6 +313,7 @@ export default function App() {
       const decoder = new TextDecoder();
       let buffer = "";
       let doneEvent: ScoutStreamEvent | null = null;
+      let sawError = false;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -329,6 +336,7 @@ export default function App() {
           } else if (ev.stage === "error") {
             applyScoutEvent(ev);
             setThreads([]);
+            sawError = true;
           } else {
             applyScoutEvent(ev);
           }
@@ -363,10 +371,14 @@ export default function App() {
         setStatus(summary);
         pushScoutLine(summary);
 <<<<<<< HEAD
+<<<<<<< HEAD
       } else if (!sawError) {
         setScoutStage(null);
 =======
       } else {
+=======
+      } else if (!sawError) {
+>>>>>>> bc1ade5 (fix: add unmount cleanup and preserve specific error messages from stream)
         setScoutStage("error");
 >>>>>>> a7403c1 (Fix: handle error events without done event leaving UI stuck in searching state)
         setStatus("Scout failed: stream ended without results");
