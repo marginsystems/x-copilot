@@ -5,20 +5,12 @@ import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import {
-  filterThreadsByCooldown,
-  getCooledAuthorKeys,
   listActiveInteractions,
   markInteracted,
   normalizeAuthorKey,
 } from "./interactionStore.js";
 import { loadEnv } from "./loadEnv.js";
-import { planQueriesFromAgenda } from "./queryPlan.js";
-import {
-  filterThreadsByLength,
-  resolveMaxThreadChars,
-} from "./threadFilters.js";
-import { triageThreads } from "./threadTriage.js";
-import { searchMany } from "./xSearch.js";
+import { runScoutSearch } from "./scoutRun.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
 loadEnv(resolve(process.cwd(), ".env"));
@@ -117,73 +109,84 @@ const server = http.createServer(async (req, res) => {
           message: err instanceof Error ? err.message : "Invalid request body",
         });
       }
-      const session = getSessionFromEnv();
-      if (!session.configured) {
-        return send(res, 401, {
-          error: "missing_credentials",
-          message: "Set X_AUTH_TOKEN and X_CT0 in .env.",
-        });
-      }
-
-      let queries = Array.isArray(body.queries)
+      const agenda = typeof body.agenda === "string" ? body.agenda.trim() : "";
+      const queries = Array.isArray(body.queries)
         ? body.queries.filter((q): q is string => typeof q === "string")
         : [];
-      let plannedBy: "client" | "deepseek" = "client";
-      let planModel: string | undefined;
-      const agenda = typeof body.agenda === "string" ? body.agenda.trim() : "";
-
-      if (queries.length === 0) {
-        if (!agenda) {
-          return send(res, 400, {
-            error: "missing_agenda",
-            message: "Pass { agenda: string } or { queries: string[] }.",
-          });
-        }
-        if (!process.env.DEEPSEEK_API_KEY?.trim()) {
-          return send(res, 503, {
-            error: "missing_deepseek_key",
-            message: "Set DEEPSEEK_API_KEY for agenda → query planning.",
-          });
-        }
-        const plan = await planQueriesFromAgenda(agenda);
-        if (!plan.ok) {
-          return send(res, 502, {
-            error: plan.error,
-            message: plan.message,
-          });
-        }
-        queries = plan.queries;
-        plannedBy = "deepseek";
-        planModel = plan.model;
+      const result = await runScoutSearch({ agenda, queries });
+      if (!result.ok) {
+        return send(res, result.status, {
+          error: result.error,
+          message: result.message,
+        });
       }
-
-      const result = await searchMany(queries, { session });
-      const cooled = await getCooledAuthorKeys();
-      const filtered = filterThreadsByCooldown(result.threads, cooled);
-      const maxChars = resolveMaxThreadChars(process.env.X_MAX_THREAD_CHARS);
-      const byLength = filterThreadsByLength(filtered.threads, maxChars);
-      const triaged = await triageThreads({
-        agenda,
-        threads: byLength.threads,
-      });
+      const done = result.event;
       return send(res, 200, {
-        queries: result.queries,
-        threads: triaged.threads,
-        errors: result.errors,
-        plannedBy,
-        model: planModel,
-        triageModel: triaged.model,
-        triageWarning: triaged.warning,
-        cooldownFiltered: filtered.filteredCount,
-        cooldownAuthors: filtered.filteredAuthors,
-        cooldownWarning: filtered.filteredCount
-          ? `Filtered ${filtered.filteredCount} posts from cooled-down authors.`
-          : undefined,
-        lengthFiltered: byLength.filteredCount,
-        lengthWarning: byLength.filteredCount
-          ? `Dropped ${byLength.filteredCount} posts (${byLength.openerFilteredCount} thread openers, ${byLength.filteredCount - byLength.openerFilteredCount} over ${maxChars} chars).`
-          : undefined,
+        queries: done.queries,
+        threads: done.threads,
+        errors: done.errors,
+        plannedBy: done.plannedBy,
+        model: done.model,
+        triageModel: done.triageModel,
+        triageWarning: done.triageWarning,
+        cooldownFiltered: done.cooldownFiltered,
+        cooldownAuthors: done.cooldownAuthors,
+        cooldownWarning: done.cooldownWarning,
+        lengthFiltered: done.lengthFiltered,
+        lengthWarning: done.lengthWarning,
       });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/scout/run") {
+      let body: { queries?: unknown; agenda?: unknown };
+      try {
+        body = (await readBody(req)) as {
+          queries?: unknown;
+          agenda?: unknown;
+        };
+      } catch (err) {
+        const statusCode = err instanceof BodyError ? err.statusCode : 400;
+        return send(res, statusCode, {
+          error: "bad_request",
+          message: err instanceof Error ? err.message : "Invalid request body",
+        });
+      }
+      const agenda = typeof body.agenda === "string" ? body.agenda.trim() : "";
+      const queries = Array.isArray(body.queries)
+        ? body.queries.filter((q): q is string => typeof q === "string")
+        : [];
+
+      res.writeHead(200, {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+
+      let sawTerminal = false;
+      const writeLine = (event: { stage?: string; [key: string]: unknown }) => {
+        if (event.stage === "done" || event.stage === "error") {
+          sawTerminal = true;
+        }
+        res.write(`${JSON.stringify(event)}\n`);
+      };
+
+      const result = await runScoutSearch({
+        agenda,
+        queries,
+        onEvent: writeLine,
+      });
+      if (!result.ok && !sawTerminal) {
+        writeLine({
+          agent: "scout",
+          stage: "error",
+          message: `Scout failed: ${result.message}`,
+          detail: { error: result.error, status: result.status },
+          at: new Date().toISOString(),
+        });
+      }
+      return res.end();
     }
 
     if (req.method === "GET" && url.pathname === "/api/interacted") {
