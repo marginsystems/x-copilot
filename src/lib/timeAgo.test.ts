@@ -23,6 +23,7 @@ describe("formatTimeAgo", () => {
 
   it("returns just now / minutes / hours / days", () => {
     assert.equal(formatTimeAgo("2026-07-25T14:59:30.000Z", now), "just now");
+    assert.equal(formatTimeAgo("2026-07-25T14:59:45.000Z", now), "just now");
     assert.equal(formatTimeAgo("2026-07-25T14:50:00.000Z", now), "10m");
     assert.equal(formatTimeAgo("2026-07-25T12:00:00.000Z", now), "3h");
     assert.equal(formatTimeAgo("2026-07-23T15:00:00.000Z", now), "2d");
