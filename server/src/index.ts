@@ -13,6 +13,7 @@ import {
 } from "./interactionStore.js";
 import { loadEnv } from "./loadEnv.js";
 import { getLastScout } from "./scoutCache.js";
+import { endScout, tryBeginScout } from "./scoutGate.js";
 import { runScoutSearch, type ScoutFilters } from "./scoutRun.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
@@ -131,28 +132,39 @@ const server = http.createServer(async (req, res) => {
         ? body.queries.filter((q): q is string => typeof q === "string")
         : [];
       const filters = parseScoutFilters(body.filters);
-      const result = await runScoutSearch({ agenda, queries, filters });
-      if (!result.ok) {
-        return send(res, result.status, {
-          error: result.error,
-          message: result.message,
+      const gate = tryBeginScout();
+      if (!gate.ok) {
+        return send(res, gate.status, {
+          error: gate.error,
+          message: gate.message,
         });
       }
-      const done = result.event;
-      return send(res, 200, {
-        queries: done.queries,
-        threads: done.threads,
-        errors: done.errors,
-        plannedBy: done.plannedBy,
-        model: done.model,
-        triageModel: done.triageModel,
-        triageWarning: done.triageWarning,
-        cooldownFiltered: done.cooldownFiltered,
-        cooldownAuthors: done.cooldownAuthors,
-        cooldownWarning: done.cooldownWarning,
-        lengthFiltered: done.lengthFiltered,
-        lengthWarning: done.lengthWarning,
-      });
+      try {
+        const result = await runScoutSearch({ agenda, queries, filters });
+        if (!result.ok) {
+          return send(res, result.status, {
+            error: result.error,
+            message: result.message,
+          });
+        }
+        const done = result.event;
+        return send(res, 200, {
+          queries: done.queries,
+          threads: done.threads,
+          errors: done.errors,
+          plannedBy: done.plannedBy,
+          model: done.model,
+          triageModel: done.triageModel,
+          triageWarning: done.triageWarning,
+          cooldownFiltered: done.cooldownFiltered,
+          cooldownAuthors: done.cooldownAuthors,
+          cooldownWarning: done.cooldownWarning,
+          lengthFiltered: done.lengthFiltered,
+          lengthWarning: done.lengthWarning,
+        });
+      } finally {
+        endScout();
+      }
     }
 
     if (req.method === "POST" && url.pathname === "/api/scout/run") {
@@ -176,38 +188,50 @@ const server = http.createServer(async (req, res) => {
         : [];
       const filters = parseScoutFilters(body.filters);
 
-      res.writeHead(200, {
-        "Content-Type": "application/x-ndjson; charset=utf-8",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      });
-
-      let sawTerminal = false;
-      const writeLine = (event: { stage?: string; [key: string]: unknown }) => {
-        if (event.stage === "done" || event.stage === "error") {
-          sawTerminal = true;
-        }
-        res.write(`${JSON.stringify(event)}\n`);
-      };
-
-      const result = await runScoutSearch({
-        agenda,
-        queries,
-        filters,
-        onEvent: writeLine,
-      });
-      if (!result.ok && !sawTerminal) {
-        writeLine({
-          agent: "scout",
-          stage: "error",
-          message: `Scout failed: ${result.message}`,
-          detail: { error: result.error, status: result.status },
-          at: new Date().toISOString(),
+      const gate = tryBeginScout();
+      if (!gate.ok) {
+        return send(res, gate.status, {
+          error: gate.error,
+          message: gate.message,
         });
       }
-      return res.end();
+
+      try {
+        res.writeHead(200, {
+          "Content-Type": "application/x-ndjson; charset=utf-8",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
+
+        let sawTerminal = false;
+        const writeLine = (event: { stage?: string; [key: string]: unknown }) => {
+          if (event.stage === "done" || event.stage === "error") {
+            sawTerminal = true;
+          }
+          res.write(`${JSON.stringify(event)}\n`);
+        };
+
+        const result = await runScoutSearch({
+          agenda,
+          queries,
+          filters,
+          onEvent: writeLine,
+        });
+        if (!result.ok && !sawTerminal) {
+          writeLine({
+            agent: "scout",
+            stage: "error",
+            message: `Scout failed: ${result.message}`,
+            detail: { error: result.error, status: result.status },
+            at: new Date().toISOString(),
+          });
+        }
+        return res.end();
+      } finally {
+        endScout();
+      }
     }
 
     if (req.method === "GET" && url.pathname === "/api/scout/last") {

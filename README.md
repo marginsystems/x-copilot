@@ -40,7 +40,7 @@ Before triage, posts with more than **480** characters (or obvious `N/M` thread 
 
 ## Scout
 
-**Scout** is x-copilot’s search mini-agent. The UI activity strip shows live stages while Scout plans queries, searches X, filters, and triages. Prefer `POST /api/scout/run` (NDJSON stream of `{ agent: "scout", stage, message, … }` lines, final `done` includes threads + `opencodeTurns`). `POST /api/search` remains a non-streaming JSON fallback. `opencodeTurns` is a thin structured agent log (not a full OpenCode CLI session).
+**Scout** is x-copilot’s search mini-agent. The UI activity strip shows live stages while Scout plans queries, searches X, filters, and triages. Prefer `POST /api/scout/run` (NDJSON stream of `{ agent: "scout", stage, message, … }` lines, final `done` includes threads + `opencodeTurns`). `POST /api/search` remains a non-streaming JSON fallback. `opencodeTurns` is a thin structured agent log (not a full OpenCode CLI session). Search is rate-limited: one run at a time, then a **15s** cooldown (UI + sidecar `429`) before the next Search.
 
 ## Architecture
 
