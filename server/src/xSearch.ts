@@ -199,8 +199,8 @@ function noteTweetText(node: TweetResultNode): string | undefined {
 }
 
 function hasArticlePayload(node: TweetResultNode): boolean {
-  if (node.article != null && node.article !== false) return true;
-  if (node.article_results != null && node.article_results !== false) return true;
+  if (typeof node.article === "object" && node.article !== null) return true;
+  if (typeof node.article_results === "object" && node.article_results !== null) return true;
   return false;
 }
 
