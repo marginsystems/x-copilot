@@ -377,11 +377,11 @@ export async function searchTimeline(opts: {
       });
     } catch {
       clearTimeout(tm);
-      opts.signal?.removeEventListener("abort", onAbort);
+      if (onAbort) opts.signal?.removeEventListener("abort", onAbort);
       continue;
     }
     clearTimeout(tm);
-    opts.signal?.removeEventListener("abort", onAbort);
+    if (onAbort) opts.signal?.removeEventListener("abort", onAbort);
     const text = await res.text();
     lastStatus = res.status;
     lastBody = text;
