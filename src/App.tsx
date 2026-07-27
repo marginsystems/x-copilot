@@ -958,20 +958,22 @@ export default function App() {
                 />
               </label>
             </div>
-            <p className="status status-hint">
-              Fills a hard-filter bucket of 5, then LLM-qualifies until ≥1 cool
-              lead (target kept for later).
-            </p>
-            <p className="status">
-              {searchCooldownRemaining > 0 && !searching
-                ? `Wait ${searchCooldownRemaining}s before starting Scout again.`
-                : status}
-            </p>
-            <p className="status status-queries">
-              {plannedQueries.length > 0
-                ? `Queries: ${plannedQueries.map((q) => `"${q}"`).join(" · ")}`
-                : "\u00a0"}
-            </p>
+            <div className="status-stack" aria-live="polite">
+              <p className="status status-hint">
+                Fills a hard-filter bucket of 5, then LLM-qualifies until ≥1
+                cool lead (target kept for later).
+              </p>
+              <p className="status status-main">
+                {searchCooldownRemaining > 0 && !searching
+                  ? `Wait ${searchCooldownRemaining}s before starting Scout again.`
+                  : status || "\u00a0"}
+              </p>
+              <p className="status status-queries">
+                {plannedQueries.length > 0
+                  ? `Queries: ${plannedQueries.map((q) => `"${q}"`).join(" · ")}`
+                  : "\u00a0"}
+              </p>
+            </div>
             <div
               className={searching ? "scout-strip active" : "scout-strip"}
               aria-live="polite"
