@@ -192,6 +192,7 @@ export default function App() {
   );
   const [settingsStatus, setSettingsStatus] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const staleHydration = useRef(false);
   const menuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function clearMenuCloseTimer() {
@@ -269,6 +270,7 @@ export default function App() {
         };
       };
       if (!data.ok || data.empty || !data.snapshot) return;
+      if (staleHydration.current) return;
       const list = Array.isArray(data.snapshot.threads)
         ? data.snapshot.threads
         : [];
@@ -410,6 +412,7 @@ export default function App() {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
+    staleHydration.current = true;
 
     setBusy(true);
     setSearching(true);
