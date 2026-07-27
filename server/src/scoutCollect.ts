@@ -316,6 +316,7 @@ export async function runScoutCollect(opts: {
         query,
         count: COLLECT_COUNT_PER_QUERY,
         session,
+        signal: opts.signal,
       });
       if (aborted()) {
         stopReason = "aborted";

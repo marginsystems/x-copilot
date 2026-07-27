@@ -302,6 +302,7 @@ export async function searchTimeline(opts: {
   product?: SearchProduct;
   count?: number;
   session?: SessionCreds;
+  signal?: AbortSignal;
 }): Promise<SearchTimelineResult> {
   const session = opts.session ?? getSessionFromEnv();
   if (!session.configured) {
@@ -361,12 +362,16 @@ export async function searchTimeline(opts: {
     try {
       const ac = new AbortController();
       const tm = setTimeout(() => ac.abort(), 15000);
+      const onAbort = () => ac.abort();
+      opts.signal?.addEventListener("abort", onAbort, { once: true });
       res = await fetch(url, {
         method: "POST",
         headers,
         body: JSON.stringify({ features, queryId: qid }),
         signal: ac.signal,
-      }).finally(() => clearTimeout(tm));
+      });
+      clearTimeout(tm);
+      opts.signal?.removeEventListener("abort", onAbort);
     } catch {
       continue;
     }
