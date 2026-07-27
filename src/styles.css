@@ -11,7 +11,7 @@
   --accent-dim: #26445e;
   --danger: #c96a6a;
   --danger-dim: #5d3535;
-  --radius: 2px;
+  --radius: 0;
   --font-head: "Space Grotesk", "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
@@ -84,8 +84,11 @@ h3 {
   min-width: 0;
   min-height: 0;
   max-height: 42dvh;
+  height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
 }
 
 .threads-pane {
@@ -182,6 +185,11 @@ h3 {
   position: fixed;
   inset: 0;
   z-index: 40;
+  pointer-events: none;
+}
+
+.menu-root.is-open {
+  pointer-events: auto;
 }
 
 .menu-backdrop {
@@ -190,24 +198,63 @@ h3 {
   border: none;
   padding: 0;
   margin: 0;
-  background: rgba(4, 6, 9, 0.72);
+  background: rgba(4, 6, 9, 0.55);
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.menu-root.is-open .menu-backdrop {
+  opacity: 1;
 }
 
 .menu-sheet {
   position: absolute;
   top: 0;
+  left: 0;
   right: 0;
-  bottom: 0;
-  width: min(100%, 360px);
+  width: 100%;
+  height: auto;
+  max-height: min(70dvh, 420px);
   background: var(--panel);
-  border-left: 1px solid var(--border);
-  padding: 20px;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+  pointer-events: auto;
+}
+
+.menu-sheet.is-open {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (min-width: 640px) {
+  .menu-sheet {
+    top: 56px;
+    left: auto;
+    right: max(12px, calc((100vw - 1400px) / 2 + 20px));
+    width: min(280px, calc(100vw - 32px));
+    max-height: none;
+    border: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-backdrop,
+  .menu-sheet {
+    transition: opacity 120ms ease;
+    transform: none;
+  }
 }
 
 .menu-sheet-head {
@@ -410,7 +457,7 @@ button:disabled {
   overflow: hidden;
 }
 
-/* Scout activity strip — fixed footprint to avoid CLS */
+/* Scout activity strip — grows with leftover left-column space */
 
 .scout-strip {
   border: 1px solid var(--border);
@@ -419,7 +466,9 @@ button:disabled {
   padding: 10px 12px;
   display: grid;
   gap: 8px;
-  grid-template-rows: auto 2px 7.2rem;
+  grid-template-rows: auto 2px minmax(7.2rem, 1fr);
+  flex: 1;
+  min-height: 0;
 }
 
 .scout-strip.active {
@@ -485,7 +534,8 @@ button:disabled {
   margin: 0;
   padding: 0;
   list-style: none;
-  height: 7.2rem;
+  height: auto;
+  min-height: 7.2rem;
   overflow-y: auto;
   overscroll-behavior: contain;
   display: grid;

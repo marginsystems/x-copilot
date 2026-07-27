@@ -181,6 +181,7 @@ export default function App() {
   const [interactedIds, setInteractedIds] = useState<Set<string>>(() => new Set());
   const [view, setView] = useState<AppView>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuEntered, setMenuEntered] = useState(false);
   const [sessionUser, setSessionUser] = useState<{
     screen_name: string;
     name: string;
@@ -191,6 +192,33 @@ export default function App() {
   );
   const [settingsStatus, setSettingsStatus] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const menuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearMenuCloseTimer() {
+    if (menuCloseTimer.current) {
+      clearTimeout(menuCloseTimer.current);
+      menuCloseTimer.current = null;
+    }
+  }
+
+  function openMenu() {
+    clearMenuCloseTimer();
+    setMenuOpen(true);
+    setMenuEntered(false);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setMenuEntered(true));
+    });
+  }
+
+  function closeMenu() {
+    if (!menuOpen) return;
+    setMenuEntered(false);
+    clearMenuCloseTimer();
+    menuCloseTimer.current = setTimeout(() => {
+      setMenuOpen(false);
+      menuCloseTimer.current = null;
+    }, 160);
+  }
 
   function pushScoutLine(line: string) {
     setScoutLog((prev) => {
@@ -236,9 +264,24 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    return () => clearMenuCloseTimer();
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      setMenuEntered(false);
+      return;
+    }
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setMenuEntered(true));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [menuOpen]);
+
+  useEffect(() => {
     if (!menuOpen) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setMenuOpen(false);
+      if (e.key === "Escape") closeMenu();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -299,7 +342,7 @@ export default function App() {
         });
       }
       setStatus(`Session OK — @${data.user?.screen_name} (${data.user?.name})`);
-      setMenuOpen(false);
+      closeMenu();
     } catch {
       setSessionUser(null);
       setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
@@ -312,7 +355,7 @@ export default function App() {
     setSettingsDraft(settings);
     setSettingsStatus("");
     setView("settings");
-    setMenuOpen(false);
+    closeMenu();
   }
 
   function onSaveSettings() {
@@ -517,31 +560,37 @@ export default function App() {
           <button
             type="button"
             className="menu-toggle"
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((open) => !open)}
+            aria-label={menuOpen && menuEntered ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen && menuEntered}
+            onClick={() => {
+              if (menuOpen && menuEntered) closeMenu();
+              else openMenu();
+            }}
           >
-            <span aria-hidden="true">{menuOpen ? "✕" : "☰"}</span>
+            <span aria-hidden="true">
+              {menuOpen && menuEntered ? "✕" : "☰"}
+            </span>
           </button>
         </div>
       </header>
 
       {menuOpen ? (
-        <div className="menu-root">
+        <div className={menuEntered ? "menu-root is-open" : "menu-root"}>
           <button
             type="button"
             className="menu-backdrop"
             aria-label="Close menu"
-            onClick={() => setMenuOpen(false)}
+            onClick={closeMenu}
           />
-          <aside className="menu-sheet" role="dialog" aria-label="User menu">
+          <aside
+            className={menuEntered ? "menu-sheet is-open" : "menu-sheet"}
+            role="dialog"
+            aria-modal="true"
+            aria-label="User menu"
+          >
             <div className="menu-sheet-head">
               <h2>Menu</h2>
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => setMenuOpen(false)}
-              >
+              <button type="button" className="ghost" onClick={closeMenu}>
                 Close
               </button>
             </div>
