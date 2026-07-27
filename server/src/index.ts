@@ -301,7 +301,7 @@ const server = http.createServer(async (req, res) => {
           message: "Pass { threadId: string, author: string }.",
         });
       }
-      const source = body.source === "copy" ? "copy" : "manual";
+      const source = "manual";
       try {
         const interaction = await markInteracted({ threadId, author, source });
         return send(res, 200, { ok: true, interaction });
@@ -311,14 +311,6 @@ const server = http.createServer(async (req, res) => {
           message: err instanceof Error ? err.message : String(err),
         });
       }
-    }
-
-    if (req.method === "POST" && url.pathname === "/api/draft") {
-      await readBody(req).catch(() => ({}));
-      return send(res, 501, {
-        error: "not_implemented",
-        message: "Wire DeepSeek draft generation here.",
-      });
     }
 
     send(res, 404, { error: "not_found" });

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "X research + reply copilot: session search → DeepSeek drafts → Vite dashboard",
+  "description": "X research + triage copilot: session search → DeepSeek triage → Vite dashboard",
   "scripts": {
     "dev": "vite",
     "dev:server": "tsx watch server/src/index.ts",
