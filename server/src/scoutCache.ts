@@ -15,6 +15,13 @@ export type LastScoutSnapshot = {
   triageWarning?: string;
   cooldownWarning?: string;
   lengthWarning?: string;
+  pipelineCounts?: {
+    raw: number;
+    afterDedupe: number;
+    afterCooldown: number;
+    afterLength: number;
+    afterTriage: number;
+  };
 };
 
 export function defaultScoutCachePath(): string {
@@ -75,6 +82,24 @@ export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
   }
   if (typeof obj.lengthWarning === "string") {
     snapshot.lengthWarning = obj.lengthWarning;
+  }
+  if (typeof obj.pipelineCounts === "object" && obj.pipelineCounts !== null) {
+    const pc = obj.pipelineCounts as Record<string, unknown>;
+    if (
+      typeof pc.raw === "number" &&
+      typeof pc.afterDedupe === "number" &&
+      typeof pc.afterCooldown === "number" &&
+      typeof pc.afterLength === "number" &&
+      typeof pc.afterTriage === "number"
+    ) {
+      snapshot.pipelineCounts = {
+        raw: pc.raw,
+        afterDedupe: pc.afterDedupe,
+        afterCooldown: pc.afterCooldown,
+        afterLength: pc.afterLength,
+        afterTriage: pc.afterTriage,
+      };
+    }
   }
   return snapshot;
 }

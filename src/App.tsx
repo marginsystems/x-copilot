@@ -285,6 +285,13 @@ export default function App() {
           queries?: string[];
           threads?: ThreadCard[];
           message?: string;
+          pipelineCounts?: {
+            raw: number;
+            afterDedupe: number;
+            afterCooldown: number;
+            afterLength: number;
+            afterTriage: number;
+          };
         };
       };
       if (!data.ok || data.empty || !data.snapshot) return;
@@ -305,8 +312,12 @@ export default function App() {
         formatAbsoluteTime(data.snapshot.savedAt) ||
         formatTimeAgo(data.snapshot.savedAt) ||
         "earlier";
+      const pc = data.snapshot.pipelineCounts;
+      const funnel = pc
+        ? ` (${pc.raw} → ${pc.afterDedupe} → ${pc.afterCooldown} → ${pc.afterLength} → ${pc.afterTriage})`
+        : "";
       setStatus(
-        `Restored ${list.length} threads from ${when} — Search again to refresh.`,
+        `Restored ${list.length} threads${funnel} from ${when} — Search again to refresh.`,
       );
     } catch {
       // Sidecar may be offline on first paint — ignore.

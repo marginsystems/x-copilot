@@ -229,6 +229,7 @@ export async function runScoutSearch(opts: {
       triageWarning: triaged.warning,
       cooldownWarning,
       lengthWarning,
+      pipelineCounts,
     });
   } catch (err) {
     console.error("Failed to persist last Scout run:", err);

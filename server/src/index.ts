@@ -251,6 +251,7 @@ const server = http.createServer(async (req, res) => {
           queries: snapshot.queries,
           threads: filtered.threads,
           message: snapshot.message,
+          pipelineCounts: snapshot.pipelineCounts,
         },
       });
     }
