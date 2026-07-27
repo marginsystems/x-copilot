@@ -237,6 +237,8 @@ export default function App() {
   const [settingsStatus, setSettingsStatus] = useState("");
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [markThread, setMarkThread] = useState<ThreadCard | null>(null);
+  const [markReply, setMarkReply] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const searchingRef = useRef(0);
   const coolProgressRef = useRef({
@@ -444,7 +446,25 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);
 
-  async function postInteracted(thread: ThreadCard): Promise<boolean> {
+  function openMarkModal(thread: ThreadCard) {
+    setMarkThread(thread);
+    setMarkReply("");
+  }
+
+  function closeMarkModal() {
+    setMarkThread(null);
+    setMarkReply("");
+  }
+
+  async function postInteracted(
+    thread: ThreadCard,
+    reply: string,
+  ): Promise<boolean> {
+    const trimmed = reply.trim();
+    if (!trimmed) {
+      setStatus("Reply is required — paste what you posted on X.");
+      return false;
+    }
     try {
       const res = await fetch("/api/interacted", {
         method: "POST",
@@ -453,6 +473,16 @@ export default function App() {
           threadId: thread.id,
           author: thread.author,
           source: "manual",
+          reply: trimmed,
+          agenda,
+          url: thread.url,
+          text: thread.text,
+          summary: thread.summary,
+          baitScore: thread.baitScore ?? thread.score,
+          engage: thread.engage,
+          flags: thread.flags,
+          intent: thread.intent,
+          reason: thread.reason,
         }),
       });
       if (!res.ok) {
@@ -696,14 +726,36 @@ export default function App() {
     }
   }
 
-  async function onMark(thread: ThreadCard) {
+  function onMark(thread: ThreadCard) {
+    openMarkModal(thread);
+  }
+
+  async function confirmMarkInteracted() {
+    if (!markThread) return;
+    const reply = markReply.trim();
+    if (!reply) {
+      setStatus("Reply is required — paste what you posted on X.");
+      return;
+    }
     setBusy(true);
-    const ok = await postInteracted(thread);
+    const ok = await postInteracted(markThread, reply);
     setBusy(false);
     if (ok) {
-      setStatus(`Marked ${thread.author} interacted — cooled down for 24h`);
+      closeMarkModal();
+      setStatus(
+        `Marked ${markThread.author} interacted — memory saved · 24h cooldown`,
+      );
     }
   }
+
+  useEffect(() => {
+    if (!markThread) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") closeMarkModal();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [markThread]);
 
   return (
     <div className="app">
@@ -981,6 +1033,58 @@ export default function App() {
           </section>
         </div>
       )}
+
+      {markThread ? (
+        <div className="modal-root" role="presentation">
+          <button
+            type="button"
+            className="modal-backdrop"
+            aria-label="Cancel mark interacted"
+            onClick={closeMarkModal}
+          />
+          <div
+            className="modal-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mark-reply-title"
+          >
+            <h2 id="mark-reply-title">Mark interacted</h2>
+            <p className="status">
+              Paste the reply you posted on X for {markThread.author}. Saved to
+              local knowledge memory.
+            </p>
+            <label className="settings-field">
+              <span>Your reply on X</span>
+              <textarea
+                className="mark-reply"
+                value={markReply}
+                onChange={(e) => setMarkReply(e.target.value)}
+                placeholder="What you actually typed / posted…"
+                rows={5}
+                autoFocus
+              />
+            </label>
+            <div className="row">
+              <button
+                type="button"
+                className="primary"
+                disabled={busy || !markReply.trim()}
+                onClick={() => void confirmMarkInteracted()}
+              >
+                Confirm
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                disabled={busy}
+                onClick={closeMarkModal}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
