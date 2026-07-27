@@ -303,8 +303,8 @@ const server = http.createServer(async (req, res) => {
       }
       const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
       const author = typeof body.author === "string" ? body.author.trim() : "";
-      const reply = normalizeReply(body.reply) || "(no reply recorded)";
-      if (!threadId || !author || !normalizeAuthorKey(author)) {
+      const reply = normalizeReply(body.reply);
+      if (!threadId || !author || !normalizeAuthorKey(author) || !reply) {
         return send(res, 400, {
           error: "bad_request",
           message: "Pass { threadId: string, author: string, reply: string }.",
