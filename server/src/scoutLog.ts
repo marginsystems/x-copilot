@@ -17,7 +17,7 @@ export function defaultScoutLogPath(): string {
   return resolve(process.cwd(), "data", "scout-log.json");
 }
 
-let memory: ScoutLogEntry[] | null = null;
+let memory: { path: string; entries: ScoutLogEntry[] } | null = null;
 let writeLock: Promise<void> = Promise.resolve();
 
 async function serialized<T>(fn: () => Promise<T>): Promise<T> {
@@ -81,10 +81,11 @@ async function writeDisk(path: string, entries: ScoutLogEntry[]): Promise<void> 
 }
 
 async function ensureLoaded(storePath?: string): Promise<ScoutLogEntry[]> {
-  if (memory) return memory;
   const path = storePath ?? defaultScoutLogPath();
-  memory = await readDisk(path);
-  return memory;
+  if (memory?.path === path) return memory.entries;
+  const entries = await readDisk(path);
+  memory = { path, entries };
+  return entries;
 }
 
 /** Oldest → newest, max 1000. */
@@ -122,9 +123,9 @@ export async function appendScoutLog(
       return last;
     }
     entries.push(entry);
-    memory = entries.slice(-MAX_SCOUT_LOG_ENTRIES);
+    memory = { path, entries: entries.slice(-MAX_SCOUT_LOG_ENTRIES) };
     try {
-      await writeDisk(path, memory);
+      await writeDisk(path, memory.entries);
     } catch (err) {
       console.error("scoutLog write failed:", err);
     }

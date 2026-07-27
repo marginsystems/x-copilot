@@ -472,7 +472,7 @@ export default function App() {
     if (scoutLog.length === 0) return;
     const id = window.setInterval(() => setNowMs(Date.now()), 15_000);
     return () => window.clearInterval(id);
-  }, [scoutLog.length]);
+  }, [scoutLog.length > 0]);
 
   useEffect(() => {
     return () => clearMenuCloseTimer();
@@ -1060,7 +1060,7 @@ export default function App() {
                           const ago = formatTimeAgo(entry.at, nowMs);
                           const absolute = formatAbsoluteTime(entry.at);
                           return (
-                            <li key={`${entry.at}-${start + i}-${entry.message}`}>
+                            <li key={`${entry.at}-${entry.stage ?? ''}-${entry.message}`}>
                               <span
                                 className="scout-log-ago"
                                 title={absolute ?? undefined}
