@@ -163,6 +163,9 @@ function ThreadRow({
 
 type AppView = "dashboard" | "settings";
 
+/** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
+const SEARCH_COOLDOWN_MS = 15_000;
+
 export default function App() {
   const [agenda, setAgenda] = useState(
     "Find builders talking about shipping AI tools in public. Prefer questions I can answer helpfully.",
@@ -191,9 +194,17 @@ export default function App() {
     loadSettings(),
   );
   const [settingsStatus, setSettingsStatus] = useState("");
+  const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
+  const searchingRef = useRef(0);
   const staleHydration = useRef(false);
   const menuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchCooldownRemaining = Math.max(
+    0,
+    Math.ceil((searchCooldownUntil - nowMs) / 1000),
+  );
+  const searchBlocked = searching || searchCooldownRemaining > 0;
 
   function clearMenuCloseTimer() {
     if (menuCloseTimer.current) {
@@ -307,6 +318,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (searchCooldownUntil <= Date.now()) return;
+    setNowMs(Date.now());
+    const id = window.setInterval(() => {
+      const t = Date.now();
+      setNowMs(t);
+      if (t >= searchCooldownUntil) {
+        window.clearInterval(id);
+      }
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [searchCooldownUntil]);
+
+  useEffect(() => {
     return () => clearMenuCloseTimer();
   }, []);
 
@@ -409,9 +433,17 @@ export default function App() {
   }
 
   async function onSearch() {
-    abortRef.current?.abort();
+    if (Date.now() < searchingRef.current) {
+      if (isFinite(searchingRef.current)) {
+        const waitSec = Math.ceil((searchingRef.current - Date.now()) / 1000);
+        setStatus(`Wait ${waitSec}s before searching again.`);
+      }
+      return;
+    }
+
     const ac = new AbortController();
     abortRef.current = ac;
+    searchingRef.current = Infinity;
     staleHydration.current = true;
 
     setBusy(true);
@@ -521,15 +553,29 @@ export default function App() {
         pushScoutLine(scoutStageMessage("error"));
       }
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setScoutStage("error");
-      setThreads([]);
-      setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
-      pushScoutLine(scoutStageMessage("error"));
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // Still cool down in finally so spam-unmount/abort cannot bypass.
+      } else {
+        setScoutStage("error");
+        setThreads([]);
+        setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
+        pushScoutLine(scoutStageMessage("error"));
+      }
     } finally {
       if (abortRef.current === ac) {
+        const until = Date.now() + SEARCH_COOLDOWN_MS;
+        searchingRef.current = until;
         setSearching(false);
         setBusy(false);
+        setSearchCooldownUntil(until);
+        setNowMs(Date.now());
+        setStatus((prev) => {
+          if (/^Wait \d+s before searching again/.test(prev)) return prev;
+          if (prev.startsWith("Scout failed:") || prev.startsWith("Sidecar offline")) {
+            return `${prev} · Wait ${Math.ceil(SEARCH_COOLDOWN_MS / 1000)}s before searching again.`;
+          }
+          return prev;
+        });
       }
     }
   }
@@ -734,13 +780,21 @@ export default function App() {
             <div className="row">
               <button
                 className="primary"
-                disabled={busy || !agenda.trim()}
+                disabled={busy || searchBlocked || !agenda.trim()}
                 onClick={onSearch}
               >
-                Search threads
+                {searchCooldownRemaining > 0
+                  ? `Wait ${searchCooldownRemaining}s`
+                  : searching
+                    ? "Searching…"
+                    : "Search threads"}
               </button>
             </div>
-            <p className="status">{status}</p>
+            <p className="status">
+              {searchCooldownRemaining > 0 && !searching
+                ? `Wait ${searchCooldownRemaining}s before searching again.`
+                : status}
+            </p>
             <p className="status status-queries">
               {plannedQueries.length > 0
                 ? `Queries: ${plannedQueries.map((q) => `"${q}"`).join(" · ")}`
