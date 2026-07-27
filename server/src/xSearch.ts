@@ -342,6 +342,9 @@ export async function searchTimeline(opts: {
   let lastBody = "";
 
   for (let attempt = 0; attempt < tryIds.length + 1; attempt++) {
+    if (opts.signal?.aborted) {
+      return { ok: false, status: 499, error: "client_disconnected", message: "Client disconnected" };
+    }
     const qid =
       attempt < tryIds.length
         ? tryIds[attempt]
