@@ -455,33 +455,33 @@ export default function App() {
         </p>
       </header>
 
-      <section className="panel">
-        <h2>Agenda</h2>
-        <textarea
-          className="agenda"
-          value={agenda}
-          onChange={(e) => setAgenda(e.target.value)}
-          placeholder="What should we look for and how should we sound?"
-        />
-        <div className="row">
-          <button className="ghost" disabled={busy} onClick={onVerifySession}>
-            Verify session
-          </button>
-          <button
-            className="primary"
-            disabled={busy || !agenda.trim()}
-            onClick={onSearch}
-          >
-            Search threads
-          </button>
-        </div>
-        <p className="status">{status}</p>
-        {plannedQueries.length > 0 ? (
-          <p className="status">
-            Queries: {plannedQueries.map((q) => `"${q}"`).join(" · ")}
+      <div className="dashboard">
+        <section className="panel control-pane">
+          <h2>Agenda</h2>
+          <textarea
+            className="agenda"
+            value={agenda}
+            onChange={(e) => setAgenda(e.target.value)}
+            placeholder="What should we look for and how should we sound?"
+          />
+          <div className="row">
+            <button className="ghost" disabled={busy} onClick={onVerifySession}>
+              Verify session
+            </button>
+            <button
+              className="primary"
+              disabled={busy || !agenda.trim()}
+              onClick={onSearch}
+            >
+              Search threads
+            </button>
+          </div>
+          <p className="status">{status}</p>
+          <p className="status status-queries">
+            {plannedQueries.length > 0
+              ? `Queries: ${plannedQueries.map((q) => `"${q}"`).join(" · ")}`
+              : "\u00a0"}
           </p>
-        ) : null}
-        {searching || scoutStage ? (
           <div
             className={searching ? "scout-strip active" : "scout-strip"}
             aria-live="polite"
@@ -489,48 +489,63 @@ export default function App() {
             <div className="scout-strip-head">
               <span className="scout-label">Scout</span>
               <span className="scout-stage">
-                {scoutStage ? scoutStageMessage(scoutStage) : status}
+                {scoutStage
+                  ? scoutStageMessage(scoutStage)
+                  : searching
+                    ? status
+                    : "Idle — ready when you search"}
               </span>
             </div>
-            {searching ? <div className="scout-bar" aria-hidden="true" /> : null}
-            {scoutLog.length > 0 ? (
-              <ul className="scout-log">
-                {scoutLog.map((line, i) => (
-                  <li key={`${i}-${line}`}>{line}</li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
-
-      <h2 className="section-label">
-        Threads{threads.length > 0 ? ` (${threads.length})` : ""}
-      </h2>
-      {threads.length === 0 ? (
-        <p className="empty">
-          {searching
-            ? "Scout is working…"
-            : "No threads yet. Set an agenda and search."}
-        </p>
-      ) : (
-        <div className="threads">
-          {threads.map((t) => (
-            <ThreadRow
-              key={t.id}
-              thread={t}
-              open={expandedId === t.id}
-              draft={draft?.threadId === t.id ? draft : null}
-              busy={busy}
-              interacted={interactedIds.has(t.id)}
-              onToggle={() => setExpandedId(expandedId === t.id ? null : t.id)}
-              onDraft={() => onDraft(t)}
-              onCopy={() => onCopy(t)}
-              onMark={() => onMark(t)}
+            <div
+              className={searching ? "scout-bar" : "scout-bar idle"}
+              aria-hidden="true"
             />
-          ))}
-        </div>
-      )}
+            <ul className="scout-log">
+              {scoutLog.length > 0 ? (
+                scoutLog.map((line, i) => (
+                  <li key={`${i}-${line}`}>{line}</li>
+                ))
+              ) : (
+                <li className="scout-log-empty">Stage log appears here</li>
+              )}
+            </ul>
+          </div>
+        </section>
+
+        <section className="threads-pane">
+          <h2 className="section-label">
+            Threads{threads.length > 0 ? ` (${threads.length})` : ""}
+          </h2>
+          <div className="threads-scroll">
+            {threads.length === 0 ? (
+              <p className="empty">
+                {searching
+                  ? "Scout is working…"
+                  : "No threads yet. Set an agenda and search."}
+              </p>
+            ) : (
+              <div className="threads">
+                {threads.map((t) => (
+                  <ThreadRow
+                    key={t.id}
+                    thread={t}
+                    open={expandedId === t.id}
+                    draft={draft?.threadId === t.id ? draft : null}
+                    busy={busy}
+                    interacted={interactedIds.has(t.id)}
+                    onToggle={() =>
+                      setExpandedId(expandedId === t.id ? null : t.id)
+                    }
+                    onDraft={() => onDraft(t)}
+                    onCopy={() => onCopy(t)}
+                    onMark={() => onMark(t)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
