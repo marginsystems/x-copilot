@@ -301,7 +301,7 @@ const server = http.createServer(async (req, res) => {
           message: "Pass { threadId: string, author: string }.",
         });
       }
-      const source = body.source === "copy" ? "copy" : "manual";
+      const source = "manual";
       try {
         const interaction = await markInteracted({ threadId, author, source });
         return send(res, 200, { ok: true, interaction });
