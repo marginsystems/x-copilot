@@ -7,6 +7,11 @@ export const DEFAULT_MAX_THREAD_CHARS = 480;
 
 const THREAD_OPENER_RE = /^\s*\d+\s*\/\s*\d+/;
 
+export type LengthFilterOptions = {
+  /** When true (default), hard-drop X Articles marked on the card. */
+  dropArticles?: boolean;
+};
+
 /** Parse X_MAX_THREAD_CHARS; invalid/empty → default 480. */
 export function resolveMaxThreadChars(envValue?: string): number {
   const raw = (envValue ?? "").trim();
@@ -14,6 +19,17 @@ export function resolveMaxThreadChars(envValue?: string): number {
   const n = Number(raw);
   if (!Number.isInteger(n) || n <= 0) return DEFAULT_MAX_THREAD_CHARS;
   return n;
+}
+
+/** Prefer request override, then env, then default. */
+export function resolveMaxThreadCharsFromFilters(
+  override?: number,
+  envValue?: string,
+): number {
+  if (typeof override === "number" && Number.isInteger(override) && override > 0) {
+    return override;
+  }
+  return resolveMaxThreadChars(envValue);
 }
 
 export function isOversizedThread(text: string, maxChars: number): boolean {
@@ -28,19 +44,21 @@ export function isThreadOpener(text: string): boolean {
 export function filterThreadsByLength(
   threads: ThreadCard[],
   maxChars: number = DEFAULT_MAX_THREAD_CHARS,
+  opts: LengthFilterOptions = {},
 ): {
   threads: ThreadCard[];
   filteredCount: number;
   openerFilteredCount: number;
   articleFilteredCount: number;
 } {
+  const dropArticles = opts.dropArticles !== false;
   const kept: ThreadCard[] = [];
   let openerFilteredCount = 0;
   let articleFilteredCount = 0;
   let filteredCount = 0;
 
   for (const thread of threads) {
-    if (thread.longform === "article") {
+    if (dropArticles && thread.longform === "article") {
       filteredCount += 1;
       articleFilteredCount += 1;
       continue;

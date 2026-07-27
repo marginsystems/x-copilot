@@ -10,8 +10,21 @@ import {
   normalizeAuthorKey,
 } from "./interactionStore.js";
 import { loadEnv } from "./loadEnv.js";
-import { runScoutSearch } from "./scoutRun.js";
+import { runScoutSearch, type ScoutFilters } from "./scoutRun.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
+
+function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const obj = raw as Record<string, unknown>;
+  const filters: ScoutFilters = {};
+  if (typeof obj.maxThreadChars === "number" && Number.isInteger(obj.maxThreadChars)) {
+    filters.maxThreadChars = obj.maxThreadChars;
+  }
+  if (typeof obj.dropArticles === "boolean") {
+    filters.dropArticles = obj.dropArticles;
+  }
+  return Object.keys(filters).length ? filters : undefined;
+}
 
 loadEnv(resolve(process.cwd(), ".env"));
 
@@ -96,11 +109,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/search") {
-      let body: { queries?: unknown; agenda?: unknown };
+      let body: { queries?: unknown; agenda?: unknown; filters?: unknown };
       try {
         body = (await readBody(req)) as {
           queries?: unknown;
           agenda?: unknown;
+          filters?: unknown;
         };
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
@@ -113,7 +127,8 @@ const server = http.createServer(async (req, res) => {
       const queries = Array.isArray(body.queries)
         ? body.queries.filter((q): q is string => typeof q === "string")
         : [];
-      const result = await runScoutSearch({ agenda, queries });
+      const filters = parseScoutFilters(body.filters);
+      const result = await runScoutSearch({ agenda, queries, filters });
       if (!result.ok) {
         return send(res, result.status, {
           error: result.error,
@@ -138,11 +153,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/scout/run") {
-      let body: { queries?: unknown; agenda?: unknown };
+      let body: { queries?: unknown; agenda?: unknown; filters?: unknown };
       try {
         body = (await readBody(req)) as {
           queries?: unknown;
           agenda?: unknown;
+          filters?: unknown;
         };
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
@@ -155,6 +171,7 @@ const server = http.createServer(async (req, res) => {
       const queries = Array.isArray(body.queries)
         ? body.queries.filter((q): q is string => typeof q === "string")
         : [];
+      const filters = parseScoutFilters(body.filters);
 
       res.writeHead(200, {
         "Content-Type": "application/x-ndjson; charset=utf-8",
@@ -175,6 +192,7 @@ const server = http.createServer(async (req, res) => {
       const result = await runScoutSearch({
         agenda,
         queries,
+        filters,
         onEvent: writeLine,
       });
       if (!result.ok && !sawTerminal) {

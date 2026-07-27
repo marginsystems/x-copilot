@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { scoutStageMessage, type ScoutStageId } from "./lib/scoutStages";
+import {
+  loadSettings,
+  saveSettings,
+  type AppSettings,
+  clampMaxThreadChars,
+  DEFAULT_SETTINGS,
+} from "./lib/settings";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 
 type ThreadCard = {
@@ -154,6 +161,8 @@ function ThreadRow({
   );
 }
 
+type AppView = "dashboard" | "settings";
+
 export default function App() {
   const [agenda, setAgenda] = useState(
     "Find builders talking about shipping AI tools in public. Prefer questions I can answer helpfully.",
@@ -170,6 +179,17 @@ export default function App() {
   const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
   const [scoutLog, setScoutLog] = useState<string[]>([]);
   const [interactedIds, setInteractedIds] = useState<Set<string>>(() => new Set());
+  const [view, setView] = useState<AppView>("dashboard");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [sessionUser, setSessionUser] = useState<{
+    screen_name: string;
+    name: string;
+  } | null>(null);
+  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
+    loadSettings(),
+  );
+  const [settingsStatus, setSettingsStatus] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
   function pushScoutLine(line: string) {
@@ -215,6 +235,15 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
   async function postInteracted(
     thread: ThreadCard,
     source: "manual" | "copy",
@@ -259,15 +288,38 @@ export default function App() {
         error?: string;
       };
       if (!res.ok || !data.ok) {
+        setSessionUser(null);
         setStatus(`Session fail: ${data.message || data.error || res.status}`);
         return;
       }
+      if (data.user?.screen_name) {
+        setSessionUser({
+          screen_name: data.user.screen_name,
+          name: data.user.name ?? data.user.screen_name,
+        });
+      }
       setStatus(`Session OK — @${data.user?.screen_name} (${data.user?.name})`);
+      setMenuOpen(false);
     } catch {
+      setSessionUser(null);
       setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
     } finally {
       setBusy(false);
     }
+  }
+
+  function openSettings() {
+    setSettingsDraft(settings);
+    setSettingsStatus("");
+    setView("settings");
+    setMenuOpen(false);
+  }
+
+  function onSaveSettings() {
+    const next = saveSettings(settingsDraft);
+    setSettings(next);
+    setSettingsDraft(next);
+    setSettingsStatus("Saved — next Search will use these filters.");
   }
 
   async function onSearch() {
@@ -291,7 +343,13 @@ export default function App() {
       const res = await fetch("/api/scout/run", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-        body: JSON.stringify({ agenda }),
+        body: JSON.stringify({
+          agenda,
+          filters: {
+            maxThreadChars: settings.maxThreadChars,
+            dropArticles: settings.dropArticles,
+          },
+        }),
         signal: ac.signal,
       });
 
@@ -449,103 +507,217 @@ export default function App() {
   return (
     <div className="app">
       <header className="brand">
-        <h1>x-copilot</h1>
-        <p>
-          Agenda → Scout searches X and scores threads. You review and post.
-        </p>
+        <div className="brand-bar">
+          <div className="brand-copy">
+            <h1>x-copilot</h1>
+            <p>
+              Agenda → Scout searches X and scores threads. You review and post.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="menu-toggle"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <span aria-hidden="true">{menuOpen ? "✕" : "☰"}</span>
+          </button>
+        </div>
       </header>
 
-      <div className="dashboard">
-        <section className="panel control-pane">
-          <h2>Agenda</h2>
-          <textarea
-            className="agenda"
-            value={agenda}
-            onChange={(e) => setAgenda(e.target.value)}
-            placeholder="What should we look for and how should we sound?"
+      {menuOpen ? (
+        <div className="menu-root">
+          <button
+            type="button"
+            className="menu-backdrop"
+            aria-label="Close menu"
+            onClick={() => setMenuOpen(false)}
           />
-          <div className="row">
-            <button className="ghost" disabled={busy} onClick={onVerifySession}>
-              Verify session
-            </button>
-            <button
-              className="primary"
-              disabled={busy || !agenda.trim()}
-              onClick={onSearch}
-            >
-              Search threads
-            </button>
-          </div>
-          <p className="status">{status}</p>
-          <p className="status status-queries">
-            {plannedQueries.length > 0
-              ? `Queries: ${plannedQueries.map((q) => `"${q}"`).join(" · ")}`
-              : "\u00a0"}
-          </p>
-          <div
-            className={searching ? "scout-strip active" : "scout-strip"}
-            aria-live="polite"
-          >
-            <div className="scout-strip-head">
-              <span className="scout-label">Scout</span>
-              <span className="scout-stage">
-                {scoutStage
-                  ? scoutStageMessage(scoutStage)
-                  : searching
-                    ? status
-                    : "Idle — ready when you search"}
-              </span>
+          <aside className="menu-sheet" role="dialog" aria-label="User menu">
+            <div className="menu-sheet-head">
+              <h2>Menu</h2>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setMenuOpen(false)}
+              >
+                Close
+              </button>
             </div>
-            <div
-              className={searching ? "scout-bar" : "scout-bar idle"}
-              aria-hidden="true"
-            />
-            <ul className="scout-log">
-              {scoutLog.length > 0 ? (
-                scoutLog.map((line, i) => (
-                  <li key={`${i}-${line}`}>{line}</li>
-                ))
-              ) : (
-                <li className="scout-log-empty">Stage log appears here</li>
-              )}
-            </ul>
-          </div>
-        </section>
+            <p className="menu-session">
+              {sessionUser
+                ? `@${sessionUser.screen_name} · ${sessionUser.name}`
+                : "Session not verified"}
+            </p>
+            <div className="menu-actions">
+              <button
+                type="button"
+                className="ghost menu-action"
+                disabled={busy}
+                onClick={() => void onVerifySession()}
+              >
+                Verify session
+              </button>
+              <button
+                type="button"
+                className="primary menu-action"
+                onClick={openSettings}
+              >
+                Settings
+              </button>
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
-        <section className="threads-pane">
-          <h2 className="section-label">
-            Threads{threads.length > 0 ? ` (${threads.length})` : ""}
-          </h2>
-          <div className="threads-scroll">
-            {threads.length === 0 ? (
-              <p className="empty">
-                {searching
-                  ? "Scout is working…"
-                  : "No threads yet. Set an agenda and search."}
-              </p>
-            ) : (
-              <div className="threads">
-                {threads.map((t) => (
-                  <ThreadRow
-                    key={t.id}
-                    thread={t}
-                    open={expandedId === t.id}
-                    draft={draft?.threadId === t.id ? draft : null}
-                    busy={busy}
-                    interacted={interactedIds.has(t.id)}
-                    onToggle={() =>
-                      setExpandedId(expandedId === t.id ? null : t.id)
-                    }
-                    onDraft={() => onDraft(t)}
-                    onCopy={() => onCopy(t)}
-                    onMark={() => onMark(t)}
-                  />
-                ))}
-              </div>
-            )}
+      {view === "settings" ? (
+        <section className="panel settings-pane">
+          <div className="settings-head">
+            <h2>Settings</h2>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => setView("dashboard")}
+            >
+              Back
+            </button>
           </div>
+          <p className="status">
+            Filter prefs apply on the next Scout search. Env defaults remain the
+            fallback when overrides are omitted.
+          </p>
+          <label className="settings-field">
+            <span>Max thread characters</span>
+            <input
+              type="number"
+              min={120}
+              max={2000}
+              step={1}
+              value={settingsDraft.maxThreadChars}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({
+                  ...prev,
+                  maxThreadChars: clampMaxThreadChars(
+                    e.target.value === ""
+                      ? DEFAULT_SETTINGS.maxThreadChars
+                      : Number(e.target.value),
+                  ),
+                }))
+              }
+            />
+          </label>
+          <label className="settings-check">
+            <input
+              type="checkbox"
+              checked={settingsDraft.dropArticles}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({
+                  ...prev,
+                  dropArticles: e.target.checked,
+                }))
+              }
+            />
+            <span>Drop X Articles</span>
+          </label>
+          <p className="settings-readonly">Author cooldown: 24 hours</p>
+          <div className="row">
+            <button type="button" className="primary" onClick={onSaveSettings}>
+              Save
+            </button>
+          </div>
+          {settingsStatus ? <p className="status">{settingsStatus}</p> : null}
         </section>
-      </div>
+      ) : (
+        <div className="dashboard">
+          <section className="panel control-pane">
+            <h2>Agenda</h2>
+            <textarea
+              className="agenda"
+              value={agenda}
+              onChange={(e) => setAgenda(e.target.value)}
+              placeholder="What should we look for and how should we sound?"
+            />
+            <div className="row">
+              <button
+                className="primary"
+                disabled={busy || !agenda.trim()}
+                onClick={onSearch}
+              >
+                Search threads
+              </button>
+            </div>
+            <p className="status">{status}</p>
+            <p className="status status-queries">
+              {plannedQueries.length > 0
+                ? `Queries: ${plannedQueries.map((q) => `"${q}"`).join(" · ")}`
+                : "\u00a0"}
+            </p>
+            <div
+              className={searching ? "scout-strip active" : "scout-strip"}
+              aria-live="polite"
+            >
+              <div className="scout-strip-head">
+                <span className="scout-label">Scout</span>
+                <span className="scout-stage">
+                  {scoutStage
+                    ? scoutStageMessage(scoutStage)
+                    : searching
+                      ? status
+                      : "Idle — ready when you search"}
+                </span>
+              </div>
+              <div
+                className={searching ? "scout-bar" : "scout-bar idle"}
+                aria-hidden="true"
+              />
+              <ul className="scout-log">
+                {scoutLog.length > 0 ? (
+                  scoutLog.map((line, i) => (
+                    <li key={`${i}-${line}`}>{line}</li>
+                  ))
+                ) : (
+                  <li className="scout-log-empty">Stage log appears here</li>
+                )}
+              </ul>
+            </div>
+          </section>
+
+          <section className="threads-pane">
+            <h2 className="section-label">
+              Threads{threads.length > 0 ? ` (${threads.length})` : ""}
+            </h2>
+            <div className="threads-scroll">
+              {threads.length === 0 ? (
+                <p className="empty">
+                  {searching
+                    ? "Scout is working…"
+                    : "No threads yet. Set an agenda and search."}
+                </p>
+              ) : (
+                <div className="threads">
+                  {threads.map((t) => (
+                    <ThreadRow
+                      key={t.id}
+                      thread={t}
+                      open={expandedId === t.id}
+                      draft={draft?.threadId === t.id ? draft : null}
+                      busy={busy}
+                      interacted={interactedIds.has(t.id)}
+                      onToggle={() =>
+                        setExpandedId(expandedId === t.id ? null : t.id)
+                      }
+                      onDraft={() => onDraft(t)}
+                      onCopy={() => onCopy(t)}
+                      onMark={() => onMark(t)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

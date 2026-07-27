@@ -9,7 +9,7 @@ import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
 import {
   filterThreadsByLength,
-  resolveMaxThreadChars,
+  resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
 import { triageThreads } from "./threadTriage.js";
 import { searchMany, type ThreadCard } from "./xSearch.js";
@@ -61,9 +61,15 @@ function emit(
   return event;
 }
 
+export type ScoutFilters = {
+  maxThreadChars?: number;
+  dropArticles?: boolean;
+};
+
 export async function runScoutSearch(opts: {
   agenda?: string;
   queries?: string[];
+  filters?: ScoutFilters;
   session?: SessionCreds;
   onEvent?: (event: ScoutEvent) => void;
 }): Promise<ScoutRunResult> {
@@ -138,8 +144,14 @@ export async function runScoutSearch(opts: {
   track("filtering", "Scout is applying cooldown + length filters…");
   const cooled = await getCooledAuthorKeys();
   const filtered = filterThreadsByCooldown(result.threads, cooled);
-  const maxChars = resolveMaxThreadChars(process.env.X_MAX_THREAD_CHARS);
-  const byLength = filterThreadsByLength(filtered.threads, maxChars);
+  const maxChars = resolveMaxThreadCharsFromFilters(
+    opts.filters?.maxThreadChars,
+    process.env.X_MAX_THREAD_CHARS,
+  );
+  const dropArticles = opts.filters?.dropArticles !== false;
+  const byLength = filterThreadsByLength(filtered.threads, maxChars, {
+    dropArticles,
+  });
 
   track("triaging", "Scout is scoring threads for bait risk…", {
     count: byLength.threads.length,
