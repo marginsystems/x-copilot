@@ -49,6 +49,14 @@ type ScoutStreamEvent = {
   };
 };
 
+type ScoutLogEntry = {
+  at: string;
+  message: string;
+  stage?: string;
+};
+
+const SCOUT_LOG_PAGE_SIZE = 100;
+
 function normalizeAuthorKey(author: string): string {
   return author.trim().replace(/^@+/, "").toLowerCase();
 }
@@ -221,7 +229,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [searching, setSearching] = useState(false);
   const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
-  const [scoutLog, setScoutLog] = useState<string[]>([]);
+  const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
+  const [scoutLogPage, setScoutLogPage] = useState(0);
   const [interactedIds, setInteractedIds] = useState<Set<string>>(() => new Set());
   const [view, setView] = useState<AppView>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -279,10 +288,25 @@ export default function App() {
     }, 160);
   }
 
-  function pushScoutLine(line: string) {
+  function pushScoutLine(line: string, stage?: string) {
+    const message = line.trim();
+    if (!message) return;
+    const entry: ScoutLogEntry = {
+      at: new Date().toISOString(),
+      message,
+      ...(stage ? { stage } : {}),
+    };
     setScoutLog((prev) => {
-      if (prev[prev.length - 1] === line) return prev;
-      return [...prev.slice(-5), line];
+      if (prev[prev.length - 1]?.message === message) return prev;
+      return [...prev, entry].slice(-1000);
+    });
+    setScoutLogPage(0);
+    void fetch("/api/scout/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    }).catch(() => {
+      /* sidecar may be offline — keep in-memory */
     });
   }
 
@@ -314,7 +338,29 @@ export default function App() {
     }
     setScoutStage(stage);
     setStatus(message);
-    pushScoutLine(message);
+    pushScoutLine(message, stage);
+  }
+
+  async function hydrateScoutLog() {
+    try {
+      const res = await fetch("/api/scout/log");
+      if (!res.ok) return;
+      const data = (await res.json()) as { entries?: ScoutLogEntry[] };
+      const entries = Array.isArray(data.entries)
+        ? data.entries.filter(
+            (e) =>
+              e &&
+              typeof e.message === "string" &&
+              typeof e.at === "string",
+          )
+        : [];
+      setScoutLog((prev) =>
+        prev.length > 0 ? prev : entries.slice(-1000),
+      );
+      setScoutLogPage(0);
+    } catch {
+      /* ignore */
+    }
   }
 
   function onStopScout() {
@@ -401,6 +447,7 @@ export default function App() {
   useEffect(() => {
     void hydrateInteracted();
     void hydrateLastScout();
+    void hydrateScoutLog();
   }, []);
 
   useEffect(() => {
@@ -421,6 +468,13 @@ export default function App() {
     }, 250);
     return () => window.clearInterval(id);
   }, [searchCooldownUntil]);
+
+  // Keep scout-log "time ago" labels fresh when not in search cooldown.
+  useEffect(() => {
+    if (scoutLog.length === 0) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 15_000);
+    return () => window.clearInterval(id);
+  }, [scoutLog.length > 0]);
 
   useEffect(() => {
     return () => clearMenuCloseTimer();
@@ -570,7 +624,7 @@ export default function App() {
     setPlannedQueries([]);
     setThreads([]);
     setExpandedId(null);
-    setScoutLog([]);
+    pushScoutLine("── Start Scout ──", "planning");
     applyScoutEvent({
       stage: "planning",
       message: scoutStageMessage("planning"),
@@ -991,15 +1045,68 @@ export default function App() {
                 className={searching ? "scout-bar" : "scout-bar idle"}
                 aria-hidden="true"
               />
-              <ul className="scout-log">
-                {scoutLog.length > 0 ? (
-                  scoutLog.map((line, i) => (
-                    <li key={`${i}-${line}`}>{line}</li>
-                  ))
-                ) : (
-                  <li className="scout-log-empty">Stage log appears here</li>
-                )}
-              </ul>
+              {(() => {
+                const pageCount = Math.max(
+                  1,
+                  Math.ceil(scoutLog.length / SCOUT_LOG_PAGE_SIZE) || 1,
+                );
+                const page = Math.min(scoutLogPage, pageCount - 1);
+                const end = scoutLog.length - page * SCOUT_LOG_PAGE_SIZE;
+                const start = Math.max(0, end - SCOUT_LOG_PAGE_SIZE);
+                const pageEntries = scoutLog.slice(start, end);
+                return (
+                  <>
+                    <ul className="scout-log">
+                      {pageEntries.length > 0 ? (
+                        pageEntries.map((entry) => {
+                          const ago = formatTimeAgo(entry.at, nowMs);
+                          const absolute = formatAbsoluteTime(entry.at);
+                          return (
+                            <li key={`${entry.at}-${entry.stage ?? ''}-${entry.message}`}>
+                              <span
+                                className="scout-log-ago"
+                                title={absolute ?? undefined}
+                              >
+                                {ago ?? "—"}
+                              </span>
+                              <span className="scout-log-msg">{entry.message}</span>
+                            </li>
+                          );
+                        })
+                      ) : (
+                        <li className="scout-log-empty">
+                          Stage log appears here
+                        </li>
+                      )}
+                    </ul>
+                    <div className="scout-log-pager">
+                      <button
+                        type="button"
+                        className="ghost scout-log-page-btn"
+                        disabled={page >= pageCount - 1 || scoutLog.length === 0}
+                        onClick={() => setScoutLogPage((p) => p + 1)}
+                      >
+                        Older
+                      </button>
+                      <span className="scout-log-page-label">
+                        {scoutLog.length === 0
+                          ? "0"
+                          : `${page + 1}/${pageCount} · ${scoutLog.length}`}
+                      </span>
+                      <button
+                        type="button"
+                        className="ghost scout-log-page-btn"
+                        disabled={page <= 0}
+                        onClick={() =>
+                          setScoutLogPage((p) => Math.max(0, p - 1))
+                        }
+                      >
+                        Newer
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </section>
 
