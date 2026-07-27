@@ -42,6 +42,17 @@ describe("isCoolThread", () => {
       false,
     );
   });
+
+  it("falls back to thread.score when baitScore is undefined", () => {
+    assert.equal(
+      isCoolThread(card({ id: "3", engage: "consider", score: 30 })),
+      true,
+    );
+    assert.equal(
+      isCoolThread(card({ id: "4", engage: "consider", score: 50 })),
+      false,
+    );
+  });
 });
 
 describe("clampTargetCool / clampBucketSize", () => {

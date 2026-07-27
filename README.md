@@ -42,7 +42,7 @@ Before triage, posts with more than **480** characters (or obvious `N/M` thread 
 **Scout** is x-copilot’s search mini-agent. Use **Start Scout** / **Stop Scout** on the dashboard. Flow:
 
 1. Plan queries (DeepSeek), then pace X SearchTimeline (**20** hits/query).
-2. **Hard-filter bucket** (cooldown + Article/char) with **no LLM** until the bucket has **K=5** candidates (optional body `bucketSize` 5|10). Keep searching / cycling queries (one replan, search budget) while the bucket is short.
+2. **Hard-filter bucket** (cooldown + Article/char) with **no LLM** until the bucket has **K=5** candidates (server `bucketSize` 5|10; v1 UI hard-codes 5). Keep searching / cycling queries (one replan, search budget) while the bucket is short.
 3. **LLM-qualify** the full bucket. Cool = `engage` `priority`/`consider` and `baitScore ≤ 45`.
 4. If **0 cool**, discard the bucket and refill; if **≥1 cool**, emit those cool threads and stop (`stopReason: qualified`). Budget/Stop → `exhausted` / `aborted`.
 
