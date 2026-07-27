@@ -1056,7 +1056,7 @@ export default function App() {
                   <>
                     <ul className="scout-log">
                       {pageEntries.length > 0 ? (
-                        pageEntries.map((entry, i) => {
+                        pageEntries.map((entry) => {
                           const ago = formatTimeAgo(entry.at, nowMs);
                           const absolute = formatAbsoluteTime(entry.at);
                           return (
