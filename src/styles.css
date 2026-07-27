@@ -91,7 +91,6 @@ h3 {
 .threads-pane {
   min-width: 0;
   min-height: 0;
-  height: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
