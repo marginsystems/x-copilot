@@ -197,7 +197,7 @@ export default function App() {
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
-  const searchingRef = useRef(false);
+  const searchingRef = useRef(0);
   const staleHydration = useRef(false);
   const menuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchCooldownRemaining = Math.max(
@@ -433,16 +433,17 @@ export default function App() {
   }
 
   async function onSearch() {
-    if (searchingRef.current) return;
-    if (Date.now() < searchCooldownUntil) {
-      const waitSec = Math.ceil((searchCooldownUntil - Date.now()) / 1000);
-      setStatus(`Wait ${waitSec}s before searching again.`);
+    if (Date.now() < searchingRef.current) {
+      if (isFinite(searchingRef.current)) {
+        const waitSec = Math.ceil((searchingRef.current - Date.now()) / 1000);
+        setStatus(`Wait ${waitSec}s before searching again.`);
+      }
       return;
     }
 
     const ac = new AbortController();
     abortRef.current = ac;
-    searchingRef.current = true;
+    searchingRef.current = Infinity;
     staleHydration.current = true;
 
     setBusy(true);
@@ -562,10 +563,10 @@ export default function App() {
       }
     } finally {
       if (abortRef.current === ac) {
-        searchingRef.current = false;
+        const until = Date.now() + SEARCH_COOLDOWN_MS;
+        searchingRef.current = until;
         setSearching(false);
         setBusy(false);
-        const until = Date.now() + SEARCH_COOLDOWN_MS;
         setSearchCooldownUntil(until);
         setNowMs(Date.now());
         setStatus((prev) => {
