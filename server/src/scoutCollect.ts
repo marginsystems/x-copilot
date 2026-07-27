@@ -90,12 +90,15 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       reject(abortError());
       return;
     }
-    const t = setTimeout(resolve, ms);
     const onAbort = () => {
       clearTimeout(t);
       reject(abortError());
     };
-    signal?.addEventListener("abort", onAbort, { once: true });
+    signal?.addEventListener("abort", onAbort);
+    const t = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
   });
 }
 
@@ -256,7 +259,13 @@ export async function runScoutCollect(opts: {
         detail: { batchSize: batch.length },
       });
 
-      const triaged = await doTriage({ agenda, threads: batch });
+      let triaged;
+      try {
+        triaged = await doTriage({ agenda, threads: batch });
+      } catch (err) {
+        pending = [...batch, ...pending];
+        throw err;
+      }
       if (triaged.warning) triageWarning = triaged.warning;
 
       const newlyCool: ThreadCard[] = [];
