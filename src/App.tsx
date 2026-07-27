@@ -354,7 +354,9 @@ export default function App() {
               typeof e.at === "string",
           )
         : [];
-      setScoutLog(entries.slice(-1000));
+      setScoutLog((prev) =>
+        prev.length > 0 ? prev : entries.slice(-1000),
+      );
       setScoutLogPage(0);
     } catch {
       /* ignore */
