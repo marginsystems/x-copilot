@@ -976,7 +976,6 @@ export default function App() {
             </div>
             <div
               className={searching ? "scout-strip active" : "scout-strip"}
-              aria-live="polite"
             >
               <div className="scout-strip-head">
                 <span className="scout-label">Scout</span>
