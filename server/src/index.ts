@@ -221,8 +221,11 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         empty: false,
         snapshot: {
-          ...snapshot,
+          savedAt: snapshot.savedAt,
+          agenda: snapshot.agenda,
+          queries: snapshot.queries,
           threads: filtered.threads,
+          message: snapshot.message,
         },
       });
     }

@@ -103,8 +103,8 @@ export async function getLastScout(opts?: {
   if (memory) return memory;
   const path = opts?.storePath ?? defaultScoutCachePath();
   const fromDisk = await readDisk(path);
-  if (fromDisk) memory = fromDisk;
-  return fromDisk;
+  if (fromDisk && !memory) memory = fromDisk;
+  return memory;
 }
 
 /** Overwrite memory + disk with a successful Scout snapshot. */
