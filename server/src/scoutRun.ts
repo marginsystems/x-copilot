@@ -24,6 +24,14 @@ export type ScoutStageId =
   | "done"
   | "error";
 
+export type ScoutPipelineCounts = {
+  raw: number;
+  afterDedupe: number;
+  afterCooldown: number;
+  afterLength: number;
+  afterTriage: number;
+};
+
 export type ScoutEvent = ScoutStageEvent & {
   stage: ScoutStageId;
   threads?: ThreadCard[];
@@ -38,8 +46,14 @@ export type ScoutEvent = ScoutStageEvent & {
   cooldownWarning?: string;
   lengthFiltered?: number;
   lengthWarning?: string;
+  pipelineCounts?: ScoutPipelineCounts;
   opencodeTurns?: ReturnType<typeof toOpenCodeTurns>;
 };
+
+/** Compact funnel for status: `48 → 36 → 34 → 18 → 12`. */
+export function formatPipelineFunnel(counts: ScoutPipelineCounts): string {
+  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterLength} → ${counts.afterTriage}`;
+}
 
 export type ScoutRunResult =
   | { ok: true; event: ScoutEvent }
@@ -133,6 +147,7 @@ export async function runScoutSearch(opts: {
 
   const result = await searchMany(queries, {
     session,
+    countPerQuery: 20,
     onQuery: (index, qTotal, query) => {
       track(
         "searching",
@@ -162,6 +177,15 @@ export async function runScoutSearch(opts: {
     threads: byLength.threads,
   });
 
+  const pipelineCounts: ScoutPipelineCounts = {
+    raw: result.rawCount,
+    afterDedupe: result.threads.length,
+    afterCooldown: filtered.threads.length,
+    afterLength: byLength.threads.length,
+    afterTriage: triaged.threads.length,
+  };
+  const funnel = formatPipelineFunnel(pipelineCounts);
+
   const cooldownWarning = filtered.filteredCount
     ? `Filtered ${filtered.filteredCount} posts from cooled-down authors.`
     : undefined;
@@ -176,7 +200,7 @@ export async function runScoutSearch(opts: {
   const done: ScoutEvent = {
     agent: "scout",
     stage: "done",
-    message: `Scout found ${triaged.threads.length} threads.`,
+    message: `Scout found ${triaged.threads.length} threads (${funnel}).`,
     at: new Date().toISOString(),
     threads: triaged.threads,
     queries: result.queries,
@@ -190,6 +214,7 @@ export async function runScoutSearch(opts: {
     cooldownWarning,
     lengthFiltered: byLength.filteredCount,
     lengthWarning,
+    pipelineCounts,
     opencodeTurns: toOpenCodeTurns(events),
   };
   opts.onEvent?.(done);
@@ -204,6 +229,7 @@ export async function runScoutSearch(opts: {
       triageWarning: triaged.warning,
       cooldownWarning,
       lengthWarning,
+      pipelineCounts,
     });
   } catch (err) {
     console.error("Failed to persist last Scout run:", err);

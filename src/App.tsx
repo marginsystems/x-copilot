@@ -34,6 +34,13 @@ type ScoutStreamEvent = {
   triageWarning?: string;
   cooldownWarning?: string;
   lengthWarning?: string;
+  pipelineCounts?: {
+    raw: number;
+    afterDedupe: number;
+    afterCooldown: number;
+    afterLength: number;
+    afterTriage: number;
+  };
 };
 
 type Draft = {
@@ -278,6 +285,13 @@ export default function App() {
           queries?: string[];
           threads?: ThreadCard[];
           message?: string;
+          pipelineCounts?: {
+            raw: number;
+            afterDedupe: number;
+            afterCooldown: number;
+            afterLength: number;
+            afterTriage: number;
+          };
         };
       };
       if (!data.ok || data.empty || !data.snapshot) return;
@@ -298,8 +312,12 @@ export default function App() {
         formatAbsoluteTime(data.snapshot.savedAt) ||
         formatTimeAgo(data.snapshot.savedAt) ||
         "earlier";
+      const pc = data.snapshot.pipelineCounts;
+      const funnel = pc
+        ? ` (${pc.raw} → ${pc.afterDedupe} → ${pc.afterCooldown} → ${pc.afterLength} → ${pc.afterTriage})`
+        : "";
       setStatus(
-        `Restored ${list.length} threads from ${when} — Search again to refresh.`,
+        `Restored ${list.length} threads${funnel} from ${when} — Search again to refresh.`,
       );
     } catch {
       // Sidecar may be offline on first paint — ignore.
@@ -539,8 +557,12 @@ export default function App() {
         setDraft(null);
         await hydrateInteracted();
         const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
+        const pc = doneEvent.pipelineCounts;
+        const funnel = pc
+          ? ` (${pc.raw} → ${pc.afterDedupe} → ${pc.afterCooldown} → ${pc.afterLength} → ${pc.afterTriage})`
+          : "";
         const summary =
-          `Scout found ${list.length} threads — ${qLabel}` +
+          `Scout found ${list.length} threads${funnel} — ${qLabel}` +
           (doneEvent.triageWarning ? ` · ${doneEvent.triageWarning}` : "") +
           (doneEvent.cooldownWarning ? ` · ${doneEvent.cooldownWarning}` : "") +
           (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");

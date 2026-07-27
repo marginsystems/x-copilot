@@ -439,6 +439,8 @@ export async function searchMany(
 ): Promise<{
   queries: string[];
   threads: ThreadCard[];
+  /** Hits summed across queries before dedupe. */
+  rawCount: number;
   errors: Array<{ query: string; message: string }>;
 }> {
   const maxQueries = opts.maxQueries ?? 4;
@@ -454,7 +456,7 @@ export async function searchMany(
     const result = await searchTimeline({
       query: cleaned[i],
       product: opts.product,
-      count: opts.countPerQuery ?? 10,
+      count: opts.countPerQuery ?? 20,
       session: opts.session,
     });
     if (result.ok) {
@@ -466,6 +468,7 @@ export async function searchMany(
 
   return {
     queries: cleaned,
+    rawCount: all.length,
     threads: dedupeThreads(all),
     errors,
   };

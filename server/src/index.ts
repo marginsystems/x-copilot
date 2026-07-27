@@ -161,6 +161,7 @@ const server = http.createServer(async (req, res) => {
           cooldownWarning: done.cooldownWarning,
           lengthFiltered: done.lengthFiltered,
           lengthWarning: done.lengthWarning,
+          pipelineCounts: done.pipelineCounts,
         });
       } finally {
         endScout();
@@ -250,6 +251,7 @@ const server = http.createServer(async (req, res) => {
           queries: snapshot.queries,
           threads: filtered.threads,
           message: snapshot.message,
+          pipelineCounts: snapshot.pipelineCounts,
         },
       });
     }
