@@ -14,6 +14,9 @@ ecosystem.config.cjs
 # Local interaction / cooldown store (Mark interacted)
 data/
 
+# Obsidian knowledge memories (Mark interacted reply notes) — never commit
+knowledge/
+
 # IDE / OS
 .DS_Store
 Thumbs.db

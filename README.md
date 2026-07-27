@@ -31,6 +31,8 @@ The agenda is passed along, so a specific on-agenda question scores low even tho
 
 **Mark interacted** records the thread + author in a local sidecar file `data/interactions.json` (gitignored). For the next **24 hours**, later searches drop other posts from that same `@handle` *before* triage, so we do not keep hammering the same account or waste DeepSeek tokens on them. The search status line reports how many posts were filtered. Restarting the sidecar keeps the cooldown (file persist).
 
+The same action also writes an Obsidian-friendly Markdown note under **`knowledge/interactions/`** (gitignored) that includes the thread context and the **reply you typed on X** (`POST /api/interacted` requires `reply`). Point Obsidian at the `knowledge/` folder to browse agent memories locally — never commit that directory.
+
 The last successful Scout run is also cached in memory and `data/last-scout.json` (gitignored). On dashboard load, `GET /api/scout/last` restores Threads / queries (cooled-down authors filtered out) so a reload or API restart does not wipe the list.
 
 ## Length filter

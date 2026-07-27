@@ -11,6 +11,10 @@ import {
   markInteracted,
   normalizeAuthorKey,
 } from "./interactionStore.js";
+import {
+  normalizeReply,
+  writeInteractionMemory,
+} from "./knowledgeMemory.js";
 import { loadEnv } from "./loadEnv.js";
 import { getLastScout } from "./scoutCache.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
@@ -287,13 +291,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/interacted") {
-      let body: { threadId?: unknown; author?: unknown; source?: unknown };
+      let body: Record<string, unknown>;
       try {
-        body = (await readBody(req)) as {
-          threadId?: unknown;
-          author?: unknown;
-          source?: unknown;
-        };
+        body = (await readBody(req)) as Record<string, unknown>;
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
         return send(res, statusCode, {
@@ -303,16 +303,51 @@ const server = http.createServer(async (req, res) => {
       }
       const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
       const author = typeof body.author === "string" ? body.author.trim() : "";
+      const reply = normalizeReply(body.reply);
       if (!threadId || !author || !normalizeAuthorKey(author)) {
         return send(res, 400, {
           error: "bad_request",
-          message: "Pass { threadId: string, author: string }.",
+          message: "Pass { threadId: string, author: string, reply: string }.",
+        });
+      }
+      if (!reply) {
+        return send(res, 400, {
+          error: "missing_reply",
+          message: "Pass a non-empty reply (the text you posted on X).",
         });
       }
       const source = "manual";
+      const flags = Array.isArray(body.flags)
+        ? body.flags.filter((f): f is string => typeof f === "string")
+        : undefined;
+      const baitScore =
+        typeof body.baitScore === "number"
+          ? body.baitScore
+          : typeof body.score === "number"
+            ? body.score
+            : undefined;
       try {
+        const memory = await writeInteractionMemory({
+          threadId,
+          author,
+          reply,
+          source,
+          url: typeof body.url === "string" ? body.url : undefined,
+          text: typeof body.text === "string" ? body.text : undefined,
+          summary: typeof body.summary === "string" ? body.summary : undefined,
+          agenda: typeof body.agenda === "string" ? body.agenda : undefined,
+          baitScore,
+          engage: typeof body.engage === "string" ? body.engage : undefined,
+          flags,
+          intent: typeof body.intent === "string" ? body.intent : undefined,
+          reason: typeof body.reason === "string" ? body.reason : undefined,
+        });
         const interaction = await markInteracted({ threadId, author, source });
-        return send(res, 200, { ok: true, interaction });
+        return send(res, 200, {
+          ok: true,
+          interaction,
+          memoryPath: memory.path,
+        });
       } catch (err) {
         return send(res, 500, {
           error: "store_failed",
