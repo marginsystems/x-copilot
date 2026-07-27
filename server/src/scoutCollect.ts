@@ -58,11 +58,11 @@ export const COLLECT_QUERY_DELAY_MS = 500;
 export const COOL_MAX_BAIT = 45;
 
 export function clampTargetCool(value: unknown): number {
-  const n = typeof value === "number" ? value : Number(value);
-  if (!Number.isInteger(n)) return DEFAULT_TARGET_COOL;
-  if (n < 1) return 1;
-  if (n > 10) return 10;
-  return n;
+  if (typeof value !== "number") return DEFAULT_TARGET_COOL;
+  if (!Number.isInteger(value)) return DEFAULT_TARGET_COOL;
+  if (value < 1) return 1;
+  if (value > 10) return 10;
+  return value;
 }
 
 export function isCoolThread(thread: ThreadCard): boolean {
@@ -94,7 +94,7 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       clearTimeout(t);
       reject(abortError());
     };
-    signal?.addEventListener("abort", onAbort);
+    signal?.addEventListener("abort", onAbort, { once: true });
     const t = setTimeout(() => {
       signal?.removeEventListener("abort", onAbort);
       resolve();
