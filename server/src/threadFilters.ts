@@ -1,5 +1,5 @@
 /**
- * Deterministic post-search filters (length / thread openers) before triage.
+ * Deterministic post-search filters (length / thread openers / Articles) before triage.
  */
 import type { ThreadCard } from "./xSearch.js";
 
@@ -32,12 +32,19 @@ export function filterThreadsByLength(
   threads: ThreadCard[];
   filteredCount: number;
   openerFilteredCount: number;
+  articleFilteredCount: number;
 } {
   const kept: ThreadCard[] = [];
   let openerFilteredCount = 0;
+  let articleFilteredCount = 0;
   let filteredCount = 0;
 
   for (const thread of threads) {
+    if (thread.longform === "article") {
+      filteredCount += 1;
+      articleFilteredCount += 1;
+      continue;
+    }
     const opener = isThreadOpener(thread.text);
     const oversized = isOversizedThread(thread.text, maxChars);
     if (opener || oversized) {
@@ -48,5 +55,10 @@ export function filterThreadsByLength(
     kept.push(thread);
   }
 
-  return { threads: kept, filteredCount, openerFilteredCount };
+  return {
+    threads: kept,
+    filteredCount,
+    openerFilteredCount,
+    articleFilteredCount,
+  };
 }

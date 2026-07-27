@@ -9,12 +9,17 @@ import {
 } from "./threadFilters.ts";
 import type { ThreadCard } from "./xSearch.ts";
 
-function thread(id: string, text: string): ThreadCard {
+function thread(
+  id: string,
+  text: string,
+  longform?: ThreadCard["longform"],
+): ThreadCard {
   return {
     id,
     author: "@a",
     text,
     url: `https://x.com/a/status/${id}`,
+    ...(longform ? { longform } : {}),
   };
 }
 
@@ -67,6 +72,7 @@ describe("filterThreadsByLength", () => {
     );
     assert.equal(result.filteredCount, 1);
     assert.equal(result.openerFilteredCount, 0);
+    assert.equal(result.articleFilteredCount, 0);
   });
 
   it("drops thread openers even under the char cap", () => {
@@ -79,5 +85,42 @@ describe("filterThreadsByLength", () => {
     );
     assert.equal(result.filteredCount, 1);
     assert.equal(result.openerFilteredCount, 1);
+    assert.equal(result.articleFilteredCount, 0);
+  });
+
+  it("hard-drops Articles even when the teaser is under the char cap", () => {
+    const article = thread("1", "Short article teaser", "article");
+    const short = thread("2", "Concrete take: ship weekly.");
+    const result = filterThreadsByLength([article, short], 480);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+    assert.equal(result.filteredCount, 1);
+    assert.equal(result.articleFilteredCount, 1);
+    assert.equal(result.openerFilteredCount, 0);
+  });
+
+  it("drops long note_tweet body via char cap without article flag", () => {
+    const longNote = thread("1", "y".repeat(481), "note_tweet");
+    const short = thread("2", "Punchy take.");
+    const result = filterThreadsByLength([longNote, short], 480);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+    assert.equal(result.filteredCount, 1);
+    assert.equal(result.articleFilteredCount, 0);
+    assert.equal(result.openerFilteredCount, 0);
+  });
+
+  it("keeps punchy note tweets under the cap", () => {
+    const note = thread("1", "Shipped v2 — AMA", "note_tweet");
+    const result = filterThreadsByLength([note], 480);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["1"],
+    );
+    assert.equal(result.filteredCount, 0);
   });
 });

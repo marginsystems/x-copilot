@@ -14,6 +14,11 @@ export type ThreadCard = {
   text: string;
   url: string;
   createdAt?: string;
+  /**
+   * Set when SearchTimeline exposed longform / Article payload.
+   * Articles are hard-dropped before triage; note_tweet body feeds the char cap.
+   */
+  longform?: "note_tweet" | "article";
   /** Triage fields (filled by threadTriage after search). */
   summary?: string;
   /** 0–100, higher = more engagement bait / less worth replying to. */
@@ -155,47 +160,94 @@ export function dedupeThreads(threads: ThreadCard[]): ThreadCard[] {
   return out;
 }
 
-function tweetResultToCard(result: unknown): ThreadCard | null {
-  const r = result as {
-    __typename?: string;
-    rest_id?: string;
-    legacy?: {
-      full_text?: string;
-      created_at?: string;
-      id_str?: string;
-      user_id_str?: string;
-      screen_name?: string;
-    };
-    core?: {
-      user_results?: {
-        result?: {
-          core?: { screen_name?: string };
-          legacy?: { screen_name?: string };
-        };
+type TweetResultNode = {
+  __typename?: string;
+  rest_id?: string;
+  legacy?: {
+    full_text?: string;
+    created_at?: string;
+    id_str?: string;
+    user_id_str?: string;
+    screen_name?: string;
+  };
+  core?: {
+    user_results?: {
+      result?: {
+        core?: { screen_name?: string };
+        legacy?: { screen_name?: string };
       };
     };
-    tweet?: unknown;
   };
+  note_tweet?: {
+    note_tweet_results?: {
+      result?: {
+        text?: string;
+      };
+    };
+  };
+  /** X Articles / longform article payloads (shape varies by GraphQL build). */
+  article?: unknown;
+  article_results?: unknown;
+  tweet?: unknown;
+};
+
+function noteTweetText(node: TweetResultNode): string | undefined {
+  const text = node.note_tweet?.note_tweet_results?.result?.text;
+  if (typeof text !== "string") return undefined;
+  const trimmed = text.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function hasArticlePayload(node: TweetResultNode): boolean {
+  if (typeof node.article === "object" && node.article !== null) return true;
+  if (typeof node.article_results === "object" && node.article_results !== null) return true;
+  return false;
+}
+
+function resolveCardText(
+  fullText: string | undefined,
+  noteText: string | undefined,
+): string | undefined {
+  const legacy = typeof fullText === "string" ? fullText.trim() : "";
+  const note = noteText ?? "";
+  if (!legacy && !note) return undefined;
+  if (note.length > legacy.length) return note;
+  if (legacy.length > 0) return legacy;
+  return note;
+}
+
+function tweetResultToCard(result: unknown): ThreadCard | null {
+  const r = result as TweetResultNode;
 
   // TweetWithVisibilityResults wrapper
   const inner =
     r.__typename === "TweetWithVisibilityResults" && r.tweet
-      ? (r.tweet as typeof r)
+      ? (r.tweet as TweetResultNode)
       : r;
 
   const id = inner.rest_id || inner.legacy?.id_str;
-  const text = inner.legacy?.full_text;
+  const noteText = noteTweetText(inner);
+  const text = resolveCardText(inner.legacy?.full_text, noteText);
   const handle =
     inner.core?.user_results?.result?.core?.screen_name ||
     inner.core?.user_results?.result?.legacy?.screen_name ||
     inner.legacy?.screen_name;
   if (!id || !text || !handle) return null;
+
+  const isArticle = hasArticlePayload(inner);
+  const longform: ThreadCard["longform"] = isArticle
+    ? "article"
+    : noteText
+      ? "note_tweet"
+      : undefined;
+
   return {
     id: String(id),
     author: handle.startsWith("@") ? handle : `@${handle}`,
     text,
     url: `https://x.com/${handle.replace(/^@/, "")}/status/${id}`,
     createdAt: inner.legacy?.created_at,
+    ...(longform ? { longform } : {}),
   };
 }
 
