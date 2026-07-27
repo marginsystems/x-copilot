@@ -302,6 +302,7 @@ export async function searchTimeline(opts: {
   product?: SearchProduct;
   count?: number;
   session?: SessionCreds;
+  signal?: AbortSignal;
 }): Promise<SearchTimelineResult> {
   const session = opts.session ?? getSessionFromEnv();
   if (!session.configured) {
@@ -341,6 +342,9 @@ export async function searchTimeline(opts: {
   let lastBody = "";
 
   for (let attempt = 0; attempt < tryIds.length + 1; attempt++) {
+    if (opts.signal?.aborted) {
+      return { ok: false, status: 499, error: "client_disconnected", message: "Client disconnected" };
+    }
     const qid =
       attempt < tryIds.length
         ? tryIds[attempt]
@@ -358,18 +362,26 @@ export async function searchTimeline(opts: {
     const url = `https://x.com/i/api/graphql/${qid}/SearchTimeline?${params}`;
 
     let res: Response;
+    let tm: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
     try {
       const ac = new AbortController();
-      const tm = setTimeout(() => ac.abort(), 15000);
+      tm = setTimeout(() => ac.abort(), 15000);
+      onAbort = () => ac.abort();
+      opts.signal?.addEventListener("abort", onAbort, { once: true });
       res = await fetch(url, {
         method: "POST",
         headers,
         body: JSON.stringify({ features, queryId: qid }),
         signal: ac.signal,
-      }).finally(() => clearTimeout(tm));
+      });
     } catch {
+      clearTimeout(tm);
+      opts.signal?.removeEventListener("abort", onAbort);
       continue;
     }
+    clearTimeout(tm);
+    opts.signal?.removeEventListener("abort", onAbort);
     const text = await res.text();
     lastStatus = res.status;
     lastBody = text;

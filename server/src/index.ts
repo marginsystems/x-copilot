@@ -14,6 +14,7 @@ import {
 import { loadEnv } from "./loadEnv.js";
 import { getLastScout } from "./scoutCache.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
+import { runScoutCollect, clampTargetCool } from "./scoutCollect.js";
 import { runScoutSearch, type ScoutFilters } from "./scoutRun.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
@@ -169,12 +170,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/scout/run") {
-      let body: { queries?: unknown; agenda?: unknown; filters?: unknown };
+      let body: {
+        queries?: unknown;
+        agenda?: unknown;
+        filters?: unknown;
+        targetCool?: unknown;
+      };
       try {
         body = (await readBody(req)) as {
           queries?: unknown;
           agenda?: unknown;
           filters?: unknown;
+          targetCool?: unknown;
         };
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
@@ -188,6 +195,7 @@ const server = http.createServer(async (req, res) => {
         ? body.queries.filter((q): q is string => typeof q === "string")
         : [];
       const filters = parseScoutFilters(body.filters);
+      const targetCool = clampTargetCool(body.targetCool);
 
       const gate = tryBeginScout();
       if (!gate.ok) {
@@ -196,6 +204,12 @@ const server = http.createServer(async (req, res) => {
           message: gate.message,
         });
       }
+
+      const abort = new AbortController();
+      const onClose = () => {
+        if (!res.writableEnded) abort.abort();
+      };
+      req.on("close", onClose);
 
       try {
         res.writeHead(200, {
@@ -214,10 +228,12 @@ const server = http.createServer(async (req, res) => {
           res.write(`${JSON.stringify(event)}\n`);
         };
 
-        const result = await runScoutSearch({
+        const result = await runScoutCollect({
           agenda,
           queries,
           filters,
+          targetCool,
+          signal: abort.signal,
           onEvent: writeLine,
         });
         if (!result.ok && !sawTerminal) {
@@ -231,6 +247,7 @@ const server = http.createServer(async (req, res) => {
         }
         return res.end();
       } finally {
+        req.off("close", onClose);
         endScout();
       }
     }
