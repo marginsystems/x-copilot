@@ -18,6 +18,7 @@ import {
 import { loadEnv } from "./loadEnv.js";
 import { getLastScout } from "./scoutCache.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
+import { appendScoutLog, getScoutLog } from "./scoutLog.js";
 import {
   runScoutCollect,
   clampBucketSize,
@@ -283,6 +284,48 @@ const server = http.createServer(async (req, res) => {
           pipelineCounts: snapshot.pipelineCounts,
         },
       });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/scout/log") {
+      const entries = await getScoutLog();
+      return send(res, 200, { ok: true, entries });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/scout/log") {
+      let body: { message?: unknown; stage?: unknown; at?: unknown };
+      try {
+        body = (await readBody(req)) as {
+          message?: unknown;
+          stage?: unknown;
+          at?: unknown;
+        };
+      } catch (err) {
+        const statusCode = err instanceof BodyError ? err.statusCode : 400;
+        return send(res, statusCode, {
+          error: "bad_request",
+          message: err instanceof Error ? err.message : "Invalid request body",
+        });
+      }
+      const message = typeof body.message === "string" ? body.message : "";
+      if (!message.trim()) {
+        return send(res, 400, {
+          error: "bad_request",
+          message: "Pass { message: string }.",
+        });
+      }
+      try {
+        const entry = await appendScoutLog({
+          message,
+          stage: typeof body.stage === "string" ? body.stage : undefined,
+          at: typeof body.at === "string" ? body.at : undefined,
+        });
+        return send(res, 200, { ok: true, entry });
+      } catch (err) {
+        return send(res, 500, {
+          error: "store_failed",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
 
     if (req.method === "GET" && url.pathname === "/api/interacted") {

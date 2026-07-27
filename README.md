@@ -35,6 +35,8 @@ The same action also writes an Obsidian-friendly Markdown note under **`knowledg
 
 The last successful Scout run is also cached in memory and `data/last-scout.json` (gitignored). On dashboard load, `GET /api/scout/last` restores Threads / queries (cooled-down authors filtered out) so a reload or API restart does not wipe the list.
 
+Scout stage lines are appended to `data/scout-log.json` (gitignored; last 1000) via `GET/POST /api/scout/log` and shown in the Scout strip with time-ago + 100-line pages.
+
 ## Length filter
 
 Before triage, posts with more than **480** characters (or obvious `N/M` thread openers like `1/17 …`) are dropped so walls of text never reach DeepSeek or the accordion. Override with `X_MAX_THREAD_CHARS` in `.env`, or via **Settings** in the UI (hamburger menu) — the UI sends `filters` on each Scout run and wins over env for that request. **X Articles** are hard-dropped by default when SearchTimeline marks an article payload (toggle in Settings). When a **note tweet** body is present, that text is used for the char cap instead of the short `full_text` teaser. The search status line reports how many were dropped.

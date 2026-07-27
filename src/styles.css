@@ -574,7 +574,7 @@ button:disabled {
   padding: 10px 12px;
   display: grid;
   gap: 8px;
-  grid-template-rows: auto 2px minmax(7.2rem, 1fr);
+  grid-template-rows: auto 2px minmax(12rem, 1fr) auto;
   flex: 1;
   min-height: 0;
 }
@@ -643,25 +643,57 @@ button:disabled {
   padding: 0;
   list-style: none;
   height: auto;
-  min-height: 7.2rem;
+  min-height: 12rem;
   overflow-y: auto;
   overscroll-behavior: contain;
   display: grid;
   align-content: start;
-  gap: 3px;
+  gap: 4px;
   color: var(--muted);
   font-size: 0.72rem;
 }
 
 .scout-log li {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr;
+  gap: 8px;
+  align-items: baseline;
   white-space: nowrap;
+  overflow: hidden;
+}
+
+.scout-log-ago {
+  color: var(--border-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.scout-log-msg {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .scout-log-empty {
+  grid-template-columns: 1fr;
   color: var(--border-strong);
   font-style: italic;
+}
+
+.scout-log-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.scout-log-page-btn {
+  padding: 4px 8px;
+  font-size: 0.68rem;
+}
+
+.scout-log-page-label {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .empty {
