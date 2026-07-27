@@ -362,10 +362,12 @@ export async function searchTimeline(opts: {
     const url = `https://x.com/i/api/graphql/${qid}/SearchTimeline?${params}`;
 
     let res: Response;
+    let tm: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
     try {
       const ac = new AbortController();
-      const tm = setTimeout(() => ac.abort(), 15000);
-      const onAbort = () => ac.abort();
+      tm = setTimeout(() => ac.abort(), 15000);
+      onAbort = () => ac.abort();
       opts.signal?.addEventListener("abort", onAbort, { once: true });
       res = await fetch(url, {
         method: "POST",
@@ -373,11 +375,13 @@ export async function searchTimeline(opts: {
         body: JSON.stringify({ features, queryId: qid }),
         signal: ac.signal,
       });
+    } catch {
       clearTimeout(tm);
       opts.signal?.removeEventListener("abort", onAbort);
-    } catch {
       continue;
     }
+    clearTimeout(tm);
+    opts.signal?.removeEventListener("abort", onAbort);
     const text = await res.text();
     lastStatus = res.status;
     lastBody = text;
