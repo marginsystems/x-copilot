@@ -303,17 +303,11 @@ const server = http.createServer(async (req, res) => {
       }
       const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
       const author = typeof body.author === "string" ? body.author.trim() : "";
-      const reply = normalizeReply(body.reply);
+      const reply = normalizeReply(body.reply) || "(no reply recorded)";
       if (!threadId || !author || !normalizeAuthorKey(author)) {
         return send(res, 400, {
           error: "bad_request",
           message: "Pass { threadId: string, author: string, reply: string }.",
-        });
-      }
-      if (!reply) {
-        return send(res, 400, {
-          error: "missing_reply",
-          message: "Pass a non-empty reply (the text you posted on X).",
         });
       }
       const source = "manual";
@@ -327,6 +321,7 @@ const server = http.createServer(async (req, res) => {
             ? body.score
             : undefined;
       try {
+        const interaction = await markInteracted({ threadId, author, source });
         const memory = await writeInteractionMemory({
           threadId,
           author,
@@ -342,7 +337,6 @@ const server = http.createServer(async (req, res) => {
           intent: typeof body.intent === "string" ? body.intent : undefined,
           reason: typeof body.reason === "string" ? body.reason : undefined,
         });
-        const interaction = await markInteracted({ threadId, author, source });
         return send(res, 200, {
           ok: true,
           interaction,
