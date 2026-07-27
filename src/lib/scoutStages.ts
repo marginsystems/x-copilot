@@ -7,6 +7,7 @@ export type ScoutStageId =
   | "searching"
   | "filtering"
   | "triaging"
+  | "partial"
   | "done"
   | "error";
 
@@ -25,6 +26,7 @@ export const SCOUT_STAGE_COPY: Record<ScoutStageId, string> = {
   searching: "Scout is searching X…",
   filtering: "Scout is applying cooldown + length filters…",
   triaging: "Scout is scoring threads for bait risk…",
+  partial: "Scout found more cool threads…",
   done: "Scout finished.",
   error: "Scout failed.",
 };

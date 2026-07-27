@@ -6,14 +6,20 @@ export const DEFAULT_MAX_THREAD_CHARS = 480;
 export const MIN_MAX_THREAD_CHARS = 120;
 export const MAX_MAX_THREAD_CHARS = 2000;
 
+export const DEFAULT_TARGET_COOL_THREADS = 8;
+export const MIN_TARGET_COOL_THREADS = 1;
+export const MAX_TARGET_COOL_THREADS = 10;
+
 export type AppSettings = {
   maxThreadChars: number;
   dropArticles: boolean;
+  targetCoolThreads: number;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
   maxThreadChars: DEFAULT_MAX_THREAD_CHARS,
   dropArticles: true,
+  targetCoolThreads: DEFAULT_TARGET_COOL_THREADS,
 };
 
 export function clampMaxThreadChars(value: unknown): number {
@@ -21,6 +27,14 @@ export function clampMaxThreadChars(value: unknown): number {
   if (!Number.isInteger(n)) return DEFAULT_MAX_THREAD_CHARS;
   if (n < MIN_MAX_THREAD_CHARS) return MIN_MAX_THREAD_CHARS;
   if (n > MAX_MAX_THREAD_CHARS) return MAX_MAX_THREAD_CHARS;
+  return n;
+}
+
+export function clampTargetCoolThreads(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n)) return DEFAULT_TARGET_COOL_THREADS;
+  if (n < MIN_TARGET_COOL_THREADS) return MIN_TARGET_COOL_THREADS;
+  if (n > MAX_TARGET_COOL_THREADS) return MAX_TARGET_COOL_THREADS;
   return n;
 }
 
@@ -33,6 +47,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
       typeof obj.dropArticles === "boolean"
         ? obj.dropArticles
         : DEFAULT_SETTINGS.dropArticles,
+    targetCoolThreads: clampTargetCoolThreads(obj.targetCoolThreads),
   };
 }
 
