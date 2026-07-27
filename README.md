@@ -40,7 +40,7 @@ Before triage, posts with more than **480** characters (or obvious `N/M` thread 
 
 ## Scout
 
-**Scout** is x-copilot’s search mini-agent. The UI activity strip shows live stages while Scout plans queries, searches X, filters, and triages. Prefer `POST /api/scout/run` (NDJSON stream of `{ agent: "scout", stage, message, … }` lines, final `done` includes threads + `opencodeTurns`). `POST /api/search` remains a non-streaming JSON fallback. `opencodeTurns` is a thin structured agent log (not a full OpenCode CLI session). Search is rate-limited: one run at a time, then a **15s** cooldown (UI + sidecar `429`) before the next Search. Each planned query requests up to **20** Latest hits; the done status shows a filter funnel (`raw → dedupe → cooldown → length → triage`) so thin result sets are explainable.
+**Scout** is x-copilot’s search mini-agent. Use **Start Scout** / **Stop Scout** on the dashboard: Scout plans queries once, paces X search, hard-filters, then triages tiny batches until it finds **N cool threads** (1–10, default **8**; `engage` is `priority`/`consider` and `baitScore ≤ 45`). Cool rows append live; status shows `Cool n/N` and a final `stopReason` (`target` | `exhausted` | `aborted`). Prefer `POST /api/scout/run` (NDJSON stream with `partial` progress + final `done` including `coolCount`, `targetCool`, `stopReason`, threads, `opencodeTurns`). Body may include `targetCool`. `POST /api/search` remains a non-streaming batch JSON fallback (up to **20** hits per query + filter funnel). `opencodeTurns` is a thin structured agent log (not a full OpenCode CLI session). Sessions are rate-limited: one run at a time, then a **15s** cooldown (UI + sidecar `429`) before the next Start — Stop does not bypass that gate.
 
 ## Architecture
 

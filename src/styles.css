@@ -401,6 +401,24 @@ h3 {
   align-items: center;
 }
 
+.cool-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.cool-target input[type="number"] {
+  width: 3.5rem;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
 /* Buttons */
 
 button.primary,

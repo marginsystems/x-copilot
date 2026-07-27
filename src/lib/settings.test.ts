@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_SETTINGS,
   clampMaxThreadChars,
+  clampTargetCoolThreads,
   loadSettings,
   normalizeSettings,
   saveSettings,
@@ -41,13 +42,30 @@ describe("clampMaxThreadChars", () => {
   });
 });
 
+describe("clampTargetCoolThreads", () => {
+  it("clamps to 1–10 and defaults invalid values", () => {
+    assert.equal(clampTargetCoolThreads(8), 8);
+    assert.equal(clampTargetCoolThreads(0), 1);
+    assert.equal(clampTargetCoolThreads(11), 10);
+    assert.equal(clampTargetCoolThreads(3.5), 8);
+  });
+});
+
 describe("normalizeSettings", () => {
   it("fills defaults for bad input", () => {
     assert.deepEqual(normalizeSettings(null), DEFAULT_SETTINGS);
-    assert.deepEqual(normalizeSettings({ maxThreadChars: 320, dropArticles: false }), {
-      maxThreadChars: 320,
-      dropArticles: false,
-    });
+    assert.deepEqual(
+      normalizeSettings({
+        maxThreadChars: 320,
+        dropArticles: false,
+        targetCoolThreads: 3,
+      }),
+      {
+        maxThreadChars: 320,
+        dropArticles: false,
+        targetCoolThreads: 3,
+      },
+    );
   });
 });
 
@@ -57,8 +75,16 @@ describe("loadSettings / saveSettings", () => {
   });
 
   it("round-trips through localStorage", () => {
-    const saved = saveSettings({ maxThreadChars: 320, dropArticles: false });
-    assert.deepEqual(saved, { maxThreadChars: 320, dropArticles: false });
+    const saved = saveSettings({
+      maxThreadChars: 320,
+      dropArticles: false,
+      targetCoolThreads: 5,
+    });
+    assert.deepEqual(saved, {
+      maxThreadChars: 320,
+      dropArticles: false,
+      targetCoolThreads: 5,
+    });
     assert.deepEqual(loadSettings(), saved);
     assert.ok(localStorage.getItem(SETTINGS_STORAGE_KEY));
   });

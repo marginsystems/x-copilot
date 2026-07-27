@@ -5,6 +5,7 @@ import {
   saveSettings,
   type AppSettings,
   clampMaxThreadChars,
+  clampTargetCoolThreads,
   DEFAULT_SETTINGS,
 } from "./lib/settings";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
@@ -31,6 +32,9 @@ type ScoutStreamEvent = {
   message?: string;
   threads?: ThreadCard[];
   queries?: string[];
+  coolCount?: number;
+  targetCool?: number;
+  stopReason?: "target" | "exhausted" | "aborted";
   triageWarning?: string;
   cooldownWarning?: string;
   lengthWarning?: string;
@@ -62,6 +66,32 @@ function baitClass(bait: number | null): string {
   if (bait >= 65) return "bait high";
   if (bait >= 35) return "bait mid";
   return "bait low";
+}
+
+function appendThreadsById(
+  prev: ThreadCard[],
+  next: ThreadCard[] | undefined,
+): ThreadCard[] {
+  if (!next?.length) return prev;
+  const seen = new Set(prev.map((t) => t.id));
+  const out = [...prev];
+  for (const t of next) {
+    if (!t.id || seen.has(t.id)) continue;
+    seen.add(t.id);
+    out.push(t);
+  }
+  return out;
+}
+
+function coolProgressLabel(
+  coolCount: number | undefined,
+  targetCool: number | undefined,
+  fallbackTarget: number,
+): string {
+  const cool = typeof coolCount === "number" ? coolCount : 0;
+  const target =
+    typeof targetCool === "number" ? targetCool : fallbackTarget;
+  return `Cool ${cool}/${target}`;
 }
 
 function ThreadRow({
@@ -205,6 +235,10 @@ export default function App() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
   const searchingRef = useRef(0);
+  const coolProgressRef = useRef({
+    cool: 0,
+    target: DEFAULT_SETTINGS.targetCoolThreads,
+  });
   const staleHydration = useRef(false);
   const menuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchCooldownRemaining = Math.max(
@@ -248,10 +282,40 @@ export default function App() {
 
   function applyScoutEvent(ev: ScoutStreamEvent) {
     const stage = (ev.stage ?? "planning") as ScoutStageId;
-    const message = ev.message || scoutStageMessage(stage);
+    if (typeof ev.coolCount === "number") {
+      coolProgressRef.current.cool = ev.coolCount;
+    }
+    if (typeof ev.targetCool === "number") {
+      coolProgressRef.current.target = ev.targetCool;
+    }
+    const progress = coolProgressLabel(
+      coolProgressRef.current.cool,
+      coolProgressRef.current.target,
+      settings.targetCoolThreads,
+    );
+    let message = ev.message || scoutStageMessage(stage);
+    if (
+      stage === "searching" ||
+      stage === "filtering" ||
+      stage === "triaging" ||
+      stage === "partial"
+    ) {
+      message = `${progress} · ${message}`;
+    }
     setScoutStage(stage);
     setStatus(message);
     pushScoutLine(message);
+  }
+
+  function onStopScout() {
+    abortRef.current?.abort();
+  }
+
+  function updateTargetCoolThreads(value: number) {
+    const targetCoolThreads = clampTargetCoolThreads(value);
+    setSettings((prev) => ({ ...prev, targetCoolThreads }));
+    saveSettings({ ...settings, targetCoolThreads });
+    setSettingsDraft((prev) => ({ ...prev, targetCoolThreads }));
   }
 
   async function hydrateInteracted() {
@@ -447,14 +511,14 @@ export default function App() {
     const next = saveSettings(settingsDraft);
     setSettings(next);
     setSettingsDraft(next);
-    setSettingsStatus("Saved — next Search will use these filters.");
+    setSettingsStatus("Saved — next Start Scout will use these filters.");
   }
 
   async function onSearch() {
     if (Date.now() < searchingRef.current) {
       if (isFinite(searchingRef.current)) {
         const waitSec = Math.ceil((searchingRef.current - Date.now()) / 1000);
-        setStatus(`Wait ${waitSec}s before searching again.`);
+        setStatus(`Wait ${waitSec}s before starting Scout again.`);
       }
       return;
     }
@@ -463,6 +527,9 @@ export default function App() {
     abortRef.current = ac;
     searchingRef.current = Infinity;
     staleHydration.current = true;
+
+    const targetCool = clampTargetCoolThreads(settings.targetCoolThreads);
+    coolProgressRef.current = { cool: 0, target: targetCool };
 
     setBusy(true);
     setSearching(true);
@@ -474,6 +541,8 @@ export default function App() {
     applyScoutEvent({
       stage: "planning",
       message: scoutStageMessage("planning"),
+      coolCount: 0,
+      targetCool,
     });
 
     try {
@@ -482,6 +551,7 @@ export default function App() {
         headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
         body: JSON.stringify({
           agenda,
+          targetCool,
           filters: {
             maxThreadChars: settings.maxThreadChars,
             dropArticles: settings.dropArticles,
@@ -507,8 +577,31 @@ export default function App() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let doneEvent: ScoutStreamEvent | null = null;
-      let sawError = false;
+      const stream = {
+        doneEvent: null as ScoutStreamEvent | null,
+        sawError: false,
+      };
+
+      const handleEvent = (ev: ScoutStreamEvent) => {
+        if (ev.stage === "done") {
+          stream.doneEvent = ev;
+          applyScoutEvent(ev);
+          if (ev.queries) {
+            setPlannedQueries(ev.queries);
+          }
+          return;
+        }
+        if (ev.stage === "error") {
+          applyScoutEvent(ev);
+          setThreads([]);
+          stream.sawError = true;
+          return;
+        }
+        applyScoutEvent(ev);
+        if (ev.stage === "partial" && ev.threads?.length) {
+          setThreads((prev) => appendThreadsById(prev, ev.threads));
+        }
+      };
 
       while (true) {
         const { value, done } = await reader.read();
@@ -525,30 +618,20 @@ export default function App() {
           } catch {
             continue;
           }
-          if (ev.stage === "done") {
-            doneEvent = ev;
-            applyScoutEvent(ev);
-          } else if (ev.stage === "error") {
-            applyScoutEvent(ev);
-            setThreads([]);
-            sawError = true;
-          } else {
-            applyScoutEvent(ev);
-          }
+          handleEvent(ev);
         }
       }
 
       if (buffer.trim()) {
         try {
-          const ev = JSON.parse(buffer.trim()) as ScoutStreamEvent;
-          if (ev.stage === "done") doneEvent = ev;
-          applyScoutEvent(ev);
+          handleEvent(JSON.parse(buffer.trim()) as ScoutStreamEvent);
         } catch {
           /* ignore trailing junk */
         }
       }
 
-      if (doneEvent) {
+      if (stream.doneEvent) {
+        const doneEvent = stream.doneEvent;
         const qs = doneEvent.queries ?? [];
         const list = doneEvent.threads ?? [];
         setPlannedQueries(qs);
@@ -556,27 +639,36 @@ export default function App() {
         setExpandedId(null);
         setDraft(null);
         await hydrateInteracted();
-        const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
-        const pc = doneEvent.pipelineCounts;
-        const funnel = pc
-          ? ` (${pc.raw} → ${pc.afterDedupe} → ${pc.afterCooldown} → ${pc.afterLength} → ${pc.afterTriage})`
+        const progress = coolProgressLabel(
+          doneEvent.coolCount ?? list.length,
+          doneEvent.targetCool ?? targetCool,
+          targetCool,
+        );
+        const reason = doneEvent.stopReason
+          ? ` · stop: ${doneEvent.stopReason}`
           : "";
+        const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
         const summary =
-          `Scout found ${list.length} threads${funnel} — ${qLabel}` +
+          `${progress}${reason} — ${qLabel}` +
           (doneEvent.triageWarning ? ` · ${doneEvent.triageWarning}` : "") +
           (doneEvent.cooldownWarning ? ` · ${doneEvent.cooldownWarning}` : "") +
           (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");
         setScoutStage("done");
         setStatus(summary);
         pushScoutLine(summary);
-      } else if (!sawError) {
+      } else if (!stream.sawError) {
         setScoutStage("error");
         setStatus("Scout failed: stream ended without results");
         pushScoutLine(scoutStageMessage("error"));
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        // Still cool down in finally so spam-unmount/abort cannot bypass.
+        // Still cool down in finally so Stop / unmount cannot bypass the gate.
+        const { cool, target } = coolProgressRef.current;
+        const summary = `Cool ${cool}/${target} · stop: aborted`;
+        setScoutStage("done");
+        setStatus(summary);
+        pushScoutLine(summary);
       } else {
         setScoutStage("error");
         setThreads([]);
@@ -592,9 +684,9 @@ export default function App() {
         setSearchCooldownUntil(until);
         setNowMs(Date.now());
         setStatus((prev) => {
-          if (/^Wait \d+s before searching again/.test(prev)) return prev;
+          if (/^Wait \d+s before starting Scout again/.test(prev)) return prev;
           if (prev.startsWith("Scout failed:") || prev.startsWith("Sidecar offline")) {
-            return `${prev} · Wait ${Math.ceil(SEARCH_COOLDOWN_MS / 1000)}s before searching again.`;
+            return `${prev} · Wait ${Math.ceil(SEARCH_COOLDOWN_MS / 1000)}s before starting Scout again.`;
           }
           return prev;
         });
@@ -781,6 +873,26 @@ export default function App() {
             />
             <span>Drop X Articles</span>
           </label>
+          <label className="settings-field">
+            <span>Cool threads target (1–10)</span>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              step={1}
+              value={settingsDraft.targetCoolThreads}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({
+                  ...prev,
+                  targetCoolThreads: clampTargetCoolThreads(
+                    e.target.value === ""
+                      ? DEFAULT_SETTINGS.targetCoolThreads
+                      : Number(e.target.value),
+                  ),
+                }))
+              }
+            />
+          </label>
           <p className="settings-readonly">Author cooldown: 24 hours</p>
           <div className="row">
             <button type="button" className="primary" onClick={onSaveSettings}>
@@ -799,22 +911,49 @@ export default function App() {
               onChange={(e) => setAgenda(e.target.value)}
               placeholder="What should we look for and how should we sound?"
             />
-            <div className="row">
-              <button
-                className="primary"
-                disabled={busy || searchBlocked || !agenda.trim()}
-                onClick={onSearch}
-              >
-                {searchCooldownRemaining > 0
-                  ? `Wait ${searchCooldownRemaining}s`
-                  : searching
-                    ? "Searching…"
-                    : "Search threads"}
-              </button>
+            <div className="row scout-controls">
+              {searching ? (
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={onStopScout}
+                >
+                  Stop Scout
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={busy || searchBlocked || !agenda.trim()}
+                  onClick={onSearch}
+                >
+                  {searchCooldownRemaining > 0
+                    ? `Wait ${searchCooldownRemaining}s`
+                    : "Start Scout"}
+                </button>
+              )}
+              <label className="cool-target">
+                <span>Cool threads</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  step={1}
+                  disabled={searching}
+                  value={settings.targetCoolThreads}
+                  onChange={(e) =>
+                    updateTargetCoolThreads(
+                      e.target.value === ""
+                        ? DEFAULT_SETTINGS.targetCoolThreads
+                        : Number(e.target.value),
+                    )
+                  }
+                />
+              </label>
             </div>
             <p className="status">
               {searchCooldownRemaining > 0 && !searching
-                ? `Wait ${searchCooldownRemaining}s before searching again.`
+                ? `Wait ${searchCooldownRemaining}s before starting Scout again.`
                 : status}
             </p>
             <p className="status status-queries">
@@ -833,7 +972,7 @@ export default function App() {
                     ? scoutStageMessage(scoutStage)
                     : searching
                       ? status
-                      : "Idle — ready when you search"}
+                      : "Idle — ready when you start Scout"}
                 </span>
               </div>
               <div

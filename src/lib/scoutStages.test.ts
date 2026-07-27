@@ -18,5 +18,6 @@ describe("scoutStages", () => {
   it("returns Scout-branded copy", () => {
     assert.match(scoutStageMessage("planning"), /^Scout /);
     assert.match(scoutStageMessage("triaging"), /bait/);
+    assert.match(scoutStageMessage("partial"), /cool/i);
   });
 });
