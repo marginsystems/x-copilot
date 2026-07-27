@@ -731,19 +731,20 @@ export default function App() {
   }
 
   async function confirmMarkInteracted() {
-    if (!markThread) return;
+    const thread = markThread;
+    if (!thread) return;
     const reply = markReply.trim();
     if (!reply) {
       setStatus("Reply is required — paste what you posted on X.");
       return;
     }
     setBusy(true);
-    const ok = await postInteracted(markThread, reply);
+    const ok = await postInteracted(thread, reply);
     setBusy(false);
     if (ok) {
       closeMarkModal();
       setStatus(
-        `Marked ${markThread.author} interacted — memory saved · 24h cooldown`,
+        `Marked ${thread.author} interacted — memory saved · 24h cooldown`,
       );
     }
   }
@@ -751,11 +752,11 @@ export default function App() {
   useEffect(() => {
     if (!markThread) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") closeMarkModal();
+      if (e.key === "Escape" && !busy) closeMarkModal();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [markThread]);
+  }, [markThread, busy]);
 
   return (
     <div className="app">
@@ -1040,6 +1041,7 @@ export default function App() {
             type="button"
             className="modal-backdrop"
             aria-label="Cancel mark interacted"
+            disabled={busy}
             onClick={closeMarkModal}
           />
           <div
