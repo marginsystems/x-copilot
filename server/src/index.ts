@@ -161,6 +161,7 @@ const server = http.createServer(async (req, res) => {
           cooldownWarning: done.cooldownWarning,
           lengthFiltered: done.lengthFiltered,
           lengthWarning: done.lengthWarning,
+          pipelineCounts: done.pipelineCounts,
         });
       } finally {
         endScout();

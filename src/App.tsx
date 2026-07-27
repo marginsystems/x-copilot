@@ -34,6 +34,13 @@ type ScoutStreamEvent = {
   triageWarning?: string;
   cooldownWarning?: string;
   lengthWarning?: string;
+  pipelineCounts?: {
+    raw: number;
+    afterDedupe: number;
+    afterCooldown: number;
+    afterLength: number;
+    afterTriage: number;
+  };
 };
 
 type Draft = {
@@ -539,8 +546,12 @@ export default function App() {
         setDraft(null);
         await hydrateInteracted();
         const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
+        const pc = doneEvent.pipelineCounts;
+        const funnel = pc
+          ? ` (${pc.raw} → ${pc.afterDedupe} → ${pc.afterCooldown} → ${pc.afterLength} → ${pc.afterTriage})`
+          : "";
         const summary =
-          `Scout found ${list.length} threads — ${qLabel}` +
+          `Scout found ${list.length} threads${funnel} — ${qLabel}` +
           (doneEvent.triageWarning ? ` · ${doneEvent.triageWarning}` : "") +
           (doneEvent.cooldownWarning ? ` · ${doneEvent.cooldownWarning}` : "") +
           (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");

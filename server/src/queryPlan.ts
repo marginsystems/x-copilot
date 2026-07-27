@@ -13,6 +13,7 @@ Rules:
 - Each query is a short keyword/search string (optionally with operators like from:, filter:replies, min_faves).
 - No essays, no numbering outside JSON, no markdown fences.
 - Prefer Latest-friendly topical queries that surface short conversational posts, concrete opinions, and genuine questions.
+- Prefer high-recall short keyword phrases that hit many recent posts; avoid over-narrow quoted phrases that return almost nothing.
 - Avoid queries that pull essay threads, newsletters, long-form dumps, or "thread farm" listicles.
 - English unless the agenda clearly requires another language.`;
 
