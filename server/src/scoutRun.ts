@@ -7,6 +7,7 @@ import {
 } from "./interactionStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
+import { saveScoutCache } from "./scoutCache.js";
 import {
   filterThreadsByLength,
   resolveMaxThreadCharsFromFilters,
@@ -192,5 +193,21 @@ export async function runScoutSearch(opts: {
     opencodeTurns: toOpenCodeTurns(events),
   };
   opts.onEvent?.(done);
+
+  try {
+    await saveScoutCache({
+      savedAt: done.at ?? new Date().toISOString(),
+      agenda: agenda || undefined,
+      queries: result.queries,
+      threads: triaged.threads,
+      message: done.message,
+      triageWarning: triaged.warning,
+      cooldownWarning,
+      lengthWarning,
+    });
+  } catch (err) {
+    console.error("Failed to persist last Scout run:", err);
+  }
+
   return { ok: true, event: done };
 }

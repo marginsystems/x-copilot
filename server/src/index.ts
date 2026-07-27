@@ -5,11 +5,14 @@ import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import {
+  filterThreadsByCooldown,
+  getCooledAuthorKeys,
   listActiveInteractions,
   markInteracted,
   normalizeAuthorKey,
 } from "./interactionStore.js";
 import { loadEnv } from "./loadEnv.js";
+import { getLastScout } from "./scoutCache.js";
 import { runScoutSearch, type ScoutFilters } from "./scoutRun.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
@@ -205,6 +208,26 @@ const server = http.createServer(async (req, res) => {
         });
       }
       return res.end();
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/scout/last") {
+      const snapshot = await getLastScout();
+      if (!snapshot) {
+        return send(res, 200, { ok: true, empty: true });
+      }
+      const cooled = await getCooledAuthorKeys();
+      const filtered = filterThreadsByCooldown(snapshot.threads, cooled);
+      return send(res, 200, {
+        ok: true,
+        empty: false,
+        snapshot: {
+          savedAt: snapshot.savedAt,
+          agenda: snapshot.agenda,
+          queries: snapshot.queries,
+          threads: filtered.threads,
+          message: snapshot.message,
+        },
+      });
     }
 
     if (req.method === "GET" && url.pathname === "/api/interacted") {

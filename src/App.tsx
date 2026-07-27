@@ -192,6 +192,7 @@ export default function App() {
   );
   const [settingsStatus, setSettingsStatus] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const staleHydration = useRef(false);
   const menuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function clearMenuCloseTimer() {
@@ -253,8 +254,50 @@ export default function App() {
     }
   }
 
+  async function hydrateLastScout() {
+    try {
+      const res = await fetch("/api/scout/last");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        ok?: boolean;
+        empty?: boolean;
+        snapshot?: {
+          savedAt: string;
+          agenda?: string;
+          queries?: string[];
+          threads?: ThreadCard[];
+          message?: string;
+        };
+      };
+      if (!data.ok || data.empty || !data.snapshot) return;
+      if (staleHydration.current) return;
+      const list = Array.isArray(data.snapshot.threads)
+        ? data.snapshot.threads
+        : [];
+      const queries = Array.isArray(data.snapshot.queries)
+        ? data.snapshot.queries
+        : [];
+      if (typeof data.snapshot.agenda === "string" && data.snapshot.agenda.trim()) {
+        setAgenda(data.snapshot.agenda);
+      }
+      setThreads(list);
+      setPlannedQueries(queries);
+      setScoutStage(null);
+      const when =
+        formatAbsoluteTime(data.snapshot.savedAt) ||
+        formatTimeAgo(data.snapshot.savedAt) ||
+        "earlier";
+      setStatus(
+        `Restored ${list.length} threads from ${when} — Search again to refresh.`,
+      );
+    } catch {
+      // Sidecar may be offline on first paint — ignore.
+    }
+  }
+
   useEffect(() => {
     void hydrateInteracted();
+    void hydrateLastScout();
   }, []);
 
   useEffect(() => {
@@ -369,6 +412,7 @@ export default function App() {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
+    staleHydration.current = true;
 
     setBusy(true);
     setSearching(true);
