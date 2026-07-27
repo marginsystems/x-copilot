@@ -71,6 +71,67 @@ const fixture = {
                   entryId: "cursor-bottom",
                   content: { __typename: "TimelineTimelineCursor" },
                 },
+                {
+                  entryId: "tweet-333",
+                  content: {
+                    __typename: "TimelineTimelineItem",
+                    itemContent: {
+                      tweet_results: {
+                        result: {
+                          __typename: "Tweet",
+                          rest_id: "333",
+                          legacy: {
+                            full_text: "Short teaser https://t.co/abc",
+                            created_at: "Sat Jul 25 01:00:00 +0000 2026",
+                            id_str: "333",
+                          },
+                          note_tweet: {
+                            note_tweet_results: {
+                              result: {
+                                text: "A".repeat(500),
+                              },
+                            },
+                          },
+                          core: {
+                            user_results: {
+                              result: {
+                                core: { screen_name: "carol" },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                {
+                  entryId: "tweet-444",
+                  content: {
+                    __typename: "TimelineTimelineItem",
+                    itemContent: {
+                      tweet_results: {
+                        result: {
+                          __typename: "Tweet",
+                          rest_id: "444",
+                          legacy: {
+                            full_text: "Article teaser only",
+                            id_str: "444",
+                          },
+                          article: {
+                            title: "Long form article",
+                          },
+                          core: {
+                            user_results: {
+                              result: {
+                                core: { screen_name: "dave" },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
               ],
             },
           ],
@@ -83,7 +144,7 @@ const fixture = {
 describe("parseSearchTimelineResponse", () => {
   it("extracts tweets and builds urls", () => {
     const threads = parseSearchTimelineResponse(fixture);
-    assert.equal(threads.length, 2);
+    assert.equal(threads.length, 4);
     assert.deepEqual(threads[0], {
       id: "111",
       author: "@alice",
@@ -94,6 +155,23 @@ describe("parseSearchTimelineResponse", () => {
     assert.equal(threads[1].id, "222");
     assert.equal(threads[1].author, "@bob");
     assert.equal(threads[1].url, "https://x.com/bob/status/222");
+  });
+
+  it("prefers note_tweet body over short full_text teaser", () => {
+    const threads = parseSearchTimelineResponse(fixture);
+    const note = threads.find((t) => t.id === "333");
+    assert.ok(note);
+    assert.equal(note.longform, "note_tweet");
+    assert.equal(note.text.length, 500);
+    assert.equal(note.author, "@carol");
+  });
+
+  it("marks article payload as longform article", () => {
+    const threads = parseSearchTimelineResponse(fixture);
+    const article = threads.find((t) => t.id === "444");
+    assert.ok(article);
+    assert.equal(article.longform, "article");
+    assert.equal(article.text, "Article teaser only");
   });
 
   it("returns empty for missing data", () => {

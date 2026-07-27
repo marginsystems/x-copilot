@@ -34,7 +34,7 @@ The agenda is passed along, so a specific on-agenda question scores low even tho
 
 ## Length filter
 
-Before triage, posts with more than **480** characters (or obvious `N/M` thread openers like `1/17 …`) are dropped so walls of text never reach DeepSeek or the accordion. Override with `X_MAX_THREAD_CHARS` in `.env`. The search status line reports how many were dropped.
+Before triage, posts with more than **480** characters (or obvious `N/M` thread openers like `1/17 …`) are dropped so walls of text never reach DeepSeek or the accordion. Override with `X_MAX_THREAD_CHARS` in `.env`. **X Articles** are hard-dropped when SearchTimeline marks an article payload (teasers alone used to slip past the char cap). When a **note tweet** body is present, that text is used for the char cap instead of the short `full_text` teaser. The search status line reports how many were dropped.
 
 ## Scout
 

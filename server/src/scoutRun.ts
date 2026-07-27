@@ -152,8 +152,12 @@ export async function runScoutSearch(opts: {
   const cooldownWarning = filtered.filteredCount
     ? `Filtered ${filtered.filteredCount} posts from cooled-down authors.`
     : undefined;
+  const overChars =
+    byLength.filteredCount -
+    byLength.openerFilteredCount -
+    byLength.articleFilteredCount;
   const lengthWarning = byLength.filteredCount
-    ? `Dropped ${byLength.filteredCount} posts (${byLength.openerFilteredCount} thread openers, ${byLength.filteredCount - byLength.openerFilteredCount} over ${maxChars} chars).`
+    ? `Dropped ${byLength.filteredCount} posts (${byLength.articleFilteredCount} articles, ${byLength.openerFilteredCount} thread openers, ${overChars} over ${maxChars} chars).`
     : undefined;
 
   const done: ScoutEvent = {
