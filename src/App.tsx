@@ -34,7 +34,9 @@ type ScoutStreamEvent = {
   queries?: string[];
   coolCount?: number;
   targetCool?: number;
-  stopReason?: "target" | "exhausted" | "aborted";
+  stopReason?: "qualified" | "target" | "exhausted" | "aborted";
+  candidates?: number;
+  bucketSize?: number;
   triageWarning?: string;
   cooldownWarning?: string;
   lengthWarning?: string;
@@ -87,6 +89,25 @@ function coolProgressLabel(
   const target =
     typeof targetCool === "number" ? targetCool : fallbackTarget;
   return `Cool ${cool}/${target}`;
+}
+
+function scoutProgressPrefix(ev: {
+  message?: string;
+  candidates?: number;
+  bucketSize?: number;
+  coolCount?: number;
+}): string | null {
+  if (
+    typeof ev.candidates === "number" &&
+    typeof ev.bucketSize === "number" &&
+    (ev.coolCount ?? 0) === 0
+  ) {
+    return `Candidates ${ev.candidates}/${ev.bucketSize}`;
+  }
+  if (typeof ev.coolCount === "number" && ev.coolCount > 0) {
+    return `Cool ${ev.coolCount}`;
+  }
+  return null;
 }
 
 function ThreadRow({
@@ -271,19 +292,23 @@ export default function App() {
     if (typeof ev.targetCool === "number") {
       coolProgressRef.current.target = ev.targetCool;
     }
-    const progress = coolProgressLabel(
-      coolProgressRef.current.cool,
-      coolProgressRef.current.target,
-      settings.targetCoolThreads,
-    );
     let message = ev.message || scoutStageMessage(stage);
+    // Prefer server bucket copy; avoid double-prefixing Candidates/Cool lines.
     if (
-      stage === "searching" ||
-      stage === "filtering" ||
-      stage === "triaging" ||
-      stage === "partial"
+      !/^Candidates\b/i.test(message) &&
+      !/^Cool\b/i.test(message) &&
+      !/^0 cool/i.test(message)
     ) {
-      message = `${progress} · ${message}`;
+      const prefix = scoutProgressPrefix(ev);
+      if (
+        prefix &&
+        (stage === "searching" ||
+          stage === "filtering" ||
+          stage === "triaging" ||
+          stage === "partial")
+      ) {
+        message = `${prefix} · ${message}`;
+      }
     }
     setScoutStage(stage);
     setStatus(message);
@@ -880,6 +905,10 @@ export default function App() {
                 />
               </label>
             </div>
+            <p className="status status-hint">
+              Fills a hard-filter bucket of 5, then LLM-qualifies until ≥1 cool
+              lead (target kept for later).
+            </p>
             <p className="status">
               {searchCooldownRemaining > 0 && !searching
                 ? `Wait ${searchCooldownRemaining}s before starting Scout again.`

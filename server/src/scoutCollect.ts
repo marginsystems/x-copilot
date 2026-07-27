@@ -1,6 +1,6 @@
 /**
- * Streaming Scout collector — paced X search, hard filters, tiny triage batches,
- * stop at N cool threads (or abort / exhaust).
+ * Streaming Scout collector — fill a hard-filtered bucket, then LLM-qualify.
+ * Discard/refill on zero cool; stop when a bucket yields ≥1 cool lead.
  */
 import {
   filterThreadsByCooldown,
@@ -21,7 +21,11 @@ import {
 } from "./xSearch.js";
 import { getSessionFromEnv, type SessionCreds } from "./xSession.js";
 
-export type ScoutStopReason = "target" | "exhausted" | "aborted";
+export type ScoutStopReason =
+  | "qualified"
+  | "exhausted"
+  | "aborted"
+  | "target";
 
 export type ScoutCollectStageId =
   | "planning"
@@ -42,6 +46,8 @@ export type ScoutCollectEvent = {
   queries?: string[];
   coolCount?: number;
   targetCool?: number;
+  bucketSize?: number;
+  candidates?: number;
   stopReason?: ScoutStopReason;
   triageWarning?: string;
   errors?: Array<{ query: string; message: string }>;
@@ -51,9 +57,11 @@ export type ScoutCollectEvent = {
 };
 
 export const DEFAULT_TARGET_COOL = 8;
-export const TRIAGE_BATCH_SIZE = 4;
-export const COLLECT_COUNT_PER_QUERY = 10;
+export const DEFAULT_BUCKET_SIZE = 5;
+export const COLLECT_COUNT_PER_QUERY = 20;
 export const COLLECT_QUERY_DELAY_MS = 500;
+export const MAX_SEARCH_CALLS = 24;
+export const MAX_BUCKET_ATTEMPTS = 6;
 /** Cool = engageable + bait not high. */
 export const COOL_MAX_BAIT = 45;
 
@@ -63,6 +71,13 @@ export function clampTargetCool(value: unknown): number {
   if (value < 1) return 1;
   if (value > 10) return 10;
   return value;
+}
+
+/** Bucket size is only 5 or 10 (default 5). */
+export function clampBucketSize(value: unknown): number {
+  if (value === 10 || value === "10") return 10;
+  if (value === 5 || value === "5") return 5;
+  return DEFAULT_BUCKET_SIZE;
 }
 
 export function isCoolThread(thread: ThreadCard): boolean {
@@ -137,6 +152,7 @@ export async function runScoutCollect(opts: {
   queries?: string[];
   filters?: ScoutFilters;
   targetCool?: number;
+  bucketSize?: number;
   session?: SessionCreds;
   signal?: AbortSignal;
   onEvent?: (event: ScoutCollectEvent) => void;
@@ -161,13 +177,18 @@ export async function runScoutCollect(opts: {
   }
 
   const targetCool = clampTargetCool(opts.targetCool);
+  const bucketSize = clampBucketSize(opts.bucketSize);
   const events: ScoutStageEvent[] = [];
   const track = (
     stage: ScoutCollectStageId,
     message: string,
     extra?: Partial<ScoutCollectEvent>,
   ) => {
-    const ev = emit(opts.onEvent, stage, message, extra);
+    const ev = emit(opts.onEvent, stage, message, {
+      bucketSize,
+      targetCool,
+      ...extra,
+    });
     events.push({
       agent: "scout",
       stage,
@@ -208,7 +229,6 @@ export async function runScoutCollect(opts: {
       const done = track("done", "Scout stopped.", {
         threads: [],
         coolCount: 0,
-        targetCool,
         stopReason: "aborted",
         queries: [],
       });
@@ -241,122 +261,184 @@ export async function runScoutCollect(opts: {
 
   const cool: ThreadCard[] = [];
   const seenIds = new Set<string>();
-  let pending: ThreadCard[] = [];
+  let bucket: ThreadCard[] = [];
   const searchErrors: Array<{ query: string; message: string }> = [];
   let triageWarning: string | undefined;
   let stopReason: ScoutStopReason = "exhausted";
+  let searchCalls = 0;
+  let queryIndex = 0;
+  let replanned = false;
+  let bucketAttempts = 0;
 
-  async function flushTriage(force: boolean): Promise<void> {
-    while (!aborted() && cool.length < targetCool && pending.length > 0) {
-      if (!force && pending.length < TRIAGE_BATCH_SIZE) break;
-      const take = Math.min(TRIAGE_BATCH_SIZE, pending.length);
-      const batch = pending.slice(0, take);
-      pending = pending.slice(take);
-
-      track("triaging", `Scout is scoring ${batch.length} threads…`, {
-        coolCount: cool.length,
-        targetCool,
-        detail: { batchSize: batch.length },
-      });
-
-      let triaged;
-      try {
-        triaged = await doTriage({ agenda, threads: batch });
-      } catch (err) {
-        pending = [...batch, ...pending];
-        throw err;
-      }
-      if (triaged.warning) triageWarning = triaged.warning;
-
-      const newlyCool: ThreadCard[] = [];
-      for (const t of triaged.threads) {
-        if (!isCoolThread(t)) continue;
-        if (cool.some((c) => c.id === t.id)) continue;
-        cool.push(t);
-        newlyCool.push(t);
-        if (cool.length >= targetCool) break;
-      }
-
-      if (newlyCool.length > 0) {
-        track("partial", `Cool ${cool.length}/${targetCool}`, {
-          threads: newlyCool,
-          coolCount: cool.length,
-          targetCool,
-        });
-      }
+  async function maybeReplan(): Promise<boolean> {
+    if (replanned || !agenda || !process.env.DEEPSEEK_API_KEY?.trim()) {
+      return false;
     }
+    replanned = true;
+    track("planning", "Scout is planning more search queries…");
+    const plan = await doPlan(agenda);
+    if (!plan.ok) {
+      searchErrors.push({ query: "(replan)", message: plan.message });
+      return false;
+    }
+    queries = plan.queries;
+    plannedBy = "deepseek";
+    planModel = plan.model;
+    queryIndex = 0;
+    return queries.length > 0;
   }
 
   try {
-    for (let i = 0; i < queries.length; i++) {
+    while (
+      !aborted() &&
+      cool.length === 0 &&
+      bucketAttempts < MAX_BUCKET_ATTEMPTS
+    ) {
+      // Fill hard-filter bucket (no LLM).
+      while (!aborted() && bucket.length < bucketSize) {
+        if (searchCalls >= MAX_SEARCH_CALLS) break;
+
+        if (queries.length === 0) {
+          const ok = await maybeReplan();
+          if (!ok) break;
+        }
+
+        if (queryIndex >= queries.length) {
+          const ok = await maybeReplan();
+          if (ok) {
+            // fresh list from replan
+          } else if (queries.length > 0) {
+            queryIndex = 0; // cycle existing queries
+          } else {
+            break;
+          }
+        }
+
+        if (queryIndex >= queries.length) break;
+
+        if (searchCalls > 0) {
+          await doSleep(COLLECT_QUERY_DELAY_MS, opts.signal);
+        }
+
+        const query = queries[queryIndex];
+        queryIndex += 1;
+        searchCalls += 1;
+
+        track(
+          "searching",
+          `Candidates ${bucket.length}/${bucketSize} · searching X…`,
+          {
+            candidates: bucket.length,
+            coolCount: 0,
+            detail: {
+              query,
+              searchCall: searchCalls,
+              queryIndex,
+              totalQueries: queries.length,
+            },
+          },
+        );
+
+        const result = await doSearch({
+          query,
+          count: COLLECT_COUNT_PER_QUERY,
+          session,
+          signal: opts.signal,
+        });
+        if (aborted()) break;
+
+        if (!result.ok) {
+          searchErrors.push({ query, message: result.message });
+          continue;
+        }
+
+        track(
+          "filtering",
+          `Candidates ${bucket.length}/${bucketSize} · applying cooldown + length filters…`,
+          { candidates: bucket.length, coolCount: 0 },
+        );
+
+        const fresh = result.threads.filter((t) => {
+          if (!t.id || seenIds.has(t.id)) return false;
+          seenIds.add(t.id);
+          return true;
+        });
+        const afterCool = filterThreadsByCooldown(fresh, cooled);
+        const afterLen = filterThreadsByLength(afterCool.threads, maxChars, {
+          dropArticles,
+        });
+
+        for (const t of afterLen.threads) {
+          if (bucket.length >= bucketSize) break;
+          bucket.push(t);
+        }
+
+        track(
+          "partial",
+          `Candidates ${bucket.length}/${bucketSize}`,
+          {
+            candidates: bucket.length,
+            coolCount: 0,
+            detail: {
+              raw: result.threads.length,
+              afterCooldown: afterCool.threads.length,
+              afterLength: afterLen.threads.length,
+            },
+          },
+        );
+      }
+
       if (aborted()) {
         stopReason = "aborted";
         break;
       }
-      if (cool.length >= targetCool) {
-        stopReason = "target";
+
+      if (bucket.length < bucketSize) {
+        stopReason = "exhausted";
         break;
       }
-      if (i > 0) {
-        await doSleep(COLLECT_QUERY_DELAY_MS, opts.signal);
-      }
 
-      const query = queries[i];
+      bucketAttempts += 1;
       track(
-        "searching",
-        `Scout is searching X (query ${i + 1}/${queries.length})…`,
+        "triaging",
+        `Scout is scoring bucket of ${bucket.length} candidates…`,
         {
-          coolCount: cool.length,
-          targetCool,
-          detail: { query, index: i + 1, total: queries.length },
+          candidates: bucket.length,
+          coolCount: 0,
+          detail: { bucketAttempt: bucketAttempts },
         },
       );
 
-      const result = await doSearch({
-        query,
-        count: COLLECT_COUNT_PER_QUERY,
-        session,
-        signal: opts.signal,
-      });
-      if (aborted()) {
-        stopReason = "aborted";
-        break;
-      }
+      const triaged = await doTriage({ agenda, threads: bucket });
+      if (triaged.warning) triageWarning = triaged.warning;
 
-      if (!result.ok) {
-        searchErrors.push({ query, message: result.message });
+      const newlyCool = triaged.threads.filter(isCoolThread);
+      if (newlyCool.length === 0) {
+        track(
+          "filtering",
+          "0 cool — discarding bucket and refilling…",
+          {
+            candidates: 0,
+            coolCount: 0,
+            detail: { bucketAttempt: bucketAttempts },
+          },
+        );
+        bucket = [];
         continue;
       }
 
-      track("filtering", "Scout is applying cooldown + length filters…", {
+      cool.push(...newlyCool);
+      stopReason = "qualified";
+      track("partial", `Cool ${cool.length} (≥1 from bucket)`, {
+        threads: newlyCool,
         coolCount: cool.length,
-        targetCool,
+        candidates: bucketSize,
       });
-
-      const fresh = result.threads.filter((t) => {
-        if (!t.id || seenIds.has(t.id)) return false;
-        seenIds.add(t.id);
-        return true;
-      });
-      const afterCool = filterThreadsByCooldown(fresh, cooled);
-      const afterLen = filterThreadsByLength(afterCool.threads, maxChars, {
-        dropArticles,
-      });
-      pending.push(...afterLen.threads);
-
-      await flushTriage(false);
-      if (cool.length >= targetCool) {
-        stopReason = "target";
-        break;
-      }
-    }
-
-    if (!aborted() && cool.length < targetCool) {
-      await flushTriage(true);
+      break;
     }
 
     if (aborted()) stopReason = "aborted";
-    else if (cool.length >= targetCool) stopReason = "target";
+    else if (cool.length >= 1) stopReason = "qualified";
     else stopReason = "exhausted";
   } catch (err) {
     if (isAbortError(err)) {
@@ -374,17 +456,19 @@ export async function runScoutCollect(opts: {
   }
 
   const stopMessage =
-    stopReason === "target"
-      ? `Scout found ${cool.length} cool threads (target ${targetCool}).`
+    stopReason === "qualified"
+      ? `Scout found ${cool.length} cool thread${cool.length === 1 ? "" : "s"} from a qualified bucket.`
       : stopReason === "aborted"
-        ? `Scout stopped — ${cool.length}/${targetCool} cool threads.`
-        : `Scout finished — ${cool.length}/${targetCool} cool threads (supply exhausted).`;
+        ? `Scout stopped — ${cool.length} cool threads.`
+        : `Scout finished — ${cool.length} cool threads (supply exhausted).`;
 
   const done = track("done", stopMessage, {
     threads: cool,
     queries,
     coolCount: cool.length,
     targetCool,
+    bucketSize,
+    candidates: bucket.length,
     stopReason,
     triageWarning,
     errors: searchErrors.length ? searchErrors : undefined,

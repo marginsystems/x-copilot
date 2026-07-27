@@ -14,7 +14,11 @@ import {
 import { loadEnv } from "./loadEnv.js";
 import { getLastScout } from "./scoutCache.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
-import { runScoutCollect, clampTargetCool } from "./scoutCollect.js";
+import {
+  runScoutCollect,
+  clampBucketSize,
+  clampTargetCool,
+} from "./scoutCollect.js";
 import { runScoutSearch, type ScoutFilters } from "./scoutRun.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
@@ -175,6 +179,7 @@ const server = http.createServer(async (req, res) => {
         agenda?: unknown;
         filters?: unknown;
         targetCool?: unknown;
+        bucketSize?: unknown;
       };
       try {
         body = (await readBody(req)) as {
@@ -182,6 +187,7 @@ const server = http.createServer(async (req, res) => {
           agenda?: unknown;
           filters?: unknown;
           targetCool?: unknown;
+          bucketSize?: unknown;
         };
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
@@ -196,6 +202,7 @@ const server = http.createServer(async (req, res) => {
         : [];
       const filters = parseScoutFilters(body.filters);
       const targetCool = clampTargetCool(body.targetCool);
+      const bucketSize = clampBucketSize(body.bucketSize);
 
       const gate = tryBeginScout();
       if (!gate.ok) {
@@ -233,6 +240,7 @@ const server = http.createServer(async (req, res) => {
           queries,
           filters,
           targetCool,
+          bucketSize,
           signal: abort.signal,
           onEvent: writeLine,
         });

@@ -39,7 +39,14 @@ Before triage, posts with more than **480** characters (or obvious `N/M` thread 
 
 ## Scout
 
-**Scout** is x-copilot’s search mini-agent. Use **Start Scout** / **Stop Scout** on the dashboard: Scout plans queries once, paces X search, hard-filters, then triages tiny batches until it finds **N cool threads** (1–10, default **8**; `engage` is `priority`/`consider` and `baitScore ≤ 45`). Cool rows append live; status shows `Cool n/N` and a final `stopReason` (`target` | `exhausted` | `aborted`). Prefer `POST /api/scout/run` (NDJSON stream with `partial` progress + final `done` including `coolCount`, `targetCool`, `stopReason`, threads, `opencodeTurns`). Body may include `targetCool`. `POST /api/search` remains a non-streaming batch JSON fallback (up to **20** hits per query + filter funnel). `opencodeTurns` is a thin structured agent log (not a full OpenCode CLI session). Sessions are rate-limited: one run at a time, then a **15s** cooldown (UI + sidecar `429`) before the next Start — Stop does not bypass that gate.
+**Scout** is x-copilot’s search mini-agent. Use **Start Scout** / **Stop Scout** on the dashboard. Flow:
+
+1. Plan queries (DeepSeek), then pace X SearchTimeline (**20** hits/query).
+2. **Hard-filter bucket** (cooldown + Article/char) with **no LLM** until the bucket has **K=5** candidates (optional body `bucketSize` 5|10). Keep searching / cycling queries (one replan, search budget) while the bucket is short.
+3. **LLM-qualify** the full bucket. Cool = `engage` `priority`/`consider` and `baitScore ≤ 45`.
+4. If **0 cool**, discard the bucket and refill; if **≥1 cool**, emit those cool threads and stop (`stopReason: qualified`). Budget/Stop → `exhausted` / `aborted`.
+
+Status shows `Candidates n/K` while filling. Prefer `POST /api/scout/run` (NDJSON; `done` includes `coolCount`, `bucketSize`, `stopReason`, threads, `opencodeTurns`). `targetCool` is still accepted for forward compat but **v1 stops at ≥1 cool from a qualified bucket**. `POST /api/search` remains a non-streaming batch JSON fallback. Sessions are rate-limited: one run at a time, then a **15s** cooldown (UI + sidecar `429`) before the next Start — Stop does not bypass that gate.
 
 ## Architecture
 
