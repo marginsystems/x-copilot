@@ -321,6 +321,7 @@ const server = http.createServer(async (req, res) => {
             ? body.score
             : undefined;
       try {
+        const interaction = await markInteracted({ threadId, author, source });
         const memory = await writeInteractionMemory({
           threadId,
           author,
@@ -336,7 +337,6 @@ const server = http.createServer(async (req, res) => {
           intent: typeof body.intent === "string" ? body.intent : undefined,
           reason: typeof body.reason === "string" ? body.reason : undefined,
         });
-        const interaction = await markInteracted({ threadId, author, source });
         return send(res, 200, {
           ok: true,
           interaction,
