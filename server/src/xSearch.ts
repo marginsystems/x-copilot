@@ -381,6 +381,8 @@ export async function searchMany(
     maxQueries?: number;
     delayMs?: number;
     session?: SessionCreds;
+    /** 1-based index, total, query string — for Scout progress. */
+    onQuery?: (index: number, total: number, query: string) => void;
   } = {},
 ): Promise<{
   queries: string[];
@@ -396,6 +398,7 @@ export async function searchMany(
 
   for (let i = 0; i < cleaned.length; i++) {
     if (i > 0) await sleep(opts.delayMs ?? 400);
+    opts.onQuery?.(i + 1, cleaned.length, cleaned[i]);
     const result = await searchTimeline({
       query: cleaned[i],
       product: opts.product,

@@ -36,6 +36,10 @@ The agenda is passed along, so a specific on-agenda question scores low even tho
 
 Before triage, posts with more than **480** characters (or obvious `N/M` thread openers like `1/17 …`) are dropped so walls of text never reach DeepSeek or the accordion. Override with `X_MAX_THREAD_CHARS` in `.env`. The search status line reports how many were dropped.
 
+## Scout
+
+**Scout** is x-copilot’s search mini-agent. The UI activity strip shows live stages while Scout plans queries, searches X, filters, and triages. Prefer `POST /api/scout/run` (NDJSON stream of `{ agent: "scout", stage, message, … }` lines, final `done` includes threads + `opencodeTurns`). `POST /api/search` remains a non-streaming JSON fallback. `opencodeTurns` is a thin structured agent log (not a full OpenCode CLI session).
+
 ## Architecture
 
 ```

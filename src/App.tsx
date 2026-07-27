@@ -1,10 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  SCOUT_SEARCH_TIMELINE,
-  SCOUT_STAGE_TICK_MS,
-  scoutStageMessage,
-  type ScoutStageId,
-} from "./lib/scoutStages";
+import { scoutStageMessage, type ScoutStageId } from "./lib/scoutStages";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 
 type ThreadCard = {
@@ -21,6 +16,17 @@ type ThreadCard = {
   engage?: "skip" | "consider" | "priority";
   reason?: string;
   score?: number;
+};
+
+type ScoutStreamEvent = {
+  agent?: string;
+  stage?: ScoutStageId | string;
+  message?: string;
+  threads?: ThreadCard[];
+  queries?: string[];
+  triageWarning?: string;
+  cooldownWarning?: string;
+  lengthWarning?: string;
 };
 
 type Draft = {
@@ -164,36 +170,22 @@ export default function App() {
   const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
   const [scoutLog, setScoutLog] = useState<string[]>([]);
   const [interactedIds, setInteractedIds] = useState<Set<string>>(() => new Set());
-  const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  function stopScoutTimeline() {
-    if (stageTimerRef.current) {
-      clearInterval(stageTimerRef.current);
-      stageTimerRef.current = null;
-    }
+  function pushScoutLine(line: string) {
+    setScoutLog((prev) => {
+      if (prev[prev.length - 1] === line) return prev;
+      return [...prev.slice(-5), line];
+    });
   }
 
-  function startScoutTimeline() {
-    stopScoutTimeline();
-    let idx = 0;
-    setScoutStage(SCOUT_SEARCH_TIMELINE[0]);
-    setScoutLog([scoutStageMessage(SCOUT_SEARCH_TIMELINE[0])]);
-    stageTimerRef.current = setInterval(() => {
-      idx = Math.min(idx + 1, SCOUT_SEARCH_TIMELINE.length - 1);
-      const stage = SCOUT_SEARCH_TIMELINE[idx];
-      setScoutStage(stage);
-      setScoutLog((prev) => {
-        const line = scoutStageMessage(stage);
-        if (prev[prev.length - 1] === line) return prev;
-        return [...prev.slice(-4), line];
-      });
-      if (idx >= SCOUT_SEARCH_TIMELINE.length - 1) {
-        stopScoutTimeline();
-      }
-    }, SCOUT_STAGE_TICK_MS);
+  function applyScoutEvent(ev: ScoutStreamEvent) {
+    const stage = (ev.stage ?? "planning") as ScoutStageId;
+    const message = ev.message || scoutStageMessage(stage);
+    setScoutStage(stage);
+    setStatus(message);
+    pushScoutLine(message);
   }
-
-  useEffect(() => () => stopScoutTimeline(), []);
 
   async function hydrateInteracted() {
     try {
@@ -215,6 +207,12 @@ export default function App() {
 
   useEffect(() => {
     void hydrateInteracted();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
   }, []);
 
   async function postInteracted(
@@ -273,62 +271,121 @@ export default function App() {
   }
 
   async function onSearch() {
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+
     setBusy(true);
     setSearching(true);
     setPlannedQueries([]);
     setThreads([]);
     setExpandedId(null);
     setDraft(null);
-    startScoutTimeline();
-    setStatus(scoutStageMessage("planning"));
+    setScoutLog([]);
+    applyScoutEvent({
+      stage: "planning",
+      message: scoutStageMessage("planning"),
+    });
+
     try {
-      const res = await fetch("/api/search", {
+      const res = await fetch("/api/scout/run", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
         body: JSON.stringify({ agenda }),
+        signal: ac.signal,
       });
-      const data = (await res.json()) as {
-        threads?: ThreadCard[];
-        queries?: string[];
-        message?: string;
-        error?: string;
-        model?: string;
-        triageWarning?: string;
-        cooldownWarning?: string;
-        lengthWarning?: string;
-      };
-      stopScoutTimeline();
-      if (!res.ok) {
-        setScoutStage(null);
-        setScoutLog((prev) => [...prev.slice(-4), scoutStageMessage("error")]);
+
+      if (!res.ok || !res.body) {
+        const fallback = (await res.json().catch(() => ({}))) as {
+          message?: string;
+          error?: string;
+        };
+        setScoutStage("error");
         setThreads([]);
-        setStatus(`Scout failed: ${data.message || data.error || res.status}`);
+        setStatus(
+          `Scout failed: ${fallback.message || fallback.error || res.status}`,
+        );
+        pushScoutLine(scoutStageMessage("error"));
         return;
       }
-      const qs = data.queries ?? [];
-      const list = data.threads ?? [];
-      setPlannedQueries(qs);
-      setThreads(list);
-      setExpandedId(null);
-      setDraft(null);
-      await hydrateInteracted();
-      setScoutStage("done");
-      const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
-      const summary =
-        `Scout found ${list.length} threads — ${qLabel}` +
-        (data.triageWarning ? ` · ${data.triageWarning}` : "") +
-        (data.cooldownWarning ? ` · ${data.cooldownWarning}` : "") +
-        (data.lengthWarning ? ` · ${data.lengthWarning}` : "");
-      setStatus(summary);
-      setScoutLog((prev) => [...prev.slice(-3), summary]);
-    } catch {
-      stopScoutTimeline();
-      setScoutStage(null);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let doneEvent: ScoutStreamEvent | null = null;
+      let sawError = false;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let ev: ScoutStreamEvent;
+          try {
+            ev = JSON.parse(trimmed) as ScoutStreamEvent;
+          } catch {
+            continue;
+          }
+          if (ev.stage === "done") {
+            doneEvent = ev;
+            applyScoutEvent(ev);
+          } else if (ev.stage === "error") {
+            applyScoutEvent(ev);
+            setThreads([]);
+            sawError = true;
+          } else {
+            applyScoutEvent(ev);
+          }
+        }
+      }
+
+      if (buffer.trim()) {
+        try {
+          const ev = JSON.parse(buffer.trim()) as ScoutStreamEvent;
+          if (ev.stage === "done") doneEvent = ev;
+          applyScoutEvent(ev);
+        } catch {
+          /* ignore trailing junk */
+        }
+      }
+
+      if (doneEvent) {
+        const qs = doneEvent.queries ?? [];
+        const list = doneEvent.threads ?? [];
+        setPlannedQueries(qs);
+        setThreads(list);
+        setExpandedId(null);
+        setDraft(null);
+        await hydrateInteracted();
+        const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
+        const summary =
+          `Scout found ${list.length} threads — ${qLabel}` +
+          (doneEvent.triageWarning ? ` · ${doneEvent.triageWarning}` : "") +
+          (doneEvent.cooldownWarning ? ` · ${doneEvent.cooldownWarning}` : "") +
+          (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");
+        setScoutStage("done");
+        setStatus(summary);
+        pushScoutLine(summary);
+      } else if (!sawError) {
+        setScoutStage("error");
+        setStatus("Scout failed: stream ended without results");
+        pushScoutLine(scoutStageMessage("error"));
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setScoutStage("error");
       setThreads([]);
       setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
+      pushScoutLine(scoutStageMessage("error"));
     } finally {
-      setSearching(false);
-      setBusy(false);
+      if (abortRef.current === ac) {
+        setSearching(false);
+        setBusy(false);
+      }
     }
   }
 
