@@ -261,7 +261,7 @@ export default function App() {
         ok?: boolean;
         empty?: boolean;
         snapshot?: {
-          savedAt?: string;
+          savedAt: string;
           agenda?: string;
           queries?: string[];
           threads?: ThreadCard[];
