@@ -475,6 +475,11 @@ button:disabled {
   overflow: hidden;
 }
 
+.status-hint {
+  opacity: 0.85;
+  font-size: 0.7rem;
+}
+
 /* Scout activity strip — grows with leftover left-column space */
 
 .scout-strip {
