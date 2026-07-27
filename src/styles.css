@@ -530,6 +530,7 @@ button:disabled {
 /* Fixed-height status block — Idle / Restored / live Scout must not shift layout */
 .status-stack {
   display: grid;
+  font-size: 0.76rem;
   grid-template-rows: 2.4em 3.6em 2.4em;
   gap: 4px;
   align-content: start;
