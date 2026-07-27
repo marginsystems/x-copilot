@@ -6,6 +6,7 @@ import {
   isOversizedThread,
   isThreadOpener,
   resolveMaxThreadChars,
+  resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.ts";
 import type { ThreadCard } from "./xSearch.ts";
 
@@ -122,5 +123,35 @@ describe("filterThreadsByLength", () => {
       ["1"],
     );
     assert.equal(result.filteredCount, 0);
+  });
+
+  it("keeps short Articles when dropArticles is false", () => {
+    const article = thread("1", "Short article teaser", "article");
+    const result = filterThreadsByLength([article], 480, {
+      dropArticles: false,
+    });
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["1"],
+    );
+    assert.equal(result.articleFilteredCount, 0);
+  });
+
+  it("still drops oversized Articles when dropArticles is false", () => {
+    const article = thread("1", "y".repeat(481), "article");
+    const result = filterThreadsByLength([article], 480, {
+      dropArticles: false,
+    });
+    assert.equal(result.filteredCount, 1);
+    assert.equal(result.articleFilteredCount, 0);
+  });
+});
+
+describe("resolveMaxThreadCharsFromFilters", () => {
+  it("prefers positive integer override over env", () => {
+    assert.equal(resolveMaxThreadCharsFromFilters(320, "900"), 320);
+    assert.equal(resolveMaxThreadCharsFromFilters(undefined, "900"), 900);
+    assert.equal(resolveMaxThreadCharsFromFilters(-1, "900"), 900);
+    assert.equal(resolveMaxThreadCharsFromFilters(12.5, ""), 480);
   });
 });

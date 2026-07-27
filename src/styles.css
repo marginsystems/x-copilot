@@ -127,11 +127,22 @@ h3 {
 
 .brand {
   flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.brand-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brand-copy {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
+  min-width: 0;
 }
 
 .brand h1 {
@@ -145,6 +156,155 @@ h3 {
   margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.menu-toggle {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.menu-toggle:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.menu-root {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.menu-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(4, 6, 9, 0.72);
+  cursor: pointer;
+}
+
+.menu-sheet {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(100%, 360px);
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.menu-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.menu-sheet-head h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.menu-session {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.menu-action {
+  width: 100%;
+  min-height: 44px;
+  text-align: center;
+}
+
+.settings-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-self: stretch;
+  max-width: 520px;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.settings-field input[type="number"] {
+  width: 100%;
+  max-width: 200px;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+}
+
+.settings-field input[type="number"]:focus-visible {
+  outline: 1px solid var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+
+.settings-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--text);
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.settings-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.settings-readonly {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
 }
 
 /* Panels */
