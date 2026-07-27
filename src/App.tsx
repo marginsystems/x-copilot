@@ -313,10 +313,8 @@ export default function App() {
 
   function updateTargetCoolThreads(value: number) {
     const targetCoolThreads = clampTargetCoolThreads(value);
-    setSettings((prev) => {
-      const next = { ...prev, targetCoolThreads };
-      return saveSettings(next);
-    });
+    setSettings((prev) => ({ ...prev, targetCoolThreads }));
+    saveSettings({ ...settings, targetCoolThreads });
     setSettingsDraft((prev) => ({ ...prev, targetCoolThreads }));
   }
 
@@ -588,9 +586,6 @@ export default function App() {
         if (ev.stage === "done") {
           stream.doneEvent = ev;
           applyScoutEvent(ev);
-          if (ev.threads) {
-            setThreads(ev.threads);
-          }
           if (ev.queries) {
             setPlannedQueries(ev.queries);
           }
