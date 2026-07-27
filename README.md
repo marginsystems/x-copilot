@@ -1,17 +1,16 @@
 # x-copilot
 
-Research + reply assistant for X (Twitter): **session-backed search → DeepSeek analysis → draft replies** in a Vite dashboard. You review and post manually.
+Research + triage assistant for X (Twitter): **session-backed search → DeepSeek triage** in a Vite dashboard. Scout finds cool threads worth a human reply — no AI-written reply drafts.
 
-**Status:** Stream 1 — agenda → DeepSeek Chat queries → session SearchTimeline → triaged thread cards. Draft API still stub.
+**Status:** Stream 1 — agenda → DeepSeek Chat queries → session SearchTimeline → triaged thread cards (Start/Stop Scout).
 
 ## Idea
 
 1. Paste an **agenda** (who/what to engage, voice, avoid list).
 2. **DeepSeek Chat** expands the agenda into 2–4 short X search queries (one LLM call).
 3. Sidecar runs those queries via session-backed **SearchTimeline** (not the official paid API).
-4. A second DeepSeek call **triages** the results (summary + bait risk) so bait never reaches a draft.
-5. Review thread cards; **draft** replies come next (stub for now).
-6. **Copy** and post yourself (no auto-engage in MVP).
+4. A second DeepSeek call **triages** the results (summary + bait risk + engage hint).
+5. Review cool thread cards, **Open on X**, and reply yourself (no auto-engage; no AI draft replies).
 
 ## Thread triage
 
@@ -30,7 +29,7 @@ The agenda is passed along, so a specific on-agenda question scores low even tho
 
 ## Interacted + author cooldown
 
-**Mark interacted** (or **Copy reply**) records the thread + author in a local sidecar file `data/interactions.json` (gitignored). For the next **24 hours**, later searches drop other posts from that same `@handle` *before* triage, so we do not keep hammering the same account or waste DeepSeek tokens on them. The search status line reports how many posts were filtered. Restarting the sidecar keeps the cooldown (file persist).
+**Mark interacted** records the thread + author in a local sidecar file `data/interactions.json` (gitignored). For the next **24 hours**, later searches drop other posts from that same `@handle` *before* triage, so we do not keep hammering the same account or waste DeepSeek tokens on them. The search status line reports how many posts were filtered. Restarting the sidecar keeps the cooldown (file persist).
 
 The last successful Scout run is also cached in memory and `data/last-scout.json` (gitignored). On dashboard load, `GET /api/scout/last` restores Threads / queries (cooled-down authors filtered out) so a reload or API restart does not wipe the list.
 
@@ -125,7 +124,7 @@ This path is **experimental**: X can change shapes, rate-limit, or lock accounts
 
 | Path | Role |
 |------|------|
-| `src/` | Vite dashboard (agenda, threads, draft) |
+| `src/` | Vite dashboard (agenda, Scout, threads) |
 | `server/src/` | TypeScript sidecar (HTTP API + X session + SearchTimeline) |
 | `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
 | `scripts/test-session.ts` | CLI session smoke test |
@@ -164,8 +163,8 @@ npm i -g pm2                                           # if needed
 
 ## Stream 1 definition of done
 
-- Agenda → thread cards → DeepSeek draft → copy reply
-- Human-in-the-loop posting only
+- Agenda → Scout → triaged cool thread cards
+- Human-in-the-loop posting only (Open on X; no AI reply drafts)
 - README documents cookie setup + risks
 
 ## License

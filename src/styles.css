@@ -748,15 +748,6 @@ button:disabled {
   font-size: 0.68rem;
 }
 
-.draft {
-  white-space: pre-wrap;
-  background: var(--raised);
-  border: 1px solid var(--accent-dim);
-  border-radius: var(--radius);
-  padding: 12px;
-  font-size: 0.82rem;
-}
-
 @media (max-width: 560px) {
   .row-head {
     grid-template-columns: 38px 1fr 16px;

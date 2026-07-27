@@ -313,14 +313,6 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    if (req.method === "POST" && url.pathname === "/api/draft") {
-      await readBody(req).catch(() => ({}));
-      return send(res, 501, {
-        error: "not_implemented",
-        message: "Wire DeepSeek draft generation here.",
-      });
-    }
-
     send(res, 404, { error: "not_found" });
   } catch (err) {
     console.error(err);

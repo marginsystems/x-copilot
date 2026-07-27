@@ -47,11 +47,6 @@ type ScoutStreamEvent = {
   };
 };
 
-type Draft = {
-  threadId: string;
-  text: string;
-};
-
 function normalizeAuthorKey(author: string): string {
   return author.trim().replace(/^@+/, "").toLowerCase();
 }
@@ -97,22 +92,16 @@ function coolProgressLabel(
 function ThreadRow({
   thread,
   open,
-  draft,
   busy,
   interacted,
   onToggle,
-  onDraft,
-  onCopy,
   onMark,
 }: {
   thread: ThreadCard;
   open: boolean;
-  draft: Draft | null;
   busy: boolean;
   interacted: boolean;
   onToggle: () => void;
-  onDraft: () => void;
-  onCopy: () => void;
   onMark: () => void;
 }) {
   const bait = baitRisk(thread);
@@ -179,19 +168,14 @@ function ThreadRow({
             <a className="ghost" href={thread.url} target="_blank" rel="noreferrer">
               Open on X
             </a>
-            <button className="primary" disabled={busy} onClick={onDraft}>
-              Draft reply
-            </button>
-            {draft ? (
-              <button className="ghost" disabled={busy} onClick={onCopy}>
-                Copy reply
-              </button>
-            ) : null}
-            <button className="ghost" disabled={busy || interacted} onClick={onMark}>
+            <button
+              className="primary"
+              disabled={busy || interacted}
+              onClick={onMark}
+            >
               {interacted ? "Interacted" : "Mark interacted"}
             </button>
           </div>
-          {draft ? <div className="draft">{draft.text}</div> : null}
         </div>
       ) : null}
     </article>
@@ -213,7 +197,6 @@ export default function App() {
   const [plannedQueries, setPlannedQueries] = useState<string[]>([]);
   const [threads, setThreads] = useState<ThreadCard[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [searching, setSearching] = useState(false);
   const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
@@ -436,10 +419,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);
 
-  async function postInteracted(
-    thread: ThreadCard,
-    source: "manual" | "copy",
-  ): Promise<boolean> {
+  async function postInteracted(thread: ThreadCard): Promise<boolean> {
     try {
       const res = await fetch("/api/interacted", {
         method: "POST",
@@ -447,7 +427,7 @@ export default function App() {
         body: JSON.stringify({
           threadId: thread.id,
           author: thread.author,
-          source,
+          source: "manual",
         }),
       });
       if (!res.ok) {
@@ -460,7 +440,6 @@ export default function App() {
       // Drop this author from the live list so we stop engaging the same account.
       setThreads((prev) => prev.filter((t) => normalizeAuthorKey(t.author) !== key));
       setExpandedId((id) => (id === thread.id ? null : id));
-      setDraft((d) => (d?.threadId === thread.id ? null : d));
       return true;
     } catch {
       setStatus("Sidecar offline — could not mark interacted");
@@ -536,7 +515,6 @@ export default function App() {
     setPlannedQueries([]);
     setThreads([]);
     setExpandedId(null);
-    setDraft(null);
     setScoutLog([]);
     applyScoutEvent({
       stage: "planning",
@@ -637,7 +615,6 @@ export default function App() {
         setPlannedQueries(qs);
         setThreads(list);
         setExpandedId(null);
-        setDraft(null);
         await hydrateInteracted();
         const progress = coolProgressLabel(
           doneEvent.coolCount ?? list.length,
@@ -694,57 +671,9 @@ export default function App() {
     }
   }
 
-  async function onDraft(thread: ThreadCard) {
-    setBusy(true);
-    setStatus("Drafting with DeepSeek… (draft API still stub)");
-    const placeholder = `Thanks for raising this — here's a concise take based on: "${thread.text.slice(0, 80)}…"`;
-    try {
-      const res = await fetch("/api/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agenda, thread }),
-      });
-      if (!res.ok) {
-        setDraft({ threadId: thread.id, text: placeholder });
-        setStatus(`Draft API ${res.status} — local placeholder draft`);
-        return;
-      }
-      const data = (await res.json()) as { draft: string };
-      if (typeof data.draft !== "string") {
-        setDraft({ threadId: thread.id, text: placeholder });
-        setStatus("Draft API returned invalid response — local placeholder draft");
-        return;
-      }
-      setDraft({ threadId: thread.id, text: data.draft });
-      setStatus("Draft ready — edit, then copy");
-    } catch {
-      setDraft({ threadId: thread.id, text: placeholder });
-      setStatus("Draft API offline — local placeholder draft");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onCopy(thread: ThreadCard) {
-    if (!draft || draft.threadId !== thread.id) return;
-    setBusy(true);
-    try {
-      await navigator.clipboard.writeText(draft.text);
-    } catch {
-      setBusy(false);
-      setStatus("Copy failed — clipboard API unavailable or permission denied");
-      return;
-    }
-    const ok = await postInteracted(thread, "copy");
-    setBusy(false);
-    if (ok) {
-      setStatus("Copied — marked interacted (24h author cooldown)");
-    }
-  }
-
   async function onMark(thread: ThreadCard) {
     setBusy(true);
-    const ok = await postInteracted(thread, "manual");
+    const ok = await postInteracted(thread);
     setBusy(false);
     if (ok) {
       setStatus(`Marked ${thread.author} interacted — cooled down for 24h`);
@@ -1009,14 +938,11 @@ export default function App() {
                       key={t.id}
                       thread={t}
                       open={expandedId === t.id}
-                      draft={draft?.threadId === t.id ? draft : null}
                       busy={busy}
                       interacted={interactedIds.has(t.id)}
                       onToggle={() =>
                         setExpandedId(expandedId === t.id ? null : t.id)
                       }
-                      onDraft={() => onDraft(t)}
-                      onCopy={() => onCopy(t)}
                       onMark={() => onMark(t)}
                     />
                   ))}
