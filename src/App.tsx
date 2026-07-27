@@ -300,7 +300,7 @@ export default function App() {
           message?: string;
           error?: string;
         };
-        setScoutStage(null);
+        setScoutStage("error");
         setThreads([]);
         setStatus(
           `Scout failed: ${fallback.message || fallback.error || res.status}`,
@@ -370,31 +370,22 @@ export default function App() {
         setScoutStage("done");
         setStatus(summary);
         pushScoutLine(summary);
-<<<<<<< HEAD
-<<<<<<< HEAD
       } else if (!sawError) {
-        setScoutStage(null);
-=======
-      } else {
-=======
-      } else if (!sawError) {
->>>>>>> bc1ade5 (fix: add unmount cleanup and preserve specific error messages from stream)
         setScoutStage("error");
->>>>>>> a7403c1 (Fix: handle error events without done event leaving UI stuck in searching state)
         setStatus("Scout failed: stream ended without results");
         pushScoutLine(scoutStageMessage("error"));
-      } else {
-        setScoutStage(null);
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setScoutStage(null);
+      setScoutStage("error");
       setThreads([]);
       setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
       pushScoutLine(scoutStageMessage("error"));
     } finally {
-      setSearching(false);
-      setBusy(false);
+      if (abortRef.current === ac) {
+        setSearching(false);
+        setBusy(false);
+      }
     }
   }
 
