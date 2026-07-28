@@ -29,7 +29,7 @@ describe("scoutStages", () => {
       true,
     );
     assert.equal(
-      isScoutGateError(409, { error: "scout_busy" }),
+      isScoutGateError(429, { error: "scout_busy" }),
       true,
     );
     assert.equal(isScoutGateError(500, { error: "deepseek_error" }), false);
