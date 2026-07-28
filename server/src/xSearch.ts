@@ -323,7 +323,8 @@ export function extractOpContext(node: TweetResultNode): {
   };
 }
 
-function tweetResultToCard(result: unknown): ThreadCard | null {
+/** Public parse of a GraphQL tweet result node into a ThreadCard. */
+export function tweetResultToCard(result: unknown): ThreadCard | null {
   const inner = unwrapTweetNode(result);
   if (!inner) return null;
 

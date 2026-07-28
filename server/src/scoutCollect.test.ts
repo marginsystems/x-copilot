@@ -279,4 +279,100 @@ describe("runScoutCollect bucket loop", () => {
     assert.ok(events.some((e) => /Candidates \d+\/5/.test(e.message)));
     assert.ok(events.some((e) => e.stage === "triaging"));
   });
+
+  it("hydrates reply parents before triage", async () => {
+    let hydrateCalls = 0;
+    let sawOp = false;
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [1, 2, 3, 4, 5].map((n) =>
+            card({
+              id: `r${n}`,
+              inReplyToId: `op${n}`,
+              isReply: true,
+              text: "How do you pick products?",
+            }),
+          ),
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => {
+          hydrateCalls += 1;
+          return threads.map((t) => ({
+            ...t,
+            opAuthor: "@hustler",
+            opText: "mysaas just crossed $632 revenue 100% profit",
+          }));
+        },
+        triageThreads: async ({ threads }) => {
+          sawOp = threads.every((t) => Boolean(t.opText));
+          return {
+            threads: threads.map((t) => ({
+              ...t,
+              engage: "skip" as const,
+              baitScore: 90,
+              flags: ["promo_op"],
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(hydrateCalls, 1);
+    assert.equal(sawOp, true);
+  });
+
+  it("still triages when parent hydrate soft-fails", async () => {
+    let triageCalls = 0;
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [1, 2, 3, 4, 5].map((n) =>
+            card({
+              id: `r${n}`,
+              inReplyToId: `op${n}`,
+              isReply: true,
+            }),
+          ),
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => threads,
+        triageThreads: async ({ threads }) => {
+          triageCalls += 1;
+          assert.equal(threads.length, 5);
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 20 : 80,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(triageCalls, 1);
+    assert.equal(result.event.stopReason, "qualified");
+  });
 });
