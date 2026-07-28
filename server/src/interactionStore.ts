@@ -9,6 +9,19 @@ import type { ThreadCard } from "./xSearch.js";
 
 export type InteractionSource = "manual" | "copy";
 
+export type ReplyStatSnapshot = {
+  views?: number;
+  likes?: number;
+  replies?: number;
+  retweets?: number;
+  sampledAt: string;
+};
+
+export type InteractionStats = {
+  t1h?: ReplyStatSnapshot;
+  t24h?: ReplyStatSnapshot;
+};
+
 export type Interaction = {
   threadId: string;
   author: string;
@@ -18,7 +31,30 @@ export type Interaction = {
   url?: string;
   summary?: string;
   text?: string;
+  /** Our reply tweet rest id (from pasted reply URL). */
+  replyId?: string;
+  replyUrl?: string;
+  /** When we consider the reply posted; defaults to `at`. */
+  postedAt?: string;
+  stats?: InteractionStats;
 };
+
+/** Parse x.com / twitter.com status URL → numeric rest id. */
+export function parseStatusIdFromUrl(url: string): string | null {
+  const raw = url.trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw.includes("://") ? raw : `https://${raw}`);
+    const host = u.hostname.replace(/^www\./, "").toLowerCase();
+    if (host !== "x.com" && host !== "twitter.com" && host !== "mobile.twitter.com") {
+      return null;
+    }
+    const m = u.pathname.match(/\/status(?:es)?\/(\d+)/i);
+    return m?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 export const MAX_INTERACTION_HISTORY = 200;
@@ -127,9 +163,18 @@ function parseStore(raw: string): StoreFile {
       const url = optionalString(row.url);
       const summary = optionalString(row.summary);
       const text = optionalString(row.text, MAX_TEXT_CHARS);
+      const replyId = optionalString(row.replyId);
+      const replyUrl = optionalString(row.replyUrl);
+      const postedAt = optionalString(row.postedAt);
       if (url) item.url = url;
       if (summary) item.summary = summary;
       if (text) item.text = text;
+      if (replyId) item.replyId = replyId;
+      if (replyUrl) item.replyUrl = replyUrl;
+      if (postedAt) item.postedAt = postedAt;
+      if (row.stats && typeof row.stats === "object") {
+        item.stats = row.stats as InteractionStats;
+      }
       interactions.push(item);
     }
     return { interactions };
@@ -189,6 +234,9 @@ export async function markInteracted(opts: {
   url?: string;
   summary?: string;
   text?: string;
+  replyId?: string;
+  replyUrl?: string;
+  postedAt?: string;
   nowMs?: number;
   storePath?: string;
 }): Promise<Interaction> {
@@ -201,22 +249,32 @@ export async function markInteracted(opts: {
   const nowMs = opts.nowMs ?? Date.now();
   const path = opts.storePath ?? defaultStorePath();
   const source: InteractionSource = opts.source === "copy" ? "copy" : "manual";
+  const at = new Date(nowMs).toISOString();
   const next: Interaction = {
     threadId,
     author,
     authorKey,
-    at: new Date(nowMs).toISOString(),
+    at,
     source,
   };
   const url = optionalString(opts.url);
   const summary = optionalString(opts.summary);
   const text = optionalString(opts.text, MAX_TEXT_CHARS);
+  const replyId = optionalString(opts.replyId);
+  const replyUrl = optionalString(opts.replyUrl);
+  const postedAt = optionalString(opts.postedAt) ?? at;
   if (url) next.url = url;
   if (summary) next.summary = summary;
   if (text) next.text = text;
+  if (replyId) next.replyId = replyId;
+  if (replyUrl) next.replyUrl = replyUrl;
+  if (replyId || replyUrl) next.postedAt = postedAt;
 
   return serialized(async () => {
     const store = await readStore(path);
+    const prior = store.interactions.find((i) => i.threadId === threadId);
+    // Preserve existing stats snapshots across re-marks of the same thread.
+    if (prior?.stats) next.stats = prior.stats;
     const without = store.interactions.filter((i) => i.threadId !== threadId);
     without.push(next);
     const interactions = trimInteractionHistory(without);

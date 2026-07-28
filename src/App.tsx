@@ -60,6 +60,14 @@ type ScoutLogEntry = {
   stage?: string;
 };
 
+type ReplyStatSnapshot = {
+  views?: number;
+  likes?: number;
+  replies?: number;
+  retweets?: number;
+  sampledAt: string;
+};
+
 type InteractionHistoryEntry = {
   threadId: string;
   author: string;
@@ -67,7 +75,34 @@ type InteractionHistoryEntry = {
   url?: string;
   summary?: string;
   text?: string;
+  replyId?: string;
+  replyUrl?: string;
+  postedAt?: string;
+  stats?: {
+    t1h?: ReplyStatSnapshot;
+    t24h?: ReplyStatSnapshot;
+  };
 };
+
+function parseStatusIdFromUrl(url: string): string | null {
+  const raw = url.trim();
+  if (!raw) return null;
+  try {
+    const u = new URL(raw.includes("://") ? raw : `https://${raw}`);
+    const host = u.hostname.replace(/^www\./, "").toLowerCase();
+    if (
+      host !== "x.com" &&
+      host !== "twitter.com" &&
+      host !== "mobile.twitter.com"
+    ) {
+      return null;
+    }
+    const m = u.pathname.match(/\/status(?:es)?\/(\d+)/i);
+    return m?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
 
 type ThreadsTab = "curated" | "interacted";
 
@@ -301,6 +336,7 @@ export default function App() {
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [markThread, setMarkThread] = useState<ThreadCard | null>(null);
+  const [markReplyUrl, setMarkReplyUrl] = useState("");
   const [markReply, setMarkReply] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const searchingRef = useRef(0);
@@ -584,23 +620,28 @@ export default function App() {
 
   function openMarkModal(thread: ThreadCard) {
     setMarkThread(thread);
+    setMarkReplyUrl("");
     setMarkReply("");
   }
 
   function closeMarkModal() {
     setMarkThread(null);
+    setMarkReplyUrl("");
     setMarkReply("");
   }
 
   async function postInteracted(
     thread: ThreadCard,
+    replyUrl: string,
     reply: string,
   ): Promise<boolean> {
-    const trimmed = reply.trim();
-    if (!trimmed) {
-      setStatus("Reply is required — paste what you posted on X.");
+    const urlTrimmed = replyUrl.trim();
+    const replyId = parseStatusIdFromUrl(urlTrimmed);
+    if (!replyId) {
+      setStatus("Reply URL is required — paste the link to your reply on X.");
       return false;
     }
+    const trimmed = reply.trim();
     try {
       const res = await fetch("/api/interacted", {
         method: "POST",
@@ -609,7 +650,8 @@ export default function App() {
           threadId: thread.id,
           author: thread.author,
           source: "manual",
-          reply: trimmed,
+          replyUrl: urlTrimmed,
+          ...(trimmed ? { reply: trimmed } : {}),
           agenda,
           url: thread.url,
           text: thread.text,
@@ -621,20 +663,26 @@ export default function App() {
           reason: thread.reason,
         }),
       });
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        interaction?: InteractionHistoryEntry;
+      };
       if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
         setStatus(`Mark fail: ${data.message || res.status}`);
         return false;
       }
       const key = normalizeAuthorKey(thread.author);
       setInteractedIds((prev) => new Set(prev).add(thread.id));
-      const historyEntry: InteractionHistoryEntry = {
+      const historyEntry: InteractionHistoryEntry = data.interaction ?? {
         threadId: thread.id,
         author: thread.author,
         at: new Date().toISOString(),
         url: thread.url,
         summary: thread.summary,
         text: thread.text,
+        replyId,
+        replyUrl: urlTrimmed,
+        postedAt: new Date().toISOString(),
       };
       setInteractedHistory((prev) => [
         historyEntry,
@@ -900,18 +948,19 @@ export default function App() {
   async function confirmMarkInteracted() {
     const thread = markThread;
     if (!thread) return;
-    const reply = markReply.trim();
-    if (!reply) {
-      setStatus("Reply is required — paste what you posted on X.");
+    if (!parseStatusIdFromUrl(markReplyUrl)) {
+      setStatus("Reply URL is required — paste the link to your reply on X.");
       return;
     }
     setBusy(true);
-    const ok = await postInteracted(thread, reply);
+    const ok = await postInteracted(thread, markReplyUrl, markReply);
     setBusy(false);
     if (ok) {
       closeMarkModal();
       setStatus(
-        `Marked ${thread.author} interacted — memory saved · 24h cooldown`,
+        markReply.trim()
+          ? `Marked ${thread.author} interacted — memory saved · 24h cooldown`
+          : `Marked ${thread.author} interacted — 24h cooldown`,
       );
     }
   }
@@ -1344,25 +1393,35 @@ export default function App() {
           >
             <h2 id="mark-reply-title">Mark interacted</h2>
             <p className="status">
-              Paste the reply you posted on X for {markThread.author}. Saved to
-              local knowledge memory.
+              Paste the URL of the reply you posted on X for {markThread.author}.
+              Optional reply text is saved to local knowledge memory.
             </p>
             <label className="settings-field">
-              <span>Your reply on X</span>
+              <span>Reply URL on X</span>
+              <input
+                className="mark-reply"
+                type="url"
+                value={markReplyUrl}
+                onChange={(e) => setMarkReplyUrl(e.target.value)}
+                placeholder="https://x.com/you/status/…"
+                autoFocus
+              />
+            </label>
+            <label className="settings-field">
+              <span>Reply text (optional, for memory)</span>
               <textarea
                 className="mark-reply"
                 value={markReply}
                 onChange={(e) => setMarkReply(e.target.value)}
                 placeholder="What you actually typed / posted…"
-                rows={5}
-                autoFocus
+                rows={4}
               />
             </label>
             <div className="row">
               <button
                 type="button"
                 className="primary"
-                disabled={busy || !markReply.trim()}
+                disabled={busy || !parseStatusIdFromUrl(markReplyUrl)}
                 onClick={() => void confirmMarkInteracted()}
               >
                 Confirm

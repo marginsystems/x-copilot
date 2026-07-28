@@ -13,6 +13,7 @@ import {
   listInteractionHistory,
   markInteracted,
   normalizeAuthorKey,
+  parseStatusIdFromUrl,
   pruneExpired,
   type Interaction,
 } from "./interactionStore.ts";
@@ -32,6 +33,29 @@ describe("normalizeAuthorKey", () => {
     assert.equal(normalizeAuthorKey("@Foo"), "foo");
     assert.equal(normalizeAuthorKey("  Foo  "), "foo");
     assert.equal(normalizeAuthorKey("@@Bar"), "bar");
+  });
+});
+
+describe("parseStatusIdFromUrl", () => {
+  it("parses x.com and twitter.com status URLs", () => {
+    assert.equal(
+      parseStatusIdFromUrl("https://x.com/me/status/1234567890"),
+      "1234567890",
+    );
+    assert.equal(
+      parseStatusIdFromUrl("https://twitter.com/me/status/99?s=20"),
+      "99",
+    );
+    assert.equal(
+      parseStatusIdFromUrl("x.com/foo/statuses/42"),
+      "42",
+    );
+  });
+
+  it("rejects non-status URLs", () => {
+    assert.equal(parseStatusIdFromUrl("https://x.com/home"), null);
+    assert.equal(parseStatusIdFromUrl("not a url"), null);
+    assert.equal(parseStatusIdFromUrl(""), null);
   });
 });
 
@@ -157,6 +181,23 @@ describe("markInteracted", () => {
 
     const keys = await getCooledAuthorKeys({ nowMs: t2, storePath });
     assert.deepEqual([...keys], ["builder"]);
+  });
+
+  it("persists replyId / replyUrl / postedAt", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    const row = await markInteracted({
+      threadId: "parent1",
+      author: "@target",
+      replyId: "999",
+      replyUrl: "https://x.com/me/status/999",
+      nowMs: now,
+      storePath,
+    });
+    assert.equal(row.replyId, "999");
+    assert.equal(row.replyUrl, "https://x.com/me/status/999");
+    assert.equal(row.postedAt, new Date(now).toISOString());
+    const history = await listInteractionHistory({ storePath });
+    assert.equal(history[0]?.replyId, "999");
   });
 
   it("keeps expired rows in history but not in cooldown keys", async () => {
