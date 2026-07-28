@@ -49,7 +49,8 @@ export async function runStatsTick(opts?: {
   for (let i = 0; i < due.length; i++) {
     const item: DueStatSample = due[i];
     const tweetId = item.replyId;
-    const prevFailures = tweetFailures.get(tweetId) ?? 0;
+    const failKey = `${tweetId}:${item.checkpoint}`;
+    const prevFailures = tweetFailures.get(failKey) ?? 0;
     if (prevFailures >= MAX_CONSECUTIVE_FAILURES) {
       failed += 1;
       continue;
@@ -57,11 +58,11 @@ export async function runStatsTick(opts?: {
     if (i > 0 && delayMs > 0) await sleep(delayMs);
     const metrics = await fetchMetrics({ tweetId, session });
     if (!metrics) {
-      tweetFailures.set(tweetId, prevFailures + 1);
+      tweetFailures.set(failKey, prevFailures + 1);
       failed += 1;
       continue;
     }
-    tweetFailures.delete(tweetId);
+    tweetFailures.delete(failKey);
     await patchInteractionStats({
       threadId: item.threadId,
       checkpoint: item.checkpoint,
@@ -74,10 +75,10 @@ export async function runStatsTick(opts?: {
     sampled += 1;
   }
 
-  // Prune failure entries for tweets no longer due to prevent unbounded growth.
-  const dueIds = new Set(due.map((d) => d.replyId));
+  // Prune failure entries no longer due to prevent unbounded growth.
+  const dueKeys = new Set(due.map((d) => `${d.replyId}:${d.checkpoint}`));
   for (const key of tweetFailures.keys()) {
-    if (!dueIds.has(key)) tweetFailures.delete(key);
+    if (!dueKeys.has(key)) tweetFailures.delete(key);
   }
 
   return { due: due.length, sampled, failed };
