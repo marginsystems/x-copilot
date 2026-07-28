@@ -60,13 +60,16 @@ describe("normalizeSettings", () => {
         maxThreadChars: 320,
         dropArticles: false,
         targetCoolThreads: 3,
+        dedupeAccounts: false,
       }),
       {
         maxThreadChars: 320,
         dropArticles: false,
         targetCoolThreads: 3,
+        dedupeAccounts: false,
       },
     );
+    assert.equal(normalizeSettings({}).dedupeAccounts, true);
   });
 });
 
@@ -80,11 +83,13 @@ describe("loadSettings / saveSettings", () => {
       maxThreadChars: 320,
       dropArticles: false,
       targetCoolThreads: 5,
+      dedupeAccounts: false,
     });
     assert.deepEqual(saved, {
       maxThreadChars: 320,
       dropArticles: false,
       targetCoolThreads: 5,
+      dedupeAccounts: false,
     });
     assert.deepEqual(loadSettings(), saved);
     assert.ok(localStorage.getItem(SETTINGS_STORAGE_KEY));

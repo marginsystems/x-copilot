@@ -14,12 +14,15 @@ export type AppSettings = {
   maxThreadChars: number;
   dropArticles: boolean;
   targetCoolThreads: number;
+  /** Never curate authors we've marked interacted (lifetime). */
+  dedupeAccounts: boolean;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
   maxThreadChars: DEFAULT_MAX_THREAD_CHARS,
   dropArticles: true,
   targetCoolThreads: DEFAULT_TARGET_COOL_THREADS,
+  dedupeAccounts: true,
 };
 
 export function clampMaxThreadChars(value: unknown): number {
@@ -48,6 +51,10 @@ export function normalizeSettings(raw: unknown): AppSettings {
         ? obj.dropArticles
         : DEFAULT_SETTINGS.dropArticles,
     targetCoolThreads: clampTargetCoolThreads(obj.targetCoolThreads),
+    dedupeAccounts:
+      typeof obj.dedupeAccounts === "boolean"
+        ? obj.dedupeAccounts
+        : DEFAULT_SETTINGS.dedupeAccounts,
   };
 }
 

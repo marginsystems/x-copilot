@@ -3,7 +3,7 @@
  */
 import {
   filterThreadsByCooldown,
-  getCooledAuthorKeys,
+  getAuthorKeysForScoutFilter,
 } from "./interactionStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
@@ -79,6 +79,8 @@ function emit(
 export type ScoutFilters = {
   maxThreadChars?: number;
   dropArticles?: boolean;
+  /** When true (default), never curate authors from interaction history. */
+  dedupeAccounts?: boolean;
 };
 
 export async function runScoutSearch(opts: {
@@ -158,7 +160,9 @@ export async function runScoutSearch(opts: {
   });
 
   track("filtering", "Scout is applying cooldown + length filters…");
-  const cooled = await getCooledAuthorKeys();
+  const cooled = await getAuthorKeysForScoutFilter({
+    dedupeAccounts: opts.filters?.dedupeAccounts,
+  });
   const filtered = filterThreadsByCooldown(result.threads, cooled);
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,

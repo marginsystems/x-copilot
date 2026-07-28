@@ -4,6 +4,7 @@
  */
 import {
   filterThreadsByCooldown,
+  getAuthorKeysForScoutFilter,
   getCooledAuthorKeys,
 } from "./interactionStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
@@ -143,6 +144,7 @@ export type ScoutCollectDeps = {
   triageThreads?: typeof triageThreads;
   planQueriesFromAgenda?: typeof planQueriesFromAgenda;
   getCooledAuthorKeys?: typeof getCooledAuthorKeys;
+  getAuthorKeysForScoutFilter?: typeof getAuthorKeysForScoutFilter;
   saveScoutCache?: typeof saveScoutCache;
   sleep?: typeof sleep;
 };
@@ -163,6 +165,8 @@ export async function runScoutCollect(opts: {
   const doTriage = deps.triageThreads ?? triageThreads;
   const doPlan = deps.planQueriesFromAgenda ?? planQueriesFromAgenda;
   const doGetCooled = deps.getCooledAuthorKeys ?? getCooledAuthorKeys;
+  const doGetFilterKeys =
+    deps.getAuthorKeysForScoutFilter ?? getAuthorKeysForScoutFilter;
   const doSaveCache = deps.saveScoutCache ?? saveScoutCache;
   const doSleep = deps.sleep ?? sleep;
 
@@ -257,7 +261,13 @@ export async function runScoutCollect(opts: {
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
-  const cooled = await doGetCooled();
+  // Tests often stub getCooledAuthorKeys only; production uses lifetime+24h filter.
+  const cooled =
+    deps.getCooledAuthorKeys && !deps.getAuthorKeysForScoutFilter
+      ? await doGetCooled()
+      : await doGetFilterKeys({
+          dedupeAccounts: opts.filters?.dedupeAccounts,
+        });
 
   const cool: ThreadCard[] = [];
   const seenIds = new Set<string>();
