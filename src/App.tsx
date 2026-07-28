@@ -1092,16 +1092,19 @@ export default function App() {
                 const page = Math.min(scoutLogPage, pageCount - 1);
                 const end = scoutLog.length - page * SCOUT_LOG_PAGE_SIZE;
                 const start = Math.max(0, end - SCOUT_LOG_PAGE_SIZE);
-                const pageEntries = scoutLog.slice(start, end);
+                // Newest first within the page (append order is oldest→newest in store).
+                const pageEntries = scoutLog.slice(start, end).reverse();
                 return (
-                  <>
+                  <div className="scout-log-panel">
                     <ul className="scout-log">
                       {pageEntries.length > 0 ? (
-                        pageEntries.map((entry) => {
+                        pageEntries.map((entry, i) => {
                           const ago = formatTimeAgo(entry.at, nowMs);
                           const absolute = formatAbsoluteTime(entry.at);
                           return (
-                            <li key={`${entry.at}-${entry.stage ?? ''}-${entry.message}`}>
+                            <li
+                              key={`${entry.at}-${entry.stage ?? ""}-${entry.message}-${start + i}`}
+                            >
                               <span
                                 className="scout-log-ago"
                                 title={absolute ?? undefined}
@@ -1143,7 +1146,7 @@ export default function App() {
                         Newer
                       </button>
                     </div>
-                  </>
+                  </div>
                 );
               })()}
             </div>
