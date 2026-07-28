@@ -17,7 +17,7 @@ import {
 } from "./threadFilters.js";
 import { triageThreads } from "./threadTriage.js";
 import {
-  searchTimeline,
+  searchTimelinePages,
   type ThreadCard,
 } from "./xSearch.js";
 import { getSessionFromEnv, type SessionCreds } from "./xSession.js";
@@ -140,7 +140,8 @@ export type ScoutCollectResult =
   | { ok: false; status: number; error: string; message: string };
 
 export type ScoutCollectDeps = {
-  searchTimeline?: typeof searchTimeline;
+  /** Stub with same result shape as searchTimelinePages. */
+  searchTimeline?: typeof searchTimelinePages;
   triageThreads?: typeof triageThreads;
   planQueriesFromAgenda?: typeof planQueriesFromAgenda;
   getCooledAuthorKeys?: typeof getCooledAuthorKeys;
@@ -161,7 +162,7 @@ export async function runScoutCollect(opts: {
   deps?: ScoutCollectDeps;
 }): Promise<ScoutCollectResult> {
   const deps = opts.deps ?? {};
-  const doSearch = deps.searchTimeline ?? searchTimeline;
+  const doSearch = deps.searchTimeline ?? searchTimelinePages;
   const doTriage = deps.triageThreads ?? triageThreads;
   const doPlan = deps.planQueriesFromAgenda ?? planQueriesFromAgenda;
   const doGetCooled = deps.getCooledAuthorKeys ?? getCooledAuthorKeys;
