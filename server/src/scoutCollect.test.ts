@@ -100,6 +100,7 @@ describe("runScoutCollect bucket loop", () => {
           });
           return { ok: true as const, queryId: "test", threads, bottomCursor: null };
         },
+        hydrateReplyParents: async ({ threads }) => threads,
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
           assert.equal(threads.length, 5);
@@ -141,6 +142,7 @@ describe("runScoutCollect bucket loop", () => {
           });
           return { ok: true as const, queryId: "test", threads, bottomCursor: null };
         },
+        hydrateReplyParents: async ({ threads }) => threads,
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
           if (triageCalls === 1) {
@@ -190,6 +192,7 @@ describe("runScoutCollect bucket loop", () => {
           });
           return { ok: true as const, queryId: "test", threads, bottomCursor: null };
         },
+        hydrateReplyParents: async ({ threads }) => threads,
         triageThreads: async ({ threads }) => ({
           threads: threads.map((t) => ({
             ...t,
@@ -230,6 +233,7 @@ describe("runScoutCollect bucket loop", () => {
             bottomCursor: null,
           };
         },
+        hydrateReplyParents: async ({ threads }) => threads,
         triageThreads: async ({ threads }) => ({
           threads: threads.map((t) => ({
             ...t,
@@ -266,6 +270,7 @@ describe("runScoutCollect bucket loop", () => {
           });
           return { ok: true as const, queryId: "test", threads, bottomCursor: null };
         },
+        hydrateReplyParents: async ({ threads }) => threads,
         triageThreads: async ({ threads }) => ({
           threads: threads.map((t) => ({
             ...t,

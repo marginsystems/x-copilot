@@ -92,6 +92,7 @@ export async function fetchParentTweet(opts: {
 }): Promise<ParentTweet | null> {
   const tweetId = opts.tweetId.trim();
   if (!tweetId) return null;
+  if (opts.signal?.aborted) return null;
   if (parentCache.has(tweetId)) return parentCache.get(tweetId) ?? null;
 
   const session = opts.session ?? getSessionFromEnv();
@@ -134,25 +135,24 @@ export async function fetchParentTweet(opts: {
     const url = `https://x.com/i/api/graphql/${qid}/TweetResultByRestId?${params}`;
 
     let res: Response;
-    let tm: ReturnType<typeof setTimeout> | undefined;
-    let onAbort: (() => void) | undefined;
     try {
       const ac = new AbortController();
-      tm = setTimeout(() => ac.abort(), 12000);
-      onAbort = () => ac.abort();
+      const tm = setTimeout(() => ac.abort(), 12000);
+      const onAbort = () => ac.abort();
       opts.signal?.addEventListener("abort", onAbort, { once: true });
-      res = await fetch(url, {
-        method: "GET",
-        headers,
-        signal: ac.signal,
-      });
+      try {
+        res = await fetch(url, {
+          method: "GET",
+          headers,
+          signal: ac.signal,
+        });
+      } finally {
+        clearTimeout(tm);
+        opts.signal?.removeEventListener("abort", onAbort);
+      }
     } catch {
-      clearTimeout(tm);
-      if (onAbort) opts.signal?.removeEventListener("abort", onAbort);
       continue;
     }
-    clearTimeout(tm);
-    if (onAbort) opts.signal?.removeEventListener("abort", onAbort);
 
     const text = await res.text();
     if (res.status === 404 || text.includes("Query not found")) continue;
