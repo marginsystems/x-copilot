@@ -74,6 +74,12 @@ export async function runStatsTick(opts?: {
     sampled += 1;
   }
 
+  // Prune failure entries for tweets no longer due to prevent unbounded growth.
+  const dueIds = new Set(due.map((d) => d.replyId));
+  for (const key of tweetFailures.keys()) {
+    if (!dueIds.has(key)) tweetFailures.delete(key);
+  }
+
   return { due: due.length, sampled, failed };
 }
 

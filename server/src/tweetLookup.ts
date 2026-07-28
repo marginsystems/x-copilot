@@ -39,13 +39,6 @@ export function clearParentTweetCache(): void {
   parentCache.clear();
 }
 
-const metricsCache = new Map<string, TweetMetrics | null>();
-
-/** Test helper — clear in-process metrics cache. */
-export function clearTweetMetricsCache(): void {
-  metricsCache.clear();
-}
-
 function tweetResultFromPayload(data: unknown): unknown {
   const root = data as {
     data?: {
@@ -261,7 +254,6 @@ export async function fetchTweetMetrics(opts: {
   const tweetId = opts.tweetId.trim();
   if (!tweetId) return null;
   if (opts.signal?.aborted) return null;
-  if (metricsCache.has(tweetId)) return metricsCache.get(tweetId) ?? null;
 
   const session = opts.session ?? getSessionFromEnv();
   if (!session.configured) {
@@ -340,7 +332,6 @@ export async function fetchTweetMetrics(opts: {
     const metrics = parseTweetMetrics(data);
     if (metrics) {
       cachedTweetQueryId = qid;
-      metricsCache.set(tweetId, metrics);
       return metrics;
     }
   }

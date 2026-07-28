@@ -3,7 +3,7 @@
  * durable history for the Interacted feed.
  * Persists to data/interactions.json (gitignored). Soft-degrades on IO/parse errors.
  */
-import { mkdir, readFile, writeFile, rmdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rmdir, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { ThreadCard } from "./xSearch.js";
 
@@ -226,6 +226,16 @@ async function withFileLock<T>(
       if (e.code !== "EEXIST") throw err;
       if (retries > 200)
         throw new Error("Could not acquire lock: " + filePath);
+      // After ~1s, check if the lock dir is stale (crash orphan).
+      if (retries > 50) {
+        try {
+          const s = await stat(lockPath);
+          if (Date.now() - s.mtimeMs > 60000) {
+            await rmdir(lockPath).catch(() => {});
+            continue;
+          }
+        } catch {}
+      }
       await new Promise((r) => setTimeout(r, 20));
     }
   }
