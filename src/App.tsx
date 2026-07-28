@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { scoutStageMessage, type ScoutStageId } from "./lib/scoutStages";
+import {
+  formatScoutFailure,
+  isScoutGateError,
+  scoutStageMessage,
+  type ScoutStageId,
+} from "./lib/scoutStages";
 import {
   loadSettings,
   saveSettings,
@@ -618,7 +623,13 @@ export default function App() {
     if (Date.now() < searchingRef.current) {
       if (isFinite(searchingRef.current)) {
         const waitSec = Math.ceil((searchingRef.current - Date.now()) / 1000);
-        setStatus(`Wait ${waitSec}s before starting Scout again.`);
+        const line = formatScoutFailure(
+          `Wait ${waitSec}s before starting Scout again.`,
+          { soft: true },
+        );
+        setScoutStage("error");
+        setStatus(line);
+        pushScoutLine(line, "error");
       }
       return;
     }
@@ -664,12 +675,16 @@ export default function App() {
           message?: string;
           error?: string;
         };
+        const detail =
+          fallback.message ||
+          fallback.error ||
+          (!res.body ? "empty response body" : `HTTP ${res.status}`);
+        const soft = isScoutGateError(res.status, fallback);
+        const line = formatScoutFailure(detail, { soft });
         setScoutStage("error");
         setThreads([]);
-        setStatus(
-          `Scout failed: ${fallback.message || fallback.error || res.status}`,
-        );
-        pushScoutLine(scoutStageMessage("error"));
+        setStatus(line);
+        pushScoutLine(line, "error");
         return;
       }
 
@@ -755,9 +770,10 @@ export default function App() {
         setStatus(summary);
         pushScoutLine(summary);
       } else if (!stream.sawError) {
+        const line = formatScoutFailure("stream ended without results");
         setScoutStage("error");
-        setStatus("Scout failed: stream ended without results");
-        pushScoutLine(scoutStageMessage("error"));
+        setStatus(line);
+        pushScoutLine(line, "error");
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -768,10 +784,13 @@ export default function App() {
         setStatus(summary);
         pushScoutLine(summary);
       } else {
+        const line = formatScoutFailure(
+          "Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server",
+        );
         setScoutStage("error");
         setThreads([]);
-        setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
-        pushScoutLine(scoutStageMessage("error"));
+        setStatus(line);
+        pushScoutLine(line, "error");
       }
     } finally {
       if (abortRef.current === ac) {
@@ -782,8 +801,14 @@ export default function App() {
         setSearchCooldownUntil(until);
         setNowMs(Date.now());
         setStatus((prev) => {
-          if (/^Wait \d+s before starting Scout again/.test(prev)) return prev;
-          if (prev.startsWith("Scout failed:") || prev.startsWith("Sidecar offline")) {
+          if (/^Wait \d+s before (starting Scout|searching) again/.test(prev)) {
+            return prev;
+          }
+          if (
+            prev.startsWith("Scout failed:") ||
+            prev.startsWith("Sidecar offline") ||
+            /^A Scout run is already in progress/.test(prev)
+          ) {
             return `${prev} · Wait ${Math.ceil(SEARCH_COOLDOWN_MS / 1000)}s before starting Scout again.`;
           }
           return prev;
@@ -1046,11 +1071,13 @@ export default function App() {
               <div className="scout-strip-head">
                 <span className="scout-label">Scout</span>
                 <span className="scout-stage">
-                  {scoutStage
-                    ? scoutStageMessage(scoutStage)
-                    : searching
-                      ? status
-                      : "Idle — ready when you start Scout"}
+                  {scoutStage === "error"
+                    ? status || scoutStageMessage("error")
+                    : scoutStage
+                      ? scoutStageMessage(scoutStage)
+                      : searching
+                        ? status
+                        : "Idle — ready when you start Scout"}
                 </span>
               </div>
               <div
