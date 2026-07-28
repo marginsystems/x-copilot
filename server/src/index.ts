@@ -10,6 +10,7 @@ import {
   listActiveInteractions,
   listInteractionHistory,
   markInteracted,
+  parseStatusIdFromUrl,
   normalizeAuthorKey,
 } from "./interactionStore.js";
 import {
@@ -359,11 +360,15 @@ const server = http.createServer(async (req, res) => {
       }
       const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
       const author = typeof body.author === "string" ? body.author.trim() : "";
+      const replyUrl =
+        typeof body.replyUrl === "string" ? body.replyUrl.trim() : "";
       const reply = normalizeReply(body.reply);
-      if (!threadId || !author || !normalizeAuthorKey(author) || !reply) {
+      const replyId = parseStatusIdFromUrl(replyUrl);
+      if (!threadId || !author || !normalizeAuthorKey(author) || !replyId) {
         return send(res, 400, {
           error: "bad_request",
-          message: "Pass { threadId: string, author: string, reply: string }.",
+          message:
+            "Pass { threadId: string, author: string, replyUrl: string } with a valid x.com/twitter.com status URL.",
         });
       }
       const source = "manual";
@@ -388,26 +393,32 @@ const server = http.createServer(async (req, res) => {
           url,
           text,
           summary,
+          replyId,
+          replyUrl,
         });
-        const memory = await writeInteractionMemory({
-          threadId,
-          author,
-          reply,
-          source,
-          url,
-          text,
-          summary,
-          agenda: typeof body.agenda === "string" ? body.agenda : undefined,
-          baitScore,
-          engage: typeof body.engage === "string" ? body.engage : undefined,
-          flags,
-          intent: typeof body.intent === "string" ? body.intent : undefined,
-          reason: typeof body.reason === "string" ? body.reason : undefined,
-        });
+        let memoryPath: string | undefined;
+        if (reply) {
+          const memory = await writeInteractionMemory({
+            threadId,
+            author,
+            reply,
+            source,
+            url,
+            text,
+            summary,
+            agenda: typeof body.agenda === "string" ? body.agenda : undefined,
+            baitScore,
+            engage: typeof body.engage === "string" ? body.engage : undefined,
+            flags,
+            intent: typeof body.intent === "string" ? body.intent : undefined,
+            reason: typeof body.reason === "string" ? body.reason : undefined,
+          });
+          memoryPath = memory.path;
+        }
         return send(res, 200, {
           ok: true,
           interaction,
-          memoryPath: memory.path,
+          memoryPath,
         });
       } catch (err) {
         console.error("Failed to store interaction:", err);
