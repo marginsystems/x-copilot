@@ -98,7 +98,7 @@ describe("runScoutCollect bucket loop", () => {
             id.n += 1;
             return card({ id: `t${id.n}` });
           });
-          return { ok: true as const, queryId: "test", threads };
+          return { ok: true as const, queryId: "test", threads, bottomCursor: null };
         },
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
@@ -139,7 +139,7 @@ describe("runScoutCollect bucket loop", () => {
             id.n += 1;
             return card({ id: `t${id.n}` });
           });
-          return { ok: true as const, queryId: "test", threads };
+          return { ok: true as const, queryId: "test", threads, bottomCursor: null };
         },
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
@@ -188,7 +188,7 @@ describe("runScoutCollect bucket loop", () => {
             id.n += 1;
             return card({ id: `t${id.n}` });
           });
-          return { ok: true as const, queryId: "test", threads };
+          return { ok: true as const, queryId: "test", threads, bottomCursor: null };
         },
         triageThreads: async ({ threads }) => ({
           threads: threads.map((t) => ({
@@ -227,6 +227,7 @@ describe("runScoutCollect bucket loop", () => {
             ok: true as const,
             queryId: "test",
             threads: [card({ id: `a${searchCalls}` })],
+            bottomCursor: null,
           };
         },
         triageThreads: async ({ threads }) => ({
@@ -263,7 +264,7 @@ describe("runScoutCollect bucket loop", () => {
             id.n += 1;
             return card({ id: `t${id.n}` });
           });
-          return { ok: true as const, queryId: "test", threads };
+          return { ok: true as const, queryId: "test", threads, bottomCursor: null };
         },
         triageThreads: async ({ threads }) => ({
           threads: threads.map((t) => ({
