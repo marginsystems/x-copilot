@@ -43,10 +43,11 @@ describe("clampMaxThreadChars", () => {
 });
 
 describe("clampTargetCoolThreads", () => {
-  it("clamps to 1–10 and defaults invalid values", () => {
+  it("clamps to 1–20 and defaults invalid values", () => {
     assert.equal(clampTargetCoolThreads(8), 8);
     assert.equal(clampTargetCoolThreads(0), 1);
-    assert.equal(clampTargetCoolThreads(11), 10);
+    assert.equal(clampTargetCoolThreads(20), 20);
+    assert.equal(clampTargetCoolThreads(21), 20);
     assert.equal(clampTargetCoolThreads(3.5), 8);
   });
 });

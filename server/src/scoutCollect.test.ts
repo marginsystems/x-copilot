@@ -56,9 +56,11 @@ describe("isCoolThread", () => {
 });
 
 describe("clampTargetCool / clampBucketSize", () => {
-  it("clamps targetCool 1–10", () => {
+  it("clamps targetCool 1–20", () => {
     assert.equal(clampTargetCool(undefined), 8);
     assert.equal(clampTargetCool(4), 4);
+    assert.equal(clampTargetCool(20), 20);
+    assert.equal(clampTargetCool(21), 20);
   });
 
   it("allows only bucket sizes 5 or 10", () => {
