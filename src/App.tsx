@@ -648,7 +648,7 @@ export default function App() {
     setBusy(true);
     setSearching(true);
     setPlannedQueries([]);
-    setThreads([]);
+    // Keep existing thread rows visible; stream partials append, done replaces.
     setExpandedId(null);
     pushScoutLine("── Start Scout ──", "planning");
     applyScoutEvent({
@@ -685,7 +685,6 @@ export default function App() {
         const soft = isScoutGateError(res.status, fallback);
         const line = formatScoutFailure(detail, { soft });
         setScoutStage("error");
-        setThreads([]);
         setStatus(line);
         pushScoutLine(line, "error");
         return;
@@ -710,7 +709,6 @@ export default function App() {
         }
         if (ev.stage === "error") {
           applyScoutEvent(ev);
-          setThreads([]);
           stream.sawError = true;
           return;
         }
@@ -791,7 +789,6 @@ export default function App() {
           "Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server",
         );
         setScoutStage("error");
-        setThreads([]);
         setStatus(line);
         pushScoutLine(line, "error");
       }
