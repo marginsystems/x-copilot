@@ -1,5 +1,6 @@
 /**
- * Local interaction store — mark engaged threads and cool down authors for 24h.
+ * Local interaction store — mark engaged threads, 24h author cooldown, and
+ * durable history for the Interacted feed.
  * Persists to data/interactions.json (gitignored). Soft-degrades on IO/parse errors.
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -14,10 +15,15 @@ export type Interaction = {
   authorKey: string;
   at: string;
   source: InteractionSource;
+  url?: string;
+  summary?: string;
+  text?: string;
 };
 
 export const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+export const MAX_INTERACTION_HISTORY = 200;
 const MAX_FILTERED_AUTHORS = 12;
+const MAX_TEXT_CHARS = 280;
 
 export function defaultStorePath(): string {
   return resolve(process.cwd(), "data", "interactions.json");
@@ -77,6 +83,16 @@ export function filterThreadsByCooldown(
   };
 }
 
+function optionalString(value: unknown, maxLen?: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const t = value.trim();
+  if (!t) return undefined;
+  if (typeof maxLen === "number" && t.length > maxLen) {
+    return t.slice(0, maxLen);
+  }
+  return t;
+}
+
 type StoreFile = { interactions: Interaction[] };
 
 function emptyStore(): StoreFile {
@@ -97,7 +113,7 @@ function parseStore(raw: string): StoreFile {
       const source =
         row.source === "copy" || row.source === "manual" ? row.source : "manual";
       if (!threadId || !author || !at) continue;
-      interactions.push({
+      const item: Interaction = {
         threadId,
         author,
         authorKey: normalizeAuthorKey(
@@ -107,7 +123,14 @@ function parseStore(raw: string): StoreFile {
         ),
         at,
         source,
-      });
+      };
+      const url = optionalString(row.url);
+      const summary = optionalString(row.summary);
+      const text = optionalString(row.text, MAX_TEXT_CHARS);
+      if (url) item.url = url;
+      if (summary) item.summary = summary;
+      if (text) item.text = text;
+      interactions.push(item);
     }
     return { interactions };
   } catch {
@@ -137,7 +160,9 @@ let writeLock: Promise<void> = Promise.resolve();
 async function serialized<T>(fn: () => Promise<T>): Promise<T> {
   const prev = writeLock;
   let release: () => void;
-  writeLock = new Promise<void>((resolve) => { release = resolve; });
+  writeLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   await prev;
   try {
     return await fn();
@@ -146,11 +171,24 @@ async function serialized<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Upsert by threadId; prune expired; persist. */
+/** Newest-first, capped history (no 24h prune). */
+export function trimInteractionHistory(
+  interactions: Interaction[],
+  max: number = MAX_INTERACTION_HISTORY,
+): Interaction[] {
+  return [...interactions]
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+    .slice(0, max);
+}
+
+/** Upsert by threadId; keep durable history (cap); persist. */
 export async function markInteracted(opts: {
   threadId: string;
   author: string;
   source?: InteractionSource;
+  url?: string;
+  summary?: string;
+  text?: string;
   nowMs?: number;
   storePath?: string;
 }): Promise<Interaction> {
@@ -170,18 +208,24 @@ export async function markInteracted(opts: {
     at: new Date(nowMs).toISOString(),
     source,
   };
+  const url = optionalString(opts.url);
+  const summary = optionalString(opts.summary);
+  const text = optionalString(opts.text, MAX_TEXT_CHARS);
+  if (url) next.url = url;
+  if (summary) next.summary = summary;
+  if (text) next.text = text;
 
   return serialized(async () => {
     const store = await readStore(path);
-    const pruned = pruneExpired(store.interactions, nowMs).filter(
-      (i) => i.threadId !== threadId,
-    );
-    pruned.push(next);
-    await writeStore(path, { interactions: pruned });
+    const without = store.interactions.filter((i) => i.threadId !== threadId);
+    without.push(next);
+    const interactions = trimInteractionHistory(without);
+    await writeStore(path, { interactions });
     return next;
   });
 }
 
+/** Interactions still inside the 24h Scout cooldown window. */
 export async function listActiveInteractions(opts?: {
   nowMs?: number;
   storePath?: string;
@@ -190,6 +234,19 @@ export async function listActiveInteractions(opts?: {
   const path = opts?.storePath ?? defaultStorePath();
   const store = await readStore(path);
   return pruneExpired(store.interactions, nowMs);
+}
+
+/** Durable Interacted feed (newest first, capped). */
+export async function listInteractionHistory(opts?: {
+  storePath?: string;
+  limit?: number;
+}): Promise<Interaction[]> {
+  const path = opts?.storePath ?? defaultStorePath();
+  const store = await readStore(path);
+  return trimInteractionHistory(
+    store.interactions,
+    opts?.limit ?? MAX_INTERACTION_HISTORY,
+  );
 }
 
 export async function getCooledAuthorKeys(opts?: {

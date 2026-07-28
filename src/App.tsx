@@ -60,6 +60,17 @@ type ScoutLogEntry = {
   stage?: string;
 };
 
+type InteractionHistoryEntry = {
+  threadId: string;
+  author: string;
+  at: string;
+  url?: string;
+  summary?: string;
+  text?: string;
+};
+
+type ThreadsTab = "curated" | "interacted";
+
 const SCOUT_LOG_PAGE_SIZE = 100;
 
 function normalizeAuthorKey(author: string): string {
@@ -216,6 +227,42 @@ function ThreadRow({
   );
 }
 
+function InteractedRow({
+  entry,
+  nowMs,
+}: {
+  entry: InteractionHistoryEntry;
+  nowMs: number;
+}) {
+  const ago = formatTimeAgo(entry.at, nowMs);
+  const absolute = formatAbsoluteTime(entry.at);
+  const blurb = entry.summary || entry.text || entry.threadId;
+  return (
+    <article className="thread-row interacted-row">
+      <div className="row-head static">
+        <span className="bait" aria-hidden="true" />
+        <span className="row-main">
+          <span className="row-summary">{blurb}</span>
+          <span className="row-meta">
+            <span>{entry.author}</span>
+            {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
+            <span className="chip chip-interacted">interacted</span>
+          </span>
+        </span>
+      </div>
+      {entry.url ? (
+        <div className="row-detail compact">
+          <div className="row">
+            <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
+              Open on X
+            </a>
+          </div>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
 type AppView = "dashboard" | "settings";
 
 /** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
@@ -237,6 +284,10 @@ export default function App() {
   const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
   const [scoutLogPage, setScoutLogPage] = useState(0);
   const [interactedIds, setInteractedIds] = useState<Set<string>>(() => new Set());
+  const [interactedHistory, setInteractedHistory] = useState<
+    InteractionHistoryEntry[]
+  >([]);
+  const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const [view, setView] = useState<AppView>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
@@ -386,14 +437,27 @@ export default function App() {
       const res = await fetch("/api/interacted");
       if (!res.ok) return;
       const data = (await res.json()) as {
-        interactions?: Array<{ threadId?: string }>;
+        interactions?: InteractionHistoryEntry[];
+        activeIds?: string[];
       };
-      const ids = new Set(
-        (data.interactions ?? [])
-          .map((i) => i.threadId)
-          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      const history = (data.interactions ?? []).filter(
+        (i) =>
+          i &&
+          typeof i.threadId === "string" &&
+          typeof i.author === "string" &&
+          typeof i.at === "string",
       );
-      setInteractedIds(ids);
+      setInteractedHistory(history);
+      const activeIds = Array.isArray(data.activeIds)
+        ? data.activeIds
+        : history.map((i) => i.threadId);
+      setInteractedIds(
+        new Set(
+          activeIds.filter(
+            (id): id is string => typeof id === "string" && id.length > 0,
+          ),
+        ),
+      );
     } catch {
       // Sidecar may be offline on first paint — ignore.
     }
@@ -566,7 +630,19 @@ export default function App() {
       }
       const key = normalizeAuthorKey(thread.author);
       setInteractedIds((prev) => new Set(prev).add(thread.id));
-      // Drop this author from the live list so we stop engaging the same account.
+      const historyEntry: InteractionHistoryEntry = {
+        threadId: thread.id,
+        author: thread.author,
+        at: new Date().toISOString(),
+        url: thread.url,
+        summary: thread.summary,
+        text: thread.text,
+      };
+      setInteractedHistory((prev) => [
+        historyEntry,
+        ...prev.filter((i) => i.threadId !== thread.id),
+      ]);
+      // Drop this author from Curated so we stop engaging the same account.
       setThreads((prev) => prev.filter((t) => normalizeAuthorKey(t.author) !== key));
       setExpandedId((id) => (id === thread.id ? null : id));
       return true;
@@ -1160,29 +1236,77 @@ export default function App() {
           </section>
 
           <section className="threads-pane">
-            <h2 className="section-label">
-              Threads{threads.length > 0 ? ` (${threads.length})` : ""}
-            </h2>
+            <div className="threads-pane-head">
+              <h2 className="section-label">Threads</h2>
+              <div className="threads-tabs" role="tablist" aria-label="Thread feeds">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={threadsTab === "curated"}
+                  className={
+                    threadsTab === "curated"
+                      ? "threads-tab active"
+                      : "threads-tab"
+                  }
+                  onClick={() => setThreadsTab("curated")}
+                >
+                  Curated{threads.length > 0 ? ` (${threads.length})` : ""}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={threadsTab === "interacted"}
+                  className={
+                    threadsTab === "interacted"
+                      ? "threads-tab active"
+                      : "threads-tab"
+                  }
+                  onClick={() => setThreadsTab("interacted")}
+                >
+                  Interacted
+                  {interactedHistory.length > 0
+                    ? ` (${interactedHistory.length})`
+                    : ""}
+                </button>
+              </div>
+            </div>
             <div className="threads-scroll">
-              {threads.length === 0 ? (
+              {threadsTab === "curated" ? (
+                threads.length === 0 ? (
+                  <p className="empty">
+                    {searching
+                      ? "Scout is working…"
+                      : "No curated threads yet. Set an agenda and search."}
+                  </p>
+                ) : (
+                  <div className="threads">
+                    {threads.map((t) => (
+                      <ThreadRow
+                        key={t.id}
+                        thread={t}
+                        open={expandedId === t.id}
+                        busy={busy}
+                        interacted={interactedIds.has(t.id)}
+                        onToggle={() =>
+                          setExpandedId(expandedId === t.id ? null : t.id)
+                        }
+                        onMark={() => onMark(t)}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : interactedHistory.length === 0 ? (
                 <p className="empty">
-                  {searching
-                    ? "Scout is working…"
-                    : "No threads yet. Set an agenda and search."}
+                  No interacted threads yet. Mark a curated lead after you reply
+                  on X.
                 </p>
               ) : (
                 <div className="threads">
-                  {threads.map((t) => (
-                    <ThreadRow
-                      key={t.id}
-                      thread={t}
-                      open={expandedId === t.id}
-                      busy={busy}
-                      interacted={interactedIds.has(t.id)}
-                      onToggle={() =>
-                        setExpandedId(expandedId === t.id ? null : t.id)
-                      }
-                      onMark={() => onMark(t)}
+                  {interactedHistory.map((entry) => (
+                    <InteractedRow
+                      key={entry.threadId}
+                      entry={entry}
+                      nowMs={nowMs}
                     />
                   ))}
                 </div>

@@ -8,6 +8,7 @@ import {
   filterThreadsByCooldown,
   getCooledAuthorKeys,
   isWithinCooldown,
+  listInteractionHistory,
   markInteracted,
   normalizeAuthorKey,
   pruneExpired,
@@ -156,11 +157,13 @@ describe("markInteracted", () => {
     assert.deepEqual([...keys], ["builder"]);
   });
 
-  it("prunes expired entries on write", async () => {
+  it("keeps expired rows in history but not in cooldown keys", async () => {
     const now = Date.parse("2026-07-26T12:00:00.000Z");
     await markInteracted({
       threadId: "old",
       author: "@old",
+      url: "https://x.com/old/status/old",
+      summary: "old lead",
       nowMs: now - COOLDOWN_MS - 1000,
       storePath,
     });
@@ -172,5 +175,48 @@ describe("markInteracted", () => {
     });
     const keys = await getCooledAuthorKeys({ nowMs: now, storePath });
     assert.deepEqual([...keys], ["new"]);
+    const history = await listInteractionHistory({ storePath });
+    assert.deepEqual(
+      history.map((i) => i.threadId),
+      ["new", "old"],
+    );
+    assert.equal(history[1]?.url, "https://x.com/old/status/old");
+    assert.equal(history[1]?.summary, "old lead");
+  });
+});
+
+describe("listInteractionHistory", () => {
+  let dir: string;
+  let storePath: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "x-copilot-hist-"));
+    storePath = join(dir, "interactions.json");
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("returns newest first", async () => {
+    const t1 = Date.parse("2026-07-26T10:00:00.000Z");
+    const t2 = Date.parse("2026-07-26T11:00:00.000Z");
+    await markInteracted({
+      threadId: "a",
+      author: "@a",
+      nowMs: t1,
+      storePath,
+    });
+    await markInteracted({
+      threadId: "b",
+      author: "@b",
+      nowMs: t2,
+      storePath,
+    });
+    const history = await listInteractionHistory({ storePath });
+    assert.deepEqual(
+      history.map((i) => i.threadId),
+      ["b", "a"],
+    );
   });
 });
