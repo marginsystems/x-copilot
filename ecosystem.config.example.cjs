@@ -24,6 +24,7 @@ function runner(distEntry, srcEntry) {
 }
 
 const api = runner("server/dist/index.js", "server/src/index.ts");
+const stats = runner("server/dist/statsWorker.js", "server/src/statsWorker.ts");
 
 module.exports = {
   apps: [
@@ -41,6 +42,20 @@ module.exports = {
       },
       out_file: path.join(root, "logs", "x-copilot-api.out.log"),
       error_file: path.join(root, "logs", "x-copilot-api.err.log"),
+    },
+    {
+      name: "x-copilot-stats",
+      script: stats.script,
+      ...(stats.interpreter ? { interpreter: stats.interpreter } : {}),
+      cwd: root,
+      autorestart: true,
+      max_restarts: 10,
+      time: true,
+      env: {
+        NODE_ENV: "production",
+      },
+      out_file: path.join(root, "logs", "x-copilot-stats.out.log"),
+      error_file: path.join(root, "logs", "x-copilot-stats.err.log"),
     },
   ],
 };
