@@ -39,7 +39,41 @@ const DEFAULT_SEARCH_QUERY_IDS = [
   "QpNfg0kpPRfjROQ_9eOLXA",
 ];
 
+/** Default Latest window; override with X_SEARCH_WITHIN_TIME (e.g. 3h, 12h). */
+export const DEFAULT_SEARCH_WITHIN_TIME = "6h";
+export const MAX_SEARCH_PAGES = 3;
+const PAGE_DELAY_MS = 400;
+
 let cachedSearchQueryId: string | null = null;
+
+/**
+ * Resolve `Nh` / `Nm` token for within_time.
+ * Accepts 1–24 hours or 1–1440 minutes; invalid → 6h.
+ */
+export function resolveWithinTime(
+  raw: string | undefined = process.env.X_SEARCH_WITHIN_TIME,
+): string {
+  const t = (raw ?? "").trim().toLowerCase();
+  const m = t.match(/^(\d+)\s*([hm])$/);
+  if (!m) return DEFAULT_SEARCH_WITHIN_TIME;
+  const n = Number(m[1]);
+  const unit = m[2];
+  if (!Number.isInteger(n) || n < 1) return DEFAULT_SEARCH_WITHIN_TIME;
+  if (unit === "h" && n <= 24) return `${n}h`;
+  if (unit === "m" && n <= 1440) return `${n}m`;
+  return DEFAULT_SEARCH_WITHIN_TIME;
+}
+
+/** Append within_time unless the query already has a time bound. */
+export function withSearchRecency(
+  query: string,
+  within: string = resolveWithinTime(),
+): string {
+  const q = query.trim();
+  if (!q) return q;
+  if (/\b(within_time|since_time|since):/i.test(q)) return q;
+  return `${q} within_time:${within}`;
+}
 
 export function getSearchQueryId(): string {
   return (
@@ -101,6 +135,8 @@ type TimelineEntry = {
   entryId?: string;
   content?: {
     __typename?: string;
+    cursorType?: string;
+    value?: string;
     itemContent?: {
       tweet_results?: { result?: unknown };
     };
@@ -114,8 +150,13 @@ type TimelineEntry = {
   };
 };
 
-/** Parse SearchTimeline GraphQL JSON into thread cards (exported for tests). */
-export function parseSearchTimelineResponse(data: unknown): ThreadCard[] {
+export type SearchTimelinePage = {
+  threads: ThreadCard[];
+  bottomCursor: string | null;
+};
+
+/** Parse one SearchTimeline page: tweets + Bottom cursor for pagination. */
+export function parseSearchTimelinePage(data: unknown): SearchTimelinePage {
   const root = data as {
     data?: {
       search_by_raw_query?: {
@@ -129,15 +170,29 @@ export function parseSearchTimelineResponse(data: unknown): ThreadCard[] {
     root?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions ||
     [];
   const cards: ThreadCard[] = [];
+  let bottomCursor: string | null = null;
   for (const instr of instructions) {
     const entries = instr.entries || instr.addEntries?.entries || [];
     for (const entry of entries) {
-      const fromItem = entry.content?.itemContent?.tweet_results?.result;
+      const content = entry.content;
+      const typename = content?.__typename;
+      const cursorType = content?.cursorType;
+      const cursorValue =
+        typeof content?.value === "string" ? content.value.trim() : "";
+      const isBottom =
+        typename === "TimelineTimelineCursor" &&
+        (cursorType === "Bottom" ||
+          /cursor-bottom/i.test(entry.entryId ?? ""));
+      if (isBottom && cursorValue) {
+        bottomCursor = cursorValue;
+      }
+
+      const fromItem = content?.itemContent?.tweet_results?.result;
       if (fromItem) {
         const card = tweetResultToCard(fromItem);
         if (card) cards.push(card);
       }
-      for (const item of entry.content?.items || []) {
+      for (const item of content?.items || []) {
         const r = item.item?.itemContent?.tweet_results?.result;
         if (r) {
           const card = tweetResultToCard(r);
@@ -146,7 +201,12 @@ export function parseSearchTimelineResponse(data: unknown): ThreadCard[] {
       }
     }
   }
-  return cards;
+  return { threads: cards, bottomCursor };
+}
+
+/** Parse SearchTimeline GraphQL JSON into thread cards (exported for tests). */
+export function parseSearchTimelineResponse(data: unknown): ThreadCard[] {
+  return parseSearchTimelinePage(data).threads;
 }
 
 export function dedupeThreads(threads: ThreadCard[]): ThreadCard[] {
@@ -294,13 +354,22 @@ function sleep(ms: number): Promise<void> {
 }
 
 export type SearchTimelineResult =
-  | { ok: true; threads: ThreadCard[]; queryId: string }
+  | {
+      ok: true;
+      threads: ThreadCard[];
+      queryId: string;
+      bottomCursor: string | null;
+      pages?: number;
+    }
   | { ok: false; status: number; error: string; message: string };
 
 export async function searchTimeline(opts: {
   query: string;
   product?: SearchProduct;
   count?: number;
+  cursor?: string;
+  /** When false, skip within_time append (caller already applied). Default true. */
+  applyRecency?: boolean;
   session?: SessionCreds;
   signal?: AbortSignal;
 }): Promise<SearchTimelineResult> {
@@ -314,8 +383,8 @@ export async function searchTimeline(opts: {
     };
   }
 
-  const query = opts.query.trim();
-  if (!query) {
+  const raw = opts.query.trim();
+  if (!raw) {
     return {
       ok: false,
       status: 400,
@@ -323,6 +392,8 @@ export async function searchTimeline(opts: {
       message: "Search query is empty.",
     };
   }
+  const query =
+    opts.applyRecency === false ? raw : withSearchRecency(raw);
 
   const count = Math.min(Math.max(opts.count ?? 10, 1), 20);
   const product = opts.product ?? "Latest";
@@ -343,19 +414,27 @@ export async function searchTimeline(opts: {
 
   for (let attempt = 0; attempt < tryIds.length + 1; attempt++) {
     if (opts.signal?.aborted) {
-      return { ok: false, status: 499, error: "client_disconnected", message: "Client disconnected" };
+      return {
+        ok: false,
+        status: 499,
+        error: "client_disconnected",
+        message: "Client disconnected",
+      };
     }
     const qid =
       attempt < tryIds.length
         ? tryIds[attempt]
         : (await healSearchQueryId(session)) || tryIds[0];
 
-    const variables = {
+    const variables: Record<string, unknown> = {
       rawQuery: query,
       count,
       querySource: "typed_query",
       product,
     };
+    const cursor = opts.cursor?.trim();
+    if (cursor) variables.cursor = cursor;
+
     const params = new URLSearchParams({
       variables: JSON.stringify(variables),
     });
@@ -423,8 +502,13 @@ export async function searchTimeline(opts: {
     }
 
     cachedSearchQueryId = qid;
-    const threads = parseSearchTimelineResponse(data);
-    return { ok: true, threads, queryId: qid };
+    const page = parseSearchTimelinePage(data);
+    return {
+      ok: true,
+      threads: page.threads,
+      queryId: qid,
+      bottomCursor: page.bottomCursor,
+    };
   }
 
   return {
@@ -437,14 +521,109 @@ export async function searchTimeline(opts: {
   };
 }
 
+/**
+ * Latest search with recency + up to maxPages cursor pages (default 3).
+ */
+export async function searchTimelinePages(opts: {
+  query: string;
+  product?: SearchProduct;
+  count?: number;
+  maxPages?: number;
+  pageDelayMs?: number;
+  session?: SessionCreds;
+  signal?: AbortSignal;
+  /** Injected for tests — same shape as searchTimeline. */
+  fetchPage?: typeof searchTimeline;
+}): Promise<SearchTimelineResult> {
+  const maxPages = Math.min(
+    Math.max(opts.maxPages ?? MAX_SEARCH_PAGES, 1),
+    MAX_SEARCH_PAGES,
+  );
+  const query = withSearchRecency(opts.query.trim());
+  if (!query) {
+    return {
+      ok: false,
+      status: 400,
+      error: "empty_query",
+      message: "Search query is empty.",
+    };
+  }
+
+  const fetchPage = opts.fetchPage ?? searchTimeline;
+  const all: ThreadCard[] = [];
+  let cursor: string | undefined;
+  let queryId = "";
+  let pages = 0;
+
+  for (let page = 0; page < maxPages; page++) {
+    if (opts.signal?.aborted) {
+      return {
+        ok: false,
+        status: 499,
+        error: "client_disconnected",
+        message: "Client disconnected",
+      };
+    }
+    if (page > 0) await sleep(opts.pageDelayMs ?? PAGE_DELAY_MS);
+
+    const result = await fetchPage({
+      query,
+      applyRecency: false,
+      product: opts.product,
+      count: opts.count ?? 20,
+      cursor,
+      session: opts.session,
+      signal: opts.signal,
+    });
+
+    if (!result.ok) {
+      if (pages > 0) {
+        return {
+          ok: true,
+          threads: dedupeThreads(all),
+          queryId,
+          bottomCursor: null,
+          pages,
+        };
+      }
+      return result;
+    }
+
+    pages += 1;
+    queryId = result.queryId;
+    all.push(...result.threads);
+
+    if (!result.bottomCursor || result.threads.length === 0) {
+      return {
+        ok: true,
+        threads: dedupeThreads(all),
+        queryId,
+        bottomCursor: null,
+        pages,
+      };
+    }
+    cursor = result.bottomCursor;
+  }
+
+  return {
+    ok: true,
+    threads: dedupeThreads(all),
+    queryId,
+    bottomCursor: cursor ?? null,
+    pages,
+  };
+}
+
 export async function searchMany(
   queries: string[],
   opts: {
     product?: SearchProduct;
     countPerQuery?: number;
     maxQueries?: number;
+    maxPages?: number;
     delayMs?: number;
     session?: SessionCreds;
+    signal?: AbortSignal;
     /** 1-based index, total, query string — for Scout progress. */
     onQuery?: (index: number, total: number, query: string) => void;
   } = {},
@@ -465,11 +644,13 @@ export async function searchMany(
   for (let i = 0; i < cleaned.length; i++) {
     if (i > 0) await sleep(opts.delayMs ?? 400);
     opts.onQuery?.(i + 1, cleaned.length, cleaned[i]);
-    const result = await searchTimeline({
+    const result = await searchTimelinePages({
       query: cleaned[i],
       product: opts.product,
       count: opts.countPerQuery ?? 20,
+      maxPages: opts.maxPages ?? MAX_SEARCH_PAGES,
       session: opts.session,
+      signal: opts.signal,
     });
     if (result.ok) {
       all.push(...result.threads);
