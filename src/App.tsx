@@ -1107,12 +1107,12 @@ export default function App() {
                   <div className="scout-log-panel">
                     <ul className="scout-log">
                       {pageEntries.length > 0 ? (
-                        pageEntries.map((entry, i) => {
+                        pageEntries.map((entry) => {
                           const ago = formatTimeAgo(entry.at, nowMs);
                           const absolute = formatAbsoluteTime(entry.at);
                           return (
                             <li
-                              key={`${entry.at}-${entry.stage ?? ""}-${entry.message}-${i}`}
+                              key={`${entry.at}-${entry.stage ?? ""}-${entry.message}`}
                             >
                               <span
                                 className="scout-log-ago"
