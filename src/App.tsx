@@ -84,6 +84,7 @@ type InteractionHistoryEntry = {
   };
 };
 
+/** Keep in sync with server/src/interactionStore.ts parseStatusIdFromUrl. */
 function parseStatusIdFromUrl(url: string): string | null {
   const raw = url.trim();
   if (!raw) return null;

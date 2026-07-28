@@ -39,7 +39,7 @@ export type Interaction = {
   stats?: InteractionStats;
 };
 
-/** Parse x.com / twitter.com status URL → numeric rest id. */
+/** Parse x.com / twitter.com status URL → numeric rest id. Keep in sync with src/App.tsx. */
 export function parseStatusIdFromUrl(url: string): string | null {
   const raw = url.trim();
   if (!raw) return null;
