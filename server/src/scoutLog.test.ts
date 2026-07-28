@@ -79,10 +79,17 @@ describe("appendScoutLog / getScoutLog", () => {
     assert.equal(entries[entries.length - 1].message, `line ${MAX_SCOUT_LOG_ENTRIES + 24}`);
   });
 
-  it("dedupes consecutive identical messages", async () => {
-    await appendScoutLog({ message: "same" }, { storePath });
-    await appendScoutLog({ message: "same" }, { storePath });
+  it("coalesces consecutive identical messages and bumps at", async () => {
+    await appendScoutLog(
+      { message: "same", at: "2026-07-28T10:00:00.000Z" },
+      { storePath },
+    );
+    await appendScoutLog(
+      { message: "same", at: "2026-07-28T11:00:00.000Z" },
+      { storePath },
+    );
     const entries = await getScoutLog({ storePath });
     assert.equal(entries.length, 1);
+    assert.equal(entries[0]?.at, "2026-07-28T11:00:00.000Z");
   });
 });

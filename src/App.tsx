@@ -163,7 +163,7 @@ function scoutProgressPrefix(ev: {
     typeof ev.bucketSize === "number" &&
     (ev.coolCount ?? 0) === 0
   ) {
-    return `Candidates ${ev.candidates}/${ev.bucketSize}`;
+    return `Cand. ${ev.candidates}/${ev.bucketSize}`;
   }
   if (typeof ev.coolCount === "number" && ev.coolCount > 0) {
     return `Cool ${ev.coolCount}`;
@@ -420,7 +420,16 @@ export default function App() {
     };
     setNowMs(atMs);
     setScoutLog((prev) => {
-      if (prev[prev.length - 1]?.message === message) return prev;
+      const last = prev[prev.length - 1];
+      if (last?.message === message) {
+        const bumped = [...prev];
+        bumped[bumped.length - 1] = {
+          ...last,
+          at: entry.at,
+          ...(stage ? { stage } : {}),
+        };
+        return bumped;
+      }
       return [...prev, entry].slice(-1000);
     });
     setScoutLogPage(0);
@@ -442,8 +451,9 @@ export default function App() {
       coolProgressRef.current.target = ev.targetCool;
     }
     let message = ev.message || scoutStageMessage(stage);
-    // Prefer server bucket copy; avoid double-prefixing Candidates/Cool lines.
+    // Prefer server bucket copy; avoid double-prefixing Cand./Cool lines.
     if (
+      !/^Cand\.?\b/i.test(message) &&
       !/^Candidates\b/i.test(message) &&
       !/^Cool\b/i.test(message) &&
       !/^0 cool/i.test(message)
