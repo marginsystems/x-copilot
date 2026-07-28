@@ -229,12 +229,10 @@ function ThreadRow({
 
 function InteractedRow({
   entry,
-  nowMs,
 }: {
   entry: InteractionHistoryEntry;
-  nowMs: number;
 }) {
-  const ago = formatTimeAgo(entry.at, nowMs);
+  const ago = formatTimeAgo(entry.at);
   const absolute = formatAbsoluteTime(entry.at);
   const blurb = entry.summary || entry.text || entry.threadId;
   return (
@@ -450,7 +448,7 @@ export default function App() {
       setInteractedHistory(history);
       const activeIds = Array.isArray(data.activeIds)
         ? data.activeIds
-        : history.map((i) => i.threadId);
+        : [];
       setInteractedIds(
         new Set(
           activeIds.filter(
@@ -1306,7 +1304,6 @@ export default function App() {
                     <InteractedRow
                       key={entry.threadId}
                       entry={entry}
-                      nowMs={nowMs}
                     />
                   ))}
                 </div>
