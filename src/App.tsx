@@ -1103,7 +1103,7 @@ export default function App() {
                           const absolute = formatAbsoluteTime(entry.at);
                           return (
                             <li
-                              key={`${entry.at}-${entry.stage ?? ""}-${entry.message}-${start + i}`}
+                              key={`${entry.at}-${entry.stage ?? ""}-${entry.message}-${end - 1 - i}`}
                             >
                               <span
                                 className="scout-log-ago"
