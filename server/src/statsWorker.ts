@@ -14,6 +14,8 @@ import { getSessionFromEnv } from "./xSession.js";
 
 const TICK_MS = 60 * 60 * 1000;
 const LOOKUP_DELAY_MS = 400;
+const MAX_CONSECUTIVE_FAILURES = 3;
+const tweetFailures = new Map<string, number>();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -46,15 +48,20 @@ export async function runStatsTick(opts?: {
 
   for (let i = 0; i < due.length; i++) {
     const item: DueStatSample = due[i];
-    if (i > 0 && delayMs > 0) await sleep(delayMs);
-    const metrics = await fetchMetrics({
-      tweetId: item.replyId,
-      session,
-    });
-    if (!metrics) {
+    const tweetId = item.replyId;
+    const prevFailures = tweetFailures.get(tweetId) ?? 0;
+    if (prevFailures >= MAX_CONSECUTIVE_FAILURES) {
       failed += 1;
       continue;
     }
+    if (i > 0 && delayMs > 0) await sleep(delayMs);
+    const metrics = await fetchMetrics({ tweetId, session });
+    if (!metrics) {
+      tweetFailures.set(tweetId, prevFailures + 1);
+      failed += 1;
+      continue;
+    }
+    tweetFailures.delete(tweetId);
     await patchInteractionStats({
       threadId: item.threadId,
       checkpoint: item.checkpoint,
