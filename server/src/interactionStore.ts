@@ -3,7 +3,7 @@
  * durable history for the Interacted feed.
  * Persists to data/interactions.json (gitignored). Soft-degrades on IO/parse errors.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rmdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { ThreadCard } from "./xSearch.js";
 
@@ -212,19 +212,27 @@ async function writeStore(path: string, store: StoreFile): Promise<void> {
   await writeFile(path, `${JSON.stringify(store, null, 2)}\n`, "utf8");
 }
 
-let writeLock: Promise<void> = Promise.resolve();
-
-async function serialized<T>(fn: () => Promise<T>): Promise<T> {
-  const prev = writeLock;
-  let release: () => void;
-  writeLock = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await prev;
+async function withFileLock<T>(
+  filePath: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const lockPath = filePath + ".lock";
+  for (let retries = 0; ; retries++) {
+    try {
+      await mkdir(lockPath);
+      break;
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException;
+      if (e.code !== "EEXIST") throw err;
+      if (retries > 200)
+        throw new Error("Could not acquire lock: " + filePath);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  }
   try {
     return await fn();
   } finally {
-    release!();
+    await rmdir(lockPath).catch(() => {});
   }
 }
 
@@ -282,7 +290,7 @@ export async function markInteracted(opts: {
   if (replyUrl) next.replyUrl = replyUrl;
   if (replyId || replyUrl) next.postedAt = postedAt;
 
-  return serialized(async () => {
+  return withFileLock(path, async () => {
     const store = await readStore(path);
     const prior = store.interactions.find((i) => i.threadId === threadId);
     // Preserve existing stats snapshots across re-marks of the same thread.
@@ -359,7 +367,7 @@ function postedAtMs(row: Interaction): number | null {
 }
 
 /**
- * Interactions due for a 1h or 24h reply-stats snapshot (newest due first).
+ * Interactions due for a 1h or 24h reply-stats snapshot (oldest due first).
  * Skips rows without replyId. One checkpoint entry per due slot.
  */
 export function selectDueStatSamples(
@@ -422,7 +430,7 @@ export async function patchInteractionStats(opts: {
   if (!threadId) return null;
   const path = opts.storePath ?? defaultStorePath();
 
-  return serialized(async () => {
+  return withFileLock(path, async () => {
     const store = await readStore(path);
     const idx = store.interactions.findIndex((i) => i.threadId === threadId);
     if (idx < 0) return null;
