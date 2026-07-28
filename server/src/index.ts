@@ -274,7 +274,10 @@ const server = http.createServer(async (req, res) => {
       if (!snapshot) {
         return send(res, 200, { ok: true, empty: true });
       }
-      const cooled = await getAuthorKeysForScoutFilter();
+      const dedupeParam = url.searchParams.get("dedupeAccounts");
+      const cooled = await getAuthorKeysForScoutFilter(
+        dedupeParam !== null ? { dedupeAccounts: dedupeParam !== "false" } : undefined,
+      );
       const filtered = filterThreadsByCooldown(snapshot.threads, cooled);
       return send(res, 200, {
         ok: true,

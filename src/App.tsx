@@ -463,7 +463,7 @@ export default function App() {
 
   async function hydrateLastScout() {
     try {
-      const res = await fetch("/api/scout/last");
+      const res = await fetch(`/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`);
       if (!res.ok) return;
       const data = (await res.json()) as {
         ok?: boolean;
