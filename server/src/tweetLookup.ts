@@ -265,7 +265,6 @@ export async function fetchTweetMetrics(opts: {
 
   const session = opts.session ?? getSessionFromEnv();
   if (!session.configured) {
-    metricsCache.set(tweetId, null);
     return null;
   }
 
@@ -346,7 +345,6 @@ export async function fetchTweetMetrics(opts: {
     }
   }
 
-  metricsCache.set(tweetId, null);
   return null;
 }
 

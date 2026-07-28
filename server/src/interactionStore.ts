@@ -353,8 +353,8 @@ export async function getAuthorKeysForScoutFilter(opts?: {
 }
 
 function postedAtMs(row: Interaction): number | null {
-  const iso = row.postedAt || row.at;
-  const t = Date.parse(iso);
+  if (!row.postedAt) return null;
+  const t = Date.parse(row.postedAt);
   return Number.isFinite(t) ? t : null;
 }
 
@@ -380,7 +380,7 @@ export function selectDueStatSamples(
         threadId: row.threadId,
         replyId,
         checkpoint: "t1h",
-        postedAt: row.postedAt || row.at,
+        postedAt: row.postedAt!,
       });
     }
     if (!row.stats?.t24h && age >= STATS_T24H_MS) {
@@ -388,7 +388,7 @@ export function selectDueStatSamples(
         threadId: row.threadId,
         replyId,
         checkpoint: "t24h",
-        postedAt: row.postedAt || row.at,
+        postedAt: row.postedAt!,
       });
     }
   }

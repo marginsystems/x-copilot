@@ -71,7 +71,9 @@ export async function runStatsTick(opts?: {
 }
 
 async function main(): Promise<void> {
-  loadEnv(resolve(process.cwd(), ".env"));
+  if (!loadEnv(resolve(process.cwd(), ".env"))) {
+    console.warn("[stats-worker] .env not found — X_AUTH_TOKEN / X_CT0 may be missing");
+  }
   console.log("[stats-worker] started — tick every 1h");
 
   const tick = async () => {
