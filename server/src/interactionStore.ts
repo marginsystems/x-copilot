@@ -3,7 +3,7 @@
  * durable history for the Interacted feed.
  * Persists to data/interactions.json (gitignored). Soft-degrades on IO/parse errors.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rmdir, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { ThreadCard } from "./xSearch.js";
 
@@ -57,9 +57,21 @@ export function parseStatusIdFromUrl(url: string): string | null {
 }
 
 export const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+export const STATS_T1H_MS = 60 * 60 * 1000;
+export const STATS_T24H_MS = 24 * 60 * 60 * 1000;
 export const MAX_INTERACTION_HISTORY = 200;
+export const DEFAULT_STATS_TICK_CAP = 15;
 const MAX_FILTERED_AUTHORS = 12;
 const MAX_TEXT_CHARS = 280;
+
+export type StatsCheckpoint = "t1h" | "t24h";
+
+export type DueStatSample = {
+  threadId: string;
+  replyId: string;
+  checkpoint: StatsCheckpoint;
+  postedAt: string;
+};
 
 export function defaultStorePath(): string {
   return resolve(process.cwd(), "data", "interactions.json");
@@ -200,19 +212,37 @@ async function writeStore(path: string, store: StoreFile): Promise<void> {
   await writeFile(path, `${JSON.stringify(store, null, 2)}\n`, "utf8");
 }
 
-let writeLock: Promise<void> = Promise.resolve();
-
-async function serialized<T>(fn: () => Promise<T>): Promise<T> {
-  const prev = writeLock;
-  let release: () => void;
-  writeLock = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await prev;
+async function withFileLock<T>(
+  filePath: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const lockPath = filePath + ".lock";
+  for (let retries = 0; ; retries++) {
+    try {
+      await mkdir(lockPath);
+      break;
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException;
+      if (e.code !== "EEXIST") throw err;
+      if (retries > 200)
+        throw new Error("Could not acquire lock: " + filePath);
+      // After ~1s, check if the lock dir is stale (crash orphan).
+      if (retries > 50) {
+        try {
+          const s = await stat(lockPath);
+          if (Date.now() - s.mtimeMs > 60000) {
+            await rmdir(lockPath).catch(() => {});
+            continue;
+          }
+        } catch {}
+      }
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  }
   try {
     return await fn();
   } finally {
-    release!();
+    await rmdir(lockPath).catch(() => {});
   }
 }
 
@@ -270,7 +300,7 @@ export async function markInteracted(opts: {
   if (replyUrl) next.replyUrl = replyUrl;
   if (replyId || replyUrl) next.postedAt = postedAt;
 
-  return serialized(async () => {
+  return withFileLock(path, async () => {
     const store = await readStore(path);
     const prior = store.interactions.find((i) => i.threadId === threadId);
     // Preserve existing stats snapshots across re-marks of the same thread.
@@ -338,4 +368,89 @@ export async function getAuthorKeysForScoutFilter(opts?: {
   const ever = await getEverInteractedAuthorKeys(opts);
   if (!ever.size) return cooled;
   return new Set([...cooled, ...ever]);
+}
+
+function postedAtMs(row: Interaction): number | null {
+  if (!row.postedAt) return null;
+  const t = Date.parse(row.postedAt);
+  return Number.isFinite(t) ? t : null;
+}
+
+/**
+ * Interactions due for a 1h or 24h reply-stats snapshot (oldest due first).
+ * Skips rows without replyId. One checkpoint entry per due slot.
+ */
+export function selectDueStatSamples(
+  interactions: Interaction[],
+  nowMs: number = Date.now(),
+  limit: number = DEFAULT_STATS_TICK_CAP,
+): DueStatSample[] {
+  const due: DueStatSample[] = [];
+  for (const row of interactions) {
+    const replyId = row.replyId?.trim();
+    if (!replyId) continue;
+    const posted = postedAtMs(row);
+    if (posted === null) continue;
+    const age = nowMs - posted;
+    if (age < 0) continue;
+    if (!row.stats?.t1h && age >= STATS_T1H_MS) {
+      due.push({
+        threadId: row.threadId,
+        replyId,
+        checkpoint: "t1h",
+        postedAt: row.postedAt!,
+      });
+    }
+    if (!row.stats?.t24h && age >= STATS_T24H_MS) {
+      due.push({
+        threadId: row.threadId,
+        replyId,
+        checkpoint: "t24h",
+        postedAt: row.postedAt!,
+      });
+    }
+  }
+  // Prefer older posts first so late 24h samples don't starve behind fresh 1h.
+  due.sort((a, b) => Date.parse(a.postedAt) - Date.parse(b.postedAt));
+  return due.slice(0, Math.max(0, limit));
+}
+
+export async function listDueStatSamples(opts?: {
+  nowMs?: number;
+  storePath?: string;
+  limit?: number;
+}): Promise<DueStatSample[]> {
+  const path = opts?.storePath ?? defaultStorePath();
+  const store = await readStore(path);
+  return selectDueStatSamples(
+    store.interactions,
+    opts?.nowMs ?? Date.now(),
+    opts?.limit ?? DEFAULT_STATS_TICK_CAP,
+  );
+}
+
+/** Merge a stats snapshot onto an interaction by threadId. */
+export async function patchInteractionStats(opts: {
+  threadId: string;
+  checkpoint: StatsCheckpoint;
+  snapshot: ReplyStatSnapshot;
+  storePath?: string;
+}): Promise<Interaction | null> {
+  const threadId = opts.threadId.trim();
+  if (!threadId) return null;
+  const path = opts.storePath ?? defaultStorePath();
+
+  return withFileLock(path, async () => {
+    const store = await readStore(path);
+    const idx = store.interactions.findIndex((i) => i.threadId === threadId);
+    if (idx < 0) return null;
+    const row = store.interactions[idx];
+    const stats: InteractionStats = { ...(row.stats ?? {}) };
+    stats[opts.checkpoint] = opts.snapshot;
+    const next: Interaction = { ...row, stats };
+    const interactions = [...store.interactions];
+    interactions[idx] = next;
+    await writeStore(path, { interactions });
+    return next;
+  });
 }

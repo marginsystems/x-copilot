@@ -3,12 +3,13 @@
 # pm2-manager.sh — manage the x-copilot API for this instance.
 #
 # Services (see ecosystem.config.cjs — copy from ecosystem.config.example.cjs):
-#   x-copilot-api   TypeScript sidecar (session + drafts) on :8787
+#   x-copilot-api     TypeScript sidecar (session + drafts) on :8787
+#   x-copilot-stats   Hourly reply-stats sampler (1h / 24h snapshots)
 #
 # Usage:
-#   ./pm2-manager.sh start              build server, then start API
+#   ./pm2-manager.sh start              build server, then start API + stats
 #   ./pm2-manager.sh stop               stop managed apps
-#   ./pm2-manager.sh restart [prod]     build, restart API (does NOT wipe logs)
+#   ./pm2-manager.sh restart [prod]     build, restart API + stats (does NOT wipe logs)
 #   ./pm2-manager.sh restart --skip-build
 #   ./pm2-manager.sh status             show pm2 status
 #   ./pm2-manager.sh logs [name]        tail logs (default: x-copilot-api)
@@ -25,6 +26,8 @@ mkdir -p logs
 
 ECOSYSTEM="ecosystem.config.cjs"
 CORE="x-copilot-api"
+STATS="x-copilot-stats"
+APPS=("$CORE" "$STATS")
 
 if ! command -v pm2 >/dev/null 2>&1; then
   echo "pm2 not found. Install it: npm i -g pm2" >&2
@@ -73,12 +76,23 @@ for arg in "$@"; do
   esac
 done
 
+restart_or_start_app() {
+  local name="$1"
+  if pm2 describe "$name" >/dev/null 2>&1; then
+    pm2 restart "$name" --update-env
+  else
+    pm2 start "$ECOSYSTEM" --only "$name"
+  fi
+}
+
 case "$cmd" in
   start)
     require_ecosystem
     ensure_build
     mkdir -p logs
-    pm2 start "$ECOSYSTEM" --only "$CORE"
+    for name in "${APPS[@]}"; do
+      pm2 start "$ECOSYSTEM" --only "$name"
+    done
     ;;
   stop)
     require_ecosystem
@@ -89,11 +103,9 @@ case "$cmd" in
     ensure_build
     mkdir -p logs
     # Restart without truncating or deleting anything under logs/
-    if pm2 describe "$CORE" >/dev/null 2>&1; then
-      pm2 restart "$CORE" --update-env
-    else
-      pm2 start "$ECOSYSTEM" --only "$CORE"
-    fi
+    for name in "${APPS[@]}"; do
+      restart_or_start_app "$name"
+    done
     ;;
   delete)
     require_ecosystem

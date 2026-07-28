@@ -263,6 +263,22 @@ function ThreadRow({
   );
 }
 
+function formatStatChip(
+  label: string,
+  snap: ReplyStatSnapshot | undefined,
+  pending: boolean,
+): string {
+  if (snap) {
+    const views =
+      typeof snap.views === "number" ? snap.views.toLocaleString() : "—";
+    const likes =
+      typeof snap.likes === "number" ? snap.likes.toLocaleString() : "—";
+    return `${label}: ${views} views · ${likes} likes`;
+  }
+  if (pending) return `${label}: pending`;
+  return "";
+}
+
 function InteractedRow({
   entry,
 }: {
@@ -271,6 +287,10 @@ function InteractedRow({
   const ago = formatTimeAgo(entry.at);
   const absolute = formatAbsoluteTime(entry.at);
   const blurb = entry.summary || entry.text || entry.threadId;
+  const hasReply = Boolean(entry.replyId);
+  const t1hLabel = formatStatChip("1h", entry.stats?.t1h, hasReply);
+  const t24hLabel = formatStatChip("24h", entry.stats?.t24h, hasReply);
+  const replyHref = entry.replyUrl;
   return (
     <article className="thread-row interacted-row">
       <div className="row-head static">
@@ -281,15 +301,24 @@ function InteractedRow({
             <span>{entry.author}</span>
             {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
             <span className="chip chip-interacted">interacted</span>
+            {t1hLabel ? <span className="chip">{t1hLabel}</span> : null}
+            {t24hLabel ? <span className="chip">{t24hLabel}</span> : null}
           </span>
         </span>
       </div>
-      {entry.url ? (
+      {entry.url || replyHref ? (
         <div className="row-detail compact">
           <div className="row">
-            <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
-              Open on X
-            </a>
+            {entry.url ? (
+              <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
+                Open on X
+              </a>
+            ) : null}
+            {replyHref ? (
+              <a className="ghost" href={replyHref} target="_blank" rel="noreferrer">
+                Open reply
+              </a>
+            ) : null}
           </div>
         </div>
       ) : null}
