@@ -116,6 +116,46 @@ h3 {
   padding: 16px;
 }
 
+.threads-pane-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.threads-tabs {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.threads-tab {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-head);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.threads-tab:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.threads-tab.active {
+  color: var(--text);
+  border-color: var(--accent-dim);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .threads-scroll {
   flex: 1;
   min-height: 0;
@@ -125,6 +165,15 @@ h3 {
   flex-direction: column;
   gap: 6px;
   padding-right: 2px;
+}
+
+.row-head.static {
+  cursor: default;
+  text-align: left;
+}
+
+.row-detail.compact {
+  padding-top: 0;
 }
 
 @media (min-width: 1100px) {

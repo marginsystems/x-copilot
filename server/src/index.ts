@@ -8,6 +8,7 @@ import {
   filterThreadsByCooldown,
   getCooledAuthorKeys,
   listActiveInteractions,
+  listInteractionHistory,
   markInteracted,
   normalizeAuthorKey,
 } from "./interactionStore.js";
@@ -329,8 +330,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/api/interacted") {
-      const interactions = await listActiveInteractions();
-      return send(res, 200, { interactions });
+      const [interactions, active] = await Promise.all([
+        listInteractionHistory(),
+        listActiveInteractions(),
+      ]);
+      return send(res, 200, {
+        interactions,
+        activeIds: active.map((i) => i.threadId),
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/interacted") {
@@ -364,15 +371,26 @@ const server = http.createServer(async (req, res) => {
             ? body.score
             : undefined;
       try {
-        const interaction = await markInteracted({ threadId, author, source });
+        const url = typeof body.url === "string" ? body.url : undefined;
+        const text = typeof body.text === "string" ? body.text : undefined;
+        const summary =
+          typeof body.summary === "string" ? body.summary : undefined;
+        const interaction = await markInteracted({
+          threadId,
+          author,
+          source,
+          url,
+          text,
+          summary,
+        });
         const memory = await writeInteractionMemory({
           threadId,
           author,
           reply,
           source,
-          url: typeof body.url === "string" ? body.url : undefined,
-          text: typeof body.text === "string" ? body.text : undefined,
-          summary: typeof body.summary === "string" ? body.summary : undefined,
+          url,
+          text,
+          summary,
           agenda: typeof body.agenda === "string" ? body.agenda : undefined,
           baitScore,
           engage: typeof body.engage === "string" ? body.engage : undefined,
