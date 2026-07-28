@@ -1,5 +1,6 @@
 /**
- * Last successful Scout run — in-memory + data/last-scout.json (gitignored).
+ * Last Scout snapshot — in-memory + data/last-scout.json (gitignored).
+ * Threads accumulate across runs (merge by id); other fields track the latest run.
  * Soft-degrades on IO/parse errors.
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -132,7 +133,27 @@ export async function getLastScout(opts?: {
   return memory;
 }
 
-/** Overwrite memory + disk with a successful Scout snapshot. */
+/** Append `next` threads not already present by id (stable order: prev then new). */
+export function mergeThreadsById(
+  prev: ThreadCard[],
+  next: ThreadCard[],
+): ThreadCard[] {
+  if (!next.length) return prev;
+  const seen = new Set(prev.map((t) => t.id));
+  const out = [...prev];
+  for (const t of next) {
+    if (!t.id || seen.has(t.id)) continue;
+    seen.add(t.id);
+    out.push(t);
+  }
+  return out;
+}
+
+/**
+ * Persist a successful Scout snapshot.
+ * Metadata (agenda/queries/message/…) is replaced; threads are merged by id
+ * so successive Scout runs accumulate cool leads across reloads.
+ */
 export async function saveScoutCache(
   snapshot: LastScoutSnapshot,
   opts?: { storePath?: string },
@@ -143,13 +164,18 @@ export async function saveScoutCache(
   }
   const path = opts?.storePath ?? defaultScoutCachePath();
   return serialized(async () => {
-    memory = parsed;
+    const prev = memory ?? (await readDisk(path));
+    const merged: LastScoutSnapshot = {
+      ...parsed,
+      threads: mergeThreadsById(prev?.threads ?? [], parsed.threads),
+    };
+    memory = merged;
     try {
-      await writeDisk(path, parsed);
+      await writeDisk(path, merged);
     } catch (err) {
       console.error("scoutCache write failed:", err);
     }
-    return parsed;
+    return merged;
   });
 }
 

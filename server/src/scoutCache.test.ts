@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import {
   clearScoutCacheMemory,
   getLastScout,
+  mergeThreadsById,
   parseScoutSnapshot,
   saveScoutCache,
   type LastScoutSnapshot,
@@ -83,7 +84,7 @@ describe("saveScoutCache / getLastScout", () => {
     assert.ok(raw.includes('"id": "1"'));
   });
 
-  it("overwrites previous snapshot", async () => {
+  it("replaces metadata but merges threads by id", async () => {
     await saveScoutCache(sample({ message: "first" }), { storePath });
     await saveScoutCache(
       sample({
@@ -102,6 +103,30 @@ describe("saveScoutCache / getLastScout", () => {
     clearScoutCacheMemory();
     const last = await getLastScout({ storePath });
     assert.equal(last?.message, "second");
-    assert.equal(last?.threads[0]?.id, "2");
+    assert.deepEqual(
+      last?.threads.map((t) => t.id),
+      ["1", "2"],
+    );
+  });
+});
+
+describe("mergeThreadsById", () => {
+  it("appends unseen ids and skips duplicates", () => {
+    const a = {
+      id: "1",
+      author: "@a",
+      text: "a",
+      url: "https://x.com/a/status/1",
+    };
+    const b = {
+      id: "2",
+      author: "@b",
+      text: "b",
+      url: "https://x.com/b/status/2",
+    };
+    assert.deepEqual(
+      mergeThreadsById([a], [a, b]).map((t) => t.id),
+      ["1", "2"],
+    );
   });
 });
