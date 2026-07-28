@@ -648,7 +648,7 @@ export default function App() {
     setBusy(true);
     setSearching(true);
     setPlannedQueries([]);
-    // Keep existing thread rows visible; stream partials append, done replaces.
+    // Keep existing thread rows; partials + done append by id across runs.
     setExpandedId(null);
     pushScoutLine("── Start Scout ──", "planning");
     applyScoutEvent({
@@ -750,7 +750,8 @@ export default function App() {
         const qs = doneEvent.queries ?? [];
         const list = doneEvent.threads ?? [];
         setPlannedQueries(qs);
-        setThreads(list);
+        // Append this run’s cool threads; do not wipe prior Scout loops.
+        setThreads((prev) => appendThreadsById(prev, list));
         setExpandedId(null);
         await hydrateInteracted();
         const progress = coolProgressLabel(
