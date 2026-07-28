@@ -1,0 +1,70 @@
+import { describe, it, beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import {
+  clearParentTweetCache,
+  hydrateReplyParents,
+} from "./tweetLookup.ts";
+import type { ThreadCard } from "./xSearch.ts";
+
+function replyCard(overrides: Partial<ThreadCard> = {}): ThreadCard {
+  return {
+    id: "900",
+    author: "@asker",
+    text: "How do you pick products?",
+    url: "https://x.com/asker/status/900",
+    inReplyToId: "800",
+    isReply: true,
+    ...overrides,
+  };
+}
+
+describe("hydrateReplyParents", () => {
+  beforeEach(() => {
+    clearParentTweetCache();
+  });
+
+  it("fills opText for replies missing OP", async () => {
+    const threads = await hydrateReplyParents({
+      threads: [replyCard()],
+      delayMs: 0,
+      fetchParent: async ({ tweetId }) => {
+        assert.equal(tweetId, "800");
+        return {
+          author: "@hustler",
+          text: "mysaas just crossed $632 revenue 100% profit",
+        };
+      },
+    });
+    assert.equal(threads[0]?.opAuthor, "@hustler");
+    assert.match(threads[0]?.opText ?? "", /\$632/);
+  });
+
+  it("skips lookup when opText already present", async () => {
+    let calls = 0;
+    const threads = await hydrateReplyParents({
+      threads: [
+        replyCard({
+          opAuthor: "@already",
+          opText: "already have OP",
+        }),
+      ],
+      delayMs: 0,
+      fetchParent: async () => {
+        calls += 1;
+        return { author: "@x", text: "nope" };
+      },
+    });
+    assert.equal(calls, 0);
+    assert.equal(threads[0]?.opText, "already have OP");
+  });
+
+  it("soft-fails when parent lookup returns null", async () => {
+    const threads = await hydrateReplyParents({
+      threads: [replyCard()],
+      delayMs: 0,
+      fetchParent: async () => null,
+    });
+    assert.equal(threads[0]?.opText, undefined);
+    assert.equal(threads[0]?.text, "How do you pick products?");
+  });
+});

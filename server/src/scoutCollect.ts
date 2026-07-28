@@ -16,6 +16,7 @@ import {
   resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
 import { triageThreads } from "./threadTriage.js";
+import { hydrateReplyParents } from "./tweetLookup.js";
 import {
   searchTimelinePages,
   type ThreadCard,
@@ -147,6 +148,7 @@ export type ScoutCollectDeps = {
   getCooledAuthorKeys?: typeof getCooledAuthorKeys;
   getAuthorKeysForScoutFilter?: typeof getAuthorKeysForScoutFilter;
   saveScoutCache?: typeof saveScoutCache;
+  hydrateReplyParents?: typeof hydrateReplyParents;
   sleep?: typeof sleep;
 };
 
@@ -169,6 +171,7 @@ export async function runScoutCollect(opts: {
   const doGetFilterKeys =
     deps.getAuthorKeysForScoutFilter ?? getAuthorKeysForScoutFilter;
   const doSaveCache = deps.saveScoutCache ?? saveScoutCache;
+  const doHydrate = deps.hydrateReplyParents ?? hydrateReplyParents;
   const doSleep = deps.sleep ?? sleep;
 
   const session = opts.session ?? getSessionFromEnv();
@@ -420,7 +423,18 @@ export async function runScoutCollect(opts: {
         },
       );
 
-      const triaged = await doTriage({ agenda, threads: bucket });
+      // Attach OP text for replies before LLM triage (promo-root skip).
+      const forTriage = await doHydrate({
+        threads: bucket,
+        session,
+        signal: opts.signal,
+      });
+      if (aborted()) {
+        stopReason = "aborted";
+        break;
+      }
+
+      const triaged = await doTriage({ agenda, threads: forTriage });
       if (triaged.warning) triageWarning = triaged.warning;
 
       const newlyCool = triaged.threads.filter(isCoolThread);
