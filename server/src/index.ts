@@ -355,7 +355,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/dismissed") {
       const dismissals = await listDismissalHistory();
       return send(res, 200, {
-        dismissals,
+        dismissals: dismissals.map(({ authorKey, ...rest }) => rest),
         dismissedIds: dismissals.map((d) => d.threadId),
       });
     }
@@ -387,14 +387,8 @@ const server = http.createServer(async (req, res) => {
           typeof body.summary === "string" ? body.summary : undefined;
         const reason =
           typeof body.reason === "string" ? body.reason : undefined;
-        const dismissal = await markDismissed({
-          threadId,
-          author,
-          url: urlField,
-          text,
-          summary,
-          reason,
-        });
+        const nowMs = Date.now();
+        const dismissedAt = new Date(nowMs).toISOString();
         const memory = await writeDismissalMemory({
           threadId,
           author,
@@ -402,7 +396,16 @@ const server = http.createServer(async (req, res) => {
           text,
           summary,
           reason,
-          dismissedAt: dismissal.at,
+          dismissedAt,
+        });
+        const dismissal = await markDismissed({
+          threadId,
+          author,
+          url: urlField,
+          text,
+          summary,
+          reason,
+          nowMs,
         });
         return send(res, 200, {
           ok: true,

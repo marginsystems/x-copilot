@@ -107,18 +107,21 @@ describe("buildDismissalNotePath / writeDismissalMemory", () => {
     );
   });
 
-  it("writes note with optional reason", async () => {
+  it("renders dismissal markdown with reason", () => {
+    const md = renderDismissalMarkdown({
+      threadId: "42",
+      author: "@x",
+      summary: "promo spam",
+      reason: "not a question",
+      dismissedAt: "2026-07-29T01:00:00.000Z",
+    });
+    assert.match(md, /type: dismissal/);
+    assert.match(md, /not a question/);
+  });
+
+  it("writes dismissal note without reason defaults to (none)", async () => {
     const root = await mkdtemp(join(tmpdir(), "x-copilot-dismiss-mem-"));
     try {
-      const md = renderDismissalMarkdown({
-        threadId: "42",
-        author: "@x",
-        summary: "promo spam",
-        reason: "not a question",
-        dismissedAt: "2026-07-29T01:00:00.000Z",
-      });
-      assert.match(md, /type: dismissal/);
-      assert.match(md, /not a question/);
       const { path } = await writeDismissalMemory({
         threadId: "42",
         author: "@x",
