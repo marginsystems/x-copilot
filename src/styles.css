@@ -26,6 +26,18 @@
   box-sizing: border-box;
 }
 
+/* Hide native number spinners — values change via typing only */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 html {
   height: 100%;
   overflow: hidden;

@@ -450,6 +450,18 @@ export default function App() {
     void hydrateScoutLog();
   }, []);
 
+  // Prevent mouse wheel from changing number inputs while scrolling the page.
+  useEffect(() => {
+    function onWheel(e: WheelEvent) {
+      const t = e.target;
+      if (!(t instanceof HTMLInputElement)) return;
+      if (t.type !== "number") return;
+      e.preventDefault();
+    }
+    document.addEventListener("wheel", onWheel, { passive: false });
+    return () => document.removeEventListener("wheel", onWheel);
+  }, []);
+
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
@@ -935,11 +947,11 @@ export default function App() {
             <span>Drop X Articles</span>
           </label>
           <label className="settings-field">
-            <span>Cool threads target (1–10)</span>
+            <span>Cool threads target (1–20)</span>
             <input
               type="number"
               min={1}
-              max={10}
+              max={20}
               step={1}
               value={settingsDraft.targetCoolThreads}
               onChange={(e) =>
@@ -998,7 +1010,7 @@ export default function App() {
                 <input
                   type="number"
                   min={1}
-                  max={10}
+                  max={20}
                   step={1}
                   disabled={searching}
                   value={settings.targetCoolThreads}

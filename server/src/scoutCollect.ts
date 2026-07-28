@@ -69,7 +69,7 @@ export function clampTargetCool(value: unknown): number {
   if (typeof value !== "number") return DEFAULT_TARGET_COOL;
   if (!Number.isInteger(value)) return DEFAULT_TARGET_COOL;
   if (value < 1) return 1;
-  if (value > 10) return 10;
+  if (value > 20) return 20;
   return value;
 }
 
