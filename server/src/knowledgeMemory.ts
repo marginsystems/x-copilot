@@ -151,3 +151,83 @@ export async function writeInteractionMemory(
   await writeFile(path, markdown, "utf8");
   return { path, markdown };
 }
+
+export type DismissalMemoryInput = {
+  threadId: string;
+  author: string;
+  url?: string;
+  text?: string;
+  summary?: string;
+  reason?: string;
+  dismissedAt?: string;
+  knowledgeRoot?: string;
+};
+
+const MAX_DISMISSAL_REASON_CHARS = 500;
+
+function optionalStringTrim(value: string | undefined): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const t = value.trim();
+  return t || undefined;
+}
+
+export function buildDismissalNotePath(opts: {
+  threadId: string;
+  dismissedAt?: string;
+  knowledgeRoot?: string;
+}): string {
+  const root = opts.knowledgeRoot ?? defaultKnowledgeRoot();
+  const date = utcDatePrefix(opts.dismissedAt);
+  const id = safeThreadIdForFilename(opts.threadId);
+  return resolve(root, "dismissals", `${date}-${id}.md`);
+}
+
+export function renderDismissalMarkdown(input: DismissalMemoryInput): string {
+  const threadId = input.threadId.trim();
+  const author = input.author.trim();
+  const authorKey = normalizeAuthorKey(author);
+  if (!threadId || !author || !authorKey) {
+    throw new Error("threadId and author are required");
+  }
+
+  const dismissedAt = input.dismissedAt ?? new Date().toISOString();
+  const threadBody = truncate(
+    (input.summary?.trim() || input.text?.trim() || "(no thread text)").trim(),
+    MAX_THREAD_EXCERPT_CHARS,
+  );
+  const reason = optionalStringTrim(input.reason);
+
+  const lines: string[] = ["---", "type: dismissal"];
+  lines.push(`threadId: ${yamlString(threadId)}`);
+  const url = yamlOptionalString(input.url);
+  if (url) lines.push(`url: ${url}`);
+  lines.push(`author: ${yamlString(author)}`);
+  lines.push(`authorKey: ${yamlString(authorKey)}`);
+  lines.push(`dismissedAt: ${yamlString(dismissedAt)}`);
+  lines.push("---", "", "## Thread", "", threadBody, "");
+  if (reason) {
+    lines.push(
+      "## Reason",
+      "",
+      truncate(reason, MAX_DISMISSAL_REASON_CHARS),
+      "",
+    );
+  } else {
+    lines.push("## Reason", "", "(none)", "");
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+export async function writeDismissalMemory(
+  input: DismissalMemoryInput,
+): Promise<{ path: string; markdown: string }> {
+  const markdown = renderDismissalMarkdown(input);
+  const path = buildDismissalNotePath({
+    threadId: input.threadId,
+    dismissedAt: input.dismissedAt,
+    knowledgeRoot: input.knowledgeRoot,
+  });
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, markdown, "utf8");
+  return { path, markdown };
+}

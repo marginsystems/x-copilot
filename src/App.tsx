@@ -106,7 +106,17 @@ function parseStatusIdFromUrl(url: string): string | null {
   }
 }
 
-type ThreadsTab = "curated" | "interacted";
+type ThreadsTab = "curated" | "interacted" | "dismissed";
+
+type DismissalHistoryEntry = {
+  threadId: string;
+  author: string;
+  at: string;
+  url?: string;
+  summary?: string;
+  text?: string;
+  reason?: string;
+};
 
 const SCOUT_LOG_PAGE_SIZE = 100;
 
@@ -178,6 +188,7 @@ function ThreadRow({
   interacted,
   onToggle,
   onMark,
+  onDismiss,
 }: {
   thread: ThreadCard;
   open: boolean;
@@ -185,6 +196,7 @@ function ThreadRow({
   interacted: boolean;
   onToggle: () => void;
   onMark: () => void;
+  onDismiss: () => void;
 }) {
   const bait = baitRisk(thread);
   const ago = formatTimeAgo(thread.createdAt);
@@ -257,6 +269,46 @@ function ThreadRow({
             >
               {interacted ? "Interacted" : "Mark interacted"}
             </button>
+            <button
+              className="ghost"
+              disabled={busy || interacted}
+              onClick={onDismiss}
+            >
+              Not interested
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function DismissedRow({ entry }: { entry: DismissalHistoryEntry }) {
+  const ago = formatTimeAgo(entry.at);
+  const absolute = formatAbsoluteTime(entry.at);
+  const blurb = entry.summary || entry.text || entry.threadId;
+  return (
+    <article className="thread-row interacted-row">
+      <div className="row-head static">
+        <span className="bait" aria-hidden="true" />
+        <span className="row-main">
+          <span className="row-summary">{blurb}</span>
+          <span className="row-meta">
+            <span>{entry.author}</span>
+            {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
+            <span className="chip">not interested</span>
+          </span>
+          {entry.reason ? (
+            <span className="row-meta">{entry.reason}</span>
+          ) : null}
+        </span>
+      </div>
+      {entry.url ? (
+        <div className="row-detail compact">
+          <div className="row">
+            <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
+              Open on X
+            </a>
           </div>
         </div>
       ) : null}
@@ -351,6 +403,9 @@ export default function App() {
   const [interactedHistory, setInteractedHistory] = useState<
     InteractionHistoryEntry[]
   >([]);
+  const [dismissedHistory, setDismissedHistory] = useState<
+    DismissalHistoryEntry[]
+  >([]);
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const [view, setView] = useState<AppView>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -369,7 +424,10 @@ export default function App() {
   const [markThread, setMarkThread] = useState<ThreadCard | null>(null);
   const [markReplyUrl, setMarkReplyUrl] = useState("");
   const [markReply, setMarkReply] = useState("");
+  const [dismissThread, setDismissThread] = useState<ThreadCard | null>(null);
+  const [dismissReason, setDismissReason] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const dismissedIdsRef = useRef<Set<string>>(new Set());
   const searchingRef = useRef(0);
   const coolProgressRef = useRef({
     cool: 0,
@@ -538,6 +596,36 @@ export default function App() {
     }
   }
 
+  async function hydrateDismissed() {
+    try {
+      const res = await fetch("/api/dismissed");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        dismissals?: DismissalHistoryEntry[];
+        dismissedIds?: string[];
+      };
+      const history = (data.dismissals ?? []).filter(
+        (d) =>
+          d &&
+          typeof d.threadId === "string" &&
+          typeof d.author === "string" &&
+          typeof d.at === "string",
+      );
+      setDismissedHistory(history);
+      const ids = new Set(
+        (Array.isArray(data.dismissedIds) ? data.dismissedIds : history.map((d) => d.threadId)).filter(
+          (id): id is string => typeof id === "string" && id.length > 0,
+        ),
+      );
+      dismissedIdsRef.current = ids;
+      if (ids.size) {
+        setThreads((prev) => prev.filter((t) => !ids.has(t.id)));
+      }
+    } catch {
+      // Sidecar may be offline on first paint — ignore.
+    }
+  }
+
   async function hydrateLastScout() {
     try {
       const res = await fetch(`/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`);
@@ -571,7 +659,8 @@ export default function App() {
       if (typeof data.snapshot.agenda === "string" && data.snapshot.agenda.trim()) {
         setAgenda(data.snapshot.agenda);
       }
-      setThreads(list);
+      const filtered = list.filter((t) => !dismissedIdsRef.current.has(t.id));
+      setThreads(filtered);
       setPlannedQueries(queries);
       setScoutStage(null);
       const when =
@@ -583,7 +672,7 @@ export default function App() {
         ? ` (${pc.raw} → ${pc.afterDedupe} → ${pc.afterCooldown} → ${pc.afterLength} → ${pc.afterTriage})`
         : "";
       setStatus(
-        `Restored ${list.length} threads${funnel} from ${when} — Search again to refresh.`,
+        `Restored ${filtered.length} threads${funnel} from ${when} — Search again to refresh.`,
       );
     } catch {
       // Sidecar may be offline on first paint — ignore.
@@ -591,9 +680,12 @@ export default function App() {
   }
 
   useEffect(() => {
-    void hydrateInteracted();
-    void hydrateLastScout();
-    void hydrateScoutLog();
+    void (async () => {
+      await hydrateDismissed();
+      await hydrateInteracted();
+      await hydrateLastScout();
+      await hydrateScoutLog();
+    })();
   }, []);
 
   // Prevent mouse wheel from changing number inputs while scrolling the page.
@@ -878,7 +970,12 @@ export default function App() {
         }
         applyScoutEvent(ev);
         if (ev.stage === "partial" && ev.threads?.length) {
-          setThreads((prev) => appendThreadsById(prev, ev.threads));
+          setThreads((prev) =>
+            appendThreadsById(
+              prev,
+              (ev.threads ?? []).filter((t) => !dismissedIdsRef.current.has(t.id)),
+            ),
+          );
         }
       };
 
@@ -915,7 +1012,12 @@ export default function App() {
         const list = doneEvent.threads ?? [];
         setPlannedQueries(qs);
         // Append this run’s cool threads; do not wipe prior Scout loops.
-        setThreads((prev) => appendThreadsById(prev, list));
+        setThreads((prev) =>
+          appendThreadsById(
+            prev,
+            list.filter((t) => !dismissedIdsRef.current.has(t.id)),
+          ),
+        );
         setExpandedId(null);
         await hydrateInteracted();
         const progress = coolProgressLabel(
@@ -986,6 +1088,76 @@ export default function App() {
     openMarkModal(thread);
   }
 
+  function openDismissModal(thread: ThreadCard) {
+    setDismissThread(thread);
+    setDismissReason("");
+  }
+
+  function closeDismissModal() {
+    setDismissThread(null);
+    setDismissReason("");
+  }
+
+  async function postDismissed(
+    thread: ThreadCard,
+    reason: string,
+  ): Promise<boolean> {
+    try {
+      const res = await fetch("/api/dismissed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          threadId: thread.id,
+          author: thread.author,
+          url: thread.url,
+          text: thread.text,
+          summary: thread.summary,
+          ...(reason.trim() ? { reason: reason.trim() } : {}),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        dismissal?: DismissalHistoryEntry;
+      };
+      if (!res.ok) {
+        setStatus(`Dismiss fail: ${data.message || res.status}`);
+        return false;
+      }
+      const entry: DismissalHistoryEntry = data.dismissal ?? {
+        threadId: thread.id,
+        author: thread.author,
+        at: new Date().toISOString(),
+        url: thread.url,
+        summary: thread.summary,
+        text: thread.text,
+        ...(reason.trim() ? { reason: reason.trim() } : {}),
+      };
+      dismissedIdsRef.current = new Set(dismissedIdsRef.current).add(thread.id);
+      setDismissedHistory((prev) => [
+        entry,
+        ...prev.filter((d) => d.threadId !== thread.id),
+      ]);
+      setThreads((prev) => prev.filter((t) => t.id !== thread.id));
+      setExpandedId((id) => (id === thread.id ? null : id));
+      return true;
+    } catch {
+      setStatus("Sidecar offline — could not dismiss");
+      return false;
+    }
+  }
+
+  async function confirmDismiss() {
+    const thread = dismissThread;
+    if (!thread) return;
+    setBusy(true);
+    const ok = await postDismissed(thread, dismissReason);
+    setBusy(false);
+    if (ok) {
+      closeDismissModal();
+      setStatus(`Marked ${thread.author} not interested`);
+    }
+  }
+
   async function confirmMarkInteracted() {
     const thread = markThread;
     if (!thread) return;
@@ -1007,13 +1179,15 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!markThread) return;
+    if (!markThread && !dismissThread) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !busy) closeMarkModal();
+      if (e.key !== "Escape" || busy) return;
+      if (markThread) closeMarkModal();
+      if (dismissThread) closeDismissModal();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [markThread, busy]);
+  }, [markThread, dismissThread, busy]);
 
   return (
     <div className="app">
@@ -1370,6 +1544,22 @@ export default function App() {
                     ? ` (${interactedHistory.length})`
                     : ""}
                 </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={threadsTab === "dismissed"}
+                  className={
+                    threadsTab === "dismissed"
+                      ? "threads-tab active"
+                      : "threads-tab"
+                  }
+                  onClick={() => setThreadsTab("dismissed")}
+                >
+                  Not interested
+                  {dismissedHistory.length > 0
+                    ? ` (${dismissedHistory.length})`
+                    : ""}
+                </button>
               </div>
             </div>
             <div className="threads-scroll">
@@ -1393,22 +1583,36 @@ export default function App() {
                           setExpandedId(expandedId === t.id ? null : t.id)
                         }
                         onMark={() => onMark(t)}
+                        onDismiss={() => openDismissModal(t)}
                       />
                     ))}
                   </div>
                 )
-              ) : interactedHistory.length === 0 ? (
+              ) : threadsTab === "interacted" ? (
+                interactedHistory.length === 0 ? (
+                  <p className="empty">
+                    No interacted threads yet. Mark a curated lead after you reply
+                    on X.
+                  </p>
+                ) : (
+                  <div className="threads">
+                    {interactedHistory.map((entry) => (
+                      <InteractedRow
+                        key={entry.threadId}
+                        entry={entry}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : dismissedHistory.length === 0 ? (
                 <p className="empty">
-                  No interacted threads yet. Mark a curated lead after you reply
-                  on X.
+                  No dismissed threads yet. Mark a curated lead as not interested
+                  to skip it.
                 </p>
               ) : (
                 <div className="threads">
-                  {interactedHistory.map((entry) => (
-                    <InteractedRow
-                      key={entry.threadId}
-                      entry={entry}
-                    />
+                  {dismissedHistory.map((entry) => (
+                    <DismissedRow key={entry.threadId} entry={entry} />
                   ))}
                 </div>
               )}
@@ -1472,6 +1676,59 @@ export default function App() {
                 className="ghost"
                 disabled={busy}
                 onClick={closeMarkModal}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {dismissThread ? (
+        <div className="modal-root" role="presentation">
+          <button
+            type="button"
+            className="modal-backdrop"
+            aria-label="Cancel not interested"
+            disabled={busy}
+            onClick={closeDismissModal}
+          />
+          <div
+            className="modal-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dismiss-title"
+          >
+            <h2 id="dismiss-title">Not interested</h2>
+            <p className="status">
+              Dismiss {dismissThread.author} from Curated. Optional reason is
+              saved to local knowledge memory.
+            </p>
+            <label className="settings-field">
+              <span>Reason (optional)</span>
+              <textarea
+                className="mark-reply"
+                value={dismissReason}
+                onChange={(e) => setDismissReason(e.target.value)}
+                placeholder="Why skip this lead…"
+                rows={3}
+                autoFocus
+              />
+            </label>
+            <div className="row">
+              <button
+                type="button"
+                className="primary"
+                disabled={busy}
+                onClick={() => void confirmDismiss()}
+              >
+                Confirm
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                disabled={busy}
+                onClick={closeDismissModal}
               >
                 Cancel
               </button>

@@ -14,7 +14,12 @@ import {
   normalizeAuthorKey,
 } from "./interactionStore.js";
 import {
+  listDismissalHistory,
+  markDismissed,
+} from "./dismissalStore.js";
+import {
   normalizeReply,
+  writeDismissalMemory,
   writeInteractionMemory,
 } from "./knowledgeMemory.js";
 import { loadEnv } from "./loadEnv.js";
@@ -345,6 +350,72 @@ const server = http.createServer(async (req, res) => {
         interactions,
         activeIds: active.map((i) => i.threadId),
       });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/dismissed") {
+      const dismissals = await listDismissalHistory();
+      return send(res, 200, {
+        dismissals,
+        dismissedIds: dismissals.map((d) => d.threadId),
+      });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/dismissed") {
+      let body: Record<string, unknown>;
+      try {
+        body = (await readBody(req)) as Record<string, unknown>;
+      } catch (err) {
+        const statusCode = err instanceof BodyError ? err.statusCode : 400;
+        return send(res, statusCode, {
+          error: "bad_request",
+          message: err instanceof Error ? err.message : "Invalid request body",
+        });
+      }
+      const threadId =
+        typeof body.threadId === "string" ? body.threadId.trim() : "";
+      const author = typeof body.author === "string" ? body.author.trim() : "";
+      if (!threadId || !author || !normalizeAuthorKey(author)) {
+        return send(res, 400, {
+          error: "bad_request",
+          message: "Pass { threadId: string, author: string }.",
+        });
+      }
+      try {
+        const urlField = typeof body.url === "string" ? body.url : undefined;
+        const text = typeof body.text === "string" ? body.text : undefined;
+        const summary =
+          typeof body.summary === "string" ? body.summary : undefined;
+        const reason =
+          typeof body.reason === "string" ? body.reason : undefined;
+        const dismissal = await markDismissed({
+          threadId,
+          author,
+          url: urlField,
+          text,
+          summary,
+          reason,
+        });
+        const memory = await writeDismissalMemory({
+          threadId,
+          author,
+          url: urlField,
+          text,
+          summary,
+          reason,
+          dismissedAt: dismissal.at,
+        });
+        return send(res, 200, {
+          ok: true,
+          dismissal,
+          memoryPath: memory.path,
+        });
+      } catch (err) {
+        console.error("Failed to store dismissal:", err);
+        return send(res, 500, {
+          error: "store_failed",
+          message: "Failed to store dismissal",
+        });
+      }
     }
 
     if (req.method === "POST" && url.pathname === "/api/interacted") {
