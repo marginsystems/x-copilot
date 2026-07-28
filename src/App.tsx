@@ -14,6 +14,7 @@ import {
   DEFAULT_SETTINGS,
 } from "./lib/settings";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
+import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
 
 type ThreadCard = {
   id: string;
@@ -1371,7 +1372,7 @@ export default function App() {
                   </p>
                 ) : (
                   <div className="threads">
-                    {threads.map((t) => (
+                    {sortThreadsByCreatedAtNewest(threads).map((t) => (
                       <ThreadRow
                         key={t.id}
                         thread={t}
