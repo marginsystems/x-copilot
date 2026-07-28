@@ -339,45 +339,51 @@ describe("runScoutCollect bucket loop", () => {
 
   it("still triages when parent hydrate soft-fails", async () => {
     let triageCalls = 0;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () =>
+      ({ ok: false, status: 500, text: async () => { throw new Error("mock network error"); } }) as Response;
 
-    const result = await runScoutCollect({
-      queries: ["q1"],
-      bucketSize: 5,
-      session,
-      deps: {
-        sleep: async () => {},
-        getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
-        searchTimeline: async () => ({
-          ok: true as const,
-          queryId: "test",
-          threads: [1, 2, 3, 4, 5].map((n) =>
-            card({
-              id: `r${n}`,
-              inReplyToId: `op${n}`,
-              isReply: true,
-            }),
-          ),
-          bottomCursor: null,
-        }),
-        hydrateReplyParents: async ({ threads }) => threads,
-        triageThreads: async ({ threads }) => {
-          triageCalls += 1;
-          assert.equal(threads.length, 5);
-          return {
-            threads: threads.map((t, i) => ({
-              ...t,
-              engage: i === 0 ? ("consider" as const) : ("skip" as const),
-              baitScore: i === 0 ? 20 : 80,
-            })),
-          };
+    try {
+      const result = await runScoutCollect({
+        queries: ["q1"],
+        bucketSize: 5,
+        session,
+        deps: {
+          sleep: async () => {},
+          getCooledAuthorKeys: async () => new Set(),
+          saveScoutCache: async () => {},
+          searchTimeline: async () => ({
+            ok: true as const,
+            queryId: "test",
+            threads: [1, 2, 3, 4, 5].map((n) =>
+              card({
+                id: `r${n}`,
+                inReplyToId: `op${n}`,
+                isReply: true,
+              }),
+            ),
+            bottomCursor: null,
+          }),
+          triageThreads: async ({ threads }) => {
+            triageCalls += 1;
+            assert.equal(threads.length, 5);
+            return {
+              threads: threads.map((t, i) => ({
+                ...t,
+                engage: i === 0 ? ("consider" as const) : ("skip" as const),
+                baitScore: i === 0 ? 20 : 80,
+              })),
+            };
+          },
         },
-      },
-    });
+      });
 
-    assert.equal(result.ok, true);
-    if (!result.ok) return;
-    assert.equal(triageCalls, 1);
-    assert.equal(result.event.stopReason, "qualified");
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(triageCalls, 1);
+      assert.equal(result.event.stopReason, "qualified");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
   });
 });

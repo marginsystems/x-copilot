@@ -154,7 +154,12 @@ export async function fetchParentTweet(opts: {
       continue;
     }
 
-    const text = await res.text();
+    let text = "";
+    try {
+      text = await res.text();
+    } catch {
+      continue;
+    }
     if (res.status === 404 || text.includes("Query not found")) continue;
     if (!res.ok) continue;
 
