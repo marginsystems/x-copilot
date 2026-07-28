@@ -182,6 +182,94 @@ describe("parseSearchTimelinePage", () => {
   });
 });
 
+const replyQuoteFixture = {
+  data: {
+    search_by_raw_query: {
+      search_timeline: {
+        timeline: {
+          instructions: [
+            {
+              entries: [
+                {
+                  entryId: "tweet-reply",
+                  content: {
+                    __typename: "TimelineTimelineItem",
+                    itemContent: {
+                      tweet_results: {
+                        result: {
+                          __typename: "Tweet",
+                          rest_id: "900",
+                          legacy: {
+                            full_text: "How do you pick which product to build?",
+                            id_str: "900",
+                            conversation_id_str: "800",
+                            in_reply_to_status_id_str: "800",
+                            in_reply_to_screen_name: "promo",
+                          },
+                          core: {
+                            user_results: {
+                              result: {
+                                core: { screen_name: "asker" },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                {
+                  entryId: "tweet-quote",
+                  content: {
+                    __typename: "TimelineTimelineItem",
+                    itemContent: {
+                      tweet_results: {
+                        result: {
+                          __typename: "Tweet",
+                          rest_id: "901",
+                          legacy: {
+                            full_text: "Curious how you got traffic?",
+                            id_str: "901",
+                          },
+                          core: {
+                            user_results: {
+                              result: {
+                                core: { screen_name: "curious" },
+                              },
+                            },
+                          },
+                          quoted_status_result: {
+                            result: {
+                              __typename: "Tweet",
+                              rest_id: "700",
+                              legacy: {
+                                full_text:
+                                  "mysaas just crossed $632 in revenue, 100% profit",
+                                id_str: "700",
+                              },
+                              core: {
+                                user_results: {
+                                  result: {
+                                    core: { screen_name: "hustler" },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  },
+};
+
 describe("parseSearchTimelineResponse", () => {
   it("extracts tweets and builds urls", () => {
     const threads = parseSearchTimelineResponse(fixture);
@@ -217,6 +305,22 @@ describe("parseSearchTimelineResponse", () => {
 
   it("returns empty for missing data", () => {
     assert.deepEqual(parseSearchTimelineResponse({}), []);
+  });
+
+  it("parses reply metadata and quoted OP context", () => {
+    const threads = parseSearchTimelineResponse(replyQuoteFixture);
+    assert.equal(threads.length, 2);
+    const reply = threads.find((t) => t.id === "900");
+    assert.ok(reply);
+    assert.equal(reply.isReply, true);
+    assert.equal(reply.inReplyToId, "800");
+    assert.equal(reply.conversationId, "800");
+    assert.equal(reply.opText, undefined);
+
+    const quote = threads.find((t) => t.id === "901");
+    assert.ok(quote);
+    assert.equal(quote.opAuthor, "@hustler");
+    assert.match(quote.opText ?? "", /\$632/);
   });
 });
 
