@@ -19,6 +19,13 @@ export type ThreadCard = {
    * Articles are hard-dropped before triage; note_tweet body feeds the char cap.
    */
   longform?: "note_tweet" | "article";
+  /** Reply / conversation context for triage (OP scoring). */
+  inReplyToId?: string;
+  conversationId?: string;
+  isReply?: boolean;
+  /** Parent or quoted root author/text when available. */
+  opAuthor?: string;
+  opText?: string;
   /** Triage fields (filled by threadTriage after search). */
   summary?: string;
   /** 0–100, higher = more engagement bait / less worth replying to. */
@@ -30,6 +37,8 @@ export type ThreadCard = {
   /** Mirrors baitScore for the existing card meta line. */
   score?: number;
 };
+
+const MAX_OP_TEXT_CHARS = 500;
 
 export type SearchProduct = "Latest" | "Top";
 
@@ -229,6 +238,9 @@ type TweetResultNode = {
     id_str?: string;
     user_id_str?: string;
     screen_name?: string;
+    conversation_id_str?: string;
+    in_reply_to_status_id_str?: string;
+    in_reply_to_screen_name?: string;
   };
   core?: {
     user_results?: {
@@ -249,6 +261,7 @@ type TweetResultNode = {
   article?: unknown;
   article_results?: unknown;
   tweet?: unknown;
+  quoted_status_result?: { result?: unknown };
 };
 
 function noteTweetText(node: TweetResultNode): string | undefined {
@@ -276,22 +289,48 @@ function resolveCardText(
   return note;
 }
 
-function tweetResultToCard(result: unknown): ThreadCard | null {
+function unwrapTweetNode(result: unknown): TweetResultNode | null {
+  if (!result || typeof result !== "object") return null;
   const r = result as TweetResultNode;
+  if (r.__typename === "TweetWithVisibilityResults" && r.tweet) {
+    return r.tweet as TweetResultNode;
+  }
+  return r;
+}
 
-  // TweetWithVisibilityResults wrapper
-  const inner =
-    r.__typename === "TweetWithVisibilityResults" && r.tweet
-      ? (r.tweet as TweetResultNode)
-      : r;
+function screenNameFromNode(node: TweetResultNode): string | undefined {
+  return (
+    node.core?.user_results?.result?.core?.screen_name ||
+    node.core?.user_results?.result?.legacy?.screen_name ||
+    node.legacy?.screen_name
+  );
+}
+
+/** Extract quoted / parent root author+text when GraphQL inlined it. */
+export function extractOpContext(node: TweetResultNode): {
+  opAuthor?: string;
+  opText?: string;
+} {
+  const quoted = unwrapTweetNode(node.quoted_status_result?.result);
+  if (!quoted) return {};
+  const noteText = noteTweetText(quoted);
+  const text = resolveCardText(quoted.legacy?.full_text, noteText);
+  const handle = screenNameFromNode(quoted);
+  if (!text || !handle) return {};
+  return {
+    opAuthor: handle.startsWith("@") ? handle : `@${handle}`,
+    opText: text.slice(0, MAX_OP_TEXT_CHARS),
+  };
+}
+
+function tweetResultToCard(result: unknown): ThreadCard | null {
+  const inner = unwrapTweetNode(result);
+  if (!inner) return null;
 
   const id = inner.rest_id || inner.legacy?.id_str;
   const noteText = noteTweetText(inner);
   const text = resolveCardText(inner.legacy?.full_text, noteText);
-  const handle =
-    inner.core?.user_results?.result?.core?.screen_name ||
-    inner.core?.user_results?.result?.legacy?.screen_name ||
-    inner.legacy?.screen_name;
+  const handle = screenNameFromNode(inner);
   if (!id || !text || !handle) return null;
 
   const isArticle = hasArticlePayload(inner);
@@ -301,7 +340,11 @@ function tweetResultToCard(result: unknown): ThreadCard | null {
       ? "note_tweet"
       : undefined;
 
-  return {
+  const inReplyToId = inner.legacy?.in_reply_to_status_id_str?.trim();
+  const conversationId = inner.legacy?.conversation_id_str?.trim();
+  const op = extractOpContext(inner);
+
+  const card: ThreadCard = {
     id: String(id),
     author: handle.startsWith("@") ? handle : `@${handle}`,
     text,
@@ -309,6 +352,14 @@ function tweetResultToCard(result: unknown): ThreadCard | null {
     createdAt: inner.legacy?.created_at,
     ...(longform ? { longform } : {}),
   };
+  if (inReplyToId) {
+    card.inReplyToId = inReplyToId;
+    card.isReply = true;
+  }
+  if (conversationId) card.conversationId = conversationId;
+  if (op.opAuthor) card.opAuthor = op.opAuthor;
+  if (op.opText) card.opText = op.opText;
+  return card;
 }
 
 async function healSearchQueryId(session: SessionCreds): Promise<string | null> {

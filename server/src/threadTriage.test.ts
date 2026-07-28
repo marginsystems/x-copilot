@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildTriageCompact,
   isCompleteTriageItem,
   mergeTriage,
   missingTriageIds,
@@ -33,6 +34,30 @@ function completeJson(
 ): string {
   return JSON.stringify({ items });
 }
+
+describe("buildTriageCompact", () => {
+  it("includes OP context when present", () => {
+    const compact = buildTriageCompact([
+      {
+        id: "1",
+        author: "@asker",
+        text: "How do you get traffic?",
+        url: "https://x.com/asker/status/1",
+        isReply: true,
+        opAuthor: "@hustler",
+        opText: "just crossed $632 revenue 100% profit",
+      },
+    ]);
+    assert.deepEqual(compact[0], {
+      id: "1",
+      author: "@asker",
+      text: "How do you get traffic?",
+      isReply: true,
+      opAuthor: "@hustler",
+      opText: "just crossed $632 revenue 100% profit",
+    });
+  });
+});
 
 describe("isCompleteTriageItem", () => {
   it("requires id, summary, and baitScore", () => {

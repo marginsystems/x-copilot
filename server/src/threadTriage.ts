@@ -40,10 +40,12 @@ Every item MUST include id, summary, and baitScore (integer 0-100).
 Fields:
 - summary: ONE sentence on what the post is about and why it was likely posted. Not a paraphrase of the whole text.
 - baitScore: integer 0-100. HIGHER = more engagement bait / less worth replying to.
-- flags: short snake_case tags from: engagement_bait, generic_question, promo, github_plug, low_substance, thread_farm, wall_of_text, giveaway, rage_bait, on_agenda, genuine_question.
+- flags: short snake_case tags from: engagement_bait, generic_question, promo, promo_op, bad_context, github_plug, low_substance, thread_farm, wall_of_text, giveaway, rage_bait, on_agenda, genuine_question.
 - intent: 2-4 words, e.g. "engagement farming", "genuine help request", "product promo".
 - engage: "skip" | "consider" | "priority".
 - reason: one short clause explaining the score.
+
+Score the CONVERSATION, not only the reply text. When opText/opAuthor are present, that is the original/quoted root post.
 
 Bait patterns (score high, 70-100):
 - Generic questions with no personal context posted to farm replies ("What's your favorite AI tool?", "Drop your stack below").
@@ -51,12 +53,13 @@ Bait patterns (score high, 70-100):
 - Posts whose main payload is a GitHub/product link with hollow framing ("I built this, thoughts?" with no detail).
 - Listicle/thread farming, rage bait, engagement pods.
 - Essay / wall-of-text posts and multi-part thread openers — prefer engage "skip" and flag wall_of_text or thread_farm even if under a hard length filter.
+- Promo / revenue-flex OP under an otherwise good reply: product launch flex ("just crossed $X revenue"), hollow SaaS plugs, "100% profit" dashboards, giveaway roots. Prefer engage "skip", baitScore 70-100, flags promo_op and/or bad_context EVEN IF the reply is a genuine on-agenda question.
 
 Prefer punchy, concrete opinions and specific questions over long explanations.
 
-Low bait (0-30): specific technical questions with real context, short concrete build reports, posts that clearly match the agenda.
+Low bait (0-30): specific technical questions with real context, short concrete build reports, posts that clearly match the agenda — and whose OP/quoted root (when provided) is not promo spam.
 
-Agenda awareness: a question is NOT bait just because it is a question. If it is genuine, specific, and on-agenda, score it low and prefer engage "priority" or "consider". Use "skip" when baitScore is high or the post is off-agenda noise.`;
+Agenda awareness: a question is NOT bait just because it is a question. If it is genuine, specific, and on-agenda, score it low and prefer engage "priority" or "consider". Use "skip" when baitScore is high, the post is off-agenda noise, or the OP context is promo/bad_context.`;
 
 function clampScore(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
@@ -206,16 +209,41 @@ export function mergeTriage(
   });
 }
 
+/** Compact posts for the triage prompt (exported for tests). */
+export function buildTriageCompact(threads: ThreadCard[]): Array<{
+  id: string;
+  author: string;
+  text: string;
+  opAuthor?: string;
+  opText?: string;
+  isReply?: boolean;
+}> {
+  return threads.map((t) => {
+    const row: {
+      id: string;
+      author: string;
+      text: string;
+      opAuthor?: string;
+      opText?: string;
+      isReply?: boolean;
+    } = {
+      id: t.id,
+      author: t.author,
+      text: t.text.slice(0, MAX_TEXT_CHARS),
+    };
+    if (t.isReply) row.isReply = true;
+    if (t.opAuthor) row.opAuthor = t.opAuthor;
+    if (t.opText) row.opText = t.opText.slice(0, MAX_TEXT_CHARS);
+    return row;
+  });
+}
+
 function buildUserMessage(agenda: string, threads: ThreadCard[]): string {
-  const compact = threads.map((t) => ({
-    id: t.id,
-    author: t.author,
-    text: t.text.slice(0, MAX_TEXT_CHARS),
-  }));
+  const compact = buildTriageCompact(threads);
   const agendaLine = agenda.trim()
     ? `Agenda: ${JSON.stringify(agenda.trim())}`
     : "Agenda: (none provided — judge bait risk on the post alone)";
-  return `${agendaLine}\n\nPosts:\n${JSON.stringify(compact)}\n\nRespond with JSON only, one item per post. Every item needs id, summary, and baitScore.`;
+  return `${agendaLine}\n\nPosts:\n${JSON.stringify(compact)}\n\nRespond with JSON only, one item per post. Every item needs id, summary, and baitScore. When opText is set, judge the conversation (reply + OP), not the reply alone.`;
 }
 
 function buildWarning(parts: string[]): string | undefined {
