@@ -256,3 +256,28 @@ export async function getCooledAuthorKeys(opts?: {
   const active = await listActiveInteractions(opts);
   return new Set(active.map((i) => i.authorKey).filter(Boolean));
 }
+
+/** Authors from durable history (not pruned with the 24h window). */
+export async function getEverInteractedAuthorKeys(opts?: {
+  storePath?: string;
+}): Promise<Set<string>> {
+  const history = await listInteractionHistory(opts);
+  return new Set(history.map((i) => i.authorKey).filter(Boolean));
+}
+
+/**
+ * Author keys Scout should drop before triage.
+ * Always includes 24h cooldown; when dedupeAccounts is on (default), also
+ * lifetime keys from interaction history.
+ */
+export async function getAuthorKeysForScoutFilter(opts?: {
+  dedupeAccounts?: boolean;
+  nowMs?: number;
+  storePath?: string;
+}): Promise<Set<string>> {
+  const cooled = await getCooledAuthorKeys(opts);
+  if (opts?.dedupeAccounts === false) return cooled;
+  const ever = await getEverInteractedAuthorKeys(opts);
+  if (!ever.size) return cooled;
+  return new Set([...cooled, ...ever]);
+}

@@ -8,6 +8,8 @@ import {
   filterThreadsByCooldown,
   getCooledAuthorKeys,
   isWithinCooldown,
+  getAuthorKeysForScoutFilter,
+  getEverInteractedAuthorKeys,
   listInteractionHistory,
   markInteracted,
   normalizeAuthorKey,
@@ -218,5 +220,43 @@ describe("listInteractionHistory", () => {
       history.map((i) => i.threadId),
       ["b", "a"],
     );
+  });
+});
+
+describe("getAuthorKeysForScoutFilter", () => {
+  let dir: string;
+  let storePath: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "x-copilot-dedupe-"));
+    storePath = join(dir, "interactions.json");
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("keeps lifetime authors when dedupe on after 24h", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    await markInteracted({
+      threadId: "old",
+      author: "@OldAcct",
+      nowMs: now - COOLDOWN_MS - 1000,
+      storePath,
+    });
+    const ever = await getEverInteractedAuthorKeys({ storePath });
+    assert.ok(ever.has("oldacct"));
+    const withDedupe = await getAuthorKeysForScoutFilter({
+      dedupeAccounts: true,
+      nowMs: now,
+      storePath,
+    });
+    assert.ok(withDedupe.has("oldacct"));
+    const without = await getAuthorKeysForScoutFilter({
+      dedupeAccounts: false,
+      nowMs: now,
+      storePath,
+    });
+    assert.equal(without.has("oldacct"), false);
   });
 });

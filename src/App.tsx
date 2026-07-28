@@ -742,6 +742,7 @@ export default function App() {
           filters: {
             maxThreadChars: settings.maxThreadChars,
             dropArticles: settings.dropArticles,
+            dedupeAccounts: settings.dedupeAccounts,
           },
         }),
         signal: ac.signal,
@@ -1045,6 +1046,19 @@ export default function App() {
               }
             />
             <span>Drop X Articles</span>
+          </label>
+          <label className="settings-check">
+            <input
+              type="checkbox"
+              checked={settingsDraft.dedupeAccounts}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({
+                  ...prev,
+                  dedupeAccounts: e.target.checked,
+                }))
+              }
+            />
+            <span>Dedupe accounts I&apos;ve interacted with</span>
           </label>
           <label className="settings-field">
             <span>Cool threads target (1–20)</span>

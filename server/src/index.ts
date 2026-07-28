@@ -6,7 +6,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import {
   filterThreadsByCooldown,
-  getCooledAuthorKeys,
+  getAuthorKeysForScoutFilter,
   listActiveInteractions,
   listInteractionHistory,
   markInteracted,
@@ -37,6 +37,9 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   }
   if (typeof obj.dropArticles === "boolean") {
     filters.dropArticles = obj.dropArticles;
+  }
+  if (typeof obj.dedupeAccounts === "boolean") {
+    filters.dedupeAccounts = obj.dedupeAccounts;
   }
   return Object.keys(filters).length ? filters : undefined;
 }
@@ -271,7 +274,7 @@ const server = http.createServer(async (req, res) => {
       if (!snapshot) {
         return send(res, 200, { ok: true, empty: true });
       }
-      const cooled = await getCooledAuthorKeys();
+      const cooled = await getAuthorKeysForScoutFilter();
       const filtered = filterThreadsByCooldown(snapshot.threads, cooled);
       return send(res, 200, {
         ok: true,
