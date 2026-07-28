@@ -123,9 +123,9 @@ export async function appendScoutLog(
       // Coalesce: refresh timestamp on the existing row.
       last.at = entry.at;
       if (entry.stage) last.stage = entry.stage;
-      memory = { path, entries };
+      memory = { path, entries: entries.slice(-MAX_SCOUT_LOG_ENTRIES) };
       try {
-        await writeDisk(path, entries);
+        await writeDisk(path, memory.entries);
       } catch (err) {
         console.error("scoutLog write failed:", err);
       }
