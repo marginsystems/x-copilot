@@ -37,3 +37,33 @@ export const SCOUT_STAGE_TICK_MS = 2800;
 export function scoutStageMessage(stage: ScoutStageId): string {
   return SCOUT_STAGE_COPY[stage];
 }
+
+/** Gate / busy responses are soft — show the server message, not "Scout failed." */
+export function isScoutGateError(
+  status: number,
+  body: { error?: string; message?: string },
+): boolean {
+  return (
+    status === 429 ||
+    body.error === "scout_cooldown" ||
+    body.error === "scout_busy"
+  );
+}
+
+/**
+ * Concrete status + stage-log line for Scout failures.
+ * Soft (cooldown/busy): server message as-is.
+ * Hard: always "Scout failed: …" with a real detail string.
+ */
+export function formatScoutFailure(
+  detail: string,
+  opts?: { soft?: boolean },
+): string {
+  const d = detail.trim();
+  if (opts?.soft) {
+    return d || "Wait before searching again.";
+  }
+  if (!d) return "Scout failed.";
+  if (/^Scout failed:/i.test(d) || /^Sidecar offline/i.test(d)) return d;
+  return `Scout failed: ${d}`;
+}
