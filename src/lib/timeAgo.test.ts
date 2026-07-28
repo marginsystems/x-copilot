@@ -46,6 +46,17 @@ describe("formatTimeAgo", () => {
   it("returns null when unparseable", () => {
     assert.equal(formatTimeAgo("???"), null);
   });
+
+  it("treats small future skew as just now (stale nowMs)", () => {
+    assert.equal(formatTimeAgo("2026-07-25T15:00:15.000Z", now), "just now");
+    assert.equal(formatTimeAgo("2026-07-25T15:00:59.000Z", now), "just now");
+  });
+
+  it("still uses short date for large future skew", () => {
+    const label = formatTimeAgo("2026-07-25T16:00:00.000Z", now);
+    assert.ok(label);
+    assert.match(label!, /Jul/);
+  });
 });
 
 describe("formatAbsoluteTime", () => {

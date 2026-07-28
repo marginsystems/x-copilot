@@ -33,12 +33,13 @@ export function formatTimeAgo(
   if (!d) return null;
 
   const diffMs = nowMs - d.getTime();
-  if (diffMs < 0) {
-    // Future clock skew — show absolute short date
+  // Stale `nowMs` (UI tick lag) can make brand-new rows look slightly in the future.
+  // Treat small forward skew as "just now" so live Scout logs stay sensible.
+  if (diffMs < -60_000) {
     return formatShortDate(d, nowMs);
   }
 
-  const sec = Math.floor(diffMs / 1000);
+  const sec = Math.floor(Math.max(0, diffMs) / 1000);
   if (sec < 60) return "just now";
   const min = Math.floor(sec / 60);
   if (min < 60) return `${min}m`;

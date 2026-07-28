@@ -296,11 +296,13 @@ export default function App() {
   function pushScoutLine(line: string, stage?: string) {
     const message = line.trim();
     if (!message) return;
+    const atMs = Date.now();
     const entry: ScoutLogEntry = {
-      at: new Date().toISOString(),
+      at: new Date(atMs).toISOString(),
       message,
       ...(stage ? { stage } : {}),
     };
+    setNowMs(atMs);
     setScoutLog((prev) => {
       if (prev[prev.length - 1]?.message === message) return prev;
       return [...prev, entry].slice(-1000);
@@ -486,12 +488,13 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [searchCooldownUntil]);
 
-  // Keep scout-log "time ago" labels fresh when not in search cooldown.
+  // Keep scout-log / cooldown "time ago" labels fresh (1s while live or logged).
   useEffect(() => {
-    if (scoutLog.length === 0) return;
-    const id = window.setInterval(() => setNowMs(Date.now()), 15_000);
+    if (!searching && scoutLog.length === 0) return;
+    setNowMs(Date.now());
+    const id = window.setInterval(() => setNowMs(Date.now()), 1_000);
     return () => window.clearInterval(id);
-  }, [scoutLog.length > 0]);
+  }, [searching, scoutLog.length > 0]);
 
   useEffect(() => {
     return () => clearMenuCloseTimer();
@@ -1092,8 +1095,14 @@ export default function App() {
                 const page = Math.min(scoutLogPage, pageCount - 1);
                 const end = scoutLog.length - page * SCOUT_LOG_PAGE_SIZE;
                 const start = Math.max(0, end - SCOUT_LOG_PAGE_SIZE);
-                // Newest first within the page (append order is oldest→newest in store).
-                const pageEntries = scoutLog.slice(start, end).reverse();
+                // Newest first: sort by timestamp (don't rely only on append order).
+                const pageEntries = scoutLog
+                  .slice(start, end)
+                  .sort(
+                    (a, b) =>
+                      Date.parse(b.at) - Date.parse(a.at) ||
+                      b.message.localeCompare(a.message),
+                  );
                 return (
                   <div className="scout-log-panel">
                     <ul className="scout-log">
@@ -1103,7 +1112,7 @@ export default function App() {
                           const absolute = formatAbsoluteTime(entry.at);
                           return (
                             <li
-                              key={`${entry.at}-${entry.stage ?? ""}-${entry.message}-${end - 1 - i}`}
+                              key={`${entry.at}-${entry.stage ?? ""}-${entry.message}-${i}`}
                             >
                               <span
                                 className="scout-log-ago"
