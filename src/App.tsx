@@ -106,7 +106,7 @@ function parseStatusIdFromUrl(url: string): string | null {
   }
 }
 
-type ThreadsTab = "curated" | "interacted" | "dismissed";
+type ThreadsTab = "curated" | "interacted" | "dismissed" | "expired";
 
 type DismissalHistoryEntry = {
   threadId: string;
@@ -116,6 +116,16 @@ type DismissalHistoryEntry = {
   summary?: string;
   text?: string;
   reason?: string;
+};
+
+type ExpiredHistoryEntry = {
+  threadId: string;
+  author: string;
+  at: string;
+  createdAt?: string;
+  url?: string;
+  summary?: string;
+  text?: string;
 };
 
 const SCOUT_LOG_PAGE_SIZE = 100;
@@ -316,6 +326,40 @@ function DismissedRow({ entry }: { entry: DismissalHistoryEntry }) {
   );
 }
 
+function ExpiredRow({ entry }: { entry: ExpiredHistoryEntry }) {
+  const tweetAgo = formatTimeAgo(entry.createdAt);
+  const expiredAgo = formatTimeAgo(entry.at);
+  const absolute = formatAbsoluteTime(entry.createdAt || entry.at);
+  const blurb = entry.summary || entry.text || entry.threadId;
+  return (
+    <article className="thread-row interacted-row">
+      <div className="row-head static">
+        <span className="bait" aria-hidden="true" />
+        <span className="row-main">
+          <span className="row-summary">{blurb}</span>
+          <span className="row-meta">
+            <span>{entry.author}</span>
+            {tweetAgo ? (
+              <span title={absolute ?? undefined}>{tweetAgo}</span>
+            ) : null}
+            <span className="chip">expired</span>
+            {expiredAgo ? <span>moved {expiredAgo}</span> : null}
+          </span>
+        </span>
+      </div>
+      {entry.url ? (
+        <div className="row-detail compact">
+          <div className="row">
+            <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
+              Open on X
+            </a>
+          </div>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
 function formatStatChip(
   label: string,
   snap: ReplyStatSnapshot | undefined,
@@ -406,6 +450,9 @@ export default function App() {
   const [dismissedHistory, setDismissedHistory] = useState<
     DismissalHistoryEntry[]
   >([]);
+  const [expiredHistory, setExpiredHistory] = useState<ExpiredHistoryEntry[]>(
+    [],
+  );
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const [view, setView] = useState<AppView>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -428,6 +475,7 @@ export default function App() {
   const [dismissReason, setDismissReason] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const dismissedIdsRef = useRef<Set<string>>(new Set());
+  const expiredIdsRef = useRef<Set<string>>(new Set());
   const searchingRef = useRef(0);
   const coolProgressRef = useRef({
     cool: 0,
@@ -596,6 +644,10 @@ export default function App() {
     }
   }
 
+  function isHiddenFromCurated(id: string): boolean {
+    return dismissedIdsRef.current.has(id) || expiredIdsRef.current.has(id);
+  }
+
   async function hydrateDismissed() {
     try {
       const res = await fetch("/api/dismissed");
@@ -619,7 +671,40 @@ export default function App() {
       );
       dismissedIdsRef.current = ids;
       if (ids.size) {
-        setThreads((prev) => prev.filter((t) => !ids.has(t.id)));
+        setThreads((prev) => prev.filter((t) => !isHiddenFromCurated(t.id)));
+      }
+    } catch {
+      // Sidecar may be offline on first paint — ignore.
+    }
+  }
+
+  async function hydrateExpired() {
+    try {
+      const res = await fetch("/api/expired");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        expired?: ExpiredHistoryEntry[];
+        expiredIds?: string[];
+      };
+      const history = (data.expired ?? []).filter(
+        (e) =>
+          e &&
+          typeof e.threadId === "string" &&
+          typeof e.author === "string" &&
+          typeof e.at === "string",
+      );
+      setExpiredHistory(history);
+      const ids = new Set(
+        (Array.isArray(data.expiredIds)
+          ? data.expiredIds
+          : history.map((e) => e.threadId)
+        ).filter(
+          (id): id is string => typeof id === "string" && id.length > 0,
+        ),
+      );
+      expiredIdsRef.current = ids;
+      if (ids.size) {
+        setThreads((prev) => prev.filter((t) => !isHiddenFromCurated(t.id)));
       }
     } catch {
       // Sidecar may be offline on first paint — ignore.
@@ -659,7 +744,7 @@ export default function App() {
       if (typeof data.snapshot.agenda === "string" && data.snapshot.agenda.trim()) {
         setAgenda(data.snapshot.agenda);
       }
-      const filtered = list.filter((t) => !dismissedIdsRef.current.has(t.id));
+      const filtered = list.filter((t) => !isHiddenFromCurated(t.id));
       setThreads(filtered);
       setPlannedQueries(queries);
       setScoutStage(null);
@@ -683,6 +768,7 @@ export default function App() {
     void (async () => {
       await hydrateDismissed();
       await hydrateInteracted();
+      await hydrateExpired();
       await hydrateLastScout();
       await hydrateScoutLog();
     })();
@@ -973,7 +1059,7 @@ export default function App() {
           setThreads((prev) =>
             appendThreadsById(
               prev,
-              (ev.threads ?? []).filter((t) => !dismissedIdsRef.current.has(t.id)),
+              (ev.threads ?? []).filter((t) => !isHiddenFromCurated(t.id)),
             ),
           );
         }
@@ -1015,7 +1101,7 @@ export default function App() {
         setThreads((prev) =>
           appendThreadsById(
             prev,
-            list.filter((t) => !dismissedIdsRef.current.has(t.id)),
+            list.filter((t) => !isHiddenFromCurated(t.id)),
           ),
         );
         setExpandedId(null);
@@ -1560,6 +1646,22 @@ export default function App() {
                     ? ` (${dismissedHistory.length})`
                     : ""}
                 </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={threadsTab === "expired"}
+                  className={
+                    threadsTab === "expired"
+                      ? "threads-tab active"
+                      : "threads-tab"
+                  }
+                  onClick={() => setThreadsTab("expired")}
+                >
+                  Expired
+                  {expiredHistory.length > 0
+                    ? ` (${expiredHistory.length})`
+                    : ""}
+                </button>
               </div>
             </div>
             <div className="threads-scroll">
@@ -1604,15 +1706,28 @@ export default function App() {
                     ))}
                   </div>
                 )
-              ) : dismissedHistory.length === 0 ? (
+              ) : threadsTab === "dismissed" ? (
+                dismissedHistory.length === 0 ? (
+                  <p className="empty">
+                    No dismissed threads yet. Mark a curated lead as not interested
+                    to skip it.
+                  </p>
+                ) : (
+                  <div className="threads">
+                    {dismissedHistory.map((entry) => (
+                      <DismissedRow key={entry.threadId} entry={entry} />
+                    ))}
+                  </div>
+                )
+              ) : expiredHistory.length === 0 ? (
                 <p className="empty">
-                  No dismissed threads yet. Mark a curated lead as not interested
-                  to skip it.
+                  No expired threads yet. Cool leads older than 24h move here
+                  automatically.
                 </p>
               ) : (
                 <div className="threads">
-                  {dismissedHistory.map((entry) => (
-                    <DismissedRow key={entry.threadId} entry={entry} />
+                  {expiredHistory.map((entry) => (
+                    <ExpiredRow key={entry.threadId} entry={entry} />
                   ))}
                 </div>
               )}
