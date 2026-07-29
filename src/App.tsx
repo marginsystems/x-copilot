@@ -110,7 +110,12 @@ function parseStatusIdFromUrl(url: string): string | null {
   }
 }
 
-type ThreadsTab = "curated" | "interacted" | "dismissed" | "expired";
+type ThreadsTab =
+  | "curated"
+  | "interacted"
+  | "skipped"
+  | "dismissed"
+  | "expired";
 
 type DismissalHistoryEntry = {
   threadId: string;
@@ -120,6 +125,15 @@ type DismissalHistoryEntry = {
   summary?: string;
   text?: string;
   reason?: string;
+};
+
+type SkipHistoryEntry = {
+  threadId: string;
+  author: string;
+  at: string;
+  url?: string;
+  summary?: string;
+  text?: string;
 };
 
 type ExpiredHistoryEntry = {
@@ -202,6 +216,7 @@ function ThreadRow({
   interacted,
   onToggle,
   onMark,
+  onSkip,
   onDismiss,
 }: {
   thread: ThreadCard;
@@ -210,6 +225,7 @@ function ThreadRow({
   interacted: boolean;
   onToggle: () => void;
   onMark: () => void;
+  onSkip: () => void;
   onDismiss: () => void;
 }) {
   const bait = baitRisk(thread);
@@ -286,6 +302,13 @@ function ThreadRow({
             <button
               className="ghost"
               disabled={busy || interacted}
+              onClick={onSkip}
+            >
+              Skip
+            </button>
+            <button
+              className="ghost"
+              disabled={busy || interacted}
               onClick={onDismiss}
             >
               Not interested
@@ -293,6 +316,27 @@ function ThreadRow({
           </div>
         </div>
       ) : null}
+    </article>
+  );
+}
+
+function SkippedRow({ entry }: { entry: SkipHistoryEntry }) {
+  const ago = formatTimeAgo(entry.at);
+  const absolute = formatAbsoluteTime(entry.at);
+  const blurb = entry.summary || entry.text || entry.threadId;
+  return (
+    <article className="thread-row interacted-row">
+      <div className="row-head static">
+        <span className="bait" aria-hidden="true" />
+        <span className="row-main">
+          <span className="row-summary">{blurb}</span>
+          <span className="row-meta">
+            <span>{entry.author}</span>
+            {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
+            <span className="chip">skipped</span>
+          </span>
+        </span>
+      </div>
     </article>
   );
 }
@@ -454,6 +498,7 @@ export default function App() {
   const [dismissedHistory, setDismissedHistory] = useState<
     DismissalHistoryEntry[]
   >([]);
+  const [skippedHistory, setSkippedHistory] = useState<SkipHistoryEntry[]>([]);
   const [expiredHistory, setExpiredHistory] = useState<ExpiredHistoryEntry[]>(
     [],
   );
@@ -479,6 +524,7 @@ export default function App() {
   const [dismissReason, setDismissReason] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const dismissedIdsRef = useRef<Set<string>>(new Set());
+  const skippedIdsRef = useRef<Set<string>>(new Set());
   const expiredIdsRef = useRef<Set<string>>(new Set());
   const searchingRef = useRef(0);
   const coolProgressRef = useRef({
@@ -649,7 +695,44 @@ export default function App() {
   }
 
   function isHiddenFromCurated(id: string): boolean {
-    return dismissedIdsRef.current.has(id) || expiredIdsRef.current.has(id);
+    return (
+      dismissedIdsRef.current.has(id) ||
+      skippedIdsRef.current.has(id) ||
+      expiredIdsRef.current.has(id)
+    );
+  }
+
+  async function hydrateSkipped() {
+    try {
+      const res = await fetch("/api/skipped");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        skipped?: SkipHistoryEntry[];
+        skippedIds?: string[];
+      };
+      const history = (data.skipped ?? []).filter(
+        (d) =>
+          d &&
+          typeof d.threadId === "string" &&
+          typeof d.author === "string" &&
+          typeof d.at === "string",
+      );
+      setSkippedHistory(history);
+      const ids = new Set(
+        (Array.isArray(data.skippedIds)
+          ? data.skippedIds
+          : history.map((d) => d.threadId)
+        ).filter(
+          (id): id is string => typeof id === "string" && id.length > 0,
+        ),
+      );
+      skippedIdsRef.current = ids;
+      if (ids.size) {
+        setThreads((prev) => prev.filter((t) => !isHiddenFromCurated(t.id)));
+      }
+    } catch {
+      // Sidecar may be offline on first paint — ignore.
+    }
   }
 
   async function hydrateDismissed() {
@@ -771,6 +854,7 @@ export default function App() {
   useEffect(() => {
     void (async () => {
       await hydrateDismissed();
+      await hydrateSkipped();
       await hydrateInteracted();
       await hydrateExpired();
       await hydrateLastScout();
@@ -1189,6 +1273,51 @@ export default function App() {
   function closeDismissModal() {
     setDismissThread(null);
     setDismissReason("");
+  }
+
+  async function onSkip(thread: ThreadCard) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/skipped", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          threadId: thread.id,
+          author: thread.author,
+          url: thread.url,
+          text: thread.text,
+          summary: thread.summary,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        skip?: SkipHistoryEntry;
+      };
+      if (!res.ok) {
+        setStatus(`Skip fail: ${data.message || res.status}`);
+        return;
+      }
+      const entry: SkipHistoryEntry = data.skip ?? {
+        threadId: thread.id,
+        author: thread.author,
+        at: new Date().toISOString(),
+        url: thread.url,
+        summary: thread.summary,
+        text: thread.text,
+      };
+      skippedIdsRef.current = new Set(skippedIdsRef.current).add(thread.id);
+      setSkippedHistory((prev) => [
+        entry,
+        ...prev.filter((d) => d.threadId !== thread.id),
+      ]);
+      setThreads((prev) => prev.filter((t) => t.id !== thread.id));
+      setExpandedId((id) => (id === thread.id ? null : id));
+      setStatus(`Skipped ${thread.author}`);
+    } catch {
+      setStatus("Sidecar offline — could not skip");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function postDismissed(
@@ -1642,6 +1771,22 @@ export default function App() {
                 <button
                   type="button"
                   role="tab"
+                  aria-selected={threadsTab === "skipped"}
+                  className={
+                    threadsTab === "skipped"
+                      ? "threads-tab active"
+                      : "threads-tab"
+                  }
+                  onClick={() => setThreadsTab("skipped")}
+                >
+                  Skipped
+                  {skippedHistory.length > 0
+                    ? ` (${skippedHistory.length})`
+                    : ""}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
                   aria-selected={threadsTab === "dismissed"}
                   className={
                     threadsTab === "dismissed"
@@ -1694,6 +1839,7 @@ export default function App() {
                           setExpandedId(expandedId === t.id ? null : t.id)
                         }
                         onMark={() => onMark(t)}
+                        onSkip={() => void onSkip(t)}
                         onDismiss={() => openDismissModal(t)}
                       />
                     ))}
@@ -1715,11 +1861,24 @@ export default function App() {
                     ))}
                   </div>
                 )
+              ) : threadsTab === "skipped" ? (
+                skippedHistory.length === 0 ? (
+                  <p className="empty">
+                    No skipped threads yet. Skip a curated lead to pass on it
+                    without dismissing the author.
+                  </p>
+                ) : (
+                  <div className="threads">
+                    {skippedHistory.map((entry) => (
+                      <SkippedRow key={entry.threadId} entry={entry} />
+                    ))}
+                  </div>
+                )
               ) : threadsTab === "dismissed" ? (
                 dismissedHistory.length === 0 ? (
                   <p className="empty">
                     No dismissed threads yet. Mark a curated lead as not interested
-                    to skip it.
+                    to dismiss it with an optional reason.
                   </p>
                 ) : (
                   <div className="threads">
