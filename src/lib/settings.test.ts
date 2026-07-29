@@ -48,7 +48,7 @@ describe("clampTargetCoolThreads", () => {
     assert.equal(clampTargetCoolThreads(0), 1);
     assert.equal(clampTargetCoolThreads(20), 20);
     assert.equal(clampTargetCoolThreads(21), 20);
-    assert.equal(clampTargetCoolThreads(3.5), 8);
+    assert.equal(clampTargetCoolThreads(3.5), 5);
   });
 });
 

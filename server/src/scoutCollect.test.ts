@@ -20,6 +20,13 @@ function card(
   };
 }
 
+function fillBucket(id: { n: number }, n: number): ThreadCard[] {
+  return Array.from({ length: n }, () => {
+    id.n += 1;
+    return card({ id: `t${id.n}` });
+  });
+}
+
 describe("isCoolThread", () => {
   it("accepts priority/consider with bait <= 45", () => {
     assert.equal(
@@ -56,18 +63,19 @@ describe("isCoolThread", () => {
 });
 
 describe("clampTargetCool / clampBucketSize", () => {
-  it("clamps targetCool 1–20", () => {
-    assert.equal(clampTargetCool(undefined), 8);
+  it("clamps targetCool 1–20 with default 5", () => {
+    assert.equal(clampTargetCool(undefined), 5);
     assert.equal(clampTargetCool(4), 4);
     assert.equal(clampTargetCool(20), 20);
     assert.equal(clampTargetCool(21), 20);
   });
 
-  it("allows only bucket sizes 5 or 10", () => {
-    assert.equal(clampBucketSize(undefined), 5);
+  it("allows bucket sizes 5, 10, or 20 (default 20)", () => {
+    assert.equal(clampBucketSize(undefined), 20);
     assert.equal(clampBucketSize(5), 5);
     assert.equal(clampBucketSize(10), 10);
-    assert.equal(clampBucketSize(7), 5);
+    assert.equal(clampBucketSize(20), 20);
+    assert.equal(clampBucketSize(7), 20);
   });
 });
 
@@ -86,6 +94,7 @@ describe("runScoutCollect bucket loop", () => {
     const result = await runScoutCollect({
       queries: ["q1", "q2", "q3"],
       bucketSize: 5,
+      targetCool: 1,
       session,
       deps: {
         sleep: async () => {},
@@ -94,11 +103,12 @@ describe("runScoutCollect bucket loop", () => {
         searchTimeline: async () => {
           searchCalls += 1;
           // 3 survivors per search → need 2 searches to fill K=5
-          const threads = [1, 2, 3].map(() => {
-            id.n += 1;
-            return card({ id: `t${id.n}` });
-          });
-          return { ok: true as const, queryId: "test", threads, bottomCursor: null };
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: fillBucket(id, 3),
+            bottomCursor: null,
+          };
         },
         hydrateReplyParents: async ({ threads }) => threads,
         triageThreads: async ({ threads }) => {
@@ -119,7 +129,7 @@ describe("runScoutCollect bucket loop", () => {
     if (!result.ok) return;
     assert.equal(triageCalls, 1);
     assert.ok(searchCalls >= 2);
-    assert.equal(result.event.stopReason, "qualified");
+    assert.equal(result.event.stopReason, "target");
     assert.equal(result.event.coolCount, 1);
   });
 
@@ -130,18 +140,18 @@ describe("runScoutCollect bucket loop", () => {
     const result = await runScoutCollect({
       queries: ["q1"],
       bucketSize: 5,
+      targetCool: 1,
       session,
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
         saveScoutCache: async () => {},
-        searchTimeline: async () => {
-          const threads = [1, 2, 3, 4, 5].map(() => {
-            id.n += 1;
-            return card({ id: `t${id.n}` });
-          });
-          return { ok: true as const, queryId: "test", threads, bottomCursor: null };
-        },
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: fillBucket(id, 5),
+          bottomCursor: null,
+        }),
         hydrateReplyParents: async ({ threads }) => threads,
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
@@ -168,17 +178,19 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(triageCalls, 2);
-    assert.equal(result.event.stopReason, "qualified");
+    assert.equal(result.event.stopReason, "target");
     assert.equal(result.event.coolCount, 1);
   });
 
-  it("stops after ≥1 cool with no further searches", async () => {
+  it("continues filling until cool target across buckets", async () => {
+    let triageCalls = 0;
     let searchCalls = 0;
     const id = { n: 0 };
 
     const result = await runScoutCollect({
       queries: ["q1", "q2", "q3", "q4"],
       bucketSize: 5,
+      targetCool: 5,
       session,
       deps: {
         sleep: async () => {},
@@ -186,28 +198,84 @@ describe("runScoutCollect bucket loop", () => {
         saveScoutCache: async () => {},
         searchTimeline: async () => {
           searchCalls += 1;
-          const threads = [1, 2, 3, 4, 5].map(() => {
-            id.n += 1;
-            return card({ id: `t${id.n}` });
-          });
-          return { ok: true as const, queryId: "test", threads, bottomCursor: null };
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: fillBucket(id, 5),
+            bottomCursor: null,
+          };
         },
         hydrateReplyParents: async ({ threads }) => threads,
-        triageThreads: async ({ threads }) => ({
-          threads: threads.map((t) => ({
-            ...t,
-            engage: "consider" as const,
-            baitScore: 15,
-          })),
-        }),
+        triageThreads: async ({ threads }) => {
+          triageCalls += 1;
+          const coolN = triageCalls === 1 ? 2 : 3;
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i < coolN ? ("consider" as const) : ("skip" as const),
+              baitScore: i < coolN ? 15 : 90,
+            })),
+          };
+        },
       },
     });
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.event.stopReason, "qualified");
-    assert.ok(result.event.coolCount && result.event.coolCount >= 1);
-    assert.equal(searchCalls, 1, "should not keep searching after qualified bucket");
+    assert.equal(triageCalls, 2);
+    assert.equal(result.event.stopReason, "target");
+    assert.equal(result.event.coolCount, 5);
+    assert.equal(searchCalls, 2, "one search per full bucket of 5");
+  });
+
+  it("keeps partial cools when later searches are exhausted", async () => {
+    let triageCalls = 0;
+    const id = { n: 0 };
+
+    const result = await runScoutCollect({
+      queries: ["q1", "q2", "q3"],
+      bucketSize: 5,
+      targetCool: 5,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => {
+          if (id.n >= 5) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [],
+              bottomCursor: null,
+            };
+          }
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: fillBucket(id, 5),
+            bottomCursor: null,
+          };
+        },
+        hydrateReplyParents: async ({ threads }) => threads,
+        triageThreads: async ({ threads }) => {
+          triageCalls += 1;
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 15 : 90,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(triageCalls, 1);
+    assert.equal(result.event.stopReason, "exhausted");
+    assert.equal(result.event.coolCount, 1);
   });
 
   it("aborted flag short-circuits between steps", async () => {
@@ -217,6 +285,7 @@ describe("runScoutCollect bucket loop", () => {
     const result = await runScoutCollect({
       queries: ["q1", "q2", "q3"],
       bucketSize: 5,
+      targetCool: 5,
       session,
       signal: abort.signal,
       deps: {
@@ -257,19 +326,19 @@ describe("runScoutCollect bucket loop", () => {
     await runScoutCollect({
       queries: ["q1"],
       bucketSize: 5,
+      targetCool: 1,
       session,
       onEvent: (e) => events.push(e),
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
         saveScoutCache: async () => {},
-        searchTimeline: async () => {
-          const threads = [1, 2, 3, 4, 5].map(() => {
-            id.n += 1;
-            return card({ id: `t${id.n}` });
-          });
-          return { ok: true as const, queryId: "test", threads, bottomCursor: null };
-        },
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: fillBucket(id, 5),
+          bottomCursor: null,
+        }),
         hydrateReplyParents: async ({ threads }) => threads,
         triageThreads: async ({ threads }) => ({
           threads: threads.map((t) => ({
@@ -283,6 +352,7 @@ describe("runScoutCollect bucket loop", () => {
 
     assert.ok(events.some((e) => /Cand\. \d+\/5/.test(e.message)));
     assert.ok(events.some((e) => e.stage === "triaging"));
+    assert.ok(events.some((e) => /Cool \d+\/1/.test(e.message)));
   });
 
   it("skips bare Cand. progress when a search adds zero", async () => {
@@ -292,6 +362,7 @@ describe("runScoutCollect bucket loop", () => {
     await runScoutCollect({
       queries: ["empty1", "empty2", "fill"],
       bucketSize: 5,
+      targetCool: 1,
       session,
       onEvent: (e) => events.push(e),
       deps: {
@@ -336,28 +407,41 @@ describe("runScoutCollect bucket loop", () => {
   it("hydrates reply parents before triage", async () => {
     let hydrateCalls = 0;
     let sawOp = false;
+    const id = { n: 0 };
 
     const result = await runScoutCollect({
       queries: ["q1"],
       bucketSize: 5,
+      targetCool: 1,
       session,
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
         saveScoutCache: async () => {},
-        searchTimeline: async () => ({
-          ok: true as const,
-          queryId: "test",
-          threads: [1, 2, 3, 4, 5].map((n) =>
-            card({
-              id: `r${n}`,
-              inReplyToId: `op${n}`,
-              isReply: true,
-              text: "How do you pick products?",
+        searchTimeline: async () => {
+          if (id.n >= 5) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [],
+              bottomCursor: null,
+            };
+          }
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: [1, 2, 3, 4, 5].map((n) => {
+              id.n += 1;
+              return card({
+                id: `r${n}`,
+                inReplyToId: `op${n}`,
+                isReply: true,
+                text: "How do you pick products?",
+              });
             }),
-          ),
-          bottomCursor: null,
-        }),
+            bottomCursor: null,
+          };
+        },
         hydrateReplyParents: async ({ threads }) => {
           hydrateCalls += 1;
           return threads.map((t) => ({
@@ -395,6 +479,7 @@ describe("runScoutCollect bucket loop", () => {
       const result = await runScoutCollect({
         queries: ["q1"],
         bucketSize: 5,
+        targetCool: 1,
         session,
         deps: {
           sleep: async () => {},
@@ -429,7 +514,7 @@ describe("runScoutCollect bucket loop", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       assert.equal(triageCalls, 1);
-      assert.equal(result.event.stopReason, "qualified");
+      assert.equal(result.event.stopReason, "target");
     } finally {
       globalThis.fetch = origFetch;
     }
