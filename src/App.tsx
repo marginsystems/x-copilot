@@ -1927,7 +1927,7 @@ export default function App() {
             <label className="settings-field">
               <span>Reply URL on X</span>
               <input
-                className="mark-reply"
+                className="mark-reply-url"
                 type="url"
                 value={markReplyUrl}
                 onChange={(e) => setMarkReplyUrl(e.target.value)}
@@ -1938,7 +1938,7 @@ export default function App() {
             <label className="settings-field">
               <span>Reply text (optional, for memory)</span>
               <textarea
-                className="mark-reply"
+                className="mark-reply-text"
                 value={markReply}
                 onChange={(e) => setMarkReply(e.target.value)}
                 placeholder="What you actually typed / posted…"
@@ -1990,7 +1990,7 @@ export default function App() {
             <label className="settings-field">
               <span>Reason (optional)</span>
               <textarea
-                className="mark-reply"
+                className="mark-reply-text"
                 value={dismissReason}
                 onChange={(e) => setDismissReason(e.target.value)}
                 placeholder="Why skip this lead…"
