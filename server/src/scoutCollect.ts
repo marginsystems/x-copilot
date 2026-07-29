@@ -6,6 +6,7 @@ import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
   getCooledAuthorKeys,
+  normalizeAuthorKey,
 } from "./interactionStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {
@@ -280,6 +281,9 @@ export async function runScoutCollect(opts: {
 
   const cool: ThreadCard[] = [];
   const seenIds = new Set<string>();
+  /** Per-run author dedupe (first kept wins across bucket refills). */
+  const seenAuthors = new Set<string>();
+  const coolAuthors = new Set<string>();
   let bucket: ThreadCard[] = [];
   const searchErrors: Array<{ query: string; message: string }> = [];
   let triageWarning: string | undefined;
@@ -418,8 +422,15 @@ export async function runScoutCollect(opts: {
         });
 
         const beforeFill = bucket.length;
+        let authorDedupeSkipped = 0;
         for (const t of afterLen.threads) {
           if (bucket.length >= bucketSize) break;
+          const key = normalizeAuthorKey(t.author);
+          if (!key || seenAuthors.has(key)) {
+            if (key) authorDedupeSkipped += 1;
+            continue;
+          }
+          seenAuthors.add(key);
           bucket.push(t);
         }
         const added = bucket.length - beforeFill;
@@ -439,6 +450,7 @@ export async function runScoutCollect(opts: {
                 afterSelfReply: afterSelf.threads.length,
                 selfReplyFiltered: afterSelf.selfReplyFilteredCount,
                 afterLength: afterLen.threads.length,
+                authorDedupeSkipped,
                 added,
               },
             },
@@ -502,8 +514,11 @@ export async function runScoutCollect(opts: {
 
       for (const t of newlyCool) {
         if (cool.length >= targetCool) break;
+        const key = normalizeAuthorKey(t.author);
+        if (!key || coolAuthors.has(key)) continue;
         cool.push(t);
         coolIds.add(t.id);
+        coolAuthors.add(key);
       }
       track("partial", `Cool ${cool.length}/${targetCool}`, {
         threads: newlyCool,
