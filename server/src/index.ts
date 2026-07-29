@@ -435,9 +435,10 @@ const server = http.createServer(async (req, res) => {
           text,
           summary,
         });
+        const { authorKey: _authorKey, ...skipRest } = skip;
         return send(res, 200, {
           ok: true,
-          skip,
+          skip: skipRest,
         });
       } catch (err) {
         console.error("Failed to store skip:", err);
