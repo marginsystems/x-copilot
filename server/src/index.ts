@@ -24,6 +24,11 @@ import {
   listExpiredHistory,
 } from "./expiredStore.js";
 import {
+  getSkippedThreadIds,
+  listSkipHistory,
+  markSkipped,
+} from "./skipStore.js";
+import {
   normalizeReply,
   writeDismissalMemory,
   writeInteractionMemory,
@@ -296,12 +301,16 @@ const server = http.createServer(async (req, res) => {
         dedupeParam !== null ? { dedupeAccounts: dedupeParam !== "false" } : undefined,
       );
       const filtered = filterThreadsByCooldown(snapshot.threads, cooled);
-      const [expiredIds, dismissedIds] = await Promise.all([
+      const [expiredIds, dismissedIds, skippedIds] = await Promise.all([
         getExpiredThreadIds(),
         getDismissedThreadIds(),
+        getSkippedThreadIds(),
       ]);
       const threads = filtered.threads.filter(
-        (t) => !expiredIds.has(t.id) && !dismissedIds.has(t.id),
+        (t) =>
+          !expiredIds.has(t.id) &&
+          !dismissedIds.has(t.id) &&
+          !skippedIds.has(t.id),
       );
       return send(res, 200, {
         ok: true,
@@ -384,6 +393,60 @@ const server = http.createServer(async (req, res) => {
         dismissals: dismissals.map(({ authorKey, ...rest }) => rest),
         dismissedIds: dismissals.map((d) => d.threadId),
       });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/skipped") {
+      const skipped = await listSkipHistory();
+      return send(res, 200, {
+        skipped: skipped.map(({ authorKey, ...rest }) => rest),
+        skippedIds: skipped.map((d) => d.threadId),
+      });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/skipped") {
+      let body: Record<string, unknown>;
+      try {
+        body = (await readBody(req)) as Record<string, unknown>;
+      } catch (err) {
+        const statusCode = err instanceof BodyError ? err.statusCode : 400;
+        return send(res, statusCode, {
+          error: "bad_request",
+          message: err instanceof Error ? err.message : "Invalid request body",
+        });
+      }
+      const threadId =
+        typeof body.threadId === "string" ? body.threadId.trim() : "";
+      const author = typeof body.author === "string" ? body.author.trim() : "";
+      if (!threadId || !author || !normalizeAuthorKey(author)) {
+        return send(res, 400, {
+          error: "bad_request",
+          message: "Pass { threadId: string, author: string }.",
+        });
+      }
+      try {
+        const urlField = typeof body.url === "string" ? body.url : undefined;
+        const text = typeof body.text === "string" ? body.text : undefined;
+        const summary =
+          typeof body.summary === "string" ? body.summary : undefined;
+        const skip = await markSkipped({
+          threadId,
+          author,
+          url: urlField,
+          text,
+          summary,
+        });
+        const { authorKey: _authorKey, ...skipRest } = skip;
+        return send(res, 200, {
+          ok: true,
+          skip: skipRest,
+        });
+      } catch (err) {
+        console.error("Failed to store skip:", err);
+        return send(res, 500, {
+          error: "store_failed",
+          message: "Failed to store skip",
+        });
+      }
     }
 
     if (req.method === "POST" && url.pathname === "/api/dismissed") {
