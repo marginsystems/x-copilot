@@ -646,13 +646,17 @@ button:disabled {
 
 .scout-strip-head {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px 12px;
   align-items: baseline;
+  height: 1.35em;
   min-height: 1.35em;
+  max-height: 1.35em;
+  overflow: hidden;
 }
 
 .scout-label {
+  flex: 0 0 auto;
   font-family: var(--font-head);
   font-size: 0.68rem;
   font-weight: 700;
@@ -662,6 +666,7 @@ button:disabled {
 }
 
 .scout-stage {
+  flex: 1 1 auto;
   color: var(--text);
   font-size: 0.8rem;
   min-width: 0;
@@ -726,11 +731,12 @@ button:disabled {
 .scout-log li {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 2.6rem minmax(0, 1fr);
-  gap: 6px;
-  align-items: start;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
   line-height: 1.35;
   min-height: 1.35em;
+  max-height: 1.35em;
   overflow: hidden;
 }
 
@@ -738,16 +744,15 @@ button:disabled {
   color: var(--border-strong);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .scout-log-msg {
+  min-width: 0;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .scout-log-empty {

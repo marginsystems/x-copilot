@@ -1556,7 +1556,7 @@ export default function App() {
                               >
                                 {ago ?? "—"}
                               </span>
-                              <span className="scout-log-msg">{entry.message}</span>
+                              <span className="scout-log-msg" title={entry.message}>{entry.message}</span>
                             </li>
                           );
                         })
