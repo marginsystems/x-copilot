@@ -768,9 +768,8 @@ export default function App() {
     void (async () => {
       await hydrateDismissed();
       await hydrateInteracted();
-      // scout/last runs lazy expire; hydrate expired after so the tab fills.
-      await hydrateLastScout();
       await hydrateExpired();
+      await hydrateLastScout();
       await hydrateScoutLog();
     })();
   }, []);
