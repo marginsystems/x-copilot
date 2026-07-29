@@ -15,6 +15,7 @@ import {
 import { saveScoutCache } from "./scoutCache.js";
 import type { ScoutFilters } from "./scoutRun.js";
 import {
+  filterSelfReplies,
   filterThreadsByLength,
   resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
@@ -411,7 +412,8 @@ export async function runScoutCollect(opts: {
           return true;
         });
         const afterCool = filterThreadsByCooldown(fresh, cooled);
-        const afterLen = filterThreadsByLength(afterCool.threads, maxChars, {
+        const afterSelf = filterSelfReplies(afterCool.threads);
+        const afterLen = filterThreadsByLength(afterSelf.threads, maxChars, {
           dropArticles,
         });
 
@@ -434,6 +436,8 @@ export async function runScoutCollect(opts: {
               detail: {
                 raw: result.threads.length,
                 afterCooldown: afterCool.threads.length,
+                afterSelfReply: afterSelf.threads.length,
+                selfReplyFiltered: afterSelf.selfReplyFilteredCount,
                 afterLength: afterLen.threads.length,
                 added,
               },

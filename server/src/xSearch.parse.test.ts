@@ -314,6 +314,7 @@ describe("parseSearchTimelineResponse", () => {
     assert.ok(reply);
     assert.equal(reply.isReply, true);
     assert.equal(reply.inReplyToId, "800");
+    assert.equal(reply.inReplyToScreenName, "@promo");
     assert.equal(reply.conversationId, "800");
     assert.equal(reply.opText, undefined);
 

@@ -21,6 +21,8 @@ export type ThreadCard = {
   longform?: "note_tweet" | "article";
   /** Reply / conversation context for triage (OP scoring). */
   inReplyToId?: string;
+  /** Screen name of the tweet being replied to (SearchTimeline legacy). */
+  inReplyToScreenName?: string;
   conversationId?: string;
   isReply?: boolean;
   /** Parent or quoted root author/text when available. */
@@ -342,6 +344,8 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
       : undefined;
 
   const inReplyToId = inner.legacy?.in_reply_to_status_id_str?.trim();
+  const inReplyToScreenName =
+    inner.legacy?.in_reply_to_screen_name?.trim() || undefined;
   const conversationId = inner.legacy?.conversation_id_str?.trim();
   const op = extractOpContext(inner);
 
@@ -356,6 +360,11 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
   if (inReplyToId) {
     card.inReplyToId = inReplyToId;
     card.isReply = true;
+  }
+  if (inReplyToScreenName) {
+    card.inReplyToScreenName = inReplyToScreenName.startsWith("@")
+      ? inReplyToScreenName
+      : `@${inReplyToScreenName}`;
   }
   if (conversationId) card.conversationId = conversationId;
   if (op.opAuthor) card.opAuthor = op.opAuthor;

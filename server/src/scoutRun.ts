@@ -9,6 +9,7 @@ import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
 import {
+  filterSelfReplies,
   filterThreadsByLength,
   resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
@@ -28,6 +29,7 @@ export type ScoutPipelineCounts = {
   raw: number;
   afterDedupe: number;
   afterCooldown: number;
+  afterSelfReply: number;
   afterLength: number;
   afterTriage: number;
 };
@@ -44,6 +46,7 @@ export type ScoutEvent = ScoutStageEvent & {
   cooldownFiltered?: number;
   cooldownAuthors?: string[];
   cooldownWarning?: string;
+  selfReplyFiltered?: number;
   lengthFiltered?: number;
   lengthWarning?: string;
   pipelineCounts?: ScoutPipelineCounts;
@@ -52,7 +55,7 @@ export type ScoutEvent = ScoutStageEvent & {
 
 /** Compact funnel for status: `48 → 36 → 34 → 18 → 12`. */
 export function formatPipelineFunnel(counts: ScoutPipelineCounts): string {
-  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterLength} → ${counts.afterTriage}`;
+  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterSelfReply} → ${counts.afterLength} → ${counts.afterTriage}`;
 }
 
 export type ScoutRunResult =
@@ -164,12 +167,13 @@ export async function runScoutSearch(opts: {
     dedupeAccounts: opts.filters?.dedupeAccounts,
   });
   const filtered = filterThreadsByCooldown(result.threads, cooled);
+  const afterSelf = filterSelfReplies(filtered.threads);
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
-  const byLength = filterThreadsByLength(filtered.threads, maxChars, {
+  const byLength = filterThreadsByLength(afterSelf.threads, maxChars, {
     dropArticles,
   });
 
@@ -185,6 +189,7 @@ export async function runScoutSearch(opts: {
     raw: result.rawCount,
     afterDedupe: result.threads.length,
     afterCooldown: filtered.threads.length,
+    afterSelfReply: afterSelf.threads.length,
     afterLength: byLength.threads.length,
     afterTriage: triaged.threads.length,
   };
@@ -216,6 +221,7 @@ export async function runScoutSearch(opts: {
     cooldownFiltered: filtered.filteredCount,
     cooldownAuthors: filtered.filteredAuthors,
     cooldownWarning,
+    selfReplyFiltered: afterSelf.selfReplyFilteredCount,
     lengthFiltered: byLength.filteredCount,
     lengthWarning,
     pipelineCounts,
