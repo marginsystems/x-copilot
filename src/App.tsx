@@ -1006,6 +1006,7 @@ export default function App() {
         body: JSON.stringify({
           agenda,
           targetCool,
+          bucketSize: 20,
           filters: {
             maxThreadChars: settings.maxThreadChars,
             dropArticles: settings.dropArticles,

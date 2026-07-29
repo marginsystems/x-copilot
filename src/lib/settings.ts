@@ -6,7 +6,7 @@ export const DEFAULT_MAX_THREAD_CHARS = 480;
 export const MIN_MAX_THREAD_CHARS = 120;
 export const MAX_MAX_THREAD_CHARS = 2000;
 
-export const DEFAULT_TARGET_COOL_THREADS = 8;
+export const DEFAULT_TARGET_COOL_THREADS = 5;
 export const MIN_TARGET_COOL_THREADS = 1;
 export const MAX_TARGET_COOL_THREADS = 20;
 

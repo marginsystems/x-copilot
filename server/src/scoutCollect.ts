@@ -1,6 +1,6 @@
 /**
  * Streaming Scout collector — fill a hard-filtered bucket, then LLM-qualify.
- * Discard/refill on zero cool; stop when a bucket yields ≥1 cool lead.
+ * Discard/refill on zero cool; keep cools and refill until cool target or exhausted.
  */
 import {
   filterThreadsByCooldown,
@@ -58,12 +58,12 @@ export type ScoutCollectEvent = {
   opencodeTurns?: ReturnType<typeof toOpenCodeTurns>;
 };
 
-export const DEFAULT_TARGET_COOL = 8;
-export const DEFAULT_BUCKET_SIZE = 5;
+export const DEFAULT_TARGET_COOL = 5;
+export const DEFAULT_BUCKET_SIZE = 20;
 export const COLLECT_COUNT_PER_QUERY = 20;
 export const COLLECT_QUERY_DELAY_MS = 500;
-export const MAX_SEARCH_CALLS = 24;
-export const MAX_BUCKET_ATTEMPTS = 6;
+export const MAX_SEARCH_CALLS = 48;
+export const MAX_BUCKET_ATTEMPTS = 8;
 /** Cool = engageable + bait not high. */
 export const COOL_MAX_BAIT = 45;
 
@@ -75,8 +75,9 @@ export function clampTargetCool(value: unknown): number {
   return value;
 }
 
-/** Bucket size is only 5 or 10 (default 5). */
+/** Bucket size is 5, 10, or 20 (default 20). */
 export function clampBucketSize(value: unknown): number {
+  if (value === 20 || value === "20") return 20;
   if (value === 10 || value === "10") return 10;
   if (value === 5 || value === "5") return 5;
   return DEFAULT_BUCKET_SIZE;
@@ -302,10 +303,12 @@ export async function runScoutCollect(opts: {
     return queries.length > 0;
   }
 
+  const coolIds = new Set<string>();
+
   try {
     while (
       !aborted() &&
-      cool.length === 0 &&
+      cool.length < targetCool &&
       bucketAttempts < MAX_BUCKET_ATTEMPTS
     ) {
       // Fill hard-filter bucket (no LLM).
@@ -419,15 +422,15 @@ export async function runScoutCollect(opts: {
       }
 
       bucketAttempts += 1;
-      track(
-        "triaging",
-        `Scout is scoring bucket of ${bucket.length} candidates…`,
-        {
-          candidates: bucket.length,
-          coolCount: 0,
-          detail: { bucketAttempt: bucketAttempts },
-        },
-      );
+        track(
+          "triaging",
+          `Scout is scoring bucket of ${bucket.length} candidates…`,
+          {
+            candidates: bucket.length,
+            coolCount: cool.length,
+            detail: { bucketAttempt: bucketAttempts },
+          },
+        );
 
       // Attach OP text for replies before LLM triage (promo-root skip).
       const forTriage = await doHydrate({
@@ -443,14 +446,16 @@ export async function runScoutCollect(opts: {
       const triaged = await doTriage({ agenda, threads: forTriage });
       if (triaged.warning) triageWarning = triaged.warning;
 
-      const newlyCool = triaged.threads.filter(isCoolThread);
+      const newlyCool = triaged.threads.filter(
+        (t) => isCoolThread(t) && t.id && !coolIds.has(t.id),
+      );
       if (newlyCool.length === 0) {
         track(
           "filtering",
           "0 cool — discarding bucket and refilling…",
           {
             candidates: 0,
-            coolCount: 0,
+            coolCount: cool.length,
             detail: { bucketAttempt: bucketAttempts },
           },
         );
@@ -458,18 +463,27 @@ export async function runScoutCollect(opts: {
         continue;
       }
 
-      cool.push(...newlyCool);
-      stopReason = "qualified";
-      track("partial", `Cool ${cool.length} (≥1 from bucket)`, {
+      for (const t of newlyCool) {
+        if (cool.length >= targetCool) break;
+        cool.push(t);
+        coolIds.add(t.id);
+      }
+      track("partial", `Cool ${cool.length}/${targetCool}`, {
         threads: newlyCool,
         coolCount: cool.length,
         candidates: bucketSize,
+        targetCool,
       });
-      break;
+
+      if (cool.length >= targetCool) {
+        stopReason = "target";
+        break;
+      }
+      bucket = [];
     }
 
     if (aborted()) stopReason = "aborted";
-    else if (cool.length >= 1) stopReason = "qualified";
+    else if (cool.length >= targetCool) stopReason = "target";
     else stopReason = "exhausted";
   } catch (err) {
     if (isAbortError(err)) {
@@ -487,11 +501,11 @@ export async function runScoutCollect(opts: {
   }
 
   const stopMessage =
-    stopReason === "qualified"
-      ? `Scout found ${cool.length} cool thread${cool.length === 1 ? "" : "s"} from a qualified bucket.`
+    stopReason === "target"
+      ? `Scout found ${cool.length} cool thread${cool.length === 1 ? "" : "s"}.`
       : stopReason === "aborted"
-        ? `Scout stopped — ${cool.length} cool threads.`
-        : `Scout finished — ${cool.length} cool threads (supply exhausted).`;
+        ? `Scout stopped — ${cool.length} cool thread${cool.length === 1 ? "" : "s"}.`
+        : `Scout finished — ${cool.length} cool thread${cool.length === 1 ? "" : "s"} (supply exhausted).`;
 
   const done = track("done", stopMessage, {
     threads: cool,
