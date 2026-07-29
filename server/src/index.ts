@@ -14,9 +14,15 @@ import {
   normalizeAuthorKey,
 } from "./interactionStore.js";
 import {
+  getDismissedThreadIds,
   listDismissalHistory,
   markDismissed,
 } from "./dismissalStore.js";
+import { runExpirePass } from "./expirePass.js";
+import {
+  getExpiredThreadIds,
+  listExpiredHistory,
+} from "./expiredStore.js";
 import {
   normalizeReply,
   writeDismissalMemory,
@@ -276,6 +282,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/api/scout/last") {
+      try {
+        await runExpirePass();
+      } catch (err) {
+        console.error("lazy expire on scout/last failed:", err);
+      }
       const snapshot = await getLastScout();
       if (!snapshot) {
         return send(res, 200, { ok: true, empty: true });
@@ -285,6 +296,13 @@ const server = http.createServer(async (req, res) => {
         dedupeParam !== null ? { dedupeAccounts: dedupeParam !== "false" } : undefined,
       );
       const filtered = filterThreadsByCooldown(snapshot.threads, cooled);
+      const [expiredIds, dismissedIds] = await Promise.all([
+        getExpiredThreadIds(),
+        getDismissedThreadIds(),
+      ]);
+      const threads = filtered.threads.filter(
+        (t) => !expiredIds.has(t.id) && !dismissedIds.has(t.id),
+      );
       return send(res, 200, {
         ok: true,
         empty: false,
@@ -292,10 +310,18 @@ const server = http.createServer(async (req, res) => {
           savedAt: snapshot.savedAt,
           agenda: snapshot.agenda,
           queries: snapshot.queries,
-          threads: filtered.threads,
+          threads,
           message: snapshot.message,
           pipelineCounts: snapshot.pipelineCounts,
         },
+      });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/expired") {
+      const expired = await listExpiredHistory();
+      return send(res, 200, {
+        expired,
+        expiredIds: expired.map((e) => e.threadId),
       });
     }
 

@@ -179,6 +179,40 @@ export async function saveScoutCache(
   });
 }
 
+/**
+ * Remove threads by id from the last-scout snapshot (in-memory + disk).
+ * Soft-no-op when cache empty.
+ */
+export async function pruneThreadsFromScoutCache(
+  threadIds: Iterable<string>,
+  opts?: { storePath?: string },
+): Promise<LastScoutSnapshot | null> {
+  const remove = new Set(
+    [...threadIds].map((id) => id.trim()).filter(Boolean),
+  );
+  if (!remove.size) {
+    return getLastScout(opts);
+  }
+  const path = opts?.storePath ?? defaultScoutCachePath();
+  return serialized(async () => {
+    const prev = memory ?? (await readDisk(path));
+    if (!prev) return null;
+    const threads = prev.threads.filter((t) => !remove.has(t.id));
+    if (threads.length === prev.threads.length) {
+      memory = prev;
+      return prev;
+    }
+    const next: LastScoutSnapshot = { ...prev, threads };
+    memory = next;
+    try {
+      await writeDisk(path, next);
+    } catch (err) {
+      console.error("scoutCache prune failed:", err);
+    }
+    return next;
+  });
+}
+
 /** Test helper — clear in-memory cache. */
 export function clearScoutCacheMemory(): void {
   memory = null;

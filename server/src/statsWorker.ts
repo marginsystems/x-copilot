@@ -2,6 +2,7 @@
  * PM2 worker — hourly due-queue for 1h / 24h reply engagement snapshots.
  */
 import { resolve } from "node:path";
+import { runExpirePass } from "./expirePass.js";
 import {
   DEFAULT_STATS_TICK_CAP,
   listDueStatSamples,
@@ -99,6 +100,12 @@ async function main(): Promise<void> {
       );
     } catch (err) {
       console.error("[stats-worker] tick failed:", err);
+    }
+    try {
+      const expired = await runExpirePass();
+      console.log(`[stats-worker] expire expired=${expired.expired}`);
+    } catch (err) {
+      console.error("[stats-worker] expire failed:", err);
     }
   };
 
