@@ -4,7 +4,7 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { normalizeAuthorKey } from "./interactionStore.js";
+import { normalizeAuthorKey, withFileLock } from "./interactionStore.js";
 import type { ThreadCard } from "./xSearch.js";
 
 export type ExpiredThread = {
@@ -124,22 +124,6 @@ async function writeStore(path: string, store: StoreFile): Promise<void> {
   await writeFile(path, `${JSON.stringify(store, null, 2)}\n`, "utf8");
 }
 
-let writeLock: Promise<void> = Promise.resolve();
-
-async function serialized<T>(fn: () => Promise<T>): Promise<T> {
-  const prev = writeLock;
-  let release: () => void;
-  writeLock = new Promise<void>((resolveLock) => {
-    release = resolveLock;
-  });
-  await prev;
-  try {
-    return await fn();
-  } finally {
-    release!();
-  }
-}
-
 export function trimExpiredHistory(
   expired: ExpiredThread[],
   max: number = MAX_EXPIRED_HISTORY,
@@ -182,7 +166,7 @@ export async function markExpired(opts: {
   if (summary) next.summary = summary;
   if (text) next.text = text;
 
-  return serialized(async () => {
+  return withFileLock(path, async () => {
     const store = await readStore(path);
     const without = store.expired.filter((d) => d.threadId !== threadId);
     without.push(next);

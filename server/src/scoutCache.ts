@@ -203,9 +203,9 @@ export async function pruneThreadsFromScoutCache(
       return prev;
     }
     const next: LastScoutSnapshot = { ...prev, threads };
-    memory = next;
     try {
       await writeDisk(path, next);
+      memory = next;
     } catch (err) {
       console.error("scoutCache prune failed:", err);
     }
