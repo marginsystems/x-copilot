@@ -212,7 +212,7 @@ async function writeStore(path: string, store: StoreFile): Promise<void> {
   await writeFile(path, `${JSON.stringify(store, null, 2)}\n`, "utf8");
 }
 
-async function withFileLock<T>(
+export async function withFileLock<T>(
   filePath: string,
   fn: () => Promise<T>,
 ): Promise<T> {
