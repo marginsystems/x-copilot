@@ -58,7 +58,7 @@ export async function detectOwnReplyToThread(opts: {
 }): Promise<DetectReplyResult> {
   const threadId = opts.threadId.trim();
   const screenName = normalizeScreenName(opts.screenName);
-  if (!threadId || !screenName || screenName.toLowerCase() === "unknown") {
+  if (!threadId || !screenName) {
     return { ok: true, reply: null, reason: "search_failed" };
   }
 

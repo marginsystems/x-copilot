@@ -104,10 +104,10 @@ describe("detectOwnReplyToThread", () => {
     });
   });
 
-  it("returns search_failed for unknown screen name", async () => {
+  it("returns search_failed for empty screen name", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "parent1",
-      screenName: "unknown",
+      screenName: "",
       searchTimelinePages: async () => {
         throw new Error("should not search");
       },

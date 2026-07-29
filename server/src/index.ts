@@ -543,6 +543,12 @@ const server = http.createServer(async (req, res) => {
           message: session.message || "Session unavailable",
         });
       }
+      if (session.user.screen_name === "unknown") {
+        return send(res, 503, {
+          error: "identity_unresolved",
+          message: "Session identity could not be resolved",
+        });
+      }
       const detected = await detectOwnReplyToThread({
         threadId,
         screenName: session.user.screen_name,

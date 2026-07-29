@@ -949,8 +949,11 @@ export default function App() {
           message?: string;
         };
         if (markDetectGenRef.current !== gen) return;
-        if (
-          res.ok &&
+        if (!res.ok) {
+          setMarkDetectNote(
+            "Detection unavailable — server error. Paste the URL manually.",
+          );
+        } else if (
           data.found &&
           typeof data.reply?.replyUrl === "string" &&
           parseStatusIdFromUrl(data.reply.replyUrl)
