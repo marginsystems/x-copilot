@@ -411,6 +411,10 @@ const server = http.createServer(async (req, res) => {
         const text = typeof body.text === "string" ? body.text : undefined;
         const summary =
           typeof body.summary === "string" ? body.summary : undefined;
+        const opAuthor =
+          typeof body.opAuthor === "string" ? body.opAuthor : undefined;
+        const opText =
+          typeof body.opText === "string" ? body.opText : undefined;
         const reason =
           typeof body.reason === "string" ? body.reason : undefined;
         const nowMs = Date.now();
@@ -421,6 +425,8 @@ const server = http.createServer(async (req, res) => {
           url: urlField,
           text,
           summary,
+          opAuthor,
+          opText,
           reason,
           dismissedAt,
         });
@@ -486,6 +492,10 @@ const server = http.createServer(async (req, res) => {
         const text = typeof body.text === "string" ? body.text : undefined;
         const summary =
           typeof body.summary === "string" ? body.summary : undefined;
+        const opAuthor =
+          typeof body.opAuthor === "string" ? body.opAuthor : undefined;
+        const opText =
+          typeof body.opText === "string" ? body.opText : undefined;
         const interaction = await markInteracted({
           threadId,
           author,
@@ -506,6 +516,8 @@ const server = http.createServer(async (req, res) => {
             url,
             text,
             summary,
+            opAuthor,
+            opText,
             agenda: typeof body.agenda === "string" ? body.agenda : undefined,
             baitScore,
             engage: typeof body.engage === "string" ? body.engage : undefined,
