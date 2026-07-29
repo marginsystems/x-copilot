@@ -520,9 +520,12 @@ export default function App() {
   const [markThread, setMarkThread] = useState<ThreadCard | null>(null);
   const [markReplyUrl, setMarkReplyUrl] = useState("");
   const [markReply, setMarkReply] = useState("");
+  const [markDetecting, setMarkDetecting] = useState(false);
+  const [markDetectNote, setMarkDetectNote] = useState("");
   const [dismissThread, setDismissThread] = useState<ThreadCard | null>(null);
   const [dismissReason, setDismissReason] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const markDetectGenRef = useRef(0);
   const dismissedIdsRef = useRef<Set<string>>(new Set());
   const skippedIdsRef = useRef<Set<string>>(new Set());
   const expiredIdsRef = useRef<Set<string>>(new Set());
@@ -926,15 +929,67 @@ export default function App() {
   }, [menuOpen]);
 
   function openMarkModal(thread: ThreadCard) {
+    const gen = ++markDetectGenRef.current;
     setMarkThread(thread);
     setMarkReplyUrl("");
     setMarkReply("");
+    setMarkDetecting(true);
+    setMarkDetectNote("Looking for your reply…");
+    void (async () => {
+      try {
+        const res = await fetch("/api/interacted/detect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ threadId: thread.id }),
+        });
+        if (markDetectGenRef.current !== gen) return;
+        const data = (await res.json().catch(() => ({}))) as {
+          found?: boolean;
+          reply?: { replyUrl?: string; replyText?: string };
+          message?: string;
+        };
+        if (markDetectGenRef.current !== gen) return;
+        if (!res.ok) {
+          setMarkDetectNote(
+            "Detection unavailable — server error. Paste the URL manually.",
+          );
+        } else if (
+          data.found &&
+          typeof data.reply?.replyUrl === "string" &&
+          parseStatusIdFromUrl(data.reply.replyUrl)
+        ) {
+          setMarkReplyUrl(data.reply.replyUrl);
+          setMarkReply(
+            typeof data.reply.replyText === "string"
+              ? data.reply.replyText
+              : "",
+          );
+          setMarkDetectNote("Found your reply — confirm or edit before saving.");
+        } else {
+          setMarkDetectNote(
+            "Couldn't find your reply — paste the URL (text optional).",
+          );
+        }
+      } catch {
+        if (markDetectGenRef.current !== gen) return;
+        setMarkDetectNote(
+          "Couldn't find your reply — paste the URL (text optional).",
+        );
+      } finally {
+        if (markDetectGenRef.current === gen) {
+          setMarkDetecting(false);
+        }
+      }
+    })();
   }
 
   function closeMarkModal() {
+    markDetectGenRef.current += 1;
     setMarkThread(null);
     setMarkReplyUrl("");
     setMarkReply("");
+    setMarkDetecting(false);
+    setMarkDetectNote("");
   }
 
   async function postInteracted(
@@ -1921,8 +1976,8 @@ export default function App() {
           >
             <h2 id="mark-reply-title">Mark interacted</h2>
             <p className="status">
-              Paste the URL of the reply you posted on X for {markThread.author}.
-              Optional reply text is saved to local knowledge memory.
+              {markDetectNote ||
+                `Reply you posted on X for ${markThread.author}. Optional reply text is saved to local knowledge memory.`}
             </p>
             <label className="settings-field">
               <span>Reply URL on X</span>
@@ -1933,6 +1988,7 @@ export default function App() {
                 onChange={(e) => setMarkReplyUrl(e.target.value)}
                 placeholder="https://x.com/you/status/…"
                 autoFocus
+                disabled={busy}
               />
             </label>
             <label className="settings-field">
@@ -1943,16 +1999,21 @@ export default function App() {
                 onChange={(e) => setMarkReply(e.target.value)}
                 placeholder="What you actually typed / posted…"
                 rows={4}
+                disabled={busy}
               />
             </label>
             <div className="row">
               <button
                 type="button"
                 className="primary"
-                disabled={busy || !parseStatusIdFromUrl(markReplyUrl)}
+                disabled={
+                  busy ||
+                  markDetecting ||
+                  !parseStatusIdFromUrl(markReplyUrl)
+                }
                 onClick={() => void confirmMarkInteracted()}
               >
-                Confirm
+                {markDetecting ? "Looking…" : "Confirm"}
               </button>
               <button
                 type="button"

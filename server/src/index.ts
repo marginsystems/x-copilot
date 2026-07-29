@@ -43,6 +43,7 @@ import {
   clampTargetCool,
 } from "./scoutCollect.js";
 import { runScoutSearch, type ScoutFilters } from "./scoutRun.js";
+import { detectOwnReplyToThread } from "./detectReply.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
@@ -514,6 +515,56 @@ const server = http.createServer(async (req, res) => {
           message: "Failed to store dismissal",
         });
       }
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/interacted/detect") {
+      let body: Record<string, unknown>;
+      try {
+        body = (await readBody(req)) as Record<string, unknown>;
+      } catch (err) {
+        const statusCode = err instanceof BodyError ? err.statusCode : 400;
+        return send(res, statusCode, {
+          error: "bad_request",
+          message: err instanceof Error ? err.message : "Invalid request body",
+        });
+      }
+      const threadId =
+        typeof body.threadId === "string" ? body.threadId.trim() : "";
+      if (!threadId) {
+        return send(res, 400, {
+          error: "bad_request",
+          message: "Pass { threadId: string }.",
+        });
+      }
+      const session = await verifySession();
+      if (!session.ok) {
+        return send(res, session.status || 401, {
+          error: session.error,
+          message: session.message || "Session unavailable",
+        });
+      }
+      if (session.method === "badge_count") {
+        return send(res, 503, {
+          error: "identity_unresolved",
+          message: "Session identity could not be resolved",
+        });
+      }
+      const detected = await detectOwnReplyToThread({
+        threadId,
+        screenName: session.user.screen_name,
+      });
+      if (detected.reply) {
+        return send(res, 200, {
+          ok: true,
+          found: true,
+          reply: detected.reply,
+        });
+      }
+      return send(res, 200, {
+        ok: true,
+        found: false,
+        reason: detected.reason,
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/interacted") {
