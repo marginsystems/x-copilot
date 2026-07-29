@@ -9,10 +9,11 @@ describe("formatPipelineFunnel", () => {
         raw: 48,
         afterDedupe: 36,
         afterCooldown: 34,
+        afterSelfReply: 28,
         afterLength: 18,
         afterTriage: 12,
       }),
-      "48 → 36 → 34 → 18 → 12",
+      "48 → 36 → 34 → 28 → 18 → 12",
     );
   });
 });

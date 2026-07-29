@@ -29,6 +29,7 @@ export type ScoutPipelineCounts = {
   raw: number;
   afterDedupe: number;
   afterCooldown: number;
+  afterSelfReply: number;
   afterLength: number;
   afterTriage: number;
 };
@@ -45,6 +46,7 @@ export type ScoutEvent = ScoutStageEvent & {
   cooldownFiltered?: number;
   cooldownAuthors?: string[];
   cooldownWarning?: string;
+  selfReplyFiltered?: number;
   lengthFiltered?: number;
   lengthWarning?: string;
   pipelineCounts?: ScoutPipelineCounts;
@@ -53,7 +55,7 @@ export type ScoutEvent = ScoutStageEvent & {
 
 /** Compact funnel for status: `48 → 36 → 34 → 18 → 12`. */
 export function formatPipelineFunnel(counts: ScoutPipelineCounts): string {
-  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterLength} → ${counts.afterTriage}`;
+  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterSelfReply} → ${counts.afterLength} → ${counts.afterTriage}`;
 }
 
 export type ScoutRunResult =
@@ -187,6 +189,7 @@ export async function runScoutSearch(opts: {
     raw: result.rawCount,
     afterDedupe: result.threads.length,
     afterCooldown: filtered.threads.length,
+    afterSelfReply: afterSelf.threads.length,
     afterLength: byLength.threads.length,
     afterTriage: triaged.threads.length,
   };
@@ -218,6 +221,7 @@ export async function runScoutSearch(opts: {
     cooldownFiltered: filtered.filteredCount,
     cooldownAuthors: filtered.filteredAuthors,
     cooldownWarning,
+    selfReplyFiltered: afterSelf.selfReplyFilteredCount,
     lengthFiltered: byLength.filteredCount,
     lengthWarning,
     pipelineCounts,
