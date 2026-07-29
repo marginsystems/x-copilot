@@ -7,6 +7,7 @@ import {
   runScoutCollect,
   type ScoutCollectEvent,
 } from "./scoutCollect.ts";
+import { normalizeAuthorKey } from "./interactionStore.ts";
 import type { PlanQueriesOpts } from "./queryPlan.ts";
 import type { ThreadCard } from "./xSearch.ts";
 
@@ -24,7 +25,8 @@ function card(
 function fillBucket(id: { n: number }, n: number): ThreadCard[] {
   return Array.from({ length: n }, () => {
     id.n += 1;
-    return card({ id: `t${id.n}` });
+    // Unique authors — per-run author dedupe keeps only one card per authorKey.
+    return card({ id: `t${id.n}`, author: `@u${id.n}` });
   });
 }
 
@@ -383,7 +385,9 @@ describe("runScoutCollect bucket loop", () => {
           return {
             ok: true as const,
             queryId: "test",
-            threads: [1, 2, 3, 4, 5].map((n) => card({ id: `t${n}` })),
+            threads: [1, 2, 3, 4, 5].map((n) =>
+              card({ id: `t${n}`, author: `@u${n}` }),
+            ),
             bottomCursor: null,
           };
         },
@@ -435,6 +439,7 @@ describe("runScoutCollect bucket loop", () => {
               id.n += 1;
               return card({
                 id: `r${n}`,
+                author: `@r${n}`,
                 inReplyToId: `op${n}`,
                 isReply: true,
                 text: "How do you pick products?",
@@ -492,6 +497,7 @@ describe("runScoutCollect bucket loop", () => {
             threads: [1, 2, 3, 4, 5].map((n) =>
               card({
                 id: `r${n}`,
+                author: `@r${n}`,
                 inReplyToId: `op${n}`,
                 isReply: true,
               }),
@@ -588,6 +594,57 @@ describe("runScoutCollect bucket loop", () => {
       if (prevKey === undefined) delete process.env.DEEPSEEK_API_KEY;
       else process.env.DEEPSEEK_API_KEY = prevKey;
     }
+  });
+
+  it("keeps at most one card per author in the bucket", async () => {
+    let triageAuthors: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({ id: "s1", author: "@same" }),
+            card({ id: "s2", author: "@same" }),
+            card({ id: "s3", author: "@Same" }),
+            card({ id: "n1", author: "@alice" }),
+            card({ id: "n2", author: "@bob" }),
+            card({ id: "n3", author: "@carol" }),
+            card({ id: "n4", author: "@dave" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => threads,
+        triageThreads: async ({ threads }) => {
+          triageAuthors = threads.map((t) => t.author);
+          assert.equal(
+            threads.filter((t) => normalizeAuthorKey(t.author) === "same")
+              .length,
+            1,
+          );
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 20 : 80,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(triageAuthors.length, 5);
+    assert.equal(result.event.stopReason, "target");
   });
 
   it("drops self-replies before triage", async () => {
