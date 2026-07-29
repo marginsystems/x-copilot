@@ -376,10 +376,9 @@ h3 {
   font-weight: 600;
 }
 
-.mark-reply {
+.mark-reply-url,
+.mark-reply-text {
   width: 100%;
-  min-height: 120px;
-  resize: vertical;
   background: var(--raised);
   color: var(--text);
   border: 1px solid var(--border);
@@ -390,7 +389,17 @@ h3 {
   line-height: 1.45;
 }
 
-.mark-reply:focus-visible {
+.mark-reply-url {
+  min-height: 0;
+}
+
+.mark-reply-text {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.mark-reply-url:focus-visible,
+.mark-reply-text:focus-visible {
   outline: 1px solid var(--accent-dim);
   border-color: var(--accent-dim);
 }
