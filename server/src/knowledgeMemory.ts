@@ -8,6 +8,7 @@ import { normalizeAuthorKey } from "./interactionStore.js";
 
 export const MAX_THREAD_EXCERPT_CHARS = 2000;
 export const MAX_REPLY_CHARS = 8000;
+export const MAX_OP_EXCERPT_CHARS = 2000;
 
 export type InteractionMemoryInput = {
   threadId: string;
@@ -16,6 +17,8 @@ export type InteractionMemoryInput = {
   url?: string;
   text?: string;
   summary?: string;
+  opAuthor?: string;
+  opText?: string;
   agenda?: string;
   baitScore?: number;
   engage?: string;
@@ -77,6 +80,61 @@ function truncate(text: string, max: number): string {
   return `${text.slice(0, max - 1)}…`;
 }
 
+function optionalStringTrim(value: string | undefined): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const t = value.trim();
+  return t || undefined;
+}
+
+/** Raw post body for ## Post — never substitute summary. */
+function postBody(text: string | undefined): string {
+  const raw = optionalStringTrim(text);
+  return truncate(raw ?? "(no thread text)", MAX_THREAD_EXCERPT_CHARS);
+}
+
+/** Append ## Post / ## OP / ## Summary body sections (shared by interaction + dismissal). */
+function appendThreadContextSections(
+  lines: string[],
+  input: {
+    text?: string;
+    summary?: string;
+    opAuthor?: string;
+    opText?: string;
+    /** Interaction triage rationale — italic under Summary when set. */
+    reason?: string;
+  },
+): void {
+  lines.push("## Post", "", postBody(input.text), "");
+
+  const opText = optionalStringTrim(input.opText);
+  if (opText) {
+    const opAuthor = optionalStringTrim(input.opAuthor);
+    const label = opAuthor
+      ? `${opAuthor.startsWith("@") ? opAuthor : `@${opAuthor}`}: `
+      : "";
+    lines.push(
+      "## OP",
+      "",
+      `${label}${truncate(opText, MAX_OP_EXCERPT_CHARS)}`,
+      "",
+    );
+  }
+
+  const summary = optionalStringTrim(input.summary);
+  if (summary) {
+    lines.push("## Summary", "", truncate(summary, MAX_THREAD_EXCERPT_CHARS), "");
+    const reason = optionalStringTrim(input.reason);
+    if (reason && reason !== summary) {
+      lines.push(`_${truncate(reason, 500)}_`, "");
+    }
+  } else {
+    const reason = optionalStringTrim(input.reason);
+    if (reason) {
+      lines.push(`_${truncate(reason, 500)}_`, "");
+    }
+  }
+}
+
 export function normalizeReply(reply: unknown): string {
   if (typeof reply !== "string") return "";
   return reply.trim();
@@ -102,10 +160,6 @@ export function renderInteractionMarkdown(
 
   const interactedAt = input.interactedAt ?? new Date().toISOString();
   const source = input.source === "copy" ? "copy" : "manual";
-  const threadBody = truncate(
-    (input.summary?.trim() || input.text?.trim() || "(no thread text)").trim(),
-    MAX_THREAD_EXCERPT_CHARS,
-  );
 
   const lines: string[] = ["---", "type: interaction"];
   lines.push(`threadId: ${yamlString(threadId)}`);
@@ -130,10 +184,8 @@ export function renderInteractionMarkdown(
   }
   const intent = yamlOptionalString(input.intent);
   if (intent) lines.push(`intent: ${intent}`);
-  lines.push("---", "", "## Thread", "", threadBody, "");
-  if (input.reason?.trim()) {
-    lines.push(`_${truncate(input.reason.trim(), 500)}_`, "");
-  }
+  lines.push("---", "");
+  appendThreadContextSections(lines, input);
   lines.push("## Reply", "", reply, "");
   return `${lines.join("\n")}\n`;
 }
@@ -158,18 +210,14 @@ export type DismissalMemoryInput = {
   url?: string;
   text?: string;
   summary?: string;
+  opAuthor?: string;
+  opText?: string;
   reason?: string;
   dismissedAt?: string;
   knowledgeRoot?: string;
 };
 
 const MAX_DISMISSAL_REASON_CHARS = 500;
-
-function optionalStringTrim(value: string | undefined): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const t = value.trim();
-  return t || undefined;
-}
 
 export function buildDismissalNotePath(opts: {
   threadId: string;
@@ -191,10 +239,6 @@ export function renderDismissalMarkdown(input: DismissalMemoryInput): string {
   }
 
   const dismissedAt = input.dismissedAt ?? new Date().toISOString();
-  const threadBody = truncate(
-    (input.summary?.trim() || input.text?.trim() || "(no thread text)").trim(),
-    MAX_THREAD_EXCERPT_CHARS,
-  );
   const reason = optionalStringTrim(input.reason);
 
   const lines: string[] = ["---", "type: dismissal"];
@@ -204,7 +248,14 @@ export function renderDismissalMarkdown(input: DismissalMemoryInput): string {
   lines.push(`author: ${yamlString(author)}`);
   lines.push(`authorKey: ${yamlString(authorKey)}`);
   lines.push(`dismissedAt: ${yamlString(dismissedAt)}`);
-  lines.push("---", "", "## Thread", "", threadBody, "");
+  lines.push("---", "");
+  // Dismissal user reason goes in ## Reason — do not reuse triage reason italic.
+  appendThreadContextSections(lines, {
+    text: input.text,
+    summary: input.summary,
+    opAuthor: input.opAuthor,
+    opText: input.opText,
+  });
   if (reason) {
     lines.push(
       "## Reason",

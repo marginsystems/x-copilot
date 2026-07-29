@@ -23,6 +23,10 @@ type ThreadCard = {
   url: string;
   createdAt?: string;
   summary?: string;
+  /** Parent tweet context when this card is a reply. */
+  opAuthor?: string;
+  opText?: string;
+  isReply?: boolean;
   /** 0–100, higher = more engagement bait. */
   baitScore?: number;
   flags?: string[];
@@ -875,6 +879,8 @@ export default function App() {
           url: thread.url,
           text: thread.text,
           summary: thread.summary,
+          opAuthor: thread.opAuthor,
+          opText: thread.opText,
           baitScore: thread.baitScore ?? thread.score,
           engage: thread.engage,
           flags: thread.flags,
@@ -1199,6 +1205,8 @@ export default function App() {
           url: thread.url,
           text: thread.text,
           summary: thread.summary,
+          opAuthor: thread.opAuthor,
+          opText: thread.opText,
           ...(reason.trim() ? { reason: reason.trim() } : {}),
         }),
       });
