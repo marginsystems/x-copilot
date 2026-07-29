@@ -9,6 +9,7 @@ import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
 import {
+  filterSelfReplies,
   filterThreadsByLength,
   resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
@@ -164,12 +165,13 @@ export async function runScoutSearch(opts: {
     dedupeAccounts: opts.filters?.dedupeAccounts,
   });
   const filtered = filterThreadsByCooldown(result.threads, cooled);
+  const afterSelf = filterSelfReplies(filtered.threads);
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
-  const byLength = filterThreadsByLength(filtered.threads, maxChars, {
+  const byLength = filterThreadsByLength(afterSelf.threads, maxChars, {
     dropArticles,
   });
 
