@@ -589,4 +589,61 @@ describe("runScoutCollect bucket loop", () => {
       else process.env.DEEPSEEK_API_KEY = prevKey;
     }
   });
+
+  it("drops self-replies before triage", async () => {
+    let triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "s1",
+              author: "@jack",
+              inReplyToId: "0",
+              inReplyToScreenName: "@jack",
+            }),
+            card({
+              id: "s2",
+              author: "@jack",
+              inReplyToId: "0",
+              inReplyToScreenName: "jack",
+            }),
+            card({ id: "n1", author: "@alice" }),
+            card({ id: "n2", author: "@bob" }),
+            card({ id: "n3", author: "@carol" }),
+            card({ id: "n4", author: "@dave" }),
+            card({ id: "n5", author: "@erin" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => threads,
+        triageThreads: async ({ threads }) => {
+          triageIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 20 : 80,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(triageIds, ["n1", "n2", "n3", "n4", "n5"]);
+    assert.ok(!triageIds.includes("s1") && !triageIds.includes("s2"));
+    assert.equal(result.event.stopReason, "target");
+  });
 });

@@ -1,6 +1,7 @@
 /**
- * Deterministic post-search filters (length / thread openers / Articles) before triage.
+ * Deterministic post-search filters (length / thread openers / Articles / self-replies) before triage.
  */
+import { normalizeAuthorKey } from "./interactionStore.js";
 import type { ThreadCard } from "./xSearch.js";
 
 export const DEFAULT_MAX_THREAD_CHARS = 480;
@@ -39,6 +40,34 @@ export function isOversizedThread(text: string, maxChars: number): boolean {
 /** Obvious multi-part openers like "1/17 Here's the thread". */
 export function isThreadOpener(text: string): boolean {
   return THREAD_OPENER_RE.test(text) && /\bthread\b/i.test(text);
+}
+
+/**
+ * True when the card replies to the same account (self-thread mid-posts).
+ * Requires `inReplyToScreenName`; missing → false (no heuristics).
+ */
+export function isSelfReply(thread: ThreadCard): boolean {
+  const authorKey = normalizeAuthorKey(thread.author);
+  const replyToKey = normalizeAuthorKey(thread.inReplyToScreenName ?? "");
+  if (!authorKey || !replyToKey) return false;
+  return authorKey === replyToKey;
+}
+
+/** Hard-drop self-replies before hydrate/triage. */
+export function filterSelfReplies(threads: ThreadCard[]): {
+  threads: ThreadCard[];
+  selfReplyFilteredCount: number;
+} {
+  const kept: ThreadCard[] = [];
+  let selfReplyFilteredCount = 0;
+  for (const thread of threads) {
+    if (isSelfReply(thread)) {
+      selfReplyFilteredCount += 1;
+      continue;
+    }
+    kept.push(thread);
+  }
+  return { threads: kept, selfReplyFilteredCount };
 }
 
 export function filterThreadsByLength(

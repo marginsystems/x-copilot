@@ -2,8 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_MAX_THREAD_CHARS,
+  filterSelfReplies,
   filterThreadsByLength,
   isOversizedThread,
+  isSelfReply,
   isThreadOpener,
   resolveMaxThreadChars,
   resolveMaxThreadCharsFromFilters,
@@ -23,6 +25,80 @@ function thread(
     ...(longform ? { longform } : {}),
   };
 }
+
+describe("isSelfReply / filterSelfReplies", () => {
+  it("detects same-author reply-to", () => {
+    assert.equal(
+      isSelfReply({
+        id: "1",
+        author: "@itsjackdev",
+        text: "5/ next",
+        url: "https://x.com/itsjackdev/status/1",
+        inReplyToId: "0",
+        inReplyToScreenName: "@itsjackdev",
+      }),
+      true,
+    );
+    assert.equal(
+      isSelfReply({
+        id: "1",
+        author: "@itsjackdev",
+        text: "5/ next",
+        url: "https://x.com/itsjackdev/status/1",
+        inReplyToId: "0",
+        inReplyToScreenName: "itsjackdev",
+      }),
+      true,
+    );
+  });
+
+  it("keeps cross-account replies and roots", () => {
+    assert.equal(
+      isSelfReply({
+        id: "1",
+        author: "@alice",
+        text: "agree",
+        url: "https://x.com/alice/status/1",
+        inReplyToId: "0",
+        inReplyToScreenName: "@bob",
+      }),
+      false,
+    );
+    assert.equal(
+      isSelfReply({
+        id: "2",
+        author: "@alice",
+        text: "root post",
+        url: "https://x.com/alice/status/2",
+      }),
+      false,
+    );
+  });
+
+  it("filters self-replies from a batch", () => {
+    const selfR: ThreadCard = {
+      id: "1",
+      author: "@a",
+      text: "mid",
+      url: "https://x.com/a/status/1",
+      inReplyToScreenName: "@a",
+    };
+    const cross: ThreadCard = {
+      id: "2",
+      author: "@a",
+      text: "to b",
+      url: "https://x.com/a/status/2",
+      inReplyToScreenName: "@b",
+    };
+    const root = thread("3", "root");
+    const result = filterSelfReplies([selfR, cross, root]);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2", "3"],
+    );
+    assert.equal(result.selfReplyFilteredCount, 1);
+  });
+});
 
 describe("resolveMaxThreadChars", () => {
   it("defaults when empty or invalid", () => {
