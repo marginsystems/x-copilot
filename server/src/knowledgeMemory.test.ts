@@ -4,10 +4,13 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  buildDismissalNotePath,
   buildInteractionNotePath,
   normalizeReply,
+  renderDismissalMarkdown,
   renderInteractionMarkdown,
   safeThreadIdForFilename,
+  writeDismissalMemory,
   writeInteractionMemory,
 } from "./knowledgeMemory.ts";
 
@@ -89,5 +92,47 @@ describe("writeInteractionMemory", () => {
     assert.match(body, /threadId: "99"/);
     assert.match(body, /My reply on X/);
     assert.match(body, /Original post/);
+  });
+});
+
+describe("buildDismissalNotePath / writeDismissalMemory", () => {
+  it("paths under knowledge/dismissals", () => {
+    assert.equal(
+      buildDismissalNotePath({
+        threadId: "42",
+        dismissedAt: "2026-07-29T01:00:00.000Z",
+        knowledgeRoot: "/tmp/vault",
+      }),
+      join("/tmp/vault", "dismissals", "2026-07-29-42.md"),
+    );
+  });
+
+  it("renders dismissal markdown with reason", () => {
+    const md = renderDismissalMarkdown({
+      threadId: "42",
+      author: "@x",
+      summary: "promo spam",
+      reason: "not a question",
+      dismissedAt: "2026-07-29T01:00:00.000Z",
+    });
+    assert.match(md, /type: dismissal/);
+    assert.match(md, /not a question/);
+  });
+
+  it("writes dismissal note without reason defaults to (none)", async () => {
+    const root = await mkdtemp(join(tmpdir(), "x-copilot-dismiss-mem-"));
+    try {
+      const { path } = await writeDismissalMemory({
+        threadId: "42",
+        author: "@x",
+        summary: "promo spam",
+        knowledgeRoot: root,
+        dismissedAt: "2026-07-29T01:00:00.000Z",
+      });
+      const body = await readFile(path, "utf8");
+      assert.match(body, /\(none\)/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
