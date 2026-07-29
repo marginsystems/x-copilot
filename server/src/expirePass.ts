@@ -8,7 +8,7 @@ import {
   selectStaleThreads,
   type ExpiredThread,
 } from "./expiredStore.js";
-import { listInteractionHistory } from "./interactionStore.js";
+import { listActiveInteractions } from "./interactionStore.js";
 import {
   getLastScout,
   pruneThreadsFromScoutCache,
@@ -33,7 +33,7 @@ export async function runExpirePass(opts?: {
   }
 
   const [interacted, dismissed, alreadyExpired] = await Promise.all([
-    listInteractionHistory({ storePath: opts?.interactionStorePath }),
+    listActiveInteractions({ storePath: opts?.interactionStorePath }),
     getDismissedThreadIds({ storePath: opts?.dismissalStorePath }),
     getExpiredThreadIds({ storePath: opts?.expiredStorePath }),
   ]);
