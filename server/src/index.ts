@@ -543,7 +543,7 @@ const server = http.createServer(async (req, res) => {
           message: session.message || "Session unavailable",
         });
       }
-      if (session.user.screen_name === "unknown") {
+      if (session.method === "badge_count") {
         return send(res, 503, {
           error: "identity_unresolved",
           message: "Session identity could not be resolved",
