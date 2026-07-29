@@ -24,7 +24,7 @@ export function parseCreatedAt(raw: string | undefined | null): Date | null {
   return d;
 }
 
-/** Compact relative label: just now, 5m, 2h, 3d, 12 Jul, 12 Jul 2025 */
+/** Compact relative label: Now, 5m, 2h, 3d, 12 Jul, 12 Jul 2025 */
 export function formatTimeAgo(
   raw: string | undefined | null,
   nowMs: number = Date.now(),
@@ -34,13 +34,13 @@ export function formatTimeAgo(
 
   const diffMs = nowMs - d.getTime();
   // Stale `nowMs` (UI tick lag) can make brand-new rows look slightly in the future.
-  // Treat small forward skew as "just now" so live Scout logs stay sensible.
+  // Treat small forward skew as "Now" so live Scout logs stay sensible.
   if (diffMs < -60_000) {
     return formatShortDate(d, nowMs);
   }
 
   const sec = Math.floor(Math.max(0, diffMs) / 1000);
-  if (sec < 60) return "just now";
+  if (sec < 60) return "Now";
   const min = Math.floor(sec / 60);
   if (min < 60) return `${min}m`;
   const hr = Math.floor(min / 60);
