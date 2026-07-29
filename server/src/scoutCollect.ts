@@ -8,7 +8,10 @@ import {
   getCooledAuthorKeys,
 } from "./interactionStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
-import { planQueriesFromAgenda } from "./queryPlan.js";
+import {
+  planQueriesFromAgenda,
+  type PlanQueriesOpts,
+} from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
 import type { ScoutFilters } from "./scoutRun.js";
 import {
@@ -284,14 +287,30 @@ export async function runScoutCollect(opts: {
   let queryIndex = 0;
   let replanned = false;
   let bucketAttempts = 0;
+  let consecutiveZeroAdds = 0;
 
-  async function maybeReplan(): Promise<boolean> {
+  async function maybeReplan(reason: "cycle" | "stalled"): Promise<boolean> {
     if (replanned || !agenda || !process.env.DEEPSEEK_API_KEY?.trim()) {
       return false;
     }
     replanned = true;
-    track("planning", "Scout is planning more search queries…");
-    const plan = await doPlan(agenda);
+    track(
+      "planning",
+      reason === "stalled"
+        ? "Scout is broadening search queries (low yield)…"
+        : "Scout is broadening search queries…",
+    );
+    const planOpts: PlanQueriesOpts = {
+      broaden: true,
+      priorQueries: [...queries],
+      yieldNote:
+        `Low yield: candidate bucket at ${bucket.length}/${bucketSize} after ${searchCalls} searches` +
+        (reason === "stalled"
+          ? ` (${consecutiveZeroAdds} consecutive searches added 0).`
+          : ".") +
+        " Stuck under candidate bucket — broaden; prefer shorter high-recall 2–4 word Latest keywords; mix broad + tighter; do not copy the agenda sentence.",
+    };
+    const plan = await doPlan(agenda, planOpts);
     if (!plan.ok) {
       searchErrors.push({ query: "(replan)", message: plan.message });
       return false;
@@ -300,6 +319,7 @@ export async function runScoutCollect(opts: {
     plannedBy = "deepseek";
     planModel = plan.model;
     queryIndex = 0;
+    consecutiveZeroAdds = 0;
     return queries.length > 0;
   }
 
@@ -316,12 +336,22 @@ export async function runScoutCollect(opts: {
         if (searchCalls >= MAX_SEARCH_CALLS) break;
 
         if (queries.length === 0) {
-          const ok = await maybeReplan();
+          const ok = await maybeReplan("cycle");
           if (!ok) break;
         }
 
+        // Stuck under bucket with no new survivors → broaden once early.
+        if (
+          !replanned &&
+          bucket.length < bucketSize &&
+          consecutiveZeroAdds >= Math.max(queries.length, 3)
+        ) {
+          const ok = await maybeReplan("stalled");
+          if (ok) continue;
+        }
+
         if (queryIndex >= queries.length) {
-          const ok = await maybeReplan();
+          const ok = await maybeReplan("cycle");
           if (ok) {
             // fresh list from replan
           } else if (queries.length > 0) {
@@ -392,8 +422,9 @@ export async function runScoutCollect(opts: {
         }
         const added = bucket.length - beforeFill;
 
-        // Skip bare progress when this page added nothing (stops Cand. 0/5 spam).
         if (added > 0) {
+          consecutiveZeroAdds = 0;
+          // Skip bare progress when this page added nothing (stops Cand. 0/5 spam).
           track(
             "partial",
             `Cand. ${bucket.length}/${bucketSize}`,
@@ -408,6 +439,8 @@ export async function runScoutCollect(opts: {
               },
             },
           );
+        } else {
+          consecutiveZeroAdds += 1;
         }
       }
 
