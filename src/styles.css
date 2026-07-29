@@ -726,23 +726,28 @@ button:disabled {
 .scout-log li {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 3.2rem minmax(0, 1fr);
-  gap: 8px;
-  align-items: baseline;
+  grid-template-columns: 2.6rem minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
   line-height: 1.35;
   min-height: 1.35em;
-  white-space: nowrap;
   overflow: hidden;
 }
 
 .scout-log-ago {
   color: var(--border-strong);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .scout-log-msg {
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .scout-log-empty {

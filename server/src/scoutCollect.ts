@@ -340,7 +340,7 @@ export async function runScoutCollect(opts: {
 
         track(
           "searching",
-          `Candidates ${bucket.length}/${bucketSize} · searching X…`,
+          `Cand. ${bucket.length}/${bucketSize} · searching X…`,
           {
             candidates: bucket.length,
             coolCount: 0,
@@ -368,7 +368,7 @@ export async function runScoutCollect(opts: {
 
         track(
           "filtering",
-          `Candidates ${bucket.length}/${bucketSize} · applying cooldown + length filters…`,
+          `Cand. ${bucket.length}/${bucketSize} · filters…`,
           { candidates: bucket.length, coolCount: 0 },
         );
 
@@ -382,24 +382,30 @@ export async function runScoutCollect(opts: {
           dropArticles,
         });
 
+        const beforeFill = bucket.length;
         for (const t of afterLen.threads) {
           if (bucket.length >= bucketSize) break;
           bucket.push(t);
         }
+        const added = bucket.length - beforeFill;
 
-        track(
-          "partial",
-          `Candidates ${bucket.length}/${bucketSize}`,
-          {
-            candidates: bucket.length,
-            coolCount: 0,
-            detail: {
-              raw: result.threads.length,
-              afterCooldown: afterCool.threads.length,
-              afterLength: afterLen.threads.length,
+        // Skip bare progress when this page added nothing (stops Cand. 0/5 spam).
+        if (added > 0) {
+          track(
+            "partial",
+            `Cand. ${bucket.length}/${bucketSize}`,
+            {
+              candidates: bucket.length,
+              coolCount: 0,
+              detail: {
+                raw: result.threads.length,
+                afterCooldown: afterCool.threads.length,
+                afterLength: afterLen.threads.length,
+                added,
+              },
             },
-          },
-        );
+          );
+        }
       }
 
       if (aborted()) {

@@ -281,8 +281,56 @@ describe("runScoutCollect bucket loop", () => {
       },
     });
 
-    assert.ok(events.some((e) => /Candidates \d+\/5/.test(e.message)));
+    assert.ok(events.some((e) => /Cand\. \d+\/5/.test(e.message)));
     assert.ok(events.some((e) => e.stage === "triaging"));
+  });
+
+  it("skips bare Cand. progress when a search adds zero", async () => {
+    const events: ScoutCollectEvent[] = [];
+    let searchCalls = 0;
+
+    await runScoutCollect({
+      queries: ["empty1", "empty2", "fill"],
+      bucketSize: 5,
+      session,
+      onEvent: (e) => events.push(e),
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => {
+          searchCalls += 1;
+          if (searchCalls <= 2) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [],
+              bottomCursor: null,
+            };
+          }
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: [1, 2, 3, 4, 5].map((n) => card({ id: `t${n}` })),
+            bottomCursor: null,
+          };
+        },
+        hydrateReplyParents: async ({ threads }) => threads,
+        triageThreads: async ({ threads }) => ({
+          threads: threads.map((t) => ({
+            ...t,
+            engage: "consider" as const,
+            baitScore: 20,
+          })),
+        }),
+      },
+    });
+
+    const bareCand = events.filter(
+      (e) => e.stage === "partial" && /^Cand\. \d+\/\d+$/.test(e.message),
+    );
+    assert.equal(bareCand.length, 1);
+    assert.equal(bareCand[0]?.message, "Cand. 5/5");
   });
 
   it("hydrates reply parents before triage", async () => {
