@@ -7,6 +7,7 @@ import {
   runScoutCollect,
   type ScoutCollectEvent,
 } from "./scoutCollect.ts";
+import type { PlanQueriesOpts } from "./queryPlan.ts";
 import type { ThreadCard } from "./xSearch.ts";
 
 function card(
@@ -517,6 +518,75 @@ describe("runScoutCollect bucket loop", () => {
       assert.equal(result.event.stopReason, "target");
     } finally {
       globalThis.fetch = origFetch;
+    }
+  });
+
+  it("replans with broaden yield opts when searches add zero", async () => {
+    const prevKey = process.env.DEEPSEEK_API_KEY;
+    process.env.DEEPSEEK_API_KEY = "test-key";
+    const planCalls: Array<{ agenda: string; opts?: PlanQueriesOpts }> = [];
+    const events: ScoutCollectEvent[] = [];
+
+    try {
+      const result = await runScoutCollect({
+        agenda: "Find builders shipping AI tools in public",
+        bucketSize: 5,
+        targetCool: 1,
+        session,
+        onEvent: (e) => events.push(e),
+        deps: {
+          sleep: async () => {},
+          getCooledAuthorKeys: async () => new Set(),
+          saveScoutCache: async () => {},
+          planQueriesFromAgenda: async (agenda, opts) => {
+            planCalls.push({ agenda, opts });
+            if (planCalls.length === 1) {
+              return {
+                ok: true as const,
+                queries: ["q1", "q2", "q3"],
+                model: "test",
+                raw: "{}",
+              };
+            }
+            return {
+              ok: true as const,
+              queries: ["broad AI", "shipped AI"],
+              model: "test",
+              raw: "{}",
+            };
+          },
+          searchTimeline: async () => ({
+            ok: true as const,
+            queryId: "test",
+            threads: [],
+            bottomCursor: null,
+          }),
+          hydrateReplyParents: async ({ threads }) => threads,
+          triageThreads: async ({ threads }) => ({
+            threads: threads.map((t) => ({
+              ...t,
+              engage: "skip" as const,
+              baitScore: 90,
+            })),
+          }),
+        },
+      });
+
+      assert.equal(result.ok, true);
+      assert.ok(planCalls.length >= 2, "initial plan + yield replan");
+      assert.equal(planCalls[0]?.opts?.broaden, undefined);
+      assert.equal(planCalls[1]?.opts?.broaden, true);
+      assert.ok(
+        planCalls[1]?.opts?.yieldNote?.includes("Low yield"),
+        "yield note passed",
+      );
+      assert.deepEqual(planCalls[1]?.opts?.priorQueries, ["q1", "q2", "q3"]);
+      assert.ok(
+        events.some((e) => /broadening search queries/i.test(e.message)),
+      );
+    } finally {
+      if (prevKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+      else process.env.DEEPSEEK_API_KEY = prevKey;
     }
   });
 });
