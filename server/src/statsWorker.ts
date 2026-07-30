@@ -115,11 +115,27 @@ async function main(): Promise<void> {
   }, TICK_MS);
 }
 
-const isMain =
-  process.argv[1] &&
-  (process.argv[1].endsWith("statsWorker.ts") ||
-    process.argv[1].endsWith("statsWorker.js"));
+/**
+ * Whether this process should start the hourly tick loop.
+ * Direct `node …/statsWorker.js` works via argv; PM2 wraps the script in
+ * ProcessContainerFork.js and sets `pm_id` — the old endsWith check missed that.
+ */
+export function shouldRunStatsMain(
+  argv1: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (
+    argv1?.endsWith("statsWorker.js") ||
+    argv1?.endsWith("statsWorker.ts")
+  ) {
+    return true;
+  }
+  if (env.pm_id != null && argv1?.includes("ProcessContainerFork")) {
+    return true;
+  }
+  return false;
+}
 
-if (isMain) {
+if (shouldRunStatsMain(process.argv[1], process.env)) {
   void main();
 }
