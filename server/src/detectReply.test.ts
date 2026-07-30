@@ -1,6 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { detectOwnReplyToThread } from "./detectReply.ts";
+import {
+  detectOwnReplyToThread,
+  detectOwnReplyToThreadWithRetry,
+} from "./detectReply.ts";
 import type { ThreadCard } from "./xSearch.ts";
 
 function card(
@@ -45,10 +48,9 @@ describe("detectOwnReplyToThread", () => {
     assert.ok(result.reply);
     assert.equal(result.reply.replyId, "reply1");
     assert.equal(result.reply.replyText, "happy to connect");
-    assert.equal(
-      result.reply.replyUrl,
-      "https://x.com/me/status/reply1",
-    );
+    assert.equal(result.reply.replyUrl, "https://x.com/me/status/reply1");
+    assert.equal(result.rawCount, 2);
+    assert.equal(result.matchCount, 1);
   });
 
   it("returns none when no parent match", async () => {
@@ -62,7 +64,13 @@ describe("detectOwnReplyToThread", () => {
         bottomCursor: null,
       }),
     });
-    assert.deepEqual(result, { ok: true, reply: null, reason: "none" });
+    assert.deepEqual(result, {
+      ok: true,
+      reply: null,
+      reason: "none",
+      rawCount: 1,
+      matchCount: 0,
+    });
   });
 
   it("returns ambiguous when multiple parent matches", async () => {
@@ -83,6 +91,8 @@ describe("detectOwnReplyToThread", () => {
       ok: true,
       reply: null,
       reason: "ambiguous",
+      rawCount: 2,
+      matchCount: 2,
     });
   });
 
@@ -101,6 +111,8 @@ describe("detectOwnReplyToThread", () => {
       ok: true,
       reply: null,
       reason: "search_failed",
+      rawCount: 0,
+      matchCount: 0,
     });
   });
 
@@ -116,6 +128,150 @@ describe("detectOwnReplyToThread", () => {
       ok: true,
       reply: null,
       reason: "search_failed",
+      rawCount: 0,
+      matchCount: 0,
+    });
+  });
+});
+
+describe("detectOwnReplyToThreadWithRetry", () => {
+  it("retries none then returns found on second attempt", async () => {
+    let calls = 0;
+    const sleeps: number[] = [];
+    const logs: string[] = [];
+    const result = await detectOwnReplyToThreadWithRetry({
+      threadId: "parent1",
+      screenName: "me",
+      delaysMs: [0, 2000, 5000],
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        return "ok";
+      },
+      log: (line) => logs.push(line),
+      searchTimelinePages: async () => {
+        calls += 1;
+        if (calls === 1) {
+          return {
+            ok: true,
+            threads: [card({ id: "a", inReplyToId: "other" })],
+            queryId: "q",
+            bottomCursor: null,
+          };
+        }
+        return {
+          ok: true,
+          threads: [
+            card({
+              id: "reply1",
+              inReplyToId: "parent1",
+              text: "found later",
+            }),
+          ],
+          queryId: "q",
+          bottomCursor: null,
+        };
+      },
+    });
+    assert.equal(calls, 2);
+    assert.deepEqual(sleeps, [2000]);
+    assert.ok(result.reply);
+    assert.equal(result.reply.replyId, "reply1");
+    assert.equal(logs.length, 2);
+    assert.match(logs[0]!, /attempt=1\/3 reason=none/);
+    assert.match(logs[1]!, /attempt=2\/3 reason=found/);
+  });
+
+  it("gives up after three none attempts", async () => {
+    let calls = 0;
+    const sleeps: number[] = [];
+    const result = await detectOwnReplyToThreadWithRetry({
+      threadId: "parent1",
+      screenName: "me",
+      delaysMs: [0, 2000, 5000],
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        return "ok";
+      },
+      log: () => {},
+      searchTimelinePages: async () => {
+        calls += 1;
+        return {
+          ok: true,
+          threads: [],
+          queryId: "q",
+          bottomCursor: null,
+        };
+      },
+    });
+    assert.equal(calls, 3);
+    assert.deepEqual(sleeps, [2000, 5000]);
+    assert.deepEqual(result, {
+      ok: true,
+      reply: null,
+      reason: "none",
+      rawCount: 0,
+      matchCount: 0,
+    });
+  });
+
+  it("does not retry ambiguous", async () => {
+    let calls = 0;
+    const result = await detectOwnReplyToThreadWithRetry({
+      threadId: "parent1",
+      screenName: "me",
+      delaysMs: [0, 2000, 5000],
+      sleep: async () => {
+        throw new Error("should not sleep");
+      },
+      log: () => {},
+      searchTimelinePages: async () => {
+        calls += 1;
+        return {
+          ok: true,
+          threads: [
+            card({ id: "a", inReplyToId: "parent1" }),
+            card({ id: "b", inReplyToId: "parent1" }),
+          ],
+          queryId: "q",
+          bottomCursor: null,
+        };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(result.reply, null);
+    if (!result.reply) assert.equal(result.reason, "ambiguous");
+  });
+
+  it("stops without further search when aborted mid-backoff", async () => {
+    let calls = 0;
+    const ac = new AbortController();
+    const result = await detectOwnReplyToThreadWithRetry({
+      threadId: "parent1",
+      screenName: "me",
+      delaysMs: [0, 2000, 5000],
+      signal: ac.signal,
+      sleep: async () => {
+        ac.abort();
+        return "aborted";
+      },
+      log: () => {},
+      searchTimelinePages: async () => {
+        calls += 1;
+        return {
+          ok: true,
+          threads: [],
+          queryId: "q",
+          bottomCursor: null,
+        };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.deepEqual(result, {
+      ok: true,
+      reply: null,
+      reason: "none",
+      rawCount: 0,
+      matchCount: 0,
     });
   });
 });

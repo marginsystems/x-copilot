@@ -43,7 +43,7 @@ import {
   clampTargetCool,
 } from "./scoutCollect.js";
 import { runScoutSearch, type ScoutFilters } from "./scoutRun.js";
-import { detectOwnReplyToThread } from "./detectReply.js";
+import { detectOwnReplyToThreadWithRetry } from "./detectReply.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
@@ -549,22 +549,30 @@ const server = http.createServer(async (req, res) => {
           message: "Session identity could not be resolved",
         });
       }
-      const detected = await detectOwnReplyToThread({
-        threadId,
-        screenName: session.user.screen_name,
-      });
-      if (detected.reply) {
+      const ac = new AbortController();
+      const onClose = () => ac.abort();
+      req.once("close", onClose);
+      try {
+        const detected = await detectOwnReplyToThreadWithRetry({
+          threadId,
+          screenName: session.user.screen_name,
+          signal: ac.signal,
+        });
+        if (detected.reply) {
+          return send(res, 200, {
+            ok: true,
+            found: true,
+            reply: detected.reply,
+          });
+        }
         return send(res, 200, {
           ok: true,
-          found: true,
-          reply: detected.reply,
+          found: false,
+          reason: detected.reason,
         });
+      } finally {
+        req.off("close", onClose);
       }
-      return send(res, 200, {
-        ok: true,
-        found: false,
-        reason: detected.reason,
-      });
     }
 
     if (req.method === "POST" && url.pathname === "/api/interacted") {

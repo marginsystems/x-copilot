@@ -522,10 +522,12 @@ export default function App() {
   const [markReply, setMarkReply] = useState("");
   const [markDetecting, setMarkDetecting] = useState(false);
   const [markDetectNote, setMarkDetectNote] = useState("");
+  const [markDetectMissed, setMarkDetectMissed] = useState(false);
   const [dismissThread, setDismissThread] = useState<ThreadCard | null>(null);
   const [dismissReason, setDismissReason] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const markDetectGenRef = useRef(0);
+  const markDetectAbortRef = useRef<AbortController | null>(null);
   const dismissedIdsRef = useRef<Set<string>>(new Set());
   const skippedIdsRef = useRef<Set<string>>(new Set());
   const expiredIdsRef = useRef<Set<string>>(new Set());
@@ -928,68 +930,88 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);
 
+  async function runMarkDetect(thread: ThreadCard, gen: number) {
+    markDetectAbortRef.current?.abort();
+    const ac = new AbortController();
+    markDetectAbortRef.current = ac;
+    setMarkDetecting(true);
+    setMarkDetectMissed(false);
+    setMarkDetectNote("Looking for your reply…");
+    try {
+      const res = await fetch("/api/interacted/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threadId: thread.id }),
+        signal: ac.signal,
+      });
+      if (markDetectGenRef.current !== gen) return;
+      const data = (await res.json().catch(() => ({}))) as {
+        found?: boolean;
+        reply?: { replyUrl?: string; replyText?: string };
+        message?: string;
+      };
+      if (markDetectGenRef.current !== gen) return;
+      if (!res.ok) {
+        setMarkDetectMissed(true);
+        setMarkDetectNote(
+          "Detection unavailable — server error. Paste the URL manually.",
+        );
+      } else if (
+        data.found &&
+        typeof data.reply?.replyUrl === "string" &&
+        parseStatusIdFromUrl(data.reply.replyUrl)
+      ) {
+        setMarkReplyUrl(data.reply.replyUrl);
+        setMarkReply(
+          typeof data.reply.replyText === "string" ? data.reply.replyText : "",
+        );
+        setMarkDetectMissed(false);
+        setMarkDetectNote("Found your reply — confirm or edit before saving.");
+      } else {
+        setMarkDetectMissed(true);
+        setMarkDetectNote(
+          "Couldn't find your reply — paste the URL (text optional).",
+        );
+      }
+    } catch (err) {
+      if (markDetectGenRef.current !== gen) return;
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setMarkDetectMissed(true);
+      setMarkDetectNote(
+        "Couldn't find your reply — paste the URL (text optional).",
+      );
+    } finally {
+      if (markDetectGenRef.current === gen) {
+        setMarkDetecting(false);
+      }
+    }
+  }
+
   function openMarkModal(thread: ThreadCard) {
     const gen = ++markDetectGenRef.current;
     setMarkThread(thread);
     setMarkReplyUrl("");
     setMarkReply("");
-    setMarkDetecting(true);
-    setMarkDetectNote("Looking for your reply…");
-    void (async () => {
-      try {
-        const res = await fetch("/api/interacted/detect", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ threadId: thread.id }),
-        });
-        if (markDetectGenRef.current !== gen) return;
-        const data = (await res.json().catch(() => ({}))) as {
-          found?: boolean;
-          reply?: { replyUrl?: string; replyText?: string };
-          message?: string;
-        };
-        if (markDetectGenRef.current !== gen) return;
-        if (!res.ok) {
-          setMarkDetectNote(
-            "Detection unavailable — server error. Paste the URL manually.",
-          );
-        } else if (
-          data.found &&
-          typeof data.reply?.replyUrl === "string" &&
-          parseStatusIdFromUrl(data.reply.replyUrl)
-        ) {
-          setMarkReplyUrl(data.reply.replyUrl);
-          setMarkReply(
-            typeof data.reply.replyText === "string"
-              ? data.reply.replyText
-              : "",
-          );
-          setMarkDetectNote("Found your reply — confirm or edit before saving.");
-        } else {
-          setMarkDetectNote(
-            "Couldn't find your reply — paste the URL (text optional).",
-          );
-        }
-      } catch {
-        if (markDetectGenRef.current !== gen) return;
-        setMarkDetectNote(
-          "Couldn't find your reply — paste the URL (text optional).",
-        );
-      } finally {
-        if (markDetectGenRef.current === gen) {
-          setMarkDetecting(false);
-        }
-      }
-    })();
+    void runMarkDetect(thread, gen);
+  }
+
+  function retryMarkDetect() {
+    const thread = markThread;
+    if (!thread || markDetecting) return;
+    const gen = ++markDetectGenRef.current;
+    void runMarkDetect(thread, gen);
   }
 
   function closeMarkModal() {
     markDetectGenRef.current += 1;
+    markDetectAbortRef.current?.abort();
+    markDetectAbortRef.current = null;
     setMarkThread(null);
     setMarkReplyUrl("");
     setMarkReply("");
     setMarkDetecting(false);
     setMarkDetectNote("");
+    setMarkDetectMissed(false);
   }
 
   async function postInteracted(
@@ -2015,6 +2037,16 @@ export default function App() {
               >
                 {markDetecting ? "Looking…" : "Confirm"}
               </button>
+              {markDetectMissed && !markDetecting ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={busy}
+                  onClick={() => retryMarkDetect()}
+                >
+                  Retry
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="ghost"
