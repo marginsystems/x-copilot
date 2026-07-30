@@ -11,7 +11,49 @@ import {
   selectDueStatSamples,
   type Interaction,
 } from "./interactionStore.ts";
-import { runStatsTick } from "./statsWorker.ts";
+import { runStatsTick, shouldRunStatsMain } from "./statsWorker.ts";
+
+describe("shouldRunStatsMain", () => {
+  it("returns true for direct statsWorker.js / .ts entry", () => {
+    assert.equal(
+      shouldRunStatsMain("/root/x-copilot/server/dist/statsWorker.js"),
+      true,
+    );
+    assert.equal(
+      shouldRunStatsMain("/root/x-copilot/server/src/statsWorker.ts"),
+      true,
+    );
+  });
+
+  it("returns true under PM2 ProcessContainerFork when pm_id is set", () => {
+    assert.equal(
+      shouldRunStatsMain(
+        "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
+        { pm_id: "1" },
+      ),
+      true,
+    );
+  });
+
+  it("returns false for ProcessContainerFork without pm_id", () => {
+    assert.equal(
+      shouldRunStatsMain(
+        "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
+        {},
+      ),
+      false,
+    );
+  });
+
+  it("returns false for test-runner style argv", () => {
+    assert.equal(
+      shouldRunStatsMain("/root/x-copilot/node_modules/tsx/dist/cli.mjs", {
+        pm_id: undefined,
+      }),
+      false,
+    );
+  });
+});
 
 describe("selectDueStatSamples", () => {
   const now = Date.parse("2026-07-28T12:00:00.000Z");
