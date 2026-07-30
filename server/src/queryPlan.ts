@@ -15,14 +15,21 @@ export type PlanQueriesOpts = {
   yieldNote?: string;
 };
 
-/** Soft cap: > this many whitespace tokens → phrase-y / low-recall. */
-export const MAX_QUERY_WORDS = 4;
+/**
+ * Hard single-query cap: wordCount > MAX_QUERY_WORDS → phrase-y.
+ * Plans should be mostly 2-word; 3 is allowed sparingly; 4+ is always phrase-y.
+ */
+export const MAX_QUERY_WORDS = 3;
+
+/** Prefer 2-word plans: average above this → phrase-y. */
+export const PREFERRED_AVG_QUERY_WORDS = 2.5;
 
 export const SYSTEM = `You turn an engagement agenda into short X (Twitter) Latest search queries.
 Return ONLY valid JSON: {"queries":["..."]} with 2 to 4 queries.
 
 Rules:
-- Each query is 2–4 words (keyword/search string). Optional operators ok (filter:replies, min_faves, from:).
+- Prefer 2-word queries (highest recall on Latest). 3 words only when needed. Avoid 4+ words.
+- Optional operators ok (filter:replies, min_faves, from:) — they do not count against the 2-word preference when the keyword part is short.
 - Mix recall: include 1–2 broad high-recall queries AND 1–2 tighter ones. Do not emit four near-duplicates.
 - Do NOT copy the agenda sentence or long multi-word stacks that echo it.
 - Prefer Latest-friendly keywords that hit many recent short conversational posts and genuine questions.
@@ -30,10 +37,10 @@ Rules:
 - No essays, no numbering outside JSON, no markdown fences.
 - English unless the agenda clearly requires another language.
 
-Good (short, diverse, high recall):
-{"queries":["building in public AI","shipped my AI","AI builders help","how do I ship"]}
+Good (mostly 2-word, diverse, high recall):
+{"queries":["just shipped","AI launch","building AI","shipping soon"]}
 
-Bad (agenda echo / too narrow — do NOT do this):
+Bad (agenda echo / too narrow / too long — do NOT do this):
 {"queries":["shipping AI tool in public","building AI tool in public","AI tool launch question","shipping AI product help"]}`;
 
 /** Count whitespace-separated tokens in a query string. */
@@ -44,22 +51,25 @@ export function queryWordCount(query: string): number {
     .filter((w) => w.length > 0).length;
 }
 
-/** True when a single query is longer than the soft 2–4 word target. */
+/** True when a single query is longer than the hard 3-word cap (4+). */
 export function isPhraseyQuery(query: string): boolean {
   return queryWordCount(query) > MAX_QUERY_WORDS;
 }
 
 /**
- * Light check: majority of queries are phrase-y, or average word count > 4.
- * Used to trigger one broaden repair — not a hard reject of valid JSON.
+ * Prefer mostly 2-word plans. Triggers broaden repair when:
+ * - majority of queries have more than 2 words, or
+ * - average word count > 2.5, or
+ * - any query is 4+ words (hard phrase-y).
  */
 export function isPhraseyPlan(queries: string[]): boolean {
   if (queries.length === 0) return false;
-  const phrasey = queries.filter(isPhraseyQuery).length;
-  if (phrasey >= Math.ceil(queries.length / 2)) return true;
+  if (queries.some(isPhraseyQuery)) return true;
+  const overTwo = queries.filter((q) => queryWordCount(q) > 2).length;
+  if (overTwo >= Math.ceil(queries.length / 2)) return true;
   const avg =
     queries.reduce((sum, q) => sum + queryWordCount(q), 0) / queries.length;
-  return avg > MAX_QUERY_WORDS;
+  return avg > PREFERRED_AVG_QUERY_WORDS;
 }
 
 /** Strip markdown fences and parse {"queries": string[]} (exported for tests). */
@@ -104,7 +114,7 @@ function buildUserPrompt(agenda: string, opts?: PlanQueriesOpts): string {
   }
   if (opts?.broaden || opts?.yieldNote?.trim()) {
     parts.push(
-      "Broaden: prefer shorter high-recall 2–4 word Latest keywords; mix broad + tighter; do not copy the agenda sentence.",
+      "Broaden: prefer shorter high-recall 2-word Latest keywords (3 ok when needed); mix broad + tighter; do not copy the agenda sentence.",
     );
   }
   parts.push("Respond with JSON only.");
@@ -209,7 +219,7 @@ export async function planQueriesFromAgenda(
         broaden: true,
         priorQueries: queries,
         yieldNote:
-          "First plan was too phrase-y / agenda-echoing. Broaden to shorter high-recall keywords.",
+          "First plan was too phrase-y / agenda-echoing. Broaden to shorter high-recall 2-word keywords.",
       },
       model,
     );

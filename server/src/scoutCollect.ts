@@ -313,7 +313,7 @@ export async function runScoutCollect(opts: {
         (reason === "stalled"
           ? ` (${consecutiveZeroAdds} consecutive searches added 0).`
           : ".") +
-        " Stuck under candidate bucket — broaden; prefer shorter high-recall 2–4 word Latest keywords; mix broad + tighter; do not copy the agenda sentence.",
+        " Stuck under candidate bucket — broaden; prefer shorter high-recall 2-word Latest keywords (3 ok when needed); mix broad + tighter; do not copy the agenda sentence.",
     };
     const plan = await doPlan(agenda, planOpts);
     if (!plan.ok) {
@@ -465,21 +465,27 @@ export async function runScoutCollect(opts: {
         break;
       }
 
-      if (bucket.length < bucketSize) {
+      // Empty underfill: nothing to score.
+      if (bucket.length === 0) {
         stopReason = "exhausted";
         break;
       }
 
+      // Partial underfill: triage what we have once, then stop (no refill spam).
+      const isPartial = bucket.length < bucketSize;
+
       bucketAttempts += 1;
-        track(
-          "triaging",
-          `Scout is scoring bucket of ${bucket.length} candidates…`,
-          {
-            candidates: bucket.length,
-            coolCount: cool.length,
-            detail: { bucketAttempt: bucketAttempts },
-          },
-        );
+      track(
+        "triaging",
+        isPartial
+          ? `Scout is scoring partial bucket of ${bucket.length}/${bucketSize} candidates…`
+          : `Scout is scoring bucket of ${bucket.length} candidates…`,
+        {
+          candidates: bucket.length,
+          coolCount: cool.length,
+          detail: { bucketAttempt: bucketAttempts, partial: isPartial },
+        },
+      );
 
       // Attach OP text for replies before LLM triage (promo-root skip).
       const forTriage = await doHydrate({
@@ -499,6 +505,11 @@ export async function runScoutCollect(opts: {
         (t) => isCoolThread(t) && t.id && !coolIds.has(t.id),
       );
       if (newlyCool.length === 0) {
+        if (isPartial) {
+          bucket = [];
+          stopReason = "exhausted";
+          break;
+        }
         track(
           "filtering",
           "0 cool — discarding bucket and refilling…",
@@ -528,7 +539,13 @@ export async function runScoutCollect(opts: {
       });
 
       if (cool.length >= targetCool) {
+        bucket = [];
         stopReason = "target";
+        break;
+      }
+      if (isPartial) {
+        bucket = [];
+        stopReason = "exhausted";
         break;
       }
       bucket = [];
