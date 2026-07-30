@@ -506,6 +506,7 @@ export async function runScoutCollect(opts: {
       );
       if (newlyCool.length === 0) {
         if (isPartial) {
+          bucket = [];
           stopReason = "exhausted";
           break;
         }
@@ -538,10 +539,12 @@ export async function runScoutCollect(opts: {
       });
 
       if (cool.length >= targetCool) {
+        bucket = [];
         stopReason = "target";
         break;
       }
       if (isPartial) {
+        bucket = [];
         stopReason = "exhausted";
         break;
       }
