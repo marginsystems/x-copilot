@@ -49,16 +49,42 @@ describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
     assert.equal(queryWordCount("building in public AI"), 4);
     assert.equal(queryWordCount("  shipped my AI  "), 3);
     assert.equal(queryWordCount("shipping AI tool in public"), 5);
+    assert.equal(queryWordCount("just shipped"), 2);
   });
 
-  it("flags phrase-y single queries over 4 words", () => {
-    assert.equal(isPhraseyQuery("building in public AI"), false);
+  it("flags single queries over 3 words as phrase-y (4+)", () => {
+    assert.equal(isPhraseyQuery("just shipped"), false);
     assert.equal(isPhraseyQuery("shipped my AI"), false);
+    assert.equal(isPhraseyQuery("AI tool launch question"), true);
+    assert.equal(isPhraseyQuery("building in public AI"), true);
     assert.equal(isPhraseyQuery("shipping AI tool in public"), true);
-    assert.equal(isPhraseyQuery("AI tool launch question"), false);
   });
 
-  it("flags agenda-echo plans as phrase-y", () => {
+  it("accepts mostly 2-word high-recall plans", () => {
+    assert.equal(
+      isPhraseyPlan([
+        "just shipped",
+        "AI launch",
+        "building AI",
+        "shipping soon",
+      ]),
+      false,
+    );
+  });
+
+  it("flags all-3-word plans as phrase-y (prefer 2-word)", () => {
+    assert.equal(
+      isPhraseyPlan([
+        "shipping AI tool",
+        "AI launch question",
+        "building AI product",
+        "AI tool feedback",
+      ]),
+      true,
+    );
+  });
+
+  it("flags agenda-echo / long plans as phrase-y", () => {
     assert.equal(
       isPhraseyPlan([
         "shipping AI tool in public",
@@ -70,13 +96,13 @@ describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
     );
   });
 
-  it("accepts short diverse high-recall mix", () => {
+  it("allows a minority of 3-word queries in a 2-word-heavy plan", () => {
     assert.equal(
       isPhraseyPlan([
-        "building in public AI",
-        "shipped my AI",
-        "AI builders help",
-        "how do I ship",
+        "just shipped",
+        "AI launch",
+        "building AI",
+        "shipped my tool",
       ]),
       false,
     );

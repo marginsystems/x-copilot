@@ -281,6 +281,100 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.event.coolCount, 1);
   });
 
+  it("triages a stalled partial bucket before exhausting", async () => {
+    let triageCalls = 0;
+    let triagedIds: string[] = [];
+    const id = { n: 0 };
+
+    const result = await runScoutCollect({
+      queries: ["q1", "q2", "q3"],
+      bucketSize: 5,
+      targetCool: 5,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        // First search yields 3 unique authors; further searches add nothing.
+        searchTimeline: async () => {
+          if (id.n >= 3) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [
+                card({ id: "t1", author: "@u1" }),
+                card({ id: "t2", author: "@u2" }),
+              ],
+              bottomCursor: null,
+            };
+          }
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: fillBucket(id, 3),
+            bottomCursor: null,
+          };
+        },
+        hydrateReplyParents: async ({ threads }) => threads,
+        triageThreads: async ({ threads }) => {
+          triageCalls += 1;
+          triagedIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 15 : 90,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(triageCalls, 1, "partial bucket must be scored once");
+    assert.deepEqual(triagedIds, ["t1", "t2", "t3"]);
+    assert.equal(result.event.stopReason, "exhausted");
+    assert.equal(result.event.coolCount, 1);
+    assert.ok(
+      (result.event.threads ?? []).some((t) => t.id === "t1"),
+      "cool from partial triage kept",
+    );
+  });
+
+  it("does not triage when underfill is empty", async () => {
+    let triageCalls = 0;
+
+    const result = await runScoutCollect({
+      queries: ["q1", "q2"],
+      bucketSize: 5,
+      targetCool: 5,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => threads,
+        triageThreads: async ({ threads }) => {
+          triageCalls += 1;
+          return { threads };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(triageCalls, 0);
+    assert.equal(result.event.stopReason, "exhausted");
+    assert.equal(result.event.coolCount, 0);
+  });
+
   it("aborted flag short-circuits between steps", async () => {
     const abort = new AbortController();
     let searchCalls = 0;
