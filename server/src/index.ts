@@ -235,8 +235,16 @@ const server = http.createServer(async (req, res) => {
           : undefined;
       const types = parseMemoryTypes(body.types);
       await ensureMemoryIndex();
-      const hits = await searchMemory({ query, k, types });
-      return send(res, 200, { ok: true, hits }, false);
+      const result = await searchMemory({ query, k, types });
+      if (result.error) {
+        return send(res, 503, {
+          ok: false,
+          error: "memory_unavailable",
+          message: result.error,
+          hits: result.hits,
+        }, false);
+      }
+      return send(res, 200, { ok: true, hits: result.hits }, false);
     }
 
     if (req.method === "POST" && url.pathname === "/api/memory/reindex") {

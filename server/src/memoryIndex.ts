@@ -39,6 +39,12 @@ export type SearchMemoryOpts = {
   embedder?: Embedder;
 };
 
+export type SearchMemoryResult = {
+  hits: MemoryHit[];
+  /** Set when the model or index DB is unavailable, vs. a genuine no-match. */
+  error?: string;
+};
+
 export type ReindexResult = {
   ok: boolean;
   indexed: number;
@@ -474,9 +480,9 @@ export async function upsertMemoryNote(
 
 export async function searchMemory(
   opts: SearchMemoryOpts,
-): Promise<MemoryHit[]> {
+): Promise<SearchMemoryResult> {
   const query = opts.query?.trim() ?? "";
-  if (!query) return [];
+  if (!query) return { hits: [] };
 
   const k = Math.max(1, Math.min(opts.k ?? 4, 20));
   const paths = resolveIndexPaths(opts);
@@ -484,15 +490,15 @@ export async function searchMemory(
   let embedder: Embedder;
   try {
     embedder = await resolveEmbedder(opts.embedder);
-  } catch {
-    return [];
+  } catch (err) {
+    return { hits: [], error: err instanceof Error ? err.message : String(err) };
   }
 
   let db: Database.Database;
   try {
     db = openDb(paths.dbPath);
-  } catch {
-    return [];
+  } catch (err) {
+    return { hits: [], error: err instanceof Error ? err.message : String(err) };
   }
 
   try {
@@ -511,10 +517,10 @@ export async function searchMemory(
       embedding: Buffer;
     }[];
 
-    if (!rows.length) return [];
+    if (!rows.length) return { hits: [] };
 
     const [qVec] = await embedder.embed([truncate(query, MAX_CHUNK_CHARS)]);
-    if (!qVec) return [];
+    if (!qVec) return { hits: [], error: "query embed failed" };
 
     const scored: MemoryHit[] = [];
     for (const row of rows) {
@@ -532,9 +538,9 @@ export async function searchMemory(
       }
     }
     scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, k);
-  } catch {
-    return [];
+    return { hits: scored.slice(0, k) };
+  } catch (err) {
+    return { hits: [], error: err instanceof Error ? err.message : String(err) };
   } finally {
     db.close();
   }

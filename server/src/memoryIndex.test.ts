@@ -136,7 +136,7 @@ Generic engagement bait question.
     assert.equal(result.ok, true);
     assert.equal(result.indexed, 2);
 
-    const hits = await searchMemory({
+    const { hits } = await searchMemory({
       query: "builders shipping AI tools in public",
       k: 2,
       knowledgeRoot,
@@ -177,7 +177,7 @@ Reply-gated promo bait.
     });
     assert.equal(up.ok, true);
 
-    const hits = await searchMemory({
+    const { hits } = await searchMemory({
       query: "comment AI and I'll DM the prompt pack",
       k: 3,
       types: ["dismissal"],
@@ -229,19 +229,20 @@ Race condition note.
     assert.equal(result.indexed, 1);
   });
 
-  it("search soft-fails to empty when embedder throws", async () => {
+  it("search surfaces embedder failure as unavailable", async () => {
     const bad: typeof embedder = {
       dimensions: 8,
       async embed() {
         throw new Error("model missing");
       },
     };
-    const hits = await searchMemory({
+    const result = await searchMemory({
       query: "anything",
       knowledgeRoot,
       indexDir,
       embedder: bad,
     });
-    assert.deepEqual(hits, []);
+    assert.deepEqual(result.hits, []);
+    assert.ok(result.error);
   });
 });
