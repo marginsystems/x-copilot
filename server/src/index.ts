@@ -82,13 +82,35 @@ function scheduleMemoryUpsert(notePath: string, type: MemoryType): void {
   });
 }
 
+/** Dedupe concurrent lazy reindexes so only one full rebuild runs at a time. */
+let memoryReindexInFlight: Promise<void> | null = null;
+
 /** Rebuild index when it has never been fully built (lazy boot). Soft-fails. */
 async function ensureMemoryIndex(): Promise<void> {
   const status = memoryIndexStatus();
   if (status.dbIndexed) return;
-  const result = await reindexMemory();
-  if (!result.ok && result.error) {
-    console.warn("memory reindex soft-fail:", result.error);
+  if (!memoryReindexInFlight) {
+    memoryReindexInFlight = (async () => {
+      const result = await reindexMemory();
+      if (!result.ok && result.error) {
+        console.warn("memory reindex soft-fail:", result.error);
+      }
+    })().finally(() => {
+      memoryReindexInFlight = null;
+    });
+  }
+  return memoryReindexInFlight;
+}
+
+/** Allow only local browser origins; non-browser clients (CLI/curl) send no Origin. */
+function originAllowed(req: IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
   }
 }
 
@@ -180,6 +202,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/memory/search") {
+      if (!originAllowed(req)) {
+        return send(res, 403, {
+          error: "forbidden",
+          message: "Origin not allowed",
+        }, false);
+      }
       let body: Record<string, unknown>;
       try {
         body = (await readBody(req)) as Record<string, unknown>;
@@ -208,6 +236,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/memory/reindex") {
+      if (!originAllowed(req)) {
+        return send(res, 403, {
+          error: "forbidden",
+          message: "Origin not allowed",
+        }, false);
+      }
       const result = await reindexMemory();
       if (!result.ok) {
         return send(res, 503, {
