@@ -304,6 +304,9 @@ type TweetResultNode = {
 
 const NATIVE_MEDIA_HOST_RE =
   /(?:^|\.)(?:pic\.twitter\.com|pbs\.twimg\.com|video\.twimg\.com)(?:\/|$)/i;
+/** e.g. https://twitter.com/<user>/status/<id>/photo/<n> or .../video/<n>. */
+const TWITTER_MEDIA_PATH_RE =
+  /^https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[^/]+\/status\/\d+\/(?:photo|video)\//i;
 const OUTBOUND_URL_IN_TEXT_RE = /https?:\/\/[^\s]+|t\.co\/[A-Za-z0-9]+/gi;
 
 /** True when URL is native X media (not an outbound link attachment). */
@@ -313,9 +316,11 @@ export function isNativeMediaUrl(url: string): boolean {
   try {
     const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
     const host = new URL(withScheme).hostname;
-    return NATIVE_MEDIA_HOST_RE.test(host);
+    return (
+      NATIVE_MEDIA_HOST_RE.test(host) || TWITTER_MEDIA_PATH_RE.test(withScheme)
+    );
   } catch {
-    return NATIVE_MEDIA_HOST_RE.test(raw);
+    return NATIVE_MEDIA_HOST_RE.test(raw) || TWITTER_MEDIA_PATH_RE.test(raw);
   }
 }
 

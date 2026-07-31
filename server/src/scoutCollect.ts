@@ -298,6 +298,11 @@ export async function runScoutCollect(opts: {
   let bucketAttempts = 0;
   let consecutiveZeroAdds = 0;
   let linkFilteredTotal = 0;
+  // Collect funnel is per-search cumulative: the filter stages (raw → afterLength)
+  // sum every search page across all buckets/refills, while afterTriage sums only
+  // the threads actually scored (bucket-qualified). The afterLength → afterTriage
+  // gap is the bucket-qualification drop (author dedupe / bucket-full / partial
+  // stop), not a triage drop — unlike runScoutSearch's single-pass funnel.
   const funnelCounts: ScoutPipelineCounts = {
     raw: 0,
     afterDedupe: 0,

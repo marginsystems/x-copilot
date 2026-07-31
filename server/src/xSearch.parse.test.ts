@@ -489,6 +489,33 @@ describe("outbound link detection", () => {
     assert.deepEqual(card.mediaShortlinks, ["t.co/mediareal"]);
   });
 
+  it("does not flag media URL entities with twitter.com photo expanded_url", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "508",
+      legacy: {
+        full_text: "Photo https://t.co/mediaTwitter",
+        id_str: "508",
+        entities: {
+          urls: [
+            {
+              url: "https://t.co/mediaTwitter",
+              expanded_url:
+                "https://twitter.com/mediaTwitter/status/508/photo/1",
+              display_url: "pic.twitter.com/mediaTwitter",
+            },
+          ],
+        },
+      },
+      core: {
+        user_results: { result: { core: { screen_name: "mediaTwitter" } } },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.hasOutboundLink, undefined);
+    assert.deepEqual(card.mediaShortlinks, ["t.co/mediatwitter"]);
+  });
+
   it("does not flag note_tweet media via entity_set.media", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
