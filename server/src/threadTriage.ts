@@ -317,8 +317,9 @@ export async function gatherTriageMemories(
   threads: ThreadCard[],
   search: MemorySearchFn = searchMemory,
 ): Promise<TriageMemoryHit[]> {
+  const perCardCap = Math.max(1, Math.floor(800 / threads.length));
   const query = threads
-    .map(memoryQueryForThread)
+    .map((t) => memoryQueryForThread(t).slice(0, perCardCap))
     .filter((q) => q.length > 0)
     .join("\n")
     .slice(0, 800);

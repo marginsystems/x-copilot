@@ -298,6 +298,23 @@ describe("memory triage context", () => {
     const hits = await gatherTriageMemories([thread("1")], async () => []);
     assert.deepEqual(hits, []);
   });
+
+  it("gatherTriageMemories spreads the batch query across all cards", async () => {
+    const batch = Array.from({ length: 20 }, (_, i) => ({
+      ...thread(String(i)),
+      text: `${i}: ${"B".repeat(500)}`,
+    }));
+    let query = "";
+    const hits = await gatherTriageMemories(batch, async (opts) => {
+      query = opts.query;
+      return [];
+    });
+    assert.equal(hits.length, 0);
+    assert.ok(
+      query.includes("19:"),
+      "later cards should contribute to the batch query",
+    );
+  });
 });
 
 describe("triageThreads", () => {
