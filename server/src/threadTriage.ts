@@ -431,6 +431,15 @@ export async function triageThreads(opts: {
   let missing = missingTriageIds(batchIds, items);
   if (missing.length) {
     const missingThreads = batch.filter((t) => missing.includes(t.id));
+    let missingMemories: TriageMemoryHit[] = [];
+    try {
+      missingMemories = await gatherTriageMemories(
+        missingThreads,
+        opts.searchMemory ?? searchMemory,
+      );
+    } catch {
+      missingMemories = [];
+    }
     const repairMissing = await chatCompletions({
       model,
       apiKey,
@@ -438,7 +447,7 @@ export async function triageThreads(opts: {
         { role: "system", content: SYSTEM },
         {
           role: "user",
-          content: `${buildUserMessage(opts.agenda ?? "", missingThreads, memories)}\n\nYou omitted these ids: ${JSON.stringify(missing)}. Return JSON items ONLY for those ids, each with id, summary, and baitScore.`,
+          content: `${buildUserMessage(opts.agenda ?? "", missingThreads, missingMemories)}\n\nYou omitted these ids: ${JSON.stringify(missing)}. Return JSON items ONLY for those ids, each with id, summary, and baitScore.`,
         },
       ],
     });
