@@ -272,6 +272,9 @@ type TweetResultNode = {
     note_tweet_results?: {
       result?: {
         text?: string;
+        entity_set?: {
+          urls?: UrlEntity[];
+        };
       };
     };
   };
@@ -329,17 +332,21 @@ function normalizeTcoKey(url: string): string | null {
 }
 
 /** t.co shortlinks whose expanded_url is native media. */
-function mediaShortlinkKeys(urls: UrlEntity[] | undefined): Set<string> {
+function mediaShortlinkKeys(
+  ...urlSets: Array<UrlEntity[] | undefined>
+): Set<string> {
   const keys = new Set<string>();
-  if (!Array.isArray(urls)) return keys;
-  for (const u of urls) {
-    const expanded =
-      typeof u.expanded_url === "string" ? u.expanded_url.trim() : "";
-    if (!expanded || !isNativeMediaUrl(expanded)) continue;
-    for (const c of [u.url, u.expanded_url, u.display_url]) {
-      if (typeof c !== "string") continue;
-      const key = normalizeTcoKey(c);
-      if (key) keys.add(key);
+  for (const urls of urlSets) {
+    if (!Array.isArray(urls)) continue;
+    for (const u of urls) {
+      const expanded =
+        typeof u.expanded_url === "string" ? u.expanded_url.trim() : "";
+      if (!expanded || !isNativeMediaUrl(expanded)) continue;
+      for (const c of [u.url, u.expanded_url, u.display_url]) {
+        if (typeof c !== "string") continue;
+        const key = normalizeTcoKey(c);
+        if (key) keys.add(key);
+      }
     }
   }
   return keys;
@@ -423,11 +430,14 @@ export function nodeHasOutboundLink(node: {
   note_tweet?: TweetResultNode["note_tweet"];
 }): boolean {
   const urls = node.legacy?.entities?.urls;
+  const noteUrls =
+    node.note_tweet?.note_tweet_results?.result?.entity_set?.urls;
+  const ignore = mediaShortlinkKeys(urls, noteUrls);
   if (entityUrlsHaveOutbound(urls)) return true;
-  if (cardHasOutboundLink(node.card, mediaShortlinkKeys(urls))) return true;
+  if (cardHasOutboundLink(node.card, ignore)) return true;
   const noteText = noteTweetText(node as TweetResultNode);
   const text = resolveCardText(node.legacy?.full_text, noteText);
-  if (text && textHasOutboundLink(text, mediaShortlinkKeys(urls))) return true;
+  if (text && textHasOutboundLink(text, ignore)) return true;
   return false;
 }
 
@@ -515,7 +525,12 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
   const op = extractOpContext(inner);
 
   const hasOutboundLink = nodeHasOutboundLink(inner);
-  const mediaShortlinks = [...mediaShortlinkKeys(inner.legacy?.entities?.urls)];
+  const mediaShortlinks = [
+    ...mediaShortlinkKeys(
+      inner.legacy?.entities?.urls,
+      inner.note_tweet?.note_tweet_results?.result?.entity_set?.urls,
+    ),
+  ];
 
   const card: ThreadCard = {
     id: String(id),

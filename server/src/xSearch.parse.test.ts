@@ -426,6 +426,40 @@ describe("outbound link detection", () => {
     assert.ok(card);
     assert.equal(card.hasOutboundLink, undefined);
   });
+
+  it("does not flag media shortlinks in note_tweet body entities", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "505",
+      legacy: {
+        full_text: "Long post teaser",
+        id_str: "505",
+        entities: { urls: [] },
+      },
+      note_tweet: {
+        note_tweet_results: {
+          result: {
+            text: "A long image post https://t.co/mediaNote",
+            entity_set: {
+              urls: [
+                {
+                  url: "https://t.co/mediaNote",
+                  expanded_url: "https://pic.twitter.com/mediaNote",
+                  display_url: "pic.twitter.com/mediaNote",
+                },
+              ],
+            },
+          },
+        },
+      },
+      core: {
+        user_results: { result: { core: { screen_name: "noteMedia" } } },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.longform, "note_tweet");
+    assert.equal(card.hasOutboundLink, undefined);
+  });
 });
 
 describe("dedupeThreads", () => {
