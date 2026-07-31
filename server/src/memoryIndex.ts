@@ -418,7 +418,7 @@ export async function upsertMemoryNote(
     const type =
       opts?.type ??
       parsed.type ??
-      (/[/\\]dismissals[/\\]/.test(notePath) ? "dismissal" : "interaction");
+      (/dismissals[/\\]/.test(notePath) ? "dismissal" : "interaction");
     if (!parsed.chunk.trim()) {
       return { ok: false, path: notePath, error: "empty note chunk" };
     }
