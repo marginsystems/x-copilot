@@ -19,6 +19,11 @@ export type ThreadCard = {
    * Articles are hard-dropped before triage; note_tweet body feeds the char cap.
    */
   longform?: "note_tweet" | "article";
+  /**
+   * True when the candidate post has an outbound link (entities, card, or text).
+   * Native media URLs do not count. Hard-dropped before triage.
+   */
+  hasOutboundLink?: boolean;
   /** Reply / conversation context for triage (OP scoring). */
   inReplyToId?: string;
   /** Screen name of the tweet being replied to (SearchTimeline legacy). */
@@ -231,6 +236,12 @@ export function dedupeThreads(threads: ThreadCard[]): ThreadCard[] {
   return out;
 }
 
+type UrlEntity = {
+  url?: string;
+  expanded_url?: string;
+  display_url?: string;
+};
+
 type TweetResultNode = {
   __typename?: string;
   rest_id?: string;
@@ -243,6 +254,9 @@ type TweetResultNode = {
     conversation_id_str?: string;
     in_reply_to_status_id_str?: string;
     in_reply_to_screen_name?: string;
+    entities?: {
+      urls?: UrlEntity[];
+    };
   };
   core?: {
     user_results?: {
@@ -259,12 +273,155 @@ type TweetResultNode = {
       };
     };
   };
+  /** Link-preview / summary card (shape varies by GraphQL build). */
+  card?: {
+    rest_id?: string;
+    legacy?: {
+      name?: string;
+      url?: string;
+      binding_values?: Array<{
+        key?: string;
+        value?: {
+          string_value?: string;
+          scribe_key?: string;
+        };
+      }>;
+    };
+  };
   /** X Articles / longform article payloads (shape varies by GraphQL build). */
   article?: unknown;
   article_results?: unknown;
   tweet?: unknown;
   quoted_status_result?: { result?: unknown };
 };
+
+const NATIVE_MEDIA_HOST_RE =
+  /(?:^|\.)(?:pic\.twitter\.com|pbs\.twimg\.com|video\.twimg\.com)(?:\/|$)/i;
+const OUTBOUND_URL_IN_TEXT_RE = /https?:\/\/[^\s]+|t\.co\/[A-Za-z0-9]+/gi;
+
+/** True when URL is native X media (not an outbound link attachment). */
+export function isNativeMediaUrl(url: string): boolean {
+  const raw = url.trim();
+  if (!raw) return false;
+  try {
+    const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const host = new URL(withScheme).hostname;
+    return NATIVE_MEDIA_HOST_RE.test(host);
+  } catch {
+    return NATIVE_MEDIA_HOST_RE.test(raw);
+  }
+}
+
+/** True when a URL string is an outbound (non-media) link. */
+export function isOutboundLinkUrl(url: string): boolean {
+  const raw = url.trim();
+  if (!raw) return false;
+  if (!/^https?:\/\//i.test(raw) && !/^t\.co\//i.test(raw)) return false;
+  return !isNativeMediaUrl(raw);
+}
+
+/** Normalize a t.co shortlink for set membership checks. */
+function normalizeTcoKey(url: string): string | null {
+  const m = /(?:https?:\/\/)?t\.co\/([A-Za-z0-9]+)/i.exec(url.trim());
+  return m ? `t.co/${m[1]}`.toLowerCase() : null;
+}
+
+/** t.co shortlinks whose expanded_url is native media. */
+function mediaShortlinkKeys(urls: UrlEntity[] | undefined): Set<string> {
+  const keys = new Set<string>();
+  if (!Array.isArray(urls)) return keys;
+  for (const u of urls) {
+    const expanded =
+      typeof u.expanded_url === "string" ? u.expanded_url.trim() : "";
+    if (!expanded || !isNativeMediaUrl(expanded)) continue;
+    for (const c of [u.url, u.expanded_url, u.display_url]) {
+      if (typeof c !== "string") continue;
+      const key = normalizeTcoKey(c);
+      if (key) keys.add(key);
+    }
+  }
+  return keys;
+}
+
+/**
+ * True when candidate text contains an outbound http(s)/t.co link (media excluded).
+ * Pass `ignoreShortlinks` for t.co keys that resolve to native media via entities.
+ */
+export function textHasOutboundLink(
+  text: string,
+  ignoreShortlinks: Set<string> = new Set(),
+): boolean {
+  const matches = text.match(OUTBOUND_URL_IN_TEXT_RE);
+  if (!matches) return false;
+  for (const m of matches) {
+    const cleaned = m.replace(/[),.!?;:]+$/g, "");
+    const tco = normalizeTcoKey(cleaned);
+    if (tco && ignoreShortlinks.has(tco)) continue;
+    if (isOutboundLinkUrl(cleaned)) return true;
+  }
+  return false;
+}
+
+function entityUrlsHaveOutbound(urls: UrlEntity[] | undefined): boolean {
+  if (!Array.isArray(urls)) return false;
+  for (const u of urls) {
+    // Prefer expanded_url so t.co → pic.twitter.com is treated as media.
+    const expanded =
+      typeof u.expanded_url === "string" ? u.expanded_url.trim() : "";
+    if (expanded) {
+      if (isNativeMediaUrl(expanded)) continue;
+      if (isOutboundLinkUrl(expanded)) return true;
+      continue;
+    }
+    for (const c of [u.url, u.display_url]) {
+      if (typeof c === "string" && isOutboundLinkUrl(c)) return true;
+    }
+  }
+  return false;
+}
+
+function cardHasOutboundLink(card: TweetResultNode["card"]): boolean {
+  if (!card || typeof card !== "object") return false;
+  const legacy = card.legacy;
+  if (!legacy) return false;
+  if (typeof legacy.url === "string" && isOutboundLinkUrl(legacy.url)) {
+    return true;
+  }
+  const bindings = legacy.binding_values;
+  if (!Array.isArray(bindings)) return false;
+  for (const b of bindings) {
+    const key = (b.key ?? "").toLowerCase();
+    const val = b.value?.string_value;
+    if (typeof val !== "string" || !val.trim()) continue;
+    if (
+      key.includes("url") ||
+      key === "card_url" ||
+      key === "vanity_url" ||
+      key === "website_url"
+    ) {
+      if (isOutboundLinkUrl(val) || textHasOutboundLink(val)) return true;
+    }
+  }
+  return false;
+}
+
+/** Detect outbound links on a GraphQL tweet node (candidate only, not quoted OP). */
+export function nodeHasOutboundLink(node: {
+  legacy?: {
+    full_text?: string;
+    entities?: { urls?: UrlEntity[] };
+  };
+  card?: TweetResultNode["card"];
+  note_tweet?: TweetResultNode["note_tweet"];
+}): boolean {
+  const urls = node.legacy?.entities?.urls;
+  if (entityUrlsHaveOutbound(urls)) return true;
+  if (cardHasOutboundLink(node.card)) return true;
+  const noteText = noteTweetText(node as TweetResultNode);
+  const text = resolveCardText(node.legacy?.full_text, noteText);
+  if (text && textHasOutboundLink(text, mediaShortlinkKeys(urls))) return true;
+  return false;
+}
 
 function noteTweetText(node: TweetResultNode): string | undefined {
   const text = node.note_tweet?.note_tweet_results?.result?.text;
@@ -349,6 +506,8 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
   const conversationId = inner.legacy?.conversation_id_str?.trim();
   const op = extractOpContext(inner);
 
+  const hasOutboundLink = nodeHasOutboundLink(inner);
+
   const card: ThreadCard = {
     id: String(id),
     author: handle.startsWith("@") ? handle : `@${handle}`,
@@ -356,6 +515,7 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
     url: `https://x.com/${handle.replace(/^@/, "")}/status/${id}`,
     createdAt: inner.legacy?.created_at,
     ...(longform ? { longform } : {}),
+    ...(hasOutboundLink ? { hasOutboundLink: true } : {}),
   };
   if (inReplyToId) {
     card.inReplyToId = inReplyToId;

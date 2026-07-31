@@ -2,10 +2,14 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   dedupeThreads,
+  isNativeMediaUrl,
+  isOutboundLinkUrl,
   parseSearchTimelinePage,
   parseSearchTimelineResponse,
   resolveWithinTime,
   searchTimelinePages,
+  textHasOutboundLink,
+  tweetResultToCard,
   withSearchRecency,
   type ThreadCard,
 } from "./xSearch.ts";
@@ -322,6 +326,105 @@ describe("parseSearchTimelineResponse", () => {
     assert.ok(quote);
     assert.equal(quote.opAuthor, "@hustler");
     assert.match(quote.opText ?? "", /\$632/);
+  });
+});
+
+describe("outbound link detection", () => {
+  it("classifies media vs outbound URLs", () => {
+    assert.equal(isNativeMediaUrl("https://pic.twitter.com/abc"), true);
+    assert.equal(isNativeMediaUrl("https://pbs.twimg.com/media/x.jpg"), true);
+    assert.equal(isNativeMediaUrl("https://example.com/x"), false);
+    assert.equal(isOutboundLinkUrl("https://t.co/abc"), true);
+    assert.equal(isOutboundLinkUrl("https://pic.twitter.com/abc"), false);
+    assert.equal(textHasOutboundLink("see https://github.com/x"), true);
+    assert.equal(textHasOutboundLink("bare t.co/AbCdEf"), true);
+    assert.equal(textHasOutboundLink("thanks @alice"), false);
+    assert.equal(
+      textHasOutboundLink("pic https://pic.twitter.com/abc only"),
+      false,
+    );
+  });
+
+  it("flags entities.urls on parse", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "501",
+      legacy: {
+        full_text: "I built this",
+        id_str: "501",
+        entities: {
+          urls: [
+            {
+              url: "https://t.co/xyz",
+              expanded_url: "https://github.com/acme/tool",
+              display_url: "github.com/acme/tool",
+            },
+          ],
+        },
+      },
+      core: {
+        user_results: { result: { core: { screen_name: "builder" } } },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.hasOutboundLink, true);
+  });
+
+  it("flags t.co in full_text when no entities", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "502",
+      legacy: {
+        full_text: "Launch post https://t.co/abc123",
+        id_str: "502",
+      },
+      core: {
+        user_results: { result: { core: { screen_name: "shipper" } } },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.hasOutboundLink, true);
+  });
+
+  it("does not flag clean text", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "503",
+      legacy: {
+        full_text: "How do you pick which product to build?",
+        id_str: "503",
+      },
+      core: {
+        user_results: { result: { core: { screen_name: "curious" } } },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.hasOutboundLink, undefined);
+  });
+
+  it("does not flag media-only entity URLs (even with t.co in text)", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "504",
+      legacy: {
+        full_text: "Screenshot https://t.co/media1",
+        id_str: "504",
+        entities: {
+          urls: [
+            {
+              url: "https://t.co/media1",
+              expanded_url: "https://pic.twitter.com/media1",
+              display_url: "pic.twitter.com/media1",
+            },
+          ],
+        },
+      },
+      core: {
+        user_results: { result: { core: { screen_name: "media" } } },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.hasOutboundLink, undefined);
   });
 });
 
