@@ -295,7 +295,9 @@ describe("memory triage context", () => {
   });
 
   it("gatherTriageMemories soft-fails to [] when search returns empty", async () => {
-    const hits = await gatherTriageMemories([thread("1")], async () => []);
+    const hits = await gatherTriageMemories([thread("1")], async () => ({
+      hits: [],
+    }));
     assert.deepEqual(hits, []);
   });
 
@@ -307,7 +309,7 @@ describe("memory triage context", () => {
     let query = "";
     const hits = await gatherTriageMemories(batch, async (opts) => {
       query = opts.query;
-      return [];
+      return { hits: [] };
     });
     assert.equal(hits.length, 0);
     assert.ok(

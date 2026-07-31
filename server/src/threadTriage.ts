@@ -7,6 +7,7 @@ import {
   searchMemory,
   type MemoryHit,
   type MemoryType,
+  type SearchMemoryResult,
 } from "./memoryIndex.js";
 import type { ThreadCard } from "./xSearch.js";
 
@@ -258,7 +259,7 @@ export type MemorySearchFn = (opts: {
   query: string;
   k?: number;
   types?: MemoryType[];
-}) => Promise<MemoryHit[]>;
+}) => Promise<SearchMemoryResult>;
 
 /** Build query text from a card for memory retrieval. */
 export function memoryQueryForThread(thread: ThreadCard): string {
@@ -327,8 +328,12 @@ export async function gatherTriageMemories(
   const pooled: MemoryHit[] = [];
   for (const type of ["interaction", "dismissal"] as const) {
     try {
-      const hits = await search({ query, k: DEFAULT_MEMORY_K, types: [type] });
-      if (Array.isArray(hits) && hits.length) pooled.push(...hits);
+      const result = await search({
+        query,
+        k: DEFAULT_MEMORY_K,
+        types: [type],
+      });
+      if (result.hits.length) pooled.push(...result.hits);
     } catch {
       // soft-fail per type
     }
