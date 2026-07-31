@@ -369,19 +369,17 @@ function mediaShortlinkKeys(
 }
 
 /**
- * True when candidate text contains an outbound http(s)/t.co link (media excluded).
- * Pass `ignoreShortlinks` for t.co keys that resolve to native media via entities.
+ * True when candidate text contains an outbound link (media excluded).
+ * Bare t.co shortlinks are ambiguous (native media vs outbound) when their
+ * entity is absent, so they never count here; outbound t.co links are resolved
+ * via URL entities/cards instead.
  */
-export function textHasOutboundLink(
-  text: string,
-  ignoreShortlinks: Set<string> = new Set(),
-): boolean {
+export function textHasOutboundLink(text: string): boolean {
   const matches = text.match(OUTBOUND_URL_IN_TEXT_RE);
   if (!matches) return false;
   for (const m of matches) {
     const cleaned = m.replace(/[),.!?;:]+$/g, "");
-    const tco = normalizeTcoKey(cleaned);
-    if (tco && ignoreShortlinks.has(tco)) continue;
+    if (normalizeTcoKey(cleaned)) continue;
     if (isOutboundLinkUrl(cleaned)) return true;
   }
   return false;
@@ -430,7 +428,7 @@ function cardHasOutboundLink(
       const tco = normalizeTcoKey(val);
       const isMediaShortlink = tco !== null && ignoreShortlinks.has(tco);
       if (!isMediaShortlink && isOutboundLinkUrl(val)) return true;
-      if (textHasOutboundLink(val, ignoreShortlinks)) return true;
+      if (textHasOutboundLink(val)) return true;
     }
   }
   return false;
@@ -453,7 +451,7 @@ export function nodeHasOutboundLink(node: {
   if (cardHasOutboundLink(node.card, ignore)) return true;
   const noteText = noteTweetText(node as TweetResultNode);
   const text = resolveCardText(node.legacy?.full_text, noteText);
-  if (text && textHasOutboundLink(text, ignore)) return true;
+  if (text && textHasOutboundLink(text)) return true;
   return false;
 }
 

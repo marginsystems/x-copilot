@@ -337,7 +337,7 @@ describe("outbound link detection", () => {
     assert.equal(isOutboundLinkUrl("https://t.co/abc"), true);
     assert.equal(isOutboundLinkUrl("https://pic.twitter.com/abc"), false);
     assert.equal(textHasOutboundLink("see https://github.com/x"), true);
-    assert.equal(textHasOutboundLink("bare t.co/AbCdEf"), true);
+    assert.equal(textHasOutboundLink("bare t.co/AbCdEf"), false);
     assert.equal(textHasOutboundLink("thanks @alice"), false);
     assert.equal(
       textHasOutboundLink("pic https://pic.twitter.com/abc only"),
@@ -370,7 +370,7 @@ describe("outbound link detection", () => {
     assert.equal(card.hasOutboundLink, true);
   });
 
-  it("flags t.co in full_text when no entities", () => {
+  it("does not flag bare t.co in full_text when entities are absent", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "502",
@@ -383,7 +383,7 @@ describe("outbound link detection", () => {
       },
     });
     assert.ok(card);
-    assert.equal(card.hasOutboundLink, true);
+    assert.equal(card.hasOutboundLink, undefined);
   });
 
   it("does not flag clean text", () => {

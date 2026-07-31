@@ -163,7 +163,7 @@ describe("filterOutboundLinks", () => {
       threadHasOutboundLink(thread("1", "hi", undefined, { hasOutboundLink: true })),
       true,
     );
-    assert.equal(threadHasOutboundLink(thread("2", "see t.co/abc123")), true);
+    assert.equal(threadHasOutboundLink(thread("2", "see t.co/abc123")), false);
     assert.equal(threadHasOutboundLink(thread("3", "no links here")), false);
   });
 });

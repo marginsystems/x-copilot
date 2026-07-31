@@ -766,7 +766,7 @@ describe("runScoutCollect bucket loop", () => {
             card({
               id: "l2",
               author: "@texturl",
-              text: "See https://t.co/abc123 for details",
+              text: "See https://example.com/abc for details",
             }),
             card({ id: "n1", author: "@alice" }),
             card({ id: "n2", author: "@bob" }),
