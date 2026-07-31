@@ -136,7 +136,7 @@ Generic engagement bait question.
     assert.equal(result.ok, true);
     assert.equal(result.indexed, 2);
 
-    const hits = await searchMemory({
+    const { hits } = await searchMemory({
       query: "builders shipping AI tools in public",
       k: 2,
       knowledgeRoot,
@@ -177,7 +177,7 @@ Reply-gated promo bait.
     });
     assert.equal(up.ok, true);
 
-    const hits = await searchMemory({
+    const { hits } = await searchMemory({
       query: "comment AI and I'll DM the prompt pack",
       k: 3,
       types: ["dismissal"],
@@ -188,19 +188,61 @@ Reply-gated promo bait.
     assert.ok(hits.some((h) => h.path === notePath || h.path.endsWith("2026-07-31-new.md")));
   });
 
-  it("search soft-fails to empty when embedder throws", async () => {
+  it("reindex survives a racing upsert on the same path", async () => {
+    const notePath = join(knowledgeRoot, "interactions", "2026-07-30-race.md");
+    await writeFile(
+      notePath,
+      `---
+type: interaction
+---
+
+## Post
+
+Race condition note.
+`,
+      "utf8",
+    );
+    const indexDirCopy = indexDir;
+    let raced = false;
+    const racingEmbedder: typeof embedder = {
+      dimensions: embedder.dimensions,
+      async embed(texts: string[]): Promise<Float32Array[]> {
+        if (!raced) {
+          raced = true;
+          const up = await upsertMemoryNote(notePath, {
+            knowledgeRoot,
+            indexDir: indexDirCopy,
+            embedder,
+            type: "interaction",
+          });
+          assert.equal(up.ok, true);
+        }
+        return embedder.embed(texts);
+      },
+    };
+    const result = await reindexMemory({
+      knowledgeRoot,
+      indexDir,
+      embedder: racingEmbedder,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.indexed, 1);
+  });
+
+  it("search surfaces embedder failure as unavailable", async () => {
     const bad: typeof embedder = {
       dimensions: 8,
       async embed() {
         throw new Error("model missing");
       },
     };
-    const hits = await searchMemory({
+    const result = await searchMemory({
       query: "anything",
       knowledgeRoot,
       indexDir,
       embedder: bad,
     });
-    assert.deepEqual(hits, []);
+    assert.deepEqual(result.hits, []);
+    assert.ok(result.error);
   });
 });

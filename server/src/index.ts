@@ -33,6 +33,14 @@ import {
   writeDismissalMemory,
   writeInteractionMemory,
 } from "./knowledgeMemory.js";
+import {
+  memoryIndexStatus,
+  reindexMemory,
+  searchMemory,
+  upsertMemoryNote,
+  type MemoryType,
+  type ReindexResult,
+} from "./memoryIndex.js";
 import { loadEnv } from "./loadEnv.js";
 import { getLastScout } from "./scoutCache.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
@@ -66,18 +74,76 @@ loadEnv(resolve(process.cwd(), ".env"));
 
 const PORT = Number(process.env.PORT || 8787);
 
+/** Best-effort index upsert — never fails the request. */
+function scheduleMemoryUpsert(notePath: string, type: MemoryType): void {
+  void (async () => {
+    if (memoryReindexInFlight) {
+      await memoryReindexInFlight;
+    }
+    const result = await upsertMemoryNote(notePath, { type });
+    if (!result.ok && result.error) {
+      console.warn(`memory upsert soft-fail (${type}):`, result.error);
+    }
+  })();
+}
+
+/** Dedupe concurrent reindexes so only one full rebuild runs at a time. */
+let memoryReindexInFlight: Promise<ReindexResult> | null = null;
+
+/** Rebuild index, sharing the in-flight guard across lazy and manual paths. */
+function runMemoryReindex(): Promise<ReindexResult> {
+  if (!memoryReindexInFlight) {
+    memoryReindexInFlight = reindexMemory().finally(() => {
+      memoryReindexInFlight = null;
+    });
+  }
+  return memoryReindexInFlight;
+}
+
+/** Rebuild index when it has never been fully built (lazy boot). Soft-fails. */
+async function ensureMemoryIndex(): Promise<void> {
+  const status = memoryIndexStatus();
+  if (status.dbIndexed) return;
+  const result = await runMemoryReindex();
+  if (!result.ok && result.error) {
+    console.warn("memory reindex soft-fail:", result.error);
+  }
+}
+
+/** Allow only local browser origins; non-browser clients (CLI/curl) send no Origin. */
+function originAllowed(req: IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function parseMemoryTypes(raw: unknown): MemoryType[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const types = raw.filter(
+    (t): t is MemoryType => t === "interaction" || t === "dismissal",
+  );
+  return types.length ? [...new Set(types)] : undefined;
+}
+
 function send(
   res: ServerResponse,
   status: number,
   body: unknown,
+  allowCors = true,
 ): void {
   const json = JSON.stringify(body);
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  });
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (allowCors) {
+    headers["Access-Control-Allow-Origin"] = "*";
+    headers["Access-Control-Allow-Headers"] = "Content-Type";
+    headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS";
+  }
+  res.writeHead(status, headers);
   res.end(json);
 }
 
@@ -120,7 +186,8 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === "OPTIONS") {
-      return send(res, 204, {});
+      const memoryPath = url.pathname.startsWith("/api/memory/");
+      return send(res, 204, {}, !memoryPath);
     }
 
     if (
@@ -129,11 +196,82 @@ const server = http.createServer(async (req, res) => {
     ) {
       const session = getSessionFromEnv();
       const hasDeepseek = Boolean(process.env.DEEPSEEK_API_KEY);
+      const memory = memoryIndexStatus();
       return send(res, 200, {
         ok: true,
         sessionConfigured: session.configured,
         deepseekConfigured: hasDeepseek,
+        memoryIndex: {
+          dbExists: memory.dbExists,
+          modelCached: memory.modelCached,
+          modelError: memory.modelError,
+        },
       });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/memory/search") {
+      if (!originAllowed(req)) {
+        return send(res, 403, {
+          error: "forbidden",
+          message: "Origin not allowed",
+        }, false);
+      }
+      let body: Record<string, unknown>;
+      try {
+        body = (await readBody(req)) as Record<string, unknown>;
+      } catch (err) {
+        const statusCode = err instanceof BodyError ? err.statusCode : 400;
+        return send(res, statusCode, {
+          error: "bad_request",
+          message: err instanceof Error ? err.message : "Invalid request body",
+        }, false);
+      }
+      const query = typeof body.query === "string" ? body.query.trim() : "";
+      if (!query) {
+        return send(res, 400, {
+          error: "bad_request",
+          message: 'Pass { query: string, k?: number, types?: ("interaction"|"dismissal")[] }.',
+        }, false);
+      }
+      const k =
+        typeof body.k === "number" && Number.isFinite(body.k)
+          ? Math.max(1, Math.min(20, Math.round(body.k)))
+          : undefined;
+      const types = parseMemoryTypes(body.types);
+      await ensureMemoryIndex();
+      const result = await searchMemory({ query, k, types });
+      if (result.error) {
+        return send(res, 503, {
+          ok: false,
+          error: "memory_unavailable",
+          message: result.error,
+          hits: result.hits,
+        }, false);
+      }
+      return send(res, 200, { ok: true, hits: result.hits }, false);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/memory/reindex") {
+      if (!originAllowed(req)) {
+        return send(res, 403, {
+          error: "forbidden",
+          message: "Origin not allowed",
+        }, false);
+      }
+      const result = await runMemoryReindex();
+      if (!result.ok) {
+        return send(res, 503, {
+          error: "reindex_failed",
+          message: result.error ?? "Failed to reindex memory",
+          indexed: result.indexed,
+          skipped: result.skipped,
+        }, false);
+      }
+      return send(res, 200, {
+        ok: true,
+        indexed: result.indexed,
+        skipped: result.skipped,
+      }, false);
     }
 
     if (
@@ -494,6 +632,7 @@ const server = http.createServer(async (req, res) => {
           reason,
           dismissedAt,
         });
+        scheduleMemoryUpsert(memory.path, "dismissal");
         const dismissal = await markDismissed({
           threadId,
           author,
@@ -648,6 +787,7 @@ const server = http.createServer(async (req, res) => {
             reason: typeof body.reason === "string" ? body.reason : undefined,
           });
           memoryPath = memory.path;
+          scheduleMemoryUpsert(memory.path, "interaction");
         }
         return send(res, 200, {
           ok: true,

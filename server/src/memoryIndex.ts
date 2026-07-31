@@ -39,6 +39,12 @@ export type SearchMemoryOpts = {
   embedder?: Embedder;
 };
 
+export type SearchMemoryResult = {
+  hits: MemoryHit[];
+  /** Set when the model or index DB is unavailable, vs. a genuine no-match. */
+  error?: string;
+};
+
 export type ReindexResult = {
   ok: boolean;
   indexed: number;
@@ -174,6 +180,7 @@ function openDb(dbPath: string): Database.Database {
       embedding BLOB NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
+    CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `);
   return db;
 }
@@ -317,7 +324,13 @@ export async function reindexMemory(opts?: {
       db.exec("DELETE FROM memories");
       const insert = db.prepare(
         `INSERT INTO memories (path, type, excerpt, mtime_ms, content_hash, embedding)
-         VALUES (@path, @type, @excerpt, @mtime_ms, @content_hash, @embedding)`,
+         VALUES (@path, @type, @excerpt, @mtime_ms, @content_hash, @embedding)
+         ON CONFLICT(path) DO UPDATE SET
+           type = excluded.type,
+           excerpt = excluded.excerpt,
+           mtime_ms = excluded.mtime_ms,
+           content_hash = excluded.content_hash,
+           embedding = excluded.embedding`,
       );
 
       let indexed = 0;
@@ -377,6 +390,11 @@ export async function reindexMemory(opts?: {
         tx();
       }
 
+      db.prepare(
+        `INSERT INTO meta (key, value) VALUES ('indexed_at', '1')
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      ).run();
+
       return { ok: true, indexed, skipped };
     } finally {
       db.close();
@@ -418,10 +436,7 @@ export async function upsertMemoryNote(
     const type =
       opts?.type ??
       parsed.type ??
-      (notePath.includes(`${"/"}dismissals${"/"}`) ||
-      notePath.includes("dismissals\\")
-        ? "dismissal"
-        : "interaction");
+      (/dismissals[/\\]/.test(notePath) ? "dismissal" : "interaction");
     if (!parsed.chunk.trim()) {
       return { ok: false, path: notePath, error: "empty note chunk" };
     }
@@ -465,9 +480,9 @@ export async function upsertMemoryNote(
 
 export async function searchMemory(
   opts: SearchMemoryOpts,
-): Promise<MemoryHit[]> {
+): Promise<SearchMemoryResult> {
   const query = opts.query?.trim() ?? "";
-  if (!query) return [];
+  if (!query) return { hits: [] };
 
   const k = Math.max(1, Math.min(opts.k ?? 4, 20));
   const paths = resolveIndexPaths(opts);
@@ -475,15 +490,15 @@ export async function searchMemory(
   let embedder: Embedder;
   try {
     embedder = await resolveEmbedder(opts.embedder);
-  } catch {
-    return [];
+  } catch (err) {
+    return { hits: [], error: err instanceof Error ? err.message : String(err) };
   }
 
   let db: Database.Database;
   try {
     db = openDb(paths.dbPath);
-  } catch {
-    return [];
+  } catch (err) {
+    return { hits: [], error: err instanceof Error ? err.message : String(err) };
   }
 
   try {
@@ -502,10 +517,10 @@ export async function searchMemory(
       embedding: Buffer;
     }[];
 
-    if (!rows.length) return [];
+    if (!rows.length) return { hits: [] };
 
     const [qVec] = await embedder.embed([truncate(query, MAX_CHUNK_CHARS)]);
-    if (!qVec) return [];
+    if (!qVec) return { hits: [], error: "query embed failed" };
 
     const scored: MemoryHit[] = [];
     for (const row of rows) {
@@ -523,9 +538,9 @@ export async function searchMemory(
       }
     }
     scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, k);
-  } catch {
-    return [];
+    return { hits: scored.slice(0, k) };
+  } catch (err) {
+    return { hits: [], error: err instanceof Error ? err.message : String(err) };
   } finally {
     db.close();
   }
@@ -539,14 +554,31 @@ export function memoryIndexStatus(opts?: {
   indexDir: string;
   dbPath: string;
   dbExists: boolean;
+  dbIndexed: boolean;
   modelCached: boolean;
   modelError: string | null;
 } {
   const paths = resolveIndexPaths(opts);
+  let dbIndexed = false;
+  if (existsSync(paths.dbPath)) {
+    try {
+      const db = openDb(paths.dbPath);
+      try {
+        dbIndexed =
+          db.prepare("SELECT 1 FROM meta WHERE key = 'indexed_at'").get() !==
+          undefined;
+      } finally {
+        db.close();
+      }
+    } catch {
+      dbIndexed = false;
+    }
+  }
   return {
     indexDir: paths.indexDir,
     dbPath: paths.dbPath,
     dbExists: existsSync(paths.dbPath),
+    dbIndexed,
     modelCached: cachedEmbedder !== null,
     modelError: embedderLoadError,
   };
