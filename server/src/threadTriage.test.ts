@@ -2,10 +2,14 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildTriageCompact,
+  buildUserMessage,
+  formatMemoryBlock,
+  gatherTriageMemories,
   isCompleteTriageItem,
   mergeTriage,
   missingTriageIds,
   parseTriageJson,
+  selectMemoryHits,
   selectScoredThreads,
   triageThreads,
   MAX_TRIAGE_THREADS,
@@ -252,6 +256,50 @@ describe("mergeTriage", () => {
   });
 });
 
+describe("memory triage context", () => {
+  it("selectMemoryHits prefers 2 interactions + 2 dismissals", () => {
+    const hits = selectMemoryHits([
+      { path: "a", type: "interaction", score: 0.9, excerpt: "ship AI" },
+      { path: "b", type: "interaction", score: 0.8, excerpt: "builders" },
+      { path: "c", type: "interaction", score: 0.7, excerpt: "extra" },
+      { path: "d", type: "dismissal", score: 0.95, excerpt: "bait" },
+      { path: "e", type: "dismissal", score: 0.5, excerpt: "promo" },
+      { path: "f", type: "dismissal", score: 0.4, excerpt: "skip" },
+    ]);
+    assert.equal(hits.length, 4);
+    assert.equal(hits.filter((h) => h.type === "interaction").length, 2);
+    assert.equal(hits.filter((h) => h.type === "dismissal").length, 2);
+    assert.ok(hits.every((h) => h.excerpt !== "extra" && h.excerpt !== "skip"));
+  });
+
+  it("formatMemoryBlock / buildUserMessage include stubs when hits exist", () => {
+    const block = formatMemoryBlock([
+      { type: "dismissal", score: 0.88, excerpt: "Generic favorite-tool bait" },
+      { type: "interaction", score: 0.71, excerpt: "Shipping AI in public tip" },
+    ]);
+    assert.match(block, /Memory \(advisory/);
+    assert.match(block, /\[dismissal/);
+    assert.match(block, /\[interaction/);
+
+    const msg = buildUserMessage("Find builders", [thread("1")], [
+      { type: "dismissal", score: 0.88, excerpt: "Generic favorite-tool bait" },
+    ]);
+    assert.match(msg, /Memory \(advisory/);
+    assert.match(msg, /Generic favorite-tool bait/);
+    assert.match(msg, /Posts:/);
+  });
+
+  it("buildUserMessage omits Memory when search is empty", () => {
+    const msg = buildUserMessage("Find builders", [thread("1")], []);
+    assert.doesNotMatch(msg, /Memory \(advisory/);
+  });
+
+  it("gatherTriageMemories soft-fails to [] when search returns empty", async () => {
+    const hits = await gatherTriageMemories([thread("1")], async () => []);
+    assert.deepEqual(hits, []);
+  });
+});
+
 describe("triageThreads", () => {
   it("returns threads untouched when there is nothing to triage", async () => {
     const result = await triageThreads({ threads: [], apiKey: "test-key" });
@@ -261,7 +309,13 @@ describe("triageThreads", () => {
 
   it("returns empty list without an api key (no unscored fallback)", async () => {
     const threads = [thread("1")];
-    const result = await triageThreads({ threads, apiKey: "" });
+    const result = await triageThreads({
+      threads,
+      apiKey: "",
+      searchMemory: async () => {
+        throw new Error("should not run without api key");
+      },
+    });
     assert.deepEqual(result.threads, []);
     assert.match(result.warning ?? "", /DEEPSEEK_API_KEY/);
   });
