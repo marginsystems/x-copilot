@@ -24,7 +24,7 @@ describe("hydrateReplyParents", () => {
   });
 
   it("fills opText for replies missing OP", async () => {
-    const threads = await hydrateReplyParents({
+    const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [replyCard()],
       delayMs: 0,
       fetchParent: async ({ tweetId }) => {
@@ -35,6 +35,7 @@ describe("hydrateReplyParents", () => {
         };
       },
     });
+    assert.equal(unhydratedReplyCount, 0);
     assert.equal(threads[0]?.opAuthor, "@hustler");
     assert.equal(threads[0]?.opParentDerived, true);
     assert.match(threads[0]?.opText ?? "", /\$632/);
@@ -42,7 +43,7 @@ describe("hydrateReplyParents", () => {
 
   it("skips lookup when already parent-derived", async () => {
     let calls = 0;
-    const threads = await hydrateReplyParents({
+    const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [
         replyCard({
           opAuthor: "@already",
@@ -57,12 +58,13 @@ describe("hydrateReplyParents", () => {
       },
     });
     assert.equal(calls, 0);
+    assert.equal(unhydratedReplyCount, 0);
     assert.equal(threads[0]?.opText, "already have OP");
   });
 
   it("hydrates quote-bearing replies from the reply parent", async () => {
     let calls = 0;
-    const threads = await hydrateReplyParents({
+    const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [
         replyCard({
           opAuthor: "@someoneelse",
@@ -76,16 +78,18 @@ describe("hydrateReplyParents", () => {
       },
     });
     assert.equal(calls, 1);
+    assert.equal(unhydratedReplyCount, 0);
     assert.equal(threads[0]?.opAuthor, "@hustler");
     assert.equal(threads[0]?.opParentDerived, true);
   });
 
   it("soft-fails when parent lookup returns null", async () => {
-    const threads = await hydrateReplyParents({
+    const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [replyCard()],
       delayMs: 0,
       fetchParent: async () => null,
     });
+    assert.equal(unhydratedReplyCount, 1);
     assert.equal(threads[0]?.opText, undefined);
     assert.equal(threads[0]?.text, "How do you pick products?");
   });

@@ -51,6 +51,7 @@ export type ScoutEvent = ScoutStageEvent & {
   selfReplyFiltered?: number;
   lengthFiltered?: number;
   lengthWarning?: string;
+  unhydratedReplyCount?: number;
   pipelineCounts?: ScoutPipelineCounts;
   opencodeTurns?: ReturnType<typeof toOpenCodeTurns>;
 };
@@ -184,7 +185,7 @@ export async function runScoutSearch(opts: {
     threads: byLength.threads,
     session,
   });
-  const afterHydrateSelf = filterSelfReplies(hydrated);
+  const afterHydrateSelf = filterSelfReplies(hydrated.threads);
   const selfReplyFiltered =
     afterSelf.selfReplyFilteredCount +
     afterHydrateSelf.selfReplyFilteredCount;
@@ -237,6 +238,7 @@ export async function runScoutSearch(opts: {
     selfReplyFiltered,
     lengthFiltered: byLength.filteredCount,
     lengthWarning,
+    unhydratedReplyCount: hydrated.unhydratedReplyCount,
     pipelineCounts,
     opencodeTurns: toOpenCodeTurns(events),
   };

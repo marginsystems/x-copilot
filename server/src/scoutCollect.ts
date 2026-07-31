@@ -60,6 +60,7 @@ export type ScoutCollectEvent = {
   errors?: Array<{ query: string; message: string }>;
   plannedBy?: "client" | "deepseek";
   model?: string;
+  unhydratedReplyCount?: number;
   opencodeTurns?: ReturnType<typeof toOpenCodeTurns>;
 };
 
@@ -288,6 +289,7 @@ export async function runScoutCollect(opts: {
   const searchErrors: Array<{ query: string; message: string }> = [];
   let triageWarning: string | undefined;
   let stopReason: ScoutStopReason = "exhausted";
+  let unhydratedReplyCount = 0;
   let searchCalls = 0;
   let queryIndex = 0;
   let replanned = false;
@@ -486,9 +488,10 @@ export async function runScoutCollect(opts: {
         stopReason = "aborted";
         break;
       }
+      unhydratedReplyCount += hydrated.unhydratedReplyCount;
 
       // Drop same-author replies revealed only after hydrate (missing inReplyToScreenName).
-      const afterHydrateSelf = filterSelfReplies(hydrated);
+      const afterHydrateSelf = filterSelfReplies(hydrated.threads);
       const forTriage = afterHydrateSelf.threads;
 
       if (forTriage.length === 0) {
@@ -625,6 +628,7 @@ export async function runScoutCollect(opts: {
     errors: searchErrors.length ? searchErrors : undefined,
     plannedBy,
     model: planModel,
+    unhydratedReplyCount,
     opencodeTurns: toOpenCodeTurns(events),
   });
 

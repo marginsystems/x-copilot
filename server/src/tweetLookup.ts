@@ -343,6 +343,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+export type HydrateReplyParentsResult = {
+  threads: import("./xSearch.js").ThreadCard[];
+  /** Reply cards whose parent lookup failed (self-reply leak visibility). */
+  unhydratedReplyCount: number;
+};
+
 /**
  * Fill opAuthor/opText on reply cards missing OP text (before triage).
  */
@@ -352,11 +358,12 @@ export async function hydrateReplyParents(opts: {
   signal?: AbortSignal;
   delayMs?: number;
   fetchParent?: typeof fetchParentTweet;
-}): Promise<import("./xSearch.js").ThreadCard[]> {
+}): Promise<HydrateReplyParentsResult> {
   const fetchParent = opts.fetchParent ?? fetchParentTweet;
   const delayMs = opts.delayMs ?? 400;
   const out = [...opts.threads];
   let lookedUp = 0;
+  let unhydratedReplyCount = 0;
 
   for (let i = 0; i < out.length; i++) {
     if (opts.signal?.aborted) break;
@@ -369,7 +376,10 @@ export async function hydrateReplyParents(opts: {
       session: opts.session,
       signal: opts.signal,
     });
-    if (!parent) continue;
+    if (!parent) {
+      unhydratedReplyCount += 1;
+      continue;
+    }
     out[i] = {
       ...t,
       opAuthor: parent.author,
@@ -377,5 +387,5 @@ export async function hydrateReplyParents(opts: {
       opParentDerived: true,
     };
   }
-  return out;
+  return { threads: out, unhydratedReplyCount };
 }
