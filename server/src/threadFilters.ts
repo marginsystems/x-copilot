@@ -73,7 +73,7 @@ export function filterSelfReplies(threads: ThreadCard[]): {
 /** True when the candidate has an outbound link (flag or text fallback). */
 export function threadHasOutboundLink(thread: ThreadCard): boolean {
   if (thread.hasOutboundLink === true) return true;
-  return textHasOutboundLink(thread.text);
+  return textHasOutboundLink(thread.text, new Set(thread.mediaShortlinks ?? []));
 }
 
 /** Hard-drop posts with outbound links before hydrate/triage. */

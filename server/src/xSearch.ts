@@ -24,6 +24,8 @@ export type ThreadCard = {
    * Native media URLs do not count. Hard-dropped before triage.
    */
   hasOutboundLink?: boolean;
+  /** t.co shortlink keys (lowercased `t.co/<code>`) that resolve to native media. */
+  mediaShortlinks?: string[];
   /** Reply / conversation context for triage (OP scoring). */
   inReplyToId?: string;
   /** Screen name of the tweet being replied to (SearchTimeline legacy). */
@@ -380,7 +382,10 @@ function entityUrlsHaveOutbound(urls: UrlEntity[] | undefined): boolean {
   return false;
 }
 
-function cardHasOutboundLink(card: TweetResultNode["card"]): boolean {
+function cardHasOutboundLink(
+  card: TweetResultNode["card"],
+  ignoreShortlinks: Set<string>,
+): boolean {
   if (!card || typeof card !== "object") return false;
   const legacy = card.legacy;
   if (!legacy) return false;
@@ -399,7 +404,10 @@ function cardHasOutboundLink(card: TweetResultNode["card"]): boolean {
       key === "vanity_url" ||
       key === "website_url"
     ) {
-      if (isOutboundLinkUrl(val) || textHasOutboundLink(val)) return true;
+      const tco = normalizeTcoKey(val);
+      const isMediaShortlink = tco !== null && ignoreShortlinks.has(tco);
+      if (!isMediaShortlink && isOutboundLinkUrl(val)) return true;
+      if (textHasOutboundLink(val, ignoreShortlinks)) return true;
     }
   }
   return false;
@@ -416,7 +424,7 @@ export function nodeHasOutboundLink(node: {
 }): boolean {
   const urls = node.legacy?.entities?.urls;
   if (entityUrlsHaveOutbound(urls)) return true;
-  if (cardHasOutboundLink(node.card)) return true;
+  if (cardHasOutboundLink(node.card, mediaShortlinkKeys(urls))) return true;
   const noteText = noteTweetText(node as TweetResultNode);
   const text = resolveCardText(node.legacy?.full_text, noteText);
   if (text && textHasOutboundLink(text, mediaShortlinkKeys(urls))) return true;
@@ -507,6 +515,7 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
   const op = extractOpContext(inner);
 
   const hasOutboundLink = nodeHasOutboundLink(inner);
+  const mediaShortlinks = [...mediaShortlinkKeys(inner.legacy?.entities?.urls)];
 
   const card: ThreadCard = {
     id: String(id),
@@ -516,6 +525,7 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
     createdAt: inner.legacy?.created_at,
     ...(longform ? { longform } : {}),
     ...(hasOutboundLink ? { hasOutboundLink: true } : {}),
+    ...(mediaShortlinks.length ? { mediaShortlinks } : {}),
   };
   if (inReplyToId) {
     card.inReplyToId = inReplyToId;
