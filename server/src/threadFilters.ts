@@ -43,17 +43,23 @@ export function isThreadOpener(text: string): boolean {
 }
 
 /**
- * True when the card replies to the same account (self-thread mid-posts).
- * Requires `inReplyToScreenName`; missing → false (no heuristics).
+ * True when the card is a same-account reply (self-thread mid-posts).
+ * Either signal is enough (no fuzzy heuristics):
+ * - `inReplyToScreenName` matches `author`, or
+ * - hydrated/parsed `opAuthor` matches `author`.
+ * Missing both → false.
  */
 export function isSelfReply(thread: ThreadCard): boolean {
   const authorKey = normalizeAuthorKey(thread.author);
+  if (!authorKey) return false;
   const replyToKey = normalizeAuthorKey(thread.inReplyToScreenName ?? "");
-  if (!authorKey || !replyToKey) return false;
-  return authorKey === replyToKey;
+  if (replyToKey && replyToKey === authorKey) return true;
+  const opKey = normalizeAuthorKey(thread.opAuthor ?? "");
+  if (opKey && opKey === authorKey) return true;
+  return false;
 }
 
-/** Hard-drop self-replies before hydrate/triage. */
+/** Hard-drop self-replies (pre- and/or post-hydrate). */
 export function filterSelfReplies(threads: ThreadCard[]): {
   threads: ThreadCard[];
   selfReplyFilteredCount: number;

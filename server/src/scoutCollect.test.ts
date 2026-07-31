@@ -797,4 +797,66 @@ describe("runScoutCollect bucket loop", () => {
     assert.ok(!triageIds.includes("s1") && !triageIds.includes("s2"));
     assert.equal(result.event.stopReason, "target");
   });
+
+  it("drops self-replies revealed only after hydrate (missing inReplyToScreenName)", async () => {
+    let triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      // Bucket fills with self1 + n1..n4; post-hydrate drops self1 → triage n1..n4.
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "self1",
+              author: "@Kalani_Maluai",
+              inReplyToId: "root1",
+              isReply: true,
+              // GraphQL omitted in_reply_to_screen_name — early filter misses.
+            }),
+            card({ id: "n1", author: "@alice" }),
+            card({ id: "n2", author: "@bob" }),
+            card({ id: "n3", author: "@carol" }),
+            card({ id: "n4", author: "@dave" }),
+            card({ id: "n5", author: "@erin" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) =>
+          threads.map((t) =>
+            t.id === "self1"
+              ? {
+                  ...t,
+                  opAuthor: "@Kalani_Maluai",
+                  opText: "root of my own thread",
+                }
+              : t,
+          ),
+        triageThreads: async ({ threads }) => {
+          triageIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 20 : 80,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.ok(!triageIds.includes("self1"));
+    assert.deepEqual(triageIds, ["n1", "n2", "n3", "n4"]);
+    assert.equal(result.event.stopReason, "target");
+  });
 });

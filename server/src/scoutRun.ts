@@ -13,6 +13,7 @@ import {
   filterThreadsByLength,
   resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
+import { hydrateReplyParents } from "./tweetLookup.js";
 import { triageThreads } from "./threadTriage.js";
 import { searchMany, type ThreadCard } from "./xSearch.js";
 import { getSessionFromEnv, type SessionCreds } from "./xSession.js";
@@ -177,12 +178,22 @@ export async function runScoutSearch(opts: {
     dropArticles,
   });
 
+  // Hydrate OP context, then re-drop self-replies missing inReplyToScreenName.
+  const hydrated = await hydrateReplyParents({
+    threads: byLength.threads,
+    session,
+  });
+  const afterHydrateSelf = filterSelfReplies(hydrated);
+  const selfReplyFiltered =
+    afterSelf.selfReplyFilteredCount +
+    afterHydrateSelf.selfReplyFilteredCount;
+
   track("triaging", "Scout is scoring threads for bait risk…", {
-    count: byLength.threads.length,
+    count: afterHydrateSelf.threads.length,
   });
   const triaged = await triageThreads({
     agenda,
-    threads: byLength.threads,
+    threads: afterHydrateSelf.threads,
   });
 
   const pipelineCounts: ScoutPipelineCounts = {
@@ -221,7 +232,7 @@ export async function runScoutSearch(opts: {
     cooldownFiltered: filtered.filteredCount,
     cooldownAuthors: filtered.filteredAuthors,
     cooldownWarning,
-    selfReplyFiltered: afterSelf.selfReplyFilteredCount,
+    selfReplyFiltered,
     lengthFiltered: byLength.filteredCount,
     lengthWarning,
     pipelineCounts,
