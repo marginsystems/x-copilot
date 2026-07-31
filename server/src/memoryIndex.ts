@@ -318,7 +318,13 @@ export async function reindexMemory(opts?: {
       db.exec("DELETE FROM memories");
       const insert = db.prepare(
         `INSERT INTO memories (path, type, excerpt, mtime_ms, content_hash, embedding)
-         VALUES (@path, @type, @excerpt, @mtime_ms, @content_hash, @embedding)`,
+         VALUES (@path, @type, @excerpt, @mtime_ms, @content_hash, @embedding)
+         ON CONFLICT(path) DO UPDATE SET
+           type = excluded.type,
+           excerpt = excluded.excerpt,
+           mtime_ms = excluded.mtime_ms,
+           content_hash = excluded.content_hash,
+           embedding = excluded.embedding`,
       );
 
       let indexed = 0;

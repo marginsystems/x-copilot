@@ -188,6 +188,47 @@ Reply-gated promo bait.
     assert.ok(hits.some((h) => h.path === notePath || h.path.endsWith("2026-07-31-new.md")));
   });
 
+  it("reindex survives a racing upsert on the same path", async () => {
+    const notePath = join(knowledgeRoot, "interactions", "2026-07-30-race.md");
+    await writeFile(
+      notePath,
+      `---
+type: interaction
+---
+
+## Post
+
+Race condition note.
+`,
+      "utf8",
+    );
+    const indexDirCopy = indexDir;
+    let raced = false;
+    const racingEmbedder: typeof embedder = {
+      dimensions: embedder.dimensions,
+      async embed(texts: string[]): Promise<Float32Array[]> {
+        if (!raced) {
+          raced = true;
+          const up = await upsertMemoryNote(notePath, {
+            knowledgeRoot,
+            indexDir: indexDirCopy,
+            embedder,
+            type: "interaction",
+          });
+          assert.equal(up.ok, true);
+        }
+        return embedder.embed(texts);
+      },
+    };
+    const result = await reindexMemory({
+      knowledgeRoot,
+      indexDir,
+      embedder: racingEmbedder,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.indexed, 1);
+  });
+
   it("search soft-fails to empty when embedder throws", async () => {
     const bad: typeof embedder = {
       dimensions: 8,
