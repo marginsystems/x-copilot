@@ -64,9 +64,6 @@ export type ScoutRunResult =
   | { ok: true; event: ScoutEvent }
   | { ok: false; status: number; error: string; message: string };
 
-/** Cap sequential parent lookups in the legacy synchronous /api/search path. */
-const MAX_HYDRATE_LOOKUPS = 20;
-
 function emit(
   onEvent: ((e: ScoutEvent) => void) | undefined,
   stage: ScoutStageId,
@@ -186,7 +183,6 @@ export async function runScoutSearch(opts: {
   const hydrated = await hydrateReplyParents({
     threads: byLength.threads,
     session,
-    maxLookups: MAX_HYDRATE_LOOKUPS,
   });
   const afterHydrateSelf = filterSelfReplies(hydrated);
   const selfReplyFiltered =
