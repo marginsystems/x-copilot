@@ -39,6 +39,7 @@ import {
   searchMemory,
   upsertMemoryNote,
   type MemoryType,
+  type ReindexResult,
 } from "./memoryIndex.js";
 import { loadEnv } from "./loadEnv.js";
 import { getLastScout } from "./scoutCache.js";
@@ -82,24 +83,27 @@ function scheduleMemoryUpsert(notePath: string, type: MemoryType): void {
   });
 }
 
-/** Dedupe concurrent lazy reindexes so only one full rebuild runs at a time. */
-let memoryReindexInFlight: Promise<void> | null = null;
+/** Dedupe concurrent reindexes so only one full rebuild runs at a time. */
+let memoryReindexInFlight: Promise<ReindexResult> | null = null;
+
+/** Rebuild index, sharing the in-flight guard across lazy and manual paths. */
+function runMemoryReindex(): Promise<ReindexResult> {
+  if (!memoryReindexInFlight) {
+    memoryReindexInFlight = reindexMemory().finally(() => {
+      memoryReindexInFlight = null;
+    });
+  }
+  return memoryReindexInFlight;
+}
 
 /** Rebuild index when it has never been fully built (lazy boot). Soft-fails. */
 async function ensureMemoryIndex(): Promise<void> {
   const status = memoryIndexStatus();
   if (status.dbIndexed) return;
-  if (!memoryReindexInFlight) {
-    memoryReindexInFlight = (async () => {
-      const result = await reindexMemory();
-      if (!result.ok && result.error) {
-        console.warn("memory reindex soft-fail:", result.error);
-      }
-    })().finally(() => {
-      memoryReindexInFlight = null;
-    });
+  const result = await runMemoryReindex();
+  if (!result.ok && result.error) {
+    console.warn("memory reindex soft-fail:", result.error);
   }
-  return memoryReindexInFlight;
 }
 
 /** Allow only local browser origins; non-browser clients (CLI/curl) send no Origin. */
@@ -242,7 +246,7 @@ const server = http.createServer(async (req, res) => {
           message: "Origin not allowed",
         }, false);
       }
-      const result = await reindexMemory();
+      const result = await runMemoryReindex();
       if (!result.ok) {
         return send(res, 503, {
           error: "reindex_failed",
