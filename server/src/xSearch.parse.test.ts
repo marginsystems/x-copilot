@@ -516,6 +516,40 @@ describe("outbound link detection", () => {
     assert.deepEqual(card.mediaShortlinks, ["t.co/mediatwitter"]);
   });
 
+  it("flags outbound URLs in note_tweet body entity_set", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "509",
+      legacy: {
+        full_text: "Long post teaser",
+        id_str: "509",
+        entities: { urls: [] },
+      },
+      note_tweet: {
+        note_tweet_results: {
+          result: {
+            text: "A long post https://t.co/longOutbound",
+            entity_set: {
+              urls: [
+                {
+                  url: "https://t.co/longOutbound",
+                  expanded_url: "https://github.com/acme/tool",
+                  display_url: "github.com/acme/tool",
+                },
+              ],
+            },
+          },
+        },
+      },
+      core: {
+        user_results: { result: { core: { screen_name: "noteLink" } } },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.longform, "note_tweet");
+    assert.equal(card.hasOutboundLink, true);
+  });
+
   it("does not flag note_tweet media via entity_set.media", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",

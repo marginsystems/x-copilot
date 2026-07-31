@@ -448,6 +448,7 @@ export function nodeHasOutboundLink(node: {
     node.note_tweet?.note_tweet_results?.result?.entity_set;
   const ignore = mediaShortlinkKeys(legacyEntities, noteEntities);
   if (entityUrlsHaveOutbound(legacyEntities?.urls)) return true;
+  if (entityUrlsHaveOutbound(noteEntities?.urls)) return true;
   if (cardHasOutboundLink(node.card, ignore)) return true;
   const noteText = noteTweetText(node as TweetResultNode);
   const text = resolveCardText(node.legacy?.full_text, noteText);
