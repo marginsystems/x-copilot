@@ -460,6 +460,70 @@ describe("outbound link detection", () => {
     assert.equal(card.longform, "note_tweet");
     assert.equal(card.hasOutboundLink, undefined);
   });
+
+  it("does not flag media-only posts via legacy.entities.media", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "506",
+      legacy: {
+        full_text: "Photo dump https://t.co/mediaReal",
+        id_str: "506",
+        entities: {
+          urls: [],
+          media: [
+            {
+              url: "https://t.co/mediaReal",
+              expanded_url:
+                "https://twitter.com/mediaReal/status/506/photo/1",
+              display_url: "pic.twitter.com/mediaReal",
+            },
+          ],
+        },
+      },
+      core: {
+        user_results: { result: { core: { screen_name: "mediaReal" } } },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.hasOutboundLink, undefined);
+    assert.deepEqual(card.mediaShortlinks, ["t.co/mediareal"]);
+  });
+
+  it("does not flag note_tweet media via entity_set.media", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "507",
+      legacy: {
+        full_text: "Long post teaser",
+        id_str: "507",
+        entities: { urls: [] },
+      },
+      note_tweet: {
+        note_tweet_results: {
+          result: {
+            text: "A long image post https://t.co/mediaNoteReal",
+            entity_set: {
+              urls: [],
+              media: [
+                {
+                  url: "https://t.co/mediaNoteReal",
+                  expanded_url:
+                    "https://twitter.com/noteMedia/status/507/photo/1",
+                  display_url: "pic.twitter.com/mediaNoteReal",
+                },
+              ],
+            },
+          },
+        },
+      },
+      core: {
+        user_results: { result: { core: { screen_name: "noteMedia" } } },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.longform, "note_tweet");
+    assert.equal(card.hasOutboundLink, undefined);
+  });
 });
 
 describe("dedupeThreads", () => {

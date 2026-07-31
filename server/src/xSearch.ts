@@ -258,6 +258,7 @@ type TweetResultNode = {
     in_reply_to_screen_name?: string;
     entities?: {
       urls?: UrlEntity[];
+      media?: UrlEntity[];
     };
   };
   core?: {
@@ -274,6 +275,7 @@ type TweetResultNode = {
         text?: string;
         entity_set?: {
           urls?: UrlEntity[];
+          media?: UrlEntity[];
         };
       };
     };
@@ -331,18 +333,27 @@ function normalizeTcoKey(url: string): string | null {
   return m ? `t.co/${m[1]}`.toLowerCase() : null;
 }
 
-/** t.co shortlinks whose expanded_url is native media. */
+/** t.co shortlinks for native media: URLs expanded to media hosts, plus media-entity t.co keys. */
 function mediaShortlinkKeys(
-  ...urlSets: Array<UrlEntity[] | undefined>
+  ...entitySets: Array<
+    { urls?: UrlEntity[]; media?: UrlEntity[] } | undefined
+  >
 ): Set<string> {
   const keys = new Set<string>();
-  for (const urls of urlSets) {
-    if (!Array.isArray(urls)) continue;
-    for (const u of urls) {
+  for (const entities of entitySets) {
+    if (!entities || typeof entities !== "object") continue;
+    for (const u of entities.urls ?? []) {
       const expanded =
         typeof u.expanded_url === "string" ? u.expanded_url.trim() : "";
       if (!expanded || !isNativeMediaUrl(expanded)) continue;
       for (const c of [u.url, u.expanded_url, u.display_url]) {
+        if (typeof c !== "string") continue;
+        const key = normalizeTcoKey(c);
+        if (key) keys.add(key);
+      }
+    }
+    for (const m of entities.media ?? []) {
+      for (const c of [m.url, m.expanded_url, m.display_url]) {
         if (typeof c !== "string") continue;
         const key = normalizeTcoKey(c);
         if (key) keys.add(key);
@@ -424,16 +435,16 @@ function cardHasOutboundLink(
 export function nodeHasOutboundLink(node: {
   legacy?: {
     full_text?: string;
-    entities?: { urls?: UrlEntity[] };
+    entities?: { urls?: UrlEntity[]; media?: UrlEntity[] };
   };
   card?: TweetResultNode["card"];
   note_tweet?: TweetResultNode["note_tweet"];
 }): boolean {
-  const urls = node.legacy?.entities?.urls;
-  const noteUrls =
-    node.note_tweet?.note_tweet_results?.result?.entity_set?.urls;
-  const ignore = mediaShortlinkKeys(urls, noteUrls);
-  if (entityUrlsHaveOutbound(urls)) return true;
+  const legacyEntities = node.legacy?.entities;
+  const noteEntities =
+    node.note_tweet?.note_tweet_results?.result?.entity_set;
+  const ignore = mediaShortlinkKeys(legacyEntities, noteEntities);
+  if (entityUrlsHaveOutbound(legacyEntities?.urls)) return true;
   if (cardHasOutboundLink(node.card, ignore)) return true;
   const noteText = noteTweetText(node as TweetResultNode);
   const text = resolveCardText(node.legacy?.full_text, noteText);
@@ -527,8 +538,8 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
   const hasOutboundLink = nodeHasOutboundLink(inner);
   const mediaShortlinks = [
     ...mediaShortlinkKeys(
-      inner.legacy?.entities?.urls,
-      inner.note_tweet?.note_tweet_results?.result?.entity_set?.urls,
+      inner.legacy?.entities,
+      inner.note_tweet?.note_tweet_results?.result?.entity_set,
     ),
   ];
 
