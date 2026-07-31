@@ -33,6 +33,13 @@ import {
   writeDismissalMemory,
   writeInteractionMemory,
 } from "./knowledgeMemory.js";
+import {
+  memoryIndexStatus,
+  reindexMemory,
+  searchMemory,
+  upsertMemoryNote,
+  type MemoryType,
+} from "./memoryIndex.js";
 import { loadEnv } from "./loadEnv.js";
 import { getLastScout } from "./scoutCache.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
@@ -65,6 +72,33 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
 loadEnv(resolve(process.cwd(), ".env"));
 
 const PORT = Number(process.env.PORT || 8787);
+
+/** Best-effort index upsert — never fails the request. */
+function scheduleMemoryUpsert(notePath: string, type: MemoryType): void {
+  void upsertMemoryNote(notePath, { type }).then((result) => {
+    if (!result.ok && result.error) {
+      console.warn(`memory upsert soft-fail (${type}):`, result.error);
+    }
+  });
+}
+
+/** Rebuild index when DB is missing (lazy boot). Soft-fails. */
+async function ensureMemoryIndex(): Promise<void> {
+  const status = memoryIndexStatus();
+  if (status.dbExists) return;
+  const result = await reindexMemory();
+  if (!result.ok && result.error) {
+    console.warn("memory reindex soft-fail:", result.error);
+  }
+}
+
+function parseMemoryTypes(raw: unknown): MemoryType[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const types = raw.filter(
+    (t): t is MemoryType => t === "interaction" || t === "dismissal",
+  );
+  return types.length ? [...new Set(types)] : undefined;
+}
 
 function send(
   res: ServerResponse,
@@ -129,10 +163,61 @@ const server = http.createServer(async (req, res) => {
     ) {
       const session = getSessionFromEnv();
       const hasDeepseek = Boolean(process.env.DEEPSEEK_API_KEY);
+      const memory = memoryIndexStatus();
       return send(res, 200, {
         ok: true,
         sessionConfigured: session.configured,
         deepseekConfigured: hasDeepseek,
+        memoryIndex: {
+          dbExists: memory.dbExists,
+          modelCached: memory.modelCached,
+          modelError: memory.modelError,
+        },
+      });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/memory/search") {
+      let body: Record<string, unknown>;
+      try {
+        body = (await readBody(req)) as Record<string, unknown>;
+      } catch (err) {
+        const statusCode = err instanceof BodyError ? err.statusCode : 400;
+        return send(res, statusCode, {
+          error: "bad_request",
+          message: err instanceof Error ? err.message : "Invalid request body",
+        });
+      }
+      const query = typeof body.query === "string" ? body.query.trim() : "";
+      if (!query) {
+        return send(res, 400, {
+          error: "bad_request",
+          message: 'Pass { query: string, k?: number, types?: ("interaction"|"dismissal")[] }.',
+        });
+      }
+      const k =
+        typeof body.k === "number" && Number.isFinite(body.k)
+          ? Math.max(1, Math.min(20, Math.round(body.k)))
+          : undefined;
+      const types = parseMemoryTypes(body.types);
+      await ensureMemoryIndex();
+      const hits = await searchMemory({ query, k, types });
+      return send(res, 200, { ok: true, hits });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/memory/reindex") {
+      const result = await reindexMemory();
+      if (!result.ok) {
+        return send(res, 503, {
+          error: "reindex_failed",
+          message: result.error ?? "Failed to reindex memory",
+          indexed: result.indexed,
+          skipped: result.skipped,
+        });
+      }
+      return send(res, 200, {
+        ok: true,
+        indexed: result.indexed,
+        skipped: result.skipped,
       });
     }
 
@@ -494,6 +579,7 @@ const server = http.createServer(async (req, res) => {
           reason,
           dismissedAt,
         });
+        scheduleMemoryUpsert(memory.path, "dismissal");
         const dismissal = await markDismissed({
           threadId,
           author,
@@ -648,6 +734,7 @@ const server = http.createServer(async (req, res) => {
             reason: typeof body.reason === "string" ? body.reason : undefined,
           });
           memoryPath = memory.path;
+          scheduleMemoryUpsert(memory.path, "interaction");
         }
         return send(res, 200, {
           ok: true,
