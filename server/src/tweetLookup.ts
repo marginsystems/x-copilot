@@ -374,6 +374,7 @@ export async function hydrateReplyParents(opts: {
       ...t,
       opAuthor: parent.author,
       opText: parent.text.slice(0, 500),
+      opParentDerived: true,
     };
   }
   return out;

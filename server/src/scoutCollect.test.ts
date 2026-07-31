@@ -837,6 +837,7 @@ describe("runScoutCollect bucket loop", () => {
                   ...t,
                   opAuthor: "@Kalani_Maluai",
                   opText: "root of my own thread",
+                  opParentDerived: true,
                 }
               : t,
           ),

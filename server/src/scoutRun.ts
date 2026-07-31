@@ -32,6 +32,7 @@ export type ScoutPipelineCounts = {
   afterCooldown: number;
   afterSelfReply: number;
   afterLength: number;
+  afterHydrateSelfReply: number;
   afterTriage: number;
 };
 
@@ -54,9 +55,9 @@ export type ScoutEvent = ScoutStageEvent & {
   opencodeTurns?: ReturnType<typeof toOpenCodeTurns>;
 };
 
-/** Compact funnel for status: `48 → 36 → 34 → 18 → 12`. */
+/** Compact funnel for status: `48 → 36 → 34 → 18 → 15 → 12`. */
 export function formatPipelineFunnel(counts: ScoutPipelineCounts): string {
-  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterSelfReply} → ${counts.afterLength} → ${counts.afterTriage}`;
+  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterSelfReply} → ${counts.afterLength} → ${counts.afterHydrateSelfReply} → ${counts.afterTriage}`;
 }
 
 export type ScoutRunResult =
@@ -202,6 +203,7 @@ export async function runScoutSearch(opts: {
     afterCooldown: filtered.threads.length,
     afterSelfReply: afterSelf.threads.length,
     afterLength: byLength.threads.length,
+    afterHydrateSelfReply: afterHydrateSelf.threads.length,
     afterTriage: triaged.threads.length,
   };
   const funnel = formatPipelineFunnel(pipelineCounts);

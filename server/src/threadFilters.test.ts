@@ -86,6 +86,7 @@ describe("isSelfReply / filterSelfReplies", () => {
         isReply: true,
         opAuthor: "@Kalani_Maluai",
         opText: "root of my own thread",
+        opParentDerived: true,
       }),
       true,
     );
@@ -98,6 +99,7 @@ describe("isSelfReply / filterSelfReplies", () => {
         inReplyToId: "0",
         isReply: true,
         opAuthor: "Kalani_Maluai",
+        opParentDerived: true,
       }),
       true,
     );
@@ -114,6 +116,24 @@ describe("isSelfReply / filterSelfReplies", () => {
         isReply: true,
         opAuthor: "@bob",
         opText: "root from bob",
+        opParentDerived: true,
+      }),
+      false,
+    );
+  });
+
+  it("keeps quote-derived opAuthor equal to author", () => {
+    assert.equal(
+      isSelfReply({
+        id: "1",
+        author: "@alice",
+        text: "agree",
+        url: "https://x.com/alice/status/1",
+        inReplyToId: "0",
+        inReplyToScreenName: "@bob",
+        isReply: true,
+        opAuthor: "@alice",
+        opText: "my own earlier post",
       }),
       false,
     );

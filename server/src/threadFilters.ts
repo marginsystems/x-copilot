@@ -46,7 +46,8 @@ export function isThreadOpener(text: string): boolean {
  * True when the card is a same-account reply (self-thread mid-posts).
  * Either signal is enough (no fuzzy heuristics):
  * - `inReplyToScreenName` matches `author`, or
- * - hydrated/parsed `opAuthor` matches `author`.
+ * - reply-parent-derived `opAuthor` (via `hydrateReplyParents`) matches `author`.
+ * Quote-derived `opAuthor` is not a self-reply signal.
  * Missing both → false.
  */
 export function isSelfReply(thread: ThreadCard): boolean {
@@ -54,9 +55,9 @@ export function isSelfReply(thread: ThreadCard): boolean {
   if (!authorKey) return false;
   const replyToKey = normalizeAuthorKey(thread.inReplyToScreenName ?? "");
   if (replyToKey && replyToKey === authorKey) return true;
+  if (!thread.opParentDerived) return false;
   const opKey = normalizeAuthorKey(thread.opAuthor ?? "");
-  if (opKey && opKey === authorKey) return true;
-  return false;
+  return Boolean(opKey && opKey === authorKey);
 }
 
 /** Hard-drop self-replies (pre- and/or post-hydrate). */

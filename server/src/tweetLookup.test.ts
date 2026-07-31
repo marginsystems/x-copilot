@@ -36,6 +36,7 @@ describe("hydrateReplyParents", () => {
       },
     });
     assert.equal(threads[0]?.opAuthor, "@hustler");
+    assert.equal(threads[0]?.opParentDerived, true);
     assert.match(threads[0]?.opText ?? "", /\$632/);
   });
 
