@@ -76,11 +76,15 @@ const PORT = Number(process.env.PORT || 8787);
 
 /** Best-effort index upsert — never fails the request. */
 function scheduleMemoryUpsert(notePath: string, type: MemoryType): void {
-  void upsertMemoryNote(notePath, { type }).then((result) => {
+  void (async () => {
+    if (memoryReindexInFlight) {
+      await memoryReindexInFlight;
+    }
+    const result = await upsertMemoryNote(notePath, { type });
     if (!result.ok && result.error) {
       console.warn(`memory upsert soft-fail (${type}):`, result.error);
     }
-  });
+  })();
 }
 
 /** Dedupe concurrent reindexes so only one full rebuild runs at a time. */
