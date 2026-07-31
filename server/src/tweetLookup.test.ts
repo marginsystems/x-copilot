@@ -40,13 +40,14 @@ describe("hydrateReplyParents", () => {
     assert.match(threads[0]?.opText ?? "", /\$632/);
   });
 
-  it("skips lookup when opText already present", async () => {
+  it("skips lookup when already parent-derived", async () => {
     let calls = 0;
     const threads = await hydrateReplyParents({
       threads: [
         replyCard({
           opAuthor: "@already",
           opText: "already have OP",
+          opParentDerived: true,
         }),
       ],
       delayMs: 0,
@@ -57,6 +58,26 @@ describe("hydrateReplyParents", () => {
     });
     assert.equal(calls, 0);
     assert.equal(threads[0]?.opText, "already have OP");
+  });
+
+  it("hydrates quote-bearing replies from the reply parent", async () => {
+    let calls = 0;
+    const threads = await hydrateReplyParents({
+      threads: [
+        replyCard({
+          opAuthor: "@someoneelse",
+          opText: "text of the quoted tweet",
+        }),
+      ],
+      delayMs: 0,
+      fetchParent: async () => {
+        calls += 1;
+        return { author: "@hustler", text: "mysaas just crossed $632 revenue" };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(threads[0]?.opAuthor, "@hustler");
+    assert.equal(threads[0]?.opParentDerived, true);
   });
 
   it("soft-fails when parent lookup returns null", async () => {

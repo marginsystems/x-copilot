@@ -363,7 +363,7 @@ export async function hydrateReplyParents(opts: {
   for (let i = 0; i < out.length; i++) {
     if (opts.signal?.aborted) break;
     const t = out[i];
-    if (!t.inReplyToId || t.opText) continue;
+    if (!t.inReplyToId || t.opParentDerived) continue;
     if (opts.maxLookups !== undefined && lookedUp >= opts.maxLookups) break;
     if (lookedUp > 0) await sleep(delayMs);
     lookedUp += 1;
