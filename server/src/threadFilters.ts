@@ -1,8 +1,8 @@
 /**
- * Deterministic post-search filters (length / thread openers / Articles / self-replies) before triage.
+ * Deterministic post-search filters (length / thread openers / Articles / self-replies / links) before triage.
  */
 import { normalizeAuthorKey } from "./interactionStore.js";
-import type { ThreadCard } from "./xSearch.js";
+import { textHasOutboundLink, type ThreadCard } from "./xSearch.js";
 
 export const DEFAULT_MAX_THREAD_CHARS = 480;
 
@@ -68,6 +68,29 @@ export function filterSelfReplies(threads: ThreadCard[]): {
     kept.push(thread);
   }
   return { threads: kept, selfReplyFilteredCount };
+}
+
+/** True when the candidate has an outbound link (flag or text fallback). */
+export function threadHasOutboundLink(thread: ThreadCard): boolean {
+  if (thread.hasOutboundLink === true) return true;
+  return textHasOutboundLink(thread.text);
+}
+
+/** Hard-drop posts with outbound links before hydrate/triage. */
+export function filterOutboundLinks(threads: ThreadCard[]): {
+  threads: ThreadCard[];
+  linkFilteredCount: number;
+} {
+  const kept: ThreadCard[] = [];
+  let linkFilteredCount = 0;
+  for (const thread of threads) {
+    if (threadHasOutboundLink(thread)) {
+      linkFilteredCount += 1;
+      continue;
+    }
+    kept.push(thread);
+  }
+  return { threads: kept, linkFilteredCount };
 }
 
 export function filterThreadsByLength(

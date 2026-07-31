@@ -191,6 +191,8 @@ const server = http.createServer(async (req, res) => {
           cooldownFiltered: done.cooldownFiltered,
           cooldownAuthors: done.cooldownAuthors,
           cooldownWarning: done.cooldownWarning,
+          linkFiltered: done.linkFiltered,
+          linkWarning: done.linkWarning,
           lengthFiltered: done.lengthFiltered,
           lengthWarning: done.lengthWarning,
           pipelineCounts: done.pipelineCounts,

@@ -14,8 +14,9 @@ import {
   type PlanQueriesOpts,
 } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
-import type { ScoutFilters } from "./scoutRun.js";
+import type { ScoutFilters, ScoutPipelineCounts } from "./scoutRun.js";
 import {
+  filterOutboundLinks,
   filterSelfReplies,
   filterThreadsByLength,
   resolveMaxThreadCharsFromFilters,
@@ -57,6 +58,9 @@ export type ScoutCollectEvent = {
   candidates?: number;
   stopReason?: ScoutStopReason;
   triageWarning?: string;
+  linkFiltered?: number;
+  linkWarning?: string;
+  pipelineCounts?: ScoutPipelineCounts;
   errors?: Array<{ query: string; message: string }>;
   plannedBy?: "client" | "deepseek";
   model?: string;
@@ -293,6 +297,21 @@ export async function runScoutCollect(opts: {
   let replanned = false;
   let bucketAttempts = 0;
   let consecutiveZeroAdds = 0;
+  let linkFilteredTotal = 0;
+  // Collect funnel is per-search cumulative: the filter stages (raw → afterLength)
+  // sum every search page across all buckets/refills, while afterTriage sums only
+  // the threads actually scored (bucket-qualified). The afterLength → afterTriage
+  // gap is the bucket-qualification drop (author dedupe / bucket-full / partial
+  // stop), not a triage drop — unlike runScoutSearch's single-pass funnel.
+  const funnelCounts: ScoutPipelineCounts = {
+    raw: 0,
+    afterDedupe: 0,
+    afterCooldown: 0,
+    afterSelfReply: 0,
+    afterLinks: 0,
+    afterLength: 0,
+    afterTriage: 0,
+  };
 
   async function maybeReplan(reason: "cycle" | "stalled"): Promise<boolean> {
     if (replanned || !agenda || !process.env.DEEPSEEK_API_KEY?.trim()) {
@@ -417,9 +436,18 @@ export async function runScoutCollect(opts: {
         });
         const afterCool = filterThreadsByCooldown(fresh, cooled);
         const afterSelf = filterSelfReplies(afterCool.threads);
-        const afterLen = filterThreadsByLength(afterSelf.threads, maxChars, {
+        const afterLinks = filterOutboundLinks(afterSelf.threads);
+        const afterLen = filterThreadsByLength(afterLinks.threads, maxChars, {
           dropArticles,
         });
+
+        funnelCounts.raw += result.threads.length;
+        funnelCounts.afterDedupe += fresh.length;
+        funnelCounts.afterCooldown += afterCool.threads.length;
+        funnelCounts.afterSelfReply += afterSelf.threads.length;
+        funnelCounts.afterLinks += afterLinks.threads.length;
+        funnelCounts.afterLength += afterLen.threads.length;
+        linkFilteredTotal += afterLinks.linkFilteredCount;
 
         const beforeFill = bucket.length;
         let authorDedupeSkipped = 0;
@@ -449,6 +477,8 @@ export async function runScoutCollect(opts: {
                 afterCooldown: afterCool.threads.length,
                 afterSelfReply: afterSelf.threads.length,
                 selfReplyFiltered: afterSelf.selfReplyFilteredCount,
+                afterLinks: afterLinks.threads.length,
+                linkFiltered: afterLinks.linkFilteredCount,
                 afterLength: afterLen.threads.length,
                 authorDedupeSkipped,
                 added,
@@ -500,6 +530,7 @@ export async function runScoutCollect(opts: {
 
       const triaged = await doTriage({ agenda, threads: forTriage });
       if (triaged.warning) triageWarning = triaged.warning;
+      funnelCounts.afterTriage += triaged.threads.length;
 
       const newlyCool = triaged.threads.filter(
         (t) => isCoolThread(t) && t.id && !coolIds.has(t.id),
@@ -576,6 +607,10 @@ export async function runScoutCollect(opts: {
         ? `Scout stopped — ${cool.length} cool thread${cool.length === 1 ? "" : "s"}.`
         : `Scout finished — ${cool.length} cool thread${cool.length === 1 ? "" : "s"} (supply exhausted).`;
 
+  const linkWarning = linkFilteredTotal
+    ? `Dropped ${linkFilteredTotal} posts with outbound links.`
+    : undefined;
+
   const done = track("done", stopMessage, {
     threads: cool,
     queries,
@@ -585,6 +620,9 @@ export async function runScoutCollect(opts: {
     candidates: bucket.length,
     stopReason,
     triageWarning,
+    linkFiltered: linkFilteredTotal,
+    linkWarning,
+    pipelineCounts: funnelCounts,
     errors: searchErrors.length ? searchErrors : undefined,
     plannedBy,
     model: planModel,
@@ -599,6 +637,8 @@ export async function runScoutCollect(opts: {
       threads: cool,
       message: done.message,
       triageWarning,
+      linkWarning,
+      pipelineCounts: funnelCounts,
     });
   } catch (err) {
     console.error("Failed to persist last Scout collect:", err);

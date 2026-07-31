@@ -15,11 +15,14 @@ export type LastScoutSnapshot = {
   message?: string;
   triageWarning?: string;
   cooldownWarning?: string;
+  linkWarning?: string;
   lengthWarning?: string;
   pipelineCounts?: {
     raw: number;
     afterDedupe: number;
     afterCooldown: number;
+    afterSelfReply?: number;
+    afterLinks?: number;
     afterLength: number;
     afterTriage: number;
   };
@@ -81,6 +84,9 @@ export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
   if (typeof obj.cooldownWarning === "string") {
     snapshot.cooldownWarning = obj.cooldownWarning;
   }
+  if (typeof obj.linkWarning === "string") {
+    snapshot.linkWarning = obj.linkWarning;
+  }
   if (typeof obj.lengthWarning === "string") {
     snapshot.lengthWarning = obj.lengthWarning;
   }
@@ -100,6 +106,12 @@ export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
         afterLength: pc.afterLength,
         afterTriage: pc.afterTriage,
       };
+      if (typeof pc.afterSelfReply === "number") {
+        snapshot.pipelineCounts.afterSelfReply = pc.afterSelfReply;
+      }
+      if (typeof pc.afterLinks === "number") {
+        snapshot.pipelineCounts.afterLinks = pc.afterLinks;
+      }
     }
   }
   return snapshot;
