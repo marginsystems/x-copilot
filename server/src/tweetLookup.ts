@@ -351,6 +351,8 @@ export async function hydrateReplyParents(opts: {
   session?: SessionCreds;
   signal?: AbortSignal;
   delayMs?: number;
+  /** Bounds sequential parent lookups (legacy sync path has no abort). */
+  maxLookups?: number;
   fetchParent?: typeof fetchParentTweet;
 }): Promise<import("./xSearch.js").ThreadCard[]> {
   const fetchParent = opts.fetchParent ?? fetchParentTweet;
@@ -362,6 +364,7 @@ export async function hydrateReplyParents(opts: {
     if (opts.signal?.aborted) break;
     const t = out[i];
     if (!t.inReplyToId || t.opText) continue;
+    if (opts.maxLookups !== undefined && lookedUp >= opts.maxLookups) break;
     if (lookedUp > 0) await sleep(delayMs);
     lookedUp += 1;
     const parent = await fetchParent({
