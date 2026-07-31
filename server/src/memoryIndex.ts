@@ -174,6 +174,7 @@ function openDb(dbPath: string): Database.Database {
       embedding BLOB NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
+    CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `);
   return db;
 }
@@ -377,6 +378,11 @@ export async function reindexMemory(opts?: {
         tx();
       }
 
+      db.prepare(
+        `INSERT INTO meta (key, value) VALUES ('indexed_at', '1')
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      ).run();
+
       return { ok: true, indexed, skipped };
     } finally {
       db.close();
@@ -536,14 +542,31 @@ export function memoryIndexStatus(opts?: {
   indexDir: string;
   dbPath: string;
   dbExists: boolean;
+  dbIndexed: boolean;
   modelCached: boolean;
   modelError: string | null;
 } {
   const paths = resolveIndexPaths(opts);
+  let dbIndexed = false;
+  if (existsSync(paths.dbPath)) {
+    try {
+      const db = openDb(paths.dbPath);
+      try {
+        dbIndexed =
+          db.prepare("SELECT 1 FROM meta WHERE key = 'indexed_at'").get() !==
+          undefined;
+      } finally {
+        db.close();
+      }
+    } catch {
+      dbIndexed = false;
+    }
+  }
   return {
     indexDir: paths.indexDir,
     dbPath: paths.dbPath,
     dbExists: existsSync(paths.dbPath),
+    dbIndexed,
     modelCached: cachedEmbedder !== null,
     modelError: embedderLoadError,
   };

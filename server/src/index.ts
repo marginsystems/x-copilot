@@ -82,10 +82,10 @@ function scheduleMemoryUpsert(notePath: string, type: MemoryType): void {
   });
 }
 
-/** Rebuild index when DB is missing (lazy boot). Soft-fails. */
+/** Rebuild index when it has never been fully built (lazy boot). Soft-fails. */
 async function ensureMemoryIndex(): Promise<void> {
   const status = memoryIndexStatus();
-  if (status.dbExists) return;
+  if (status.dbIndexed) return;
   const result = await reindexMemory();
   if (!result.ok && result.error) {
     console.warn("memory reindex soft-fail:", result.error);
@@ -104,14 +104,16 @@ function send(
   res: ServerResponse,
   status: number,
   body: unknown,
+  allowCors = true,
 ): void {
   const json = JSON.stringify(body);
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  });
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (allowCors) {
+    headers["Access-Control-Allow-Origin"] = "*";
+    headers["Access-Control-Allow-Headers"] = "Content-Type";
+    headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS";
+  }
+  res.writeHead(status, headers);
   res.end(json);
 }
 
@@ -154,7 +156,8 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === "OPTIONS") {
-      return send(res, 204, {});
+      const memoryPath = url.pathname.startsWith("/api/memory/");
+      return send(res, 204, {}, !memoryPath);
     }
 
     if (
@@ -185,14 +188,14 @@ const server = http.createServer(async (req, res) => {
         return send(res, statusCode, {
           error: "bad_request",
           message: err instanceof Error ? err.message : "Invalid request body",
-        });
+        }, false);
       }
       const query = typeof body.query === "string" ? body.query.trim() : "";
       if (!query) {
         return send(res, 400, {
           error: "bad_request",
           message: 'Pass { query: string, k?: number, types?: ("interaction"|"dismissal")[] }.',
-        });
+        }, false);
       }
       const k =
         typeof body.k === "number" && Number.isFinite(body.k)
@@ -201,7 +204,7 @@ const server = http.createServer(async (req, res) => {
       const types = parseMemoryTypes(body.types);
       await ensureMemoryIndex();
       const hits = await searchMemory({ query, k, types });
-      return send(res, 200, { ok: true, hits });
+      return send(res, 200, { ok: true, hits }, false);
     }
 
     if (req.method === "POST" && url.pathname === "/api/memory/reindex") {
@@ -212,13 +215,13 @@ const server = http.createServer(async (req, res) => {
           message: result.error ?? "Failed to reindex memory",
           indexed: result.indexed,
           skipped: result.skipped,
-        });
+        }, false);
       }
       return send(res, 200, {
         ok: true,
         indexed: result.indexed,
         skipped: result.skipped,
-      });
+      }, false);
     }
 
     if (
