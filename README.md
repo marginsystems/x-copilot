@@ -46,11 +46,11 @@ Before triage, posts with more than **480** characters (or obvious `N/M` thread 
 **Scout** is x-copilot’s search mini-agent. Use **Start Scout** / **Stop Scout** on the dashboard. Flow:
 
 1. Plan queries (DeepSeek), then pace X SearchTimeline (**20** hits/query).
-2. **Hard-filter bucket** (cooldown + Article/char) with **no LLM** until the bucket has **K=5** candidates (server `bucketSize` 5|10; v1 UI hard-codes 5). Keep searching / cycling queries (one replan, search budget) while the bucket is short.
+2. **Hard-filter bucket** (cooldown + Article/char/links/self-reply) with **no LLM** until the bucket has **K** candidates (UI sends `bucketSize: 20`; server accepts 5|10|20). Keep searching / cycling queries (one replan, search budget) while the bucket is short.
 3. **LLM-qualify** the full bucket. Cool = `engage` `priority`/`consider` and `baitScore ≤ 45`.
-4. If **0 cool**, discard the bucket and refill; if **≥1 cool**, emit those cool threads and stop (`stopReason: qualified`). Budget/Stop → `exhausted` / `aborted`.
+4. Keep cool threads and refill until **Cool threads** target (`targetCool`, 1–20) or supply is exhausted. If a full bucket yields **0 cool**, discard and refill. Budget/Stop → `exhausted` / `aborted`; hit target → `stopReason: target`.
 
-Status shows `Candidates n/K` while filling. Prefer `POST /api/scout/run` (NDJSON; `done` includes `coolCount`, `bucketSize`, `stopReason`, threads, `opencodeTurns`). `targetCool` is still accepted for forward compat but **v1 stops at ≥1 cool from a qualified bucket**. `POST /api/search` remains a non-streaming batch JSON fallback. Sessions are rate-limited: one run at a time, then a **15s** cooldown (UI + sidecar `429`) before the next Start — Stop does not bypass that gate.
+Status shows `Candidates n/K` while filling and `Cool n/target` as cools accumulate. Prefer `POST /api/scout/run` (NDJSON; `done` includes `coolCount`, `bucketSize`, `stopReason`, threads, `opencodeTurns`). `POST /api/search` remains a non-streaming batch JSON fallback. Sessions are rate-limited: one run at a time, then a **15s** cooldown (UI + sidecar `429`) before the next Start — Stop does not bypass that gate.
 
 ## Architecture
 
