@@ -200,16 +200,21 @@ export async function runScoutSearch(opts: {
     session,
   });
   const afterHydrateSelf = filterSelfReplies(hydrated.threads);
+  // Re-check language now that reply-parent OP text is available (#121).
+  const afterHydrateLang = filterByLanguage(
+    afterHydrateSelf.threads,
+    preferredLanguage,
+  );
   const selfReplyFiltered =
     afterSelf.selfReplyFilteredCount +
     afterHydrateSelf.selfReplyFilteredCount;
 
   track("triaging", "Scout is scoring threads for bait risk…", {
-    count: afterHydrateSelf.threads.length,
+    count: afterHydrateLang.threads.length,
   });
   const triaged = await triageThreads({
     agenda,
-    threads: afterHydrateSelf.threads,
+    threads: afterHydrateLang.threads,
   });
 
   const pipelineCounts: ScoutPipelineCounts = {
@@ -256,7 +261,8 @@ export async function runScoutSearch(opts: {
     selfReplyFiltered,
     linkFiltered: afterLinks.linkFilteredCount,
     linkWarning,
-    languageFiltered: afterLang.languageFilteredCount,
+    languageFiltered:
+      afterLang.languageFilteredCount + afterHydrateLang.languageFilteredCount,
     lengthFiltered: byLength.filteredCount,
     lengthWarning,
     unhydratedReplyCount: hydrated.unhydratedReplyCount,

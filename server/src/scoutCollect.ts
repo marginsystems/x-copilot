@@ -530,8 +530,12 @@ export async function runScoutCollect(opts: {
 
       // Drop same-author replies revealed only after hydrate (missing inReplyToScreenName).
       const afterHydrateSelf = filterSelfReplies(hydrated.threads);
-      const forTriage = afterHydrateSelf.threads;
-      funnelCounts.afterHydrateSelfReply += forTriage.length;
+      funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
+      // Re-check language now that reply-parent OP text is available (#121).
+      const forTriage = filterByLanguage(
+        afterHydrateSelf.threads,
+        preferredLanguage,
+      ).threads;
 
       if (forTriage.length === 0) {
         if (isPartial) {
