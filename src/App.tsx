@@ -16,6 +16,9 @@ import {
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
 
+/** Hard-filter candidate bucket size sent on each Scout run. */
+const SCOUT_BUCKET_SIZE = 20;
+
 type ThreadCard = {
   id: string;
   author: string;
@@ -1187,7 +1190,7 @@ export default function App() {
         body: JSON.stringify({
           agenda,
           targetCool,
-          bucketSize: 20,
+          bucketSize: SCOUT_BUCKET_SIZE,
           filters: {
             maxThreadChars: settings.maxThreadChars,
             dropArticles: settings.dropArticles,
@@ -1720,8 +1723,10 @@ export default function App() {
             </div>
             <div className="status-stack" aria-live="polite">
               <p className="status status-hint">
-                Fills a hard-filter bucket of 5, then LLM-qualifies until ≥1
-                cool lead (target kept for later).
+                Fills a hard-filter bucket of {SCOUT_BUCKET_SIZE} candidates,
+                then LLM-qualifies. Keeps going until{" "}
+                {settings.targetCoolThreads} cool threads (or STOP / supply
+                exhausted).
               </p>
               <p className="status status-main">
                 {searchCooldownRemaining > 0 && !searching
