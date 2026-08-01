@@ -202,6 +202,7 @@ function scoutProgressPrefix(ev: {
   candidates?: number;
   bucketSize?: number;
   coolCount?: number;
+  targetCool?: number;
 }): string | null {
   if (
     typeof ev.candidates === "number" &&
@@ -211,7 +212,9 @@ function scoutProgressPrefix(ev: {
     return `Cand. ${ev.candidates}/${ev.bucketSize}`;
   }
   if (typeof ev.coolCount === "number" && ev.coolCount > 0) {
-    return `Cool ${ev.coolCount}`;
+    return typeof ev.targetCool === "number"
+      ? `Cool ${ev.coolCount}/${ev.targetCool}`
+      : `Cool ${ev.coolCount}`;
   }
   return null;
 }
