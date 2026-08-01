@@ -1465,11 +1465,14 @@ export default function App() {
     const thread = dismissThread;
     if (!thread) return;
     setActionBusy(true);
-    const ok = await postDismissed(thread, dismissReason);
-    setActionBusy(false);
-    if (ok) {
-      closeDismissModal();
-      setStatus(`Marked ${thread.author} not interested`);
+    try {
+      const ok = await postDismissed(thread, dismissReason);
+      if (ok) {
+        closeDismissModal();
+        setStatus(`Marked ${thread.author} not interested`);
+      }
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -1481,15 +1484,18 @@ export default function App() {
       return;
     }
     setActionBusy(true);
-    const ok = await postInteracted(thread, markReplyUrl, markReply);
-    setActionBusy(false);
-    if (ok) {
-      closeMarkModal();
-      setStatus(
-        markReply.trim()
-          ? `Marked ${thread.author} interacted — memory saved · 24h cooldown`
-          : `Marked ${thread.author} interacted — 24h cooldown`,
-      );
+    try {
+      const ok = await postInteracted(thread, markReplyUrl, markReply);
+      if (ok) {
+        closeMarkModal();
+        setStatus(
+          markReply.trim()
+            ? `Marked ${thread.author} interacted — memory saved · 24h cooldown`
+            : `Marked ${thread.author} interacted — 24h cooldown`,
+        );
+      }
+    } finally {
+      setActionBusy(false);
     }
   }
 
