@@ -10,7 +10,7 @@ export const DEFAULT_TARGET_COOL_THREADS = 5;
 export const MIN_TARGET_COOL_THREADS = 1;
 export const MAX_TARGET_COOL_THREADS = 20;
 
-/** ISO 639-1 codes supported in Settings / Scout language filter. */
+/** ISO 639-1 codes supported in Settings / Scout language filter. Keep in sync with `PREFERRED_LANGUAGE_CODES` in server/src/threadFilters.ts. */
 export const PREFERRED_LANGUAGES = ["en", "es", "fr", "de", "pt"] as const;
 export type PreferredLanguage = (typeof PREFERRED_LANGUAGES)[number];
 export const DEFAULT_PREFERRED_LANGUAGE: PreferredLanguage = "en";

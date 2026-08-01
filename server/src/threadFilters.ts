@@ -7,7 +7,7 @@ import { textHasOutboundLink, type ThreadCard } from "./xSearch.js";
 
 export const DEFAULT_MAX_THREAD_CHARS = 480;
 
-/** ISO 639-1 allowlist (matches Settings). */
+/** ISO 639-1 allowlist. Keep in sync with `PREFERRED_LANGUAGES` in src/lib/settings.ts. */
 export const PREFERRED_LANGUAGE_CODES = ["en", "es", "fr", "de", "pt"] as const;
 export type PreferredLanguageCode = (typeof PREFERRED_LANGUAGE_CODES)[number];
 export const DEFAULT_PREFERRED_LANGUAGE: PreferredLanguageCode = "en";
