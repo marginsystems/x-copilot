@@ -536,6 +536,7 @@ export default function App() {
   const dismissedIdsRef = useRef<Set<string>>(new Set());
   const skippedIdsRef = useRef<Set<string>>(new Set());
   const expiredIdsRef = useRef<Set<string>>(new Set());
+  const interactedIdsRef = useRef<Set<string>>(new Set());
   const searchingRef = useRef(0);
   const coolProgressRef = useRef({
     cool: 0,
@@ -689,16 +690,13 @@ export default function App() {
           typeof i.at === "string",
       );
       setInteractedHistory(history);
-      const activeIds = Array.isArray(data.activeIds)
-        ? data.activeIds
-        : [];
-      setInteractedIds(
-        new Set(
-          activeIds.filter(
-            (id): id is string => typeof id === "string" && id.length > 0,
-          ),
+      const ids = new Set(
+        (Array.isArray(data.activeIds) ? data.activeIds : []).filter(
+          (id): id is string => typeof id === "string" && id.length > 0,
         ),
       );
+      interactedIdsRef.current = ids;
+      setInteractedIds(ids);
     } catch {
       // Sidecar may be offline on first paint — ignore.
     }
@@ -708,7 +706,8 @@ export default function App() {
     return (
       dismissedIdsRef.current.has(id) ||
       skippedIdsRef.current.has(id) ||
-      expiredIdsRef.current.has(id)
+      expiredIdsRef.current.has(id) ||
+      interactedIdsRef.current.has(id)
     );
   }
 
@@ -1073,6 +1072,7 @@ export default function App() {
         return false;
       }
       const key = normalizeAuthorKey(thread.author);
+      interactedIdsRef.current = new Set(interactedIdsRef.current).add(thread.id);
       setInteractedIds((prev) => new Set(prev).add(thread.id));
       const historyEntry: InteractionHistoryEntry = data.interaction ?? {
         threadId: thread.id,
