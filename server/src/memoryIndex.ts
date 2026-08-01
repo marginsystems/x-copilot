@@ -7,7 +7,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import Database from "better-sqlite3";
-import { defaultKnowledgeRoot } from "./knowledgeMemory.js";
+import { defaultKnowledgeRoot, projectRoot } from "./knowledgeMemory.js";
 
 export type MemoryType = "interaction" | "dismissal";
 
@@ -69,7 +69,7 @@ let embedderLoadError: string | null = null;
 let embedderPromise: Promise<Embedder> | null = null;
 
 export function defaultIndexDir(): string {
-  return resolve(process.cwd(), "data", "memory-index");
+  return resolve(projectRoot, "data", "memory-index");
 }
 
 export function resolveIndexPaths(opts?: {
@@ -254,20 +254,26 @@ export async function getDefaultEmbedder(): Promise<Embedder> {
         const embedder: Embedder = {
           dimensions: DEFAULT_DIMS,
           async embed(texts: string[]): Promise<Float32Array[]> {
-            const out: Float32Array[] = [];
-            for (const text of texts) {
-              const result = await extractor(text, {
-                pooling: "mean",
-                normalize: true,
-              });
-              const data = result.data as Float32Array | number[];
-              out.push(
-                data instanceof Float32Array
-                  ? data
-                  : Float32Array.from(data as number[]),
-              );
+            try {
+              const out: Float32Array[] = [];
+              for (const text of texts) {
+                const result = await extractor(text, {
+                  pooling: "mean",
+                  normalize: true,
+                });
+                const data = result.data as Float32Array | number[];
+                out.push(
+                  data instanceof Float32Array
+                    ? data
+                    : Float32Array.from(data as number[]),
+                );
+              }
+              return out;
+            } catch (err) {
+              cachedEmbedder = null;
+              embedderPromise = null;
+              throw err;
             }
-            return out;
           },
         };
         cachedEmbedder = embedder;

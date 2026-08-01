@@ -310,6 +310,7 @@ const server = http.createServer(async (req, res) => {
         });
       }
       try {
+        await ensureMemoryIndex();
         const result = await runScoutSearch({ agenda, queries, filters });
         if (!result.ok) {
           return send(res, result.status, {
@@ -400,6 +401,7 @@ const server = http.createServer(async (req, res) => {
           res.write(`${JSON.stringify(event)}\n`);
         };
 
+        await ensureMemoryIndex();
         const result = await runScoutCollect({
           agenda,
           queries,
