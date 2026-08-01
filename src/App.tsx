@@ -490,7 +490,8 @@ export default function App() {
   const [plannedQueries, setPlannedQueries] = useState<string[]>([]);
   const [threads, setThreads] = useState<ThreadCard[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  /** Short mutex for mark/skip/dismiss/session/settings — not Scout-in-flight. */
+  const [actionBusy, setActionBusy] = useState(false);
   const [searching, setSearching] = useState(false);
   const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
   const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
@@ -535,6 +536,7 @@ export default function App() {
   const dismissedIdsRef = useRef<Set<string>>(new Set());
   const skippedIdsRef = useRef<Set<string>>(new Set());
   const expiredIdsRef = useRef<Set<string>>(new Set());
+  const interactedIdsRef = useRef<Set<string>>(new Set());
   const searchingRef = useRef(0);
   const coolProgressRef = useRef({
     cool: 0,
@@ -688,16 +690,13 @@ export default function App() {
           typeof i.at === "string",
       );
       setInteractedHistory(history);
-      const activeIds = Array.isArray(data.activeIds)
-        ? data.activeIds
-        : [];
-      setInteractedIds(
-        new Set(
-          activeIds.filter(
-            (id): id is string => typeof id === "string" && id.length > 0,
-          ),
+      const ids = new Set(
+        (Array.isArray(data.activeIds) ? data.activeIds : []).filter(
+          (id): id is string => typeof id === "string" && id.length > 0,
         ),
       );
+      interactedIdsRef.current = ids;
+      setInteractedIds(ids);
     } catch {
       // Sidecar may be offline on first paint — ignore.
     }
@@ -707,7 +706,8 @@ export default function App() {
     return (
       dismissedIdsRef.current.has(id) ||
       skippedIdsRef.current.has(id) ||
-      expiredIdsRef.current.has(id)
+      expiredIdsRef.current.has(id) ||
+      interactedIdsRef.current.has(id)
     );
   }
 
@@ -1072,6 +1072,7 @@ export default function App() {
         return false;
       }
       const key = normalizeAuthorKey(thread.author);
+      interactedIdsRef.current = new Set(interactedIdsRef.current).add(thread.id);
       setInteractedIds((prev) => new Set(prev).add(thread.id));
       const historyEntry: InteractionHistoryEntry = data.interaction ?? {
         threadId: thread.id,
@@ -1099,7 +1100,7 @@ export default function App() {
   }
 
   async function onVerifySession() {
-    setBusy(true);
+    setActionBusy(true);
     setStatus("Verifying X session…");
     try {
       const res = await fetch("/api/session/verify");
@@ -1126,7 +1127,7 @@ export default function App() {
       setSessionUser(null);
       setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
     } finally {
-      setBusy(false);
+      setActionBusy(false);
     }
   }
 
@@ -1167,7 +1168,6 @@ export default function App() {
     const targetCool = clampTargetCoolThreads(settings.targetCoolThreads);
     coolProgressRef.current = { cool: 0, target: targetCool };
 
-    setBusy(true);
     setSearching(true);
     setPlannedQueries([]);
     // Keep existing thread rows; partials + done append by id across runs.
@@ -1333,7 +1333,6 @@ export default function App() {
         const until = Date.now() + SEARCH_COOLDOWN_MS;
         searchingRef.current = until;
         setSearching(false);
-        setBusy(false);
         setSearchCooldownUntil(until);
         setNowMs(Date.now());
         setStatus((prev) => {
@@ -1368,7 +1367,7 @@ export default function App() {
   }
 
   async function onSkip(thread: ThreadCard) {
-    setBusy(true);
+    setActionBusy(true);
     try {
       const res = await fetch("/api/skipped", {
         method: "POST",
@@ -1408,7 +1407,7 @@ export default function App() {
     } catch {
       setStatus("Sidecar offline — could not skip");
     } finally {
-      setBusy(false);
+      setActionBusy(false);
     }
   }
 
@@ -1465,12 +1464,15 @@ export default function App() {
   async function confirmDismiss() {
     const thread = dismissThread;
     if (!thread) return;
-    setBusy(true);
-    const ok = await postDismissed(thread, dismissReason);
-    setBusy(false);
-    if (ok) {
-      closeDismissModal();
-      setStatus(`Marked ${thread.author} not interested`);
+    setActionBusy(true);
+    try {
+      const ok = await postDismissed(thread, dismissReason);
+      if (ok) {
+        closeDismissModal();
+        setStatus(`Marked ${thread.author} not interested`);
+      }
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -1481,29 +1483,32 @@ export default function App() {
       setStatus("Reply URL is required — paste the link to your reply on X.");
       return;
     }
-    setBusy(true);
-    const ok = await postInteracted(thread, markReplyUrl, markReply);
-    setBusy(false);
-    if (ok) {
-      closeMarkModal();
-      setStatus(
-        markReply.trim()
-          ? `Marked ${thread.author} interacted — memory saved · 24h cooldown`
-          : `Marked ${thread.author} interacted — 24h cooldown`,
-      );
+    setActionBusy(true);
+    try {
+      const ok = await postInteracted(thread, markReplyUrl, markReply);
+      if (ok) {
+        closeMarkModal();
+        setStatus(
+          markReply.trim()
+            ? `Marked ${thread.author} interacted — memory saved · 24h cooldown`
+            : `Marked ${thread.author} interacted — 24h cooldown`,
+        );
+      }
+    } finally {
+      setActionBusy(false);
     }
   }
 
   useEffect(() => {
     if (!markThread && !dismissThread) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key !== "Escape" || busy) return;
+      if (e.key !== "Escape" || actionBusy) return;
       if (markThread) closeMarkModal();
       if (dismissThread) closeDismissModal();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [markThread, dismissThread, busy]);
+  }, [markThread, dismissThread, actionBusy]);
 
   return (
     <div className="app">
@@ -1561,7 +1566,7 @@ export default function App() {
               <button
                 type="button"
                 className="ghost menu-action"
-                disabled={busy}
+                disabled={actionBusy}
                 onClick={() => void onVerifySession()}
               >
                 Verify session
@@ -1691,7 +1696,7 @@ export default function App() {
                 <button
                   type="button"
                   className="primary"
-                  disabled={busy || searchBlocked || !agenda.trim()}
+                  disabled={searchBlocked || !agenda.trim()}
                   onClick={onSearch}
                 >
                   {searchCooldownRemaining > 0
@@ -1925,7 +1930,7 @@ export default function App() {
                         key={t.id}
                         thread={t}
                         open={expandedId === t.id}
-                        busy={busy}
+                        busy={actionBusy}
                         interacted={interactedIds.has(t.id)}
                         onToggle={() =>
                           setExpandedId(expandedId === t.id ? null : t.id)
@@ -2002,7 +2007,7 @@ export default function App() {
             type="button"
             className="modal-backdrop"
             aria-label="Cancel mark interacted"
-            disabled={busy}
+            disabled={actionBusy}
             onClick={closeMarkModal}
           />
           <div
@@ -2025,7 +2030,7 @@ export default function App() {
                 onChange={(e) => setMarkReplyUrl(e.target.value)}
                 placeholder="https://x.com/you/status/…"
                 autoFocus
-                disabled={busy}
+                disabled={actionBusy}
               />
             </label>
             <label className="settings-field">
@@ -2036,7 +2041,7 @@ export default function App() {
                 onChange={(e) => setMarkReply(e.target.value)}
                 placeholder="What you actually typed / posted…"
                 rows={4}
-                disabled={busy}
+                disabled={actionBusy}
               />
             </label>
             <div className="row">
@@ -2044,7 +2049,7 @@ export default function App() {
                 type="button"
                 className="primary"
                 disabled={
-                  busy ||
+                  actionBusy ||
                   markDetecting ||
                   !parseStatusIdFromUrl(markReplyUrl)
                 }
@@ -2056,7 +2061,7 @@ export default function App() {
                 <button
                   type="button"
                   className="ghost"
-                  disabled={busy}
+                  disabled={actionBusy}
                   onClick={() => retryMarkDetect()}
                 >
                   Retry
@@ -2065,7 +2070,7 @@ export default function App() {
               <button
                 type="button"
                 className="ghost"
-                disabled={busy}
+                disabled={actionBusy}
                 onClick={closeMarkModal}
               >
                 Cancel
@@ -2081,7 +2086,7 @@ export default function App() {
             type="button"
             className="modal-backdrop"
             aria-label="Cancel not interested"
-            disabled={busy}
+            disabled={actionBusy}
             onClick={closeDismissModal}
           />
           <div
@@ -2110,7 +2115,7 @@ export default function App() {
               <button
                 type="button"
                 className="primary"
-                disabled={busy}
+                disabled={actionBusy}
                 onClick={() => void confirmDismiss()}
               >
                 Confirm
@@ -2118,7 +2123,7 @@ export default function App() {
               <button
                 type="button"
                 className="ghost"
-                disabled={busy}
+                disabled={actionBusy}
                 onClick={closeDismissModal}
               >
                 Cancel
