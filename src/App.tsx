@@ -1314,6 +1314,34 @@ export default function App() {
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
+        // Keep partials already in state; merge any cools persisted mid-run.
+        try {
+          const res = await fetch(
+            `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`,
+          );
+          if (res.ok) {
+            const data = (await res.json()) as {
+              ok?: boolean;
+              empty?: boolean;
+              snapshot?: { threads?: ThreadCard[]; queries?: string[] };
+            };
+            if (data.ok && !data.empty && data.snapshot?.threads?.length) {
+              setThreads((prev) =>
+                appendThreadsById(
+                  prev,
+                  data.snapshot!.threads!.filter(
+                    (t) => !isHiddenFromCurated(t.id),
+                  ),
+                ),
+              );
+              if (Array.isArray(data.snapshot.queries)) {
+                setPlannedQueries(data.snapshot.queries);
+              }
+            }
+          }
+        } catch {
+          /* sidecar may be offline — keep in-memory cools */
+        }
         // Still cool down in finally so Stop / unmount cannot bypass the gate.
         const { cool, target } = coolProgressRef.current;
         const summary = `Cool ${cool}/${target} · stop: aborted`;

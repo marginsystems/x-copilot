@@ -596,6 +596,7 @@ export async function runScoutCollect(opts: {
         continue;
       }
 
+      const coolBefore = cool.length;
       for (const t of newlyCool) {
         if (cool.length >= targetCool) break;
         const key = normalizeAuthorKey(t.author);
@@ -610,6 +611,23 @@ export async function runScoutCollect(opts: {
         candidates: bucketSize,
         targetCool,
       });
+
+      // Persist as cools qualify so Stop/abort does not lose them.
+      if (cool.length > coolBefore) {
+        try {
+          await doSaveCache({
+            savedAt: new Date().toISOString(),
+            agenda: agenda || undefined,
+            queries,
+            threads: cool,
+            message: `Cool ${cool.length}/${targetCool}`,
+            triageWarning,
+            pipelineCounts: funnelCounts,
+          });
+        } catch (err) {
+          console.error("Failed to persist Scout cools mid-run:", err);
+        }
+      }
 
       if (cool.length >= targetCool) {
         bucket = [];
