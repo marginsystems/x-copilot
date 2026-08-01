@@ -64,6 +64,7 @@ export type ScoutCollectEvent = {
   errors?: Array<{ query: string; message: string }>;
   plannedBy?: "client" | "deepseek";
   model?: string;
+  unhydratedReplyCount?: number;
   opencodeTurns?: ReturnType<typeof toOpenCodeTurns>;
 };
 
@@ -292,6 +293,7 @@ export async function runScoutCollect(opts: {
   const searchErrors: Array<{ query: string; message: string }> = [];
   let triageWarning: string | undefined;
   let stopReason: ScoutStopReason = "exhausted";
+  let unhydratedReplyCount = 0;
   let searchCalls = 0;
   let queryIndex = 0;
   let replanned = false;
@@ -310,6 +312,7 @@ export async function runScoutCollect(opts: {
     afterSelfReply: 0,
     afterLinks: 0,
     afterLength: 0,
+    afterHydrateSelfReply: 0,
     afterTriage: 0,
   };
 
@@ -505,20 +508,9 @@ export async function runScoutCollect(opts: {
       const isPartial = bucket.length < bucketSize;
 
       bucketAttempts += 1;
-      track(
-        "triaging",
-        isPartial
-          ? `Scout is scoring partial bucket of ${bucket.length}/${bucketSize} candidates…`
-          : `Scout is scoring bucket of ${bucket.length} candidates…`,
-        {
-          candidates: bucket.length,
-          coolCount: cool.length,
-          detail: { bucketAttempt: bucketAttempts, partial: isPartial },
-        },
-      );
 
       // Attach OP text for replies before LLM triage (promo-root skip).
-      const forTriage = await doHydrate({
+      const hydrated = await doHydrate({
         threads: bucket,
         session,
         signal: opts.signal,
@@ -527,6 +519,56 @@ export async function runScoutCollect(opts: {
         stopReason = "aborted";
         break;
       }
+      unhydratedReplyCount += hydrated.unhydratedReplyCount;
+
+      // Drop same-author replies revealed only after hydrate (missing inReplyToScreenName).
+      const afterHydrateSelf = filterSelfReplies(hydrated.threads);
+      const forTriage = afterHydrateSelf.threads;
+      funnelCounts.afterHydrateSelfReply += forTriage.length;
+
+      if (forTriage.length === 0) {
+        if (isPartial) {
+          bucket = [];
+          stopReason = "exhausted";
+          break;
+        }
+        track(
+          "filtering",
+          "0 candidates after post-hydrate self-reply filter — discarding bucket…",
+          {
+            candidates: 0,
+            coolCount: cool.length,
+            detail: {
+              bucketAttempt: bucketAttempts,
+              selfReplyFilteredPostHydrate:
+                afterHydrateSelf.selfReplyFilteredCount,
+            },
+          },
+        );
+        bucket = [];
+        continue;
+      }
+
+      track(
+        "triaging",
+        isPartial
+          ? `Scout is scoring partial bucket of ${forTriage.length}/${bucketSize} candidates…`
+          : `Scout is scoring bucket of ${forTriage.length} candidates…`,
+        {
+          candidates: forTriage.length,
+          coolCount: cool.length,
+          detail: {
+            bucketAttempt: bucketAttempts,
+            partial: isPartial,
+            ...(afterHydrateSelf.selfReplyFilteredCount > 0
+              ? {
+                  selfReplyFilteredPostHydrate:
+                    afterHydrateSelf.selfReplyFilteredCount,
+                }
+              : {}),
+          },
+        },
+      );
 
       const triaged = await doTriage({ agenda, threads: forTriage });
       if (triaged.warning) triageWarning = triaged.warning;
@@ -626,6 +668,7 @@ export async function runScoutCollect(opts: {
     errors: searchErrors.length ? searchErrors : undefined,
     plannedBy,
     model: planModel,
+    unhydratedReplyCount,
     opencodeTurns: toOpenCodeTurns(events),
   });
 

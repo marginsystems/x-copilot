@@ -14,6 +14,7 @@ import {
   filterThreadsByLength,
   resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
+import { hydrateReplyParents } from "./tweetLookup.js";
 import { triageThreads } from "./threadTriage.js";
 import { searchMany, type ThreadCard } from "./xSearch.js";
 import { getSessionFromEnv, type SessionCreds } from "./xSession.js";
@@ -33,6 +34,7 @@ export type ScoutPipelineCounts = {
   afterSelfReply: number;
   afterLinks: number;
   afterLength: number;
+  afterHydrateSelfReply: number;
   afterTriage: number;
 };
 
@@ -53,13 +55,14 @@ export type ScoutEvent = ScoutStageEvent & {
   linkWarning?: string;
   lengthFiltered?: number;
   lengthWarning?: string;
+  unhydratedReplyCount?: number;
   pipelineCounts?: ScoutPipelineCounts;
   opencodeTurns?: ReturnType<typeof toOpenCodeTurns>;
 };
 
-/** Compact funnel for status: `48 → 36 → 34 → 28 → 22 → 18 → 12`. */
+/** Compact funnel for status: `48 → 36 → 34 → 28 → 22 → 18 → 15 → 12`. */
 export function formatPipelineFunnel(counts: ScoutPipelineCounts): string {
-  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterSelfReply} → ${counts.afterLinks} → ${counts.afterLength} → ${counts.afterTriage}`;
+  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterSelfReply} → ${counts.afterLinks} → ${counts.afterLength} → ${counts.afterHydrateSelfReply} → ${counts.afterTriage}`;
 }
 
 export type ScoutRunResult =
@@ -182,12 +185,22 @@ export async function runScoutSearch(opts: {
     dropArticles,
   });
 
+  // Hydrate OP context, then re-drop self-replies missing inReplyToScreenName.
+  const hydrated = await hydrateReplyParents({
+    threads: byLength.threads,
+    session,
+  });
+  const afterHydrateSelf = filterSelfReplies(hydrated.threads);
+  const selfReplyFiltered =
+    afterSelf.selfReplyFilteredCount +
+    afterHydrateSelf.selfReplyFilteredCount;
+
   track("triaging", "Scout is scoring threads for bait risk…", {
-    count: byLength.threads.length,
+    count: afterHydrateSelf.threads.length,
   });
   const triaged = await triageThreads({
     agenda,
-    threads: byLength.threads,
+    threads: afterHydrateSelf.threads,
   });
 
   const pipelineCounts: ScoutPipelineCounts = {
@@ -197,6 +210,7 @@ export async function runScoutSearch(opts: {
     afterSelfReply: afterSelf.threads.length,
     afterLinks: afterLinks.threads.length,
     afterLength: byLength.threads.length,
+    afterHydrateSelfReply: afterHydrateSelf.threads.length,
     afterTriage: triaged.threads.length,
   };
   const funnel = formatPipelineFunnel(pipelineCounts);
@@ -230,11 +244,12 @@ export async function runScoutSearch(opts: {
     cooldownFiltered: filtered.filteredCount,
     cooldownAuthors: filtered.filteredAuthors,
     cooldownWarning,
-    selfReplyFiltered: afterSelf.selfReplyFilteredCount,
+    selfReplyFiltered,
     linkFiltered: afterLinks.linkFilteredCount,
     linkWarning,
     lengthFiltered: byLength.filteredCount,
     lengthWarning,
+    unhydratedReplyCount: hydrated.unhydratedReplyCount,
     pipelineCounts,
     opencodeTurns: toOpenCodeTurns(events),
   };

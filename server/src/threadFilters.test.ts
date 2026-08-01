@@ -79,6 +79,70 @@ describe("isSelfReply / filterSelfReplies", () => {
     );
   });
 
+  it("detects same-author via hydrated opAuthor without inReplyToScreenName", () => {
+    assert.equal(
+      isSelfReply({
+        id: "1",
+        author: "@Kalani_Maluai",
+        text: "summary of my prior post",
+        url: "https://x.com/Kalani_Maluai/status/1",
+        inReplyToId: "0",
+        isReply: true,
+        opAuthor: "@Kalani_Maluai",
+        opText: "root of my own thread",
+        opParentDerived: true,
+      }),
+      true,
+    );
+    assert.equal(
+      isSelfReply({
+        id: "1",
+        author: "@Kalani_Maluai",
+        text: "summary of my prior post",
+        url: "https://x.com/Kalani_Maluai/status/1",
+        inReplyToId: "0",
+        isReply: true,
+        opAuthor: "Kalani_Maluai",
+        opParentDerived: true,
+      }),
+      true,
+    );
+  });
+
+  it("keeps cross-account replies when only opAuthor is set", () => {
+    assert.equal(
+      isSelfReply({
+        id: "1",
+        author: "@alice",
+        text: "agree",
+        url: "https://x.com/alice/status/1",
+        inReplyToId: "0",
+        isReply: true,
+        opAuthor: "@bob",
+        opText: "root from bob",
+        opParentDerived: true,
+      }),
+      false,
+    );
+  });
+
+  it("keeps quote-derived opAuthor equal to author", () => {
+    assert.equal(
+      isSelfReply({
+        id: "1",
+        author: "@alice",
+        text: "agree",
+        url: "https://x.com/alice/status/1",
+        inReplyToId: "0",
+        inReplyToScreenName: "@bob",
+        isReply: true,
+        opAuthor: "@alice",
+        opText: "my own earlier post",
+      }),
+      false,
+    );
+  });
+
   it("filters self-replies from a batch", () => {
     const selfR: ThreadCard = {
       id: "1",

@@ -35,6 +35,8 @@ export type ThreadCard = {
   /** Parent or quoted root author/text when available. */
   opAuthor?: string;
   opText?: string;
+  /** True when opAuthor/opText were filled from the reply parent by hydrateReplyParents. */
+  opParentDerived?: boolean;
   /** Triage fields (filled by threadTriage after search). */
   summary?: string;
   /** 0–100, higher = more engagement bait / less worth replying to. */

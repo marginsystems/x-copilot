@@ -113,7 +113,10 @@ describe("runScoutCollect bucket loop", () => {
             bottomCursor: null,
           };
         },
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
           assert.equal(threads.length, 5);
@@ -155,7 +158,10 @@ describe("runScoutCollect bucket loop", () => {
           threads: fillBucket(id, 5),
           bottomCursor: null,
         }),
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
           if (triageCalls === 1) {
@@ -208,7 +214,10 @@ describe("runScoutCollect bucket loop", () => {
             bottomCursor: null,
           };
         },
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
           const coolN = triageCalls === 1 ? 2 : 3;
@@ -260,7 +269,10 @@ describe("runScoutCollect bucket loop", () => {
             bottomCursor: null,
           };
         },
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
           return {
@@ -315,7 +327,10 @@ describe("runScoutCollect bucket loop", () => {
             bottomCursor: null,
           };
         },
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
           triagedIds = threads.map((t) => t.id);
@@ -360,7 +375,10 @@ describe("runScoutCollect bucket loop", () => {
           threads: [],
           bottomCursor: null,
         }),
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => {
           triageCalls += 1;
           return { threads };
@@ -399,7 +417,10 @@ describe("runScoutCollect bucket loop", () => {
             bottomCursor: null,
           };
         },
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => ({
           threads: threads.map((t) => ({
             ...t,
@@ -436,7 +457,10 @@ describe("runScoutCollect bucket loop", () => {
           threads: fillBucket(id, 5),
           bottomCursor: null,
         }),
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => ({
           threads: threads.map((t) => ({
             ...t,
@@ -485,7 +509,10 @@ describe("runScoutCollect bucket loop", () => {
             bottomCursor: null,
           };
         },
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => ({
           threads: threads.map((t) => ({
             ...t,
@@ -544,11 +571,14 @@ describe("runScoutCollect bucket loop", () => {
         },
         hydrateReplyParents: async ({ threads }) => {
           hydrateCalls += 1;
-          return threads.map((t) => ({
-            ...t,
-            opAuthor: "@hustler",
-            opText: "mysaas just crossed $632 revenue 100% profit",
-          }));
+          return {
+            threads: threads.map((t) => ({
+              ...t,
+              opAuthor: "@hustler",
+              opText: "mysaas just crossed $632 revenue 100% profit",
+            })),
+            unhydratedReplyCount: 0,
+          };
         },
         triageThreads: async ({ threads }) => {
           sawOp = threads.every((t) => Boolean(t.opText));
@@ -616,6 +646,7 @@ describe("runScoutCollect bucket loop", () => {
       if (!result.ok) return;
       assert.equal(triageCalls, 1);
       assert.equal(result.event.stopReason, "target");
+      assert.equal(result.event.unhydratedReplyCount, 5);
     } finally {
       globalThis.fetch = origFetch;
     }
@@ -661,7 +692,10 @@ describe("runScoutCollect bucket loop", () => {
             threads: [],
             bottomCursor: null,
           }),
-          hydrateReplyParents: async ({ threads }) => threads,
+          hydrateReplyParents: async ({ threads }) => ({
+            threads,
+            unhydratedReplyCount: 0,
+          }),
           triageThreads: async ({ threads }) => ({
             threads: threads.map((t) => ({
               ...t,
@@ -716,7 +750,10 @@ describe("runScoutCollect bucket loop", () => {
           ],
           bottomCursor: null,
         }),
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => {
           triageAuthors = threads.map((t) => t.author);
           assert.equal(
@@ -776,7 +813,10 @@ describe("runScoutCollect bucket loop", () => {
           ],
           bottomCursor: null,
         }),
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => {
           triageIds = threads.map((t) => t.id);
           return {
@@ -833,7 +873,10 @@ describe("runScoutCollect bucket loop", () => {
           ],
           bottomCursor: null,
         }),
-        hydrateReplyParents: async ({ threads }) => threads,
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
         triageThreads: async ({ threads }) => {
           triageIds = threads.map((t) => t.id);
           return {
@@ -851,6 +894,71 @@ describe("runScoutCollect bucket loop", () => {
     if (!result.ok) return;
     assert.deepEqual(triageIds, ["n1", "n2", "n3", "n4", "n5"]);
     assert.ok(!triageIds.includes("s1") && !triageIds.includes("s2"));
+    assert.equal(result.event.stopReason, "target");
+  });
+
+  it("drops self-replies revealed only after hydrate (missing inReplyToScreenName)", async () => {
+    let triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      // Bucket fills with self1 + n1..n4; post-hydrate drops self1 → triage n1..n4.
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "self1",
+              author: "@Kalani_Maluai",
+              inReplyToId: "root1",
+              isReply: true,
+              // GraphQL omitted in_reply_to_screen_name — early filter misses.
+            }),
+            card({ id: "n1", author: "@alice" }),
+            card({ id: "n2", author: "@bob" }),
+            card({ id: "n3", author: "@carol" }),
+            card({ id: "n4", author: "@dave" }),
+            card({ id: "n5", author: "@erin" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads: threads.map((t) =>
+            t.id === "self1"
+              ? {
+                  ...t,
+                  opAuthor: "@Kalani_Maluai",
+                  opText: "root of my own thread",
+                  opParentDerived: true,
+                }
+              : t,
+          ),
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 20 : 80,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.ok(!triageIds.includes("self1"));
+    assert.deepEqual(triageIds, ["n1", "n2", "n3", "n4"]);
     assert.equal(result.event.stopReason, "target");
   });
 });
