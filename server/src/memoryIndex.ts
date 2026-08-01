@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
 import { defaultKnowledgeRoot, projectRoot } from "./knowledgeMemory.js";
 
 export type MemoryType = "interaction" | "dismissal";
@@ -168,8 +168,34 @@ function bufferToFloat32(buf: Buffer): Float32Array {
   return new Float32Array(copy.buffer, copy.byteOffset, copy.byteLength / 4);
 }
 
-function openDb(dbPath: string): Database.Database {
-  const db = new Database(dbPath);
+let dbModule: typeof Database | null = null;
+let dbLoadError: string | null = null;
+let dbLoadPromise: Promise<typeof Database> | null = null;
+
+async function getDatabaseModule(): Promise<typeof Database> {
+  if (dbModule) return dbModule;
+  if (dbLoadError) throw new Error(dbLoadError);
+  if (!dbLoadPromise) {
+    dbLoadPromise = (async () => {
+      try {
+        const mod = (await import("better-sqlite3")) as {
+          default: typeof Database;
+        };
+        dbModule = mod.default;
+        return mod.default;
+      } catch (err) {
+        dbLoadError = err instanceof Error ? err.message : String(err);
+        dbLoadPromise = null;
+        throw err;
+      }
+    })();
+  }
+  return dbLoadPromise;
+}
+
+async function openDb(dbPath: string): Promise<Database.Database> {
+  const DatabaseCtor = await getDatabaseModule();
+  const db = new DatabaseCtor(dbPath);
   db.exec(`
     CREATE TABLE IF NOT EXISTS memories (
       path TEXT PRIMARY KEY,
@@ -325,7 +351,7 @@ export async function reindexMemory(opts?: {
   try {
     await mkdir(paths.indexDir, { recursive: true });
     const files = await listNoteFiles(paths.knowledgeRoot);
-    const db = openDb(paths.dbPath);
+    const db = await openDb(paths.dbPath);
     try {
       db.exec("DELETE FROM memories");
       const insert = db.prepare(
@@ -396,10 +422,12 @@ export async function reindexMemory(opts?: {
         tx();
       }
 
-      db.prepare(
-        `INSERT INTO meta (key, value) VALUES ('indexed_at', '1')
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      ).run();
+      if (indexed > 0) {
+        db.prepare(
+          `INSERT INTO meta (key, value) VALUES ('indexed_at', '1')
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        ).run();
+      }
 
       return { ok: true, indexed, skipped };
     } finally {
@@ -452,7 +480,7 @@ export async function upsertMemoryNote(
       return { ok: false, path: notePath, error: "embed failed" };
     }
 
-    const db = openDb(paths.dbPath);
+    const db = await openDb(paths.dbPath);
     try {
       db.prepare(
         `INSERT INTO memories (path, type, excerpt, mtime_ms, content_hash, embedding)
@@ -502,7 +530,7 @@ export async function searchMemory(
 
   let db: Database.Database;
   try {
-    db = openDb(paths.dbPath);
+    db = await openDb(paths.dbPath);
   } catch (err) {
     return { hits: [], error: err instanceof Error ? err.message : String(err) };
   }
@@ -553,22 +581,22 @@ export async function searchMemory(
 }
 
 /** Lightweight readiness probe (no model download). */
-export function memoryIndexStatus(opts?: {
+export async function memoryIndexStatus(opts?: {
   knowledgeRoot?: string;
   indexDir?: string;
-}): {
+}): Promise<{
   indexDir: string;
   dbPath: string;
   dbExists: boolean;
   dbIndexed: boolean;
   modelCached: boolean;
   modelError: string | null;
-} {
+}> {
   const paths = resolveIndexPaths(opts);
   let dbIndexed = false;
   if (existsSync(paths.dbPath)) {
     try {
-      const db = openDb(paths.dbPath);
+      const db = await openDb(paths.dbPath);
       try {
         dbIndexed =
           db.prepare("SELECT 1 FROM meta WHERE key = 'indexed_at'").get() !==

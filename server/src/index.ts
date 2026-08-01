@@ -102,7 +102,7 @@ function runMemoryReindex(): Promise<ReindexResult> {
 
 /** Rebuild index when it has never been fully built (lazy boot). Soft-fails. */
 async function ensureMemoryIndex(): Promise<void> {
-  const status = memoryIndexStatus();
+  const status = await memoryIndexStatus();
   if (status.dbIndexed) return;
   const result = await runMemoryReindex();
   if (!result.ok && result.error) {
@@ -196,7 +196,7 @@ const server = http.createServer(async (req, res) => {
     ) {
       const session = getSessionFromEnv();
       const hasDeepseek = Boolean(process.env.DEEPSEEK_API_KEY);
-      const memory = memoryIndexStatus();
+      const memory = await memoryIndexStatus();
       return send(res, 200, {
         ok: true,
         sessionConfigured: session.configured,

@@ -90,7 +90,7 @@ describe("memoryIndex with injectable embedder", () => {
     const result = await reindexMemory({ knowledgeRoot, indexDir, embedder });
     assert.equal(result.ok, true);
     assert.equal(result.indexed, 0);
-    const status = memoryIndexStatus({ knowledgeRoot, indexDir });
+    const status = await memoryIndexStatus({ knowledgeRoot, indexDir });
     assert.equal(status.dbExists, true);
   });
 
