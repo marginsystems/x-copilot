@@ -11,6 +11,7 @@ import {
   parseTriageJson,
   selectMemoryHits,
   selectScoredThreads,
+  TRIAGE_SYSTEM_PROMPT,
   triageThreads,
   MAX_TRIAGE_THREADS,
 } from "./threadTriage.ts";
@@ -343,5 +344,14 @@ describe("triageThreads", () => {
 describe("MAX_TRIAGE_THREADS", () => {
   it("caps the batch at 20", () => {
     assert.equal(MAX_TRIAGE_THREADS, 20);
+  });
+});
+
+describe("TRIAGE_SYSTEM_PROMPT", () => {
+  it("hard-skips pure event promos without suppressing substantive posts", () => {
+    assert.match(TRIAGE_SYSTEM_PROMPT, /register, RSVP, tune in, or join/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /flag event_promo/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /does not become event_promo/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /Post-event recaps are not automatically skipped/);
   });
 });
