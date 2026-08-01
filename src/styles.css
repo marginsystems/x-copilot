@@ -317,7 +317,7 @@ h3 {
   .menu-sheet {
     top: 56px;
     left: auto;
-    right: max(12px, calc((100vw - 1400px) / 2 + 20px));
+    right: max(12px, 1.5rem);
     width: min(280px, calc(100vw - 32px));
     max-height: none;
     border: 1px solid var(--border);
