@@ -9,9 +9,11 @@ import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
 import {
+  filterByLanguage,
   filterOutboundLinks,
   filterSelfReplies,
   filterThreadsByLength,
+  normalizePreferredLanguageCode,
   resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
 import { hydrateReplyParents } from "./tweetLookup.js";
@@ -53,6 +55,7 @@ export type ScoutEvent = ScoutStageEvent & {
   selfReplyFiltered?: number;
   linkFiltered?: number;
   linkWarning?: string;
+  languageFiltered?: number;
   lengthFiltered?: number;
   lengthWarning?: string;
   unhydratedReplyCount?: number;
@@ -91,6 +94,8 @@ export type ScoutFilters = {
   dropArticles?: boolean;
   /** When true (default), never curate authors from interaction history. */
   dedupeAccounts?: boolean;
+  /** ISO 639-1; default English when omitted. */
+  preferredLanguage?: string;
 };
 
 export async function runScoutSearch(opts: {
@@ -176,12 +181,16 @@ export async function runScoutSearch(opts: {
   const filtered = filterThreadsByCooldown(result.threads, cooled);
   const afterSelf = filterSelfReplies(filtered.threads);
   const afterLinks = filterOutboundLinks(afterSelf.threads);
+  const preferredLanguage = normalizePreferredLanguageCode(
+    opts.filters?.preferredLanguage,
+  );
+  const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
-  const byLength = filterThreadsByLength(afterLinks.threads, maxChars, {
+  const byLength = filterThreadsByLength(afterLang.threads, maxChars, {
     dropArticles,
   });
 
@@ -247,6 +256,7 @@ export async function runScoutSearch(opts: {
     selfReplyFiltered,
     linkFiltered: afterLinks.linkFilteredCount,
     linkWarning,
+    languageFiltered: afterLang.languageFilteredCount,
     lengthFiltered: byLength.filteredCount,
     lengthWarning,
     unhydratedReplyCount: hydrated.unhydratedReplyCount,

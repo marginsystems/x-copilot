@@ -10,12 +10,19 @@ export const DEFAULT_TARGET_COOL_THREADS = 5;
 export const MIN_TARGET_COOL_THREADS = 1;
 export const MAX_TARGET_COOL_THREADS = 20;
 
+/** ISO 639-1 codes supported in Settings / Scout language filter. */
+export const PREFERRED_LANGUAGES = ["en", "es", "fr", "de", "pt"] as const;
+export type PreferredLanguage = (typeof PREFERRED_LANGUAGES)[number];
+export const DEFAULT_PREFERRED_LANGUAGE: PreferredLanguage = "en";
+
 export type AppSettings = {
   maxThreadChars: number;
   dropArticles: boolean;
   targetCoolThreads: number;
   /** Never curate authors we've marked interacted (lifetime). */
   dedupeAccounts: boolean;
+  /** Only keep Scout threads in this language (default English). */
+  preferredLanguage: PreferredLanguage;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -23,6 +30,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dropArticles: true,
   targetCoolThreads: DEFAULT_TARGET_COOL_THREADS,
   dedupeAccounts: true,
+  preferredLanguage: DEFAULT_PREFERRED_LANGUAGE,
 };
 
 export function clampMaxThreadChars(value: unknown): number {
@@ -41,6 +49,14 @@ export function clampTargetCoolThreads(value: unknown): number {
   return n;
 }
 
+export function normalizePreferredLanguage(value: unknown): PreferredLanguage {
+  if (typeof value !== "string") return DEFAULT_PREFERRED_LANGUAGE;
+  const code = value.trim().toLowerCase();
+  return (PREFERRED_LANGUAGES as readonly string[]).includes(code)
+    ? (code as PreferredLanguage)
+    : DEFAULT_PREFERRED_LANGUAGE;
+}
+
 export function normalizeSettings(raw: unknown): AppSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
   const obj = raw as Record<string, unknown>;
@@ -55,6 +71,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
       typeof obj.dedupeAccounts === "boolean"
         ? obj.dedupeAccounts
         : DEFAULT_SETTINGS.dedupeAccounts,
+    preferredLanguage: normalizePreferredLanguage(obj.preferredLanguage),
   };
 }
 

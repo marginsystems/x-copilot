@@ -16,9 +16,11 @@ import {
 import { saveScoutCache } from "./scoutCache.js";
 import type { ScoutFilters, ScoutPipelineCounts } from "./scoutRun.js";
 import {
+  filterByLanguage,
   filterOutboundLinks,
   filterSelfReplies,
   filterThreadsByLength,
+  normalizePreferredLanguageCode,
   resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
 import { triageThreads } from "./threadTriage.js";
@@ -276,6 +278,9 @@ export async function runScoutCollect(opts: {
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
+  const preferredLanguage = normalizePreferredLanguageCode(
+    opts.filters?.preferredLanguage,
+  );
   // Tests often stub getCooledAuthorKeys only; production uses lifetime+24h filter.
   const cooled =
     deps.getCooledAuthorKeys && !deps.getAuthorKeysForScoutFilter
@@ -440,7 +445,8 @@ export async function runScoutCollect(opts: {
         const afterCool = filterThreadsByCooldown(fresh, cooled);
         const afterSelf = filterSelfReplies(afterCool.threads);
         const afterLinks = filterOutboundLinks(afterSelf.threads);
-        const afterLen = filterThreadsByLength(afterLinks.threads, maxChars, {
+        const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
+        const afterLen = filterThreadsByLength(afterLang.threads, maxChars, {
           dropArticles,
         });
 
@@ -482,6 +488,7 @@ export async function runScoutCollect(opts: {
                 selfReplyFiltered: afterSelf.selfReplyFilteredCount,
                 afterLinks: afterLinks.threads.length,
                 linkFiltered: afterLinks.linkFilteredCount,
+                languageFiltered: afterLang.languageFilteredCount,
                 afterLength: afterLen.threads.length,
                 authorDedupeSkipped,
                 added,
