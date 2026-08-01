@@ -9,6 +9,7 @@ import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
 import {
+  filterOutboundLinks,
   filterSelfReplies,
   filterThreadsByLength,
   resolveMaxThreadCharsFromFilters,
@@ -31,6 +32,7 @@ export type ScoutPipelineCounts = {
   afterDedupe: number;
   afterCooldown: number;
   afterSelfReply: number;
+  afterLinks: number;
   afterLength: number;
   afterHydrateSelfReply: number;
   afterTriage: number;
@@ -49,6 +51,8 @@ export type ScoutEvent = ScoutStageEvent & {
   cooldownAuthors?: string[];
   cooldownWarning?: string;
   selfReplyFiltered?: number;
+  linkFiltered?: number;
+  linkWarning?: string;
   lengthFiltered?: number;
   lengthWarning?: string;
   unhydratedReplyCount?: number;
@@ -56,9 +60,9 @@ export type ScoutEvent = ScoutStageEvent & {
   opencodeTurns?: ReturnType<typeof toOpenCodeTurns>;
 };
 
-/** Compact funnel for status: `48 → 36 → 34 → 18 → 15 → 12`. */
+/** Compact funnel for status: `48 → 36 → 34 → 28 → 22 → 18 → 15 → 12`. */
 export function formatPipelineFunnel(counts: ScoutPipelineCounts): string {
-  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterSelfReply} → ${counts.afterLength} → ${counts.afterHydrateSelfReply} → ${counts.afterTriage}`;
+  return `${counts.raw} → ${counts.afterDedupe} → ${counts.afterCooldown} → ${counts.afterSelfReply} → ${counts.afterLinks} → ${counts.afterLength} → ${counts.afterHydrateSelfReply} → ${counts.afterTriage}`;
 }
 
 export type ScoutRunResult =
@@ -171,12 +175,13 @@ export async function runScoutSearch(opts: {
   });
   const filtered = filterThreadsByCooldown(result.threads, cooled);
   const afterSelf = filterSelfReplies(filtered.threads);
+  const afterLinks = filterOutboundLinks(afterSelf.threads);
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
-  const byLength = filterThreadsByLength(afterSelf.threads, maxChars, {
+  const byLength = filterThreadsByLength(afterLinks.threads, maxChars, {
     dropArticles,
   });
 
@@ -203,6 +208,7 @@ export async function runScoutSearch(opts: {
     afterDedupe: result.threads.length,
     afterCooldown: filtered.threads.length,
     afterSelfReply: afterSelf.threads.length,
+    afterLinks: afterLinks.threads.length,
     afterLength: byLength.threads.length,
     afterHydrateSelfReply: afterHydrateSelf.threads.length,
     afterTriage: triaged.threads.length,
@@ -211,6 +217,9 @@ export async function runScoutSearch(opts: {
 
   const cooldownWarning = filtered.filteredCount
     ? `Filtered ${filtered.filteredCount} posts from cooled-down authors.`
+    : undefined;
+  const linkWarning = afterLinks.linkFilteredCount
+    ? `Dropped ${afterLinks.linkFilteredCount} posts with outbound links.`
     : undefined;
   const overChars =
     byLength.filteredCount -
@@ -236,6 +245,8 @@ export async function runScoutSearch(opts: {
     cooldownAuthors: filtered.filteredAuthors,
     cooldownWarning,
     selfReplyFiltered,
+    linkFiltered: afterLinks.linkFilteredCount,
+    linkWarning,
     lengthFiltered: byLength.filteredCount,
     lengthWarning,
     unhydratedReplyCount: hydrated.unhydratedReplyCount,
@@ -253,6 +264,7 @@ export async function runScoutSearch(opts: {
       message: done.message,
       triageWarning: triaged.warning,
       cooldownWarning,
+      linkWarning,
       lengthWarning,
       pipelineCounts,
     });

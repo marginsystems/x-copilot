@@ -49,11 +49,15 @@ type ScoutStreamEvent = {
   bucketSize?: number;
   triageWarning?: string;
   cooldownWarning?: string;
+  linkWarning?: string;
+  linkFiltered?: number;
   lengthWarning?: string;
   pipelineCounts?: {
     raw: number;
     afterDedupe: number;
     afterCooldown: number;
+    afterSelfReply?: number;
+    afterLinks?: number;
     afterLength: number;
     afterTriage: number;
   };
@@ -820,6 +824,8 @@ export default function App() {
             raw: number;
             afterDedupe: number;
             afterCooldown: number;
+            afterSelfReply?: number;
+            afterLinks?: number;
             afterLength: number;
             afterTriage: number;
           };
@@ -846,7 +852,15 @@ export default function App() {
         "earlier";
       const pc = data.snapshot.pipelineCounts;
       const funnel = pc
-        ? ` (${pc.raw} → ${pc.afterDedupe} → ${pc.afterCooldown} → ${pc.afterLength} → ${pc.afterTriage})`
+        ? ` (${[
+            pc.raw,
+            pc.afterDedupe,
+            pc.afterCooldown,
+            ...(typeof pc.afterSelfReply === "number" ? [pc.afterSelfReply] : []),
+            ...(typeof pc.afterLinks === "number" ? [pc.afterLinks] : []),
+            pc.afterLength,
+            pc.afterTriage,
+          ].join(" → ")})`
         : "";
       setStatus(
         `Restored ${filtered.length} threads${funnel} from ${when} — Search again to refresh.`,
@@ -1287,6 +1301,7 @@ export default function App() {
           `${progress}${reason} — ${qLabel}` +
           (doneEvent.triageWarning ? ` · ${doneEvent.triageWarning}` : "") +
           (doneEvent.cooldownWarning ? ` · ${doneEvent.cooldownWarning}` : "") +
+          (doneEvent.linkWarning ? ` · ${doneEvent.linkWarning}` : "") +
           (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");
         setScoutStage("done");
         setStatus(summary);

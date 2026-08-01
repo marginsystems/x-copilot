@@ -778,6 +778,65 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
+  it("drops outbound-link cards before triage", async () => {
+    let triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "l1",
+              author: "@linker",
+              text: "Ship this https://example.com/x",
+              hasOutboundLink: true,
+            }),
+            card({
+              id: "l2",
+              author: "@texturl",
+              text: "See https://example.com/abc for details",
+            }),
+            card({ id: "n1", author: "@alice" }),
+            card({ id: "n2", author: "@bob" }),
+            card({ id: "n3", author: "@carol" }),
+            card({ id: "n4", author: "@dave" }),
+            card({ id: "n5", author: "@erin" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 20 : 80,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(triageIds, ["n1", "n2", "n3", "n4", "n5"]);
+    assert.ok(!triageIds.includes("l1") && !triageIds.includes("l2"));
+    assert.equal(result.event.stopReason, "target");
+  });
+
   it("drops self-replies before triage", async () => {
     let triageIds: string[] = [];
 
