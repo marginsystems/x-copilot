@@ -2,8 +2,10 @@
  * Obsidian-friendly interaction memories under knowledge/ (gitignored).
  * Storage only — no retrieval in v1.
  */
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { normalizeAuthorKey } from "./interactionStore.js";
 
 export const MAX_THREAD_EXCERPT_CHARS = 2000;
@@ -27,12 +29,26 @@ export type InteractionMemoryInput = {
   reason?: string;
   source?: "manual" | "copy";
   interactedAt?: string;
-  /** Override root for tests. Default: <cwd>/knowledge */
+  /** Override root for tests. Default: <projectRoot>/knowledge */
   knowledgeRoot?: string;
 };
 
+/** Repo root (nearest package.json) — anchors defaults so CLI and server agree regardless of cwd. */
+function resolveProjectRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let depth = 0; depth < 10; depth++) {
+    if (existsSync(resolve(dir, "package.json"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return process.cwd();
+}
+
+export const projectRoot = resolveProjectRoot();
+
 export function defaultKnowledgeRoot(): string {
-  return resolve(process.cwd(), "knowledge");
+  return resolve(projectRoot, "knowledge");
 }
 
 /** Sanitize threadId for filenames: keep [A-Za-z0-9_-], collapse junk. */
