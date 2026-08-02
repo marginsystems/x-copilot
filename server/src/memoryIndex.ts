@@ -109,12 +109,12 @@ export function parseKnowledgeNote(markdown: string): {
   const parts: string[] = [];
   if (type) parts.push(`type: ${type}`);
   for (const key of [
+    "Outcome",
     "Post",
     "Summary",
     "Reply",
     "Reason",
     "OP",
-    "Outcome",
   ] as const) {
     const text = sections[key];
     if (text) parts.push(`${key}: ${text}`);

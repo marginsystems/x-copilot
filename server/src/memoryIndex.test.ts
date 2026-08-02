@@ -85,6 +85,32 @@ Ship weekly.
     assert.match(parsed.excerpt, /Genuine shipping question/);
     assert.match(parsed.excerpt, /420 views/);
   });
+
+  it("keeps Outcome in chunk when Reply saturates MAX_CHUNK_CHARS", () => {
+    const md = `---
+type: interaction
+---
+
+## Post
+
+How do builders ship AI tools?
+
+## Summary
+
+Genuine shipping question.
+
+## Reply
+
+${"long reply ".repeat(600)}
+
+## Outcome
+
+24h: 420 views · 12 likes · 3 replies · 1 repost
+`;
+    const parsed = parseKnowledgeNote(md);
+    assert.match(parsed.chunk, /Outcome: 24h: 420 views/);
+    assert.match(parsed.chunk, /Post: How do builders/);
+  });
 });
 
 describe("cosineSimilarity", () => {
