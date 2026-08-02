@@ -11,6 +11,7 @@ import {
   type Interaction,
   type InteractionStats,
   type ReplyStatSnapshot,
+  type StatsCheckpoint,
 } from "./interactionStore.js";
 
 export const MAX_THREAD_EXCERPT_CHARS = 2000;
@@ -417,15 +418,31 @@ export async function findInteractionNotePath(opts: {
   }
 }
 
-/** Strip managed outcome keys from raw frontmatter; keep everything else. */
-export function stripManagedOutcomeFrontmatter(fm: string): string {
+/**
+ * Strip managed outcome keys from raw frontmatter; keep everything else.
+ * When `prefixes` is given, only keys for those checkpoints are stripped so
+ * the other checkpoint's stats survive partial tick writes.
+ */
+export function stripManagedOutcomeFrontmatter(
+  fm: string,
+  prefixes?: ReadonlySet<"1h" | "24h">,
+): string {
   const managed = new Set<string>(MANAGED_OUTCOME_FRONTMATTER_KEYS);
   return fm
     .split("\n")
     .filter((line) => {
       const m = /^([A-Za-z0-9_]+)\s*:/.exec(line);
       if (!m) return true;
-      return !managed.has(m[1]!);
+      const key = m[1]!;
+      if (!managed.has(key)) return true;
+      if (prefixes === undefined) return false;
+      if (key === "statsUpdatedAt") return false;
+      const suffix = key.endsWith("1h")
+        ? "1h"
+        : key.endsWith("24h")
+          ? "24h"
+          : null;
+      return suffix === null || !prefixes.has(suffix);
     })
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
@@ -448,12 +465,34 @@ export function upsertOutcomeSection(body: string, outcomeBody: string): string 
   );
 }
 
+/** Merge fresh checkpoint lines with the note's existing ## Outcome body. */
+function mergedOutcomeSection(body: string, stats: InteractionStats): string {
+  const fresh = new Map<string, string>();
+  for (const line of formatOutcomeSection(stats).split("\n")) {
+    const label = /^(1h|24h):/.exec(line)?.[1];
+    if (label) fresh.set(label, line);
+  }
+  const existing =
+    /^##\s+Outcome[^\S\n]*\n?([\s\S]*?)(?=^##\s|$(?![\s\S]))/m.exec(body)?.[1] ??
+    "";
+  for (const line of existing.split("\n")) {
+    const label = /^(1h|24h):/.exec(line.trim())?.[1];
+    if (label && !fresh.has(label)) fresh.set(label, line.trim());
+  }
+  return ["1h", "24h"]
+    .filter((label) => fresh.has(label))
+    .map((label) => fresh.get(label)!)
+    .join("\n");
+}
+
 /**
  * Project interaction stats onto the matching knowledge note.
  * Soft-fails (ok:false) when the note is missing — never throws for that case.
  */
 export async function updateInteractionMemoryOutcome(opts: {
   interaction: Interaction;
+  /** Checkpoint just patched by the stats worker (SyncOutcomeFn contract). */
+  checkpoint?: StatsCheckpoint;
   knowledgeRoot?: string;
   /** Override clock for statsUpdatedAt (tests). */
   nowIso?: string;
@@ -498,7 +537,12 @@ export async function updateInteractionMemoryOutcome(opts: {
     }
   }
 
-  const keptFm = stripManagedOutcomeFrontmatter(fm);
+  // Only replace the checkpoints present in this interaction's stats so the
+  // other checkpoint's keys survive separate t1h / t24h tick runs.
+  const activeCheckpoints = new Set<"1h" | "24h">();
+  if (stats.t1h) activeCheckpoints.add("1h");
+  if (stats.t24h) activeCheckpoints.add("24h");
+  const keptFm = stripManagedOutcomeFrontmatter(fm, activeCheckpoints);
   const updatedAt = opts.nowIso ?? new Date().toISOString();
   const outcomeLines: string[] = [
     keptFm,
@@ -511,7 +555,7 @@ export async function updateInteractionMemoryOutcome(opts: {
     outcomeLines.push(...checkpointFrontmatterLines("24h", stats.t24h));
   }
 
-  const outcomeBody = formatOutcomeSection(stats);
+  const outcomeBody = mergedOutcomeSection(body, stats);
   if (!outcomeBody) {
     return { ok: false, path, error: "empty outcome body" };
   }

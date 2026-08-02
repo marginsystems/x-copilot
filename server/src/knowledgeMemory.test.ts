@@ -392,6 +392,56 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
   });
 
+  it("keeps the earlier checkpoint when a later tick writes only the other", async () => {
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "My reply",
+      text: "Original post",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const first = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({
+        stats: {
+          t1h: {
+            views: 100,
+            likes: 4,
+            replies: 1,
+            retweets: 0,
+            sampledAt: "2026-07-27T02:02:03.000Z",
+          },
+        },
+      }),
+      knowledgeRoot: root,
+      nowIso: "2026-07-27T02:02:03.000Z",
+    });
+    assert.equal(first.ok, true);
+    const second = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({
+        stats: {
+          t24h: {
+            views: 420,
+            likes: 12,
+            replies: 3,
+            retweets: 1,
+            sampledAt: "2026-07-28T01:02:03.000Z",
+          },
+        },
+      }),
+      knowledgeRoot: root,
+      nowIso: "2026-07-28T01:02:03.000Z",
+    });
+    assert.equal(second.ok, true);
+    if (!second.ok) return;
+    const body = await readFile(second.path, "utf8");
+    assert.match(body, /views1h: 100/);
+    assert.match(body, /views24h: 420/);
+    assert.match(body, /1h: 100 views · 4 likes · 1 reply · 0 reposts/);
+    assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
+    assert.equal((body.match(/## Outcome/g) ?? []).length, 1);
+  });
+
   it("finds legacy notes via filename suffix fallback", async () => {
     // Write with a different date than interaction.at
     await writeInteractionMemory({

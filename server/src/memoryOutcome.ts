@@ -1,7 +1,7 @@
 /**
  * Soft-fail orchestration: project interaction stats onto Markdown + MiniLM upsert.
  */
-import type { Interaction } from "./interactionStore.js";
+import type { Interaction, StatsCheckpoint } from "./interactionStore.js";
 import { updateInteractionMemoryOutcome } from "./knowledgeMemory.js";
 import { upsertMemoryNote, type Embedder } from "./memoryIndex.js";
 
@@ -11,6 +11,7 @@ export type SyncInteractionOutcomeResult =
 
 export async function syncInteractionOutcomeMemory(opts: {
   interaction: Interaction;
+  checkpoint?: StatsCheckpoint;
   knowledgeRoot?: string;
   indexDir?: string;
   embedder?: Embedder;
@@ -18,6 +19,7 @@ export async function syncInteractionOutcomeMemory(opts: {
 }): Promise<SyncInteractionOutcomeResult> {
   const updated = await updateInteractionMemoryOutcome({
     interaction: opts.interaction,
+    checkpoint: opts.checkpoint,
     knowledgeRoot: opts.knowledgeRoot,
     nowIso: opts.nowIso,
   });

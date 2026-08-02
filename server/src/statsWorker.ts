@@ -54,7 +54,11 @@ export async function runStatsTick(opts?: {
   const delayMs = opts?.delayMs ?? LOOKUP_DELAY_MS;
   const syncOutcome: SyncOutcomeFn | null =
     opts?.syncOutcome === undefined
-      ? (args) => syncInteractionOutcomeMemory({ interaction: args.interaction })
+      ? (args) =>
+          syncInteractionOutcomeMemory({
+            interaction: args.interaction,
+            checkpoint: args.checkpoint,
+          })
       : opts.syncOutcome;
   const due = await listDueStatSamples({
     nowMs: opts?.nowMs,
