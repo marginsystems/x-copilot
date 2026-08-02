@@ -52,10 +52,9 @@ export async function runStatsTick(opts?: {
 }): Promise<StatsTickResult> {
   const fetchMetrics = opts?.fetchMetrics ?? fetchTweetMetrics;
   const delayMs = opts?.delayMs ?? LOOKUP_DELAY_MS;
-  const syncOutcome =
+  const syncOutcome: SyncOutcomeFn | null =
     opts?.syncOutcome === undefined
-      ? (args: { interaction: Interaction }) =>
-          syncInteractionOutcomeMemory({ interaction: args.interaction })
+      ? (args) => syncInteractionOutcomeMemory({ interaction: args.interaction })
       : opts.syncOutcome;
   const due = await listDueStatSamples({
     nowMs: opts?.nowMs,

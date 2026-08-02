@@ -237,6 +237,24 @@ describe("formatOutcomeSection / upsertOutcomeSection", () => {
     assert.doesNotMatch(next, /\nold\n/);
   });
 
+  it("replaces Outcome when heading is last line or content spans multiple lines", () => {
+    const bare = upsertOutcomeSection(
+      "## Post\n\nHello\n\n## Outcome",
+      "1h: 10 views · 0 likes · 0 replies · 0 reposts",
+    );
+    assert.equal((bare.match(/## Outcome/g) ?? []).length, 1);
+    assert.match(bare, /1h: 10 views/);
+
+    const multi = upsertOutcomeSection(
+      `## Outcome\n\n1h: 100 views\n24h: 420 views\n\n## Reply\n\nYo\n`,
+      "1h: 999 views · 0 likes · 0 replies · 0 reposts",
+    );
+    assert.equal((multi.match(/## Outcome/g) ?? []).length, 1);
+    assert.match(multi, /## Reply\n\nYo/);
+    assert.match(multi, /1h: 999 views/);
+    assert.doesNotMatch(multi, /24h: 420 views/);
+  });
+
   it("strips managed frontmatter keys only", () => {
     const fm = `type: interaction\nthreadId: "1"\nviews1h: 9\ncustomNote: keep\nsampledAt24h: "x"`;
     const kept = stripManagedOutcomeFrontmatter(fm);

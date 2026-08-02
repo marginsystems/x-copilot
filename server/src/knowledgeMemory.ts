@@ -443,7 +443,7 @@ export function upsertOutcomeSection(body: string, outcomeBody: string): string 
   }
   // Replace from ## Outcome through the next ## heading or EOF.
   return trimmedBody.replace(
-    /^##\s+Outcome\s*\n[\s\S]*?(?=^##\s+\w+\s*$|$)/m,
+    /^##\s+Outcome[^\S\n]*\n?[\s\S]*?(?=^##\s|(?![\s\S]))/m,
     `${outcomeBlock}\n`,
   );
 }
