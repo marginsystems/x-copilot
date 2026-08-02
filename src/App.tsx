@@ -11,6 +11,8 @@ import {
   type AppSettings,
   clampMaxThreadChars,
   clampTargetCoolThreads,
+  normalizePreferredLanguage,
+  PREFERRED_LANGUAGES,
   DEFAULT_SETTINGS,
 } from "./lib/settings";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
@@ -1198,6 +1200,7 @@ export default function App() {
             maxThreadChars: settings.maxThreadChars,
             dropArticles: settings.dropArticles,
             dedupeAccounts: settings.dedupeAccounts,
+            preferredLanguage: settings.preferredLanguage,
           },
         }),
         signal: ac.signal,
@@ -1645,6 +1648,34 @@ export default function App() {
               }
             />
             <span>Dedupe accounts I&apos;ve interacted with</span>
+          </label>
+          <label className="settings-field">
+            <span>Preferred language</span>
+            <select
+              value={settingsDraft.preferredLanguage}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({
+                  ...prev,
+                  preferredLanguage: normalizePreferredLanguage(e.target.value),
+                }))
+              }
+            >
+              {(
+                [
+                  ["en", "English"],
+                  ["es", "Spanish"],
+                  ["fr", "French"],
+                  ["de", "German"],
+                  ["pt", "Portuguese"],
+                ] as const satisfies ReadonlyArray<
+                  readonly [ (typeof PREFERRED_LANGUAGES)[number], string ]
+                >
+              ).map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label} ({code})
+                </option>
+              ))}
+            </select>
           </label>
           <label className="settings-field">
             <span>Cool threads target (1–20)</span>

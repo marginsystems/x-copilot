@@ -2,12 +2,15 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_MAX_THREAD_CHARS,
+  filterByLanguage,
   filterOutboundLinks,
   filterSelfReplies,
   filterThreadsByLength,
+  isNonPreferredLanguage,
   isOversizedThread,
   isSelfReply,
   isThreadOpener,
+  normalizePreferredLanguageCode,
   resolveMaxThreadChars,
   resolveMaxThreadCharsFromFilters,
   threadHasOutboundLink,
@@ -203,6 +206,49 @@ describe("isThreadOpener", () => {
     assert.equal(isThreadOpener("2020/2021 in review — my top AI reads"), false);
     assert.equal(isThreadOpener("1/2 cup coffee then 1/2 coding"), false);
     assert.equal(isThreadOpener("42/42 test suite is green"), false);
+  });
+});
+
+describe("filterByLanguage", () => {
+  const spanish =
+    "Ahora que todos están quejándose de build in public, voy yo: dejé de hacer build in public porque me copiaban todo, literalmente todo, hasta las publicaciones sobre qué roles contratábamos.";
+  const english =
+    "Just shipped a tiny AI tool in public. Looking for builders with genuine questions about distribution and shipping loops.";
+  const french =
+    "Ton article est full value ! On s'entête parfois dans le build in public, post etc alors qu'un commentaire sous un post viral peut te faire plus facilement avancer.";
+
+  it("drops Spanish for preferred en; keeps English BIP", () => {
+    const es = thread("es1", spanish, undefined, { author: "@ssebita_r" });
+    const en = thread("en1", english);
+    const result = filterByLanguage([es, en], "en");
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["en1"],
+    );
+    assert.equal(result.languageFilteredCount, 1);
+    assert.equal(isNonPreferredLanguage(es, "en"), true);
+    assert.equal(isNonPreferredLanguage(en, "en"), false);
+  });
+
+  it("keeps short ambiguous text", () => {
+    const short = thread("s1", "ok thanks");
+    assert.equal(isNonPreferredLanguage(short, "en"), false);
+    const result = filterByLanguage([short], "en");
+    assert.equal(result.languageFilteredCount, 0);
+    assert.equal(result.threads.length, 1);
+  });
+
+  it("keeps French when preferred is fr", () => {
+    const fr = thread("fr1", french);
+    const en = thread("en1", english);
+    const result = filterByLanguage([fr, en], "fr");
+    assert.ok(result.threads.some((t) => t.id === "fr1"));
+    assert.ok(!result.threads.some((t) => t.id === "en1"));
+  });
+
+  it("normalizePreferredLanguageCode defaults invalid to en", () => {
+    assert.equal(normalizePreferredLanguageCode("de"), "de");
+    assert.equal(normalizePreferredLanguageCode("zz"), "en");
   });
 });
 

@@ -5,6 +5,7 @@ import {
   clampMaxThreadChars,
   clampTargetCoolThreads,
   loadSettings,
+  normalizePreferredLanguage,
   normalizeSettings,
   saveSettings,
   SETTINGS_STORAGE_KEY,
@@ -52,6 +53,15 @@ describe("clampTargetCoolThreads", () => {
   });
 });
 
+describe("normalizePreferredLanguage", () => {
+  it("defaults unknown codes to en", () => {
+    assert.equal(normalizePreferredLanguage("en"), "en");
+    assert.equal(normalizePreferredLanguage("FR"), "fr");
+    assert.equal(normalizePreferredLanguage("zz"), "en");
+    assert.equal(normalizePreferredLanguage(null), "en");
+  });
+});
+
 describe("normalizeSettings", () => {
   it("fills defaults for bad input", () => {
     assert.deepEqual(normalizeSettings(null), DEFAULT_SETTINGS);
@@ -61,15 +71,18 @@ describe("normalizeSettings", () => {
         dropArticles: false,
         targetCoolThreads: 3,
         dedupeAccounts: false,
+        preferredLanguage: "es",
       }),
       {
         maxThreadChars: 320,
         dropArticles: false,
         targetCoolThreads: 3,
         dedupeAccounts: false,
+        preferredLanguage: "es",
       },
     );
     assert.equal(normalizeSettings({}).dedupeAccounts, true);
+    assert.equal(normalizeSettings({}).preferredLanguage, "en");
   });
 });
 
@@ -84,12 +97,14 @@ describe("loadSettings / saveSettings", () => {
       dropArticles: false,
       targetCoolThreads: 5,
       dedupeAccounts: false,
+      preferredLanguage: "fr",
     });
     assert.deepEqual(saved, {
       maxThreadChars: 320,
       dropArticles: false,
       targetCoolThreads: 5,
       dedupeAccounts: false,
+      preferredLanguage: "fr",
     });
     assert.deepEqual(loadSettings(), saved);
     assert.ok(localStorage.getItem(SETTINGS_STORAGE_KEY));

@@ -16,9 +16,11 @@ import {
 import { saveScoutCache } from "./scoutCache.js";
 import type { ScoutFilters, ScoutPipelineCounts } from "./scoutRun.js";
 import {
+  filterByLanguage,
   filterOutboundLinks,
   filterSelfReplies,
   filterThreadsByLength,
+  normalizePreferredLanguageCode,
   resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
 import { triageThreads } from "./threadTriage.js";
@@ -60,6 +62,7 @@ export type ScoutCollectEvent = {
   triageWarning?: string;
   linkFiltered?: number;
   linkWarning?: string;
+  languageFiltered?: number;
   pipelineCounts?: ScoutPipelineCounts;
   errors?: Array<{ query: string; message: string }>;
   plannedBy?: "client" | "deepseek";
@@ -276,6 +279,9 @@ export async function runScoutCollect(opts: {
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
+  const preferredLanguage = normalizePreferredLanguageCode(
+    opts.filters?.preferredLanguage,
+  );
   // Tests often stub getCooledAuthorKeys only; production uses lifetime+24h filter.
   const cooled =
     deps.getCooledAuthorKeys && !deps.getAuthorKeysForScoutFilter
@@ -300,6 +306,7 @@ export async function runScoutCollect(opts: {
   let bucketAttempts = 0;
   let consecutiveZeroAdds = 0;
   let linkFilteredTotal = 0;
+  let languageFilteredTotal = 0;
   // Collect funnel is per-search cumulative: the filter stages (raw → afterLength)
   // sum every search page across all buckets/refills, while afterTriage sums only
   // the threads actually scored (bucket-qualified). The afterLength → afterTriage
@@ -440,7 +447,8 @@ export async function runScoutCollect(opts: {
         const afterCool = filterThreadsByCooldown(fresh, cooled);
         const afterSelf = filterSelfReplies(afterCool.threads);
         const afterLinks = filterOutboundLinks(afterSelf.threads);
-        const afterLen = filterThreadsByLength(afterLinks.threads, maxChars, {
+        const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
+        const afterLen = filterThreadsByLength(afterLang.threads, maxChars, {
           dropArticles,
         });
 
@@ -451,6 +459,7 @@ export async function runScoutCollect(opts: {
         funnelCounts.afterLinks += afterLinks.threads.length;
         funnelCounts.afterLength += afterLen.threads.length;
         linkFilteredTotal += afterLinks.linkFilteredCount;
+        languageFilteredTotal += afterLang.languageFilteredCount;
 
         const beforeFill = bucket.length;
         let authorDedupeSkipped = 0;
@@ -482,6 +491,7 @@ export async function runScoutCollect(opts: {
                 selfReplyFiltered: afterSelf.selfReplyFilteredCount,
                 afterLinks: afterLinks.threads.length,
                 linkFiltered: afterLinks.linkFilteredCount,
+                languageFiltered: afterLang.languageFilteredCount,
                 afterLength: afterLen.threads.length,
                 authorDedupeSkipped,
                 added,
@@ -523,18 +533,24 @@ export async function runScoutCollect(opts: {
 
       // Drop same-author replies revealed only after hydrate (missing inReplyToScreenName).
       const afterHydrateSelf = filterSelfReplies(hydrated.threads);
-      const forTriage = afterHydrateSelf.threads;
-      funnelCounts.afterHydrateSelfReply += forTriage.length;
+      funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
+      // Re-check language now that reply-parent OP text is available (#121).
+      const afterHydrateLang = filterByLanguage(
+        afterHydrateSelf.threads,
+        preferredLanguage,
+      );
+      const forTriage = afterHydrateLang.threads;
+      languageFilteredTotal += afterHydrateLang.languageFilteredCount;
 
       if (forTriage.length === 0) {
-        if (isPartial) {
+        if (isPartial && afterHydrateLang.languageFilteredCount === 0) {
           bucket = [];
           stopReason = "exhausted";
           break;
         }
         track(
           "filtering",
-          "0 candidates after post-hydrate self-reply filter — discarding bucket…",
+          "0 candidates after post-hydrate self-reply + language filter — discarding bucket…",
           {
             candidates: 0,
             coolCount: cool.length,
@@ -542,6 +558,8 @@ export async function runScoutCollect(opts: {
               bucketAttempt: bucketAttempts,
               selfReplyFilteredPostHydrate:
                 afterHydrateSelf.selfReplyFilteredCount,
+              languageFilteredPostHydrate:
+                afterHydrateLang.languageFilteredCount,
             },
           },
         );
@@ -664,6 +682,7 @@ export async function runScoutCollect(opts: {
     triageWarning,
     linkFiltered: linkFilteredTotal,
     linkWarning,
+    languageFiltered: languageFilteredTotal,
     pipelineCounts: funnelCounts,
     errors: searchErrors.length ? searchErrors : undefined,
     plannedBy,

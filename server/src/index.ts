@@ -67,6 +67,9 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (typeof obj.dedupeAccounts === "boolean") {
     filters.dedupeAccounts = obj.dedupeAccounts;
   }
+  if (typeof obj.preferredLanguage === "string" && obj.preferredLanguage.trim()) {
+    filters.preferredLanguage = obj.preferredLanguage.trim().toLowerCase();
+  }
   return Object.keys(filters).length ? filters : undefined;
 }
 

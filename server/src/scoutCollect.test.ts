@@ -961,4 +961,60 @@ describe("runScoutCollect bucket loop", () => {
     assert.deepEqual(triageIds, ["n1", "n2", "n3", "n4"]);
     assert.equal(result.event.stopReason, "target");
   });
+
+  it("drops non-preferred-language cards before triage", async () => {
+    let triageIds: string[] = [];
+    const spanish =
+      "Ahora que todos están quejándose de build in public, voy yo: dejé de hacer build in public porque me copiaban todo, literalmente todo, hasta las publicaciones sobre qué roles contratábamos.";
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      filters: { preferredLanguage: "en" },
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "es1",
+              author: "@ssebita_r",
+              text: spanish,
+            }),
+            card({ id: "n1", author: "@alice" }),
+            card({ id: "n2", author: "@bob" }),
+            card({ id: "n3", author: "@carol" }),
+            card({ id: "n4", author: "@dave" }),
+            card({ id: "n5", author: "@erin" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 20 : 80,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.ok(!triageIds.includes("es1"));
+    assert.deepEqual(triageIds, ["n1", "n2", "n3", "n4", "n5"]);
+    assert.equal(result.event.stopReason, "target");
+  });
 });
