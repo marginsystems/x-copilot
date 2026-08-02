@@ -8,8 +8,13 @@ import {
   listDueStatSamples,
   patchInteractionStats,
   type DueStatSample,
+  type Interaction,
 } from "./interactionStore.js";
 import { loadEnv } from "./loadEnv.js";
+import {
+  syncInteractionOutcomeMemory,
+  type SyncInteractionOutcomeResult,
+} from "./memoryOutcome.js";
 import { fetchTweetMetrics } from "./tweetLookup.js";
 import { getSessionFromEnv } from "./xSession.js";
 
@@ -26,7 +31,15 @@ export type StatsTickResult = {
   due: number;
   sampled: number;
   failed: number;
+  /** Soft-fail memory sync attempts after a successful JSON patch. */
+  memorySynced?: number;
+  memorySyncFailed?: number;
 };
+
+export type SyncOutcomeFn = (opts: {
+  interaction: Interaction;
+  checkpoint: DueStatSample["checkpoint"];
+}) => Promise<SyncInteractionOutcomeResult>;
 
 export async function runStatsTick(opts?: {
   nowMs?: number;
@@ -34,9 +47,16 @@ export async function runStatsTick(opts?: {
   delayMs?: number;
   storePath?: string;
   fetchMetrics?: typeof fetchTweetMetrics;
+  /** Injectable outcome sync (tests). Default: Markdown + MiniLM upsert. */
+  syncOutcome?: SyncOutcomeFn | null;
 }): Promise<StatsTickResult> {
   const fetchMetrics = opts?.fetchMetrics ?? fetchTweetMetrics;
   const delayMs = opts?.delayMs ?? LOOKUP_DELAY_MS;
+  const syncOutcome =
+    opts?.syncOutcome === undefined
+      ? (args: { interaction: Interaction }) =>
+          syncInteractionOutcomeMemory({ interaction: args.interaction })
+      : opts.syncOutcome;
   const due = await listDueStatSamples({
     nowMs: opts?.nowMs,
     storePath: opts?.storePath,
@@ -45,6 +65,8 @@ export async function runStatsTick(opts?: {
 
   let sampled = 0;
   let failed = 0;
+  let memorySynced = 0;
+  let memorySyncFailed = 0;
   const session = getSessionFromEnv();
 
   for (let i = 0; i < due.length; i++) {
@@ -64,7 +86,7 @@ export async function runStatsTick(opts?: {
       continue;
     }
     tweetFailures.delete(failKey);
-    await patchInteractionStats({
+    const patched = await patchInteractionStats({
       threadId: item.threadId,
       checkpoint: item.checkpoint,
       snapshot: {
@@ -74,6 +96,29 @@ export async function runStatsTick(opts?: {
       storePath: opts?.storePath,
     });
     sampled += 1;
+
+    if (patched && syncOutcome) {
+      try {
+        const sync = await syncOutcome({
+          interaction: patched,
+          checkpoint: item.checkpoint,
+        });
+        if (sync.ok) {
+          memorySynced += 1;
+        } else {
+          memorySyncFailed += 1;
+          console.warn(
+            `[stats-worker] memory sync soft-fail threadId=${item.threadId}: ${sync.error}`,
+          );
+        }
+      } catch (err) {
+        memorySyncFailed += 1;
+        console.warn(
+          `[stats-worker] memory sync soft-fail threadId=${item.threadId}:`,
+          err,
+        );
+      }
+    }
   }
 
   // Prune failure entries no longer due to prevent unbounded growth.
@@ -82,7 +127,13 @@ export async function runStatsTick(opts?: {
     if (!dueKeys.has(key)) tweetFailures.delete(key);
   }
 
-  return { due: due.length, sampled, failed };
+  return {
+    due: due.length,
+    sampled,
+    failed,
+    memorySynced,
+    memorySyncFailed,
+  };
 }
 
 async function main(): Promise<void> {

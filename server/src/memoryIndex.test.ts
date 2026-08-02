@@ -57,6 +57,34 @@ Engagement bait listicle.
     assert.equal(parsed.type, "dismissal");
     assert.match(parsed.chunk, /Reason: Engagement bait/);
   });
+
+  it("includes Outcome in interaction chunk and excerpt", () => {
+    const md = `---
+type: interaction
+---
+
+## Post
+
+How do builders ship AI tools?
+
+## Summary
+
+Genuine shipping question.
+
+## Reply
+
+Ship weekly.
+
+## Outcome
+
+1h: 100 views · 4 likes · 1 reply · 0 reposts
+24h: 420 views · 12 likes · 3 replies · 1 repost
+`;
+    const parsed = parseKnowledgeNote(md);
+    assert.match(parsed.chunk, /Outcome: 1h: 100 views/);
+    assert.match(parsed.excerpt, /Genuine shipping question/);
+    assert.match(parsed.excerpt, /420 views/);
+  });
 });
 
 describe("cosineSimilarity", () => {
@@ -147,6 +175,72 @@ Generic engagement bait question.
     assert.ok(hits.some((h) => h.type === "interaction"));
     assert.ok(hits[0]!.score > 0);
     assert.ok(hits[0]!.excerpt.length > 0);
+  });
+
+  it("upsert after Outcome patch changes content hash and excerpt", async () => {
+    const notePath = join(knowledgeRoot, "interactions", "2026-07-30-outcome.md");
+    await writeFile(
+      notePath,
+      `---
+type: interaction
+---
+
+## Summary
+
+Genuine shipping question.
+
+## Reply
+
+Ship weekly.
+`,
+      "utf8",
+    );
+    const first = await upsertMemoryNote(notePath, {
+      knowledgeRoot,
+      indexDir,
+      embedder,
+      type: "interaction",
+    });
+    assert.equal(first.ok, true);
+
+    await writeFile(
+      notePath,
+      `---
+type: interaction
+views24h: 420
+---
+
+## Summary
+
+Genuine shipping question.
+
+## Reply
+
+Ship weekly.
+
+## Outcome
+
+24h: 420 views · 12 likes · 3 replies · 1 repost
+`,
+      "utf8",
+    );
+    const second = await upsertMemoryNote(notePath, {
+      knowledgeRoot,
+      indexDir,
+      embedder,
+      type: "interaction",
+    });
+    assert.equal(second.ok, true);
+
+    const { hits } = await searchMemory({
+      query: "Genuine shipping question",
+      k: 3,
+      types: ["interaction"],
+      knowledgeRoot,
+      indexDir,
+      embedder,
+    });
+    assert.ok(hits.some((h) => /420 views/.test(h.excerpt)));
   });
 
   it("upsert adds a note without full reindex", async () => {

@@ -6,13 +6,19 @@ import { join } from "node:path";
 import {
   buildDismissalNotePath,
   buildInteractionNotePath,
+  findInteractionNotePath,
+  formatOutcomeSection,
   normalizeReply,
   renderDismissalMarkdown,
   renderInteractionMarkdown,
   safeThreadIdForFilename,
+  stripManagedOutcomeFrontmatter,
+  updateInteractionMemoryOutcome,
+  upsertOutcomeSection,
   writeDismissalMemory,
   writeInteractionMemory,
 } from "./knowledgeMemory.ts";
+import type { Interaction } from "./interactionStore.ts";
 
 describe("safeThreadIdForFilename", () => {
   it("keeps alphanumerics and strips junk", () => {
@@ -197,5 +203,210 @@ describe("buildDismissalNotePath / writeDismissalMemory", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe("formatOutcomeSection / upsertOutcomeSection", () => {
+  it("formats 1h and 24h lines", () => {
+    const body = formatOutcomeSection({
+      t1h: {
+        views: 100,
+        likes: 4,
+        replies: 1,
+        retweets: 0,
+        sampledAt: "2026-08-01T12:00:00.000Z",
+      },
+      t24h: {
+        views: 420,
+        likes: 12,
+        replies: 3,
+        retweets: 1,
+        sampledAt: "2026-08-02T12:00:00.000Z",
+      },
+    });
+    assert.match(body, /1h: 100 views · 4 likes · 1 reply · 0 reposts/);
+    assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
+  });
+
+  it("replaces Outcome without touching other sections", () => {
+    const body = `## Post\n\nHello\n\n## Outcome\n\nold\n\n## Reply\n\nYo\n`;
+    const next = upsertOutcomeSection(body, "1h: 10 views · 0 likes · 0 replies · 0 reposts");
+    assert.match(next, /## Post\n\nHello/);
+    assert.match(next, /## Reply\n\nYo/);
+    assert.match(next, /1h: 10 views/);
+    assert.doesNotMatch(next, /\nold\n/);
+  });
+
+  it("strips managed frontmatter keys only", () => {
+    const fm = `type: interaction\nthreadId: "1"\nviews1h: 9\ncustomNote: keep\nsampledAt24h: "x"`;
+    const kept = stripManagedOutcomeFrontmatter(fm);
+    assert.match(kept, /type: interaction/);
+    assert.match(kept, /customNote: keep/);
+    assert.doesNotMatch(kept, /views1h/);
+    assert.doesNotMatch(kept, /sampledAt24h/);
+  });
+});
+
+describe("updateInteractionMemoryOutcome", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "x-copilot-outcome-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  function baseInteraction(partial: Partial<Interaction> = {}): Interaction {
+    return {
+      threadId: "99",
+      author: "@A",
+      authorKey: "a",
+      at: "2026-07-27T01:02:03.000Z",
+      source: "manual",
+      ...partial,
+    };
+  }
+
+  it("soft-fails when note is missing", async () => {
+    const result = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({
+        stats: {
+          t1h: {
+            views: 10,
+            likes: 0,
+            replies: 0,
+            retweets: 0,
+            sampledAt: "2026-07-27T02:00:00.000Z",
+          },
+        },
+      }),
+      knowledgeRoot: root,
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /not found/);
+  });
+
+  it("writes t1h-only Outcome and frontmatter", async () => {
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "My reply",
+      text: "Original post",
+      summary: "A summary",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const result = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({
+        stats: {
+          t1h: {
+            views: 100,
+            likes: 4,
+            replies: 1,
+            retweets: 0,
+            sampledAt: "2026-07-27T02:02:03.000Z",
+          },
+        },
+      }),
+      knowledgeRoot: root,
+      nowIso: "2026-07-27T02:02:03.000Z",
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const body = await readFile(result.path, "utf8");
+    assert.match(body, /views1h: 100/);
+    assert.match(body, /likes1h: 4/);
+    assert.match(body, /sampledAt1h: "2026-07-27T02:02:03\.000Z"/);
+    assert.match(body, /## Outcome/);
+    assert.match(body, /1h: 100 views · 4 likes · 1 reply · 0 reposts/);
+    assert.match(body, /## Post/);
+    assert.match(body, /Original post/);
+    assert.match(body, /## Reply/);
+    assert.match(body, /My reply/);
+    assert.doesNotMatch(body, /views24h/);
+  });
+
+  it("keeps t1h when writing t24h and is idempotent", async () => {
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "My reply",
+      text: "Original post",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const stats = {
+      t1h: {
+        views: 100,
+        likes: 4,
+        replies: 1,
+        retweets: 0,
+        sampledAt: "2026-07-27T02:02:03.000Z",
+      },
+      t24h: {
+        views: 420,
+        likes: 12,
+        replies: 3,
+        retweets: 1,
+        sampledAt: "2026-07-28T01:02:03.000Z",
+      },
+    };
+    const first = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({ stats }),
+      knowledgeRoot: root,
+      nowIso: "2026-07-28T01:02:03.000Z",
+    });
+    assert.equal(first.ok, true);
+    const second = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({ stats }),
+      knowledgeRoot: root,
+      nowIso: "2026-07-28T01:02:03.000Z",
+    });
+    assert.equal(second.ok, true);
+    if (!second.ok) return;
+    const body = await readFile(second.path, "utf8");
+    assert.equal((body.match(/## Outcome/g) ?? []).length, 1);
+    assert.equal((body.match(/views1h: 100/g) ?? []).length, 1);
+    assert.equal((body.match(/views24h: 420/g) ?? []).length, 1);
+    assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
+  });
+
+  it("finds legacy notes via filename suffix fallback", async () => {
+    // Write with a different date than interaction.at
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "My reply",
+      text: "Original post",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-26T23:00:00.000Z",
+    });
+    const found = await findInteractionNotePath({
+      threadId: "99",
+      interactedAt: "2026-07-27T01:02:03.000Z",
+      knowledgeRoot: root,
+    });
+    assert.ok(found);
+    assert.match(found!, /2026-07-26-99\.md$/);
+
+    const result = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({
+        at: "2026-07-27T01:02:03.000Z",
+        stats: {
+          t1h: {
+            views: 5,
+            likes: 0,
+            replies: 0,
+            retweets: 0,
+            sampledAt: "2026-07-27T02:00:00.000Z",
+          },
+        },
+      }),
+      knowledgeRoot: root,
+    });
+    assert.equal(result.ok, true);
   });
 });
