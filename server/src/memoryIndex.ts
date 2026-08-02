@@ -108,17 +108,33 @@ export function parseKnowledgeNote(markdown: string): {
   const sections = extractSections(body);
   const parts: string[] = [];
   if (type) parts.push(`type: ${type}`);
-  for (const key of ["Post", "Summary", "Reply", "Reason", "OP"] as const) {
+  for (const key of [
+    "Outcome",
+    "Post",
+    "Summary",
+    "Reply",
+    "Reason",
+    "OP",
+  ] as const) {
     const text = sections[key];
     if (text) parts.push(`${key}: ${text}`);
   }
   const chunk = truncate(parts.join("\n\n"), MAX_CHUNK_CHARS);
-  const excerptSource =
-    sections.Summary ||
-    sections.Post ||
-    sections.Reply ||
-    sections.Reason ||
-    chunk;
+  // Interactions: keep semantic Summary/Post plus Outcome so triage sees performance.
+  // Dismissals: unchanged preference order (no Outcome).
+  let excerptSource: string;
+  if (type === "interaction") {
+    const semantic = sections.Summary || sections.Post || sections.Reply || "";
+    const outcome = sections.Outcome || "";
+    excerptSource = [semantic, outcome].filter(Boolean).join(" · ") || chunk;
+  } else {
+    excerptSource =
+      sections.Summary ||
+      sections.Post ||
+      sections.Reply ||
+      sections.Reason ||
+      chunk;
+  }
   const excerpt = truncate(excerptSource.replace(/\s+/g, " ").trim(), MAX_EXCERPT_CHARS);
   return { type, chunk, excerpt };
 }
