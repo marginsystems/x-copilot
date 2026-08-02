@@ -382,6 +382,17 @@ function checkpointFrontmatterLines(
   return lines;
 }
 
+/** Date prefix of an interaction note's `interactedAt` frontmatter, if any. */
+async function noteInteractedAtDate(path: string): Promise<string | null> {
+  try {
+    const raw = await readFile(path, "utf8");
+    const m = /^interactedAt:\s*"?(\d{4}-\d{2}-\d{2})/m.exec(raw);
+    return m?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Find an interaction note by expected path from `at` + threadId, then
  * filename-suffix fallback for legacy / re-marked notes. Never uses postedAt.
@@ -412,6 +423,16 @@ export async function findInteractionNotePath(opts: {
       .sort()
       .reverse();
     if (!matches.length) return null;
+    // Re-marked threads can leave several dated notes for one threadId; prefer
+    // one whose interactedAt matches the interaction date over the newest file.
+    const wantDate = opts.interactedAt ? utcDatePrefix(opts.interactedAt) : null;
+    if (wantDate) {
+      for (const name of matches) {
+        if ((await noteInteractedAtDate(join(dir, name))) === wantDate) {
+          return join(dir, name);
+        }
+      }
+    }
     return join(dir, matches[0]!);
   } catch {
     return null;

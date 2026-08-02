@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -476,5 +476,32 @@ describe("updateInteractionMemoryOutcome", () => {
       knowledgeRoot: root,
     });
     assert.equal(result.ok, true);
+  });
+
+  it("fallback prefers a note whose interactedAt matches interaction.at", async () => {
+    // A re-marked thread can leave multiple dated notes sharing a threadId.
+    // The expected path for interaction.at is absent (no note written on the
+    // latest mark), so the suffix fallback must not pick the newest file.
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "Unrelated later reply",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-28T10:00:00.000Z",
+    });
+    const legacyDir = join(root, "interactions");
+    await mkdir(legacyDir, { recursive: true });
+    await writeFile(
+      join(legacyDir, "2026-07-26-99.md"),
+      '---\ntype: interaction\nthreadId: "99"\ninteractedAt: "2026-07-27T01:02:03.000Z"\n---\n\n## Reply\n\nMy reply\n',
+      "utf8",
+    );
+    const found = await findInteractionNotePath({
+      threadId: "99",
+      interactedAt: "2026-07-27T01:02:03.000Z",
+      knowledgeRoot: root,
+    });
+    assert.ok(found);
+    assert.match(found!, /2026-07-26-99\.md$/);
   });
 });
