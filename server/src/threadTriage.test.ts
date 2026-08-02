@@ -354,4 +354,25 @@ describe("TRIAGE_SYSTEM_PROMPT", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /does not become event_promo/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /Post-event recaps are not automatically skipped/);
   });
+
+  it("treats high outcomes as stronger positive evidence and low as weak not negative", () => {
+    assert.match(TRIAGE_SYSTEM_PROMPT, /Mature 24h outcomes are stronger/);
+    assert.match(
+      TRIAGE_SYSTEM_PROMPT,
+      /High views\/likes on a past interaction strengthen/,
+    );
+    assert.match(
+      TRIAGE_SYSTEM_PROMPT,
+      /Low or missing stats only weaken confidence/,
+    );
+    assert.match(TRIAGE_SYSTEM_PROMPT, /they are never negative evidence/);
+    assert.match(
+      TRIAGE_SYSTEM_PROMPT,
+      /Do not treat raw view\/like counts as normalized/,
+    );
+    assert.match(
+      TRIAGE_SYSTEM_PROMPT,
+      /Outcomes do not override bait, promo, safety/,
+    );
+  });
 });
