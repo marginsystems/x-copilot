@@ -7,11 +7,13 @@ import {
   STATS_T1H_MS,
   STATS_T24H_MS,
   listInteractionHistory,
+  listMemorySyncRetries,
   markInteracted,
   selectDueStatSamples,
   type Interaction,
 } from "./interactionStore.ts";
 import { runStatsTick, shouldRunStatsMain } from "./statsWorker.ts";
+import type { SyncInteractionOutcomeResult } from "./memoryOutcome.ts";
 
 describe("shouldRunStatsMain", () => {
   it("returns true for direct statsWorker.js / .ts entry", () => {
@@ -161,6 +163,7 @@ describe("runStatsTick", () => {
       nowMs: now,
       storePath,
       delayMs: 0,
+      syncOutcome: null,
       fetchMetrics: async ({ tweetId }) => {
         assert.equal(tweetId, "reply1");
         return { views: 100, likes: 4, replies: 1, retweets: 0 };
@@ -191,6 +194,7 @@ describe("runStatsTick", () => {
       storePath,
       delayMs: 0,
       fetchMetrics: async () => null,
+      syncOutcome: null,
     });
     assert.equal(result.failed, 1);
     assert.equal(result.sampled, 0);
@@ -200,5 +204,120 @@ describe("runStatsTick", () => {
       now,
     );
     assert.equal(stillDue.length, 1);
+  });
+
+  it("invokes outcome sync with patched interaction after sample", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      replyId: "reply1",
+      replyUrl: "https://x.com/me/status/reply1",
+      nowMs: now - STATS_T1H_MS - 5000,
+      storePath,
+    });
+
+    const synced: Interaction[] = [];
+    const result = await runStatsTick({
+      nowMs: now,
+      storePath,
+      delayMs: 0,
+      fetchMetrics: async () => ({
+        views: 100,
+        likes: 4,
+        replies: 1,
+        retweets: 0,
+      }),
+      syncOutcome: async ({ interaction }) => {
+        synced.push(interaction);
+        return { ok: true, path: "/tmp/note.md", upserted: true };
+      },
+    });
+    assert.equal(result.sampled, 1);
+    assert.equal(result.memorySynced, 1);
+    assert.equal(result.memorySyncFailed, 0);
+    assert.equal(synced.length, 1);
+    assert.equal(synced[0]?.stats?.t1h?.views, 100);
+    assert.equal(synced[0]?.stats?.t1h?.likes, 4);
+  });
+
+  it("memory sync failure does not undo sampled metric", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      replyId: "reply1",
+      replyUrl: "https://x.com/me/status/reply1",
+      nowMs: now - STATS_T1H_MS - 5000,
+      storePath,
+    });
+
+    const result = await runStatsTick({
+      nowMs: now,
+      storePath,
+      delayMs: 0,
+      fetchMetrics: async () => ({
+        views: 50,
+        likes: 1,
+        replies: 0,
+        retweets: 0,
+      }),
+      syncOutcome: async (): Promise<SyncInteractionOutcomeResult> => ({
+        ok: false,
+        error: "note missing",
+      }),
+    });
+    assert.equal(result.sampled, 1);
+    assert.equal(result.failed, 0);
+    assert.equal(result.memorySyncFailed, 1);
+
+    const history = await listInteractionHistory({ storePath });
+    assert.equal(history[0]?.stats?.t1h?.views, 50);
+  });
+
+  it("retries a failed memory sync on the next tick and clears the flag", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      replyId: "reply1",
+      replyUrl: "https://x.com/me/status/reply1",
+      nowMs: now - STATS_T24H_MS - 5000,
+      storePath,
+    });
+
+    // Both checkpoints are due at once; every projection sync fails.
+    const first = await runStatsTick({
+      nowMs: now,
+      storePath,
+      delayMs: 0,
+      fetchMetrics: async () => ({
+        views: 100,
+        likes: 4,
+        replies: 1,
+        retweets: 0,
+      }),
+      syncOutcome: async (): Promise<SyncInteractionOutcomeResult> => ({
+        ok: false,
+        error: "note missing",
+      }),
+    });
+    assert.equal(first.sampled, 2);
+    assert.equal(first.memorySyncFailed, 2);
+
+    // Stats exist so no checkpoint is due again, but the projection is flagged.
+    assert.equal((await listMemorySyncRetries({ storePath })).length, 1);
+
+    // Next tick retries only the memory sync (no sampling) and succeeds.
+    const second = await runStatsTick({
+      nowMs: now,
+      storePath,
+      delayMs: 0,
+      syncOutcome: async () => ({ ok: true, path: "/tmp/note.md", upserted: true }),
+    });
+    assert.equal(second.sampled, 0);
+    assert.equal(second.memorySynced, 1);
+    assert.equal(second.memorySyncFailed, 0);
+    assert.equal((await listMemorySyncRetries({ storePath })).length, 0);
   });
 });

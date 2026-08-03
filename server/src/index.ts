@@ -795,6 +795,8 @@ const server = http.createServer(async (req, res) => {
             flags,
             intent: typeof body.intent === "string" ? body.intent : undefined,
             reason: typeof body.reason === "string" ? body.reason : undefined,
+            // Match durable store timestamp so later stats ticks can rediscover the note.
+            interactedAt: interaction.at,
           });
           memoryPath = memory.path;
           scheduleMemoryUpsert(memory.path, "interaction");
