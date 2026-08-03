@@ -6,7 +6,9 @@ import { runExpirePass } from "./expirePass.js";
 import {
   DEFAULT_STATS_TICK_CAP,
   listDueStatSamples,
+  listMemorySyncRetries,
   patchInteractionStats,
+  setMemorySyncFailed,
   type DueStatSample,
   type Interaction,
 } from "./interactionStore.js";
@@ -25,6 +27,49 @@ const tweetFailures = new Map<string, number>();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Run one outcome projection and record its result on the interaction so a
+ * failed sync is retried on a later tick instead of being dropped permanently.
+ */
+async function runOutcomeSync(
+  interaction: Interaction,
+  checkpoint: DueStatSample["checkpoint"],
+  storePath: string | undefined,
+  syncOutcome: SyncOutcomeFn,
+): Promise<boolean> {
+  try {
+    const sync = await syncOutcome({ interaction, checkpoint });
+    if (sync.ok) {
+      await setMemorySyncFailed({
+        threadId: interaction.threadId,
+        failed: false,
+        storePath,
+      });
+      return true;
+    }
+    await setMemorySyncFailed({
+      threadId: interaction.threadId,
+      failed: true,
+      storePath,
+    });
+    console.warn(
+      `[stats-worker] memory sync soft-fail threadId=${interaction.threadId}: ${sync.error}`,
+    );
+    return false;
+  } catch (err) {
+    await setMemorySyncFailed({
+      threadId: interaction.threadId,
+      failed: true,
+      storePath,
+    });
+    console.warn(
+      `[stats-worker] memory sync soft-fail threadId=${interaction.threadId}:`,
+      err,
+    );
+    return false;
+  }
 }
 
 export type StatsTickResult = {
@@ -72,6 +117,30 @@ export async function runStatsTick(opts?: {
   let memorySyncFailed = 0;
   const session = getSessionFromEnv();
 
+  // Retry outcome projections that failed on a previous tick. Sampled before
+  // the due loop so a fresh failure below waits for the next tick, and so the
+  // 24h-final checkpoint (never due again) is not permanently lost.
+  if (syncOutcome) {
+    const retries = await listMemorySyncRetries({
+      storePath: opts?.storePath,
+      limit: opts?.limit ?? DEFAULT_STATS_TICK_CAP,
+    });
+    for (const interaction of retries) {
+      if (
+        await runOutcomeSync(
+          interaction,
+          interaction.stats?.t24h ? "t24h" : "t1h",
+          opts?.storePath,
+          syncOutcome,
+        )
+      ) {
+        memorySynced += 1;
+      } else {
+        memorySyncFailed += 1;
+      }
+    }
+  }
+
   for (let i = 0; i < due.length; i++) {
     const item: DueStatSample = due[i];
     const tweetId = item.replyId;
@@ -101,25 +170,17 @@ export async function runStatsTick(opts?: {
     sampled += 1;
 
     if (patched && syncOutcome) {
-      try {
-        const sync = await syncOutcome({
-          interaction: patched,
-          checkpoint: item.checkpoint,
-        });
-        if (sync.ok) {
-          memorySynced += 1;
-        } else {
-          memorySyncFailed += 1;
-          console.warn(
-            `[stats-worker] memory sync soft-fail threadId=${item.threadId}: ${sync.error}`,
-          );
-        }
-      } catch (err) {
+      if (
+        await runOutcomeSync(
+          patched,
+          item.checkpoint,
+          opts?.storePath,
+          syncOutcome,
+        )
+      ) {
+        memorySynced += 1;
+      } else {
         memorySyncFailed += 1;
-        console.warn(
-          `[stats-worker] memory sync soft-fail threadId=${item.threadId}:`,
-          err,
-        );
       }
     }
   }

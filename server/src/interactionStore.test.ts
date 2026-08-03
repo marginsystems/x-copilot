@@ -11,10 +11,12 @@ import {
   getAuthorKeysForScoutFilter,
   getEverInteractedAuthorKeys,
   listInteractionHistory,
+  listMemorySyncRetries,
   markInteracted,
   normalizeAuthorKey,
   parseStatusIdFromUrl,
   pruneExpired,
+  setMemorySyncFailed,
   type Interaction,
 } from "./interactionStore.ts";
 import type { ThreadCard } from "./xSearch.ts";
@@ -261,6 +263,40 @@ describe("listInteractionHistory", () => {
       history.map((i) => i.threadId),
       ["b", "a"],
     );
+  });
+});
+
+describe("memory sync retry flag", () => {
+  let dir: string;
+  let storePath: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "x-copilot-retry-"));
+    storePath = join(dir, "interactions.json");
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("persists the flag and clears it on success", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      replyId: "reply1",
+      replyUrl: "https://x.com/me/status/reply1",
+      nowMs: now,
+      storePath,
+    });
+
+    await setMemorySyncFailed({ threadId: "parent", failed: true, storePath });
+    const flagged = await listMemorySyncRetries({ storePath });
+    assert.equal(flagged.length, 1);
+    assert.equal(flagged[0]?.threadId, "parent");
+
+    await setMemorySyncFailed({ threadId: "parent", failed: false, storePath });
+    assert.equal((await listMemorySyncRetries({ storePath })).length, 0);
   });
 });
 
