@@ -404,6 +404,9 @@ const server = http.createServer(async (req, res) => {
             sawTerminal = true;
           }
           res.write(`${JSON.stringify(event)}\n`);
+          // Push each NDJSON line through proxies (Vite) promptly.
+          const flushable = res as typeof res & { flush?: () => void };
+          flushable.flush?.();
         };
 
         await ensureMemoryIndex();
