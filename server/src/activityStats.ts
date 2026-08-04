@@ -109,6 +109,11 @@ function buildWeekPeriods(nowMs: number, count: number): string[] {
   return out;
 }
 
+/**
+ * Bucket retained interaction history into a stable day/week series.
+ * Callers should pass the durable store retain (see MAX_INTERACTION_STORE),
+ * not the 200-row Interacted feed cap — window filtering runs here after load.
+ */
 export function bucketInteractions(
   history: readonly Interaction[],
   opts: { bucket: ActivityBucket; now?: number },

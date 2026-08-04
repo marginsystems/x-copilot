@@ -12,6 +12,8 @@ import {
   getEverInteractedAuthorKeys,
   listInteractionHistory,
   listMemorySyncRetries,
+  MAX_INTERACTION_HISTORY,
+  MAX_INTERACTION_STORE,
   markInteracted,
   normalizeAuthorKey,
   parseStatusIdFromUrl,
@@ -227,6 +229,26 @@ describe("markInteracted", () => {
     );
     assert.equal(history[1]?.url, "https://x.com/old/status/old");
     assert.equal(history[1]?.summary, "old lead");
+  });
+
+  it("retains beyond the feed cap for activity windows", async () => {
+    const base = Date.parse("2026-07-26T12:00:00.000Z");
+    const n = MAX_INTERACTION_HISTORY + 50;
+    for (let i = 0; i < n; i++) {
+      await markInteracted({
+        threadId: `t${i}`,
+        author: `@u${i}`,
+        nowMs: base + i * 1000,
+        storePath,
+      });
+    }
+    const feed = await listInteractionHistory({ storePath });
+    assert.equal(feed.length, MAX_INTERACTION_HISTORY);
+    const retained = await listInteractionHistory({
+      storePath,
+      limit: MAX_INTERACTION_STORE,
+    });
+    assert.equal(retained.length, n);
   });
 });
 

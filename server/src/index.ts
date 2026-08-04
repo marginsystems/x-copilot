@@ -14,6 +14,7 @@ import {
   listActiveInteractions,
   listInteractionHistory,
   markInteracted,
+  MAX_INTERACTION_STORE,
   parseStatusIdFromUrl,
   normalizeAuthorKey,
 } from "./interactionStore.js";
@@ -538,7 +539,11 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/interacted/stats") {
       const bucket = parseActivityBucket(url.searchParams.get("bucket"));
-      const history = await listInteractionHistory();
+      // Read the durable retain (not the 200-row feed cap) so 28d/12w bucketing
+      // sees in-window marks before any secondary trim.
+      const history = await listInteractionHistory({
+        limit: MAX_INTERACTION_STORE,
+      });
       return send(res, 200, bucketInteractions(history, { bucket }));
     }
 
