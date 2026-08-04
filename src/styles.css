@@ -612,22 +612,26 @@ button:disabled {
   word-break: break-word;
 }
 
-/* Fixed-height status block — Idle / Restored / live Scout must not shift layout */
+/* Status block — hint/queries stay clamped; live main status wraps fully */
 .status-stack {
   display: grid;
   font-size: 0.76rem;
-  grid-template-rows: 2.4em 3.6em 2.4em;
+  grid-template-rows: 2.4em auto 2.4em;
   gap: 4px;
   align-content: start;
   min-height: calc(2.4em + 3.6em + 2.4em + 8px);
 }
 
 .status-stack .status {
+  margin: 0;
+}
+
+.status-hint,
+.status-queries {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0;
 }
 
 .status-hint {
@@ -639,9 +643,12 @@ button:disabled {
 }
 
 .status-main {
+  display: block;
   line-height: 1.2em;
   min-height: 3.6em;
-  -webkit-line-clamp: 3;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .status-queries {
@@ -673,10 +680,8 @@ button:disabled {
   flex-wrap: nowrap;
   gap: 8px 12px;
   align-items: baseline;
-  height: 1.35em;
   min-height: 1.35em;
-  max-height: 1.35em;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .scout-label {
@@ -694,9 +699,8 @@ button:disabled {
   color: var(--text);
   font-size: 0.8rem;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .scout-bar {
