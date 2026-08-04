@@ -52,9 +52,9 @@ export function viewsForInteraction(row: Interaction): number {
 
 export function interactionHasViewStats(row: Interaction): boolean {
   const v24 = row.stats?.t24h?.views;
-  if (typeof v24 === "number" && Number.isFinite(v24)) return true;
+  if (typeof v24 === "number" && Number.isFinite(v24) && v24 >= 0) return true;
   const v1 = row.stats?.t1h?.views;
-  return typeof v1 === "number" && Number.isFinite(v1);
+  return typeof v1 === "number" && Number.isFinite(v1) && v1 >= 0;
 }
 
 function utcDayKey(ms: number): string {
