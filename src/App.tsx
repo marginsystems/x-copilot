@@ -732,9 +732,7 @@ export default function App() {
     );
   }
 
-  const curatedThreads = threads.filter((t) =>
-    !threadHasExcludedTag(t, settings.excludedTags),
-  );
+  const curatedThreads = threads.filter((t) => keepInCurated(t));
 
   async function hydrateSkipped() {
     try {
