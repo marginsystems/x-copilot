@@ -731,12 +731,12 @@ export default function App() {
     if (!next) return;
     // Ignore stale responses if the user toggled bucket mid-flight.
     if (bucket !== activityBucketRef.current) return;
+    setActivityBucket(bucket);
     setActivityStats(next);
   }
 
   function onActivityBucket(next: ActivityBucket) {
     activityBucketRef.current = next;
-    setActivityBucket(next);
     void hydrateActivityStats(next);
   }
 
