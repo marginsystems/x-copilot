@@ -1,14 +1,20 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
+  DEFAULT_EXCLUDED_TAGS,
   DEFAULT_SETTINGS,
   clampMaxThreadChars,
   clampTargetCoolThreads,
+  formatExcludedTagsText,
   loadSettings,
+  normalizeExcludedTags,
   normalizePreferredLanguage,
   normalizeSettings,
+  normalizeTagToken,
+  parseExcludedTagsText,
   saveSettings,
   SETTINGS_STORAGE_KEY,
+  threadHasExcludedTag,
 } from "./settings.ts";
 
 const store = new Map<string, string>();
@@ -62,6 +68,39 @@ describe("normalizePreferredLanguage", () => {
   });
 });
 
+describe("excludedTags settings", () => {
+  it("normalizes tokens and textarea round-trip", () => {
+    assert.equal(
+      normalizeTagToken("Supportive Encouragement"),
+      "supportive_encouragement",
+    );
+    assert.deepEqual(normalizeExcludedTags(undefined), [...DEFAULT_EXCLUDED_TAGS]);
+    assert.deepEqual(normalizeExcludedTags([]), []);
+    assert.deepEqual(
+      parseExcludedTagsText("supportive encouragement\npromo\n"),
+      ["supportive_encouragement", "promo"],
+    );
+    assert.equal(
+      formatExcludedTagsText(["supportive_encouragement", "promo"]),
+      "supportive_encouragement\npromo",
+    );
+    assert.equal(
+      threadHasExcludedTag(
+        { intent: "supportive encouragement", flags: ["genuine_question"] },
+        ["supportive_encouragement"],
+      ),
+      true,
+    );
+  });
+
+  it("defaults missing excludedTags key and preserves explicit empty", () => {
+    assert.deepEqual(normalizeSettings({}).excludedTags, [
+      ...DEFAULT_EXCLUDED_TAGS,
+    ]);
+    assert.deepEqual(normalizeSettings({ excludedTags: [] }).excludedTags, []);
+  });
+});
+
 describe("normalizeSettings", () => {
   it("fills defaults for bad input", () => {
     assert.deepEqual(normalizeSettings(null), DEFAULT_SETTINGS);
@@ -72,6 +111,7 @@ describe("normalizeSettings", () => {
         targetCoolThreads: 3,
         dedupeAccounts: false,
         preferredLanguage: "es",
+        excludedTags: ["promo"],
       }),
       {
         maxThreadChars: 320,
@@ -79,6 +119,7 @@ describe("normalizeSettings", () => {
         targetCoolThreads: 3,
         dedupeAccounts: false,
         preferredLanguage: "es",
+        excludedTags: ["promo"],
       },
     );
     assert.equal(normalizeSettings({}).dedupeAccounts, true);
@@ -98,6 +139,7 @@ describe("loadSettings / saveSettings", () => {
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",
+      excludedTags: ["supportive_encouragement", "promo"],
     });
     assert.deepEqual(saved, {
       maxThreadChars: 320,
@@ -105,6 +147,7 @@ describe("loadSettings / saveSettings", () => {
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",
+      excludedTags: ["supportive_encouragement", "promo"],
     });
     assert.deepEqual(loadSettings(), saved);
     assert.ok(localStorage.getItem(SETTINGS_STORAGE_KEY));

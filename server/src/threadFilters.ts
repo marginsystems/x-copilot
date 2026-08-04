@@ -12,6 +12,14 @@ export const PREFERRED_LANGUAGE_CODES = ["en", "es", "fr", "de", "pt"] as const;
 export type PreferredLanguageCode = (typeof PREFERRED_LANGUAGE_CODES)[number];
 export const DEFAULT_PREFERRED_LANGUAGE: PreferredLanguageCode = "en";
 
+/**
+ * Post-triage Curated excludes (match flags + normalized intent).
+ * Keep defaults/token rules in sync with `src/lib/settings.ts`.
+ */
+export const DEFAULT_EXCLUDED_TAGS = ["supportive_encouragement"] as const;
+export const MAX_EXCLUDED_TAGS = 20;
+export const MAX_TAG_TOKEN_LEN = 40;
+
 /** ISO 639-1 → ISO 639-3 for franc-min. */
 const LANG1_TO_3: Record<PreferredLanguageCode, string> = {
   en: "eng",
@@ -127,6 +135,58 @@ export function normalizePreferredLanguageCode(
   return (PREFERRED_LANGUAGE_CODES as readonly string[]).includes(code)
     ? (code as PreferredLanguageCode)
     : DEFAULT_PREFERRED_LANGUAGE;
+}
+
+/** Normalize a flag/intent/exclude token to snake_case, or null if unusable. */
+export function normalizeTagToken(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const token = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+  if (!token || token.length > MAX_TAG_TOKEN_LEN) return null;
+  if (!/^[a-z0-9_]+$/.test(token)) return null;
+  return token;
+}
+
+/** Dedupe/normalize an exclude list. Non-arrays → default list. */
+export function normalizeExcludedTags(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [...DEFAULT_EXCLUDED_TAGS];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const token = normalizeTagToken(item);
+    if (!token || seen.has(token)) continue;
+    seen.add(token);
+    out.push(token);
+    if (out.length >= MAX_EXCLUDED_TAGS) break;
+  }
+  return out;
+}
+
+/**
+ * Prefer request override (including explicit `[]`); omit/undefined → default.
+ */
+export function resolveExcludedTags(override?: string[]): string[] {
+  if (override === undefined) return [...DEFAULT_EXCLUDED_TAGS];
+  return normalizeExcludedTags(override);
+}
+
+/** True when any flag or normalized intent is in the exclude set. */
+export function threadHasExcludedTag(
+  thread: Pick<ThreadCard, "flags" | "intent">,
+  excludedTags: readonly string[],
+): boolean {
+  if (!excludedTags.length) return false;
+  const excluded = new Set(excludedTags);
+  for (const flag of thread.flags ?? []) {
+    const token = normalizeTagToken(flag);
+    if (token && excluded.has(token)) return true;
+  }
+  const intent = normalizeTagToken(thread.intent);
+  return Boolean(intent && excluded.has(intent));
 }
 
 /** Text used for language detection (post + optional OP). */

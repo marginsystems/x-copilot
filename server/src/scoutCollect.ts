@@ -21,7 +21,9 @@ import {
   filterSelfReplies,
   filterThreadsByLength,
   normalizePreferredLanguageCode,
+  resolveExcludedTags,
   resolveMaxThreadCharsFromFilters,
+  threadHasExcludedTag,
 } from "./threadFilters.js";
 import { triageThreads } from "./threadTriage.js";
 import { hydrateReplyParents } from "./tweetLookup.js";
@@ -282,6 +284,7 @@ export async function runScoutCollect(opts: {
   const preferredLanguage = normalizePreferredLanguageCode(
     opts.filters?.preferredLanguage,
   );
+  const excludedTags = resolveExcludedTags(opts.filters?.excludedTags);
   // Tests often stub getCooledAuthorKeys only; production uses lifetime+24h filter.
   const cooled =
     deps.getCooledAuthorKeys && !deps.getAuthorKeysForScoutFilter
@@ -593,7 +596,11 @@ export async function runScoutCollect(opts: {
       funnelCounts.afterTriage += triaged.threads.length;
 
       const newlyCool = triaged.threads.filter(
-        (t) => isCoolThread(t) && t.id && !coolIds.has(t.id),
+        (t) =>
+          isCoolThread(t) &&
+          t.id &&
+          !coolIds.has(t.id) &&
+          !threadHasExcludedTag(t, excludedTags),
       );
       if (newlyCool.length === 0) {
         if (isPartial) {

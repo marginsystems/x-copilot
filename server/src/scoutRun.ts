@@ -96,6 +96,11 @@ export type ScoutFilters = {
   dedupeAccounts?: boolean;
   /** ISO 639-1; default English when omitted. */
   preferredLanguage?: string;
+  /**
+   * Post-triage Curated excludes (flags + normalized intent).
+   * Omit → server default (`supportive_encouragement`); `[]` → no tag excludes.
+   */
+  excludedTags?: string[];
 };
 
 export async function runScoutSearch(opts: {

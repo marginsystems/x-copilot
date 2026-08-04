@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  DEFAULT_EXCLUDED_TAGS,
   DEFAULT_MAX_THREAD_CHARS,
   filterByLanguage,
   filterOutboundLinks,
@@ -10,9 +11,13 @@ import {
   isOversizedThread,
   isSelfReply,
   isThreadOpener,
+  normalizeExcludedTags,
   normalizePreferredLanguageCode,
+  normalizeTagToken,
+  resolveExcludedTags,
   resolveMaxThreadChars,
   resolveMaxThreadCharsFromFilters,
+  threadHasExcludedTag,
   threadHasOutboundLink,
 } from "./threadFilters.ts";
 import type { ThreadCard } from "./xSearch.ts";
@@ -369,5 +374,58 @@ describe("resolveMaxThreadCharsFromFilters", () => {
     assert.equal(resolveMaxThreadCharsFromFilters(undefined, "900"), 900);
     assert.equal(resolveMaxThreadCharsFromFilters(-1, "900"), 900);
     assert.equal(resolveMaxThreadCharsFromFilters(12.5, ""), 480);
+  });
+});
+
+describe("excluded triage tags", () => {
+  it("normalizes intent-like phrases to snake_case tokens", () => {
+    assert.equal(
+      normalizeTagToken("Supportive Encouragement"),
+      "supportive_encouragement",
+    );
+    assert.equal(normalizeTagToken(" genuine-question "), "genuine_question");
+    assert.equal(normalizeTagToken(""), null);
+    assert.equal(normalizeTagToken("!!!"), null);
+  });
+
+  it("defaults missing exclude lists and preserves explicit empty", () => {
+    assert.deepEqual(normalizeExcludedTags(undefined), [...DEFAULT_EXCLUDED_TAGS]);
+    assert.deepEqual(resolveExcludedTags(undefined), [...DEFAULT_EXCLUDED_TAGS]);
+    assert.deepEqual(resolveExcludedTags([]), []);
+    assert.deepEqual(
+      normalizeExcludedTags(["Supportive Encouragement", "supportive_encouragement", "promo"]),
+      ["supportive_encouragement", "promo"],
+    );
+  });
+
+  it("matches normalized intent and flags exactly", () => {
+    assert.equal(
+      threadHasExcludedTag(
+        { intent: "supportive encouragement", flags: ["genuine_question"] },
+        ["supportive_encouragement"],
+      ),
+      true,
+    );
+    assert.equal(
+      threadHasExcludedTag(
+        { intent: "genuine help request", flags: ["supportive_encouragement"] },
+        ["supportive_encouragement"],
+      ),
+      true,
+    );
+    assert.equal(
+      threadHasExcludedTag(
+        { intent: "genuine help request", flags: ["genuine_question"] },
+        ["supportive_encouragement"],
+      ),
+      false,
+    );
+    assert.equal(
+      threadHasExcludedTag(
+        { intent: "supportive encouragement", flags: [] },
+        [],
+      ),
+      false,
+    );
   });
 });
