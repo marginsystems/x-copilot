@@ -546,6 +546,49 @@ h3 {
   align-items: center;
 }
 
+.scout-controls {
+  display: grid;
+  gap: 6px;
+}
+
+button.primary.scout-run {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.scout-options-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-head);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.scout-options-toggle:hover {
+  color: var(--text);
+}
+
+.scout-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 2px;
+}
+
 .cool-target {
   display: inline-flex;
   align-items: center;

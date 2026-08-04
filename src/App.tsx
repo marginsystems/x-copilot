@@ -501,6 +501,7 @@ export default function App() {
   /** Short mutex for mark/skip/dismiss/session/settings — not Scout-in-flight. */
   const [actionBusy, setActionBusy] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [scoutOptionsOpen, setScoutOptionsOpen] = useState(false);
   const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
   const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
   const [scoutLogPage, setScoutLogPage] = useState(0);
@@ -1748,11 +1749,11 @@ export default function App() {
               onChange={(e) => setAgenda(e.target.value)}
               placeholder="What should we look for and how should we sound?"
             />
-            <div className="row scout-controls">
+            <div className="scout-controls">
               {searching ? (
                 <button
                   type="button"
-                  className="primary"
+                  className="primary scout-run"
                   onClick={onStopScout}
                 >
                   Stop Scout
@@ -1760,7 +1761,7 @@ export default function App() {
               ) : (
                 <button
                   type="button"
-                  className="primary"
+                  className="primary scout-run"
                   disabled={searchBlocked || !agenda.trim()}
                   onClick={onSearch}
                 >
@@ -1769,24 +1770,38 @@ export default function App() {
                     : "Start Scout"}
                 </button>
               )}
-              <label className="cool-target">
-                <span>Cool threads</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  step={1}
-                  disabled={searching}
-                  value={settings.targetCoolThreads}
-                  onChange={(e) =>
-                    updateTargetCoolThreads(
-                      e.target.value === ""
-                        ? DEFAULT_SETTINGS.targetCoolThreads
-                        : Number(e.target.value),
-                    )
-                  }
-                />
-              </label>
+              <button
+                type="button"
+                className="scout-options-toggle"
+                aria-expanded={scoutOptionsOpen}
+                aria-controls="scout-options"
+                onClick={() => setScoutOptionsOpen((open) => !open)}
+              >
+                Scout options
+                <span aria-hidden="true">{scoutOptionsOpen ? "▴" : "▾"}</span>
+              </button>
+              {scoutOptionsOpen ? (
+                <div id="scout-options" className="scout-options">
+                  <label className="cool-target">
+                    <span>Cool threads</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      step={1}
+                      disabled={searching}
+                      value={settings.targetCoolThreads}
+                      onChange={(e) =>
+                        updateTargetCoolThreads(
+                          e.target.value === ""
+                            ? DEFAULT_SETTINGS.targetCoolThreads
+                            : Number(e.target.value),
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+              ) : null}
             </div>
             <div className="status-stack" aria-live="polite">
               <p className="status status-hint">
