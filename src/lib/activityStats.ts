@@ -52,12 +52,19 @@ export async function fetchActivityStats(
       })),
       totals: {
         interactions:
-          typeof data.totals.interactions === "number"
+          typeof data.totals.interactions === "number" &&
+          Number.isFinite(data.totals.interactions)
             ? data.totals.interactions
             : 0,
-        views: typeof data.totals.views === "number" ? data.totals.views : 0,
+        views:
+          typeof data.totals.views === "number" && Number.isFinite(data.totals.views)
+            ? data.totals.views
+            : 0,
         withStats:
-          typeof data.totals.withStats === "number" ? data.totals.withStats : 0,
+          typeof data.totals.withStats === "number" &&
+          Number.isFinite(data.totals.withStats)
+            ? data.totals.withStats
+            : 0,
       },
     };
   } catch {
