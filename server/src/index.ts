@@ -5,6 +5,10 @@ import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import {
+  bucketInteractions,
+  parseActivityBucket,
+} from "./activityStats.js";
+import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
   listActiveInteractions,
@@ -530,6 +534,12 @@ const server = http.createServer(async (req, res) => {
           message: err instanceof Error ? err.message : String(err),
         });
       }
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/interacted/stats") {
+      const bucket = parseActivityBucket(url.searchParams.get("bucket"));
+      const history = await listInteractionHistory();
+      return send(res, 200, bucketInteractions(history, { bucket }));
     }
 
     if (req.method === "GET" && url.pathname === "/api/interacted") {
