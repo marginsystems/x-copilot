@@ -35,6 +35,7 @@ export async function fetchActivityStats(
     if (!res.ok) return null;
     const data = (await res.json()) as Partial<ActivityStats>;
     if (!data || (data.bucket !== "day" && data.bucket !== "week")) return null;
+    if (data.bucket !== bucket) return null;
     if (!Array.isArray(data.series) || !data.totals) return null;
     return {
       bucket: data.bucket,
