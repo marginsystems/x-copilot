@@ -1703,6 +1703,7 @@ export default function App() {
           <label className="settings-field">
             <span>Preferred language</span>
             <select
+              className="settings-select"
               value={settingsDraft.preferredLanguage}
               onChange={(e) =>
                 setSettingsDraft((prev) => ({
