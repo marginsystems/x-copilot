@@ -191,6 +191,68 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.event.coolCount, 1);
   });
 
+  it("excludes default supportive encouragement from cool and refills", async () => {
+    let triageCalls = 0;
+    const id = { n: 0 };
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: fillBucket(id, 5),
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageCalls += 1;
+          if (triageCalls === 1) {
+            // Would be cool on engage/bait alone, but intent is excluded by default.
+            return {
+              threads: threads.map((t) => ({
+                ...t,
+                engage: "priority" as const,
+                baitScore: 10,
+                intent: "supportive encouragement",
+                flags: ["genuine_question"],
+              })),
+            };
+          }
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("priority" as const) : ("skip" as const),
+              baitScore: i === 0 ? 12 : 90,
+              intent: "shipping question",
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.ok(triageCalls >= 2, "must refill after tag-excluded cools");
+    assert.equal(result.event.stopReason, "target");
+    assert.equal(result.event.coolCount, 1);
+    assert.equal(result.event.threads?.[0]?.intent, "shipping question");
+    assert.ok(
+      !(result.event.threads ?? []).some(
+        (t) => t.intent === "supportive encouragement",
+      ),
+    );
+  });
+
   it("continues filling until cool target across buckets", async () => {
     let triageCalls = 0;
     let searchCalls = 0;

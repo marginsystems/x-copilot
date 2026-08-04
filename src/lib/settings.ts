@@ -15,6 +15,14 @@ export const PREFERRED_LANGUAGES = ["en", "es", "fr", "de", "pt"] as const;
 export type PreferredLanguage = (typeof PREFERRED_LANGUAGES)[number];
 export const DEFAULT_PREFERRED_LANGUAGE: PreferredLanguage = "en";
 
+/**
+ * Post-triage Curated excludes (flags + normalized intent).
+ * Keep in sync with `DEFAULT_EXCLUDED_TAGS` in server/src/threadFilters.ts.
+ */
+export const DEFAULT_EXCLUDED_TAGS = ["supportive_encouragement"] as const;
+export const MAX_EXCLUDED_TAGS = 20;
+export const MAX_TAG_TOKEN_LEN = 40;
+
 export type AppSettings = {
   maxThreadChars: number;
   dropArticles: boolean;
@@ -23,6 +31,11 @@ export type AppSettings = {
   dedupeAccounts: boolean;
   /** Only keep Scout threads in this language (default English). */
   preferredLanguage: PreferredLanguage;
+  /**
+   * Drop cool/curated threads whose flags or intent match these tokens.
+   * Empty = no tag excludes. Default includes supportive_encouragement.
+   */
+  excludedTags: string[];
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -31,6 +44,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   targetCoolThreads: DEFAULT_TARGET_COOL_THREADS,
   dedupeAccounts: true,
   preferredLanguage: DEFAULT_PREFERRED_LANGUAGE,
+  excludedTags: [...DEFAULT_EXCLUDED_TAGS],
 };
 
 export function clampMaxThreadChars(value: unknown): number {
@@ -57,6 +71,64 @@ export function normalizePreferredLanguage(value: unknown): PreferredLanguage {
     : DEFAULT_PREFERRED_LANGUAGE;
 }
 
+/** Normalize a flag/intent/exclude token to snake_case, or null if unusable. */
+export function normalizeTagToken(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const token = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+  if (!token || token.length > MAX_TAG_TOKEN_LEN) return null;
+  if (!/^[a-z0-9_]+$/.test(token)) return null;
+  return token;
+}
+
+/** Dedupe/normalize an exclude list. Non-arrays → default list. */
+export function normalizeExcludedTags(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [...DEFAULT_EXCLUDED_TAGS];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const token = normalizeTagToken(item);
+    if (!token || seen.has(token)) continue;
+    seen.add(token);
+    out.push(token);
+    if (out.length >= MAX_EXCLUDED_TAGS) break;
+  }
+  return out;
+}
+
+/** Parse Settings textarea (one token per line; blank lines ignored). */
+export function parseExcludedTagsText(text: string): string[] {
+  return normalizeExcludedTags(
+    text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean),
+  );
+}
+
+export function formatExcludedTagsText(tags: readonly string[]): string {
+  return tags.join("\n");
+}
+
+/** True when any flag or normalized intent is in the exclude set. */
+export function threadHasExcludedTag(
+  thread: { flags?: string[]; intent?: string },
+  excludedTags: readonly string[],
+): boolean {
+  if (!excludedTags.length) return false;
+  const excluded = new Set(excludedTags);
+  for (const flag of thread.flags ?? []) {
+    const token = normalizeTagToken(flag);
+    if (token && excluded.has(token)) return true;
+  }
+  const intent = normalizeTagToken(thread.intent);
+  return Boolean(intent && excluded.has(intent));
+}
+
 export function normalizeSettings(raw: unknown): AppSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
   const obj = raw as Record<string, unknown>;
@@ -72,6 +144,10 @@ export function normalizeSettings(raw: unknown): AppSettings {
         ? obj.dedupeAccounts
         : DEFAULT_SETTINGS.dedupeAccounts,
     preferredLanguage: normalizePreferredLanguage(obj.preferredLanguage),
+    excludedTags:
+      "excludedTags" in obj
+        ? normalizeExcludedTags(obj.excludedTags)
+        : [...DEFAULT_EXCLUDED_TAGS],
   };
 }
 

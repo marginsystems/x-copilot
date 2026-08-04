@@ -70,6 +70,13 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (typeof obj.preferredLanguage === "string" && obj.preferredLanguage.trim()) {
     filters.preferredLanguage = obj.preferredLanguage.trim().toLowerCase();
   }
+  if (Array.isArray(obj.excludedTags)) {
+    // Preserve explicit [] (no excludes); normalize tokens when present.
+    filters.excludedTags = obj.excludedTags
+      .filter((t): t is string => typeof t === "string")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
   return Object.keys(filters).length ? filters : undefined;
 }
 

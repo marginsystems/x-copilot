@@ -461,6 +461,30 @@ h3 {
   color: var(--muted);
 }
 
+.settings-field .settings-textarea {
+  width: 100%;
+  max-width: 28rem;
+  min-height: 5.5rem;
+  resize: vertical;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  padding: 10px 12px;
+  line-height: 1.35;
+}
+
+.settings-field .settings-textarea:focus-visible {
+  outline: 1px solid var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+
+.settings-help {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
+  opacity: 0.9;
+}
+
 .settings-field input[type="number"] {
   width: 100%;
   max-width: 200px;

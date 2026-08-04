@@ -11,7 +11,10 @@ import {
   type AppSettings,
   clampMaxThreadChars,
   clampTargetCoolThreads,
+  formatExcludedTagsText,
   normalizePreferredLanguage,
+  parseExcludedTagsText,
+  threadHasExcludedTag,
   PREFERRED_LANGUAGES,
   DEFAULT_SETTINGS,
 } from "./lib/settings";
@@ -719,6 +722,20 @@ export default function App() {
     );
   }
 
+  function keepInCurated(
+    thread: ThreadCard,
+    excludedTags: readonly string[] = settings.excludedTags,
+  ): boolean {
+    return (
+      !isHiddenFromCurated(thread.id) &&
+      !threadHasExcludedTag(thread, excludedTags)
+    );
+  }
+
+  const curatedThreads = threads.filter((t) =>
+    !threadHasExcludedTag(t, settings.excludedTags),
+  );
+
   async function hydrateSkipped() {
     try {
       const res = await fetch("/api/skipped");
@@ -850,7 +867,7 @@ export default function App() {
       if (typeof data.snapshot.agenda === "string" && data.snapshot.agenda.trim()) {
         setAgenda(data.snapshot.agenda);
       }
-      const filtered = list.filter((t) => !isHiddenFromCurated(t.id));
+      const filtered = list.filter((t) => keepInCurated(t));
       setThreads(filtered);
       setPlannedQueries(queries);
       setScoutStage(null);
@@ -1150,7 +1167,10 @@ export default function App() {
     const next = saveSettings(settingsDraft);
     setSettings(next);
     setSettingsDraft(next);
-    setSettingsStatus("Saved — next Start Scout will use these filters.");
+    setThreads((prev) =>
+      prev.filter((t) => !threadHasExcludedTag(t, next.excludedTags)),
+    );
+    setSettingsStatus("Saved — filters apply to Curated now and the next Scout.");
   }
 
   async function onSearch() {
@@ -1201,6 +1221,7 @@ export default function App() {
             dropArticles: settings.dropArticles,
             dedupeAccounts: settings.dedupeAccounts,
             preferredLanguage: settings.preferredLanguage,
+            excludedTags: settings.excludedTags,
           },
         }),
         signal: ac.signal,
@@ -1250,7 +1271,7 @@ export default function App() {
           setThreads((prev) =>
             appendThreadsById(
               prev,
-              (ev.threads ?? []).filter((t) => !isHiddenFromCurated(t.id)),
+              (ev.threads ?? []).filter((t) => keepInCurated(t)),
             ),
           );
         }
@@ -1292,7 +1313,7 @@ export default function App() {
         setThreads((prev) =>
           appendThreadsById(
             prev,
-            list.filter((t) => !isHiddenFromCurated(t.id)),
+            list.filter((t) => keepInCurated(t)),
           ),
         );
         setExpandedId(null);
@@ -1338,9 +1359,7 @@ export default function App() {
               setThreads((prev) =>
                 appendThreadsById(
                   prev,
-                  data.snapshot!.threads!.filter(
-                    (t) => !isHiddenFromCurated(t.id),
-                  ),
+                  data.snapshot!.threads!.filter((t) => keepInCurated(t)),
                 ),
               );
               if (Array.isArray(data.snapshot.queries)) {
@@ -1730,6 +1749,26 @@ export default function App() {
               }
             />
           </label>
+          <label className="settings-field">
+            <span>Excluded tags (one per line)</span>
+            <textarea
+              className="settings-textarea"
+              rows={4}
+              value={formatExcludedTagsText(settingsDraft.excludedTags)}
+              onChange={(e) =>
+                setSettingsDraft((prev) => ({
+                  ...prev,
+                  excludedTags: parseExcludedTagsText(e.target.value),
+                }))
+              }
+              placeholder="supportive_encouragement"
+            />
+            <span className="settings-help">
+              Still tagged by triage; dropped from Curated. Matches flags and
+              intent (spaces become underscores). Empty list disables tag
+              excludes.
+            </span>
+          </label>
           <p className="settings-readonly">Author cooldown: 24 hours</p>
           <div className="row">
             <button type="button" className="primary" onClick={onSaveSettings}>
@@ -1914,7 +1953,10 @@ export default function App() {
                   }
                   onClick={() => setThreadsTab("curated")}
                 >
-                  Curated{threads.length > 0 ? ` (${threads.length})` : ""}
+                  Curated
+                  {curatedThreads.length > 0
+                    ? ` (${curatedThreads.length})`
+                    : ""}
                 </button>
                 <button
                   type="button"
@@ -1984,7 +2026,7 @@ export default function App() {
             </div>
             <div className="threads-scroll">
               {threadsTab === "curated" ? (
-                threads.length === 0 ? (
+                curatedThreads.length === 0 ? (
                   <p className="empty">
                     {searching
                       ? "Scout is working…"
@@ -1992,7 +2034,7 @@ export default function App() {
                   </p>
                 ) : (
                   <div className="threads">
-                    {sortThreadsByCreatedAtNewest(threads).map((t) => (
+                    {sortThreadsByCreatedAtNewest(curatedThreads).map((t) => (
                       <ThreadRow
                         key={t.id}
                         thread={t}
