@@ -69,6 +69,13 @@ describe("normalizePreferredLanguage", () => {
 });
 
 describe("excludedTags settings", () => {
+  it("strips trailing underscores (so Settings must draft raw text)", () => {
+    // Controlled textarea must not re-normalize on every keystroke — otherwise
+    // typing `genuine_question` dies at the `_`.
+    assert.equal(normalizeTagToken("genuine_"), "genuine");
+    assert.equal(normalizeTagToken("genuine "), "genuine");
+  });
+
   it("normalizes tokens and textarea round-trip", () => {
     assert.equal(
       normalizeTagToken("Supportive Encouragement"),

@@ -552,6 +552,10 @@ export default function App() {
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
     loadSettings(),
   );
+  /** Raw excluded-tags textarea; normalize only on Save (spaces/_ mid-edit). */
+  const [excludedTagsDraft, setExcludedTagsDraft] = useState(() =>
+    formatExcludedTagsText(loadSettings().excludedTags),
+  );
   const [settingsStatus, setSettingsStatus] = useState("");
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -1199,15 +1203,20 @@ export default function App() {
 
   function openSettings() {
     setSettingsDraft(settings);
+    setExcludedTagsDraft(formatExcludedTagsText(settings.excludedTags));
     setSettingsStatus("");
     setView("settings");
     closeMenu();
   }
 
   function onSaveSettings() {
-    const next = saveSettings(settingsDraft);
+    const next = saveSettings({
+      ...settingsDraft,
+      excludedTags: parseExcludedTagsText(excludedTagsDraft),
+    });
     setSettings(next);
     setSettingsDraft(next);
+    setExcludedTagsDraft(formatExcludedTagsText(next.excludedTags));
     setThreads((prev) =>
       prev.filter((t) => !threadHasExcludedTag(t, next.excludedTags)),
     );
@@ -1796,19 +1805,17 @@ export default function App() {
             <textarea
               className="settings-textarea"
               rows={4}
-              value={formatExcludedTagsText(settingsDraft.excludedTags)}
-              onChange={(e) =>
-                setSettingsDraft((prev) => ({
-                  ...prev,
-                  excludedTags: parseExcludedTagsText(e.target.value),
-                }))
-              }
+              value={excludedTagsDraft}
+              onChange={(e) => setExcludedTagsDraft(e.target.value)}
               placeholder="supportive_encouragement"
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
             />
             <span className="settings-help">
               Still tagged by triage; dropped from Curated. Matches flags and
-              intent (spaces become underscores). Empty list disables tag
-              excludes.
+              intent (spaces become underscores on Save). Empty list disables
+              tag excludes.
             </span>
           </label>
           <p className="settings-readonly">Author cooldown: 24 hours</p>
