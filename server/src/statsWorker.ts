@@ -3,6 +3,7 @@
  */
 import { resolve } from "node:path";
 import { runExpirePass } from "./expirePass.js";
+import { recordT24hBonusGamification } from "./gamification.js";
 import {
   DEFAULT_STATS_TICK_CAP,
   MAX_INTERACTION_STORE,
@@ -187,6 +188,22 @@ export async function runStatsTick(opts?: {
       storePath: opts?.storePath,
     });
     sampled += 1;
+
+    // First t24h sample awards scaled engagement XP (idempotent per threadId).
+    if (patched && item.checkpoint === "t24h") {
+      try {
+        await recordT24hBonusGamification({
+          threadId: item.threadId,
+          snapshot: metrics,
+          nowMs: opts?.nowMs,
+        });
+      } catch (err) {
+        console.warn(
+          `[stats-worker] gamification t24h bonus soft-fail threadId=${item.threadId}:`,
+          err,
+        );
+      }
+    }
 
     if (patched && syncOutcome) {
       if (

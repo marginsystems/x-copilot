@@ -9,6 +9,10 @@ import {
   parseActivityBucket,
 } from "./activityStats.js";
 import {
+  getGamification,
+  recordMarkGamification,
+} from "./gamification.js";
+import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
   listActiveInteractions,
@@ -547,6 +551,18 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, bucketInteractions(history, { bucket }));
     }
 
+    if (req.method === "GET" && url.pathname === "/api/gamification") {
+      try {
+        return send(res, 200, await getGamification());
+      } catch (err) {
+        console.error("gamification read failed:", err);
+        return send(res, 500, {
+          error: "store_failed",
+          message: "Failed to load gamification",
+        });
+      }
+    }
+
     if (req.method === "GET" && url.pathname === "/api/interacted") {
       const [interactions, active] = await Promise.all([
         listInteractionHistory(),
@@ -799,6 +815,14 @@ const server = http.createServer(async (req, res) => {
           replyId,
           replyUrl,
         });
+        let gamification;
+        try {
+          gamification = await recordMarkGamification({
+            nowMs: Date.parse(interaction.at) || Date.now(),
+          });
+        } catch (err) {
+          console.warn("gamification mark soft-fail:", err);
+        }
         let memoryPath: string | undefined;
         if (reply) {
           const memory = await writeInteractionMemory({
@@ -827,6 +851,7 @@ const server = http.createServer(async (req, res) => {
           ok: true,
           interaction,
           memoryPath,
+          ...(gamification ? { gamification } : {}),
         });
       } catch (err) {
         console.error("Failed to store interaction:", err);
