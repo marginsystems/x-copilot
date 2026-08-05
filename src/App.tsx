@@ -1165,8 +1165,8 @@ export default function App() {
         replyId,
         replyUrl: urlTrimmed,
         postedAt: new Date().toISOString(),
-        conversationId: conversationRoot,
-        inReplyToId: thread.inReplyToId,
+        conversationId: thread.conversationId?.trim(),
+        inReplyToId: thread.inReplyToId?.trim(),
       };
       setInteractedHistory((prev) => [
         historyEntry,
