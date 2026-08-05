@@ -12,7 +12,6 @@ import {
   type ReplyStatSnapshot,
 } from "./interactionStore.js";
 
-export const MAX_BONUS_THREAD_IDS = 2000;
 export const MARK_XP = 1;
 export const MAX_T24H_BONUS_XP = 5;
 
@@ -131,11 +130,6 @@ export function bonusXpFromT24h(
   return Math.min(MAX_T24H_BONUS_XP, Math.floor(views / 100) + likes);
 }
 
-function trimBonusIds(ids: string[]): string[] {
-  if (ids.length <= MAX_BONUS_THREAD_IDS) return ids;
-  return ids.slice(ids.length - MAX_BONUS_THREAD_IDS);
-}
-
 /**
  * Apply a successful Mark interacted to the ledger.
  * Same UTC day: streak unchanged, still +1 XP.
@@ -188,10 +182,7 @@ export function applyT24hBonus(
     return { state, bonusXp: 0 };
   }
   const bonusXp = bonusXpFromT24h(snapshot);
-  const bonusAwardedThreadIds = trimBonusIds([
-    ...state.bonusAwardedThreadIds,
-    id,
-  ]);
+  const bonusAwardedThreadIds = [...state.bonusAwardedThreadIds, id];
   return {
     state: {
       ...state,
@@ -262,7 +253,7 @@ function parseGamificationState(raw: string): GamificationState | null {
       longestStreak: Math.max(longestStreak, currentStreak),
       lastMarkUtcDay,
       lifetimeXp,
-      bonusAwardedThreadIds: trimBonusIds(bonusAwardedThreadIds),
+      bonusAwardedThreadIds,
       updatedAt,
     };
   } catch {
@@ -389,13 +380,23 @@ export async function recordT24hBonusGamification(opts: {
   });
 }
 
-/** Read public gamification snapshot (seeds ledger if missing). */
+/**
+ * Read public gamification snapshot. Read-only: never persists a seeded
+ * ledger, so a concurrent GET cannot race a first mark's ledger creation and
+ * cause that mark to be double-counted.
+ */
 export async function getGamification(
   opts?: GamificationPaths,
 ): Promise<GamificationPublic> {
   const path = opts?.gamificationPath ?? defaultGamificationPath();
+  const nowMs = opts?.nowMs ?? Date.now();
   return withFileLock(path, async () => {
-    const { state } = await loadOrSeedState(opts ?? {});
-    return toPublicGamification(state);
+    const existing = await readGamificationFile(path);
+    if (existing) return toPublicGamification(existing);
+    const history = await listInteractionHistory({
+      limit: MAX_INTERACTION_STORE,
+      storePath: opts?.interactionStorePath,
+    });
+    return toPublicGamification(seedGamificationFromHistory(history, nowMs));
   });
 }
