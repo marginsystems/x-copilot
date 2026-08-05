@@ -61,7 +61,13 @@ export function parseStatusIdFromUrl(url: string): string | null {
 export const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 export const STATS_T1H_MS = 60 * 60 * 1000;
 export const STATS_T24H_MS = 24 * 60 * 60 * 1000;
+/** Interacted feed / default list cap (newest first). */
 export const MAX_INTERACTION_HISTORY = 200;
+/**
+ * Durable retain for activity windows (28d / 12w). Larger than the feed cap so
+ * `GET /api/interacted/stats` can bucket the full window before any count trim.
+ */
+export const MAX_INTERACTION_STORE = 2000;
 export const DEFAULT_STATS_TICK_CAP = 15;
 const MAX_FILTERED_AUTHORS = 12;
 const MAX_TEXT_CHARS = 280;
@@ -313,7 +319,9 @@ export async function markInteracted(opts: {
     if (prior?.memorySyncFailed) next.memorySyncFailed = true;
     const without = store.interactions.filter((i) => i.threadId !== threadId);
     without.push(next);
-    const interactions = trimInteractionHistory(without);
+    // Retain enough history for the activity dashboard window; feed UI still
+    // lists at MAX_INTERACTION_HISTORY via listInteractionHistory().
+    const interactions = trimInteractionHistory(without, MAX_INTERACTION_STORE);
     await writeStore(path, { interactions });
     return next;
   });

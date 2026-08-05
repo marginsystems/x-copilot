@@ -5,11 +5,16 @@ import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import {
+  bucketInteractions,
+  parseActivityBucket,
+} from "./activityStats.js";
+import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
   listActiveInteractions,
   listInteractionHistory,
   markInteracted,
+  MAX_INTERACTION_STORE,
   parseStatusIdFromUrl,
   normalizeAuthorKey,
 } from "./interactionStore.js";
@@ -530,6 +535,16 @@ const server = http.createServer(async (req, res) => {
           message: err instanceof Error ? err.message : String(err),
         });
       }
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/interacted/stats") {
+      const bucket = parseActivityBucket(url.searchParams.get("bucket"));
+      // Read the durable retain (not the 200-row feed cap) so 28d/12w bucketing
+      // sees in-window marks before any secondary trim.
+      const history = await listInteractionHistory({
+        limit: MAX_INTERACTION_STORE,
+      });
+      return send(res, 200, bucketInteractions(history, { bucket }));
     }
 
     if (req.method === "GET" && url.pathname === "/api/interacted") {
