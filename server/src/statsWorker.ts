@@ -3,13 +3,18 @@
  */
 import { resolve } from "node:path";
 import { runExpirePass } from "./expirePass.js";
-import { recordT24hBonusGamification } from "./gamification.js";
+import {
+  recordMarkGamification,
+  recordT24hBonusGamification,
+} from "./gamification.js";
 import {
   DEFAULT_STATS_TICK_CAP,
   MAX_INTERACTION_STORE,
   listDueStatSamples,
+  listGamificationSyncRetries,
   listMemorySyncRetries,
   patchInteractionStats,
+  setGamificationSyncFailed,
   setMemorySyncFailed,
   type DueStatSample,
   type Interaction,
@@ -93,6 +98,7 @@ export async function runStatsTick(opts?: {
   limit?: number;
   delayMs?: number;
   storePath?: string;
+  gamificationPath?: string;
   fetchMetrics?: typeof fetchTweetMetrics;
   /** Injectable outcome sync (tests). Default: Markdown + MiniLM upsert. */
   syncOutcome?: SyncOutcomeFn | null;
@@ -165,6 +171,61 @@ export async function runStatsTick(opts?: {
     }
   }
 
+  // Retry soft-failed gamification projections (mark XP/streak or t24h bonus)
+  // so the durable ledger converges with interactions.json. The t24h bonus is
+  // idempotent per threadId; a mark is only flagged when its ledger write
+  // failed, so re-applying it here credits each mark exactly once.
+  const gamificationRetries = await listGamificationSyncRetries({
+    storePath: opts?.storePath,
+    limit: tickCap,
+  });
+  for (const interaction of gamificationRetries) {
+    if (interaction.markGamificationSyncFailed) {
+      try {
+        const markMs = Date.parse(interaction.at);
+        await recordMarkGamification({
+          interactionStorePath: opts?.storePath,
+          gamificationPath: opts?.gamificationPath,
+          nowMs: Number.isFinite(markMs) ? markMs : opts?.nowMs,
+        });
+        await setGamificationSyncFailed({
+          threadId: interaction.threadId,
+          checkpoint: "mark",
+          failed: false,
+          storePath: opts?.storePath,
+        });
+      } catch (err) {
+        console.warn(
+          `[stats-worker] gamification mark retry soft-fail threadId=${interaction.threadId}:`,
+          err,
+        );
+      }
+    }
+    const t24h = interaction.stats?.t24h;
+    if (interaction.bonusGamificationSyncFailed && t24h) {
+      try {
+        await recordT24hBonusGamification({
+          threadId: interaction.threadId,
+          snapshot: t24h,
+          interactionStorePath: opts?.storePath,
+          gamificationPath: opts?.gamificationPath,
+          nowMs: opts?.nowMs,
+        });
+        await setGamificationSyncFailed({
+          threadId: interaction.threadId,
+          checkpoint: "t24h",
+          failed: false,
+          storePath: opts?.storePath,
+        });
+      } catch (err) {
+        console.warn(
+          `[stats-worker] gamification t24h bonus retry soft-fail threadId=${interaction.threadId}:`,
+          err,
+        );
+      }
+    }
+  }
+
   for (let i = 0; i < due.length; i++) {
     const item: DueStatSample = due[i];
     const tweetId = item.replyId;
@@ -196,12 +257,25 @@ export async function runStatsTick(opts?: {
           threadId: item.threadId,
           snapshot: metrics,
           nowMs: opts?.nowMs,
+          gamificationPath: opts?.gamificationPath,
+        });
+        await setGamificationSyncFailed({
+          threadId: item.threadId,
+          checkpoint: "t24h",
+          failed: false,
+          storePath: opts?.storePath,
         });
       } catch (err) {
         console.warn(
           `[stats-worker] gamification t24h bonus soft-fail threadId=${item.threadId}:`,
           err,
         );
+        await setGamificationSyncFailed({
+          threadId: item.threadId,
+          checkpoint: "t24h",
+          failed: true,
+          storePath: opts?.storePath,
+        }).catch(() => {});
       }
     }
 

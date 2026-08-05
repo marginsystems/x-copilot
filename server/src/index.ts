@@ -21,6 +21,7 @@ import {
   MAX_INTERACTION_STORE,
   parseStatusIdFromUrl,
   normalizeAuthorKey,
+  setGamificationSyncFailed,
 } from "./interactionStore.js";
 import {
   getDismissedThreadIds,
@@ -820,8 +821,18 @@ const server = http.createServer(async (req, res) => {
           gamification = await recordMarkGamification({
             nowMs: Date.parse(interaction.at) || Date.now(),
           });
+          await setGamificationSyncFailed({
+            threadId,
+            checkpoint: "mark",
+            failed: false,
+          }).catch(() => {});
         } catch (err) {
           console.warn("gamification mark soft-fail:", err);
+          await setGamificationSyncFailed({
+            threadId,
+            checkpoint: "mark",
+            failed: true,
+          }).catch(() => {});
         }
         let memoryPath: string | undefined;
         if (reply) {
