@@ -16,6 +16,7 @@ import {
   seedGamificationFromHistory,
   utcDayKey,
   xpProgress,
+  type GamificationState,
 } from "./gamification.ts";
 import { markInteracted } from "./interactionStore.ts";
 import type { Interaction } from "./interactionStore.ts";
@@ -90,6 +91,34 @@ describe("applyMarkToGamification", () => {
     assert.equal(state.currentStreak, 1);
     assert.equal(state.longestStreak, 1);
     assert.equal(state.lifetimeXp, 2);
+  });
+
+  it("credits XP only for a backdated mark without regressing the cursor", () => {
+    const d1 = Date.parse("2026-08-05T12:00:00.000Z");
+    const d3 = Date.parse("2026-08-07T12:00:00.000Z");
+    // Ledger already advanced to D2 via thread "b"; thread "a"'s D1 mark
+    // soft-failed so it is absent from markAwardedThreadIds.
+    let state: GamificationState = {
+      ...emptyGamificationState(d1),
+      currentStreak: 1,
+      longestStreak: 1,
+      lastMarkUtcDay: "2026-08-06",
+      lifetimeXp: 1,
+      markAwardedThreadIds: ["b"],
+    };
+
+    // Replay the soft-failed D1 mark after the ledger already moved to D2.
+    state = applyMarkToGamification(state, d1, "a").state;
+    assert.equal(state.currentStreak, 1);
+    assert.equal(state.lastMarkUtcDay, "2026-08-06");
+    assert.equal(state.lifetimeXp, 2);
+    assert.deepEqual(state.markAwardedThreadIds, ["b", "a"]);
+
+    // A D3 mark must still be consecutive with the D2 cursor.
+    state = applyMarkToGamification(state, d3, "c").state;
+    assert.equal(state.currentStreak, 2);
+    assert.equal(state.lastMarkUtcDay, "2026-08-07");
+    assert.equal(state.lifetimeXp, 3);
   });
 });
 

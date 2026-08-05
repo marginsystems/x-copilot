@@ -152,8 +152,26 @@ export function applyMarkToGamification(
     };
   }
   const day = utcDayKey(nowMs);
-  let currentStreak = state.currentStreak;
   const last = state.lastMarkUtcDay;
+
+  // A backdated mark (e.g. a soft-failed mark retried after a newer mark
+  // already advanced the ledger) must not reset the streak or move the
+  // lastMarkUtcDay cursor backward — credit XP only.
+  if (last && day < last) {
+    return {
+      state: {
+        ...state,
+        lifetimeXp: state.lifetimeXp + MARK_XP,
+        markAwardedThreadIds: id
+          ? [...state.markAwardedThreadIds, id]
+          : state.markAwardedThreadIds,
+        updatedAt: new Date(nowMs).toISOString(),
+      },
+      awarded: { markXp: MARK_XP, currentStreak: state.currentStreak },
+    };
+  }
+
+  let currentStreak = state.currentStreak;
 
   if (!last) {
     currentStreak = 1;

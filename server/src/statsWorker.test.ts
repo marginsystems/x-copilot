@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -15,7 +15,7 @@ import {
   setGamificationSyncFailed,
   type Interaction,
 } from "./interactionStore.ts";
-import { getGamification } from "./gamification.ts";
+import { getGamification, recordMarkGamification } from "./gamification.ts";
 import { runStatsTick, shouldRunStatsMain } from "./statsWorker.ts";
 import type { SyncInteractionOutcomeResult } from "./memoryOutcome.ts";
 
@@ -498,5 +498,78 @@ describe("runStatsTick", () => {
     // Two marks, each credited exactly once.
     assert.equal(snap.lifetimeXp, 2);
     assert.equal(snap.currentStreak, 1);
+  });
+
+  it("replaying an older flagged mark after a newer mark does not regress the streak", async () => {
+    const d1 = Date.parse("2026-08-05T12:00:00.000Z");
+    const d2 = Date.parse("2026-08-06T12:00:00.000Z");
+    const d3 = Date.parse("2026-08-07T12:00:00.000Z");
+    const gamificationPath = join(dir, "gamification.json");
+    await markInteracted({
+      threadId: "a",
+      author: "@a",
+      nowMs: d1,
+      storePath,
+    });
+    await setGamificationSyncFailed({
+      threadId: "a",
+      checkpoint: "mark",
+      failed: true,
+      storePath,
+    });
+    // A newer mark already advanced the ledger past the failed D1 mark.
+    await markInteracted({
+      threadId: "b",
+      author: "@b",
+      nowMs: d2,
+      storePath,
+    });
+    await writeFile(
+      gamificationPath,
+      JSON.stringify({
+        currentStreak: 1,
+        longestStreak: 1,
+        lastMarkUtcDay: "2026-08-06",
+        lifetimeXp: 1,
+        bonusAwardedThreadIds: [],
+        markAwardedThreadIds: ["b"],
+        updatedAt: new Date(d2).toISOString(),
+      }),
+    );
+
+    // Tick replays the flagged D1 mark with its original day.
+    const result = await runStatsTick({
+      nowMs: d2,
+      storePath,
+      gamificationPath,
+      delayMs: 0,
+      syncOutcome: null,
+    });
+    assert.equal(result.sampled, 0);
+    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+
+    const snap = await getGamification({
+      gamificationPath,
+      interactionStorePath: storePath,
+    });
+    // D1 mark credits XP only; the D2 cursor is untouched.
+    assert.equal(snap.lifetimeXp, 2);
+    assert.equal(snap.currentStreak, 1);
+    assert.equal(snap.lastMarkUtcDay, "2026-08-06");
+
+    // A D3 mark is still consecutive with the D2 cursor.
+    await recordMarkGamification({
+      threadId: "c",
+      gamificationPath,
+      interactionStorePath: storePath,
+      nowMs: d3,
+    });
+    const after = await getGamification({
+      gamificationPath,
+      interactionStorePath: storePath,
+    });
+    assert.equal(after.lifetimeXp, 3);
+    assert.equal(after.currentStreak, 2);
+    assert.equal(after.lastMarkUtcDay, "2026-08-07");
   });
 });
