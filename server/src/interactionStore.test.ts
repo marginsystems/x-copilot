@@ -10,6 +10,7 @@ import {
   isWithinCooldown,
   getAuthorKeysForScoutFilter,
   getEverInteractedAuthorKeys,
+  listGamificationSyncRetries,
   listInteractionHistory,
   listMemorySyncRetries,
   MAX_INTERACTION_HISTORY,
@@ -18,6 +19,7 @@ import {
   normalizeAuthorKey,
   parseStatusIdFromUrl,
   pruneExpired,
+  setGamificationSyncFailed,
   setMemorySyncFailed,
   type Interaction,
 } from "./interactionStore.ts";
@@ -319,6 +321,70 @@ describe("memory sync retry flag", () => {
 
     await setMemorySyncFailed({ threadId: "parent", failed: false, storePath });
     assert.equal((await listMemorySyncRetries({ storePath })).length, 0);
+  });
+});
+
+describe("gamification sync retry flag", () => {
+  let dir: string;
+  let storePath: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "x-copilot-gamification-retry-"));
+    storePath = join(dir, "interactions.json");
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("persists mark/t24h flags and clears them on success", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      replyId: "reply1",
+      replyUrl: "https://x.com/me/status/reply1",
+      nowMs: now,
+      storePath,
+    });
+
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      checkpoint: "mark",
+      failed: true,
+      storePath,
+    });
+    let flagged = await listGamificationSyncRetries({ storePath });
+    assert.equal(flagged.length, 1);
+    assert.equal(flagged[0]?.markGamificationSyncFailed, true);
+
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      checkpoint: "t24h",
+      failed: true,
+      storePath,
+    });
+    flagged = await listGamificationSyncRetries({ storePath });
+    assert.equal(flagged.length, 1);
+    assert.equal(flagged[0]?.bonusGamificationSyncFailed, true);
+
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      checkpoint: "mark",
+      failed: false,
+      storePath,
+    });
+    flagged = await listGamificationSyncRetries({ storePath });
+    assert.equal(flagged[0]?.markGamificationSyncFailed, undefined);
+    assert.equal(flagged[0]?.bonusGamificationSyncFailed, true);
+
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      checkpoint: "t24h",
+      failed: false,
+      storePath,
+    });
+    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
   });
 });
 

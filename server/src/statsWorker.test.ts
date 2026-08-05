@@ -1,17 +1,21 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   STATS_T1H_MS,
   STATS_T24H_MS,
+  listGamificationSyncRetries,
   listInteractionHistory,
   listMemorySyncRetries,
   markInteracted,
+  patchInteractionStats,
   selectDueStatSamples,
+  setGamificationSyncFailed,
   type Interaction,
 } from "./interactionStore.ts";
+import { getGamification, recordMarkGamification } from "./gamification.ts";
 import { runStatsTick, shouldRunStatsMain } from "./statsWorker.ts";
 import type { SyncInteractionOutcomeResult } from "./memoryOutcome.ts";
 
@@ -367,5 +371,205 @@ describe("runStatsTick", () => {
     assert.equal(second.memorySynced, 1);
     assert.equal(second.memorySyncFailed, 0);
     assert.equal((await listMemorySyncRetries({ storePath })).length, 0);
+  });
+
+  it("retries a soft-failed t24h gamification bonus on the next tick", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    const gamificationPath = join(dir, "gamification.json");
+    await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      replyId: "reply1",
+      replyUrl: "https://x.com/me/status/reply1",
+      nowMs: now - 1000,
+      storePath,
+    });
+    await patchInteractionStats({
+      threadId: "parent",
+      checkpoint: "t24h",
+      snapshot: { views: 500, likes: 2, sampledAt: new Date(now).toISOString() },
+      storePath,
+    });
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      checkpoint: "t24h",
+      failed: true,
+      storePath,
+    });
+
+    const result = await runStatsTick({
+      nowMs: now,
+      storePath,
+      gamificationPath,
+      delayMs: 0,
+      syncOutcome: null,
+    });
+    assert.equal(result.sampled, 0);
+    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+
+    const snap = await getGamification({
+      gamificationPath,
+      interactionStorePath: storePath,
+    });
+    // Seed replays the mark (1 XP) + bonus floor(500/100)+2 = 7 capped at 5.
+    assert.equal(snap.lifetimeXp, 6);
+    assert.equal(snap.currentStreak, 1);
+  });
+
+  it("retries a soft-failed mark gamification on the next tick", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    const gamificationPath = join(dir, "gamification.json");
+    await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      nowMs: now,
+      storePath,
+    });
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      checkpoint: "mark",
+      failed: true,
+      storePath,
+    });
+
+    const result = await runStatsTick({
+      nowMs: now,
+      storePath,
+      gamificationPath,
+      delayMs: 0,
+      syncOutcome: null,
+    });
+    assert.equal(result.sampled, 0);
+    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+
+    const snap = await getGamification({
+      gamificationPath,
+      interactionStorePath: storePath,
+    });
+    // Mark XP credited exactly once at the original mark time.
+    assert.equal(snap.lifetimeXp, 1);
+    assert.equal(snap.currentStreak, 1);
+  });
+
+  it("does not double-credit a mark when two flagged marks share a first ledger write", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    const gamificationPath = join(dir, "gamification.json");
+    await markInteracted({
+      threadId: "a",
+      author: "@a",
+      nowMs: now,
+      storePath,
+    });
+    await markInteracted({
+      threadId: "b",
+      author: "@b",
+      nowMs: now,
+      storePath,
+    });
+    await setGamificationSyncFailed({
+      threadId: "a",
+      checkpoint: "mark",
+      failed: true,
+      storePath,
+    });
+    await setGamificationSyncFailed({
+      threadId: "b",
+      checkpoint: "mark",
+      failed: true,
+      storePath,
+    });
+
+    // First retry seeds both marks into a fresh ledger; the second flagged
+    // mark must not be re-applied on top of the seed.
+    const result = await runStatsTick({
+      nowMs: now,
+      storePath,
+      gamificationPath,
+      delayMs: 0,
+      syncOutcome: null,
+    });
+    assert.equal(result.sampled, 0);
+    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+
+    const snap = await getGamification({
+      gamificationPath,
+      interactionStorePath: storePath,
+    });
+    // Two marks, each credited exactly once.
+    assert.equal(snap.lifetimeXp, 2);
+    assert.equal(snap.currentStreak, 1);
+  });
+
+  it("replaying an older flagged mark after a newer mark does not regress the streak", async () => {
+    const d1 = Date.parse("2026-08-05T12:00:00.000Z");
+    const d2 = Date.parse("2026-08-06T12:00:00.000Z");
+    const d3 = Date.parse("2026-08-07T12:00:00.000Z");
+    const gamificationPath = join(dir, "gamification.json");
+    await markInteracted({
+      threadId: "a",
+      author: "@a",
+      nowMs: d1,
+      storePath,
+    });
+    await setGamificationSyncFailed({
+      threadId: "a",
+      checkpoint: "mark",
+      failed: true,
+      storePath,
+    });
+    // A newer mark already advanced the ledger past the failed D1 mark.
+    await markInteracted({
+      threadId: "b",
+      author: "@b",
+      nowMs: d2,
+      storePath,
+    });
+    await writeFile(
+      gamificationPath,
+      JSON.stringify({
+        currentStreak: 1,
+        longestStreak: 1,
+        lastMarkUtcDay: "2026-08-06",
+        lifetimeXp: 1,
+        bonusAwardedThreadIds: [],
+        markAwardedThreadIds: ["b"],
+        updatedAt: new Date(d2).toISOString(),
+      }),
+    );
+
+    // Tick replays the flagged D1 mark with its original day.
+    const result = await runStatsTick({
+      nowMs: d2,
+      storePath,
+      gamificationPath,
+      delayMs: 0,
+      syncOutcome: null,
+    });
+    assert.equal(result.sampled, 0);
+    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+
+    const snap = await getGamification({
+      gamificationPath,
+      interactionStorePath: storePath,
+    });
+    // D1 mark credits XP only; the D2 cursor is untouched.
+    assert.equal(snap.lifetimeXp, 2);
+    assert.equal(snap.currentStreak, 1);
+    assert.equal(snap.lastMarkUtcDay, "2026-08-06");
+
+    // A D3 mark is still consecutive with the D2 cursor.
+    await recordMarkGamification({
+      threadId: "c",
+      gamificationPath,
+      interactionStorePath: storePath,
+      nowMs: d3,
+    });
+    const after = await getGamification({
+      gamificationPath,
+      interactionStorePath: storePath,
+    });
+    assert.equal(after.lifetimeXp, 3);
+    assert.equal(after.currentStreak, 2);
+    assert.equal(after.lastMarkUtcDay, "2026-08-07");
   });
 });
