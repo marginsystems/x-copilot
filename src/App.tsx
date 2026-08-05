@@ -20,6 +20,13 @@ import {
 } from "./lib/settings";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
+import {
+  emptyActivityStats,
+  fetchActivityStats,
+  type ActivityBucket,
+  type ActivityStats,
+} from "./lib/activityStats";
+import { ActivityChart } from "./ActivityChart";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -520,6 +527,11 @@ export default function App() {
     [],
   );
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
+  const [activityBucket, setActivityBucket] = useState<ActivityBucket>("day");
+  const [activityStats, setActivityStats] = useState<ActivityStats>(() =>
+    emptyActivityStats("day"),
+  );
+  const activityBucketRef = useRef<ActivityBucket>("day");
   const [view, setView] = useState<AppView>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
@@ -714,6 +726,20 @@ export default function App() {
     }
   }
 
+  async function hydrateActivityStats(bucket: ActivityBucket = activityBucketRef.current) {
+    const next = await fetchActivityStats(bucket);
+    if (!next) return;
+    // Ignore stale responses if the user toggled bucket mid-flight.
+    if (bucket !== activityBucketRef.current) return;
+    setActivityBucket(bucket);
+    setActivityStats(next);
+  }
+
+  function onActivityBucket(next: ActivityBucket) {
+    activityBucketRef.current = next;
+    void hydrateActivityStats(next);
+  }
+
   function isHiddenFromCurated(id: string): boolean {
     return (
       dismissedIdsRef.current.has(id) ||
@@ -899,6 +925,7 @@ export default function App() {
       await hydrateDismissed();
       await hydrateSkipped();
       await hydrateInteracted();
+      await hydrateActivityStats();
       await hydrateExpired();
       await hydrateLastScout();
       await hydrateScoutLog();
@@ -1116,6 +1143,7 @@ export default function App() {
       // Drop this author from Curated so we stop engaging the same account.
       setThreads((prev) => prev.filter((t) => normalizeAuthorKey(t.author) !== key));
       setExpandedId((id) => (id === thread.id ? null : id));
+      void hydrateActivityStats();
       return true;
     } catch {
       setStatus("Sidecar offline — could not mark interacted");
@@ -2035,6 +2063,71 @@ export default function App() {
                     ? ` (${expiredHistory.length})`
                     : ""}
                 </button>
+              </div>
+            </div>
+            <div className="threads-activity" aria-label="Activity dashboard">
+              <div className="threads-activity-head">
+                <div className="threads-activity-copy">
+                  <span className="threads-activity-title">Activity</span>
+                  <span className="threads-activity-sub">
+                    From marked replies (1h/24h samples)
+                  </span>
+                </div>
+                <div
+                  className="threads-activity-toggle"
+                  role="group"
+                  aria-label="Activity bucket"
+                >
+                  <button
+                    type="button"
+                    className={
+                      activityBucket === "day"
+                        ? "threads-tab active"
+                        : "threads-tab"
+                    }
+                    aria-pressed={activityBucket === "day"}
+                    onClick={() => onActivityBucket("day")}
+                  >
+                    Day
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      activityBucket === "week"
+                        ? "threads-tab active"
+                        : "threads-tab"
+                    }
+                    aria-pressed={activityBucket === "week"}
+                    onClick={() => onActivityBucket("week")}
+                  >
+                    Week
+                  </button>
+                </div>
+              </div>
+              <div className="threads-activity-meta">
+                <span className="chip">
+                  {activityStats.totals.interactions} marked
+                </span>
+                <span className="chip">
+                  {activityStats.totals.views} views
+                </span>
+                {activityStats.totals.withStats > 0 ? (
+                  <span className="chip chip-muted">
+                    {activityStats.totals.withStats} sampled
+                  </span>
+                ) : null}
+              </div>
+              <div className="threads-activity-chart">
+                {activityStats.totals.interactions === 0 ? (
+                  <p className="threads-activity-empty">
+                    Mark interacted replies to track activity here.
+                  </p>
+                ) : (
+                  <ActivityChart
+                    series={activityStats.series}
+                    bucket={activityStats.bucket}
+                  />
+                )}
               </div>
             </div>
             <div className="threads-scroll">
