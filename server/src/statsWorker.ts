@@ -257,6 +257,7 @@ export async function runStatsTick(opts?: {
         await recordT24hBonusGamification({
           threadId: item.threadId,
           snapshot: metrics,
+          interactionStorePath: opts?.storePath,
           nowMs: opts?.nowMs,
           gamificationPath: opts?.gamificationPath,
         });
