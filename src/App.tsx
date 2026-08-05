@@ -26,6 +26,11 @@ import {
   type ActivityBucket,
   type ActivityStats,
 } from "./lib/activityStats";
+import {
+  emptyGamificationStats,
+  fetchGamification,
+  type GamificationStats,
+} from "./lib/gamification";
 import { ActivityChart } from "./ActivityChart";
 import { stripMediaShortlinksFromText } from "./lib/mediaText";
 
@@ -538,6 +543,9 @@ export default function App() {
   const [activityStats, setActivityStats] = useState<ActivityStats>(() =>
     emptyActivityStats("day"),
   );
+  const [gamification, setGamification] = useState<GamificationStats>(() =>
+    emptyGamificationStats(),
+  );
   const activityBucketRef = useRef<ActivityBucket>("day");
   /** In-flight toggle target; may diverge from applied `activityBucketRef`. */
   const activityRequestBucketRef = useRef<ActivityBucket>("day");
@@ -753,6 +761,12 @@ export default function App() {
     setActivityStats(next);
   }
 
+  async function hydrateGamification() {
+    const next = await fetchGamification();
+    if (!next) return;
+    setGamification(next);
+  }
+
   function onActivityBucket(next: ActivityBucket) {
     activityRequestBucketRef.current = next;
     void hydrateActivityStats(next);
@@ -944,6 +958,7 @@ export default function App() {
       await hydrateSkipped();
       await hydrateInteracted();
       await hydrateActivityStats();
+      await hydrateGamification();
       await hydrateExpired();
       await hydrateLastScout();
       await hydrateScoutLog();
@@ -1162,6 +1177,7 @@ export default function App() {
       setThreads((prev) => prev.filter((t) => normalizeAuthorKey(t.author) !== key));
       setExpandedId((id) => (id === thread.id ? null : id));
       void hydrateActivityStats();
+      void hydrateGamification();
       return true;
     } catch {
       setStatus("Sidecar offline — could not mark interacted");
@@ -2138,6 +2154,36 @@ export default function App() {
                     {activityStats.totals.withStats} sampled
                   </span>
                 ) : null}
+                <span
+                  className="chip"
+                  title="UTC daily streak — mark ≥1 interacted each UTC day"
+                >
+                  Streak {gamification.currentStreak}
+                  {gamification.longestStreak > gamification.currentStreak
+                    ? ` · best ${gamification.longestStreak}`
+                    : ""}
+                </span>
+                <span
+                  className="chip threads-activity-level"
+                  title="XP from marks (+1) and 24h engagement bonuses"
+                >
+                  Lv {gamification.level} · {gamification.lifetimeXp} XP
+                  <span
+                    className="threads-activity-xp-bar"
+                    aria-hidden="true"
+                  >
+                    <span
+                      className="threads-activity-xp-fill"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          (gamification.xpIntoLevel / gamification.xpToNext) *
+                            100,
+                        )}%`,
+                      }}
+                    />
+                  </span>
+                </span>
               </div>
               <div className="threads-activity-chart">
                 {activityStats.totals.interactions === 0 ? (
