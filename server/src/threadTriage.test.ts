@@ -62,6 +62,31 @@ describe("buildTriageCompact", () => {
       opText: "just crossed $632 revenue 100% profit",
     });
   });
+
+  it("strips media shortlinks and annotates hasNativeMedia", () => {
+    const compact = buildTriageCompact([
+      {
+        id: "2",
+        author: "@TheAionikAge",
+        text: "KYA frameworks question https://t.co/f2WC3JoDhC",
+        url: "https://x.com/TheAionikAge/status/2",
+        mediaShortlinks: ["t.co/f2wc3jodhc"],
+      },
+    ]);
+    assert.deepEqual(compact[0], {
+      id: "2",
+      author: "@TheAionikAge",
+      text: "KYA frameworks question",
+      hasNativeMedia: true,
+    });
+  });
+});
+
+describe("TRIAGE_SYSTEM_PROMPT media annotation", () => {
+  it("tells the model not to treat hasNativeMedia as an outbound link", () => {
+    assert.match(TRIAGE_SYSTEM_PROMPT, /hasNativeMedia/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /Do NOT treat that as an outbound link/);
+  });
 });
 
 describe("isCompleteTriageItem", () => {

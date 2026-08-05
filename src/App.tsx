@@ -27,6 +27,7 @@ import {
   type ActivityStats,
 } from "./lib/activityStats";
 import { ActivityChart } from "./ActivityChart";
+import { stripMediaShortlinksFromText } from "./lib/mediaText";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -42,6 +43,8 @@ type ThreadCard = {
   opAuthor?: string;
   opText?: string;
   isReply?: boolean;
+  /** Native media t.co keys (lowercased); hide from card text display. */
+  mediaShortlinks?: string[];
   /** 0–100, higher = more engagement bait. */
   baitScore?: number;
   flags?: string[];
@@ -253,6 +256,10 @@ function ThreadRow({
   const bait = baitRisk(thread);
   const ago = formatTimeAgo(thread.createdAt);
   const absolute = formatAbsoluteTime(thread.createdAt);
+  const displayText = stripMediaShortlinksFromText(
+    thread.text,
+    thread.mediaShortlinks,
+  );
   const tags = [...new Set([thread.intent, ...(thread.flags ?? [])].filter(Boolean))];
   const classes = ["thread-row"];
   if (open) classes.push("open");
@@ -277,7 +284,7 @@ function ThreadRow({
           <span className="bait" aria-hidden="true" />
         )}
         <span className="row-main">
-          <span className="row-summary">{thread.summary ?? thread.text}</span>
+          <span className="row-summary">{thread.summary ?? displayText}</span>
           <span className="row-meta">
             <span>{thread.author}</span>
             {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
@@ -299,7 +306,7 @@ function ThreadRow({
 
       {open ? (
         <div className="row-detail">
-          <p className="original">{thread.text}</p>
+          <p className="original">{displayText}</p>
           {thread.reason ? <p className="reason">{thread.reason}</p> : null}
           {tags.length > 0 ? (
             <div className="tags">

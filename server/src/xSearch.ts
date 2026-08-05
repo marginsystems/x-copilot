@@ -2,6 +2,7 @@
  * Session-backed X SearchTimeline client (read-only).
  * Query IDs rotate — set X_SEARCH_QUERY_ID or rely on heal + fallbacks.
  */
+import { normalizeTcoKey } from "./mediaText.js";
 import {
   buildSessionHeaders,
   getSessionFromEnv,
@@ -332,12 +333,6 @@ export function isOutboundLinkUrl(url: string): boolean {
   if (!raw) return false;
   if (!/^https?:\/\//i.test(raw) && !/^t\.co\//i.test(raw)) return false;
   return !isNativeMediaUrl(raw);
-}
-
-/** Normalize a t.co shortlink for set membership checks. */
-function normalizeTcoKey(url: string): string | null {
-  const m = /(?:https?:\/\/)?t\.co\/([A-Za-z0-9]+)/i.exec(url.trim());
-  return m ? `t.co/${m[1]}`.toLowerCase() : null;
 }
 
 /** t.co shortlinks for native media: URLs expanded to media hosts, plus media-entity t.co keys. */
