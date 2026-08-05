@@ -507,7 +507,7 @@ const SEARCH_COOLDOWN_MS = 15_000;
 
 export default function App() {
   const [agenda, setAgenda] = useState(
-    "Find builders talking about shipping AI tools in public. Prefer questions I can answer helpfully.",
+    "Find builders sharing opinions, tradeoffs, or concrete takes on shipping AI / software tools in public. Prefer posts with a clear point of view or a specific technical claim I can agree/disagree with.\nSkip open-ended engagement questions (“what are you shipping?”, “drop your stack”, “who should I follow?”, generic peer polls) even when they mention AI/build-in-public. A lone question with little substance is not interesting.",
   );
   const [status, setStatus] = useState(
     "Idle — verify session, then let Scout search from your agenda",
