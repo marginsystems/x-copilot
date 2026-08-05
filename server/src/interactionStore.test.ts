@@ -12,6 +12,8 @@ import {
   getEverInteractedAuthorKeys,
   listInteractionHistory,
   listMemorySyncRetries,
+  MAX_INTERACTION_HISTORY,
+  MAX_INTERACTION_STORE,
   markInteracted,
   normalizeAuthorKey,
   parseStatusIdFromUrl,
@@ -228,6 +230,26 @@ describe("markInteracted", () => {
     assert.equal(history[1]?.url, "https://x.com/old/status/old");
     assert.equal(history[1]?.summary, "old lead");
   });
+
+  it("retains beyond the feed cap for activity windows", async () => {
+    const base = Date.parse("2026-07-26T12:00:00.000Z");
+    const n = MAX_INTERACTION_HISTORY + 50;
+    for (let i = 0; i < n; i++) {
+      await markInteracted({
+        threadId: `t${i}`,
+        author: `@u${i}`,
+        nowMs: base + i * 1000,
+        storePath,
+      });
+    }
+    const feed = await listInteractionHistory({ storePath });
+    assert.equal(feed.length, MAX_INTERACTION_HISTORY);
+    const retained = await listInteractionHistory({
+      storePath,
+      limit: MAX_INTERACTION_STORE,
+    });
+    assert.equal(retained.length, n);
+  });
 });
 
 describe("listInteractionHistory", () => {
@@ -311,6 +333,23 @@ describe("getAuthorKeysForScoutFilter", () => {
 
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true });
+  });
+
+  it("lifetime dedupe scans beyond the 200-row feed cap", async () => {
+    const base = Date.parse("2026-07-28T12:00:00.000Z");
+    const n = MAX_INTERACTION_HISTORY + 25;
+    for (let i = 0; i < n; i++) {
+      await markInteracted({
+        threadId: `t${i}`,
+        author: `@Author${i}`,
+        nowMs: base + i * 1000,
+        storePath,
+      });
+    }
+    const ever = await getEverInteractedAuthorKeys({ storePath });
+    assert.equal(ever.size, n);
+    assert.ok(ever.has("author0"));
+    assert.ok(ever.has(`author${n - 1}`));
   });
 
   it("keeps lifetime authors when dedupe on after 24h", async () => {

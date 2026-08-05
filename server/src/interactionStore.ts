@@ -3,7 +3,14 @@
  * durable history for the Interacted feed.
  * Persists to data/interactions.json (gitignored). Soft-degrades on IO/parse errors.
  */
-import { mkdir, readFile, writeFile, rmdir, stat } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  writeFile,
+  rename,
+  rmdir,
+  stat,
+} from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { ThreadCard } from "./xSearch.js";
 
@@ -61,7 +68,13 @@ export function parseStatusIdFromUrl(url: string): string | null {
 export const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 export const STATS_T1H_MS = 60 * 60 * 1000;
 export const STATS_T24H_MS = 24 * 60 * 60 * 1000;
+/** Interacted feed / default list cap (newest first). */
 export const MAX_INTERACTION_HISTORY = 200;
+/**
+ * Durable retain for activity windows (28d / 12w). Larger than the feed cap so
+ * `GET /api/interacted/stats` can bucket the full window before any count trim.
+ */
+export const MAX_INTERACTION_STORE = 2000;
 export const DEFAULT_STATS_TICK_CAP = 15;
 const MAX_FILTERED_AUTHORS = 12;
 const MAX_TEXT_CHARS = 280;
@@ -214,7 +227,10 @@ async function readStore(path: string): Promise<StoreFile> {
 
 async function writeStore(path: string, store: StoreFile): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+  // Atomic replace so unlocked readers never see a truncated JSON body.
+  const tmp = `${path}.${process.pid}.tmp`;
+  await writeFile(tmp, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+  await rename(tmp, path);
 }
 
 export async function withFileLock<T>(
@@ -313,7 +329,9 @@ export async function markInteracted(opts: {
     if (prior?.memorySyncFailed) next.memorySyncFailed = true;
     const without = store.interactions.filter((i) => i.threadId !== threadId);
     without.push(next);
-    const interactions = trimInteractionHistory(without);
+    // Retain enough history for the activity dashboard window; feed UI still
+    // lists at MAX_INTERACTION_HISTORY via listInteractionHistory().
+    const interactions = trimInteractionHistory(without, MAX_INTERACTION_STORE);
     await writeStore(path, { interactions });
     return next;
   });
@@ -355,7 +373,12 @@ export async function getCooledAuthorKeys(opts?: {
 export async function getEverInteractedAuthorKeys(opts?: {
   storePath?: string;
 }): Promise<Set<string>> {
-  const history = await listInteractionHistory(opts);
+  // Scan the full durable retain (not the 200-row feed cap) so lifetime
+  // account dedupe stays aligned with what the store actually keeps.
+  const history = await listInteractionHistory({
+    storePath: opts?.storePath,
+    limit: MAX_INTERACTION_STORE,
+  });
   return new Set(history.map((i) => i.authorKey).filter(Boolean));
 }
 

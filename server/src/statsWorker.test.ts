@@ -275,6 +275,54 @@ describe("runStatsTick", () => {
     assert.equal(history[0]?.stats?.t1h?.views, 50);
   });
 
+  it("does not let burned failures starve newer due samples", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    // Oldest-first due queue: 15 permanently-missing replies + one newer.
+    for (let i = 0; i < 15; i++) {
+      await markInteracted({
+        threadId: `zombie-${i}`,
+        author: `@z${i}`,
+        replyId: `rz${i}`,
+        replyUrl: `https://x.com/me/status/rz${i}`,
+        nowMs: now - STATS_T1H_MS - 60_000 - i * 1000,
+        storePath,
+      });
+    }
+    await markInteracted({
+      threadId: "fresh",
+      author: "@fresh",
+      replyId: "rfresh",
+      replyUrl: "https://x.com/me/status/rfresh",
+      nowMs: now - STATS_T1H_MS - 5000,
+      storePath,
+    });
+
+    for (let t = 0; t < 3; t++) {
+      await runStatsTick({
+        nowMs: now,
+        storePath,
+        delayMs: 0,
+        syncOutcome: null,
+        fetchMetrics: async () => null,
+      });
+    }
+
+    const fetched: string[] = [];
+    const result = await runStatsTick({
+      nowMs: now,
+      storePath,
+      delayMs: 0,
+      syncOutcome: null,
+      fetchMetrics: async ({ tweetId }) => {
+        fetched.push(tweetId);
+        return { views: 9, likes: 0, replies: 0, retweets: 0 };
+      },
+    });
+    assert.ok(fetched.includes("rfresh"));
+    assert.equal(result.sampled, 1);
+    assert.equal(result.failed, 0);
+  });
+
   it("retries a failed memory sync on the next tick and clears the flag", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({

@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { runExpirePass } from "./expirePass.js";
 import {
   DEFAULT_STATS_TICK_CAP,
+  MAX_INTERACTION_STORE,
   listDueStatSamples,
   listMemorySyncRetries,
   patchInteractionStats,
@@ -105,11 +106,33 @@ export async function runStatsTick(opts?: {
             checkpoint: args.checkpoint,
           })
       : opts.syncOutcome;
-  const due = await listDueStatSamples({
+  const tickCap = opts?.limit ?? DEFAULT_STATS_TICK_CAP;
+  // Oversample the due queue so permanently-failing (burned) oldest rows do
+  // not consume the whole tick budget and starve newer replies.
+  const allDue = await listDueStatSamples({
     nowMs: opts?.nowMs,
     storePath: opts?.storePath,
-    limit: opts?.limit ?? DEFAULT_STATS_TICK_CAP,
+    limit: Math.max(tickCap * 20, MAX_INTERACTION_STORE),
   });
+
+  // Prune failure entries no longer due to prevent unbounded growth.
+  // Use the full due set (not the tick slice) so burned keys stay remembered.
+  const allDueKeys = new Set(
+    allDue.map((d) => `${d.replyId}:${d.checkpoint}`),
+  );
+  for (const key of tweetFailures.keys()) {
+    if (!allDueKeys.has(key)) tweetFailures.delete(key);
+  }
+
+  const due: DueStatSample[] = [];
+  for (const item of allDue) {
+    const failKey = `${item.replyId}:${item.checkpoint}`;
+    if ((tweetFailures.get(failKey) ?? 0) >= MAX_CONSECUTIVE_FAILURES) {
+      continue;
+    }
+    due.push(item);
+    if (due.length >= tickCap) break;
+  }
 
   let sampled = 0;
   let failed = 0;
@@ -123,7 +146,7 @@ export async function runStatsTick(opts?: {
   if (syncOutcome) {
     const retries = await listMemorySyncRetries({
       storePath: opts?.storePath,
-      limit: opts?.limit ?? DEFAULT_STATS_TICK_CAP,
+      limit: tickCap,
     });
     for (const interaction of retries) {
       if (
@@ -146,10 +169,6 @@ export async function runStatsTick(opts?: {
     const tweetId = item.replyId;
     const failKey = `${tweetId}:${item.checkpoint}`;
     const prevFailures = tweetFailures.get(failKey) ?? 0;
-    if (prevFailures >= MAX_CONSECUTIVE_FAILURES) {
-      failed += 1;
-      continue;
-    }
     if (i > 0 && delayMs > 0) await sleep(delayMs);
     const metrics = await fetchMetrics({ tweetId, session });
     if (!metrics) {
@@ -183,12 +202,6 @@ export async function runStatsTick(opts?: {
         memorySyncFailed += 1;
       }
     }
-  }
-
-  // Prune failure entries no longer due to prevent unbounded growth.
-  const dueKeys = new Set(due.map((d) => `${d.replyId}:${d.checkpoint}`));
-  for (const key of tweetFailures.keys()) {
-    if (!dueKeys.has(key)) tweetFailures.delete(key);
   }
 
   return {
