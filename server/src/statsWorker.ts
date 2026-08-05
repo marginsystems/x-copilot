@@ -172,9 +172,9 @@ export async function runStatsTick(opts?: {
   }
 
   // Retry soft-failed gamification projections (mark XP/streak or t24h bonus)
-  // so the durable ledger converges with interactions.json. The t24h bonus is
-  // idempotent per threadId; a mark is only flagged when its ledger write
-  // failed, so re-applying it here credits each mark exactly once.
+  // so the durable ledger converges with interactions.json. Both projections
+  // are idempotent per threadId, so re-applying a flagged mark never credits
+  // XP/streak more than once.
   const gamificationRetries = await listGamificationSyncRetries({
     storePath: opts?.storePath,
     limit: tickCap,
@@ -184,6 +184,7 @@ export async function runStatsTick(opts?: {
       try {
         const markMs = Date.parse(interaction.at);
         await recordMarkGamification({
+          threadId: interaction.threadId,
           interactionStorePath: opts?.storePath,
           gamificationPath: opts?.gamificationPath,
           nowMs: Number.isFinite(markMs) ? markMs : opts?.nowMs,

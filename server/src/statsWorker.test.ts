@@ -450,4 +450,53 @@ describe("runStatsTick", () => {
     assert.equal(snap.lifetimeXp, 1);
     assert.equal(snap.currentStreak, 1);
   });
+
+  it("does not double-credit a mark when two flagged marks share a first ledger write", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    const gamificationPath = join(dir, "gamification.json");
+    await markInteracted({
+      threadId: "a",
+      author: "@a",
+      nowMs: now,
+      storePath,
+    });
+    await markInteracted({
+      threadId: "b",
+      author: "@b",
+      nowMs: now,
+      storePath,
+    });
+    await setGamificationSyncFailed({
+      threadId: "a",
+      checkpoint: "mark",
+      failed: true,
+      storePath,
+    });
+    await setGamificationSyncFailed({
+      threadId: "b",
+      checkpoint: "mark",
+      failed: true,
+      storePath,
+    });
+
+    // First retry seeds both marks into a fresh ledger; the second flagged
+    // mark must not be re-applied on top of the seed.
+    const result = await runStatsTick({
+      nowMs: now,
+      storePath,
+      gamificationPath,
+      delayMs: 0,
+      syncOutcome: null,
+    });
+    assert.equal(result.sampled, 0);
+    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+
+    const snap = await getGamification({
+      gamificationPath,
+      interactionStorePath: storePath,
+    });
+    // Two marks, each credited exactly once.
+    assert.equal(snap.lifetimeXp, 2);
+    assert.equal(snap.currentStreak, 1);
+  });
 });

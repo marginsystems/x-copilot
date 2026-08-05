@@ -21,6 +21,7 @@ export type GamificationState = {
   lastMarkUtcDay: string | null;
   lifetimeXp: number;
   bonusAwardedThreadIds: string[];
+  markAwardedThreadIds: string[];
   updatedAt: string;
 };
 
@@ -52,6 +53,7 @@ export function emptyGamificationState(
     lastMarkUtcDay: null,
     lifetimeXp: 0,
     bonusAwardedThreadIds: [],
+    markAwardedThreadIds: [],
     updatedAt: new Date(nowMs).toISOString(),
   };
 }
@@ -139,7 +141,16 @@ export function bonusXpFromT24h(
 export function applyMarkToGamification(
   state: GamificationState,
   nowMs: number = Date.now(),
+  threadId?: string,
 ): { state: GamificationState; awarded: MarkAward } {
+  const id = threadId?.trim() || "";
+  if (id && state.markAwardedThreadIds.includes(id)) {
+    // Idempotent: this thread's mark XP/streak was already credited.
+    return {
+      state,
+      awarded: { markXp: 0, currentStreak: state.currentStreak },
+    };
+  }
   const day = utcDayKey(nowMs);
   let currentStreak = state.currentStreak;
   const last = state.lastMarkUtcDay;
@@ -161,6 +172,9 @@ export function applyMarkToGamification(
     longestStreak,
     lastMarkUtcDay: day,
     lifetimeXp: state.lifetimeXp + MARK_XP,
+    markAwardedThreadIds: id
+      ? [...state.markAwardedThreadIds, id]
+      : state.markAwardedThreadIds,
     updatedAt: new Date(nowMs).toISOString(),
   };
   return {
@@ -206,7 +220,7 @@ export function seedGamificationFromHistory(
   for (const row of sorted) {
     const markMs = Date.parse(row.at);
     if (!Number.isFinite(markMs)) continue;
-    state = applyMarkToGamification(state, markMs).state;
+    state = applyMarkToGamification(state, markMs, row.threadId).state;
     if (row.stats?.t24h) {
       state = applyT24hBonus(state, row.threadId, row.stats.t24h, markMs).state;
     }
@@ -244,6 +258,13 @@ function parseGamificationState(raw: string): GamificationState | null {
           )
           .map((id) => id.trim())
       : [];
+    const markAwardedThreadIds = Array.isArray(data.markAwardedThreadIds)
+      ? data.markAwardedThreadIds
+          .filter(
+            (id): id is string => typeof id === "string" && id.trim() !== "",
+          )
+          .map((id) => id.trim())
+      : [];
     const updatedAt =
       typeof data.updatedAt === "string" && data.updatedAt.trim()
         ? data.updatedAt
@@ -254,6 +275,7 @@ function parseGamificationState(raw: string): GamificationState | null {
       lastMarkUtcDay,
       lifetimeXp,
       bonusAwardedThreadIds,
+      markAwardedThreadIds,
       updatedAt,
     };
   } catch {
@@ -326,16 +348,21 @@ export async function withGamificationState<T>(opts: {
   });
 }
 
-/** Record a successful Mark interacted. */
+/** Record a successful Mark interacted. Idempotent per threadId. */
 export async function recordMarkGamification(
-  opts?: GamificationPaths,
+  opts?: GamificationPaths & { threadId?: string },
 ): Promise<GamificationPublic> {
   const path = opts?.gamificationPath ?? defaultGamificationPath();
   const nowMs = opts?.nowMs ?? Date.now();
+  const threadId = opts?.threadId?.trim() || undefined;
   return withFileLock(path, async () => {
     const existing = await readGamificationFile(path);
     if (existing) {
-      const { state: next } = applyMarkToGamification(existing, nowMs);
+      // A mark retried after a soft-fail must not credit XP/streak again.
+      if (threadId && existing.markAwardedThreadIds.includes(threadId)) {
+        return toPublicGamification(existing);
+      }
+      const { state: next } = applyMarkToGamification(existing, nowMs, threadId);
       await writeGamificationFile(path, next);
       return toPublicGamification(next);
     }
@@ -346,9 +373,13 @@ export async function recordMarkGamification(
       storePath: opts?.interactionStorePath,
     });
     let seeded = seedGamificationFromHistory(history, nowMs);
-    // No history yet (e.g. tests) — still credit this mark.
-    if (history.length === 0) {
-      seeded = applyMarkToGamification(seeded, nowMs).state;
+    // No history yet (e.g. tests) or the mark is not part of the retained
+    // history — still credit it exactly once.
+    if (
+      history.length === 0 ||
+      (threadId && !seeded.markAwardedThreadIds.includes(threadId))
+    ) {
+      seeded = applyMarkToGamification(seeded, nowMs, threadId).state;
     }
     await writeGamificationFile(path, seeded);
     return toPublicGamification(seeded);

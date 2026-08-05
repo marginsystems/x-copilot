@@ -819,6 +819,7 @@ const server = http.createServer(async (req, res) => {
         let gamification;
         try {
           gamification = await recordMarkGamification({
+            threadId,
             nowMs: Date.parse(interaction.at) || Date.now(),
           });
           await setGamificationSyncFailed({
