@@ -3,7 +3,14 @@
  * durable history for the Interacted feed.
  * Persists to data/interactions.json (gitignored). Soft-degrades on IO/parse errors.
  */
-import { mkdir, readFile, writeFile, rmdir, stat } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  writeFile,
+  rename,
+  rmdir,
+  stat,
+} from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { ThreadCard } from "./xSearch.js";
 
@@ -220,7 +227,10 @@ async function readStore(path: string): Promise<StoreFile> {
 
 async function writeStore(path: string, store: StoreFile): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+  // Atomic replace so unlocked readers never see a truncated JSON body.
+  const tmp = `${path}.${process.pid}.tmp`;
+  await writeFile(tmp, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+  await rename(tmp, path);
 }
 
 export async function withFileLock<T>(
@@ -363,7 +373,12 @@ export async function getCooledAuthorKeys(opts?: {
 export async function getEverInteractedAuthorKeys(opts?: {
   storePath?: string;
 }): Promise<Set<string>> {
-  const history = await listInteractionHistory(opts);
+  // Scan the full durable retain (not the 200-row feed cap) so lifetime
+  // account dedupe stays aligned with what the store actually keeps.
+  const history = await listInteractionHistory({
+    storePath: opts?.storePath,
+    limit: MAX_INTERACTION_STORE,
+  });
   return new Set(history.map((i) => i.authorKey).filter(Boolean));
 }
 

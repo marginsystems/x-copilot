@@ -532,6 +532,8 @@ export default function App() {
     emptyActivityStats("day"),
   );
   const activityBucketRef = useRef<ActivityBucket>("day");
+  /** In-flight toggle target; may diverge from applied `activityBucketRef`. */
+  const activityRequestBucketRef = useRef<ActivityBucket>("day");
   const [view, setView] = useState<AppView>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
@@ -726,17 +728,22 @@ export default function App() {
     }
   }
 
-  async function hydrateActivityStats(bucket: ActivityBucket = activityBucketRef.current) {
+  async function hydrateActivityStats(
+    bucket: ActivityBucket = activityBucketRef.current,
+  ) {
     const next = await fetchActivityStats(bucket);
     if (!next) return;
-    // Ignore stale responses if the user toggled bucket mid-flight.
-    if (bucket !== activityBucketRef.current) return;
+    // Ignore stale responses if a newer toggle request is in flight.
+    if (bucket !== activityRequestBucketRef.current) return;
+    // Commit the applied bucket only after a successful fetch so a failed
+    // toggle cannot silently flip the chart on a later mark refresh.
+    activityBucketRef.current = bucket;
     setActivityBucket(bucket);
     setActivityStats(next);
   }
 
   function onActivityBucket(next: ActivityBucket) {
-    activityBucketRef.current = next;
+    activityRequestBucketRef.current = next;
     void hydrateActivityStats(next);
   }
 

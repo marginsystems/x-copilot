@@ -335,6 +335,23 @@ describe("getAuthorKeysForScoutFilter", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it("lifetime dedupe scans beyond the 200-row feed cap", async () => {
+    const base = Date.parse("2026-07-28T12:00:00.000Z");
+    const n = MAX_INTERACTION_HISTORY + 25;
+    for (let i = 0; i < n; i++) {
+      await markInteracted({
+        threadId: `t${i}`,
+        author: `@Author${i}`,
+        nowMs: base + i * 1000,
+        storePath,
+      });
+    }
+    const ever = await getEverInteractedAuthorKeys({ storePath });
+    assert.equal(ever.size, n);
+    assert.ok(ever.has("author0"));
+    assert.ok(ever.has(`author${n - 1}`));
+  });
+
   it("keeps lifetime authors when dedupe on after 24h", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
