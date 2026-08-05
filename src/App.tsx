@@ -580,6 +580,7 @@ export default function App() {
   const skippedIdsRef = useRef<Set<string>>(new Set());
   const expiredIdsRef = useRef<Set<string>>(new Set());
   const interactedIdsRef = useRef<Set<string>>(new Set());
+  const blockedConversationsRef = useRef<Set<string>>(new Set());
   const searchingRef = useRef(0);
   const coolProgressRef = useRef({
     cool: 0,
@@ -777,8 +778,12 @@ export default function App() {
     thread: ThreadCard,
     excludedTags: readonly string[] = settings.excludedTags,
   ): boolean {
+    const blocked = blockedConversationsRef.current;
     return (
       !isHiddenFromCurated(thread.id) &&
+      !blocked.has(thread.id) &&
+      !(thread.conversationId && blocked.has(thread.conversationId)) &&
+      !(thread.inReplyToId && blocked.has(thread.inReplyToId)) &&
       !threadHasExcludedTag(thread, excludedTags)
     );
   }
@@ -1155,6 +1160,7 @@ export default function App() {
         thread.id;
       interactedIdsRef.current = new Set(interactedIdsRef.current).add(thread.id);
       setInteractedIds((prev) => new Set(prev).add(thread.id));
+      blockedConversationsRef.current = new Set(blockedConversationsRef.current).add(conversationRoot);
       const historyEntry: InteractionHistoryEntry = data.interaction ?? {
         threadId: thread.id,
         author: thread.author,
