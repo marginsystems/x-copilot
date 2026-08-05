@@ -9,6 +9,7 @@ import {
   type MemoryType,
   type SearchMemoryResult,
 } from "./memoryIndex.js";
+import { stripMediaShortlinksFromText } from "./mediaText.js";
 import type { ThreadCard } from "./xSearch.js";
 
 export type Engage = "skip" | "consider" | "priority";
@@ -50,6 +51,7 @@ Fields:
 - intent: 2-4 words, e.g. "engagement farming", "genuine help request", "product promo".
 - engage: "skip" | "consider" | "priority".
 - reason: one short clause explaining the score.
+- hasNativeMedia (input only): when true, the post has a native X image/video attachment; media shortlinks were stripped from text. Do NOT treat that as an outbound link, promo link, or "with a link" — it is an attached image/video, not a URL payload.
 
 Score the CONVERSATION, not only the reply text. When opText/opAuthor are present, that is the original/quoted root post.
 
@@ -237,8 +239,10 @@ export function buildTriageCompact(threads: ThreadCard[]): Array<{
   opAuthor?: string;
   opText?: string;
   isReply?: boolean;
+  hasNativeMedia?: boolean;
 }> {
   return threads.map((t) => {
+    const hasNativeMedia = (t.mediaShortlinks?.length ?? 0) > 0;
     const row: {
       id: string;
       author: string;
@@ -246,14 +250,25 @@ export function buildTriageCompact(threads: ThreadCard[]): Array<{
       opAuthor?: string;
       opText?: string;
       isReply?: boolean;
+      hasNativeMedia?: boolean;
     } = {
       id: t.id,
       author: t.author,
-      text: t.text.slice(0, MAX_TEXT_CHARS),
+      text: stripMediaShortlinksFromText(t.text, t.mediaShortlinks).slice(
+        0,
+        MAX_TEXT_CHARS,
+      ),
     };
     if (t.isReply) row.isReply = true;
     if (t.opAuthor) row.opAuthor = t.opAuthor;
-    if (t.opText) row.opText = t.opText.slice(0, MAX_TEXT_CHARS);
+    if (t.opText) {
+      // OP media shortlinks are rarely on the reply card; still strip if present.
+      row.opText = stripMediaShortlinksFromText(
+        t.opText,
+        t.mediaShortlinks,
+      ).slice(0, MAX_TEXT_CHARS);
+    }
+    if (hasNativeMedia) row.hasNativeMedia = true;
     return row;
   });
 }
