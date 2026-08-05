@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   COOLDOWN_MS,
+  conversationIdsFromHistory,
   filterThreadsByCooldown,
   getCooledAuthorKeys,
   isWithinCooldown,
@@ -19,6 +20,7 @@ import {
   parseStatusIdFromUrl,
   pruneExpired,
   setMemorySyncFailed,
+  threadMatchesConversationIds,
   type Interaction,
 } from "./interactionStore.ts";
 import type { ThreadCard } from "./xSearch.ts";
@@ -147,6 +149,49 @@ describe("filterThreadsByCooldown", () => {
     assert.equal(result.filteredCount, 0);
     assert.deepEqual(result.threads, threads);
   });
+
+  it("drops sibling replies in an interacted conversation", () => {
+    const root = "2084956842325635442";
+    const hyped: ThreadCard = {
+      ...thread("2085111070436602119", "@HypedTaktix"),
+      conversationId: root,
+      inReplyToId: root,
+    };
+    const sibling: ThreadCard = {
+      ...thread("2085101212874289506", "@figmajeet"),
+      conversationId: root,
+      inReplyToId: root,
+    };
+    const other = thread("99", "@unrelated");
+    const op: ThreadCard = {
+      ...thread(root, "@codingwithroby"),
+      conversationId: root,
+    };
+    const blocked = conversationIdsFromHistory([
+      {
+        threadId: hyped.id,
+        author: hyped.author,
+        authorKey: "hypedtaktix",
+        at: "2026-08-05T21:25:22.077Z",
+        source: "manual",
+        conversationId: root,
+        inReplyToId: root,
+      },
+    ]);
+    assert.ok(blocked.has(root));
+    assert.ok(threadMatchesConversationIds(sibling, blocked));
+    assert.ok(threadMatchesConversationIds(op, blocked));
+    const result = filterThreadsByCooldown(
+      [hyped, sibling, other, op],
+      new Set(),
+      blocked,
+    );
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["99"],
+    );
+    assert.equal(result.filteredCount, 3);
+  });
 });
 
 describe("markInteracted", () => {
@@ -202,6 +247,22 @@ describe("markInteracted", () => {
     assert.equal(row.postedAt, new Date(now).toISOString());
     const history = await listInteractionHistory({ storePath });
     assert.equal(history[0]?.replyId, "999");
+  });
+
+  it("persists conversationId for ancestry dedupe", async () => {
+    const now = Date.parse("2026-08-05T21:25:22.077Z");
+    const row = await markInteracted({
+      threadId: "2085111070436602119",
+      author: "@HypedTaktix",
+      replyId: "2085114485963137476",
+      replyUrl: "https://x.com/me/status/2085114485963137476",
+      conversationId: "2084956842325635442",
+      inReplyToId: "2084956842325635442",
+      nowMs: now,
+      storePath,
+    });
+    assert.equal(row.conversationId, "2084956842325635442");
+    assert.equal(row.inReplyToId, "2084956842325635442");
   });
 
   it("keeps expired rows in history but not in cooldown keys", async () => {

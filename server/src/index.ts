@@ -11,6 +11,7 @@ import {
 import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
+  getEverInteractedConversationIds,
   listActiveInteractions,
   listInteractionHistory,
   markInteracted,
@@ -461,7 +462,12 @@ const server = http.createServer(async (req, res) => {
       const cooled = await getAuthorKeysForScoutFilter(
         dedupeParam !== null ? { dedupeAccounts: dedupeParam !== "false" } : undefined,
       );
-      const filtered = filterThreadsByCooldown(snapshot.threads, cooled);
+      const blockedConversations = await getEverInteractedConversationIds();
+      const filtered = filterThreadsByCooldown(
+        snapshot.threads,
+        cooled,
+        blockedConversations,
+      );
       const [expiredIds, dismissedIds, skippedIds] = await Promise.all([
         getExpiredThreadIds(),
         getDismissedThreadIds(),
@@ -789,6 +795,12 @@ const server = http.createServer(async (req, res) => {
           typeof body.opAuthor === "string" ? body.opAuthor : undefined;
         const opText =
           typeof body.opText === "string" ? body.opText : undefined;
+        const conversationId =
+          typeof body.conversationId === "string"
+            ? body.conversationId
+            : undefined;
+        const inReplyToId =
+          typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
         const interaction = await markInteracted({
           threadId,
           author,
@@ -798,6 +810,8 @@ const server = http.createServer(async (req, res) => {
           summary,
           replyId,
           replyUrl,
+          conversationId,
+          inReplyToId,
         });
         let memoryPath: string | undefined;
         if (reply) {

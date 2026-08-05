@@ -43,6 +43,13 @@ export type Interaction = {
   replyUrl?: string;
   /** When we consider the reply posted; defaults to `at`. */
   postedAt?: string;
+  /**
+   * X conversation root id (usually the OP status). Used to suppress the whole
+   * thread after Mark — not just this reply's author.
+   */
+  conversationId?: string;
+  /** Immediate parent status id when the marked card was a reply. */
+  inReplyToId?: string;
   stats?: InteractionStats;
   /** True when the stats → memory note projection soft-failed; retried next tick. */
   memorySyncFailed?: boolean;
@@ -116,15 +123,48 @@ export function pruneExpired(
   return interactions.filter((i) => isWithinCooldown(i.at, nowMs, windowMs));
 }
 
+/**
+ * Conversation / ancestry ids that should stay dark after an interaction.
+ * Prefer conversationId (OP root), else inReplyToId, else the marked threadId.
+ */
+export function conversationRootId(row: {
+  conversationId?: string;
+  inReplyToId?: string;
+  threadId?: string;
+  id?: string;
+}): string | null {
+  const conversationId = row.conversationId?.trim();
+  if (conversationId) return conversationId;
+  const inReplyToId = row.inReplyToId?.trim();
+  if (inReplyToId) return inReplyToId;
+  const threadId = row.threadId?.trim() || row.id?.trim();
+  return threadId || null;
+}
+
+/** True when a Scout card belongs to a blocked conversation / ancestry set. */
+export function threadMatchesConversationIds(
+  thread: ThreadCard,
+  blockedIds: ReadonlySet<string>,
+): boolean {
+  if (!blockedIds.size) return false;
+  if (blockedIds.has(thread.id)) return true;
+  if (thread.conversationId && blockedIds.has(thread.conversationId)) {
+    return true;
+  }
+  if (thread.inReplyToId && blockedIds.has(thread.inReplyToId)) return true;
+  return false;
+}
+
 export function filterThreadsByCooldown(
   threads: ThreadCard[],
   cooledKeys: Set<string>,
+  blockedConversationIds: ReadonlySet<string> = new Set(),
 ): {
   threads: ThreadCard[];
   filteredCount: number;
   filteredAuthors: string[];
 } {
-  if (!cooledKeys.size) {
+  if (!cooledKeys.size && !blockedConversationIds.size) {
     return { threads, filteredCount: 0, filteredAuthors: [] };
   }
   const kept: ThreadCard[] = [];
@@ -135,6 +175,11 @@ export function filterThreadsByCooldown(
     if (key && cooledKeys.has(key)) {
       filteredCount += 1;
       removedAuthors.add(key);
+      continue;
+    }
+    if (threadMatchesConversationIds(thread, blockedConversationIds)) {
+      filteredCount += 1;
+      if (key) removedAuthors.add(key);
       continue;
     }
     kept.push(thread);
@@ -193,12 +238,16 @@ function parseStore(raw: string): StoreFile {
       const replyId = optionalString(row.replyId);
       const replyUrl = optionalString(row.replyUrl);
       const postedAt = optionalString(row.postedAt);
+      const conversationId = optionalString(row.conversationId);
+      const inReplyToId = optionalString(row.inReplyToId);
       if (url) item.url = url;
       if (summary) item.summary = summary;
       if (text) item.text = text;
       if (replyId) item.replyId = replyId;
       if (replyUrl) item.replyUrl = replyUrl;
       if (postedAt) item.postedAt = postedAt;
+      if (conversationId) item.conversationId = conversationId;
+      if (inReplyToId) item.inReplyToId = inReplyToId;
       if (row.stats && typeof row.stats === "object") {
         item.stats = row.stats as InteractionStats;
       }
@@ -288,6 +337,8 @@ export async function markInteracted(opts: {
   replyId?: string;
   replyUrl?: string;
   postedAt?: string;
+  conversationId?: string;
+  inReplyToId?: string;
   nowMs?: number;
   storePath?: string;
 }): Promise<Interaction> {
@@ -314,12 +365,21 @@ export async function markInteracted(opts: {
   const replyId = optionalString(opts.replyId);
   const replyUrl = optionalString(opts.replyUrl);
   const postedAt = optionalString(opts.postedAt) ?? at;
+  const conversationId = optionalString(opts.conversationId);
+  const inReplyToId = optionalString(opts.inReplyToId);
   if (url) next.url = url;
   if (summary) next.summary = summary;
   if (text) next.text = text;
   if (replyId) next.replyId = replyId;
   if (replyUrl) next.replyUrl = replyUrl;
   if (replyId || replyUrl) next.postedAt = postedAt;
+  // Prefer explicit conversation root; fall back so ancestry still blocks.
+  const root =
+    conversationId ||
+    inReplyToId ||
+    null;
+  if (root) next.conversationId = root;
+  if (inReplyToId) next.inReplyToId = inReplyToId;
 
   return withFileLock(path, async () => {
     const store = await readStore(path);
@@ -327,6 +387,12 @@ export async function markInteracted(opts: {
     // Preserve existing stats snapshots across re-marks of the same thread.
     if (prior?.stats) next.stats = prior.stats;
     if (prior?.memorySyncFailed) next.memorySyncFailed = true;
+    if (!next.conversationId && prior?.conversationId) {
+      next.conversationId = prior.conversationId;
+    }
+    if (!next.inReplyToId && prior?.inReplyToId) {
+      next.inReplyToId = prior.inReplyToId;
+    }
     const without = store.interactions.filter((i) => i.threadId !== threadId);
     without.push(next);
     // Retain enough history for the activity dashboard window; feed UI still
@@ -380,6 +446,34 @@ export async function getEverInteractedAuthorKeys(opts?: {
     limit: MAX_INTERACTION_STORE,
   });
   return new Set(history.map((i) => i.authorKey).filter(Boolean));
+}
+
+/**
+ * Conversation / ancestry ids from durable history.
+ * Includes each mark's conversation root plus the marked threadId so OP and
+ * sibling replies stay filtered after we engage anywhere in the chain.
+ */
+export function conversationIdsFromHistory(
+  history: readonly Interaction[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const row of history) {
+    const root = conversationRootId(row);
+    if (root) ids.add(root);
+    if (row.threadId?.trim()) ids.add(row.threadId.trim());
+    if (row.inReplyToId?.trim()) ids.add(row.inReplyToId.trim());
+  }
+  return ids;
+}
+
+export async function getEverInteractedConversationIds(opts?: {
+  storePath?: string;
+}): Promise<Set<string>> {
+  const history = await listInteractionHistory({
+    storePath: opts?.storePath,
+    limit: MAX_INTERACTION_STORE,
+  });
+  return conversationIdsFromHistory(history);
 }
 
 /**
