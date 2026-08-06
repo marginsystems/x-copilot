@@ -6,6 +6,7 @@ import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
   getCooledAuthorKeys,
+  getEverInteractedConversationIds,
   normalizeAuthorKey,
 } from "./interactionStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
@@ -163,6 +164,7 @@ export type ScoutCollectDeps = {
   planQueriesFromAgenda?: typeof planQueriesFromAgenda;
   getCooledAuthorKeys?: typeof getCooledAuthorKeys;
   getAuthorKeysForScoutFilter?: typeof getAuthorKeysForScoutFilter;
+  getEverInteractedConversationIds?: typeof getEverInteractedConversationIds;
   saveScoutCache?: typeof saveScoutCache;
   hydrateReplyParents?: typeof hydrateReplyParents;
   sleep?: typeof sleep;
@@ -186,6 +188,8 @@ export async function runScoutCollect(opts: {
   const doGetCooled = deps.getCooledAuthorKeys ?? getCooledAuthorKeys;
   const doGetFilterKeys =
     deps.getAuthorKeysForScoutFilter ?? getAuthorKeysForScoutFilter;
+  const doGetConversationIds =
+    deps.getEverInteractedConversationIds ?? getEverInteractedConversationIds;
   const doSaveCache = deps.saveScoutCache ?? saveScoutCache;
   const doHydrate = deps.hydrateReplyParents ?? hydrateReplyParents;
   const doSleep = deps.sleep ?? sleep;
@@ -292,6 +296,14 @@ export async function runScoutCollect(opts: {
       : await doGetFilterKeys({
           dedupeAccounts: opts.filters?.dedupeAccounts,
         });
+  // Always suppress conversations we've already engaged in (OP + sibling replies).
+  // Tests that stub only getCooledAuthorKeys stay isolated from the durable store.
+  const blockedConversations =
+    deps.getCooledAuthorKeys &&
+    !deps.getAuthorKeysForScoutFilter &&
+    !deps.getEverInteractedConversationIds
+      ? new Set<string>()
+      : await doGetConversationIds();
 
   const cool: ThreadCard[] = [];
   const seenIds = new Set<string>();
@@ -447,7 +459,11 @@ export async function runScoutCollect(opts: {
           seenIds.add(t.id);
           return true;
         });
-        const afterCool = filterThreadsByCooldown(fresh, cooled);
+        const afterCool = filterThreadsByCooldown(
+          fresh,
+          cooled,
+          blockedConversations,
+        );
         const afterSelf = filterSelfReplies(afterCool.threads);
         const afterLinks = filterOutboundLinks(afterSelf.threads);
         const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
