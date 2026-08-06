@@ -572,4 +572,55 @@ describe("runStatsTick", () => {
     assert.equal(after.currentStreak, 2);
     assert.equal(after.lastMarkUtcDay, "2026-08-07");
   });
+
+  it("does not lose a soft-failed mark when the same thread is re-marked before the retry", async () => {
+    const d1 = Date.parse("2026-08-05T12:00:00.000Z");
+    const d2 = Date.parse("2026-08-06T12:00:00.000Z");
+    const gamificationPath = join(dir, "gamification.json");
+    await markInteracted({
+      threadId: "a",
+      author: "@a",
+      nowMs: d1,
+      storePath,
+    });
+    await setGamificationSyncFailed({
+      threadId: "a",
+      checkpoint: "mark",
+      failed: true,
+      pendingAt: new Date(d1).toISOString(),
+      storePath,
+    });
+    // Re-mark the same thread at D2 before the retry tick. markInteracted
+    // overwrites `at`, so the retry must replay the persisted pending at.
+    await markInteracted({
+      threadId: "a",
+      author: "@a",
+      nowMs: d2,
+      storePath,
+    });
+    await recordMarkGamification({
+      threadId: "a",
+      gamificationPath,
+      interactionStorePath: storePath,
+      nowMs: d2,
+    });
+
+    const result = await runStatsTick({
+      nowMs: d2,
+      storePath,
+      gamificationPath,
+      delayMs: 0,
+      syncOutcome: null,
+    });
+    assert.equal(result.sampled, 0);
+    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+
+    const snap = await getGamification({
+      gamificationPath,
+      interactionStorePath: storePath,
+    });
+    // D2 re-mark credited once; the retry must also credit the original D1 mark.
+    assert.equal(snap.lifetimeXp, 2);
+    assert.equal(snap.currentStreak, 1);
+  });
 });

@@ -50,6 +50,9 @@ export type Interaction = {
   markGamificationSyncFailed?: boolean;
   /** True when the t24h bonus → gamification ledger projection soft-failed; retried next tick. */
   bonusGamificationSyncFailed?: boolean;
+  /** Original mark `at` whose gamification projection is pending, so a re-mark
+   * of the same thread (which overwrites `at`) cannot erase the retry target. */
+  pendingMarkAt?: string;
 };
 
 /** Parse x.com / twitter.com status URL → numeric rest id. Keep in sync with src/App.tsx. */
@@ -215,6 +218,8 @@ function parseStore(raw: string): StoreFile {
       if (row.bonusGamificationSyncFailed === true) {
         item.bonusGamificationSyncFailed = true;
       }
+      const pendingMarkAt = optionalString(row.pendingMarkAt);
+      if (pendingMarkAt) item.pendingMarkAt = pendingMarkAt;
       interactions.push(item);
     }
     return { interactions };
@@ -339,6 +344,7 @@ export async function markInteracted(opts: {
     if (prior?.memorySyncFailed) next.memorySyncFailed = true;
     if (prior?.markGamificationSyncFailed) next.markGamificationSyncFailed = true;
     if (prior?.bonusGamificationSyncFailed) next.bonusGamificationSyncFailed = true;
+    if (prior?.pendingMarkAt) next.pendingMarkAt = prior.pendingMarkAt;
     const without = store.interactions.filter((i) => i.threadId !== threadId);
     without.push(next);
     // Retain enough history for the activity dashboard window; feed UI still
@@ -553,6 +559,10 @@ export async function setGamificationSyncFailed(opts: {
   threadId: string;
   checkpoint: GamificationCheckpoint;
   failed: boolean;
+  /** Original mark `at` to replay when a mark projection soft-fails; a re-mark
+   * of the same thread overwrites `at`, so this keeps the retry on the mark
+   * instance that actually failed. */
+  pendingAt?: string;
   storePath?: string;
 }): Promise<void> {
   const threadId = opts.threadId.trim();
@@ -567,10 +577,24 @@ export async function setGamificationSyncFailed(opts: {
       opts.checkpoint === "mark"
         ? "markGamificationSyncFailed"
         : "bonusGamificationSyncFailed";
-    if (!!row[field] === opts.failed) return;
+    const pendingAtChanged =
+      opts.checkpoint === "mark" &&
+      opts.failed &&
+      !!opts.pendingAt &&
+      row.pendingMarkAt !== opts.pendingAt;
+    if (!!row[field] === opts.failed && !pendingAtChanged) return;
     const next: Interaction = { ...row };
-    if (opts.failed) next[field] = true;
-    else delete next[field];
+    if (opts.failed) {
+      next[field] = true;
+      if (opts.checkpoint === "mark" && opts.pendingAt) {
+        next.pendingMarkAt = opts.pendingAt;
+      }
+    } else {
+      delete next[field];
+      if (opts.checkpoint === "mark") {
+        delete next.pendingMarkAt;
+      }
+    }
     const interactions = [...store.interactions];
     interactions[idx] = next;
     await writeStore(path, { interactions });
