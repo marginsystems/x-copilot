@@ -1678,7 +1678,9 @@ export default function App() {
           </div>
           <button
             type="button"
-            className="menu-toggle"
+            className={
+              menuOpen && menuEntered ? "menu-toggle is-open" : "menu-toggle"
+            }
             aria-label={menuOpen && menuEntered ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen && menuEntered}
             onClick={() => {
@@ -1686,9 +1688,39 @@ export default function App() {
               else openMenu();
             }}
           >
-            <span aria-hidden="true">
-              {menuOpen && menuEntered ? "✕" : "☰"}
-            </span>
+            {menuOpen && menuEntered ? (
+              <svg
+                className="menu-toggle-icon"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                aria-hidden="true"
+              >
+                <path
+                  d="M6 6l12 12M18 6L6 18"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="square"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="menu-toggle-icon"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                aria-hidden="true"
+              >
+                <path
+                  d="M5 7h14M5 12h14M5 17h14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="square"
+                />
+              </svg>
+            )}
           </button>
         </div>
       </header>
@@ -1708,16 +1740,19 @@ export default function App() {
             aria-label="User menu"
           >
             <div className="menu-sheet-head">
-              <h2>Menu</h2>
-              <button type="button" className="ghost" onClick={closeMenu}>
-                Close
-              </button>
+              <p className="menu-session">
+                {sessionUser
+                  ? `@${sessionUser.screen_name}`
+                  : "Session not verified"}
+              </p>
+              {sessionUser ? (
+                <p className="menu-session-name">{sessionUser.name}</p>
+              ) : (
+                <p className="menu-session-hint">
+                  Verify your X session to scout and mark replies.
+                </p>
+              )}
             </div>
-            <p className="menu-session">
-              {sessionUser
-                ? `@${sessionUser.screen_name} · ${sessionUser.name}`
-                : "Session not verified"}
-            </p>
             <div className="menu-actions">
               <button
                 type="button"
