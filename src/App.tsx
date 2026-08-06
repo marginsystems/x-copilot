@@ -974,7 +974,12 @@ export default function App() {
         ok?: boolean;
         user?: { screen_name: string; name: string };
       };
-      if (!res.ok || !data.ok || !data.user?.screen_name) {
+      if (
+        !res.ok ||
+        !data.ok ||
+        !data.user?.screen_name ||
+        data.user.screen_name === "unknown"
+      ) {
         setSessionUser(null);
         return;
       }
@@ -1252,7 +1257,12 @@ export default function App() {
         message?: string;
         error?: string;
       };
-      if (!res.ok || !data.ok || !data.user?.screen_name) {
+      if (
+        !res.ok ||
+        !data.ok ||
+        !data.user?.screen_name ||
+        data.user.screen_name === "unknown"
+      ) {
         setSessionUser(null);
         setStatus(`Session fail: ${data.message || data.error || res.status}`);
         return;
