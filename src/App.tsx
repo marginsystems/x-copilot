@@ -564,6 +564,7 @@ export default function App() {
     screen_name: string;
     name: string;
   } | null>(null);
+  const manualVerifyDoneRef = useRef(false);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
     loadSettings(),
@@ -967,7 +968,36 @@ export default function App() {
     }
   }
 
+  async function hydrateSession() {
+    try {
+      const res = await fetch("/api/session/verify");
+      if (manualVerifyDoneRef.current) return;
+      const data = (await res.json()) as {
+        ok?: boolean;
+        user?: { screen_name: string; name: string };
+      };
+      if (
+        !res.ok ||
+        !data.ok ||
+        !data.user?.screen_name ||
+        data.user.screen_name === "unknown"
+      ) {
+        setSessionUser(null);
+        return;
+      }
+      setSessionUser({
+        screen_name: data.user.screen_name,
+        name: data.user.name ?? data.user.screen_name,
+      });
+    } catch {
+      // Sidecar may be offline on first paint — leave unverified.
+      if (manualVerifyDoneRef.current) return;
+      setSessionUser(null);
+    }
+  }
+
   useEffect(() => {
+    void hydrateSession();
     void (async () => {
       await hydrateDismissed();
       await hydrateSkipped();
@@ -1229,24 +1259,31 @@ export default function App() {
         user?: { screen_name: string; name: string };
         message?: string;
         error?: string;
+        warning?: string;
       };
-      if (!res.ok || !data.ok) {
+      if (
+        !res.ok ||
+        !data.ok ||
+        !data.user?.screen_name ||
+        data.user.screen_name === "unknown"
+      ) {
         setSessionUser(null);
-        setStatus(`Session fail: ${data.message || data.error || res.status}`);
+        setStatus(data.warning || `Session fail: ${data.message || data.error || res.status}`);
         return;
       }
-      if (data.user?.screen_name) {
-        setSessionUser({
-          screen_name: data.user.screen_name,
-          name: data.user.name ?? data.user.screen_name,
-        });
-      }
-      setStatus(`Session OK — @${data.user?.screen_name} (${data.user?.name})`);
+      setSessionUser({
+        screen_name: data.user.screen_name,
+        name: data.user.name ?? data.user.screen_name,
+      });
+      setStatus(
+        `Session OK — @${data.user.screen_name} (${data.user.name ?? data.user.screen_name})`,
+      );
       closeMenu();
     } catch {
       setSessionUser(null);
       setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
     } finally {
+      manualVerifyDoneRef.current = true;
       setActionBusy(false);
     }
   }
