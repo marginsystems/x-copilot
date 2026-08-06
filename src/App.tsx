@@ -967,7 +967,29 @@ export default function App() {
     }
   }
 
+  async function hydrateSession() {
+    try {
+      const res = await fetch("/api/session/verify");
+      const data = (await res.json()) as {
+        ok?: boolean;
+        user?: { screen_name: string; name: string };
+      };
+      if (!res.ok || !data.ok || !data.user?.screen_name) {
+        setSessionUser(null);
+        return;
+      }
+      setSessionUser({
+        screen_name: data.user.screen_name,
+        name: data.user.name ?? data.user.screen_name,
+      });
+    } catch {
+      // Sidecar may be offline on first paint — leave unverified.
+      setSessionUser(null);
+    }
+  }
+
   useEffect(() => {
+    void hydrateSession();
     void (async () => {
       await hydrateDismissed();
       await hydrateSkipped();
@@ -1230,18 +1252,18 @@ export default function App() {
         message?: string;
         error?: string;
       };
-      if (!res.ok || !data.ok) {
+      if (!res.ok || !data.ok || !data.user?.screen_name) {
         setSessionUser(null);
         setStatus(`Session fail: ${data.message || data.error || res.status}`);
         return;
       }
-      if (data.user?.screen_name) {
-        setSessionUser({
-          screen_name: data.user.screen_name,
-          name: data.user.name ?? data.user.screen_name,
-        });
-      }
-      setStatus(`Session OK — @${data.user?.screen_name} (${data.user?.name})`);
+      setSessionUser({
+        screen_name: data.user.screen_name,
+        name: data.user.name ?? data.user.screen_name,
+      });
+      setStatus(
+        `Session OK — @${data.user.screen_name} (${data.user.name ?? data.user.screen_name})`,
+      );
       closeMenu();
     } catch {
       setSessionUser(null);
