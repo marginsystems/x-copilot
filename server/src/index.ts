@@ -9,6 +9,10 @@ import {
   parseActivityBucket,
 } from "./activityStats.js";
 import {
+  getGamification,
+  recordMarkGamification,
+} from "./gamification.js";
+import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
   getEverInteractedConversationIds,
@@ -18,6 +22,7 @@ import {
   MAX_INTERACTION_STORE,
   parseStatusIdFromUrl,
   normalizeAuthorKey,
+  setGamificationSyncFailed,
 } from "./interactionStore.js";
 import {
   getDismissedThreadIds,
@@ -553,6 +558,18 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, bucketInteractions(history, { bucket }));
     }
 
+    if (req.method === "GET" && url.pathname === "/api/gamification") {
+      try {
+        return send(res, 200, await getGamification());
+      } catch (err) {
+        console.error("gamification read failed:", err);
+        return send(res, 500, {
+          error: "store_failed",
+          message: "Failed to load gamification",
+        });
+      }
+    }
+
     if (req.method === "GET" && url.pathname === "/api/interacted") {
       const [interactions, active] = await Promise.all([
         listInteractionHistory(),
@@ -813,6 +830,24 @@ const server = http.createServer(async (req, res) => {
           conversationId,
           inReplyToId,
         });
+        let gamification;
+        try {
+          gamification = await recordMarkGamification({
+            threadId,
+            nowMs: Date.parse(interaction.at) || Date.now(),
+          });
+        } catch (err) {
+          // A successful re-mark of the same thread does not retroactively
+          // credit an older soft-failed mark; keep the pending projection so
+          // the stats-worker retry replays this exact mark's `at`.
+          console.warn("gamification mark soft-fail:", err);
+          await setGamificationSyncFailed({
+            threadId,
+            checkpoint: "mark",
+            failed: true,
+            pendingAt: interaction.at,
+          }).catch(() => {});
+        }
         let memoryPath: string | undefined;
         if (reply) {
           const memory = await writeInteractionMemory({
@@ -841,6 +876,7 @@ const server = http.createServer(async (req, res) => {
           ok: true,
           interaction,
           memoryPath,
+          ...(gamification ? { gamification } : {}),
         });
       } catch (err) {
         console.error("Failed to store interaction:", err);
