@@ -144,8 +144,12 @@ export function applyMarkToGamification(
   threadId?: string,
 ): { state: GamificationState; awarded: MarkAward } {
   const id = threadId?.trim() || "";
-  if (id && state.markAwardedThreadIds.includes(id)) {
-    // Idempotent: this thread's mark XP/streak was already credited.
+  // Retry idempotency key is the mark instance (threadId + exact at): a retry
+  // replays the same at, while a re-mark of the same thread has a new at and is
+  // still a new mark (+1 XP, advances streak).
+  const markKey = id ? `${id}:${new Date(nowMs).toISOString()}` : "";
+  if (id && state.markAwardedThreadIds.includes(markKey)) {
+    // Idempotent: this mark instance's XP/streak was already credited.
     return {
       state,
       awarded: { markXp: 0, currentStreak: state.currentStreak },
@@ -163,7 +167,7 @@ export function applyMarkToGamification(
         ...state,
         lifetimeXp: state.lifetimeXp + MARK_XP,
         markAwardedThreadIds: id
-          ? [...state.markAwardedThreadIds, id]
+          ? [...state.markAwardedThreadIds, markKey]
           : state.markAwardedThreadIds,
         updatedAt: new Date(nowMs).toISOString(),
       },
@@ -191,7 +195,7 @@ export function applyMarkToGamification(
     lastMarkUtcDay: day,
     lifetimeXp: state.lifetimeXp + MARK_XP,
     markAwardedThreadIds: id
-      ? [...state.markAwardedThreadIds, id]
+      ? [...state.markAwardedThreadIds, markKey]
       : state.markAwardedThreadIds,
     updatedAt: new Date(nowMs).toISOString(),
   };
@@ -366,18 +370,22 @@ export async function withGamificationState<T>(opts: {
   });
 }
 
-/** Record a successful Mark interacted. Idempotent per threadId. */
+/** Record a successful Mark interacted. Idempotent per mark (threadId + at). */
 export async function recordMarkGamification(
   opts?: GamificationPaths & { threadId?: string },
 ): Promise<GamificationPublic> {
   const path = opts?.gamificationPath ?? defaultGamificationPath();
   const nowMs = opts?.nowMs ?? Date.now();
   const threadId = opts?.threadId?.trim() || undefined;
+  const markKey = threadId
+    ? `${threadId}:${new Date(nowMs).toISOString()}`
+    : "";
   return withFileLock(path, async () => {
     const existing = await readGamificationFile(path);
     if (existing) {
-      // A mark retried after a soft-fail must not credit XP/streak again.
-      if (threadId && existing.markAwardedThreadIds.includes(threadId)) {
+      // A mark retried after a soft-fail replays the same at, so it must not
+      // credit XP/streak again; a re-mark with a new at is a new mark.
+      if (threadId && existing.markAwardedThreadIds.includes(markKey)) {
         return toPublicGamification(existing);
       }
       const { state: next } = applyMarkToGamification(existing, nowMs, threadId);
@@ -395,7 +403,7 @@ export async function recordMarkGamification(
     // history — still credit it exactly once.
     if (
       history.length === 0 ||
-      (threadId && !seeded.markAwardedThreadIds.includes(threadId))
+      (threadId && !seeded.markAwardedThreadIds.includes(markKey))
     ) {
       seeded = applyMarkToGamification(seeded, nowMs, threadId).state;
     }
