@@ -564,6 +564,7 @@ export default function App() {
     screen_name: string;
     name: string;
   } | null>(null);
+  const manualVerifyDoneRef = useRef(false);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
     loadSettings(),
@@ -970,6 +971,7 @@ export default function App() {
   async function hydrateSession() {
     try {
       const res = await fetch("/api/session/verify");
+      if (manualVerifyDoneRef.current) return;
       const data = (await res.json()) as {
         ok?: boolean;
         user?: { screen_name: string; name: string };
@@ -1279,6 +1281,7 @@ export default function App() {
       setSessionUser(null);
       setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
     } finally {
+      manualVerifyDoneRef.current = true;
       setActionBusy(false);
     }
   }
