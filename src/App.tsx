@@ -991,6 +991,7 @@ export default function App() {
       });
     } catch {
       // Sidecar may be offline on first paint — leave unverified.
+      if (manualVerifyDoneRef.current) return;
       setSessionUser(null);
     }
   }
