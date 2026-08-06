@@ -4,6 +4,7 @@
 import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
+  getEverInteractedConversationIds,
 } from "./interactionStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
@@ -183,7 +184,12 @@ export async function runScoutSearch(opts: {
   const cooled = await getAuthorKeysForScoutFilter({
     dedupeAccounts: opts.filters?.dedupeAccounts,
   });
-  const filtered = filterThreadsByCooldown(result.threads, cooled);
+  const blockedConversations = await getEverInteractedConversationIds();
+  const filtered = filterThreadsByCooldown(
+    result.threads,
+    cooled,
+    blockedConversations,
+  );
   const afterSelf = filterSelfReplies(filtered.threads);
   const afterLinks = filterOutboundLinks(afterSelf.threads);
   const preferredLanguage = normalizePreferredLanguageCode(

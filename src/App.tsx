@@ -48,6 +48,10 @@ type ThreadCard = {
   opAuthor?: string;
   opText?: string;
   isReply?: boolean;
+  /** X conversation root (OP status id) when known. */
+  conversationId?: string;
+  /** Immediate parent status id when this card is a reply. */
+  inReplyToId?: string;
   /** Native media t.co keys (lowercased); hide from card text display. */
   mediaShortlinks?: string[];
   /** 0–100, higher = more engagement bait. */
@@ -110,6 +114,8 @@ type InteractionHistoryEntry = {
   replyId?: string;
   replyUrl?: string;
   postedAt?: string;
+  conversationId?: string;
+  inReplyToId?: string;
   stats?: {
     t1h?: ReplyStatSnapshot;
     t24h?: ReplyStatSnapshot;
@@ -584,6 +590,7 @@ export default function App() {
   const skippedIdsRef = useRef<Set<string>>(new Set());
   const expiredIdsRef = useRef<Set<string>>(new Set());
   const interactedIdsRef = useRef<Set<string>>(new Set());
+  const blockedConversationsRef = useRef<Set<string>>(new Set());
   const searchingRef = useRef(0);
   const coolProgressRef = useRef({
     cool: 0,
@@ -789,8 +796,12 @@ export default function App() {
     thread: ThreadCard,
     excludedTags: readonly string[] = settings.excludedTags,
   ): boolean {
+    const blocked = blockedConversationsRef.current;
     return (
       !isHiddenFromCurated(thread.id) &&
+      !blocked.has(thread.id) &&
+      !(thread.conversationId && blocked.has(thread.conversationId)) &&
+      !(thread.inReplyToId && blocked.has(thread.inReplyToId)) &&
       !threadHasExcludedTag(thread, excludedTags)
     );
   }
@@ -1144,6 +1155,8 @@ export default function App() {
           summary: thread.summary,
           opAuthor: thread.opAuthor,
           opText: thread.opText,
+          conversationId: thread.conversationId,
+          inReplyToId: thread.inReplyToId,
           baitScore: thread.baitScore ?? thread.score,
           engage: thread.engage,
           flags: thread.flags,
@@ -1160,8 +1173,13 @@ export default function App() {
         return false;
       }
       const key = normalizeAuthorKey(thread.author);
+      const conversationRoot =
+        thread.conversationId?.trim() ||
+        thread.inReplyToId?.trim() ||
+        thread.id;
       interactedIdsRef.current = new Set(interactedIdsRef.current).add(thread.id);
       setInteractedIds((prev) => new Set(prev).add(thread.id));
+      blockedConversationsRef.current = new Set(blockedConversationsRef.current).add(conversationRoot);
       const historyEntry: InteractionHistoryEntry = data.interaction ?? {
         threadId: thread.id,
         author: thread.author,
@@ -1172,13 +1190,25 @@ export default function App() {
         replyId,
         replyUrl: urlTrimmed,
         postedAt: new Date().toISOString(),
+        conversationId: thread.conversationId?.trim(),
+        inReplyToId: thread.inReplyToId?.trim(),
       };
       setInteractedHistory((prev) => [
         historyEntry,
         ...prev.filter((i) => i.threadId !== thread.id),
       ]);
-      // Drop this author from Curated so we stop engaging the same account.
-      setThreads((prev) => prev.filter((t) => normalizeAuthorKey(t.author) !== key));
+      // Drop this author and the whole conversation (OP + sibling replies).
+      setThreads((prev) =>
+        prev.filter((t) => {
+          if (normalizeAuthorKey(t.author) === key) return false;
+          if (t.id === conversationRoot) return false;
+          if (t.conversationId && t.conversationId === conversationRoot) {
+            return false;
+          }
+          if (t.inReplyToId && t.inReplyToId === conversationRoot) return false;
+          return true;
+        }),
+      );
       setExpandedId((id) => (id === thread.id ? null : id));
       void hydrateActivityStats();
       void hydrateGamification();
