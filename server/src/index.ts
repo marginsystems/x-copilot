@@ -822,17 +822,16 @@ const server = http.createServer(async (req, res) => {
             threadId,
             nowMs: Date.parse(interaction.at) || Date.now(),
           });
-          await setGamificationSyncFailed({
-            threadId,
-            checkpoint: "mark",
-            failed: false,
-          }).catch(() => {});
         } catch (err) {
+          // A successful re-mark of the same thread does not retroactively
+          // credit an older soft-failed mark; keep the pending projection so
+          // the stats-worker retry replays this exact mark's `at`.
           console.warn("gamification mark soft-fail:", err);
           await setGamificationSyncFailed({
             threadId,
             checkpoint: "mark",
             failed: true,
+            pendingAt: interaction.at,
           }).catch(() => {});
         }
         let memoryPath: string | undefined;

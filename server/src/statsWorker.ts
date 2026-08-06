@@ -173,8 +173,8 @@ export async function runStatsTick(opts?: {
 
   // Retry soft-failed gamification projections (mark XP/streak or t24h bonus)
   // so the durable ledger converges with interactions.json. Both projections
-  // are idempotent per threadId, so re-applying a flagged mark never credits
-  // XP/streak more than once.
+  // are idempotent per (threadId, at), so re-applying a flagged mark never
+  // credits XP/streak more than once.
   const gamificationRetries = await listGamificationSyncRetries({
     storePath: opts?.storePath,
     limit: tickCap,
@@ -182,18 +182,28 @@ export async function runStatsTick(opts?: {
   for (const interaction of gamificationRetries) {
     if (interaction.markGamificationSyncFailed) {
       try {
-        const markMs = Date.parse(interaction.at);
-        await recordMarkGamification({
-          threadId: interaction.threadId,
-          interactionStorePath: opts?.storePath,
-          gamificationPath: opts?.gamificationPath,
-          nowMs: Number.isFinite(markMs) ? markMs : opts?.nowMs,
-        });
+        // Replay every mark instance that actually failed: a re-mark of the
+        // same thread overwrites `at`, so fall back to the persisted pending
+        // ats (the current `at` only when none were recorded).
+        const pendingAts =
+          interaction.pendingMarkAts && interaction.pendingMarkAts.length
+            ? interaction.pendingMarkAts
+            : [interaction.at];
+        for (const pendingAt of pendingAts) {
+          const markMs = Date.parse(pendingAt);
+          await recordMarkGamification({
+            threadId: interaction.threadId,
+            interactionStorePath: opts?.storePath,
+            gamificationPath: opts?.gamificationPath,
+            nowMs: Number.isFinite(markMs) ? markMs : opts?.nowMs,
+          });
+        }
         await setGamificationSyncFailed({
           threadId: interaction.threadId,
           checkpoint: "mark",
           failed: false,
           storePath: opts?.storePath,
+          clearedPendingAts: pendingAts,
         });
       } catch (err) {
         console.warn(
@@ -257,6 +267,7 @@ export async function runStatsTick(opts?: {
         await recordT24hBonusGamification({
           threadId: item.threadId,
           snapshot: metrics,
+          interactionStorePath: opts?.storePath,
           nowMs: opts?.nowMs,
           gamificationPath: opts?.gamificationPath,
         });

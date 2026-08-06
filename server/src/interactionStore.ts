@@ -50,6 +50,10 @@ export type Interaction = {
   markGamificationSyncFailed?: boolean;
   /** True when the t24h bonus → gamification ledger projection soft-failed; retried next tick. */
   bonusGamificationSyncFailed?: boolean;
+  /** Original mark `at` instances whose gamification projection is pending.
+   * A list so a second soft-fail of a re-mark (which overwrites `at`) cannot
+   * erase an earlier uncredited mark. */
+  pendingMarkAts?: string[];
 };
 
 /** Parse x.com / twitter.com status URL → numeric rest id. Keep in sync with src/App.tsx. */
@@ -215,6 +219,17 @@ function parseStore(raw: string): StoreFile {
       if (row.bonusGamificationSyncFailed === true) {
         item.bonusGamificationSyncFailed = true;
       }
+      const pendingMarkAts = Array.isArray(row.pendingMarkAts)
+        ? row.pendingMarkAts.filter(
+            (s): s is string => typeof s === "string" && s.trim() !== "",
+          )
+        : [];
+      // Legacy single-slot format written before the multi-pending change.
+      const legacyPendingMarkAt = optionalString(row.pendingMarkAt);
+      if (legacyPendingMarkAt && !pendingMarkAts.includes(legacyPendingMarkAt)) {
+        pendingMarkAts.push(legacyPendingMarkAt);
+      }
+      if (pendingMarkAts.length) item.pendingMarkAts = pendingMarkAts;
       interactions.push(item);
     }
     return { interactions };
@@ -339,6 +354,7 @@ export async function markInteracted(opts: {
     if (prior?.memorySyncFailed) next.memorySyncFailed = true;
     if (prior?.markGamificationSyncFailed) next.markGamificationSyncFailed = true;
     if (prior?.bonusGamificationSyncFailed) next.bonusGamificationSyncFailed = true;
+    if (prior?.pendingMarkAts?.length) next.pendingMarkAts = prior.pendingMarkAts;
     const without = store.interactions.filter((i) => i.threadId !== threadId);
     without.push(next);
     // Retain enough history for the activity dashboard window; feed UI still
@@ -553,6 +569,14 @@ export async function setGamificationSyncFailed(opts: {
   threadId: string;
   checkpoint: GamificationCheckpoint;
   failed: boolean;
+  /** Original mark `at` to replay when a mark projection soft-fails; appended
+   * to the pending list so a re-mark of the same thread (which overwrites `at`)
+   * cannot erase an earlier uncredited mark instance. */
+  pendingAt?: string;
+  /** Mark `at`s a retry tick successfully replayed. When clearing the mark
+   * flag, only these are dropped from the pending list; ats appended by a
+   * concurrent soft-fail since the retry snapshot are kept for the next tick. */
+  clearedPendingAts?: string[];
   storePath?: string;
 }): Promise<void> {
   const threadId = opts.threadId.trim();
@@ -567,10 +591,42 @@ export async function setGamificationSyncFailed(opts: {
       opts.checkpoint === "mark"
         ? "markGamificationSyncFailed"
         : "bonusGamificationSyncFailed";
-    if (!!row[field] === opts.failed) return;
+    let pendingAtNew = false;
+    if (opts.checkpoint === "mark" && opts.failed && opts.pendingAt) {
+      pendingAtNew = !row.pendingMarkAts?.includes(opts.pendingAt);
+    }
+    if (!!row[field] === opts.failed && !pendingAtNew) return;
     const next: Interaction = { ...row };
-    if (opts.failed) next[field] = true;
-    else delete next[field];
+    if (opts.failed) {
+      next[field] = true;
+      if (opts.checkpoint === "mark" && opts.pendingAt) {
+        const pendingMarkAts = row.pendingMarkAts ?? [];
+        next.pendingMarkAts = pendingMarkAts.includes(opts.pendingAt)
+          ? pendingMarkAts
+          : [...pendingMarkAts, opts.pendingAt];
+      }
+    } else if (
+      opts.checkpoint === "mark" &&
+      opts.clearedPendingAts &&
+      opts.clearedPendingAts.length
+    ) {
+      // Only drop the ats this retry actually replayed; keep the flag set so
+      // an at appended by a concurrent soft-fail is retried on the next tick.
+      const remaining = (row.pendingMarkAts ?? []).filter(
+        (at) => !opts.clearedPendingAts!.includes(at),
+      );
+      if (remaining.length) {
+        next.pendingMarkAts = remaining;
+      } else {
+        delete next[field];
+        delete next.pendingMarkAts;
+      }
+    } else {
+      delete next[field];
+      if (opts.checkpoint === "mark") {
+        delete next.pendingMarkAts;
+      }
+    }
     const interactions = [...store.interactions];
     interactions[idx] = next;
     await writeStore(path, { interactions });

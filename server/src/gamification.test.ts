@@ -93,6 +93,26 @@ describe("applyMarkToGamification", () => {
     assert.equal(state.lifetimeXp, 2);
   });
 
+  it("re-marking the same thread on a later day awards XP and advances the streak", () => {
+    const d1 = Date.parse("2026-08-05T12:00:00.000Z");
+    const d2 = Date.parse("2026-08-06T12:00:00.000Z");
+    let state = applyMarkToGamification(
+      emptyGamificationState(d1),
+      d1,
+      "t1",
+    ).state;
+    assert.equal(state.currentStreak, 1);
+    assert.equal(state.lifetimeXp, 1);
+    state = applyMarkToGamification(state, d2, "t1").state;
+    assert.equal(state.currentStreak, 2);
+    assert.equal(state.longestStreak, 2);
+    assert.equal(state.lifetimeXp, 2);
+    // Replaying the original mark (same threadId + at) stays idempotent.
+    const replay = applyMarkToGamification(state, d1, "t1");
+    assert.equal(replay.awarded.markXp, 0);
+    assert.equal(replay.state.lifetimeXp, 2);
+  });
+
   it("credits XP only for a backdated mark without regressing the cursor", () => {
     const d1 = Date.parse("2026-08-05T12:00:00.000Z");
     const d3 = Date.parse("2026-08-07T12:00:00.000Z");
@@ -112,7 +132,10 @@ describe("applyMarkToGamification", () => {
     assert.equal(state.currentStreak, 1);
     assert.equal(state.lastMarkUtcDay, "2026-08-06");
     assert.equal(state.lifetimeXp, 2);
-    assert.deepEqual(state.markAwardedThreadIds, ["b", "a"]);
+    assert.deepEqual(state.markAwardedThreadIds, [
+      "b",
+      "a:2026-08-05T12:00:00.000Z",
+    ]);
 
     // A D3 mark must still be consecutive with the D2 cursor.
     state = applyMarkToGamification(state, d3, "c").state;
