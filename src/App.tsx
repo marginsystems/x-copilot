@@ -1258,6 +1258,7 @@ export default function App() {
         user?: { screen_name: string; name: string };
         message?: string;
         error?: string;
+        warning?: string;
       };
       if (
         !res.ok ||
@@ -1266,7 +1267,7 @@ export default function App() {
         data.user.screen_name === "unknown"
       ) {
         setSessionUser(null);
-        setStatus(`Session fail: ${data.message || data.error || res.status}`);
+        setStatus(data.warning || `Session fail: ${data.message || data.error || res.status}`);
         return;
       }
       setSessionUser({
