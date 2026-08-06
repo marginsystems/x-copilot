@@ -203,6 +203,7 @@ export async function runStatsTick(opts?: {
           checkpoint: "mark",
           failed: false,
           storePath: opts?.storePath,
+          clearedPendingAts: pendingAts,
         });
       } catch (err) {
         console.warn(

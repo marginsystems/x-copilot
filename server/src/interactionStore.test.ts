@@ -386,6 +386,56 @@ describe("gamification sync retry flag", () => {
     });
     assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
   });
+
+  it("keeps pending ats appended by a concurrent soft-fail when clearing the mark flag", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    const d1 = new Date(now).toISOString();
+    const d2 = new Date(now + 1000).toISOString();
+    await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      nowMs: now,
+      storePath,
+    });
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      checkpoint: "mark",
+      failed: true,
+      pendingAt: d1,
+      storePath,
+    });
+    // A concurrent re-mark soft-fail appends a second pending at.
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      checkpoint: "mark",
+      failed: true,
+      pendingAt: d2,
+      storePath,
+    });
+
+    // Retry tick clears only the at it replayed; d2 must survive.
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      checkpoint: "mark",
+      failed: false,
+      clearedPendingAts: [d1],
+      storePath,
+    });
+    let flagged = await listGamificationSyncRetries({ storePath });
+    assert.equal(flagged.length, 1);
+    assert.equal(flagged[0]?.markGamificationSyncFailed, true);
+    assert.deepEqual(flagged[0]?.pendingMarkAts, [d2]);
+
+    // Once the remaining at is replayed, the flag clears entirely.
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      checkpoint: "mark",
+      failed: false,
+      clearedPendingAts: [d2],
+      storePath,
+    });
+    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+  });
 });
 
 describe("getAuthorKeysForScoutFilter", () => {

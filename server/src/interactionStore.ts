@@ -573,6 +573,10 @@ export async function setGamificationSyncFailed(opts: {
    * to the pending list so a re-mark of the same thread (which overwrites `at`)
    * cannot erase an earlier uncredited mark instance. */
   pendingAt?: string;
+  /** Mark `at`s a retry tick successfully replayed. When clearing the mark
+   * flag, only these are dropped from the pending list; ats appended by a
+   * concurrent soft-fail since the retry snapshot are kept for the next tick. */
+  clearedPendingAts?: string[];
   storePath?: string;
 }): Promise<void> {
   const threadId = opts.threadId.trim();
@@ -600,6 +604,22 @@ export async function setGamificationSyncFailed(opts: {
         next.pendingMarkAts = pendingMarkAts.includes(opts.pendingAt)
           ? pendingMarkAts
           : [...pendingMarkAts, opts.pendingAt];
+      }
+    } else if (
+      opts.checkpoint === "mark" &&
+      opts.clearedPendingAts &&
+      opts.clearedPendingAts.length
+    ) {
+      // Only drop the ats this retry actually replayed; keep the flag set so
+      // an at appended by a concurrent soft-fail is retried on the next tick.
+      const remaining = (row.pendingMarkAts ?? []).filter(
+        (at) => !opts.clearedPendingAts!.includes(at),
+      );
+      if (remaining.length) {
+        next.pendingMarkAts = remaining;
+      } else {
+        delete next[field];
+        delete next.pendingMarkAts;
       }
     } else {
       delete next[field];
