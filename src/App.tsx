@@ -549,6 +549,8 @@ export default function App() {
   const activityBucketRef = useRef<ActivityBucket>("day");
   /** In-flight toggle target; may diverge from applied `activityBucketRef`. */
   const activityRequestBucketRef = useRef<ActivityBucket>("day");
+  /** Monotonic token so out-of-order gamification responses don't regress the chip. */
+  const gamificationRequestSeqRef = useRef(0);
   const [view, setView] = useState<AppView>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
@@ -762,7 +764,9 @@ export default function App() {
   }
 
   async function hydrateGamification() {
+    const seq = ++gamificationRequestSeqRef.current;
     const next = await fetchGamification();
+    if (seq !== gamificationRequestSeqRef.current) return;
     if (!next) return;
     setGamification(next);
   }

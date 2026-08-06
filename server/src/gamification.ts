@@ -308,15 +308,19 @@ function parseGamificationState(raw: string): GamificationState | null {
 async function readGamificationFile(
   path: string,
 ): Promise<GamificationState | null> {
+  let raw: string;
   try {
-    const raw = await readFile(path, "utf8");
-    return parseGamificationState(raw);
+    raw = await readFile(path, "utf8");
   } catch (err) {
     const code = (err as NodeJS.ErrnoException)?.code;
     if (code === "ENOENT") return null;
-    console.error("gamification read failed:", err);
-    return null;
+    throw err;
   }
+  const state = parseGamificationState(raw);
+  if (state === null) {
+    throw new Error("gamification file is not parseable: " + path);
+  }
+  return state;
 }
 
 async function writeGamificationFile(

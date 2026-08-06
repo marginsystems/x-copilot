@@ -191,11 +191,12 @@ export async function runStatsTick(opts?: {
             : [interaction.at];
         for (const pendingAt of pendingAts) {
           const markMs = Date.parse(pendingAt);
+          if (!Number.isFinite(markMs)) continue;
           await recordMarkGamification({
             threadId: interaction.threadId,
             interactionStorePath: opts?.storePath,
             gamificationPath: opts?.gamificationPath,
-            nowMs: Number.isFinite(markMs) ? markMs : opts?.nowMs,
+            nowMs: markMs,
           });
         }
         await setGamificationSyncFailed({
