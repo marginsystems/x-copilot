@@ -37,6 +37,18 @@ import { stripMediaShortlinksFromText } from "./lib/mediaText";
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
 
+/** Closed preference category from triage (mirrors server THREAD_KINDS). */
+type ThreadKind =
+  | "timely_take"
+  | "fact_add"
+  | "sharp_opinion"
+  | "lived_answer"
+  | "hollow_ask"
+  | "promo_context"
+  | "bare_news"
+  | "closed_thread"
+  | "other";
+
 type ThreadCard = {
   id: string;
   author: string;
@@ -58,6 +70,7 @@ type ThreadCard = {
   baitScore?: number;
   flags?: string[];
   intent?: string;
+  threadKind?: ThreadKind;
   engage?: "skip" | "consider" | "priority";
   reason?: string;
   score?: number;
@@ -271,7 +284,13 @@ function ThreadRow({
     thread.text,
     thread.mediaShortlinks,
   );
-  const tags = [...new Set([thread.intent, ...(thread.flags ?? [])].filter(Boolean))];
+  const tags = [
+    ...new Set(
+      [thread.threadKind, thread.intent, ...(thread.flags ?? [])].filter(
+        Boolean,
+      ),
+    ),
+  ];
   const classes = ["thread-row"];
   if (open) classes.push("open");
   if (thread.engage === "skip") classes.push("skip");

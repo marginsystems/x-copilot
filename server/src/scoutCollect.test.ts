@@ -63,6 +63,42 @@ describe("isCoolThread", () => {
       false,
     );
   });
+
+  it("rejects cool-skip threadKinds even with middling bait", () => {
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "1",
+          engage: "consider",
+          baitScore: 20,
+          threadKind: "hollow_ask",
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "2",
+          engage: "priority",
+          baitScore: 15,
+          threadKind: "promo_context",
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "3",
+          engage: "consider",
+          baitScore: 20,
+          threadKind: "timely_take",
+        }),
+      ),
+      true,
+    );
+  });
 });
 
 describe("clampTargetCool / clampBucketSize", () => {

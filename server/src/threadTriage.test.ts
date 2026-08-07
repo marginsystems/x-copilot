@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import {
   buildTriageCompact,
   buildUserMessage,
+  cleanThreadKind,
   formatMemoryBlock,
   gatherTriageMemories,
   isCompleteTriageItem,
+  isCoolSkipThreadKind,
   mergeTriage,
   missingTriageIds,
   parseTriageJson,
@@ -14,6 +16,7 @@ import {
   TRIAGE_SYSTEM_PROMPT,
   triageThreads,
   MAX_TRIAGE_THREADS,
+  THREAD_KINDS,
 } from "./threadTriage.ts";
 import type { ThreadCard } from "./xSearch.ts";
 
@@ -33,6 +36,7 @@ function completeJson(
     baitScore?: number;
     flags?: string[];
     intent?: string;
+    threadKind?: string;
     engage?: string;
     reason?: string;
   }>,
@@ -90,15 +94,24 @@ describe("TRIAGE_SYSTEM_PROMPT media annotation", () => {
 });
 
 describe("isCompleteTriageItem", () => {
-  it("requires id, summary, and baitScore", () => {
+  it("requires id, summary, baitScore, and threadKind", () => {
     assert.equal(
-      isCompleteTriageItem({ id: "1", summary: "Ok", baitScore: 10 }),
+      isCompleteTriageItem({
+        id: "1",
+        summary: "Ok",
+        baitScore: 10,
+        threadKind: "other",
+      }),
       true,
     );
     assert.equal(isCompleteTriageItem({ id: "1", summary: "Ok" }), false);
     assert.equal(isCompleteTriageItem({ id: "1", baitScore: 10 }), false);
     assert.equal(
       isCompleteTriageItem({ id: "1", summary: "   ", baitScore: 10 }),
+      false,
+    );
+    assert.equal(
+      isCompleteTriageItem({ id: "1", summary: "Ok", baitScore: 10 }),
       false,
     );
   });
@@ -112,6 +125,7 @@ describe("parseTriageJson", () => {
           id: "1",
           summary: "Asks for AI tips to farm replies.",
           baitScore: 82,
+          threadKind: "hollow_ask",
           flags: ["engagement_bait", "generic_question"],
           intent: "engagement farming",
           engage: "skip",
@@ -124,6 +138,7 @@ describe("parseTriageJson", () => {
         id: "1",
         summary: "Asks for AI tips to farm replies.",
         baitScore: 82,
+        threadKind: "hollow_ask",
         flags: ["engagement_bait", "generic_question"],
         intent: "engagement farming",
         engage: "skip",
@@ -132,34 +147,62 @@ describe("parseTriageJson", () => {
     ]);
   });
 
+  it("normalizes threadKind and drops items with unknown kinds", () => {
+    const items = parseTriageJson(
+      completeJson([
+        {
+          id: "1",
+          summary: "News plus take.",
+          baitScore: 20,
+          threadKind: "Timely Take",
+        },
+        {
+          id: "2",
+          summary: "Unknown kind dropped with the item.",
+          baitScore: 20,
+          threadKind: "not_a_real_kind",
+        },
+      ]),
+    );
+    assert.equal(items?.length, 1);
+    assert.equal(items?.[0]?.id, "1");
+    assert.equal(items?.[0]?.threadKind, "timely_take");
+  });
+
   it("strips markdown fences for complete items", () => {
     const items = parseTriageJson(
-      '```json\n{"items":[{"id":"7","summary":"Short take.","baitScore":20}]}\n```',
+      '```json\n{"items":[{"id":"7","summary":"Short take.","baitScore":20,"threadKind":"sharp_opinion"}]}\n```',
     );
     assert.deepEqual(items, [
-      { id: "7", summary: "Short take.", baitScore: 20 },
+      {
+        id: "7",
+        summary: "Short take.",
+        baitScore: 20,
+        threadKind: "sharp_opinion",
+      },
     ]);
   });
 
-  it("rejects incomplete items without baitScore or summary", () => {
+  it("rejects incomplete items without baitScore, summary, or threadKind", () => {
     const items = parseTriageJson(
       completeJson([
         { id: "1", engage: "skip", summary: "Has summary only" },
         { id: "2", baitScore: 50 },
-        { id: "3", summary: "Complete.", baitScore: 40 },
+        { id: "4", summary: "No kind.", baitScore: 30 },
+        { id: "3", summary: "Complete.", baitScore: 40, threadKind: "fact_add" },
       ]),
     );
     assert.deepEqual(items, [
-      { id: "3", summary: "Complete.", baitScore: 40 },
+      { id: "3", summary: "Complete.", baitScore: 40, threadKind: "fact_add" },
     ]);
   });
 
   it("clamps and rounds baitScore", () => {
     const items = parseTriageJson(
       completeJson([
-        { id: "a", summary: "A", baitScore: 140 },
-        { id: "b", summary: "B", baitScore: -20 },
-        { id: "c", summary: "C", baitScore: 42.6 },
+        { id: "a", summary: "A", baitScore: 140, threadKind: "other" },
+        { id: "b", summary: "B", baitScore: -20, threadKind: "other" },
+        { id: "c", summary: "C", baitScore: 42.6, threadKind: "other" },
       ]),
     );
     assert.deepEqual(
@@ -176,37 +219,41 @@ describe("parseTriageJson", () => {
           engage: "maybe",
           summary: "Ships a CLI.",
           baitScore: 15,
+          threadKind: "other",
         },
       ]),
     );
     assert.deepEqual(items, [
-      { id: "1", summary: "Ships a CLI.", baitScore: 15 },
+      { id: "1", summary: "Ships a CLI.", baitScore: 15, threadKind: "other" },
     ]);
   });
 
   it("normalizes flags and drops empty ones", () => {
     const items = parseTriageJson(
-      '{"items":[{"id":"1","summary":"Promo.","baitScore":70,"flags":["Engagement Bait","promo","promo","",3]}]}',
+      '{"items":[{"id":"1","summary":"Promo.","baitScore":70,"threadKind":"promo_context","flags":["Engagement Bait","promo","promo","",3]}]}',
     );
     assert.deepEqual(items?.[0].flags, ["engagement_bait", "promo"]);
   });
 
   it("skips items without an id and dedupes repeats", () => {
     const items = parseTriageJson(
-      '{"items":[{"summary":"no id","baitScore":1},{"id":"1","summary":"First","baitScore":10},{"id":"1","summary":"Second","baitScore":90}]}',
+      '{"items":[{"summary":"no id","baitScore":1},{"id":"1","summary":"First","baitScore":10,"threadKind":"other"},{"id":"1","summary":"Second","baitScore":90,"threadKind":"other"}]}',
     );
-    assert.deepEqual(items, [{ id: "1", summary: "First", baitScore: 10 }]);
+    assert.deepEqual(items, [
+      { id: "1", summary: "First", baitScore: 10, threadKind: "other" },
+    ]);
   });
 
   it("handles {} characters inside string values", () => {
     const json =
-      '{"items":[{"id":"1","summary":"Shows code: { x = 1 }","baitScore":25,"reason":"Contains } brace"}]}';
+      '{"items":[{"id":"1","summary":"Shows code: { x = 1 }","baitScore":25,"threadKind":"other","reason":"Contains } brace"}]}';
     const items = parseTriageJson(json);
     assert.deepEqual(items, [
       {
         id: "1",
         summary: "Shows code: { x = 1 }",
         baitScore: 25,
+        threadKind: "other",
         reason: "Contains } brace",
       },
     ]);
@@ -214,9 +261,11 @@ describe("parseTriageJson", () => {
 
   it("ignores incomplete items when extra text surrounds JSON", () => {
     const json =
-      'Some prefix {"items":[{"id":"1","summary":"Ok.","baitScore":11}]} trailing';
+      'Some prefix {"items":[{"id":"1","summary":"Ok.","baitScore":11,"threadKind":"other"}]} trailing';
     const items = parseTriageJson(json);
-    assert.deepEqual(items, [{ id: "1", summary: "Ok.", baitScore: 11 }]);
+    assert.deepEqual(items, [
+      { id: "1", summary: "Ok.", baitScore: 11, threadKind: "other" },
+    ]);
   });
 
   it("returns null for non-json and missing items array", () => {
@@ -230,7 +279,14 @@ describe("missingTriageIds", () => {
     assert.deepEqual(
       missingTriageIds(
         ["1", "2", "3"],
-        [{ id: "2", summary: "Ok", baitScore: 10 }],
+        [
+          {
+            id: "2",
+            summary: "Ok",
+            baitScore: 10,
+            threadKind: "lived_answer",
+          },
+        ],
       ),
       ["1", "3"],
     );
@@ -251,6 +307,32 @@ describe("selectScoredThreads", () => {
   });
 });
 
+describe("threadKind helpers", () => {
+  it("accepts the closed enum and rejects junk", () => {
+    assert.equal(cleanThreadKind("lived_answer"), "lived_answer");
+    assert.equal(cleanThreadKind(" Bare News "), "bare_news");
+    assert.equal(cleanThreadKind("nope"), undefined);
+    assert.equal(THREAD_KINDS.includes("other"), true);
+  });
+
+  it("flags cool-skip kinds", () => {
+    assert.equal(isCoolSkipThreadKind("hollow_ask"), true);
+    assert.equal(isCoolSkipThreadKind("promo_context"), true);
+    assert.equal(isCoolSkipThreadKind("bare_news"), true);
+    assert.equal(isCoolSkipThreadKind("closed_thread"), true);
+    assert.equal(isCoolSkipThreadKind("timely_take"), false);
+    assert.equal(isCoolSkipThreadKind(undefined), false);
+  });
+
+  it("documents prefer/skip kinds in the system prompt", () => {
+    assert.match(TRIAGE_SYSTEM_PROMPT, /threadKind/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /timely_take/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /hollow_ask/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /GitHub Actions outage/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /shipping this week/);
+  });
+});
+
 describe("mergeTriage", () => {
   it("merges by id and mirrors baitScore onto score", () => {
     const merged = mergeTriage(
@@ -260,6 +342,7 @@ describe("mergeTriage", () => {
           id: "1",
           summary: "Genuine question about Vite proxies.",
           baitScore: 12,
+          threadKind: "lived_answer",
           engage: "priority",
         },
       ],
@@ -268,6 +351,7 @@ describe("mergeTriage", () => {
     assert.equal(merged[0].baitScore, 12);
     assert.equal(merged[0].score, 12);
     assert.equal(merged[0].engage, "priority");
+    assert.equal(merged[0].threadKind, "lived_answer");
     assert.equal(merged[0].text, "post 1");
     assert.equal(merged[1].summary, undefined);
     assert.equal(merged[1].score, undefined);
@@ -276,7 +360,14 @@ describe("mergeTriage", () => {
   it("ignores unknown ids", () => {
     const merged = mergeTriage(
       [thread("1")],
-      [{ id: "999", summary: "not ours", baitScore: 90 }],
+      [
+        {
+          id: "999",
+          summary: "not ours",
+          baitScore: 90,
+          threadKind: "other",
+        },
+      ],
     );
     assert.deepEqual(merged, [thread("1")]);
   });

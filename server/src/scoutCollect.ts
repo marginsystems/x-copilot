@@ -28,7 +28,7 @@ import {
   resolveMaxThreadCharsFromFilters,
   threadHasExcludedTag,
 } from "./threadFilters.js";
-import { triageThreads } from "./threadTriage.js";
+import { isCoolSkipThreadKind, triageThreads } from "./threadTriage.js";
 import { hydrateReplyParents } from "./tweetLookup.js";
 import {
   searchTimelinePages,
@@ -103,6 +103,9 @@ export function clampBucketSize(value: unknown): number {
 
 export function isCoolThread(thread: ThreadCard): boolean {
   if (thread.engage !== "priority" && thread.engage !== "consider") {
+    return false;
+  }
+  if (isCoolSkipThreadKind(thread.threadKind)) {
     return false;
   }
   const bait = thread.baitScore ?? thread.score;
