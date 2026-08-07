@@ -368,11 +368,19 @@ export async function hydrateReplyParents(opts: {
   for (let i = 0; i < out.length; i++) {
     if (opts.signal?.aborted) break;
     const t = out[i];
-    if (!t.inReplyToId || t.opParentDerived) continue;
+    if (t.opParentDerived) continue;
+    // Prefer conversation root when nested (parent ≠ root) so triage sees bait OPs.
+    const tweetId =
+      t.conversationId &&
+      t.inReplyToId &&
+      t.conversationId !== t.inReplyToId
+        ? t.conversationId
+        : t.inReplyToId || t.conversationId;
+    if (!tweetId) continue;
     if (lookedUp > 0) await sleep(delayMs);
     lookedUp += 1;
     const parent = await fetchParent({
-      tweetId: t.inReplyToId,
+      tweetId,
       session: opts.session,
       signal: opts.signal,
     });

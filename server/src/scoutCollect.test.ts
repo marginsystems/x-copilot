@@ -733,7 +733,7 @@ describe("runScoutCollect bucket loop", () => {
                 author: `@r${n}`,
                 inReplyToId: `op${n}`,
                 isReply: true,
-                text: "How do you pick products?",
+                text: "How do you pick which products to build next for your customers?",
               });
             }),
             bottomCursor: null,
@@ -745,7 +745,8 @@ describe("runScoutCollect bucket loop", () => {
             threads: threads.map((t) => ({
               ...t,
               opAuthor: "@hustler",
-              opText: "mysaas just crossed $632 revenue 100% profit",
+              opText:
+                "mysaas just crossed $632 revenue this month with 100% profit on the dashboard",
             })),
             unhydratedReplyCount: 0,
           };
@@ -767,6 +768,81 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.ok, true);
     assert.equal(hydrateCalls, 1);
     assert.equal(sawOp, true);
+  });
+
+  it("suppresses cool replies under a bait-tagged conversation root", async () => {
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "bait-root",
+              author: "@bait",
+              conversationId: "bait-root",
+              text: "why is Japan so behind in AI what happened?",
+            }),
+            card({
+              id: "victim-reply",
+              author: "@victim",
+              conversationId: "bait-root",
+              inReplyToId: "bait-root",
+              isReply: true,
+              text: "Japan builds things that have to work on day one.",
+            }),
+            ...[3, 4, 5].map((n) =>
+              card({ id: `pad${n}`, author: `@pad${n}`, text: "filler" }),
+            ),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => ({
+          threads: threads.map((t) => {
+            if (t.id === "bait-root") {
+              return {
+                ...t,
+                engage: "skip" as const,
+                baitScore: 90,
+                flags: ["engagement_bait"],
+              };
+            }
+            if (t.id === "victim-reply") {
+              return {
+                ...t,
+                engage: "consider" as const,
+                baitScore: 15,
+                flags: ["on_agenda"],
+              };
+            }
+            return {
+              ...t,
+              engage: "skip" as const,
+              baitScore: 80,
+            };
+          }),
+        }),
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.event.coolCount, 0);
+    assert.equal(
+      (result.event.threads ?? []).some((t) => t.id === "victim-reply"),
+      false,
+    );
   });
 
   it("still triages when parent hydrate soft-fails", async () => {

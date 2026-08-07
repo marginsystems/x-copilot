@@ -17,6 +17,9 @@ import {
   resolveExcludedTags,
   resolveMaxThreadChars,
   resolveMaxThreadCharsFromFilters,
+  collectBaitConversationIds,
+  isBaitConversationTagged,
+  replyUnderBaitConversation,
   threadHasExcludedTag,
   threadHasOutboundLink,
 } from "./threadFilters.ts";
@@ -424,6 +427,95 @@ describe("excluded triage tags", () => {
       threadHasExcludedTag(
         { intent: "supportive encouragement", flags: [] },
         [],
+      ),
+      false,
+    );
+  });
+});
+
+describe("bait conversation suppress", () => {
+  it("tags high baitScore and bait flags", () => {
+    assert.equal(isBaitConversationTagged({ baitScore: 70 }), true);
+    assert.equal(isBaitConversationTagged({ baitScore: 69 }), false);
+    assert.equal(
+      isBaitConversationTagged({
+        baitScore: 10,
+        flags: ["promo_op", "on_agenda"],
+      }),
+      true,
+    );
+    assert.equal(
+      isBaitConversationTagged({
+        baitScore: 10,
+        flags: ["genuine_question"],
+      }),
+      false,
+    );
+  });
+
+  it("collects conversation + card ids from bait-tagged rows", () => {
+    const ids = collectBaitConversationIds([
+      {
+        id: "root1",
+        conversationId: "root1",
+        baitScore: 90,
+        flags: ["engagement_bait"],
+      },
+      {
+        id: "reply2",
+        conversationId: "root1",
+        baitScore: 15,
+        flags: ["on_agenda"],
+      },
+      { id: "other", baitScore: 20 },
+    ]);
+    assert.equal(ids.has("root1"), true);
+    assert.equal(ids.has("reply2"), false);
+    assert.equal(ids.has("other"), false);
+  });
+
+  it("drops replies under bait roots, keeps roots and unrelated", () => {
+    const baitIds = new Set(["bait-root"]);
+    assert.equal(
+      replyUnderBaitConversation(
+        {
+          id: "r1",
+          isReply: true,
+          conversationId: "bait-root",
+          inReplyToId: "bait-root",
+        },
+        baitIds,
+      ),
+      true,
+    );
+    assert.equal(
+      replyUnderBaitConversation(
+        {
+          id: "r2",
+          isReply: true,
+          conversationId: "bait-root",
+          inReplyToId: "mid",
+        },
+        baitIds,
+      ),
+      true,
+    );
+    assert.equal(
+      replyUnderBaitConversation(
+        { id: "bait-root", conversationId: "bait-root" },
+        baitIds,
+      ),
+      false,
+    );
+    assert.equal(
+      replyUnderBaitConversation(
+        {
+          id: "ok",
+          isReply: true,
+          conversationId: "clean",
+          inReplyToId: "clean",
+        },
+        baitIds,
       ),
       false,
     );

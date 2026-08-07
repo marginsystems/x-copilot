@@ -93,4 +93,29 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.opText, undefined);
     assert.equal(threads[0]?.text, "How do you pick products?");
   });
+
+  it("fetches conversation root when nested (parent ≠ root)", async () => {
+    const fetched: string[] = [];
+    const { threads, unhydratedReplyCount } = await hydrateReplyParents({
+      threads: [
+        replyCard({
+          id: "900",
+          inReplyToId: "850",
+          conversationId: "800",
+        }),
+      ],
+      delayMs: 0,
+      fetchParent: async ({ tweetId }) => {
+        fetched.push(tweetId);
+        return {
+          author: "@bait_op",
+          text: "why is Japan so behind in AI what actually happened?",
+        };
+      },
+    });
+    assert.deepEqual(fetched, ["800"]);
+    assert.equal(unhydratedReplyCount, 0);
+    assert.equal(threads[0]?.opAuthor, "@bait_op");
+    assert.match(threads[0]?.opText ?? "", /Japan so behind/);
+  });
 });
