@@ -2,9 +2,32 @@ import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   clearParentTweetCache,
+  fetchParentTweet,
   hydrateReplyParents,
 } from "./tweetLookup.ts";
 import type { ThreadCard } from "./xSearch.ts";
+
+function withSession(fn: () => Promise<void>): Promise<void> {
+  const prevToken = process.env.X_AUTH_TOKEN;
+  const prevCt0 = process.env.X_CT0;
+  process.env.X_AUTH_TOKEN = "test-token";
+  process.env.X_CT0 = "test-ct0";
+  return fn().finally(() => {
+    if (prevToken === undefined) delete process.env.X_AUTH_TOKEN;
+    else process.env.X_AUTH_TOKEN = prevToken;
+    if (prevCt0 === undefined) delete process.env.X_CT0;
+    else process.env.X_CT0 = prevCt0;
+  });
+}
+
+function jsonResponse(body: unknown, status: number): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () =>
+      typeof body === "string" ? body : JSON.stringify(body),
+  } as Response;
+}
 
 function replyCard(overrides: Partial<ThreadCard> = {}): ThreadCard {
   return {
@@ -194,5 +217,129 @@ describe("hydrateReplyParents", () => {
     assert.equal(unhydratedReplyCount, 0);
     assert.equal(threads[0]?.opAuthor, "@bob");
     assert.equal(threads[0]?.opParentDerived, true);
+  });
+});
+
+describe("fetchParentTweet cache semantics", () => {
+  beforeEach(() => {
+    clearParentTweetCache();
+  });
+
+  it("does not cache transient failures (5xx), so a later retry re-fetches", async () => {
+    await withSession(async () => {
+      let calls = 0;
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return jsonResponse({ errors: [{ message: "server error" }] }, 500);
+      };
+      try {
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        const afterFirst = calls;
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        assert.ok(
+          calls > afterFirst,
+          "transient miss must not poison the parent cache",
+        );
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
+  it("does not cache network failures, so a later retry re-fetches", async () => {
+    await withSession(async () => {
+      let calls = 0;
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () => {
+        calls += 1;
+        throw new Error("network down");
+      };
+      try {
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        const afterFirst = calls;
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        assert.ok(
+          calls > afterFirst,
+          "network miss must not poison the parent cache",
+        );
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
+  it("caches a genuine miss (404/Query not found)", async () => {
+    await withSession(async () => {
+      let calls = 0;
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return jsonResponse("Query not found", 404);
+      };
+      try {
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        const afterFirst = calls;
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        assert.equal(
+          calls,
+          afterFirst,
+          "genuine miss should be cached after the first lookup",
+        );
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
+  it("caches successful lookups", async () => {
+    await withSession(async () => {
+      let calls = 0;
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return jsonResponse(
+          {
+            data: {
+              tweetResult: {
+                result: {
+                  __typename: "Tweet",
+                  rest_id: "800",
+                  core: {
+                    user_results: {
+                      result: {
+                        legacy: { screen_name: "bait_op" },
+                      },
+                    },
+                  },
+                  legacy: {
+                    id_str: "800",
+                    full_text: "bait root text",
+                    created_at: "Tue Jan 01 00:00:00 +0000 2026",
+                  },
+                },
+              },
+            },
+          },
+          200,
+        );
+      };
+      try {
+        const first = await fetchParentTweet({ tweetId: "800" });
+        assert.deepEqual(first, {
+          author: "@bait_op",
+          text: "bait root text",
+        });
+        const afterFirst = calls;
+        const second = await fetchParentTweet({ tweetId: "800" });
+        assert.deepEqual(second, {
+          author: "@bait_op",
+          text: "bait root text",
+        });
+        assert.equal(calls, afterFirst, "success should be cached");
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
   });
 });

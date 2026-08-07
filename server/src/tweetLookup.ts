@@ -144,7 +144,9 @@ async function healTweetResultQueryId(
 
 /**
  * Fetch parent/OP tweet text by rest id. Soft-fails to null.
- * Cached per process (success and miss).
+ * Cached per process: successes and genuine misses (404/Query not found).
+ * Transient failures (timeout, 5xx/429, network errors) are NOT cached so a
+ * later retry can still succeed.
  */
 export async function fetchParentTweet(opts: {
   tweetId: string;
@@ -161,6 +163,8 @@ export async function fetchParentTweet(opts: {
     parentCache.set(tweetId, null);
     return null;
   }
+
+  let sawGenuineMiss = false;
 
   const features = searchFeatures();
   const headers = {
@@ -221,7 +225,10 @@ export async function fetchParentTweet(opts: {
     } catch {
       continue;
     }
-    if (res.status === 404 || text.includes("Query not found")) continue;
+    if (res.status === 404 || text.includes("Query not found")) {
+      sawGenuineMiss = true;
+      continue;
+    }
     if (!res.ok) continue;
 
     let data: unknown;
@@ -239,7 +246,7 @@ export async function fetchParentTweet(opts: {
     }
   }
 
-  parentCache.set(tweetId, null);
+  if (sawGenuineMiss) parentCache.set(tweetId, null);
   return null;
 }
 
