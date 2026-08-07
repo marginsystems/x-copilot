@@ -733,7 +733,7 @@ describe("runScoutCollect bucket loop", () => {
                 author: `@r${n}`,
                 inReplyToId: `op${n}`,
                 isReply: true,
-                text: "How do you pick products?",
+                text: "How do you pick which products to build next for your customers?",
               });
             }),
             bottomCursor: null,
@@ -745,7 +745,8 @@ describe("runScoutCollect bucket loop", () => {
             threads: threads.map((t) => ({
               ...t,
               opAuthor: "@hustler",
-              opText: "mysaas just crossed $632 revenue 100% profit",
+              opText:
+                "mysaas just crossed $632 revenue this month with 100% profit on the dashboard",
             })),
             unhydratedReplyCount: 0,
           };

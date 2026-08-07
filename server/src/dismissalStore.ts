@@ -4,7 +4,11 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { normalizeAuthorKey } from "./interactionStore.js";
+import {
+  conversationIdsFromHistory,
+  getEverInteractedConversationIds,
+  normalizeAuthorKey,
+} from "./interactionStore.js";
 
 export type Dismissal = {
   threadId: string;
@@ -15,6 +19,10 @@ export type Dismissal = {
   summary?: string;
   text?: string;
   reason?: string;
+  /** X conversation root — blocks sibling replies on later Scouts. */
+  conversationId?: string;
+  /** Immediate parent status id when the dismissed card was a reply. */
+  inReplyToId?: string;
 };
 
 export const MAX_DISMISSAL_HISTORY = 200;
@@ -67,10 +75,16 @@ function parseStore(raw: string): StoreFile {
       const summary = optionalString(row.summary);
       const text = optionalString(row.text, MAX_TEXT_CHARS);
       const reason = optionalString(row.reason, MAX_REASON_CHARS);
+      const conversationId = optionalString(row.conversationId);
+      const inReplyToId = optionalString(row.inReplyToId);
       if (url) item.url = url;
       if (summary) item.summary = summary;
       if (text) item.text = text;
       if (reason) item.reason = reason;
+      // Prefer explicit conversation root; fall back so ancestry still blocks.
+      const root = conversationId || inReplyToId || null;
+      if (root) item.conversationId = root;
+      if (inReplyToId) item.inReplyToId = inReplyToId;
       dismissals.push(item);
     }
     return { dismissals };
@@ -128,6 +142,8 @@ export async function markDismissed(opts: {
   summary?: string;
   text?: string;
   reason?: string;
+  conversationId?: string;
+  inReplyToId?: string;
   nowMs?: number;
   storePath?: string;
 }): Promise<Dismissal> {
@@ -149,13 +165,25 @@ export async function markDismissed(opts: {
   const summary = optionalString(opts.summary);
   const text = optionalString(opts.text, MAX_TEXT_CHARS);
   const reason = optionalString(opts.reason, MAX_REASON_CHARS);
+  const conversationId = optionalString(opts.conversationId);
+  const inReplyToId = optionalString(opts.inReplyToId);
   if (url) next.url = url;
   if (summary) next.summary = summary;
   if (text) next.text = text;
   if (reason) next.reason = reason;
+  const root = conversationId || inReplyToId || null;
+  if (root) next.conversationId = root;
+  if (inReplyToId) next.inReplyToId = inReplyToId;
 
   return serialized(async () => {
     const store = await readStore(path);
+    const prior = store.dismissals.find((d) => d.threadId === threadId);
+    if (!next.conversationId && prior?.conversationId) {
+      next.conversationId = prior.conversationId;
+    }
+    if (!next.inReplyToId && prior?.inReplyToId) {
+      next.inReplyToId = prior.inReplyToId;
+    }
     const without = store.dismissals.filter((d) => d.threadId !== threadId);
     without.push(next);
     const dismissals = trimDismissalHistory(without);
@@ -174,6 +202,33 @@ export async function listDismissalHistory(opts?: {
     store.dismissals,
     opts?.limit ?? MAX_DISMISSAL_HISTORY,
   );
+}
+
+/** Conversation / ancestry ids from durable Not interested history. */
+export async function getDismissedConversationIds(opts?: {
+  storePath?: string;
+}): Promise<Set<string>> {
+  const history = await listDismissalHistory({
+    storePath: opts?.storePath,
+    limit: MAX_DISMISSAL_HISTORY,
+  });
+  return conversationIdsFromHistory(history);
+}
+
+/**
+ * Union of Marked + Not interested conversation ancestry for Scout filters.
+ */
+export async function getBlockedConversationIds(opts?: {
+  interactionStorePath?: string;
+  dismissalStorePath?: string;
+}): Promise<Set<string>> {
+  const [interacted, dismissed] = await Promise.all([
+    getEverInteractedConversationIds({ storePath: opts?.interactionStorePath }),
+    getDismissedConversationIds({ storePath: opts?.dismissalStorePath }),
+  ]);
+  if (!dismissed.size) return interacted;
+  if (!interacted.size) return dismissed;
+  return new Set([...interacted, ...dismissed]);
 }
 
 export async function getDismissedThreadIds(opts?: {
