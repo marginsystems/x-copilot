@@ -340,6 +340,65 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
+  it("does not cache a transient 200 GraphQL error envelope", async () => {
+    await withSession(async () => {
+      let calls = 0;
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return jsonResponse(
+          {
+            errors: [{ message: "Something went wrong", retryable: true }],
+            data: null,
+          },
+          200,
+        );
+      };
+      try {
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        const afterFirst = calls;
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        assert.ok(
+          calls > afterFirst,
+          "retryable GraphQL error must not poison the parent cache",
+        );
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
+  it("caches a non-retryable 200 GraphQL error envelope", async () => {
+    await withSession(async () => {
+      let calls = 0;
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return jsonResponse(
+          {
+            errors: [
+              { message: "Could not find tweet with id: 800", retryable: false },
+            ],
+            data: null,
+          },
+          200,
+        );
+      };
+      try {
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        const afterFirst = calls;
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        assert.equal(
+          calls,
+          afterFirst,
+          "non-retryable GraphQL miss should be cached",
+        );
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
   it("caches a TweetUnavailable (suspended) result", async () => {
     await withSession(async () => {
       let calls = 0;

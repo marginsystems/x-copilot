@@ -145,9 +145,10 @@ async function healTweetResultQueryId(
 /**
  * Fetch parent/OP tweet text by rest id. Soft-fails to null.
  * Cached per process: successes and genuine misses (HTTP 404 or an
- * authoritative 200 with a null/TweetUnavailable result). Transient failures
- * (timeout, 5xx/429, network errors) and stale-query "Query not found"
- * responses are NOT cached so a later retry can still succeed.
+ * authoritative 200 with a null/TweetUnavailable result, or a 200 errors
+ * envelope whose errors are all non-retryable). Transient failures (timeout,
+ * 5xx/429, network errors, retryable GraphQL errors) and stale-query "Query
+ * not found" responses are NOT cached so a later retry can still succeed.
  */
 export async function fetchParentTweet(opts: {
   tweetId: string;
@@ -249,13 +250,22 @@ export async function fetchParentTweet(opts: {
       return parent;
     }
     // Deleted/private/suspended tweets return HTTP 200 with a null or
-    // TweetUnavailable result — an authoritative, cacheable miss.
+    // TweetUnavailable result — an authoritative, cacheable miss. The X
+    // GraphQL error envelope ({ errors: [...], data: null }) carries the
+    // permanent "Could not find tweet" miss, but transient degraded /
+    // rate-limit errors arrive the same way, so only cache when every
+    // error is explicitly non-retryable.
     const result = tweetResultFromPayload(data);
-    if (
-      result == null ||
-      (typeof result === "object" &&
-        (result as { __typename?: string }).__typename === "TweetUnavailable")
-    ) {
+    const errors = (data as { errors?: Array<{ retryable?: boolean }> }).errors;
+    const isTweetUnavailable =
+      typeof result === "object" &&
+      result !== null &&
+      (result as { __typename?: string }).__typename === "TweetUnavailable";
+    const transientError =
+      Array.isArray(errors) &&
+      errors.length > 0 &&
+      !errors.every((e) => e?.retryable === false);
+    if ((result == null || isTweetUnavailable) && !transientError) {
       sawGenuineMiss = true;
     }
   }
