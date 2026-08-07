@@ -1,6 +1,7 @@
 /**
  * Session-backed lookup of a single tweet by rest id (parent OP hydrate).
  */
+import { normalizeAuthorKey } from "./interactionStore.js";
 import {
   buildSessionHeaders,
   getSessionFromEnv,
@@ -369,26 +370,50 @@ export async function hydrateReplyParents(opts: {
     if (opts.signal?.aborted) break;
     const t = out[i];
     if (!t.inReplyToId || t.opParentDerived) continue;
-    // Prefer conversation root when nested (parent ≠ root) so triage sees bait OPs.
-    const tweetId =
-      t.conversationId && t.conversationId !== t.inReplyToId
-        ? t.conversationId
-        : t.inReplyToId;
     if (lookedUp > 0) await sleep(delayMs);
     lookedUp += 1;
+    // Fetch the immediate reply parent first: its author is the actual reply
+    // target, so an author match is a self-reply even when inReplyToScreenName
+    // is missing (the post-hydrate re-filter case, #121).
     const parent = await fetchParent({
-      tweetId,
+      tweetId: t.inReplyToId,
       session: opts.session,
       signal: opts.signal,
     });
-    if (!parent) {
+    if (
+      parent &&
+      normalizeAuthorKey(parent.author) === normalizeAuthorKey(t.author)
+    ) {
+      out[i] = {
+        ...t,
+        opAuthor: parent.author,
+        opText: parent.text.slice(0, 500),
+        opParentDerived: true,
+      };
+      continue;
+    }
+    // Nested replies (parent ≠ root): prefer the conversation root so triage
+    // sees bait OPs, falling back to the immediate parent when the root is
+    // unavailable (deleted/private/suspended).
+    let source = parent;
+    if (t.conversationId && t.conversationId !== t.inReplyToId) {
+      if (lookedUp > 0) await sleep(delayMs);
+      lookedUp += 1;
+      const root = await fetchParent({
+        tweetId: t.conversationId,
+        session: opts.session,
+        signal: opts.signal,
+      });
+      if (root) source = root;
+    }
+    if (!source) {
       unhydratedReplyCount += 1;
       continue;
     }
     out[i] = {
       ...t,
-      opAuthor: parent.author,
-      opText: parent.text.slice(0, 500),
+      opAuthor: source.author,
+      opText: source.text.slice(0, 500),
       opParentDerived: true,
     };
   }

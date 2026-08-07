@@ -94,7 +94,7 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.text, "How do you pick products?");
   });
 
-  it("fetches conversation root when nested (parent ≠ root)", async () => {
+  it("prefers conversation root when nested (parent ≠ root)", async () => {
     const fetched: string[] = [];
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [
@@ -107,15 +107,66 @@ describe("hydrateReplyParents", () => {
       delayMs: 0,
       fetchParent: async ({ tweetId }) => {
         fetched.push(tweetId);
-        return {
-          author: "@bait_op",
-          text: "why is Japan so behind in AI what actually happened?",
-        };
+        if (tweetId === "800") {
+          return {
+            author: "@bait_op",
+            text: "why is Japan so behind in AI what actually happened?",
+          };
+        }
+        return { author: "@middler", text: "middle of the thread" };
       },
     });
-    assert.deepEqual(fetched, ["800"]);
+    assert.deepEqual(fetched, ["850", "800"]);
     assert.equal(unhydratedReplyCount, 0);
     assert.equal(threads[0]?.opAuthor, "@bait_op");
     assert.match(threads[0]?.opText ?? "", /Japan so behind/);
+  });
+
+  it("falls back to the immediate parent when the conversation root is unavailable", async () => {
+    const fetched: string[] = [];
+    const { threads, unhydratedReplyCount } = await hydrateReplyParents({
+      threads: [
+        replyCard({
+          id: "900",
+          inReplyToId: "850",
+          conversationId: "800",
+        }),
+      ],
+      delayMs: 0,
+      fetchParent: async ({ tweetId }) => {
+        fetched.push(tweetId);
+        if (tweetId === "800") return null;
+        return { author: "@middler", text: "middle of the thread" };
+      },
+    });
+    assert.deepEqual(fetched, ["850", "800"]);
+    assert.equal(unhydratedReplyCount, 0);
+    assert.equal(threads[0]?.opAuthor, "@middler");
+    assert.equal(threads[0]?.opParentDerived, true);
+  });
+
+  it("marks nested self-replies via the immediate parent (root author differs)", async () => {
+    const fetched: string[] = [];
+    const { threads, unhydratedReplyCount } = await hydrateReplyParents({
+      threads: [
+        replyCard({
+          id: "900",
+          inReplyToId: "880",
+          conversationId: "800",
+        }),
+      ],
+      delayMs: 0,
+      fetchParent: async ({ tweetId }) => {
+        fetched.push(tweetId);
+        if (tweetId === "880") {
+          return { author: "@asker", text: "my own earlier reply" };
+        }
+        return { author: "@bait_op", text: "bait root" };
+      },
+    });
+    assert.deepEqual(fetched, ["880"]);
+    assert.equal(unhydratedReplyCount, 0);
+    assert.equal(threads[0]?.opAuthor, "@asker");
+    assert.equal(threads[0]?.opParentDerived, true);
   });
 });
