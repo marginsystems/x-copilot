@@ -8,6 +8,7 @@ import {
   filterSelfReplies,
   filterThreadsByLength,
   isNonPreferredLanguage,
+  languageSampleText,
   isOversizedThread,
   isSelfReply,
   isThreadOpener,
@@ -244,6 +245,20 @@ describe("filterByLanguage", () => {
     const result = filterByLanguage([short], "en");
     assert.equal(result.languageFilteredCount, 0);
     assert.equal(result.threads.length, 1);
+  });
+
+  it("samples only the card's own text, ignoring OP/root text", () => {
+    const englishReply = thread("en1", english, undefined, {
+      opText: spanish,
+    });
+    assert.equal(languageSampleText(englishReply), english);
+    assert.equal(isNonPreferredLanguage(englishReply, "en"), false);
+    const result = filterByLanguage([englishReply], "en");
+    assert.equal(result.languageFilteredCount, 0);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["en1"],
+    );
   });
 
   it("keeps French when preferred is fr", () => {

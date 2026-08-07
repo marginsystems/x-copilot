@@ -144,9 +144,10 @@ async function healTweetResultQueryId(
 
 /**
  * Fetch parent/OP tweet text by rest id. Soft-fails to null.
- * Cached per process: successes and genuine misses (404/Query not found).
- * Transient failures (timeout, 5xx/429, network errors) are NOT cached so a
- * later retry can still succeed.
+ * Cached per process: successes and genuine misses (HTTP 404 or an
+ * authoritative 200 with a null/TweetUnavailable result). Transient failures
+ * (timeout, 5xx/429, network errors) and stale-query "Query not found"
+ * responses are NOT cached so a later retry can still succeed.
  */
 export async function fetchParentTweet(opts: {
   tweetId: string;
@@ -225,7 +226,10 @@ export async function fetchParentTweet(opts: {
     } catch {
       continue;
     }
-    if (res.status === 404 || text.includes("Query not found")) {
+    // "Query not found" is the persisted-query error for a stale/rotated
+    // query ID, not a per-tweet miss — retry the next ID, never cache it.
+    if (text.includes("Query not found")) continue;
+    if (res.status === 404) {
       sawGenuineMiss = true;
       continue;
     }
@@ -243,6 +247,16 @@ export async function fetchParentTweet(opts: {
       cachedTweetQueryId = qid;
       parentCache.set(tweetId, parent);
       return parent;
+    }
+    // Deleted/private/suspended tweets return HTTP 200 with a null or
+    // TweetUnavailable result — an authoritative, cacheable miss.
+    const result = tweetResultFromPayload(data);
+    if (
+      result == null ||
+      (typeof result === "object" &&
+        (result as { __typename?: string }).__typename === "TweetUnavailable")
+    ) {
+      sawGenuineMiss = true;
     }
   }
 

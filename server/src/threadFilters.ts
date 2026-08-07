@@ -263,12 +263,14 @@ export function replyUnderBaitConversation(
   return false;
 }
 
-/** Text used for language detection (post + optional OP). */
+/**
+ * Text used for language detection — the card's own text only. OP/root text is
+ * deliberately excluded: after hydrateReplyParents fills opText with the
+ * conversation root, a non-preferred-language root would dominate the sample
+ * and wrongly drop a preferred-language reply (and vice-versa).
+ */
 export function languageSampleText(thread: ThreadCard): string {
-  const parts = [thread.text, thread.opText]
-    .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
-    .map((s) => s.trim());
-  return parts.join("\n");
+  return thread.text.trim();
 }
 
 /**

@@ -269,7 +269,30 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
-  it("caches a genuine miss (404/Query not found)", async () => {
+  it("caches a genuine miss (HTTP 404)", async () => {
+    await withSession(async () => {
+      let calls = 0;
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return jsonResponse("Not found", 404);
+      };
+      try {
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        const afterFirst = calls;
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        assert.equal(
+          calls,
+          afterFirst,
+          "genuine miss should be cached after the first lookup",
+        );
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
+  it("does not cache a stale-query 'Query not found' response", async () => {
     await withSession(async () => {
       let calls = 0;
       const origFetch = globalThis.fetch;
@@ -281,10 +304,67 @@ describe("fetchParentTweet cache semantics", () => {
         assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
         const afterFirst = calls;
         assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        assert.ok(
+          calls > afterFirst,
+          "stale-query 'Query not found' must not poison the parent cache",
+        );
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
+  it("caches an authoritative 200 miss (deleted/private/suspended)", async () => {
+    await withSession(async () => {
+      let calls = 0;
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return jsonResponse(
+          { data: { tweetResult: { result: null } } },
+          200,
+        );
+      };
+      try {
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        const afterFirst = calls;
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
         assert.equal(
           calls,
           afterFirst,
-          "genuine miss should be cached after the first lookup",
+          "authoritative 200 miss should be cached",
+        );
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
+  it("caches a TweetUnavailable (suspended) result", async () => {
+    await withSession(async () => {
+      let calls = 0;
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return jsonResponse(
+          {
+            data: {
+              tweetResult: {
+                result: { __typename: "TweetUnavailable" },
+              },
+            },
+          },
+          200,
+        );
+      };
+      try {
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        const afterFirst = calls;
+        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
+        assert.equal(
+          calls,
+          afterFirst,
+          "TweetUnavailable miss should be cached",
         );
       } finally {
         globalThis.fetch = origFetch;
