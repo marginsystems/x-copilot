@@ -189,12 +189,88 @@ export function threadHasExcludedTag(
   return Boolean(intent && excluded.has(intent));
 }
 
-/** Text used for language detection (post + optional OP). */
+/**
+ * Flags that mark a conversation root/OP as engagement bait (or similarly
+ * worthless to enter). Used to suppress sibling replies under that root.
+ */
+export const BAIT_CONVERSATION_FLAGS = [
+  "engagement_bait",
+  "promo_op",
+  "bad_context",
+  "giveaway",
+  "rage_bait",
+] as const;
+
+/** High enough that cool gate (≤45) already rejects the bait card itself. */
+export const BAIT_CONVERSATION_MIN_SCORE = 70;
+
+/** True when triage marked this card as bait-ish (score and/or flags). */
+export function isBaitConversationTagged(
+  thread: Pick<ThreadCard, "baitScore" | "score" | "flags">,
+): boolean {
+  const bait = thread.baitScore ?? thread.score;
+  if (
+    typeof bait === "number" &&
+    Number.isFinite(bait) &&
+    bait >= BAIT_CONVERSATION_MIN_SCORE
+  ) {
+    return true;
+  }
+  for (const flag of thread.flags ?? []) {
+    const token = normalizeTagToken(flag);
+    if (
+      token &&
+      (BAIT_CONVERSATION_FLAGS as readonly string[]).includes(token)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** conversationId + id for every bait-tagged card in the batch. */
+export function collectBaitConversationIds(
+  threads: readonly Pick<
+    ThreadCard,
+    "id" | "conversationId" | "baitScore" | "score" | "flags"
+  >[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const t of threads) {
+    if (!isBaitConversationTagged(t)) continue;
+    if (t.id) ids.add(t.id);
+    if (t.conversationId) ids.add(t.conversationId);
+  }
+  return ids;
+}
+
+/**
+ * True for a reply that sits under a known bait conversation / parent.
+ * Roots themselves are not dropped here (cool gate already rejects high bait).
+ */
+export function replyUnderBaitConversation(
+  thread: Pick<
+    ThreadCard,
+    "isReply" | "inReplyToId" | "conversationId" | "id"
+  >,
+  baitIds: ReadonlySet<string>,
+): boolean {
+  if (!baitIds.size) return false;
+  const isReply = thread.isReply === true || Boolean(thread.inReplyToId);
+  if (!isReply) return false;
+  if (thread.conversationId && baitIds.has(thread.conversationId)) return true;
+  if (thread.inReplyToId && baitIds.has(thread.inReplyToId)) return true;
+  return false;
+}
+
+/**
+ * Text used for language detection — the card's own text only. OP/root text is
+ * deliberately excluded: after hydrateReplyParents fills opText with the
+ * conversation root, a non-preferred-language root would dominate the sample
+ * and wrongly drop a preferred-language reply (and vice-versa).
+ */
 export function languageSampleText(thread: ThreadCard): string {
-  const parts = [thread.text, thread.opText]
-    .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
-    .map((s) => s.trim());
-  return parts.join("\n");
+  return thread.text.trim();
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   filterSelfReplies,
   filterThreadsByLength,
   isNonPreferredLanguage,
+  languageSampleText,
   isOversizedThread,
   isSelfReply,
   isThreadOpener,
@@ -17,6 +18,9 @@ import {
   resolveExcludedTags,
   resolveMaxThreadChars,
   resolveMaxThreadCharsFromFilters,
+  collectBaitConversationIds,
+  isBaitConversationTagged,
+  replyUnderBaitConversation,
   threadHasExcludedTag,
   threadHasOutboundLink,
 } from "./threadFilters.ts";
@@ -243,6 +247,20 @@ describe("filterByLanguage", () => {
     assert.equal(result.threads.length, 1);
   });
 
+  it("samples only the card's own text, ignoring OP/root text", () => {
+    const englishReply = thread("en1", english, undefined, {
+      opText: spanish,
+    });
+    assert.equal(languageSampleText(englishReply), english);
+    assert.equal(isNonPreferredLanguage(englishReply, "en"), false);
+    const result = filterByLanguage([englishReply], "en");
+    assert.equal(result.languageFilteredCount, 0);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["en1"],
+    );
+  });
+
   it("keeps French when preferred is fr", () => {
     const fr = thread("fr1", french);
     const en = thread("en1", english);
@@ -424,6 +442,95 @@ describe("excluded triage tags", () => {
       threadHasExcludedTag(
         { intent: "supportive encouragement", flags: [] },
         [],
+      ),
+      false,
+    );
+  });
+});
+
+describe("bait conversation suppress", () => {
+  it("tags high baitScore and bait flags", () => {
+    assert.equal(isBaitConversationTagged({ baitScore: 70 }), true);
+    assert.equal(isBaitConversationTagged({ baitScore: 69 }), false);
+    assert.equal(
+      isBaitConversationTagged({
+        baitScore: 10,
+        flags: ["promo_op", "on_agenda"],
+      }),
+      true,
+    );
+    assert.equal(
+      isBaitConversationTagged({
+        baitScore: 10,
+        flags: ["genuine_question"],
+      }),
+      false,
+    );
+  });
+
+  it("collects conversation + card ids from bait-tagged rows", () => {
+    const ids = collectBaitConversationIds([
+      {
+        id: "root1",
+        conversationId: "root1",
+        baitScore: 90,
+        flags: ["engagement_bait"],
+      },
+      {
+        id: "reply2",
+        conversationId: "root1",
+        baitScore: 15,
+        flags: ["on_agenda"],
+      },
+      { id: "other", baitScore: 20 },
+    ]);
+    assert.equal(ids.has("root1"), true);
+    assert.equal(ids.has("reply2"), false);
+    assert.equal(ids.has("other"), false);
+  });
+
+  it("drops replies under bait roots, keeps roots and unrelated", () => {
+    const baitIds = new Set(["bait-root"]);
+    assert.equal(
+      replyUnderBaitConversation(
+        {
+          id: "r1",
+          isReply: true,
+          conversationId: "bait-root",
+          inReplyToId: "bait-root",
+        },
+        baitIds,
+      ),
+      true,
+    );
+    assert.equal(
+      replyUnderBaitConversation(
+        {
+          id: "r2",
+          isReply: true,
+          conversationId: "bait-root",
+          inReplyToId: "mid",
+        },
+        baitIds,
+      ),
+      true,
+    );
+    assert.equal(
+      replyUnderBaitConversation(
+        { id: "bait-root", conversationId: "bait-root" },
+        baitIds,
+      ),
+      false,
+    );
+    assert.equal(
+      replyUnderBaitConversation(
+        {
+          id: "ok",
+          isReply: true,
+          conversationId: "clean",
+          inReplyToId: "clean",
+        },
+        baitIds,
       ),
       false,
     );

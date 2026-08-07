@@ -1,6 +1,7 @@
 /**
  * Session-backed lookup of a single tweet by rest id (parent OP hydrate).
  */
+import { normalizeAuthorKey } from "./interactionStore.js";
 import {
   buildSessionHeaders,
   getSessionFromEnv,
@@ -143,7 +144,11 @@ async function healTweetResultQueryId(
 
 /**
  * Fetch parent/OP tweet text by rest id. Soft-fails to null.
- * Cached per process (success and miss).
+ * Cached per process: successes and genuine misses (HTTP 404 or an
+ * authoritative 200 with a null/TweetUnavailable result, or a 200 errors
+ * envelope whose errors are all non-retryable). Transient failures (timeout,
+ * 5xx/429, network errors, retryable GraphQL errors) and stale-query "Query
+ * not found" responses are NOT cached so a later retry can still succeed.
  */
 export async function fetchParentTweet(opts: {
   tweetId: string;
@@ -160,6 +165,8 @@ export async function fetchParentTweet(opts: {
     parentCache.set(tweetId, null);
     return null;
   }
+
+  let sawGenuineMiss = false;
 
   const features = searchFeatures();
   const headers = {
@@ -220,7 +227,13 @@ export async function fetchParentTweet(opts: {
     } catch {
       continue;
     }
-    if (res.status === 404 || text.includes("Query not found")) continue;
+    // "Query not found" is the persisted-query error for a stale/rotated
+    // query ID, not a per-tweet miss — retry the next ID, never cache it.
+    if (text.includes("Query not found")) continue;
+    if (res.status === 404) {
+      sawGenuineMiss = true;
+      continue;
+    }
     if (!res.ok) continue;
 
     let data: unknown;
@@ -236,9 +249,28 @@ export async function fetchParentTweet(opts: {
       parentCache.set(tweetId, parent);
       return parent;
     }
+    // Deleted/private/suspended tweets return HTTP 200 with a null or
+    // TweetUnavailable result — an authoritative, cacheable miss. The X
+    // GraphQL error envelope ({ errors: [...], data: null }) carries the
+    // permanent "Could not find tweet" miss, but transient degraded /
+    // rate-limit errors arrive the same way, so only cache when every
+    // error is explicitly non-retryable.
+    const result = tweetResultFromPayload(data);
+    const errors = (data as { errors?: Array<{ retryable?: boolean }> }).errors;
+    const isTweetUnavailable =
+      typeof result === "object" &&
+      result !== null &&
+      (result as { __typename?: string }).__typename === "TweetUnavailable";
+    const transientError =
+      Array.isArray(errors) &&
+      errors.length > 0 &&
+      !errors.every((e) => e?.retryable === false);
+    if ((result == null || isTweetUnavailable) && !transientError) {
+      sawGenuineMiss = true;
+    }
   }
 
-  parentCache.set(tweetId, null);
+  if (sawGenuineMiss) parentCache.set(tweetId, null);
   return null;
 }
 
@@ -371,19 +403,56 @@ export async function hydrateReplyParents(opts: {
     if (!t.inReplyToId || t.opParentDerived) continue;
     if (lookedUp > 0) await sleep(delayMs);
     lookedUp += 1;
+    // Fetch the immediate reply parent first: its author is the actual reply
+    // target, so an author match is a self-reply even when inReplyToScreenName
+    // is missing (the post-hydrate re-filter case, #121).
     const parent = await fetchParent({
       tweetId: t.inReplyToId,
       session: opts.session,
       signal: opts.signal,
     });
-    if (!parent) {
+    if (
+      parent &&
+      normalizeAuthorKey(parent.author) === normalizeAuthorKey(t.author)
+    ) {
+      out[i] = {
+        ...t,
+        opAuthor: parent.author,
+        opText: parent.text.slice(0, 500),
+        opParentDerived: true,
+      };
+      continue;
+    }
+    // Nested replies (parent ≠ root): prefer the conversation root so triage
+    // sees bait OPs, falling back to the immediate parent when the root is
+    // unavailable (deleted/private/suspended).
+    let source = parent;
+    if (t.conversationId && t.conversationId !== t.inReplyToId) {
+      if (lookedUp > 0) await sleep(delayMs);
+      lookedUp += 1;
+      const root = await fetchParent({
+        tweetId: t.conversationId,
+        session: opts.session,
+        signal: opts.signal,
+      });
+      // Only prefer the root when its author differs from the card author;
+      // otherwise the root is the card author's own thread and using it as
+      // opAuthor would misclassify a cross-account reply as a self-reply.
+      if (
+        root &&
+        normalizeAuthorKey(root.author) !== normalizeAuthorKey(t.author)
+      ) {
+        source = root;
+      }
+    }
+    if (!source) {
       unhydratedReplyCount += 1;
       continue;
     }
     out[i] = {
       ...t,
-      opAuthor: parent.author,
-      opText: parent.text.slice(0, 500),
+      opAuthor: source.author,
+      opText: source.text.slice(0, 500),
       opParentDerived: true,
     };
   }

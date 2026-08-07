@@ -22,6 +22,8 @@ import {
   filterSelfReplies,
   filterThreadsByLength,
   normalizePreferredLanguageCode,
+  collectBaitConversationIds,
+  replyUnderBaitConversation,
   resolveExcludedTags,
   resolveMaxThreadCharsFromFilters,
   threadHasExcludedTag,
@@ -305,11 +307,13 @@ export async function runScoutCollect(opts: {
       ? new Set<string>()
       : await doGetConversationIds();
 
-  const cool: ThreadCard[] = [];
+  let cool: ThreadCard[] = [];
   const seenIds = new Set<string>();
   /** Per-run author dedupe (first kept wins across bucket refills). */
   const seenAuthors = new Set<string>();
   const coolAuthors = new Set<string>();
+  /** Bait roots/parents seen this Scout run — suppress sibling replies. */
+  const baitConversationIds = new Set<string>();
   let bucket: ThreadCard[] = [];
   const searchErrors: Array<{ query: string; message: string }> = [];
   let triageWarning: string | undefined;
@@ -611,12 +615,32 @@ export async function runScoutCollect(opts: {
       if (triaged.warning) triageWarning = triaged.warning;
       funnelCounts.afterTriage += triaged.threads.length;
 
+      for (const id of collectBaitConversationIds(triaged.threads)) {
+        baitConversationIds.add(id);
+      }
+      if (baitConversationIds.size) {
+        let purged = false;
+        const kept: ThreadCard[] = [];
+        for (const t of cool) {
+          if (replyUnderBaitConversation(t, baitConversationIds)) {
+            purged = true;
+            if (t.id) coolIds.delete(t.id);
+            const key = normalizeAuthorKey(t.author);
+            if (key) coolAuthors.delete(key);
+          } else {
+            kept.push(t);
+          }
+        }
+        if (purged) cool = kept;
+      }
+
       const newlyCool = triaged.threads.filter(
         (t) =>
           isCoolThread(t) &&
           t.id &&
           !coolIds.has(t.id) &&
-          !threadHasExcludedTag(t, excludedTags),
+          !threadHasExcludedTag(t, excludedTags) &&
+          !replyUnderBaitConversation(t, baitConversationIds),
       );
       if (newlyCool.length === 0) {
         if (isPartial) {
