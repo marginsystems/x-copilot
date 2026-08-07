@@ -754,6 +754,20 @@ export default function App() {
       );
       interactedIdsRef.current = ids;
       setInteractedIds(ids);
+      const blocked = new Set(blockedConversationsRef.current);
+      for (const i of history) {
+        const root =
+          i.conversationId?.trim() ||
+          i.inReplyToId?.trim() ||
+          i.threadId.trim();
+        if (root) blocked.add(root);
+        if (i.threadId.trim()) blocked.add(i.threadId.trim());
+        if (i.inReplyToId?.trim()) blocked.add(i.inReplyToId.trim());
+      }
+      blockedConversationsRef.current = blocked;
+      if (ids.size || blocked.size) {
+        setThreads((prev) => prev.filter((t) => keepInCurated(t)));
+      }
     } catch {
       // Sidecar may be offline on first paint — ignore.
     }
@@ -1662,9 +1676,11 @@ export default function App() {
         ...(reason.trim() ? { reason: reason.trim() } : {}),
       };
       dismissedIdsRef.current = new Set(dismissedIdsRef.current).add(thread.id);
-      blockedConversationsRef.current = new Set(
-        blockedConversationsRef.current,
-      ).add(conversationRoot);
+      const blocked = new Set(blockedConversationsRef.current);
+      blocked.add(conversationRoot);
+      if (thread.id.trim()) blocked.add(thread.id.trim());
+      if (thread.inReplyToId?.trim()) blocked.add(thread.inReplyToId.trim());
+      blockedConversationsRef.current = blocked;
       setDismissedHistory((prev) => [
         entry,
         ...prev.filter((d) => d.threadId !== thread.id),

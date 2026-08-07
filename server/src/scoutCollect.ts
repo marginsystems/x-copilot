@@ -6,6 +6,7 @@ import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
   getCooledAuthorKeys,
+  getEverInteractedConversationIds,
   normalizeAuthorKey,
 } from "./interactionStore.js";
 import { getBlockedConversationIds } from "./dismissalStore.js";
@@ -166,7 +167,7 @@ export type ScoutCollectDeps = {
   getAuthorKeysForScoutFilter?: typeof getAuthorKeysForScoutFilter;
   getBlockedConversationIds?: typeof getBlockedConversationIds;
   /** @deprecated use getBlockedConversationIds */
-  getEverInteractedConversationIds?: typeof getBlockedConversationIds;
+  getEverInteractedConversationIds?: typeof getEverInteractedConversationIds;
   saveScoutCache?: typeof saveScoutCache;
   hydrateReplyParents?: typeof hydrateReplyParents;
   sleep?: typeof sleep;
