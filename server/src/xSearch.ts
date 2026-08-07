@@ -3,6 +3,7 @@
  * Query IDs rotate — set X_SEARCH_QUERY_ID or rely on heal + fallbacks.
  */
 import { normalizeTcoKey } from "./mediaText.js";
+import type { ThreadKind } from "./threadTriage.js";
 import {
   buildSessionHeaders,
   getSessionFromEnv,
@@ -45,7 +46,7 @@ export type ThreadCard = {
   flags?: string[];
   intent?: string;
   /** Closed preference category from triage (see THREAD_KINDS). */
-  threadKind?: string;
+  threadKind?: ThreadKind;
   engage?: "skip" | "consider" | "priority";
   reason?: string;
   /** Mirrors baitScore for the existing card meta line. */

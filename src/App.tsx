@@ -37,6 +37,18 @@ import { stripMediaShortlinksFromText } from "./lib/mediaText";
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
 
+/** Closed preference category from triage (mirrors server THREAD_KINDS). */
+type ThreadKind =
+  | "timely_take"
+  | "fact_add"
+  | "sharp_opinion"
+  | "lived_answer"
+  | "hollow_ask"
+  | "promo_context"
+  | "bare_news"
+  | "closed_thread"
+  | "other";
+
 type ThreadCard = {
   id: string;
   author: string;
@@ -58,7 +70,7 @@ type ThreadCard = {
   baitScore?: number;
   flags?: string[];
   intent?: string;
-  threadKind?: string;
+  threadKind?: ThreadKind;
   engage?: "skip" | "consider" | "priority";
   reason?: string;
   score?: number;

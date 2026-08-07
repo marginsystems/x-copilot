@@ -170,16 +170,22 @@ export function isCoolSkipThreadKind(
   return COOL_SKIP_THREAD_KINDS.has(kind as ThreadKind);
 }
 
-/** Complete triage item: id + summary + baitScore required. */
+/** Complete triage item: id + summary + baitScore + valid threadKind required. */
 export function isCompleteTriageItem(
   item: TriageItem,
-): item is TriageItem & { summary: string; baitScore: number } {
+): item is TriageItem & {
+  summary: string;
+  baitScore: number;
+  threadKind: ThreadKind;
+} {
   return (
     Boolean(item.id) &&
     typeof item.summary === "string" &&
     item.summary.trim().length > 0 &&
     typeof item.baitScore === "number" &&
-    Number.isFinite(item.baitScore)
+    Number.isFinite(item.baitScore) &&
+    typeof item.threadKind === "string" &&
+    THREAD_KINDS.includes(item.threadKind as ThreadKind)
   );
 }
 
