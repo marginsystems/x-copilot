@@ -169,4 +169,30 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.opAuthor, "@asker");
     assert.equal(threads[0]?.opParentDerived, true);
   });
+
+  it("keeps the immediate parent when the root is the card author's own thread", async () => {
+    const fetched: string[] = [];
+    const { threads, unhydratedReplyCount } = await hydrateReplyParents({
+      threads: [
+        replyCard({
+          id: "900",
+          author: "@asker",
+          inReplyToId: "850",
+          conversationId: "800",
+        }),
+      ],
+      delayMs: 0,
+      fetchParent: async ({ tweetId }) => {
+        fetched.push(tweetId);
+        if (tweetId === "850") {
+          return { author: "@bob", text: "bob's reply" };
+        }
+        return { author: "@asker", text: "bait root" };
+      },
+    });
+    assert.deepEqual(fetched, ["850", "800"]);
+    assert.equal(unhydratedReplyCount, 0);
+    assert.equal(threads[0]?.opAuthor, "@bob");
+    assert.equal(threads[0]?.opParentDerived, true);
+  });
 });

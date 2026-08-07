@@ -404,7 +404,15 @@ export async function hydrateReplyParents(opts: {
         session: opts.session,
         signal: opts.signal,
       });
-      if (root) source = root;
+      // Only prefer the root when its author differs from the card author;
+      // otherwise the root is the card author's own thread and using it as
+      // opAuthor would misclassify a cross-account reply as a self-reply.
+      if (
+        root &&
+        normalizeAuthorKey(root.author) !== normalizeAuthorKey(t.author)
+      ) {
+        source = root;
+      }
     }
     if (!source) {
       unhydratedReplyCount += 1;
