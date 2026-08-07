@@ -63,6 +63,42 @@ describe("isCoolThread", () => {
       false,
     );
   });
+
+  it("rejects cool-skip threadKinds even with middling bait", () => {
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "1",
+          engage: "consider",
+          baitScore: 20,
+          threadKind: "hollow_ask",
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "2",
+          engage: "priority",
+          baitScore: 15,
+          threadKind: "promo_context",
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "3",
+          engage: "consider",
+          baitScore: 20,
+          threadKind: "timely_take",
+        }),
+      ),
+      true,
+    );
+  });
 });
 
 describe("clampTargetCool / clampBucketSize", () => {
@@ -733,7 +769,7 @@ describe("runScoutCollect bucket loop", () => {
                 author: `@r${n}`,
                 inReplyToId: `op${n}`,
                 isReply: true,
-                text: "How do you pick products?",
+                text: "How do you pick which products to build next for your customers?",
               });
             }),
             bottomCursor: null,
@@ -745,7 +781,8 @@ describe("runScoutCollect bucket loop", () => {
             threads: threads.map((t) => ({
               ...t,
               opAuthor: "@hustler",
-              opText: "mysaas just crossed $632 revenue 100% profit",
+              opText:
+                "mysaas just crossed $632 revenue this month with 100% profit on the dashboard",
             })),
             unhydratedReplyCount: 0,
           };

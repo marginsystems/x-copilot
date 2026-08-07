@@ -58,6 +58,7 @@ type ThreadCard = {
   baitScore?: number;
   flags?: string[];
   intent?: string;
+  threadKind?: string;
   engage?: "skip" | "consider" | "priority";
   reason?: string;
   score?: number;
@@ -271,7 +272,13 @@ function ThreadRow({
     thread.text,
     thread.mediaShortlinks,
   );
-  const tags = [...new Set([thread.intent, ...(thread.flags ?? [])].filter(Boolean))];
+  const tags = [
+    ...new Set(
+      [thread.threadKind, thread.intent, ...(thread.flags ?? [])].filter(
+        Boolean,
+      ),
+    ),
+  ];
   const classes = ["thread-row"];
   if (open) classes.push("open");
   if (thread.engage === "skip") classes.push("skip");

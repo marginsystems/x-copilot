@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import {
   buildTriageCompact,
   buildUserMessage,
+  cleanThreadKind,
   formatMemoryBlock,
   gatherTriageMemories,
   isCompleteTriageItem,
+  isCoolSkipThreadKind,
   mergeTriage,
   missingTriageIds,
   parseTriageJson,
@@ -14,6 +16,7 @@ import {
   TRIAGE_SYSTEM_PROMPT,
   triageThreads,
   MAX_TRIAGE_THREADS,
+  THREAD_KINDS,
 } from "./threadTriage.ts";
 import type { ThreadCard } from "./xSearch.ts";
 
@@ -33,6 +36,7 @@ function completeJson(
     baitScore?: number;
     flags?: string[];
     intent?: string;
+    threadKind?: string;
     engage?: string;
     reason?: string;
   }>,
@@ -112,6 +116,7 @@ describe("parseTriageJson", () => {
           id: "1",
           summary: "Asks for AI tips to farm replies.",
           baitScore: 82,
+          threadKind: "hollow_ask",
           flags: ["engagement_bait", "generic_question"],
           intent: "engagement farming",
           engage: "skip",
@@ -124,12 +129,34 @@ describe("parseTriageJson", () => {
         id: "1",
         summary: "Asks for AI tips to farm replies.",
         baitScore: 82,
+        threadKind: "hollow_ask",
         flags: ["engagement_bait", "generic_question"],
         intent: "engagement farming",
         engage: "skip",
         reason: "Generic question, no context.",
       },
     ]);
+  });
+
+  it("normalizes threadKind and drops unknown kinds", () => {
+    const items = parseTriageJson(
+      completeJson([
+        {
+          id: "1",
+          summary: "News plus take.",
+          baitScore: 20,
+          threadKind: "Timely Take",
+        },
+        {
+          id: "2",
+          summary: "Unknown kind kept without field.",
+          baitScore: 20,
+          threadKind: "not_a_real_kind",
+        },
+      ]),
+    );
+    assert.equal(items?.[0]?.threadKind, "timely_take");
+    assert.equal(items?.[1]?.threadKind, undefined);
   });
 
   it("strips markdown fences for complete items", () => {
@@ -251,6 +278,32 @@ describe("selectScoredThreads", () => {
   });
 });
 
+describe("threadKind helpers", () => {
+  it("accepts the closed enum and rejects junk", () => {
+    assert.equal(cleanThreadKind("lived_answer"), "lived_answer");
+    assert.equal(cleanThreadKind(" Bare News "), "bare_news");
+    assert.equal(cleanThreadKind("nope"), undefined);
+    assert.equal(THREAD_KINDS.includes("other"), true);
+  });
+
+  it("flags cool-skip kinds", () => {
+    assert.equal(isCoolSkipThreadKind("hollow_ask"), true);
+    assert.equal(isCoolSkipThreadKind("promo_context"), true);
+    assert.equal(isCoolSkipThreadKind("bare_news"), true);
+    assert.equal(isCoolSkipThreadKind("closed_thread"), true);
+    assert.equal(isCoolSkipThreadKind("timely_take"), false);
+    assert.equal(isCoolSkipThreadKind(undefined), false);
+  });
+
+  it("documents prefer/skip kinds in the system prompt", () => {
+    assert.match(TRIAGE_SYSTEM_PROMPT, /threadKind/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /timely_take/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /hollow_ask/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /GitHub Actions outage/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /shipping this week/);
+  });
+});
+
 describe("mergeTriage", () => {
   it("merges by id and mirrors baitScore onto score", () => {
     const merged = mergeTriage(
@@ -260,6 +313,7 @@ describe("mergeTriage", () => {
           id: "1",
           summary: "Genuine question about Vite proxies.",
           baitScore: 12,
+          threadKind: "lived_answer",
           engage: "priority",
         },
       ],
@@ -268,6 +322,7 @@ describe("mergeTriage", () => {
     assert.equal(merged[0].baitScore, 12);
     assert.equal(merged[0].score, 12);
     assert.equal(merged[0].engage, "priority");
+    assert.equal(merged[0].threadKind, "lived_answer");
     assert.equal(merged[0].text, "post 1");
     assert.equal(merged[1].summary, undefined);
     assert.equal(merged[1].score, undefined);

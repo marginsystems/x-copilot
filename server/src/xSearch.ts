@@ -44,6 +44,8 @@ export type ThreadCard = {
   baitScore?: number;
   flags?: string[];
   intent?: string;
+  /** Closed preference category from triage (see THREAD_KINDS). */
+  threadKind?: string;
   engage?: "skip" | "consider" | "priority";
   reason?: string;
   /** Mirrors baitScore for the existing card meta line. */
