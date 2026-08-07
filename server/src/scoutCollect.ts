@@ -307,7 +307,7 @@ export async function runScoutCollect(opts: {
       ? new Set<string>()
       : await doGetConversationIds();
 
-  const cool: ThreadCard[] = [];
+  let cool: ThreadCard[] = [];
   const seenIds = new Set<string>();
   /** Per-run author dedupe (first kept wins across bucket refills). */
   const seenAuthors = new Set<string>();
@@ -617,6 +617,21 @@ export async function runScoutCollect(opts: {
 
       for (const id of collectBaitConversationIds(triaged.threads)) {
         baitConversationIds.add(id);
+      }
+      if (baitConversationIds.size) {
+        let purged = false;
+        const kept: ThreadCard[] = [];
+        for (const t of cool) {
+          if (replyUnderBaitConversation(t, baitConversationIds)) {
+            purged = true;
+            if (t.id) coolIds.delete(t.id);
+            const key = normalizeAuthorKey(t.author);
+            if (key) coolAuthors.delete(key);
+          } else {
+            kept.push(t);
+          }
+        }
+        if (purged) cool = kept;
       }
 
       const newlyCool = triaged.threads.filter(
