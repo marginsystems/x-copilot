@@ -478,13 +478,20 @@ export async function getEverInteractedAuthorKeys(opts?: {
   return new Set(history.map((i) => i.authorKey).filter(Boolean));
 }
 
+/** Row shape for conversation ancestry (interactions, dismissals, …). */
+export type ConversationAncestryRow = {
+  conversationId?: string;
+  inReplyToId?: string;
+  threadId?: string;
+};
+
 /**
  * Conversation / ancestry ids from durable history.
  * Includes each mark's conversation root plus the marked threadId so OP and
  * sibling replies stay filtered after we engage anywhere in the chain.
  */
 export function conversationIdsFromHistory(
-  history: readonly Interaction[],
+  history: readonly ConversationAncestryRow[],
 ): Set<string> {
   const ids = new Set<string>();
   for (const row of history) {

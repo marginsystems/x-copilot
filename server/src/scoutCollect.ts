@@ -9,6 +9,7 @@ import {
   getEverInteractedConversationIds,
   normalizeAuthorKey,
 } from "./interactionStore.js";
+import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {
   planQueriesFromAgenda,
@@ -169,6 +170,8 @@ export type ScoutCollectDeps = {
   planQueriesFromAgenda?: typeof planQueriesFromAgenda;
   getCooledAuthorKeys?: typeof getCooledAuthorKeys;
   getAuthorKeysForScoutFilter?: typeof getAuthorKeysForScoutFilter;
+  getBlockedConversationIds?: typeof getBlockedConversationIds;
+  /** @deprecated use getBlockedConversationIds */
   getEverInteractedConversationIds?: typeof getEverInteractedConversationIds;
   saveScoutCache?: typeof saveScoutCache;
   hydrateReplyParents?: typeof hydrateReplyParents;
@@ -194,7 +197,9 @@ export async function runScoutCollect(opts: {
   const doGetFilterKeys =
     deps.getAuthorKeysForScoutFilter ?? getAuthorKeysForScoutFilter;
   const doGetConversationIds =
-    deps.getEverInteractedConversationIds ?? getEverInteractedConversationIds;
+    deps.getBlockedConversationIds ??
+    deps.getEverInteractedConversationIds ??
+    getBlockedConversationIds;
   const doSaveCache = deps.saveScoutCache ?? saveScoutCache;
   const doHydrate = deps.hydrateReplyParents ?? hydrateReplyParents;
   const doSleep = deps.sleep ?? sleep;
@@ -301,11 +306,12 @@ export async function runScoutCollect(opts: {
       : await doGetFilterKeys({
           dedupeAccounts: opts.filters?.dedupeAccounts,
         });
-  // Always suppress conversations we've already engaged in (OP + sibling replies).
+  // Suppress conversations we've Marked or Not interested (OP + sibling replies).
   // Tests that stub only getCooledAuthorKeys stay isolated from the durable store.
   const blockedConversations =
     deps.getCooledAuthorKeys &&
     !deps.getAuthorKeysForScoutFilter &&
+    !deps.getBlockedConversationIds &&
     !deps.getEverInteractedConversationIds
       ? new Set<string>()
       : await doGetConversationIds();

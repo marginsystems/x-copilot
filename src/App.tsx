@@ -171,6 +171,8 @@ type DismissalHistoryEntry = {
   summary?: string;
   text?: string;
   reason?: string;
+  conversationId?: string;
+  inReplyToId?: string;
 };
 
 type SkipHistoryEntry = {
@@ -771,6 +773,20 @@ export default function App() {
       );
       interactedIdsRef.current = ids;
       setInteractedIds(ids);
+      const blocked = new Set(blockedConversationsRef.current);
+      for (const i of history) {
+        const root =
+          i.conversationId?.trim() ||
+          i.inReplyToId?.trim() ||
+          i.threadId.trim();
+        if (root) blocked.add(root);
+        if (i.threadId.trim()) blocked.add(i.threadId.trim());
+        if (i.inReplyToId?.trim()) blocked.add(i.inReplyToId.trim());
+      }
+      blockedConversationsRef.current = blocked;
+      if (ids.size || blocked.size) {
+        setThreads((prev) => prev.filter((t) => keepInCurated(t)));
+      }
     } catch {
       // Sidecar may be offline on first paint — ignore.
     }
@@ -883,8 +899,19 @@ export default function App() {
         ),
       );
       dismissedIdsRef.current = ids;
-      if (ids.size) {
-        setThreads((prev) => prev.filter((t) => !isHiddenFromCurated(t.id)));
+      const blocked = new Set(blockedConversationsRef.current);
+      for (const d of history) {
+        const root =
+          d.conversationId?.trim() ||
+          d.inReplyToId?.trim() ||
+          d.threadId.trim();
+        if (root) blocked.add(root);
+        if (d.threadId.trim()) blocked.add(d.threadId.trim());
+        if (d.inReplyToId?.trim()) blocked.add(d.inReplyToId.trim());
+      }
+      blockedConversationsRef.current = blocked;
+      if (ids.size || blocked.size) {
+        setThreads((prev) => prev.filter((t) => keepInCurated(t)));
       }
     } catch {
       // Sidecar may be offline on first paint — ignore.
@@ -1639,6 +1666,8 @@ export default function App() {
           summary: thread.summary,
           opAuthor: thread.opAuthor,
           opText: thread.opText,
+          conversationId: thread.conversationId,
+          inReplyToId: thread.inReplyToId,
           ...(reason.trim() ? { reason: reason.trim() } : {}),
         }),
       });
@@ -1650,6 +1679,10 @@ export default function App() {
         setStatus(`Dismiss fail: ${data.message || res.status}`);
         return false;
       }
+      const conversationRoot =
+        thread.conversationId?.trim() ||
+        thread.inReplyToId?.trim() ||
+        thread.id;
       const entry: DismissalHistoryEntry = data.dismissal ?? {
         threadId: thread.id,
         author: thread.author,
@@ -1657,14 +1690,31 @@ export default function App() {
         url: thread.url,
         summary: thread.summary,
         text: thread.text,
+        conversationId: thread.conversationId?.trim(),
+        inReplyToId: thread.inReplyToId?.trim(),
         ...(reason.trim() ? { reason: reason.trim() } : {}),
       };
       dismissedIdsRef.current = new Set(dismissedIdsRef.current).add(thread.id);
+      const blocked = new Set(blockedConversationsRef.current);
+      blocked.add(conversationRoot);
+      if (thread.id.trim()) blocked.add(thread.id.trim());
+      if (thread.inReplyToId?.trim()) blocked.add(thread.inReplyToId.trim());
+      blockedConversationsRef.current = blocked;
       setDismissedHistory((prev) => [
         entry,
         ...prev.filter((d) => d.threadId !== thread.id),
       ]);
-      setThreads((prev) => prev.filter((t) => t.id !== thread.id));
+      // Drop the card and sibling replies under the same conversation root.
+      setThreads((prev) =>
+        prev.filter((t) => {
+          if (t.id === thread.id || t.id === conversationRoot) return false;
+          if (t.conversationId && t.conversationId === conversationRoot) {
+            return false;
+          }
+          if (t.inReplyToId && t.inReplyToId === conversationRoot) return false;
+          return true;
+        }),
+      );
       setExpandedId((id) => (id === thread.id ? null : id));
       return true;
     } catch {

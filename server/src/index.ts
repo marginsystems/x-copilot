@@ -15,7 +15,6 @@ import {
 import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
-  getEverInteractedConversationIds,
   listActiveInteractions,
   listInteractionHistory,
   markInteracted,
@@ -25,6 +24,7 @@ import {
   setGamificationSyncFailed,
 } from "./interactionStore.js";
 import {
+  getBlockedConversationIds,
   getDismissedThreadIds,
   listDismissalHistory,
   markDismissed,
@@ -467,7 +467,7 @@ const server = http.createServer(async (req, res) => {
       const cooled = await getAuthorKeysForScoutFilter(
         dedupeParam !== null ? { dedupeAccounts: dedupeParam !== "false" } : undefined,
       );
-      const blockedConversations = await getEverInteractedConversationIds();
+      const blockedConversations = await getBlockedConversationIds();
       const filtered = filterThreadsByCooldown(
         snapshot.threads,
         cooled,
@@ -674,6 +674,12 @@ const server = http.createServer(async (req, res) => {
           typeof body.opText === "string" ? body.opText : undefined;
         const reason =
           typeof body.reason === "string" ? body.reason : undefined;
+        const conversationId =
+          typeof body.conversationId === "string"
+            ? body.conversationId
+            : undefined;
+        const inReplyToId =
+          typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
         const nowMs = Date.now();
         const dismissedAt = new Date(nowMs).toISOString();
         const memory = await writeDismissalMemory({
@@ -695,6 +701,8 @@ const server = http.createServer(async (req, res) => {
           text,
           summary,
           reason,
+          conversationId,
+          inReplyToId,
           nowMs,
         });
         return send(res, 200, {
