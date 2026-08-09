@@ -1892,130 +1892,144 @@ export default function App() {
               Back
             </button>
           </div>
-          <p className="status">
+          <p className="status settings-lede">
             Filter prefs apply on the next Scout search. Env defaults remain the
             fallback when overrides are omitted.
           </p>
-          <label className="settings-field">
-            <span>Max thread characters</span>
-            <input
-              type="number"
-              min={120}
-              max={2000}
-              step={1}
-              value={settingsDraft.maxThreadChars}
-              onChange={(e) =>
-                setSettingsDraft((prev) => ({
-                  ...prev,
-                  maxThreadChars: clampMaxThreadChars(
-                    e.target.value === ""
-                      ? DEFAULT_SETTINGS.maxThreadChars
-                      : Number(e.target.value),
-                  ),
-                }))
-              }
-            />
-          </label>
-          <label className="settings-check">
-            <input
-              type="checkbox"
-              checked={settingsDraft.dropArticles}
-              onChange={(e) =>
-                setSettingsDraft((prev) => ({
-                  ...prev,
-                  dropArticles: e.target.checked,
-                }))
-              }
-            />
-            <span>Drop X Articles</span>
-          </label>
-          <label className="settings-check">
-            <input
-              type="checkbox"
-              checked={settingsDraft.dedupeAccounts}
-              onChange={(e) =>
-                setSettingsDraft((prev) => ({
-                  ...prev,
-                  dedupeAccounts: e.target.checked,
-                }))
-              }
-            />
-            <span>Dedupe accounts I&apos;ve interacted with</span>
-          </label>
-          <label className="settings-field">
-            <span>Preferred language</span>
-            <select
-              className="settings-select"
-              value={settingsDraft.preferredLanguage}
-              onChange={(e) =>
-                setSettingsDraft((prev) => ({
-                  ...prev,
-                  preferredLanguage: normalizePreferredLanguage(e.target.value),
-                }))
-              }
-            >
-              {(
-                [
-                  ["en", "English"],
-                  ["es", "Spanish"],
-                  ["fr", "French"],
-                  ["de", "German"],
-                  ["pt", "Portuguese"],
-                ] as const satisfies ReadonlyArray<
-                  readonly [ (typeof PREFERRED_LANGUAGES)[number], string ]
-                >
-              ).map(([code, label]) => (
-                <option key={code} value={code}>
-                  {label} ({code})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="settings-field">
-            <span>Cool threads target (1–20)</span>
-            <input
-              type="number"
-              min={1}
-              max={20}
-              step={1}
-              value={settingsDraft.targetCoolThreads}
-              onChange={(e) =>
-                setSettingsDraft((prev) => ({
-                  ...prev,
-                  targetCoolThreads: clampTargetCoolThreads(
-                    e.target.value === ""
-                      ? DEFAULT_SETTINGS.targetCoolThreads
-                      : Number(e.target.value),
-                  ),
-                }))
-              }
-            />
-          </label>
-          <label className="settings-field">
-            <span>Excluded tags (one per line)</span>
-            <textarea
-              className="settings-textarea"
-              rows={4}
-              value={excludedTagsDraft}
-              onChange={(e) => setExcludedTagsDraft(e.target.value)}
-              placeholder="supportive_encouragement"
-              spellCheck={false}
-              autoCorrect="off"
-              autoCapitalize="off"
-            />
-            <span className="settings-help">
-              Still tagged by triage; dropped from Curated. Matches flags and
-              intent (spaces become underscores on Save). Empty list disables
-              tag excludes.
-            </span>
-          </label>
-          <p className="settings-readonly">Author cooldown: 24 hours</p>
-          <div className="row">
-            <button type="button" className="primary" onClick={onSaveSettings}>
-              Save
-            </button>
+          <div className="settings-grid">
+            <label className="settings-field">
+              <span>Max thread characters</span>
+              <input
+                type="number"
+                min={120}
+                max={2000}
+                step={1}
+                value={settingsDraft.maxThreadChars}
+                onChange={(e) =>
+                  setSettingsDraft((prev) => ({
+                    ...prev,
+                    maxThreadChars: clampMaxThreadChars(
+                      e.target.value === ""
+                        ? DEFAULT_SETTINGS.maxThreadChars
+                        : Number(e.target.value),
+                    ),
+                  }))
+                }
+              />
+            </label>
+            <label className="settings-field">
+              <span>Cool threads target (1–20)</span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                step={1}
+                value={settingsDraft.targetCoolThreads}
+                onChange={(e) =>
+                  setSettingsDraft((prev) => ({
+                    ...prev,
+                    targetCoolThreads: clampTargetCoolThreads(
+                      e.target.value === ""
+                        ? DEFAULT_SETTINGS.targetCoolThreads
+                        : Number(e.target.value),
+                    ),
+                  }))
+                }
+              />
+            </label>
+            <label className="settings-field">
+              <span>Preferred language</span>
+              <select
+                className="settings-select"
+                value={settingsDraft.preferredLanguage}
+                onChange={(e) =>
+                  setSettingsDraft((prev) => ({
+                    ...prev,
+                    preferredLanguage: normalizePreferredLanguage(
+                      e.target.value,
+                    ),
+                  }))
+                }
+              >
+                {(
+                  [
+                    ["en", "English"],
+                    ["es", "Spanish"],
+                    ["fr", "French"],
+                    ["de", "German"],
+                    ["pt", "Portuguese"],
+                  ] as const satisfies ReadonlyArray<
+                    readonly [(typeof PREFERRED_LANGUAGES)[number], string]
+                  >
+                ).map(([code, label]) => (
+                  <option key={code} value={code}>
+                    {label} ({code})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="settings-checks">
+              <label className="settings-check">
+                <input
+                  type="checkbox"
+                  checked={settingsDraft.dropArticles}
+                  onChange={(e) =>
+                    setSettingsDraft((prev) => ({
+                      ...prev,
+                      dropArticles: e.target.checked,
+                    }))
+                  }
+                />
+                <span>Drop X Articles</span>
+              </label>
+              <label className="settings-check">
+                <input
+                  type="checkbox"
+                  checked={settingsDraft.dedupeAccounts}
+                  onChange={(e) =>
+                    setSettingsDraft((prev) => ({
+                      ...prev,
+                      dedupeAccounts: e.target.checked,
+                    }))
+                  }
+                />
+                <span>Dedupe accounts I&apos;ve interacted with</span>
+              </label>
+            </div>
+            <label className="settings-field settings-span-2">
+              <span>Excluded tags (one per line)</span>
+              <textarea
+                className="settings-textarea"
+                rows={4}
+                value={excludedTagsDraft}
+                onChange={(e) => setExcludedTagsDraft(e.target.value)}
+                placeholder="supportive_encouragement"
+                spellCheck={false}
+                autoCorrect="off"
+                autoCapitalize="off"
+              />
+              <span className="settings-help">
+                Still tagged by triage; dropped from Curated. Matches flags and
+                intent (spaces become underscores on Save). Empty list disables
+                tag excludes.
+              </span>
+            </label>
           </div>
-          {settingsStatus ? <p className="status">{settingsStatus}</p> : null}
+          <div className="settings-footer">
+            <p className="settings-readonly">Author cooldown: 24 hours</p>
+            <div className="settings-actions">
+              <button
+                type="button"
+                className="primary"
+                onClick={onSaveSettings}
+              >
+                Save
+              </button>
+              {settingsStatus ? (
+                <p className="status settings-save-status">{settingsStatus}</p>
+              ) : null}
+            </div>
+          </div>
         </section>
       ) : (
         <div className="dashboard">
