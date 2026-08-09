@@ -652,6 +652,134 @@ h3 {
   opacity: 0.9;
 }
 
+.excluded-tags-box {
+  display: grid;
+  gap: 8px;
+  background: var(--raised);
+  border: 1px solid var(--border-strong);
+  padding: 10px 12px;
+}
+
+.excluded-tags-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 1.6rem;
+  align-items: center;
+}
+
+.excluded-tags-empty {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.excluded-tags-notice {
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+.excluded-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.excluded-tag-chip:hover {
+  border-color: var(--accent-dim);
+}
+
+.excluded-tag-chip-active {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+.excluded-tag-chip-muted {
+  opacity: 0.85;
+}
+
+.excluded-tag-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.excluded-tag-x {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.excluded-tags-input-row {
+  display: contents;
+}
+
+.excluded-tags-input {
+  width: 100%;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.excluded-tags-input:focus-visible {
+  outline: 1px solid var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+
+.excluded-tags-suggest {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.excluded-tags-suggest button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.excluded-tags-suggest button:hover {
+  background: var(--raised);
+  color: var(--accent);
+}
+
+.excluded-tags-vocab {
+  margin-top: 2px;
+}
+
+.excluded-tags-vocab summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.75rem;
+  user-select: none;
+}
+
+.excluded-tags-vocab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 .settings-field input[type="number"],
 .settings-field .settings-select {
   width: 100%;

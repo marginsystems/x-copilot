@@ -11,13 +11,12 @@ import {
   type AppSettings,
   clampMaxThreadChars,
   clampTargetCoolThreads,
-  formatExcludedTagsText,
   normalizePreferredLanguage,
-  parseExcludedTagsText,
   threadHasExcludedTag,
   PREFERRED_LANGUAGES,
   DEFAULT_SETTINGS,
 } from "./lib/settings";
+import { ExcludedTagsField } from "./ExcludedTagsField";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
 import {
@@ -589,10 +588,6 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
     loadSettings(),
-  );
-  /** Raw excluded-tags textarea; normalize only on Save (spaces/_ mid-edit). */
-  const [excludedTagsDraft, setExcludedTagsDraft] = useState(() =>
-    formatExcludedTagsText(loadSettings().excludedTags),
   );
   const [settingsStatus, setSettingsStatus] = useState("");
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
@@ -1336,20 +1331,15 @@ export default function App() {
 
   function openSettings() {
     setSettingsDraft(settings);
-    setExcludedTagsDraft(formatExcludedTagsText(settings.excludedTags));
     setSettingsStatus("");
     setView("settings");
     closeMenu();
   }
 
   function onSaveSettings() {
-    const next = saveSettings({
-      ...settingsDraft,
-      excludedTags: parseExcludedTagsText(excludedTagsDraft),
-    });
+    const next = saveSettings(settingsDraft);
     setSettings(next);
     setSettingsDraft(next);
-    setExcludedTagsDraft(formatExcludedTagsText(next.excludedTags));
     setThreads((prev) =>
       prev.filter((t) => !threadHasExcludedTag(t, next.excludedTags)),
     );
@@ -1996,24 +1986,12 @@ export default function App() {
                 <span>Dedupe accounts I&apos;ve interacted with</span>
               </label>
             </div>
-            <label className="settings-field settings-span-2">
-              <span>Excluded tags (one per line)</span>
-              <textarea
-                className="settings-textarea"
-                rows={4}
-                value={excludedTagsDraft}
-                onChange={(e) => setExcludedTagsDraft(e.target.value)}
-                placeholder="supportive_encouragement"
-                spellCheck={false}
-                autoCorrect="off"
-                autoCapitalize="off"
-              />
-              <span className="settings-help">
-                Still tagged by triage; dropped from Curated. Matches flags and
-                intent (spaces become underscores on Save). Empty list disables
-                tag excludes.
-              </span>
-            </label>
+            <ExcludedTagsField
+              tags={settingsDraft.excludedTags}
+              onChange={(excludedTags) =>
+                setSettingsDraft((prev) => ({ ...prev, excludedTags }))
+              }
+            />
           </div>
           <div className="settings-footer">
             <p className="settings-readonly">Author cooldown: 24 hours</p>

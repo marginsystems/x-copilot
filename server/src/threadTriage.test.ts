@@ -464,6 +464,11 @@ describe("MAX_TRIAGE_THREADS", () => {
 });
 
 describe("TRIAGE_SYSTEM_PROMPT", () => {
+  it("includes political in the flags vocabulary", () => {
+    assert.match(TRIAGE_SYSTEM_PROMPT, /genuine_question, political/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /flag political/);
+  });
+
   it("hard-skips pure event promos without suppressing substantive posts", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /register, RSVP, tune in, or join/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /flag event_promo/);
