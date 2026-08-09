@@ -2,6 +2,14 @@
 
 export const SETTINGS_STORAGE_KEY = "x-copilot-settings";
 
+/**
+ * Marks storage written by a build that knows the current excluded-tags default
+ * pair. Lets the legacy upgrade distinguish never-migrated storage from a list
+ * a user explicitly saved (e.g. exactly `["supportive_encouragement"]`).
+ */
+export const SETTINGS_EXCLUDED_TAGS_MIGRATED_KEY =
+  "x-copilot-settings-excluded-tags-migrated";
+
 export const DEFAULT_MAX_THREAD_CHARS = 480;
 export const MIN_MAX_THREAD_CHARS = 120;
 export const MAX_MAX_THREAD_CHARS = 2000;
@@ -202,7 +210,9 @@ export function loadSettings(): AppSettings {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
     const settings = normalizeSettings(JSON.parse(raw) as unknown);
-    settings.excludedTags = upgradeLegacyExcludedTags(settings.excludedTags);
+    if (localStorage.getItem(SETTINGS_EXCLUDED_TAGS_MIGRATED_KEY) === null) {
+      settings.excludedTags = upgradeLegacyExcludedTags(settings.excludedTags);
+    }
     return settings;
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -212,5 +222,6 @@ export function loadSettings(): AppSettings {
 export function saveSettings(settings: AppSettings): AppSettings {
   const normalized = normalizeSettings(settings);
   localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(normalized));
+  localStorage.setItem(SETTINGS_EXCLUDED_TAGS_MIGRATED_KEY, "1");
   return normalized;
 }

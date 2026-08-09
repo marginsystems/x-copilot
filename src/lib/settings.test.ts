@@ -207,4 +207,14 @@ describe("loadSettings / saveSettings", () => {
       saved,
     );
   });
+
+  it("does not re-add political on reload after an explicit save", () => {
+    saveSettings({
+      ...DEFAULT_SETTINGS,
+      excludedTags: ["supportive_encouragement"],
+    });
+    assert.deepEqual(loadSettings().excludedTags, [
+      "supportive_encouragement",
+    ]);
+  });
 });
