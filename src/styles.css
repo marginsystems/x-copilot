@@ -673,6 +673,11 @@ h3 {
   color: var(--muted);
 }
 
+.excluded-tags-notice {
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
 .excluded-tag-chip {
   display: inline-flex;
   align-items: center;

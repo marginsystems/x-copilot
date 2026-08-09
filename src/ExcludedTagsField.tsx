@@ -3,7 +3,6 @@ import {
   EXCLUDEABLE_TAG_VOCAB,
   MAX_EXCLUDED_TAGS,
   normalizeTagToken,
-  parseExcludedTagsText,
 } from "./lib/settings";
 
 type Props = {
@@ -27,6 +26,7 @@ function mergeTags(current: readonly string[], additions: readonly string[]): st
 export function ExcludedTagsField({ tags, onChange }: Props) {
   const [input, setInput] = useState("");
   const [vocabOpen, setVocabOpen] = useState(false);
+  const [notice, setNotice] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const selected = new Set(tags);
 
@@ -40,19 +40,44 @@ export function ExcludedTagsField({ tags, onChange }: Props) {
   }, [input, tags]);
 
   function commitRaw(raw: string) {
-    const parsed = parseExcludedTagsText(raw);
-    if (!parsed.length) return;
-    onChange(mergeTags(tags, parsed));
+    const tokens = raw
+      .split(/[\n,]+/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map(normalizeTagToken)
+      .filter((t): t is string => Boolean(t));
+    if (!tokens.length) {
+      setNotice(
+        "No valid tags — tags use lowercase letters, digits, and underscores (max 40 chars).",
+      );
+      return;
+    }
+    const merged = mergeTags(tags, tokens);
+    const requestedNew = [...new Set(tokens)].filter((t) => !selected.has(t));
+    onChange(merged);
     setInput("");
+    setNotice(
+      requestedNew.some((t) => !merged.includes(t))
+        ? `Only ${MAX_EXCLUDED_TAGS} tags allowed; extra tags were dropped.`
+        : "",
+    );
   }
 
   function removeTag(tag: string) {
     onChange(tags.filter((t) => t !== tag));
+    setNotice("");
   }
 
   function addTag(tag: string) {
+    if (selected.size >= MAX_EXCLUDED_TAGS) {
+      setNotice(
+        `Only ${MAX_EXCLUDED_TAGS} tags allowed; remove one to add another.`,
+      );
+      return;
+    }
     onChange(mergeTags(tags, [tag]));
     setInput("");
+    setNotice("");
     inputRef.current?.focus();
   }
 
@@ -85,7 +110,10 @@ export function ExcludedTagsField({ tags, onChange }: Props) {
             ref={inputRef}
             className="excluded-tags-input"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              if (notice) setNotice("");
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === ",") {
                 e.preventDefault();
@@ -123,11 +151,17 @@ export function ExcludedTagsField({ tags, onChange }: Props) {
             ))}
           </ul>
         ) : null}
+        {notice ? (
+          <span className="excluded-tags-notice" role="alert">
+            {notice}
+          </span>
+        ) : null}
       </div>
       <span className="settings-help">
         Still tagged by triage; dropped from Curated. Matches flags and intent.
-        Comma or newline separated; whitespace stripped. Empty list disables tag
-        excludes.
+        Comma or newline separated; whitespace stripped. Tags use lowercase
+        letters, digits, and underscores, up to 40 chars; max {MAX_EXCLUDED_TAGS}
+        tags. Empty list disables tag excludes.
       </span>
       <details
         className="excluded-tags-vocab"
