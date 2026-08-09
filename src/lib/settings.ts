@@ -179,7 +179,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
   const obj = raw as Record<string, unknown>;
   const excludedTags =
     "excludedTags" in obj
-      ? upgradeLegacyExcludedTags(normalizeExcludedTags(obj.excludedTags))
+      ? normalizeExcludedTags(obj.excludedTags)
       : [...DEFAULT_EXCLUDED_TAGS];
   return {
     maxThreadChars: clampMaxThreadChars(obj.maxThreadChars),
@@ -201,7 +201,9 @@ export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
-    return normalizeSettings(JSON.parse(raw) as unknown);
+    const settings = normalizeSettings(JSON.parse(raw) as unknown);
+    settings.excludedTags = upgradeLegacyExcludedTags(settings.excludedTags);
+    return settings;
   } catch {
     return { ...DEFAULT_SETTINGS };
   }

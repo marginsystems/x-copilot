@@ -116,14 +116,14 @@ describe("excludedTags settings", () => {
     );
   });
 
-  it("defaults missing excludedTags key, upgrades legacy default, preserves explicit empty", () => {
+  it("defaults missing excludedTags key, preserves explicit list and empty", () => {
     assert.deepEqual(normalizeSettings({}).excludedTags, [
       ...DEFAULT_EXCLUDED_TAGS,
     ]);
     assert.deepEqual(
       normalizeSettings({ excludedTags: ["supportive_encouragement"] })
         .excludedTags,
-      [...DEFAULT_EXCLUDED_TAGS],
+      ["supportive_encouragement"],
     );
     assert.deepEqual(normalizeSettings({ excludedTags: [] }).excludedTags, []);
   });
@@ -183,5 +183,28 @@ describe("loadSettings / saveSettings", () => {
 
   it("returns defaults when empty", () => {
     assert.deepEqual(loadSettings(), DEFAULT_SETTINGS);
+  });
+
+  it("upgrades the legacy default list only when loading", () => {
+    store.set(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        ...DEFAULT_SETTINGS,
+        excludedTags: ["supportive_encouragement"],
+      }),
+    );
+    assert.deepEqual(loadSettings().excludedTags, [...DEFAULT_EXCLUDED_TAGS]);
+  });
+
+  it("does not re-expand a legacy-shaped list when saving", () => {
+    const saved = saveSettings({
+      ...DEFAULT_SETTINGS,
+      excludedTags: ["supportive_encouragement"],
+    });
+    assert.deepEqual(saved.excludedTags, ["supportive_encouragement"]);
+    assert.deepEqual(
+      JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)!),
+      saved,
+    );
   });
 });
