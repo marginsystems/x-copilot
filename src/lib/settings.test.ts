@@ -76,7 +76,7 @@ describe("excludedTags settings", () => {
     assert.equal(normalizeTagToken("genuine "), "genuine");
   });
 
-  it("normalizes tokens and textarea round-trip", () => {
+  it("normalizes tokens and flexible text parse", () => {
     assert.equal(
       normalizeTagToken("Supportive Encouragement"),
       "supportive_encouragement",
@@ -87,9 +87,18 @@ describe("excludedTags settings", () => {
       parseExcludedTagsText("supportive encouragement\npromo\n"),
       ["supportive_encouragement", "promo"],
     );
+    assert.deepEqual(parseExcludedTagsText("tag1, tag2, political"), [
+      "tag1",
+      "tag2",
+      "political",
+    ]);
+    assert.deepEqual(
+      parseExcludedTagsText("tag1,\n  tag2\npolitical,  "),
+      ["tag1", "tag2", "political"],
+    );
     assert.equal(
-      formatExcludedTagsText(["supportive_encouragement", "promo"]),
-      "supportive_encouragement\npromo",
+      formatExcludedTagsText(["supportive_encouragement", "political"]),
+      "supportive_encouragement, political",
     );
     assert.equal(
       threadHasExcludedTag(
@@ -98,12 +107,24 @@ describe("excludedTags settings", () => {
       ),
       true,
     );
+    assert.equal(
+      threadHasExcludedTag(
+        { intent: "election dunk", flags: ["political"] },
+        ["political"],
+      ),
+      true,
+    );
   });
 
-  it("defaults missing excludedTags key and preserves explicit empty", () => {
+  it("defaults missing excludedTags key, upgrades legacy default, preserves explicit empty", () => {
     assert.deepEqual(normalizeSettings({}).excludedTags, [
       ...DEFAULT_EXCLUDED_TAGS,
     ]);
+    assert.deepEqual(
+      normalizeSettings({ excludedTags: ["supportive_encouragement"] })
+        .excludedTags,
+      [...DEFAULT_EXCLUDED_TAGS],
+    );
     assert.deepEqual(normalizeSettings({ excludedTags: [] }).excludedTags, []);
   });
 });
@@ -146,7 +167,7 @@ describe("loadSettings / saveSettings", () => {
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",
-      excludedTags: ["supportive_encouragement", "promo"],
+      excludedTags: ["supportive_encouragement", "political", "promo"],
     });
     assert.deepEqual(saved, {
       maxThreadChars: 320,
@@ -154,7 +175,7 @@ describe("loadSettings / saveSettings", () => {
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",
-      excludedTags: ["supportive_encouragement", "promo"],
+      excludedTags: ["supportive_encouragement", "political", "promo"],
     });
     assert.deepEqual(loadSettings(), saved);
     assert.ok(localStorage.getItem(SETTINGS_STORAGE_KEY));

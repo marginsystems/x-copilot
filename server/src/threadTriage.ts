@@ -72,7 +72,7 @@ Fields:
 - summary: ONE sentence on what the post is about and why it was likely posted. Not a paraphrase of the whole text.
 - baitScore: integer 0-100. HIGHER = more engagement bait / less worth replying to.
 - threadKind: EXACTLY one of: timely_take, fact_add, sharp_opinion, lived_answer, hollow_ask, promo_context, bare_news, closed_thread, other.
-- flags: short snake_case tags from: engagement_bait, generic_question, promo, promo_op, event_promo, bad_context, github_plug, low_substance, thread_farm, wall_of_text, giveaway, rage_bait, on_agenda, genuine_question.
+- flags: short snake_case tags from: engagement_bait, generic_question, promo, promo_op, event_promo, bad_context, github_plug, low_substance, thread_farm, wall_of_text, giveaway, rage_bait, on_agenda, genuine_question, political.
 - intent: 2-4 words, e.g. "engagement farming", "genuine help request", "product promo".
 - engage: "skip" | "consider" | "priority".
 - reason: one short clause explaining the score and threadKind.
@@ -99,6 +99,7 @@ Bait patterns (score high, 70-100):
 - Essay / wall-of-text posts and multi-part thread openers — prefer engage "skip" and flag wall_of_text or thread_farm even if under a hard length filter.
 - Promo / revenue-flex OP under an otherwise good reply: product launch flex ("just crossed $X revenue"), hollow SaaS plugs, "100% profit" dashboards, giveaway roots. Prefer engage "skip", baitScore 70-100, threadKind promo_context, flags promo_op and/or bad_context EVEN IF the reply is a genuine on-agenda question.
 - Upcoming event, livestream, webinar, meetup, or conference announcements whose main ask is to register, RSVP, tune in, or join. Prefer engage "skip", threadKind promo_context or closed_thread, flag event_promo even when the topic is on-agenda.
+- Partisan politics, elections, culture-war dunking, or identity-horse-race framing as the main payload → flag political (still set threadKind/bait normally; operators may exclude this tag from Curated).
 
 Event distinctions:
 - A short ship report or concrete technical question does not become event_promo merely because the author also mentions speaking at an event.

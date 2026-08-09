@@ -99,7 +99,7 @@ export type ScoutFilters = {
   preferredLanguage?: string;
   /**
    * Post-triage Curated excludes (flags + normalized intent).
-   * Omit → server default (`supportive_encouragement`); `[]` → no tag excludes.
+   * Omit → server default (`supportive_encouragement`, `political`); `[]` → no tag excludes.
    */
   excludedTags?: string[];
 };

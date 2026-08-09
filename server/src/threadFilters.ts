@@ -16,9 +16,39 @@ export const DEFAULT_PREFERRED_LANGUAGE: PreferredLanguageCode = "en";
  * Post-triage Curated excludes (match flags + normalized intent).
  * Keep defaults/token rules in sync with `src/lib/settings.ts`.
  */
-export const DEFAULT_EXCLUDED_TAGS = ["supportive_encouragement"] as const;
+export const DEFAULT_EXCLUDED_TAGS = [
+  "supportive_encouragement",
+  "political",
+] as const;
+/** Pre-political default — upgrade on load when storage still matches this. */
+export const LEGACY_DEFAULT_EXCLUDED_TAGS = ["supportive_encouragement"] as const;
 export const MAX_EXCLUDED_TAGS = 20;
 export const MAX_TAG_TOKEN_LEN = 40;
+
+/**
+ * Known excludeable tokens for Settings autocomplete / picker.
+ * Official triage flags + common intent-shaped excludes.
+ * Keep in sync with `EXCLUDEABLE_TAG_VOCAB` in `src/lib/settings.ts`
+ * and the flags list in `TRIAGE_SYSTEM_PROMPT`.
+ */
+export const EXCLUDEABLE_TAG_VOCAB = [
+  "engagement_bait",
+  "generic_question",
+  "promo",
+  "promo_op",
+  "event_promo",
+  "bad_context",
+  "github_plug",
+  "low_substance",
+  "thread_farm",
+  "wall_of_text",
+  "giveaway",
+  "rage_bait",
+  "on_agenda",
+  "genuine_question",
+  "political",
+  "supportive_encouragement",
+] as const;
 
 /** ISO 639-1 → ISO 639-3 for franc-min. */
 const LANG1_TO_3: Record<PreferredLanguageCode, string> = {

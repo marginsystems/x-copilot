@@ -14,6 +14,7 @@
     "test": "tsx --test server/src/**/*.test.ts src/**/*.test.ts",
     "test:session": "tsx scripts/test-session.ts",
     "test:search": "tsx scripts/test-search.ts",
+    "probe:tags": "tsx scripts/probe-triage-tags.ts",
     "memory:reindex": "tsx scripts/reindex-memory.ts"
   },
   "dependencies": {

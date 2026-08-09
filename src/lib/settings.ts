@@ -19,9 +19,38 @@ export const DEFAULT_PREFERRED_LANGUAGE: PreferredLanguage = "en";
  * Post-triage Curated excludes (flags + normalized intent).
  * Keep in sync with `DEFAULT_EXCLUDED_TAGS` in server/src/threadFilters.ts.
  */
-export const DEFAULT_EXCLUDED_TAGS = ["supportive_encouragement"] as const;
+export const DEFAULT_EXCLUDED_TAGS = [
+  "supportive_encouragement",
+  "political",
+] as const;
+/** Pre-political default — upgrade on load when storage still matches this. */
+export const LEGACY_DEFAULT_EXCLUDED_TAGS = ["supportive_encouragement"] as const;
 export const MAX_EXCLUDED_TAGS = 20;
 export const MAX_TAG_TOKEN_LEN = 40;
+
+/**
+ * Known excludeable tokens for Settings autocomplete / picker.
+ * Keep in sync with `EXCLUDEABLE_TAG_VOCAB` in server/src/threadFilters.ts
+ * and the flags list in TRIAGE_SYSTEM_PROMPT.
+ */
+export const EXCLUDEABLE_TAG_VOCAB = [
+  "engagement_bait",
+  "generic_question",
+  "promo",
+  "promo_op",
+  "event_promo",
+  "bad_context",
+  "github_plug",
+  "low_substance",
+  "thread_farm",
+  "wall_of_text",
+  "giveaway",
+  "rage_bait",
+  "on_agenda",
+  "genuine_question",
+  "political",
+  "supportive_encouragement",
+] as const;
 
 export type AppSettings = {
   maxThreadChars: number;
@@ -33,7 +62,7 @@ export type AppSettings = {
   preferredLanguage: PreferredLanguage;
   /**
    * Drop cool/curated threads whose flags or intent match these tokens.
-   * Empty = no tag excludes. Default includes supportive_encouragement.
+   * Empty = no tag excludes. Default includes supportive_encouragement + political.
    */
   excludedTags: string[];
 };
@@ -100,18 +129,34 @@ export function normalizeExcludedTags(raw: unknown): string[] {
   return out;
 }
 
-/** Parse Settings textarea (one token per line; blank lines ignored). */
+function sameTagList(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((tag, i) => tag === b[i]);
+}
+
+/** Upgrade pre-political default storage to the current default pair. */
+export function upgradeLegacyExcludedTags(tags: string[]): string[] {
+  if (sameTagList(tags, LEGACY_DEFAULT_EXCLUDED_TAGS)) {
+    return [...DEFAULT_EXCLUDED_TAGS];
+  }
+  return tags;
+}
+
+/**
+ * Parse Settings text (comma and/or newline separated; whitespace stripped).
+ * Examples: `tag1, tag2` · `tag1,\ntag2` · one token per line.
+ */
 export function parseExcludedTagsText(text: string): string[] {
   return normalizeExcludedTags(
     text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
+      .split(/[\n,]+/)
+      .map((part) => part.trim())
       .filter(Boolean),
   );
 }
 
 export function formatExcludedTagsText(tags: readonly string[]): string {
-  return tags.join("\n");
+  return tags.join(", ");
 }
 
 /** True when any flag or normalized intent is in the exclude set. */
@@ -132,6 +177,10 @@ export function threadHasExcludedTag(
 export function normalizeSettings(raw: unknown): AppSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
   const obj = raw as Record<string, unknown>;
+  const excludedTags =
+    "excludedTags" in obj
+      ? upgradeLegacyExcludedTags(normalizeExcludedTags(obj.excludedTags))
+      : [...DEFAULT_EXCLUDED_TAGS];
   return {
     maxThreadChars: clampMaxThreadChars(obj.maxThreadChars),
     dropArticles:
@@ -144,10 +193,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
         ? obj.dedupeAccounts
         : DEFAULT_SETTINGS.dedupeAccounts,
     preferredLanguage: normalizePreferredLanguage(obj.preferredLanguage),
-    excludedTags:
-      "excludedTags" in obj
-        ? normalizeExcludedTags(obj.excludedTags)
-        : [...DEFAULT_EXCLUDED_TAGS],
+    excludedTags,
   };
 }
 
