@@ -1136,6 +1136,11 @@ export default function App() {
 
     try {
       while (markDetectGenRef.current === gen && !ac.signal.aborted) {
+        if (Date.now() - startedAt >= MARK_DETECT_TIMEOUT_MS) {
+          setMarkDetectMissed(true);
+          setMarkDetectNote(markDetectTimeoutNote());
+          return;
+        }
         attempt += 1;
         setMarkDetectNote(markDetectCheckingNote(attempt));
 
