@@ -1392,6 +1392,7 @@ export default function App() {
           filters: {
             maxThreadChars: settings.maxThreadChars,
             dropArticles: settings.dropArticles,
+            dropEmDashes: settings.dropEmDashes,
             dedupeAccounts: settings.dedupeAccounts,
             preferredLanguage: settings.preferredLanguage,
             excludedTags: settings.excludedTags,
@@ -1971,6 +1972,19 @@ export default function App() {
                   }
                 />
                 <span>Drop X Articles</span>
+              </label>
+              <label className="settings-check">
+                <input
+                  type="checkbox"
+                  checked={settingsDraft.dropEmDashes}
+                  onChange={(e) =>
+                    setSettingsDraft((prev) => ({
+                      ...prev,
+                      dropEmDashes: e.target.checked,
+                    }))
+                  }
+                />
+                <span>Drop posts with em dashes (—)</span>
               </label>
               <label className="settings-check">
                 <input

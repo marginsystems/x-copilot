@@ -11,6 +11,7 @@ import { planQueriesFromAgenda } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
 import {
   filterByLanguage,
+  filterEmDashes,
   filterOutboundLinks,
   filterSelfReplies,
   filterThreadsByLength,
@@ -56,6 +57,8 @@ export type ScoutEvent = ScoutStageEvent & {
   selfReplyFiltered?: number;
   linkFiltered?: number;
   linkWarning?: string;
+  emDashFiltered?: number;
+  emDashWarning?: string;
   languageFiltered?: number;
   lengthFiltered?: number;
   lengthWarning?: string;
@@ -93,6 +96,8 @@ function emit(
 export type ScoutFilters = {
   maxThreadChars?: number;
   dropArticles?: boolean;
+  /** When true (default), hard-drop posts containing an em dash (U+2014). */
+  dropEmDashes?: boolean;
   /** When true (default), never curate authors from interaction history. */
   dedupeAccounts?: boolean;
   /** ISO 639-1; default English when omitted. */
@@ -196,12 +201,14 @@ export async function runScoutSearch(opts: {
     opts.filters?.preferredLanguage,
   );
   const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
+  const dropEmDashes = opts.filters?.dropEmDashes !== false;
+  const afterEmDash = filterEmDashes(afterLang.threads, { dropEmDashes });
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
-  const byLength = filterThreadsByLength(afterLang.threads, maxChars, {
+  const byLength = filterThreadsByLength(afterEmDash.threads, maxChars, {
     dropArticles,
   });
 
@@ -246,6 +253,9 @@ export async function runScoutSearch(opts: {
   const linkWarning = afterLinks.linkFilteredCount
     ? `Dropped ${afterLinks.linkFilteredCount} posts with outbound links.`
     : undefined;
+  const emDashWarning = afterEmDash.emDashFilteredCount
+    ? `Dropped ${afterEmDash.emDashFilteredCount} posts with em dashes.`
+    : undefined;
   const overChars =
     byLength.filteredCount -
     byLength.openerFilteredCount -
@@ -272,6 +282,8 @@ export async function runScoutSearch(opts: {
     selfReplyFiltered,
     linkFiltered: afterLinks.linkFilteredCount,
     linkWarning,
+    emDashFiltered: afterEmDash.emDashFilteredCount,
+    emDashWarning,
     languageFiltered:
       afterLang.languageFilteredCount + afterHydrateLang.languageFilteredCount,
     lengthFiltered: byLength.filteredCount,

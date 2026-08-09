@@ -157,6 +157,42 @@ export function filterOutboundLinks(threads: ThreadCard[]): {
   return { threads: kept, linkFilteredCount };
 }
 
+/** Typographic em dash (U+2014) — common AI-slop tell. */
+export const EM_DASH = "\u2014";
+
+export function textHasEmDash(text: string): boolean {
+  return text.includes(EM_DASH);
+}
+
+export type EmDashFilterOptions = {
+  /** When true (default), hard-drop posts whose card text contains an em dash. */
+  dropEmDashes?: boolean;
+};
+
+/** Hard-drop em-dash posts before length/triage (Settings default on). */
+export function filterEmDashes(
+  threads: ThreadCard[],
+  opts: EmDashFilterOptions = {},
+): {
+  threads: ThreadCard[];
+  emDashFilteredCount: number;
+} {
+  const drop = opts.dropEmDashes !== false;
+  if (!drop) {
+    return { threads: [...threads], emDashFilteredCount: 0 };
+  }
+  const kept: ThreadCard[] = [];
+  let emDashFilteredCount = 0;
+  for (const thread of threads) {
+    if (textHasEmDash(thread.text)) {
+      emDashFilteredCount += 1;
+      continue;
+    }
+    kept.push(thread);
+  }
+  return { threads: kept, emDashFilteredCount };
+}
+
 export function normalizePreferredLanguageCode(
   value: unknown,
 ): PreferredLanguageCode {
