@@ -594,10 +594,11 @@ h3 {
 .settings-pane {
   flex: 1;
   min-height: 0;
+  width: 100%;
+  max-width: none;
   overflow-y: auto;
   overscroll-behavior: contain;
   align-self: stretch;
-  max-width: 520px;
 }
 
 .settings-head {
@@ -607,16 +608,29 @@ h3 {
   gap: 12px;
 }
 
+.settings-lede {
+  margin: 0;
+  max-width: 52rem;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
 .settings-field {
   display: grid;
   gap: 6px;
   font-size: 0.82rem;
   color: var(--muted);
+  min-width: 0;
 }
 
 .settings-field .settings-textarea {
   width: 100%;
-  max-width: 28rem;
+  max-width: none;
   min-height: 5.5rem;
   resize: vertical;
   background: var(--raised);
@@ -641,7 +655,7 @@ h3 {
 .settings-field input[type="number"],
 .settings-field .settings-select {
   width: 100%;
-  max-width: 200px;
+  max-width: none;
   background: var(--raised);
   color: var(--text);
   border: 1px solid var(--border);
@@ -649,7 +663,6 @@ h3 {
 }
 
 .settings-field .settings-select {
-  max-width: 16rem;
   appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
     linear-gradient(135deg, var(--muted) 50%, transparent 50%);
@@ -675,6 +688,14 @@ h3 {
   border-color: var(--accent-dim);
 }
 
+.settings-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: flex-end;
+  min-height: 100%;
+}
+
 .settings-check {
   display: flex;
   align-items: center;
@@ -691,12 +712,54 @@ h3 {
   accent-color: var(--accent);
 }
 
+.settings-span-2 {
+  grid-column: 1 / -1;
+}
+
+.settings-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
 .settings-readonly {
   margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
+  border-top: none;
+  padding-top: 0;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.settings-save-status {
+  margin: 0;
+}
+
+@media (min-width: 900px) {
+  .settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 28px;
+  }
+
+  .settings-field input[type="number"],
+  .settings-field .settings-select {
+    max-width: 20rem;
+  }
+
+  .settings-footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 /* Panels */
