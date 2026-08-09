@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_EXCLUDED_TAGS,
   DEFAULT_MAX_THREAD_CHARS,
+  EM_DASH,
   filterByLanguage,
+  filterEmDashes,
   filterOutboundLinks,
   filterSelfReplies,
   filterThreadsByLength,
@@ -21,6 +23,7 @@ import {
   collectBaitConversationIds,
   isBaitConversationTagged,
   replyUnderBaitConversation,
+  textHasEmDash,
   threadHasExcludedTag,
   threadHasOutboundLink,
 } from "./threadFilters.ts";
@@ -298,6 +301,32 @@ describe("filterOutboundLinks", () => {
     );
     assert.equal(threadHasOutboundLink(thread("2", "see t.co/abc123")), false);
     assert.equal(threadHasOutboundLink(thread("3", "no links here")), false);
+  });
+});
+
+describe("filterEmDashes", () => {
+  it("detects U+2014 only (not hyphen or en dash)", () => {
+    assert.equal(textHasEmDash(`Not a benchmark ${EM_DASH} infrastructure`), true);
+    assert.equal(textHasEmDash("plain hyphen - ok"), false);
+    assert.equal(textHasEmDash("en dash \u2013 ok"), false);
+  });
+
+  it("drops em-dash posts by default and keeps clean ones", () => {
+    const slop = thread("1", `Not a benchmark ${EM_DASH} infrastructure`);
+    const clean = thread("2", "Ship weekly. Concrete take.");
+    const result = filterEmDashes([slop, clean]);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+    assert.equal(result.emDashFilteredCount, 1);
+  });
+
+  it("keeps em-dash posts when dropEmDashes is false", () => {
+    const slop = thread("1", `Hello ${EM_DASH} world`);
+    const result = filterEmDashes([slop], { dropEmDashes: false });
+    assert.equal(result.threads.length, 1);
+    assert.equal(result.emDashFilteredCount, 0);
   });
 });
 

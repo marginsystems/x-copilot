@@ -136,6 +136,7 @@ describe("normalizeSettings", () => {
       normalizeSettings({
         maxThreadChars: 320,
         dropArticles: false,
+        dropEmDashes: false,
         targetCoolThreads: 3,
         dedupeAccounts: false,
         preferredLanguage: "es",
@@ -144,6 +145,7 @@ describe("normalizeSettings", () => {
       {
         maxThreadChars: 320,
         dropArticles: false,
+        dropEmDashes: false,
         targetCoolThreads: 3,
         dedupeAccounts: false,
         preferredLanguage: "es",
@@ -152,6 +154,7 @@ describe("normalizeSettings", () => {
     );
     assert.equal(normalizeSettings({}).dedupeAccounts, true);
     assert.equal(normalizeSettings({}).preferredLanguage, "en");
+    assert.equal(normalizeSettings({}).dropEmDashes, true);
   });
 });
 
@@ -164,6 +167,7 @@ describe("loadSettings / saveSettings", () => {
     const saved = saveSettings({
       maxThreadChars: 320,
       dropArticles: false,
+      dropEmDashes: false,
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",
@@ -172,6 +176,7 @@ describe("loadSettings / saveSettings", () => {
     assert.deepEqual(saved, {
       maxThreadChars: 320,
       dropArticles: false,
+      dropEmDashes: false,
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",

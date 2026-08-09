@@ -78,6 +78,9 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (typeof obj.dropArticles === "boolean") {
     filters.dropArticles = obj.dropArticles;
   }
+  if (typeof obj.dropEmDashes === "boolean") {
+    filters.dropEmDashes = obj.dropEmDashes;
+  }
   if (typeof obj.dedupeAccounts === "boolean") {
     filters.dedupeAccounts = obj.dedupeAccounts;
   }

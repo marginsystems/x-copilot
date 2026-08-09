@@ -63,6 +63,8 @@ export const EXCLUDEABLE_TAG_VOCAB = [
 export type AppSettings = {
   maxThreadChars: number;
   dropArticles: boolean;
+  /** Hard-drop candidates whose text contains an em dash (U+2014), pre-triage. */
+  dropEmDashes: boolean;
   targetCoolThreads: number;
   /** Never curate authors we've marked interacted (lifetime). */
   dedupeAccounts: boolean;
@@ -78,6 +80,7 @@ export type AppSettings = {
 export const DEFAULT_SETTINGS: AppSettings = {
   maxThreadChars: DEFAULT_MAX_THREAD_CHARS,
   dropArticles: true,
+  dropEmDashes: true,
   targetCoolThreads: DEFAULT_TARGET_COOL_THREADS,
   dedupeAccounts: true,
   preferredLanguage: DEFAULT_PREFERRED_LANGUAGE,
@@ -195,6 +198,10 @@ export function normalizeSettings(raw: unknown): AppSettings {
       typeof obj.dropArticles === "boolean"
         ? obj.dropArticles
         : DEFAULT_SETTINGS.dropArticles,
+    dropEmDashes:
+      typeof obj.dropEmDashes === "boolean"
+        ? obj.dropEmDashes
+        : DEFAULT_SETTINGS.dropEmDashes,
     targetCoolThreads: clampTargetCoolThreads(obj.targetCoolThreads),
     dedupeAccounts:
       typeof obj.dedupeAccounts === "boolean"
