@@ -62,7 +62,10 @@ import {
   clampTargetCool,
 } from "./scoutCollect.js";
 import { runScoutSearch, type ScoutFilters } from "./scoutRun.js";
-import { detectOwnReplyToThreadWithRetry } from "./detectReply.js";
+import {
+  detectOwnReplyToThread,
+  detectOwnReplyToThreadWithRetry,
+} from "./detectReply.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
@@ -751,15 +754,23 @@ const server = http.createServer(async (req, res) => {
           message: "Session identity could not be resolved",
         });
       }
+      /** Client-owned polling sends once:true; omit/false keeps server backoff. */
+      const once = body.once === true;
       const ac = new AbortController();
       const onClose = () => ac.abort();
       req.once("close", onClose);
       try {
-        const detected = await detectOwnReplyToThreadWithRetry({
-          threadId,
-          screenName: session.user.screen_name,
-          signal: ac.signal,
-        });
+        const detected = once
+          ? await detectOwnReplyToThread({
+              threadId,
+              screenName: session.user.screen_name,
+              signal: ac.signal,
+            })
+          : await detectOwnReplyToThreadWithRetry({
+              threadId,
+              screenName: session.user.screen_name,
+              signal: ac.signal,
+            });
         if (detected.reply) {
           return send(res, 200, {
             ok: true,

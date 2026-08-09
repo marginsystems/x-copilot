@@ -17,6 +17,16 @@ import {
   DEFAULT_SETTINGS,
 } from "./lib/settings";
 import { ExcludedTagsField } from "./ExcludedTagsField";
+import {
+  MARK_DETECT_TIMEOUT_MS,
+  markDetectCheckingNote,
+  markDetectMissNote,
+  markDetectTimeoutNote,
+  markDetectWaitingNote,
+  nextMarkDetectWaitMs,
+  shouldContinueMarkDetectPoll,
+  waitWithCountdown,
+} from "./lib/markDetectPoll";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
 import {
@@ -1120,50 +1130,118 @@ export default function App() {
     markDetectAbortRef.current = ac;
     setMarkDetecting(true);
     setMarkDetectMissed(false);
-    setMarkDetectNote("Looking for your reply…");
+    const startedAt = Date.now();
+    let attempt = 0;
+    let lastReason: string | undefined;
+
     try {
-      const res = await fetch("/api/interacted/detect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId: thread.id }),
-        signal: ac.signal,
-      });
-      if (markDetectGenRef.current !== gen) return;
-      const data = (await res.json().catch(() => ({}))) as {
-        found?: boolean;
-        reply?: { replyUrl?: string; replyText?: string };
-        message?: string;
-      };
-      if (markDetectGenRef.current !== gen) return;
-      if (!res.ok) {
-        setMarkDetectMissed(true);
-        setMarkDetectNote(
-          "Detection unavailable — server error. Paste the URL manually.",
-        );
-      } else if (
-        data.found &&
-        typeof data.reply?.replyUrl === "string" &&
-        parseStatusIdFromUrl(data.reply.replyUrl)
-      ) {
-        setMarkReplyUrl(data.reply.replyUrl);
-        setMarkReply(
-          typeof data.reply.replyText === "string" ? data.reply.replyText : "",
-        );
-        setMarkDetectMissed(false);
-        setMarkDetectNote("Found your reply — confirm or edit before saving.");
-      } else {
-        setMarkDetectMissed(true);
-        setMarkDetectNote(
-          "Couldn't find your reply — paste the URL (text optional).",
-        );
+      while (markDetectGenRef.current === gen && !ac.signal.aborted) {
+        attempt += 1;
+        setMarkDetectNote(markDetectCheckingNote(attempt));
+
+        let found = false;
+        let replyUrl = "";
+        let replyText = "";
+        let reason: string | undefined;
+
+        try {
+          const res = await fetch("/api/interacted/detect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ threadId: thread.id, once: true }),
+            signal: ac.signal,
+          });
+          if (markDetectGenRef.current !== gen) return;
+          const data = (await res.json().catch(() => ({}))) as {
+            found?: boolean;
+            reason?: string;
+            reply?: { replyUrl?: string; replyText?: string };
+            message?: string;
+          };
+          if (markDetectGenRef.current !== gen) return;
+
+          if (!res.ok) {
+            // Identity / auth failures won't recover by polling.
+            if (res.status === 401 || res.status === 503) {
+              setMarkDetectMissed(true);
+              setMarkDetectNote(
+                "Detection unavailable — session identity unresolved. Paste the URL manually.",
+              );
+              return;
+            }
+            reason = "search_failed";
+            lastReason = reason;
+          } else if (
+            data.found &&
+            typeof data.reply?.replyUrl === "string" &&
+            parseStatusIdFromUrl(data.reply.replyUrl)
+          ) {
+            found = true;
+            replyUrl = data.reply.replyUrl;
+            replyText =
+              typeof data.reply.replyText === "string"
+                ? data.reply.replyText
+                : "";
+          } else {
+            reason =
+              typeof data.reason === "string" ? data.reason : "none";
+            lastReason = reason;
+          }
+        } catch (err) {
+          if (markDetectGenRef.current !== gen) return;
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          reason = "search_failed";
+          lastReason = reason;
+        }
+
+        if (found) {
+          setMarkReplyUrl(replyUrl);
+          setMarkReply(replyText);
+          setMarkDetectMissed(false);
+          setMarkDetectNote(
+            "Found your reply — confirm or edit before saving.",
+          );
+          return;
+        }
+
+        const elapsedMs = Date.now() - startedAt;
+        if (
+          !shouldContinueMarkDetectPoll({
+            found: false,
+            reason,
+            elapsedMs,
+          })
+        ) {
+          setMarkDetectMissed(true);
+          if (
+            elapsedMs >= MARK_DETECT_TIMEOUT_MS &&
+            reason !== "ambiguous"
+          ) {
+            setMarkDetectNote(markDetectTimeoutNote());
+          } else {
+            setMarkDetectNote(markDetectMissNote(reason ?? lastReason));
+          }
+          return;
+        }
+
+        const waitMs = nextMarkDetectWaitMs({ elapsedMs });
+        if (waitMs <= 0) {
+          setMarkDetectMissed(true);
+          setMarkDetectNote(markDetectTimeoutNote());
+          return;
+        }
+
+        const waited = await waitWithCountdown(waitMs, {
+          signal: ac.signal,
+          onTick: (secondsLeft) => {
+            if (markDetectGenRef.current !== gen) return;
+            setMarkDetectNote(
+              markDetectWaitingNote(secondsLeft, attempt + 1),
+            );
+          },
+        });
+        if (waited === "aborted" || markDetectGenRef.current !== gen) return;
       }
-    } catch (err) {
-      if (markDetectGenRef.current !== gen) return;
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      setMarkDetectMissed(true);
-      setMarkDetectNote(
-        "Couldn't find your reply — paste the URL (text optional).",
-      );
     } finally {
       if (markDetectGenRef.current === gen) {
         setMarkDetecting(false);
@@ -2505,7 +2583,7 @@ export default function App() {
                 }
                 onClick={() => void confirmMarkInteracted()}
               >
-                {markDetecting ? "Looking…" : "Confirm"}
+                {markDetecting ? "Checking…" : "Confirm"}
               </button>
               {markDetectMissed && !markDetecting ? (
                 <button
