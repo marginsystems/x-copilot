@@ -47,6 +47,7 @@ export const EXCLUDEABLE_TAG_VOCAB = [
   "on_agenda",
   "genuine_question",
   "political",
+  "interpersonal_conflict",
   "supportive_encouragement",
 ] as const;
 

@@ -465,8 +465,19 @@ describe("MAX_TRIAGE_THREADS", () => {
 
 describe("TRIAGE_SYSTEM_PROMPT", () => {
   it("includes political in the flags vocabulary", () => {
-    assert.match(TRIAGE_SYSTEM_PROMPT, /genuine_question, political/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /genuine_question, political, interpersonal_conflict/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /flag political/);
+  });
+
+  it("skips interpersonal fight threads as closed_thread", () => {
+    assert.match(TRIAGE_SYSTEM_PROMPT, /flag interpersonal_conflict/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /you keep making this about me or you/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /just brainless take/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /do not enter negative-energy fights/);
+    assert.match(
+      TRIAGE_SYSTEM_PROMPT,
+      /personal conflict is closed_thread/,
+    );
   });
 
   it("hard-skips pure event promos without suppressing substantive posts", () => {
