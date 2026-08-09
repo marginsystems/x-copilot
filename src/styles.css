@@ -711,6 +711,10 @@ h3 {
   line-height: 1;
 }
 
+.excluded-tags-input-row {
+  display: contents;
+}
+
 .excluded-tags-input {
   width: 100%;
   background: transparent;

@@ -81,7 +81,7 @@ console.log(`\nTriaging ${sample.length} threads…`);
 const triaged = await triageThreads({
   agenda,
   threads: sample,
-  searchMemory: async () => [],
+  searchMemory: async () => ({ hits: [] }),
 });
 if (triaged.warning) console.warn(`  triage warning: ${triaged.warning}`);
 console.log(`  scored: ${triaged.threads.length}`);
