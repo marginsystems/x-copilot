@@ -480,6 +480,24 @@ describe("TRIAGE_SYSTEM_PROMPT", () => {
     );
   });
 
+  it("skips substance-free BIP process pledges as low_substance", () => {
+    assert.match(TRIAGE_SYSTEM_PROMPT, /Substance bar/);
+    assert.match(
+      TRIAGE_SYSTEM_PROMPT,
+      /Prefer cool only when threadKind is timely_take, fact_add, sharp_opinion/,
+    );
+    assert.match(TRIAGE_SYSTEM_PROMPT, /day 1 of building Aurora in public/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /flag low_substance/);
+    assert.match(
+      TRIAGE_SYSTEM_PROMPT,
+      /NOT a build-in-public process pledge/,
+    );
+    assert.match(
+      TRIAGE_SYSTEM_PROMPT,
+      /process pledge, no shipped delta \/ fact \/ claim — not lived_answer/,
+    );
+  });
+
   it("hard-skips pure event promos without suppressing substantive posts", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /register, RSVP, tune in, or join/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /flag event_promo/);
