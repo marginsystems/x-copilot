@@ -26,6 +26,12 @@ export type ThreadCard = {
    * Native media URLs do not count. Hard-dropped before triage.
    */
   hasOutboundLink?: boolean;
+  /**
+   * True when the author has X's Automated badge
+   * (`affiliates_highlighted_label.label.userLabelType === "AutomatedLabel"`).
+   * Hard-dropped before triage when Settings dropAutomatedAccounts is on.
+   */
+  isAutomated?: boolean;
   /** t.co shortlink keys (lowercased `t.co/<code>`) that resolve to native media. */
   mediaShortlinks?: string[];
   /** Reply / conversation context for triage (OP scoring). */
@@ -272,6 +278,13 @@ type TweetResultNode = {
       result?: {
         core?: { screen_name?: string };
         legacy?: { screen_name?: string };
+        affiliates_highlighted_label?: {
+          label?: {
+            description?: string;
+            userLabelType?: string;
+            longDescription?: { text?: string };
+          };
+        };
       };
     };
   };
@@ -498,6 +511,24 @@ function screenNameFromNode(node: TweetResultNode): string | undefined {
   );
 }
 
+/**
+ * True when the tweet author carries X's Automated account badge.
+ * Only `AutomatedLabel` — other affiliate badges must not match.
+ */
+export function userIsAutomated(result: unknown): boolean {
+  const node = unwrapTweetNode(result);
+  if (!node) return false;
+  const label = node.core?.user_results?.result?.affiliates_highlighted_label
+    ?.label;
+  if (!label) return false;
+  if (label.userLabelType === "AutomatedLabel") return true;
+  // Fallback only when GraphQL omits userLabelType but still sends the badge copy.
+  return (
+    !label.userLabelType &&
+    label.description?.trim().toLowerCase() === "automated"
+  );
+}
+
 /** Extract quoted / parent root author+text when GraphQL inlined it. */
 export function extractOpContext(node: TweetResultNode): {
   opAuthor?: string;
@@ -547,6 +578,7 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
     ),
   ];
 
+  const isAutomated = userIsAutomated(inner);
   const card: ThreadCard = {
     id: String(id),
     author: handle.startsWith("@") ? handle : `@${handle}`,
@@ -555,6 +587,7 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
     createdAt: inner.legacy?.created_at,
     ...(longform ? { longform } : {}),
     ...(hasOutboundLink ? { hasOutboundLink: true } : {}),
+    ...(isAutomated ? { isAutomated: true } : {}),
     ...(mediaShortlinks.length ? { mediaShortlinks } : {}),
   };
   if (inReplyToId) {

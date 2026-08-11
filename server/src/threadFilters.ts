@@ -194,6 +194,35 @@ export function filterEmDashes(
   return { threads: kept, emDashFilteredCount };
 }
 
+export type AutomatedFilterOptions = {
+  /** When true (default), hard-drop authors with X's Automated badge. */
+  dropAutomatedAccounts?: boolean;
+};
+
+/** Hard-drop Automated (AI/bot) accounts before length/triage (Settings default on). */
+export function filterAutomatedAccounts(
+  threads: ThreadCard[],
+  opts: AutomatedFilterOptions = {},
+): {
+  threads: ThreadCard[];
+  automatedFilteredCount: number;
+} {
+  const drop = opts.dropAutomatedAccounts !== false;
+  if (!drop) {
+    return { threads: [...threads], automatedFilteredCount: 0 };
+  }
+  const kept: ThreadCard[] = [];
+  let automatedFilteredCount = 0;
+  for (const thread of threads) {
+    if (thread.isAutomated) {
+      automatedFilteredCount += 1;
+      continue;
+    }
+    kept.push(thread);
+  }
+  return { threads: kept, automatedFilteredCount };
+}
+
 export function normalizePreferredLanguageCode(
   value: unknown,
 ): PreferredLanguageCode {

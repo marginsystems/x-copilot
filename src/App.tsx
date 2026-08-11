@@ -102,6 +102,7 @@ type ScoutStreamEvent = {
   linkFiltered?: number;
   emDashWarning?: string;
   emDashFiltered?: number;
+  automatedWarning?: string;
   lengthWarning?: string;
   pipelineCounts?: {
     raw: number;
@@ -1478,6 +1479,7 @@ export default function App() {
             maxThreadChars: settings.maxThreadChars,
             dropArticles: settings.dropArticles,
             dropEmDashes: settings.dropEmDashes,
+            dropAutomatedAccounts: settings.dropAutomatedAccounts,
             dedupeAccounts: settings.dedupeAccounts,
             preferredLanguage: settings.preferredLanguage,
             excludedTags: settings.excludedTags,
@@ -1592,6 +1594,7 @@ export default function App() {
           (doneEvent.cooldownWarning ? ` · ${doneEvent.cooldownWarning}` : "") +
           (doneEvent.linkWarning ? ` · ${doneEvent.linkWarning}` : "") +
           (doneEvent.emDashWarning ? ` · ${doneEvent.emDashWarning}` : "") +
+          (doneEvent.automatedWarning ? ` · ${doneEvent.automatedWarning}` : "") +
           (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");
         setScoutStage("done");
         setStatus(summary);
@@ -2071,6 +2074,19 @@ export default function App() {
                   }
                 />
                 <span>Drop posts with em dashes (—)</span>
+              </label>
+              <label className="settings-check">
+                <input
+                  type="checkbox"
+                  checked={settingsDraft.dropAutomatedAccounts}
+                  onChange={(e) =>
+                    setSettingsDraft((prev) => ({
+                      ...prev,
+                      dropAutomatedAccounts: e.target.checked,
+                    }))
+                  }
+                />
+                <span>Drop automated accounts</span>
               </label>
               <label className="settings-check">
                 <input
