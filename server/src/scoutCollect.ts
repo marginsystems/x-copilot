@@ -18,6 +18,7 @@ import {
 import { saveScoutCache } from "./scoutCache.js";
 import type { ScoutFilters, ScoutPipelineCounts } from "./scoutRun.js";
 import {
+  filterAutomatedAccounts,
   filterByLanguage,
   filterEmDashes,
   filterOutboundLinks,
@@ -72,6 +73,8 @@ export type ScoutCollectEvent = {
   linkWarning?: string;
   emDashFiltered?: number;
   emDashWarning?: string;
+  automatedFiltered?: number;
+  automatedWarning?: string;
   languageFiltered?: number;
   pipelineCounts?: ScoutPipelineCounts;
   errors?: Array<{ query: string; message: string }>;
@@ -303,6 +306,7 @@ export async function runScoutCollect(opts: {
   );
   const dropArticles = opts.filters?.dropArticles !== false;
   const dropEmDashes = opts.filters?.dropEmDashes !== false;
+  const dropAutomatedAccounts = opts.filters?.dropAutomatedAccounts !== false;
   const preferredLanguage = normalizePreferredLanguageCode(
     opts.filters?.preferredLanguage,
   );
@@ -343,6 +347,7 @@ export async function runScoutCollect(opts: {
   let consecutiveZeroAdds = 0;
   let linkFilteredTotal = 0;
   let emDashFilteredTotal = 0;
+  let automatedFilteredTotal = 0;
   let languageFilteredTotal = 0;
   // Collect funnel is per-search cumulative: the filter stages (raw → afterLength)
   // sum every search page across all buckets/refills, while afterTriage sums only
@@ -490,9 +495,14 @@ export async function runScoutCollect(opts: {
         const afterLinks = filterOutboundLinks(afterSelf.threads);
         const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
         const afterEmDash = filterEmDashes(afterLang.threads, { dropEmDashes });
-        const afterLen = filterThreadsByLength(afterEmDash.threads, maxChars, {
-          dropArticles,
+        const afterAutomated = filterAutomatedAccounts(afterEmDash.threads, {
+          dropAutomatedAccounts,
         });
+        const afterLen = filterThreadsByLength(
+          afterAutomated.threads,
+          maxChars,
+          { dropArticles },
+        );
 
         funnelCounts.raw += result.threads.length;
         funnelCounts.afterDedupe += fresh.length;
@@ -502,6 +512,7 @@ export async function runScoutCollect(opts: {
         funnelCounts.afterLength += afterLen.threads.length;
         linkFilteredTotal += afterLinks.linkFilteredCount;
         emDashFilteredTotal += afterEmDash.emDashFilteredCount;
+        automatedFilteredTotal += afterAutomated.automatedFilteredCount;
         languageFilteredTotal += afterLang.languageFilteredCount;
 
         const beforeFill = bucket.length;
@@ -535,6 +546,7 @@ export async function runScoutCollect(opts: {
                 afterLinks: afterLinks.threads.length,
                 linkFiltered: afterLinks.linkFilteredCount,
                 emDashFiltered: afterEmDash.emDashFilteredCount,
+                automatedFiltered: afterAutomated.automatedFilteredCount,
                 languageFiltered: afterLang.languageFilteredCount,
                 afterLength: afterLen.threads.length,
                 authorDedupeSkipped,
@@ -759,6 +771,9 @@ export async function runScoutCollect(opts: {
   const emDashWarning = emDashFilteredTotal
     ? `Dropped ${emDashFilteredTotal} posts with em dashes.`
     : undefined;
+  const automatedWarning = automatedFilteredTotal
+    ? `Dropped ${automatedFilteredTotal} automated accounts.`
+    : undefined;
 
   const done = track("done", stopMessage, {
     threads: cool,
@@ -773,6 +788,8 @@ export async function runScoutCollect(opts: {
     linkWarning,
     emDashFiltered: emDashFilteredTotal,
     emDashWarning,
+    automatedFiltered: automatedFilteredTotal,
+    automatedWarning,
     languageFiltered: languageFilteredTotal,
     pipelineCounts: funnelCounts,
     errors: searchErrors.length ? searchErrors : undefined,

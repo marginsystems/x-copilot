@@ -137,6 +137,7 @@ describe("normalizeSettings", () => {
         maxThreadChars: 320,
         dropArticles: false,
         dropEmDashes: false,
+        dropAutomatedAccounts: false,
         targetCoolThreads: 3,
         dedupeAccounts: false,
         preferredLanguage: "es",
@@ -146,6 +147,7 @@ describe("normalizeSettings", () => {
         maxThreadChars: 320,
         dropArticles: false,
         dropEmDashes: false,
+        dropAutomatedAccounts: false,
         targetCoolThreads: 3,
         dedupeAccounts: false,
         preferredLanguage: "es",
@@ -155,6 +157,7 @@ describe("normalizeSettings", () => {
     assert.equal(normalizeSettings({}).dedupeAccounts, true);
     assert.equal(normalizeSettings({}).preferredLanguage, "en");
     assert.equal(normalizeSettings({}).dropEmDashes, true);
+    assert.equal(normalizeSettings({}).dropAutomatedAccounts, true);
   });
 });
 
@@ -168,6 +171,7 @@ describe("loadSettings / saveSettings", () => {
       maxThreadChars: 320,
       dropArticles: false,
       dropEmDashes: false,
+      dropAutomatedAccounts: false,
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",
@@ -177,6 +181,7 @@ describe("loadSettings / saveSettings", () => {
       maxThreadChars: 320,
       dropArticles: false,
       dropEmDashes: false,
+      dropAutomatedAccounts: false,
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",

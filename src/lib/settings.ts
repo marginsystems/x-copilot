@@ -66,6 +66,8 @@ export type AppSettings = {
   dropArticles: boolean;
   /** Hard-drop candidates whose text contains an em dash (U+2014), pre-triage. */
   dropEmDashes: boolean;
+  /** Hard-drop authors with X's Automated badge, pre-triage. */
+  dropAutomatedAccounts: boolean;
   targetCoolThreads: number;
   /** Never curate authors we've marked interacted (lifetime). */
   dedupeAccounts: boolean;
@@ -82,6 +84,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   maxThreadChars: DEFAULT_MAX_THREAD_CHARS,
   dropArticles: true,
   dropEmDashes: true,
+  dropAutomatedAccounts: true,
   targetCoolThreads: DEFAULT_TARGET_COOL_THREADS,
   dedupeAccounts: true,
   preferredLanguage: DEFAULT_PREFERRED_LANGUAGE,
@@ -203,6 +206,10 @@ export function normalizeSettings(raw: unknown): AppSettings {
       typeof obj.dropEmDashes === "boolean"
         ? obj.dropEmDashes
         : DEFAULT_SETTINGS.dropEmDashes,
+    dropAutomatedAccounts:
+      typeof obj.dropAutomatedAccounts === "boolean"
+        ? obj.dropAutomatedAccounts
+        : DEFAULT_SETTINGS.dropAutomatedAccounts,
     targetCoolThreads: clampTargetCoolThreads(obj.targetCoolThreads),
     dedupeAccounts:
       typeof obj.dedupeAccounts === "boolean"

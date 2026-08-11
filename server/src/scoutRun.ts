@@ -10,6 +10,7 @@ import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
 import {
+  filterAutomatedAccounts,
   filterByLanguage,
   filterEmDashes,
   filterOutboundLinks,
@@ -59,6 +60,8 @@ export type ScoutEvent = ScoutStageEvent & {
   linkWarning?: string;
   emDashFiltered?: number;
   emDashWarning?: string;
+  automatedFiltered?: number;
+  automatedWarning?: string;
   languageFiltered?: number;
   lengthFiltered?: number;
   lengthWarning?: string;
@@ -98,6 +101,8 @@ export type ScoutFilters = {
   dropArticles?: boolean;
   /** When true (default), hard-drop posts containing an em dash (U+2014). */
   dropEmDashes?: boolean;
+  /** When true (default), hard-drop authors with X's Automated badge. */
+  dropAutomatedAccounts?: boolean;
   /** When true (default), never curate authors from interaction history. */
   dedupeAccounts?: boolean;
   /** ISO 639-1; default English when omitted. */
@@ -203,12 +208,16 @@ export async function runScoutSearch(opts: {
   const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
   const dropEmDashes = opts.filters?.dropEmDashes !== false;
   const afterEmDash = filterEmDashes(afterLang.threads, { dropEmDashes });
+  const dropAutomatedAccounts = opts.filters?.dropAutomatedAccounts !== false;
+  const afterAutomated = filterAutomatedAccounts(afterEmDash.threads, {
+    dropAutomatedAccounts,
+  });
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
-  const byLength = filterThreadsByLength(afterEmDash.threads, maxChars, {
+  const byLength = filterThreadsByLength(afterAutomated.threads, maxChars, {
     dropArticles,
   });
 
@@ -256,6 +265,9 @@ export async function runScoutSearch(opts: {
   const emDashWarning = afterEmDash.emDashFilteredCount
     ? `Dropped ${afterEmDash.emDashFilteredCount} posts with em dashes.`
     : undefined;
+  const automatedWarning = afterAutomated.automatedFilteredCount
+    ? `Dropped ${afterAutomated.automatedFilteredCount} automated accounts.`
+    : undefined;
   const overChars =
     byLength.filteredCount -
     byLength.openerFilteredCount -
@@ -284,6 +296,8 @@ export async function runScoutSearch(opts: {
     linkWarning,
     emDashFiltered: afterEmDash.emDashFilteredCount,
     emDashWarning,
+    automatedFiltered: afterAutomated.automatedFilteredCount,
+    automatedWarning,
     languageFiltered:
       afterLang.languageFilteredCount + afterHydrateLang.languageFilteredCount,
     lengthFiltered: byLength.filteredCount,

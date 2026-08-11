@@ -10,6 +10,7 @@ import {
   searchTimelinePages,
   textHasOutboundLink,
   tweetResultToCard,
+  userIsAutomated,
   withSearchRecency,
   type ThreadCard,
 } from "./xSearch.ts";
@@ -305,6 +306,52 @@ describe("parseSearchTimelineResponse", () => {
     assert.ok(article);
     assert.equal(article.longform, "article");
     assert.equal(article.text, "Article teaser only");
+  });
+
+  it("marks AutomatedLabel authors as isAutomated", () => {
+    const automated = {
+      __typename: "Tweet",
+      rest_id: "555",
+      legacy: { full_text: "bot post", id_str: "555" },
+      core: {
+        user_results: {
+          result: {
+            core: { screen_name: "SimonVelaWrites" },
+            affiliates_highlighted_label: {
+              label: {
+                description: "Automated",
+                userLabelType: "AutomatedLabel",
+                longDescription: { text: "Automated by @KineticElle" },
+              },
+            },
+          },
+        },
+      },
+    };
+    assert.equal(userIsAutomated(automated), true);
+    const card = tweetResultToCard(automated);
+    assert.equal(card?.isAutomated, true);
+
+    const affiliateOnly = {
+      __typename: "Tweet",
+      rest_id: "556",
+      legacy: { full_text: "brand post", id_str: "556" },
+      core: {
+        user_results: {
+          result: {
+            core: { screen_name: "brandbot" },
+            affiliates_highlighted_label: {
+              label: {
+                description: "Acme Corp",
+                userLabelType: "BusinessLabel",
+              },
+            },
+          },
+        },
+      },
+    };
+    assert.equal(userIsAutomated(affiliateOnly), false);
+    assert.equal(tweetResultToCard(affiliateOnly)?.isAutomated, undefined);
   });
 
   it("returns empty for missing data", () => {

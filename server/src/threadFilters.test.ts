@@ -4,6 +4,7 @@ import {
   DEFAULT_EXCLUDED_TAGS,
   DEFAULT_MAX_THREAD_CHARS,
   EM_DASH,
+  filterAutomatedAccounts,
   filterByLanguage,
   filterEmDashes,
   filterOutboundLinks,
@@ -327,6 +328,34 @@ describe("filterEmDashes", () => {
     const result = filterEmDashes([slop], { dropEmDashes: false });
     assert.equal(result.threads.length, 1);
     assert.equal(result.emDashFilteredCount, 0);
+  });
+});
+
+describe("filterAutomatedAccounts", () => {
+  it("drops isAutomated authors by default and keeps humans", () => {
+    const bot: ThreadCard = {
+      ...thread("1", "AI take"),
+      isAutomated: true,
+    };
+    const human = thread("2", "Human take");
+    const result = filterAutomatedAccounts([bot, human]);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+    assert.equal(result.automatedFilteredCount, 1);
+  });
+
+  it("keeps automated authors when dropAutomatedAccounts is false", () => {
+    const bot: ThreadCard = {
+      ...thread("1", "AI take"),
+      isAutomated: true,
+    };
+    const result = filterAutomatedAccounts([bot], {
+      dropAutomatedAccounts: false,
+    });
+    assert.equal(result.threads.length, 1);
+    assert.equal(result.automatedFilteredCount, 0);
   });
 });
 
