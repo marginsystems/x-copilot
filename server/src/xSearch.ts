@@ -522,8 +522,11 @@ export function userIsAutomated(result: unknown): boolean {
     ?.label;
   if (!label) return false;
   if (label.userLabelType === "AutomatedLabel") return true;
-  // Fallback if GraphQL omits userLabelType but still sends the badge copy.
-  return label.description?.trim().toLowerCase() === "automated";
+  // Fallback only when GraphQL omits userLabelType but still sends the badge copy.
+  return (
+    !label.userLabelType &&
+    label.description?.trim().toLowerCase() === "automated"
+  );
 }
 
 /** Extract quoted / parent root author+text when GraphQL inlined it. */

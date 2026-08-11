@@ -352,6 +352,47 @@ describe("parseSearchTimelineResponse", () => {
     };
     assert.equal(userIsAutomated(affiliateOnly), false);
     assert.equal(tweetResultToCard(affiliateOnly)?.isAutomated, undefined);
+
+    const nonAutomatedWithDescription = {
+      __typename: "Tweet",
+      rest_id: "557",
+      legacy: { full_text: "brand post", id_str: "557" },
+      core: {
+        user_results: {
+          result: {
+            core: { screen_name: "brandbot" },
+            affiliates_highlighted_label: {
+              label: {
+                description: "Automated",
+                userLabelType: "BusinessLabel",
+              },
+            },
+          },
+        },
+      },
+    };
+    assert.equal(userIsAutomated(nonAutomatedWithDescription), false);
+    assert.equal(
+      tweetResultToCard(nonAutomatedWithDescription)?.isAutomated,
+      undefined,
+    );
+
+    const automatedNoType = {
+      __typename: "Tweet",
+      rest_id: "558",
+      legacy: { full_text: "bot post", id_str: "558" },
+      core: {
+        user_results: {
+          result: {
+            core: { screen_name: "SimonVelaWrites" },
+            affiliates_highlighted_label: {
+              label: { description: "Automated" },
+            },
+          },
+        },
+      },
+    };
+    assert.equal(userIsAutomated(automatedNoType), true);
   });
 
   it("returns empty for missing data", () => {

@@ -102,6 +102,7 @@ type ScoutStreamEvent = {
   linkFiltered?: number;
   emDashWarning?: string;
   emDashFiltered?: number;
+  automatedWarning?: string;
   lengthWarning?: string;
   pipelineCounts?: {
     raw: number;
@@ -1593,6 +1594,7 @@ export default function App() {
           (doneEvent.cooldownWarning ? ` · ${doneEvent.cooldownWarning}` : "") +
           (doneEvent.linkWarning ? ` · ${doneEvent.linkWarning}` : "") +
           (doneEvent.emDashWarning ? ` · ${doneEvent.emDashWarning}` : "") +
+          (doneEvent.automatedWarning ? ` · ${doneEvent.automatedWarning}` : "") +
           (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");
         setScoutStage("done");
         setStatus(summary);
