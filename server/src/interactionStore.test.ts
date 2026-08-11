@@ -251,6 +251,21 @@ describe("markInteracted", () => {
     assert.equal(history[0]?.replyId, "999");
   });
 
+  it("persists discovered source", async () => {
+    const row = await markInteracted({
+      threadId: "parent2",
+      author: "@target",
+      source: "discovered",
+      replyId: "888",
+      replyUrl: "https://x.com/me/status/888",
+      nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
+      storePath,
+    });
+    assert.equal(row.source, "discovered");
+    const history = await listInteractionHistory({ storePath });
+    assert.equal(history[0]?.source, "discovered");
+  });
+
   it("persists conversationId for ancestry dedupe", async () => {
     const now = Date.parse("2026-08-05T21:25:22.077Z");
     const row = await markInteracted({
