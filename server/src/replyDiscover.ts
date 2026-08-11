@@ -3,6 +3,7 @@
  * upsert into the interaction store for Scout cooldown + 1h/24h stats.
  */
 import {
+  MAX_INTERACTION_STORE,
   listInteractionHistory,
   markInteracted,
   normalizeAuthorKey,
@@ -240,7 +241,12 @@ export async function discoverOwnReplies(opts?: {
     };
   }
 
-  const history = await listInteractionHistory({ storePath: opts?.storePath });
+  // Dedupe against the full durable retain (not the 200-row feed cap) so an
+  // older manual interaction cannot be silently overwritten by an upsert.
+  const history = await listInteractionHistory({
+    storePath: opts?.storePath,
+    limit: MAX_INTERACTION_STORE,
+  });
   const { knownReplyIds, knownThreadIds } = indexKnownIds(history);
   let discovered = 0;
   let skipped = 0;
@@ -263,7 +269,13 @@ export async function discoverOwnReplies(opts?: {
       ? card.inReplyToScreenName!.trim()
       : `@${card.inReplyToScreenName!.trim()}`;
     const replyId = card.id.trim();
-    const postedAt = card.createdAt?.trim() || new Date(nowMs).toISOString();
+    // X's search API returns createdAt in its non-ISO created_at format
+    // ("Sat Jul 25 00:00:00 +0000 2026"); normalize to ISO before persisting so
+    // note frontmatter/`utcDatePrefix` parse it. Fall back to now on failure.
+    const createdMs = card.createdAt ? Date.parse(card.createdAt) : NaN;
+    const postedAt = Number.isFinite(createdMs)
+      ? new Date(createdMs).toISOString()
+      : new Date(nowMs).toISOString();
 
     try {
       const interaction = await markInteracted({
