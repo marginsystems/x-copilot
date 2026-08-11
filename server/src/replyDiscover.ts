@@ -292,7 +292,7 @@ export async function discoverOwnReplies(opts?: {
         text: card.opText,
         opAuthor: card.opAuthor,
         opText: card.opText,
-        interactedAt: interaction.at,
+        interactedAt: interaction.postedAt ?? interaction.at,
         knowledgeRoot: opts?.knowledgeRoot,
         upsertMemory: opts?.upsertMemory,
       });

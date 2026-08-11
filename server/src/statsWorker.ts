@@ -217,6 +217,7 @@ export async function runStatsTick(opts?: {
     limit: tickCap,
   });
   for (const interaction of gamificationRetries) {
+    if (interaction.source === "discovered") continue;
     if (interaction.markGamificationSyncFailed) {
       try {
         // Replay every mark instance that actually failed: a re-mark of the
@@ -300,7 +301,7 @@ export async function runStatsTick(opts?: {
     sampled += 1;
 
     // First t24h sample awards scaled engagement XP (idempotent per threadId).
-    if (patched && item.checkpoint === "t24h") {
+    if (patched && item.checkpoint === "t24h" && patched.source !== "discovered") {
       try {
         await recordT24hBonusGamification({
           threadId: item.threadId,
