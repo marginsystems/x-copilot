@@ -29,6 +29,16 @@ describe("safeThreadIdForFilename", () => {
 });
 
 describe("normalizeReply / renderInteractionMarkdown", () => {
+  it("renders discovered source", () => {
+    const md = renderInteractionMarkdown({
+      threadId: "t1",
+      author: "@A",
+      reply: "off-app reply",
+      source: "discovered",
+    });
+    assert.match(md, /source: discovered/);
+  });
+
   it("rejects empty reply", () => {
     assert.equal(normalizeReply("  \n\t "), "");
     assert.throws(

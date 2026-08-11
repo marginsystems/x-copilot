@@ -33,7 +33,7 @@ export type InteractionMemoryInput = {
   flags?: string[];
   intent?: string;
   reason?: string;
-  source?: "manual" | "copy";
+  source?: "manual" | "copy" | "discovered";
   interactedAt?: string;
   /** Override root for tests. Default: <projectRoot>/knowledge */
   knowledgeRoot?: string;
@@ -181,7 +181,10 @@ export function renderInteractionMarkdown(
   }
 
   const interactedAt = input.interactedAt ?? new Date().toISOString();
-  const source = input.source === "copy" ? "copy" : "manual";
+  const source =
+    input.source === "copy" || input.source === "discovered"
+      ? input.source
+      : "manual";
 
   const lines: string[] = ["---", "type: interaction"];
   lines.push(`threadId: ${yamlString(threadId)}`);

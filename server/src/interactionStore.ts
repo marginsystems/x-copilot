@@ -14,7 +14,12 @@ import {
 import { dirname, resolve } from "node:path";
 import type { ThreadCard } from "./xSearch.js";
 
-export type InteractionSource = "manual" | "copy";
+export type InteractionSource = "manual" | "copy" | "discovered";
+
+function normalizeInteractionSource(source: unknown): InteractionSource {
+  if (source === "copy" || source === "discovered") return source;
+  return "manual";
+}
 
 export type ReplyStatSnapshot = {
   views?: number;
@@ -226,8 +231,7 @@ function parseStore(raw: string): StoreFile {
       const threadId = typeof row.threadId === "string" ? row.threadId.trim() : "";
       const author = typeof row.author === "string" ? row.author.trim() : "";
       const at = typeof row.at === "string" ? row.at : "";
-      const source =
-        row.source === "copy" || row.source === "manual" ? row.source : "manual";
+      const source = normalizeInteractionSource(row.source);
       if (!threadId || !author || !at) continue;
       const item: Interaction = {
         threadId,
@@ -375,7 +379,7 @@ export async function markInteracted(opts: {
   }
   const nowMs = opts.nowMs ?? Date.now();
   const path = opts.storePath ?? defaultStorePath();
-  const source: InteractionSource = opts.source === "copy" ? "copy" : "manual";
+  const source = normalizeInteractionSource(opts.source);
   const at = new Date(nowMs).toISOString();
   const next: Interaction = {
     threadId,

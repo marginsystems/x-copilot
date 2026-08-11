@@ -24,6 +24,10 @@ import {
   syncInteractionOutcomeMemory,
   type SyncInteractionOutcomeResult,
 } from "./memoryOutcome.js";
+import {
+  discoverOwnReplies,
+  type DiscoverRepliesResult,
+} from "./replyDiscover.js";
 import { fetchTweetMetrics } from "./tweetLookup.js";
 import { getSessionFromEnv } from "./xSession.js";
 
@@ -86,7 +90,12 @@ export type StatsTickResult = {
   /** Soft-fail memory sync attempts after a successful JSON patch. */
   memorySynced?: number;
   memorySyncFailed?: number;
+  /** Off-app replies upserted this tick (when discovery is enabled). */
+  discovered?: number;
+  discoverSkipped?: number;
 };
+
+export type DiscoverRepliesFn = () => Promise<DiscoverRepliesResult>;
 
 export type SyncOutcomeFn = (opts: {
   interaction: Interaction;
@@ -102,6 +111,11 @@ export async function runStatsTick(opts?: {
   fetchMetrics?: typeof fetchTweetMetrics;
   /** Injectable outcome sync (tests). Default: Markdown + MiniLM upsert. */
   syncOutcome?: SyncOutcomeFn | null;
+  /**
+   * Off-app reply discovery (one search/tick). Default off for unit tests;
+   * production `main` passes `discoverOwnReplies`.
+   */
+  discoverReplies?: DiscoverRepliesFn | null;
 }): Promise<StatsTickResult> {
   const fetchMetrics = opts?.fetchMetrics ?? fetchTweetMetrics;
   const delayMs = opts?.delayMs ?? LOOKUP_DELAY_MS;
@@ -113,6 +127,29 @@ export async function runStatsTick(opts?: {
             checkpoint: args.checkpoint,
           })
       : opts.syncOutcome;
+  const discoverReplies = opts?.discoverReplies ?? null;
+
+  let discovered = 0;
+  let discoverSkipped = 0;
+  if (discoverReplies) {
+    try {
+      const discovery = await discoverReplies();
+      discovered = discovery.discovered;
+      discoverSkipped = discovery.skipped;
+      if (!discovery.ok) {
+        console.warn(
+          `[stats-worker] reply discover soft-fail: ${discovery.error ?? "unknown"}`,
+        );
+      } else if (discovered > 0 || discovery.searched > 0) {
+        console.log(
+          `[stats-worker] discover searched=${discovery.searched} discovered=${discovered} skipped=${discoverSkipped}`,
+        );
+      }
+    } catch (err) {
+      console.warn("[stats-worker] reply discover soft-fail:", err);
+    }
+  }
+
   const tickCap = opts?.limit ?? DEFAULT_STATS_TICK_CAP;
   // Oversample the due queue so permanently-failing (burned) oldest rows do
   // not consume the whole tick budget and starve newer replies.
@@ -314,6 +351,8 @@ export async function runStatsTick(opts?: {
     failed,
     memorySynced,
     memorySyncFailed,
+    discovered,
+    discoverSkipped,
   };
 }
 
@@ -326,9 +365,11 @@ async function main(): Promise<void> {
 
   const tick = async () => {
     try {
-      const result = await runStatsTick();
+      const result = await runStatsTick({
+        discoverReplies: () => discoverOwnReplies(),
+      });
       console.log(
-        `[stats-worker] tick due=${result.due} sampled=${result.sampled} failed=${result.failed}`,
+        `[stats-worker] tick due=${result.due} sampled=${result.sampled} failed=${result.failed} discovered=${result.discovered ?? 0}`,
       );
     } catch (err) {
       console.error("[stats-worker] tick failed:", err);
