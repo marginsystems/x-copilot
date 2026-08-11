@@ -329,6 +329,11 @@ export async function runScoutSearch(opts: {
     opencodeTurns: toOpenCodeTurns(events),
   };
   opts.onEvent?.(done);
+  if (llmUsage) {
+    console.info(
+      `[llm] scout_total provider=${llmProvider} prompt_tokens=${llmUsage.prompt_tokens} completion_tokens=${llmUsage.completion_tokens} total_tokens=${llmUsage.total_tokens}`,
+    );
+  }
 
   try {
     await saveScoutCache({

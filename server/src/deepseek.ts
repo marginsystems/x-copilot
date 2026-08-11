@@ -110,11 +110,10 @@ export function addTokenUsage(
   b?: TokenUsage,
 ): TokenUsage | undefined {
   if (!a && !b) return undefined;
-  return {
-    prompt_tokens: (a?.prompt_tokens ?? 0) + (b?.prompt_tokens ?? 0),
-    completion_tokens: (a?.completion_tokens ?? 0) + (b?.completion_tokens ?? 0),
-    total_tokens: (a?.total_tokens ?? 0) + (b?.total_tokens ?? 0),
-  };
+  const prompt_tokens = (a?.prompt_tokens ?? 0) + (b?.prompt_tokens ?? 0);
+  const completion_tokens =
+    (a?.completion_tokens ?? 0) + (b?.completion_tokens ?? 0);
+  return { prompt_tokens, completion_tokens, total_tokens: prompt_tokens + completion_tokens };
 }
 
 export function logLlmUsage(opts: {
