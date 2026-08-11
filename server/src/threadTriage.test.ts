@@ -480,6 +480,13 @@ describe("TRIAGE_SYSTEM_PROMPT", () => {
     );
   });
 
+  it("skips genuine questions under hiring / quote-promo OPs", () => {
+    assert.match(TRIAGE_SYSTEM_PROMPT, /We are hiring! Come join us/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /What's the stack looking like for inference/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /do not cool genuine questions under hiring\/promo roots/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /quote-retweet praise/);
+  });
+
   it("skips substance-free BIP process pledges as low_substance", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /Substance bar/);
     assert.match(

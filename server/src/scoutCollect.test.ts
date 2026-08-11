@@ -99,6 +99,57 @@ describe("isCoolThread", () => {
       true,
     );
   });
+
+  it("rejects promo_op / bad_context / promo_context flags even when engage is cool", () => {
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "1",
+          engage: "consider",
+          baitScore: 20,
+          threadKind: "lived_answer",
+          flags: ["genuine_question", "promo_op"],
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "2",
+          engage: "priority",
+          baitScore: 15,
+          threadKind: "sharp_opinion",
+          flags: ["bad_context"],
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "3",
+          engage: "consider",
+          baitScore: 20,
+          threadKind: "fact_add",
+          flags: ["promo_context"],
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "4",
+          engage: "consider",
+          baitScore: 20,
+          threadKind: "fact_add",
+          flags: ["genuine_question", "on_agenda"],
+        }),
+      ),
+      true,
+    );
+  });
 });
 
 describe("clampTargetCool / clampBucketSize", () => {
