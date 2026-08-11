@@ -273,9 +273,15 @@ export async function discoverOwnReplies(opts?: {
     // ("Sat Jul 25 00:00:00 +0000 2026"); normalize to ISO before persisting so
     // note frontmatter/`utcDatePrefix` parse it. Fall back to now on failure.
     const createdMs = card.createdAt ? Date.parse(card.createdAt) : NaN;
-    const postedAt = Number.isFinite(createdMs)
-      ? new Date(createdMs).toISOString()
-      : new Date(nowMs).toISOString();
+    let postedAt: string;
+    if (Number.isFinite(createdMs)) {
+      postedAt = new Date(createdMs).toISOString();
+    } else {
+      console.warn(
+        `[reply-discover] unparseable createdAt "${card.createdAt ?? ""}" replyId=${replyId}; falling back to discovery time`,
+      );
+      postedAt = new Date(nowMs).toISOString();
+    }
 
     try {
       const interaction = await markInteracted({

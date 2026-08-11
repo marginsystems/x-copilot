@@ -213,6 +213,38 @@ describe("discoverOwnReplies", () => {
     assert.match(note, /off-app take/);
   });
 
+  it("normalizes X's real created_at format to ISO postedAt", async () => {
+    const result = await discoverOwnReplies({
+      nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
+      storePath,
+      knowledgeRoot,
+      upsertMemory: false,
+      session: { configured: true, authToken: "t", ct0: "c" },
+      resolveScreenName: async () => "me",
+      searchTimelinePages: async () => ({
+        ok: true,
+        threads: [
+          card({
+            id: "r-legacy",
+            text: "off-app",
+            inReplyToId: "p-legacy",
+            inReplyToScreenName: "@other",
+            createdAt: "Sat Jul 25 00:00:00 +0000 2026",
+          }),
+        ],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
+    });
+
+    assert.equal(result.discovered, 1);
+    const history = await listInteractionHistory({ storePath });
+    const row = history.find((h) => h.threadId === "p-legacy");
+    assert.ok(row);
+    assert.equal(row.postedAt, "2026-07-25T00:00:00.000Z");
+  });
+
   it("is idempotent across ticks", async () => {
     const search = async () => ({
       ok: true as const,
