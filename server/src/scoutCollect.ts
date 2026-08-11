@@ -12,6 +12,14 @@ import {
 import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {
+  addTokenUsage,
+  normalizeLlmProvider,
+  providerApiKeyEnvName,
+  providerConfigured,
+  type LlmProvider,
+  type TokenUsage,
+} from "./deepseek.js";
+import {
   planQueriesFromAgenda,
   type PlanQueriesOpts,
 } from "./queryPlan.js";
@@ -78,8 +86,10 @@ export type ScoutCollectEvent = {
   languageFiltered?: number;
   pipelineCounts?: ScoutPipelineCounts;
   errors?: Array<{ query: string; message: string }>;
-  plannedBy?: "client" | "deepseek";
+  plannedBy?: "client" | LlmProvider;
   model?: string;
+  llmProvider?: LlmProvider;
+  llmUsage?: TokenUsage;
   unhydratedReplyCount?: number;
   opencodeTurns?: ReturnType<typeof toOpenCodeTurns>;
 };
@@ -250,8 +260,10 @@ export async function runScoutCollect(opts: {
   const aborted = () => Boolean(opts.signal?.aborted);
 
   let queries = (opts.queries ?? []).map((q) => q.trim()).filter(Boolean);
-  let plannedBy: "client" | "deepseek" = "client";
+  const llmProvider = normalizeLlmProvider(opts.filters?.llmProvider);
+  let plannedBy: "client" | LlmProvider = "client";
   let planModel: string | undefined;
+  let llmUsage: TokenUsage | undefined;
   const agenda = (opts.agenda ?? "").trim();
 
   if (queries.length === 0) {
@@ -263,16 +275,17 @@ export async function runScoutCollect(opts: {
         message: "Pass { agenda: string } or { queries: string[] }.",
       };
     }
-    if (!process.env.DEEPSEEK_API_KEY?.trim()) {
+    if (!providerConfigured(llmProvider)) {
+      const envName = providerApiKeyEnvName(llmProvider);
       return {
         ok: false,
         status: 503,
-        error: "missing_deepseek_key",
-        message: "Set DEEPSEEK_API_KEY for agenda → query planning.",
+        error: "missing_llm_key",
+        message: `Set ${envName} for agenda → query planning.`,
       };
     }
-    track("planning", "Scout is planning search queries…");
-    const plan = await doPlan(agenda);
+    track("planning", `Scout is planning search queries (${llmProvider})…`);
+    const plan = await doPlan(agenda, { provider: llmProvider });
     if (aborted()) {
       const done = track("done", "Scout stopped.", {
         threads: [],
@@ -292,8 +305,9 @@ export async function runScoutCollect(opts: {
       };
     }
     queries = plan.queries;
-    plannedBy = "deepseek";
+    plannedBy = llmProvider;
     planModel = plan.model;
+    llmUsage = addTokenUsage(llmUsage, plan.usage);
   } else {
     track("planning", "Scout is using client-provided queries…", {
       detail: { queries },
@@ -366,7 +380,7 @@ export async function runScoutCollect(opts: {
   };
 
   async function maybeReplan(reason: "cycle" | "stalled"): Promise<boolean> {
-    if (replanned || !agenda || !process.env.DEEPSEEK_API_KEY?.trim()) {
+    if (replanned || !agenda || !providerConfigured(llmProvider)) {
       return false;
     }
     replanned = true;
@@ -379,6 +393,7 @@ export async function runScoutCollect(opts: {
     const planOpts: PlanQueriesOpts = {
       broaden: true,
       priorQueries: [...queries],
+      provider: llmProvider,
       yieldNote:
         `Low yield: candidate bucket at ${bucket.length}/${bucketSize} after ${searchCalls} searches` +
         (reason === "stalled"
@@ -392,8 +407,9 @@ export async function runScoutCollect(opts: {
       return false;
     }
     queries = plan.queries;
-    plannedBy = "deepseek";
+    plannedBy = llmProvider;
     planModel = plan.model;
+    llmUsage = addTokenUsage(llmUsage, plan.usage);
     queryIndex = 0;
     consecutiveZeroAdds = 0;
     return queries.length > 0;
@@ -644,8 +660,13 @@ export async function runScoutCollect(opts: {
         },
       );
 
-      const triaged = await doTriage({ agenda, threads: forTriage });
+      const triaged = await doTriage({
+        agenda,
+        threads: forTriage,
+        provider: llmProvider,
+      });
       if (triaged.warning) triageWarning = triaged.warning;
+      llmUsage = addTokenUsage(llmUsage, triaged.usage);
       funnelCounts.afterTriage += triaged.threads.length;
 
       for (const id of collectBaitConversationIds(triaged.threads)) {
@@ -795,9 +816,16 @@ export async function runScoutCollect(opts: {
     errors: searchErrors.length ? searchErrors : undefined,
     plannedBy,
     model: planModel,
+    llmProvider,
+    llmUsage,
     unhydratedReplyCount,
     opencodeTurns: toOpenCodeTurns(events),
   });
+  if (llmUsage) {
+    console.info(
+      `[llm] scout_total provider=${llmProvider} prompt_tokens=${llmUsage.prompt_tokens} completion_tokens=${llmUsage.completion_tokens} total_tokens=${llmUsage.total_tokens}`,
+    );
+  }
 
   try {
     await doSaveCache({

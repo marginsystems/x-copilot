@@ -61,6 +61,15 @@ export const EXCLUDEABLE_TAG_VOCAB = [
   "supportive_encouragement",
 ] as const;
 
+export const LLM_PROVIDERS = ["gemini", "deepseek"] as const;
+export type LlmProvider = (typeof LLM_PROVIDERS)[number];
+export const DEFAULT_LLM_PROVIDER: LlmProvider = "gemini";
+
+export function normalizeLlmProvider(value: unknown): LlmProvider {
+  if (value === "deepseek" || value === "gemini") return value;
+  return DEFAULT_LLM_PROVIDER;
+}
+
 export type AppSettings = {
   maxThreadChars: number;
   dropArticles: boolean;
@@ -68,6 +77,8 @@ export type AppSettings = {
   dropEmDashes: boolean;
   /** Hard-drop authors with X's Automated badge, pre-triage. */
   dropAutomatedAccounts: boolean;
+  /** Scout plan + triage LLM (API key stays on the server .env). */
+  llmProvider: LlmProvider;
   targetCoolThreads: number;
   /** Never curate authors we've marked interacted (lifetime). */
   dedupeAccounts: boolean;
@@ -85,6 +96,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dropArticles: true,
   dropEmDashes: true,
   dropAutomatedAccounts: true,
+  llmProvider: DEFAULT_LLM_PROVIDER,
   targetCoolThreads: DEFAULT_TARGET_COOL_THREADS,
   dedupeAccounts: true,
   preferredLanguage: DEFAULT_PREFERRED_LANGUAGE,
@@ -210,6 +222,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
       typeof obj.dropAutomatedAccounts === "boolean"
         ? obj.dropAutomatedAccounts
         : DEFAULT_SETTINGS.dropAutomatedAccounts,
+    llmProvider: normalizeLlmProvider(obj.llmProvider),
     targetCoolThreads: clampTargetCoolThreads(obj.targetCoolThreads),
     dedupeAccounts:
       typeof obj.dedupeAccounts === "boolean"

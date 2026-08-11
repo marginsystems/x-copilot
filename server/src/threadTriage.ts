@@ -2,7 +2,16 @@
  * Post-search thread triage via DeepSeek (one batched call).
  * Only threads with a numeric baitScore are returned — never silent unscored rows.
  */
-import { chatCompletions, resolveFlashModel } from "./deepseek.js";
+import {
+  addTokenUsage,
+  chatCompletions,
+  normalizeLlmProvider,
+  providerApiKeyEnvName,
+  resolveFlashModel,
+  resolveProviderApiKey,
+  type LlmProvider,
+  type TokenUsage,
+} from "./deepseek.js";
 import {
   searchMemory,
   type MemoryHit,
@@ -52,6 +61,8 @@ export type TriageResult = {
   threads: ThreadCard[];
   warning?: string;
   model?: string;
+  provider?: LlmProvider;
+  usage?: TokenUsage;
 };
 
 /** Max threads sent to the model in one batched call. */
@@ -463,31 +474,39 @@ function buildWarning(parts: string[]): string | undefined {
 }
 
 /**
- * Triage threads with one batched DeepSeek call.
+ * Triage threads with one batched LLM call (Gemini Flash or DeepSeek).
  * Returns only scored threads. On failure returns [] + warning (never raw unscored rows).
  */
 export async function triageThreads(opts: {
   agenda?: string;
   threads: ThreadCard[];
   apiKey?: string;
+  provider?: LlmProvider;
   /** Injectable memory search (tests). Defaults to local index; soft-fails. */
   searchMemory?: MemorySearchFn;
 }): Promise<TriageResult> {
   const threads = opts.threads;
   if (!threads.length) return { threads };
 
-  const apiKey = (opts.apiKey ?? process.env.DEEPSEEK_API_KEY ?? "").trim();
+  const provider = normalizeLlmProvider(opts.provider);
+  // Explicit apiKey (including "") wins so tests can force a missing key.
+  const apiKey =
+    opts.apiKey !== undefined
+      ? opts.apiKey.trim()
+      : resolveProviderApiKey(provider);
   if (!apiKey) {
+    const envName = providerApiKeyEnvName(provider);
     return {
       threads: [],
-      warning: "Triage skipped — set DEEPSEEK_API_KEY for summaries and bait scores.",
+      warning: `Triage skipped — set ${envName} for summaries and bait scores.`,
     };
   }
 
   const batch = threads.slice(0, MAX_TRIAGE_THREADS);
   const overflow = threads.length - batch.length;
   const batchIds = batch.map((t) => t.id);
-  const model = resolveFlashModel();
+  const model = resolveFlashModel(provider);
+  let usage: TokenUsage | undefined;
   let memories: TriageMemoryHit[] = [];
   try {
     memories = await gatherTriageMemories(batch, opts.searchMemory ?? searchMemory);
@@ -497,8 +516,10 @@ export async function triageThreads(opts: {
   const userMessage = buildUserMessage(opts.agenda ?? "", batch, memories);
 
   const first = await chatCompletions({
+    provider,
     model,
     apiKey,
+    purpose: "triage",
     messages: [
       { role: "system", content: TRIAGE_SYSTEM_PROMPT },
       { role: "user", content: userMessage },
@@ -507,14 +528,17 @@ export async function triageThreads(opts: {
   if (!first.ok) {
     return { threads: [], warning: `Triage failed — ${first.message}` };
   }
+  usage = addTokenUsage(usage, first.usage);
 
   let items = parseTriageJson(first.content);
   let used = first;
 
   if (!items?.length) {
     const repair = await chatCompletions({
+      provider,
       model,
       apiKey,
+      purpose: "triage_repair",
       messages: [
         { role: "system", content: TRIAGE_SYSTEM_PROMPT },
         { role: "user", content: userMessage },
@@ -531,12 +555,13 @@ export async function triageThreads(opts: {
     }
     items = parseTriageJson(repair.content);
     used = repair;
+    usage = addTokenUsage(usage, repair.usage);
   }
 
   if (!items?.length) {
     return {
       threads: [],
-      warning: "Triage failed — DeepSeek did not return valid JSON.",
+      warning: "Triage failed — model did not return valid JSON.",
     };
   }
 
@@ -553,8 +578,10 @@ export async function triageThreads(opts: {
       missingMemories = [];
     }
     const repairMissing = await chatCompletions({
+      provider,
       model,
       apiKey,
+      purpose: "triage_missing",
       messages: [
         { role: "system", content: TRIAGE_SYSTEM_PROMPT },
         {
@@ -568,6 +595,7 @@ export async function triageThreads(opts: {
       if (extra?.length) {
         items = mergeItemMaps(items, extra);
         used = repairMissing;
+        usage = addTokenUsage(usage, repairMissing.usage);
       }
     }
     missing = missingTriageIds(batchIds, items);
@@ -587,6 +615,8 @@ export async function triageThreads(opts: {
   return {
     threads: scored,
     model: used.model,
+    provider,
+    ...(usage ? { usage } : {}),
     warning,
   };
 }

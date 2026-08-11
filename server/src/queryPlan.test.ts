@@ -110,7 +110,7 @@ describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
 });
 
 describe("resolveFlashModel", () => {
-  it("returns flash model", () => {
-    assert.equal(resolveFlashModel(), DEEPSEEK_FLASH_MODEL);
+  it("returns flash model per provider", () => {
+    assert.equal(resolveFlashModel("deepseek"), DEEPSEEK_FLASH_MODEL);
   });
 });

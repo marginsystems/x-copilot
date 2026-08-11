@@ -1,10 +1,24 @@
 /**
- * Agenda → short, high-recall X Latest search queries via DeepSeek.
+ * Agenda → short, high-recall X Latest search queries via the selected LLM.
  */
-import { chatCompletions, resolveFlashModel } from "./deepseek.js";
+import {
+  addTokenUsage,
+  chatCompletions,
+  normalizeLlmProvider,
+  resolveFlashModel,
+  type LlmProvider,
+  type TokenUsage,
+} from "./deepseek.js";
 
 export type QueryPlanResult =
-  | { ok: true; queries: string[]; model: string; raw: string }
+  | {
+      ok: true;
+      queries: string[];
+      model: string;
+      provider: LlmProvider;
+      raw: string;
+      usage?: TokenUsage;
+    }
   | { ok: false; error: string; message: string };
 
 export type PlanQueriesOpts = {
@@ -13,6 +27,8 @@ export type PlanQueriesOpts = {
   priorQueries?: string[];
   /** Human-readable yield context for replan. */
   yieldNote?: string;
+  /** LLM provider (default gemini). */
+  provider?: LlmProvider;
 };
 
 /**
@@ -125,12 +141,15 @@ async function requestPlan(
   agenda: string,
   opts: PlanQueriesOpts | undefined,
   model: string,
+  provider: LlmProvider,
 ): Promise<
-  | { ok: true; content: string; model: string }
+  | { ok: true; content: string; model: string; usage?: TokenUsage }
   | { ok: false; error: string; message: string }
 > {
   const res = await chatCompletions({
+    provider,
     model,
+    purpose: opts?.broaden ? "plan_replan" : "plan",
     messages: [
       { role: "system", content: SYSTEM },
       { role: "user", content: buildUserPrompt(agenda, opts) },
@@ -139,7 +158,12 @@ async function requestPlan(
   if (!res.ok) {
     return { ok: false, error: res.error, message: res.message };
   }
-  return { ok: true, content: res.content, model: res.model };
+  return {
+    ok: true,
+    content: res.content,
+    model: res.model,
+    ...(res.usage ? { usage: res.usage } : {}),
+  };
 }
 
 export async function planQueriesFromAgenda(
@@ -162,8 +186,9 @@ export async function planQueriesFromAgenda(
     };
   }
 
-  const model = resolveFlashModel();
-  const first = await requestPlan(trimmed, opts, model);
+  const provider = normalizeLlmProvider(opts?.provider);
+  const model = resolveFlashModel(provider);
+  const first = await requestPlan(trimmed, opts, model, provider);
   if (!first.ok) {
     return {
       ok: false,
@@ -175,10 +200,13 @@ export async function planQueriesFromAgenda(
   let queries = parseQueryPlanJson(first.content);
   let raw = first.content;
   let usedModel = first.model;
+  let usage = first.usage;
 
   if (!queries) {
     const repair = await chatCompletions({
+      provider,
       model,
+      purpose: "plan_repair",
       messages: [
         { role: "system", content: SYSTEM },
         { role: "user", content: buildUserPrompt(trimmed, opts) },
@@ -202,11 +230,12 @@ export async function planQueriesFromAgenda(
     queries = parseQueryPlanJson(repair.content);
     raw = repair.content;
     usedModel = repair.model;
+    usage = addTokenUsage(usage, repair.usage);
     if (!queries) {
       return {
         ok: false,
         error: "invalid_plan",
-        message: "DeepSeek did not return a valid queries JSON array.",
+        message: "Model did not return a valid queries JSON array.",
       };
     }
   }
@@ -222,6 +251,7 @@ export async function planQueriesFromAgenda(
           "First plan was too phrase-y / agenda-echoing. Broaden to shorter high-recall 2-word keywords.",
       },
       model,
+      provider,
     );
     if (broaden.ok) {
       const repaired = parseQueryPlanJson(broaden.content);
@@ -229,9 +259,17 @@ export async function planQueriesFromAgenda(
         queries = repaired;
         raw = broaden.content;
         usedModel = broaden.model;
+        usage = addTokenUsage(usage, broaden.usage);
       }
     }
   }
 
-  return { ok: true, queries, model: usedModel, raw };
+  return {
+    ok: true,
+    queries,
+    model: usedModel,
+    provider,
+    raw,
+    ...(usage ? { usage } : {}),
+  };
 }
