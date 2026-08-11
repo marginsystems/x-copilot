@@ -453,7 +453,7 @@ describe("triageThreads", () => {
       },
     });
     assert.deepEqual(result.threads, []);
-    assert.match(result.warning ?? "", /DEEPSEEK_API_KEY/);
+    assert.match(result.warning ?? "", /GEMINI_API_KEY|DEEPSEEK_API_KEY/);
   });
 });
 

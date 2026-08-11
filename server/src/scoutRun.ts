@@ -7,6 +7,14 @@ import {
 } from "./interactionStore.js";
 import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
+import {
+  normalizeLlmProvider,
+  providerApiKeyEnvName,
+  providerConfigured,
+  type LlmProvider,
+  type TokenUsage,
+  addTokenUsage,
+} from "./deepseek.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
 import {
@@ -48,9 +56,11 @@ export type ScoutEvent = ScoutStageEvent & {
   threads?: ThreadCard[];
   queries?: string[];
   errors?: Array<{ query: string; message: string }>;
-  plannedBy?: "client" | "deepseek";
+  plannedBy?: "client" | LlmProvider;
   model?: string;
   triageModel?: string;
+  llmProvider?: LlmProvider;
+  llmUsage?: TokenUsage;
   triageWarning?: string;
   cooldownFiltered?: number;
   cooldownAuthors?: string[];
@@ -112,6 +122,8 @@ export type ScoutFilters = {
    * Omit → server default (`supportive_encouragement`, `political`); `[]` → no tag excludes.
    */
   excludedTags?: string[];
+  /** LLM provider for plan + triage (default gemini). */
+  llmProvider?: LlmProvider;
 };
 
 export async function runScoutSearch(opts: {
@@ -139,8 +151,10 @@ export async function runScoutSearch(opts: {
   };
 
   let queries = (opts.queries ?? []).map((q) => q.trim()).filter(Boolean);
-  let plannedBy: "client" | "deepseek" = "client";
+  const llmProvider = normalizeLlmProvider(opts.filters?.llmProvider);
+  let plannedBy: "client" | LlmProvider = "client";
   let planModel: string | undefined;
+  let llmUsage: TokenUsage | undefined;
   const agenda = (opts.agenda ?? "").trim();
 
   if (queries.length === 0) {
@@ -152,16 +166,19 @@ export async function runScoutSearch(opts: {
         message: "Pass { agenda: string } or { queries: string[] }.",
       };
     }
-    if (!process.env.DEEPSEEK_API_KEY?.trim()) {
+    if (!providerConfigured(llmProvider)) {
+      const envName = providerApiKeyEnvName(llmProvider);
       return {
         ok: false,
         status: 503,
-        error: "missing_deepseek_key",
-        message: "Set DEEPSEEK_API_KEY for agenda → query planning.",
+        error: "missing_llm_key",
+        message: `Set ${envName} for agenda → query planning.`,
       };
     }
-    track("planning", "Scout is planning search queries…");
-    const plan = await planQueriesFromAgenda(agenda);
+    track("planning", `Scout is planning search queries (${llmProvider})…`);
+    const plan = await planQueriesFromAgenda(agenda, {
+      provider: llmProvider,
+    });
     if (!plan.ok) {
       track("error", `Scout failed: ${plan.message}`);
       return {
@@ -172,8 +189,9 @@ export async function runScoutSearch(opts: {
       };
     }
     queries = plan.queries;
-    plannedBy = "deepseek";
+    plannedBy = llmProvider;
     planModel = plan.model;
+    llmUsage = addTokenUsage(llmUsage, plan.usage);
   } else {
     track("planning", "Scout is using client-provided queries…", { queries });
   }
@@ -242,7 +260,9 @@ export async function runScoutSearch(opts: {
   const triaged = await triageThreads({
     agenda,
     threads: afterHydrateLang.threads,
+    provider: llmProvider,
   });
+  llmUsage = addTokenUsage(llmUsage, triaged.usage);
 
   const pipelineCounts: ScoutPipelineCounts = {
     raw: result.rawCount,
@@ -287,6 +307,8 @@ export async function runScoutSearch(opts: {
     plannedBy,
     model: planModel,
     triageModel: triaged.model,
+    llmProvider,
+    llmUsage,
     triageWarning: triaged.warning,
     cooldownFiltered: filtered.filteredCount,
     cooldownAuthors: filtered.filteredAuthors,
@@ -307,6 +329,11 @@ export async function runScoutSearch(opts: {
     opencodeTurns: toOpenCodeTurns(events),
   };
   opts.onEvent?.(done);
+  if (llmUsage) {
+    console.info(
+      `[llm] scout_total provider=${llmProvider} prompt_tokens=${llmUsage.prompt_tokens} completion_tokens=${llmUsage.completion_tokens} total_tokens=${llmUsage.total_tokens}`,
+    );
+  }
 
   try {
     await saveScoutCache({
