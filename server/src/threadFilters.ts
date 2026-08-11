@@ -268,6 +268,28 @@ export const BAIT_CONVERSATION_FLAGS = [
   "rage_bait",
 ] as const;
 
+/**
+ * Promo / bad-OP flags — never cool even if engage is consider/priority.
+ * Keep in sync with TRIAGE_SYSTEM_PROMPT promo_op / bad_context guidance.
+ */
+export const COOL_SKIP_PROMO_FLAGS = [
+  "promo_op",
+  "bad_context",
+  "promo_context",
+] as const;
+
+/** True when triage flagged the card as under/being a promo OP. */
+export function threadHasCoolSkipPromoFlag(
+  thread: Pick<ThreadCard, "flags">,
+): boolean {
+  const skip = new Set<string>(COOL_SKIP_PROMO_FLAGS);
+  for (const flag of thread.flags ?? []) {
+    const token = normalizeTagToken(flag);
+    if (token && skip.has(token)) return true;
+  }
+  return false;
+}
+
 /** High enough that cool gate (≤45) already rejects the bait card itself. */
 export const BAIT_CONVERSATION_MIN_SCORE = 70;
 

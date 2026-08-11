@@ -28,6 +28,7 @@ import {
   replyUnderBaitConversation,
   resolveExcludedTags,
   resolveMaxThreadCharsFromFilters,
+  threadHasCoolSkipPromoFlag,
   threadHasExcludedTag,
 } from "./threadFilters.js";
 import { isCoolSkipThreadKind, triageThreads } from "./threadTriage.js";
@@ -110,6 +111,9 @@ export function isCoolThread(thread: ThreadCard): boolean {
     return false;
   }
   if (isCoolSkipThreadKind(thread.threadKind)) {
+    return false;
+  }
+  if (threadHasCoolSkipPromoFlag(thread)) {
     return false;
   }
   const bait = thread.baitScore ?? thread.score;
