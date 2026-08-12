@@ -55,10 +55,20 @@ export function getPlatformDb(opts?: {
 
   mkdirSync(dirname(dbPath), { recursive: true });
   const instance = new Database(dbPath);
-  instance.pragma("journal_mode = WAL");
-  instance.pragma("foreign_keys = ON");
-  applyMigrations(instance, opts?.migrationsDir ?? defaultMigrationsDir());
-  ensureLocalTenant(instance);
+  try {
+    instance.pragma("journal_mode = WAL");
+    instance.pragma("busy_timeout = 5000");
+    instance.pragma("foreign_keys = ON");
+    applyMigrations(instance, opts?.migrationsDir ?? defaultMigrationsDir());
+    ensureLocalTenant(instance);
+  } catch (err) {
+    try {
+      instance.close();
+    } catch {
+      // ignore
+    }
+    throw err;
+  }
   db = instance;
   return instance;
 }
