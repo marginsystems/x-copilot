@@ -164,6 +164,7 @@ export async function fetchParentTweet(opts: {
   // TweetResultByRestId is a session-cookie GraphQL endpoint: without cookies a
   // pure-bearer session would fire empty-cookie requests that always fail.
   if (!session.authToken || !session.ct0) {
+    parentCache.set(tweetId, null);
     return null;
   }
 
