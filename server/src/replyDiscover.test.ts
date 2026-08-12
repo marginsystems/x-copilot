@@ -27,9 +27,9 @@ function card(
 }
 
 describe("buildOwnRepliesQuery", () => {
-  it("builds from: + filter:replies with within_time", () => {
+  it("builds from: + is:reply with within_time", () => {
     const q = buildOwnRepliesQuery("@MarginSystems", "24h");
-    assert.match(q, /^from:MarginSystems filter:replies within_time:24h$/);
+    assert.match(q, /^from:MarginSystems is:reply within_time:24h$/);
   });
 });
 
@@ -146,12 +146,13 @@ describe("discoverOwnReplies", () => {
       upsertMemory: false,
       session: {
         configured: true,
-        authToken: "t",
-        ct0: "c",
+        bearerToken: "t",
+        operatorUserId: "",
+        operatorUsername: "me",
       },
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => {
-        assert.match(opts.query, /from:me filter:replies/);
+        assert.match(opts.query, /from:me is:reply/);
         assert.match(opts.query, /within_time:24h/);
         assert.equal(opts.product, "Latest");
         assert.equal(opts.maxPages, 1);
@@ -219,7 +220,12 @@ describe("discoverOwnReplies", () => {
       storePath,
       knowledgeRoot,
       upsertMemory: false,
-      session: { configured: true, authToken: "t", ct0: "c" },
+      session: {
+        configured: true,
+        bearerToken: "t",
+        operatorUserId: "",
+        operatorUsername: "me",
+      },
       resolveScreenName: async () => "me",
       searchTimelinePages: async () => ({
         ok: true,
@@ -264,7 +270,12 @@ describe("discoverOwnReplies", () => {
       storePath,
       knowledgeRoot,
       upsertMemory: false as const,
-      session: { configured: true, authToken: "t", ct0: "c" },
+      session: {
+        configured: true,
+        bearerToken: "t",
+        operatorUserId: "",
+        operatorUsername: "me",
+      },
       resolveScreenName: async () => "me",
       searchTimelinePages: search,
     };
@@ -279,7 +290,12 @@ describe("discoverOwnReplies", () => {
 
   it("soft-fails when credentials missing", async () => {
     const result = await discoverOwnReplies({
-      session: { configured: false, authToken: "", ct0: "" },
+      session: {
+        configured: false,
+        bearerToken: "",
+        operatorUserId: "",
+        operatorUsername: "",
+      },
       storePath,
     });
     assert.equal(result.ok, false);

@@ -1,5 +1,5 @@
 /**
- * Local sidecar — holds X session cookies + DeepSeek calls off the browser.
+ * Local sidecar — holds X API bearer + LLM keys off the browser.
  */
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -759,10 +759,16 @@ const server = http.createServer(async (req, res) => {
           message: session.message || "Session unavailable",
         });
       }
-      if (session.method === "badge_count") {
+      if (
+        session.method === "api_bearer_probe" ||
+        session.method === "badge_count" ||
+        !session.user.screen_name ||
+        session.user.screen_name === "unknown"
+      ) {
         return send(res, 503, {
           error: "identity_unresolved",
-          message: "Session identity could not be resolved",
+          message:
+            "Set X_OPERATOR_USERNAME in .env so Mark detect can resolve your handle.",
         });
       }
       /** Client-owned polling sends once:true; omit/false keeps server backoff. */
@@ -932,7 +938,7 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`x-copilot sidecar on http://127.0.0.1:${PORT}`);
   console.log(
     session.configured
-      ? "X session: configured (run npm run test:session to verify)"
-      : "X session: missing — set X_AUTH_TOKEN and X_CT0 in .env",
+      ? "X API: bearer configured (run npm run test:session to verify)"
+      : "X API: missing — set X_API_BEARER_TOKEN in .env",
   );
 });

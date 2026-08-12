@@ -1,10 +1,10 @@
 #!/usr/bin/env npx tsx
 /**
- * Basic X session test — loads .env and calls GraphQL Viewer verify.
+ * Basic X API test — loads .env and verifies the Pay Per Use bearer.
  *
  *   npm run test:session
  *
- * Exit 0 on success, 1 on failure. Never prints full cookie values.
+ * Exit 0 on success, 1 on failure. Never prints full token values.
  */
 import { resolve } from "node:path";
 import { loadEnv } from "../server/src/loadEnv.js";
@@ -17,18 +17,18 @@ if (!loadEnv(envPath)) {
 }
 
 const session = getSessionFromEnv();
-console.log("x-copilot session test");
-console.log(`  .env:              ${envPath}`);
+console.log("x-copilot X API test");
+console.log(`  .env:                    ${envPath}`);
 console.log(
-  `  X_AUTH_TOKEN set:  ${Boolean(session.authToken)} (len ${session.authToken.length})`,
+  `  X_API_BEARER_TOKEN set:  ${Boolean(session.bearerToken)} (len ${session.bearerToken.length})`,
 );
 console.log(
-  `  X_CT0 set:         ${Boolean(session.ct0)} (len ${session.ct0.length})`,
+  `  X_OPERATOR_USERNAME:     ${session.operatorUsername || "(unset)"}`,
 );
 
 if (!session.configured) {
-  console.error("\nFAIL: missing X_AUTH_TOKEN and/or X_CT0 in .env");
-  console.error("See README → Session cookies");
+  console.error("\nFAIL: missing X_API_BEARER_TOKEN in .env");
+  console.error("See README → Official X API");
   process.exit(1);
 }
 
@@ -40,15 +40,17 @@ try {
   console.error(`\nFAIL: ${message}`);
   process.exit(1);
 }
+
 if (!result.ok) {
-  console.error(`\nFAIL: ${result.message || result.error}`);
-  if (result.status) console.error(`  HTTP ${result.status}`);
+  console.error(`\nFAIL: ${result.error} (HTTP ${result.status})`);
+  if (result.message) console.error(`  ${result.message}`);
+  if (result.status === 402) {
+    console.error("  Buy Pay Per Use credits in console.x.com → Billing.");
+  }
   process.exit(1);
 }
 
-console.log("\nOK: session verified");
-console.log(`  method: ${result.method}`);
-console.log(`  @${result.user.screen_name} (${result.user.name})`);
-if (result.user.id) console.log(`  id ${result.user.id}`);
-if (result.warning) console.warn(`  warning: ${result.warning}`);
+console.log(`\nOK via ${result.method}`);
+console.log(`  @${result.user.screen_name} (id=${result.user.id || "n/a"})`);
+if (result.warning) console.log(`  warning: ${result.warning}`);
 process.exit(0);

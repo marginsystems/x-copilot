@@ -1,14 +1,15 @@
 /**
- * Session-backed X SearchTimeline client (read-only).
- * Query IDs rotate — set X_SEARCH_QUERY_ID or rely on heal + fallbacks.
+ * Official X API v2 recent-search client (read-only).
+ * Keeps ThreadCard shape + GraphQL fixture parsers for unit tests.
  */
 import { normalizeTcoKey } from "./mediaText.js";
 import type { ThreadKind } from "./threadTriage.js";
 import {
-  buildSessionHeaders,
-  getSessionFromEnv,
-  type SessionCreds,
-} from "./xSession.js";
+  startTimeFromWithin,
+  stripSessionTimeOps,
+  xApiGet,
+} from "./xApi.js";
+import { getSessionFromEnv, type SessionCreds } from "./xSession.js";
 
 export type ThreadCard = {
   id: string;
@@ -75,6 +76,7 @@ export const MAX_SEARCH_PAGES = 3;
 const PAGE_DELAY_MS = 400;
 
 let cachedSearchQueryId: string | null = null;
+let v2AutomatedWarningLogged = false;
 
 /**
  * Resolve `Nh` / `Nm` token for within_time.
@@ -605,46 +607,157 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
   return card;
 }
 
-async function healSearchQueryId(session: SessionCreds): Promise<string | null> {
-  try {
-    const headers = buildSessionHeaders(session);
-    const page = await fetch("https://x.com/explore", {
-      headers: {
-        "user-agent": headers["user-agent"],
-      },
-    });
-    const html = await page.text();
-    const scripts = [
-      ...html.matchAll(
-        /https:\/\/abs\.twimg\.com\/responsive-web\/client-web[^"']+\.js/g,
-      ),
-    ].map((m) => m[0]);
-    for (const src of [...new Set(scripts)].slice(0, 20)) {
-      const js = await (await fetch(src)).text();
-      if (!js.includes("SearchTimeline")) continue;
-      const m =
-        js.match(
-          /queryId:"([A-Za-z0-9-_]+)"[^]{0,200}?operationName:"SearchTimeline"/,
-        ) ||
-        js.match(
-          /operationName:"SearchTimeline"[^]{0,200}?queryId:"([A-Za-z0-9-_]+)"/,
-        ) ||
-        js.match(
-          /e\.exports=\{queryId:"([^"]+)",operationName:"SearchTimeline"/,
-        );
-      if (m?.[1]) {
-        cachedSearchQueryId = m[1];
-        return m[1];
-      }
-    }
-  } catch (err) {
-    console.error("healSearchQueryId failed:", err);
-  }
-  return null;
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+type V2User = {
+  id?: string;
+  username?: string;
+  name?: string;
+};
+
+type V2Tweet = {
+  id?: string;
+  text?: string;
+  author_id?: string;
+  created_at?: string;
+  conversation_id?: string;
+  in_reply_to_user_id?: string;
+  referenced_tweets?: Array<{ type?: string; id?: string }>;
+  entities?: {
+    urls?: Array<{
+      url?: string;
+      expanded_url?: string;
+      display_url?: string;
+    }>;
+    media?: Array<{
+      url?: string;
+      expanded_url?: string;
+      display_url?: string;
+    }>;
+  };
+  note_tweet?: { text?: string };
+  public_metrics?: {
+    like_count?: number;
+    reply_count?: number;
+    retweet_count?: number;
+    quote_count?: number;
+    impression_count?: number;
+  };
+};
+
+/** Map a v2 tweet (+ includes) into our ThreadCard. */
+export function v2TweetToCard(
+  tweet: V2Tweet,
+  usersById: Map<string, V2User>,
+  tweetsById: Map<string, V2Tweet> = new Map(),
+): ThreadCard | null {
+  const id = tweet.id?.trim();
+  const noteText = tweet.note_tweet?.text?.trim();
+  const text = (noteText || tweet.text || "").trim();
+  const authorUser = tweet.author_id
+    ? usersById.get(tweet.author_id)
+    : undefined;
+  const handle = authorUser?.username?.trim();
+  if (!id || !text || !handle) return null;
+
+  const card: ThreadCard = {
+    id,
+    author: handle.startsWith("@") ? handle : `@${handle}`,
+    text,
+    url: `https://x.com/${handle.replace(/^@/, "")}/status/${id}`,
+    createdAt: tweet.created_at,
+  };
+  if (noteText) card.longform = "note_tweet";
+
+  const repliedTo = tweet.referenced_tweets?.find((r) => r.type === "replied_to");
+  if (repliedTo?.id) {
+    card.inReplyToId = repliedTo.id;
+    card.isReply = true;
+  }
+  if (tweet.in_reply_to_user_id) {
+    const parentUser = usersById.get(tweet.in_reply_to_user_id);
+    if (parentUser?.username) {
+      card.inReplyToScreenName = parentUser.username.startsWith("@")
+        ? parentUser.username
+        : `@${parentUser.username}`;
+    }
+  }
+  if (tweet.conversation_id) card.conversationId = tweet.conversation_id;
+
+  const quoted = tweet.referenced_tweets?.find((r) => r.type === "quoted");
+  if (quoted?.id) {
+    const qt = tweetsById.get(quoted.id);
+    if (qt?.text && qt.author_id) {
+      const qa = usersById.get(qt.author_id);
+      if (qa?.username) {
+        card.opAuthor = qa.username.startsWith("@")
+          ? qa.username
+          : `@${qa.username}`;
+        card.opText = qt.text.slice(0, MAX_OP_TEXT_CHARS);
+      }
+    }
+  }
+
+  const urls = tweet.entities?.urls ?? [];
+  for (const u of urls) {
+    const expanded = (u.expanded_url || u.url || "").trim();
+    if (expanded && isOutboundLinkUrl(expanded)) {
+      card.hasOutboundLink = true;
+      break;
+    }
+  }
+  if (!card.hasOutboundLink && textHasOutboundLink(text)) {
+    card.hasOutboundLink = true;
+  }
+
+  const mediaShortlinks = [...mediaShortlinkKeys(tweet.entities)];
+  if (mediaShortlinks.length) card.mediaShortlinks = mediaShortlinks;
+
+  if (!v2AutomatedWarningLogged) {
+    v2AutomatedWarningLogged = true;
+    console.warn(
+      "[xSearch] v2 recent search does not expose X's Automated account badge — the dropAutomatedAccounts filter cannot drop automated accounts on this path.",
+    );
+  }
+
+  return card;
+}
+
+function parseV2SearchPayload(json: unknown): {
+  threads: ThreadCard[];
+  nextToken: string | null;
+} {
+  const root = json as {
+    data?: V2Tweet[];
+    includes?: { users?: V2User[]; tweets?: V2Tweet[] };
+    meta?: { next_token?: string };
+  };
+  const usersById = new Map<string, V2User>();
+  for (const u of root.includes?.users ?? []) {
+    if (u.id) usersById.set(u.id, u);
+  }
+  const tweetsById = new Map<string, V2Tweet>();
+  for (const t of root.includes?.tweets ?? []) {
+    if (t.id) tweetsById.set(t.id, t);
+  }
+  const threads: ThreadCard[] = [];
+  let dropped = 0;
+  for (const tw of root.data ?? []) {
+    const card = v2TweetToCard(tw, usersById, tweetsById);
+    if (card) threads.push(card);
+    else dropped += 1;
+  }
+  if (dropped > 0) {
+    console.warn(
+      `[xSearch] v2 recent search dropped ${dropped} result(s) with unresolvable id/text/author (suspended or withheld author missing from includes.users).`,
+    );
+  }
+  return {
+    threads,
+    nextToken: root.meta?.next_token?.trim() || null,
+  };
 }
 
 export type SearchTimelineResult =
@@ -664,16 +777,18 @@ export async function searchTimeline(opts: {
   cursor?: string;
   /** When false, skip within_time append (caller already applied). Default true. */
   applyRecency?: boolean;
+  /** Stable v2 recent-search start_time shared across pagination pages. */
+  startTime?: string;
   session?: SessionCreds;
   signal?: AbortSignal;
 }): Promise<SearchTimelineResult> {
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) {
+  if (!session.bearerToken) {
     return {
       ok: false,
       status: 0,
       error: "missing_credentials",
-      message: "Set X_AUTH_TOKEN and X_CT0 in .env.",
+      message: "Set X_API_BEARER_TOKEN in .env (Pay Per Use app bearer).",
     };
   }
 
@@ -686,132 +801,58 @@ export async function searchTimeline(opts: {
       message: "Search query is empty.",
     };
   }
-  const query =
+  const withRecency =
     opts.applyRecency === false ? raw : withSearchRecency(raw);
-
-  const count = Math.min(Math.max(opts.count ?? 10, 1), 20);
-  const product = opts.product ?? "Latest";
-  const features = searchFeatures();
-  const headers = {
-    ...buildSessionHeaders(session),
-    "content-type": "application/json",
-    referer: `https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query&f=live`,
-  };
-
-  const tryIds = [
-    getSearchQueryId(),
-    ...DEFAULT_SEARCH_QUERY_IDS.filter((id) => id !== getSearchQueryId()),
-  ];
-
-  let lastStatus = 0;
-  let lastBody = "";
-
-  for (let attempt = 0; attempt < tryIds.length + 1; attempt++) {
-    if (opts.signal?.aborted) {
-      return {
-        ok: false,
-        status: 499,
-        error: "client_disconnected",
-        message: "Client disconnected",
-      };
-    }
-    const qid =
-      attempt < tryIds.length
-        ? tryIds[attempt]
-        : (await healSearchQueryId(session)) || tryIds[0];
-
-    const variables: Record<string, unknown> = {
-      rawQuery: query,
-      count,
-      querySource: "typed_query",
-      product,
-    };
-    const cursor = opts.cursor?.trim();
-    if (cursor) variables.cursor = cursor;
-
-    const params = new URLSearchParams({
-      variables: JSON.stringify(variables),
-    });
-    const url = `https://x.com/i/api/graphql/${qid}/SearchTimeline?${params}`;
-
-    let res: Response;
-    let tm: ReturnType<typeof setTimeout> | undefined;
-    let onAbort: (() => void) | undefined;
-    try {
-      const ac = new AbortController();
-      tm = setTimeout(() => ac.abort(), 15000);
-      onAbort = () => ac.abort();
-      opts.signal?.addEventListener("abort", onAbort, { once: true });
-      res = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ features, queryId: qid }),
-        signal: ac.signal,
-      });
-    } catch {
-      clearTimeout(tm);
-      if (onAbort) opts.signal?.removeEventListener("abort", onAbort);
-      continue;
-    }
-    clearTimeout(tm);
-    if (onAbort) opts.signal?.removeEventListener("abort", onAbort);
-    const text = await res.text();
-    lastStatus = res.status;
-    lastBody = text;
-
-    if (res.status === 404 || text.includes("Query not found")) {
-      continue;
-    }
-    if (!res.ok) {
-      return {
-        ok: false,
-        status: res.status,
-        error: "search_failed",
-        message: `SearchTimeline HTTP ${res.status}`,
-      };
-    }
-
-    let data: unknown;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      return {
-        ok: false,
-        status: res.status,
-        error: "invalid_json",
-        message: "SearchTimeline returned non-JSON.",
-      };
-    }
-
-    const errors = (data as { errors?: Array<{ message?: string }> }).errors;
-    if (errors?.length) {
-      const msg = errors.map((e) => e.message).join("; ");
-      if (/query/i.test(msg)) continue;
-      return {
-        ok: false,
-        status: 200,
-        error: "graphql_error",
-        message: msg,
-      };
-    }
-
-    cachedSearchQueryId = qid;
-    const page = parseSearchTimelinePage(data);
+  const stripped = stripSessionTimeOps(withRecency);
+  const query = stripped.query;
+  if (!query) {
     return {
-      ok: true,
-      threads: page.threads,
-      queryId: qid,
-      bottomCursor: page.bottomCursor,
+      ok: false,
+      status: 400,
+      error: "empty_query",
+      message: "Search query is empty.",
     };
   }
 
+  // v2 recent search requires max_results in [10, 100].
+  const count = Math.min(Math.max(opts.count ?? 20, 10), 100);
+  const product = opts.product ?? "Latest";
+  const within = stripped.within ?? resolveWithinTime();
+  const startTime = opts.startTime ?? startTimeFromWithin(within);
+
+  const res = await xApiGet({
+    path: "/tweets/search/recent",
+    query: {
+      query,
+      max_results: String(count),
+      start_time: startTime,
+      sort_order: product === "Top" ? "relevancy" : "recency",
+      "tweet.fields":
+        "created_at,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,entities,public_metrics,note_tweet",
+      expansions:
+        "author_id,referenced_tweets.id,referenced_tweets.id.author_id,in_reply_to_user_id",
+      "user.fields": "username,name,protected",
+      ...(opts.cursor?.trim() ? { next_token: opts.cursor.trim() } : {}),
+    },
+    creds: session,
+    signal: opts.signal,
+  });
+
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      error: res.error,
+      message: res.message,
+    };
+  }
+
+  const page = parseV2SearchPayload(res.json);
   return {
-    ok: false,
-    status: lastStatus,
-    error: "search_failed",
-    message:
-      lastBody.slice(0, 200) ||
-      `SearchTimeline failed after query-id attempts (HTTP ${lastStatus})`,
+    ok: true,
+    threads: page.threads,
+    queryId: "v2/tweets/search/recent",
+    bottomCursor: page.nextToken,
   };
 }
 
@@ -848,6 +889,11 @@ export async function searchTimelinePages(opts: {
   let cursor: string | undefined;
   let queryId = "";
   let pages = 0;
+  // v2 recent search's next_token is bound to the exact query it was issued for,
+  // so compute start_time once and reuse it on every page (identical params).
+  const startTime = startTimeFromWithin(
+    stripSessionTimeOps(query).within ?? resolveWithinTime(),
+  );
 
   for (let page = 0; page < maxPages; page++) {
     if (opts.signal?.aborted) {
@@ -866,6 +912,7 @@ export async function searchTimelinePages(opts: {
       product: opts.product,
       count: opts.count ?? 20,
       cursor,
+      startTime,
       session: opts.session,
       signal: opts.signal,
     });

@@ -16,12 +16,12 @@ import {
 describe("parseQueryPlanJson", () => {
   it("parses raw JSON", () => {
     const q = parseQueryPlanJson(
-      '{"queries":["AI tools","building in public","filter:replies AI"]}',
+      '{"queries":["AI tools","building in public","is:reply AI"]}',
     );
     assert.deepEqual(q, [
       "AI tools",
       "building in public",
-      "filter:replies AI",
+      "is:reply AI",
     ]);
   });
 
