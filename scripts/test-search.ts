@@ -19,10 +19,10 @@ const query = (process.argv.slice(2).join(" ") || "AI tools").trim();
 const session = getSessionFromEnv();
 console.log("x-copilot search test");
 console.log(`  query: ${query}`);
-console.log(`  session: ${session.configured}`);
+console.log(`  api: ${session.configured}`);
 
 if (!session.configured) {
-  console.error("FAIL: missing X_AUTH_TOKEN / X_CT0");
+  console.error("FAIL: missing X_API_BEARER_TOKEN");
   process.exit(1);
 }
 

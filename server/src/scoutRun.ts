@@ -139,7 +139,7 @@ export async function runScoutSearch(opts: {
       ok: false,
       status: 401,
       error: "missing_credentials",
-      message: "Set X_AUTH_TOKEN and X_CT0 in .env.",
+      message: "Set X_API_BEARER_TOKEN in .env (Pay Per Use app bearer).",
     };
   }
 
