@@ -60,6 +60,14 @@ async function verifyViaApi(session: SessionCreds): Promise<VerifyResult> {
       creds: session,
     });
     if (!res.ok) {
+      if (res.status === 404) {
+        return {
+          ok: false,
+          status: 503,
+          error: "user_not_found",
+          message: `No X user for username ${username}.`,
+        };
+      }
       return {
         ok: false,
         status: res.status,
@@ -103,6 +111,14 @@ async function verifyViaApi(session: SessionCreds): Promise<VerifyResult> {
       creds: session,
     });
     if (!res.ok) {
+      if (res.status === 404) {
+        return {
+          ok: false,
+          status: 503,
+          error: "user_not_found",
+          message: `No X user for id ${userId}.`,
+        };
+      }
       return {
         ok: false,
         status: res.status,
