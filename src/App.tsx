@@ -623,6 +623,8 @@ export default function App() {
   const [usageWindow, setUsageWindow] = useState<UsageWindow>("7d");
   const [usage, setUsage] = useState<UsageSummaryResponse | null>(null);
   const [usageBusy, setUsageBusy] = useState(false);
+  /** Monotonic token so out-of-order usage responses can't show the wrong window. */
+  const usageRequestSeqRef = useRef(0);
   const [usageStatus, setUsageStatus] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
@@ -1462,6 +1464,7 @@ export default function App() {
   }
 
   async function loadUsage(window: UsageWindow = usageWindow) {
+    const seq = ++usageRequestSeqRef.current;
     setUsageBusy(true);
     setUsageStatus("");
     try {
@@ -1469,6 +1472,7 @@ export default function App() {
         `/api/usage?window=${encodeURIComponent(window)}`,
       );
       const data = (await res.json()) as UsageSummaryResponse;
+      if (seq !== usageRequestSeqRef.current) return;
       if (!res.ok || data.ok === false) {
         setUsage(null);
         setUsageStatus(data.message || data.error || `Usage failed (${res.status})`);
@@ -1477,10 +1481,11 @@ export default function App() {
       setUsage(data);
       setUsageWindow(data.window ?? window);
     } catch (err) {
+      if (seq !== usageRequestSeqRef.current) return;
       setUsage(null);
       setUsageStatus(err instanceof Error ? err.message : String(err));
     } finally {
-      setUsageBusy(false);
+      if (seq === usageRequestSeqRef.current) setUsageBusy(false);
     }
   }
 
