@@ -134,7 +134,7 @@ export async function runScoutSearch(opts: {
   onEvent?: (event: ScoutEvent) => void;
 }): Promise<ScoutRunResult> {
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) {
+  if (!session.bearerToken) {
     return {
       ok: false,
       status: 401,

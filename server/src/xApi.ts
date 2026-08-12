@@ -77,24 +77,25 @@ export async function xApiGet(opts: {
     }
   }
 
+  const ac = new AbortController();
   try {
-    const ac = new AbortController();
     const tm = setTimeout(() => ac.abort(), opts.timeoutMs ?? 20000);
     const onAbort = () => ac.abort();
     opts.signal?.addEventListener("abort", onAbort, { once: true });
     let res: Response;
+    let text: string;
     try {
       res = await fetch(url.toString(), {
         method: "GET",
         headers: buildXApiHeaders(creds),
         signal: ac.signal,
       });
+      text = await res.text();
     } finally {
       clearTimeout(tm);
       opts.signal?.removeEventListener("abort", onAbort);
     }
 
-    const text = await res.text();
     let json: unknown;
     try {
       json = text ? JSON.parse(text) : null;
@@ -131,6 +132,14 @@ export async function xApiGet(opts: {
         status: 499,
         error: "client_disconnected",
         message: "Client disconnected",
+      };
+    }
+    if (ac.signal.aborted) {
+      return {
+        ok: false,
+        status: 504,
+        error: "x_api_timeout",
+        message: "X API request timed out",
       };
     }
     return {

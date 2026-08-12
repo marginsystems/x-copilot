@@ -761,6 +761,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (
         session.method === "api_bearer_probe" ||
+        session.method === "badge_count" ||
         !session.user.screen_name ||
         session.user.screen_name === "unknown"
       ) {

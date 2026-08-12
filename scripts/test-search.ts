@@ -21,7 +21,7 @@ console.log("x-copilot search test");
 console.log(`  query: ${query}`);
 console.log(`  api: ${session.configured}`);
 
-if (!session.configured) {
+if (!session.bearerToken) {
   console.error("FAIL: missing X_API_BEARER_TOKEN");
   process.exit(1);
 }

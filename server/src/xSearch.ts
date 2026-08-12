@@ -76,6 +76,7 @@ export const MAX_SEARCH_PAGES = 3;
 const PAGE_DELAY_MS = 400;
 
 let cachedSearchQueryId: string | null = null;
+let v2AutomatedWarningLogged = false;
 
 /**
  * Resolve `Nh` / `Nm` token for within_time.
@@ -630,6 +631,11 @@ type V2Tweet = {
       expanded_url?: string;
       display_url?: string;
     }>;
+    media?: Array<{
+      url?: string;
+      expanded_url?: string;
+      display_url?: string;
+    }>;
   };
   note_tweet?: { text?: string };
   public_metrics?: {
@@ -706,6 +712,16 @@ export function v2TweetToCard(
     card.hasOutboundLink = true;
   }
 
+  const mediaShortlinks = [...mediaShortlinkKeys(tweet.entities)];
+  if (mediaShortlinks.length) card.mediaShortlinks = mediaShortlinks;
+
+  if (!v2AutomatedWarningLogged) {
+    v2AutomatedWarningLogged = true;
+    console.warn(
+      "[xSearch] v2 recent search does not expose X's Automated account badge — the dropAutomatedAccounts filter cannot drop automated accounts on this path.",
+    );
+  }
+
   return card;
 }
 
@@ -754,11 +770,13 @@ export async function searchTimeline(opts: {
   cursor?: string;
   /** When false, skip within_time append (caller already applied). Default true. */
   applyRecency?: boolean;
+  /** Stable v2 recent-search start_time shared across pagination pages. */
+  startTime?: string;
   session?: SessionCreds;
   signal?: AbortSignal;
 }): Promise<SearchTimelineResult> {
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) {
+  if (!session.bearerToken) {
     return {
       ok: false,
       status: 0,
@@ -793,7 +811,7 @@ export async function searchTimeline(opts: {
   const count = Math.min(Math.max(opts.count ?? 20, 10), 100);
   const product = opts.product ?? "Latest";
   const within = stripped.within ?? resolveWithinTime();
-  const startTime = startTimeFromWithin(within);
+  const startTime = opts.startTime ?? startTimeFromWithin(within);
 
   const res = await xApiGet({
     path: "/tweets/search/recent",
@@ -864,6 +882,11 @@ export async function searchTimelinePages(opts: {
   let cursor: string | undefined;
   let queryId = "";
   let pages = 0;
+  // v2 recent search's next_token is bound to the exact query it was issued for,
+  // so compute start_time once and reuse it on every page (identical params).
+  const startTime = startTimeFromWithin(
+    stripSessionTimeOps(query).within ?? resolveWithinTime(),
+  );
 
   for (let page = 0; page < maxPages; page++) {
     if (opts.signal?.aborted) {
@@ -882,6 +905,7 @@ export async function searchTimelinePages(opts: {
       product: opts.product,
       count: opts.count ?? 20,
       cursor,
+      startTime,
       session: opts.session,
       signal: opts.signal,
     });
