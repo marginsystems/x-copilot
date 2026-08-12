@@ -164,7 +164,7 @@ export async function discoverOwnReplies(opts?: {
   resolveScreenName?: () => Promise<string | null>;
 }): Promise<DiscoverRepliesResult> {
   const session = opts?.session ?? getSessionFromEnv();
-  if (!session.configured) {
+  if (!session.authToken || !session.ct0) {
     return {
       ok: false,
       searched: 0,

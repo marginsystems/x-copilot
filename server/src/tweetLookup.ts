@@ -161,7 +161,7 @@ export async function fetchParentTweet(opts: {
   if (parentCache.has(tweetId)) return parentCache.get(tweetId) ?? null;
 
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) {
+  if (!session.authToken || !session.ct0) {
     parentCache.set(tweetId, null);
     return null;
   }
@@ -288,7 +288,7 @@ export async function fetchTweetMetrics(opts: {
   if (opts.signal?.aborted) return null;
 
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) {
+  if (!session.authToken || !session.ct0) {
     return null;
   }
 

@@ -668,7 +668,7 @@ export async function searchTimeline(opts: {
   signal?: AbortSignal;
 }): Promise<SearchTimelineResult> {
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) {
+  if (!session.authToken || !session.ct0) {
     return {
       ok: false,
       status: 0,
