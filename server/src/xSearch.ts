@@ -743,9 +743,16 @@ function parseV2SearchPayload(json: unknown): {
     if (t.id) tweetsById.set(t.id, t);
   }
   const threads: ThreadCard[] = [];
+  let dropped = 0;
   for (const tw of root.data ?? []) {
     const card = v2TweetToCard(tw, usersById, tweetsById);
     if (card) threads.push(card);
+    else dropped += 1;
+  }
+  if (dropped > 0) {
+    console.warn(
+      `[xSearch] v2 recent search dropped ${dropped} result(s) with unresolvable id/text/author (suspended or withheld author missing from includes.users).`,
+    );
   }
   return {
     threads,

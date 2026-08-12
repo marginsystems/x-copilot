@@ -142,9 +142,13 @@ export async function xApiGet(opts: {
         message: "X API request timed out",
       };
     }
+    // Transport failure (DNS, connection refused, socket reset) — a retryable
+    // 5xx, not a terminal 401. The endpoints map missing_credentials (status 0)
+    // to 401 via `status || 401`, so status 0 here would mislabel a transient
+    // network blip as bad credentials.
     return {
       ok: false,
-      status: 0,
+      status: 502,
       error: "x_api_failed",
       message: err instanceof Error ? err.message : String(err),
     };
