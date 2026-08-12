@@ -6,7 +6,7 @@
 //   ./pm2-manager.sh start
 //
 // ecosystem.config.cjs is gitignored — do not commit machine-local copies.
-// Secrets (X_AUTH_TOKEN, X_CT0) stay in .env (loaded by both the API and stats worker at startup).
+// Secrets (X_API_BEARER_TOKEN, LLM keys) stay in .env (loaded by both the API and stats worker at startup).
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -53,7 +53,7 @@ module.exports = {
       time: true,
       env: {
         NODE_ENV: "production",
-        // X_AUTH_TOKEN and X_CT0 are loaded from .env at startup (via loadEnv).
+        // X_API_BEARER_TOKEN is loaded from .env at startup (via loadEnv).
         // If .env is missing or cwd differs, all stats fetches will fail silently.
       },
       out_file: path.join(root, "logs", "x-copilot-stats.out.log"),

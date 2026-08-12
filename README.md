@@ -1,14 +1,14 @@
 # x-copilot
 
-Research + triage assistant for X (Twitter): **session-backed search → DeepSeek triage** in a Vite dashboard. Scout finds cool threads worth a human reply — no AI-written reply drafts.
+Research + triage assistant for X (Twitter): **official X API search → DeepSeek triage** in a Vite dashboard. Scout finds cool threads worth a human reply — no AI-written reply drafts.
 
-**Status:** Stream 1 — agenda → DeepSeek Chat queries → session SearchTimeline → triaged thread cards (Start/Stop Scout).
+**Status:** Stream 1 — agenda → DeepSeek Chat queries → recent search (official X API) → triaged thread cards (Start/Stop Scout).
 
 ## Idea
 
 1. Paste an **agenda** (who/what to engage, voice, avoid list).
 2. **DeepSeek Chat** expands the agenda into 2–4 short X search queries (one LLM call).
-3. Sidecar runs those queries via session-backed **SearchTimeline** (not the official paid API).
+3. Sidecar runs those queries via the official X API **recent search** (`GET /2/tweets/search/recent`, app-only bearer).
 4. A second DeepSeek call **triages** the results (summary + bait risk + engage hint).
 5. Review cool thread cards, **Open on X**, and reply yourself (no auto-engage; no AI draft replies).
 
@@ -39,13 +39,13 @@ Scout stage lines are appended to `data/scout-log.json` (gitignored; last 1000) 
 
 ## Length filter
 
-Before triage, posts with more than **480** characters (or obvious `N/M` thread openers like `1/17 …`) are dropped so walls of text never reach DeepSeek or the accordion. Override with `X_MAX_THREAD_CHARS` in `.env`, or via **Settings** in the UI (hamburger menu) — the UI sends `filters` on each Scout run and wins over env for that request. **X Articles** are hard-dropped by default when SearchTimeline marks an article payload (toggle in Settings). When a **note tweet** body is present, that text is used for the char cap instead of the short `full_text` teaser. The search status line reports how many were dropped.
+Before triage, posts with more than **480** characters (or obvious `N/M` thread openers like `1/17 …`) are dropped so walls of text never reach DeepSeek or the accordion. Override with `X_MAX_THREAD_CHARS` in `.env`, or via **Settings** in the UI (hamburger menu) — the UI sends `filters` on each Scout run and wins over env for that request. **X Articles** are hard-dropped by default when the search payload marks an article (toggle in Settings). When a **note tweet** body is present, that text is used for the char cap instead of the short `full_text` teaser. The search status line reports how many were dropped.
 
 ## Scout
 
 **Scout** is x-copilot’s search mini-agent. Use **Start Scout** / **Stop Scout** on the dashboard. Flow:
 
-1. Plan queries (DeepSeek), then pace X SearchTimeline (**20** hits/query).
+1. Plan queries (DeepSeek), then pace X recent search (**20** hits/query).
 2. **Hard-filter bucket** (cooldown + Article/char/links/self-reply) with **no LLM** until the bucket has **K** candidates (UI sends `bucketSize: 20`; server accepts 5|10|20). Keep searching / cycling queries (one replan, search budget) while the bucket is short.
 3. **LLM-qualify** the full bucket. Cool = `engage` `priority`/`consider` and `baitScore ≤ 45`.
 4. Keep cool threads and refill until **Cool threads** target (`targetCool`, 1–20) or supply is exhausted. If a full bucket yields **0 cool**, discard and refill. Budget/Stop → `exhausted` / `aborted`; hit target → `stopReason: target`.
@@ -55,28 +55,28 @@ Status shows `Candidates n/K` while filling and `Cool n/target` as cools accumul
 ## Architecture
 
 ```
-Vite UI  →  local Node sidecar  →  X (session cookie)
+Vite UI  →  local Node sidecar  →  X API v2 (app-only bearer)
                  ↓
-              DeepSeek API
+              Gemini / DeepSeek
 ```
 
-Cookies and API keys stay in `.env` on the sidecar. The browser never stores the session.
+Bearer token and LLM keys stay in `.env` on the sidecar. The browser never stores credentials.
 
 ## Quick start
 
 ```bash
 cp .env.example .env
-# set X_AUTH_TOKEN + X_CT0 (see below), optional DEEPSEEK_API_KEY
+# set X_API_BEARER_TOKEN (+ X_OPERATOR_USERNAME), and GEMINI_API_KEY or DEEPSEEK_API_KEY
 
 npm install
-npm run test:session   # prove cookies work (GraphQL Viewer)
+npm run test:session   # prove Pay Per Use bearer works
 npm run build:server   # emit server/dist for production-shaped runs
 npm run dev:server     # tsx watch → http://127.0.0.1:8787
 npm run dev            # http://127.0.0.1:5173  (proxies /api → sidecar)
 ```
 
 Health: `curl http://127.0.0.1:8787/api/health`  
-Session: `curl http://127.0.0.1:8787/api/session/verify`
+API verify: `curl http://127.0.0.1:8787/api/session/verify`
 
 **Important:** Vite alone is not enough. If you only run `npm run dev`, Search hits a dead proxy and shows a proxy/500 error. Always run `dev:server` too.
 
@@ -88,26 +88,28 @@ Session: `curl http://127.0.0.1:8787/api/session/verify`
 | `npm run build:server` | `tsc -p tsconfig.server.json` → `server/dist/` |
 | `npm run test:session` | `tsx scripts/test-session.ts` |
 | `npm test` | Unit tests (`node:test` via tsx) |
-| `npm run test:search -- "query"` | Live SearchTimeline smoke |
+| `npm run test:search -- "query"` | Live recent-search smoke |
 
 UI typecheck stays on root `tsconfig.json` (`noEmit`); the API uses `tsconfig.server.json` (NodeNext emit).
 
-## Session cookies
+## Official X API
 
-Use **your own** logged-in browser session. We need two cookie values:
+Use a **Pay Per Use** project/app from [console.x.com](https://console.x.com) (not Ads).
 
-| Cookie | Env var | Role |
-|--------|---------|------|
-| `auth_token` | `X_AUTH_TOKEN` | Session identity |
-| `ct0` | `X_CT0` | CSRF token (also sent as `x-csrf-token`) |
+| Env var | Role |
+|---------|------|
+| `X_API_BEARER_TOKEN` | App-only Bearer (keep URL-encoding as issued) |
+| `X_API_KEY` / `X_API_SECRET` | Consumer key/secret (optional; stored for OAuth later) |
+| `X_OPERATOR_USERNAME` | Your handle (no `@`) for Mark detect / reply discover |
+| `X_OPERATOR_USER_ID` | Optional numeric id |
 
-### How to copy them (Chrome / Edge / Brave)
+### Setup
 
-1. Log into [https://x.com](https://x.com) in a normal browser tab.
-2. Open DevTools → **Application** → **Cookies** → `https://x.com`.
-3. Find `auth_token` → copy **Value** into `.env` as `X_AUTH_TOKEN=...`
-4. Find `ct0` → copy **Value** into `.env` as `X_CT0=...`
-5. Save `.env` (never commit it) and run:
+1. Create a Project/App under **Pay Per Use**.
+2. Billing → buy credits + set a spending limit.
+3. Copy the App **Bearer Token** into `.env` as `X_API_BEARER_TOKEN=...` (do not decode `%2F` / `%2B` / `%3D`).
+4. Set `X_OPERATOR_USERNAME=yourhandle`.
+5. Run:
 
 ```bash
 npm run test:session
@@ -116,29 +118,22 @@ npm run test:session
 Expected success looks like:
 
 ```
-OK: session verified
-  @yourhandle (Your Name)
-  id 123456789
+OK via api_users_by_username
+  @yourhandle (id=…)
 ```
 
-If it fails with 401/403, log out/in on x.com and re-copy **both** cookies (they rotate).
+If you see HTTP **402**, buy credits. HTTP **401** usually means the bearer was URL-decoded or rotated — paste it again as shown in the console.
 
-### What the test hits
-
-Read-only GraphQL `Viewer` (with `badge_count` fallback) using your cookies + the public web-client bearer. No posts.
-
-If Viewer starts 404ing after an X web deploy, refresh `X_VIEWER_QUERY_ID` in `.env` (query IDs rotate).
-
-This path is **experimental**: X can change shapes, rate-limit, or lock accounts. Personal tooling only — no mass automation, no auto-posting in this MVP. You are responsible for complying with X’s terms and applicable law.
+Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only — no mass automation, no auto-posting in this MVP. You are responsible for complying with X’s terms and applicable law.
 
 ## Repo layout
 
 | Path | Role |
 |------|------|
 | `src/` | Vite dashboard (agenda, Scout, threads) |
-| `server/src/` | TypeScript sidecar (HTTP API + X session + SearchTimeline) |
+| `server/src/` | TypeScript sidecar (HTTP API + X API v2 + recent search) |
 | `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
-| `scripts/test-session.ts` | CLI session smoke test |
+| `scripts/test-session.ts` | CLI X API smoke test |
 | `tsconfig.server.json` | Server emit config |
 | `pm2-manager.sh` | start/stop/restart/status/logs/setup-logrotate |
 | `ecosystem.config.example.cjs` | PM2 template (copy → local `ecosystem.config.cjs`) |
@@ -176,7 +171,7 @@ npm i -g pm2                                           # if needed
 
 - Agenda → Scout → triaged cool thread cards
 - Human-in-the-loop posting only (Open on X; no AI reply drafts)
-- README documents cookie setup + risks
+- README documents official X API setup + Pay Per Use credits
 
 ## License
 

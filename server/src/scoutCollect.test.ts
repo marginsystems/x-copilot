@@ -171,8 +171,6 @@ describe("clampTargetCool / clampBucketSize", () => {
 
 describe("runScoutCollect bucket loop", () => {
   const session = {
-    authToken: "t",
-    ct0: "c",
     bearerToken: "t",
     configured: true,
     operatorUserId: "",

@@ -94,7 +94,7 @@ type ScoutStreamEvent = {
   queries?: string[];
   coolCount?: number;
   targetCool?: number;
-  stopReason?: "qualified" | "target" | "exhausted" | "aborted";
+  stopReason?: "qualified" | "target" | "exhausted" | "aborted" | "rate_limited";
   candidates?: number;
   bucketSize?: number;
   triageWarning?: string;
@@ -1931,13 +1931,13 @@ export default function App() {
               <p className="menu-session">
                 {sessionUser
                   ? `@${sessionUser.screen_name}`
-                  : "Session not verified"}
+                  : "X API not verified"}
               </p>
               {sessionUser ? (
                 <p className="menu-session-name">{sessionUser.name}</p>
               ) : (
                 <p className="menu-session-hint">
-                  Verify your X session to scout and mark replies.
+                  Verify X API (bearer + operator username) to scout and mark replies.
                 </p>
               )}
             </div>
@@ -1948,7 +1948,7 @@ export default function App() {
                 disabled={actionBusy}
                 onClick={() => void onVerifySession()}
               >
-                Verify session
+                Verify X API
               </button>
               <button
                 type="button"

@@ -8,15 +8,11 @@ import {
 import type { ThreadCard } from "./xSearch.ts";
 
 function withSession(fn: () => Promise<void>): Promise<void> {
-  const prevToken = process.env.X_AUTH_TOKEN;
-  const prevCt0 = process.env.X_CT0;
-  process.env.X_AUTH_TOKEN = "test-token";
-  process.env.X_CT0 = "test-ct0";
+  const prev = process.env.X_API_BEARER_TOKEN;
+  process.env.X_API_BEARER_TOKEN = "test-bearer";
   return fn().finally(() => {
-    if (prevToken === undefined) delete process.env.X_AUTH_TOKEN;
-    else process.env.X_AUTH_TOKEN = prevToken;
-    if (prevCt0 === undefined) delete process.env.X_CT0;
-    else process.env.X_CT0 = prevCt0;
+    if (prev === undefined) delete process.env.X_API_BEARER_TOKEN;
+    else process.env.X_API_BEARER_TOKEN = prev;
   });
 }
 
@@ -292,38 +288,13 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
-  it("does not cache a stale-query 'Query not found' response", async () => {
+  it("caches an authoritative 200 miss (no data)", async () => {
     await withSession(async () => {
       let calls = 0;
       const origFetch = globalThis.fetch;
       globalThis.fetch = async () => {
         calls += 1;
-        return jsonResponse("Query not found", 404);
-      };
-      try {
-        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
-        const afterFirst = calls;
-        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
-        assert.ok(
-          calls > afterFirst,
-          "stale-query 'Query not found' must not poison the parent cache",
-        );
-      } finally {
-        globalThis.fetch = origFetch;
-      }
-    });
-  });
-
-  it("caches an authoritative 200 miss (deleted/private/suspended)", async () => {
-    await withSession(async () => {
-      let calls = 0;
-      const origFetch = globalThis.fetch;
-      globalThis.fetch = async () => {
-        calls += 1;
-        return jsonResponse(
-          { data: { tweetResult: { result: null } } },
-          200,
-        );
+        return jsonResponse({ data: null, errors: [{ detail: "Not Found" }] }, 200);
       };
       try {
         assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
@@ -340,97 +311,6 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
-  it("does not cache a transient 200 GraphQL error envelope", async () => {
-    await withSession(async () => {
-      let calls = 0;
-      const origFetch = globalThis.fetch;
-      globalThis.fetch = async () => {
-        calls += 1;
-        return jsonResponse(
-          {
-            errors: [{ message: "Something went wrong", retryable: true }],
-            data: null,
-          },
-          200,
-        );
-      };
-      try {
-        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
-        const afterFirst = calls;
-        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
-        assert.ok(
-          calls > afterFirst,
-          "retryable GraphQL error must not poison the parent cache",
-        );
-      } finally {
-        globalThis.fetch = origFetch;
-      }
-    });
-  });
-
-  it("caches a non-retryable 200 GraphQL error envelope", async () => {
-    await withSession(async () => {
-      let calls = 0;
-      const origFetch = globalThis.fetch;
-      globalThis.fetch = async () => {
-        calls += 1;
-        return jsonResponse(
-          {
-            errors: [
-              { message: "Could not find tweet with id: 800", retryable: false },
-            ],
-            data: null,
-          },
-          200,
-        );
-      };
-      try {
-        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
-        const afterFirst = calls;
-        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
-        assert.equal(
-          calls,
-          afterFirst,
-          "non-retryable GraphQL miss should be cached",
-        );
-      } finally {
-        globalThis.fetch = origFetch;
-      }
-    });
-  });
-
-  it("caches a TweetUnavailable (suspended) result", async () => {
-    await withSession(async () => {
-      let calls = 0;
-      const origFetch = globalThis.fetch;
-      globalThis.fetch = async () => {
-        calls += 1;
-        return jsonResponse(
-          {
-            data: {
-              tweetResult: {
-                result: { __typename: "TweetUnavailable" },
-              },
-            },
-          },
-          200,
-        );
-      };
-      try {
-        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
-        const afterFirst = calls;
-        assert.equal(await fetchParentTweet({ tweetId: "800" }), null);
-        assert.equal(
-          calls,
-          afterFirst,
-          "TweetUnavailable miss should be cached",
-        );
-      } finally {
-        globalThis.fetch = origFetch;
-      }
-    });
-  });
-
   it("caches successful lookups", async () => {
     await withSession(async () => {
       let calls = 0;
@@ -440,24 +320,13 @@ describe("fetchParentTweet cache semantics", () => {
         return jsonResponse(
           {
             data: {
-              tweetResult: {
-                result: {
-                  __typename: "Tweet",
-                  rest_id: "800",
-                  core: {
-                    user_results: {
-                      result: {
-                        legacy: { screen_name: "bait_op" },
-                      },
-                    },
-                  },
-                  legacy: {
-                    id_str: "800",
-                    full_text: "bait root text",
-                    created_at: "Tue Jan 01 00:00:00 +0000 2026",
-                  },
-                },
-              },
+              id: "800",
+              text: "bait root text",
+              author_id: "1",
+              created_at: "2026-01-01T00:00:00.000Z",
+            },
+            includes: {
+              users: [{ id: "1", username: "bait_op", name: "Bait" }],
             },
           },
           200,

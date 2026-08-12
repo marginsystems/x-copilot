@@ -1,21 +1,11 @@
 /**
- * Session-backed lookup of a single tweet by rest id (parent OP hydrate).
+ * Official X API v2 tweet lookup (parent OP hydrate + engagement metrics).
  */
 import { normalizeAuthorKey } from "./interactionStore.js";
-import {
-  buildSessionHeaders,
-  getSessionFromEnv,
-  type SessionCreds,
-} from "./xSession.js";
-import { searchFeatures, tweetResultToCard } from "./xSearch.js";
+import { xApiGet } from "./xApi.js";
+import { getSessionFromEnv, type SessionCreds } from "./xSession.js";
+import { tweetResultToCard, v2TweetToCard } from "./xSearch.js";
 
-const DEFAULT_TWEET_RESULT_QUERY_IDS = [
-  "0hWvDhmW8Y3-o0KUQA5tAA",
-  "VWFGPVAGkZMGRKGe3GFSbw",
-  "sCUGcvxAswEHExgYEilL9g",
-];
-
-let cachedTweetQueryId: string | null = null;
 const parentCache = new Map<string, { author: string; text: string } | null>();
 
 export type ParentTweet = { author: string; text: string };
@@ -27,12 +17,9 @@ export type TweetMetrics = {
   retweets?: number;
 };
 
+/** @deprecated GraphQL query-id helper — unused on v2. */
 export function getTweetResultQueryId(): string {
-  return (
-    process.env.X_TWEET_RESULT_QUERY_ID?.trim() ||
-    cachedTweetQueryId ||
-    DEFAULT_TWEET_RESULT_QUERY_IDS[0]
-  );
+  return "v2/tweets";
 }
 
 /** Test helper — clear in-process parent cache. */
@@ -50,13 +37,6 @@ function tweetResultFromPayload(data: unknown): unknown {
   return root?.data?.tweetResult?.result ?? root?.data?.tweet_result?.result;
 }
 
-function parseTweetResultPayload(data: unknown): ParentTweet | null {
-  const result = tweetResultFromPayload(data);
-  const card = tweetResultToCard(result);
-  if (!card?.author || !card.text) return null;
-  return { author: card.author, text: card.text };
-}
-
 function asFiniteNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -69,9 +49,45 @@ function asFiniteNumber(value: unknown): number | undefined {
 /**
  * Parse engagement counts from a TweetResultByRestId payload or tweet result node.
  * Soft-fails to null when no usable counts are present.
+ * (Kept for unit-test fixtures of legacy GraphQL shapes.)
  */
 export function parseTweetMetrics(data: unknown): TweetMetrics | null {
   if (!data || typeof data !== "object") return null;
+
+  // v2 tweet object
+  const maybeV2 = data as {
+    data?: {
+      public_metrics?: Record<string, unknown>;
+      id?: string;
+    };
+    public_metrics?: Record<string, unknown>;
+  };
+  const v2Metrics =
+    maybeV2.data?.public_metrics ??
+    (maybeV2.public_metrics && typeof maybeV2.public_metrics === "object"
+      ? maybeV2.public_metrics
+      : null);
+  if (v2Metrics) {
+    const likes = asFiniteNumber(v2Metrics.like_count);
+    const replies = asFiniteNumber(v2Metrics.reply_count);
+    const retweets = asFiniteNumber(v2Metrics.retweet_count);
+    const views = asFiniteNumber(v2Metrics.impression_count);
+    if (
+      views === undefined &&
+      likes === undefined &&
+      replies === undefined &&
+      retweets === undefined
+    ) {
+      return null;
+    }
+    const out: TweetMetrics = {};
+    if (views !== undefined) out.views = views;
+    if (likes !== undefined) out.likes = likes;
+    if (replies !== undefined) out.replies = replies;
+    if (retweets !== undefined) out.retweets = retweets;
+    return out;
+  }
+
   const maybeWrapped = tweetResultFromPayload(data);
   let node: Record<string, unknown> | null = null;
   if (maybeWrapped && typeof maybeWrapped === "object") {
@@ -79,7 +95,6 @@ export function parseTweetMetrics(data: unknown): TweetMetrics | null {
   } else {
     node = data as Record<string, unknown>;
   }
-  // Unwrap TweetWithVisibilityResults etc.
   if (node.tweet && typeof node.tweet === "object") {
     node = node.tweet as Record<string, unknown>;
   }
@@ -107,48 +122,43 @@ export function parseTweetMetrics(data: unknown): TweetMetrics | null {
   return out;
 }
 
-async function healTweetResultQueryId(
-  session: SessionCreds,
-): Promise<string | null> {
-  try {
-    const headers = buildSessionHeaders(session);
-    const page = await fetch("https://x.com/home", {
-      headers: { "user-agent": headers["user-agent"] },
-    });
-    const html = await page.text();
-    const scripts = [
-      ...html.matchAll(
-        /https:\/\/abs\.twimg\.com\/responsive-web\/client-web[^"']+\.js/g,
-      ),
-    ].map((m) => m[0]);
-    for (const src of [...new Set(scripts)].slice(0, 20)) {
-      const js = await (await fetch(src)).text();
-      if (!js.includes("TweetResultByRestId")) continue;
-      const m =
-        js.match(
-          /queryId:"([A-Za-z0-9-_]+)"[^]{0,200}?operationName:"TweetResultByRestId"/,
-        ) ||
-        js.match(
-          /operationName:"TweetResultByRestId"[^]{0,200}?queryId:"([A-Za-z0-9-_]+)"/,
-        );
-      if (m?.[1]) {
-        cachedTweetQueryId = m[1];
-        return m[1];
-      }
-    }
-  } catch (err) {
-    console.error("healTweetResultQueryId failed:", err);
-  }
-  return null;
+function parseTweetResultPayload(data: unknown): ParentTweet | null {
+  const result = tweetResultFromPayload(data);
+  const card = tweetResultToCard(result);
+  if (!card?.author || !card.text) return null;
+  return { author: card.author, text: card.text };
+}
+
+type V2LookupJson = {
+  data?: {
+    id?: string;
+    text?: string;
+    author_id?: string;
+    note_tweet?: { text?: string };
+    public_metrics?: Record<string, unknown>;
+  };
+  includes?: {
+    users?: Array<{ id?: string; username?: string; name?: string }>;
+  };
+};
+
+function parentFromV2(json: unknown): ParentTweet | null {
+  const root = json as V2LookupJson;
+  const tw = root.data;
+  if (!tw?.id) return null;
+  const usersById = new Map(
+    (root.includes?.users ?? [])
+      .filter((u) => u.id)
+      .map((u) => [u.id!, u] as const),
+  );
+  const card = v2TweetToCard(tw, usersById);
+  if (!card?.author || !card.text) return null;
+  return { author: card.author, text: card.text };
 }
 
 /**
  * Fetch parent/OP tweet text by rest id. Soft-fails to null.
- * Cached per process: successes and genuine misses (HTTP 404 or an
- * authoritative 200 with a null/TweetUnavailable result, or a 200 errors
- * envelope whose errors are all non-retryable). Transient failures (timeout,
- * 5xx/429, network errors, retryable GraphQL errors) and stale-query "Query
- * not found" responses are NOT cached so a later retry can still succeed.
+ * Cached per process for successes and genuine misses.
  */
 export async function fetchParentTweet(opts: {
   tweetId: string;
@@ -161,124 +171,46 @@ export async function fetchParentTweet(opts: {
   if (parentCache.has(tweetId)) return parentCache.get(tweetId) ?? null;
 
   const session = opts.session ?? getSessionFromEnv();
-  // TweetResultByRestId is a session-cookie GraphQL endpoint: without cookies a
-  // pure-bearer session would fire empty-cookie requests that always fail.
-  if (!session.authToken || !session.ct0) {
+  if (!session.configured) {
     parentCache.set(tweetId, null);
     return null;
   }
 
-  let sawGenuineMiss = false;
+  const res = await xApiGet({
+    path: `/tweets/${encodeURIComponent(tweetId)}`,
+    query: {
+      "tweet.fields": "created_at,author_id,note_tweet,entities",
+      expansions: "author_id",
+      "user.fields": "username,name",
+    },
+    creds: session,
+    signal: opts.signal,
+    timeoutMs: 12000,
+  });
 
-  const features = searchFeatures();
-  const headers = {
-    ...buildSessionHeaders(session),
-    "content-type": "application/json",
-    referer: `https://x.com/i/status/${tweetId}`,
-  };
-
-  const tryIds = [
-    getTweetResultQueryId(),
-    ...DEFAULT_TWEET_RESULT_QUERY_IDS.filter(
-      (id) => id !== getTweetResultQueryId(),
-    ),
-  ];
-
-  for (let attempt = 0; attempt < tryIds.length + 1; attempt++) {
-    if (opts.signal?.aborted) return null;
-    const qid =
-      attempt < tryIds.length
-        ? tryIds[attempt]
-        : (await healTweetResultQueryId(session)) || tryIds[0];
-
-    const variables = {
-      tweetId,
-      withCommunity: false,
-      includePromotedContent: false,
-      withVoice: false,
-    };
-    const params = new URLSearchParams({
-      variables: JSON.stringify(variables),
-      features: JSON.stringify(features),
-    });
-    const url = `https://x.com/i/api/graphql/${qid}/TweetResultByRestId?${params}`;
-
-    let res: Response;
-    try {
-      const ac = new AbortController();
-      const tm = setTimeout(() => ac.abort(), 12000);
-      const onAbort = () => ac.abort();
-      opts.signal?.addEventListener("abort", onAbort, { once: true });
-      try {
-        res = await fetch(url, {
-          method: "GET",
-          headers,
-          signal: ac.signal,
-        });
-      } finally {
-        clearTimeout(tm);
-        opts.signal?.removeEventListener("abort", onAbort);
-      }
-    } catch {
-      continue;
-    }
-
-    let text = "";
-    try {
-      text = await res.text();
-    } catch {
-      continue;
-    }
-    // "Query not found" is the persisted-query error for a stale/rotated
-    // query ID, not a per-tweet miss — retry the next ID, never cache it.
-    if (text.includes("Query not found")) continue;
-    if (res.status === 404) {
-      sawGenuineMiss = true;
-      continue;
-    }
-    if (!res.ok) continue;
-
-    let data: unknown;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      continue;
-    }
-
-    const parent = parseTweetResultPayload(data);
-    if (parent) {
-      cachedTweetQueryId = qid;
-      parentCache.set(tweetId, parent);
-      return parent;
-    }
-    // Deleted/private/suspended tweets return HTTP 200 with a null or
-    // TweetUnavailable result — an authoritative, cacheable miss. The X
-    // GraphQL error envelope ({ errors: [...], data: null }) carries the
-    // permanent "Could not find tweet" miss, but transient degraded /
-    // rate-limit errors arrive the same way, so only cache when every
-    // error is explicitly non-retryable.
-    const result = tweetResultFromPayload(data);
-    const errors = (data as { errors?: Array<{ retryable?: boolean }> }).errors;
-    const isTweetUnavailable =
-      typeof result === "object" &&
-      result !== null &&
-      (result as { __typename?: string }).__typename === "TweetUnavailable";
-    const transientError =
-      Array.isArray(errors) &&
-      errors.length > 0 &&
-      !errors.every((e) => e?.retryable === false);
-    if ((result == null || isTweetUnavailable) && !transientError) {
-      sawGenuineMiss = true;
-    }
+  if (!res.ok) {
+    if (res.status === 404) parentCache.set(tweetId, null);
+    return null;
   }
 
-  if (sawGenuineMiss) parentCache.set(tweetId, null);
+  // Prefer v2 mapping; fall back to legacy GraphQL fixture parser for tests.
+  const parent = parentFromV2(res.json) ?? parseTweetResultPayload(res.json);
+  if (parent) {
+    parentCache.set(tweetId, parent);
+    return parent;
+  }
+  // Only cache a genuine miss (no tweet data in the payload). A 200 whose
+  // data maps to no parent (e.g. suspended author missing from includes.users)
+  // stays uncached so a later run can retry instead of poisoning the cache.
+  const envelope = res.json as { data?: unknown } | null;
+  if (envelope?.data === undefined || envelope.data === null) {
+    parentCache.set(tweetId, null);
+  }
   return null;
 }
 
 /**
  * Fetch engagement metrics for a tweet by rest id. Soft-fails to null.
- * Cached per process (success and miss).
  */
 export async function fetchTweetMetrics(opts: {
   tweetId: string;
@@ -290,88 +222,21 @@ export async function fetchTweetMetrics(opts: {
   if (opts.signal?.aborted) return null;
 
   const session = opts.session ?? getSessionFromEnv();
-  // Metrics come from the same session-cookie GraphQL endpoint as parent tweets.
-  if (!session.authToken || !session.ct0) {
+  if (!session.configured) {
     return null;
   }
 
-  const features = searchFeatures();
-  const headers = {
-    ...buildSessionHeaders(session),
-    "content-type": "application/json",
-    referer: `https://x.com/i/status/${tweetId}`,
-  };
-
-  const tryIds = [
-    getTweetResultQueryId(),
-    ...DEFAULT_TWEET_RESULT_QUERY_IDS.filter(
-      (id) => id !== getTweetResultQueryId(),
-    ),
-  ];
-
-  for (let attempt = 0; attempt < tryIds.length + 1; attempt++) {
-    if (opts.signal?.aborted) return null;
-    const qid =
-      attempt < tryIds.length
-        ? tryIds[attempt]
-        : (await healTweetResultQueryId(session)) || tryIds[0];
-
-    const variables = {
-      tweetId,
-      withCommunity: false,
-      includePromotedContent: false,
-      withVoice: false,
-    };
-    const params = new URLSearchParams({
-      variables: JSON.stringify(variables),
-      features: JSON.stringify(features),
-    });
-    const url = `https://x.com/i/api/graphql/${qid}/TweetResultByRestId?${params}`;
-
-    let res: Response;
-    try {
-      const ac = new AbortController();
-      const tm = setTimeout(() => ac.abort(), 12000);
-      const onAbort = () => ac.abort();
-      opts.signal?.addEventListener("abort", onAbort, { once: true });
-      try {
-        res = await fetch(url, {
-          method: "GET",
-          headers,
-          signal: ac.signal,
-        });
-      } finally {
-        clearTimeout(tm);
-        opts.signal?.removeEventListener("abort", onAbort);
-      }
-    } catch {
-      continue;
-    }
-
-    let text = "";
-    try {
-      text = await res.text();
-    } catch {
-      continue;
-    }
-    if (res.status === 404 || text.includes("Query not found")) continue;
-    if (!res.ok) continue;
-
-    let data: unknown;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      continue;
-    }
-
-    const metrics = parseTweetMetrics(data);
-    if (metrics) {
-      cachedTweetQueryId = qid;
-      return metrics;
-    }
-  }
-
-  return null;
+  const res = await xApiGet({
+    path: `/tweets/${encodeURIComponent(tweetId)}`,
+    query: {
+      "tweet.fields": "public_metrics",
+    },
+    creds: session,
+    signal: opts.signal,
+    timeoutMs: 12000,
+  });
+  if (!res.ok) return null;
+  return parseTweetMetrics(res.json);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -402,13 +267,10 @@ export async function hydrateReplyParents(opts: {
 
   for (let i = 0; i < out.length; i++) {
     if (opts.signal?.aborted) break;
-    const t = out[i];
+    const t = out[i]!;
     if (!t.inReplyToId || t.opParentDerived) continue;
     if (lookedUp > 0) await sleep(delayMs);
     lookedUp += 1;
-    // Fetch the immediate reply parent first: its author is the actual reply
-    // target, so an author match is a self-reply even when inReplyToScreenName
-    // is missing (the post-hydrate re-filter case, #121).
     const parent = await fetchParent({
       tweetId: t.inReplyToId,
       session: opts.session,
@@ -426,9 +288,6 @@ export async function hydrateReplyParents(opts: {
       };
       continue;
     }
-    // Nested replies (parent ≠ root): prefer the conversation root so triage
-    // sees bait OPs, falling back to the immediate parent when the root is
-    // unavailable (deleted/private/suspended).
     let source = parent;
     if (t.conversationId && t.conversationId !== t.inReplyToId) {
       if (lookedUp > 0) await sleep(delayMs);
@@ -438,9 +297,6 @@ export async function hydrateReplyParents(opts: {
         session: opts.session,
         signal: opts.signal,
       });
-      // Only prefer the root when its author differs from the card author;
-      // otherwise the root is the card author's own thread and using it as
-      // opAuthor would misclassify a cross-account reply as a self-reply.
       if (
         root &&
         normalizeAuthorKey(root.author) !== normalizeAuthorKey(t.author)

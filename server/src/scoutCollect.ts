@@ -356,7 +356,6 @@ export async function runScoutCollect(opts: {
   let stopReason: ScoutStopReason = "exhausted";
   let rateLimited = false;
   let unhydratedReplyCount = 0;
-  let hydrationWarningShown = false;
   let searchCalls = 0;
   let queryIndex = 0;
   let replanned = false;
@@ -612,22 +611,6 @@ export async function runScoutCollect(opts: {
         break;
       }
       unhydratedReplyCount += hydrated.unhydratedReplyCount;
-
-      // Bearer-only sessions pass the search gate but cannot hydrate reply
-      // parents (TweetResultByRestId needs X_AUTH_TOKEN/X_CT0 cookies). Warn
-      // loudly so the OP-detection / post-hydrate self-reply gap is not silent.
-      if (
-        !hydrationWarningShown &&
-        (!session.authToken || !session.ct0) &&
-        hydrated.unhydratedReplyCount > 0
-      ) {
-        hydrationWarningShown = true;
-        track(
-          "filtering",
-          "Reply-parent OP hydration unavailable — X_AUTH_TOKEN/X_CT0 session cookies are not set; OP bait/promo-root detection and post-hydrate self-reply filtering are disabled.",
-          { candidates: bucket.length, coolCount: cool.length },
-        );
-      }
 
       // Drop same-author replies revealed only after hydrate (missing inReplyToScreenName).
       const afterHydrateSelf = filterSelfReplies(hydrated.threads);
