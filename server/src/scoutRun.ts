@@ -134,12 +134,12 @@ export async function runScoutSearch(opts: {
   onEvent?: (event: ScoutEvent) => void;
 }): Promise<ScoutRunResult> {
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.authToken || !session.ct0) {
+  if (!session.bearerToken) {
     return {
       ok: false,
       status: 401,
       error: "missing_credentials",
-      message: "Set X_AUTH_TOKEN and X_CT0 in .env.",
+      message: "Set X_API_BEARER_TOKEN in .env (Pay Per Use app bearer).",
     };
   }
 

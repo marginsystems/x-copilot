@@ -59,7 +59,7 @@ export function buildOwnRepliesQuery(
   withinTime = "24h",
 ): string {
   const name = normalizeScreenName(screenName);
-  return withSearchRecency(`from:${name} filter:replies`, withinTime);
+  return withSearchRecency(`from:${name} is:reply`, withinTime);
 }
 
 export function shouldImportDiscoveredReply(opts: {
@@ -164,7 +164,7 @@ export async function discoverOwnReplies(opts?: {
   resolveScreenName?: () => Promise<string | null>;
 }): Promise<DiscoverRepliesResult> {
   const session = opts?.session ?? getSessionFromEnv();
-  if (!session.authToken || !session.ct0) {
+  if (!session.bearerToken) {
     return {
       ok: false,
       searched: 0,

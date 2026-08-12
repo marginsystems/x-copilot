@@ -41,12 +41,12 @@ const agenda =
 const session = getSessionFromEnv();
 console.log("x-copilot triage tag probe");
 console.log(`  queries: ${queries.join(" | ")}`);
-console.log(`  session: ${session.configured}`);
+console.log(`  api: ${session.configured}`);
 console.log(`  official exclude vocab: ${EXCLUDEABLE_TAG_VOCAB.join(", ")}`);
 console.log(`  default excludes: ${DEFAULT_EXCLUDED_TAGS.join(", ")}`);
 
-if (!session.configured) {
-  console.error("FAIL: missing X_AUTH_TOKEN / X_CT0");
+if (!session.bearerToken) {
+  console.error("FAIL: missing X_API_BEARER_TOKEN");
   process.exit(1);
 }
 if (!process.env.DEEPSEEK_API_KEY?.trim()) {
