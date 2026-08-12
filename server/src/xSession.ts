@@ -49,22 +49,7 @@ export function buildSessionHeaders(
   };
 }
 
-/**
- * Prove the X API bearer works and resolve operator identity.
- * Prefers X_OPERATOR_USERNAME / X_OPERATOR_USER_ID from env.
- */
-export async function verifySession(
-  session: SessionCreds = getSessionFromEnv(),
-): Promise<VerifyResult> {
-  if (!session.configured) {
-    return {
-      ok: false,
-      status: 0,
-      error: "missing_credentials",
-      message: "Set X_API_BEARER_TOKEN in .env (Pay Per Use app bearer).",
-    };
-  }
-
+async function verifyViaApi(session: SessionCreds): Promise<VerifyResult> {
   const username = session.operatorUsername;
   const userId = session.operatorUserId;
 
@@ -180,4 +165,34 @@ export async function verifySession(
     warning:
       "Bearer works. Set X_OPERATOR_USERNAME (and optionally X_OPERATOR_USER_ID) for Mark detect / reply discover.",
   };
+}
+
+/** Operator identity never changes for the process lifetime; cache successful API lookups. */
+let apiVerifyCache: { key: string; result: VerifyOk } | undefined;
+
+/**
+ * Prove the X API bearer works and resolve operator identity.
+ * Prefers X_OPERATOR_USERNAME / X_OPERATOR_USER_ID from env.
+ */
+export async function verifySession(
+  session: SessionCreds = getSessionFromEnv(),
+): Promise<VerifyResult> {
+  if (!session.configured) {
+    return {
+      ok: false,
+      status: 0,
+      error: "missing_credentials",
+      message: "Set X_API_BEARER_TOKEN in .env (Pay Per Use app bearer).",
+    };
+  }
+
+  const key = [
+    session.bearerToken,
+    session.operatorUsername,
+    session.operatorUserId,
+  ].join("|");
+  if (apiVerifyCache?.key === key) return apiVerifyCache.result;
+  const result = await verifyViaApi(session);
+  if (result.ok) apiVerifyCache = { key, result };
+  return result;
 }
