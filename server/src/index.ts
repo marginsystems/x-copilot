@@ -66,6 +66,8 @@ import {
   detectOwnReplyToThread,
   detectOwnReplyToThreadWithRetry,
 } from "./detectReply.js";
+import { getPlatformDb } from "./db.js";
+import { getUsageSummary } from "./usageMeter.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
@@ -106,6 +108,15 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
 loadEnv(resolve(process.cwd(), ".env"));
 
 const PORT = Number(process.env.PORT || 8787);
+
+try {
+  getPlatformDb();
+} catch (err) {
+  console.error(
+    "[db] platform migrate failed:",
+    err instanceof Error ? err.message : String(err),
+  );
+}
 
 /** Best-effort index upsert — never fails the request. */
 function scheduleMemoryUpsert(notePath: string, type: MemoryType): void {
@@ -315,6 +326,23 @@ const server = http.createServer(async (req, res) => {
     ) {
       const result = await verifySession();
       return send(res, result.ok ? 200 : result.status || 401, result);
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/usage") {
+      const windowRaw = (url.searchParams.get("window") || "7d").toLowerCase();
+      const window =
+        windowRaw === "24h" || windowRaw === "all" || windowRaw === "7d"
+          ? windowRaw
+          : "7d";
+      try {
+        const summary = getUsageSummary({ window });
+        return send(res, 200, { ok: true, ...summary });
+      } catch (err) {
+        return send(res, 500, {
+          error: "usage_unavailable",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
 
     if (req.method === "POST" && url.pathname === "/api/search") {
