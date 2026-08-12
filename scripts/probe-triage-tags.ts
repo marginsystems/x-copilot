@@ -45,7 +45,7 @@ console.log(`  api: ${session.configured}`);
 console.log(`  official exclude vocab: ${EXCLUDEABLE_TAG_VOCAB.join(", ")}`);
 console.log(`  default excludes: ${DEFAULT_EXCLUDED_TAGS.join(", ")}`);
 
-if (!session.configured) {
+if (!session.bearerToken) {
   console.error("FAIL: missing X_API_BEARER_TOKEN");
   process.exit(1);
 }

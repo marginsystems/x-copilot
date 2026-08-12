@@ -52,7 +52,8 @@ export type ScoutStopReason =
   | "qualified"
   | "exhausted"
   | "aborted"
-  | "target";
+  | "target"
+  | "rate_limited";
 
 export type ScoutCollectStageId =
   | "planning"
@@ -225,7 +226,7 @@ export async function runScoutCollect(opts: {
   const doSleep = deps.sleep ?? sleep;
 
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) {
+  if (!session.bearerToken) {
     return {
       ok: false,
       status: 401,
@@ -353,6 +354,7 @@ export async function runScoutCollect(opts: {
   const searchErrors: Array<{ query: string; message: string }> = [];
   let triageWarning: string | undefined;
   let stopReason: ScoutStopReason = "exhausted";
+  let rateLimited = false;
   let unhydratedReplyCount = 0;
   let searchCalls = 0;
   let queryIndex = 0;
@@ -487,6 +489,13 @@ export async function runScoutCollect(opts: {
         if (aborted()) break;
 
         if (!result.ok) {
+          if (result.error === "rate_limited") {
+            // v2 recent-search quota window exhausted — further calls are doomed;
+            // fail fast with a clear reason instead of cycling all queries.
+            rateLimited = true;
+            searchErrors.push({ query, message: result.message });
+            break;
+          }
           searchErrors.push({ query, message: result.message });
           continue;
         }
@@ -763,6 +772,7 @@ export async function runScoutCollect(opts: {
 
     if (aborted()) stopReason = "aborted";
     else if (cool.length >= targetCool) stopReason = "target";
+    else if (rateLimited) stopReason = "rate_limited";
     else stopReason = "exhausted";
   } catch (err) {
     if (isAbortError(err)) {
@@ -784,7 +794,9 @@ export async function runScoutCollect(opts: {
       ? `Scout found ${cool.length} cool thread${cool.length === 1 ? "" : "s"}.`
       : stopReason === "aborted"
         ? `Scout stopped — ${cool.length} cool thread${cool.length === 1 ? "" : "s"}.`
-        : `Scout finished — ${cool.length} cool thread${cool.length === 1 ? "" : "s"} (supply exhausted).`;
+        : stopReason === "rate_limited"
+          ? "Scout stopped — X API rate limit reached (quota window exhausted); retry after it resets."
+          : `Scout finished — ${cool.length} cool thread${cool.length === 1 ? "" : "s"} (supply exhausted).`;
 
   const linkWarning = linkFilteredTotal
     ? `Dropped ${linkFilteredTotal} posts with outbound links.`
