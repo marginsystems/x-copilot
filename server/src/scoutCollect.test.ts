@@ -173,7 +173,10 @@ describe("runScoutCollect bucket loop", () => {
   const session = {
     authToken: "t",
     ct0: "c",
+    bearerToken: "t",
     configured: true,
+    operatorUserId: "",
+    operatorUsername: "me",
   };
 
   it("fills bucket to K before any triage call", async () => {

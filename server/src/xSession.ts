@@ -1,12 +1,20 @@
 /**
- * X session helpers — uses your own browser cookies (auth_token + ct0).
- * Personal tooling only; GraphQL query IDs can rotate when X ships a new web client.
+ * X credentials — official API bearer preferred; cookie GraphQL kept temporarily
+ * for SearchTimeline / TweetResult until those paths migrate (stacked PRs).
  */
 
+import { getXApiCredsFromEnv, xApiGet } from "./xApi.js";
+
 export type SessionCreds = {
+  /** App-only Pay Per Use bearer (preferred). */
+  bearerToken: string;
+  /** @deprecated session cookie — GraphQL search/lookup until migrated. */
   authToken: string;
+  /** @deprecated session cookie — GraphQL search/lookup until migrated. */
   ct0: string;
   configured: boolean;
+  operatorUserId: string;
+  operatorUsername: string;
 };
 
 export type VerifyOk = {
@@ -49,15 +57,21 @@ const BADGE_URL =
 export function getSessionFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): SessionCreds {
+  const api = getXApiCredsFromEnv(env);
   const authToken = (env.X_AUTH_TOKEN || "").trim();
   const ct0 = (env.X_CT0 || "").trim();
+  const cookies = Boolean(authToken && ct0);
   return {
+    bearerToken: api.bearerToken,
     authToken,
     ct0,
-    configured: Boolean(authToken && ct0),
+    configured: api.configured || cookies,
+    operatorUserId: api.operatorUserId,
+    operatorUsername: api.operatorUsername,
   };
 }
 
+/** Cookie GraphQL headers (legacy SearchTimeline / TweetResult). */
 export function buildSessionHeaders({
   authToken,
   ct0,
@@ -95,21 +109,124 @@ function viewerUrl(): string {
   return `https://x.com/i/api/graphql/${getViewerQueryId()}/Viewer?${qs}`;
 }
 
-/**
- * Prove the session works (GraphQL Viewer → identity; badge_count fallback).
- */
-export async function verifySession(
-  session: SessionCreds = getSessionFromEnv(),
-): Promise<VerifyResult> {
-  if (!session.configured) {
+async function verifyViaApi(session: SessionCreds): Promise<VerifyResult> {
+  const username = session.operatorUsername;
+  const userId = session.operatorUserId;
+
+  if (username) {
+    const res = await xApiGet({
+      path: `/users/by/username/${encodeURIComponent(username)}`,
+      query: { "user.fields": "protected,name,username" },
+      creds: session,
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        error: res.error,
+        message: res.message,
+      };
+    }
+    const data = res.json as {
+      data?: {
+        id?: string;
+        username?: string;
+        name?: string;
+        protected?: boolean;
+      };
+    };
+    const u = data.data;
+    if (!u?.id || !u.username) {
+      return {
+        ok: false,
+        status: 503,
+        error: "user_not_found",
+        message: `No X user for username ${username}.`,
+      };
+    }
     return {
-      ok: false,
-      status: 0,
-      error: "missing_credentials",
-      message: "Set X_AUTH_TOKEN and X_CT0 in .env (see README).",
+      ok: true,
+      method: "api_users_by_username",
+      user: {
+        id: u.id,
+        screen_name: u.username,
+        name: u.name || u.username,
+        protected: Boolean(u.protected),
+      },
     };
   }
 
+  if (userId) {
+    const res = await xApiGet({
+      path: `/users/${encodeURIComponent(userId)}`,
+      query: { "user.fields": "protected,name,username" },
+      creds: session,
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        error: res.error,
+        message: res.message,
+      };
+    }
+    const data = res.json as {
+      data?: {
+        id?: string;
+        username?: string;
+        name?: string;
+        protected?: boolean;
+      };
+    };
+    const u = data.data;
+    if (!u?.id || !u.username) {
+      return {
+        ok: false,
+        status: 503,
+        error: "user_not_found",
+        message: `No X user for id ${userId}.`,
+      };
+    }
+    return {
+      ok: true,
+      method: "api_users_by_id",
+      user: {
+        id: u.id,
+        screen_name: u.username,
+        name: u.name || u.username,
+        protected: Boolean(u.protected),
+      },
+    };
+  }
+
+  const probe = await xApiGet({
+    path: "/users/by/username/X",
+    query: { "user.fields": "username" },
+    creds: session,
+  });
+  if (!probe.ok) {
+    return {
+      ok: false,
+      status: probe.status,
+      error: probe.error,
+      message: probe.message,
+    };
+  }
+  return {
+    ok: true,
+    method: "api_bearer_probe",
+    user: {
+      id: "",
+      screen_name: "unknown",
+      name: "unknown",
+      protected: false,
+    },
+    warning:
+      "Bearer works. Set X_OPERATOR_USERNAME (and optionally X_OPERATOR_USER_ID) for Mark detect / reply discover.",
+  };
+}
+
+async function verifyViaCookies(session: SessionCreds): Promise<VerifyResult> {
   const headers = buildSessionHeaders(session);
 
   try {
@@ -200,6 +317,35 @@ export async function verifySession(
       message: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/** Operator identity never changes for the process lifetime; cache successful API lookups. */
+let apiVerifyCache: { key: string; result: VerifyOk } | undefined;
+
+/**
+ * Prove credentials work. Prefers X_API_BEARER_TOKEN; falls back to cookies.
+ */
+export async function verifySession(
+  session: SessionCreds = getSessionFromEnv(),
+): Promise<VerifyResult> {
+  if (!session.configured) {
+    return {
+      ok: false,
+      status: 0,
+      error: "missing_credentials",
+      message:
+        "Set X_API_BEARER_TOKEN in .env (Pay Per Use), or legacy X_AUTH_TOKEN + X_CT0.",
+    };
+  }
+
+  if (session.bearerToken) {
+    const key = [session.bearerToken, session.operatorUsername, session.operatorUserId].join("|");
+    if (apiVerifyCache?.key === key) return apiVerifyCache.result;
+    const result = await verifyViaApi(session);
+    if (result.ok) apiVerifyCache = { key, result };
+    return result;
+  }
+  return verifyViaCookies(session);
 }
 
 function decodeUserRestId(id: string | undefined): string {

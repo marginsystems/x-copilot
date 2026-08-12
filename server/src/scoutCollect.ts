@@ -225,7 +225,7 @@ export async function runScoutCollect(opts: {
   const doSleep = deps.sleep ?? sleep;
 
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) {
+  if (!session.authToken || !session.ct0) {
     return {
       ok: false,
       status: 401,

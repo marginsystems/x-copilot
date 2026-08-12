@@ -148,6 +148,9 @@ describe("discoverOwnReplies", () => {
         configured: true,
         authToken: "t",
         ct0: "c",
+        bearerToken: "t",
+        operatorUserId: "",
+        operatorUsername: "me",
       },
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => {
@@ -219,7 +222,14 @@ describe("discoverOwnReplies", () => {
       storePath,
       knowledgeRoot,
       upsertMemory: false,
-      session: { configured: true, authToken: "t", ct0: "c" },
+      session: {
+        configured: true,
+        authToken: "t",
+        ct0: "c",
+        bearerToken: "t",
+        operatorUserId: "",
+        operatorUsername: "me",
+      },
       resolveScreenName: async () => "me",
       searchTimelinePages: async () => ({
         ok: true,
@@ -264,7 +274,14 @@ describe("discoverOwnReplies", () => {
       storePath,
       knowledgeRoot,
       upsertMemory: false as const,
-      session: { configured: true, authToken: "t", ct0: "c" },
+      session: {
+        configured: true,
+        authToken: "t",
+        ct0: "c",
+        bearerToken: "t",
+        operatorUserId: "",
+        operatorUsername: "me",
+      },
       resolveScreenName: async () => "me",
       searchTimelinePages: search,
     };
@@ -279,7 +296,14 @@ describe("discoverOwnReplies", () => {
 
   it("soft-fails when credentials missing", async () => {
     const result = await discoverOwnReplies({
-      session: { configured: false, authToken: "", ct0: "" },
+      session: {
+        configured: false,
+        authToken: "",
+        ct0: "",
+        bearerToken: "",
+        operatorUserId: "",
+        operatorUsername: "",
+      },
       storePath,
     });
     assert.equal(result.ok, false);
