@@ -707,8 +707,13 @@ function applyIncludedReplyOp(
       canSkipHydrate = false;
     }
   } else if (rootTw) {
-    opTw = rootTw;
-    canSkipHydrate = true;
+    const rootKey = screenNameKey(
+      rootTw.author_id ? usersById.get(rootTw.author_id)?.username : undefined,
+    );
+    if (rootKey && rootKey !== replyKey) {
+      opTw = rootTw;
+      canSkipHydrate = true;
+    }
   } else {
     return;
   }

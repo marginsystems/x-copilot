@@ -878,4 +878,41 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.opText, "middle of the thread");
     assert.equal(card.opParentDerived, undefined);
   });
+
+  it("does not set self-authored root as OP when parent is in data", () => {
+    const replyUsers = new Map([
+      ["u-reply", { id: "u-reply", username: "rooter", name: "Rooter" }],
+      [
+        "u-root",
+        { id: "u-root", username: "rooter", name: "Rooter" },
+      ],
+    ]);
+    const tweetsById = new Map([
+      [
+        "800",
+        {
+          id: "800",
+          text: "my original thread",
+          author_id: "u-root",
+        },
+      ],
+    ]);
+    const card = v2TweetToCard(
+      {
+        id: "900",
+        text: "defending my thread",
+        author_id: "u-reply",
+        conversation_id: "800",
+        referenced_tweets: [{ type: "replied_to", id: "850" }],
+      },
+      replyUsers,
+      tweetsById,
+    );
+    assert.ok(card);
+    assert.equal(card.isReply, true);
+    assert.equal(card.inReplyToId, "850");
+    assert.equal(card.opAuthor, undefined);
+    assert.equal(card.opText, undefined);
+    assert.equal(card.opParentDerived, undefined);
+  });
 });
