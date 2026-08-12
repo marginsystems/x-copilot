@@ -64,8 +64,34 @@ export function countPostsRead(path: string, json: unknown): number {
   const p = path.split("?")[0] ?? path;
   if (!p.includes("/tweets")) return 0;
   if (!json || typeof json !== "object") return 0;
-  const data = (json as { data?: unknown }).data;
-  if (Array.isArray(data)) return data.length;
+  const root = json as { data?: unknown; includes?: { tweets?: unknown } };
+  const data = root.data;
+  if (Array.isArray(data)) {
+    const ids = new Set<string>();
+    for (const t of data) {
+      if (
+        t &&
+        typeof t === "object" &&
+        typeof (t as { id?: unknown }).id === "string"
+      ) {
+        ids.add((t as { id: string }).id);
+      }
+    }
+    let count = data.length;
+    if (Array.isArray(root.includes?.tweets)) {
+      for (const t of root.includes.tweets) {
+        if (
+          t &&
+          typeof t === "object" &&
+          typeof (t as { id?: unknown }).id === "string" &&
+          !ids.has((t as { id: string }).id)
+        ) {
+          count += 1;
+        }
+      }
+    }
+    return count;
+  }
   if (data && typeof data === "object") return 1;
   return 0;
 }
@@ -139,7 +165,7 @@ export function getUsageSummary(opts?: {
                COALESCE(SUM(posts_read), 0) AS posts_read,
                COALESCE(SUM(cost_usd_micros), 0) AS cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ? AND at >= ?`,
+             WHERE tenant_id = ? AND at >= ? AND path LIKE '%/tweets%'`,
           )
           .get(tenantId, since)
       : database
@@ -149,7 +175,7 @@ export function getUsageSummary(opts?: {
                COALESCE(SUM(posts_read), 0) AS posts_read,
                COALESCE(SUM(cost_usd_micros), 0) AS cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ?`,
+             WHERE tenant_id = ? AND path LIKE '%/tweets%'`,
           )
           .get(tenantId)
   ) as {
@@ -180,7 +206,7 @@ export function getUsageSummary(opts?: {
           .prepare(
             `SELECT id, at, method, path, status, error, posts_read, cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ? AND at >= ?
+             WHERE tenant_id = ? AND at >= ? AND path LIKE '%/tweets%'
              ORDER BY at DESC
              LIMIT ?`,
           )
@@ -189,7 +215,7 @@ export function getUsageSummary(opts?: {
           .prepare(
             `SELECT id, at, method, path, status, error, posts_read, cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ?
+             WHERE tenant_id = ? AND path LIKE '%/tweets%'
              ORDER BY at DESC
              LIMIT ?`,
           )

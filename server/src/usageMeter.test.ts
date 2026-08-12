@@ -26,6 +26,26 @@ describe("countPostsRead", () => {
     );
   });
 
+  it("counts includes.tweets for search payloads", () => {
+    assert.equal(
+      countPostsRead("/tweets/search/recent", {
+        data: [{ id: "1" }, { id: "2" }],
+        includes: { tweets: [{ id: "3" }, { id: "4" }] },
+      }),
+      4,
+    );
+  });
+
+  it("dedupes includes.tweets against data", () => {
+    assert.equal(
+      countPostsRead("/tweets/search/recent", {
+        data: [{ id: "1" }],
+        includes: { tweets: [{ id: "1" }, { id: "2" }] },
+      }),
+      2,
+    );
+  });
+
   it("counts single tweet lookup", () => {
     assert.equal(
       countPostsRead("/tweets/123", { data: { id: "123", text: "hi" } }),
@@ -86,5 +106,21 @@ describe("usage ledger", () => {
     assert.equal(summary.creditsDepletedRecent, true);
     assert.equal(summary.recent.length, 2);
     assert.equal(summary.tenantSlug, "local");
+  });
+
+  it("excludes non-tweet probe calls from the summary", () => {
+    recordUsageEvent({
+      path: "/tweets/search/recent",
+      status: 200,
+      postsRead: 5,
+    });
+    recordUsageEvent({ path: "/users/by/username/x", status: 200 });
+    recordUsageEvent({ path: "/users/123", status: 200 });
+
+    const summary = getUsageSummary({ window: "all" });
+    assert.equal(summary.calls, 1);
+    assert.equal(summary.postsRead, 5);
+    assert.equal(summary.estimatedUsd, 0.025);
+    assert.equal(summary.recent.length, 1);
   });
 });
