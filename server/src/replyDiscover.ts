@@ -59,7 +59,7 @@ export function buildOwnRepliesQuery(
   withinTime = "24h",
 ): string {
   const name = normalizeScreenName(screenName);
-  return withSearchRecency(`from:${name} filter:replies`, withinTime);
+  return withSearchRecency(`from:${name} is:reply`, withinTime);
 }
 
 export function shouldImportDiscoveredReply(opts: {

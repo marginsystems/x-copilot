@@ -45,7 +45,7 @@ Return ONLY valid JSON: {"queries":["..."]} with 2 to 4 queries.
 
 Rules:
 - Prefer 2-word queries (highest recall on Latest). 3 words only when needed. Avoid 4+ words.
-- Optional operators ok (filter:replies, min_faves, from:) — they do not count against the 2-word preference when the keyword part is short.
+- Optional operators ok (is:reply, min_faves, from:) — they do not count against the 2-word preference when the keyword part is short.
 - Mix recall: include 1–2 broad high-recall queries AND 1–2 tighter ones. Do not emit four near-duplicates.
 - Do NOT copy the agenda sentence or long multi-word stacks that echo it.
 - Prefer Latest-friendly keywords that hit many recent short conversational posts and genuine questions.

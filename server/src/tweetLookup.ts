@@ -161,8 +161,9 @@ export async function fetchParentTweet(opts: {
   if (parentCache.has(tweetId)) return parentCache.get(tweetId) ?? null;
 
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) {
-    parentCache.set(tweetId, null);
+  // TweetResultByRestId is a session-cookie GraphQL endpoint: without cookies a
+  // pure-bearer session would fire empty-cookie requests that always fail.
+  if (!session.authToken || !session.ct0) {
     return null;
   }
 
@@ -288,7 +289,8 @@ export async function fetchTweetMetrics(opts: {
   if (opts.signal?.aborted) return null;
 
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) {
+  // Metrics come from the same session-cookie GraphQL endpoint as parent tweets.
+  if (!session.authToken || !session.ct0) {
     return null;
   }
 

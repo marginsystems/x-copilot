@@ -27,9 +27,9 @@ function card(
 }
 
 describe("buildOwnRepliesQuery", () => {
-  it("builds from: + filter:replies with within_time", () => {
+  it("builds from: + is:reply with within_time", () => {
     const q = buildOwnRepliesQuery("@MarginSystems", "24h");
-    assert.match(q, /^from:MarginSystems filter:replies within_time:24h$/);
+    assert.match(q, /^from:MarginSystems is:reply within_time:24h$/);
   });
 });
 
@@ -154,7 +154,7 @@ describe("discoverOwnReplies", () => {
       },
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => {
-        assert.match(opts.query, /from:me filter:replies/);
+        assert.match(opts.query, /from:me is:reply/);
         assert.match(opts.query, /within_time:24h/);
         assert.equal(opts.product, "Latest");
         assert.equal(opts.maxPages, 1);
