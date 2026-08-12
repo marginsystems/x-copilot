@@ -545,7 +545,35 @@ function InteractedRow({
   );
 }
 
-type AppView = "dashboard" | "settings";
+type AppView = "dashboard" | "settings" | "usage";
+
+type UsageWindow = "24h" | "7d" | "all";
+
+type UsageRecentRow = {
+  id: string;
+  at: string;
+  method: string;
+  path: string;
+  status: number;
+  error: string | null;
+  postsRead: number;
+  estimatedUsd: number;
+};
+
+type UsageSummaryResponse = {
+  ok: boolean;
+  tenantSlug?: string;
+  window?: UsageWindow;
+  calls?: number;
+  postsRead?: number;
+  estimatedUsd?: number;
+  creditsDepletedRecent?: boolean;
+  postReadUsd?: number;
+  note?: string;
+  recent?: UsageRecentRow[];
+  error?: string;
+  message?: string;
+};
 
 /** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
 const SEARCH_COOLDOWN_MS = 15_000;
@@ -592,6 +620,12 @@ export default function App() {
   /** Monotonic token so out-of-order gamification responses don't regress the chip. */
   const gamificationRequestSeqRef = useRef(0);
   const [view, setView] = useState<AppView>("dashboard");
+  const [usageWindow, setUsageWindow] = useState<UsageWindow>("7d");
+  const [usage, setUsage] = useState<UsageSummaryResponse | null>(null);
+  const [usageBusy, setUsageBusy] = useState(false);
+  /** Monotonic token so out-of-order usage responses can't show the wrong window. */
+  const usageRequestSeqRef = useRef(0);
+  const [usageStatus, setUsageStatus] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
   const [sessionUser, setSessionUser] = useState<{
@@ -1423,6 +1457,38 @@ export default function App() {
     closeMenu();
   }
 
+  function openUsage() {
+    setView("usage");
+    closeMenu();
+    void loadUsage(usageWindow);
+  }
+
+  async function loadUsage(window: UsageWindow = usageWindow) {
+    const seq = ++usageRequestSeqRef.current;
+    setUsageBusy(true);
+    setUsageStatus("");
+    try {
+      const res = await fetch(
+        `/api/usage?window=${encodeURIComponent(window)}`,
+      );
+      const data = (await res.json()) as UsageSummaryResponse;
+      if (seq !== usageRequestSeqRef.current) return;
+      if (!res.ok || data.ok === false) {
+        setUsage(null);
+        setUsageStatus(data.message || data.error || `Usage failed (${res.status})`);
+        return;
+      }
+      setUsage(data);
+      setUsageWindow(data.window ?? window);
+    } catch (err) {
+      if (seq !== usageRequestSeqRef.current) return;
+      setUsage(null);
+      setUsageStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (seq === usageRequestSeqRef.current) setUsageBusy(false);
+    }
+  }
+
   function onSaveSettings() {
     const next = saveSettings(settingsDraft);
     setSettings(next);
@@ -1952,6 +2018,13 @@ export default function App() {
               </button>
               <button
                 type="button"
+                className="ghost menu-action"
+                onClick={openUsage}
+              >
+                Usage & Billing
+              </button>
+              <button
+                type="button"
                 className="primary menu-action"
                 onClick={openSettings}
               >
@@ -1960,6 +2033,129 @@ export default function App() {
             </div>
           </aside>
         </div>
+      ) : null}
+
+      {view === "usage" ? (
+        <section className="panel settings-pane usage-pane">
+          <div className="settings-head">
+            <h2>Usage & Billing</h2>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => setView("dashboard")}
+            >
+              Back
+            </button>
+          </div>
+          <p className="status settings-lede">
+            Shared platform X API — we meter reads here for Scout. Buy credits in{" "}
+            <a
+              href="https://console.x.com"
+              target="_blank"
+              rel="noreferrer"
+            >
+              console.x.com
+            </a>
+            . There is no free read allowance on Pay Per Use.
+          </p>
+          <div className="usage-toolbar">
+            <label className="settings-field usage-window">
+              <span>Window</span>
+              <select
+                className="settings-select"
+                value={usageWindow}
+                disabled={usageBusy}
+                onChange={(e) => {
+                  const next = e.target.value as UsageWindow;
+                  setUsageWindow(next);
+                  void loadUsage(next);
+                }}
+              >
+                <option value="24h">Last 24h</option>
+                <option value="7d">Last 7 days</option>
+                <option value="all">All time</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              className="ghost"
+              disabled={usageBusy}
+              onClick={() => void loadUsage(usageWindow)}
+            >
+              {usageBusy ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+          {usageStatus ? <p className="status danger">{usageStatus}</p> : null}
+          {usage?.creditsDepletedRecent ? (
+            <p className="usage-banner">
+              Credits depleted recently (HTTP 402). Add Pay Per Use credits + a
+              spending limit in console.x.com, then retry Scout.
+            </p>
+          ) : null}
+          {usage ? (
+            <>
+              <div className="usage-stats">
+                <div className="usage-stat">
+                  <span className="usage-stat-label">Est. spend</span>
+                  <strong className="usage-stat-value">
+                    ${(usage.estimatedUsd ?? 0).toFixed(3)}
+                  </strong>
+                </div>
+                <div className="usage-stat">
+                  <span className="usage-stat-label">Posts read</span>
+                  <strong className="usage-stat-value">
+                    {usage.postsRead ?? 0}
+                  </strong>
+                </div>
+                <div className="usage-stat">
+                  <span className="usage-stat-label">API calls</span>
+                  <strong className="usage-stat-value">{usage.calls ?? 0}</strong>
+                </div>
+                <div className="usage-stat">
+                  <span className="usage-stat-label">Per post read</span>
+                  <strong className="usage-stat-value">
+                    ~${(usage.postReadUsd ?? 0.005).toFixed(3)}
+                  </strong>
+                </div>
+              </div>
+              <p className="settings-help">{usage.note}</p>
+              <h3 className="usage-log-title">API log</h3>
+              {(usage.recent?.length ?? 0) === 0 ? (
+                <p className="status">No X API calls recorded in this window yet.</p>
+              ) : (
+                <div className="usage-log">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>When</th>
+                        <th>Path</th>
+                        <th>Status</th>
+                        <th>Reads</th>
+                        <th>Est. $</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(usage.recent ?? []).map((row) => (
+                        <tr key={row.id}>
+                          <td>{new Date(row.at).toLocaleString()}</td>
+                          <td className="usage-path">
+                            <code>{row.path}</code>
+                            {row.error ? (
+                              <span className="usage-error"> {row.error}</span>
+                            ) : null}
+                          </td>
+                          <td>{row.status}</td>
+                          <td>{row.postsRead}</td>
+                          <td>${row.estimatedUsd.toFixed(3)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          ) : null}
+        </section>
       ) : null}
 
       {view === "settings" ? (
