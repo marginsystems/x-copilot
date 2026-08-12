@@ -3,6 +3,8 @@
  * Replaces session-cookie GraphQL for read paths.
  */
 
+import { countPostsRead, recordUsageEvent } from "./usageMeter.js";
+
 export const X_API_BASE = "https://api.x.com/2";
 
 export type XApiCreds = {
@@ -57,15 +59,38 @@ export async function xApiGet(opts: {
   creds?: XApiCreds;
   signal?: AbortSignal;
   timeoutMs?: number;
+  /** Skip usage ledger (tests / internal probes). */
+  skipUsage?: boolean;
 }): Promise<XApiGetResult> {
   const creds = opts.creds ?? getXApiCredsFromEnv();
+  const pathForLog = opts.path.startsWith("http")
+    ? new URL(opts.path).pathname
+    : opts.path;
+
+  const logUsage = (result: XApiGetResult, json?: unknown) => {
+    if (opts.skipUsage) return;
+    const postsRead =
+      result.ok && json !== undefined
+        ? countPostsRead(pathForLog, json)
+        : 0;
+    recordUsageEvent({
+      method: "GET",
+      path: pathForLog,
+      status: result.status,
+      error: result.ok ? undefined : result.error,
+      postsRead,
+    });
+  };
+
   if (!creds.bearerToken?.trim()) {
-    return {
+    const result: XApiGetResult = {
       ok: false,
       status: 0,
       error: "missing_api_key",
       message: "Set X_API_BEARER_TOKEN in .env (Pay Per Use app bearer).",
     };
+    logUsage(result);
+    return result;
   }
 
   const url = new URL(
@@ -100,12 +125,14 @@ export async function xApiGet(opts: {
     try {
       json = text ? JSON.parse(text) : null;
     } catch {
-      return {
+      const result: XApiGetResult = {
         ok: false,
         status: res.status,
         error: "invalid_json",
         message: `X API returned non-JSON (HTTP ${res.status}).`,
       };
+      logUsage(result);
+      return result;
     }
 
     if (!res.ok) {
@@ -115,43 +142,53 @@ export async function xApiGet(opts: {
       if (res.status === 402) error = "credits_depleted";
       if (res.status === 401) error = "unauthorized";
       if (res.status === 429) error = "rate_limited";
-      return {
+      const result: XApiGetResult = {
         ok: false,
         status: res.status,
         error,
         message: `X API HTTP ${res.status}: ${detail}`,
         json,
       };
+      logUsage(result);
+      return result;
     }
 
-    return { ok: true, status: res.status, json };
+    const result: XApiGetResult = { ok: true, status: res.status, json };
+    logUsage(result, json);
+    return result;
   } catch (err) {
     if (opts.signal?.aborted) {
-      return {
+      const result: XApiGetResult = {
         ok: false,
         status: 499,
         error: "client_disconnected",
         message: "Client disconnected",
       };
+      logUsage(result);
+      return result;
     }
     if (ac.signal.aborted) {
-      return {
+      const result: XApiGetResult = {
         ok: false,
         status: 504,
         error: "x_api_timeout",
         message: "X API request timed out",
       };
+      logUsage(result);
+      return result;
     }
     // Transport failure (DNS, connection refused, socket reset) — a retryable
     // 5xx, not a terminal 401. The endpoints map missing_credentials (status 0)
     // to 401 via `status || 401`, so status 0 here would mislabel a transient
     // network blip as bad credentials.
-    return {
+    const result: XApiGetResult = {
       ok: false,
       status: 502,
       error: "x_api_failed",
       message: err instanceof Error ? err.message : String(err),
     };
+    logUsage(result);
+    return result;
   }
 }
 
