@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Live SearchTimeline smoke test.
+ * Live recent-search smoke test.
  *
  *   npm run test:search -- "AI tools"
  */

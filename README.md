@@ -1,14 +1,14 @@
 # x-copilot
 
-Research + triage assistant for X (Twitter): **session-backed search → DeepSeek triage** in a Vite dashboard. Scout finds cool threads worth a human reply — no AI-written reply drafts.
+Research + triage assistant for X (Twitter): **official X API search → DeepSeek triage** in a Vite dashboard. Scout finds cool threads worth a human reply — no AI-written reply drafts.
 
-**Status:** Stream 1 — agenda → DeepSeek Chat queries → session SearchTimeline → triaged thread cards (Start/Stop Scout).
+**Status:** Stream 1 — agenda → DeepSeek Chat queries → recent search (official X API) → triaged thread cards (Start/Stop Scout).
 
 ## Idea
 
 1. Paste an **agenda** (who/what to engage, voice, avoid list).
 2. **DeepSeek Chat** expands the agenda into 2–4 short X search queries (one LLM call).
-3. Sidecar runs those queries via session-backed **SearchTimeline** (not the official paid API).
+3. Sidecar runs those queries via the official X API **recent search** (`GET /2/tweets/search/recent`, app-only bearer).
 4. A second DeepSeek call **triages** the results (summary + bait risk + engage hint).
 5. Review cool thread cards, **Open on X**, and reply yourself (no auto-engage; no AI draft replies).
 
@@ -39,13 +39,13 @@ Scout stage lines are appended to `data/scout-log.json` (gitignored; last 1000) 
 
 ## Length filter
 
-Before triage, posts with more than **480** characters (or obvious `N/M` thread openers like `1/17 …`) are dropped so walls of text never reach DeepSeek or the accordion. Override with `X_MAX_THREAD_CHARS` in `.env`, or via **Settings** in the UI (hamburger menu) — the UI sends `filters` on each Scout run and wins over env for that request. **X Articles** are hard-dropped by default when SearchTimeline marks an article payload (toggle in Settings). When a **note tweet** body is present, that text is used for the char cap instead of the short `full_text` teaser. The search status line reports how many were dropped.
+Before triage, posts with more than **480** characters (or obvious `N/M` thread openers like `1/17 …`) are dropped so walls of text never reach DeepSeek or the accordion. Override with `X_MAX_THREAD_CHARS` in `.env`, or via **Settings** in the UI (hamburger menu) — the UI sends `filters` on each Scout run and wins over env for that request. **X Articles** are hard-dropped by default when the search payload marks an article (toggle in Settings). When a **note tweet** body is present, that text is used for the char cap instead of the short `full_text` teaser. The search status line reports how many were dropped.
 
 ## Scout
 
 **Scout** is x-copilot’s search mini-agent. Use **Start Scout** / **Stop Scout** on the dashboard. Flow:
 
-1. Plan queries (DeepSeek), then pace X SearchTimeline (**20** hits/query).
+1. Plan queries (DeepSeek), then pace X recent search (**20** hits/query).
 2. **Hard-filter bucket** (cooldown + Article/char/links/self-reply) with **no LLM** until the bucket has **K** candidates (UI sends `bucketSize: 20`; server accepts 5|10|20). Keep searching / cycling queries (one replan, search budget) while the bucket is short.
 3. **LLM-qualify** the full bucket. Cool = `engage` `priority`/`consider` and `baitScore ≤ 45`.
 4. Keep cool threads and refill until **Cool threads** target (`targetCool`, 1–20) or supply is exhausted. If a full bucket yields **0 cool**, discard and refill. Budget/Stop → `exhausted` / `aborted`; hit target → `stopReason: target`.

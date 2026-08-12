@@ -199,7 +199,13 @@ export async function fetchParentTweet(opts: {
     parentCache.set(tweetId, parent);
     return parent;
   }
-  parentCache.set(tweetId, null);
+  // Only cache a genuine miss (no tweet data in the payload). A 200 whose
+  // data maps to no parent (e.g. suspended author missing from includes.users)
+  // stays uncached so a later run can retry instead of poisoning the cache.
+  const envelope = res.json as { data?: unknown } | null;
+  if (envelope?.data === undefined || envelope.data === null) {
+    parentCache.set(tweetId, null);
+  }
   return null;
 }
 
