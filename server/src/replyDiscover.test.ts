@@ -146,8 +146,6 @@ describe("discoverOwnReplies", () => {
       upsertMemory: false,
       session: {
         configured: true,
-        authToken: "t",
-        ct0: "c",
         bearerToken: "t",
         operatorUserId: "",
         operatorUsername: "me",
@@ -224,8 +222,6 @@ describe("discoverOwnReplies", () => {
       upsertMemory: false,
       session: {
         configured: true,
-        authToken: "t",
-        ct0: "c",
         bearerToken: "t",
         operatorUserId: "",
         operatorUsername: "me",
@@ -276,8 +272,6 @@ describe("discoverOwnReplies", () => {
       upsertMemory: false as const,
       session: {
         configured: true,
-        authToken: "t",
-        ct0: "c",
         bearerToken: "t",
         operatorUserId: "",
         operatorUsername: "me",
@@ -298,8 +292,6 @@ describe("discoverOwnReplies", () => {
     const result = await discoverOwnReplies({
       session: {
         configured: false,
-        authToken: "",
-        ct0: "",
         bearerToken: "",
         operatorUserId: "",
         operatorUsername: "",

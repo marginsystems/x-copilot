@@ -359,7 +359,9 @@ export async function runStatsTick(opts?: {
 
 async function main(): Promise<void> {
   if (!loadEnv(resolve(process.cwd(), ".env"))) {
-    console.error("[stats-worker] .env not found — X_AUTH_TOKEN / X_CT0 required");
+    console.error(
+      "[stats-worker] .env not found — X_API_BEARER_TOKEN required",
+    );
     process.exit(1);
   }
   console.log("[stats-worker] started — tick every 1h");

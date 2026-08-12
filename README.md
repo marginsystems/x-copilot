@@ -55,28 +55,28 @@ Status shows `Candidates n/K` while filling and `Cool n/target` as cools accumul
 ## Architecture
 
 ```
-Vite UI  →  local Node sidecar  →  X (session cookie)
+Vite UI  →  local Node sidecar  →  X API v2 (app-only bearer)
                  ↓
-              DeepSeek API
+              Gemini / DeepSeek
 ```
 
-Cookies and API keys stay in `.env` on the sidecar. The browser never stores the session.
+Bearer token and LLM keys stay in `.env` on the sidecar. The browser never stores credentials.
 
 ## Quick start
 
 ```bash
 cp .env.example .env
-# set X_AUTH_TOKEN + X_CT0 (see below), optional DEEPSEEK_API_KEY
+# set X_API_BEARER_TOKEN (+ X_OPERATOR_USERNAME), and GEMINI_API_KEY or DEEPSEEK_API_KEY
 
 npm install
-npm run test:session   # prove cookies work (GraphQL Viewer)
+npm run test:session   # prove Pay Per Use bearer works
 npm run build:server   # emit server/dist for production-shaped runs
 npm run dev:server     # tsx watch → http://127.0.0.1:8787
 npm run dev            # http://127.0.0.1:5173  (proxies /api → sidecar)
 ```
 
 Health: `curl http://127.0.0.1:8787/api/health`  
-Session: `curl http://127.0.0.1:8787/api/session/verify`
+API verify: `curl http://127.0.0.1:8787/api/session/verify`
 
 **Important:** Vite alone is not enough. If you only run `npm run dev`, Search hits a dead proxy and shows a proxy/500 error. Always run `dev:server` too.
 
@@ -88,26 +88,28 @@ Session: `curl http://127.0.0.1:8787/api/session/verify`
 | `npm run build:server` | `tsc -p tsconfig.server.json` → `server/dist/` |
 | `npm run test:session` | `tsx scripts/test-session.ts` |
 | `npm test` | Unit tests (`node:test` via tsx) |
-| `npm run test:search -- "query"` | Live SearchTimeline smoke |
+| `npm run test:search -- "query"` | Live recent-search smoke |
 
 UI typecheck stays on root `tsconfig.json` (`noEmit`); the API uses `tsconfig.server.json` (NodeNext emit).
 
-## Session cookies
+## Official X API
 
-Use **your own** logged-in browser session. We need two cookie values:
+Use a **Pay Per Use** project/app from [console.x.com](https://console.x.com) (not Ads).
 
-| Cookie | Env var | Role |
-|--------|---------|------|
-| `auth_token` | `X_AUTH_TOKEN` | Session identity |
-| `ct0` | `X_CT0` | CSRF token (also sent as `x-csrf-token`) |
+| Env var | Role |
+|---------|------|
+| `X_API_BEARER_TOKEN` | App-only Bearer (keep URL-encoding as issued) |
+| `X_API_KEY` / `X_API_SECRET` | Consumer key/secret (optional; stored for OAuth later) |
+| `X_OPERATOR_USERNAME` | Your handle (no `@`) for Mark detect / reply discover |
+| `X_OPERATOR_USER_ID` | Optional numeric id |
 
-### How to copy them (Chrome / Edge / Brave)
+### Setup
 
-1. Log into [https://x.com](https://x.com) in a normal browser tab.
-2. Open DevTools → **Application** → **Cookies** → `https://x.com`.
-3. Find `auth_token` → copy **Value** into `.env` as `X_AUTH_TOKEN=...`
-4. Find `ct0` → copy **Value** into `.env` as `X_CT0=...`
-5. Save `.env` (never commit it) and run:
+1. Create a Project/App under **Pay Per Use**.
+2. Billing → buy credits + set a spending limit.
+3. Copy the App **Bearer Token** into `.env` as `X_API_BEARER_TOKEN=...` (do not decode `%2F` / `%2B` / `%3D`).
+4. Set `X_OPERATOR_USERNAME=yourhandle`.
+5. Run:
 
 ```bash
 npm run test:session
@@ -116,29 +118,22 @@ npm run test:session
 Expected success looks like:
 
 ```
-OK: session verified
-  @yourhandle (Your Name)
-  id 123456789
+OK via api_users_by_username
+  @yourhandle (id=…)
 ```
 
-If it fails with 401/403, log out/in on x.com and re-copy **both** cookies (they rotate).
+If you see HTTP **402**, buy credits. HTTP **401** usually means the bearer was URL-decoded or rotated — paste it again as shown in the console.
 
-### What the test hits
-
-Read-only GraphQL `Viewer` (with `badge_count` fallback) using your cookies + the public web-client bearer. No posts.
-
-If Viewer starts 404ing after an X web deploy, refresh `X_VIEWER_QUERY_ID` in `.env` (query IDs rotate).
-
-This path is **experimental**: X can change shapes, rate-limit, or lock accounts. Personal tooling only — no mass automation, no auto-posting in this MVP. You are responsible for complying with X’s terms and applicable law.
+Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only — no mass automation, no auto-posting in this MVP. You are responsible for complying with X’s terms and applicable law.
 
 ## Repo layout
 
 | Path | Role |
 |------|------|
 | `src/` | Vite dashboard (agenda, Scout, threads) |
-| `server/src/` | TypeScript sidecar (HTTP API + X session + SearchTimeline) |
+| `server/src/` | TypeScript sidecar (HTTP API + X API v2 + recent search) |
 | `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
-| `scripts/test-session.ts` | CLI session smoke test |
+| `scripts/test-session.ts` | CLI X API smoke test |
 | `tsconfig.server.json` | Server emit config |
 | `pm2-manager.sh` | start/stop/restart/status/logs/setup-logrotate |
 | `ecosystem.config.example.cjs` | PM2 template (copy → local `ecosystem.config.cjs`) |
@@ -176,7 +171,7 @@ npm i -g pm2                                           # if needed
 
 - Agenda → Scout → triaged cool thread cards
 - Human-in-the-loop posting only (Open on X; no AI reply drafts)
-- README documents cookie setup + risks
+- README documents official X API setup + Pay Per Use credits
 
 ## License
 
