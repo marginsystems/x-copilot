@@ -647,6 +647,87 @@ type V2Tweet = {
   };
 };
 
+function screenNameKey(handle: string | undefined): string {
+  return (handle ?? "").trim().replace(/^@+/, "").toLowerCase();
+}
+
+function includedTweetBody(tw: V2Tweet): string {
+  return (tw.note_tweet?.text?.trim() || tw.text || "").trim();
+}
+
+/**
+ * Fill opAuthor/opText from search `includes.tweets` for replied_to parents.
+ * Sets opParentDerived when hydrate can skip (direct reply, self-chain, or
+ * nested with conversation root already in includes).
+ */
+function applyIncludedReplyOp(
+  card: ThreadCard,
+  tweet: V2Tweet,
+  usersById: Map<string, V2User>,
+  tweetsById: Map<string, V2Tweet>,
+): void {
+  const repliedToId = tweet.referenced_tweets?.find(
+    (r) => r.type === "replied_to",
+  )?.id;
+  if (!repliedToId) return;
+
+  const parentTw = tweetsById.get(repliedToId);
+  const convId = tweet.conversation_id?.trim();
+  const nested = Boolean(convId && convId !== repliedToId);
+  const rootTw = nested && convId ? tweetsById.get(convId) : undefined;
+  const replyKey = screenNameKey(card.author.replace(/^@/, ""));
+
+  let opTw: V2Tweet | undefined = parentTw;
+  let canSkipHydrate = false;
+
+  if (parentTw) {
+    const parentKey = screenNameKey(
+      parentTw.author_id
+        ? usersById.get(parentTw.author_id)?.username
+        : undefined,
+    );
+    if (parentKey && parentKey === replyKey) {
+      // Self-chain: hydrate stops on immediate parent.
+      opTw = parentTw;
+      canSkipHydrate = true;
+    } else if (rootTw) {
+      const rootKey = screenNameKey(
+        rootTw.author_id ? usersById.get(rootTw.author_id)?.username : undefined,
+      );
+      if (rootKey && rootKey !== replyKey) {
+        opTw = rootTw;
+      }
+      canSkipHydrate = true;
+    } else if (!nested) {
+      opTw = parentTw;
+      canSkipHydrate = true;
+    } else {
+      // Nested, root missing from includes — provisional OP; let hydrate fetch root.
+      opTw = parentTw;
+      canSkipHydrate = false;
+    }
+  } else if (rootTw) {
+    const rootKey = screenNameKey(
+      rootTw.author_id ? usersById.get(rootTw.author_id)?.username : undefined,
+    );
+    if (rootKey && rootKey !== replyKey) {
+      opTw = rootTw;
+      canSkipHydrate = true;
+    }
+  } else {
+    return;
+  }
+
+  const opText = opTw ? includedTweetBody(opTw) : "";
+  const opUser = opTw?.author_id ? usersById.get(opTw.author_id) : undefined;
+  const opHandle = opUser?.username?.trim();
+  if (!opText || !opHandle) return;
+
+  card.opAuthor = opHandle.startsWith("@") ? opHandle : `@${opHandle}`;
+  card.opText = opText.slice(0, MAX_OP_TEXT_CHARS);
+  if (canSkipHydrate) card.opParentDerived = true;
+}
+
 /** Map a v2 tweet (+ includes) into our ThreadCard. */
 export function v2TweetToCard(
   tweet: V2Tweet,
@@ -699,6 +780,9 @@ export function v2TweetToCard(
       }
     }
   }
+
+  // Prefer already-billed includes.tweets for reply OP so hydrate can skip.
+  applyIncludedReplyOp(card, tweet, usersById, tweetsById);
 
   const urls = tweet.entities?.urls ?? [];
   for (const u of urls) {
