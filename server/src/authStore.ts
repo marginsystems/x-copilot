@@ -110,9 +110,7 @@ function stampXUsername(
   const handle = parseXHandle(username ?? "");
   if (!handle) return;
   database
-    .prepare(
-      `UPDATE users SET x_username = COALESCE(x_username, ?) WHERE id = ?`,
-    )
+    .prepare(`UPDATE users SET x_username = ? WHERE id = ?`)
     .run(handle, userId);
 }
 

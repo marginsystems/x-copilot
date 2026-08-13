@@ -19,6 +19,7 @@ import { parseXHandle } from "./xHandle.js";
 import { lookupXUserByUsername } from "./xSession.js";
 
 const ONBOARDING_GENERATE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
+const ONBOARDING_COMPLETE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 
 function sendJson(
   req: IncomingMessage,
@@ -124,6 +125,19 @@ export async function tryHandleOnboarding(
   }
 
   if (req.method === "POST" && url.pathname === "/api/onboarding/complete") {
+    if (
+      !allowRate(
+        `onboarding-complete:${clientIp(req)}`,
+        ONBOARDING_COMPLETE_RATE.max,
+        ONBOARDING_COMPLETE_RATE.windowMs,
+      )
+    ) {
+      sendJson(req, res, 429, {
+        error: "rate_limited",
+        message: "Too many setup completions",
+      });
+      return true;
+    }
     let body: Record<string, unknown>;
     try {
       body = await readBody(req);
@@ -170,7 +184,12 @@ export async function tryHandleOnboarding(
       if (looked.ok) {
         xUsername = looked.user.screen_name;
       } else if (looked.error === "missing_credentials") {
-        xUsername = parsed;
+        sendJson(req, res, 503, {
+          error: "x_api_unavailable",
+          message:
+            "Could not verify that X username — this server isn't connected to the X API yet. Try again later.",
+        });
+        return true;
       } else if (looked.error === "user_not_found" || looked.status === 404) {
         sendJson(req, res, 400, {
           error: "x_user_not_found",
