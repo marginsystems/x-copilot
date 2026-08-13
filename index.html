@@ -27,7 +27,12 @@
           }
           document.documentElement.setAttribute("data-theme", t);
         } catch (e) {
-          document.documentElement.setAttribute("data-theme", "dark");
+          document.documentElement.setAttribute(
+            "data-theme",
+            window.matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark",
+          );
         }
       })();
     </script>
