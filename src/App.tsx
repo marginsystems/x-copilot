@@ -43,6 +43,8 @@ import {
 } from "./lib/gamification";
 import { ActivityChart } from "./ActivityChart";
 import { stripMediaShortlinksFromText } from "./lib/mediaText";
+import { apiFetch, apiUrl, isLocalHostname } from "./lib/apiBase";
+import { authErrorMessage } from "./lib/authErrors";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -632,6 +634,17 @@ export default function App() {
     screen_name: string;
     name: string;
   } | null>(null);
+  const [authUser, setAuthUser] = useState<{
+    id: string;
+    email: string | null;
+    displayName: string | null;
+    avatarUrl: string | null;
+  } | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authNotice, setAuthNotice] = useState("");
+  const localUi = isLocalHostname(
+    typeof window !== "undefined" ? window.location.hostname : "localhost",
+  );
   const manualVerifyDoneRef = useRef(false);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
@@ -719,7 +732,7 @@ export default function App() {
       return [...prev, entry].slice(-1000);
     });
     setScoutLogPage(0);
-    void fetch("/api/scout/log", {
+    void apiFetch("/api/scout/log", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(entry),
@@ -762,7 +775,7 @@ export default function App() {
 
   async function hydrateScoutLog() {
     try {
-      const res = await fetch("/api/scout/log");
+      const res = await apiFetch("/api/scout/log");
       if (!res.ok) return;
       const data = (await res.json()) as { entries?: ScoutLogEntry[] };
       const entries = Array.isArray(data.entries)
@@ -795,7 +808,7 @@ export default function App() {
 
   async function hydrateInteracted() {
     try {
-      const res = await fetch("/api/interacted");
+      const res = await apiFetch("/api/interacted");
       if (!res.ok) return;
       const data = (await res.json()) as {
         interactions?: InteractionHistoryEntry[];
@@ -889,7 +902,7 @@ export default function App() {
 
   async function hydrateSkipped() {
     try {
-      const res = await fetch("/api/skipped");
+      const res = await apiFetch("/api/skipped");
       if (!res.ok) return;
       const data = (await res.json()) as {
         skipped?: SkipHistoryEntry[];
@@ -922,7 +935,7 @@ export default function App() {
 
   async function hydrateDismissed() {
     try {
-      const res = await fetch("/api/dismissed");
+      const res = await apiFetch("/api/dismissed");
       if (!res.ok) return;
       const data = (await res.json()) as {
         dismissals?: DismissalHistoryEntry[];
@@ -963,7 +976,7 @@ export default function App() {
 
   async function hydrateExpired() {
     try {
-      const res = await fetch("/api/expired");
+      const res = await apiFetch("/api/expired");
       if (!res.ok) return;
       const data = (await res.json()) as {
         expired?: ExpiredHistoryEntry[];
@@ -996,7 +1009,7 @@ export default function App() {
 
   async function hydrateLastScout() {
     try {
-      const res = await fetch(`/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`);
+      const res = await apiFetch(`/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`);
       if (!res.ok) return;
       const data = (await res.json()) as {
         ok?: boolean;
@@ -1057,9 +1070,33 @@ export default function App() {
     }
   }
 
+  async function hydrateAuth() {
+    try {
+      const res = await apiFetch("/api/auth/me");
+      const data = (await res.json()) as {
+        ok?: boolean;
+        user?: {
+          id: string;
+          email: string | null;
+          displayName: string | null;
+          avatarUrl: string | null;
+        };
+      };
+      if (res.ok && data.ok && data.user?.id) {
+        setAuthUser(data.user);
+      } else {
+        setAuthUser(null);
+      }
+    } catch {
+      setAuthUser(null);
+    } finally {
+      setAuthChecked(true);
+    }
+  }
+
   async function hydrateSession() {
     try {
-      const res = await fetch("/api/session/verify");
+      const res = await apiFetch("/api/session/verify");
       if (manualVerifyDoneRef.current) return;
       const data = (await res.json()) as {
         ok?: boolean;
@@ -1086,6 +1123,17 @@ export default function App() {
   }
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const err = authErrorMessage(params.get("auth_error"));
+    if (err) setAuthNotice(err);
+    else if (params.get("auth") === "ok") setAuthNotice("Signed in.");
+    if (params.has("auth_error") || params.has("auth")) {
+      params.delete("auth_error");
+      params.delete("auth");
+      const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+      window.history.replaceState({}, "", next);
+    }
+    void hydrateAuth();
     void hydrateSession();
     void (async () => {
       await hydrateDismissed();
@@ -1188,7 +1236,7 @@ export default function App() {
         let reason: string | undefined;
 
         try {
-          const res = await fetch("/api/interacted/detect", {
+          const res = await apiFetch("/api/interacted/detect", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ threadId: thread.id, once: true }),
@@ -1332,7 +1380,7 @@ export default function App() {
     }
     const trimmed = reply.trim();
     try {
-      const res = await fetch("/api/interacted", {
+      const res = await apiFetch("/api/interacted", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1415,7 +1463,7 @@ export default function App() {
     setActionBusy(true);
     setStatus("Verifying X session…");
     try {
-      const res = await fetch("/api/session/verify");
+      const res = await apiFetch("/api/session/verify");
       const data = (await res.json()) as {
         ok?: boolean;
         user?: { screen_name: string; name: string };
@@ -1457,6 +1505,25 @@ export default function App() {
     closeMenu();
   }
 
+  function startGoogleLogin() {
+    window.location.href = apiUrl("/api/auth/google");
+  }
+
+  function startXLogin() {
+    window.location.href = apiUrl("/api/auth/x");
+  }
+
+  async function onLogout() {
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      /* still clear local */
+    }
+    setAuthUser(null);
+    setAuthNotice("Signed out.");
+    closeMenu();
+  }
+
   function openUsage() {
     setView("usage");
     closeMenu();
@@ -1468,7 +1535,7 @@ export default function App() {
     setUsageBusy(true);
     setUsageStatus("");
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/usage?window=${encodeURIComponent(window)}`,
       );
       const data = (await res.json()) as UsageSummaryResponse;
@@ -1535,7 +1602,7 @@ export default function App() {
     });
 
     try {
-      const res = await fetch("/api/scout/run", {
+      const res = await apiFetch("/api/scout/run", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
         body: JSON.stringify({
@@ -1677,7 +1744,7 @@ export default function App() {
       if (err instanceof DOMException && err.name === "AbortError") {
         // Keep partials already in state; merge any cools persisted mid-run.
         try {
-          const res = await fetch(
+          const res = await apiFetch(
             `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`,
           );
           if (res.ok) {
@@ -1756,7 +1823,7 @@ export default function App() {
   async function onSkip(thread: ThreadCard) {
     setActionBusy(true);
     try {
-      const res = await fetch("/api/skipped", {
+      const res = await apiFetch("/api/skipped", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1803,7 +1870,7 @@ export default function App() {
     reason: string,
   ): Promise<boolean> {
     try {
-      const res = await fetch("/api/dismissed", {
+      const res = await apiFetch("/api/dismissed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1920,6 +1987,8 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [markThread, dismissThread, actionBusy]);
 
+  const needsLogin = authChecked && !authUser && !localUi;
+
   return (
     <div className="app">
       <header className="brand">
@@ -1994,20 +2063,56 @@ export default function App() {
             aria-label="User menu"
           >
             <div className="menu-sheet-head">
-              <p className="menu-session">
+              {authUser ? (
+                <>
+                  <p className="menu-session">
+                    {authUser.displayName || authUser.email || "Signed in"}
+                  </p>
+                  {authUser.email ? (
+                    <p className="menu-session-name">{authUser.email}</p>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <p className="menu-session">Not signed in</p>
+                  <p className="menu-session-hint">
+                    Google allowlist on the API. X is identity-only (link after Google, or a handle whitelist).
+                  </p>
+                </>
+              )}
+              <p className="menu-session-hint">
                 {sessionUser
-                  ? `@${sessionUser.screen_name}`
+                  ? `Scout operator @${sessionUser.screen_name}`
                   : "X API not verified"}
               </p>
-              {sessionUser ? (
-                <p className="menu-session-name">{sessionUser.name}</p>
-              ) : (
-                <p className="menu-session-hint">
-                  Verify X API (bearer + operator username) to scout and mark replies.
-                </p>
-              )}
             </div>
             <div className="menu-actions">
+              {authUser ? (
+                <button
+                  type="button"
+                  className="ghost menu-action"
+                  onClick={() => void onLogout()}
+                >
+                  Sign out
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="primary menu-action"
+                    onClick={startGoogleLogin}
+                  >
+                    Continue with Google
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost menu-action"
+                    onClick={startXLogin}
+                  >
+                    Continue with X
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 className="ghost menu-action"
@@ -2035,7 +2140,35 @@ export default function App() {
         </div>
       ) : null}
 
-      {view === "usage" ? (
+      {authNotice ? (
+        <p className="status auth-notice" role="status">
+          {authNotice}
+        </p>
+      ) : null}
+
+      {needsLogin ? (
+        <section className="panel login-pane">
+          <h2>Sign in</h2>
+          <p className="status settings-lede">
+            Use a Google account on the API allowlist. Optionally link X for
+            identity. No secrets live in this page.
+          </p>
+          <div className="login-actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={startGoogleLogin}
+            >
+              Continue with Google
+            </button>
+            <button type="button" className="ghost" onClick={startXLogin}>
+              Continue with X
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {!needsLogin && view === "usage" ? (
         <section className="panel settings-pane usage-pane">
           <div className="settings-head">
             <h2>Usage & Billing</h2>
@@ -2158,7 +2291,7 @@ export default function App() {
         </section>
       ) : null}
 
-      {view === "settings" ? (
+      {needsLogin || view === "usage" ? null : view === "settings" ? (
         <section className="panel settings-pane">
           <div className="settings-head">
             <h2>Settings</h2>

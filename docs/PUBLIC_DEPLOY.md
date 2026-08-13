@@ -32,8 +32,16 @@ Restart after `.env` changes: `./pm2-manager.sh restart`.
 | Name | Type | Content | Proxy | When |
 |------|------|---------|-------|------|
 | `api` | A | `159.223.169.152` (this VPS) | Proxied (orange cloud) | **Now**, before prod OAuth redirects |
-| `@` | Workers custom domain | SPA | Proxied | After Wrangler is wired (next PR) |
+| `@` | Workers custom domain | SPA | Proxied | After `npm run deploy:workers` + attach `xcopilot.dev` |
 | `www` | CNAME `@` or Workers route | SPA | Proxied | Same as apex |
+
+Deploy the SPA (no secrets in the Worker):
+
+```bash
+npm run deploy:workers
+```
+
+`wrangler.toml` serves Vite `dist/` as a single-page app. Attach custom domains in the Cloudflare dashboard once the Worker exists.
 
 SSL/TLS mode: **Full (strict)** once the origin has a valid cert, or **Full** behind Cloudflare while using the proxy. Enable **WebSockets** off (not needed). Keep **Always Use HTTPS** on.
 
