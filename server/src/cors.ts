@@ -1,0 +1,51 @@
+/**
+ * Credentialed CORS for the SPA on localhost / xcopilot.dev talking to the API.
+ */
+import type { IncomingMessage } from "node:http";
+
+const LOCAL_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
+];
+
+export function parseAllowedOrigins(
+  raw: string | undefined = process.env.ALLOWED_ORIGINS,
+): string[] {
+  const extra = (raw ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return [...new Set([...LOCAL_ORIGINS, ...extra])];
+}
+
+export function requestOrigin(req: IncomingMessage): string | undefined {
+  const raw = req.headers.origin;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : undefined;
+}
+
+export function isOriginAllowed(
+  origin: string | undefined,
+  allowed: string[] = parseAllowedOrigins(),
+): boolean {
+  if (!origin) return true;
+  return allowed.includes(origin);
+}
+
+export function corsHeaders(
+  req: IncomingMessage,
+  allowed: string[] = parseAllowedOrigins(),
+): Record<string, string> {
+  const origin = requestOrigin(req);
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Credentials": "true",
+    Vary: "Origin",
+  };
+  if (origin && allowed.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  return headers;
+}
