@@ -3,7 +3,8 @@
  * Estimates post-read cost; console.x.com remains source of truth for balance.
  */
 import { randomUUID } from "node:crypto";
-import { getLocalTenantId, getPlatformDb } from "./db.js";
+import { getPlatformDb } from "./db.js";
+import { getRequestTenantId } from "./requestContext.js";
 
 /** Official Pay Per Use list price for a post read (~$0.005). */
 export const POST_READ_USD_MICROS = 5_000;
@@ -104,7 +105,7 @@ export function estimatePostReadCostMicros(postsRead: number): number {
 export function recordUsageEvent(input: UsageEventInput): void {
   try {
     const database = getPlatformDb();
-    const tenantId = input.tenantId?.trim() || getLocalTenantId();
+    const tenantId = input.tenantId?.trim() || getRequestTenantId();
     const postsRead = Math.max(0, Math.floor(input.postsRead ?? 0));
     const costUsdMicros = estimatePostReadCostMicros(postsRead);
     const id = randomUUID();
@@ -147,7 +148,7 @@ export function getUsageSummary(opts?: {
   limit?: number;
 }): UsageSummary {
   const database = getPlatformDb();
-  const tenantId = opts?.tenantId?.trim() || getLocalTenantId();
+  const tenantId = opts?.tenantId?.trim() || getRequestTenantId();
   const window = opts?.window ?? "7d";
   const limit = Math.min(Math.max(opts?.limit ?? 50, 1), 200);
   const since = windowStartIso(window);
@@ -244,7 +245,7 @@ export function getUsageSummary(opts?: {
     creditsDepletedRecent: (Number(depletedRow.n) || 0) > 0,
     postReadUsd: microsToUsd(POST_READ_USD_MICROS),
     note:
-      "Estimates from our call ledger at ~$0.005/post read. Buy/monitor credits in console.x.com — balance is not synced here. Platform X API is shared; future tenants meter against this ledger.",
+      "Credits on your desk are X post reads this UTC month (hard ceiling, no rollover). Est. $ is our COGS at ~$0.005/post — console.x.com remains wallet truth for the shared platform key.",
     recent: recentRaw.map((r) => ({
       id: r.id,
       at: r.at,

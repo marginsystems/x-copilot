@@ -32,6 +32,7 @@ describe("scoutStages", () => {
       isScoutGateError(429, { error: "scout_busy" }),
       true,
     );
+    assert.equal(isScoutGateError(402, { error: "credits_exhausted" }), true);
     assert.equal(isScoutGateError(500, { error: "deepseek_error" }), false);
   });
 

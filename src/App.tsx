@@ -50,6 +50,8 @@ import { AuthButtons } from "./AuthButtons";
 import { BootScreen, Landing } from "./Landing";
 import { Onboarding } from "./Onboarding";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
+import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
+import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -552,7 +554,7 @@ function InteractedRow({
   );
 }
 
-type AppView = "dashboard" | "settings" | "usage";
+type AppView = "dashboard" | "settings" | "usage" | "admin";
 type DeskTab = "agent" | "threads";
 
 type UsageWindow = "24h" | "7d" | "all";
@@ -591,7 +593,22 @@ type AuthSessionUser = {
   onboardingCompleted: boolean;
   agenda: string | null;
   xUsername: string | null;
+  isAdmin: boolean;
 };
+
+function viewFromPath(pathname: string): AppView {
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
+  if (pathname === "/usage" || pathname === "/billing") return "usage";
+  if (pathname === "/settings") return "settings";
+  return "dashboard";
+}
+
+function pathFromView(view: AppView): string {
+  if (view === "admin") return "/admin";
+  if (view === "usage") return "/usage";
+  if (view === "settings") return "/settings";
+  return "/";
+}
 
 /** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
 const SEARCH_COOLDOWN_MS = 15_000;
@@ -637,7 +654,9 @@ export default function App() {
   const activityRequestBucketRef = useRef<ActivityBucket>("day");
   /** Monotonic token so out-of-order gamification responses don't regress the chip. */
   const gamificationRequestSeqRef = useRef(0);
-  const [view, setView] = useState<AppView>("dashboard");
+  const [view, setView] = useState<AppView>(() =>
+    typeof window === "undefined" ? "dashboard" : viewFromPath(window.location.pathname),
+  );
   const [deskTab, setDeskTab] = useState<DeskTab>("threads");
   const [usageWindow, setUsageWindow] = useState<UsageWindow>("7d");
   const [usage, setUsage] = useState<UsageSummaryResponse | null>(null);
@@ -645,6 +664,13 @@ export default function App() {
   /** Monotonic token so out-of-order usage responses can't show the wrong window. */
   const usageRequestSeqRef = useRef(0);
   const [usageStatus, setUsageStatus] = useState("");
+  const [billing, setBilling] = useState<BillingMe | null>(null);
+  const [billingNotice, setBillingNotice] = useState("");
+  const [checkoutPlan, setCheckoutPlan] = useState<PaidPlanKey | null>(null);
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [adminTenants, setAdminTenants] = useState<AdminTenantRow[] | null>(null);
+  const [adminBusy, setAdminBusy] = useState(false);
+  const [adminError, setAdminError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
   const [sessionUser, setSessionUser] = useState<{
@@ -1103,6 +1129,7 @@ export default function App() {
           onboardingCompleted?: boolean;
           agenda?: string | null;
           xUsername?: string | null;
+          isAdmin?: boolean;
         };
       };
       setAuthRequired(data.authRequired ?? true);
@@ -1121,6 +1148,7 @@ export default function App() {
             typeof data.user.xUsername === "string" && data.user.xUsername.trim()
               ? data.user.xUsername.replace(/^@+/, "")
               : null,
+          isAdmin: Boolean(data.user.isAdmin),
         };
         setAuthUser(user);
         return user;
@@ -1168,10 +1196,22 @@ export default function App() {
     const err = authErrorMessage(params.get("auth_error"));
     if (err) setAuthNotice(err);
     else if (params.get("auth") === "ok") setAuthNotice("Signed in.");
-    if (params.has("auth_error") || params.has("auth")) {
+    const checkout = params.get("checkout");
+    const sessionId = params.get("session_id");
+    if (checkout === "success") {
+      setView("usage");
+      setBillingNotice("Checkout complete — confirming your plan…");
+    } else if (checkout === "cancel") {
+      setView("usage");
+      setBillingNotice("Checkout canceled.");
+    }
+    if (params.has("auth_error") || params.has("auth") || params.has("checkout") || params.has("session_id")) {
       params.delete("auth_error");
       params.delete("auth");
-      const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+      params.delete("checkout");
+      params.delete("session_id");
+      const path = checkout ? "/usage" : window.location.pathname;
+      const next = `${path}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
       window.history.replaceState({}, "", next);
     }
     void hydrateSession();
@@ -1194,7 +1234,20 @@ export default function App() {
       await hydrateExpired();
       if (onboarded) await hydrateLastScout();
       await hydrateScoutLog();
+      if (checkout === "success" && sessionId) {
+        await confirmCheckout(sessionId);
+      }
+      if (viewFromPath(window.location.pathname) === "usage" || checkout) {
+        void loadUsage();
+        void loadBilling();
+      }
+      if (viewFromPath(window.location.pathname) === "admin" && user?.isAdmin) {
+        void loadAdmin();
+      }
     })();
+    const onPop = () => setView(viewFromPath(window.location.pathname));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   useEffect(() => {
@@ -1559,7 +1612,7 @@ export default function App() {
   function openSettings() {
     setSettingsDraft(settings);
     setSettingsStatus("");
-    setView("settings");
+    goToView("settings");
     closeMenu();
   }
 
@@ -1597,10 +1650,135 @@ export default function App() {
     );
   }
 
+  function goToView(next: AppView) {
+    setView(next);
+    const path = pathFromView(next);
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+    }
+  }
+
   function openUsage() {
-    setView("usage");
+    goToView("usage");
     closeMenu();
     void loadUsage(usageWindow);
+    void loadBilling();
+  }
+
+  function openAdmin() {
+    goToView("admin");
+    closeMenu();
+    void loadAdmin();
+  }
+
+  async function loadBilling() {
+    try {
+      const res = await apiFetch("/api/billing/me");
+      const data = (await res.json()) as BillingMe;
+      if (!res.ok) {
+        setBillingNotice(data.message || data.error || `Billing failed (${res.status})`);
+        return;
+      }
+      setBilling(data);
+    } catch (err) {
+      setBillingNotice(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function confirmCheckout(sessionId: string) {
+    try {
+      const res = await apiFetch("/api/stripe/checkout/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      const data = (await res.json()) as { ok?: boolean; plan_key?: string; error?: string; message?: string };
+      if (!res.ok) {
+        setBillingNotice(data.message || data.error || "Could not confirm checkout yet. Refresh in a moment.");
+        return;
+      }
+      setBillingNotice(
+        data.plan_key
+          ? `You're on ${data.plan_key}. Credits reset each UTC month.`
+          : "Subscription active.",
+      );
+      await loadBilling();
+    } catch (err) {
+      setBillingNotice(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function onSubscribe(plan: PaidPlanKey) {
+    setCheckoutPlan(plan);
+    setBillingNotice("");
+    try {
+      const res = await apiFetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const data = (await res.json()) as {
+        url?: string;
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok || !data.url) {
+        setBillingNotice(data.message || data.error || `Checkout failed (${res.status})`);
+        return;
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      setBillingNotice(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCheckoutPlan(null);
+    }
+  }
+
+  async function onManageBilling() {
+    setPortalBusy(true);
+    setBillingNotice("");
+    try {
+      const res = await apiFetch("/api/stripe/portal", { method: "POST" });
+      const data = (await res.json()) as {
+        url?: string;
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok || !data.url) {
+        setBillingNotice(data.message || data.error || `Portal failed (${res.status})`);
+        return;
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      setBillingNotice(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPortalBusy(false);
+    }
+  }
+
+  async function loadAdmin() {
+    setAdminBusy(true);
+    setAdminError("");
+    try {
+      const res = await apiFetch("/api/admin/tenants");
+      const data = (await res.json()) as {
+        ok?: boolean;
+        tenants?: AdminTenantRow[];
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok) {
+        setAdminTenants(null);
+        setAdminError(data.message || data.error || `Admin failed (${res.status})`);
+        return;
+      }
+      setAdminTenants(data.tenants ?? []);
+    } catch (err) {
+      setAdminTenants(null);
+      setAdminError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAdminBusy(false);
+    }
   }
 
   async function loadUsage(window: UsageWindow = usageWindow) {
@@ -2227,6 +2405,15 @@ export default function App() {
                   >
                     Usage & Billing
                   </button>
+                  {authUser?.isAdmin ? (
+                    <button
+                      type="button"
+                      className="ghost menu-action"
+                      onClick={openAdmin}
+                    >
+                      Admin
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="primary menu-action"
@@ -2271,6 +2458,32 @@ export default function App() {
         </p>
       ) : null}
 
+      {view === "admin" ? (
+        authUser?.isAdmin ? (
+          <AdminPanel
+            tenants={adminTenants}
+            busy={adminBusy}
+            error={adminError}
+            onBack={() => goToView("dashboard")}
+            onRefresh={() => void loadAdmin()}
+          />
+        ) : (
+          <section className="panel settings-pane">
+            <div className="settings-head">
+              <h2>Admin</h2>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => goToView("dashboard")}
+              >
+                Back
+              </button>
+            </div>
+            <p className="status danger">This desk is operator-only.</p>
+          </section>
+        )
+      ) : null}
+
       {view === "usage" ? (
         <section className="panel settings-pane usage-pane">
           <div className="settings-head">
@@ -2278,22 +2491,28 @@ export default function App() {
             <button
               type="button"
               className="ghost"
-              onClick={() => setView("dashboard")}
+              onClick={() => goToView("dashboard")}
             >
               Back
             </button>
           </div>
           <p className="status settings-lede">
-            Shared platform X API — we meter reads here for Scout. Buy credits in{" "}
-            <a
-              href="https://console.x.com"
-              target="_blank"
-              rel="noreferrer"
-            >
+            Your plan is a monthly credit pool of X post reads. Hosted billing is
+            Mergestorm, Inc. Platform COGS still settle in{" "}
+            <a href="https://console.x.com" target="_blank" rel="noreferrer">
               console.x.com
             </a>
-            . There is no free read allowance on Pay Per Use.
+            .
           </p>
+          <BillingPanel
+            billing={billing}
+            busy={usageBusy}
+            notice={billingNotice}
+            checkoutPlan={checkoutPlan}
+            portalBusy={portalBusy}
+            onSubscribe={(plan) => void onSubscribe(plan)}
+            onManage={() => void onManageBilling()}
+          />
           <div className="usage-toolbar">
             <label className="settings-field usage-window">
               <span>Window</span>
@@ -2324,8 +2543,8 @@ export default function App() {
           {usageStatus ? <p className="status danger">{usageStatus}</p> : null}
           {usage?.creditsDepletedRecent ? (
             <p className="usage-banner">
-              Credits depleted recently (HTTP 402). Add Pay Per Use credits + a
-              spending limit in console.x.com, then retry Scout.
+              X returned HTTP 402 (platform wallet empty). That is separate from
+              your plan credits — tell an operator to top up console.x.com.
             </p>
           ) : null}
           {usage ? (
@@ -2394,14 +2613,14 @@ export default function App() {
         </section>
       ) : null}
 
-      {view === "usage" ? null : view === "settings" ? (
+      {view === "usage" || view === "admin" ? null : view === "settings" ? (
         <section className="panel settings-pane">
           <div className="settings-head">
             <h2>Settings</h2>
             <button
               type="button"
               className="ghost"
-              onClick={() => setView("dashboard")}
+              onClick={() => goToView("dashboard")}
             >
               Back
             </button>

@@ -285,6 +285,9 @@ export function linkOauthToUser(opts: {
         database
           .prepare(`DELETE FROM sessions WHERE user_id = ?`)
           .run(orphanUserId);
+        database
+          .prepare(`DELETE FROM user_billing WHERE user_id = ?`)
+          .run(orphanUserId);
         database.prepare(`DELETE FROM users WHERE id = ?`).run(orphanUserId);
       })();
       existing = findOauthAccount(opts.provider, opts.providerUserId);

@@ -67,7 +67,7 @@ import {
   detectOwnReplyToThreadWithRetry,
   resolveDetectScreenName,
 } from "./detectReply.js";
-import { getPlatformDb } from "./db.js";
+import { getPlatformDb, getLocalTenantId } from "./db.js";
 import { getUsageSummary } from "./usageMeter.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 import { tryHandleAuth } from "./authHttp.js";
@@ -75,6 +75,16 @@ import { tryHandleOnboarding } from "./onboardingHttp.js";
 import { corsHeaders, isLocalOrigin, isOriginAllowed, requestOrigin } from "./cors.js";
 import { authRequired, bindHost, isPublicApiPath } from "./authGuard.js";
 import { getSessionUser } from "./sessionCookie.js";
+import { tryHandleAdmin } from "./adminHttp.js";
+import {
+  creditsExhaustedResponse,
+  ensureUserTenant,
+} from "./billingStore.js";
+import { enterRequestContext, getRequestContext, getRequestTenantId } from "./requestContext.js";
+import {
+  tryHandleBilling,
+  tryHandleStripeWebhook,
+} from "./stripeHttp.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -184,6 +194,21 @@ function send(
   res.end(json);
 }
 
+function sendCreditsExhausted(
+  req: IncomingMessage,
+  res: ServerResponse,
+): boolean {
+  const ctx = getRequestContext();
+  const exhausted = creditsExhaustedResponse({
+    userId: ctx?.userId,
+    tenantId: ctx?.tenantId ?? getRequestTenantId(),
+    email: getSessionUser(req)?.email,
+  });
+  if (!exhausted) return false;
+  send(req, res, 402, exhausted);
+  return true;
+}
+
 class BodyError extends Error {
   statusCode: number;
   constructor(message: string, statusCode: number) {
@@ -230,6 +255,10 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (await tryHandleStripeWebhook(req, res, url)) {
+      return;
+    }
+
     if (authRequired() && !isPublicApiPath(url.pathname)) {
       if (
         !isOriginAllowed(
@@ -255,6 +284,20 @@ const server = http.createServer(async (req, res) => {
           message: "Origin not allowed",
         });
       }
+    }
+
+    const sessionUser = getSessionUser(req);
+    const tenantId = sessionUser
+      ? ensureUserTenant(sessionUser.id)
+      : getLocalTenantId();
+    enterRequestContext({ tenantId, userId: sessionUser?.id });
+
+    if (await tryHandleBilling(req, res, url)) {
+      return;
+    }
+
+    if (await tryHandleAdmin(req, res, url)) {
+      return;
     }
 
     if (await tryHandleOnboarding(req, res, url)) {
@@ -392,6 +435,7 @@ const server = http.createServer(async (req, res) => {
         ? body.queries.filter((q): q is string => typeof q === "string")
         : [];
       const filters = parseScoutFilters(body.filters);
+      if (sendCreditsExhausted(req, res)) return;
       const gate = tryBeginScout();
       if (!gate.ok) {
         return send(req, res, gate.status, {
@@ -461,6 +505,8 @@ const server = http.createServer(async (req, res) => {
       const filters = parseScoutFilters(body.filters);
       const targetCool = clampTargetCool(body.targetCool);
       const bucketSize = clampBucketSize(body.bucketSize);
+
+      if (sendCreditsExhausted(req, res)) return;
 
       const gate = tryBeginScout();
       if (!gate.ok) {
