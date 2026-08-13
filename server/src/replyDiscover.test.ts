@@ -28,8 +28,8 @@ function card(
 
 describe("buildOwnRepliesQuery", () => {
   it("builds from: + is:reply with within_time", () => {
-    const q = buildOwnRepliesQuery("@MarginSystems", "24h");
-    assert.match(q, /^from:MarginSystems is:reply within_time:24h$/);
+    const q = buildOwnRepliesQuery("@alice", "24h");
+    assert.match(q, /^from:alice is:reply within_time:24h$/);
   });
 });
 

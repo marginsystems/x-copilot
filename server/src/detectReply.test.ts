@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   detectOwnReplyToThread,
   detectOwnReplyToThreadWithRetry,
+  buildDetectOwnReplyQuery,
 } from "./detectReply.ts";
 import type { ThreadCard } from "./xSearch.ts";
 
@@ -17,13 +18,25 @@ function card(
   };
 }
 
+describe("buildDetectOwnReplyQuery", () => {
+  it("scopes to conversation + from + is:reply", () => {
+    const q = buildDetectOwnReplyQuery("@alice", "parent1");
+    assert.match(q, /conversation_id:parent1/);
+    assert.match(q, /from:alice/);
+    assert.match(q, /is:reply/);
+    assert.match(q, /within_time:24h/);
+  });
+});
+
 describe("detectOwnReplyToThread", () => {
   it("returns the unique reply matching inReplyToId", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "parent1",
-      screenName: "@marginsystems",
+      screenName: "@alice",
       searchTimelinePages: async (opts) => {
-        assert.match(opts.query, /from:marginsystems/);
+        assert.match(opts.query, /conversation_id:parent1/);
+        assert.match(opts.query, /from:alice/);
+        assert.match(opts.query, /is:reply/);
         assert.match(opts.query, /within_time:24h/);
         assert.equal(opts.product, "Latest");
         assert.equal(opts.maxPages, 1);

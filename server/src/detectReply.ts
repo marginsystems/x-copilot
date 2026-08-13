@@ -1,5 +1,5 @@
 /**
- * Find the session user's reply to a curated parent tweet via SearchTimeline.
+ * Find the operator's reply to a curated parent tweet via official recent search.
  */
 import {
   searchTimelinePages,
@@ -78,8 +78,22 @@ function sleep(
   });
 }
 
+/** Narrow recent-search query: our replies in this conversation only. */
+export function buildDetectOwnReplyQuery(
+  screenName: string,
+  threadId: string,
+  withinTime = "24h",
+): string {
+  const name = normalizeScreenName(screenName);
+  const id = threadId.trim();
+  return withSearchRecency(
+    `conversation_id:${id} from:${name} is:reply`,
+    withinTime,
+  );
+}
+
 /**
- * Latest search from the session user; keep exact in_reply_to matches.
+ * Latest search from the operator; keep exact in_reply_to matches.
  * Exactly one hit → reply; zero → none; many → ambiguous; search error → search_failed.
  */
 export async function detectOwnReplyToThread(opts: {
@@ -104,7 +118,7 @@ export async function detectOwnReplyToThread(opts: {
   }
 
   const within = opts.withinTime ?? "24h";
-  const query = withSearchRecency(`from:${screenName}`, within);
+  const query = buildDetectOwnReplyQuery(screenName, threadId, within);
   const search = opts.searchTimelinePages ?? searchTimelinePages;
 
   let result: SearchTimelineResult;
