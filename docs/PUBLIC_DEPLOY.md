@@ -19,7 +19,7 @@ GOOGLE_REDIRECT_URI=https://api.xcopilot.dev/api/auth/google/callback
 X_OAUTH_CALLBACK=https://api.xcopilot.dev/api/auth/x/callback
 ```
 
-`AUTH_REQUIRED` is implied when a whitelist is set **or** `BIND_HOST` is `0.0.0.0`; `AUTH_REQUIRED=0` cannot override the public bind, so the session gate stays on. Set `AUTH_REQUIRED=0` only for break-glass local debugging — never on the public bind.
+`AUTH_REQUIRED` is implied when a whitelist is set **or** `BIND_HOST` is `0.0.0.0`. Here the bind is loopback (`127.0.0.1`), so the public-bind guard does not apply: an explicit `AUTH_REQUIRED=0` disables the session gate even in production. `AUTH_REQUIRED=1` (or the whitelist when the flag is unset) is the only thing keeping it on. Set `AUTH_REQUIRED=0` only for break-glass local debugging — never on the deployed `.env`.
 
 ### Keep 8787 off the public internet
 
