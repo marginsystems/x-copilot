@@ -161,7 +161,7 @@ export function upsertOauthUser(opts: {
            WHERE id = ?`,
         )
         .run(
-          email,
+          opts.emailVerified ? email : null,
           opts.displayName ?? null,
           opts.avatarUrl ?? null,
           at,
@@ -171,7 +171,7 @@ export function upsertOauthUser(opts: {
         .prepare(
           `UPDATE oauth_accounts SET email = ?, username = ? WHERE id = ?`,
         )
-        .run(email, opts.username ?? null, existing.id);
+        .run(opts.emailVerified ? email : null, opts.username ?? null, existing.id);
       const user = getUserById(existing.userId);
       if (!user) throw new Error("oauth user missing after update");
       return user;
