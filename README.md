@@ -60,7 +60,7 @@ Vite UI  →  local Node sidecar  →  X API v2 (app-only bearer)
               Gemini / DeepSeek
 ```
 
-Bearer token and LLM keys stay in `.env` on the sidecar. The browser never stores credentials.
+Bearer token and LLM keys stay in `.env` on the sidecar. The browser never stores credentials. Public DNS + bind notes: [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md).
 
 ## Quick start
 
@@ -139,6 +139,7 @@ Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only 
 | `ecosystem.config.example.cjs` | PM2 template (copy → local `ecosystem.config.cjs`) |
 | `.cursor/rules/` | Agent rules (e.g. Graphite stack PRs) |
 | `docs/MVP_PLAN.md` | Stream 1 scope |
+| `docs/PUBLIC_DEPLOY.md` | `api.xcopilot.dev` DNS, bind, TLS |
 | `.env.example` | Required secrets (no real values) |
 
 ## PM2 (prod-shaped API)
@@ -160,7 +161,7 @@ npm i -g pm2                                           # if needed
 | Item | Value |
 |------|--------|
 | App name | `x-copilot-api` |
-| Port | `8787` (bind `127.0.0.1` in server) |
+| Port | `8787` (bind `127.0.0.1` by default; `BIND_HOST=0.0.0.0` behind Cloudflare — see [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md)) |
 | Out log | `logs/x-copilot-api.out.log` |
 | Err log | `logs/x-copilot-api.err.log` |
 | Ecosystem | `ecosystem.config.cjs` (from example; **not** tracked) |

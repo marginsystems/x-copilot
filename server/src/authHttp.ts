@@ -7,6 +7,11 @@ import { corsHeaders } from "./cors.js";
 import { handleGoogleCallback, handleGoogleStart } from "./googleAuth.js";
 import { handleXCallback, handleXStart } from "./xAuth.js";
 import {
+  AUTH_START_RATE,
+  allowRate,
+  clientIp,
+} from "./authGuard.js";
+import {
   getSessionUser,
   requestCookies,
   SESSION_COOKIE,
@@ -51,6 +56,10 @@ export async function tryHandleAuth(
   if (!url.pathname.startsWith("/api/auth")) return false;
 
   if (req.method === "GET" && url.pathname === "/api/auth/google") {
+    if (!allowRate(`auth:${clientIp(req)}`, AUTH_START_RATE.max, AUTH_START_RATE.windowMs)) {
+      sendJson(req, res, 429, { error: "rate_limited", message: "Too many login attempts" });
+      return true;
+    }
     handleGoogleStart(req, res);
     return true;
   }
@@ -59,6 +68,10 @@ export async function tryHandleAuth(
     return true;
   }
   if (req.method === "GET" && url.pathname === "/api/auth/x") {
+    if (!allowRate(`auth:${clientIp(req)}`, AUTH_START_RATE.max, AUTH_START_RATE.windowMs)) {
+      sendJson(req, res, 429, { error: "rate_limited", message: "Too many login attempts" });
+      return true;
+    }
     await handleXStart(req, res);
     return true;
   }
