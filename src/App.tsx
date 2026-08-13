@@ -45,6 +45,8 @@ import { ActivityChart } from "./ActivityChart";
 import { stripMediaShortlinksFromText } from "./lib/mediaText";
 import { apiFetch, apiUrl, isLocalHostname } from "./lib/apiBase";
 import { authErrorMessage } from "./lib/authErrors";
+import { AuthButtons } from "./AuthButtons";
+import { BootScreen, Landing } from "./Landing";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -1992,6 +1994,27 @@ export default function App() {
   }, [markThread, dismissThread, actionBusy]);
 
   const needsLogin = authChecked && !authUser && !localUi;
+  const booting = !localUi && !authChecked;
+
+  if (booting) {
+    return (
+      <div className="app app-gate">
+        <BootScreen />
+      </div>
+    );
+  }
+
+  if (needsLogin) {
+    return (
+      <div className="app app-gate">
+        <Landing
+          notice={authNotice}
+          onGoogle={startGoogleLogin}
+          onX={startXLogin}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -2114,22 +2137,11 @@ export default function App() {
                   Sign out
                 </button>
               ) : (
-                <>
-                  <button
-                    type="button"
-                    className="primary menu-action"
-                    onClick={startGoogleLogin}
-                  >
-                    Continue with Google
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost menu-action"
-                    onClick={startXLogin}
-                  >
-                    Continue with X
-                  </button>
-                </>
+                <AuthButtons
+                  stacked
+                  onGoogle={startGoogleLogin}
+                  onX={startXLogin}
+                />
               )}
               <button
                 type="button"
@@ -2162,29 +2174,6 @@ export default function App() {
         <p className="status auth-notice" role="status">
           {authNotice}
         </p>
-      ) : null}
-
-      {needsLogin ? (
-        <section className="panel login-pane">
-          <h2>Sign in</h2>
-          <p className="status settings-lede">
-            Use a Google account on the API allowlist. Optionally link an X
-            account for identity. This page holds no secrets. x-copilot is
-            independent software and is not affiliated with X Corp.
-          </p>
-          <div className="login-actions">
-            <button
-              type="button"
-              className="primary"
-              onClick={startGoogleLogin}
-            >
-              Continue with Google
-            </button>
-            <button type="button" className="ghost" onClick={startXLogin}>
-              Continue with X
-            </button>
-          </div>
-        </section>
       ) : null}
 
       {!needsLogin && view === "usage" ? (
