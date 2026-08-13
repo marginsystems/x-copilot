@@ -45,6 +45,7 @@ import { ActivityChart } from "./ActivityChart";
 import { stripMediaShortlinksFromText } from "./lib/mediaText";
 import { apiFetch, apiUrl, isLocalHostname } from "./lib/apiBase";
 import { authErrorMessage } from "./lib/authErrors";
+import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
 import { AuthButtons } from "./AuthButtons";
 import { BootScreen, Landing } from "./Landing";
 
@@ -645,6 +646,9 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authRequired, setAuthRequired] = useState(true);
   const [authNotice, setAuthNotice] = useState("");
+  const [theme, setTheme] = useState<Theme>(() =>
+    typeof document === "undefined" ? "dark" : readTheme(),
+  );
   const localUi = isLocalHostname(
     typeof window !== "undefined" ? window.location.hostname : "localhost",
   );
@@ -1153,6 +1157,10 @@ export default function App() {
       await hydrateScoutLog();
     })();
   }, []);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   // Prevent mouse wheel from changing number inputs while scrolling the page.
   useEffect(() => {
@@ -2009,21 +2017,9 @@ export default function App() {
     );
   }
 
-  if (needsLogin) {
-    return (
-      <div className="app app-gate">
-        <Landing
-          notice={authNotice}
-          onGoogle={startGoogleLogin}
-          onX={startXLogin}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="app">
-      <header className="brand">
+    <div className={needsLogin ? "app app-gate" : "app"}>
+      <header className={needsLogin ? "brand brand-gate" : "brand"}>
         <div className="brand-bar">
           <div className="brand-lockup">
             <img
@@ -2121,16 +2117,20 @@ export default function App() {
               ) : (
                 <>
                   <p className="menu-session">Not signed in</p>
-                  <p className="menu-session-hint">
-                    Google allowlist on the API. X is identity-only (link after Google, or a handle whitelist).
-                  </p>
+                  {needsLogin ? null : (
+                    <p className="menu-session-hint">
+                      Google allowlist on the API. X is identity-only (link after Google, or a handle whitelist).
+                    </p>
+                  )}
                 </>
               )}
-              <p className="menu-session-hint">
-                {sessionUser
-                  ? `Scout operator @${sessionUser.screen_name}`
-                  : "X API not verified"}
-              </p>
+              {needsLogin ? null : (
+                <p className="menu-session-hint">
+                  {sessionUser
+                    ? `Scout operator @${sessionUser.screen_name}`
+                    : "X API not verified"}
+                </p>
+              )}
             </div>
             <div className="menu-actions">
               {authUser ? (
@@ -2141,7 +2141,7 @@ export default function App() {
                 >
                   Sign out
                 </button>
-              ) : (
+              ) : needsLogin ? null : (
                 <AuthButtons
                   stacked
                   onGoogle={startGoogleLogin}
@@ -2151,31 +2151,50 @@ export default function App() {
               <button
                 type="button"
                 className="ghost menu-action"
-                disabled={actionBusy}
-                onClick={() => void onVerifySession()}
+                onClick={() => setTheme((t) => nextTheme(t))}
               >
-                Verify X API
+                {theme === "dark" ? "Light theme" : "Dark theme"}
               </button>
-              <button
-                type="button"
-                className="ghost menu-action"
-                onClick={openUsage}
-              >
-                Usage & Billing
-              </button>
-              <button
-                type="button"
-                className="primary menu-action"
-                onClick={openSettings}
-              >
-                Settings
-              </button>
+              {needsLogin ? null : (
+                <>
+                  <button
+                    type="button"
+                    className="ghost menu-action"
+                    disabled={actionBusy}
+                    onClick={() => void onVerifySession()}
+                  >
+                    Verify X API
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost menu-action"
+                    onClick={openUsage}
+                  >
+                    Usage & Billing
+                  </button>
+                  <button
+                    type="button"
+                    className="primary menu-action"
+                    onClick={openSettings}
+                  >
+                    Settings
+                  </button>
+                </>
+              )}
             </div>
           </aside>
         </div>
       ) : null}
 
-      {authNotice ? (
+      {needsLogin ? (
+        <Landing
+          notice={authNotice}
+          onGoogle={startGoogleLogin}
+          onX={startXLogin}
+        />
+      ) : null}
+
+      {authNotice && !needsLogin ? (
         <p className="status auth-notice" role="status">
           {authNotice}
         </p>
