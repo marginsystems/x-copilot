@@ -2,7 +2,7 @@
 
 The Node sidecar is the API. Cloudflare Workers host the SPA; they do **not** replace this process. `api` is a grey-cloud (DNS-only) A record to the VPS, so the VPS itself terminates TLS (Let's Encrypt on 443) in front of the API — port 8787 stays bound to loopback and is never exposed on the public internet.
 
-Operational requirement: port 8787 must never be reachable from the public internet. The API trusts `CF-Connecting-IP` / `X-Forwarded-Proto` only when the direct peer is a Cloudflare IP or loopback; a caller that can reach port 8787 directly can spoof those headers and bypass the login rate limiter, so keep 8787 loopback-bound and reach it only through the local TLS terminator.
+Operational requirement: port 8787 must never be reachable from the public internet. Forwarded headers are trusted from only two peer classes: `X-Forwarded-Proto` from loopback (a local TLS terminator / tunnel) for `Secure` cookies, and `CF-Connecting-IP` / `X-Forwarded-For` from Cloudflare IPs. Loopback is never trusted for the forwarded IP used by the login rate limiter, so under this grey-cloud topology every request arrives with peer `127.0.0.1` and `clientIp()` returns `127.0.0.1` for all users — the login rate limiter becomes one shared bucket for the whole deployment. Keep 8787 loopback-bound and reach it only through the local TLS terminator.
 
 ## Bind
 
@@ -23,14 +23,14 @@ X_OAUTH_CALLBACK=https://api.xcopilot.dev/api/auth/x/callback
 
 ### Keep 8787 off the public internet
 
-The API trusts `CF-Connecting-IP` / `X-Forwarded-For` only when the direct peer is a Cloudflare IP or loopback (otherwise it falls back to the socket address for rate limiting). Anyone who can reach `IP:8787` directly can spoof those headers and bypass the login rate limiter, so 8787 must never be reachable from the public internet: bind it to loopback and reach it only through the local TLS terminator. If you switch `api` to a proxied record instead, keep 8787 firewalled to Cloudflare's published ranges ([`ips-v4`](https://www.cloudflare.com/ips-v4) / [`ips-v6`](https://www.cloudflare.com/ips-v6)).
+`clientIp()` (used for login rate limiting) trusts `CF-Connecting-IP` / `X-Forwarded-For` only when the direct peer is a Cloudflare IP; loopback peers are not trusted, so behind the local TLS terminator every request is seen as `127.0.0.1` and the login rate limiter is effectively a single global bucket (20 login starts per 10 minutes for the whole deployment). A caller that reaches `IP:8787` directly is not a Cloudflare peer, so its forwarded headers are ignored and it is rate-limited by its own socket IP — per-IP protection is lost behind the terminator, not via header spoofing. If a per-IP limit is needed, key it on a header the TLS terminator sets itself (e.g. `X-Real-IP`). Bind 8787 to loopback and reach it only through the local TLS terminator. If you switch `api` to a proxied record instead, keep 8787 firewalled to Cloudflare's published ranges ([`ips-v4`](https://www.cloudflare.com/ips-v4) / [`ips-v6`](https://www.cloudflare.com/ips-v6)).
 
 Keep the server-side copy of these ranges in `server/src/authGuard.ts` in sync
-with the published lists — the rate limiter and cookie flags trust forwarded
-headers only from peers matching those ranges (or loopback). If Cloudflare adds
-ranges and the copy drifts, requests from the new edge nodes fall back to the
-socket address (shared rate buckets) and lose `X-Forwarded-Proto` trust (no
-`Secure` cookie).
+with the published lists — forwarded IPs are trusted only from peers matching
+those ranges, and `X-Forwarded-Proto` from those ranges or loopback. If
+Cloudflare adds ranges and the copy drifts, requests from the new edge nodes
+fall back to the socket address (shared rate buckets) and lose
+`X-Forwarded-Proto` trust (no `Secure` cookie).
 
 Restart after `.env` changes: `./pm2-manager.sh restart`.
 
