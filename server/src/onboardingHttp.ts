@@ -4,8 +4,15 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { completeOnboarding } from "./authStore.js";
 import { corsHeaders } from "./cors.js";
-import { validateAgendaText } from "./onboarding.js";
+import {
+  generateOnboardingAgendas,
+  validateAgendaText,
+  validateOnboardingAnswers,
+} from "./onboarding.js";
 import { getSessionUser } from "./sessionCookie.js";
+import { allowRate, clientIp } from "./authGuard.js";
+
+const ONBOARDING_GENERATE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 
 function sendJson(
   req: IncomingMessage,
@@ -77,6 +84,49 @@ export async function tryHandleOnboarding(
   url: URL,
 ): Promise<boolean> {
   if (!url.pathname.startsWith("/api/onboarding")) return false;
+
+  if (req.method === "POST" && url.pathname === "/api/onboarding/generate") {
+    if (
+      !allowRate(
+        `onboarding-generate:${clientIp(req)}`,
+        ONBOARDING_GENERATE_RATE.max,
+        ONBOARDING_GENERATE_RATE.windowMs,
+      )
+    ) {
+      sendJson(req, res, 429, {
+        error: "rate_limited",
+        message: "Too many agenda generations",
+      });
+      return true;
+    }
+    let body: Record<string, unknown>;
+    try {
+      body = await readBody(req);
+    } catch (err) {
+      const statusCode = err instanceof BodyError ? err.statusCode : 400;
+      sendJson(req, res, statusCode, {
+        error: "bad_request",
+        message: err instanceof Error ? err.message : "Invalid request body",
+      });
+      return true;
+    }
+
+    const parsed = validateOnboardingAnswers(body);
+    if (!parsed.ok) {
+      sendJson(req, res, 400, { error: parsed.error, message: parsed.message });
+      return true;
+    }
+
+    const result = await generateOnboardingAgendas(parsed.answers, {
+      provider: body.provider,
+    });
+    sendJson(req, res, 200, {
+      ok: true,
+      agendas: result.agendas,
+      source: result.source,
+    });
+    return true;
+  }
 
   if (req.method === "POST" && url.pathname === "/api/onboarding/complete") {
     let body: Record<string, unknown>;
