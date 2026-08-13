@@ -259,32 +259,35 @@ export function linkOauthToUser(opts: {
   const email = opts.email?.trim().toLowerCase() || null;
   const at = nowIso();
   const database = getPlatformDb();
-  database
-    .prepare(
-      `INSERT INTO oauth_accounts
-         (id, user_id, provider, provider_user_id, email, username, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      randomUUID(),
-      opts.userId,
-      opts.provider,
-      opts.providerUserId,
-      email,
-      opts.username ?? null,
-      at,
-    );
-  database
-    .prepare(
-      `UPDATE users SET
-         display_name = COALESCE(?, display_name),
-         avatar_url = COALESCE(?, avatar_url),
-         last_login_at = ?
-       WHERE id = ?`,
-    )
-    .run(opts.displayName ?? null, opts.avatarUrl ?? null, at, opts.userId);
-  const updated = getUserById(opts.userId);
-  if (!updated) return { ok: false, error: "user_missing" };
+  const updated = database.transaction((): AuthUser => {
+    database
+      .prepare(
+        `INSERT INTO oauth_accounts
+           (id, user_id, provider, provider_user_id, email, username, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        randomUUID(),
+        opts.userId,
+        opts.provider,
+        opts.providerUserId,
+        email,
+        opts.username ?? null,
+        at,
+      );
+    database
+      .prepare(
+        `UPDATE users SET
+           display_name = COALESCE(?, display_name),
+           avatar_url = COALESCE(?, avatar_url),
+           last_login_at = ?
+         WHERE id = ?`,
+      )
+      .run(opts.displayName ?? null, opts.avatarUrl ?? null, at, opts.userId);
+    const updated = getUserById(opts.userId);
+    if (!updated) throw new Error("oauth user missing after insert");
+    return updated;
+  })();
   return { ok: true, user: updated };
 }
 
