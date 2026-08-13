@@ -187,7 +187,7 @@ export function upsertOauthUser(opts: {
         )
         .run(
           userId,
-          email,
+          opts.emailVerified ? email : null,
           opts.displayName ?? null,
           opts.avatarUrl ?? null,
           at,
@@ -216,7 +216,7 @@ export function upsertOauthUser(opts: {
         userId,
         opts.provider,
         opts.providerUserId,
-        email,
+        opts.emailVerified ? email : null,
         opts.username ?? null,
         at,
       );
