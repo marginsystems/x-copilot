@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   frontendOrigin,
+  googleClientConfig,
   isEmailWhitelisted,
   isXHandleWhitelisted,
   parseEmailWhitelist,
@@ -47,5 +48,23 @@ describe("authConfig whitelist", () => {
       "https://xcopilot.dev",
     );
     assert.equal(frontendOrigin({}), "http://127.0.0.1:5173");
+  });
+
+  it("defaults the Google redirect URI to the SPA origin", () => {
+    const local = googleClientConfig({
+      GOOGLE_CLIENT_ID: "cid",
+      GOOGLE_CLIENT_SECRET: "sec",
+    });
+    assert.equal(local?.redirectUri, "http://127.0.0.1:5173/api/auth/google/callback");
+    const prod = googleClientConfig({
+      GOOGLE_CLIENT_ID: "cid",
+      GOOGLE_CLIENT_SECRET: "sec",
+      ALLOWED_ORIGINS: "https://xcopilot.dev",
+    });
+    assert.equal(prod?.redirectUri, "https://xcopilot.dev/api/auth/google/callback");
+    assert.equal(
+      googleClientConfig({ GOOGLE_CLIENT_ID: "cid" }),
+      null,
+    );
   });
 });

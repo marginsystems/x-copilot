@@ -67,7 +67,7 @@ export async function tryHandleAuth(
     return true;
   }
   if (
-    (req.method === "POST" || req.method === "GET") &&
+    req.method === "POST" &&
     url.pathname === "/api/auth/logout"
   ) {
     const token = requestCookies(req)[SESSION_COOKIE];

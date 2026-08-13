@@ -87,6 +87,48 @@ describe("googleAuth", () => {
     assert.equal(calls.length, 2);
   });
 
+  it("treats a 200 non-JSON token body as exchange_failed", async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      if (url.includes("/token")) {
+        return new Response("<html>oops</html>", { status: 200 });
+      }
+      return new Response("nope", { status: 404 });
+    };
+    const result = await exchangeGoogleCode({
+      code: "code-1",
+      clientId: "cid",
+      clientSecret: "sec",
+      redirectUri: "http://127.0.0.1:8787/api/auth/google/callback",
+      fetchImpl,
+    });
+    assert.equal(result.ok, false);
+  });
+
+  it("treats a 200 non-JSON userinfo body as userinfo_failed", async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      if (url.includes("/token")) {
+        return new Response(JSON.stringify({ access_token: "at" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.includes("userinfo")) {
+        return new Response("<html>oops</html>", { status: 200 });
+      }
+      return new Response("nope", { status: 404 });
+    };
+    const result = await exchangeGoogleCode({
+      code: "code-1",
+      clientId: "cid",
+      clientSecret: "sec",
+      redirectUri: "http://127.0.0.1:8787/api/auth/google/callback",
+      fetchImpl,
+    });
+    assert.equal(result.ok, false);
+  });
+
   it("completes login only for verified whitelist emails", () => {
     const okProfile: GoogleProfile = {
       sub: "gid-ok",

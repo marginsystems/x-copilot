@@ -70,7 +70,7 @@ import { getPlatformDb } from "./db.js";
 import { getUsageSummary } from "./usageMeter.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 import { tryHandleAuth } from "./authHttp.js";
-import { corsHeaders, isOriginAllowed } from "./cors.js";
+import { corsHeaders, isLocalOrigin } from "./cors.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -248,7 +248,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/memory/search") {
-      if (!isOriginAllowed(typeof req.headers.origin === "string" ? req.headers.origin : undefined)) {
+      if (!isLocalOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined)) {
         return send(req, res, 403, {
           error: "forbidden",
           message: "Origin not allowed",
@@ -290,7 +290,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/memory/reindex") {
-      if (!isOriginAllowed(typeof req.headers.origin === "string" ? req.headers.origin : undefined)) {
+      if (!isLocalOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined)) {
         return send(req, res, 403, {
           error: "forbidden",
           message: "Origin not allowed",

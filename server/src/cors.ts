@@ -17,7 +17,10 @@ export function parseAllowedOrigins(
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  return [...new Set([...LOCAL_ORIGINS, ...extra])];
+  if (extra.length === 0) {
+    return [...LOCAL_ORIGINS];
+  }
+  return [...new Set(extra)];
 }
 
 export function requestOrigin(req: IncomingMessage): string | undefined {
@@ -31,6 +34,16 @@ export function isOriginAllowed(
 ): boolean {
   if (!origin) return true;
   return allowed.includes(origin);
+}
+
+export function isLocalOrigin(origin: string | undefined): boolean {
+  if (!origin) return true;
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
 }
 
 export function corsHeaders(

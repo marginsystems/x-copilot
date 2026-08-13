@@ -79,7 +79,12 @@ export async function exchangeGoogleCode(opts: {
   if (!tokenRes.ok) {
     return { ok: false, status: 502, error: "token_exchange_failed" };
   }
-  const tokenJson = (await tokenRes.json()) as { access_token?: string };
+  let tokenJson: { access_token?: string };
+  try {
+    tokenJson = (await tokenRes.json()) as { access_token?: string };
+  } catch {
+    return { ok: false, status: 502, error: "token_exchange_failed" };
+  }
   const accessToken = tokenJson.access_token?.trim();
   if (!accessToken) {
     return { ok: false, status: 502, error: "missing_access_token" };
@@ -100,13 +105,24 @@ export async function exchangeGoogleCode(opts: {
   if (!infoRes.ok) {
     return { ok: false, status: 502, error: "userinfo_failed" };
   }
-  const info = (await infoRes.json()) as {
+  let info: {
     sub?: string;
     email?: string;
     email_verified?: boolean;
     name?: string;
     picture?: string;
   };
+  try {
+    info = (await infoRes.json()) as {
+      sub?: string;
+      email?: string;
+      email_verified?: boolean;
+      name?: string;
+      picture?: string;
+    };
+  } catch {
+    return { ok: false, status: 502, error: "userinfo_failed" };
+  }
   if (!info.sub) {
     return { ok: false, status: 502, error: "missing_sub" };
   }
