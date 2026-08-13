@@ -2,6 +2,8 @@
 
 The Node sidecar is the API. Cloudflare Workers will host the SPA; they do **not** replace this process. Do not expose port 8787 on the public internet without TLS in front (Cloudflare orange-cloud proxy or a tunnel).
 
+Operational requirement: the origin must be reachable **only** through the Cloudflare proxy (or a tunnel). The API keys the login rate limiter on `CF-Connecting-IP`, which Cloudflare overwrites for proxied traffic; a caller that can reach port 8787 directly can spoof that header, so keep 8787 firewalled to Cloudflare IP ranges (or on a private network/tunnel).
+
 ## Bind
 
 Default remains loopback:
