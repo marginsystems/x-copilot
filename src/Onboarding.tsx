@@ -92,7 +92,10 @@ export function Onboarding(props: {
           provider: props.provider,
         }),
       });
-      const data = (await res.json()) as { agendas?: unknown; message?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        agendas?: unknown;
+        message?: string;
+      };
       const parsed = parseGeneratedAgendas(data.agendas);
       if (!res.ok || !parsed) {
         setNotice(data.message || "Could not write agendas. Try again.");
@@ -145,7 +148,7 @@ export function Onboarding(props: {
           return;
         }
       }
-      writeOnboardingComplete();
+      writeOnboardingComplete(choice.body);
       props.onComplete(choice.body);
     } catch {
       setNotice("Could not save your agenda. Try again.");
