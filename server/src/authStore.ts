@@ -224,6 +224,63 @@ export function upsertOauthUser(opts: {
   return user;
 }
 
+/**
+ * Attach a provider identity to an already-signed-in user (e.g. Google session + X).
+ * Fails if that provider account is already owned by a different user.
+ */
+export function linkOauthToUser(opts: {
+  userId: string;
+  provider: "google" | "x";
+  providerUserId: string;
+  email?: string | null;
+  username?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}): { ok: true; user: AuthUser } | { ok: false; error: "already_linked" | "user_missing" } {
+  const user = getUserById(opts.userId);
+  if (!user) return { ok: false, error: "user_missing" };
+  const existing = findOauthAccount(opts.provider, opts.providerUserId);
+  if (existing && existing.userId !== opts.userId) {
+    return { ok: false, error: "already_linked" };
+  }
+  if (existing) {
+    upsertOauthUser(opts);
+    const updated = getUserById(opts.userId);
+    if (!updated) return { ok: false, error: "user_missing" };
+    return { ok: true, user: updated };
+  }
+  const email = opts.email?.trim().toLowerCase() || null;
+  const at = nowIso();
+  const database = getPlatformDb();
+  database
+    .prepare(
+      `INSERT INTO oauth_accounts
+         (id, user_id, provider, provider_user_id, email, username, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      randomUUID(),
+      opts.userId,
+      opts.provider,
+      opts.providerUserId,
+      email,
+      opts.username ?? null,
+      at,
+    );
+  database
+    .prepare(
+      `UPDATE users SET
+         display_name = COALESCE(?, display_name),
+         avatar_url = COALESCE(?, avatar_url),
+         last_login_at = ?
+       WHERE id = ?`,
+    )
+    .run(opts.displayName ?? null, opts.avatarUrl ?? null, at, opts.userId);
+  const updated = getUserById(opts.userId);
+  if (!updated) return { ok: false, error: "user_missing" };
+  return { ok: true, user: updated };
+}
+
 export function createSession(userId: string): { token: string; expiresAt: string } {
   const token = newSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();

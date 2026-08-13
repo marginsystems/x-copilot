@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { revokeSessionToken } from "./authStore.js";
 import { corsHeaders } from "./cors.js";
 import { handleGoogleCallback, handleGoogleStart } from "./googleAuth.js";
+import { handleXCallback, handleXStart } from "./xAuth.js";
 import {
   getSessionUser,
   requestCookies,
@@ -55,6 +56,14 @@ export async function tryHandleAuth(
   }
   if (req.method === "GET" && url.pathname === "/api/auth/google/callback") {
     await handleGoogleCallback(req, res, url);
+    return true;
+  }
+  if (req.method === "GET" && url.pathname === "/api/auth/x") {
+    await handleXStart(req, res);
+    return true;
+  }
+  if (req.method === "GET" && url.pathname === "/api/auth/x/callback") {
+    await handleXCallback(req, res, url);
     return true;
   }
   if (req.method === "GET" && url.pathname === "/api/auth/me") {
