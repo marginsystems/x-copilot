@@ -11,6 +11,22 @@ export type AuthUser = {
   avatarUrl: string | null;
   createdAt: string;
   lastLoginAt: string | null;
+  onboardingCompletedAt: string | null;
+  agenda: string | null;
+};
+
+const USER_COLUMNS =
+  "id, email, display_name, avatar_url, created_at, last_login_at, onboarding_completed_at, agenda";
+
+type UserRow = {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  last_login_at: string | null;
+  onboarding_completed_at: string | null;
+  agenda: string | null;
 };
 
 export type OauthAccount = {
@@ -46,14 +62,7 @@ export function newSessionToken(): string {
   return randomBytes(32).toString("base64url");
 }
 
-function mapUser(row: {
-  id: string;
-  email: string | null;
-  display_name: string | null;
-  avatar_url: string | null;
-  created_at: string;
-  last_login_at: string | null;
-}): AuthUser {
+function mapUser(row: UserRow): AuthUser {
   return {
     id: row.id,
     email: row.email,
@@ -61,25 +70,15 @@ function mapUser(row: {
     avatarUrl: row.avatar_url,
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at,
+    onboardingCompletedAt: row.onboarding_completed_at,
+    agenda: row.agenda,
   };
 }
 
 export function getUserById(id: string): AuthUser | null {
   const row = getPlatformDb()
-    .prepare(
-      `SELECT id, email, display_name, avatar_url, created_at, last_login_at
-       FROM users WHERE id = ?`,
-    )
-    .get(id) as
-    | {
-        id: string;
-        email: string | null;
-        display_name: string | null;
-        avatar_url: string | null;
-        created_at: string;
-        last_login_at: string | null;
-      }
-    | undefined;
+    .prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)
+    .get(id) as UserRow | undefined;
   return row ? mapUser(row) : null;
 }
 
@@ -87,20 +86,8 @@ export function getUserByEmail(email: string): AuthUser | null {
   const normalized = email.trim().toLowerCase();
   if (!normalized) return null;
   const row = getPlatformDb()
-    .prepare(
-      `SELECT id, email, display_name, avatar_url, created_at, last_login_at
-       FROM users WHERE email = ?`,
-    )
-    .get(normalized) as
-    | {
-        id: string;
-        email: string | null;
-        display_name: string | null;
-        avatar_url: string | null;
-        created_at: string;
-        last_login_at: string | null;
-      }
-    | undefined;
+    .prepare(`SELECT ${USER_COLUMNS} FROM users WHERE email = ?`)
+    .get(normalized) as UserRow | undefined;
   return row ? mapUser(row) : null;
 }
 
@@ -356,4 +343,23 @@ export function revokeSessionToken(token: string): void {
       `UPDATE sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL`,
     )
     .run(nowIso(), hashSessionToken(token));
+}
+
+/** Save the chosen agenda and mark first-run setup done (idempotent). */
+export function completeOnboarding(
+  userId: string,
+  agenda: string,
+): AuthUser | null {
+  const trimmed = agenda.trim();
+  const at = nowIso();
+  const result = getPlatformDb()
+    .prepare(
+      `UPDATE users SET
+         agenda = ?,
+         onboarding_completed_at = COALESCE(onboarding_completed_at, ?)
+       WHERE id = ?`,
+    )
+    .run(trimmed, at, userId);
+  if (result.changes === 0) return null;
+  return getUserById(userId);
 }
