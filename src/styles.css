@@ -355,11 +355,33 @@ h3 {
   padding-right: 48px;
 }
 
+.brand-lockup {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand-mark {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin-top: 2px;
+  display: block;
+}
+
 .brand-copy {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+
+.brand-legal {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
 }
 
 .brand h1 {
