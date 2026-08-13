@@ -278,10 +278,12 @@ async function handlePortal(
     return;
   }
   const frontend = frontendOrigin();
+  const portalConfig = process.env.STRIPE_PORTAL_CONFIGURATION_ID?.trim();
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
       return_url: `${frontend}/usage`,
+      ...(portalConfig ? { configuration: portalConfig } : {}),
     });
     if (!session.url) {
       sendJson(req, res, 500, { error: "stripe_portal_failed" });
