@@ -142,6 +142,7 @@ h3 {
 
 .gate-card {
   width: min(440px, 100%);
+  margin: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
