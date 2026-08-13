@@ -117,6 +117,7 @@ describe("authStore", () => {
     const xOnly = upsertOauthUser({
       provider: "x",
       providerUserId: "xid-anon",
+      emailVerified: false,
       username: "anon",
     });
     assert.equal(xOnly.email, null);
@@ -125,6 +126,7 @@ describe("authStore", () => {
       provider: "google",
       providerUserId: "gid-anon",
       email: "gwen@example.com",
+      emailVerified: true,
     });
     const linked = linkOauthToUser({
       userId: google.id,
