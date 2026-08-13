@@ -1,5 +1,7 @@
 /** Client types + fetch for GET /api/gamification. */
 
+import { apiFetch } from "./apiBase";
+
 export type GamificationStats = {
   currentStreak: number;
   longestStreak: number;
@@ -29,7 +31,7 @@ function finiteNonNeg(n: unknown): number | null {
 
 export async function fetchGamification(): Promise<GamificationStats | null> {
   try {
-    const res = await fetch("/api/gamification");
+    const res = await apiFetch("/api/gamification");
     if (!res.ok) return null;
     const data = (await res.json()) as Partial<GamificationStats>;
     const currentStreak = finiteNonNeg(data.currentStreak);

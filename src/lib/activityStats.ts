@@ -1,5 +1,7 @@
 /** Client types + fetch for GET /api/interacted/stats. */
 
+import { apiFetch } from "./apiBase";
+
 export type ActivityBucket = "day" | "week";
 
 export type ActivitySeriesPoint = {
@@ -31,7 +33,7 @@ export async function fetchActivityStats(
   bucket: ActivityBucket,
 ): Promise<ActivityStats | null> {
   try {
-    const res = await fetch(`/api/interacted/stats?bucket=${bucket}`);
+    const res = await apiFetch(`/api/interacted/stats?bucket=${bucket}`);
     if (!res.ok) return null;
     const data = (await res.json()) as Partial<ActivityStats>;
     if (!data || (data.bucket !== "day" && data.bucket !== "week")) return null;

@@ -11,6 +11,7 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build": "npm run build:server && tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
+    "deploy:workers": "vite build && npx wrangler deploy",
     "test": "tsx --test server/src/**/*.test.ts src/**/*.test.ts",
     "test:session": "tsx scripts/test-session.ts",
     "test:search": "tsx scripts/test-search.ts",
