@@ -1171,7 +1171,9 @@ export default function App() {
       const onboarded = user
         ? user.onboardingCompleted
         : readOnboardingComplete();
-      if (!user?.agenda) {
+      if (user?.agenda) {
+        setAgenda(user.agenda);
+      } else {
         const storedAgenda = readOnboardingAgenda();
         if (storedAgenda) setAgenda(storedAgenda);
       }
