@@ -9,6 +9,7 @@ import { handleXCallback, handleXStart } from "./xAuth.js";
 import {
   AUTH_START_RATE,
   allowRate,
+  authRequired,
   clientIp,
 } from "./authGuard.js";
 import {
@@ -80,12 +81,13 @@ export async function tryHandleAuth(
     return true;
   }
   if (req.method === "GET" && url.pathname === "/api/auth/me") {
+    const required = authRequired();
     const user = getSessionUser(req);
     if (!user) {
-      sendJson(req, res, 401, { ok: false, error: "unauthenticated" });
+      sendJson(req, res, 401, { ok: false, error: "unauthenticated", authRequired: required });
       return true;
     }
-    sendJson(req, res, 200, { ok: true, user: publicUser(user) });
+    sendJson(req, res, 200, { ok: true, authRequired: required, user: publicUser(user) });
     return true;
   }
   if (req.method === "POST" && url.pathname === "/api/auth/logout") {
