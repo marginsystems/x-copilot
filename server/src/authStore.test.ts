@@ -7,6 +7,7 @@ import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "./
 import {
   createSession,
   getUserForSessionToken,
+  linkOauthToUser,
   revokeSessionToken,
   upsertOauthUser,
 } from "./authStore.ts";
@@ -78,6 +79,37 @@ describe("authStore", () => {
     });
     assert.notEqual(x.id, google.id);
     assert.equal(google.email, "dave@example.com");
+  });
+
+  it("links X onto an existing Google user without sharing email", () => {
+    const google = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-link",
+      email: "dana@example.com",
+      emailVerified: true,
+    });
+    const linked = linkOauthToUser({
+      userId: google.id,
+      provider: "x",
+      providerUserId: "xid-link",
+      username: "dana",
+    });
+    assert.equal(linked.ok, true);
+    if (!linked.ok) return;
+    assert.equal(linked.user.id, google.id);
+    const stolen = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-other",
+      email: "erin@example.com",
+      emailVerified: true,
+    });
+    const clash = linkOauthToUser({
+      userId: stolen.id,
+      provider: "x",
+      providerUserId: "xid-link",
+      username: "dana",
+    });
+    assert.equal(clash.ok, false);
   });
 
   it("revokes sessions", () => {
