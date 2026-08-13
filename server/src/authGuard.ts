@@ -124,8 +124,21 @@ export function clientIp(req: IncomingMessage): string {
 
 const hits = new Map<string, number[]>();
 
+/** Longest window passed to allowRate; keys idle longer than this are swept. */
+let maxRateWindowMs = 0;
+
 export function resetRateLimiterForTests(): void {
   hits.clear();
+}
+
+/** Expire keys idle for a full window so the map stays bounded by active keys. */
+function sweepStaleRateKeys(now = Date.now()): void {
+  if (maxRateWindowMs <= 0) return;
+  for (const [key, times] of hits) {
+    if (now - times[times.length - 1] >= maxRateWindowMs) {
+      hits.delete(key);
+    }
+  }
 }
 
 /** True if the key is still under the limit (and this hit is recorded). */
@@ -135,15 +148,13 @@ export function allowRate(
   windowMs: number,
   now = Date.now(),
 ): boolean {
-  // Evict keys whose whole window has passed, so the map cannot grow unbounded.
-  for (const [k, times] of hits) {
-    if (times[times.length - 1] <= now - windowMs) {
-      hits.delete(k);
-    }
-  }
+  maxRateWindowMs = Math.max(maxRateWindowMs, windowMs);
   const next = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+  if (next.length === 0) {
+    hits.delete(key);
+  }
   if (next.length >= max) {
-    hits.set(key, next);
+    if (next.length > 0) hits.set(key, next);
     return false;
   }
   next.push(now);
@@ -152,3 +163,6 @@ export function allowRate(
 }
 
 export const AUTH_START_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
+
+// Bound memory: expire keys idle for a full window. Unref'd so tests/CLI exit.
+setInterval(() => sweepStaleRateKeys(), AUTH_START_RATE.windowMs).unref();

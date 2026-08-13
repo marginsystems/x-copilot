@@ -591,6 +591,29 @@ h3 {
   text-align: center;
 }
 
+.auth-notice {
+  flex-shrink: 0;
+}
+
+.login-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 420px;
+}
+
+.login-pane h2 {
+  margin: 0;
+}
+
+.login-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .settings-pane {
   flex: 1;
   min-height: 0;

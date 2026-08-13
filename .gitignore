@@ -25,6 +25,9 @@ Thumbs.db
 *.swp
 *.swo
 
+.wrangler/
+.dev.vars
+
 # Logs
 logs/
 *.log

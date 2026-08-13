@@ -230,7 +230,8 @@ export function upsertOauthUser(opts: {
 
 /**
  * Attach a provider identity to an already-signed-in user (e.g. Google session + X).
- * Fails if that provider account is already owned by a different user.
+ * Fails if that provider account is already owned by a different real user; an
+ * email-less X-only owner is adopted so a later Google login can reclaim it.
  */
 export function linkOauthToUser(opts: {
   userId: string;
@@ -243,9 +244,24 @@ export function linkOauthToUser(opts: {
 }): { ok: true; user: AuthUser } | { ok: false; error: "already_linked" | "user_missing" } {
   const user = getUserById(opts.userId);
   if (!user) return { ok: false, error: "user_missing" };
-  const existing = findOauthAccount(opts.provider, opts.providerUserId);
+  let existing = findOauthAccount(opts.provider, opts.providerUserId);
   if (existing && existing.userId !== opts.userId) {
-    return { ok: false, error: "already_linked" };
+    const owner = getUserById(existing.userId);
+    if (owner && owner.email === null) {
+      const database = getPlatformDb();
+      database.transaction(() => {
+        database
+          .prepare(`UPDATE oauth_accounts SET user_id = ? WHERE user_id = ?`)
+          .run(opts.userId, existing.userId);
+        database
+          .prepare(`DELETE FROM sessions WHERE user_id = ?`)
+          .run(existing.userId);
+        database.prepare(`DELETE FROM users WHERE id = ?`).run(existing.userId);
+      })();
+      existing = findOauthAccount(opts.provider, opts.providerUserId);
+    } else {
+      return { ok: false, error: "already_linked" };
+    }
   }
   if (existing) {
     const { userId: _userId, ...rest } = opts;

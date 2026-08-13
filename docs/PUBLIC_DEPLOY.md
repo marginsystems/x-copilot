@@ -2,6 +2,8 @@
 
 The Node sidecar is the API. Cloudflare Workers will host the SPA; they do **not** replace this process. Do not expose port 8787 on the public internet without TLS in front (Cloudflare orange-cloud proxy or a tunnel).
 
+Operational requirement: the origin must be reachable **only** through the Cloudflare proxy (or a tunnel). The API keys the login rate limiter on `CF-Connecting-IP`, which Cloudflare overwrites for proxied traffic; a caller that can reach port 8787 directly can spoof that header, so keep 8787 firewalled to Cloudflare IP ranges (or on a private network/tunnel).
+
 ## Bind
 
 Default remains loopback:
@@ -48,8 +50,16 @@ Restart after `.env` changes: `./pm2-manager.sh restart`.
 | Name | Type | Content | Proxy | When |
 |------|------|---------|-------|------|
 | `api` | A | `159.223.169.152` (this VPS) | Proxied (orange cloud) | **Now**, before prod OAuth redirects |
-| `@` | Workers custom domain | SPA | Proxied | After Wrangler is wired (next PR) |
+| `@` | Workers custom domain | SPA | Proxied | After `npm run deploy:workers` + attach `xcopilot.dev` |
 | `www` | CNAME `@` or Workers route | SPA | Proxied | Same as apex |
+
+Deploy the SPA (no secrets in the Worker):
+
+```bash
+npm run deploy:workers
+```
+
+`wrangler.toml` serves Vite `dist/` as a single-page app. Attach custom domains in the Cloudflare dashboard once the Worker exists.
 
 SSL/TLS mode: **Full (strict)** once the origin has a valid cert, or **Full** behind Cloudflare while using the proxy. Enable **WebSockets** off (not needed). Keep **Always Use HTTPS** on.
 
