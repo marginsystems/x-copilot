@@ -4,6 +4,7 @@
 import type { IncomingMessage, OutgoingHttpHeaders } from "node:http";
 import { randomBytes } from "node:crypto";
 import { getUserForSessionToken, type AuthUser } from "./authStore.js";
+import { isCloudflarePeer } from "./authGuard.js";
 
 export const SESSION_COOKIE = "xc_session";
 export const OAUTH_STATE_COOKIE = "xc_oauth_state";
@@ -36,11 +37,26 @@ export function requestCookies(req: IncomingMessage): Record<string, string> {
   return parseCookies(typeof raw === "string" ? raw : undefined);
 }
 
+// X-Forwarded-Proto is spoofable, so it is trusted only from the same peers the
+// rate limiter trusts (Cloudflare edge, see authGuard.ts) plus loopback, which
+// covers a local TLS terminator / tunnel in front of the origin. Any other peer
+// falls back to the socket's own encryption signal.
+function isTrustedProxyPeer(address: string | undefined): boolean {
+  if (isCloudflarePeer(address)) return true;
+  return (
+    address === "127.0.0.1" ||
+    address === "::1" ||
+    address === "::ffff:127.0.0.1"
+  );
+}
+
 function forwardedProto(req: IncomingMessage): string {
-  const raw = req.headers["x-forwarded-proto"];
-  const first = (Array.isArray(raw) ? raw[0] : raw)?.split(",")[0]?.trim();
-  if (first) return first.toLowerCase();
   const socket = req.socket as { encrypted?: boolean };
+  if (isTrustedProxyPeer(req.socket.remoteAddress)) {
+    const raw = req.headers["x-forwarded-proto"];
+    const first = (Array.isArray(raw) ? raw[0] : raw)?.split(",")[0]?.trim();
+    if (first) return first.toLowerCase();
+  }
   return socket.encrypted ? "https" : "http";
 }
 

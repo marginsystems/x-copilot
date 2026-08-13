@@ -50,18 +50,24 @@ describe("authConfig whitelist", () => {
     assert.equal(frontendOrigin({}), "http://127.0.0.1:5173");
   });
 
-  it("defaults the Google redirect URI to the SPA origin", () => {
+  it("defaults the Google redirect URI to the API host (loopback, like X)", () => {
     const local = googleClientConfig({
       GOOGLE_CLIENT_ID: "cid",
       GOOGLE_CLIENT_SECRET: "sec",
     });
-    assert.equal(local?.redirectUri, "http://127.0.0.1:5173/api/auth/google/callback");
+    assert.equal(local?.redirectUri, "http://127.0.0.1:8787/api/auth/google/callback");
+    const ported = googleClientConfig({
+      GOOGLE_CLIENT_ID: "cid",
+      GOOGLE_CLIENT_SECRET: "sec",
+      PORT: "9999",
+    });
+    assert.equal(ported?.redirectUri, "http://127.0.0.1:9999/api/auth/google/callback");
     const prod = googleClientConfig({
       GOOGLE_CLIENT_ID: "cid",
       GOOGLE_CLIENT_SECRET: "sec",
-      ALLOWED_ORIGINS: "https://xcopilot.dev",
+      GOOGLE_REDIRECT_URI: "https://api.xcopilot.dev/api/auth/google/callback",
     });
-    assert.equal(prod?.redirectUri, "https://xcopilot.dev/api/auth/google/callback");
+    assert.equal(prod?.redirectUri, "https://api.xcopilot.dev/api/auth/google/callback");
     assert.equal(
       googleClientConfig({ GOOGLE_CLIENT_ID: "cid" }),
       null,

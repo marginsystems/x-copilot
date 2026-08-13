@@ -98,7 +98,7 @@ function ipInCidr(ip: string, cidr: string): boolean {
   return (ipNum & mask) === (netNum & mask);
 }
 
-function isCloudflarePeer(address: string | undefined): boolean {
+export function isCloudflarePeer(address: string | undefined): boolean {
   if (!address) return false;
   return [...CLOUDFLARE_IPV4, ...CLOUDFLARE_IPV6].some((range) =>
     ipInCidr(address, range),

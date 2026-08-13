@@ -34,6 +34,12 @@ The API trusts `CF-Connecting-IP` / `X-Forwarded-For` only when the direct peer 
 - [`https://www.cloudflare.com/ips-v4`](https://www.cloudflare.com/ips-v4)
 - [`https://www.cloudflare.com/ips-v6`](https://www.cloudflare.com/ips-v6)
 
+Keep the server-side copy of these ranges in `server/src/authGuard.ts` in sync
+with the published lists — the rate limiter and cookie flags trust forwarded
+headers only from peers matching those ranges. If Cloudflare adds ranges and the
+copy drifts, requests from the new edge nodes fall back to the socket address
+(shared rate buckets) and lose `X-Forwarded-Proto` trust (no `Secure` cookie).
+
 Example (ufw):
 
 ```
