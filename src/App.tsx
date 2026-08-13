@@ -553,6 +553,7 @@ function InteractedRow({
 }
 
 type AppView = "dashboard" | "settings" | "usage";
+type DeskTab = "agent" | "threads";
 
 type UsageWindow = "24h" | "7d" | "all";
 
@@ -636,6 +637,7 @@ export default function App() {
   /** Monotonic token so out-of-order gamification responses don't regress the chip. */
   const gamificationRequestSeqRef = useRef(0);
   const [view, setView] = useState<AppView>("dashboard");
+  const [deskTab, setDeskTab] = useState<DeskTab>("threads");
   const [usageWindow, setUsageWindow] = useState<UsageWindow>("7d");
   const [usage, setUsage] = useState<UsageSummaryResponse | null>(null);
   const [usageBusy, setUsageBusy] = useState(false);
@@ -2071,19 +2073,12 @@ export default function App() {
             <img
               className="brand-mark"
               src="/favicon.svg"
-              width={32}
-              height={32}
+              width={22}
+              height={22}
               alt=""
             />
             <div className="brand-copy">
               <h1>x-copilot</h1>
-              <p>
-                Agenda → Scout searches X and scores threads. You review and
-                post.
-              </p>
-              <p className="brand-legal">
-                Developed by Margin Systems. Not affiliated with X Corp.
-              </p>
             </div>
           </div>
           <button
@@ -2248,13 +2243,19 @@ export default function App() {
         />
       ) : null}
 
-      {authNotice && !needsLogin && !needsOnboarding ? (
+      {!needsLogin && !needsOnboarding ? (
+        <main
+          className={
+            view === "dashboard" ? "app-main" : "app-main app-main-scroll"
+          }
+        >
+      {authNotice ? (
         <p className="status auth-notice" role="status">
           {authNotice}
         </p>
       ) : null}
 
-      {!needsLogin && !needsOnboarding && view === "usage" ? (
+      {view === "usage" ? (
         <section className="panel settings-pane usage-pane">
           <div className="settings-head">
             <h2>Usage & Billing</h2>
@@ -2377,7 +2378,7 @@ export default function App() {
         </section>
       ) : null}
 
-      {needsLogin || needsOnboarding || view === "usage" ? null : view === "settings" ? (
+      {view === "usage" ? null : view === "settings" ? (
         <section className="panel settings-pane">
           <div className="settings-head">
             <h2>Settings</h2>
@@ -2559,7 +2560,28 @@ export default function App() {
           </div>
         </section>
       ) : (
-        <div className="dashboard">
+        <>
+          <nav className="desk-tabs" role="tablist" aria-label="Desk">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={deskTab === "agent"}
+              className={deskTab === "agent" ? "desk-tab is-on" : "desk-tab"}
+              onClick={() => setDeskTab("agent")}
+            >
+              Agent
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={deskTab === "threads"}
+              className={deskTab === "threads" ? "desk-tab is-on" : "desk-tab"}
+              onClick={() => setDeskTab("threads")}
+            >
+              Threads
+            </button>
+          </nav>
+        <div className={`dashboard is-${deskTab}`}>
           <section className="panel control-pane">
             <h2>Agenda</h2>
             <textarea
@@ -2998,7 +3020,10 @@ export default function App() {
             </div>
           </section>
         </div>
+        </>
       )}
+        </main>
+      ) : null}
 
       {markThread ? (
         <div className="modal-root" role="presentation">
