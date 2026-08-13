@@ -34,8 +34,7 @@ export function Landing(props: {
           </p>
         ) : null}
         <p className="brand-legal">
-          Independent software. Not affiliated with, endorsed by, or part of X
-          Corp.
+          Developed by Margin Systems. Not affiliated with X Corp.
         </p>
       </div>
     </div>
