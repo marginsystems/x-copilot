@@ -107,5 +107,9 @@ describe("xAuth", () => {
     assert.equal(login.ok, true);
     if (!login.ok) return;
     assert.equal(getUserForSessionToken(login.token)?.id, google.id);
+    assert.equal(
+      getUserForSessionToken(login.token)?.displayName,
+      "Alice G",
+    );
   });
 });
