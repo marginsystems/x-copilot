@@ -10,6 +10,9 @@ import {
   validateOnboardingAnswers,
 } from "./onboarding.js";
 import { getSessionUser } from "./sessionCookie.js";
+import { allowRate, clientIp } from "./authGuard.js";
+
+const ONBOARDING_GENERATE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 
 function sendJson(
   req: IncomingMessage,
@@ -83,6 +86,19 @@ export async function tryHandleOnboarding(
   if (!url.pathname.startsWith("/api/onboarding")) return false;
 
   if (req.method === "POST" && url.pathname === "/api/onboarding/generate") {
+    if (
+      !allowRate(
+        `onboarding-generate:${clientIp(req)}`,
+        ONBOARDING_GENERATE_RATE.max,
+        ONBOARDING_GENERATE_RATE.windowMs,
+      )
+    ) {
+      sendJson(req, res, 429, {
+        error: "rate_limited",
+        message: "Too many agenda generations",
+      });
+      return true;
+    }
     let body: Record<string, unknown>;
     try {
       body = await readBody(req);
@@ -104,10 +120,6 @@ export async function tryHandleOnboarding(
     const result = await generateOnboardingAgendas(parsed.answers, {
       provider: body.provider,
     });
-    if (!result.ok) {
-      sendJson(req, res, 502, { error: result.error, message: result.message });
-      return true;
-    }
     sendJson(req, res, 200, {
       ok: true,
       agendas: result.agendas,
