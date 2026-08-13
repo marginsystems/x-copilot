@@ -120,8 +120,6 @@ h3 {
   top: 0;
   left: 0;
   right: 0;
-  border-bottom: none;
-  padding: 12px 16px;
 }
 
 .brand-gate .brand-lockup,
@@ -523,6 +521,22 @@ h3 {
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   padding-bottom: 12px;
+}
+
+/* Landing: header is only the fixed menu control — no full-width strip. */
+.brand.brand-gate {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+
+.brand-gate .brand-bar {
+  height: 0;
+  padding: 0;
 }
 
 .brand-bar {

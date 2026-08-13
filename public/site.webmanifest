@@ -1,7 +1,7 @@
 {
   "name": "x-copilot",
   "short_name": "x-copilot",
-  "description": "Independent research desk for posting on X. Not affiliated with X Corp.",
+  "description": "Research desk for posting on X. Developed by Margin Systems. Not affiliated with X Corp.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
