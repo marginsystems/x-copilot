@@ -9,13 +9,28 @@
       content="Private research and triage desk for posting on X. Independent software — not affiliated with, endorsed by, or part of X Corp."
     />
     <meta name="robots" content="index,follow" />
-    <meta name="theme-color" content="#0a0c0f" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#161310" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="application-name" content="x-copilot" />
     <meta name="apple-mobile-web-app-title" content="x-copilot" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="msapplication-TileColor" content="#0a0c0f" />
+    <meta name="msapplication-TileColor" content="#161310" />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("xc-theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
     <link rel="canonical" href="https://xcopilot.dev/" />
 
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
