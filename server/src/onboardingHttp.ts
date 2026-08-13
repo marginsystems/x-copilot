@@ -88,6 +88,10 @@ export async function tryHandleOnboarding(
         error: "bad_request",
         message: err instanceof Error ? err.message : "Invalid request body",
       });
+      // Oversized body: the rest of the stream is still flowing. Destroy the
+      // request after responding so leftover bytes are not parsed as the start
+      // of a keep-alive connection's next request.
+      if (statusCode === 413) req.destroy();
       return true;
     }
 
