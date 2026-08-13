@@ -48,6 +48,8 @@ import { authErrorMessage } from "./lib/authErrors";
 import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
 import { AuthButtons } from "./AuthButtons";
 import { BootScreen, Landing } from "./Landing";
+import { Onboarding } from "./Onboarding";
+import { readOnboardingComplete } from "./lib/onboarding";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -580,6 +582,15 @@ type UsageSummaryResponse = {
   message?: string;
 };
 
+type AuthSessionUser = {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  onboardingCompleted: boolean;
+  agenda: string | null;
+};
+
 /** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
 const SEARCH_COOLDOWN_MS = 15_000;
 
@@ -637,12 +648,7 @@ export default function App() {
     screen_name: string;
     name: string;
   } | null>(null);
-  const [authUser, setAuthUser] = useState<{
-    id: string;
-    email: string | null;
-    displayName: string | null;
-    avatarUrl: string | null;
-  } | null>(null);
+  const [authUser, setAuthUser] = useState<AuthSessionUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [authRequired, setAuthRequired] = useState(true);
   const [authNotice, setAuthNotice] = useState("");
@@ -1077,7 +1083,7 @@ export default function App() {
     }
   }
 
-  async function hydrateAuth() {
+  async function hydrateAuth(): Promise<AuthSessionUser | null> {
     try {
       const res = await apiFetch("/api/auth/me", {
         signal: AbortSignal.timeout(8000),
@@ -1090,16 +1096,32 @@ export default function App() {
           email: string | null;
           displayName: string | null;
           avatarUrl: string | null;
+          onboardingCompleted?: boolean;
+          agenda?: string | null;
         };
       };
       setAuthRequired(data.authRequired ?? true);
       if (res.ok && data.ok && data.user?.id) {
-        setAuthUser(data.user);
-      } else {
-        setAuthUser(null);
+        const user: AuthSessionUser = {
+          id: data.user.id,
+          email: data.user.email,
+          displayName: data.user.displayName,
+          avatarUrl: data.user.avatarUrl,
+          onboardingCompleted: data.user.onboardingCompleted !== false,
+          agenda:
+            typeof data.user.agenda === "string" && data.user.agenda.trim()
+              ? data.user.agenda
+              : null,
+        };
+        setAuthUser(user);
+        if (user.agenda) setAgenda(user.agenda);
+        return user;
       }
+      setAuthUser(null);
+      return null;
     } catch {
       setAuthUser(null);
+      return null;
     } finally {
       setAuthChecked(true);
     }
@@ -1144,16 +1166,19 @@ export default function App() {
       const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
       window.history.replaceState({}, "", next);
     }
-    void hydrateAuth();
     void hydrateSession();
     void (async () => {
+      const user = await hydrateAuth();
+      const onboarded = user
+        ? user.onboardingCompleted
+        : readOnboardingComplete();
       await hydrateDismissed();
       await hydrateSkipped();
       await hydrateInteracted();
       await hydrateActivityStats();
       await hydrateGamification();
       await hydrateExpired();
-      await hydrateLastScout();
+      if (onboarded) await hydrateLastScout();
       await hydrateScoutLog();
     })();
   }, []);
@@ -1541,6 +1566,13 @@ export default function App() {
     setAuthUser(null);
     setAuthNotice("Signed out.");
     closeMenu();
+  }
+
+  function finishOnboarding(agenda: string) {
+    setAgenda(agenda);
+    setAuthUser((prev) =>
+      prev ? { ...prev, onboardingCompleted: true, agenda } : prev,
+    );
   }
 
   function openUsage() {
@@ -2007,6 +2039,11 @@ export default function App() {
   }, [markThread, dismissThread, actionBusy]);
 
   const needsLogin = authChecked && authRequired && !authUser && !localUi;
+  const needsOnboarding =
+    !needsLogin &&
+    (authUser
+      ? authUser.onboardingCompleted === false
+      : !readOnboardingComplete());
   const booting = !localUi && !authChecked;
 
   if (booting) {
@@ -2018,8 +2055,8 @@ export default function App() {
   }
 
   return (
-    <div className={needsLogin ? "app app-gate" : "app"}>
-      <header className={needsLogin ? "brand brand-gate" : "brand"}>
+    <div className={needsLogin || needsOnboarding ? "app app-gate" : "app"}>
+      <header className={needsLogin || needsOnboarding ? "brand brand-gate" : "brand"}>
         <div className="brand-bar">
           <div className="brand-lockup">
             <img
@@ -2123,7 +2160,7 @@ export default function App() {
                   )}
                 </>
               )}
-              {needsLogin ? null : (
+              {needsLogin || needsOnboarding ? null : (
                 <p className="menu-session-hint">
                   {sessionUser
                     ? `Scout operator @${sessionUser.screen_name}`
@@ -2154,7 +2191,7 @@ export default function App() {
               >
                 {theme === "dark" ? "Light theme" : "Dark theme"}
               </button>
-              {needsLogin ? null : (
+              {needsLogin || needsOnboarding ? null : (
                 <>
                   <button
                     type="button"
@@ -2193,13 +2230,21 @@ export default function App() {
         />
       ) : null}
 
-      {authNotice && !needsLogin ? (
+      {needsOnboarding ? (
+        <Onboarding
+          provider={settings.llmProvider}
+          persist={Boolean(authUser)}
+          onComplete={finishOnboarding}
+        />
+      ) : null}
+
+      {authNotice && !needsLogin && !needsOnboarding ? (
         <p className="status auth-notice" role="status">
           {authNotice}
         </p>
       ) : null}
 
-      {!needsLogin && view === "usage" ? (
+      {!needsLogin && !needsOnboarding && view === "usage" ? (
         <section className="panel settings-pane usage-pane">
           <div className="settings-head">
             <h2>Usage & Billing</h2>
@@ -2322,7 +2367,7 @@ export default function App() {
         </section>
       ) : null}
 
-      {needsLogin || view === "usage" ? null : view === "settings" ? (
+      {needsLogin || needsOnboarding || view === "usage" ? null : view === "settings" ? (
         <section className="panel settings-pane">
           <div className="settings-head">
             <h2>Settings</h2>
