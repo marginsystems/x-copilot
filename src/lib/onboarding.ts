@@ -3,6 +3,10 @@
 export const ONBOARDING_STORAGE_KEY = "xc-onboarding-complete";
 export const ONBOARDING_AGENDA_KEY = "xc-onboarding-agenda";
 
+function scopedKey(base: string, userId?: string): string {
+  return userId ? `${base}:${userId}` : base;
+}
+
 export type OnboardingOption = { id: string; label: string };
 
 export const TOPIC_OPTIONS: OnboardingOption[] = [
@@ -54,27 +58,32 @@ export function labelsFor(ids: string[], options: OnboardingOption[]): string[] 
     .filter((label): label is string => Boolean(label));
 }
 
-export function readOnboardingComplete(): boolean {
+export function readOnboardingComplete(userId?: string): boolean {
   try {
-    return localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1";
+    return (
+      localStorage.getItem(scopedKey(ONBOARDING_STORAGE_KEY, userId)) === "1"
+    );
   } catch {
     return false;
   }
 }
 
-export function writeOnboardingComplete(agenda?: string): void {
+export function writeOnboardingComplete(agenda?: string, userId?: string): void {
   try {
-    localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
-    if (agenda) localStorage.setItem(ONBOARDING_AGENDA_KEY, agenda);
-    else localStorage.removeItem(ONBOARDING_AGENDA_KEY);
+    localStorage.setItem(scopedKey(ONBOARDING_STORAGE_KEY, userId), "1");
+    if (agenda)
+      localStorage.setItem(scopedKey(ONBOARDING_AGENDA_KEY, userId), agenda);
+    else localStorage.removeItem(scopedKey(ONBOARDING_AGENDA_KEY, userId));
   } catch {
     /* private mode */
   }
 }
 
-export function readOnboardingAgenda(): string | null {
+export function readOnboardingAgenda(userId?: string): string | null {
   try {
-    const value = localStorage.getItem(ONBOARDING_AGENDA_KEY);
+    const value = localStorage.getItem(
+      scopedKey(ONBOARDING_AGENDA_KEY, userId),
+    );
     return value && value.trim() ? value : null;
   } catch {
     return null;

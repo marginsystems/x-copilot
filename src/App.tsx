@@ -1174,7 +1174,7 @@ export default function App() {
       if (user?.agenda) {
         setAgenda(user.agenda);
       } else {
-        const storedAgenda = readOnboardingAgenda();
+        const storedAgenda = readOnboardingAgenda(user?.id);
         if (storedAgenda) setAgenda(storedAgenda);
       }
       await hydrateDismissed();
@@ -2047,7 +2047,8 @@ export default function App() {
   const needsOnboarding =
     !needsLogin &&
     (authUser
-      ? authUser.onboardingCompleted === false && !readOnboardingComplete()
+      ? authUser.onboardingCompleted === false &&
+        !readOnboardingComplete(authUser.id)
       : !readOnboardingComplete());
   const booting = !localUi && !authChecked;
 
@@ -2239,6 +2240,7 @@ export default function App() {
         <Onboarding
           provider={settings.llmProvider}
           persist={Boolean(authUser)}
+          userId={authUser?.id ?? null}
           onComplete={finishOnboarding}
         />
       ) : null}
