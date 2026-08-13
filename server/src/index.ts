@@ -69,6 +69,10 @@ import {
 import { getPlatformDb } from "./db.js";
 import { getUsageSummary } from "./usageMeter.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
+import { tryHandleAuth } from "./authHttp.js";
+import { corsHeaders, isLocalOrigin, isOriginAllowed, requestOrigin } from "./cors.js";
+import { authRequired, bindHost, isPublicApiPath } from "./authGuard.js";
+import { getSessionUser } from "./sessionCookie.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -154,17 +158,6 @@ async function ensureMemoryIndex(): Promise<void> {
   }
 }
 
-/** Allow only local browser origins; non-browser clients (CLI/curl) send no Origin. */
-function originAllowed(req: IncomingMessage): boolean {
-  const origin = req.headers.origin;
-  if (!origin) return true;
-  try {
-    const hostname = new URL(origin).hostname;
-    return hostname === "localhost" || hostname === "127.0.0.1";
-  } catch {
-    return false;
-  }
-}
 
 function parseMemoryTypes(raw: unknown): MemoryType[] | undefined {
   if (!Array.isArray(raw)) return undefined;
@@ -175,18 +168,16 @@ function parseMemoryTypes(raw: unknown): MemoryType[] | undefined {
 }
 
 function send(
+  req: IncomingMessage,
   res: ServerResponse,
   status: number,
   body: unknown,
-  allowCors = true,
 ): void {
   const json = JSON.stringify(body);
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (allowCors) {
-    headers["Access-Control-Allow-Origin"] = "*";
-    headers["Access-Control-Allow-Headers"] = "Content-Type";
-    headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS";
-  }
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...corsHeaders(req),
+  };
   res.writeHead(status, headers);
   res.end(json);
 }
@@ -230,8 +221,38 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === "OPTIONS") {
-      const memoryPath = url.pathname.startsWith("/api/memory/");
-      return send(res, 204, {}, !memoryPath);
+      return send(req, res, 204, {});
+    }
+
+    if (await tryHandleAuth(req, res, url)) {
+      return;
+    }
+
+    if (authRequired() && !isPublicApiPath(url.pathname)) {
+      if (
+        !isOriginAllowed(
+          typeof req.headers.origin === "string" ? req.headers.origin : undefined,
+        )
+      ) {
+        return send(req, res, 403, {
+          error: "forbidden",
+          message: "Origin not allowed",
+        });
+      }
+      if (!getSessionUser(req)) {
+        return send(req, res, 401, {
+          error: "unauthenticated",
+          message: "Sign in required",
+        });
+      }
+      // State-changing requests with a session must come from an allowed origin;
+      // otherwise a cross-site fetch would ride the same-site-session cookie.
+      if (req.method === "POST" && !isOriginAllowed(requestOrigin(req))) {
+        return send(req, res, 403, {
+          error: "forbidden",
+          message: "Origin not allowed",
+        });
+      }
     }
 
     if (
@@ -242,7 +263,7 @@ const server = http.createServer(async (req, res) => {
       const hasDeepseek = Boolean(process.env.DEEPSEEK_API_KEY?.trim());
       const hasGemini = Boolean(process.env.GEMINI_API_KEY?.trim());
       const memory = await memoryIndexStatus();
-      return send(res, 200, {
+      return send(req, res, 200, {
         ok: true,
         sessionConfigured: session.configured,
         deepseekConfigured: hasDeepseek,
@@ -256,28 +277,28 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/memory/search") {
-      if (!originAllowed(req)) {
-        return send(res, 403, {
+      if (!isLocalOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined)) {
+        return send(req, res, 403, {
           error: "forbidden",
           message: "Origin not allowed",
-        }, false);
+        });
       }
       let body: Record<string, unknown>;
       try {
         body = (await readBody(req)) as Record<string, unknown>;
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
-        return send(res, statusCode, {
+        return send(req, res, statusCode, {
           error: "bad_request",
           message: err instanceof Error ? err.message : "Invalid request body",
-        }, false);
+        });
       }
       const query = typeof body.query === "string" ? body.query.trim() : "";
       if (!query) {
-        return send(res, 400, {
+        return send(req, res, 400, {
           error: "bad_request",
           message: 'Pass { query: string, k?: number, types?: ("interaction"|"dismissal")[] }.',
-        }, false);
+        });
       }
       const k =
         typeof body.k === "number" && Number.isFinite(body.k)
@@ -287,37 +308,37 @@ const server = http.createServer(async (req, res) => {
       await ensureMemoryIndex();
       const result = await searchMemory({ query, k, types });
       if (result.error) {
-        return send(res, 503, {
+        return send(req, res, 503, {
           ok: false,
           error: "memory_unavailable",
           message: result.error,
           hits: result.hits,
-        }, false);
+        });
       }
-      return send(res, 200, { ok: true, hits: result.hits }, false);
+      return send(req, res, 200, { ok: true, hits: result.hits });
     }
 
     if (req.method === "POST" && url.pathname === "/api/memory/reindex") {
-      if (!originAllowed(req)) {
-        return send(res, 403, {
+      if (!isLocalOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined)) {
+        return send(req, res, 403, {
           error: "forbidden",
           message: "Origin not allowed",
-        }, false);
+        });
       }
       const result = await runMemoryReindex();
       if (!result.ok) {
-        return send(res, 503, {
+        return send(req, res, 503, {
           error: "reindex_failed",
           message: result.error ?? "Failed to reindex memory",
           indexed: result.indexed,
           skipped: result.skipped,
-        }, false);
+        });
       }
-      return send(res, 200, {
+      return send(req, res, 200, {
         ok: true,
         indexed: result.indexed,
         skipped: result.skipped,
-      }, false);
+      });
     }
 
     if (
@@ -325,7 +346,7 @@ const server = http.createServer(async (req, res) => {
       (url.pathname === "/api/session/verify" || url.pathname === "/api/session")
     ) {
       const result = await verifySession();
-      return send(res, result.ok ? 200 : result.status || 401, result);
+      return send(req, res, result.ok ? 200 : result.status || 401, result);
     }
 
     if (req.method === "GET" && url.pathname === "/api/usage") {
@@ -336,9 +357,9 @@ const server = http.createServer(async (req, res) => {
           : "7d";
       try {
         const summary = getUsageSummary({ window });
-        return send(res, 200, { ok: true, ...summary });
+        return send(req, res, 200, { ok: true, ...summary });
       } catch (err) {
-        return send(res, 500, {
+        return send(req, res, 500, {
           error: "usage_unavailable",
           message: err instanceof Error ? err.message : String(err),
         });
@@ -355,7 +376,7 @@ const server = http.createServer(async (req, res) => {
         };
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
-        return send(res, statusCode, {
+        return send(req, res, statusCode, {
           error: "bad_request",
           message: err instanceof Error ? err.message : "Invalid request body",
         });
@@ -367,7 +388,7 @@ const server = http.createServer(async (req, res) => {
       const filters = parseScoutFilters(body.filters);
       const gate = tryBeginScout();
       if (!gate.ok) {
-        return send(res, gate.status, {
+        return send(req, res, gate.status, {
           error: gate.error,
           message: gate.message,
         });
@@ -376,13 +397,13 @@ const server = http.createServer(async (req, res) => {
         await ensureMemoryIndex();
         const result = await runScoutSearch({ agenda, queries, filters });
         if (!result.ok) {
-          return send(res, result.status, {
+          return send(req, res, result.status, {
             error: result.error,
             message: result.message,
           });
         }
         const done = result.event;
-        return send(res, 200, {
+        return send(req, res, 200, {
           queries: done.queries,
           threads: done.threads,
           errors: done.errors,
@@ -422,7 +443,7 @@ const server = http.createServer(async (req, res) => {
         };
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
-        return send(res, statusCode, {
+        return send(req, res, statusCode, {
           error: "bad_request",
           message: err instanceof Error ? err.message : "Invalid request body",
         });
@@ -437,7 +458,7 @@ const server = http.createServer(async (req, res) => {
 
       const gate = tryBeginScout();
       if (!gate.ok) {
-        return send(res, gate.status, {
+        return send(req, res, gate.status, {
           error: gate.error,
           message: gate.message,
         });
@@ -452,8 +473,7 @@ const server = http.createServer(async (req, res) => {
       try {
         res.writeHead(200, {
           "Content-Type": "application/x-ndjson; charset=utf-8",
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Headers": "Content-Type",
+          ...corsHeaders(req),
           "Cache-Control": "no-cache",
           Connection: "keep-alive",
         });
@@ -503,7 +523,7 @@ const server = http.createServer(async (req, res) => {
       }
       const snapshot = await getLastScout();
       if (!snapshot) {
-        return send(res, 200, { ok: true, empty: true });
+        return send(req, res, 200, { ok: true, empty: true });
       }
       const dedupeParam = url.searchParams.get("dedupeAccounts");
       const cooled = await getAuthorKeysForScoutFilter(
@@ -526,7 +546,7 @@ const server = http.createServer(async (req, res) => {
           !dismissedIds.has(t.id) &&
           !skippedIds.has(t.id),
       );
-      return send(res, 200, {
+      return send(req, res, 200, {
         ok: true,
         empty: false,
         snapshot: {
@@ -542,7 +562,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/expired") {
       const expired = await listExpiredHistory();
-      return send(res, 200, {
+      return send(req, res, 200, {
         expired,
         expiredIds: expired.map((e) => e.threadId),
       });
@@ -550,7 +570,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/scout/log") {
       const entries = await getScoutLog();
-      return send(res, 200, { ok: true, entries });
+      return send(req, res, 200, { ok: true, entries });
     }
 
     if (req.method === "POST" && url.pathname === "/api/scout/log") {
@@ -563,14 +583,14 @@ const server = http.createServer(async (req, res) => {
         };
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
-        return send(res, statusCode, {
+        return send(req, res, statusCode, {
           error: "bad_request",
           message: err instanceof Error ? err.message : "Invalid request body",
         });
       }
       const message = typeof body.message === "string" ? body.message : "";
       if (!message.trim()) {
-        return send(res, 400, {
+        return send(req, res, 400, {
           error: "bad_request",
           message: "Pass { message: string }.",
         });
@@ -581,9 +601,9 @@ const server = http.createServer(async (req, res) => {
           stage: typeof body.stage === "string" ? body.stage : undefined,
           at: typeof body.at === "string" ? body.at : undefined,
         });
-        return send(res, 200, { ok: true, entry });
+        return send(req, res, 200, { ok: true, entry });
       } catch (err) {
-        return send(res, 500, {
+        return send(req, res, 500, {
           error: "store_failed",
           message: err instanceof Error ? err.message : String(err),
         });
@@ -597,15 +617,15 @@ const server = http.createServer(async (req, res) => {
       const history = await listInteractionHistory({
         limit: MAX_INTERACTION_STORE,
       });
-      return send(res, 200, bucketInteractions(history, { bucket }));
+      return send(req, res, 200, bucketInteractions(history, { bucket }));
     }
 
     if (req.method === "GET" && url.pathname === "/api/gamification") {
       try {
-        return send(res, 200, await getGamification());
+        return send(req, res, 200, await getGamification());
       } catch (err) {
         console.error("gamification read failed:", err);
-        return send(res, 500, {
+        return send(req, res, 500, {
           error: "store_failed",
           message: "Failed to load gamification",
         });
@@ -617,7 +637,7 @@ const server = http.createServer(async (req, res) => {
         listInteractionHistory(),
         listActiveInteractions(),
       ]);
-      return send(res, 200, {
+      return send(req, res, 200, {
         interactions,
         activeIds: active.map((i) => i.threadId),
       });
@@ -625,7 +645,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/dismissed") {
       const dismissals = await listDismissalHistory();
-      return send(res, 200, {
+      return send(req, res, 200, {
         dismissals: dismissals.map(({ authorKey, ...rest }) => rest),
         dismissedIds: dismissals.map((d) => d.threadId),
       });
@@ -633,7 +653,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/skipped") {
       const skipped = await listSkipHistory();
-      return send(res, 200, {
+      return send(req, res, 200, {
         skipped: skipped.map(({ authorKey, ...rest }) => rest),
         skippedIds: skipped.map((d) => d.threadId),
       });
@@ -645,7 +665,7 @@ const server = http.createServer(async (req, res) => {
         body = (await readBody(req)) as Record<string, unknown>;
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
-        return send(res, statusCode, {
+        return send(req, res, statusCode, {
           error: "bad_request",
           message: err instanceof Error ? err.message : "Invalid request body",
         });
@@ -654,7 +674,7 @@ const server = http.createServer(async (req, res) => {
         typeof body.threadId === "string" ? body.threadId.trim() : "";
       const author = typeof body.author === "string" ? body.author.trim() : "";
       if (!threadId || !author || !normalizeAuthorKey(author)) {
-        return send(res, 400, {
+        return send(req, res, 400, {
           error: "bad_request",
           message: "Pass { threadId: string, author: string }.",
         });
@@ -672,13 +692,13 @@ const server = http.createServer(async (req, res) => {
           summary,
         });
         const { authorKey: _authorKey, ...skipRest } = skip;
-        return send(res, 200, {
+        return send(req, res, 200, {
           ok: true,
           skip: skipRest,
         });
       } catch (err) {
         console.error("Failed to store skip:", err);
-        return send(res, 500, {
+        return send(req, res, 500, {
           error: "store_failed",
           message: "Failed to store skip",
         });
@@ -691,7 +711,7 @@ const server = http.createServer(async (req, res) => {
         body = (await readBody(req)) as Record<string, unknown>;
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
-        return send(res, statusCode, {
+        return send(req, res, statusCode, {
           error: "bad_request",
           message: err instanceof Error ? err.message : "Invalid request body",
         });
@@ -700,7 +720,7 @@ const server = http.createServer(async (req, res) => {
         typeof body.threadId === "string" ? body.threadId.trim() : "";
       const author = typeof body.author === "string" ? body.author.trim() : "";
       if (!threadId || !author || !normalizeAuthorKey(author)) {
-        return send(res, 400, {
+        return send(req, res, 400, {
           error: "bad_request",
           message: "Pass { threadId: string, author: string }.",
         });
@@ -747,14 +767,14 @@ const server = http.createServer(async (req, res) => {
           inReplyToId,
           nowMs,
         });
-        return send(res, 200, {
+        return send(req, res, 200, {
           ok: true,
           dismissal,
           memoryPath: memory.path,
         });
       } catch (err) {
         console.error("Failed to store dismissal:", err);
-        return send(res, 500, {
+        return send(req, res, 500, {
           error: "store_failed",
           message: "Failed to store dismissal",
         });
@@ -767,7 +787,7 @@ const server = http.createServer(async (req, res) => {
         body = (await readBody(req)) as Record<string, unknown>;
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
-        return send(res, statusCode, {
+        return send(req, res, statusCode, {
           error: "bad_request",
           message: err instanceof Error ? err.message : "Invalid request body",
         });
@@ -775,7 +795,7 @@ const server = http.createServer(async (req, res) => {
       const threadId =
         typeof body.threadId === "string" ? body.threadId.trim() : "";
       if (!threadId) {
-        return send(res, 400, {
+        return send(req, res, 400, {
           error: "bad_request",
           message: "Pass { threadId: string }.",
         });
@@ -786,7 +806,7 @@ const server = http.createServer(async (req, res) => {
           : undefined;
       const session = await verifySession();
       if (!session.ok) {
-        return send(res, session.status || 401, {
+        return send(req, res, session.status || 401, {
           error: session.error,
           message: session.message || "Session unavailable",
         });
@@ -797,7 +817,7 @@ const server = http.createServer(async (req, res) => {
         !session.user.screen_name ||
         session.user.screen_name === "unknown"
       ) {
-        return send(res, 503, {
+        return send(req, res, 503, {
           error: "identity_unresolved",
           message:
             "Set X_OPERATOR_USERNAME in .env so Mark detect can resolve your handle.",
@@ -823,13 +843,13 @@ const server = http.createServer(async (req, res) => {
               signal: ac.signal,
             });
         if (detected.reply) {
-          return send(res, 200, {
+          return send(req, res, 200, {
             ok: true,
             found: true,
             reply: detected.reply,
           });
         }
-        return send(res, 200, {
+        return send(req, res, 200, {
           ok: true,
           found: false,
           reason: detected.reason,
@@ -845,7 +865,7 @@ const server = http.createServer(async (req, res) => {
         body = (await readBody(req)) as Record<string, unknown>;
       } catch (err) {
         const statusCode = err instanceof BodyError ? err.statusCode : 400;
-        return send(res, statusCode, {
+        return send(req, res, statusCode, {
           error: "bad_request",
           message: err instanceof Error ? err.message : "Invalid request body",
         });
@@ -857,7 +877,7 @@ const server = http.createServer(async (req, res) => {
       const reply = normalizeReply(body.reply);
       const replyId = parseStatusIdFromUrl(replyUrl);
       if (!threadId || !author || !normalizeAuthorKey(author) || !replyId) {
-        return send(res, 400, {
+        return send(req, res, 400, {
           error: "bad_request",
           message:
             "Pass { threadId: string, author: string, replyUrl: string } with a valid x.com/twitter.com status URL.",
@@ -942,7 +962,7 @@ const server = http.createServer(async (req, res) => {
           memoryPath = memory.path;
           scheduleMemoryUpsert(memory.path, "interaction");
         }
-        return send(res, 200, {
+        return send(req, res, 200, {
           ok: true,
           interaction,
           memoryPath,
@@ -950,26 +970,32 @@ const server = http.createServer(async (req, res) => {
         });
       } catch (err) {
         console.error("Failed to store interaction:", err);
-        return send(res, 500, {
+        return send(req, res, 500, {
           error: "store_failed",
           message: "Failed to store interaction",
         });
       }
     }
 
-    send(res, 404, { error: "not_found" });
+    send(req, res, 404, { error: "not_found" });
   } catch (err) {
     console.error(err);
-    send(res, 500, {
+    send(req, res, 500, {
       error: "internal_error",
       message: err instanceof Error ? err.message : String(err),
     });
   }
 });
 
-server.listen(PORT, "127.0.0.1", () => {
+server.listen(PORT, bindHost(), () => {
   const session = getSessionFromEnv();
-  console.log(`x-copilot sidecar on http://127.0.0.1:${PORT}`);
+  const host = bindHost();
+  console.log(`x-copilot sidecar on http://${host}:${PORT}`);
+  if (host !== "127.0.0.1" && host !== "localhost") {
+    console.log(
+      "Public bind — put TLS in front (Cloudflare proxy). See docs/PUBLIC_DEPLOY.md",
+    );
+  }
   console.log(
     session.configured
       ? "X API: bearer configured (run npm run test:session to verify)"
