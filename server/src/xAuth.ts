@@ -3,8 +3,10 @@
  * Does not persist user access tokens; Scout still uses the app-only bearer.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { createHmac } from "node:crypto";
 import {
   createSession,
+  findOauthAccount,
   linkOauthToUser,
   upsertOauthUser,
   type AuthUser,
@@ -71,6 +73,41 @@ function xOauthClearCookie(req: IncomingMessage): string {
     secure: flags.secure,
     sameSite: flags.sameSite,
   });
+}
+
+function xOauthHmac(value: string, key: string): string {
+  return createHmac("sha256", key).update(value).digest("hex");
+}
+
+function xOauthSignedPayload(
+  token: string,
+  secret: string,
+  key: string,
+): string {
+  const body = JSON.stringify({ token, secret });
+  return JSON.stringify({ token, secret, sig: xOauthHmac(body, key) });
+}
+
+function xOauthVerifyPayload(
+  raw: string,
+  key: string,
+): { token: string; secret: string } | null {
+  let parsed: { token?: string; secret?: string; sig?: string } = {};
+  try {
+    parsed = JSON.parse(raw) as typeof parsed;
+  } catch {
+    return null;
+  }
+  if (
+    typeof parsed.token !== "string" ||
+    typeof parsed.secret !== "string" ||
+    typeof parsed.sig !== "string"
+  ) {
+    return null;
+  }
+  const body = JSON.stringify({ token: parsed.token, secret: parsed.secret });
+  if (xOauthHmac(body, key) !== parsed.sig) return null;
+  return { token: parsed.token, secret: parsed.secret };
 }
 
 function redirect(
@@ -196,17 +233,21 @@ export function completeXLogin(opts: {
       provider: "x",
       providerUserId: profile.providerUserId,
       username: profile.username,
-      displayName: profile.username,
     });
     if (!linked.ok) return { ok: false, error: linked.error };
     user = linked.user;
   } else if (isXHandleWhitelisted(profile.username)) {
+    const alreadyLinked = findOauthAccount("x", profile.providerUserId);
     user = upsertOauthUser({
       provider: "x",
       providerUserId: profile.providerUserId,
       username: profile.username,
+<<<<<<< HEAD
       displayName: profile.username,
       emailVerified: false,
+=======
+      displayName: alreadyLinked ? null : profile.username,
+>>>>>>> b7dd7a0 (Preserve display name when linking X and sign the X OAuth state cookie)
     });
   } else {
     return { ok: false, error: "google_required" };
@@ -233,10 +274,7 @@ export async function handleXStart(
   if (!requested.ok) {
     return redirect(req, res, authErrorRedirect("exchange_failed"));
   }
-  const payload = JSON.stringify({
-    token: requested.token,
-    secret: requested.secret,
-  });
+  const payload = xOauthSignedPayload(requested.token, requested.secret, creds.secret);
   const loc = `${AUTHORIZE_URL}?oauth_token=${encodeURIComponent(requested.token)}`;
   return redirect(req, res, loc, [xOauthSetCookie(req, payload)]);
 }
@@ -261,16 +299,11 @@ export async function handleXCallback(
   }
   const token = url.searchParams.get("oauth_token")?.trim() ?? "";
   const verifier = url.searchParams.get("oauth_verifier")?.trim() ?? "";
-  let stored: { token?: string; secret?: string } = {};
-  try {
-    stored = JSON.parse(requestCookies(req)[X_OAUTH_COOKIE] || "{}") as {
-      token?: string;
-      secret?: string;
-    };
-  } catch {
-    stored = {};
-  }
-  if (!token || !verifier || !stored.token || !stored.secret || stored.token !== token) {
+  const stored = xOauthVerifyPayload(
+    requestCookies(req)[X_OAUTH_COOKIE] ?? "",
+    creds.secret,
+  );
+  if (!token || !verifier || !stored || stored.token !== token) {
     return redirect(req, res, authErrorRedirect("bad_state"), [
       xOauthClearCookie(req),
     ]);
