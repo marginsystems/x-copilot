@@ -99,10 +99,10 @@ export async function tryHandleOnboarding(
 
     const user = getSessionUser(req);
     if (!user) {
-      sendJson(req, res, 200, {
-        ok: true,
-        persisted: false,
-        agenda: parsed.agenda,
+      sendJson(req, res, 401, {
+        ok: false,
+        error: "unauthenticated",
+        message: "Sign in required",
       });
       return true;
     }
