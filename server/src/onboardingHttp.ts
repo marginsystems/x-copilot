@@ -4,7 +4,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { completeOnboarding } from "./authStore.js";
 import { corsHeaders } from "./cors.js";
-import { validateAgendaText } from "./onboarding.js";
+import {
+  generateOnboardingAgendas,
+  validateAgendaText,
+  validateOnboardingAnswers,
+} from "./onboarding.js";
 import { getSessionUser } from "./sessionCookie.js";
 
 function sendJson(
@@ -77,6 +81,40 @@ export async function tryHandleOnboarding(
   url: URL,
 ): Promise<boolean> {
   if (!url.pathname.startsWith("/api/onboarding")) return false;
+
+  if (req.method === "POST" && url.pathname === "/api/onboarding/generate") {
+    let body: Record<string, unknown>;
+    try {
+      body = await readBody(req);
+    } catch (err) {
+      const statusCode = err instanceof BodyError ? err.statusCode : 400;
+      sendJson(req, res, statusCode, {
+        error: "bad_request",
+        message: err instanceof Error ? err.message : "Invalid request body",
+      });
+      return true;
+    }
+
+    const parsed = validateOnboardingAnswers(body);
+    if (!parsed.ok) {
+      sendJson(req, res, 400, { error: parsed.error, message: parsed.message });
+      return true;
+    }
+
+    const result = await generateOnboardingAgendas(parsed.answers, {
+      provider: body.provider,
+    });
+    if (!result.ok) {
+      sendJson(req, res, 502, { error: result.error, message: result.message });
+      return true;
+    }
+    sendJson(req, res, 200, {
+      ok: true,
+      agendas: result.agendas,
+      source: result.source,
+    });
+    return true;
+  }
 
   if (req.method === "POST" && url.pathname === "/api/onboarding/complete") {
     let body: Record<string, unknown>;
