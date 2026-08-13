@@ -1359,6 +1359,7 @@ export default function App() {
             reason?: string;
             reply?: { replyUrl?: string; replyText?: string };
             message?: string;
+            error?: string;
           };
           if (markDetectGenRef.current !== gen) return;
 
@@ -1368,6 +1369,15 @@ export default function App() {
               setMarkDetectMissed(true);
               setMarkDetectNote(
                 "Detection unavailable — session identity unresolved. Paste the URL manually.",
+              );
+              return;
+            }
+            if (res.status === 402 || data.error === "credits_exhausted") {
+              setMarkDetectMissed(true);
+              setMarkDetectNote(
+                typeof data.message === "string" && data.message
+                  ? data.message
+                  : "This month's credits are used. Upgrade on Usage & Billing, or wait until the next UTC month.",
               );
               return;
             }
