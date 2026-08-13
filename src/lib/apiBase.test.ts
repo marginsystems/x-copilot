@@ -13,7 +13,7 @@ describe("apiBase", () => {
     assert.equal(isLocalHostname("localhost"), true);
     assert.equal(isLocalHostname("127.0.0.1"), true);
     assert.equal(isLocalHostname("xcopilot.dev"), false);
-    assert.equal(apiBase("localhost"), LOCAL_API_ORIGIN);
+    assert.equal(apiBase("localhost"), "http://localhost:8787");
     assert.equal(apiBase("127.0.0.1"), LOCAL_API_ORIGIN);
     assert.equal(apiBase("xcopilot.dev"), PROD_API_ORIGIN);
     assert.equal(apiBase("www.xcopilot.dev"), PROD_API_ORIGIN);

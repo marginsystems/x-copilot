@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "./db.ts";
 import {
   createSession,
+  getUserById,
   getUserForSessionToken,
   linkOauthToUser,
   revokeSessionToken,
@@ -88,6 +89,30 @@ describe("authStore", () => {
       username: "dana",
     });
     assert.equal(clash.ok, false);
+  });
+
+  it("adopts an email-less X-only user when linking X to a Google user", () => {
+    const xOnly = upsertOauthUser({
+      provider: "x",
+      providerUserId: "xid-anon",
+      username: "anon",
+    });
+    assert.equal(xOnly.email, null);
+    const google = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-anon",
+      email: "gwen@example.com",
+    });
+    const linked = linkOauthToUser({
+      userId: google.id,
+      provider: "x",
+      providerUserId: "xid-anon",
+      username: "anon",
+    });
+    assert.equal(linked.ok, true);
+    if (!linked.ok) return;
+    assert.equal(linked.user.id, google.id);
+    assert.equal(getUserById(xOnly.id), null);
   });
 
   it("revokes sessions", () => {
