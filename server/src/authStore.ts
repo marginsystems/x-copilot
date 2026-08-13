@@ -248,15 +248,16 @@ export function linkOauthToUser(opts: {
   if (existing && existing.userId !== opts.userId) {
     const owner = getUserById(existing.userId);
     if (owner && owner.email === null) {
+      const orphanUserId = existing.userId;
       const database = getPlatformDb();
       database.transaction(() => {
         database
           .prepare(`UPDATE oauth_accounts SET user_id = ? WHERE user_id = ?`)
-          .run(opts.userId, existing.userId);
+          .run(opts.userId, orphanUserId);
         database
           .prepare(`DELETE FROM sessions WHERE user_id = ?`)
-          .run(existing.userId);
-        database.prepare(`DELETE FROM users WHERE id = ?`).run(existing.userId);
+          .run(orphanUserId);
+        database.prepare(`DELETE FROM users WHERE id = ?`).run(orphanUserId);
       })();
       existing = findOauthAccount(opts.provider, opts.providerUserId);
     } else {
