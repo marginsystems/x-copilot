@@ -1,9 +1,10 @@
 # Static Vite SPA on xcopilot.dev — no Worker secrets (API is api.xcopilot.dev).
-# workers_dev stays off: the *.workers.dev URL is not in the API's CORS
+# workers_dev must be off: the *.workers.dev URL is not in the API's CORS
 # allowlist (ALLOWED_ORIGINS), so the SPA would be CORS-blocked there. Serve via
 # the xcopilot.dev custom domain (attach in the CF dashboard after deploy).
 name = "x-copilot"
 compatibility_date = "2026-08-01"
+workers_dev = false
 
 [assets]
 directory = "./dist"
