@@ -229,6 +229,16 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (authRequired() && !isPublicApiPath(url.pathname)) {
+      if (
+        !isOriginAllowed(
+          typeof req.headers.origin === "string" ? req.headers.origin : undefined,
+        )
+      ) {
+        return send(req, res, 403, {
+          error: "forbidden",
+          message: "Origin not allowed",
+        });
+      }
       if (!getSessionUser(req)) {
         return send(req, res, 401, {
           error: "unauthenticated",

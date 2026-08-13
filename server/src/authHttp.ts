@@ -88,10 +88,7 @@ export async function tryHandleAuth(
     sendJson(req, res, 200, { ok: true, user: publicUser(user) });
     return true;
   }
-  if (
-    req.method === "POST" &&
-    url.pathname === "/api/auth/logout"
-  ) {
+  if (req.method === "POST" && url.pathname === "/api/auth/logout") {
     const token = requestCookies(req)[SESSION_COOKIE];
     if (token) revokeSessionToken(token);
     sendJson(
