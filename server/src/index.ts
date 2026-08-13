@@ -235,6 +235,14 @@ const server = http.createServer(async (req, res) => {
           message: "Sign in required",
         });
       }
+      // State-changing requests with a session must come from an allowed origin;
+      // otherwise a cross-site fetch would ride the same-site-session cookie.
+      if (req.method === "POST" && !isOriginAllowed(requestOrigin(req))) {
+        return send(req, res, 403, {
+          error: "forbidden",
+          message: "Origin not allowed",
+        });
+      }
     }
 
     if (
