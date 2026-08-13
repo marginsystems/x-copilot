@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "./db.ts";
 import {
+  completeOnboarding,
   createSession,
   getUserById,
   getUserForSessionToken,
@@ -151,5 +152,44 @@ describe("authStore", () => {
     const { token } = createSession(user.id);
     revokeSessionToken(token);
     assert.equal(getUserForSessionToken(token), null);
+  });
+
+  it("leaves new users unonboarded until they complete setup", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-onboard-1",
+      email: "new@example.com",
+      emailVerified: true,
+    });
+    assert.equal(user.onboardingCompletedAt, null);
+    assert.equal(user.agenda, null);
+  });
+
+  it("persists agenda and completion timestamp", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-onboard-2",
+      email: "setup@example.com",
+      emailVerified: true,
+    });
+    const agenda =
+      "Find founders sharing concrete takes on shipping AI tools in public. Prefer a clear point of view. Skip empty engagement bait.";
+    const updated = completeOnboarding(user.id, `  ${agenda}  `);
+    assert.ok(updated);
+    assert.equal(updated?.agenda, agenda);
+    assert.ok(updated?.onboardingCompletedAt);
+    const again = completeOnboarding(
+      user.id,
+      "Meet researchers arguing about evaluation, not model drops. Prefer lived results. Skip launch-day hype threads.",
+    );
+    assert.equal(again?.onboardingCompletedAt, updated?.onboardingCompletedAt);
+    assert.match(again?.agenda ?? "", /evaluation/);
+  });
+
+  it("returns null when completing onboarding for a missing user", () => {
+    assert.equal(
+      completeOnboarding("missing", "Find builders sharing opinions on shipping."),
+      null,
+    );
   });
 });

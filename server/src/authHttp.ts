@@ -45,6 +45,8 @@ function publicUser(user: NonNullable<ReturnType<typeof getSessionUser>>) {
     email: user.email,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
+    onboardingCompleted: Boolean(user.onboardingCompletedAt),
+    agenda: user.agenda,
   };
 }
 

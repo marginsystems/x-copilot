@@ -70,6 +70,7 @@ import { getPlatformDb } from "./db.js";
 import { getUsageSummary } from "./usageMeter.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 import { tryHandleAuth } from "./authHttp.js";
+import { tryHandleOnboarding } from "./onboardingHttp.js";
 import { corsHeaders, isLocalOrigin, isOriginAllowed, requestOrigin } from "./cors.js";
 import { authRequired, bindHost, isPublicApiPath } from "./authGuard.js";
 import { getSessionUser } from "./sessionCookie.js";
@@ -253,6 +254,10 @@ const server = http.createServer(async (req, res) => {
           message: "Origin not allowed",
         });
       }
+    }
+
+    if (await tryHandleOnboarding(req, res, url)) {
+      return;
     }
 
     if (
