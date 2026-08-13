@@ -649,6 +649,7 @@ export default function App() {
     name: string;
   } | null>(null);
   const [authUser, setAuthUser] = useState<AuthSessionUser | null>(null);
+  const [onboardingDoneLocal, setOnboardingDoneLocal] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [authRequired, setAuthRequired] = useState(true);
   const [authNotice, setAuthNotice] = useState("");
@@ -1575,6 +1576,7 @@ export default function App() {
 
   function finishOnboarding(agenda: string) {
     setAgenda(agenda);
+    setOnboardingDoneLocal(true);
     setAuthUser((prev) =>
       prev ? { ...prev, onboardingCompleted: true, agenda } : prev,
     );
@@ -2046,6 +2048,7 @@ export default function App() {
   const needsLogin = authChecked && authRequired && !authUser && !localUi;
   const needsOnboarding =
     !needsLogin &&
+    !onboardingDoneLocal &&
     (authUser
       ? authUser.onboardingCompleted === false &&
         !readOnboardingComplete(authUser.id)
