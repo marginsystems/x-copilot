@@ -23,7 +23,23 @@ GOOGLE_REDIRECT_URI=https://api.xcopilot.dev/api/auth/google/callback
 X_OAUTH_CALLBACK=https://api.xcopilot.dev/api/auth/x/callback
 ```
 
-`AUTH_REQUIRED` is implied when a whitelist is set **or** `BIND_HOST` is `0.0.0.0`. Set `AUTH_REQUIRED=0` only for break-glass local debugging — never on the public bind.
+`AUTH_REQUIRED` is implied when a whitelist is set **or** `BIND_HOST` is `0.0.0.0`; `AUTH_REQUIRED=0` cannot override the public bind, so the session gate stays on. Set `AUTH_REQUIRED=0` only for break-glass local debugging on the loopback bind — never on the public bind.
+
+### Restrict the origin port to Cloudflare
+
+The API trusts `CF-Connecting-IP` / `X-Forwarded-For` only when the direct peer is a Cloudflare IP (otherwise it falls back to the socket address for rate limiting). Anyone who can reach `IP:8787` directly can spoof those headers and bypass the login rate limiter, so the VPS firewall must allow 8787 only from Cloudflare's published ranges:
+
+- [`https://www.cloudflare.com/ips-v4`](https://www.cloudflare.com/ips-v4)
+- [`https://www.cloudflare.com/ips-v6`](https://www.cloudflare.com/ips-v6)
+
+Example (ufw):
+
+```
+ufw allow from 173.245.48.0/20 to any port 8787 proto tcp
+ufw allow from 104.16.0.0/13 to any port 8787 proto tcp
+ufw allow from 2400:cb00::/32 to any port 8787 proto tcp
+ufw deny 8787
+```
 
 Restart after `.env` changes: `./pm2-manager.sh restart`.
 

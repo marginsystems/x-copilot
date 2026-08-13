@@ -70,7 +70,7 @@ import { getPlatformDb } from "./db.js";
 import { getUsageSummary } from "./usageMeter.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 import { tryHandleAuth } from "./authHttp.js";
-import { corsHeaders, isLocalOrigin } from "./cors.js";
+import { corsHeaders, isLocalOrigin, isOriginAllowed, requestOrigin } from "./cors.js";
 import { authRequired, bindHost, isPublicApiPath } from "./authGuard.js";
 import { getSessionUser } from "./sessionCookie.js";
 
@@ -233,6 +233,14 @@ const server = http.createServer(async (req, res) => {
         return send(req, res, 401, {
           error: "unauthenticated",
           message: "Sign in required",
+        });
+      }
+      // State-changing requests with a session must come from an allowed origin;
+      // otherwise a cross-site fetch would ride the same-site-session cookie.
+      if (req.method === "POST" && !isOriginAllowed(requestOrigin(req))) {
+        return send(req, res, 403, {
+          error: "forbidden",
+          message: "Origin not allowed",
         });
       }
     }
