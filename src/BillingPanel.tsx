@@ -60,7 +60,15 @@ export function BillingPanel(props: {
     live &&
     (billing?.subscription_status === "past_due" ||
       billing?.subscription_status === "unpaid");
-  const usePortal = live && (billing?.plan_state === "subscription_active" || paymentFailed);
+  // `incomplete`/`paused` are live subscriptions that still need the portal to
+  // retry payment or change plans — show the manage path instead of Subscribe,
+  // which the server rejects with 409 subscription_exists.
+  const usePortal =
+    live &&
+    (billing?.plan_state === "subscription_active" ||
+      paymentFailed ||
+      billing?.subscription_status === "incomplete" ||
+      billing?.subscription_status === "paused");
   const pct =
     credits && credits.limit > 0
       ? Math.min(100, Math.round((credits.used / credits.limit) * 100))

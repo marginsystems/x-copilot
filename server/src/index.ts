@@ -542,6 +542,7 @@ const server = http.createServer(async (req, res) => {
         };
 
         await ensureMemoryIndex();
+        const requestCtx = getRequestContext();
         const result = await runScoutCollect({
           agenda,
           queries,
@@ -550,6 +551,16 @@ const server = http.createServer(async (req, res) => {
           bucketSize,
           signal: abort.signal,
           onEvent: writeLine,
+          deps: {
+            // Re-check the ceiling as reads accrue so a run cannot overspend
+            // the remaining monthly pool once it empties mid-flight.
+            creditGate: async () =>
+              creditsExhaustedResponse({
+                userId: requestCtx?.userId,
+                tenantId: requestCtx?.tenantId ?? getRequestTenantId(),
+                email: getSessionUser(req)?.email,
+              }) === null,
+          },
         });
         if (!result.ok && !sawTerminal) {
           writeLine({
@@ -875,6 +886,7 @@ const server = http.createServer(async (req, res) => {
             "Set your X username in setup so Mark detect can find your replies.",
         });
       }
+      if (sendCreditsExhausted(req, res)) return;
       /** Client-owned polling sends once:true; omit/false keeps server backoff. */
       const once = body.once === true;
       const ac = new AbortController();

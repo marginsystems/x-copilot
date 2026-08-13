@@ -276,6 +276,7 @@ export function updateSubscriptionFromStripe(input: {
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   planKey?: PaidPlanKey | null;
+  stripeCustomerId?: string | null;
   stripeEventCreated?: number;
 }): void {
   const row =
@@ -294,6 +295,8 @@ export function updateSubscriptionFromStripe(input: {
     .prepare(
       `UPDATE user_billing SET
          plan_key = ?,
+         stripe_subscription_id = ?,
+         stripe_customer_id = COALESCE(?, stripe_customer_id),
          subscription_status = ?,
          current_period_end = ?,
          cancel_at_period_end = ?,
@@ -303,6 +306,8 @@ export function updateSubscriptionFromStripe(input: {
     )
     .run(
       planKey,
+      input.stripeSubscriptionId,
+      input.stripeCustomerId ?? null,
       input.status,
       input.currentPeriodEnd,
       input.cancelAtPeriodEnd ? 1 : 0,

@@ -198,6 +198,11 @@ export type ScoutCollectDeps = {
   saveScoutCache?: typeof saveScoutCache;
   hydrateReplyParents?: typeof hydrateReplyParents;
   sleep?: typeof sleep;
+  /**
+   * Monthly-credit ceiling: when it returns false the refill loop stops so a
+   * single run cannot keep reading past the tenant's remaining pool.
+   */
+  creditGate?: () => boolean | Promise<boolean>;
 };
 
 export async function runScoutCollect(opts: {
@@ -461,6 +466,10 @@ export async function runScoutCollect(opts: {
 
         if (searchCalls > 0) {
           await doSleep(COLLECT_QUERY_DELAY_MS, opts.signal);
+        }
+
+        if (deps.creditGate && !(await deps.creditGate())) {
+          break;
         }
 
         const query = queries[queryIndex];

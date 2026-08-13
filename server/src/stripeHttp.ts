@@ -432,6 +432,21 @@ async function dispatchWebhook(
       if (!shouldApplyStripeEvent(stored, event.created)) break;
       const priceId = priceIdFromSubscription(sub);
       const planKey = planKeyFromStripePriceId(priceId);
+      if (!planKey) {
+        // Unknown price: keep the stored plan but surface the mismatch loudly
+        // instead of silently granting the pricier tier (downgrade) or ignoring
+        // an upgrade. The watermark still advances, so ops must fix STRIPE_PRICE_*
+        // env and trigger a fresh event to reconcile.
+        console.error(
+          `[stripe-webhook] customer.subscription.updated ${sub.id}: price id ` +
+            `'${priceId ?? "(none)"}' is not in STRIPE_PRICE_{PULSE,RADAR,HORIZON} — ` +
+            `keeping stored plan '${existing?.planKey ?? "free"}'. Add the price to env ` +
+            "and send a new subscription event to reconcile.",
+        );
+      }
+      const customerRaw = sub.customer;
+      const customerId =
+        typeof customerRaw === "string" ? customerRaw : customerRaw?.id ?? null;
       const period = periodFieldsFromSubscription(sub);
       updateSubscriptionFromStripe({
         stripeSubscriptionId: sub.id,
@@ -440,6 +455,7 @@ async function dispatchWebhook(
         currentPeriodEnd: period.currentPeriodEnd,
         cancelAtPeriodEnd: period.cancelAtPeriodEnd,
         planKey,
+        stripeCustomerId: customerId,
         stripeEventCreated: event.created,
       });
       break;
