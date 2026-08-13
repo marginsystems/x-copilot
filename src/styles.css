@@ -97,13 +97,11 @@ h3 {
 .app {
   width: 100%;
   margin: 0 auto;
-  padding: 16px 1.5rem 20px;
   height: 100%;
   max-height: 100dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .app-gate {
@@ -113,6 +111,62 @@ h3 {
   background:
     radial-gradient(ellipse 80% 50% at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
     var(--bg);
+}
+
+.app-main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.app-main-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-main-scroll .settings-pane,
+.app-main-scroll .usage-pane {
+  flex: none;
+  overflow: visible;
+  max-height: none;
+}
+
+.desk-tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 4px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.desk-tab {
+  flex: 1;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.desk-tab.is-on {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border);
 }
 
 .brand-gate {
@@ -266,14 +320,13 @@ h3 {
   display: grid;
   gap: 16px;
   grid-template-columns: 1fr;
-  grid-template-rows: minmax(0, min-content) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
 }
 
 .control-pane {
   min-width: 0;
   min-height: 0;
-  max-height: 42dvh;
   height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -306,10 +359,19 @@ h3 {
   display: flex;
   gap: 4px;
   min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.threads-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .threads-tab {
   appearance: none;
+  flex-shrink: 0;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--muted);
@@ -318,6 +380,7 @@ h3 {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  white-space: nowrap;
   padding: 5px 10px;
   border-radius: var(--radius);
   cursor: pointer;
@@ -487,14 +550,6 @@ h3 {
   font-size: 8px;
 }
 
-@media (max-width: 1099px) {
-  .threads-activity {
-    height: auto;
-    min-height: 120px;
-    max-height: 160px;
-  }
-}
-
 .row-head.static {
   cursor: default;
   text-align: left;
@@ -505,9 +560,18 @@ h3 {
 }
 
 @media (min-width: 1100px) {
+  .desk-tabs {
+    display: none;
+  }
+
   .dashboard {
     grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
+  }
+
+  .dashboard.is-agent .threads-pane,
+  .dashboard.is-threads .control-pane {
+    display: flex;
   }
 
   .control-pane {
@@ -519,8 +583,11 @@ h3 {
 
 .brand {
   flex-shrink: 0;
+  height: 48px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
+  display: flex;
+  align-items: center;
 }
 
 /* Landing: header is only the fixed menu control — no full-width strip. */
@@ -541,25 +608,26 @@ h3 {
 
 .brand-bar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
   /* Room for the fixed top-right menu toggle */
   padding-right: 48px;
 }
 
 .brand-lockup {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
 .brand-mark {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  margin-top: 2px;
+  width: 22px;
+  height: 22px;
+  margin: 0;
   display: block;
 }
 
@@ -579,9 +647,10 @@ h3 {
 
 .brand h1 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: -0.03em;
+  line-height: 1;
 }
 
 .brand p {
@@ -593,8 +662,8 @@ h3 {
 /* One top-right slot — hamburger and close share the same spot */
 .menu-toggle {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  top: 4px;
+  right: 8px;
   z-index: 50;
   width: 40px;
   height: 40px;
@@ -1753,9 +1822,31 @@ button:disabled {
   font-size: 0.68rem;
 }
 
+@media (max-width: 1099px) {
+  .dashboard.is-agent .threads-pane {
+    display: none;
+  }
+
+  .dashboard.is-threads .control-pane {
+    display: none;
+  }
+
+  .threads-activity {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    flex: 0 0 auto;
+  }
+
+  .threads-pane-head .section-label {
+    display: none;
+  }
+}
+
 @media (max-width: 560px) {
-  .app {
-    padding: 16px 1rem 20px;
+  .app-main {
+    padding: 10px 12px 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
 
   .row-head {
