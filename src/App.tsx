@@ -643,6 +643,7 @@ export default function App() {
     avatarUrl: string | null;
   } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [authRequired, setAuthRequired] = useState(true);
   const [authNotice, setAuthNotice] = useState("");
   const localUi = isLocalHostname(
     typeof window !== "undefined" ? window.location.hostname : "localhost",
@@ -1074,9 +1075,12 @@ export default function App() {
 
   async function hydrateAuth() {
     try {
-      const res = await apiFetch("/api/auth/me");
+      const res = await apiFetch("/api/auth/me", {
+        signal: AbortSignal.timeout(8000),
+      });
       const data = (await res.json()) as {
         ok?: boolean;
+        authRequired?: boolean;
         user?: {
           id: string;
           email: string | null;
@@ -1084,6 +1088,7 @@ export default function App() {
           avatarUrl: string | null;
         };
       };
+      setAuthRequired(data.authRequired ?? true);
       if (res.ok && data.ok && data.user?.id) {
         setAuthUser(data.user);
       } else {
@@ -1993,7 +1998,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [markThread, dismissThread, actionBusy]);
 
-  const needsLogin = authChecked && !authUser && !localUi;
+  const needsLogin = authChecked && authRequired && !authUser && !localUi;
   const booting = !localUi && !authChecked;
 
   if (booting) {
