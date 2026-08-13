@@ -29,16 +29,14 @@ export type OnboardingAgenda = {
   recommended: boolean;
 };
 
-export type GenerateAgendasResult =
-  | {
-      ok: true;
-      agendas: OnboardingAgenda[];
-      source: "llm" | "fallback";
-      model?: string;
-      provider?: LlmProvider;
-      usage?: TokenUsage;
-    }
-  | { ok: false; error: string; message: string };
+export type GenerateAgendasResult = {
+  ok: true;
+  agendas: OnboardingAgenda[];
+  source: "llm" | "fallback";
+  model?: string;
+  provider?: LlmProvider;
+  usage?: TokenUsage;
+};
 
 export function validateAgendaText(
   value: unknown,
