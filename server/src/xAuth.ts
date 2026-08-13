@@ -242,12 +242,8 @@ export function completeXLogin(opts: {
       provider: "x",
       providerUserId: profile.providerUserId,
       username: profile.username,
-<<<<<<< HEAD
-      displayName: profile.username,
-      emailVerified: false,
-=======
       displayName: alreadyLinked ? null : profile.username,
->>>>>>> b7dd7a0 (Preserve display name when linking X and sign the X OAuth state cookie)
+      emailVerified: false,
     });
   } else {
     return { ok: false, error: "google_required" };
