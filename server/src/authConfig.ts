@@ -47,10 +47,9 @@ export function googleClientConfig(env: NodeJS.ProcessEnv = process.env): {
   const clientId = env.GOOGLE_CLIENT_ID?.trim() ?? "";
   const clientSecret = env.GOOGLE_CLIENT_SECRET?.trim() ?? "";
   if (!clientId || !clientSecret) return null;
-  const port = env.PORT?.trim() || "8787";
   const redirectUri =
     env.GOOGLE_REDIRECT_URI?.trim() ||
-    `http://127.0.0.1:${port}/api/auth/google/callback`;
+    `${frontendOrigin(env)}/api/auth/google/callback`;
   return { clientId, clientSecret, redirectUri };
 }
 
