@@ -248,8 +248,9 @@ export function linkOauthToUser(opts: {
     return { ok: false, error: "already_linked" };
   }
   if (existing) {
+    const { userId: _userId, ...rest } = opts;
     upsertOauthUser({
-      ...opts,
+      ...rest,
       emailVerified: Boolean(opts.email),
     });
     const updated = getUserById(opts.userId);
