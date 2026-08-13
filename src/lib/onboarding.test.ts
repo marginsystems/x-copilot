@@ -4,6 +4,7 @@ import {
   ONBOARDING_STORAGE_KEY,
   labelsFor,
   parseGeneratedAgendas,
+  readOnboardingAgenda,
   readOnboardingComplete,
   TOPIC_OPTIONS,
   toggleId,
@@ -45,6 +46,17 @@ describe("onboarding helpers", () => {
     writeOnboardingComplete();
     assert.equal(readOnboardingComplete(), true);
     assert.equal(store.get(ONBOARDING_STORAGE_KEY), "1");
+  });
+
+  it("scopes completion and agenda per user id", () => {
+    writeOnboardingComplete("user A's agenda", "user-a");
+    assert.equal(readOnboardingComplete("user-a"), true);
+    assert.equal(readOnboardingComplete("user-b"), false);
+    assert.equal(readOnboardingAgenda("user-a"), "user A's agenda");
+    assert.equal(readOnboardingAgenda("user-b"), null);
+    writeOnboardingComplete("user B's agenda", "user-b");
+    assert.equal(readOnboardingAgenda("user-a"), "user A's agenda");
+    assert.equal(readOnboardingAgenda("user-b"), "user B's agenda");
   });
 
   it("parses generated agenda cards", () => {

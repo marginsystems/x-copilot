@@ -44,6 +44,7 @@ const QUESTIONS: Array<{
 export function Onboarding(props: {
   provider: LlmProvider;
   persist: boolean;
+  userId?: string | null;
   onComplete: (agenda: string) => void;
 }) {
   const [step, setStep] = useState(0);
@@ -148,7 +149,7 @@ export function Onboarding(props: {
           return;
         }
       }
-      writeOnboardingComplete(choice.body);
+      writeOnboardingComplete(choice.body, props.userId ?? undefined);
       props.onComplete(choice.body);
     } catch {
       setNotice("Could not save your agenda. Try again.");
