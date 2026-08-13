@@ -2,6 +2,8 @@
 
 Independent research + triage desk for posting on X. **Not affiliated with, endorsed by, or part of X Corp.**
 
+**Live:** [xcopilot.dev](https://xcopilot.dev)
+
 Official X API search → DeepSeek triage in a Vite dashboard. Scout finds cool threads worth a human reply — no AI-written reply drafts.
 
 **Status:** Stream 1 — agenda → DeepSeek Chat queries → recent search (official X API) → triaged thread cards (Start/Stop Scout).
@@ -179,7 +181,7 @@ The dashboard is a static Vite build. Workers holds **no secrets** — the brows
 npm run deploy:workers   # vite build && npx wrangler deploy
 ```
 
-Then attach custom domains `xcopilot.dev` and `www.xcopilot.dev` in the Cloudflare dashboard (or `wrangler domains`). DNS for `api` is a proxied A record to the VPS — see [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md).
+Then attach the custom domain `xcopilot.dev` in the Cloudflare dashboard (or `wrangler.toml` `[[routes]]`). There is no `www`. DNS for `api` is a grey-cloud A record to the VPS — see [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md).
 
 Sign-in: hamburger menu → **Continue with Google** (allowlisted email) or **Continue with X**. OAuth redirects hit the API host, then bounce back to this SPA.
 
