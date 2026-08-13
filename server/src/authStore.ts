@@ -260,36 +260,46 @@ export function linkOauthToUser(opts: {
   const email = opts.email?.trim().toLowerCase() || null;
   const at = nowIso();
   const database = getPlatformDb();
-  const updated = database.transaction((): AuthUser => {
-    database
-      .prepare(
-        `INSERT INTO oauth_accounts
-           (id, user_id, provider, provider_user_id, email, username, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        randomUUID(),
-        opts.userId,
-        opts.provider,
-        opts.providerUserId,
-        email,
-        opts.username ?? null,
-        at,
-      );
-    database
-      .prepare(
-        `UPDATE users SET
-           display_name = COALESCE(?, display_name),
-           avatar_url = COALESCE(?, avatar_url),
-           last_login_at = ?
-         WHERE id = ?`,
-      )
-      .run(opts.displayName ?? null, opts.avatarUrl ?? null, at, opts.userId);
-    const updated = getUserById(opts.userId);
-    if (!updated) throw new Error("oauth user missing after insert");
-    return updated;
-  })();
-  return { ok: true, user: updated };
+  try {
+    const updated = database.transaction((): AuthUser => {
+      database
+        .prepare(
+          `INSERT INTO oauth_accounts
+             (id, user_id, provider, provider_user_id, email, username, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          randomUUID(),
+          opts.userId,
+          opts.provider,
+          opts.providerUserId,
+          email,
+          opts.username ?? null,
+          at,
+        );
+      database
+        .prepare(
+          `UPDATE users SET
+             display_name = COALESCE(?, display_name),
+             avatar_url = COALESCE(?, avatar_url),
+             last_login_at = ?
+           WHERE id = ?`,
+        )
+        .run(opts.displayName ?? null, opts.avatarUrl ?? null, at, opts.userId);
+      const row = getUserById(opts.userId);
+      if (!row) throw new Error("oauth user missing after insert");
+      return row;
+    })();
+    return { ok: true, user: updated };
+  } catch (err) {
+    // A concurrent callback can win the UNIQUE(provider, provider_user_id)
+    // race after our existence check. Surface it as already_linked, not a 500.
+    const code = err instanceof Error ? (err as { code?: unknown }).code : undefined;
+    if (typeof code !== "string" || !code.startsWith("SQLITE_CONSTRAINT")) {
+      throw err;
+    }
+    return { ok: false, error: "already_linked" };
+  }
 }
 
 export function createSession(userId: string): { token: string; expiresAt: string } {

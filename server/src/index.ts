@@ -70,7 +70,9 @@ import { getPlatformDb } from "./db.js";
 import { getUsageSummary } from "./usageMeter.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 import { tryHandleAuth } from "./authHttp.js";
-import { corsHeaders, isLocalOrigin } from "./cors.js";
+import { corsHeaders, isLocalOrigin, isOriginAllowed, requestOrigin } from "./cors.js";
+import { authRequired, bindHost, isPublicApiPath } from "./authGuard.js";
+import { getSessionUser } from "./sessionCookie.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -224,6 +226,23 @@ const server = http.createServer(async (req, res) => {
 
     if (await tryHandleAuth(req, res, url)) {
       return;
+    }
+
+    if (authRequired() && !isPublicApiPath(url.pathname)) {
+      if (!getSessionUser(req)) {
+        return send(req, res, 401, {
+          error: "unauthenticated",
+          message: "Sign in required",
+        });
+      }
+      // State-changing requests with a session must come from an allowed origin;
+      // otherwise a cross-site fetch would ride the same-site-session cookie.
+      if (req.method === "POST" && !isOriginAllowed(requestOrigin(req))) {
+        return send(req, res, 403, {
+          error: "forbidden",
+          message: "Origin not allowed",
+        });
+      }
     }
 
     if (
@@ -952,9 +971,15 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, "127.0.0.1", () => {
+server.listen(PORT, bindHost(), () => {
   const session = getSessionFromEnv();
-  console.log(`x-copilot sidecar on http://127.0.0.1:${PORT}`);
+  const host = bindHost();
+  console.log(`x-copilot sidecar on http://${host}:${PORT}`);
+  if (host !== "127.0.0.1" && host !== "localhost") {
+    console.log(
+      "Public bind — put TLS in front (Cloudflare proxy). See docs/PUBLIC_DEPLOY.md",
+    );
+  }
   console.log(
     session.configured
       ? "X API: bearer configured (run npm run test:session to verify)"
