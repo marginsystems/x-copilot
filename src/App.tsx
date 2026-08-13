@@ -1649,7 +1649,6 @@ export default function App() {
     const targetCool = clampTargetCoolThreads(settings.targetCoolThreads);
     coolProgressRef.current = { cool: 0, target: targetCool };
 
-    setDeskTab("threads");
     setSearching(true);
     setPlannedQueries([]);
     // Keep existing thread rows; partials + done append by id across runs.

@@ -1833,7 +1833,7 @@ button:disabled {
 
   .threads-activity {
     height: auto;
-    min-height: 0;
+    min-height: 120px;
     max-height: none;
     flex: 0 0 auto;
   }
