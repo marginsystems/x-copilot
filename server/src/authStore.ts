@@ -140,6 +140,7 @@ export function upsertOauthUser(opts: {
   provider: "google" | "x";
   providerUserId: string;
   email?: string | null;
+  emailVerified: boolean;
   username?: string | null;
   displayName?: string | null;
   avatarUrl?: string | null;
@@ -147,87 +148,94 @@ export function upsertOauthUser(opts: {
   const database = getPlatformDb();
   const email = opts.email?.trim().toLowerCase() || null;
   const at = nowIso();
-  const existing = findOauthAccount(opts.provider, opts.providerUserId);
-  if (existing) {
-    database
-      .prepare(
-        `UPDATE users SET
-           email = COALESCE(?, email),
-           display_name = COALESCE(?, display_name),
-           avatar_url = COALESCE(?, avatar_url),
-           last_login_at = ?
-         WHERE id = ?`,
-      )
-      .run(
-        email,
-        opts.displayName ?? null,
-        opts.avatarUrl ?? null,
-        at,
-        existing.userId,
-      );
-    database
-      .prepare(
-        `UPDATE oauth_accounts SET email = ?, username = ? WHERE id = ?`,
-      )
-      .run(email, opts.username ?? null, existing.id);
-    const user = getUserById(existing.userId);
-    if (!user) throw new Error("oauth user missing after update");
-    return user;
-  }
+  const upsert = database.transaction((): AuthUser => {
+    const existing = findOauthAccount(opts.provider, opts.providerUserId);
+    if (existing) {
+      database
+        .prepare(
+          `UPDATE users SET
+             email = COALESCE(?, email),
+             display_name = COALESCE(?, display_name),
+             avatar_url = COALESCE(?, avatar_url),
+             last_login_at = ?
+           WHERE id = ?`,
+        )
+        .run(
+          email,
+          opts.displayName ?? null,
+          opts.avatarUrl ?? null,
+          at,
+          existing.userId,
+        );
+      database
+        .prepare(
+          `UPDATE oauth_accounts SET email = ?, username = ? WHERE id = ?`,
+        )
+        .run(email, opts.username ?? null, existing.id);
+      const user = getUserById(existing.userId);
+      if (!user) throw new Error("oauth user missing after update");
+      return user;
+    }
 
-  const byEmail = email ? getUserByEmail(email) : null;
-  const userId = byEmail?.id ?? randomUUID();
-  if (!byEmail) {
+    const byEmail = email && opts.emailVerified ? getUserByEmail(email) : null;
+    const userId = byEmail?.id ?? randomUUID();
+    if (!byEmail) {
+      database
+        .prepare(
+          `INSERT INTO users (id, email, display_name, avatar_url, created_at, last_login_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          userId,
+          email,
+          opts.displayName ?? null,
+          opts.avatarUrl ?? null,
+          at,
+          at,
+        );
+    } else {
+      database
+        .prepare(
+          `UPDATE users SET
+             display_name = COALESCE(?, display_name),
+             avatar_url = COALESCE(?, avatar_url),
+             last_login_at = ?
+           WHERE id = ?`,
+        )
+        .run(opts.displayName ?? null, opts.avatarUrl ?? null, at, userId);
+    }
+
     database
       .prepare(
-        `INSERT INTO users (id, email, display_name, avatar_url, created_at, last_login_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO oauth_accounts
+           (id, user_id, provider, provider_user_id, email, username, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
+        randomUUID(),
         userId,
+        opts.provider,
+        opts.providerUserId,
         email,
-        opts.displayName ?? null,
-        opts.avatarUrl ?? null,
-        at,
+        opts.username ?? null,
         at,
       );
-  } else {
-    database
-      .prepare(
-        `UPDATE users SET
-           display_name = COALESCE(?, display_name),
-           avatar_url = COALESCE(?, avatar_url),
-           last_login_at = ?
-         WHERE id = ?`,
-      )
-      .run(opts.displayName ?? null, opts.avatarUrl ?? null, at, userId);
-  }
 
-  database
-    .prepare(
-      `INSERT INTO oauth_accounts
-         (id, user_id, provider, provider_user_id, email, username, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      randomUUID(),
-      userId,
-      opts.provider,
-      opts.providerUserId,
-      email,
-      opts.username ?? null,
-      at,
-    );
-
-  const user = getUserById(userId);
-  if (!user) throw new Error("oauth user missing after insert");
-  return user;
+    const user = getUserById(userId);
+    if (!user) throw new Error("oauth user missing after insert");
+    return user;
+  });
+  return upsert();
 }
 
 export function createSession(userId: string): { token: string; expiresAt: string } {
   const token = newSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
-  getPlatformDb()
+  const database = getPlatformDb();
+  database
+    .prepare(`DELETE FROM sessions WHERE expires_at < ? OR revoked_at IS NOT NULL`)
+    .run(nowIso());
+  database
     .prepare(
       `INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at, revoked_at)
        VALUES (?, ?, ?, ?, ?, NULL)`,

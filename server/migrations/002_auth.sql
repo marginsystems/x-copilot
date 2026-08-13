@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS oauth_accounts (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id),
   provider TEXT NOT NULL,
   provider_user_id TEXT NOT NULL,
   email TEXT,
@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_oauth_accounts_user
 
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id),
   token_hash TEXT NOT NULL UNIQUE,
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL,

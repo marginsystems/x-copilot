@@ -34,6 +34,7 @@ describe("authStore", () => {
       provider: "google",
       providerUserId: "gid-1",
       email: "alice@example.com",
+      emailVerified: true,
       displayName: "Alice",
     });
     assert.equal(user.email, "alice@example.com");
@@ -48,16 +49,35 @@ describe("authStore", () => {
       provider: "google",
       providerUserId: "gid-2",
       email: "bob@example.com",
+      emailVerified: true,
       displayName: "Bob",
     });
     const x = upsertOauthUser({
       provider: "x",
       providerUserId: "xid-2",
       email: "bob@example.com",
+      emailVerified: true,
       username: "bobhandle",
     });
     assert.equal(x.id, google.id);
     assert.equal(x.email, "bob@example.com");
+  });
+
+  it("does not link a new provider onto an existing user without a verified email", () => {
+    const google = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-4",
+      email: "dave@example.com",
+      emailVerified: true,
+    });
+    const x = upsertOauthUser({
+      provider: "x",
+      providerUserId: "xid-4",
+      email: "dave@example.com",
+      emailVerified: false,
+    });
+    assert.notEqual(x.id, google.id);
+    assert.equal(google.email, "dave@example.com");
   });
 
   it("revokes sessions", () => {
@@ -65,6 +85,7 @@ describe("authStore", () => {
       provider: "google",
       providerUserId: "gid-3",
       email: "carol@example.com",
+      emailVerified: true,
     });
     const { token } = createSession(user.id);
     revokeSessionToken(token);
