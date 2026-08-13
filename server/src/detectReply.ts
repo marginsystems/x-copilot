@@ -1,5 +1,5 @@
 /**
- * Find the session user's reply to a curated parent tweet via SearchTimeline.
+ * Find the operator's reply to a curated parent tweet via official recent search.
  */
 import {
   searchTimelinePages,
@@ -79,12 +79,33 @@ function sleep(
 }
 
 /**
- * Latest search from the session user; keep exact in_reply_to matches.
+ * Narrow recent-search query: our replies in this conversation only.
+ * conversation_id matches the conversation ROOT, so prefer the card's
+ * conversationId and fall back to the card id when unknown.
+ */
+export function buildDetectOwnReplyQuery(
+  screenName: string,
+  threadId: string,
+  withinTime = "24h",
+  conversationId?: string,
+): string {
+  const name = normalizeScreenName(screenName);
+  const id = conversationId?.trim() || threadId.trim();
+  return withSearchRecency(
+    `conversation_id:${id} from:${name} is:reply`,
+    withinTime,
+  );
+}
+
+/**
+ * Latest search from the operator; keep exact in_reply_to matches.
  * Exactly one hit → reply; zero → none; many → ambiguous; search error → search_failed.
  */
 export async function detectOwnReplyToThread(opts: {
   threadId: string;
   screenName: string;
+  /** Conversation root id; falls back to threadId when absent. */
+  conversationId?: string;
   withinTime?: string;
   maxPages?: number;
   count?: number;
@@ -104,7 +125,12 @@ export async function detectOwnReplyToThread(opts: {
   }
 
   const within = opts.withinTime ?? "24h";
-  const query = withSearchRecency(`from:${screenName}`, within);
+  const query = buildDetectOwnReplyQuery(
+    screenName,
+    threadId,
+    within,
+    opts.conversationId,
+  );
   const search = opts.searchTimelinePages ?? searchTimelinePages;
 
   let result: SearchTimelineResult;
@@ -182,6 +208,8 @@ function shouldRetry(result: DetectReplyResult): boolean {
 export async function detectOwnReplyToThreadWithRetry(opts: {
   threadId: string;
   screenName: string;
+  /** Conversation root id; falls back to threadId when absent. */
+  conversationId?: string;
   withinTime?: string;
   maxPages?: number;
   count?: number;
@@ -224,6 +252,7 @@ export async function detectOwnReplyToThreadWithRetry(opts: {
     last = await detectOwnReplyToThread({
       threadId: opts.threadId,
       screenName: opts.screenName,
+      conversationId: opts.conversationId,
       withinTime: opts.withinTime,
       maxPages: opts.maxPages,
       count: opts.count,
