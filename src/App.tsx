@@ -1191,7 +1191,11 @@ export default function App() {
           const res = await fetch("/api/interacted/detect", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ threadId: thread.id, once: true }),
+            body: JSON.stringify({
+              threadId: thread.id,
+              conversationId: thread.conversationId,
+              once: true,
+            }),
             signal: ac.signal,
           });
           if (markDetectGenRef.current !== gen) return;

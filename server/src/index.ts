@@ -780,6 +780,10 @@ const server = http.createServer(async (req, res) => {
           message: "Pass { threadId: string }.",
         });
       }
+      const conversationId =
+        typeof body.conversationId === "string"
+          ? body.conversationId.trim()
+          : undefined;
       const session = await verifySession();
       if (!session.ok) {
         return send(res, session.status || 401, {
@@ -808,11 +812,13 @@ const server = http.createServer(async (req, res) => {
         const detected = once
           ? await detectOwnReplyToThread({
               threadId,
+              conversationId,
               screenName: session.user.screen_name,
               signal: ac.signal,
             })
           : await detectOwnReplyToThreadWithRetry({
               threadId,
+              conversationId,
               screenName: session.user.screen_name,
               signal: ac.signal,
             });

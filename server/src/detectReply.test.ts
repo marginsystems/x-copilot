@@ -26,6 +26,17 @@ describe("buildDetectOwnReplyQuery", () => {
     assert.match(q, /is:reply/);
     assert.match(q, /within_time:24h/);
   });
+
+  it("prefers the conversation root id over the card id", () => {
+    const q = buildDetectOwnReplyQuery(
+      "@alice",
+      "card1",
+      "24h",
+      "root1",
+    );
+    assert.match(q, /conversation_id:root1/);
+    assert.doesNotMatch(q, /conversation_id:card1/);
+  });
 });
 
 describe("detectOwnReplyToThread", () => {
