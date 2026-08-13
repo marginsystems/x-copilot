@@ -65,6 +65,7 @@ import { runScoutSearch, type ScoutFilters } from "./scoutRun.js";
 import {
   detectOwnReplyToThread,
   detectOwnReplyToThreadWithRetry,
+  resolveDetectScreenName,
 } from "./detectReply.js";
 import { getPlatformDb } from "./db.js";
 import { getUsageSummary } from "./usageMeter.js";
@@ -816,16 +817,16 @@ const server = http.createServer(async (req, res) => {
           message: session.message || "Session unavailable",
         });
       }
-      if (
-        session.method === "api_bearer_probe" ||
-        session.method === "badge_count" ||
-        !session.user.screen_name ||
-        session.user.screen_name === "unknown"
-      ) {
+      const appUser = getSessionUser(req);
+      const screenName = resolveDetectScreenName(
+        appUser?.xUsername,
+        session.user.screen_name,
+      );
+      if (!screenName) {
         return send(req, res, 503, {
           error: "identity_unresolved",
           message:
-            "Set X_OPERATOR_USERNAME in .env so Mark detect can resolve your handle.",
+            "Set your X username in setup so Mark detect can find your replies.",
         });
       }
       /** Client-owned polling sends once:true; omit/false keeps server backoff. */
@@ -838,13 +839,13 @@ const server = http.createServer(async (req, res) => {
           ? await detectOwnReplyToThread({
               threadId,
               conversationId,
-              screenName: session.user.screen_name,
+              screenName,
               signal: ac.signal,
             })
           : await detectOwnReplyToThreadWithRetry({
               threadId,
               conversationId,
-              screenName: session.user.screen_name,
+              screenName,
               signal: ac.signal,
             });
         if (detected.reply) {

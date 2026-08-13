@@ -43,10 +43,22 @@ export type SearchTimelinePagesFn = (opts: {
 /** Delays before each attempt (ms). */
 export const DETECT_RETRY_DELAYS_MS = [0, 2000, 5000] as const;
 
+import { parseXHandle } from "./xHandle.js";
+
 export type DetectLogFn = (line: string) => void;
 
+export function resolveDetectScreenName(
+  userHandle: string | null | undefined,
+  envScreenName: string | null | undefined,
+): string | null {
+  const fromUser = parseXHandle(userHandle ?? "");
+  if (fromUser) return fromUser;
+  if (!envScreenName || envScreenName === "unknown") return null;
+  return parseXHandle(envScreenName);
+}
+
 function normalizeScreenName(screenName: string): string {
-  return screenName.trim().replace(/^@+/, "");
+  return parseXHandle(screenName) ?? screenName.trim().replace(/^@+/, "");
 }
 
 function toDetected(card: ThreadCard): DetectedReply {

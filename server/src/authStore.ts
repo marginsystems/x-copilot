@@ -3,6 +3,7 @@
  */
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { getPlatformDb } from "./db.js";
+import { parseXHandle } from "./xHandle.js";
 
 export type AuthUser = {
   id: string;
@@ -13,10 +14,11 @@ export type AuthUser = {
   lastLoginAt: string | null;
   onboardingCompletedAt: string | null;
   agenda: string | null;
+  xUsername: string | null;
 };
 
 const USER_COLUMNS =
-  "id, email, display_name, avatar_url, created_at, last_login_at, onboarding_completed_at, agenda";
+  "id, email, display_name, avatar_url, created_at, last_login_at, onboarding_completed_at, agenda, x_username";
 
 type UserRow = {
   id: string;
@@ -27,6 +29,7 @@ type UserRow = {
   last_login_at: string | null;
   onboarding_completed_at: string | null;
   agenda: string | null;
+  x_username: string | null;
 };
 
 export type OauthAccount = {
@@ -72,7 +75,45 @@ function mapUser(row: UserRow): AuthUser {
     lastLoginAt: row.last_login_at,
     onboardingCompletedAt: row.onboarding_completed_at,
     agenda: row.agenda,
+    xUsername: row.x_username,
   };
+}
+
+export function toPublicUser(user: AuthUser) {
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    onboardingCompleted: Boolean(user.onboardingCompletedAt),
+    agenda: user.agenda,
+    xUsername: user.xUsername,
+  };
+}
+
+export function getXOauthUsername(userId: string): string | null {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT username FROM oauth_accounts
+       WHERE user_id = ? AND provider = 'x' AND username IS NOT NULL
+       LIMIT 1`,
+    )
+    .get(userId) as { username: string | null } | undefined;
+  return parseXHandle(row?.username ?? "") ?? null;
+}
+
+function stampXUsername(
+  database: ReturnType<typeof getPlatformDb>,
+  userId: string,
+  username: string | null | undefined,
+): void {
+  const handle = parseXHandle(username ?? "");
+  if (!handle) return;
+  database
+    .prepare(
+      `UPDATE users SET x_username = COALESCE(x_username, ?) WHERE id = ?`,
+    )
+    .run(handle, userId);
 }
 
 export function getUserById(id: string): AuthUser | null {
@@ -159,6 +200,7 @@ export function upsertOauthUser(opts: {
           `UPDATE oauth_accounts SET email = ?, username = ? WHERE id = ?`,
         )
         .run(opts.emailVerified ? email : null, opts.username ?? null, existing.id);
+      stampXUsername(database, existing.userId, opts.username);
       const user = getUserById(existing.userId);
       if (!user) throw new Error("oauth user missing after update");
       return user;
@@ -207,6 +249,7 @@ export function upsertOauthUser(opts: {
         opts.username ?? null,
         at,
       );
+    stampXUsername(database, userId, opts.username);
 
     const user = getUserById(userId);
     if (!user) throw new Error("oauth user missing after insert");
@@ -290,6 +333,7 @@ export function linkOauthToUser(opts: {
            WHERE id = ?`,
         )
         .run(opts.displayName ?? null, opts.avatarUrl ?? null, at, opts.userId);
+      stampXUsername(database, opts.userId, opts.username);
       const row = getUserById(opts.userId);
       if (!row) throw new Error("oauth user missing after insert");
       return row;
@@ -349,17 +393,25 @@ export function revokeSessionToken(token: string): void {
 export function completeOnboarding(
   userId: string,
   agenda: string,
+  opts?: { xUsername?: string | null },
 ): AuthUser | null {
   const trimmed = agenda.trim();
   const at = nowIso();
+  const handle = parseXHandle(opts?.xUsername ?? "") ?? null;
   const result = getPlatformDb()
     .prepare(
       `UPDATE users SET
          agenda = ?,
-         onboarding_completed_at = COALESCE(onboarding_completed_at, ?)
+         onboarding_completed_at = COALESCE(onboarding_completed_at, ?),
+         x_username = COALESCE(?, x_username)
        WHERE id = ?`,
     )
-    .run(trimmed, at, userId);
+    .run(trimmed, at, handle, userId);
   if (result.changes === 0) return null;
   return getUserById(userId);
+}
+
+export function userNeedsXHandle(user: AuthUser): boolean {
+  if (parseXHandle(user.xUsername ?? "")) return false;
+  return !getXOauthUsername(user.id);
 }

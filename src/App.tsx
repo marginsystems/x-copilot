@@ -590,6 +590,7 @@ type AuthSessionUser = {
   avatarUrl: string | null;
   onboardingCompleted: boolean;
   agenda: string | null;
+  xUsername: string | null;
 };
 
 /** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
@@ -1101,6 +1102,7 @@ export default function App() {
           avatarUrl: string | null;
           onboardingCompleted?: boolean;
           agenda?: string | null;
+          xUsername?: string | null;
         };
       };
       setAuthRequired(data.authRequired ?? true);
@@ -1114,6 +1116,10 @@ export default function App() {
           agenda:
             typeof data.user.agenda === "string" && data.user.agenda.trim()
               ? data.user.agenda
+              : null,
+          xUsername:
+            typeof data.user.xUsername === "string" && data.user.xUsername.trim()
+              ? data.user.xUsername.replace(/^@+/, "")
               : null,
         };
         setAuthUser(user);
@@ -1576,11 +1582,18 @@ export default function App() {
     closeMenu();
   }
 
-  function finishOnboarding(agenda: string) {
+  function finishOnboarding(agenda: string, xUsername?: string | null) {
     setAgenda(agenda);
     setOnboardingDoneLocal(true);
     setAuthUser((prev) =>
-      prev ? { ...prev, onboardingCompleted: true, agenda } : prev,
+      prev
+        ? {
+            ...prev,
+            onboardingCompleted: true,
+            agenda,
+            xUsername: xUsername ?? prev.xUsername,
+          }
+        : prev,
     );
   }
 
@@ -2166,9 +2179,11 @@ export default function App() {
               )}
               {needsLogin || needsOnboarding ? null : (
                 <p className="menu-session-hint">
-                  {sessionUser
-                    ? `Scout operator @${sessionUser.screen_name}`
-                    : "X API not verified"}
+                  {authUser?.xUsername
+                    ? `X @${authUser.xUsername}`
+                    : sessionUser
+                      ? `Scout operator @${sessionUser.screen_name}`
+                      : "X API not verified"}
                 </p>
               )}
             </div>
@@ -2239,6 +2254,7 @@ export default function App() {
           provider={settings.llmProvider}
           persist={Boolean(authUser)}
           userId={authUser?.id ?? null}
+          needsXHandle={Boolean(authUser) && !authUser?.xUsername}
           onComplete={finishOnboarding}
         />
       ) : null}

@@ -8,6 +8,7 @@ import {
   xApiGet,
   type XApiCreds,
 } from "./xApi.js";
+import { parseXHandle } from "./xHandle.js";
 
 /** @deprecated Prefer XApiCreds — kept name for caller compatibility. */
 export type SessionCreds = XApiCreds;
@@ -211,4 +212,33 @@ export async function verifySession(
   const result = await verifyViaApi(session);
   if (result.ok) apiVerifyCache = { key, result };
   return result;
+}
+
+/** Lookup a public X username (onboarding handle check). Does not use the env-operator cache. */
+export async function lookupXUserByUsername(
+  username: string,
+  session: SessionCreds = getSessionFromEnv(),
+): Promise<VerifyResult> {
+  const handle = parseXHandle(username);
+  if (!handle) {
+    return {
+      ok: false,
+      status: 400,
+      error: "bad_handle",
+      message: "Enter a valid X username (letters, digits, underscore).",
+    };
+  }
+  if (!session.configured) {
+    return {
+      ok: false,
+      status: 0,
+      error: "missing_credentials",
+      message: "Set X_API_BEARER_TOKEN in .env (Pay Per Use app bearer).",
+    };
+  }
+  return verifyViaApi({
+    ...session,
+    operatorUsername: handle,
+    operatorUserId: "",
+  });
 }

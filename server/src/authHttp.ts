@@ -2,7 +2,7 @@
  * Auth HTTP routes: Google OAuth, session me/logout.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { revokeSessionToken } from "./authStore.js";
+import { revokeSessionToken, toPublicUser } from "./authStore.js";
 import { corsHeaders } from "./cors.js";
 import { handleGoogleCallback, handleGoogleStart } from "./googleAuth.js";
 import { handleXCallback, handleXStart } from "./xAuth.js";
@@ -40,14 +40,7 @@ function sendJson(
 }
 
 function publicUser(user: NonNullable<ReturnType<typeof getSessionUser>>) {
-  return {
-    id: user.id,
-    email: user.email,
-    displayName: user.displayName,
-    avatarUrl: user.avatarUrl,
-    onboardingCompleted: Boolean(user.onboardingCompletedAt),
-    agenda: user.agenda,
-  };
+  return toPublicUser(user);
 }
 
 /** Handle /api/auth/* — returns true if the request was consumed. */
