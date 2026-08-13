@@ -45,7 +45,8 @@ export function Onboarding(props: {
   provider: LlmProvider;
   persist: boolean;
   userId?: string | null;
-  onComplete: (agenda: string) => void;
+  needsXHandle?: boolean;
+  onComplete: (agenda: string, xUsername?: string | null) => void;
 }) {
   const [step, setStep] = useState(0);
   const [topics, setTopics] = useState<string[]>([]);
@@ -56,6 +57,8 @@ export function Onboarding(props: {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [generatedFor, setGeneratedFor] = useState("");
+  const [xHandle, setXHandle] = useState("");
+  const needsXHandle = Boolean(props.needsXHandle);
 
   const fingerprint = useMemo(
     () => JSON.stringify({ topics, goals, audiences }),
@@ -63,7 +66,8 @@ export function Onboarding(props: {
   );
 
   const question = QUESTIONS[step];
-  const onPick = step >= QUESTIONS.length;
+  const onPick = step === QUESTIONS.length;
+  const onLinkX = step === QUESTIONS.length + 1;
   const selected = question
     ? question.id === "topics"
       ? topics
@@ -125,7 +129,7 @@ export function Onboarding(props: {
       setStep(step + 1);
       return;
     }
-    if (!onPick) {
+    if (!onPick && !onLinkX) {
       const ok = await generate();
       if (ok) setStep(QUESTIONS.length);
       return;
@@ -135,24 +139,40 @@ export function Onboarding(props: {
       setNotice("Pick an agenda to continue.");
       return;
     }
+    if (needsXHandle && !onLinkX) {
+      setStep(QUESTIONS.length + 1);
+      return;
+    }
+    let handle: string | undefined;
+    if (onLinkX) {
+      const trimmed = xHandle.trim().replace(/^@+/, "");
+      if (!/^[A-Za-z0-9_]{1,15}$/.test(trimmed)) {
+        setNotice("Enter your X username (no @ needed).");
+        return;
+      }
+      handle = trimmed;
+    }
     setBusy(true);
     try {
       if (props.persist) {
         const res = await apiFetch("/api/onboarding/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ agenda: choice.body }),
+          body: JSON.stringify({
+            agenda: choice.body,
+            ...(handle ? { xUsername: handle } : {}),
+          }),
         });
         if (!res.ok) {
           const data = (await res.json()) as { message?: string };
-          setNotice(data.message || "Could not save your agenda.");
+          setNotice(data.message || "Could not save your setup.");
           return;
         }
       }
       writeOnboardingComplete(choice.body, props.userId ?? undefined);
-      props.onComplete(choice.body);
+      props.onComplete(choice.body, handle ?? null);
     } catch {
-      setNotice("Could not save your agenda. Try again.");
+      setNotice("Could not save your setup. Try again.");
     } finally {
       setBusy(false);
     }
@@ -164,8 +184,12 @@ export function Onboarding(props: {
     setStep(step - 1);
   }
 
-  const totalSteps = QUESTIONS.length + 1;
-  const currentStep = onPick ? totalSteps : step + 1;
+  const totalSteps = QUESTIONS.length + 1 + (needsXHandle ? 1 : 0);
+  const currentStep = onLinkX
+    ? totalSteps
+    : onPick
+      ? QUESTIONS.length + 1
+      : step + 1;
 
   return (
     <div className="gate onboarding">
@@ -191,7 +215,30 @@ export function Onboarding(props: {
           ))}
         </div>
 
-        {onPick ? (
+        {onLinkX ? (
+          <>
+            <h1 className="gate-title">Your X account</h1>
+            <p className="gate-lede">
+              Scout finds threads. When you reply on X, we look up posts from
+              this handle — no extra login.
+            </p>
+            <label className="onboarding-handle">
+              <span>X username</span>
+              <input
+                type="text"
+                inputMode="text"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="username"
+                placeholder="yourhandle"
+                value={xHandle}
+                onChange={(e) => setXHandle(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+          </>
+        ) : onPick ? (
           <>
             <h1 className="gate-title">Pick an agenda</h1>
             <p className="gate-lede">
@@ -243,7 +290,7 @@ export function Onboarding(props: {
           </>
         )}
 
-        {busy && !onPick ? (
+        {busy && !onPick && !onLinkX ? (
           <p className="gate-status" role="status">
             Writing agendas…
           </p>
@@ -269,13 +316,17 @@ export function Onboarding(props: {
             disabled={busy}
             onClick={() => void goNext()}
           >
-            {busy && !onPick
+            {busy && !onPick && !onLinkX
               ? "Writing…"
-              : onPick
-                ? "Continue"
-                : step === QUESTIONS.length - 1
-                  ? "Generate agendas"
-                  : "Next"}
+              : busy && onLinkX
+                ? "Checking…"
+                : onLinkX
+                  ? "Finish setup"
+                  : onPick
+                    ? "Continue"
+                    : step === QUESTIONS.length - 1
+                      ? "Generate agendas"
+                      : "Next"}
           </button>
         </div>
       </div>

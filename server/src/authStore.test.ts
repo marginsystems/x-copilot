@@ -12,6 +12,7 @@ import {
   linkOauthToUser,
   revokeSessionToken,
   upsertOauthUser,
+  userNeedsXHandle,
 } from "./authStore.ts";
 
 describe("authStore", () => {
@@ -191,5 +192,35 @@ describe("authStore", () => {
       completeOnboarding("missing", "Find builders sharing opinions on shipping."),
       null,
     );
+  });
+
+  it("stamps X username from X login and skips the handle step", () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "xid-handle",
+      emailVerified: false,
+      username: "@MarginSystems",
+      displayName: "Margin",
+    });
+    assert.equal(user.xUsername, "MarginSystems");
+    assert.equal(userNeedsXHandle(user), false);
+  });
+
+  it("requires a handle for Google-only users until they save one", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-handle",
+      email: "g@example.com",
+      emailVerified: true,
+    });
+    assert.equal(user.xUsername, null);
+    assert.equal(userNeedsXHandle(user), true);
+    const agenda =
+      "Find founders sharing concrete takes on shipping AI tools in public. Prefer a clear point of view. Skip empty engagement bait.";
+    const updated = completeOnboarding(user.id, agenda, {
+      xUsername: "@alice_dev",
+    });
+    assert.equal(updated?.xUsername, "alice_dev");
+    assert.equal(userNeedsXHandle(updated!), false);
   });
 });
