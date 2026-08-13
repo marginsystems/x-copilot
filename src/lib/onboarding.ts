@@ -1,6 +1,7 @@
 /** First-run questionnaire options and local completion flag. */
 
 export const ONBOARDING_STORAGE_KEY = "xc-onboarding-complete";
+export const ONBOARDING_AGENDA_KEY = "xc-onboarding-agenda";
 
 export type OnboardingOption = { id: string; label: string };
 
@@ -61,11 +62,22 @@ export function readOnboardingComplete(): boolean {
   }
 }
 
-export function writeOnboardingComplete(): void {
+export function writeOnboardingComplete(agenda?: string): void {
   try {
     localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+    if (agenda) localStorage.setItem(ONBOARDING_AGENDA_KEY, agenda);
+    else localStorage.removeItem(ONBOARDING_AGENDA_KEY);
   } catch {
     /* private mode */
+  }
+}
+
+export function readOnboardingAgenda(): string | null {
+  try {
+    const value = localStorage.getItem(ONBOARDING_AGENDA_KEY);
+    return value && value.trim() ? value : null;
+  } catch {
+    return null;
   }
 }
 

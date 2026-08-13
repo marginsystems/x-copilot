@@ -49,7 +49,7 @@ import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
 import { AuthButtons } from "./AuthButtons";
 import { BootScreen, Landing } from "./Landing";
 import { Onboarding } from "./Onboarding";
-import { readOnboardingComplete } from "./lib/onboarding";
+import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -1114,7 +1114,6 @@ export default function App() {
               : null,
         };
         setAuthUser(user);
-        if (user.agenda) setAgenda(user.agenda);
         return user;
       }
       setAuthUser(null);
@@ -1172,6 +1171,10 @@ export default function App() {
       const onboarded = user
         ? user.onboardingCompleted
         : readOnboardingComplete();
+      if (!user?.agenda) {
+        const storedAgenda = readOnboardingAgenda();
+        if (storedAgenda) setAgenda(storedAgenda);
+      }
       await hydrateDismissed();
       await hydrateSkipped();
       await hydrateInteracted();
@@ -2042,7 +2045,7 @@ export default function App() {
   const needsOnboarding =
     !needsLogin &&
     (authUser
-      ? authUser.onboardingCompleted === false
+      ? authUser.onboardingCompleted === false && !readOnboardingComplete()
       : !readOnboardingComplete());
   const booting = !localUi && !authChecked;
 
