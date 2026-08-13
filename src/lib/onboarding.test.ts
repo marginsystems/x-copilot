@@ -1,6 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
+  ONBOARDING_AGENDA_KEY,
   ONBOARDING_STORAGE_KEY,
   labelsFor,
   parseGeneratedAgendas,
@@ -57,6 +58,17 @@ describe("onboarding helpers", () => {
     writeOnboardingComplete("user B's agenda", "user-b");
     assert.equal(readOnboardingAgenda("user-a"), "user A's agenda");
     assert.equal(readOnboardingAgenda("user-b"), "user B's agenda");
+  });
+
+  it("migrates a prior local setup to the first signed-in account", () => {
+    writeOnboardingComplete("local agenda");
+    assert.equal(readOnboardingComplete(), true);
+    assert.equal(readOnboardingComplete("user-a"), true);
+    assert.equal(readOnboardingAgenda("user-a"), "local agenda");
+    assert.equal(store.has(ONBOARDING_STORAGE_KEY), false);
+    assert.equal(store.has(ONBOARDING_AGENDA_KEY), false);
+    assert.equal(readOnboardingComplete("user-b"), false);
+    assert.equal(readOnboardingAgenda("user-b"), null);
   });
 
   it("parses generated agenda cards", () => {

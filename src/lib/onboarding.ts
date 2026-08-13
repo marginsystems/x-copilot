@@ -60,9 +60,17 @@ export function labelsFor(ids: string[], options: OnboardingOption[]): string[] 
 
 export function readOnboardingComplete(userId?: string): boolean {
   try {
-    return (
+    if (
       localStorage.getItem(scopedKey(ONBOARDING_STORAGE_KEY, userId)) === "1"
-    );
+    ) {
+      return true;
+    }
+    if (userId && localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1") {
+      localStorage.setItem(scopedKey(ONBOARDING_STORAGE_KEY, userId), "1");
+      localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -84,7 +92,15 @@ export function readOnboardingAgenda(userId?: string): string | null {
     const value = localStorage.getItem(
       scopedKey(ONBOARDING_AGENDA_KEY, userId),
     );
-    return value && value.trim() ? value : null;
+    if (value && value.trim()) return value;
+    if (!userId) return null;
+    const unscoped = localStorage.getItem(ONBOARDING_AGENDA_KEY);
+    if (unscoped && unscoped.trim()) {
+      localStorage.setItem(scopedKey(ONBOARDING_AGENDA_KEY, userId), unscoped);
+      localStorage.removeItem(ONBOARDING_AGENDA_KEY);
+      return unscoped;
+    }
+    return null;
   } catch {
     return null;
   }

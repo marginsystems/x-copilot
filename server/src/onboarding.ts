@@ -221,6 +221,7 @@ export async function generateOnboardingAgendas(
     ],
   });
 
+  let failureDetail: string | undefined;
   if (first.ok) {
     let agendas = parseOnboardingAgendasJson(first.content);
     let usage = first.usage;
@@ -245,6 +246,8 @@ export async function generateOnboardingAgendas(
         agendas = parseOnboardingAgendasJson(repair.content);
         usage = addTokenUsage(usage, repair.usage);
         usedModel = repair.model;
+      } else {
+        failureDetail = `${repair.error}: ${repair.message}`;
       }
     }
     if (agendas) {
@@ -257,7 +260,11 @@ export async function generateOnboardingAgendas(
         ...(usage ? { usage } : {}),
       };
     }
+  } else {
+    failureDetail = `${first.error}: ${first.message}`;
   }
+  if (!failureDetail) failureDetail = "LLM output did not parse as agenda JSON";
+  console.warn(`[onboarding] falling back to templated agendas: ${failureDetail}`);
 
   return {
     ok: true,

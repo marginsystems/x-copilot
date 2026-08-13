@@ -107,12 +107,19 @@ export function isCloudflarePeer(address: string | undefined): boolean {
 
 /**
  * Client IP for rate limiting. Forwarded headers (CF-Connecting-IP /
- * X-Forwarded-For) are spoofable, so they are trusted only when the direct peer
- * is a Cloudflare IP; otherwise we fall back to the socket address.
+ * X-Forwarded-For) are spoofable, so they are trusted only from the same peers
+ * sessionCookie.ts trusts (Cloudflare edge, see isCloudflarePeer) plus loopback,
+ * which covers a local TLS terminator / tunnel in front of the origin. Any other
+ * peer falls back to the socket address.
  */
 export function clientIp(req: IncomingMessage): string {
   const peer = req.socket.remoteAddress || "unknown";
-  if (isCloudflarePeer(peer)) {
+  const trustedPeer =
+    isCloudflarePeer(peer) ||
+    peer === "127.0.0.1" ||
+    peer === "::1" ||
+    peer === "::ffff:127.0.0.1";
+  if (trustedPeer) {
     const cf = req.headers["cf-connecting-ip"];
     if (typeof cf === "string" && cf.trim()) return cf.trim();
     const xff = req.headers["x-forwarded-for"];
