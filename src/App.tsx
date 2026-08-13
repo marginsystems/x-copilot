@@ -1997,11 +1997,25 @@ export default function App() {
     <div className="app">
       <header className="brand">
         <div className="brand-bar">
-          <div className="brand-copy">
-            <h1>x-copilot</h1>
-            <p>
-              Agenda → Scout searches X and scores threads. You review and post.
-            </p>
+          <div className="brand-lockup">
+            <img
+              className="brand-mark"
+              src="/favicon.svg"
+              width={32}
+              height={32}
+              alt=""
+            />
+            <div className="brand-copy">
+              <h1>x-copilot</h1>
+              <p>
+                Agenda → Scout searches X and scores threads. You review and
+                post.
+              </p>
+              <p className="brand-legal">
+                Independent software. Not affiliated with, endorsed by, or part
+                of X Corp.
+              </p>
+            </div>
           </div>
           <button
             type="button"
@@ -2154,8 +2168,9 @@ export default function App() {
         <section className="panel login-pane">
           <h2>Sign in</h2>
           <p className="status settings-lede">
-            Use a Google account on the API allowlist. Optionally link X for
-            identity. No secrets live in this page.
+            Use a Google account on the API allowlist. Optionally link an X
+            account for identity. This page holds no secrets. x-copilot is
+            independent software and is not affiliated with X Corp.
           </p>
           <div className="login-actions">
             <button

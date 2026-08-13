@@ -1,6 +1,8 @@
 # x-copilot
 
-Research + triage assistant for X (Twitter): **official X API search → DeepSeek triage** in a Vite dashboard. Scout finds cool threads worth a human reply — no AI-written reply drafts.
+Independent research + triage desk for posting on X. **Not affiliated with, endorsed by, or part of X Corp.**
+
+Official X API search → DeepSeek triage in a Vite dashboard. Scout finds cool threads worth a human reply — no AI-written reply drafts.
 
 **Status:** Stream 1 — agenda → DeepSeek Chat queries → recent search (official X API) → triaged thread cards (Start/Stop Scout).
 
