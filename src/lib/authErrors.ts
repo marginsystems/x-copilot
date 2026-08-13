@@ -10,6 +10,7 @@ export const AUTH_ERROR_MESSAGES: Record<string, string> = {
   no_email: "Google did not return an email address.",
   email_unverified: "Verify that Google account's email, then try again.",
   already_linked: "That X account is already linked to someone else.",
+  user_missing: "That account no longer exists. Try signing in again.",
 };
 
 export function authErrorMessage(code: string | null | undefined): string | null {
