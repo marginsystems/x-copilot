@@ -154,6 +154,7 @@ export function completeGoogleLogin(profile: GoogleProfile):
     provider: "google",
     providerUserId: profile.sub,
     email: profile.email,
+    emailVerified: true,
     displayName: profile.name,
     avatarUrl: profile.picture,
   });
