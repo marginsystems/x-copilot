@@ -249,15 +249,15 @@ export function linkOauthToUser(opts: {
     const owner = getUserById(existing.userId);
     if (owner && owner.email === null) {
       const database = getPlatformDb();
-      database
-        .prepare(`UPDATE oauth_accounts SET user_id = ? WHERE user_id = ?`)
-        .run(opts.userId, existing.userId);
-      database
-        .prepare(
-          `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`,
-        )
-        .run(nowIso(), existing.userId);
-      database.prepare(`DELETE FROM users WHERE id = ?`).run(existing.userId);
+      database.transaction(() => {
+        database
+          .prepare(`UPDATE oauth_accounts SET user_id = ? WHERE user_id = ?`)
+          .run(opts.userId, existing.userId);
+        database
+          .prepare(`DELETE FROM sessions WHERE user_id = ?`)
+          .run(existing.userId);
+        database.prepare(`DELETE FROM users WHERE id = ?`).run(existing.userId);
+      })();
       existing = findOauthAccount(opts.provider, opts.providerUserId);
     } else {
       return { ok: false, error: "already_linked" };

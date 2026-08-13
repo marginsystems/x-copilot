@@ -120,6 +120,7 @@ describe("authStore", () => {
       username: "anon",
     });
     assert.equal(xOnly.email, null);
+    const { token } = createSession(xOnly.id);
     const google = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-anon",
@@ -135,6 +136,7 @@ describe("authStore", () => {
     if (!linked.ok) return;
     assert.equal(linked.user.id, google.id);
     assert.equal(getUserById(xOnly.id), null);
+    assert.equal(getUserForSessionToken(token), null);
   });
 
   it("revokes sessions", () => {
