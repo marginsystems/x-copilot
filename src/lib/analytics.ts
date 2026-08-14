@@ -63,12 +63,12 @@ export function bootAnalytics(consent: ConsentChoice | null): void {
     ad_personalization: "denied",
     analytics_storage: "denied",
   });
+  if (consent !== "accepted") return;
+  if (document.getElementById("xc-ga4")) return;
   injectGtagScript(id);
   window.gtag!("js", new Date());
   window.gtag!("config", id, { anonymize_ip: true });
-  if (consent === "accepted") {
-    applyAnalyticsConsent("accepted");
-  }
+  applyAnalyticsConsent("accepted");
 }
 
 export function applyAnalyticsConsent(choice: ConsentChoice): void {
