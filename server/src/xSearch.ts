@@ -75,6 +75,19 @@ export const DEFAULT_SEARCH_WITHIN_TIME = "6h";
 export const MAX_SEARCH_PAGES = 3;
 const PAGE_DELAY_MS = 400;
 
+/** Expanded mode keeps referenced-tweet objects: quoted-root OP context
+ * (v2TweetToCard quote branch) has no hydrate fallback, so it must come with
+ * the search. Reduced mode drops them so Scout is not billed for
+ * includes.tweets parents it filters out; reply parents are covered by
+ * hydrateReplyParents (but quoted-root OP context has no reduced-mode
+ * fallback). */
+export function searchExpansions(expandReferenced = true): string {
+  if (expandReferenced) {
+    return "author_id,referenced_tweets.id,referenced_tweets.id.author_id,in_reply_to_user_id";
+  }
+  return "author_id,in_reply_to_user_id";
+}
+
 let cachedSearchQueryId: string | null = null;
 let v2AutomatedWarningLogged = false;
 
@@ -863,6 +876,8 @@ export async function searchTimeline(opts: {
   applyRecency?: boolean;
   /** Stable v2 recent-search start_time shared across pagination pages. */
   startTime?: string;
+  /** When false, do not bill includes.tweets parents. Default true. */
+  expandReferenced?: boolean;
   session?: SessionCreds;
   signal?: AbortSignal;
 }): Promise<SearchTimelineResult> {
@@ -913,8 +928,7 @@ export async function searchTimeline(opts: {
       sort_order: product === "Top" ? "relevancy" : "recency",
       "tweet.fields":
         "created_at,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,entities,public_metrics,note_tweet",
-      expansions:
-        "author_id,referenced_tweets.id,referenced_tweets.id.author_id,in_reply_to_user_id",
+      expansions: searchExpansions(opts.expandReferenced !== false),
       "user.fields": "username,name,protected",
       ...(opts.cursor?.trim() ? { next_token: opts.cursor.trim() } : {}),
     },
@@ -949,6 +963,8 @@ export async function searchTimelinePages(opts: {
   count?: number;
   maxPages?: number;
   pageDelayMs?: number;
+  /** When false, do not bill includes.tweets parents. Default true. */
+  expandReferenced?: boolean;
   session?: SessionCreds;
   signal?: AbortSignal;
   /** Injected for tests — same shape as searchTimeline. */
@@ -997,6 +1013,7 @@ export async function searchTimelinePages(opts: {
       count: opts.count ?? 20,
       cursor,
       startTime,
+      expandReferenced: opts.expandReferenced,
       session: opts.session,
       signal: opts.signal,
     });
