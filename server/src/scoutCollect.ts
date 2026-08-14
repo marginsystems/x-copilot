@@ -104,7 +104,7 @@ export const COLLECT_QUERY_DELAY_MS = 500;
 export function withScoutSearchExclusions(query: string): string {
   const q = query.trim();
   if (!q) return q;
-  if (/\b-?is:retweet\b/i.test(q)) return q;
+  if (/\b-is:retweet\b/i.test(q)) return q;
   return `${q} -is:retweet`;
 }
 export const MAX_SEARCH_CALLS = 48;

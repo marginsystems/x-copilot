@@ -764,9 +764,9 @@ describe("searchTimelinePages", () => {
     if (result.ok) assert.equal(result.pages, 1);
   });
 
-  it("omits referenced-tweet expansions when asked", () => {
+  it("keeps referenced-tweet quote OP context in reduced expansions", () => {
     assert.match(searchExpansions(true), /referenced_tweets\.id/);
-    assert.equal(searchExpansions(false).includes("referenced_tweets"), false);
+    assert.match(searchExpansions(false), /referenced_tweets\.id/);
   });
 
   it("stops early when cursor is null", async () => {

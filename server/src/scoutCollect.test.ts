@@ -177,7 +177,10 @@ describe("withScoutSearchExclusions", () => {
       withScoutSearchExclusions("shipping AI -is:retweet"),
       "shipping AI -is:retweet",
     );
-    assert.equal(withScoutSearchExclusions("is:retweet AI"), "is:retweet AI");
+    assert.equal(
+      withScoutSearchExclusions("is:retweet AI"),
+      "is:retweet AI -is:retweet",
+    );
   });
 });
 
