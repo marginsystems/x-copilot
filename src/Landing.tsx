@@ -34,7 +34,7 @@ export function Landing(props: {
           </p>
         ) : null}
         <p className="brand-legal">
-          Developed by Margin Systems. Not affiliated with X Corp.
+          Built by Mergestorm, Inc. Not affiliated with X Corp.
         </p>
       </div>
     </div>

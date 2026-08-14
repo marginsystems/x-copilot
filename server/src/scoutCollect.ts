@@ -54,7 +54,8 @@ export type ScoutStopReason =
   | "aborted"
   | "target"
   | "rate_limited"
-  | "terminal_error";
+  | "terminal_error"
+  | "credits_exhausted";
 
 export type ScoutCollectStageId =
   | "planning"
@@ -198,6 +199,11 @@ export type ScoutCollectDeps = {
   saveScoutCache?: typeof saveScoutCache;
   hydrateReplyParents?: typeof hydrateReplyParents;
   sleep?: typeof sleep;
+  /**
+   * Monthly-credit ceiling: when it returns false the refill loop stops so a
+   * single run cannot keep reading past the tenant's remaining pool.
+   */
+  creditGate?: () => boolean | Promise<boolean>;
 };
 
 export async function runScoutCollect(opts: {
@@ -356,6 +362,7 @@ export async function runScoutCollect(opts: {
   let triageWarning: string | undefined;
   let stopReason: ScoutStopReason = "exhausted";
   let rateLimited = false;
+  let creditStopped = false;
   let terminalError: string | undefined;
   let unhydratedReplyCount = 0;
   let searchCalls = 0;
@@ -461,6 +468,11 @@ export async function runScoutCollect(opts: {
 
         if (searchCalls > 0) {
           await doSleep(COLLECT_QUERY_DELAY_MS, opts.signal);
+        }
+
+        if (deps.creditGate && !(await deps.creditGate())) {
+          creditStopped = true;
+          break;
         }
 
         const query = queries[queryIndex];
@@ -595,6 +607,11 @@ export async function runScoutCollect(opts: {
 
       if (aborted()) {
         stopReason = "aborted";
+        break;
+      }
+
+      if (creditStopped) {
+        stopReason = "credits_exhausted";
         break;
       }
 
@@ -780,6 +797,7 @@ export async function runScoutCollect(opts: {
     }
 
     if (aborted()) stopReason = "aborted";
+    else if (creditStopped) stopReason = "credits_exhausted";
     else if (cool.length >= targetCool) stopReason = "target";
     else if (rateLimited) stopReason = "rate_limited";
     else if (terminalError) stopReason = "terminal_error";
@@ -804,13 +822,15 @@ export async function runScoutCollect(opts: {
       ? `Scout found ${cool.length} cool thread${cool.length === 1 ? "" : "s"}.`
       : stopReason === "aborted"
         ? `Scout stopped — ${cool.length} cool thread${cool.length === 1 ? "" : "s"}.`
-        : stopReason === "terminal_error"
-          ? terminalError === "credits_depleted"
-            ? "Scout stopped — X API credits depleted; top up credits before retrying."
-            : "Scout stopped — X API rejected the bearer (unauthorized); refresh X_API_BEARER_TOKEN and retry."
-          : stopReason === "rate_limited"
-            ? "Scout stopped — X API rate limit reached (quota window exhausted); retry after it resets."
-            : `Scout finished — ${cool.length} cool thread${cool.length === 1 ? "" : "s"} (supply exhausted).`;
+        : stopReason === "credits_exhausted"
+          ? "Scout stopped — this month's credits are used; upgrade on Usage & Billing, or wait until the next UTC month."
+          : stopReason === "terminal_error"
+            ? terminalError === "credits_depleted"
+              ? "Scout stopped — X API credits depleted; top up credits before retrying."
+              : "Scout stopped — X API rejected the bearer (unauthorized); refresh X_API_BEARER_TOKEN and retry."
+            : stopReason === "rate_limited"
+              ? "Scout stopped — X API rate limit reached (quota window exhausted); retry after it resets."
+              : `Scout finished — ${cool.length} cool thread${cool.length === 1 ? "" : "s"} (supply exhausted).`;
 
   const linkWarning = linkFilteredTotal
     ? `Dropped ${linkFilteredTotal} posts with outbound links.`

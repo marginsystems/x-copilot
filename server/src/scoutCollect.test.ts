@@ -543,6 +543,51 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.event.coolCount, 0);
   });
 
+  it("stops mid-run with credits_exhausted when the credit gate closes", async () => {
+    let gateCalls = 0;
+    const id = { n: 0 };
+
+    const result = await runScoutCollect({
+      queries: ["q1", "q2", "q3"],
+      bucketSize: 5,
+      targetCool: 5,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        creditGate: async () => {
+          gateCalls += 1;
+          // Allow the first search to read, then cut the pool mid-run.
+          return gateCalls === 1;
+        },
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: fillBucket(id, 5),
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => ({
+          threads: threads.map((t, i) => ({
+            ...t,
+            engage: i === 0 ? ("consider" as const) : ("skip" as const),
+            baitScore: i === 0 ? 15 : 90,
+          })),
+        }),
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.event.stopReason, "credits_exhausted");
+    assert.equal(result.event.coolCount, 1);
+    assert.match(result.event.message, /credits/);
+  });
+
   it("aborted flag short-circuits between steps", async () => {
     const abort = new AbortController();
     let searchCalls = 0;

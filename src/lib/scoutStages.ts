@@ -45,8 +45,10 @@ export function isScoutGateError(
 ): boolean {
   return (
     status === 429 ||
+    status === 402 ||
     body.error === "scout_cooldown" ||
-    body.error === "scout_busy"
+    body.error === "scout_busy" ||
+    body.error === "credits_exhausted"
   );
 }
 

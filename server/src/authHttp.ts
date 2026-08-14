@@ -6,6 +6,8 @@ import { revokeSessionToken, toPublicUser } from "./authStore.js";
 import { corsHeaders } from "./cors.js";
 import { handleGoogleCallback, handleGoogleStart } from "./googleAuth.js";
 import { handleXCallback, handleXStart } from "./xAuth.js";
+import { isAdminEmail } from "./adminEmails.js";
+import { ensureUserTenant } from "./billingStore.js";
 import {
   AUTH_START_RATE,
   allowRate,
@@ -40,7 +42,10 @@ function sendJson(
 }
 
 function publicUser(user: NonNullable<ReturnType<typeof getSessionUser>>) {
-  return toPublicUser(user);
+  return {
+    ...toPublicUser(user),
+    isAdmin: isAdminEmail(user.email),
+  };
 }
 
 /** Handle /api/auth/* — returns true if the request was consumed. */
@@ -81,6 +86,11 @@ export async function tryHandleAuth(
     if (!user) {
       sendJson(req, res, 401, { ok: false, error: "unauthenticated", authRequired: required });
       return true;
+    }
+    try {
+      ensureUserTenant(user.id);
+    } catch (err) {
+      console.error("[GET /api/auth/me] tenant", err);
     }
     sendJson(req, res, 200, { ok: true, authRequired: required, user: publicUser(user) });
     return true;
