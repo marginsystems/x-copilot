@@ -47,6 +47,8 @@ import { authErrorMessage } from "./lib/authErrors";
 import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
 import { AuthButtons } from "./AuthButtons";
 import { BootScreen, Landing } from "./Landing";
+import { LegalPage } from "./Legal";
+import { isLegalKind, type LegalKind } from "./lib/legal";
 import { Onboarding } from "./Onboarding";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
@@ -566,7 +568,7 @@ function InteractedRow({
   );
 }
 
-type AppView = "dashboard" | "settings" | "usage" | "admin";
+type AppView = "dashboard" | "settings" | "usage" | "admin" | LegalKind;
 
 type UsageWindow = "24h" | "7d" | "all";
 
@@ -607,6 +609,8 @@ type AuthSessionUser = {
 };
 
 function viewFromPath(pathname: string): AppView {
+  if (pathname === "/privacy" || pathname.startsWith("/privacy/")) return "privacy";
+  if (pathname === "/terms" || pathname.startsWith("/terms/")) return "terms";
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   if (pathname === "/usage" || pathname === "/billing") return "usage";
   if (pathname === "/settings") return "settings";
@@ -614,6 +618,8 @@ function viewFromPath(pathname: string): AppView {
 }
 
 function pathFromView(view: AppView): string {
+  if (view === "privacy") return "/privacy";
+  if (view === "terms") return "/terms";
   if (view === "admin") return "/admin";
   if (view === "usage") return "/usage";
   if (view === "settings") return "/settings";
@@ -2293,6 +2299,9 @@ export default function App() {
         !readOnboardingComplete(authUser.id)
       : !readOnboardingComplete());
   const booting = !localUi && !authChecked;
+  const legalView = isLegalKind(view);
+  const showGateChrome =
+    (needsLogin || needsOnboarding) && !legalView;
 
   if (booting) {
     return (
@@ -2303,8 +2312,8 @@ export default function App() {
   }
 
   return (
-    <div className={needsLogin || needsOnboarding ? "app app-gate" : "app"}>
-      <header className={needsLogin || needsOnboarding ? "brand brand-gate" : "brand"}>
+    <div className={showGateChrome ? "app app-gate" : "app"}>
+      <header className={showGateChrome ? "brand brand-gate" : "brand"}>
         <div className="brand-bar">
           <div className="brand-lockup">
             <img
@@ -2469,12 +2478,26 @@ export default function App() {
                   </button>
                 </>
               )}
+              <a className="ghost menu-action" href="/privacy">
+                Privacy
+              </a>
+              <a className="ghost menu-action" href="/terms">
+                Terms
+              </a>
             </div>
           </aside>
         </div>
       ) : null}
 
-      {needsLogin ? (
+      {legalView ? (
+        <main className="app-main app-main-scroll">
+          <LegalPage
+            kind={view}
+            onHome={() => goToView("dashboard")}
+            onOther={() => goToView(view === "privacy" ? "terms" : "privacy")}
+          />
+        </main>
+      ) : needsLogin ? (
         <Landing
           notice={authNotice}
           onGoogle={startGoogleLogin}
@@ -2482,7 +2505,7 @@ export default function App() {
         />
       ) : null}
 
-      {needsOnboarding ? (
+      {legalView ? null : needsOnboarding ? (
         <Onboarding
           persist={Boolean(authUser)}
           userId={authUser?.id ?? null}
@@ -2491,7 +2514,7 @@ export default function App() {
         />
       ) : null}
 
-      {!needsLogin && !needsOnboarding ? (
+      {!legalView && !needsLogin && !needsOnboarding ? (
         <main
           className={
             view === "dashboard" ? "app-main" : "app-main app-main-scroll"

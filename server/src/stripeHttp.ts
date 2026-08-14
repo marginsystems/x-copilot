@@ -222,6 +222,12 @@ async function handleCheckout(
         metadata: { user_id: user.id, plan_key: plan, tenant_id: tenantId },
       },
       allow_promotion_codes: true,
+      consent_collection: { terms_of_service: "required" },
+      custom_text: {
+        terms_of_service_acceptance: {
+          message: `I agree to the x-copilot Terms of Service (${frontend}/terms) and Privacy Policy (${frontend}/privacy).`,
+        },
+      },
     });
     if (!session.url) {
       sendJson(req, res, 500, { error: "stripe_checkout_failed" });

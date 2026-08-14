@@ -1,4 +1,5 @@
 import { AuthButtons } from "./AuthButtons";
+import { LegalLinks } from "./Legal";
 
 export function BootScreen() {
   return (
@@ -34,8 +35,10 @@ export function Landing(props: {
           </p>
         ) : null}
         <p className="brand-legal">
-          Built by Mergestorm, Inc. Not affiliated with X Corp.
+          Built by Mergestorm, Inc. Not affiliated with X Corp. By signing in
+          you agree to the Terms and acknowledge the Privacy Policy.
         </p>
+        <LegalLinks />
       </div>
     </div>
   );
