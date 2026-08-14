@@ -81,7 +81,6 @@ console.log(`\nTriaging ${sample.length} threads…`);
 const triaged = await triageThreads({
   agenda,
   threads: sample,
-  provider: "deepseek",
   searchMemory: async () => ({ hits: [] }),
 });
 if (triaged.warning) console.warn(`  triage warning: ${triaged.warning}`);
@@ -139,7 +138,6 @@ const histogram = {
 console.log("\nAsking DeepSeek for vocabulary recommendations…");
 const advice = await chatCompletions({
   temperature: 0.2,
-  provider: "deepseek",
   messages: [
     {
       role: "system",

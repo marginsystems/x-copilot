@@ -4,7 +4,6 @@
 import {
   addTokenUsage,
   chatCompletions,
-  normalizeLlmProvider,
   resolveFlashModel,
   type LlmProvider,
   type TokenUsage,
@@ -27,8 +26,6 @@ export type PlanQueriesOpts = {
   priorQueries?: string[];
   /** Human-readable yield context for replan. */
   yieldNote?: string;
-  /** LLM provider (default gemini). */
-  provider?: LlmProvider;
 };
 
 /**
@@ -141,13 +138,11 @@ async function requestPlan(
   agenda: string,
   opts: PlanQueriesOpts | undefined,
   model: string,
-  provider: LlmProvider,
 ): Promise<
   | { ok: true; content: string; model: string; usage?: TokenUsage }
   | { ok: false; error: string; message: string }
 > {
   const res = await chatCompletions({
-    provider,
     model,
     purpose: opts?.broaden ? "plan_replan" : "plan",
     messages: [
@@ -186,9 +181,9 @@ export async function planQueriesFromAgenda(
     };
   }
 
-  const provider = normalizeLlmProvider(opts?.provider);
-  const model = resolveFlashModel(provider);
-  const first = await requestPlan(trimmed, opts, model, provider);
+  const provider: LlmProvider = "deepseek";
+  const model = resolveFlashModel();
+  const first = await requestPlan(trimmed, opts, model);
   if (!first.ok) {
     return {
       ok: false,
@@ -204,7 +199,6 @@ export async function planQueriesFromAgenda(
 
   if (!queries) {
     const repair = await chatCompletions({
-      provider,
       model,
       purpose: "plan_repair",
       messages: [
@@ -251,7 +245,6 @@ export async function planQueriesFromAgenda(
           "First plan was too phrase-y / agenda-echoing. Broaden to shorter high-recall 2-word keywords.",
       },
       model,
-      provider,
     );
     if (broaden.ok) {
       const repaired = parseQueryPlanJson(broaden.content);

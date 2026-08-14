@@ -7,11 +7,7 @@ import {
   queryWordCount,
   validateQueries,
 } from "./queryPlan.ts";
-import {
-  resolveFlashModel,
-  DEEPSEEK_FLASH_MODEL,
-  GEMINI_FLASH_MODEL,
-} from "./deepseek.ts";
+import { resolveFlashModel, DEEPSEEK_FLASH_MODEL } from "./deepseek.ts";
 
 describe("parseQueryPlanJson", () => {
   it("parses raw JSON", () => {
@@ -114,8 +110,14 @@ describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
 });
 
 describe("resolveFlashModel", () => {
-  it("returns flash model per provider", () => {
-    assert.equal(resolveFlashModel(), GEMINI_FLASH_MODEL);
-    assert.equal(resolveFlashModel("deepseek"), DEEPSEEK_FLASH_MODEL);
+  it("returns DeepSeek v4-flash", () => {
+    const prev = process.env.DEEPSEEK_MODEL;
+    delete process.env.DEEPSEEK_MODEL;
+    try {
+      assert.equal(resolveFlashModel(), DEEPSEEK_FLASH_MODEL);
+    } finally {
+      if (prev === undefined) delete process.env.DEEPSEEK_MODEL;
+      else process.env.DEEPSEEK_MODEL = prev;
+    }
   });
 });

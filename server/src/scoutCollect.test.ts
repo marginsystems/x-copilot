@@ -1032,10 +1032,8 @@ describe("runScoutCollect bucket loop", () => {
   });
 
   it("replans with broaden yield opts when searches add zero", async () => {
-    const prevKey = process.env.GEMINI_API_KEY;
-    const prevProvider = process.env.LLM_PROVIDER;
-    process.env.GEMINI_API_KEY = "test-key";
-    process.env.LLM_PROVIDER = "gemini";
+    const prevKey = process.env.DEEPSEEK_API_KEY;
+    process.env.DEEPSEEK_API_KEY = "test-key";
     const planCalls: Array<{ agenda: string; opts?: PlanQueriesOpts }> = [];
     const events: ScoutCollectEvent[] = [];
 
@@ -1058,7 +1056,7 @@ describe("runScoutCollect bucket loop", () => {
                 ok: true as const,
                 queries: ["q1", "q2", "q3"],
                 model: "test",
-                provider: "gemini" as const,
+                provider: "deepseek" as const,
                 raw: "{}",
               };
             }
@@ -1066,7 +1064,7 @@ describe("runScoutCollect bucket loop", () => {
               ok: true as const,
               queries: ["broad AI", "shipped AI"],
               model: "test",
-              provider: "gemini" as const,
+              provider: "deepseek" as const,
               raw: "{}",
             };
           },
@@ -1103,10 +1101,8 @@ describe("runScoutCollect bucket loop", () => {
         events.some((e) => /broadening search queries/i.test(e.message)),
       );
     } finally {
-      if (prevKey === undefined) delete process.env.GEMINI_API_KEY;
-      else process.env.GEMINI_API_KEY = prevKey;
-      if (prevProvider === undefined) delete process.env.LLM_PROVIDER;
-      else process.env.LLM_PROVIDER = prevProvider;
+      if (prevKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+      else process.env.DEEPSEEK_API_KEY = prevKey;
     }
   });
 

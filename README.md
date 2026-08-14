@@ -61,7 +61,7 @@ Status shows `Candidates n/K` while filling and `Cool n/target` as cools accumul
 ```
 Vite UI  →  local Node sidecar  →  X API v2 (app-only bearer)
                  ↓
-              Gemini / DeepSeek
+              DeepSeek v4-flash
 ```
 
 Bearer token and LLM keys stay in `.env` on the sidecar. The browser never stores credentials. Public DNS + bind notes: [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md).
@@ -70,7 +70,7 @@ Bearer token and LLM keys stay in `.env` on the sidecar. The browser never store
 
 ```bash
 cp .env.example .env
-# set X_API_BEARER_TOKEN (+ X_OPERATOR_USERNAME), and GEMINI_API_KEY or DEEPSEEK_API_KEY
+# set X_API_BEARER_TOKEN (+ X_OPERATOR_USERNAME), and DEEPSEEK_API_KEY
 
 npm install
 npm run test:session   # prove Pay Per Use bearer works
