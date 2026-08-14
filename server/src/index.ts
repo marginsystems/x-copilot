@@ -124,7 +124,17 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   return Object.keys(filters).length ? filters : undefined;
 }
 
-loadEnv(resolve(process.cwd(), ".env"));
+if (
+  !loadEnv(resolve(process.cwd(), ".env"), {
+    override: true,
+    protected: ["NODE_ENV", "PORT"],
+  })
+) {
+  console.error(
+    "[api] .env not found — X_API_BEARER_TOKEN / DEEPSEEK_API_KEY required",
+  );
+  process.exit(1);
+}
 
 const PORT = Number(process.env.PORT || 8787);
 

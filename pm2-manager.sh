@@ -9,7 +9,7 @@
 # Usage:
 #   ./pm2-manager.sh start              build server, then start API + stats
 #   ./pm2-manager.sh stop               stop managed apps
-#   ./pm2-manager.sh restart [prod]     build, restart API + stats (does NOT wipe logs)
+#   ./pm2-manager.sh restart [prod]     build, recycle API + stats from ecosystem + .env
 #   ./pm2-manager.sh restart --skip-build
 #   ./pm2-manager.sh status             show pm2 status
 #   ./pm2-manager.sh logs [name]        tail logs (default: x-copilot-api)
@@ -76,7 +76,12 @@ for arg in "$@"; do
   esac
 done
 
-restart_or_start_app() {
+# Secrets are not carried in the ecosystem `env` block (that would serialize
+# them into ~/.pm2/dump.pm2 via `pm2 save`). Both processes load .env at boot
+# with override, so any restart picks up rotated keys and stale ones cannot
+# stick. Keep the recycle non-destructive: delete+start would leave the app
+# down if the fresh start fails, so restart --update-env for NODE_ENV/PORT.
+recycle_app() {
   local name="$1"
   if pm2 describe "$name" >/dev/null 2>&1; then
     pm2 restart "$name" --update-env
@@ -102,9 +107,9 @@ case "$cmd" in
     require_ecosystem
     ensure_build
     mkdir -p logs
-    # Restart without truncating or deleting anything under logs/
+    # Recycle without truncating or deleting anything under logs/
     for name in "${APPS[@]}"; do
-      restart_or_start_app "$name"
+      recycle_app "$name"
     done
     ;;
   delete)

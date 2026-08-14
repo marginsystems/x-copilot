@@ -6,7 +6,9 @@
 //   ./pm2-manager.sh start
 //
 // ecosystem.config.cjs is gitignored — do not commit machine-local copies.
-// Secrets (X_API_BEARER_TOKEN, LLM keys) stay in .env (loaded by both the API and stats worker at startup).
+// Secrets live in .env and are read by both processes via loadEnv at startup
+// (with override), so a recycle picks up rotated keys and stale ones cannot
+// stick. Only NODE_ENV/PORT are pinned here; loadEnv never overrides them.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -54,8 +56,6 @@ module.exports = {
       time: true,
       env: {
         NODE_ENV: "production",
-        // X_API_BEARER_TOKEN is loaded from .env at startup (via loadEnv).
-        // If .env is missing or cwd differs, all stats fetches will fail silently.
       },
       out_file: path.join(root, "logs", "x-copilot-stats.out.log"),
       error_file: path.join(root, "logs", "x-copilot-stats.err.log"),
