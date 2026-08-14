@@ -40,6 +40,13 @@ export function normalizeLlmProvider(value: unknown): LlmProvider {
   return DEFAULT_LLM_PROVIDER;
 }
 
+/** Operator flag — not a user setting. Unset / unknown → gemini. */
+export function resolveLlmProviderFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): LlmProvider {
+  return normalizeLlmProvider(env.LLM_PROVIDER?.trim().toLowerCase());
+}
+
 export function resolveFlashModel(provider: LlmProvider = DEFAULT_LLM_PROVIDER): string {
   if (provider === "gemini") {
     const fromEnv = (process.env.GEMINI_MODEL ?? "").trim();

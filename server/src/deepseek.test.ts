@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_LLM_PROVIDER,
@@ -8,6 +8,7 @@ import {
   normalizeLlmProvider,
   parseTokenUsage,
   resolveFlashModel,
+  resolveLlmProviderFromEnv,
 } from "./deepseek.ts";
 
 describe("normalizeLlmProvider", () => {
@@ -19,6 +20,27 @@ describe("normalizeLlmProvider", () => {
   it("accepts deepseek and gemini", () => {
     assert.equal(normalizeLlmProvider("deepseek"), "deepseek");
     assert.equal(normalizeLlmProvider("gemini"), "gemini");
+  });
+});
+
+describe("resolveLlmProviderFromEnv", () => {
+  const prev = process.env.LLM_PROVIDER;
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.LLM_PROVIDER;
+    else process.env.LLM_PROVIDER = prev;
+  });
+
+  it("defaults to gemini when unset or unknown", () => {
+    delete process.env.LLM_PROVIDER;
+    assert.equal(resolveLlmProviderFromEnv(), "gemini");
+    assert.equal(resolveLlmProviderFromEnv({}), "gemini");
+    assert.equal(resolveLlmProviderFromEnv({ LLM_PROVIDER: "nope" }), "gemini");
+  });
+
+  it("reads LLM_PROVIDER", () => {
+    assert.equal(resolveLlmProviderFromEnv({ LLM_PROVIDER: "deepseek" }), "deepseek");
+    assert.equal(resolveLlmProviderFromEnv({ LLM_PROVIDER: " GEMINI " }), "gemini");
   });
 });
 

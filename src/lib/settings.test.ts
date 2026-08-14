@@ -138,7 +138,6 @@ describe("normalizeSettings", () => {
         dropArticles: false,
         dropEmDashes: false,
         dropAutomatedAccounts: false,
-        llmProvider: "deepseek",
         targetCoolThreads: 3,
         dedupeAccounts: false,
         preferredLanguage: "es",
@@ -149,7 +148,6 @@ describe("normalizeSettings", () => {
         dropArticles: false,
         dropEmDashes: false,
         dropAutomatedAccounts: false,
-        llmProvider: "deepseek",
         targetCoolThreads: 3,
         dedupeAccounts: false,
         preferredLanguage: "es",
@@ -160,7 +158,6 @@ describe("normalizeSettings", () => {
     assert.equal(normalizeSettings({}).preferredLanguage, "en");
     assert.equal(normalizeSettings({}).dropEmDashes, true);
     assert.equal(normalizeSettings({}).dropAutomatedAccounts, true);
-    assert.equal(normalizeSettings({}).llmProvider, "gemini");
   });
 });
 
@@ -175,7 +172,6 @@ describe("loadSettings / saveSettings", () => {
       dropArticles: false,
       dropEmDashes: false,
       dropAutomatedAccounts: false,
-      llmProvider: "deepseek",
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",
@@ -186,7 +182,6 @@ describe("loadSettings / saveSettings", () => {
       dropArticles: false,
       dropEmDashes: false,
       dropAutomatedAccounts: false,
-      llmProvider: "deepseek",
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",

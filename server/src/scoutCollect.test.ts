@@ -1033,7 +1033,9 @@ describe("runScoutCollect bucket loop", () => {
 
   it("replans with broaden yield opts when searches add zero", async () => {
     const prevKey = process.env.GEMINI_API_KEY;
+    const prevProvider = process.env.LLM_PROVIDER;
     process.env.GEMINI_API_KEY = "test-key";
+    process.env.LLM_PROVIDER = "gemini";
     const planCalls: Array<{ agenda: string; opts?: PlanQueriesOpts }> = [];
     const events: ScoutCollectEvent[] = [];
 
@@ -1042,7 +1044,7 @@ describe("runScoutCollect bucket loop", () => {
         agenda: "Find builders shipping AI tools in public",
         bucketSize: 5,
         targetCool: 1,
-        filters: { llmProvider: "gemini" },
+        filters: {},
         session,
         onEvent: (e) => events.push(e),
         deps: {
@@ -1103,6 +1105,8 @@ describe("runScoutCollect bucket loop", () => {
     } finally {
       if (prevKey === undefined) delete process.env.GEMINI_API_KEY;
       else process.env.GEMINI_API_KEY = prevKey;
+      if (prevProvider === undefined) delete process.env.LLM_PROVIDER;
+      else process.env.LLM_PROVIDER = prevProvider;
     }
   });
 

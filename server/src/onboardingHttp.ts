@@ -113,9 +113,7 @@ export async function tryHandleOnboarding(
       return true;
     }
 
-    const result = await generateOnboardingAgendas(parsed.answers, {
-      provider: body.provider,
-    });
+    const result = await generateOnboardingAgendas(parsed.answers);
     sendJson(req, res, 200, {
       ok: true,
       agendas: result.agendas,

@@ -13,9 +13,9 @@ import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {
   addTokenUsage,
-  normalizeLlmProvider,
   providerApiKeyEnvName,
   providerConfigured,
+  resolveLlmProviderFromEnv,
   type LlmProvider,
   type TokenUsage,
 } from "./deepseek.js";
@@ -268,7 +268,7 @@ export async function runScoutCollect(opts: {
   const aborted = () => Boolean(opts.signal?.aborted);
 
   let queries = (opts.queries ?? []).map((q) => q.trim()).filter(Boolean);
-  const llmProvider = normalizeLlmProvider(opts.filters?.llmProvider);
+  const llmProvider = resolveLlmProviderFromEnv();
   let plannedBy: "client" | LlmProvider = "client";
   let planModel: string | undefined;
   let llmUsage: TokenUsage | undefined;
