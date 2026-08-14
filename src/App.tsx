@@ -1240,6 +1240,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const arm = () => {
+      const now = new Date();
+      const nextUtcDay = Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+      );
+      timer = setTimeout(() => {
+        void loadBilling();
+        arm();
+      }, Math.max(0, nextUtcDay - Date.now()) + 500);
+    };
+    arm();
+    return () => {
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, []);
+
+  useEffect(() => {
     applyTheme(theme);
   }, [theme]);
 

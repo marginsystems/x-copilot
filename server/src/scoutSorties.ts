@@ -31,13 +31,19 @@ export function countSortiesToday(
 
 export function recordSortie(tenantId?: string, at?: string): void {
   const id = randomUUID();
-  getPlatformDb()
-    .prepare(`INSERT INTO scout_sorties (id, tenant_id, at) VALUES (?, ?, ?)`)
-    .run(
+  const db = getPlatformDb();
+  const insert = db.prepare(
+    `INSERT INTO scout_sorties (id, tenant_id, at) VALUES (?, ?, ?)`,
+  );
+  const prune = db.prepare(`DELETE FROM scout_sorties WHERE at < ?`);
+  db.transaction(() => {
+    prune.run(startOfUtcDayIso());
+    insert.run(
       id,
       tenantId?.trim() || getRequestTenantId(),
       at ?? new Date().toISOString(),
     );
+  })();
 }
 
 export type SortieUsage = {

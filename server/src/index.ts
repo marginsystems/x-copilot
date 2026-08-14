@@ -474,9 +474,9 @@ const server = http.createServer(async (req, res) => {
             message: gate.message,
           });
         }
-        recordSortie();
         try {
           await ensureMemoryIndex();
+          recordSortie();
           const result = await runScoutSearch({ agenda, queries, filters });
           if (!result.ok) {
             return send(req, res, result.status, {
@@ -548,7 +548,6 @@ const server = http.createServer(async (req, res) => {
             message: gate.message,
           });
         }
-        recordSortie();
 
         const abort = new AbortController();
         const onClose = () => {
@@ -576,6 +575,7 @@ const server = http.createServer(async (req, res) => {
           };
 
           await ensureMemoryIndex();
+          recordSortie();
           const requestCtx = getRequestContext();
           const result = await runScoutCollect({
             agenda,
