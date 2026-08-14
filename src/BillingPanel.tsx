@@ -34,6 +34,7 @@ export type BillingMe = {
       name: string;
       blurb: string;
       image: string;
+      sorties?: number;
     }
   >;
   error?: string;
@@ -161,6 +162,9 @@ export function BillingPanel(props: {
               <p className="plan-card-price">{plan?.price_label ?? ""}</p>
               <p className="plan-card-credits">
                 {(plan?.credits ?? 0).toLocaleString()} credits / month
+                {plan?.sorties
+                  ? ` · ${plan.sorties} takeoff${plan.sorties === 1 ? "" : "s"} / day`
+                  : ""}
               </p>
               <p className="plan-card-blurb">{plan?.blurb ?? ""}</p>
               {isCurrent ? (

@@ -2325,3 +2325,40 @@ button.agenda-option.is-on {
   font-size: 0.8rem;
   line-height: 1.45;
 }
+
+.cookie-banner {
+  position: fixed;
+  z-index: 40;
+  left: 12px;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.cookie-banner p {
+  margin: 0;
+  flex: 1 1 16rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.cookie-banner a {
+  color: var(--accent);
+}
+
+.cookie-banner-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
