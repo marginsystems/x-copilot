@@ -87,7 +87,7 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 function stripeClient(): Stripe | null {
   const secret = process.env.STRIPE_SECRET_KEY?.trim();
   if (!secret) return null;
-  return new Stripe(secret);
+  return new Stripe(secret, { apiVersion: "2022-11-15" });
 }
 
 function stripeUnixToIso(seconds: number | null | undefined): string | null {
@@ -225,7 +225,8 @@ async function handleCheckout(
       consent_collection: { terms_of_service: "required" },
       custom_text: {
         terms_of_service_acceptance: {
-          message: `I agree to the x-copilot Terms of Service (${frontend}/terms) and Privacy Policy (${frontend}/privacy).`,
+          message:
+            "I agree to the x-copilot Terms of Service and acknowledge the Privacy Policy.",
         },
       },
     });

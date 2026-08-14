@@ -48,7 +48,7 @@ import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
 import { AuthButtons } from "./AuthButtons";
 import { BootScreen, Landing } from "./Landing";
 import { LegalPage } from "./Legal";
-import { isLegalKind, type LegalKind } from "./lib/legal";
+import { isLegalKind, SITE_ORIGIN, type LegalKind } from "./lib/legal";
 import { Onboarding } from "./Onboarding";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
@@ -1305,6 +1305,22 @@ export default function App() {
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    const canonical = `${SITE_ORIGIN}${pathFromView(view)}`;
+    document.title =
+      view === "privacy"
+        ? "Privacy Policy — x-copilot"
+        : view === "terms"
+          ? "Terms of Service — x-copilot"
+          : "x-copilot — independent research desk";
+    document
+      .querySelector<HTMLLinkElement>('link[rel="canonical"]')
+      ?.setAttribute("href", canonical);
+    document
+      .querySelector<HTMLMetaElement>('meta[property="og:url"]')
+      ?.setAttribute("content", canonical);
+  }, [view]);
 
   // Prevent mouse wheel from changing number inputs while scrolling the page.
   useEffect(() => {

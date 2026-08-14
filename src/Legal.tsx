@@ -86,11 +86,10 @@ function PrivacyBody() {
       <h2>Cookies</h2>
       <p>
         Strictly necessary cookies keep you signed in (
-        <code>xc_session</code>, <code>xc_oauth_state</code>) and remember theme
-        and cookie choice on this device. The service cannot function without
-        the session cookies. Optional analytics cookies load only after you
-        accept them; see the cookie banner. Google Fonts are loaded to render
-        the UI.
+        <code>xc_session</code>, <code>xc_oauth_state</code>). We also store
+        your theme preference in your browser so the interface looks the same
+        next time. The service cannot function without the session cookies.
+        Google Fonts are loaded to render the UI.
       </p>
 
       <h2>Sharing</h2>
