@@ -215,7 +215,6 @@ type ExpiredHistoryEntry = {
   text?: string;
 };
 
-const SCOUT_LOG_PAGE_SIZE = 100;
 
 function normalizeAuthorKey(author: string): string {
   return author.trim().replace(/^@+/, "").toLowerCase();
@@ -618,16 +617,12 @@ export default function App() {
   const [status, setStatus] = useState(
     "Idle — verify session, then let Scout search from your agenda",
   );
-  const [plannedQueries, setPlannedQueries] = useState<string[]>([]);
   const [threads, setThreads] = useState<ThreadCard[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   /** Short mutex for mark/skip/dismiss/session/settings — not Scout-in-flight. */
   const [actionBusy, setActionBusy] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [scoutOptionsOpen, setScoutOptionsOpen] = useState(false);
-  const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
   const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
-  const [scoutLogPage, setScoutLogPage] = useState(0);
   const [interactedIds, setInteractedIds] = useState<Set<string>>(() => new Set());
   const [interactedHistory, setInteractedHistory] = useState<
     InteractionHistoryEntry[]
@@ -721,7 +716,12 @@ export default function App() {
     0,
     Math.ceil((searchCooldownUntil - nowMs) / 1000),
   );
-  const searchBlocked = searching || searchCooldownRemaining > 0;
+  const sortiesLeft = billing?.sorties?.remaining;
+  const sortiesLimit = billing?.sorties?.limit;
+  const grounded =
+    billing?.sorties != null && billing.sorties.can_fly === false;
+  const searchBlocked =
+    searching || searchCooldownRemaining > 0 || grounded;
 
   function clearMenuCloseTimer() {
     if (menuCloseTimer.current) {
@@ -772,7 +772,6 @@ export default function App() {
       }
       return [...prev, entry].slice(-1000);
     });
-    setScoutLogPage(0);
     void apiFetch("/api/scout/log", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -809,8 +808,13 @@ export default function App() {
         message = `${prefix} · ${message}`;
       }
     }
-    setScoutStage(stage);
-    setStatus(message);
+    setStatus(
+      stage === "error"
+        ? message
+        : stage === "done"
+          ? scoutStageMessage("done")
+          : scoutStageMessage(stage),
+    );
     pushScoutLine(message, stage);
   }
 
@@ -830,7 +834,6 @@ export default function App() {
       setScoutLog((prev) =>
         prev.length > 0 ? prev : entries.slice(-1000),
       );
-      setScoutLogPage(0);
     } catch {
       /* ignore */
     }
@@ -838,13 +841,6 @@ export default function App() {
 
   function onStopScout() {
     abortRef.current?.abort();
-  }
-
-  function updateTargetCoolThreads(value: number) {
-    const targetCoolThreads = clampTargetCoolThreads(value);
-    setSettings((prev) => ({ ...prev, targetCoolThreads }));
-    saveSettings({ ...settings, targetCoolThreads });
-    setSettingsDraft((prev) => ({ ...prev, targetCoolThreads }));
   }
 
   async function hydrateInteracted() {
@@ -1077,16 +1073,11 @@ export default function App() {
       const list = Array.isArray(data.snapshot.threads)
         ? data.snapshot.threads
         : [];
-      const queries = Array.isArray(data.snapshot.queries)
-        ? data.snapshot.queries
-        : [];
       if (typeof data.snapshot.agenda === "string" && data.snapshot.agenda.trim()) {
         setAgenda(data.snapshot.agenda);
       }
       const filtered = list.filter((t) => keepInCurated(t));
       setThreads(filtered);
-      setPlannedQueries(queries);
-      setScoutStage(null);
       const when =
         formatAbsoluteTime(data.snapshot.savedAt) ||
         formatTimeAgo(data.snapshot.savedAt) ||
@@ -1104,7 +1095,7 @@ export default function App() {
           ].join(" → ")})`
         : "";
       setStatus(
-        `Restored ${filtered.length} threads${funnel} from ${when} — Search again to refresh.`,
+        `Restored ${filtered.length} threads${funnel} from ${when}.`,
       );
     } catch {
       // Sidecar may be offline on first paint — ignore.
@@ -1235,9 +1226,9 @@ export default function App() {
       if (checkout === "success" && sessionId) {
         await confirmCheckout(sessionId);
       }
+      void loadBilling();
       if (viewFromPath(window.location.pathname) === "usage" || checkout) {
         void loadUsage();
-        void loadBilling();
       }
       if (viewFromPath(window.location.pathname) === "admin" && user?.isAdmin) {
         void loadAdmin();
@@ -1246,6 +1237,26 @@ export default function App() {
     const onPop = () => setView(viewFromPath(window.location.pathname));
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const arm = () => {
+      const now = new Date();
+      const nextUtcDay = Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+      );
+      timer = setTimeout(() => {
+        void loadBilling();
+        arm();
+      }, Math.max(0, nextUtcDay - Date.now()) + 500);
+    };
+    arm();
+    return () => {
+      if (timer !== undefined) clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -1833,7 +1844,6 @@ export default function App() {
           `Wait ${waitSec}s before starting Scout again.`,
           { soft: true },
         );
-        setScoutStage("error");
         setStatus(line);
         pushScoutLine(line, "error");
       }
@@ -1849,10 +1859,9 @@ export default function App() {
     coolProgressRef.current = { cool: 0, target: targetCool };
 
     setSearching(true);
-    setPlannedQueries([]);
     // Keep existing thread rows; partials + done append by id across runs.
     setExpandedId(null);
-    pushScoutLine("── Start Scout ──", "planning");
+    pushScoutLine("── Take off ──", "planning");
     applyScoutEvent({
       stage: "planning",
       message: scoutStageMessage("planning"),
@@ -1892,7 +1901,6 @@ export default function App() {
           (!res.body ? "empty response body" : `HTTP ${res.status}`);
         const soft = isScoutGateError(res.status, fallback);
         const line = formatScoutFailure(detail, { soft });
-        setScoutStage("error");
         setStatus(line);
         pushScoutLine(line, "error");
         return;
@@ -1910,9 +1918,6 @@ export default function App() {
         if (ev.stage === "done") {
           stream.doneEvent = ev;
           applyScoutEvent(ev);
-          if (ev.queries) {
-            setPlannedQueries(ev.queries);
-          }
           return;
         }
         if (ev.stage === "error") {
@@ -1962,7 +1967,6 @@ export default function App() {
         const doneEvent = stream.doneEvent;
         const qs = doneEvent.queries ?? [];
         const list = doneEvent.threads ?? [];
-        setPlannedQueries(qs);
         // Append this run’s cool threads; do not wipe prior Scout loops.
         setThreads((prev) =>
           appendThreadsById(
@@ -1989,12 +1993,10 @@ export default function App() {
           (doneEvent.emDashWarning ? ` · ${doneEvent.emDashWarning}` : "") +
           (doneEvent.automatedWarning ? ` · ${doneEvent.automatedWarning}` : "") +
           (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");
-        setScoutStage("done");
-        setStatus(summary);
+        setStatus(scoutStageMessage("done"));
         pushScoutLine(summary);
       } else if (!stream.sawError) {
         const line = formatScoutFailure("stream ended without results");
-        setScoutStage("error");
         setStatus(line);
         pushScoutLine(line, "error");
       }
@@ -2018,9 +2020,6 @@ export default function App() {
                   data.snapshot!.threads!.filter((t) => keepInCurated(t)),
                 ),
               );
-              if (Array.isArray(data.snapshot.queries)) {
-                setPlannedQueries(data.snapshot.queries);
-              }
             }
           }
         } catch {
@@ -2029,14 +2028,12 @@ export default function App() {
         // Still cool down in finally so Stop / unmount cannot bypass the gate.
         const { cool, target } = coolProgressRef.current;
         const summary = `Cool ${cool}/${target} · stop: aborted`;
-        setScoutStage("done");
-        setStatus(summary);
+        setStatus(scoutStageMessage("done"));
         pushScoutLine(summary);
       } else {
         const line = formatScoutFailure(
           "Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server",
         );
-        setScoutStage("error");
         setStatus(line);
         pushScoutLine(line, "error");
       }
@@ -2047,16 +2044,21 @@ export default function App() {
         setSearching(false);
         setSearchCooldownUntil(until);
         setNowMs(Date.now());
+        void loadBilling();
         setStatus((prev) => {
           if (/^Wait \d+s before (starting Scout|searching) again/.test(prev)) {
+            return prev;
+          }
+          if (/^Hold short/.test(prev) || /^Grounded/.test(prev)) {
             return prev;
           }
           if (
             prev.startsWith("Scout failed:") ||
             prev.startsWith("Sidecar offline") ||
+            prev.startsWith("Couldn't land") ||
             /^A Scout run is already in progress/.test(prev)
           ) {
-            return `${prev} · Wait ${Math.ceil(SEARCH_COOLDOWN_MS / 1000)}s before starting Scout again.`;
+            return `${prev} · Hold short ${Math.ceil(SEARCH_COOLDOWN_MS / 1000)}s.`;
           }
           return prev;
         });
@@ -2814,7 +2816,7 @@ export default function App() {
                   className="primary scout-run"
                   onClick={onStopScout}
                 >
-                  Stop Scout
+                  Land
                 </button>
               ) : (
                 <button
@@ -2823,152 +2825,36 @@ export default function App() {
                   disabled={searchBlocked || !agenda.trim()}
                   onClick={onSearch}
                 >
-                  {searchCooldownRemaining > 0
-                    ? `Wait ${searchCooldownRemaining}s`
-                    : "Start Scout"}
+                  {grounded
+                    ? "Grounded"
+                    : searchCooldownRemaining > 0
+                      ? `Hold short ${searchCooldownRemaining}s`
+                      : "Take off"}
                 </button>
               )}
-              <button
-                type="button"
-                className="scout-options-toggle"
-                aria-expanded={scoutOptionsOpen}
-                aria-controls="scout-options"
-                onClick={() => setScoutOptionsOpen((open) => !open)}
-              >
-                Scout options
-                <span aria-hidden="true">{scoutOptionsOpen ? "▴" : "▾"}</span>
-              </button>
-              {scoutOptionsOpen ? (
-                <div id="scout-options" className="scout-options">
-                  <label className="cool-target">
-                    <span>Cool threads</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={20}
-                      step={1}
-                      disabled={searching}
-                      value={settings.targetCoolThreads}
-                      onChange={(e) =>
-                        updateTargetCoolThreads(
-                          e.target.value === ""
-                            ? DEFAULT_SETTINGS.targetCoolThreads
-                            : Number(e.target.value),
-                        )
-                      }
-                    />
-                  </label>
-                </div>
-              ) : null}
             </div>
             <div className="status-stack" aria-live="polite">
-              <p className="status status-hint">
-                Fills a hard-filter bucket of {SCOUT_BUCKET_SIZE} candidates,
-                then LLM-qualifies. Keeps going until{" "}
-                {settings.targetCoolThreads} cool threads (or STOP / supply
-                exhausted).
-              </p>
               <p className="status status-main">
-                {searchCooldownRemaining > 0 && !searching
-                  ? `Wait ${searchCooldownRemaining}s before starting Scout again.`
-                  : status || "\u00a0"}
+                {grounded && !searching
+                  ? `Grounded — ${sortiesLimit ?? 0} sortie${sortiesLimit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`
+                  : searchCooldownRemaining > 0 && !searching
+                    ? `Hold short ${searchCooldownRemaining}s.`
+                    : status || "On the ground — set an agenda and take off."}
               </p>
-              <p className="status status-queries">
-                {plannedQueries.length > 0
-                  ? `Queries: ${plannedQueries.map((q) => `"${q}"`).join(" · ")}`
-                  : "\u00a0"}
-              </p>
+              {billing?.sorties && !grounded ? (
+                <p className="status status-hint">
+                  {sortiesLeft ?? 0} sortie
+                  {sortiesLeft === 1 ? "" : "s"} left today
+                </p>
+              ) : null}
             </div>
             <div
               className={searching ? "scout-strip active" : "scout-strip"}
             >
-              <div className="scout-strip-head">
-                <span className="scout-label">Scout</span>
-                <span className="scout-stage">
-                  {scoutStage === "error"
-                    ? status || scoutStageMessage("error")
-                    : scoutStage
-                      ? scoutStageMessage(scoutStage)
-                      : searching
-                        ? status
-                        : "Idle — ready when you start Scout"}
-                </span>
-              </div>
               <div
                 className={searching ? "scout-bar" : "scout-bar idle"}
                 aria-hidden="true"
               />
-              {(() => {
-                const pageCount = Math.max(
-                  1,
-                  Math.ceil(scoutLog.length / SCOUT_LOG_PAGE_SIZE) || 1,
-                );
-                const page = Math.min(scoutLogPage, pageCount - 1);
-                const end = scoutLog.length - page * SCOUT_LOG_PAGE_SIZE;
-                const start = Math.max(0, end - SCOUT_LOG_PAGE_SIZE);
-                // Newest first: sort by timestamp (don't rely only on append order).
-                const pageEntries = scoutLog
-                  .slice(start, end)
-                  .sort(
-                    (a, b) =>
-                      Date.parse(b.at) - Date.parse(a.at) ||
-                      b.message.localeCompare(a.message),
-                  );
-                return (
-                  <div className="scout-log-panel">
-                    <ul className="scout-log">
-                      {pageEntries.length > 0 ? (
-                        pageEntries.map((entry) => {
-                          const ago = formatTimeAgo(entry.at, nowMs);
-                          const absolute = formatAbsoluteTime(entry.at);
-                          return (
-                            <li
-                              key={`${entry.at}-${entry.stage ?? ""}-${entry.message}`}
-                            >
-                              <span
-                                className="scout-log-ago"
-                                title={absolute ?? undefined}
-                              >
-                                {ago ?? "—"}
-                              </span>
-                              <span className="scout-log-msg" title={entry.message}>{entry.message}</span>
-                            </li>
-                          );
-                        })
-                      ) : (
-                        <li className="scout-log-empty">
-                          Stage log appears here
-                        </li>
-                      )}
-                    </ul>
-                    <div className="scout-log-pager">
-                      <button
-                        type="button"
-                        className="ghost scout-log-page-btn"
-                        disabled={page >= pageCount - 1 || scoutLog.length === 0}
-                        onClick={() => setScoutLogPage((p) => p + 1)}
-                      >
-                        Older
-                      </button>
-                      <span className="scout-log-page-label">
-                        {scoutLog.length === 0
-                          ? "0"
-                          : `${page + 1}/${pageCount} · ${scoutLog.length}`}
-                      </span>
-                      <button
-                        type="button"
-                        className="ghost scout-log-page-btn"
-                        disabled={page <= 0}
-                        onClick={() =>
-                          setScoutLogPage((p) => Math.max(0, p - 1))
-                        }
-                      >
-                        Newer
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
           </section>
 
@@ -3058,12 +2944,12 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <div className="threads-activity" aria-label="Activity dashboard">
+            <div className="threads-activity" aria-label="Flight path">
               <div className="threads-activity-head">
                 <div className="threads-activity-copy">
-                  <span className="threads-activity-title">Activity</span>
+                  <span className="threads-activity-title">Flight path</span>
                   <span className="threads-activity-sub">
-                    From marked replies (1h/24h samples)
+                    Altitude is views. A missed day drops you back down.
                   </span>
                 </div>
                 <div
@@ -3143,7 +3029,7 @@ export default function App() {
               <div className="threads-activity-chart">
                 {activityStats.totals.interactions === 0 ? (
                   <p className="threads-activity-empty">
-                    Mark interacted replies to track activity here.
+                    Mark a reply to start a flight path.
                   </p>
                 ) : (
                   <ActivityChart
@@ -3159,7 +3045,7 @@ export default function App() {
                   <p className="empty">
                     {searching
                       ? "Scout is working…"
-                      : "No curated threads yet. Set an agenda and search."}
+                      : "No threads yet. Set an agenda and take off."}
                   </p>
                 ) : (
                   <div className="threads">

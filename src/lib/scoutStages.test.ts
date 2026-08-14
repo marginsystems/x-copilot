@@ -17,10 +17,10 @@ describe("scoutStages", () => {
     ]);
   });
 
-  it("returns Scout-branded copy", () => {
-    assert.match(scoutStageMessage("planning"), /^Scout /);
-    assert.match(scoutStageMessage("triaging"), /bait/);
-    assert.match(scoutStageMessage("partial"), /cool/i);
+  it("returns flight-style stage copy", () => {
+    assert.match(scoutStageMessage("planning"), /route/i);
+    assert.match(scoutStageMessage("searching"), /air/i);
+    assert.match(scoutStageMessage("done"), /Landed/);
   });
 
   it("treats 429 cooldown/busy as soft gate errors", () => {
@@ -32,6 +32,7 @@ describe("scoutStages", () => {
       isScoutGateError(429, { error: "scout_busy" }),
       true,
     );
+    assert.equal(isScoutGateError(429, { error: "scout_daily_limit" }), true);
     assert.equal(isScoutGateError(402, { error: "credits_exhausted" }), true);
     assert.equal(isScoutGateError(500, { error: "deepseek_error" }), false);
   });

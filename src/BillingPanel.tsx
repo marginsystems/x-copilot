@@ -14,6 +14,12 @@ export type BillingMe = {
     remaining: number;
     can_use: boolean;
   };
+  sorties?: {
+    used: number;
+    limit: number;
+    remaining: number;
+    can_fly: boolean;
+  };
   subscription?: {
     status?: string | null;
     current_period_end?: string | null;
