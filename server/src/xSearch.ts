@@ -75,14 +75,17 @@ export const DEFAULT_SEARCH_WITHIN_TIME = "6h";
 export const MAX_SEARCH_PAGES = 3;
 const PAGE_DELAY_MS = 400;
 
-/** Reduced mode keeps referenced-tweet objects: quoted-root OP context
+/** Expanded mode keeps referenced-tweet objects: quoted-root OP context
  * (v2TweetToCard quote branch) has no hydrate fallback, so it must come with
- * the search. Reply parents are covered by hydrateReplyParents. */
+ * the search. Reduced mode drops them so Scout is not billed for
+ * includes.tweets parents it filters out; reply parents are covered by
+ * hydrateReplyParents (but quoted-root OP context has no reduced-mode
+ * fallback). */
 export function searchExpansions(expandReferenced = true): string {
   if (expandReferenced) {
     return "author_id,referenced_tweets.id,referenced_tweets.id.author_id,in_reply_to_user_id";
   }
-  return "author_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id";
+  return "author_id,in_reply_to_user_id";
 }
 
 let cachedSearchQueryId: string | null = null;
