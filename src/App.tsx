@@ -567,7 +567,6 @@ function InteractedRow({
 }
 
 type AppView = "dashboard" | "settings" | "usage" | "admin";
-type DeskTab = "agent" | "threads";
 
 type UsageWindow = "24h" | "7d" | "all";
 
@@ -677,7 +676,6 @@ export default function App() {
   const [view, setView] = useState<AppView>(() =>
     typeof window === "undefined" ? "dashboard" : viewFromPath(window.location.pathname),
   );
-  const [deskTab, setDeskTab] = useState<DeskTab>("threads");
   const [usageWindow, setUsageWindow] = useState<UsageWindow>("7d");
   const [usage, setUsage] = useState<UsageSummaryResponse | null>(null);
   const [usageBusy, setUsageBusy] = useState(false);
@@ -2819,178 +2817,73 @@ export default function App() {
         </section>
       ) : (
         <>
-          <nav className="desk-tabs" role="tablist" aria-label="Desk">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={deskTab === "agent"}
-              className={deskTab === "agent" ? "desk-tab is-on" : "desk-tab"}
-              onClick={() => setDeskTab("agent")}
-            >
-              Agent
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={deskTab === "threads"}
-              className={deskTab === "threads" ? "desk-tab is-on" : "desk-tab"}
-              onClick={() => setDeskTab("threads")}
-            >
-              Threads
-            </button>
-          </nav>
-        <div className={`dashboard is-${deskTab}`}>
-          <section className="panel control-pane">
-            <h2>Agenda</h2>
-            <textarea
-              className="agenda"
-              value={agenda}
-              onChange={(e) => setAgenda(e.target.value)}
-              placeholder="What should we look for and how should we sound?"
-            />
-            <div className="scout-controls">
-              {searching ? (
-                <button
-                  type="button"
-                  className="primary scout-run"
-                  onClick={onStopScout}
+        <div className="dashboard">
+          <section className="desk">
+            <div className="desk-top">
+              <div className="control-pane">
+                <h2>Agenda</h2>
+                <textarea
+                  className="agenda"
+                  value={agenda}
+                  onChange={(e) => setAgenda(e.target.value)}
+                  placeholder="What should we look for and how should we sound?"
+                />
+                <div className="scout-controls">
+                  {searching ? (
+                    <button
+                      type="button"
+                      className="primary scout-run"
+                      onClick={onStopScout}
+                    >
+                      Land
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="primary scout-run"
+                      disabled={searchBlocked || !agenda.trim()}
+                      onClick={onSearch}
+                    >
+                      {grounded
+                        ? "Grounded"
+                        : searchCooldownRemaining > 0
+                          ? `Hold short ${searchCooldownRemaining}s`
+                          : "Take off"}
+                    </button>
+                  )}
+                </div>
+                <div className="status-stack" aria-live="polite">
+                  <p className="status status-main">
+                    {grounded && !searching
+                      ? `Grounded — ${sortiesLimit ?? 0} sortie${sortiesLimit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`
+                      : searchCooldownRemaining > 0 && !searching
+                        ? `Hold short ${searchCooldownRemaining}s.`
+                        : status || "On the ground — set an agenda and take off."}
+                  </p>
+                  {billing?.sorties && !grounded ? (
+                    <p className="status status-hint">
+                      {sortiesLeft ?? 0} sortie
+                      {sortiesLeft === 1 ? "" : "s"} left today
+                    </p>
+                  ) : null}
+                </div>
+                <div
+                  className={searching ? "scout-strip active" : "scout-strip"}
                 >
-                  Land
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="primary scout-run"
-                  disabled={searchBlocked || !agenda.trim()}
-                  onClick={onSearch}
-                >
-                  {grounded
-                    ? "Grounded"
-                    : searchCooldownRemaining > 0
-                      ? `Hold short ${searchCooldownRemaining}s`
-                      : "Take off"}
-                </button>
-              )}
-            </div>
-            <div className="status-stack" aria-live="polite">
-              <p className="status status-main">
-                {grounded && !searching
-                  ? `Grounded — ${sortiesLimit ?? 0} sortie${sortiesLimit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`
-                  : searchCooldownRemaining > 0 && !searching
-                    ? `Hold short ${searchCooldownRemaining}s.`
-                    : status || "On the ground — set an agenda and take off."}
-              </p>
-              {billing?.sorties && !grounded ? (
-                <p className="status status-hint">
-                  {sortiesLeft ?? 0} sortie
-                  {sortiesLeft === 1 ? "" : "s"} left today
-                </p>
-              ) : null}
-            </div>
-            <div
-              className={searching ? "scout-strip active" : "scout-strip"}
-            >
-              <div
-                className={searching ? "scout-bar" : "scout-bar idle"}
-                aria-hidden="true"
-              />
-            </div>
-          </section>
-
-          <section className="threads-pane">
-            <div className="threads-pane-head">
-              <h2 className="section-label">Threads</h2>
-              <div className="threads-tabs" role="tablist" aria-label="Thread feeds">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={threadsTab === "curated"}
-                  className={
-                    threadsTab === "curated"
-                      ? "threads-tab active"
-                      : "threads-tab"
-                  }
-                  onClick={() => setThreadsTab("curated")}
-                >
-                  Curated
-                  {curatedThreads.length > 0
-                    ? ` (${curatedThreads.length})`
-                    : ""}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={threadsTab === "interacted"}
-                  className={
-                    threadsTab === "interacted"
-                      ? "threads-tab active"
-                      : "threads-tab"
-                  }
-                  onClick={() => setThreadsTab("interacted")}
-                >
-                  Interacted
-                  {interactedHistory.length > 0
-                    ? ` (${interactedHistory.length})`
-                    : ""}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={threadsTab === "skipped"}
-                  className={
-                    threadsTab === "skipped"
-                      ? "threads-tab active"
-                      : "threads-tab"
-                  }
-                  onClick={() => setThreadsTab("skipped")}
-                >
-                  Skipped
-                  {skippedHistory.length > 0
-                    ? ` (${skippedHistory.length})`
-                    : ""}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={threadsTab === "dismissed"}
-                  className={
-                    threadsTab === "dismissed"
-                      ? "threads-tab active"
-                      : "threads-tab"
-                  }
-                  onClick={() => setThreadsTab("dismissed")}
-                >
-                  Not interested
-                  {dismissedHistory.length > 0
-                    ? ` (${dismissedHistory.length})`
-                    : ""}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={threadsTab === "expired"}
-                  className={
-                    threadsTab === "expired"
-                      ? "threads-tab active"
-                      : "threads-tab"
-                  }
-                  onClick={() => setThreadsTab("expired")}
-                >
-                  Expired
-                  {expiredHistory.length > 0
-                    ? ` (${expiredHistory.length})`
-                    : ""}
-                </button>
+                  <div
+                    className={searching ? "scout-bar" : "scout-bar idle"}
+                    aria-hidden="true"
+                  />
+                </div>
               </div>
-            </div>
-            <div
-              className={
-                flightPathOpen
-                  ? "threads-activity"
-                  : "threads-activity is-collapsed"
-              }
-              aria-label="Flight path"
-            >
+              <div
+                className={
+                  flightPathOpen
+                    ? "threads-activity"
+                    : "threads-activity is-collapsed"
+                }
+                aria-label="Flight path"
+              >
               <div className="threads-activity-head">
                 <div className="threads-activity-copy">
                   <button
@@ -3097,6 +2990,92 @@ export default function App() {
                     compact={!flightPathOpen}
                   />
                 )}
+              </div>
+              </div>
+            </div>
+            <div className="threads-pane-head">
+              <h2 className="section-label">Threads</h2>
+              <div className="threads-tabs" role="tablist" aria-label="Thread feeds">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={threadsTab === "curated"}
+                  className={
+                    threadsTab === "curated"
+                      ? "threads-tab active"
+                      : "threads-tab"
+                  }
+                  onClick={() => setThreadsTab("curated")}
+                >
+                  Curated
+                  {curatedThreads.length > 0
+                    ? ` (${curatedThreads.length})`
+                    : ""}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={threadsTab === "interacted"}
+                  className={
+                    threadsTab === "interacted"
+                      ? "threads-tab active"
+                      : "threads-tab"
+                  }
+                  onClick={() => setThreadsTab("interacted")}
+                >
+                  Interacted
+                  {interactedHistory.length > 0
+                    ? ` (${interactedHistory.length})`
+                    : ""}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={threadsTab === "skipped"}
+                  className={
+                    threadsTab === "skipped"
+                      ? "threads-tab active"
+                      : "threads-tab"
+                  }
+                  onClick={() => setThreadsTab("skipped")}
+                >
+                  Skipped
+                  {skippedHistory.length > 0
+                    ? ` (${skippedHistory.length})`
+                    : ""}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={threadsTab === "dismissed"}
+                  className={
+                    threadsTab === "dismissed"
+                      ? "threads-tab active"
+                      : "threads-tab"
+                  }
+                  onClick={() => setThreadsTab("dismissed")}
+                >
+                  Not interested
+                  {dismissedHistory.length > 0
+                    ? ` (${dismissedHistory.length})`
+                    : ""}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={threadsTab === "expired"}
+                  className={
+                    threadsTab === "expired"
+                      ? "threads-tab active"
+                      : "threads-tab"
+                  }
+                  onClick={() => setThreadsTab("expired")}
+                >
+                  Expired
+                  {expiredHistory.length > 0
+                    ? ` (${expiredHistory.length})`
+                    : ""}
+                </button>
               </div>
             </div>
             <div className="threads-scroll">
