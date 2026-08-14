@@ -1,8 +1,12 @@
 /**
  * Tenant-scoped X API usage ledger (shared platform credentials).
- * Estimates post-read cost; console.x.com remains source of truth for balance.
+ * Tenants see credits; estimated $ is operator-only (/admin).
  */
 import { randomUUID } from "node:crypto";
+import {
+  countPostsReadThisUtcMonth,
+  startOfUtcMonthIso,
+} from "./billingStore.js";
 import { getPlatformDb } from "./db.js";
 import { getRequestTenantId } from "./requestContext.js";
 
@@ -33,6 +37,20 @@ export type UsageEventRow = {
   metaJson: string | null;
 };
 
+export type UsageRecentRow = {
+  id: string;
+  at: string;
+  method: string;
+  path: string;
+  status: number;
+  error: string | null;
+  postsRead: number;
+  estimatedUsd: number;
+  activity: string;
+  credits: number;
+  remaining: number | null;
+};
+
 export type UsageSummary = {
   tenantId: string;
   tenantSlug: string;
@@ -43,18 +61,85 @@ export type UsageSummary = {
   estimatedUsdMicros: number;
   creditsDepletedRecent: boolean;
   postReadUsd: number;
+  creditLimit: number | null;
+  monthCreditsUsed: number;
+  remaining: number | null;
   note: string;
-  recent: Array<{
-    id: string;
-    at: string;
-    method: string;
-    path: string;
-    status: number;
-    error: string | null;
-    postsRead: number;
-    estimatedUsd: number;
-  }>;
+  recent: UsageRecentRow[];
 };
+
+export type TenantUsageRecent = {
+  id: string;
+  at: string;
+  activity: string;
+  status: number;
+  error: string | null;
+  credits: number;
+  remaining: number | null;
+};
+
+export type TenantUsageView = {
+  tenantId: string;
+  tenantSlug: string;
+  window: "all" | "24h" | "7d";
+  calls: number;
+  creditsUsed: number;
+  creditLimit: number;
+  remaining: number;
+  creditsDepletedRecent: boolean;
+  note: string;
+  recent: TenantUsageRecent[];
+};
+
+const TENANT_USAGE_NOTE =
+  "Each Scout search and post lookup spends credits from this month's pool. One credit is one X post read. Unused credits do not roll over.";
+
+const ADMIN_USAGE_NOTE =
+  "Credits are X post reads this UTC month (hard ceiling, no rollover). Est. $ is platform COGS at ~$0.005/post — console.x.com remains wallet truth for the shared key.";
+
+/** Friendly label for a logged X path. Scout search is the common tenant call. */
+export function describeUsageActivity(
+  path: string,
+  error?: string | null,
+): string {
+  const p = (path.split("?")[0] ?? path).toLowerCase();
+  if (p.includes("/tweets/search")) {
+    if (error === "credits_depleted") {
+      return "Scout search (platform read limit)";
+    }
+    if (error === "credits_exhausted") {
+      return "Scout search (credits used up)";
+    }
+    return "Scout search";
+  }
+  if (/\/tweets\/[^/]+$/.test(p)) return "Post lookup";
+  if (p.includes("/tweets")) return "Post read";
+  return "X API call";
+}
+
+/** Tenant payload: credits only — no paths, no dollar amounts. */
+export function toTenantUsageView(summary: UsageSummary): TenantUsageView {
+  return {
+    tenantId: summary.tenantId,
+    tenantSlug: summary.tenantSlug,
+    window: summary.window,
+    calls: summary.calls,
+    creditsUsed: summary.postsRead,
+    creditLimit: summary.creditLimit ?? 0,
+    remaining: summary.remaining ?? 0,
+    creditsDepletedRecent: summary.creditsDepletedRecent,
+    note: TENANT_USAGE_NOTE,
+    recent: summary.recent.map((row) => ({
+      id: row.id,
+      at: row.at,
+      activity: row.activity,
+      status: row.status,
+      error: row.error,
+      credits: row.credits,
+      remaining: row.remaining,
+    })),
+  };
+}
 
 export function microsToUsd(micros: number): number {
   return Math.round((micros / 1_000_000) * 1_000_000) / 1_000_000;
@@ -146,12 +231,21 @@ export function getUsageSummary(opts?: {
   tenantId?: string;
   window?: "all" | "24h" | "7d";
   limit?: number;
+  creditLimit?: number;
 }): UsageSummary {
   const database = getPlatformDb();
   const tenantId = opts?.tenantId?.trim() || getRequestTenantId();
   const window = opts?.window ?? "7d";
   const limit = Math.min(Math.max(opts?.limit ?? 50, 1), 200);
   const since = windowStartIso(window);
+  const creditLimit =
+    typeof opts?.creditLimit === "number" &&
+    Number.isFinite(opts.creditLimit) &&
+    opts.creditLimit >= 0
+      ? Math.floor(opts.creditLimit)
+      : null;
+  const monthStartIso = startOfUtcMonthIso();
+  const monthCreditsUsed = countPostsReadThisUtcMonth(tenantId);
 
   const tenant = database
     .prepare(`SELECT slug FROM tenants WHERE id = ?`)
@@ -233,6 +327,9 @@ export function getUsageSummary(opts?: {
   }>;
 
   const estimatedUsdMicros = Number(agg.cost_usd_micros) || 0;
+  const remaining =
+    creditLimit === null ? null : Math.max(0, creditLimit - monthCreditsUsed);
+  let remainingCursor = remaining;
 
   return {
     tenantId,
@@ -244,17 +341,31 @@ export function getUsageSummary(opts?: {
     estimatedUsdMicros,
     creditsDepletedRecent: (Number(depletedRow.n) || 0) > 0,
     postReadUsd: microsToUsd(POST_READ_USD_MICROS),
-    note:
-      "Credits on your desk are X post reads this UTC month (hard ceiling, no rollover). Est. $ is our COGS at ~$0.005/post — console.x.com remains wallet truth for the shared platform key.",
-    recent: recentRaw.map((r) => ({
-      id: r.id,
-      at: r.at,
-      method: r.method,
-      path: r.path,
-      status: r.status,
-      error: r.error,
-      postsRead: r.posts_read,
-      estimatedUsd: microsToUsd(r.cost_usd_micros),
-    })),
+    creditLimit,
+    monthCreditsUsed,
+    remaining,
+    note: ADMIN_USAGE_NOTE,
+    recent: recentRaw.map((r) => {
+      const credits = Number(r.posts_read) || 0;
+      const inMonth = r.at >= monthStartIso;
+      const rowRemaining =
+        inMonth && remainingCursor !== null ? remainingCursor : null;
+      if (inMonth && remainingCursor !== null) {
+        remainingCursor += credits;
+      }
+      return {
+        id: r.id,
+        at: r.at,
+        method: r.method,
+        path: r.path,
+        status: r.status,
+        error: r.error,
+        postsRead: credits,
+        estimatedUsd: microsToUsd(r.cost_usd_micros),
+        activity: describeUsageActivity(r.path, r.error),
+        credits,
+        remaining: rowRemaining,
+      };
+    }),
   };
 }

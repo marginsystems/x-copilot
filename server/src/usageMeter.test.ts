@@ -10,10 +10,12 @@ import {
 } from "./db.ts";
 import {
   countPostsRead,
+  describeUsageActivity,
   estimatePostReadCostMicros,
   getUsageSummary,
   POST_READ_USD_MICROS,
   recordUsageEvent,
+  toTenantUsageView,
 } from "./usageMeter.ts";
 
 describe("countPostsRead", () => {
@@ -122,5 +124,89 @@ describe("usage ledger", () => {
     assert.equal(summary.postsRead, 5);
     assert.equal(summary.estimatedUsd, 0.025);
     assert.equal(summary.recent.length, 1);
+  });
+
+  it("labels Scout search and post lookup", () => {
+    assert.equal(
+      describeUsageActivity("/tweets/search/recent"),
+      "Scout search",
+    );
+    assert.equal(
+      describeUsageActivity("/tweets/search/recent", "credits_depleted"),
+      "Scout search (platform read limit)",
+    );
+    assert.equal(describeUsageActivity("/tweets/1234567890"), "Post lookup");
+  });
+
+  it("walks remaining credits newest-first for this UTC month", () => {
+    const older = new Date(Date.now() - 60_000).toISOString();
+    const newer = new Date().toISOString();
+    recordUsageEvent({
+      path: "/tweets/search/recent",
+      status: 200,
+      postsRead: 20,
+      at: older,
+    });
+    recordUsageEvent({
+      path: "/tweets/search/recent",
+      status: 200,
+      postsRead: 10,
+      at: newer,
+    });
+
+    const summary = getUsageSummary({ window: "all", creditLimit: 250 });
+    assert.equal(summary.monthCreditsUsed, 30);
+    assert.equal(summary.remaining, 220);
+    assert.equal(summary.recent[0]?.credits, 10);
+    assert.equal(summary.recent[0]?.remaining, 220);
+    assert.equal(summary.recent[1]?.credits, 20);
+    assert.equal(summary.recent[1]?.remaining, 230);
+    assert.equal(summary.recent[0]?.activity, "Scout search");
+  });
+
+  it("omits remaining on events from a prior UTC month", () => {
+    const now = new Date();
+    const prior = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15),
+    ).toISOString();
+    recordUsageEvent({
+      path: "/tweets/search/recent",
+      status: 200,
+      postsRead: 5,
+      at: prior,
+    });
+    recordUsageEvent({
+      path: "/tweets/123",
+      status: 200,
+      postsRead: 1,
+    });
+
+    const summary = getUsageSummary({ window: "all", creditLimit: 250 });
+    assert.equal(summary.monthCreditsUsed, 1);
+    assert.equal(summary.remaining, 249);
+    assert.equal(summary.recent[0]?.activity, "Post lookup");
+    assert.equal(summary.recent[0]?.remaining, 249);
+    assert.equal(summary.recent[1]?.remaining, null);
+  });
+
+  it("strips dollar amounts and raw paths from the tenant view", () => {
+    recordUsageEvent({
+      path: "/tweets/search/recent",
+      status: 200,
+      postsRead: 8,
+    });
+    const view = toTenantUsageView(
+      getUsageSummary({ window: "all", creditLimit: 250 }),
+    );
+    assert.equal(view.creditsUsed, 8);
+    assert.equal(view.creditLimit, 250);
+    assert.equal(view.remaining, 242);
+    assert.equal(view.recent[0]?.activity, "Scout search");
+    assert.equal(view.recent[0]?.credits, 8);
+    assert.equal("estimatedUsd" in view, false);
+    assert.equal("postReadUsd" in view, false);
+    assert.equal("path" in (view.recent[0] ?? {}), false);
+    assert.equal(JSON.stringify(view).includes("$"), false);
+    assert.equal(JSON.stringify(view).includes("0.005"), false);
   });
 });
