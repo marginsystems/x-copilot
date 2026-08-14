@@ -22,13 +22,13 @@ export const SCOUT_SEARCH_TIMELINE: ScoutStageId[] = [
 ];
 
 export const SCOUT_STAGE_COPY: Record<ScoutStageId, string> = {
-  planning: "Scout is planning search queries…",
-  searching: "Scout is searching X…",
-  filtering: "Scout is applying cooldown + length filters…",
-  triaging: "Scout is scoring threads for bait risk…",
-  partial: "Scout found more cool threads…",
-  done: "Scout finished.",
-  error: "Scout failed.",
+  planning: "Plotting the route…",
+  searching: "In the air…",
+  filtering: "Clearing the noise…",
+  triaging: "Picking the approach…",
+  partial: "Found more threads…",
+  done: "Landed.",
+  error: "Couldn't land.",
 };
 
 /** ms between client-side stage advances while search is in flight. */
@@ -48,6 +48,7 @@ export function isScoutGateError(
     status === 402 ||
     body.error === "scout_cooldown" ||
     body.error === "scout_busy" ||
+    body.error === "scout_daily_limit" ||
     body.error === "credits_exhausted"
   );
 }

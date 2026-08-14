@@ -82,7 +82,9 @@ import {
   effectivePlanKey,
   ensureUserBillingRow,
   ensureUserTenant,
+  sortiesExhaustedResponse,
 } from "./billingStore.js";
+import { recordSortie } from "./scoutSorties.js";
 import { PLAN_CREDIT_LIMITS } from "./plans.js";
 import { getRequestContext, getRequestTenantId, runWithRequestContext } from "./requestContext.js";
 import {
@@ -207,6 +209,21 @@ function sendCreditsExhausted(
   });
   if (!exhausted) return false;
   send(req, res, 402, exhausted);
+  return true;
+}
+
+function sendSortiesExhausted(
+  req: IncomingMessage,
+  res: ServerResponse,
+): boolean {
+  const ctx = getRequestContext();
+  const exhausted = sortiesExhaustedResponse({
+    userId: ctx?.userId,
+    tenantId: ctx?.tenantId ?? getRequestTenantId(),
+    email: getSessionUser(req)?.email,
+  });
+  if (!exhausted) return false;
+  send(req, res, 429, exhausted);
   return true;
 }
 
@@ -449,6 +466,7 @@ const server = http.createServer(async (req, res) => {
           : [];
         const filters = parseScoutFilters(body.filters);
         if (sendCreditsExhausted(req, res)) return;
+        if (sendSortiesExhausted(req, res)) return;
         const gate = tryBeginScout();
         if (!gate.ok) {
           return send(req, res, gate.status, {
@@ -456,6 +474,7 @@ const server = http.createServer(async (req, res) => {
             message: gate.message,
           });
         }
+        recordSortie();
         try {
           await ensureMemoryIndex();
           const result = await runScoutSearch({ agenda, queries, filters });
@@ -520,6 +539,7 @@ const server = http.createServer(async (req, res) => {
         const bucketSize = clampBucketSize(body.bucketSize);
 
         if (sendCreditsExhausted(req, res)) return;
+        if (sendSortiesExhausted(req, res)) return;
 
         const gate = tryBeginScout();
         if (!gate.ok) {
@@ -528,6 +548,7 @@ const server = http.createServer(async (req, res) => {
             message: gate.message,
           });
         }
+        recordSortie();
 
         const abort = new AbortController();
         const onClose = () => {

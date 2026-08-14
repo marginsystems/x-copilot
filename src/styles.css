@@ -530,12 +530,16 @@ h3 {
 }
 
 .activity-chart-bar {
-  fill: color-mix(in srgb, var(--accent) 38%, transparent);
+  fill: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.activity-chart-area {
+  fill: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .activity-chart-line {
   stroke: var(--accent);
-  stroke-width: 1.5;
+  stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
 }

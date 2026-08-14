@@ -48,6 +48,10 @@ export function ActivityChart({ series, bucket }: Props) {
   const lineD = points
     .map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`)
     .join(" ");
+  const areaD =
+    points.length > 1
+      ? `${lineD} L ${points[points.length - 1]!.x.toFixed(1)} ${(padT + innerH).toFixed(1)} L ${points[0]!.x.toFixed(1)} ${(padT + innerH).toFixed(1)} Z`
+      : "";
 
   // Label every ~7th day or every week.
   const labelStep = bucket === "week" ? 1 : Math.max(1, Math.ceil(n / 7));
@@ -58,7 +62,7 @@ export function ActivityChart({ series, bucket }: Props) {
       viewBox={`0 0 ${width} ${height}`}
       preserveAspectRatio="none"
       role="img"
-      aria-label="Marked interactions and sampled views over time"
+      aria-label="Flight path of marked replies and sampled views"
     >
       <line
         className="activity-chart-axis"
@@ -81,6 +85,7 @@ export function ActivityChart({ series, bucket }: Props) {
           </title>
         </rect>
       ))}
+      {areaD ? <path className="activity-chart-area" d={areaD} /> : null}
       {points.length > 1 ? (
         <path className="activity-chart-line" d={lineD} fill="none" />
       ) : null}

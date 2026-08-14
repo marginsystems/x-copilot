@@ -12,6 +12,7 @@ import {
   type PaidPlanKey,
   type PlanKey,
 } from "./plans.js";
+import { getSortieUsage } from "./scoutSorties.js";
 import {
   resolveStripePriceId,
   stripeSecretPresent,
@@ -435,6 +436,32 @@ export function creditsExhaustedResponse(input: {
   };
 }
 
+/** 429 body when today's Take offs are used. null = allow. */
+export function sortiesExhaustedResponse(input: {
+  userId?: string;
+  tenantId: string;
+  email?: string | null;
+}): {
+  error: "scout_daily_limit";
+  message: string;
+  used: number;
+  limit: number;
+  planKey: PlanKey;
+} | null {
+  if (!input.userId) return null;
+  const row = ensureUserBillingRow(input.userId, input.tenantId);
+  const planKey = effectivePlanKey(row, input.email);
+  const usage = getSortieUsage(input.tenantId, planKey);
+  if (usage.canFly) return null;
+  return {
+    error: "scout_daily_limit",
+    message: `Grounded — ${usage.limit} sortie${usage.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`,
+    used: usage.used,
+    limit: usage.limit,
+    planKey,
+  };
+}
+
 export function billingMePayload(input: {
   userId: string;
   email: string | null;
@@ -443,6 +470,7 @@ export function billingMePayload(input: {
   const row = ensureUserBillingRow(input.userId, tenantId);
   const planKey = effectivePlanKey(row, input.email);
   const usage = getCreditUsage(tenantId, planKey);
+  const sorties = getSortieUsage(tenantId, planKey);
   const secretOk = stripeSecretPresent();
   const live = hasLiveStripeSubscription(row);
   const plans = Object.fromEntries(
@@ -482,6 +510,12 @@ export function billingMePayload(input: {
       limit: usage.limit,
       remaining: usage.remaining,
       can_use: usage.canUse,
+    },
+    sorties: {
+      used: sorties.used,
+      limit: sorties.limit,
+      remaining: sorties.remaining,
+      can_fly: sorties.canFly,
     },
     stripe_configured: secretOk,
     plans,

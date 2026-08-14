@@ -20,6 +20,14 @@ export const PLAN_CREDIT_LIMITS: Record<PlanKey, number> = {
   horizon: 20_000,
 };
 
+/** UTC-day Take off cap. Monthly credits still bind; this stops a one-day burn. */
+export const PLAN_DAILY_SORTIES: Record<PlanKey, number> = {
+  free: 1,
+  pulse: 4,
+  radar: 8,
+  horizon: 20,
+};
+
 export const PLAN_PRICE_USD: Record<PaidPlanKey, number> = {
   pulse: 12,
   radar: 36,
