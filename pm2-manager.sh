@@ -111,8 +111,6 @@ case "$cmd" in
     for name in "${APPS[@]}"; do
       recycle_app "$name"
     done
-    # Re-persist the process list so boot resurrection restores the current env.
-    pm2 save
     ;;
   delete)
     require_ecosystem
