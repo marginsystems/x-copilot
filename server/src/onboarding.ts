@@ -5,7 +5,6 @@ import {
   addTokenUsage,
   chatCompletions,
   resolveFlashModel,
-  resolveLlmProviderFromEnv,
   type LlmProvider,
   type TokenUsage,
 } from "./deepseek.js";
@@ -205,12 +204,11 @@ function buildUserPrompt(answers: OnboardingAnswers): string {
 export async function generateOnboardingAgendas(
   answers: OnboardingAnswers,
 ): Promise<GenerateAgendasResult> {
-  const provider = resolveLlmProviderFromEnv();
-  const model = resolveFlashModel(provider);
+  const provider: LlmProvider = "deepseek";
+  const model = resolveFlashModel();
   const userPrompt = buildUserPrompt(answers);
 
   const first = await chatCompletions({
-    provider,
     model,
     purpose: "onboarding",
     temperature: 0.6,
@@ -227,7 +225,6 @@ export async function generateOnboardingAgendas(
     let usedModel = first.model;
     if (!agendas) {
       const repair = await chatCompletions({
-        provider,
         model,
         purpose: "onboarding_repair",
         messages: [

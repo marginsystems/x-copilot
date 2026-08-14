@@ -8,9 +8,7 @@ import {
 import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {
-  providerApiKeyEnvName,
-  providerConfigured,
-  resolveLlmProviderFromEnv,
+  deepseekConfigured,
   type LlmProvider,
   type TokenUsage,
   addTokenUsage,
@@ -149,7 +147,7 @@ export async function runScoutSearch(opts: {
   };
 
   let queries = (opts.queries ?? []).map((q) => q.trim()).filter(Boolean);
-  const llmProvider = resolveLlmProviderFromEnv();
+  const llmProvider: LlmProvider = "deepseek";
   let plannedBy: "client" | LlmProvider = "client";
   let planModel: string | undefined;
   let llmUsage: TokenUsage | undefined;
@@ -164,19 +162,16 @@ export async function runScoutSearch(opts: {
         message: "Pass { agenda: string } or { queries: string[] }.",
       };
     }
-    if (!providerConfigured(llmProvider)) {
-      const envName = providerApiKeyEnvName(llmProvider);
+    if (!deepseekConfigured()) {
       return {
         ok: false,
         status: 503,
         error: "missing_llm_key",
-        message: `Set ${envName} for agenda → query planning.`,
+        message: "Set DEEPSEEK_API_KEY for agenda → query planning.",
       };
     }
-    track("planning", `Scout is planning search queries (${llmProvider})…`);
-    const plan = await planQueriesFromAgenda(agenda, {
-      provider: llmProvider,
-    });
+    track("planning", "Scout is planning search queries (deepseek)…");
+    const plan = await planQueriesFromAgenda(agenda);
     if (!plan.ok) {
       track("error", `Scout failed: ${plan.message}`);
       return {
@@ -258,7 +253,6 @@ export async function runScoutSearch(opts: {
   const triaged = await triageThreads({
     agenda,
     threads: afterHydrateLang.threads,
-    provider: llmProvider,
   });
   llmUsage = addTokenUsage(llmUsage, triaged.usage);
 
