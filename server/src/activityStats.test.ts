@@ -4,9 +4,12 @@ import {
   ACTIVITY_DAY_WINDOW,
   ACTIVITY_WEEK_WINDOW,
   bucketInteractions,
+  mergeLiveMetrics,
   parseActivityBucket,
+  pendingReplyIds,
   utcWeekKey,
   viewsForInteraction,
+  viewsLineAltitude,
   type ActivityBucket,
 } from "./activityStats.ts";
 import type { Interaction } from "./interactionStore.ts";
@@ -148,5 +151,64 @@ describe("bucketInteractions", () => {
     const aug4 = result.series.find((p) => p.period === "2026-08-04");
     assert.equal(aug4?.interactions, 1);
     assert.equal(aug4?.views, 3);
+  });
+});
+
+describe("viewsLineAltitude", () => {
+  it("holds last sampled views when marks exist but samples do not", () => {
+    assert.deepEqual(
+      viewsLineAltitude(
+        { period: "2026-08-14", interactions: 2, views: 0, withStats: 0 },
+        400,
+      ),
+      { views: 400, held: true },
+    );
+  });
+
+  it("drops to zero on a missed day", () => {
+    assert.deepEqual(
+      viewsLineAltitude(
+        { period: "2026-08-14", interactions: 0, views: 0, withStats: 0 },
+        400,
+      ),
+      { views: 0, held: false },
+    );
+  });
+
+  it("uses sampled views when present", () => {
+    assert.deepEqual(
+      viewsLineAltitude(
+        { period: "2026-08-13", interactions: 1, views: 80, withStats: 1 },
+        400,
+      ),
+      { views: 80, held: false },
+    );
+  });
+});
+
+describe("pendingReplyIds / mergeLiveMetrics", () => {
+  it("lists unscored reply ids and merges live views in memory", () => {
+    const history = [
+      ix({
+        threadId: "a",
+        at: "2026-08-14T10:00:00.000Z",
+        replyId: "r1",
+      }),
+      ix({
+        threadId: "b",
+        at: "2026-08-14T11:00:00.000Z",
+        replyId: "r2",
+        stats: { t1h: { views: 9, sampledAt: "2026-08-14T12:00:00.000Z" } },
+      }),
+    ];
+    assert.deepEqual(pendingReplyIds(history, 10), ["r1"]);
+    const merged = mergeLiveMetrics(
+      history,
+      new Map([["r1", { views: 12, likes: 1 }]]),
+      "2026-08-14T12:30:00.000Z",
+    );
+    assert.equal(merged[0]?.stats?.t1h?.views, 12);
+    assert.equal(history[0]?.stats?.t1h, undefined);
+    assert.equal(merged[1]?.stats?.t1h?.views, 9);
   });
 });

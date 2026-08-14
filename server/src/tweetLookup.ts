@@ -239,6 +239,51 @@ export async function fetchTweetMetrics(opts: {
   return parseTweetMetrics(res.json);
 }
 
+/** Parse `GET /2/tweets?ids=` payload → id → metrics. */
+export function parseTweetsMetricsMap(json: unknown): Map<string, TweetMetrics> {
+  const out = new Map<string, TweetMetrics>();
+  if (!json || typeof json !== "object") return out;
+  const data = (json as { data?: unknown }).data;
+  const rows = Array.isArray(data) ? data : [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const id = String((row as { id?: unknown }).id ?? "").trim();
+    if (!id) continue;
+    const metrics = parseTweetMetrics(row);
+    if (metrics) out.set(id, metrics);
+  }
+  return out;
+}
+
+/**
+ * One request for many tweet ids (X cap 100). Soft-fails to an empty map.
+ */
+export async function fetchTweetMetricsMany(opts: {
+  tweetIds: string[];
+  session?: SessionCreds;
+  signal?: AbortSignal;
+}): Promise<Map<string, TweetMetrics>> {
+  const ids = [...new Set(opts.tweetIds.map((id) => id.trim()).filter(Boolean))];
+  if (!ids.length) return new Map();
+  if (opts.signal?.aborted) return new Map();
+
+  const session = opts.session ?? getSessionFromEnv();
+  if (!session.configured) return new Map();
+
+  const res = await xApiGet({
+    path: "/tweets",
+    query: {
+      ids: ids.join(","),
+      "tweet.fields": "public_metrics",
+    },
+    creds: session,
+    signal: opts.signal,
+    timeoutMs: 12000,
+  });
+  if (!res.ok) return new Map();
+  return parseTweetsMetricsMap(res.json);
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }

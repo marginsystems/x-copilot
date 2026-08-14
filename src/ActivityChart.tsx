@@ -1,5 +1,6 @@
 import {
   formatPeriodLabel,
+  viewsLineAltitude,
   type ActivityBucket,
   type ActivitySeriesPoint,
 } from "./lib/activityStats";
@@ -33,16 +34,34 @@ export function ActivityChart({ series, bucket }: Props) {
     if (p.views > maxViews) maxViews = p.views;
   }
 
-  const points: Array<{ x: number; y: number; p: ActivitySeriesPoint }> = [];
+  const points: Array<{
+    x: number;
+    y: number;
+    p: ActivitySeriesPoint;
+    held: boolean;
+    lineViews: number;
+  }> = [];
   const bars: Array<{ x: number; h: number; p: ActivitySeriesPoint }> = [];
+
+  let lastSampledViews = 0;
+  let maxLineViews = maxViews;
+  series.forEach((p) => {
+    const alt = viewsLineAltitude(p, lastSampledViews);
+    if (!alt.held) lastSampledViews = alt.views;
+    if (alt.views > maxLineViews) maxLineViews = alt.views;
+  });
+  if (maxLineViews < 1) maxLineViews = 1;
+  lastSampledViews = 0;
 
   series.forEach((p, i) => {
     const x = padL + i * (barW + gap);
     const h = (p.interactions / maxIx) * innerH;
     bars.push({ x, h, p });
+    const alt = viewsLineAltitude(p, lastSampledViews);
+    if (!alt.held) lastSampledViews = alt.views;
     const cx = x + barW / 2;
-    const y = padT + innerH - (p.views / maxViews) * innerH;
-    points.push({ x: cx, y, p });
+    const y = padT + innerH - (alt.views / maxLineViews) * innerH;
+    points.push({ x: cx, y, p, held: alt.held, lineViews: alt.views });
   });
 
   const lineD = points
@@ -93,13 +112,17 @@ export function ActivityChart({ series, bucket }: Props) {
         pt.p.views > 0 || pt.p.interactions > 0 ? (
           <circle
             key={`c-${pt.p.period}`}
-            className="activity-chart-dot"
+            className={
+              pt.held ? "activity-chart-dot activity-chart-dot-held" : "activity-chart-dot"
+            }
             cx={pt.x}
             cy={pt.y}
             r={2.2}
           >
             <title>
-              {pt.p.period}: {pt.p.views} views
+              {pt.held
+                ? `${pt.p.period}: ${pt.p.interactions} marked · views pending`
+                : `${pt.p.period}: ${pt.lineViews} views`}
             </title>
           </circle>
         ) : null,

@@ -548,6 +548,12 @@ h3 {
   fill: var(--accent);
 }
 
+.activity-chart-dot-held {
+  fill: var(--bg);
+  stroke: var(--accent);
+  stroke-width: 1.4;
+}
+
 .activity-chart-label {
   fill: var(--muted);
   font-family: var(--font-mono);
