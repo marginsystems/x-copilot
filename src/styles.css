@@ -430,12 +430,9 @@ h3 {
   max-height: 72px;
 }
 
-.threads-activity.is-collapsed .threads-activity-meta {
+.threads-activity.is-collapsed .threads-activity-meta,
+.threads-activity.is-collapsed .threads-activity-toggle {
   display: none;
-}
-
-.threads-activity.is-collapsed .threads-activity-chart {
-  min-height: 28px;
 }
 
 .threads-activity-toggle-path {
@@ -813,7 +810,7 @@ h3 {
     transform: none;
   }
 
-  .history-row {
+  article.history-row {
     animation: none;
   }
 }
