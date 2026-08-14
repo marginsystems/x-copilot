@@ -9,9 +9,9 @@ import {
   pendingReplyIds,
   utcWeekKey,
   viewsForInteraction,
-  viewsLineAltitude,
   type ActivityBucket,
 } from "./activityStats.ts";
+import { viewsLineAltitude } from "../../src/lib/activityStats.ts";
 import type { Interaction } from "./interactionStore.ts";
 
 function ix(
@@ -210,5 +210,21 @@ describe("pendingReplyIds / mergeLiveMetrics", () => {
     assert.equal(merged[0]?.stats?.t1h?.views, 12);
     assert.equal(history[0]?.stats?.t1h, undefined);
     assert.equal(merged[1]?.stats?.t1h?.views, 9);
+  });
+
+  it("skips writing a synthetic snapshot when live has likes but no views", () => {
+    const history = [
+      ix({
+        threadId: "c",
+        at: "2026-08-14T10:00:00.000Z",
+        replyId: "r3",
+      }),
+    ];
+    const merged = mergeLiveMetrics(
+      history,
+      new Map([["r3", { likes: 3 }]]),
+      "2026-08-14T12:30:00.000Z",
+    );
+    assert.equal(merged[0]?.stats?.t1h, undefined);
   });
 });

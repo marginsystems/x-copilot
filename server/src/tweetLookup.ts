@@ -255,8 +255,19 @@ export function parseTweetsMetricsMap(json: unknown): Map<string, TweetMetrics> 
   return out;
 }
 
+/** How long a batch live-metrics result stays cached before a re-fetch. */
+const LIVE_METRICS_TTL_MS = 15 * 60 * 1000;
+
+const liveMetricsCache = new Map<
+  string,
+  { metrics: TweetMetrics | null; at: number }
+>();
+
 /**
  * One request for many tweet ids (X cap 100). Soft-fails to an empty map.
+ * Cached per id (short TTL) so chart refreshes do not re-fetch the same
+ * still-pending replies on every request, and never billed to the requesting
+ * tenant's credit pool (passive reads, unlike Scout's active lookups).
  */
 export async function fetchTweetMetricsMany(opts: {
   tweetIds: string[];
@@ -267,21 +278,50 @@ export async function fetchTweetMetricsMany(opts: {
   if (!ids.length) return new Map();
   if (opts.signal?.aborted) return new Map();
 
+  const now = Date.now();
+  const out = new Map<string, TweetMetrics>();
+  const toFetch: string[] = [];
+  for (const id of ids) {
+    const cached = liveMetricsCache.get(id);
+    if (cached && now - cached.at < LIVE_METRICS_TTL_MS) {
+      if (cached.metrics) out.set(id, cached.metrics);
+      continue;
+    }
+    toFetch.push(id);
+  }
+  if (!toFetch.length) return out;
+  for (const [id, entry] of liveMetricsCache) {
+    if (now - entry.at >= LIVE_METRICS_TTL_MS) liveMetricsCache.delete(id);
+  }
+
   const session = opts.session ?? getSessionFromEnv();
-  if (!session.configured) return new Map();
+  if (!session.configured) return out;
 
   const res = await xApiGet({
     path: "/tweets",
     query: {
-      ids: ids.join(","),
+      ids: toFetch.join(","),
       "tweet.fields": "public_metrics",
     },
     creds: session,
     signal: opts.signal,
     timeoutMs: 12000,
+    skipUsage: true,
   });
-  if (!res.ok) return new Map();
-  return parseTweetsMetricsMap(res.json);
+  if (!res.ok) return out;
+
+  const fetched = parseTweetsMetricsMap(res.json);
+  const fetchedAt = Date.now();
+  for (const [id, metrics] of fetched) {
+    liveMetricsCache.set(id, { metrics, at: fetchedAt });
+    out.set(id, metrics);
+  }
+  // Cache confirmed absence (deleted/private tweets left out of the batch) so
+  // ids that can never resolve stop being re-fetched on every stats request.
+  for (const id of toFetch) {
+    if (!out.has(id)) liveMetricsCache.set(id, { metrics: null, at: fetchedAt });
+  }
+  return out;
 }
 
 function sleep(ms: number): Promise<void> {

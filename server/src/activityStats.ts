@@ -169,23 +169,6 @@ export function bucketInteractions(
   };
 }
 
-/**
- * Views-line Y source. Days with marks but no sample hold the last sampled
- * altitude so today does not crash to zero. A day with no marks is a true miss.
- */
-export function viewsLineAltitude(
-  point: ActivitySeriesPoint,
-  lastSampledViews: number,
-): { views: number; held: boolean } {
-  if (point.views > 0 || point.withStats > 0) {
-    return { views: point.views, held: false };
-  }
-  if (point.interactions > 0) {
-    return { views: lastSampledViews, held: true };
-  }
-  return { views: 0, held: false };
-}
-
 /** Marked reply ids that still have no 1h/24h snapshot (oldest first, capped). */
 export function pendingReplyIds(
   history: readonly Interaction[],
@@ -217,7 +200,17 @@ export function mergeLiveMetrics(
     const id = row.replyId?.trim();
     if (!id || interactionHasViewStats(row)) return row;
     const m = live.get(id);
-    if (!m || (m.views === undefined && m.likes === undefined)) return row;
+    // Only a finite views value resolves a row: a likes-only tweet (X omits
+    // impression_count) must not write a t1h snapshot with views undefined,
+    // which would never satisfy interactionHasViewStats and stay re-fetched.
+    if (
+      !m ||
+      typeof m.views !== "number" ||
+      !Number.isFinite(m.views) ||
+      m.views < 0
+    ) {
+      return row;
+    }
     return {
       ...row,
       stats: {
