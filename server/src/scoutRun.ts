@@ -8,9 +8,9 @@ import {
 import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {
-  normalizeLlmProvider,
   providerApiKeyEnvName,
   providerConfigured,
+  resolveLlmProviderFromEnv,
   type LlmProvider,
   type TokenUsage,
   addTokenUsage,
@@ -122,8 +122,6 @@ export type ScoutFilters = {
    * Omit → server default (`supportive_encouragement`, `political`); `[]` → no tag excludes.
    */
   excludedTags?: string[];
-  /** LLM provider for plan + triage (default gemini). */
-  llmProvider?: LlmProvider;
 };
 
 export async function runScoutSearch(opts: {
@@ -151,7 +149,7 @@ export async function runScoutSearch(opts: {
   };
 
   let queries = (opts.queries ?? []).map((q) => q.trim()).filter(Boolean);
-  const llmProvider = normalizeLlmProvider(opts.filters?.llmProvider);
+  const llmProvider = resolveLlmProviderFromEnv();
   let plannedBy: "client" | LlmProvider = "client";
   let planModel: string | undefined;
   let llmUsage: TokenUsage | undefined;

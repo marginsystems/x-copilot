@@ -102,9 +102,6 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (typeof obj.dropAutomatedAccounts === "boolean") {
     filters.dropAutomatedAccounts = obj.dropAutomatedAccounts;
   }
-  if (obj.llmProvider === "deepseek" || obj.llmProvider === "gemini") {
-    filters.llmProvider = obj.llmProvider;
-  }
   if (typeof obj.dedupeAccounts === "boolean") {
     filters.dedupeAccounts = obj.dedupeAccounts;
   }

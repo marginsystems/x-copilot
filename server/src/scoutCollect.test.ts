@@ -1042,7 +1042,7 @@ describe("runScoutCollect bucket loop", () => {
         agenda: "Find builders shipping AI tools in public",
         bucketSize: 5,
         targetCool: 1,
-        filters: { llmProvider: "gemini" },
+        filters: {},
         session,
         onEvent: (e) => events.push(e),
         deps: {

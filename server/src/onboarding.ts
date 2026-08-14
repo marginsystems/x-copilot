@@ -4,8 +4,8 @@
 import {
   addTokenUsage,
   chatCompletions,
-  normalizeLlmProvider,
   resolveFlashModel,
+  resolveLlmProviderFromEnv,
   type LlmProvider,
   type TokenUsage,
 } from "./deepseek.js";
@@ -204,9 +204,8 @@ function buildUserPrompt(answers: OnboardingAnswers): string {
 
 export async function generateOnboardingAgendas(
   answers: OnboardingAnswers,
-  opts?: { provider?: unknown },
 ): Promise<GenerateAgendasResult> {
-  const provider = normalizeLlmProvider(opts?.provider);
+  const provider = resolveLlmProviderFromEnv();
   const model = resolveFlashModel(provider);
   const userPrompt = buildUserPrompt(answers);
 
