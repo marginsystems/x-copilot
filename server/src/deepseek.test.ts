@@ -1,31 +1,23 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  DEFAULT_LLM_PROVIDER,
   DEEPSEEK_FLASH_MODEL,
-  GEMINI_FLASH_MODEL,
   addTokenUsage,
-  normalizeLlmProvider,
   parseTokenUsage,
   resolveFlashModel,
 } from "./deepseek.ts";
 
-describe("normalizeLlmProvider", () => {
-  it("defaults to gemini", () => {
-    assert.equal(normalizeLlmProvider(undefined), "gemini");
-    assert.equal(normalizeLlmProvider("nope"), DEFAULT_LLM_PROVIDER);
-  });
-
-  it("accepts deepseek and gemini", () => {
-    assert.equal(normalizeLlmProvider("deepseek"), "deepseek");
-    assert.equal(normalizeLlmProvider("gemini"), "gemini");
-  });
-});
-
 describe("resolveFlashModel", () => {
-  it("returns flash defaults per provider", () => {
-    assert.equal(resolveFlashModel("deepseek"), DEEPSEEK_FLASH_MODEL);
-    assert.equal(resolveFlashModel("gemini"), GEMINI_FLASH_MODEL);
+  it("defaults to DeepSeek v4-flash", () => {
+    const prev = process.env.DEEPSEEK_MODEL;
+    delete process.env.DEEPSEEK_MODEL;
+    try {
+      assert.equal(resolveFlashModel(), DEEPSEEK_FLASH_MODEL);
+      assert.equal(DEEPSEEK_FLASH_MODEL, "deepseek-v4-flash");
+    } finally {
+      if (prev === undefined) delete process.env.DEEPSEEK_MODEL;
+      else process.env.DEEPSEEK_MODEL = prev;
+    }
   });
 });
 
@@ -38,17 +30,6 @@ describe("parseTokenUsage / addTokenUsage", () => {
         total_tokens: 14,
       }),
       { prompt_tokens: 10, completion_tokens: 4, total_tokens: 14 },
-    );
-  });
-
-  it("parses Gemini camelCase usage", () => {
-    assert.deepEqual(
-      parseTokenUsage({
-        promptTokenCount: 8,
-        candidatesTokenCount: 2,
-        totalTokenCount: 10,
-      }),
-      { prompt_tokens: 8, completion_tokens: 2, total_tokens: 10 },
     );
   });
 

@@ -13,9 +13,7 @@ import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {
   addTokenUsage,
-  normalizeLlmProvider,
-  providerApiKeyEnvName,
-  providerConfigured,
+  deepseekConfigured,
   type LlmProvider,
   type TokenUsage,
 } from "./deepseek.js";
@@ -268,7 +266,7 @@ export async function runScoutCollect(opts: {
   const aborted = () => Boolean(opts.signal?.aborted);
 
   let queries = (opts.queries ?? []).map((q) => q.trim()).filter(Boolean);
-  const llmProvider = normalizeLlmProvider(opts.filters?.llmProvider);
+  const llmProvider: LlmProvider = "deepseek";
   let plannedBy: "client" | LlmProvider = "client";
   let planModel: string | undefined;
   let llmUsage: TokenUsage | undefined;
@@ -283,17 +281,16 @@ export async function runScoutCollect(opts: {
         message: "Pass { agenda: string } or { queries: string[] }.",
       };
     }
-    if (!providerConfigured(llmProvider)) {
-      const envName = providerApiKeyEnvName(llmProvider);
+    if (!deepseekConfigured()) {
       return {
         ok: false,
         status: 503,
         error: "missing_llm_key",
-        message: `Set ${envName} for agenda → query planning.`,
+        message: "Set DEEPSEEK_API_KEY for agenda → query planning.",
       };
     }
-    track("planning", `Scout is planning search queries (${llmProvider})…`);
-    const plan = await doPlan(agenda, { provider: llmProvider });
+    track("planning", "Scout is planning search queries (deepseek)…");
+    const plan = await doPlan(agenda);
     if (aborted()) {
       const done = track("done", "Scout stopped.", {
         threads: [],
@@ -391,7 +388,7 @@ export async function runScoutCollect(opts: {
   };
 
   async function maybeReplan(reason: "cycle" | "stalled"): Promise<boolean> {
-    if (replanned || !agenda || !providerConfigured(llmProvider)) {
+    if (replanned || !agenda || !deepseekConfigured()) {
       return false;
     }
     replanned = true;
@@ -404,7 +401,6 @@ export async function runScoutCollect(opts: {
     const planOpts: PlanQueriesOpts = {
       broaden: true,
       priorQueries: [...queries],
-      provider: llmProvider,
       yieldNote:
         `Low yield: candidate bucket at ${bucket.length}/${bucketSize} after ${searchCalls} searches` +
         (reason === "stalled"
@@ -698,7 +694,6 @@ export async function runScoutCollect(opts: {
       const triaged = await doTriage({
         agenda,
         threads: forTriage,
-        provider: llmProvider,
       });
       if (triaged.warning) triageWarning = triaged.warning;
       llmUsage = addTokenUsage(llmUsage, triaged.usage);

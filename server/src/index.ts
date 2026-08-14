@@ -102,9 +102,6 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (typeof obj.dropAutomatedAccounts === "boolean") {
     filters.dropAutomatedAccounts = obj.dropAutomatedAccounts;
   }
-  if (obj.llmProvider === "deepseek" || obj.llmProvider === "gemini") {
-    filters.llmProvider = obj.llmProvider;
-  }
   if (typeof obj.dedupeAccounts === "boolean") {
     filters.dedupeAccounts = obj.dedupeAccounts;
   }
@@ -312,13 +309,11 @@ const server = http.createServer(async (req, res) => {
       ) {
         const session = getSessionFromEnv();
         const hasDeepseek = Boolean(process.env.DEEPSEEK_API_KEY?.trim());
-        const hasGemini = Boolean(process.env.GEMINI_API_KEY?.trim());
         const memory = await memoryIndexStatus();
         return send(req, res, 200, {
           ok: true,
           sessionConfigured: session.configured,
           deepseekConfigured: hasDeepseek,
-          geminiConfigured: hasGemini,
           memoryIndex: {
             dbExists: memory.dbExists,
             modelCached: memory.modelCached,

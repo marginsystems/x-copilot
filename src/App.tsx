@@ -11,7 +11,6 @@ import {
   type AppSettings,
   clampMaxThreadChars,
   clampTargetCoolThreads,
-  normalizeLlmProvider,
   normalizePreferredLanguage,
   threadHasExcludedTag,
   PREFERRED_LANGUAGES,
@@ -1875,7 +1874,6 @@ export default function App() {
             dropArticles: settings.dropArticles,
             dropEmDashes: settings.dropEmDashes,
             dropAutomatedAccounts: settings.dropAutomatedAccounts,
-            llmProvider: settings.llmProvider,
             dedupeAccounts: settings.dedupeAccounts,
             preferredLanguage: settings.preferredLanguage,
             excludedTags: settings.excludedTags,
@@ -2448,7 +2446,6 @@ export default function App() {
 
       {needsOnboarding ? (
         <Onboarding
-          provider={settings.llmProvider}
           persist={Boolean(authUser)}
           userId={authUser?.id ?? null}
           needsXHandle={Boolean(authUser) && !authUser?.xUsername}
@@ -2640,22 +2637,6 @@ export default function App() {
             fallback when overrides are omitted.
           </p>
           <div className="settings-grid">
-            <label className="settings-field">
-              <span>LLM provider</span>
-              <select
-                className="settings-select"
-                value={settingsDraft.llmProvider}
-                onChange={(e) =>
-                  setSettingsDraft((prev) => ({
-                    ...prev,
-                    llmProvider: normalizeLlmProvider(e.target.value),
-                  }))
-                }
-              >
-                <option value="gemini">Gemini Flash (cheapest)</option>
-                <option value="deepseek">DeepSeek</option>
-              </select>
-            </label>
             <label className="settings-field">
               <span>Max thread characters</span>
               <input

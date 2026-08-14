@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
-import type { LlmProvider } from "./lib/settings";
 import {
   AUDIENCE_OPTIONS,
   GOAL_OPTIONS,
@@ -42,7 +41,6 @@ const QUESTIONS: Array<{
 ];
 
 export function Onboarding(props: {
-  provider: LlmProvider;
   persist: boolean;
   userId?: string | null;
   needsXHandle?: boolean;
@@ -94,7 +92,6 @@ export function Onboarding(props: {
           topics: labelsFor(topics, TOPIC_OPTIONS),
           goals: labelsFor(goals, GOAL_OPTIONS),
           audiences: labelsFor(audiences, AUDIENCE_OPTIONS),
-          provider: props.provider,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {

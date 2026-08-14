@@ -5,10 +5,8 @@
 import {
   addTokenUsage,
   chatCompletions,
-  normalizeLlmProvider,
-  providerApiKeyEnvName,
+  resolveDeepseekApiKey,
   resolveFlashModel,
-  resolveProviderApiKey,
   type LlmProvider,
   type TokenUsage,
 } from "./deepseek.js";
@@ -474,38 +472,34 @@ function buildWarning(parts: string[]): string | undefined {
 }
 
 /**
- * Triage threads with one batched LLM call (Gemini Flash or DeepSeek).
+ * Triage threads with one batched DeepSeek call.
  * Returns only scored threads. On failure returns [] + warning (never raw unscored rows).
  */
 export async function triageThreads(opts: {
   agenda?: string;
   threads: ThreadCard[];
   apiKey?: string;
-  provider?: LlmProvider;
   /** Injectable memory search (tests). Defaults to local index; soft-fails. */
   searchMemory?: MemorySearchFn;
 }): Promise<TriageResult> {
   const threads = opts.threads;
   if (!threads.length) return { threads };
 
-  const provider = normalizeLlmProvider(opts.provider);
+  const provider: LlmProvider = "deepseek";
   // Explicit apiKey (including "") wins so tests can force a missing key.
   const apiKey =
-    opts.apiKey !== undefined
-      ? opts.apiKey.trim()
-      : resolveProviderApiKey(provider);
+    opts.apiKey !== undefined ? opts.apiKey.trim() : resolveDeepseekApiKey();
   if (!apiKey) {
-    const envName = providerApiKeyEnvName(provider);
     return {
       threads: [],
-      warning: `Triage skipped — set ${envName} for summaries and bait scores.`,
+      warning: "Triage skipped — set DEEPSEEK_API_KEY for summaries and bait scores.",
     };
   }
 
   const batch = threads.slice(0, MAX_TRIAGE_THREADS);
   const overflow = threads.length - batch.length;
   const batchIds = batch.map((t) => t.id);
-  const model = resolveFlashModel(provider);
+  const model = resolveFlashModel();
   let usage: TokenUsage | undefined;
   let memories: TriageMemoryHit[] = [];
   try {
@@ -516,7 +510,6 @@ export async function triageThreads(opts: {
   const userMessage = buildUserMessage(opts.agenda ?? "", batch, memories);
 
   const first = await chatCompletions({
-    provider,
     model,
     apiKey,
     purpose: "triage",
@@ -535,7 +528,6 @@ export async function triageThreads(opts: {
 
   if (!items?.length) {
     const repair = await chatCompletions({
-      provider,
       model,
       apiKey,
       purpose: "triage_repair",
@@ -578,7 +570,6 @@ export async function triageThreads(opts: {
       missingMemories = [];
     }
     const repairMissing = await chatCompletions({
-      provider,
       model,
       apiKey,
       purpose: "triage_missing",

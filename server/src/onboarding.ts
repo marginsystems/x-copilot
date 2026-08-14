@@ -4,7 +4,6 @@
 import {
   addTokenUsage,
   chatCompletions,
-  normalizeLlmProvider,
   resolveFlashModel,
   type LlmProvider,
   type TokenUsage,
@@ -204,14 +203,12 @@ function buildUserPrompt(answers: OnboardingAnswers): string {
 
 export async function generateOnboardingAgendas(
   answers: OnboardingAnswers,
-  opts?: { provider?: unknown },
 ): Promise<GenerateAgendasResult> {
-  const provider = normalizeLlmProvider(opts?.provider);
-  const model = resolveFlashModel(provider);
+  const provider: LlmProvider = "deepseek";
+  const model = resolveFlashModel();
   const userPrompt = buildUserPrompt(answers);
 
   const first = await chatCompletions({
-    provider,
     model,
     purpose: "onboarding",
     temperature: 0.6,
@@ -228,7 +225,6 @@ export async function generateOnboardingAgendas(
     let usedModel = first.model;
     if (!agendas) {
       const repair = await chatCompletions({
-        provider,
         model,
         purpose: "onboarding_repair",
         messages: [
