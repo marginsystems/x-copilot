@@ -48,7 +48,14 @@ import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
 import { AuthButtons } from "./AuthButtons";
 import { BootScreen, Landing } from "./Landing";
 import { LegalPage } from "./Legal";
+import { CookieConsent } from "./CookieConsent";
 import { isLegalKind, SITE_ORIGIN, type LegalKind } from "./lib/legal";
+import {
+  readConsent,
+  writeConsent,
+  type ConsentChoice,
+} from "./lib/consent";
+import { applyAnalyticsConsent, bootAnalytics } from "./lib/analytics";
 import { Onboarding } from "./Onboarding";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
@@ -682,6 +689,12 @@ export default function App() {
   const [view, setView] = useState<AppView>(() =>
     typeof window === "undefined" ? "dashboard" : viewFromPath(window.location.pathname),
   );
+  const [consent, setConsent] = useState<ConsentChoice | null>(() =>
+    typeof window === "undefined" ? null : readConsent(),
+  );
+  const [consentOpen, setConsentOpen] = useState(
+    () => (typeof window === "undefined" ? false : readConsent() === null),
+  );
   const [usageWindow, setUsageWindow] = useState<UsageWindow>("7d");
   const [usage, setUsage] = useState<UsageSummaryResponse | null>(null);
   const [usageBusy, setUsageBusy] = useState(false);
@@ -1283,6 +1296,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    bootAnalytics(consent);
+  }, [consent]);
+
+  useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const arm = () => {
       const now = new Date();
@@ -1726,6 +1743,13 @@ export default function App() {
           }
         : prev,
     );
+  }
+
+  function chooseConsent(choice: ConsentChoice) {
+    writeConsent(choice);
+    setConsent(choice);
+    setConsentOpen(false);
+    applyAnalyticsConsent(choice);
   }
 
   function goToView(next: AppView) {
@@ -2500,6 +2524,16 @@ export default function App() {
               <a className="ghost menu-action" href="/terms">
                 Terms
               </a>
+              <button
+                type="button"
+                className="ghost menu-action"
+                onClick={() => {
+                  setConsentOpen(true);
+                  closeMenu();
+                }}
+              >
+                Privacy settings
+              </button>
             </div>
           </aside>
         </div>
@@ -3350,6 +3384,8 @@ export default function App() {
           </div>
         </div>
       ) : null}
+
+      <CookieConsent open={consentOpen} onChoose={chooseConsent} />
     </div>
   );
 }

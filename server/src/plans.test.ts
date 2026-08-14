@@ -27,4 +27,14 @@ describe("plans", () => {
     assert.equal(planDisplayName("pulse"), "Pulse");
     assert.equal(planDisplayName("free"), "Free");
   });
+
+  it("uses Stripe Dashboard product names x-copilot Pulse/Radar/Horizon", () => {
+    assert.deepEqual(
+      PAID_PLANS.map((p) => p.stripeProductName),
+      ["x-copilot Pulse", "x-copilot Radar", "x-copilot Horizon"],
+    );
+    assert.equal(PAID_PLANS[0].sorties, 4);
+    assert.equal(PAID_PLANS[1].sorties, 8);
+    assert.equal(PAID_PLANS[2].sorties, 20);
+  });
 });
