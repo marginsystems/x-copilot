@@ -103,7 +103,7 @@ type ScoutStreamEvent = {
   queries?: string[];
   coolCount?: number;
   targetCool?: number;
-  stopReason?: "qualified" | "target" | "exhausted" | "aborted" | "rate_limited" | "terminal_error";
+  stopReason?: "qualified" | "target" | "exhausted" | "aborted" | "rate_limited" | "terminal_error" | "credits_exhausted";
   candidates?: number;
   bucketSize?: number;
   triageWarning?: string;
