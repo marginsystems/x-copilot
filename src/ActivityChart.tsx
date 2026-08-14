@@ -8,19 +8,21 @@ import {
 type Props = {
   series: ActivitySeriesPoint[];
   bucket: ActivityBucket;
+  /** Thin sparkline for a collapsed flight path. */
+  compact?: boolean;
 };
 
 /**
  * Lightweight dual-series SVG: interaction bars + views line.
  * Sized by the parent reserved box (viewBox scales).
  */
-export function ActivityChart({ series, bucket }: Props) {
+export function ActivityChart({ series, bucket, compact = false }: Props) {
   const width = 600;
-  const height = 120;
-  const padL = 28;
+  const height = compact ? 44 : 120;
+  const padL = compact ? 6 : 28;
   const padR = 8;
-  const padT = 10;
-  const padB = 22;
+  const padT = compact ? 4 : 10;
+  const padB = compact ? 4 : 22;
   const innerW = width - padL - padR;
   const innerH = height - padT - padB;
   const n = Math.max(series.length, 1);
@@ -127,19 +129,21 @@ export function ActivityChart({ series, bucket }: Props) {
           </circle>
         ) : null,
       )}
-      {series.map((p, i) =>
-        i % labelStep === 0 || i === n - 1 ? (
-          <text
-            key={`t-${p.period}`}
-            className="activity-chart-label"
-            x={padL + i * (barW + gap) + barW / 2}
-            y={height - 6}
-            textAnchor="middle"
-          >
-            {formatPeriodLabel(p.period, bucket)}
-          </text>
-        ) : null,
-      )}
+      {!compact
+        ? series.map((p, i) =>
+            i % labelStep === 0 || i === n - 1 ? (
+              <text
+                key={`t-${p.period}`}
+                className="activity-chart-label"
+                x={padL + i * (barW + gap) + barW / 2}
+                y={height - 6}
+                textAnchor="middle"
+              >
+                {formatPeriodLabel(p.period, bucket)}
+              </text>
+            ) : null,
+          )
+        : null}
     </svg>
   );
 }
