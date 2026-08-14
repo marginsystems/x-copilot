@@ -941,6 +941,10 @@ h3 {
   .usage-stats {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .usage-stats-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .usage-stat {
@@ -1005,6 +1009,14 @@ h3 {
   color: var(--danger);
   display: block;
   margin-top: 2px;
+}
+
+.admin-tenant-row {
+  cursor: pointer;
+}
+
+.admin-tenant-row:hover {
+  background: var(--raised);
 }
 
 .billing-block {

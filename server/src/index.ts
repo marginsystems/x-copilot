@@ -68,7 +68,7 @@ import {
   resolveDetectScreenName,
 } from "./detectReply.js";
 import { getPlatformDb, getLocalTenantId } from "./db.js";
-import { getUsageSummary } from "./usageMeter.js";
+import { getUsageSummary, toTenantUsageView } from "./usageMeter.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
 import { tryHandleAuth } from "./authHttp.js";
 import { tryHandleOnboarding } from "./onboardingHttp.js";
@@ -77,9 +77,13 @@ import { authRequired, bindHost, isPublicApiPath } from "./authGuard.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { tryHandleAdmin } from "./adminHttp.js";
 import {
+  creditLimitForPlan,
   creditsExhaustedResponse,
+  effectivePlanKey,
+  ensureUserBillingRow,
   ensureUserTenant,
 } from "./billingStore.js";
+import { PLAN_CREDIT_LIMITS } from "./plans.js";
 import { getRequestContext, getRequestTenantId, runWithRequestContext } from "./requestContext.js";
 import {
   tryHandleBilling,
@@ -402,8 +406,20 @@ const server = http.createServer(async (req, res) => {
             ? windowRaw
             : "7d";
         try {
-          const summary = getUsageSummary({ window });
-          return send(req, res, 200, { ok: true, ...summary });
+          const user = getSessionUser(req);
+          const tenantId = getRequestTenantId();
+          let creditLimit = PLAN_CREDIT_LIMITS.free;
+          if (user) {
+            const row = ensureUserBillingRow(user.id, tenantId);
+            creditLimit = creditLimitForPlan(
+              effectivePlanKey(row, user.email),
+            );
+          }
+          const summary = getUsageSummary({ window, creditLimit });
+          return send(req, res, 200, {
+            ok: true,
+            ...toTenantUsageView(summary),
+          });
         } catch (err) {
           return send(req, res, 500, {
             error: "usage_unavailable",

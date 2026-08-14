@@ -561,12 +561,11 @@ type UsageWindow = "24h" | "7d" | "all";
 type UsageRecentRow = {
   id: string;
   at: string;
-  method: string;
-  path: string;
+  activity: string;
   status: number;
   error: string | null;
-  postsRead: number;
-  estimatedUsd: number;
+  credits: number;
+  remaining: number | null;
 };
 
 type UsageSummaryResponse = {
@@ -574,10 +573,10 @@ type UsageSummaryResponse = {
   tenantSlug?: string;
   window?: UsageWindow;
   calls?: number;
-  postsRead?: number;
-  estimatedUsd?: number;
+  creditsUsed?: number;
+  creditLimit?: number;
+  remaining?: number;
   creditsDepletedRecent?: boolean;
-  postReadUsd?: number;
   note?: string;
   recent?: UsageRecentRow[];
   error?: string;
@@ -2504,12 +2503,8 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            Your plan is a monthly credit pool of X post reads. Hosted billing is
-            Mergestorm, Inc. Platform COGS still settle in{" "}
-            <a href="https://console.x.com" target="_blank" rel="noreferrer">
-              console.x.com
-            </a>
-            .
+            Your plan is a monthly credit pool of X post reads. Unused credits
+            do not roll over. Hosted billing is Mergestorm, Inc.
           </p>
           <BillingPanel
             billing={billing}
@@ -2550,65 +2545,61 @@ export default function App() {
           {usageStatus ? <p className="status danger">{usageStatus}</p> : null}
           {usage?.creditsDepletedRecent ? (
             <p className="usage-banner">
-              X returned HTTP 402 (platform wallet empty). That is separate from
-              your plan credits — tell an operator to top up console.x.com.
+              Scout could not finish — a platform read limit was hit. Try again
+              shortly.
             </p>
           ) : null}
           {usage ? (
             <>
-              <div className="usage-stats">
+              <div className="usage-stats usage-stats-3">
                 <div className="usage-stat">
-                  <span className="usage-stat-label">Est. spend</span>
+                  <span className="usage-stat-label">Credits used</span>
                   <strong className="usage-stat-value">
-                    ${(usage.estimatedUsd ?? 0).toFixed(3)}
+                    {usage.creditsUsed ?? 0}
                   </strong>
                 </div>
                 <div className="usage-stat">
-                  <span className="usage-stat-label">Posts read</span>
+                  <span className="usage-stat-label">Remaining</span>
                   <strong className="usage-stat-value">
-                    {usage.postsRead ?? 0}
+                    {usage.remaining ?? 0}
                   </strong>
                 </div>
                 <div className="usage-stat">
-                  <span className="usage-stat-label">API calls</span>
+                  <span className="usage-stat-label">Calls</span>
                   <strong className="usage-stat-value">{usage.calls ?? 0}</strong>
-                </div>
-                <div className="usage-stat">
-                  <span className="usage-stat-label">Per post read</span>
-                  <strong className="usage-stat-value">
-                    ~${(usage.postReadUsd ?? 0.005).toFixed(3)}
-                  </strong>
                 </div>
               </div>
               <p className="settings-help">{usage.note}</p>
-              <h3 className="usage-log-title">API log</h3>
+              <h3 className="usage-log-title">Usage logs</h3>
               {(usage.recent?.length ?? 0) === 0 ? (
-                <p className="status">No X API calls recorded in this window yet.</p>
+                <p className="status">No usage recorded in this window yet.</p>
               ) : (
                 <div className="usage-log">
                   <table>
                     <thead>
                       <tr>
                         <th>When</th>
-                        <th>Path</th>
-                        <th>Status</th>
-                        <th>Reads</th>
-                        <th>Est. $</th>
+                        <th>Activity</th>
+                        <th>Credits</th>
+                        <th>Remaining</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(usage.recent ?? []).map((row) => (
                         <tr key={row.id}>
                           <td>{new Date(row.at).toLocaleString()}</td>
-                          <td className="usage-path">
-                            <code>{row.path}</code>
+                          <td>
+                            {row.activity}
                             {row.error ? (
                               <span className="usage-error"> {row.error}</span>
                             ) : null}
                           </td>
-                          <td>{row.status}</td>
-                          <td>{row.postsRead}</td>
-                          <td>${row.estimatedUsd.toFixed(3)}</td>
+                          <td>{row.credits}</td>
+                          <td>
+                            {row.remaining === null || row.remaining === undefined
+                              ? "—"
+                              : row.remaining}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
