@@ -99,6 +99,14 @@ export const DEFAULT_TARGET_COOL = 5;
 export const DEFAULT_BUCKET_SIZE = 20;
 export const COLLECT_COUNT_PER_QUERY = 20;
 export const COLLECT_QUERY_DELAY_MS = 500;
+
+/** Avoid billing retweets Scout would drop anyway. */
+export function withScoutSearchExclusions(query: string): string {
+  const q = query.trim();
+  if (!q) return q;
+  if (/\b-?is:retweet\b/i.test(q)) return q;
+  return `${q} -is:retweet`;
+}
 export const MAX_SEARCH_CALLS = 48;
 export const MAX_BUCKET_ATTEMPTS = 8;
 /** Cool = engageable + bait not high. */
@@ -491,8 +499,10 @@ export async function runScoutCollect(opts: {
         );
 
         const result = await doSearch({
-          query,
+          query: withScoutSearchExclusions(query),
           count: COLLECT_COUNT_PER_QUERY,
+          maxPages: 1,
+          expandReferenced: false,
           session,
           signal: opts.signal,
         });

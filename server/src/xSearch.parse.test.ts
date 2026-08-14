@@ -7,6 +7,7 @@ import {
   parseSearchTimelinePage,
   parseSearchTimelineResponse,
   resolveWithinTime,
+  searchExpansions,
   searchTimelinePages,
   textHasOutboundLink,
   tweetResultToCard,
@@ -740,6 +741,32 @@ describe("searchTimelinePages", () => {
     );
     assert.deepEqual(calls, [undefined, "c1", "c2"]);
     assert.match(withSearchRecency("builders"), /within_time:/);
+  });
+
+  it("honors maxPages: 1 even when a cursor remains", async () => {
+    let pages = 0;
+    const result = await searchTimelinePages({
+      query: "q",
+      maxPages: 1,
+      pageDelayMs: 0,
+      fetchPage: async () => {
+        pages += 1;
+        return {
+          ok: true as const,
+          queryId: "qid",
+          threads: [card("one")],
+          bottomCursor: "more",
+        };
+      },
+    });
+    assert.equal(result.ok, true);
+    assert.equal(pages, 1);
+    if (result.ok) assert.equal(result.pages, 1);
+  });
+
+  it("omits referenced-tweet expansions when asked", () => {
+    assert.match(searchExpansions(true), /referenced_tweets\.id/);
+    assert.equal(searchExpansions(false).includes("referenced_tweets"), false);
   });
 
   it("stops early when cursor is null", async () => {

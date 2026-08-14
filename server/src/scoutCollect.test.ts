@@ -5,6 +5,7 @@ import {
   clampTargetCool,
   isCoolThread,
   runScoutCollect,
+  withScoutSearchExclusions,
   type ScoutCollectEvent,
 } from "./scoutCollect.ts";
 import { normalizeAuthorKey } from "./interactionStore.ts";
@@ -169,6 +170,17 @@ describe("clampTargetCool / clampBucketSize", () => {
   });
 });
 
+describe("withScoutSearchExclusions", () => {
+  it("appends -is:retweet once", () => {
+    assert.equal(withScoutSearchExclusions("shipping AI"), "shipping AI -is:retweet");
+    assert.equal(
+      withScoutSearchExclusions("shipping AI -is:retweet"),
+      "shipping AI -is:retweet",
+    );
+    assert.equal(withScoutSearchExclusions("is:retweet AI"), "is:retweet AI");
+  });
+});
+
 describe("runScoutCollect bucket loop", () => {
   const session = {
     bearerToken: "t",
@@ -176,6 +188,54 @@ describe("runScoutCollect bucket loop", () => {
     operatorUserId: "",
     operatorUsername: "me",
   };
+
+  it("asks search for one page and no referenced-tweet expansions", async () => {
+    const seen: Array<{
+      query?: string;
+      maxPages?: number;
+      expandReferenced?: boolean;
+    }> = [];
+    const id = { n: 0 };
+    await runScoutCollect({
+      queries: ["shipping AI"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async (opts) => {
+          seen.push({
+            query: opts.query,
+            maxPages: opts.maxPages,
+            expandReferenced: opts.expandReferenced,
+          });
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: fillBucket(id, 5),
+            bottomCursor: "more",
+          };
+        },
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => ({
+          threads: threads.map((t, i) => ({
+            ...t,
+            engage: i === 0 ? ("consider" as const) : ("skip" as const),
+            baitScore: i === 0 ? 20 : 80,
+          })),
+        }),
+      },
+    });
+    assert.ok(seen.length >= 1);
+    assert.equal(seen[0]?.maxPages, 1);
+    assert.equal(seen[0]?.expandReferenced, false);
+    assert.match(seen[0]?.query ?? "", /-is:retweet/);
+  });
 
   it("fills bucket to K before any triage call", async () => {
     let triageCalls = 0;
