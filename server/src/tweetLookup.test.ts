@@ -4,6 +4,7 @@ import {
   clearParentTweetCache,
   fetchParentTweet,
   hydrateReplyParents,
+  parseTweetsMetricsMap,
 } from "./tweetLookup.ts";
 import type { ThreadCard } from "./xSearch.ts";
 
@@ -349,5 +350,25 @@ describe("fetchParentTweet cache semantics", () => {
         globalThis.fetch = origFetch;
       }
     });
+  });
+});
+
+describe("parseTweetsMetricsMap", () => {
+  it("maps v2 batch tweets to metrics by id", () => {
+    const map = parseTweetsMetricsMap({
+      data: [
+        {
+          id: "11",
+          public_metrics: { impression_count: 40, like_count: 2 },
+        },
+        {
+          id: "12",
+          public_metrics: { impression_count: 0, like_count: 0 },
+        },
+      ],
+    });
+    assert.equal(map.get("11")?.views, 40);
+    assert.equal(map.get("11")?.likes, 2);
+    assert.equal(map.get("12")?.likes, 0);
   });
 });

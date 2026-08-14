@@ -239,6 +239,91 @@ export async function fetchTweetMetrics(opts: {
   return parseTweetMetrics(res.json);
 }
 
+/** Parse `GET /2/tweets?ids=` payload → id → metrics. */
+export function parseTweetsMetricsMap(json: unknown): Map<string, TweetMetrics> {
+  const out = new Map<string, TweetMetrics>();
+  if (!json || typeof json !== "object") return out;
+  const data = (json as { data?: unknown }).data;
+  const rows = Array.isArray(data) ? data : [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const id = String((row as { id?: unknown }).id ?? "").trim();
+    if (!id) continue;
+    const metrics = parseTweetMetrics(row);
+    if (metrics) out.set(id, metrics);
+  }
+  return out;
+}
+
+/** How long a batch live-metrics result stays cached before a re-fetch. */
+const LIVE_METRICS_TTL_MS = 15 * 60 * 1000;
+
+const liveMetricsCache = new Map<
+  string,
+  { metrics: TweetMetrics | null; at: number }
+>();
+
+/**
+ * One request for many tweet ids (X cap 100). Soft-fails to an empty map.
+ * Cached per id (short TTL) so chart refreshes do not re-fetch the same
+ * still-pending replies on every request, and never billed to the requesting
+ * tenant's credit pool (passive reads, unlike Scout's active lookups).
+ */
+export async function fetchTweetMetricsMany(opts: {
+  tweetIds: string[];
+  session?: SessionCreds;
+  signal?: AbortSignal;
+}): Promise<Map<string, TweetMetrics>> {
+  const ids = [...new Set(opts.tweetIds.map((id) => id.trim()).filter(Boolean))];
+  if (!ids.length) return new Map();
+  if (opts.signal?.aborted) return new Map();
+
+  const now = Date.now();
+  const out = new Map<string, TweetMetrics>();
+  const toFetch: string[] = [];
+  for (const id of ids) {
+    const cached = liveMetricsCache.get(id);
+    if (cached && now - cached.at < LIVE_METRICS_TTL_MS) {
+      if (cached.metrics) out.set(id, cached.metrics);
+      continue;
+    }
+    toFetch.push(id);
+  }
+  if (!toFetch.length) return out;
+  for (const [id, entry] of liveMetricsCache) {
+    if (now - entry.at >= LIVE_METRICS_TTL_MS) liveMetricsCache.delete(id);
+  }
+
+  const session = opts.session ?? getSessionFromEnv();
+  if (!session.configured) return out;
+
+  const res = await xApiGet({
+    path: "/tweets",
+    query: {
+      ids: toFetch.join(","),
+      "tweet.fields": "public_metrics",
+    },
+    creds: session,
+    signal: opts.signal,
+    timeoutMs: 12000,
+    skipUsage: true,
+  });
+  if (!res.ok) return out;
+
+  const fetched = parseTweetsMetricsMap(res.json);
+  const fetchedAt = Date.now();
+  for (const [id, metrics] of fetched) {
+    liveMetricsCache.set(id, { metrics, at: fetchedAt });
+    out.set(id, metrics);
+  }
+  // Cache confirmed absence (deleted/private tweets left out of the batch) so
+  // ids that can never resolve stop being re-fetched on every stats request.
+  for (const id of toFetch) {
+    if (!out.has(id)) liveMetricsCache.set(id, { metrics: null, at: fetchedAt });
+  }
+  return out;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }

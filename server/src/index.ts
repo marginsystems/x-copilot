@@ -5,8 +5,11 @@ import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import {
+  LIVE_METRICS_ID_CAP,
   bucketInteractions,
+  mergeLiveMetrics,
   parseActivityBucket,
+  pendingReplyIds,
 } from "./activityStats.js";
 import {
   getGamification,
@@ -67,6 +70,7 @@ import {
   detectOwnReplyToThreadWithRetry,
   resolveDetectScreenName,
 } from "./detectReply.js";
+import { fetchTweetMetricsMany } from "./tweetLookup.js";
 import { getPlatformDb, getLocalTenantId } from "./db.js";
 import { getUsageSummary, toTenantUsageView } from "./usageMeter.js";
 import { getSessionFromEnv, verifySession } from "./xSession.js";
@@ -724,7 +728,13 @@ const server = http.createServer(async (req, res) => {
         const history = await listInteractionHistory({
           limit: MAX_INTERACTION_STORE,
         });
-        return send(req, res, 200, bucketInteractions(history, { bucket }));
+        const pending = pendingReplyIds(history, LIVE_METRICS_ID_CAP);
+        let rows = history;
+        if (pending.length) {
+          const live = await fetchTweetMetricsMany({ tweetIds: pending });
+          rows = mergeLiveMetrics(history, live);
+        }
+        return send(req, res, 200, bucketInteractions(rows, { bucket }));
       }
 
       if (req.method === "GET" && url.pathname === "/api/gamification") {

@@ -75,6 +75,23 @@ export async function fetchActivityStats(
   }
 }
 
+/**
+ * Views-line Y source. Days with marks but no sample hold the last sampled
+ * altitude so today does not crash to zero.
+ */
+export function viewsLineAltitude(
+  point: ActivitySeriesPoint,
+  lastSampledViews: number,
+): { views: number; held: boolean } {
+  if (point.views > 0 || point.withStats > 0) {
+    return { views: point.views, held: false };
+  }
+  if (point.interactions > 0) {
+    return { views: lastSampledViews, held: true };
+  }
+  return { views: 0, held: false };
+}
+
 /** Short x-axis label for day (`MM-DD`) or week (`Wnn`). */
 export function formatPeriodLabel(period: string, bucket: ActivityBucket): string {
   if (bucket === "week") {

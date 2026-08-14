@@ -1,5 +1,6 @@
 import {
   formatPeriodLabel,
+  viewsLineAltitude,
   type ActivityBucket,
   type ActivitySeriesPoint,
 } from "./lib/activityStats";
@@ -7,19 +8,21 @@ import {
 type Props = {
   series: ActivitySeriesPoint[];
   bucket: ActivityBucket;
+  /** Thin sparkline for a collapsed flight path. */
+  compact?: boolean;
 };
 
 /**
  * Lightweight dual-series SVG: interaction bars + views line.
  * Sized by the parent reserved box (viewBox scales).
  */
-export function ActivityChart({ series, bucket }: Props) {
+export function ActivityChart({ series, bucket, compact = false }: Props) {
   const width = 600;
-  const height = 120;
-  const padL = 28;
+  const height = compact ? 44 : 120;
+  const padL = compact ? 6 : 28;
   const padR = 8;
-  const padT = 10;
-  const padB = 22;
+  const padT = compact ? 4 : 10;
+  const padB = compact ? 4 : 22;
   const innerW = width - padL - padR;
   const innerH = height - padT - padB;
   const n = Math.max(series.length, 1);
@@ -33,16 +36,34 @@ export function ActivityChart({ series, bucket }: Props) {
     if (p.views > maxViews) maxViews = p.views;
   }
 
-  const points: Array<{ x: number; y: number; p: ActivitySeriesPoint }> = [];
+  const points: Array<{
+    x: number;
+    y: number;
+    p: ActivitySeriesPoint;
+    held: boolean;
+    lineViews: number;
+  }> = [];
   const bars: Array<{ x: number; h: number; p: ActivitySeriesPoint }> = [];
+
+  let lastSampledViews = 0;
+  let maxLineViews = maxViews;
+  series.forEach((p) => {
+    const alt = viewsLineAltitude(p, lastSampledViews);
+    if (!alt.held) lastSampledViews = alt.views;
+    if (alt.views > maxLineViews) maxLineViews = alt.views;
+  });
+  if (maxLineViews < 1) maxLineViews = 1;
+  lastSampledViews = 0;
 
   series.forEach((p, i) => {
     const x = padL + i * (barW + gap);
     const h = (p.interactions / maxIx) * innerH;
     bars.push({ x, h, p });
+    const alt = viewsLineAltitude(p, lastSampledViews);
+    if (!alt.held) lastSampledViews = alt.views;
     const cx = x + barW / 2;
-    const y = padT + innerH - (p.views / maxViews) * innerH;
-    points.push({ x: cx, y, p });
+    const y = padT + innerH - (alt.views / maxLineViews) * innerH;
+    points.push({ x: cx, y, p, held: alt.held, lineViews: alt.views });
   });
 
   const lineD = points
@@ -93,30 +114,36 @@ export function ActivityChart({ series, bucket }: Props) {
         pt.p.views > 0 || pt.p.interactions > 0 ? (
           <circle
             key={`c-${pt.p.period}`}
-            className="activity-chart-dot"
+            className={
+              pt.held ? "activity-chart-dot activity-chart-dot-held" : "activity-chart-dot"
+            }
             cx={pt.x}
             cy={pt.y}
             r={2.2}
           >
             <title>
-              {pt.p.period}: {pt.p.views} views
+              {pt.held
+                ? `${pt.p.period}: ${pt.p.interactions} marked · views pending`
+                : `${pt.p.period}: ${pt.lineViews} views`}
             </title>
           </circle>
         ) : null,
       )}
-      {series.map((p, i) =>
-        i % labelStep === 0 || i === n - 1 ? (
-          <text
-            key={`t-${p.period}`}
-            className="activity-chart-label"
-            x={padL + i * (barW + gap) + barW / 2}
-            y={height - 6}
-            textAnchor="middle"
-          >
-            {formatPeriodLabel(p.period, bucket)}
-          </text>
-        ) : null,
-      )}
+      {!compact
+        ? series.map((p, i) =>
+            i % labelStep === 0 || i === n - 1 ? (
+              <text
+                key={`t-${p.period}`}
+                className="activity-chart-label"
+                x={padL + i * (barW + gap) + barW / 2}
+                y={height - 6}
+                textAnchor="middle"
+              >
+                {formatPeriodLabel(p.period, bucket)}
+              </text>
+            ) : null,
+          )
+        : null}
     </svg>
   );
 }

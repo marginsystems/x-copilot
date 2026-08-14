@@ -401,88 +401,102 @@ function ThreadRow({
   );
 }
 
-function SkippedRow({ entry }: { entry: SkipHistoryEntry }) {
+function SkippedRow({
+  entry,
+  index = 0,
+}: {
+  entry: SkipHistoryEntry;
+  index?: number;
+}) {
   const ago = formatTimeAgo(entry.at);
   const absolute = formatAbsoluteTime(entry.at);
   const blurb = entry.summary || entry.text || entry.threadId;
   return (
-    <article className="thread-row interacted-row">
-      <div className="row-head static">
-        <span className="bait" aria-hidden="true" />
-        <span className="row-main">
-          <span className="row-summary">{blurb}</span>
-          <span className="row-meta">
-            <span>{entry.author}</span>
-            {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
-            <span className="chip">skipped</span>
-          </span>
+    <article
+      className="history-row"
+      style={{ ["--i" as string]: index }}
+    >
+      <div className="history-row-body">
+        <span className="row-summary">{blurb}</span>
+        <span className="row-meta">
+          <span>{entry.author}</span>
+          {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
+          <span className="chip">skipped</span>
         </span>
       </div>
     </article>
   );
 }
 
-function DismissedRow({ entry }: { entry: DismissalHistoryEntry }) {
+function DismissedRow({
+  entry,
+  index = 0,
+}: {
+  entry: DismissalHistoryEntry;
+  index?: number;
+}) {
   const ago = formatTimeAgo(entry.at);
   const absolute = formatAbsoluteTime(entry.at);
   const blurb = entry.summary || entry.text || entry.threadId;
   return (
-    <article className="thread-row interacted-row">
-      <div className="row-head static">
-        <span className="bait" aria-hidden="true" />
-        <span className="row-main">
-          <span className="row-summary">{blurb}</span>
-          <span className="row-meta">
-            <span>{entry.author}</span>
-            {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
-            <span className="chip">not interested</span>
-          </span>
-          {entry.reason ? (
-            <span className="row-meta">{entry.reason}</span>
-          ) : null}
+    <article
+      className="history-row"
+      style={{ ["--i" as string]: index }}
+    >
+      <div className="history-row-body">
+        <span className="row-summary">{blurb}</span>
+        <span className="row-meta">
+          <span>{entry.author}</span>
+          {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
+          <span className="chip">not interested</span>
         </span>
+        {entry.reason ? (
+          <span className="row-meta">{entry.reason}</span>
+        ) : null}
       </div>
       {entry.url ? (
-        <div className="row-detail compact">
-          <div className="row">
-            <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
-              Open on X
-            </a>
-          </div>
+        <div className="history-row-actions">
+          <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
+            Open on X
+          </a>
         </div>
       ) : null}
     </article>
   );
 }
 
-function ExpiredRow({ entry }: { entry: ExpiredHistoryEntry }) {
+function ExpiredRow({
+  entry,
+  index = 0,
+}: {
+  entry: ExpiredHistoryEntry;
+  index?: number;
+}) {
   const tweetAgo = formatTimeAgo(entry.createdAt);
   const expiredAgo = formatTimeAgo(entry.at);
   const absolute = formatAbsoluteTime(entry.createdAt || entry.at);
   const blurb = entry.summary || entry.text || entry.threadId;
   return (
-    <article className="thread-row interacted-row">
-      <div className="row-head static">
-        <span className="bait" aria-hidden="true" />
-        <span className="row-main">
-          <span className="row-summary">{blurb}</span>
-          <span className="row-meta">
-            <span>{entry.author}</span>
-            {tweetAgo ? (
-              <span title={absolute ?? undefined}>{tweetAgo}</span>
-            ) : null}
-            <span className="chip">expired</span>
-            {expiredAgo ? <span>moved {expiredAgo}</span> : null}
-          </span>
+    <article
+      className="history-row"
+      style={{ ["--i" as string]: index }}
+    >
+      <div className="history-row-body">
+        <span className="row-summary">{blurb}</span>
+        <span className="row-meta">
+          <span>{entry.author}</span>
+          {tweetAgo ? (
+            <span title={absolute ?? undefined}>{tweetAgo}</span>
+          ) : null}
+          <span className="chip">expired</span>
+          {expiredAgo ? <span>moved {expiredAgo}</span> : null}
         </span>
       </div>
       {entry.url ? (
-        <div className="row-detail compact">
-          <div className="row">
-            <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
-              Open on X
-            </a>
-          </div>
+        <div className="history-row-actions">
+          <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
+            Open on X
+          </a>
         </div>
       ) : null}
     </article>
@@ -507,8 +521,10 @@ function formatStatChip(
 
 function InteractedRow({
   entry,
+  index = 0,
 }: {
   entry: InteractionHistoryEntry;
+  index?: number;
 }) {
   const ago = formatTimeAgo(entry.at);
   const absolute = formatAbsoluteTime(entry.at);
@@ -518,34 +534,32 @@ function InteractedRow({
   const t24hLabel = formatStatChip("24h", entry.stats?.t24h, hasReply);
   const replyHref = entry.replyUrl;
   return (
-    <article className="thread-row interacted-row">
-      <div className="row-head static">
-        <span className="bait" aria-hidden="true" />
-        <span className="row-main">
-          <span className="row-summary">{blurb}</span>
-          <span className="row-meta">
-            <span>{entry.author}</span>
-            {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
-            <span className="chip chip-interacted">interacted</span>
-            {t1hLabel ? <span className="chip">{t1hLabel}</span> : null}
-            {t24hLabel ? <span className="chip">{t24hLabel}</span> : null}
-          </span>
+    <article
+      className="history-row"
+      style={{ ["--i" as string]: index }}
+    >
+      <div className="history-row-body">
+        <span className="row-summary">{blurb}</span>
+        <span className="row-meta">
+          <span>{entry.author}</span>
+          {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
+          <span className="chip chip-interacted">interacted</span>
+          {t1hLabel ? <span className="chip">{t1hLabel}</span> : null}
+          {t24hLabel ? <span className="chip">{t24hLabel}</span> : null}
         </span>
       </div>
       {entry.url || replyHref ? (
-        <div className="row-detail compact">
-          <div className="row">
-            {entry.url ? (
-              <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
-                Open on X
-              </a>
-            ) : null}
-            {replyHref ? (
-              <a className="ghost" href={replyHref} target="_blank" rel="noreferrer">
-                Open reply
-              </a>
-            ) : null}
-          </div>
+        <div className="history-row-actions">
+          {entry.url ? (
+            <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
+              Open on X
+            </a>
+          ) : null}
+          {replyHref ? (
+            <a className="ghost" href={replyHref} target="_blank" rel="noreferrer">
+              Open reply
+            </a>
+          ) : null}
         </div>
       ) : null}
     </article>
@@ -636,6 +650,19 @@ export default function App() {
   );
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const [activityBucket, setActivityBucket] = useState<ActivityBucket>("day");
+  const [flightPathOpen, setFlightPathOpen] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem("x-copilot-flight-path-open");
+      if (stored === "0") return false;
+      if (stored === "1") return true;
+    } catch {
+      /* private mode */
+    }
+    return (
+      typeof window !== "undefined" &&
+      window.matchMedia("(min-width: 700px)").matches
+    );
+  });
   const [activityStats, setActivityStats] = useState<ActivityStats>(() =>
     emptyActivityStats("day"),
   );
@@ -910,6 +937,18 @@ export default function App() {
   function onActivityBucket(next: ActivityBucket) {
     activityRequestBucketRef.current = next;
     void hydrateActivityStats(next);
+  }
+
+  function onToggleFlightPath() {
+    setFlightPathOpen((prev) => {
+      const next = !prev;
+      try {
+        sessionStorage.setItem("x-copilot-flight-path-open", next ? "1" : "0");
+      } catch {
+        /* private mode */
+      }
+      return next;
+    });
   }
 
   function isHiddenFromCurated(id: string): boolean {
@@ -2944,13 +2983,33 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <div className="threads-activity" aria-label="Flight path">
+            <div
+              className={
+                flightPathOpen
+                  ? "threads-activity"
+                  : "threads-activity is-collapsed"
+              }
+              aria-label="Flight path"
+            >
               <div className="threads-activity-head">
                 <div className="threads-activity-copy">
-                  <span className="threads-activity-title">Flight path</span>
-                  <span className="threads-activity-sub">
-                    Altitude is views. A missed day drops you back down.
-                  </span>
+                  <button
+                    type="button"
+                    className="threads-activity-toggle-path"
+                    aria-expanded={flightPathOpen}
+                    onClick={onToggleFlightPath}
+                  >
+                    <span className="threads-activity-title">Flight path</span>
+                    <span className="threads-activity-caret" aria-hidden="true">
+                      {flightPathOpen ? "–" : "+"}
+                    </span>
+                  </button>
+                  {flightPathOpen ? (
+                    <span className="threads-activity-sub">
+                      Altitude is sampled views. Marks without a sample hold the
+                      last altitude.
+                    </span>
+                  ) : null}
                 </div>
                 <div
                   className="threads-activity-toggle"
@@ -3035,6 +3094,7 @@ export default function App() {
                   <ActivityChart
                     series={activityStats.series}
                     bucket={activityStats.bucket}
+                    compact={!flightPathOpen}
                   />
                 )}
               </div>
@@ -3073,11 +3133,12 @@ export default function App() {
                     on X.
                   </p>
                 ) : (
-                  <div className="threads">
-                    {interactedHistory.map((entry) => (
+                  <div className="history-list">
+                    {interactedHistory.map((entry, i) => (
                       <InteractedRow
                         key={entry.threadId}
                         entry={entry}
+                        index={i}
                       />
                     ))}
                   </div>
@@ -3089,9 +3150,13 @@ export default function App() {
                     without dismissing the author.
                   </p>
                 ) : (
-                  <div className="threads">
-                    {skippedHistory.map((entry) => (
-                      <SkippedRow key={entry.threadId} entry={entry} />
+                  <div className="history-list">
+                    {skippedHistory.map((entry, i) => (
+                      <SkippedRow
+                        key={entry.threadId}
+                        entry={entry}
+                        index={i}
+                      />
                     ))}
                   </div>
                 )
@@ -3102,9 +3167,13 @@ export default function App() {
                     to dismiss it with an optional reason.
                   </p>
                 ) : (
-                  <div className="threads">
-                    {dismissedHistory.map((entry) => (
-                      <DismissedRow key={entry.threadId} entry={entry} />
+                  <div className="history-list">
+                    {dismissedHistory.map((entry, i) => (
+                      <DismissedRow
+                        key={entry.threadId}
+                        entry={entry}
+                        index={i}
+                      />
                     ))}
                   </div>
                 )
@@ -3114,9 +3183,13 @@ export default function App() {
                   automatically.
                 </p>
               ) : (
-                <div className="threads">
-                  {expiredHistory.map((entry) => (
-                    <ExpiredRow key={entry.threadId} entry={entry} />
+                <div className="history-list">
+                  {expiredHistory.map((entry, i) => (
+                    <ExpiredRow
+                      key={entry.threadId}
+                      entry={entry}
+                      index={i}
+                    />
                   ))}
                 </div>
               )}
