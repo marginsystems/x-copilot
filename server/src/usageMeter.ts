@@ -124,7 +124,7 @@ export function toTenantUsageView(summary: UsageSummary): TenantUsageView {
     tenantSlug: summary.tenantSlug,
     window: summary.window,
     calls: summary.calls,
-    creditsUsed: summary.postsRead,
+    creditsUsed: summary.monthCreditsUsed,
     creditLimit: summary.creditLimit ?? 0,
     remaining: summary.remaining ?? 0,
     creditsDepletedRecent: summary.creditsDepletedRecent,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
 
 export type AdminTenantRow = {
@@ -57,6 +57,7 @@ export function AdminPanel(props: {
   const [logs, setLogs] = useState<AdminTenantUsageResponse | null>(null);
   const [logsBusy, setLogsBusy] = useState(false);
   const [logsError, setLogsError] = useState("");
+  const logsRequestSeqRef = useRef(0);
 
   const selected = props.tenants?.find((t) => t.tenantId === selectedId) ?? null;
 
@@ -64,6 +65,7 @@ export function AdminPanel(props: {
     tenantId: string,
     window: UsageWindow = logWindow,
   ) {
+    const seq = ++logsRequestSeqRef.current;
     setLogsBusy(true);
     setLogsError("");
     try {
@@ -71,6 +73,7 @@ export function AdminPanel(props: {
         `/api/admin/tenants/${encodeURIComponent(tenantId)}/usage?window=${encodeURIComponent(window)}`,
       );
       const data = (await res.json()) as AdminTenantUsageResponse;
+      if (seq !== logsRequestSeqRef.current) return;
       if (!res.ok) {
         setLogs(null);
         setLogsError(data.message || data.error || `Logs failed (${res.status})`);
@@ -78,15 +81,18 @@ export function AdminPanel(props: {
       }
       setLogs(data);
     } catch (err) {
+      if (seq !== logsRequestSeqRef.current) return;
       setLogs(null);
       setLogsError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLogsBusy(false);
+      if (seq === logsRequestSeqRef.current) setLogsBusy(false);
     }
   }
 
   function openTenant(tenantId: string) {
     setSelectedId(tenantId);
+    setLogs(null);
+    setLogsError("");
     void loadTenantLogs(tenantId, logWindow);
   }
 

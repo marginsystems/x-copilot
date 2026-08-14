@@ -60,13 +60,19 @@ export async function tryHandleAdmin(
     /^\/api\/admin\/tenants\/([^/]+)\/usage$/,
   );
   if (req.method === "GET" && tenantUsage) {
-    const tenantId = decodeURIComponent(tenantUsage[1] ?? "");
     const windowRaw = (url.searchParams.get("window") || "7d").toLowerCase();
     const window =
       windowRaw === "24h" || windowRaw === "all" || windowRaw === "7d"
         ? windowRaw
         : "7d";
     try {
+      let tenantId: string;
+      try {
+        tenantId = decodeURIComponent(tenantUsage[1] ?? "");
+      } catch {
+        sendJson(req, res, 400, { error: "invalid_tenant_id" });
+        return true;
+      }
       const tenant = listAdminTenantUsage().find((t) => t.tenantId === tenantId);
       if (!tenant) {
         sendJson(req, res, 404, { error: "not_found" });
@@ -76,6 +82,7 @@ export async function tryHandleAdmin(
         tenantId,
         window,
         creditLimit: tenant.creditLimit,
+        limit: 200,
       });
       sendJson(req, res, 200, {
         ok: true,
