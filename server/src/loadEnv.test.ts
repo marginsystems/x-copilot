@@ -7,11 +7,14 @@ import { loadEnv } from "./loadEnv.ts";
 
 describe("loadEnv", () => {
   const prev = process.env.LOADENV_TEST_KEY;
+  const prevNodeEnv = process.env.NODE_ENV;
   const dirs: string[] = [];
 
   afterEach(() => {
     if (prev === undefined) delete process.env.LOADENV_TEST_KEY;
     else process.env.LOADENV_TEST_KEY = prev;
+    if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = prevNodeEnv;
     while (dirs.length) {
       const dir = dirs.pop();
       if (dir) rmSync(dir, { recursive: true, force: true });
@@ -38,5 +41,17 @@ describe("loadEnv", () => {
     process.env.LOADENV_TEST_KEY = "from-process";
     assert.equal(loadEnv(file, { override: true }), true);
     assert.equal(process.env.LOADENV_TEST_KEY, "from-file");
+  });
+
+  it("never overrides protected keys, even with override true", () => {
+    const file = writeEnv("LOADENV_TEST_KEY=from-file\nNODE_ENV=development\n");
+    process.env.LOADENV_TEST_KEY = "from-process";
+    process.env.NODE_ENV = "production";
+    assert.equal(
+      loadEnv(file, { override: true, protected: ["NODE_ENV"] }),
+      true,
+    );
+    assert.equal(process.env.LOADENV_TEST_KEY, "from-file");
+    assert.equal(process.env.NODE_ENV, "production");
   });
 });

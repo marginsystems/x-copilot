@@ -76,16 +76,18 @@ for arg in "$@"; do
   esac
 done
 
-# `pm2 restart --update-env` only refreshes keys listed in ecosystem `env`
-# (NODE_ENV, PORT). A leftover DEEPSEEK_API_KEY from an older start stays
-# in the process, and loadEnv will not replace it unless override is on.
-# Delete + start gives a clean env; ecosystem.config.cjs then merges .env.
+# Secrets are not carried in the ecosystem `env` block (that would serialize
+# them into ~/.pm2/dump.pm2 via `pm2 save`). Both processes load .env at boot
+# with override, so any restart picks up rotated keys and stale ones cannot
+# stick. Keep the recycle non-destructive: delete+start would leave the app
+# down if the fresh start fails, so restart --update-env for NODE_ENV/PORT.
 recycle_app() {
   local name="$1"
   if pm2 describe "$name" >/dev/null 2>&1; then
-    pm2 delete "$name"
+    pm2 restart "$name" --update-env
+  else
+    pm2 start "$ECOSYSTEM" --only "$name"
   fi
-  pm2 start "$ECOSYSTEM" --only "$name"
 }
 
 case "$cmd" in
@@ -109,6 +111,8 @@ case "$cmd" in
     for name in "${APPS[@]}"; do
       recycle_app "$name"
     done
+    # Re-persist the process list so boot resurrection restores the current env.
+    pm2 save
     ;;
   delete)
     require_ecosystem
