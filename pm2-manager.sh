@@ -9,7 +9,7 @@
 # Usage:
 #   ./pm2-manager.sh start              build server, then start API + stats
 #   ./pm2-manager.sh stop               stop managed apps
-#   ./pm2-manager.sh restart [prod]     build, restart API + stats (does NOT wipe logs)
+#   ./pm2-manager.sh restart [prod]     build, recycle API + stats from ecosystem + .env
 #   ./pm2-manager.sh restart --skip-build
 #   ./pm2-manager.sh status             show pm2 status
 #   ./pm2-manager.sh logs [name]        tail logs (default: x-copilot-api)
@@ -76,13 +76,16 @@ for arg in "$@"; do
   esac
 done
 
-restart_or_start_app() {
+# `pm2 restart --update-env` only refreshes keys listed in ecosystem `env`
+# (NODE_ENV, PORT). A leftover DEEPSEEK_API_KEY from an older start stays
+# in the process, and loadEnv will not replace it unless override is on.
+# Delete + start gives a clean env; ecosystem.config.cjs then merges .env.
+recycle_app() {
   local name="$1"
   if pm2 describe "$name" >/dev/null 2>&1; then
-    pm2 restart "$name" --update-env
-  else
-    pm2 start "$ECOSYSTEM" --only "$name"
+    pm2 delete "$name"
   fi
+  pm2 start "$ECOSYSTEM" --only "$name"
 }
 
 case "$cmd" in
@@ -102,9 +105,9 @@ case "$cmd" in
     require_ecosystem
     ensure_build
     mkdir -p logs
-    # Restart without truncating or deleting anything under logs/
+    # Recycle without truncating or deleting anything under logs/
     for name in "${APPS[@]}"; do
-      restart_or_start_app "$name"
+      recycle_app "$name"
     done
     ;;
   delete)

@@ -1,8 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 
-/** Load KEY=VAL pairs from a .env file into process.env (does not override existing). */
-export function loadEnv(path: string): boolean {
+export type LoadEnvOpts = {
+  /**
+   * When true, .env overwrites keys already in process.env.
+   * Default false (dotenv-style) so tests/CI can inject overrides.
+   * The sidecar passes true — PM2 restart otherwise keeps stale secrets.
+   */
+  override?: boolean;
+};
+
+/** Load KEY=VAL pairs from a .env file into process.env. */
+export function loadEnv(path: string, opts?: LoadEnvOpts): boolean {
   if (!existsSync(path)) return false;
+  const override = opts?.override === true;
   for (const line of readFileSync(path, "utf8").split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -16,7 +26,7 @@ export function loadEnv(path: string): boolean {
     ) {
       val = val.slice(1, -1);
     }
-    if (!(key in process.env)) process.env[key] = val;
+    if (override || !(key in process.env)) process.env[key] = val;
   }
   return true;
 }

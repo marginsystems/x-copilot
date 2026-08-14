@@ -124,7 +124,7 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   return Object.keys(filters).length ? filters : undefined;
 }
 
-loadEnv(resolve(process.cwd(), ".env"));
+loadEnv(resolve(process.cwd(), ".env"), { override: true });
 
 const PORT = Number(process.env.PORT || 8787);
 

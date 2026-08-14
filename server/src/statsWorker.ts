@@ -358,7 +358,7 @@ export async function runStatsTick(opts?: {
 }
 
 async function main(): Promise<void> {
-  if (!loadEnv(resolve(process.cwd(), ".env"))) {
+  if (!loadEnv(resolve(process.cwd(), ".env"), { override: true })) {
     console.error(
       "[stats-worker] .env not found — X_API_BEARER_TOKEN required",
     );
