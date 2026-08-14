@@ -26,6 +26,8 @@ export type ActivityStatsResult = {
 
 export const ACTIVITY_DAY_WINDOW = 28;
 export const ACTIVITY_WEEK_WINDOW = 12;
+/** One batched tweet lookup for marks that still lack 1h/24h snapshots. */
+export const LIVE_METRICS_ID_CAP = 25;
 
 export function parseActivityBucket(raw: unknown): ActivityBucket {
   return raw === "week" ? "week" : "day";
@@ -165,4 +167,60 @@ export function bucketInteractions(
       withStats: totalsWithStats,
     },
   };
+}
+
+/** Marked reply ids that still have no 1h/24h snapshot (oldest first, capped). */
+export function pendingReplyIds(
+  history: readonly Interaction[],
+  cap: number = LIVE_METRICS_ID_CAP,
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const row of history) {
+    const id = row.replyId?.trim();
+    if (!id || seen.has(id)) continue;
+    if (interactionHasViewStats(row)) continue;
+    seen.add(id);
+    out.push(id);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
+export type LiveMetric = { views?: number; likes?: number };
+
+/** In-memory only — do not persist as t1h (hourly worker owns checkpoints). */
+export function mergeLiveMetrics(
+  history: readonly Interaction[],
+  live: ReadonlyMap<string, LiveMetric>,
+  sampledAt: string = new Date().toISOString(),
+): Interaction[] {
+  if (live.size === 0) return [...history];
+  return history.map((row) => {
+    const id = row.replyId?.trim();
+    if (!id || interactionHasViewStats(row)) return row;
+    const m = live.get(id);
+    // Only a finite views value resolves a row: a likes-only tweet (X omits
+    // impression_count) must not write a t1h snapshot with views undefined,
+    // which would never satisfy interactionHasViewStats and stay re-fetched.
+    if (
+      !m ||
+      typeof m.views !== "number" ||
+      !Number.isFinite(m.views) ||
+      m.views < 0
+    ) {
+      return row;
+    }
+    return {
+      ...row,
+      stats: {
+        ...row.stats,
+        t1h: {
+          views: m.views,
+          likes: m.likes,
+          sampledAt,
+        },
+      },
+    };
+  });
 }
