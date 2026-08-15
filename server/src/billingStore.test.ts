@@ -12,6 +12,7 @@ import { upsertOauthUser } from "./authStore.ts";
 import { recordUsageEvent } from "./usageMeter.ts";
 import {
   activateSubscription,
+  billingMePayload,
   cancelSubscriptionByStripeSubscriptionId,
   creditsExhaustedResponse,
   dailyActivityUsage,
@@ -84,6 +85,43 @@ describe("billingStore", () => {
     });
     assert.equal(exhausted?.error, "credits_exhausted");
     assert.equal(exhausted?.limit, 1500);
+    assert.match(exhausted?.message ?? "", /1,500 free credits/);
+  });
+
+  it("exposes Free in billing/me with free_active state", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-b-me",
+      email: "me@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(user.id);
+    const me = billingMePayload({ userId: user.id, email: user.email });
+    assert.equal(me.plan_key, "free");
+    assert.equal(me.plan_state, "free_active");
+    const plans = me.plans as Record<string, { name: string; credits: number; available: boolean }>;
+    assert.equal(plans.free.name, "Free");
+    assert.equal(plans.free.credits, 1500);
+    assert.equal(plans.free.available, true);
+    assert.equal(plans.pulse.name, "Pulse");
+  });
+
+  it("marks free_limit_reached when the monthly pool is empty", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-b-empty",
+      email: "empty@example.com",
+      emailVerified: true,
+    });
+    const tenantId = ensureUserTenant(user.id);
+    recordUsageEvent({
+      tenantId,
+      path: "/2/tweets/search/recent",
+      status: 200,
+      postsRead: 1500,
+    });
+    const me = billingMePayload({ userId: user.id, email: user.email });
+    assert.equal(me.plan_state, "free_limit_reached");
   });
 
   it("gives ADMIN_EMAILS the Horizon pool until they subscribe", () => {
@@ -107,6 +145,22 @@ describe("billingStore", () => {
       email: user.email,
     });
     assert.equal(exhausted, null);
+  });
+
+  it("reports the Horizon pool to admins as a paid plan, not Free", () => {
+    process.env.ADMIN_EMAILS = "ops-me@example.com";
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-b-me-admin",
+      email: "ops-me@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(user.id);
+    const me = billingMePayload({ userId: user.id, email: user.email });
+    assert.equal(me.plan_key, "horizon");
+    assert.equal(me.plan_state, "subscription_active");
+    assert.equal(me.operator_allotment, true);
+    assert.equal(me.has_stripe_subscription, false);
   });
 
   it("activates a paid plan and ignores stale webhook events", () => {

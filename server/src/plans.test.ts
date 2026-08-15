@@ -1,10 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  FREE_PLAN,
   PAID_PLANS,
   PLAN_CREDIT_LIMITS,
   PLAN_DAILY_ACTIVITY_EVENTS,
   PLAN_DAILY_SORTIES,
+  derivePlanState,
   isPaidPlanKey,
   isPlanKey,
   planDisplayName,
@@ -40,6 +42,120 @@ describe("plans", () => {
     assert.equal(isPaidPlanKey("horizon"), true);
     assert.equal(planDisplayName("pulse"), "Pulse");
     assert.equal(planDisplayName("free"), "Free");
+  });
+
+  it("catalogs Free as $0 with no Stripe product", () => {
+    assert.equal(FREE_PLAN.key, "free");
+    assert.equal(FREE_PLAN.priceUsd, 0);
+    assert.equal(FREE_PLAN.priceLabel, "Free");
+    assert.equal(FREE_PLAN.credits, 1500);
+    assert.equal(FREE_PLAN.sorties, 1);
+    assert.equal(FREE_PLAN.dailyEvents, 15);
+    assert.match(FREE_PLAN.blurb, /no credit card/i);
+  });
+
+  it("derives free vs paid plan states", () => {
+    assert.equal(
+      derivePlanState({ planKey: "free", live: false, status: null, creditsCanUse: true }),
+      "free_active",
+    );
+    assert.equal(
+      derivePlanState({ planKey: "free", live: false, status: null, creditsCanUse: false }),
+      "free_limit_reached",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "pulse",
+        live: true,
+        status: "active",
+        creditsCanUse: false,
+      }),
+      "subscription_active",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "pulse",
+        live: true,
+        status: "past_due",
+        creditsCanUse: true,
+      }),
+      "past_due",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "free",
+        live: true,
+        status: "active",
+        creditsCanUse: true,
+      }),
+      "free_active",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "free",
+        live: true,
+        status: "past_due",
+        creditsCanUse: false,
+      }),
+      "free_limit_reached",
+    );
+  });
+
+  it("keeps plan_state consistent with a paid plan key", () => {
+    assert.equal(
+      derivePlanState({
+        planKey: "horizon",
+        live: false,
+        status: null,
+        creditsCanUse: true,
+      }),
+      "subscription_active",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "pulse",
+        live: true,
+        status: null,
+        creditsCanUse: true,
+      }),
+      "subscription_active",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "horizon",
+        live: true,
+        status: "paused",
+        creditsCanUse: true,
+      }),
+      "past_due",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "radar",
+        live: true,
+        status: "incomplete",
+        creditsCanUse: true,
+      }),
+      "past_due",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "free",
+        live: true,
+        status: "paused",
+        creditsCanUse: true,
+      }),
+      "free_active",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "free",
+        live: true,
+        status: "incomplete",
+        creditsCanUse: false,
+      }),
+      "free_limit_reached",
+    );
   });
 
   it("uses Stripe Dashboard product names x-copilot Pulse/Radar/Horizon", () => {

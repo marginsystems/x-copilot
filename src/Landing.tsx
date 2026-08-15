@@ -28,6 +28,9 @@ export function Landing(props: {
           Scout searches X and scores what’s cool. You review the cards and post
           yourself — no auto-engage, no AI drafts.
         </p>
+        <p className="gate-free">
+          1,500 free credits every month — no credit card required.
+        </p>
         <AuthButtons stacked onGoogle={props.onGoogle} onX={props.onX} />
         {props.notice ? (
           <p className="status auth-notice" role="status">

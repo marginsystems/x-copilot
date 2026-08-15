@@ -183,13 +183,14 @@ function TermsBody() {
 
       <h2>Plans and billing</h2>
       <p>
-        Free and paid plans (Pulse, Radar, Horizon) are a monthly pool of X
-        post-read credits plus a daily Scout takeoff cap, billed by{" "}
-        {LEGAL_ENTITY} through Stripe. Unused credits do not roll over. Limits
-        reset on the UTC month (credits) or UTC day (takeoffs). Failure to pay
-        may drop you back to the free pool. Prices and limits may change; we
-        will not change the price of an active subscription term without
-        showing the new price at renewal in Stripe.
+        The Free plan needs no credit card and is not billed through Stripe.
+        Paid plans (Pulse, Radar, Horizon) are a monthly pool of X post-read
+        credits plus a daily Scout takeoff cap, billed by {LEGAL_ENTITY}{" "}
+        through Stripe. Unused credits do not roll over. Limits reset on the
+        UTC month (credits) or UTC day (takeoffs). Failure to pay may drop you
+        back to the free pool. Prices and limits may change; we will not change
+        the price of an active subscription term without showing the new price
+        at renewal in Stripe.
       </p>
 
       <h2>AI output</h2>
