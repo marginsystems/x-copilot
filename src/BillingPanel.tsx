@@ -133,7 +133,7 @@ export function BillingPanel(props: {
                   ? "…"
                   : "—"
                 : !live
-                  ? `Free · ${(credits?.limit ?? 1500).toLocaleString()} credits/month. No credit card. Subscribe below when you need more.`
+                  ? `Free · ${(credits?.limit ?? FREE_CARD.credits).toLocaleString()} credits/month. No credit card. Subscribe below when you need more.`
                   : `Plan: ${planName(billing?.plan_key ?? "free")}. One credit = one X post read (Scout, post watch, and 1h/24h snapshots). Hard ceiling, no rollover.`}
           {billing?.subscription?.current_period_end
             ? ` Period ends ${new Date(billing.subscription.current_period_end).toLocaleDateString()}.`

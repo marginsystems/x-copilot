@@ -81,6 +81,24 @@ describe("plans", () => {
       }),
       "past_due",
     );
+    assert.equal(
+      derivePlanState({
+        planKey: "free",
+        live: true,
+        status: "active",
+        creditsCanUse: true,
+      }),
+      "free_active",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "free",
+        live: true,
+        status: "past_due",
+        creditsCanUse: false,
+      }),
+      "free_limit_reached",
+    );
   });
 
   it("keeps plan_state consistent with a paid plan key", () => {
@@ -101,6 +119,24 @@ describe("plans", () => {
         creditsCanUse: true,
       }),
       "subscription_active",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "horizon",
+        live: true,
+        status: "paused",
+        creditsCanUse: true,
+      }),
+      "past_due",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "radar",
+        live: true,
+        status: "incomplete",
+        creditsCanUse: true,
+      }),
+      "past_due",
     );
     assert.equal(
       derivePlanState({

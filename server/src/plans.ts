@@ -72,10 +72,11 @@ export type PlanState =
   | "past_due";
 
 /**
- * Paid live sub wins; a paid plan key (e.g. an operator's Horizon allotment)
- * counts as active even without a live Stripe sub; otherwise Free (active or
- * monthly pool empty). free_* states only apply to the "free" plan key so
- * plan_state never contradicts plan_key.
+ * A paid plan key wins: either a live Stripe sub in an active state, or an
+ * operator's Horizon allotment. A live sub that is paused, incomplete, past
+ * due, or unpaid is reported as past_due so the portal can fix it; a live sub
+ * on a plan that resolved to "free" stays free. free_* states only apply to
+ * the "free" plan key so plan_state never contradicts plan_key.
  */
 export function derivePlanState(input: {
   planKey: PlanKey;
@@ -83,13 +84,16 @@ export function derivePlanState(input: {
   status: string | null | undefined;
   creditsCanUse: boolean;
 }): PlanState {
-  if (input.live && (input.status === "active" || input.status === "trialing")) {
-    return "subscription_active";
-  }
-  if (input.live && (input.status === "past_due" || input.status === "unpaid")) {
-    return "past_due";
-  }
   if (input.planKey !== "free") {
+    if (
+      input.live &&
+      (input.status === "past_due" ||
+        input.status === "unpaid" ||
+        input.status === "paused" ||
+        input.status === "incomplete")
+    ) {
+      return "past_due";
+    }
     return "subscription_active";
   }
   return input.creditsCanUse ? "free_active" : "free_limit_reached";
