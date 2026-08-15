@@ -51,23 +51,29 @@ function injectGtagScript(id: string): void {
   document.head.appendChild(script);
 }
 
+let consentDefaultSent = false;
+
 /** Consent Mode denied by default. Analytics storage granted only after accept. */
 export function bootAnalytics(consent: ConsentChoice | null): void {
   applyGscVerification();
   const id = gaMeasurementId();
   if (!id || typeof window === "undefined") return;
   ensureGtag();
-  window.gtag!("consent", "default", {
-    ad_storage: "denied",
-    ad_user_data: "denied",
-    ad_personalization: "denied",
-    analytics_storage: "denied",
-  });
+  if (!consentDefaultSent) {
+    window.gtag!("consent", "default", {
+      ad_storage: "denied",
+      ad_user_data: "denied",
+      ad_personalization: "denied",
+      analytics_storage: "denied",
+    });
+    consentDefaultSent = true;
+  }
   if (consent !== "accepted") return;
-  if (document.getElementById("xc-ga4")) return;
-  injectGtagScript(id);
-  window.gtag!("js", new Date());
-  window.gtag!("config", id, { anonymize_ip: true });
+  if (!document.getElementById("xc-ga4")) {
+    injectGtagScript(id);
+    window.gtag!("js", new Date());
+    window.gtag!("config", id, { anonymize_ip: true });
+  }
   applyAnalyticsConsent("accepted");
 }
 
