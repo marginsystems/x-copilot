@@ -40,6 +40,17 @@ export const PLAN_DAILY_ACTIVITY_EVENTS: Record<PlanKey, number> = {
   horizon: 250,
 };
 
+/**
+ * UTC-day cap on voice reply suggestions (draft generations, not verifies).
+ * Conservative: each suggest is one DeepSeek call on the shared key.
+ */
+export const PLAN_DAILY_SUGGESTS: Record<PlanKey, number> = {
+  free: 10,
+  pulse: 20,
+  radar: 30,
+  horizon: 40,
+};
+
 export const PLAN_PRICE_USD: Record<PaidPlanKey, number> = {
   pulse: 12,
   radar: 36,

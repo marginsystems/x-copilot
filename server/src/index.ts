@@ -99,6 +99,7 @@ import {
   tryHandleXActivityAuthed,
   tryHandleXActivityWebhook,
 } from "./xActivityHttp.js";
+import { tryHandleVoice } from "./voiceHttp.js";
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
@@ -347,6 +348,10 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (await tryHandleOnboarding(req, res, url)) {
+        return;
+      }
+
+      if (await tryHandleVoice(req, res, url)) {
         return;
       }
 
