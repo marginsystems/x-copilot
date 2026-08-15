@@ -238,6 +238,7 @@ async function handleLearn(
     xUsername: resolved.username,
     xUserId: resolved.id,
     sinceId: pull.completed ? pull.newestId : profile.sinceId,
+    lastPullAt: pull.completed ? undefined : (profile.lastPullAt ?? undefined),
   });
 
   let updated = getVoiceProfile(user.id);
