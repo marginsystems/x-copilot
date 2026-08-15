@@ -3,7 +3,7 @@
  */
 import { getPlatformDb } from "./db.js";
 import { X_API_BASE, getXApiCredsFromEnv } from "./xApi.js";
-import { findOauthAccount, getUserById, getXOauthUsername } from "./authStore.js";
+import { getUserById, getXOauthUsername } from "./authStore.js";
 import { parseXHandle } from "./xHandle.js";
 
 function activityNetworkEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -127,9 +127,7 @@ export function findUserIdByXUserId(xUserId: string): string | null {
   const sub = getPlatformDb()
     .prepare(`SELECT user_id FROM activity_subscriptions WHERE x_user_id = ?`)
     .get(xUserId) as { user_id: string } | undefined;
-  if (sub?.user_id) return sub.user_id;
-  const oauth = findOauthAccount("x", xUserId);
-  return oauth?.userId ?? null;
+  return sub?.user_id ?? null;
 }
 
 export async function subscribeUserToPostCreate(userId: string): Promise<{
