@@ -92,8 +92,11 @@ export function ScoutPixelField({ searching }: Props) {
       height = h;
       canvas!.width = w * dpr;
       canvas!.height = h * dpr;
-      cols = Math.max(1, Math.floor((w + GAP) / STEP));
-      rows = Math.max(1, Math.floor((h + GAP) / STEP));
+      const nextCols = Math.max(1, Math.floor((w + GAP) / STEP));
+      const nextRows = Math.max(1, Math.floor((h + GAP) / STEP));
+      if (nextCols === cols && nextRows === rows) return;
+      cols = nextCols;
+      rows = nextRows;
       grid = new Uint8Array(cols * rows);
       scratch = new Uint8Array(cols * rows);
       energy = new Float32Array(cols * rows);
@@ -188,8 +191,8 @@ export function ScoutPixelField({ searching }: Props) {
     }
 
     function frame(now: number) {
-      rafId = requestAnimationFrame(frame);
       if (width <= 0 || height <= 0) return;
+      rafId = requestAnimationFrame(frame);
       const dt = lastFrame ? Math.min(64, now - lastFrame) : 16;
       lastFrame = now;
       tickLife(now);
@@ -217,8 +220,14 @@ export function ScoutPixelField({ searching }: Props) {
 
     resize();
     const ro = new ResizeObserver(() => {
+      const paused = width <= 0 || height <= 0;
       resize();
-      if (reducedMotion) drawStatic();
+      if (width <= 0 || height <= 0) return;
+      if (reducedMotion) {
+        drawStatic();
+        return;
+      }
+      if (paused) rafId = requestAnimationFrame(frame);
     });
     ro.observe(wrap);
 
