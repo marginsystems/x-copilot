@@ -216,6 +216,11 @@ export async function tryHandleOnboarding(
       persisted: true,
       user: toPublicUser(updated),
     });
+    void import("./xActivitySubscribe.js")
+      .then(({ subscribeUserToPostCreate }) =>
+        subscribeUserToPostCreate(updated.id),
+      )
+      .catch((err) => console.warn("[xaa] subscribe", err));
     return true;
   }
 

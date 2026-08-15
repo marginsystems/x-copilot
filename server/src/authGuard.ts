@@ -24,6 +24,7 @@ export function isPublicApiPath(pathname: string): boolean {
   if (pathname === "/api/health" || pathname === "/health") return true;
   if (pathname.startsWith("/api/auth")) return true;
   if (pathname === "/api/stripe/webhook") return true;
+  if (pathname === "/api/x/activity") return true;
   return false;
 }
 

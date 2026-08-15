@@ -249,6 +249,11 @@ export function completeXLogin(opts: {
     return { ok: false, error: "google_required" };
   }
   const session = createSession(user.id);
+  void import("./xActivitySubscribe.js")
+    .then(({ subscribeUserToPostCreate }) =>
+      subscribeUserToPostCreate(user.id),
+    )
+    .catch((err) => console.warn("[xaa] subscribe", err));
   return { ok: true, user, token: session.token, expiresAt: session.expiresAt };
 }
 
