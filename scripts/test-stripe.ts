@@ -16,6 +16,7 @@ import {
   liveStripeKeyBlockedInNonProduction,
   resolvePortalConfigurationId,
   resolveStripePriceId,
+  resolveStripeSecretKey,
   resolveWebhookSecret,
   stripeSecretKind,
 } from "../server/src/stripeConfig.js";
@@ -40,9 +41,9 @@ console.log(
 );
 
 if (kind === "missing") {
-  console.error("\nFAIL: STRIPE_SECRET_KEY is empty.");
+  console.error("\nFAIL: no Stripe secret. Set STRIPE_SECRET_KEY_DEV=sk_test_…");
   console.error(
-    "Dashboard → Developers → API keys. Test mode toggle ON → Secret key (sk_test_…).",
+    "Dashboard → Developers → API keys. Test mode toggle ON → Secret key.",
   );
   process.exit(1);
 }
@@ -59,7 +60,11 @@ if (liveStripeKeyBlockedInNonProduction() && !allowLive) {
   process.exit(1);
 }
 
-const secret = process.env.STRIPE_SECRET_KEY!.trim();
+const secret = resolveStripeSecretKey();
+if (!secret) {
+  console.error("\nFAIL: no Stripe secret after resolve.");
+  process.exit(1);
+}
 const stripe = new Stripe(secret, { apiVersion: "2025-02-24.acacia" });
 
 let failed = 0;

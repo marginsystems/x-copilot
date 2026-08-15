@@ -15,6 +15,7 @@ describe("stripeConfig", () => {
   const keys = [
     "NODE_ENV",
     "STRIPE_SECRET_KEY",
+    "STRIPE_SECRET_KEY_DEV",
     "STRIPE_PRICE_PULSE",
     "STRIPE_PRICE_PULSE_DEV",
     "STRIPE_PRICE_RADAR",
@@ -100,6 +101,7 @@ describe("stripeConfig", () => {
   it("blocks a live secret outside production", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_SECRET_KEY = "sk_live_example";
+    delete process.env.STRIPE_SECRET_KEY_DEV;
     assert.equal(stripeSecretKind(), "live");
     assert.equal(liveStripeKeyBlockedInNonProduction(), true);
     process.env.NODE_ENV = "production";
@@ -108,5 +110,15 @@ describe("stripeConfig", () => {
     process.env.NODE_ENV = "development";
     assert.equal(stripeSecretKind(), "test");
     assert.equal(liveStripeKeyBlockedInNonProduction(), false);
+  });
+
+  it("prefers STRIPE_SECRET_KEY_DEV off production so a live key can stay in .env", () => {
+    process.env.NODE_ENV = "development";
+    process.env.STRIPE_SECRET_KEY = "sk_live_example";
+    process.env.STRIPE_SECRET_KEY_DEV = "sk_test_example";
+    assert.equal(stripeSecretKind(), "test");
+    assert.equal(liveStripeKeyBlockedInNonProduction(), false);
+    process.env.NODE_ENV = "production";
+    assert.equal(stripeSecretKind(), "live");
   });
 });

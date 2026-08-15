@@ -6,16 +6,22 @@ export function isNonProductionEnv(
   return env.NODE_ENV?.trim().toLowerCase() !== "production";
 }
 
+export function resolveStripeSecretKey(
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  return resolveEnvPair("STRIPE_SECRET_KEY", "STRIPE_SECRET_KEY_DEV", env);
+}
+
 export function stripeSecretPresent(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  return Boolean(env.STRIPE_SECRET_KEY?.trim());
+  return Boolean(resolveStripeSecretKey(env));
 }
 
 export function stripeSecretKind(
   env: NodeJS.ProcessEnv = process.env,
 ): "test" | "live" | "missing" {
-  const secret = env.STRIPE_SECRET_KEY?.trim() ?? "";
+  const secret = resolveStripeSecretKey(env) ?? "";
   if (!secret) return "missing";
   if (secret.startsWith("sk_test_")) return "test";
   if (secret.startsWith("sk_live_")) return "live";

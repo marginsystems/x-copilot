@@ -26,6 +26,7 @@ import {
   priceIdFromSubscription,
   resolvePortalConfigurationId,
   resolveStripePriceId,
+  resolveStripeSecretKey,
   resolveWebhookSecret,
 } from "./stripeConfig.js";
 import {
@@ -88,7 +89,7 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 }
 
 function stripeClient(): Stripe | null {
-  const secret = process.env.STRIPE_SECRET_KEY?.trim();
+  const secret = resolveStripeSecretKey();
   if (!secret) return null;
   return new Stripe(secret, { apiVersion: "2025-02-24.acacia" });
 }

@@ -74,7 +74,7 @@ STRIPE_PRICE_HORIZON=price_...
 STRIPE_PORTAL_CONFIGURATION_ID=bpc_...
 ```
 
-Optional test-mode twins: `STRIPE_PRICE_*_DEV`, `STRIPE_WEBHOOK_SECRET_DEV`, `STRIPE_PORTAL_CONFIGURATION_ID_DEV`. Local smoke: `npm run test:stripe` (requires `sk_test_…`). A live secret is refused when `NODE_ENV` is not `production`.
+Optional test-mode twins: `STRIPE_SECRET_KEY_DEV`, `STRIPE_PRICE_*_DEV`, `STRIPE_WEBHOOK_SECRET_DEV`, `STRIPE_PORTAL_CONFIGURATION_ID_DEV`. Local smoke: `npm run test:stripe` (requires `sk_test_…`). A live secret is refused when `NODE_ENV` is not `production` unless `_DEV` supplies `sk_test_…`.
 
 ### Where to copy the three secrets
 
