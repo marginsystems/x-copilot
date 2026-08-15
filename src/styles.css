@@ -1746,10 +1746,35 @@ button.menu-item-signout:hover {
 }
 
 button.primary.scout-run {
-  width: auto;
-  min-width: 7.5rem;
+  width: 100%;
   box-sizing: border-box;
   text-align: center;
+}
+
+/* Takeoff instrument cluster — button, live status and progress strip read as one control */
+.scout-cluster {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scout-cluster .scout-controls {
+  margin-bottom: 2px;
+}
+
+/* Decorative pixel flight field filling the leftover Agenda stretch */
+.scout-field {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: calc(var(--radius) - 6px);
+}
+
+.scout-field-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .scout-options-toggle {
@@ -2284,10 +2309,6 @@ button:disabled {
 
   .threads-activity.is-collapsed {
     min-height: 56px;
-  }
-
-  button.primary.scout-run {
-    width: 100%;
   }
 
   .threads-pane-head .section-label {
