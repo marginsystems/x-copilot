@@ -120,9 +120,20 @@ describe("xAuth", () => {
   });
 
   it("skips the live X avatar lookup under node:test", async () => {
-    const avatar = await fetchXProfileAvatar("alice", async () => {
-      throw new Error("should not fetch in tests");
-    });
+    const avatar = await fetchXProfileAvatar(
+      "alice",
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              profile_image_url:
+                "https://pbs.twimg.com/profile_images/1/abc_normal.jpg",
+            },
+          }),
+          { status: 200 },
+        ),
+      { NODE_TEST_CONTEXT: "1", X_API_BEARER_TOKEN: "bearer" },
+    );
     assert.equal(avatar, null);
   });
 
@@ -166,6 +177,32 @@ describe("xAuth", () => {
     assert.equal(
       getUserForSessionToken(login.token)?.displayName,
       "Alice G",
+    );
+  });
+
+  it("does not overwrite an existing Google photo when linking X with an avatar", () => {
+    process.env.AUTH_X_HANDLE_WHITELIST = "";
+    const google = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-x",
+      email: "alice@example.com",
+      emailVerified: true,
+      displayName: "Alice G",
+      avatarUrl: "https://google.example.com/alice.jpg",
+    });
+    const login = completeXLogin({
+      profile: {
+        providerUserId: "42",
+        username: "alice",
+        avatarUrl: "https://pbs.twimg.com/profile_images/1/abc_400x400.jpg",
+      },
+      existingUser: google,
+    });
+    assert.equal(login.ok, true);
+    if (!login.ok) return;
+    assert.equal(
+      getUserForSessionToken(login.token)?.avatarUrl,
+      "https://google.example.com/alice.jpg",
     );
   });
 });

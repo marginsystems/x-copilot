@@ -7,6 +7,7 @@ import { createHmac } from "node:crypto";
 import {
   createSession,
   findOauthAccount,
+  getUserById,
   linkOauthToUser,
   upsertOauthUser,
   type AuthUser,
@@ -65,6 +66,7 @@ export async function fetchXProfileAvatar(
           Authorization: `Bearer ${creds.bearerToken}`,
           Accept: "application/json",
         },
+        signal: AbortSignal.timeout(20_000),
       },
     );
     if (!res.ok) return null;
@@ -275,18 +277,21 @@ export function completeXLogin(opts: {
       provider: "x",
       providerUserId: profile.providerUserId,
       username: profile.username,
-      avatarUrl: profile.avatarUrl ?? null,
+      avatarUrl: existingUser.avatarUrl ? null : (profile.avatarUrl ?? null),
     });
     if (!linked.ok) return { ok: false, error: linked.error };
     user = linked.user;
   } else if (isXHandleWhitelisted(profile.username)) {
     const alreadyLinked = findOauthAccount("x", profile.providerUserId);
+    const existingAvatar = alreadyLinked
+      ? getUserById(alreadyLinked.userId)?.avatarUrl ?? null
+      : null;
     user = upsertOauthUser({
       provider: "x",
       providerUserId: profile.providerUserId,
       username: profile.username,
       displayName: alreadyLinked ? null : profile.username,
-      avatarUrl: profile.avatarUrl ?? null,
+      avatarUrl: existingAvatar ? null : (profile.avatarUrl ?? null),
       emailVerified: false,
     });
   } else {
