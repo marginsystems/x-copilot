@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  SCOUT_SEARCH_TIMELINE,
+  SCOUT_STAGE_RANK,
+  SCOUT_STAGE_TICK_MS,
   formatScoutFailure,
   isScoutGateError,
+  scoutFlightLine,
   scoutStageMessage,
   type ScoutStageId,
 } from "./lib/scoutStages";
@@ -735,6 +739,12 @@ export default function App() {
     cool: 0,
     target: DEFAULT_SETTINGS.targetCoolThreads,
   });
+  const flightStageRef = useRef<ScoutStageId>("planning");
+  const serverStageRef = useRef<ScoutStageId | null>(null);
+  const lastFlightCountsRef = useRef<{
+    candidates?: number;
+    bucketSize?: number;
+  }>({});
   const staleHydration = useRef(false);
   const menuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchCooldownRemaining = Math.max(
@@ -833,12 +843,32 @@ export default function App() {
         message = `${prefix} · ${message}`;
       }
     }
+    const counts = {
+      cool: coolProgressRef.current.cool,
+      target: coolProgressRef.current.target,
+      candidates: ev.candidates ?? lastFlightCountsRef.current.candidates,
+      bucketSize: ev.bucketSize ?? lastFlightCountsRef.current.bucketSize,
+    };
+    if (typeof ev.candidates === "number") {
+      lastFlightCountsRef.current.candidates = ev.candidates;
+    }
+    if (typeof ev.bucketSize === "number") {
+      lastFlightCountsRef.current.bucketSize = ev.bucketSize;
+    }
+    serverStageRef.current = stage;
+    const incomingRank = SCOUT_STAGE_RANK[stage];
+    const shownRank = SCOUT_STAGE_RANK[flightStageRef.current];
+    const shownStage =
+      stage === "error" ||
+      stage === "done" ||
+      incomingRank >= shownRank
+        ? stage
+        : flightStageRef.current;
+    flightStageRef.current = shownStage;
     setStatus(
-      stage === "error"
+      shownStage === "error"
         ? message
-        : stage === "done"
-          ? scoutStageMessage("done")
-          : scoutStageMessage(stage),
+        : scoutFlightLine(shownStage, counts),
     );
     pushScoutLine(message, stage);
   }
@@ -1330,6 +1360,33 @@ export default function App() {
     }, 250);
     return () => window.clearInterval(id);
   }, [searchCooldownUntil]);
+
+  useEffect(() => {
+    if (!searching) return;
+    let tick = 0;
+    const id = window.setInterval(() => {
+      tick += 1;
+      const nextIdx = Math.min(tick, SCOUT_SEARCH_TIMELINE.length - 1);
+      const next = SCOUT_SEARCH_TIMELINE[nextIdx];
+      if (!next) return;
+      const server = serverStageRef.current;
+      if (server && SCOUT_STAGE_RANK[server] >= SCOUT_STAGE_RANK[next]) {
+        return;
+      }
+      if (SCOUT_STAGE_RANK[next] <= SCOUT_STAGE_RANK[flightStageRef.current]) {
+        return;
+      }
+      flightStageRef.current = next;
+      setStatus(
+        scoutFlightLine(next, {
+          cool: coolProgressRef.current.cool,
+          target: coolProgressRef.current.target,
+          ...lastFlightCountsRef.current,
+        }),
+      );
+    }, SCOUT_STAGE_TICK_MS);
+    return () => window.clearInterval(id);
+  }, [searching]);
 
   // Keep scout-log / cooldown "time ago" labels fresh (1s while live or logged).
   useEffect(() => {
@@ -1894,6 +1951,9 @@ export default function App() {
 
     const targetCool = clampTargetCoolThreads(settings.targetCoolThreads);
     coolProgressRef.current = { cool: 0, target: targetCool };
+    flightStageRef.current = "planning";
+    serverStageRef.current = null;
+    lastFlightCountsRef.current = {};
 
     setSearching(true);
     // Keep existing thread rows; partials + done append by id across runs.
@@ -2853,14 +2913,20 @@ export default function App() {
                   )}
                 </div>
                 <div className="status-stack" aria-live="polite">
-                  <p className="status status-main">
+                  <p
+                    className={
+                      searching
+                        ? "status scout-flight-line"
+                        : "status status-main"
+                    }
+                  >
                     {grounded && !searching
                       ? `Grounded — ${sortiesLimit ?? 0} sortie${sortiesLimit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`
                       : searchCooldownRemaining > 0 && !searching
                         ? `Hold short ${searchCooldownRemaining}s.`
                         : status || "On the ground — set an agenda and take off."}
                   </p>
-                  {billing?.sorties && !grounded ? (
+                  {billing?.sorties && !grounded && !searching ? (
                     <p className="status status-hint">
                       {sortiesLeft ?? 0} sortie
                       {sortiesLeft === 1 ? "" : "s"} left today

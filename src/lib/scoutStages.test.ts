@@ -4,6 +4,7 @@ import {
   SCOUT_SEARCH_TIMELINE,
   formatScoutFailure,
   isScoutGateError,
+  scoutFlightLine,
   scoutStageMessage,
 } from "./scoutStages.ts";
 
@@ -21,6 +22,19 @@ describe("scoutStages", () => {
     assert.match(scoutStageMessage("planning"), /route/i);
     assert.match(scoutStageMessage("searching"), /air/i);
     assert.match(scoutStageMessage("done"), /Landed/);
+  });
+
+  it("appends cool or candidate counts on the one-line flight status", () => {
+    assert.equal(scoutFlightLine("planning"), "Plotting the route…");
+    assert.equal(
+      scoutFlightLine("searching", { candidates: 4, bucketSize: 20 }),
+      "In the air… 4/20",
+    );
+    assert.equal(
+      scoutFlightLine("triaging", { cool: 2, target: 5 }),
+      "Picking the approach… 2/5",
+    );
+    assert.equal(scoutFlightLine("done", { cool: 5, target: 5 }), "Landed.");
   });
 
   it("treats 429 cooldown/busy as soft gate errors", () => {
