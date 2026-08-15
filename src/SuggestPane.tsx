@@ -87,8 +87,24 @@ export function SuggestPane({
         message?: string;
         error?: string;
         suggests?: SuggestUsage;
+        used?: number;
+        limit?: number;
+        planKey?: string;
       };
       if (!res.ok || !data.ok || !data.draft) {
+        if (data.error === "suggest_daily_limit") {
+          const used = typeof data.used === "number" ? data.used : usage.used;
+          const limit =
+            typeof data.limit === "number" ? data.limit : usage.limit;
+          onUsage({
+            used,
+            limit,
+            remaining: Math.max(0, limit - used),
+            canSuggest: used < limit,
+            planKey:
+              typeof data.planKey === "string" ? data.planKey : usage.planKey,
+          });
+        }
         setStage("idle");
         setNoteKind("fail");
         setNote(
@@ -156,11 +172,11 @@ export function SuggestPane({
   function onEdit(next: string) {
     setEdited(next);
     setCopied(false);
+    setNote(null);
     // Any change after a pass re-locks Copy + Open on X.
     if (stage === "ready") {
       setStage("editing");
       setIntentUrl(null);
-      setNote(null);
     }
   }
 
