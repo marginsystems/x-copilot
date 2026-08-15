@@ -305,13 +305,15 @@ function watchPayloadsForThread(thread: ThreadCard): Array<{
       conversationId: thread.conversationId,
     },
   ];
-  if (thread.conversationId && thread.conversationId !== thread.id) {
+  if (
+    thread.conversationId &&
+    thread.conversationId !== thread.id &&
+    thread.opAuthor
+  ) {
     items.push({
       threadId: thread.conversationId,
       author: thread.opAuthor,
-      url: thread.opAuthor
-        ? `https://x.com/${thread.opAuthor.replace(/^@/, "")}/status/${thread.conversationId}`
-        : undefined,
+      url: `https://x.com/${thread.opAuthor.replace(/^@/, "")}/status/${thread.conversationId}`,
       text: thread.opText ?? thread.text,
       conversationId: thread.conversationId,
     });
