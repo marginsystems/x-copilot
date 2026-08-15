@@ -76,6 +76,27 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.metrics.likes, 1);
   });
 
+  it("reads a flat XAA v2 delivery with the post under data", () => {
+    const parsed = parsePostCreateEvent({
+      event_uuid: "evt-flat",
+      event_type: "post.create",
+      for_user_id: "99",
+      data: {
+        id: "444",
+        author_id: "99",
+        text: "flat shape",
+        created_at: "2026-08-15T02:00:00.000Z",
+        public_metrics: { impression_count: 7, like_count: 2 },
+      },
+    });
+    assert.ok(parsed);
+    assert.equal(parsed?.eventUuid, "evt-flat");
+    assert.equal(parsed?.postId, "444");
+    assert.equal(parsed?.xUserId, "99");
+    assert.equal(parsed?.kind, "original");
+    assert.equal(parsed?.metrics.views, 7);
+  });
+
   it("ignores non-create events", () => {
     assert.equal(
       parsePostCreateEvent({

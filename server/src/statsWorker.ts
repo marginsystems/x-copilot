@@ -36,11 +36,14 @@ import {
 } from "./ownPostStore.js";
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
 import { runWithRequestContext } from "./requestContext.js";
+import { getUserById } from "./authStore.js";
+import { creditsExhaustedResponse } from "./billingStore.js";
 
 const TICK_MS = 60 * 60 * 1000;
 const LOOKUP_DELAY_MS = 400;
 const MAX_CONSECUTIVE_FAILURES = 3;
 const tweetFailures = new Map<string, number>();
+const ownPostFailures = new Map<string, number>();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -402,8 +405,28 @@ async function main(): Promise<void> {
     }
     try {
       const dueOwn = listDueOwnPostSamples({ limit: 15 });
+      const dueOwnKeys = new Set(
+        dueOwn.map((d) => `${d.postId}:${d.checkpoint}`),
+      );
+      for (const key of ownPostFailures.keys()) {
+        if (!dueOwnKeys.has(key)) ownPostFailures.delete(key);
+      }
       let sampledOwn = 0;
       for (const item of dueOwn) {
+        const failKey = `${item.postId}:${item.checkpoint}`;
+        if ((ownPostFailures.get(failKey) ?? 0) >= MAX_CONSECUTIVE_FAILURES) {
+          continue;
+        }
+        const user = getUserById(item.userId);
+        if (
+          creditsExhaustedResponse({
+            userId: item.userId,
+            tenantId: item.tenantId,
+            email: user?.email ?? null,
+          })
+        ) {
+          continue;
+        }
         const metrics = await runWithRequestContext(
           { tenantId: item.tenantId, userId: item.userId },
           () =>
@@ -411,7 +434,11 @@ async function main(): Promise<void> {
               tweetId: item.postId,
             }),
         );
-        if (!metrics) continue;
+        if (!metrics) {
+          ownPostFailures.set(failKey, (ownPostFailures.get(failKey) ?? 0) + 1);
+          continue;
+        }
+        ownPostFailures.delete(failKey);
         patchOwnPostSnapshot(item.postId, item.checkpoint, metrics);
         sampledOwn += 1;
         await sleep(LOOKUP_DELAY_MS);

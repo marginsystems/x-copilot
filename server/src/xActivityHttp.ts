@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { corsHeaders } from "./cors.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { xConsumerCreds } from "./xAuth.js";
+import { getUserById } from "./authStore.js";
 import {
   crcResponseToken,
   parsePostCreateEvent,
@@ -19,6 +20,7 @@ import {
   seenActivityEvent,
   startOfUtcDayIso,
   nextUtcDayIso,
+  nextUtcMonthIso,
   upsertOwnPost,
   watchThread,
 } from "./ownPostStore.js";
@@ -34,7 +36,7 @@ import {
 } from "./billingStore.js";
 import { recordUsageEvent } from "./usageMeter.js";
 import { markInteracted } from "./interactionStore.js";
-import { allowRate } from "./authGuard.js";
+import { allowRate, clientIp } from "./authGuard.js";
 
 function send(
   req: IncomingMessage,
@@ -71,6 +73,10 @@ async function handleCrc(
   res: ServerResponse,
   url: URL,
 ): Promise<void> {
+  if (!allowRate(`xaa-crc:${clientIp(req)}`, 5, 60_000)) {
+    send(req, res, 429, { error: "rate_limited" });
+    return;
+  }
   const token = url.searchParams.get("crc_token")?.trim();
   const creds = xConsumerCreds();
   if (!token || !creds) {
@@ -129,17 +135,18 @@ async function handleActivityPost(
     return;
   }
   const tenantId = ensureUserTenant(userId);
+  const email = getUserById(userId)?.email ?? null;
   const exhausted = creditsExhaustedResponse({
     userId,
     tenantId,
-    email: null,
+    email,
   });
   if (exhausted) {
-    await pauseUserSubscription(userId, nextUtcDayIso());
+    await pauseUserSubscription(userId, nextUtcMonthIso());
     send(req, res, 200, { ok: true, paused: "credits" });
     return;
   }
-  const activity = dailyActivityUsage(userId, null);
+  const activity = dailyActivityUsage(userId, email);
   if (!activity.can_watch) {
     await pauseUserSubscription(userId, nextUtcDayIso());
     send(req, res, 200, { ok: true, paused: "daily_cap" });
@@ -149,7 +156,7 @@ async function handleActivityPost(
   upsertOwnPost({ parsed, userId, tenantId });
   recordUsageEvent({
     method: "POST",
-    path: "/activity/post.create",
+    path: "/tweets/activity/post.create",
     status: 200,
     postsRead: 1,
     tenantId,
@@ -221,15 +228,18 @@ export async function tryHandleXActivityAuthed(
       send(req, res, 429, { error: "rate_limited" });
       return true;
     }
-    const chunks: Buffer[] = [];
-    const raw = await new Promise<string>((resolve, reject) => {
-      req.on("data", (c: Buffer) => chunks.push(c));
-      req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-      req.on("error", reject);
-    });
+    let raw: Buffer;
+    try {
+      raw = await readRawBody(req);
+    } catch {
+      send(req, res, 413, { error: "too_large" });
+      return true;
+    }
     let body: Record<string, unknown> = {};
     try {
-      body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+      body = raw.length
+        ? (JSON.parse(raw.toString("utf8")) as Record<string, unknown>)
+        : {};
     } catch {
       send(req, res, 400, { error: "invalid_json" });
       return true;

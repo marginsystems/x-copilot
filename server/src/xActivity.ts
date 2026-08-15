@@ -123,8 +123,10 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
   const eventType = String(data.event_type ?? root.event_type ?? "");
   if (eventType && eventType !== "post.create") return null;
 
-  const payload = data.payload;
-  if (!payload || typeof payload !== "object") return null;
+  const payload =
+    data.payload && typeof data.payload === "object"
+      ? (data.payload as Record<string, unknown>)
+      : data;
   const post = payload as Record<string, unknown>;
   const postId = String(post.id ?? "").trim();
   if (!postId) return null;
@@ -138,7 +140,7 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
   ).trim();
   if (!xUserId) return null;
 
-  const eventUuid = String(data.event_uuid ?? postId).trim();
+  const eventUuid = String(data.event_uuid ?? root.event_uuid ?? postId).trim();
   const postedAt =
     typeof post.created_at === "string" && post.created_at.trim()
       ? post.created_at

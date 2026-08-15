@@ -36,6 +36,12 @@ export function nextUtcDayIso(now = new Date()): string {
   ).toISOString();
 }
 
+export function nextUtcMonthIso(now = new Date()): string {
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+  ).toISOString();
+}
+
 export function seenActivityEvent(eventUuid: string): boolean {
   const row = getPlatformDb()
     .prepare(`SELECT event_uuid FROM activity_event_ids WHERE event_uuid = ?`)
