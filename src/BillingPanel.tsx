@@ -128,9 +128,13 @@ export function BillingPanel(props: {
             ? "Operator allotment (Horizon pool) until you subscribe. One credit = one X post read."
             : billing?.plan_state === "free_limit_reached"
               ? "Free · monthly credit limit reached. Upgrade below, or wait until the next UTC month."
-              : !live
-                ? `Free · ${(credits?.limit ?? 1500).toLocaleString()} credits/month. No credit card. Subscribe below when you need more.`
-                : `Plan: ${planName(billing?.plan_key ?? "free")}. One credit = one X post read (Scout, post watch, and 1h/24h snapshots). Hard ceiling, no rollover.`}
+              : !billing
+                ? props.busy
+                  ? "…"
+                  : "—"
+                : !live
+                  ? `Free · ${(credits?.limit ?? 1500).toLocaleString()} credits/month. No credit card. Subscribe below when you need more.`
+                  : `Plan: ${planName(billing?.plan_key ?? "free")}. One credit = one X post read (Scout, post watch, and 1h/24h snapshots). Hard ceiling, no rollover.`}
           {billing?.subscription?.current_period_end
             ? ` Period ends ${new Date(billing.subscription.current_period_end).toLocaleDateString()}.`
             : ""}
@@ -163,7 +167,8 @@ export function BillingPanel(props: {
         </div>
       ) : null}
 
-      {billing?.plan_state === "free_limit_reached" ? (
+      {billing?.plan_state === "free_limit_reached" &&
+      !billing?.operator_allotment ? (
         <p className="usage-banner">
           You've used this month's free credits. Upgrade below, or wait until
           the next UTC month.
@@ -206,7 +211,7 @@ export function BillingPanel(props: {
         {PLAN_ORDER.map((key) => {
           const plan =
             billing?.plans?.[key] ?? (key === "free" ? FREE_CARD : undefined);
-          const onFree = !live && (billing?.plan_key ?? "free") === "free";
+          const onFree = !live && billing?.plan_key === "free";
           const isCurrent =
             key === "free"
               ? onFree
