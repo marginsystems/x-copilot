@@ -64,6 +64,7 @@ import { Onboarding } from "./Onboarding";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
 import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
+import { Analytics } from "./Analytics";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -293,6 +294,52 @@ function scoutProgressPrefix(ev: {
   return null;
 }
 
+function watchPayloadsForThread(thread: ThreadCard): Array<{
+  threadId: string;
+  author?: string;
+  url?: string;
+  text?: string;
+  conversationId?: string;
+}> {
+  const items = [
+    {
+      threadId: thread.id,
+      author: thread.author,
+      url: thread.url,
+      text: thread.text,
+      conversationId: thread.conversationId,
+    },
+  ];
+  if (
+    thread.conversationId &&
+    thread.conversationId !== thread.id &&
+    thread.opAuthor
+  ) {
+    items.push({
+      threadId: thread.conversationId,
+      author: thread.opAuthor,
+      url: `https://x.com/${thread.opAuthor.replace(/^@/, "")}/status/${thread.conversationId}`,
+      text: thread.opText ?? thread.text,
+      conversationId: thread.conversationId,
+    });
+  }
+  return items;
+}
+
+function watchDeskThreads(list: ThreadCard[]): void {
+  const threads = list.flatMap(watchPayloadsForThread).filter((t) => t.threadId);
+  if (!threads.length) return;
+  void apiFetch("/api/watch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ threads }),
+  }).catch(() => {});
+}
+
+function ensureActivitySubscribe(): void {
+  void apiFetch("/api/activity/subscribe", { method: "POST" }).catch(() => {});
+}
+
 function ThreadRow({
   thread,
   open,
@@ -302,6 +349,7 @@ function ThreadRow({
   onMark,
   onSkip,
   onDismiss,
+  onWatch,
 }: {
   thread: ThreadCard;
   open: boolean;
@@ -311,6 +359,7 @@ function ThreadRow({
   onMark: () => void;
   onSkip: () => void;
   onDismiss: () => void;
+  onWatch?: () => void;
 }) {
   const bait = baitRisk(thread);
   const ago = formatTimeAgo(thread.createdAt);
@@ -383,7 +432,13 @@ function ThreadRow({
             </div>
           ) : null}
           <div className="row">
-            <a className="ghost" href={thread.url} target="_blank" rel="noreferrer">
+            <a
+              className="ghost"
+              href={thread.url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => onWatch?.()}
+            >
               Open on X
             </a>
             <button
@@ -579,7 +634,7 @@ function InteractedRow({
   );
 }
 
-type AppView = "dashboard" | "settings" | "usage" | "admin" | LegalKind;
+type AppView = "dashboard" | "settings" | "usage" | "admin" | "analytics" | LegalKind;
 
 type UsageWindow = "24h" | "7d" | "all";
 
@@ -624,6 +679,7 @@ function viewFromPath(pathname: string): AppView {
   if (pathname === "/terms" || pathname.startsWith("/terms/")) return "terms";
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   if (pathname === "/usage" || pathname === "/billing") return "usage";
+  if (pathname === "/analytics") return "analytics";
   if (pathname === "/settings") return "settings";
   return "dashboard";
 }
@@ -633,6 +689,7 @@ function pathFromView(view: AppView): string {
   if (view === "terms") return "/terms";
   if (view === "admin") return "/admin";
   if (view === "usage") return "/usage";
+  if (view === "analytics") return "/analytics";
   if (view === "settings") return "/settings";
   return "/";
 }
@@ -1164,6 +1221,7 @@ export default function App() {
       }
       const filtered = list.filter((t) => keepInCurated(t));
       setThreads(filtered);
+      watchDeskThreads(filtered);
       const when =
         formatAbsoluteTime(data.snapshot.savedAt) ||
         formatTimeAgo(data.snapshot.savedAt) ||
@@ -1313,6 +1371,7 @@ export default function App() {
         await confirmCheckout(sessionId);
       }
       void loadBilling();
+      if (user) ensureActivitySubscribe();
       if (viewFromPath(window.location.pathname) === "usage" || checkout) {
         void loadUsage();
       }
@@ -1800,6 +1859,7 @@ export default function App() {
           }
         : prev,
     );
+    ensureActivitySubscribe();
   }
 
   function chooseConsent(choice: ConsentChoice) {
@@ -1821,6 +1881,11 @@ export default function App() {
     closeMenu();
     void loadUsage(usageWindow);
     void loadBilling();
+  }
+
+  function openAnalytics() {
+    goToView("analytics");
+    closeMenu();
   }
 
   function openAdmin() {
@@ -2069,12 +2134,9 @@ export default function App() {
         }
         applyScoutEvent(ev);
         if (ev.stage === "partial" && ev.threads?.length) {
-          setThreads((prev) =>
-            appendThreadsById(
-              prev,
-              (ev.threads ?? []).filter((t) => keepInCurated(t)),
-            ),
-          );
+          const incoming = (ev.threads ?? []).filter((t) => keepInCurated(t));
+          watchDeskThreads(incoming);
+          setThreads((prev) => appendThreadsById(prev, incoming));
         }
       };
 
@@ -2109,13 +2171,10 @@ export default function App() {
         const doneEvent = stream.doneEvent;
         const qs = doneEvent.queries ?? [];
         const list = doneEvent.threads ?? [];
+        const incoming = list.filter((t) => keepInCurated(t));
+        watchDeskThreads(incoming);
         // Append this run’s cool threads; do not wipe prior Scout loops.
-        setThreads((prev) =>
-          appendThreadsById(
-            prev,
-            list.filter((t) => keepInCurated(t)),
-          ),
-        );
+        setThreads((prev) => appendThreadsById(prev, incoming));
         setExpandedId(null);
         await hydrateInteracted();
         const progress = coolProgressLabel(
@@ -2555,6 +2614,13 @@ export default function App() {
                   <button
                     type="button"
                     className="ghost menu-action"
+                    onClick={openAnalytics}
+                  >
+                    Analytics
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost menu-action"
                     onClick={openUsage}
                   >
                     Usage & Billing
@@ -2659,6 +2725,10 @@ export default function App() {
             <p className="status danger">This desk is operator-only.</p>
           </section>
         )
+      ) : null}
+
+      {view === "analytics" ? (
+        <Analytics onBack={() => goToView("dashboard")} />
       ) : null}
 
       {view === "usage" ? (
@@ -2782,7 +2852,7 @@ export default function App() {
         </section>
       ) : null}
 
-      {view === "usage" || view === "admin" ? null : view === "settings" ? (
+      {view === "usage" || view === "admin" || view === "analytics" ? null : view === "settings" ? (
         <section className="panel settings-pane">
           <div className="settings-head">
             <h2>Settings</h2>
@@ -3233,9 +3303,12 @@ export default function App() {
                         open={expandedId === t.id}
                         busy={actionBusy}
                         interacted={interactedIds.has(t.id)}
-                        onToggle={() =>
-                          setExpandedId(expandedId === t.id ? null : t.id)
-                        }
+                        onToggle={() => {
+                          const next = expandedId === t.id ? null : t.id;
+                          setExpandedId(next);
+                          if (next) watchDeskThreads([t]);
+                        }}
+                        onWatch={() => watchDeskThreads([t])}
                         onMark={() => onMark(t)}
                         onSkip={() => void onSkip(t)}
                         onDismiss={() => openDismissModal(t)}

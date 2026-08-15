@@ -45,23 +45,23 @@ Checkout will fail with `consent_collection.terms_of_service` until the ToS URL 
 
 ### Products — create three, recurring monthly USD
 
-| Dashboard product name | Price | In-app name | Credits / UTC month | Takeoffs / UTC day |
-|---|---|---|---|---|
-| x-copilot Pulse | $12 | Pulse | 1,500 | 4 |
-| x-copilot Radar | $36 | Radar | 6,000 | 8 |
-| x-copilot Horizon | $99 | Horizon | 20,000 | 20 |
+| Dashboard product name | Price | In-app name | Credits / UTC month | Takeoffs / UTC day | Watch posts / UTC day |
+|---|---|---|---|---|---|
+| x-copilot Pulse | $12 | Pulse | 6,000 | 5 | 50 |
+| x-copilot Radar | $36 | Radar | 18,000 | 10 | 120 |
+| x-copilot Horizon | $99 | Horizon | 40,000 | 25 | 250 |
 
 **x-copilot Pulse** — description to paste:
 
-> Monthly x-copilot desk from Mergestorm, Inc. 1,500 X post-read credits per UTC month and 4 Scout takeoffs per day. Unused credits do not roll over. You review and post on X yourself — no auto-engage.
+> Monthly x-copilot desk from Mergestorm, Inc. 6,000 X post-read credits per UTC month, 5 Scout takeoffs per day, and a 50-post/day watch. Unused credits do not roll over. You review and post on X yourself — no auto-engage.
 
 **x-copilot Radar** — description to paste:
 
-> Monthly x-copilot desk from Mergestorm, Inc. 6,000 X post-read credits per UTC month and 8 Scout takeoffs per day. Unused credits do not roll over. You review and post on X yourself — no auto-engage.
+> Monthly x-copilot desk from Mergestorm, Inc. 18,000 X post-read credits per UTC month, 10 Scout takeoffs per day, and a 120-post/day watch. Unused credits do not roll over. You review and post on X yourself — no auto-engage.
 
 **x-copilot Horizon** — description to paste:
 
-> Monthly x-copilot desk from Mergestorm, Inc. 20,000 X post-read credits per UTC month and 20 Scout takeoffs per day. Unused credits do not roll over. You review and post on X yourself — no auto-engage.
+> Monthly x-copilot desk from Mergestorm, Inc. 40,000 X post-read credits per UTC month, 25 Scout takeoffs per day, and a 250-post/day watch. Unused credits do not roll over. You review and post on X yourself — no auto-engage.
 
 Each price: **Recurring → Monthly → USD**. Copy the `price_…` IDs into the sidecar `.env`:
 

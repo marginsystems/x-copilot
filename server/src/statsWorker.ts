@@ -30,11 +30,23 @@ import {
 } from "./replyDiscover.js";
 import { fetchTweetMetrics } from "./tweetLookup.js";
 import { getSessionFromEnv } from "./xSession.js";
+import {
+  listDueOwnPostSamples,
+  patchOwnPostSnapshot,
+  pruneActivityEvents,
+  type DueOwnPostSample,
+} from "./ownPostStore.js";
+import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
+import { runWithRequestContext } from "./requestContext.js";
+import { getUserById } from "./authStore.js";
+import { creditsExhaustedResponse } from "./billingStore.js";
 
 const TICK_MS = 60 * 60 * 1000;
 const LOOKUP_DELAY_MS = 400;
 const MAX_CONSECUTIVE_FAILURES = 3;
+const ACTIVITY_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const tweetFailures = new Map<string, number>();
+const ownPostFailures = new Map<string, number>();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -387,6 +399,72 @@ async function main(): Promise<void> {
       console.log(`[stats-worker] expire expired=${expired.expired}`);
     } catch (err) {
       console.error("[stats-worker] expire failed:", err);
+    }
+    try {
+      const resumed = await resumeDueSubscriptions();
+      if (resumed) console.log(`[stats-worker] xaa resumed=${resumed}`);
+    } catch (err) {
+      console.warn("[stats-worker] xaa resume", err);
+    }
+    try {
+      pruneActivityEvents(
+        new Date(Date.now() - ACTIVITY_EVENT_RETENTION_MS).toISOString(),
+      );
+      // Oversample the due queue so permanently-failing (burned) oldest rows
+      // do not consume the whole 15-slot budget and starve healthy posts,
+      // mirroring the interaction due loop in runStatsTick above.
+      const allDueOwn = listDueOwnPostSamples({ limit: 15 * 20 });
+      const dueOwnKeys = new Set(
+        allDueOwn.map((d) => `${d.postId}:${d.checkpoint}`),
+      );
+      for (const key of ownPostFailures.keys()) {
+        if (!dueOwnKeys.has(key)) ownPostFailures.delete(key);
+      }
+      const dueOwn: DueOwnPostSample[] = [];
+      for (const item of allDueOwn) {
+        const failKey = `${item.postId}:${item.checkpoint}`;
+        if ((ownPostFailures.get(failKey) ?? 0) >= MAX_CONSECUTIVE_FAILURES) {
+          continue;
+        }
+        dueOwn.push(item);
+        if (dueOwn.length >= 15) break;
+      }
+      let sampledOwn = 0;
+      for (const item of dueOwn) {
+        const failKey = `${item.postId}:${item.checkpoint}`;
+        const user = getUserById(item.userId);
+        if (
+          creditsExhaustedResponse({
+            userId: item.userId,
+            tenantId: item.tenantId,
+            email: user?.email ?? null,
+          })
+        ) {
+          continue;
+        }
+        const metrics = await runWithRequestContext(
+          { tenantId: item.tenantId, userId: item.userId },
+          () =>
+            fetchTweetMetrics({
+              tweetId: item.postId,
+            }),
+        );
+        if (!metrics) {
+          ownPostFailures.set(failKey, (ownPostFailures.get(failKey) ?? 0) + 1);
+          continue;
+        }
+        ownPostFailures.delete(failKey);
+        patchOwnPostSnapshot(item.postId, item.checkpoint, metrics);
+        sampledOwn += 1;
+        await sleep(LOOKUP_DELAY_MS);
+      }
+      if (dueOwn.length) {
+        console.log(
+          `[stats-worker] own-posts due=${dueOwn.length} sampled=${sampledOwn}`,
+        );
+      }
+    } catch (err) {
+      console.warn("[stats-worker] own-post snapshots", err);
     }
   };
 
