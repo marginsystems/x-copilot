@@ -6,8 +6,9 @@
     <title>x-copilot — independent research desk</title>
     <meta
       name="description"
-      content="Private research and triage desk for posting on X. Built by Mergestorm, Inc. Not affiliated with X Corp."
+      content="Find the threads worth a human reply. Scout searches X and scores what’s cool — you review and post yourself. Built by Mergestorm, Inc. Not affiliated with X Corp."
     />
+    <meta name="author" content="Mergestorm, Inc." />
     <meta name="robots" content="index,follow" />
     <meta name="theme-color" content="#161310" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#f6f1ea" media="(prefers-color-scheme: light)" />
@@ -51,7 +52,7 @@
     <meta property="og:title" content="x-copilot — independent research desk" />
     <meta
       property="og:description"
-      content="Private research and triage desk for posting on X. Built by Mergestorm, Inc. Not affiliated with X Corp."
+      content="Find the threads worth a human reply. Scout searches X and scores what’s cool — you review and post yourself. Built by Mergestorm, Inc."
     />
     <meta property="og:image" content="https://xcopilot.dev/og.png" />
     <meta property="og:image:width" content="1200" />
@@ -62,7 +63,7 @@
     <meta name="twitter:title" content="x-copilot — independent research desk" />
     <meta
       name="twitter:description"
-      content="Private research and triage desk for posting on X. Built by Mergestorm, Inc. Not affiliated with X Corp."
+      content="Find the threads worth a human reply. Scout searches X and scores what’s cool — you review and post yourself. Built by Mergestorm, Inc."
     />
     <meta name="twitter:image" content="https://xcopilot.dev/og.png" />
 
@@ -80,10 +81,21 @@
         "url": "https://xcopilot.dev/",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",
-        "description": "Private research and triage desk for posting on X. Built by Mergestorm, Inc. Not affiliated with X Corp.",
-        "creator": { "@type": "Organization", "name": "Mergestorm, Inc." },
+        "description": "Find the threads worth a human reply. Scout searches X and scores what’s cool — you review and post yourself.",
+        "creator": {
+          "@type": "Organization",
+          "name": "Mergestorm, Inc.",
+          "url": "https://mergestorm.ai/",
+          "email": "contact@mergestorm.ai"
+        },
         "image": "https://xcopilot.dev/og.png",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+        "offers": {
+          "@type": "AggregateOffer",
+          "lowPrice": "0",
+          "highPrice": "99",
+          "priceCurrency": "USD",
+          "offerCount": "4"
+        }
       }
     </script>
   </head>

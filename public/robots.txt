@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /usage
+Disallow: /billing
+Disallow: /settings
+Disallow: /admin
 
 Sitemap: https://xcopilot.dev/sitemap.xml
