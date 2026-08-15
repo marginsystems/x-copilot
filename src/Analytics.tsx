@@ -323,7 +323,7 @@ export function Analytics(props: { onBack: () => void }) {
   const kinds = data?.kinds ?? [];
   const top = data?.top ?? [];
   const activity = data?.activity;
-  const empty = !busy && (totals?.posts ?? 0) === 0;
+  const empty = !busy && !error && (totals?.posts ?? 0) === 0;
 
   return (
     <section className="panel settings-pane analytics-pane">
