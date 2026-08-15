@@ -60,6 +60,7 @@ export function checkTrivialEdit(
   }
   const a = normalizeForEditCompare(draft);
   const b = normalizeForEditCompare(editedTrim);
+  if (!b) return { trivial: true, reason: "cosmetic_only" };
   if (a === b) return { trivial: true, reason: "cosmetic_only" };
   if (editDistanceCapped(a, b, 2) <= 2) {
     return { trivial: true, reason: "too_small" };

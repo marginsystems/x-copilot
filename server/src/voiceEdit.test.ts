@@ -38,6 +38,7 @@ describe("voiceEdit forced-edit gate", () => {
       true,
     );
     assert.equal(checkTrivialEdit(draft, draft.replace("?", "!!!")).trivial, true);
+    assert.equal(checkTrivialEdit(draft, "???").trivial, true);
   });
 
   it("rejects whitespace-only edits", () => {
