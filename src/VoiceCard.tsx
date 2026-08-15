@@ -45,11 +45,13 @@ function VoiceLoader({ startedAt }: { startedAt: number }) {
 export function VoiceCardPanel({
   voice,
   busy,
+  refreshing = busy,
   error,
   onLearn,
 }: {
   voice: VoiceState | null;
   busy: boolean;
+  refreshing?: boolean;
   error: string | null;
   onLearn: () => void;
 }) {
@@ -71,12 +73,12 @@ export function VoiceCardPanel({
             drafts borrow it — you always edit and post yourself.
           </p>
         </div>
-        {voice && voice.status !== "unlinked" && !busy ? (
+        {voice && voice.status !== "unlinked" && !refreshing ? (
           <button
             type="button"
             className="ghost voice-refresh"
             onClick={onLearn}
-            disabled={busy}
+            disabled={refreshing}
           >
             {voice.status === "ready" || voice.status === "insufficient"
               ? "Refresh"

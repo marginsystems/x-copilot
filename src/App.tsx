@@ -796,6 +796,8 @@ export default function App() {
   const manualVerifyDoneRef = useRef(false);
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  /** Silent once-a-day learn — quiet, but still gating the Refresh button. */
+  const [voicePending, setVoicePending] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
@@ -1311,6 +1313,7 @@ export default function App() {
       setVoiceBusy(true);
       setVoiceError(null);
     }
+    setVoicePending(true);
     try {
       const res = await apiFetch("/api/voice/learn", {
         method: "POST",
@@ -1332,6 +1335,7 @@ export default function App() {
       if (!opts?.silent) setVoiceError("Couldn't reach the desk — try again.");
     } finally {
       if (!opts?.silent) setVoiceBusy(false);
+      setVoicePending(false);
     }
   }
 
@@ -1457,6 +1461,7 @@ export default function App() {
       );
       timer = setTimeout(() => {
         void loadBilling();
+        void hydrateVoice();
         arm();
       }, Math.max(0, nextUtcDay - Date.now()) + 500);
     };
@@ -2828,6 +2833,7 @@ export default function App() {
           <VoiceCardPanel
             voice={voice}
             busy={voiceBusy}
+            refreshing={voiceBusy || voicePending}
             error={voiceError}
             onLearn={() => void learnVoice()}
           />
