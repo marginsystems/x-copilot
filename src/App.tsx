@@ -32,6 +32,7 @@ import {
   waitWithCountdown,
 } from "./lib/markDetectPoll";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
+import { ScoutPixelField } from "./ScoutPixelField";
 import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
 import {
   emptyActivityStats,
@@ -3030,59 +3031,62 @@ export default function App() {
                   onChange={(e) => setAgenda(e.target.value)}
                   placeholder="What should we look for and how should we sound?"
                 />
-                <div className="scout-controls">
-                  {searching ? (
-                    <button
-                      type="button"
-                      className="primary scout-run"
-                      onClick={onStopScout}
+                <div className="scout-cluster">
+                  <div className="scout-controls">
+                    {searching ? (
+                      <button
+                        type="button"
+                        className="primary scout-run"
+                        onClick={onStopScout}
+                      >
+                        Land
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="primary scout-run"
+                        disabled={searchBlocked || !agenda.trim()}
+                        onClick={onSearch}
+                      >
+                        {grounded
+                          ? "Grounded"
+                          : searchCooldownRemaining > 0
+                            ? `Hold short ${searchCooldownRemaining}s`
+                            : "Take off"}
+                      </button>
+                    )}
+                  </div>
+                  <div className="status-stack" aria-live="polite">
+                    <p
+                      className={
+                        searching
+                          ? "status scout-flight-line"
+                          : "status status-main"
+                      }
                     >
-                      Land
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="primary scout-run"
-                      disabled={searchBlocked || !agenda.trim()}
-                      onClick={onSearch}
-                    >
-                      {grounded
-                        ? "Grounded"
-                        : searchCooldownRemaining > 0
-                          ? `Hold short ${searchCooldownRemaining}s`
-                          : "Take off"}
-                    </button>
-                  )}
-                </div>
-                <div className="status-stack" aria-live="polite">
-                  <p
-                    className={
-                      searching
-                        ? "status scout-flight-line"
-                        : "status status-main"
-                    }
-                  >
-                    {grounded && !searching
-                      ? `Grounded — ${sortiesLimit ?? 0} sortie${sortiesLimit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`
-                      : searchCooldownRemaining > 0 && !searching
-                        ? `Hold short ${searchCooldownRemaining}s.`
-                        : status || "On the ground — set an agenda and take off."}
-                  </p>
-                  {billing?.sorties && !grounded && !searching ? (
-                    <p className="status status-hint">
-                      {sortiesLeft ?? 0} sortie
-                      {sortiesLeft === 1 ? "" : "s"} left today
+                      {grounded && !searching
+                        ? `Grounded — ${sortiesLimit ?? 0} sortie${sortiesLimit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`
+                        : searchCooldownRemaining > 0 && !searching
+                          ? `Hold short ${searchCooldownRemaining}s.`
+                          : status || "On the ground — set an agenda and take off."}
                     </p>
-                  ) : null}
-                </div>
-                <div
-                  className={searching ? "scout-strip active" : "scout-strip"}
-                >
+                    {billing?.sorties && !grounded && !searching ? (
+                      <p className="status status-hint">
+                        {sortiesLeft ?? 0} sortie
+                        {sortiesLeft === 1 ? "" : "s"} left today
+                      </p>
+                    ) : null}
+                  </div>
                   <div
-                    className={searching ? "scout-bar" : "scout-bar idle"}
-                    aria-hidden="true"
-                  />
+                    className={searching ? "scout-strip active" : "scout-strip"}
+                  >
+                    <div
+                      className={searching ? "scout-bar" : "scout-bar idle"}
+                      aria-hidden="true"
+                    />
+                  </div>
                 </div>
+                <ScoutPixelField searching={searching} />
               </div>
               <div
                 className={
