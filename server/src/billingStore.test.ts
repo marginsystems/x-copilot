@@ -147,6 +147,22 @@ describe("billingStore", () => {
     assert.equal(exhausted, null);
   });
 
+  it("reports the Horizon pool to admins as a paid plan, not Free", () => {
+    process.env.ADMIN_EMAILS = "ops-me@example.com";
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-b-me-admin",
+      email: "ops-me@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(user.id);
+    const me = billingMePayload({ userId: user.id, email: user.email });
+    assert.equal(me.plan_key, "horizon");
+    assert.equal(me.plan_state, "subscription_active");
+    assert.equal(me.operator_allotment, true);
+    assert.equal(me.has_stripe_subscription, false);
+  });
+
   it("activates a paid plan and ignores stale webhook events", () => {
     const user = upsertOauthUser({
       provider: "google",

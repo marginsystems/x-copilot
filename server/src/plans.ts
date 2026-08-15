@@ -71,8 +71,14 @@ export type PlanState =
   | "subscription_active"
   | "past_due";
 
-/** Paid live sub wins; otherwise Free (active or monthly pool empty). */
+/**
+ * Paid live sub wins; a paid plan key (e.g. an operator's Horizon allotment)
+ * counts as active even without a live Stripe sub; otherwise Free (active or
+ * monthly pool empty). free_* states only apply to the "free" plan key so
+ * plan_state never contradicts plan_key.
+ */
 export function derivePlanState(input: {
+  planKey: PlanKey;
   live: boolean;
   status: string | null | undefined;
   creditsCanUse: boolean;
@@ -82,6 +88,9 @@ export function derivePlanState(input: {
   }
   if (input.live && (input.status === "past_due" || input.status === "unpaid")) {
     return "past_due";
+  }
+  if (input.planKey !== "free") {
+    return "subscription_active";
   }
   return input.creditsCanUse ? "free_active" : "free_limit_reached";
 }

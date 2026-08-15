@@ -56,15 +56,16 @@ describe("plans", () => {
 
   it("derives free vs paid plan states", () => {
     assert.equal(
-      derivePlanState({ live: false, status: null, creditsCanUse: true }),
+      derivePlanState({ planKey: "free", live: false, status: null, creditsCanUse: true }),
       "free_active",
     );
     assert.equal(
-      derivePlanState({ live: false, status: null, creditsCanUse: false }),
+      derivePlanState({ planKey: "free", live: false, status: null, creditsCanUse: false }),
       "free_limit_reached",
     );
     assert.equal(
       derivePlanState({
+        planKey: "pulse",
         live: true,
         status: "active",
         creditsCanUse: false,
@@ -73,11 +74,51 @@ describe("plans", () => {
     );
     assert.equal(
       derivePlanState({
+        planKey: "pulse",
         live: true,
         status: "past_due",
         creditsCanUse: true,
       }),
       "past_due",
+    );
+  });
+
+  it("keeps plan_state consistent with a paid plan key", () => {
+    assert.equal(
+      derivePlanState({
+        planKey: "horizon",
+        live: false,
+        status: null,
+        creditsCanUse: true,
+      }),
+      "subscription_active",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "pulse",
+        live: true,
+        status: null,
+        creditsCanUse: true,
+      }),
+      "subscription_active",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "free",
+        live: true,
+        status: "paused",
+        creditsCanUse: true,
+      }),
+      "free_active",
+    );
+    assert.equal(
+      derivePlanState({
+        planKey: "free",
+        live: true,
+        status: "incomplete",
+        creditsCanUse: false,
+      }),
+      "free_limit_reached",
     );
   });
 

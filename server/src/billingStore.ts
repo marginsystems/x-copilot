@@ -538,6 +538,7 @@ export function billingMePayload(input: {
   };
   const status = row.subscriptionStatus;
   const planState = derivePlanState({
+    planKey,
     live,
     status,
     creditsCanUse: usage.canUse,
