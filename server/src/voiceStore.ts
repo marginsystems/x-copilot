@@ -50,7 +50,7 @@ export function voiceUnlocked(conversationCount: number): boolean {
   return conversationCount >= VOICE_UNLOCK_MIN_CONVERSATIONS;
 }
 
-function nowIso(): string {
+export function nowIso(): string {
   return new Date().toISOString();
 }
 
@@ -266,7 +266,7 @@ export function updateVoiceProfilePull(input: {
   xUsername: string;
   xUserId?: string | null;
   sinceId?: string | null;
-  lastPullAt?: string;
+  lastPullAt?: string | null;
 }): void {
   const replyCount = countVoiceReplies(input.userId);
   const conversationCount = countDistinctConversations(input.userId);
@@ -278,7 +278,7 @@ export function updateVoiceProfilePull(input: {
          since_id = COALESCE(?, since_id),
          reply_count = ?,
          conversation_count = ?,
-         last_pull_at = ?,
+         last_pull_at = COALESCE(?, last_pull_at),
          last_error = NULL,
          updated_at = ?
        WHERE user_id = ?`,
@@ -289,7 +289,7 @@ export function updateVoiceProfilePull(input: {
       input.sinceId ?? null,
       replyCount,
       conversationCount,
-      input.lastPullAt ?? nowIso(),
+      input.lastPullAt ?? null,
       nowIso(),
       input.userId,
     );
