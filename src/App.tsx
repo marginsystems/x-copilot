@@ -55,7 +55,7 @@ import {
   writeConsent,
   type ConsentChoice,
 } from "./lib/consent";
-import { applyAnalyticsConsent, bootAnalytics } from "./lib/analytics";
+import { bootAnalytics } from "./lib/analytics";
 import { Onboarding } from "./Onboarding";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
@@ -1749,7 +1749,6 @@ export default function App() {
     writeConsent(choice);
     setConsent(choice);
     setConsentOpen(false);
-    applyAnalyticsConsent(choice);
   }
 
   function goToView(next: AppView) {

@@ -68,13 +68,16 @@ export function bootAnalytics(consent: ConsentChoice | null): void {
     });
     consentDefaultSent = true;
   }
-  if (consent !== "accepted") return;
-  if (!document.getElementById("xc-ga4")) {
-    injectGtagScript(id);
-    window.gtag!("js", new Date());
-    window.gtag!("config", id, { anonymize_ip: true });
+  if (consent === "accepted") {
+    if (!document.getElementById("xc-ga4")) {
+      injectGtagScript(id);
+      window.gtag!("js", new Date());
+      window.gtag!("config", id, { anonymize_ip: true });
+    }
   }
-  applyAnalyticsConsent("accepted");
+  if (consent !== null) {
+    applyAnalyticsConsent(consent);
+  }
 }
 
 export function applyAnalyticsConsent(choice: ConsentChoice): void {
