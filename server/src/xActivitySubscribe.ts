@@ -223,7 +223,7 @@ export async function subscribeUserToPostCreate(userId: string): Promise<{
          SET paused_until = ?, updated_at = ?
          WHERE user_id = ? AND subscription_id IS NULL`,
       )
-      .run(existing?.paused_until ?? null, new Date().toISOString(), userId);
+      .run(existing?.paused_until ?? now, new Date().toISOString(), userId);
     return { ok: false, error: "subscribe_failed" };
   }
   const at = new Date().toISOString();
