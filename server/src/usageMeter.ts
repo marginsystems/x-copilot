@@ -92,7 +92,7 @@ export type TenantUsageView = {
 };
 
 const TENANT_USAGE_NOTE =
-  "Each Scout search and post lookup spends credits from this month's pool. One credit is one X post read. Unused credits do not roll over.";
+  "Each Scout search, post lookup, and watched post.create spends credits from this month's pool. One credit is one X post. Unused credits do not roll over.";
 
 const ADMIN_USAGE_NOTE =
   "Credits are X post reads this UTC month (hard ceiling, no rollover). Est. $ is platform COGS at ~$0.005/post — console.x.com remains wallet truth for the shared key.";
@@ -112,6 +112,7 @@ export function describeUsageActivity(
     }
     return "Scout search";
   }
+  if (p.includes("/activity/post.create")) return "Post watch";
   if (/\/tweets\/[^/]+$/.test(p)) return "Post lookup";
   if (p.includes("/tweets")) return "Post read";
   return "X API call";

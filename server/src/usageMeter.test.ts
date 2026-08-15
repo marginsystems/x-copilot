@@ -164,6 +164,10 @@ describe("usage ledger", () => {
     assert.equal(summary.recent[0]?.activity, "Scout search");
   });
 
+  it("labels post.create deliveries as Post watch", () => {
+    assert.equal(describeUsageActivity("/activity/post.create"), "Post watch");
+  });
+
   it("omits remaining on events from a prior UTC month", () => {
     const now = new Date();
     const prior = new Date(
