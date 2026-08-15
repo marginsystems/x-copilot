@@ -199,19 +199,21 @@ export async function pauseUserSubscription(userId: string, untilIso: string): P
   const row = getPlatformDb()
     .prepare(`SELECT subscription_id FROM activity_subscriptions WHERE user_id = ?`)
     .get(userId) as { subscription_id: string | null } | undefined;
+  let deleteOk = true;
   if (row?.subscription_id) {
-    await xJson({
+    const res = await xJson({
       method: "DELETE",
       path: `/activity/subscriptions/${encodeURIComponent(row.subscription_id)}`,
     });
+    deleteOk = res.ok;
   }
   getPlatformDb()
     .prepare(
       `UPDATE activity_subscriptions
-       SET subscription_id = NULL, paused_until = ?, updated_at = ?
+       SET subscription_id = ?, paused_until = ?, updated_at = ?
        WHERE user_id = ?`,
     )
-    .run(untilIso, new Date().toISOString(), userId);
+    .run(deleteOk ? null : row?.subscription_id, untilIso, new Date().toISOString(), userId);
 }
 
 export async function resumeDueSubscriptions(): Promise<number> {
