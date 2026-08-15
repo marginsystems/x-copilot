@@ -6,6 +6,11 @@ import { X_API_BASE, getXApiCredsFromEnv } from "./xApi.js";
 import { getUserById, getXOauthUsername } from "./authStore.js";
 import { parseXHandle } from "./xHandle.js";
 
+// How long a subscribe "claim" reserves a due row while the X-side POST is in
+// flight. Expires harmlessly: a crashed process leaves a future paused_until
+// that the next boot/hourly resume pass retries.
+const SUBSCRIBE_CLAIM_MS = 120_000;
+
 function activityNetworkEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.NODE_TEST_CONTEXT) return false;
   if (env.X_ACTIVITY_DISABLE === "1") return false;
@@ -69,7 +74,7 @@ export async function ensureActivityWebhook(): Promise<string | null> {
     console.warn("[xaa] skip webhook register on loopback URL");
     return null;
   }
-  const listed = await xJson({ method: "GET", path: "/webhooks" });
+  const listed = await xJson({ method: "GET", path: "/activity/webhooks" });
   const data = (listed.json as { data?: Array<{ id?: string; url?: string }> })
     ?.data;
   if (Array.isArray(data)) {
@@ -78,7 +83,7 @@ export async function ensureActivityWebhook(): Promise<string | null> {
   }
   const created = await xJson({
     method: "POST",
-    path: "/webhooks",
+    path: "/activity/webhooks",
     body: { url },
   });
   const id = (created.json as { data?: { id?: string } })?.data?.id;
@@ -162,6 +167,32 @@ export async function subscribeUserToPostCreate(userId: string): Promise<{
     return { ok: true, subscriptionId: existing.subscription_id };
   }
 
+  // Reserve the row before the network call so a concurrent process (sidecar
+  // boot + stats-worker tick) cannot both POST and create a duplicate X-side
+  // subscription. Exactly one caller wins the claim; the loser backs off.
+  const claimUntil = new Date(Date.now() + SUBSCRIBE_CLAIM_MS).toISOString();
+  const claim = getPlatformDb()
+    .prepare(
+      `INSERT INTO activity_subscriptions
+         (user_id, x_user_id, subscription_id, webhook_id, paused_until, created_at, updated_at)
+       VALUES (?, ?, NULL, NULL, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         paused_until = excluded.paused_until,
+         updated_at = excluded.updated_at
+       WHERE subscription_id IS NULL
+         AND (paused_until IS NULL OR paused_until <= ?)`,
+    )
+    .run(userId, xUserId, claimUntil, now, now, now);
+  if (claim.changes === 0) {
+    const current = getPlatformDb()
+      .prepare(`SELECT subscription_id FROM activity_subscriptions WHERE user_id = ?`)
+      .get(userId) as { subscription_id: string | null } | undefined;
+    if (current?.subscription_id) {
+      return { ok: true, subscriptionId: current.subscription_id };
+    }
+    return { ok: false, error: "subscribe_in_flight" };
+  }
+
   const created = await xJson({
     method: "POST",
     path: "/activity/subscriptions",
@@ -176,6 +207,13 @@ export async function subscribeUserToPostCreate(userId: string): Promise<{
     created.json as { data?: { subscription_id?: string } }
   )?.data?.subscription_id;
   if (!created.ok || !subscriptionId) {
+    getPlatformDb()
+      .prepare(
+        `UPDATE activity_subscriptions
+         SET paused_until = ?, updated_at = ?
+         WHERE user_id = ? AND subscription_id IS NULL`,
+      )
+      .run(existing?.paused_until ?? null, new Date().toISOString(), userId);
     return { ok: false, error: "subscribe_failed" };
   }
   const at = new Date().toISOString();
