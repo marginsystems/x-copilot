@@ -157,7 +157,9 @@ export function listDueOwnPostSamples(opts?: {
   limit?: number;
 }): DueOwnPostSample[] {
   const nowMs = opts?.nowMs ?? Date.now();
-  const limit = Math.min(Math.max(opts?.limit ?? 20, 1), 80);
+  // Allow oversampling (sibling interaction due loop fetches tickCap * 20) so
+  // permanently-failing rows do not consume the caller's whole sampling budget.
+  const limit = Math.min(Math.max(opts?.limit ?? 20, 1), 300);
   const t1hBefore = new Date(nowMs - 60 * 60 * 1000).toISOString();
   const t24hBefore = new Date(nowMs - 24 * 60 * 60 * 1000).toISOString();
   const rows = getPlatformDb()
@@ -340,45 +342,63 @@ export function analyticsSummary(userId: string): {
   kinds: Array<{ key: OwnPostKind; count: number }>;
   top: OwnPostRow[];
 } {
-  const posts = listAnalyticsPosts({ userId, limit: 200 });
+  const db = getPlatformDb();
+  const totalsRow = db
+    .prepare(
+      `SELECT
+         COUNT(*) AS posts,
+         SUM(CASE WHEN kind = 'original' THEN 1 ELSE 0 END) AS originals,
+         SUM(CASE WHEN kind = 'reply' THEN 1 ELSE 0 END) AS replies,
+         SUM(CASE WHEN kind = 'quote' THEN 1 ELSE 0 END) AS quotes,
+         SUM(CASE WHEN kind = 'repost' THEN 1 ELSE 0 END) AS reposts,
+         COALESCE(SUM(COALESCE(t24h_views, t1h_views, t0_views, 0)), 0) AS views,
+         COALESCE(SUM(COALESCE(t24h_likes, t1h_likes, t0_likes, 0)), 0) AS likes,
+         COALESCE(SUM(COALESCE(t24h_replies, t1h_replies, t0_replies, 0)), 0) AS reply_count,
+         COALESCE(SUM(COALESCE(t24h_retweets, t1h_retweets, t0_retweets, 0)), 0) AS retweets,
+         COALESCE(SUM(COALESCE(t24h_bookmarks, t1h_bookmarks, t0_bookmarks, 0)), 0) AS bookmarks
+       FROM own_posts WHERE user_id = ?`,
+    )
+    .get(userId) as Record<string, number>;
   const totals = {
-    posts: posts.length,
-    originals: posts.filter((p) => p.kind === "original").length,
-    replies: posts.filter((p) => p.kind === "reply").length,
-    quotes: posts.filter((p) => p.kind === "quote").length,
-    reposts: posts.filter((p) => p.kind === "repost").length,
-    views: 0,
-    likes: 0,
-    replyCount: 0,
-    retweets: 0,
-    bookmarks: 0,
+    posts: Number(totalsRow.posts ?? 0),
+    originals: Number(totalsRow.originals ?? 0),
+    replies: Number(totalsRow.replies ?? 0),
+    quotes: Number(totalsRow.quotes ?? 0),
+    reposts: Number(totalsRow.reposts ?? 0),
+    views: Number(totalsRow.views ?? 0),
+    likes: Number(totalsRow.likes ?? 0),
+    replyCount: Number(totalsRow.reply_count ?? 0),
+    retweets: Number(totalsRow.retweets ?? 0),
+    bookmarks: Number(totalsRow.bookmarks ?? 0),
   };
-  const byDay = new Map<string, { posts: number; views: number; likes: number }>();
-  for (const p of posts) {
-    totals.views += p.views;
-    totals.likes += p.likes;
-    totals.replyCount += p.replies;
-    totals.retweets += p.retweets;
-    totals.bookmarks += p.bookmarks;
-    const day = p.postedAt.slice(0, 10);
-    const cur = byDay.get(day) ?? { posts: 0, views: 0, likes: 0 };
-    cur.posts += 1;
-    cur.views += p.views;
-    cur.likes += p.likes;
-    byDay.set(day, cur);
-  }
-  const series = [...byDay.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(-30)
-    .map(([day, v]) => ({ day, ...v }));
+  const dayRows = db
+    .prepare(
+      `SELECT substr(posted_at, 1, 10) AS day,
+         COUNT(*) AS posts,
+         COALESCE(SUM(COALESCE(t24h_views, t1h_views, t0_views, 0)), 0) AS views,
+         COALESCE(SUM(COALESCE(t24h_likes, t1h_likes, t0_likes, 0)), 0) AS likes
+       FROM own_posts WHERE user_id = ?
+       GROUP BY day ORDER BY day ASC`,
+    )
+    .all(userId) as Array<{ day: string; posts: number; views: number; likes: number }>;
+  const series = dayRows.slice(-30).map((r) => ({
+    day: r.day,
+    posts: Number(r.posts ?? 0),
+    views: Number(r.views ?? 0),
+    likes: Number(r.likes ?? 0),
+  }));
   const kinds: Array<{ key: OwnPostKind; count: number }> = (
-    ["original", "reply", "quote", "repost"] as const
+    [
+      ["original", totals.originals],
+      ["reply", totals.replies],
+      ["quote", totals.quotes],
+      ["repost", totals.reposts],
+    ] as const
   )
-    .map((key) => ({
-      key,
-      count: posts.filter((p) => p.kind === key).length,
-    }))
-    .filter((k) => k.count > 0);
-  const top = [...posts].sort((a, b) => b.views - a.views).slice(0, 8);
+    .filter(([, count]) => count > 0)
+    .map(([key, count]) => ({ key, count }));
+  const top = [...listAnalyticsPosts({ userId, limit: 200 })]
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 8);
   return { totals, series, kinds, top };
 }

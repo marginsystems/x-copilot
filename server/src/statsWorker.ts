@@ -33,6 +33,7 @@ import { getSessionFromEnv } from "./xSession.js";
 import {
   listDueOwnPostSamples,
   patchOwnPostSnapshot,
+  type DueOwnPostSample,
 } from "./ownPostStore.js";
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
 import { runWithRequestContext } from "./requestContext.js";
@@ -404,19 +405,28 @@ async function main(): Promise<void> {
       console.warn("[stats-worker] xaa resume", err);
     }
     try {
-      const dueOwn = listDueOwnPostSamples({ limit: 15 });
+      // Oversample the due queue so permanently-failing (burned) oldest rows
+      // do not consume the whole 15-slot budget and starve healthy posts,
+      // mirroring the interaction due loop in runStatsTick above.
+      const allDueOwn = listDueOwnPostSamples({ limit: 15 * 20 });
       const dueOwnKeys = new Set(
-        dueOwn.map((d) => `${d.postId}:${d.checkpoint}`),
+        allDueOwn.map((d) => `${d.postId}:${d.checkpoint}`),
       );
       for (const key of ownPostFailures.keys()) {
         if (!dueOwnKeys.has(key)) ownPostFailures.delete(key);
       }
-      let sampledOwn = 0;
-      for (const item of dueOwn) {
+      const dueOwn: DueOwnPostSample[] = [];
+      for (const item of allDueOwn) {
         const failKey = `${item.postId}:${item.checkpoint}`;
         if ((ownPostFailures.get(failKey) ?? 0) >= MAX_CONSECUTIVE_FAILURES) {
           continue;
         }
+        dueOwn.push(item);
+        if (dueOwn.length >= 15) break;
+      }
+      let sampledOwn = 0;
+      for (const item of dueOwn) {
+        const failKey = `${item.postId}:${item.checkpoint}`;
         const user = getUserById(item.userId);
         if (
           creditsExhaustedResponse({
