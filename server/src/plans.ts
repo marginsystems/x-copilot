@@ -14,7 +14,7 @@ export const PAID_PLAN_KEYS: readonly PaidPlanKey[] = [
 ];
 
 export const PLAN_CREDIT_LIMITS: Record<PlanKey, number> = {
-  free: 1_000,
+  free: 1_500,
   pulse: 6_000,
   radar: 18_000,
   horizon: 40_000,

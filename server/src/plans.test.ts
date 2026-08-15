@@ -16,7 +16,7 @@ describe("plans", () => {
       PAID_PLANS.map((p) => p.key),
       ["pulse", "radar", "horizon"],
     );
-    assert.equal(PLAN_CREDIT_LIMITS.free, 1000);
+    assert.equal(PLAN_CREDIT_LIMITS.free, 1500);
     assert.equal(PLAN_CREDIT_LIMITS.pulse, 6000);
     assert.equal(PLAN_CREDIT_LIMITS.radar, 18000);
     assert.equal(PLAN_CREDIT_LIMITS.horizon, 40000);

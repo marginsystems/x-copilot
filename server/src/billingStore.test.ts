@@ -58,7 +58,7 @@ describe("billingStore", () => {
     assert.equal(billing?.planKey, "free");
     assert.equal(billing?.tenantId, tenantId);
     const usage = getCreditUsage(tenantId, "free");
-    assert.equal(usage.limit, 1000);
+    assert.equal(usage.limit, 1500);
     assert.equal(usage.used, 0);
     assert.equal(usage.canUse, true);
   });
@@ -75,7 +75,7 @@ describe("billingStore", () => {
       tenantId,
       path: "/2/tweets/search/recent",
       status: 200,
-      postsRead: 1000,
+      postsRead: 1500,
     });
     const exhausted = creditsExhaustedResponse({
       userId: user.id,
@@ -83,7 +83,7 @@ describe("billingStore", () => {
       email: user.email,
     });
     assert.equal(exhausted?.error, "credits_exhausted");
-    assert.equal(exhausted?.limit, 1000);
+    assert.equal(exhausted?.limit, 1500);
   });
 
   it("gives ADMIN_EMAILS the Horizon pool until they subscribe", () => {
