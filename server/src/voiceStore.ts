@@ -330,12 +330,36 @@ export function recordSuggest(
   userId: string,
   threadId?: string,
   at = new Date().toISOString(),
-): void {
+): string {
+  const id = randomUUID();
   getPlatformDb()
     .prepare(
       `INSERT INTO voice_suggests (id, user_id, thread_id, at) VALUES (?, ?, ?, ?)`,
     )
-    .run(randomUUID(), userId, threadId ?? null, at);
+    .run(id, userId, threadId ?? null, at);
+  return id;
+}
+
+/**
+ * Atomically reserve a daily suggest slot: the count and the insert run in a
+ * single transaction, so concurrent suggests cannot both pass the cap check
+ * before either one records. Returns the reserved row id, or null when the
+ * day's cap is already reached.
+ */
+export function reserveSuggestSlot(
+  userId: string,
+  limit: number,
+  threadId?: string,
+  now = new Date(),
+): string | null {
+  return getPlatformDb().transaction(() => {
+    if (countSuggestsToday(userId, now) >= limit) return null;
+    return recordSuggest(userId, threadId, now.toISOString());
+  })();
+}
+
+export function removeSuggestRecord(id: string): void {
+  getPlatformDb().prepare(`DELETE FROM voice_suggests WHERE id = ?`).run(id);
 }
 
 export type SuggestUsage = {

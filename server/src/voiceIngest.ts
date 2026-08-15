@@ -131,6 +131,11 @@ export type PullRepliesResult =
       replies: VoiceReplyInput[];
       newestId: string | null;
       pages: number;
+      /** True when the pull ran to completion: target reached or the
+       *  timeline was exhausted. False on a truncated break (mid-pagination
+       *  error with partial pages, or the page cap) — callers must then keep
+       *  the previous since_id so unfetched older pages are not skipped. */
+      completed: boolean;
     }
   | { ok: false; status: number; error: string; message: string };
 
@@ -150,6 +155,7 @@ export async function pullOwnReplies(opts: {
   let paginationToken: string | undefined;
   let newestId: string | null = null;
   let pages = 0;
+  let completed = false;
 
   while (pages < MAX_TIMELINE_PAGES && replies.length < target) {
     const result: XApiGetResult = await get({
@@ -178,9 +184,19 @@ export async function pullOwnReplies(opts: {
     const page = parseUserTweetsPage(result.json, opts.xUserId);
     replies.push(...page.replies);
     if (!newestId && page.newestId) newestId = page.newestId;
-    if (!page.nextToken) break;
+    if (!page.nextToken) {
+      completed = true;
+      break;
+    }
     paginationToken = page.nextToken;
   }
+  if (replies.length >= target) completed = true;
 
-  return { ok: true, replies: replies.slice(0, target), newestId, pages };
+  return {
+    ok: true,
+    replies: replies.slice(0, target),
+    newestId,
+    pages,
+    completed,
+  };
 }

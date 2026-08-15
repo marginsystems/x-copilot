@@ -91,6 +91,7 @@ describe("pullOwnReplies", () => {
       assert.equal(result.replies.length, 100);
       assert.equal(result.newestId, "900");
       assert.equal(result.pages, 2);
+      assert.equal(result.completed, true);
     }
     assert.equal(calls[0]?.since_id, "555");
     assert.equal(calls[1]?.pagination_token, "t1");
@@ -126,7 +127,10 @@ describe("pullOwnReplies", () => {
     };
     const result = await pullOwnReplies({ xUserId: OWN_ID, deps: { get } });
     assert.ok(result.ok);
-    if (result.ok) assert.equal(result.replies.length, 1);
+    if (result.ok) {
+      assert.equal(result.replies.length, 1);
+      assert.equal(result.completed, false);
+    }
   });
 });
 

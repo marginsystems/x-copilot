@@ -19,6 +19,8 @@ import {
   getVoiceProfile,
   listVoiceReplies,
   recordSuggest,
+  removeSuggestRecord,
+  reserveSuggestSlot,
   saveVoiceCard,
   suggestLimitForPlan,
   updateVoiceProfilePull,
@@ -103,6 +105,29 @@ describe("voiceStore", () => {
     const nextDay = new Date("2026-08-16T00:00:01.000Z");
     assert.equal(countSuggestsToday(USER, nextDay), 0);
     assert.equal(getSuggestUsage(USER, "free", nextDay).canSuggest, true);
+  });
+
+  it("reserves a suggest slot atomically up to the day's cap", () => {
+    const day = new Date("2026-08-15T09:00:00.000Z");
+    for (let i = 0; i < 10; i += 1) {
+      const id = reserveSuggestSlot(
+        USER,
+        10,
+        `t${i}`,
+        new Date(day.getTime() + i * 1000),
+      );
+      assert.ok(id);
+    }
+    assert.equal(reserveSuggestSlot(USER, 10, "t-late", day), null);
+    assert.equal(countSuggestsToday(USER, day), 10);
+  });
+
+  it("releases a reserved suggest slot when the generation fails", () => {
+    const id = reserveSuggestSlot(USER, 10, "t1");
+    assert.ok(id);
+    removeSuggestRecord(id!);
+    assert.ok(reserveSuggestSlot(USER, 10, "t2"));
+    assert.equal(countSuggestsToday(USER), 1);
   });
 
   it("gives paid plans a conservative bump", () => {

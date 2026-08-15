@@ -36,8 +36,9 @@ import {
   getSuggestUsage,
   getVoiceProfile,
   listVoiceReplies,
-  recordSuggest,
   refreshVoiceCounts,
+  removeSuggestRecord,
+  reserveSuggestSlot,
   saveVoiceCard,
   setVoiceProfileStatus,
   updateVoiceProfilePull,
@@ -69,7 +70,6 @@ function readJsonBody(
       size += c.length;
       if (size > 262_144) {
         resolve(null);
-        req.destroy();
       } else {
         chunks.push(c);
       }
@@ -237,7 +237,7 @@ async function handleLearn(
     userId: user.id,
     xUsername: resolved.username,
     xUserId: resolved.id,
-    sinceId: pull.newestId,
+    sinceId: pull.completed ? pull.newestId : profile.sinceId,
   });
 
   let updated = getVoiceProfile(user.id);
@@ -321,6 +321,18 @@ async function handleSuggest(
     return;
   }
 
+  const reservationId = reserveSuggestSlot(user.id, usage.limit, threadId);
+  if (!reservationId) {
+    send(req, res, 429, {
+      error: "suggest_daily_limit",
+      message: `That's ${usage.limit} suggested drafts today — the well refills at 00:00 UTC.`,
+      used: usage.limit,
+      limit: usage.limit,
+      planKey,
+    });
+    return;
+  }
+
   const result = await suggestReply({
     cardJson: profile.cardJson,
     thread: {
@@ -332,10 +344,10 @@ async function handleSuggest(
     agenda: typeof body.agenda === "string" ? body.agenda : undefined,
   });
   if (!result.ok) {
+    removeSuggestRecord(reservationId);
     send(req, res, 502, { error: result.error, message: result.message });
     return;
   }
-  recordSuggest(user.id, threadId);
   send(req, res, 200, {
     ok: true,
     draft: result.draft,
@@ -369,6 +381,31 @@ async function handleVerify(
       error: "bad_request",
       message: "Pass { draft, edited, inReplyToId } for this thread.",
     });
+    return;
+  }
+
+  const profile = getVoiceProfile(user.id);
+  if (
+    !profile ||
+    profile.status !== "ready" ||
+    !profile.cardJson ||
+    !voiceUnlocked(profile.conversationCount)
+  ) {
+    send(req, res, 409, {
+      error: "voice_not_ready",
+      message: `Verify unlocks after ${VOICE_UNLOCK_MIN_CONVERSATIONS} reply conversations and a learned voice card.`,
+    });
+    return;
+  }
+
+  const tenantId = ensureUserTenant(user.id);
+  const exhausted = creditsExhaustedResponse({
+    userId: user.id,
+    tenantId,
+    email: user.email,
+  });
+  if (exhausted) {
+    send(req, res, 402, exhausted);
     return;
   }
   if (edited.trim().length > MAX_REPLY_CHARS) {
