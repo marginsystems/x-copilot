@@ -87,7 +87,7 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 function stripeClient(): Stripe | null {
   const secret = process.env.STRIPE_SECRET_KEY?.trim();
   if (!secret) return null;
-  return new Stripe(secret, { apiVersion: "2024-06-20" });
+  return new Stripe(secret, { apiVersion: "2025-02-24.acacia" });
 }
 
 function stripeUnixToIso(seconds: number | null | undefined): string | null {
