@@ -309,6 +309,15 @@ async function handleSuggest(
   const tenantId = ensureUserTenant(user.id);
   const billing = ensureUserBillingRow(user.id, tenantId);
   const planKey = effectivePlanKey(billing, user.email);
+  const exhausted = creditsExhaustedResponse({
+    userId: user.id,
+    tenantId,
+    email: user.email,
+  });
+  if (exhausted) {
+    send(req, res, 402, exhausted);
+    return;
+  }
   const usage = getSuggestUsage(user.id, planKey);
   if (!usage.canSuggest) {
     send(req, res, 429, {
