@@ -162,16 +162,26 @@ export function listDueOwnPostSamples(opts?: {
   const limit = Math.min(Math.max(opts?.limit ?? 20, 1), 300);
   const t1hBefore = new Date(nowMs - 60 * 60 * 1000).toISOString();
   const t24hBefore = new Date(nowMs - 24 * 60 * 60 * 1000).toISOString();
+  // Round-robin across tenants (ROW_NUMBER partitioned by tenant_id, ordered by
+  // posted_at) so one high-volume tenant's oldest-first backlog cannot occupy
+  // the whole oversample window and starve every other tenant's snapshots.
   const rows = getPlatformDb()
     .prepare(
       `SELECT id, user_id, tenant_id, posted_at, t1h_at, t24h_at
-       FROM own_posts
-       WHERE (t1h_at IS NULL AND posted_at <= ?)
-          OR (t24h_at IS NULL AND posted_at <= ?)
-       ORDER BY posted_at ASC
+       FROM (
+         SELECT id, user_id, tenant_id, posted_at, t1h_at, t24h_at,
+                ROW_NUMBER() OVER (
+                  PARTITION BY tenant_id ORDER BY posted_at ASC
+                ) AS rn
+         FROM own_posts
+         WHERE (t1h_at IS NULL AND posted_at <= ?)
+            OR (t24h_at IS NULL AND posted_at <= ?)
+       )
+       WHERE rn <= ?
+       ORDER BY rn ASC, posted_at ASC
        LIMIT ?`,
     )
-    .all(t1hBefore, t24hBefore, limit * 2) as Array<{
+    .all(t1hBefore, t24hBefore, limit, limit * 2) as Array<{
     id: string;
     user_id: string;
     tenant_id: string;

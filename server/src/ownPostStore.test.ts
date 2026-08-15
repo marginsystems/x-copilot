@@ -122,6 +122,34 @@ describe("ownPostStore", () => {
     assert.equal(due24[0]?.checkpoint, "t24h");
   });
 
+  it("round-robins due samples across tenants so a high-volume tenant cannot starve others", () => {
+    const now = Date.now();
+    // Heavy tenant backlogs many oldest rows; light tenant has a newer due row.
+    for (let i = 0; i < 20; i++) {
+      upsertOwnPost({
+        parsed: post({
+          postId: `heavy-${i}`,
+          postedAt: new Date(now - (30 - i) * 60 * 60 * 1000).toISOString(),
+        }),
+        userId: "u-heavy",
+        tenantId: "heavy",
+      });
+    }
+    upsertOwnPost({
+      parsed: post({
+        postId: "light-1",
+        postedAt: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+      }),
+      userId: "u-light",
+      tenantId: "light",
+    });
+    const due = listDueOwnPostSamples({ limit: 5 });
+    assert.ok(
+      due.some((d) => d.tenantId === "light"),
+      "light tenant's newer post must appear despite heavy tenant's oldest-first backlog",
+    );
+  });
+
   it("dedupes activity event ids and watches threads", () => {
     assert.equal(seenActivityEvent("e1"), false);
     rememberActivityEvent("e1");
