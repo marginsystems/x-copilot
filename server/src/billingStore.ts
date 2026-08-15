@@ -480,6 +480,7 @@ export function billingMePayload(input: {
         available: secretOk && Boolean(resolveStripePriceId(p.key)),
         price_label: PLAN_PRICE_LABELS[p.key],
         credits: p.credits,
+        sorties: p.sorties,
         name: p.name,
         blurb: p.blurb,
         image: p.image,

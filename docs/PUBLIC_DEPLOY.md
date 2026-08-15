@@ -67,3 +67,5 @@ Scout continues to use the **app-only** `X_API_BEARER_TOKEN` (Pay Per Use). User
 ## Postgres later
 
 Auth + usage tables are numbered SQL under `server/migrations/` (ISO-8601 `TEXT` timestamps). Moving to Supabase/Postgres is a later cutover of `db.ts`, not a new schema.
+
+Privacy, Terms, Search Console, GA4, and Stripe product copy: [LEGAL_LAUNCH.md](./LEGAL_LAUNCH.md).

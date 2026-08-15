@@ -87,7 +87,7 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 function stripeClient(): Stripe | null {
   const secret = process.env.STRIPE_SECRET_KEY?.trim();
   if (!secret) return null;
-  return new Stripe(secret);
+  return new Stripe(secret, { apiVersion: "2025-02-24.acacia" });
 }
 
 function stripeUnixToIso(seconds: number | null | undefined): string | null {
@@ -222,6 +222,13 @@ async function handleCheckout(
         metadata: { user_id: user.id, plan_key: plan, tenant_id: tenantId },
       },
       allow_promotion_codes: true,
+      consent_collection: { terms_of_service: "required" },
+      custom_text: {
+        terms_of_service_acceptance: {
+          message:
+            "I agree to the x-copilot Terms of Service and acknowledge the Privacy Policy.",
+        },
+      },
     });
     if (!session.url) {
       sendJson(req, res, 500, { error: "stripe_checkout_failed" });
