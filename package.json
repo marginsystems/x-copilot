@@ -14,6 +14,7 @@
     "deploy:workers": "vite build && npx wrangler deploy",
     "test": "tsx --test server/src/**/*.test.ts src/**/*.test.ts",
     "test:session": "tsx scripts/test-session.ts",
+    "test:stripe": "tsx scripts/test-stripe.ts",
     "test:search": "tsx scripts/test-search.ts",
     "probe:tags": "tsx scripts/probe-triage-tags.ts",
     "memory:reindex": "tsx scripts/reindex-memory.ts"
