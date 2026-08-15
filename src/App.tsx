@@ -308,8 +308,10 @@ function watchPayloadsForThread(thread: ThreadCard): Array<{
   if (thread.conversationId && thread.conversationId !== thread.id) {
     items.push({
       threadId: thread.conversationId,
-      author: thread.opAuthor ?? thread.author,
-      url: thread.url,
+      author: thread.opAuthor,
+      url: thread.opAuthor
+        ? `https://x.com/${thread.opAuthor.replace(/^@/, "")}/status/${thread.conversationId}`
+        : undefined,
       text: thread.opText ?? thread.text,
       conversationId: thread.conversationId,
     });

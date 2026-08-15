@@ -158,7 +158,7 @@ export async function subscribeUserToPostCreate(userId: string): Promise<{
     | undefined;
   const now = new Date().toISOString();
   if (existing?.paused_until && existing.paused_until > now) {
-    return { ok: true, paused: true, error: "paused_until_reset" };
+    return { ok: false, paused: true, error: "paused_until_reset" };
   }
   if (existing?.subscription_id) {
     return { ok: true, subscriptionId: existing.subscription_id };
