@@ -51,6 +51,7 @@ import { Onboarding } from "./Onboarding";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
 import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
+import { Analytics } from "./Analytics";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -616,7 +617,7 @@ function InteractedRow({
   );
 }
 
-type AppView = "dashboard" | "settings" | "usage" | "admin";
+type AppView = "dashboard" | "settings" | "usage" | "admin" | "analytics";
 
 type UsageWindow = "24h" | "7d" | "all";
 
@@ -659,6 +660,7 @@ type AuthSessionUser = {
 function viewFromPath(pathname: string): AppView {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   if (pathname === "/usage" || pathname === "/billing") return "usage";
+  if (pathname === "/analytics") return "analytics";
   if (pathname === "/settings") return "settings";
   return "dashboard";
 }
@@ -666,6 +668,7 @@ function viewFromPath(pathname: string): AppView {
 function pathFromView(view: AppView): string {
   if (view === "admin") return "/admin";
   if (view === "usage") return "/usage";
+  if (view === "analytics") return "/analytics";
   if (view === "settings") return "/settings";
   return "/";
 }
@@ -1774,6 +1777,11 @@ export default function App() {
     void loadBilling();
   }
 
+  function openAnalytics() {
+    goToView("analytics");
+    closeMenu();
+  }
+
   function openAdmin() {
     goToView("admin");
     closeMenu();
@@ -2494,6 +2502,13 @@ export default function App() {
                   <button
                     type="button"
                     className="ghost menu-action"
+                    onClick={openAnalytics}
+                  >
+                    Analytics
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost menu-action"
                     onClick={openUsage}
                   >
                     Usage & Billing
@@ -2574,6 +2589,10 @@ export default function App() {
             <p className="status danger">This desk is operator-only.</p>
           </section>
         )
+      ) : null}
+
+      {view === "analytics" ? (
+        <Analytics onBack={() => goToView("dashboard")} />
       ) : null}
 
       {view === "usage" ? (
@@ -2697,7 +2716,7 @@ export default function App() {
         </section>
       ) : null}
 
-      {view === "usage" || view === "admin" ? null : view === "settings" ? (
+      {view === "usage" || view === "admin" || view === "analytics" ? null : view === "settings" ? (
         <section className="panel settings-pane">
           <div className="settings-head">
             <h2>Settings</h2>
