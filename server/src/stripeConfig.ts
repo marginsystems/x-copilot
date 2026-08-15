@@ -56,6 +56,20 @@ export function resolveWebhookSecret(
   );
 }
 
+/**
+ * Live (non-_DEV) webhook secret on a non-prod process — webhooks would verify
+ * against the live signing secret off production. whsec_ prefixes do not encode
+ * test/live, so classify by which env var the value comes from.
+ */
+export function liveWebhookSecretBlockedInNonProduction(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (!isNonProductionEnv(env)) return false;
+  const dev = env.STRIPE_WEBHOOK_SECRET_DEV?.trim();
+  const live = env.STRIPE_WEBHOOK_SECRET?.trim();
+  return Boolean(live && !dev);
+}
+
 export function resolvePortalConfigurationId(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {

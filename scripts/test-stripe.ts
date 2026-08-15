@@ -60,7 +60,9 @@ if (liveStripeKeyBlockedInNonProduction() && !allowLive) {
   process.exit(1);
 }
 
-const secret = resolveStripeSecretKey();
+const secret = allowLive
+  ? (process.env.STRIPE_SECRET_KEY?.trim() ?? null)
+  : resolveStripeSecretKey();
 if (!secret) {
   console.error("\nFAIL: no Stripe secret after resolve.");
   process.exit(1);

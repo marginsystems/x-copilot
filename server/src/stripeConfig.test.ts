@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   isNonProductionEnv,
   liveStripeKeyBlockedInNonProduction,
+  liveWebhookSecretBlockedInNonProduction,
   planKeyFromStripePriceId,
   resolvePortalConfigurationId,
   resolveStripePriceId,
@@ -148,5 +149,16 @@ describe("stripeConfig", () => {
     assert.equal(liveStripeKeyBlockedInNonProduction(), true);
     process.env.NODE_ENV = "production";
     assert.equal(liveStripeKeyBlockedInNonProduction(), false);
+  });
+
+  it("blocks a lone live webhook secret off production", () => {
+    process.env.NODE_ENV = "development";
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_live_example";
+    delete process.env.STRIPE_WEBHOOK_SECRET_DEV;
+    assert.equal(liveWebhookSecretBlockedInNonProduction(), true);
+    process.env.STRIPE_WEBHOOK_SECRET_DEV = "whsec_test_example";
+    assert.equal(liveWebhookSecretBlockedInNonProduction(), false);
+    process.env.NODE_ENV = "production";
+    assert.equal(liveWebhookSecretBlockedInNonProduction(), false);
   });
 });

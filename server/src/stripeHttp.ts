@@ -22,6 +22,7 @@ import { isPaidPlanKey, type PaidPlanKey } from "./plans.js";
 import { getSessionUser } from "./sessionCookie.js";
 import {
   liveStripeKeyBlockedInNonProduction,
+  liveWebhookSecretBlockedInNonProduction,
   planKeyFromStripePriceId,
   priceIdFromSubscription,
   resolvePortalConfigurationId,
@@ -506,6 +507,14 @@ async function handleWebhook(
     return;
   }
   if (liveKeyBlocked(req, res)) return;
+  if (liveWebhookSecretBlockedInNonProduction()) {
+    sendJson(req, res, 503, {
+      error: "stripe_live_webhook_in_dev",
+      message:
+        "This sidecar is not production but STRIPE_WEBHOOK_SECRET is a live webhook secret. Use STRIPE_WEBHOOK_SECRET_DEV for local webhook smoke tests.",
+    });
+    return;
+  }
   let raw: Buffer;
   try {
     raw = await readRawBody(req);
