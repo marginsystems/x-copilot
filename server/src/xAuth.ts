@@ -7,6 +7,7 @@ import { createHmac } from "node:crypto";
 import {
   createSession,
   findOauthAccount,
+  getUserById,
   linkOauthToUser,
   upsertOauthUser,
   type AuthUser,
@@ -26,6 +27,8 @@ import {
   serializeCookie,
   sessionSetCookie,
 } from "./sessionCookie.js";
+import { X_API_BASE, getXApiCredsFromEnv } from "./xApi.js";
+import { parseXHandle } from "./xHandle.js";
 
 export const X_OAUTH_COOKIE = "xc_x_oauth";
 const REQUEST_TOKEN_URL = "https://api.twitter.com/oauth/request_token";
@@ -35,7 +38,48 @@ const AUTHORIZE_URL = "https://api.twitter.com/oauth/authorize";
 export type XOauthProfile = {
   providerUserId: string;
   username: string;
+  avatarUrl?: string | null;
 };
+
+/** X v2 returns `_normal`; the menu card wants a larger crop. */
+export function enlargeXAvatarUrl(url: string): string {
+  return url.replace(/_normal(\.[a-zA-Z0-9]+)?$/, (_m, ext: string | undefined) =>
+    ext ? `_400x400${ext}` : "_400x400",
+  );
+}
+
+export async function fetchXProfileAvatar(
+  username: string,
+  fetchImpl: typeof fetch = fetch,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string | null> {
+  if (env.NODE_TEST_CONTEXT) return null;
+  const handle = parseXHandle(username);
+  if (!handle) return null;
+  const creds = getXApiCredsFromEnv(env);
+  if (!creds.bearerToken) return null;
+  try {
+    const res = await fetchImpl(
+      `${X_API_BASE}/users/by/username/${encodeURIComponent(handle)}?user.fields=profile_image_url`,
+      {
+        headers: {
+          Authorization: `Bearer ${creds.bearerToken}`,
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      data?: { profile_image_url?: string };
+    };
+    const raw = json.data?.profile_image_url?.trim() ?? "";
+    if (!raw.startsWith("https://")) return null;
+    return enlargeXAvatarUrl(raw);
+  } catch {
+    return null;
+  }
+}
 
 export function xOauthCallbackUri(
   env: NodeJS.ProcessEnv = process.env,
@@ -233,16 +277,21 @@ export function completeXLogin(opts: {
       provider: "x",
       providerUserId: profile.providerUserId,
       username: profile.username,
+      avatarUrl: existingUser.avatarUrl ? null : (profile.avatarUrl ?? null),
     });
     if (!linked.ok) return { ok: false, error: linked.error };
     user = linked.user;
   } else if (isXHandleWhitelisted(profile.username)) {
     const alreadyLinked = findOauthAccount("x", profile.providerUserId);
+    const existingAvatar = alreadyLinked
+      ? getUserById(alreadyLinked.userId)?.avatarUrl ?? null
+      : null;
     user = upsertOauthUser({
       provider: "x",
       providerUserId: profile.providerUserId,
       username: profile.username,
       displayName: alreadyLinked ? null : profile.username,
+      avatarUrl: existingAvatar ? null : (profile.avatarUrl ?? null),
       emailVerified: false,
     });
   } else {
@@ -322,8 +371,12 @@ export async function handleXCallback(
       xOauthClearCookie(req),
     ]);
   }
+  const avatarUrl = await fetchXProfileAvatar(
+    access.profile.username,
+    fetchImpl,
+  );
   const login = completeXLogin({
-    profile: access.profile,
+    profile: { ...access.profile, avatarUrl },
     existingUser: getSessionUser(req),
   });
   if (!login.ok) {
