@@ -12,16 +12,60 @@ export function stripeSecretPresent(
   return Boolean(env.STRIPE_SECRET_KEY?.trim());
 }
 
+export function stripeSecretKind(
+  env: NodeJS.ProcessEnv = process.env,
+): "test" | "live" | "missing" {
+  const secret = env.STRIPE_SECRET_KEY?.trim() ?? "";
+  if (!secret) return "missing";
+  if (secret.startsWith("sk_test_")) return "test";
+  if (secret.startsWith("sk_live_")) return "live";
+  return "missing";
+}
+
+/** Live secret on a non-prod process — do not open Checkout. */
+export function liveStripeKeyBlockedInNonProduction(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return stripeSecretKind(env) === "live" && isNonProductionEnv(env);
+}
+
+function resolveEnvPair(
+  prodKey: string,
+  devKey: string,
+  env: NodeJS.ProcessEnv,
+): string | null {
+  const preferDev = isNonProductionEnv(env);
+  const first = preferDev ? env[devKey]?.trim() : env[prodKey]?.trim();
+  const fallback = preferDev ? env[prodKey]?.trim() : null;
+  return first || fallback || null;
+}
+
+export function resolveWebhookSecret(
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  return resolveEnvPair(
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_WEBHOOK_SECRET_DEV",
+    env,
+  );
+}
+
+export function resolvePortalConfigurationId(
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  return resolveEnvPair(
+    "STRIPE_PORTAL_CONFIGURATION_ID",
+    "STRIPE_PORTAL_CONFIGURATION_ID_DEV",
+    env,
+  );
+}
+
 export function resolveStripePriceId(
   tier: PaidPlanKey,
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
   const baseKey = `STRIPE_PRICE_${tier.toUpperCase()}`;
-  const devKey = `${baseKey}_DEV`;
-  const preferDev = isNonProductionEnv(env);
-  const first = preferDev ? env[devKey]?.trim() : env[baseKey]?.trim();
-  const fallback = preferDev ? env[baseKey]?.trim() : null;
-  return first || fallback || null;
+  return resolveEnvPair(baseKey, `${baseKey}_DEV`, env);
 }
 
 export function planKeyFromStripePriceId(

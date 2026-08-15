@@ -21,9 +21,12 @@ import { corsHeaders } from "./cors.js";
 import { isPaidPlanKey, type PaidPlanKey } from "./plans.js";
 import { getSessionUser } from "./sessionCookie.js";
 import {
+  liveStripeKeyBlockedInNonProduction,
   planKeyFromStripePriceId,
   priceIdFromSubscription,
+  resolvePortalConfigurationId,
   resolveStripePriceId,
+  resolveWebhookSecret,
 } from "./stripeConfig.js";
 import {
   checkoutBlockedByExistingSubscription,
@@ -90,6 +93,16 @@ function stripeClient(): Stripe | null {
   return new Stripe(secret, { apiVersion: "2025-02-24.acacia" });
 }
 
+function liveKeyBlocked(req: IncomingMessage, res: ServerResponse): boolean {
+  if (!liveStripeKeyBlockedInNonProduction()) return false;
+  sendJson(req, res, 503, {
+    error: "stripe_live_key_in_dev",
+    message:
+      "This sidecar is not production but STRIPE_SECRET_KEY is a live key. Use sk_test_… and STRIPE_PRICE_*_DEV for local smoke tests.",
+  });
+  return true;
+}
+
 function stripeUnixToIso(seconds: number | null | undefined): string | null {
   if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return null;
   return new Date(seconds * 1000).toISOString();
@@ -146,6 +159,7 @@ async function handleCheckout(
     notConfigured(req, res);
     return;
   }
+  if (liveKeyBlocked(req, res)) return;
   const user = getSessionUser(req);
   if (!user) {
     sendJson(req, res, 401, { error: "unauthenticated" });
@@ -253,6 +267,7 @@ async function handlePortal(
     notConfigured(req, res);
     return;
   }
+  if (liveKeyBlocked(req, res)) return;
   const user = getSessionUser(req);
   if (!user) {
     sendJson(req, res, 401, { error: "unauthenticated" });
@@ -285,7 +300,7 @@ async function handlePortal(
     return;
   }
   const frontend = frontendOrigin();
-  const portalConfig = process.env.STRIPE_PORTAL_CONFIGURATION_ID?.trim();
+  const portalConfig = resolvePortalConfigurationId();
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
@@ -316,6 +331,7 @@ async function handleCheckoutConfirm(
     notConfigured(req, res);
     return;
   }
+  if (liveKeyBlocked(req, res)) return;
   const user = getSessionUser(req);
   if (!user) {
     sendJson(req, res, 401, { error: "unauthenticated" });
@@ -482,7 +498,7 @@ async function handleWebhook(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
+  const secret = resolveWebhookSecret();
   const stripe = stripeClient();
   if (!stripe || !secret) {
     sendJson(req, res, 503, { error: "stripe_not_configured" });

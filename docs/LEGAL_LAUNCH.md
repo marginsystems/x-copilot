@@ -74,7 +74,19 @@ STRIPE_PRICE_HORIZON=price_...
 STRIPE_PORTAL_CONFIGURATION_ID=bpc_...
 ```
 
-Optional test-mode twins: `STRIPE_PRICE_*_DEV`.
+Optional test-mode twins: `STRIPE_PRICE_*_DEV`, `STRIPE_WEBHOOK_SECRET_DEV`, `STRIPE_PORTAL_CONFIGURATION_ID_DEV`. Local smoke: `npm run test:stripe` (requires `sk_test_…`). A live secret is refused when `NODE_ENV` is not `production`.
+
+### Where to copy the three secrets
+
+Toggle **Test mode** in the Stripe dashboard for local smoke tests. Use live mode only on the prod sidecar.
+
+| Env | Dashboard | What you copy |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | [Developers → API keys](https://dashboard.stripe.com/apikeys) | **Secret key**. Test mode → `sk_test_…`. Live → `sk_live_…`. Reveal once; do not commit. |
+| `STRIPE_WEBHOOK_SECRET` | [Developers → Webhooks](https://dashboard.stripe.com/webhooks) → Add endpoint | Signing secret `whsec_…` after you create the endpoint. Test mode has its own endpoint + secret. Local CLI: `stripe listen --forward-to localhost:8787/api/stripe/webhook` prints a `whsec_…` for `STRIPE_WEBHOOK_SECRET_DEV`. |
+| `STRIPE_PORTAL_CONFIGURATION_ID` | [Settings → Billing → Customer portal](https://dashboard.stripe.com/settings/billing/portal) | Create a configuration that lists **only** Pulse / Radar / Horizon. Copy the `bpc_…` id. Repeat in test mode for `_DEV`. |
+
+Webhook endpoint (live): `https://api.xcopilot.dev/api/stripe/webhook`
 
 ### Webhook
 
