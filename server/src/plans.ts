@@ -43,9 +43,12 @@ export const PLAN_PRICE_LABELS: Record<PaidPlanKey, string> = {
 export type PlanCatalogEntry = {
   key: PaidPlanKey;
   name: string;
+  stripeProductName: string;
+  stripeDescription: string;
   priceUsd: number;
   priceLabel: string;
   credits: number;
+  sorties: number;
   blurb: string;
   image: string;
 };
@@ -54,28 +57,40 @@ export const PAID_PLANS: readonly PlanCatalogEntry[] = [
   {
     key: "pulse",
     name: "Pulse",
+    stripeProductName: "x-copilot Pulse",
+    stripeDescription:
+      "Monthly x-copilot desk from Mergestorm, Inc. 1,500 X post-read credits per UTC month and 4 Scout takeoffs per day. Unused credits do not roll over. You review and post on X yourself — no auto-engage.",
     priceUsd: 12,
     priceLabel: PLAN_PRICE_LABELS.pulse,
     credits: PLAN_CREDIT_LIMITS.pulse,
-    blurb: "A steady beat. A few Scout sessions a week without watching the meter.",
+    sorties: PLAN_DAILY_SORTIES.pulse,
+    blurb: "A few Scout sessions a week. 1,500 post reads and 4 takeoffs a day.",
     image: "/images/plan-pulse.png",
   },
   {
     key: "radar",
     name: "Radar",
+    stripeProductName: "x-copilot Radar",
+    stripeDescription:
+      "Monthly x-copilot desk from Mergestorm, Inc. 6,000 X post-read credits per UTC month and 8 Scout takeoffs per day. Unused credits do not roll over. You review and post on X yourself — no auto-engage.",
     priceUsd: 36,
     priceLabel: PLAN_PRICE_LABELS.radar,
     credits: PLAN_CREDIT_LIMITS.radar,
-    blurb: "Daily desk. Sweep more queries, miss a run, still have headroom.",
+    sorties: PLAN_DAILY_SORTIES.radar,
+    blurb: "Daily desk. 6,000 post reads and 8 takeoffs a day, with room to miss a run.",
     image: "/images/plan-radar.png",
   },
   {
     key: "horizon",
     name: "Horizon",
+    stripeProductName: "x-copilot Horizon",
+    stripeDescription:
+      "Monthly x-copilot desk from Mergestorm, Inc. 20,000 X post-read credits per UTC month and 20 Scout takeoffs per day. Unused credits do not roll over. You review and post on X yourself — no auto-engage.",
     priceUsd: 99,
     priceLabel: PLAN_PRICE_LABELS.horizon,
     credits: PLAN_CREDIT_LIMITS.horizon,
-    blurb: "Wide field. Heavy search days, several agendas, room to iterate.",
+    sorties: PLAN_DAILY_SORTIES.horizon,
+    blurb: "Wide field. 20,000 post reads and 20 takeoffs a day for heavy search days.",
     image: "/images/plan-horizon.png",
   },
 ];
