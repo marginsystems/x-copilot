@@ -164,6 +164,16 @@ export async function subscribeUserToPostCreate(userId: string): Promise<{
     return { ok: false, paused: true, error: "paused_until_reset" };
   }
   if (existing?.subscription_id) {
+    if (existing.paused_until && existing.paused_until <= now) {
+      getPlatformDb()
+        .prepare(
+          `UPDATE activity_subscriptions
+           SET paused_until = NULL, updated_at = ?
+           WHERE user_id = ? AND subscription_id = ?
+             AND paused_until IS NOT NULL AND paused_until <= ?`,
+        )
+        .run(now, userId, existing.subscription_id, now);
+    }
     return { ok: true, subscriptionId: existing.subscription_id };
   }
 
