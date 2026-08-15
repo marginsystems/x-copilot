@@ -7,7 +7,9 @@ import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "./
 import { getUserForSessionToken, upsertOauthUser } from "./authStore.ts";
 import {
   completeXLogin,
+  enlargeXAvatarUrl,
   fetchXAccessToken,
+  fetchXProfileAvatar,
   fetchXRequestToken,
 } from "./xAuth.ts";
 
@@ -89,6 +91,60 @@ describe("xAuth", () => {
     assert.equal(denied.ok, false);
     if (denied.ok) return;
     assert.equal(denied.error, "google_required");
+  });
+
+  it("enlarges the X _normal avatar crop", () => {
+    assert.equal(
+      enlargeXAvatarUrl(
+        "https://pbs.twimg.com/profile_images/1/abc_normal.jpg",
+      ),
+      "https://pbs.twimg.com/profile_images/1/abc_400x400.jpg",
+    );
+  });
+
+  it("stores an X photo on a whitelist login when provided", () => {
+    const login = completeXLogin({
+      profile: {
+        providerUserId: "42",
+        username: "alice",
+        avatarUrl: "https://pbs.twimg.com/profile_images/1/abc_400x400.jpg",
+      },
+      existingUser: null,
+    });
+    assert.equal(login.ok, true);
+    if (!login.ok) return;
+    assert.equal(
+      getUserForSessionToken(login.token)?.avatarUrl,
+      "https://pbs.twimg.com/profile_images/1/abc_400x400.jpg",
+    );
+  });
+
+  it("skips the live X avatar lookup under node:test", async () => {
+    const avatar = await fetchXProfileAvatar("alice", async () => {
+      throw new Error("should not fetch in tests");
+    });
+    assert.equal(avatar, null);
+  });
+
+  it("reads profile_image_url when tests allow the lookup", async () => {
+    const avatar = await fetchXProfileAvatar(
+      "alice",
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: {
+              profile_image_url:
+                "https://pbs.twimg.com/profile_images/1/abc_normal.jpg",
+            },
+          }),
+          { status: 200 },
+        ),
+      { NODE_TEST_CONTEXT: "", X_API_BEARER_TOKEN: "bearer" },
+    );
+    assert.equal(
+      avatar,
+      "https://pbs.twimg.com/profile_images/1/abc_400x400.jpg",
+    );
   });
 
   it("links X onto an existing Google session without a handle whitelist", () => {

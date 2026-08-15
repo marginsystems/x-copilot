@@ -49,7 +49,7 @@ import { stripMediaShortlinksFromText } from "./lib/mediaText";
 import { apiFetch, apiUrl, isLocalHostname } from "./lib/apiBase";
 import { authErrorMessage } from "./lib/authErrors";
 import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
-import { AuthButtons } from "./AuthButtons";
+import { UserMenu } from "./UserMenu";
 import { BootScreen, Landing } from "./Landing";
 import { LegalPage } from "./Legal";
 import { CookieConsent } from "./CookieConsent";
@@ -1888,12 +1888,6 @@ export default function App() {
     closeMenu();
   }
 
-  function openAdmin() {
-    goToView("admin");
-    closeMenu();
-    void loadAdmin();
-  }
-
   async function loadBilling() {
     try {
       const res = await apiFetch("/api/billing/me");
@@ -2548,118 +2542,27 @@ export default function App() {
             aria-modal="true"
             aria-label="User menu"
           >
-            <div className="menu-sheet-head">
-              {authUser ? (
-                <>
-                  <p className="menu-session">
-                    {authUser.displayName || authUser.email || "Signed in"}
-                  </p>
-                  {authUser.email ? (
-                    <p className="menu-session-name">{authUser.email}</p>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  <p className="menu-session">Not signed in</p>
-                  {needsLogin ? null : (
-                    <p className="menu-session-hint">
-                      Google allowlist on the API. X is identity-only (link after Google, or a handle whitelist).
-                    </p>
-                  )}
-                </>
-              )}
-              {needsLogin || needsOnboarding ? null : (
-                <p className="menu-session-hint">
-                  {authUser?.xUsername
-                    ? `X @${authUser.xUsername}`
-                    : sessionUser
-                      ? `Scout operator @${sessionUser.screen_name}`
-                      : "X API not verified"}
-                </p>
-              )}
-            </div>
-            <div className="menu-actions">
-              {authUser ? (
-                <button
-                  type="button"
-                  className="ghost menu-action"
-                  onClick={() => void onLogout()}
-                >
-                  Sign out
-                </button>
-              ) : needsLogin ? null : (
-                <AuthButtons
-                  stacked
-                  onGoogle={startGoogleLogin}
-                  onX={startXLogin}
-                />
-              )}
-              <button
-                type="button"
-                className="ghost menu-action"
-                onClick={() => setTheme((t) => nextTheme(t))}
-              >
-                {theme === "dark" ? "Light theme" : "Dark theme"}
-              </button>
-              {needsLogin || needsOnboarding ? null : (
-                <>
-                  <button
-                    type="button"
-                    className="ghost menu-action"
-                    disabled={actionBusy}
-                    onClick={() => void onVerifySession()}
-                  >
-                    Verify X API
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost menu-action"
-                    onClick={openAnalytics}
-                  >
-                    Analytics
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost menu-action"
-                    onClick={openUsage}
-                  >
-                    Usage & Billing
-                  </button>
-                  {authUser?.isAdmin ? (
-                    <button
-                      type="button"
-                      className="ghost menu-action"
-                      onClick={openAdmin}
-                    >
-                      Admin
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="primary menu-action"
-                    onClick={openSettings}
-                  >
-                    Settings
-                  </button>
-                </>
-              )}
-              <a className="ghost menu-action" href="/privacy">
-                Privacy
-              </a>
-              <a className="ghost menu-action" href="/terms">
-                Terms
-              </a>
-              <button
-                type="button"
-                className="ghost menu-action"
-                onClick={() => {
-                  setConsentOpen(true);
-                  closeMenu();
-                }}
-              >
-                Privacy settings
-              </button>
-            </div>
+            <UserMenu
+              view={view}
+              theme={theme}
+              authUser={authUser}
+              sessionHandle={sessionUser?.screen_name ?? null}
+              needsLogin={needsLogin}
+              needsOnboarding={needsOnboarding}
+              actionBusy={actionBusy}
+              onTheme={() => setTheme((t) => nextTheme(t))}
+              onLogout={() => void onLogout()}
+              onGoogle={startGoogleLogin}
+              onX={startXLogin}
+              onVerify={() => void onVerifySession()}
+              onAnalytics={openAnalytics}
+              onUsage={openUsage}
+              onSettings={openSettings}
+              onPrivacySettings={() => {
+                setConsentOpen(true);
+                closeMenu();
+              }}
+            />
           </aside>
         </div>
       ) : null}
