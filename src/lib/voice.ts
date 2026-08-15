@@ -122,6 +122,9 @@ export function localEditHint(draft: string, edited: string): string | null {
   }
   const a = normalizeForEditHint(draft);
   const b = normalizeForEditHint(editedTrim);
+  if (!b) {
+    return "Punctuation, spacing, or capitalization alone doesn't count. Change something real.";
+  }
   if (a === b) {
     return "Punctuation or casing alone won't pass — change something real.";
   }
