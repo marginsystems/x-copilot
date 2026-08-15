@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   SCOUT_SEARCH_TIMELINE,
+  SCOUT_STAGE_RANK,
   formatScoutFailure,
   isScoutGateError,
   scoutFlightLine,
@@ -16,6 +17,25 @@ describe("scoutStages", () => {
       "filtering",
       "triaging",
     ]);
+  });
+
+  it("ranks stages so the one-line status never rewinds", () => {
+    for (let i = 1; i < SCOUT_SEARCH_TIMELINE.length; i += 1) {
+      assert.ok(
+        SCOUT_STAGE_RANK[SCOUT_SEARCH_TIMELINE[i]] >
+          SCOUT_STAGE_RANK[SCOUT_SEARCH_TIMELINE[i - 1]],
+      );
+    }
+    assert.ok(
+      SCOUT_STAGE_RANK.partial < SCOUT_STAGE_RANK.triaging,
+      "partial must rank below triaging so a refill never rewinds the flight line",
+    );
+    for (const terminal of ["done", "error"] as const) {
+      assert.ok(
+        SCOUT_STAGE_RANK[terminal] > SCOUT_STAGE_RANK.triaging,
+        `${terminal} must outrank triaging so the ticker never overwrites it`,
+      );
+    }
   });
 
   it("returns flight-style stage copy", () => {

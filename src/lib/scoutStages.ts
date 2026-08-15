@@ -39,8 +39,8 @@ export const SCOUT_STAGE_RANK: Record<ScoutStageId, number> = {
   planning: 0,
   searching: 1,
   filtering: 2,
+  partial: 2,
   triaging: 3,
-  partial: 3,
   done: 4,
   error: 4,
 };

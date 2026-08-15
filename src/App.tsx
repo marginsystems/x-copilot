@@ -818,7 +818,7 @@ export default function App() {
 
   function applyScoutEvent(ev: ScoutStreamEvent) {
     const stage = (ev.stage ?? "planning") as ScoutStageId;
-    if (typeof ev.coolCount === "number") {
+    if (typeof ev.coolCount === "number" && ev.coolCount > 0) {
       coolProgressRef.current.cool = ev.coolCount;
     }
     if (typeof ev.targetCool === "number") {
