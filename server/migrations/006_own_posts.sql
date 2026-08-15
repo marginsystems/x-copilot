@@ -39,6 +39,10 @@ CREATE INDEX IF NOT EXISTS idx_own_posts_user_posted
 CREATE INDEX IF NOT EXISTS idx_own_posts_tenant_posted
   ON own_posts (tenant_id, posted_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_own_posts_due_snapshot
+  ON own_posts (posted_at DESC)
+  WHERE t1h_at IS NULL OR t24h_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS activity_subscriptions (
   user_id TEXT PRIMARY KEY,
   x_user_id TEXT NOT NULL,

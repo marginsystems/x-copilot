@@ -130,7 +130,6 @@ async function handleActivityPost(
   }
   const userId = findUserIdByXUserId(parsed.xUserId);
   if (!userId) {
-    rememberActivityEvent(parsed.eventUuid, parsed.postedAt);
     send(req, res, 200, { ok: true, unmatched: true });
     return;
   }

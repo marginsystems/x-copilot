@@ -57,6 +57,13 @@ export function rememberActivityEvent(eventUuid: string, at = new Date().toISOSt
     .run(eventUuid, at);
 }
 
+export function pruneActivityEvents(beforeIso: string): number {
+  const info = getPlatformDb()
+    .prepare(`DELETE FROM activity_event_ids WHERE at < ?`)
+    .run(beforeIso);
+  return info.changes;
+}
+
 export function countOwnPostsSince(
   userId: string,
   sinceIso: string,

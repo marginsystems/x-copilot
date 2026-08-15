@@ -33,6 +33,7 @@ import { getSessionFromEnv } from "./xSession.js";
 import {
   listDueOwnPostSamples,
   patchOwnPostSnapshot,
+  pruneActivityEvents,
   type DueOwnPostSample,
 } from "./ownPostStore.js";
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
@@ -43,6 +44,7 @@ import { creditsExhaustedResponse } from "./billingStore.js";
 const TICK_MS = 60 * 60 * 1000;
 const LOOKUP_DELAY_MS = 400;
 const MAX_CONSECUTIVE_FAILURES = 3;
+const ACTIVITY_EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const tweetFailures = new Map<string, number>();
 const ownPostFailures = new Map<string, number>();
 
@@ -405,6 +407,9 @@ async function main(): Promise<void> {
       console.warn("[stats-worker] xaa resume", err);
     }
     try {
+      pruneActivityEvents(
+        new Date(Date.now() - ACTIVITY_EVENT_RETENTION_MS).toISOString(),
+      );
       // Oversample the due queue so permanently-failing (burned) oldest rows
       // do not consume the whole 15-slot budget and starve healthy posts,
       // mirroring the interaction due loop in runStatsTick above.

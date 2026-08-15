@@ -132,7 +132,14 @@ export function findUserIdByXUserId(xUserId: string): string | null {
   const sub = getPlatformDb()
     .prepare(`SELECT user_id FROM activity_subscriptions WHERE x_user_id = ?`)
     .get(xUserId) as { user_id: string } | undefined;
-  return sub?.user_id ?? null;
+  if (sub?.user_id) return sub.user_id;
+  const oauth = getPlatformDb()
+    .prepare(
+      `SELECT user_id FROM oauth_accounts
+       WHERE provider = 'x' AND provider_user_id = ? LIMIT 1`,
+    )
+    .get(xUserId) as { user_id: string } | undefined;
+  return oauth?.user_id ?? null;
 }
 
 export async function subscribeUserToPostCreate(userId: string): Promise<{
