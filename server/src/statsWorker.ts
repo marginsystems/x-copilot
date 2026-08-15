@@ -30,6 +30,12 @@ import {
 } from "./replyDiscover.js";
 import { fetchTweetMetrics } from "./tweetLookup.js";
 import { getSessionFromEnv } from "./xSession.js";
+import {
+  listDueOwnPostSamples,
+  patchOwnPostSnapshot,
+} from "./ownPostStore.js";
+import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
+import { runWithRequestContext } from "./requestContext.js";
 
 const TICK_MS = 60 * 60 * 1000;
 const LOOKUP_DELAY_MS = 400;
@@ -387,6 +393,36 @@ async function main(): Promise<void> {
       console.log(`[stats-worker] expire expired=${expired.expired}`);
     } catch (err) {
       console.error("[stats-worker] expire failed:", err);
+    }
+    try {
+      const resumed = await resumeDueSubscriptions();
+      if (resumed) console.log(`[stats-worker] xaa resumed=${resumed}`);
+    } catch (err) {
+      console.warn("[stats-worker] xaa resume", err);
+    }
+    try {
+      const dueOwn = listDueOwnPostSamples({ limit: 15 });
+      let sampledOwn = 0;
+      for (const item of dueOwn) {
+        const metrics = await runWithRequestContext(
+          { tenantId: item.tenantId, userId: item.userId },
+          () =>
+            fetchTweetMetrics({
+              tweetId: item.postId,
+            }),
+        );
+        if (!metrics) continue;
+        patchOwnPostSnapshot(item.postId, item.checkpoint, metrics);
+        sampledOwn += 1;
+        await sleep(LOOKUP_DELAY_MS);
+      }
+      if (dueOwn.length) {
+        console.log(
+          `[stats-worker] own-posts due=${dueOwn.length} sampled=${sampledOwn}`,
+        );
+      }
+    } catch (err) {
+      console.warn("[stats-worker] own-post snapshots", err);
     }
   };
 

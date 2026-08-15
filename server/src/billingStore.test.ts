@@ -14,11 +14,13 @@ import {
   activateSubscription,
   cancelSubscriptionByStripeSubscriptionId,
   creditsExhaustedResponse,
+  dailyActivityUsage,
   ensureUserTenant,
   getCreditUsage,
   getUserBilling,
   shouldApplyStripeEvent,
 } from "./billingStore.ts";
+import { upsertOwnPost } from "./ownPostStore.ts";
 
 describe("billingStore", () => {
   let dir: string;
@@ -56,7 +58,7 @@ describe("billingStore", () => {
     assert.equal(billing?.planKey, "free");
     assert.equal(billing?.tenantId, tenantId);
     const usage = getCreditUsage(tenantId, "free");
-    assert.equal(usage.limit, 250);
+    assert.equal(usage.limit, 1000);
     assert.equal(usage.used, 0);
     assert.equal(usage.canUse, true);
   });
@@ -73,7 +75,7 @@ describe("billingStore", () => {
       tenantId,
       path: "/2/tweets/search/recent",
       status: 200,
-      postsRead: 250,
+      postsRead: 1000,
     });
     const exhausted = creditsExhaustedResponse({
       userId: user.id,
@@ -81,7 +83,7 @@ describe("billingStore", () => {
       email: user.email,
     });
     assert.equal(exhausted?.error, "credits_exhausted");
-    assert.equal(exhausted?.limit, 250);
+    assert.equal(exhausted?.limit, 1000);
   });
 
   it("gives ADMIN_EMAILS the Horizon pool until they subscribe", () => {
@@ -139,6 +141,41 @@ describe("billingStore", () => {
     assert.equal(getUserBilling(user.id)?.planKey, "radar");
     cancelSubscriptionByStripeSubscriptionId("sub_1", 300);
     assert.equal(getUserBilling(user.id)?.planKey, "free");
+  });
+
+  it("caps free daily watch events at 15", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-watch-1",
+      email: "watch@example.com",
+      emailVerified: true,
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const empty = dailyActivityUsage(user.id, user.email);
+    assert.equal(empty.limit, 15);
+    assert.equal(empty.can_watch, true);
+    for (let i = 0; i < 15; i += 1) {
+      upsertOwnPost({
+        parsed: {
+          eventUuid: `e-${i}`,
+          xUserId: "99",
+          postId: `p-${i}`,
+          kind: i % 2 === 0 ? "original" : "reply",
+          text: "n",
+          postedAt: new Date().toISOString(),
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "desk",
+          metrics: {},
+        },
+        userId: user.id,
+        tenantId,
+      });
+    }
+    const full = dailyActivityUsage(user.id, user.email);
+    assert.equal(full.used, 15);
+    assert.equal(full.can_watch, false);
   });
 
   it("applies equal-or-newer Stripe watermarks", () => {

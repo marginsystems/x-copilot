@@ -7,11 +7,14 @@ import { getPlatformDb } from "./db.js";
 import {
   PAID_PLANS,
   PLAN_CREDIT_LIMITS,
+  PLAN_DAILY_ACTIVITY_EVENTS,
+  PLAN_DAILY_SORTIES,
   PLAN_PRICE_LABELS,
   isPaidPlanKey,
   type PaidPlanKey,
   type PlanKey,
 } from "./plans.js";
+import { countOwnPostsSince, startOfUtcDayIso } from "./ownPostStore.js";
 import { getSortieUsage } from "./scoutSorties.js";
 import {
   resolveStripePriceId,
@@ -410,6 +413,31 @@ export function getCreditUsage(
   };
 }
 
+export function dailyActivityUsage(
+  userId: string,
+  email: string | null | undefined,
+): {
+  used: number;
+  limit: number;
+  remaining: number;
+  can_watch: boolean;
+  planKey: PlanKey;
+} {
+  const tenantId = ensureUserTenant(userId);
+  const row = ensureUserBillingRow(userId, tenantId);
+  const planKey = effectivePlanKey(row, email);
+  const limit = PLAN_DAILY_ACTIVITY_EVENTS[planKey];
+  const used = countOwnPostsSince(userId, startOfUtcDayIso());
+  const remaining = Math.max(0, limit - used);
+  return {
+    used,
+    limit,
+    remaining,
+    can_watch: remaining > 0,
+    planKey,
+  };
+}
+
 /** 402 body when the monthly pool is empty. null = allow Scout. */
 export function creditsExhaustedResponse(input: {
   userId?: string;
@@ -480,6 +508,8 @@ export function billingMePayload(input: {
         available: secretOk && Boolean(resolveStripePriceId(p.key)),
         price_label: PLAN_PRICE_LABELS[p.key],
         credits: p.credits,
+        daily_events: PLAN_DAILY_ACTIVITY_EVENTS[p.key],
+        daily_sorties: PLAN_DAILY_SORTIES[p.key],
         name: p.name,
         blurb: p.blurb,
         image: p.image,
@@ -517,6 +547,7 @@ export function billingMePayload(input: {
       remaining: sorties.remaining,
       can_fly: sorties.canFly,
     },
+    activity: dailyActivityUsage(input.userId, input.email),
     stripe_configured: secretOk,
     plans,
     operator_allotment: isAdminEmail(input.email) && planKey === "horizon" && !live,

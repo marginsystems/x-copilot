@@ -280,6 +280,48 @@ function scoutProgressPrefix(ev: {
   return null;
 }
 
+function watchPayloadsForThread(thread: ThreadCard): Array<{
+  threadId: string;
+  author?: string;
+  url?: string;
+  text?: string;
+  conversationId?: string;
+}> {
+  const items = [
+    {
+      threadId: thread.id,
+      author: thread.author,
+      url: thread.url,
+      text: thread.text,
+      conversationId: thread.conversationId,
+    },
+  ];
+  if (thread.conversationId && thread.conversationId !== thread.id) {
+    items.push({
+      threadId: thread.conversationId,
+      author: thread.opAuthor ?? thread.author,
+      url: thread.url,
+      text: thread.opText ?? thread.text,
+      conversationId: thread.conversationId,
+    });
+  }
+  return items;
+}
+
+function watchDeskThreads(list: ThreadCard[]): void {
+  const threads = list.flatMap(watchPayloadsForThread).filter((t) => t.threadId);
+  if (!threads.length) return;
+  void apiFetch("/api/watch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ threads }),
+  }).catch(() => {});
+}
+
+function ensureActivitySubscribe(): void {
+  void apiFetch("/api/activity/subscribe", { method: "POST" }).catch(() => {});
+}
+
 function ThreadRow({
   thread,
   open,
@@ -289,6 +331,7 @@ function ThreadRow({
   onMark,
   onSkip,
   onDismiss,
+  onWatch,
 }: {
   thread: ThreadCard;
   open: boolean;
@@ -298,6 +341,7 @@ function ThreadRow({
   onMark: () => void;
   onSkip: () => void;
   onDismiss: () => void;
+  onWatch?: () => void;
 }) {
   const bait = baitRisk(thread);
   const ago = formatTimeAgo(thread.createdAt);
@@ -370,7 +414,13 @@ function ThreadRow({
             </div>
           ) : null}
           <div className="row">
-            <a className="ghost" href={thread.url} target="_blank" rel="noreferrer">
+            <a
+              className="ghost"
+              href={thread.url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => onWatch?.()}
+            >
               Open on X
             </a>
             <button
@@ -1115,6 +1165,7 @@ export default function App() {
       }
       const filtered = list.filter((t) => keepInCurated(t));
       setThreads(filtered);
+      watchDeskThreads(filtered);
       const when =
         formatAbsoluteTime(data.snapshot.savedAt) ||
         formatTimeAgo(data.snapshot.savedAt) ||
@@ -1264,6 +1315,7 @@ export default function App() {
         await confirmCheckout(sessionId);
       }
       void loadBilling();
+      if (user) ensureActivitySubscribe();
       if (viewFromPath(window.location.pathname) === "usage" || checkout) {
         void loadUsage();
       }
@@ -1704,6 +1756,7 @@ export default function App() {
           }
         : prev,
     );
+    ensureActivitySubscribe();
   }
 
   function goToView(next: AppView) {
@@ -1964,12 +2017,9 @@ export default function App() {
         }
         applyScoutEvent(ev);
         if (ev.stage === "partial" && ev.threads?.length) {
-          setThreads((prev) =>
-            appendThreadsById(
-              prev,
-              (ev.threads ?? []).filter((t) => keepInCurated(t)),
-            ),
-          );
+          const incoming = (ev.threads ?? []).filter((t) => keepInCurated(t));
+          watchDeskThreads(incoming);
+          setThreads((prev) => appendThreadsById(prev, incoming));
         }
       };
 
@@ -2004,13 +2054,10 @@ export default function App() {
         const doneEvent = stream.doneEvent;
         const qs = doneEvent.queries ?? [];
         const list = doneEvent.threads ?? [];
+        const incoming = list.filter((t) => keepInCurated(t));
+        watchDeskThreads(incoming);
         // Append this run’s cool threads; do not wipe prior Scout loops.
-        setThreads((prev) =>
-          appendThreadsById(
-            prev,
-            list.filter((t) => keepInCurated(t)),
-          ),
-        );
+        setThreads((prev) => appendThreadsById(prev, incoming));
         setExpandedId(null);
         await hydrateInteracted();
         const progress = coolProgressLabel(
@@ -3095,9 +3142,12 @@ export default function App() {
                         open={expandedId === t.id}
                         busy={actionBusy}
                         interacted={interactedIds.has(t.id)}
-                        onToggle={() =>
-                          setExpandedId(expandedId === t.id ? null : t.id)
-                        }
+                        onToggle={() => {
+                          const next = expandedId === t.id ? null : t.id;
+                          setExpandedId(next);
+                          if (next) watchDeskThreads([t]);
+                        }}
+                        onWatch={() => watchDeskThreads([t])}
                         onMark={() => onMark(t)}
                         onSkip={() => void onSkip(t)}
                         onDismiss={() => openDismissModal(t)}

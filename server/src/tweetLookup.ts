@@ -15,6 +15,7 @@ export type TweetMetrics = {
   likes?: number;
   replies?: number;
   retweets?: number;
+  bookmarks?: number;
 };
 
 /** @deprecated GraphQL query-id helper — unused on v2. */
@@ -72,11 +73,13 @@ export function parseTweetMetrics(data: unknown): TweetMetrics | null {
     const replies = asFiniteNumber(v2Metrics.reply_count);
     const retweets = asFiniteNumber(v2Metrics.retweet_count);
     const views = asFiniteNumber(v2Metrics.impression_count);
+    const bookmarks = asFiniteNumber(v2Metrics.bookmark_count);
     if (
       views === undefined &&
       likes === undefined &&
       replies === undefined &&
-      retweets === undefined
+      retweets === undefined &&
+      bookmarks === undefined
     ) {
       return null;
     }
@@ -85,6 +88,7 @@ export function parseTweetMetrics(data: unknown): TweetMetrics | null {
     if (likes !== undefined) out.likes = likes;
     if (replies !== undefined) out.replies = replies;
     if (retweets !== undefined) out.retweets = retweets;
+    if (bookmarks !== undefined) out.bookmarks = bookmarks;
     return out;
   }
 

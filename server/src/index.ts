@@ -95,6 +95,11 @@ import {
   tryHandleBilling,
   tryHandleStripeWebhook,
 } from "./stripeHttp.js";
+import {
+  tryHandleXActivityAuthed,
+  tryHandleXActivityWebhook,
+} from "./xActivityHttp.js";
+import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -291,6 +296,10 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (await tryHandleXActivityWebhook(req, res, url)) {
+      return;
+    }
+
     if (authRequired() && !isPublicApiPath(url.pathname)) {
       if (
         !isOriginAllowed(
@@ -327,6 +336,9 @@ const server = http.createServer(async (req, res) => {
       async () => {
 
       if (await tryHandleBilling(req, res, url)) {
+        return;
+      }
+      if (await tryHandleXActivityAuthed(req, res, url)) {
         return;
       }
 
@@ -1121,4 +1133,7 @@ server.listen(PORT, bindHost(), () => {
       ? "X API: bearer configured (run npm run test:session to verify)"
       : "X API: missing — set X_API_BEARER_TOKEN in .env",
   );
+  void resumeDueSubscriptions().catch((err) => {
+    console.warn("[xaa] resume subscriptions", err);
+  });
 });

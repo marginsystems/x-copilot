@@ -56,8 +56,9 @@ describe("scout sorties", () => {
     assert.equal(blocked?.error, "scout_daily_limit");
   });
 
-  it("lets Pulse take off four times", () => {
+  it("lets Pulse take off five times", () => {
     const tenantId = "local";
+    recordSortie(tenantId);
     recordSortie(tenantId);
     recordSortie(tenantId);
     recordSortie(tenantId);

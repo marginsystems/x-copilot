@@ -21,7 +21,7 @@ describe("authGuard", () => {
   });
 
   it("requires auth when whitelist or public bind is set", () => {
-    assert.equal(authRequired({}), false);
+    assert.equal(authRequired({ AUTH_EMAIL_WHITELIST: "" }), false);
     assert.equal(
       authRequired({ AUTH_EMAIL_WHITELIST: "margin707@gmail.com" }),
       true,
@@ -52,8 +52,11 @@ describe("authGuard", () => {
     assert.equal(isPublicApiPath("/api/auth/google"), true);
     assert.equal(isPublicApiPath("/api/auth/me"), true);
     assert.equal(isPublicApiPath("/api/stripe/webhook"), true);
+    assert.equal(isPublicApiPath("/api/x/activity"), true);
     assert.equal(isPublicApiPath("/api/scout/run"), false);
     assert.equal(isPublicApiPath("/api/usage"), false);
+    assert.equal(isPublicApiPath("/api/analytics"), false);
+    assert.equal(isPublicApiPath("/api/watch"), false);
   });
 
   it("trusts CF-Connecting-IP only from a Cloudflare peer", () => {

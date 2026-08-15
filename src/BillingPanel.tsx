@@ -20,6 +20,13 @@ export type BillingMe = {
     remaining: number;
     can_fly: boolean;
   };
+  activity?: {
+    used: number;
+    limit: number;
+    remaining: number;
+    can_watch: boolean;
+    planKey: string;
+  };
   subscription?: {
     status?: string | null;
     current_period_end?: string | null;
@@ -31,6 +38,8 @@ export type BillingMe = {
       available: boolean;
       price_label: string;
       credits: number;
+      daily_events?: number;
+      daily_sorties?: number;
       name: string;
       blurb: string;
       image: string;
@@ -61,6 +70,7 @@ export function BillingPanel(props: {
 }) {
   const billing = props.billing;
   const credits = billing?.credits;
+  const activity = billing?.activity;
   const live = Boolean(billing?.has_stripe_subscription);
   const paymentFailed =
     live &&
@@ -99,12 +109,38 @@ export function BillingPanel(props: {
         <p className="settings-help">
           {billing?.operator_allotment
             ? "Operator allotment (Horizon pool) until you subscribe. One credit = one X post read."
-            : `Plan: ${planName(billing?.plan_key ?? "free")}. One credit = one X post read. Hard ceiling, no rollover.`}
+            : `Plan: ${planName(billing?.plan_key ?? "free")}. One credit = one X post read (Scout, post watch, and 1h/24h snapshots). Hard ceiling, no rollover.`}
           {billing?.subscription?.current_period_end
             ? ` Period ends ${new Date(billing.subscription.current_period_end).toLocaleDateString()}.`
             : ""}
         </p>
       </div>
+
+      {activity ? (
+        <div className="credit-meter">
+          <div className="credit-meter-head">
+            <span className="usage-stat-label">Posts watched today (UTC)</span>
+            <strong className="usage-stat-value">
+              {`${activity.used.toLocaleString()} / ${activity.limit.toLocaleString()}`}
+            </strong>
+          </div>
+          <div className="credit-meter-bar" aria-hidden="true">
+            <span
+              style={{
+                width: `${
+                  activity.limit > 0
+                    ? Math.min(100, Math.round((activity.used / activity.limit) * 100))
+                    : 0
+                }%`,
+              }}
+            />
+          </div>
+          <p className="settings-help">
+            Every public tweet you send is a billed post.create. The daily cap
+            pauses the watch until 00:00 UTC. Higher plans raise this cap.
+          </p>
+        </div>
+      ) : null}
 
       {paymentFailed ? (
         <p className="usage-banner">
@@ -161,6 +197,12 @@ export function BillingPanel(props: {
               <p className="plan-card-price">{plan?.price_label ?? ""}</p>
               <p className="plan-card-credits">
                 {(plan?.credits ?? 0).toLocaleString()} credits / month
+                {plan?.daily_events
+                  ? ` · ${plan.daily_events} posts watched / day`
+                  : ""}
+                {plan?.daily_sorties
+                  ? ` · ${plan.daily_sorties} takeoff${plan.daily_sorties === 1 ? "" : "s"} / day`
+                  : ""}
               </p>
               <p className="plan-card-blurb">{plan?.blurb ?? ""}</p>
               {isCurrent ? (
