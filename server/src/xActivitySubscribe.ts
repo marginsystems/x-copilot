@@ -253,7 +253,10 @@ export async function pauseUserSubscription(userId: string, untilIso: string): P
       method: "DELETE",
       path: `/activity/subscriptions/${encodeURIComponent(row.subscription_id)}`,
     });
-    deleteOk = res.ok;
+    // A 404 means the X-side subscription is already gone, so NULL the stored
+    // id and let the claim path re-create it on resume. Only keep the id for
+    // transient failures (429/5xx) where the DELETE is worth retrying.
+    deleteOk = res.ok || res.status === 404;
   }
   getPlatformDb()
     .prepare(
