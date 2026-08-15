@@ -102,7 +102,9 @@ for (const tier of PAID_PLAN_KEYS) {
   }
 }
 
-const portalId = resolvePortalConfigurationId();
+const portalId = allowLive
+  ? (process.env.STRIPE_PORTAL_CONFIGURATION_ID?.trim() ?? null)
+  : resolvePortalConfigurationId();
 if (portalId) {
   try {
     const cfg = await stripe.billingPortal.configurations.retrieve(portalId);
