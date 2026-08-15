@@ -121,4 +121,32 @@ describe("stripeConfig", () => {
     process.env.NODE_ENV = "production";
     assert.equal(stripeSecretKind(), "live");
   });
+
+  it("classifies restricted rk_live_ keys as live and blocks them off production", () => {
+    process.env.NODE_ENV = "development";
+    process.env.STRIPE_SECRET_KEY = "rk_live_example";
+    delete process.env.STRIPE_SECRET_KEY_DEV;
+    assert.equal(stripeSecretKind(), "live");
+    assert.equal(liveStripeKeyBlockedInNonProduction(), true);
+    process.env.NODE_ENV = "production";
+    assert.equal(liveStripeKeyBlockedInNonProduction(), false);
+  });
+
+  it("classifies rk_test_ keys as test so they are not blocked", () => {
+    process.env.NODE_ENV = "development";
+    process.env.STRIPE_SECRET_KEY = "rk_test_example";
+    delete process.env.STRIPE_SECRET_KEY_DEV;
+    assert.equal(stripeSecretKind(), "test");
+    assert.equal(liveStripeKeyBlockedInNonProduction(), false);
+  });
+
+  it("fails closed for unrecognized non-empty keys off production", () => {
+    process.env.NODE_ENV = "development";
+    process.env.STRIPE_SECRET_KEY = "sk_malformed";
+    delete process.env.STRIPE_SECRET_KEY_DEV;
+    assert.equal(stripeSecretKind(), "live");
+    assert.equal(liveStripeKeyBlockedInNonProduction(), true);
+    process.env.NODE_ENV = "production";
+    assert.equal(liveStripeKeyBlockedInNonProduction(), false);
+  });
 });

@@ -23,9 +23,9 @@ export function stripeSecretKind(
 ): "test" | "live" | "missing" {
   const secret = resolveStripeSecretKey(env) ?? "";
   if (!secret) return "missing";
-  if (secret.startsWith("sk_test_")) return "test";
-  if (secret.startsWith("sk_live_")) return "live";
-  return "missing";
+  if (secret.startsWith("sk_test_") || secret.startsWith("rk_test_")) return "test";
+  if (secret.startsWith("sk_live_") || secret.startsWith("rk_live_")) return "live";
+  return "live";
 }
 
 /** Live secret on a non-prod process — do not open Checkout. */

@@ -69,10 +69,13 @@ const stripe = new Stripe(secret, { apiVersion: "2025-02-24.acacia" });
 
 let failed = 0;
 for (const tier of PAID_PLAN_KEYS) {
-  const priceId = resolveStripePriceId(tier);
+  const baseKey = `STRIPE_PRICE_${tier.toUpperCase()}`;
+  const priceId = allowLive
+    ? (process.env[baseKey]?.trim() ?? null)
+    : resolveStripePriceId(tier);
   const wantCents = PLAN_PRICE_USD[tier] * 100;
   if (!priceId) {
-    console.error(`FAIL: ${tier}: no STRIPE_PRICE_${tier.toUpperCase()}(_DEV)`);
+    console.error(`FAIL: ${tier}: no ${baseKey}${allowLive ? "" : "(_DEV)"}`);
     failed += 1;
     continue;
   }

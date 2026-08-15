@@ -505,6 +505,7 @@ async function handleWebhook(
     sendJson(req, res, 503, { error: "stripe_not_configured" });
     return;
   }
+  if (liveKeyBlocked(req, res)) return;
   let raw: Buffer;
   try {
     raw = await readRawBody(req);
