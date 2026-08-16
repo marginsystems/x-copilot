@@ -595,13 +595,6 @@ h3 {
   .control-pane {
     max-height: 220px;
   }
-
-  .scout-field {
-    flex: 1 1 auto;
-    height: auto;
-    min-height: 0;
-    max-height: none;
-  }
 }
 
 /* Header */
@@ -1817,6 +1810,15 @@ button.primary.scout-run {
   max-height: 72px;
   overflow: hidden;
   border-radius: calc(var(--radius) - 6px);
+}
+
+@media (min-width: 1100px) {
+  .scout-field {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
 }
 
 .scout-field-canvas {
