@@ -5,8 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "./db.ts";
 import {
+  activateSubscription,
+  ensureUserTenant,
+  getUserBilling,
+} from "./billingStore.ts";
+import {
   completeOnboarding,
   createSession,
+  findOauthAccount,
   getUserById,
   getUserForSessionToken,
   linkOauthToUser,
@@ -141,6 +147,45 @@ describe("authStore", () => {
     assert.equal(linked.user.id, google.id);
     assert.equal(getUserById(xOnly.id), null);
     assert.equal(getUserForSessionToken(token), null);
+  });
+
+  it("does not adopt an email-less X-only user with a live Stripe subscription", () => {
+    const xOnly = upsertOauthUser({
+      provider: "x",
+      providerUserId: "xid-paid",
+      emailVerified: false,
+      username: "paidanon",
+    });
+    assert.equal(xOnly.email, null);
+    ensureUserTenant(xOnly.id);
+    activateSubscription({
+      userId: xOnly.id,
+      planKey: "pulse",
+      stripeCustomerId: "cus-paid",
+      stripeSubscriptionId: "sub-paid",
+      subscriptionStatus: "active",
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+    });
+    const google = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-paid",
+      email: "pat@example.com",
+      emailVerified: true,
+    });
+    const linked = linkOauthToUser({
+      userId: google.id,
+      provider: "x",
+      providerUserId: "xid-paid",
+      username: "paidanon",
+    });
+    assert.equal(linked.ok, false);
+    assert.equal(getUserById(xOnly.id)?.id, xOnly.id);
+    assert.equal(getUserBilling(xOnly.id)?.stripeSubscriptionId, "sub-paid");
+    assert.equal(
+      findOauthAccount("x", "xid-paid")?.userId,
+      xOnly.id,
+    );
   });
 
   it("revokes sessions", () => {
