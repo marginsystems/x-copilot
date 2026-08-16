@@ -324,14 +324,9 @@ async function handleLearn(
         model: cardResult.model,
       });
     } else {
-      const n = updated?.conversationCount ?? 0;
-      const need = VOICE_UNLOCK_MIN_CONVERSATIONS;
       setVoiceProfileStatus(
         user.id,
         priorStatus === "ready" ? "ready" : "empty",
-        handle
-          ? `Suggest unlocks at ${need} distinct reply conversations — you're at ${n}. Refresh pulls more of your public timeline.`
-          : `Suggest unlocks at ${need} distinct reply conversations — you're at ${n} from marked memories. Link X to pull older public replies.`,
       );
     }
 
