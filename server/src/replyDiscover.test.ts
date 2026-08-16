@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -8,10 +9,25 @@ import {
   markInteracted,
 } from "./interactionStore.ts";
 import {
+  buildOwnPostsQuery,
   buildOwnRepliesQuery,
   discoverOwnReplies,
+  foldDiscoveredOwnPosts,
+  ownPostKindFromCard,
   shouldImportDiscoveredReply,
 } from "./replyDiscover.ts";
+import {
+  defaultMigrationsDir,
+  getPlatformDb,
+  resetPlatformDbForTests,
+} from "./db.ts";
+import { completeOnboarding, upsertOauthUser } from "./authStore.ts";
+import { ensureUserTenant } from "./billingStore.ts";
+import {
+  analyticsSummary,
+  startOfUtcDayIso,
+  upsertOwnPost,
+} from "./ownPostStore.ts";
 import type { ThreadCard } from "./xSearch.ts";
 import { runStatsTick } from "./statsWorker.ts";
 
@@ -26,10 +42,29 @@ function card(
   };
 }
 
+describe("buildOwnPostsQuery", () => {
+  it("builds from: with within_time, excludes retweets, and no is:reply", () => {
+    const q = buildOwnPostsQuery("@alice", "24h");
+    assert.match(q, /^from:alice -is:retweet within_time:24h$/);
+    assert.doesNotMatch(q, /is:reply/);
+  });
+});
+
 describe("buildOwnRepliesQuery", () => {
   it("builds from: + is:reply with within_time", () => {
     const q = buildOwnRepliesQuery("@alice", "24h");
     assert.match(q, /^from:alice is:reply within_time:24h$/);
+  });
+});
+
+describe("ownPostKindFromCard", () => {
+  it("treats inReplyToId as a reply, quotes as quotes, and bare posts as originals", () => {
+    assert.equal(
+      ownPostKindFromCard(card({ id: "1", inReplyToId: "p" })),
+      "reply",
+    );
+    assert.equal(ownPostKindFromCard(card({ id: "2" })), "original");
+    assert.equal(ownPostKindFromCard(card({ id: "3", isQuote: true })), "quote");
   });
 });
 
@@ -152,37 +187,47 @@ describe("discoverOwnReplies", () => {
       },
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => {
-        assert.match(opts.query, /from:me is:reply/);
-        assert.match(opts.query, /within_time:24h/);
         assert.equal(opts.product, "Latest");
         assert.equal(opts.maxPages, 1);
+        if (/is:reply/.test(opts.query)) {
+          assert.match(opts.query, /^from:me is:reply within_time:24h$/);
+          return {
+            ok: true,
+            threads: [
+              card({
+                id: "new-reply",
+                text: "off-app take",
+                inReplyToId: "new-parent",
+                inReplyToScreenName: "@builder",
+                conversationId: "conv-1",
+                createdAt: "2026-08-02T11:30:00.000Z",
+                opText: "parent lead",
+              }),
+              card({
+                id: "already-reply",
+                inReplyToId: "already-parent",
+                inReplyToScreenName: "@prior",
+              }),
+              card({
+                id: "self-reply",
+                inReplyToId: "my-own",
+                inReplyToScreenName: "@me",
+              }),
+              card({
+                id: "no-parent",
+                text: "not a reply card",
+              }),
+            ],
+            queryId: "q",
+            bottomCursor: null,
+            pages: 1,
+          };
+        }
+        assert.match(opts.query, /^from:me -is:retweet within_time:24h$/);
+        assert.doesNotMatch(opts.query, /is:reply/);
         return {
           ok: true,
-          threads: [
-            card({
-              id: "new-reply",
-              text: "off-app take",
-              inReplyToId: "new-parent",
-              inReplyToScreenName: "@builder",
-              conversationId: "conv-1",
-              createdAt: "2026-08-02T11:30:00.000Z",
-              opText: "parent lead",
-            }),
-            card({
-              id: "already-reply",
-              inReplyToId: "already-parent",
-              inReplyToScreenName: "@prior",
-            }),
-            card({
-              id: "self-reply",
-              inReplyToId: "my-own",
-              inReplyToScreenName: "@me",
-            }),
-            card({
-              id: "no-parent",
-              text: "not a reply card",
-            }),
-          ],
+          threads: [],
           queryId: "q",
           bottomCursor: null,
           pages: 1,
@@ -301,6 +346,319 @@ describe("discoverOwnReplies", () => {
     assert.equal(result.ok, false);
     assert.equal(result.error, "missing_credentials");
     assert.equal(result.discovered, 0);
+  });
+
+  it("folds the same search page into own_posts when asked", async () => {
+    const folded: string[] = [];
+    const result = await discoverOwnReplies({
+      storePath,
+      knowledgeRoot,
+      upsertMemory: false,
+      session: {
+        configured: true,
+        bearerToken: "t",
+        operatorUserId: "",
+        operatorUsername: "me",
+      },
+      resolveScreenName: async () => "me",
+      foldOwnPosts: async ({ threads, screenName }) => {
+        assert.equal(screenName, "me");
+        for (const row of threads) folded.push(row.id);
+        return threads.length;
+      },
+      searchTimelinePages: async () => ({
+        ok: true,
+        threads: [
+          card({
+            id: "orig-1",
+            text: "shipping note",
+          }),
+          card({
+            id: "r-fold",
+            text: "reply take",
+            inReplyToId: "p-fold",
+            inReplyToScreenName: "@other",
+          }),
+        ],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
+    });
+    assert.deepEqual(folded, ["orig-1", "r-fold"]);
+    assert.equal(result.ownPostsIngested, 2);
+    assert.equal(result.discovered, 1);
+  });
+});
+
+describe("foldDiscoveredOwnPosts", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    dir = mkdtempSync(join(tmpdir(), "x-fold-own-"));
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("writes originals and replies for the matching handle", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "99",
+      threads: [
+        card({
+          id: "orig-1",
+          text: "original take",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+        card({
+          id: "r-1",
+          text: "reply take",
+          inReplyToId: "p-1",
+          createdAt: "2026-08-16T11:30:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 2);
+    const summary = analyticsSummary(user.id);
+    assert.equal(summary.totals.posts, 2);
+    assert.equal(summary.totals.originals, 1);
+    assert.equal(summary.totals.replies, 1);
+  });
+
+  it("writes nothing when no desk user owns the handle", async () => {
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "nobody",
+      nowMs: Date.now(),
+      resolveXUserId: async () => "1",
+      threads: [card({ id: "x", text: "nope" })],
+    });
+    assert.equal(n, 0);
+  });
+
+  it("dedups a re-fold of the same threads by post id", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const opts = {
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "99",
+      threads: [
+        card({
+          id: "orig-1",
+          text: "original take",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+        card({
+          id: "r-1",
+          text: "reply take",
+          inReplyToId: "p-1",
+          createdAt: "2026-08-16T11:30:00.000Z",
+        }),
+      ],
+    };
+    const first = await foldDiscoveredOwnPosts(opts);
+    const second = await foldDiscoveredOwnPosts(opts);
+    assert.equal(first, 2);
+    assert.equal(second, 0);
+    const summary = analyticsSummary(user.id);
+    assert.equal(summary.totals.posts, 2);
+    assert.equal(summary.totals.originals, 1);
+    assert.equal(summary.totals.replies, 1);
+  });
+
+  it("stops the fold once the daily watch cap is reached", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const today = startOfUtcDayIso();
+    for (let i = 0; i < 15; i++) {
+      upsertOwnPost({
+        parsed: {
+          eventUuid: `evt-seed-${i}`,
+          xUserId: "99",
+          postId: `seed-${i}`,
+          kind: "original",
+          text: "seed",
+          postedAt: today,
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "me",
+          metrics: {},
+        },
+        userId: user.id,
+        tenantId,
+      });
+    }
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "99",
+      threads: [
+        card({
+          id: "cap-1",
+          text: "too many",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 0);
+    assert.equal(analyticsSummary(user.id).totals.posts, 15);
+  });
+
+  it("truncates a page mid-way at the daily cap", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const today = startOfUtcDayIso();
+    for (let i = 0; i < 14; i++) {
+      upsertOwnPost({
+        parsed: {
+          eventUuid: `evt-seed-${i}`,
+          xUserId: "99",
+          postId: `seed-${i}`,
+          kind: "original",
+          text: "seed",
+          postedAt: today,
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "me",
+          metrics: {},
+        },
+        userId: user.id,
+        tenantId,
+      });
+    }
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "99",
+      threads: [
+        card({
+          id: "cap-1",
+          text: "fits",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+        card({
+          id: "cap-2",
+          text: "truncated",
+          createdAt: "2026-08-16T11:05:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 1);
+    const summary = analyticsSummary(user.id);
+    assert.equal(summary.totals.posts, 15);
+  });
+
+  it("matches a user that only set x_username during onboarding (no X oauth)", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-1",
+      email: "me@example.com",
+      emailVerified: true,
+    });
+    completeOnboarding(user.id, "Find builders shipping AI tools in public.", {
+      xUsername: "me",
+    });
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "99",
+      threads: [
+        card({
+          id: "orig-onboard",
+          text: "onboarding-only take",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 1);
+    assert.equal(analyticsSummary(user.id).totals.posts, 1);
+  });
+
+  it("resolves xUserId from the stored X oauth via the default chain", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      threads: [
+        card({
+          id: "orig-stored",
+          text: "stored identity take",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 1);
+    assert.equal(analyticsSummary(user.id).totals.posts, 1);
+  });
+
+  it("attributes the fold to the X oauth owner, not a handle claimed in onboarding", async () => {
+    const claimant = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-claim",
+      email: "claim@example.com",
+      emailVerified: true,
+    });
+    completeOnboarding(claimant.id, "Find builders shipping AI tools in public.", {
+      xUsername: "me",
+    });
+    const operator = upsertOauthUser({
+      provider: "x",
+      providerUserId: "op-xid",
+      emailVerified: false,
+      username: "me",
+    });
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "op-xid",
+      threads: [
+        card({
+          id: "orig-pinned",
+          text: "operator post",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 1);
+    assert.equal(analyticsSummary(operator.id).totals.posts, 1);
+    assert.equal(analyticsSummary(claimant.id).totals.posts, 0);
   });
 });
 

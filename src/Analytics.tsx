@@ -376,8 +376,9 @@ export function Analytics(props: { onBack: () => void }) {
         <div className="analytics-empty">
           <p>No watched posts yet.</p>
           <p className="settings-help">
-            Link X, keep the desk online for CRC, and post in public. Protected
-            accounts and missed webhooks can still use Mark interacted.
+            Save your X handle, then post in public. The hourly search fills
+            this from the last day — no second pull. Protected accounts can
+            still use Mark interacted.
           </p>
         </div>
       ) : null}
