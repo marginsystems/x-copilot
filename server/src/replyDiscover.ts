@@ -524,9 +524,13 @@ export async function discoverOwnRepliesForIngestUsers(opts?: {
     skipped: 0,
     ownPostsIngested: 0,
   };
+  let ran = 0;
+  let succeeded = 0;
+  let lastError: string | undefined;
   for (const user of users) {
     const handle = resolveIngestHandle(user);
     if (!handle) continue;
+    ran += 1;
     const result = await discoverOwnReplies({
       screenName: handle,
       session: opts?.session,
@@ -538,9 +542,17 @@ export async function discoverOwnRepliesForIngestUsers(opts?: {
     acc.ownPostsIngested =
       (acc.ownPostsIngested ?? 0) + (result.ownPostsIngested ?? 0);
     if (!result.ok) {
-      acc.ok = false;
-      acc.error = result.error;
+      console.warn(
+        `[reply-discover] hourly soft-fail user=${user.id}: ${result.error ?? "unknown"}`,
+      );
+      lastError = result.error;
+      continue;
     }
+    succeeded += 1;
+  }
+  if (succeeded === 0 && ran > 0) {
+    acc.ok = false;
+    acc.error = lastError ?? "no_users_succeeded";
   }
   return acc;
 }
