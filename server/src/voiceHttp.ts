@@ -147,9 +147,13 @@ export function deriveNeedsLearn(opts: {
   needsDailyUpdate: boolean;
 }): boolean {
   const { status, handle, profile, needsDailyUpdate } = opts;
-  // A failed learn attempt (lastError set) must not re-arm the silent learn,
-  // or every hydrate would re-POST learn against the same dead end.
-  const failedAttempt = Boolean(profile?.lastError);
+  // A failed learn attempt (lastError set) must not re-arm the silent learn
+  // while the corpus is still below the unlock bar, or every hydrate would
+  // re-POST learn against the same dead end. Once the local fold unlocks the
+  // corpus, that dead end is gone: re-arm so the memories-first learn writes
+  // the card.
+  const failedAttempt =
+    Boolean(profile?.lastError) && !voiceUnlocked(profile?.conversationCount ?? 0);
   return (
     needsDailyUpdate ||
     (status === "empty" && !failedAttempt) ||

@@ -114,7 +114,7 @@ describe("deriveNeedsLearn", () => {
     );
   });
 
-  it("does not re-arm after a failed learn attempt", () => {
+  it("does not re-arm after a failed learn attempt below the unlock bar", () => {
     assert.equal(
       deriveNeedsLearn({
         status: "empty",
@@ -123,6 +123,21 @@ describe("deriveNeedsLearn", () => {
         needsDailyUpdate: false,
       }),
       false,
+    );
+  });
+
+  it("re-arms the silent learn once the fold unlocks past a stale error", () => {
+    assert.equal(
+      deriveNeedsLearn({
+        status: "empty",
+        handle: null,
+        profile: profile({
+          conversationCount: 107,
+          lastError: "No reply memories yet and X isn't linked.",
+        }),
+        needsDailyUpdate: false,
+      }),
+      true,
     );
   });
 
