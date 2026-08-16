@@ -49,10 +49,14 @@ export async function foldLocalVoiceSources(
 ): Promise<number> {
   const desk = foldDeskReplies(userId);
   const [notes, history] = await Promise.all([
-    listInteractionMemoryReplies({ knowledgeRoot: opts?.knowledgeRoot }),
+    listInteractionMemoryReplies({
+      knowledgeRoot: opts?.knowledgeRoot,
+      userId,
+    }),
     listInteractionHistory({
       storePath: opts?.storePath,
       limit: MAX_INTERACTION_STORE,
+      userId,
     }),
   ]);
   const memory = foldMemoryReplies(

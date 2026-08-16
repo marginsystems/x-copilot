@@ -8,6 +8,7 @@ import {
   buildInteractionNotePath,
   findInteractionNotePath,
   formatOutcomeSection,
+  listInteractionMemoryReplies,
   normalizeReply,
   renderDismissalMarkdown,
   parseInteractionNoteReply,
@@ -542,5 +543,69 @@ describe("updateInteractionMemoryOutcome", () => {
     });
     assert.ok(found);
     assert.match(found!, /2026-07-26-99\.md$/);
+  });
+});
+
+describe("listInteractionMemoryReplies", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "x-copilot-knowledge-list-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("only returns notes owned by the requested userId", async () => {
+    await writeInteractionMemory({
+      threadId: "111",
+      author: "@A",
+      reply: "A's reply",
+      userId: "user-a",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    await writeInteractionMemory({
+      threadId: "222",
+      author: "@B",
+      reply: "B's reply",
+      userId: "user-b",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+
+    const forA = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-a",
+    });
+    assert.deepEqual(
+      forA.map((n) => n.text),
+      ["A's reply"],
+    );
+
+    const forB = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-b",
+    });
+    assert.deepEqual(
+      forB.map((n) => n.text),
+      ["B's reply"],
+    );
+  });
+
+  it("skips unowned notes so they never leak into a user's corpus", async () => {
+    await writeInteractionMemory({
+      threadId: "111",
+      author: "@A",
+      reply: "A's reply",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const rows = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-a",
+    });
+    assert.equal(rows.length, 0);
   });
 });

@@ -35,6 +35,8 @@ export type InteractionMemoryInput = {
   reason?: string;
   source?: "manual" | "copy" | "discovered";
   interactedAt?: string;
+  /** Platform user who marked this thread — scopes voice folds to their own replies. */
+  userId?: string;
   /** Override root for tests. Default: <projectRoot>/knowledge */
   knowledgeRoot?: string;
 };
@@ -166,6 +168,8 @@ export type MemoryReplyInput = {
   threadId: string;
   text: string;
   postedAt: string | null;
+  /** Owning platform user, when the mark carried one. */
+  userId?: string;
 };
 
 /** Pull threadId + ## Reply out of an interaction note. */
@@ -177,21 +181,25 @@ export function parseInteractionNoteReply(
   const threadId = /(?:^|\n)threadId:\s*"?(\d+)"?/.exec(fm[1]!)?.[1] ?? "";
   const interactedAt =
     /(?:^|\n)interactedAt:\s*"?([^\s"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
+  const userId = /(?:^|\n)userId:\s*"?([^"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
   const replyMatch = /^##\s+Reply\s*\r?\n+([\s\S]*?)(?=^##\s|$(?![\s\S]))/m.exec(
     markdown,
   );
   const text = normalizeReply(replyMatch?.[1] ?? "");
   if (!threadId || !text) return null;
-  return {
+  const parsed: MemoryReplyInput = {
     threadId,
     text,
     postedAt: interactedAt || null,
   };
+  if (userId) parsed.userId = userId;
+  return parsed;
 }
 
-/** Every interaction note that still has a usable ## Reply. */
+/** Every interaction note for `userId` that still has a usable ## Reply. */
 export async function listInteractionMemoryReplies(opts?: {
   knowledgeRoot?: string;
+  userId?: string;
 }): Promise<MemoryReplyInput[]> {
   const root = opts?.knowledgeRoot ?? defaultKnowledgeRoot();
   const dir = join(root, "interactions");
@@ -207,7 +215,11 @@ export async function listInteractionMemoryReplies(opts?: {
     try {
       const raw = await readFile(join(dir, name), "utf8");
       const parsed = parseInteractionNoteReply(raw);
-      if (parsed) out.push(parsed);
+      if (!parsed) continue;
+      // Fold only the calling user's own notes; unowned notes must not leak
+      // into anyone's per-user voice corpus.
+      if (opts?.userId && parsed.userId !== opts.userId) continue;
+      out.push(parsed);
     } catch {
       // Skip unreadable notes — one bad file must not block learn.
     }
@@ -241,6 +253,8 @@ export function renderInteractionMarkdown(
 
   const lines: string[] = ["---", "type: interaction"];
   lines.push(`threadId: ${yamlString(threadId)}`);
+  const userId = optionalStringTrim(input.userId);
+  if (userId) lines.push(`userId: ${yamlString(userId)}`);
   const url = yamlOptionalString(input.url);
   if (url) lines.push(`url: ${url}`);
   lines.push(`author: ${yamlString(author)}`);
