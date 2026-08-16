@@ -9,7 +9,7 @@
 import { resolve } from "node:path";
 import { loadEnv } from "../server/src/loadEnv.ts";
 import { chatCompletions } from "../server/src/deepseek.ts";
-import { getSessionFromEnv } from "../server/src/xSession.ts";
+import { getXApiCredsFromEnv } from "../server/src/xApi.ts";
 import { searchTimeline, type ThreadCard } from "../server/src/xSearch.ts";
 import { triageThreads } from "../server/src/threadTriage.ts";
 import {
@@ -38,14 +38,14 @@ const queries = (process.argv.slice(2).length
 const agenda =
   "Find concrete builder / AI / infra threads worth a short technical reply. Skip hollow engagement asks, promo, and pure politics.";
 
-const session = getSessionFromEnv();
+const creds = getXApiCredsFromEnv();
 console.log("x-copilot triage tag probe");
 console.log(`  queries: ${queries.join(" | ")}`);
-console.log(`  api: ${session.configured}`);
+console.log(`  api: ${creds.configured}`);
 console.log(`  official exclude vocab: ${EXCLUDEABLE_TAG_VOCAB.join(", ")}`);
 console.log(`  default excludes: ${DEFAULT_EXCLUDED_TAGS.join(", ")}`);
 
-if (!session.bearerToken) {
+if (!creds.bearerToken) {
   console.error("FAIL: missing X_API_BEARER_TOKEN");
   process.exit(1);
 }

@@ -21,10 +21,9 @@ describe("parseXHandle", () => {
 });
 
 describe("resolveDetectScreenName", () => {
-  it("prefers the user handle over the env operator", () => {
-    assert.equal(resolveDetectScreenName("@alice", "operator"), "alice");
-    assert.equal(resolveDetectScreenName(null, "operator"), "operator");
-    assert.equal(resolveDetectScreenName(null, "unknown"), null);
-    assert.equal(resolveDetectScreenName(null, null), null);
+  it("uses only the signed-in user's handle", () => {
+    assert.equal(resolveDetectScreenName("@alice"), "alice");
+    assert.equal(resolveDetectScreenName(null), null);
+    assert.equal(resolveDetectScreenName(""), null);
   });
 });

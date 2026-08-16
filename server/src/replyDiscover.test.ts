@@ -182,8 +182,6 @@ describe("discoverOwnReplies", () => {
       session: {
         configured: true,
         bearerToken: "t",
-        operatorUserId: "",
-        operatorUsername: "me",
       },
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => {
@@ -268,8 +266,6 @@ describe("discoverOwnReplies", () => {
       session: {
         configured: true,
         bearerToken: "t",
-        operatorUserId: "",
-        operatorUsername: "me",
       },
       resolveScreenName: async () => "me",
       searchTimelinePages: async () => ({
@@ -318,8 +314,6 @@ describe("discoverOwnReplies", () => {
       session: {
         configured: true,
         bearerToken: "t",
-        operatorUserId: "",
-        operatorUsername: "me",
       },
       resolveScreenName: async () => "me",
       searchTimelinePages: search,
@@ -333,13 +327,24 @@ describe("discoverOwnReplies", () => {
     assert.equal(history.filter((h) => h.threadId === "p1").length, 1);
   });
 
+  it("soft-fails when no desk handle is provided", async () => {
+    const result = await discoverOwnReplies({
+      session: {
+        configured: true,
+        bearerToken: "t",
+      },
+      storePath,
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "screen_name_unresolved");
+    assert.equal(result.discovered, 0);
+  });
+
   it("soft-fails when credentials missing", async () => {
     const result = await discoverOwnReplies({
       session: {
         configured: false,
         bearerToken: "",
-        operatorUserId: "",
-        operatorUsername: "",
       },
       storePath,
     });
@@ -357,8 +362,6 @@ describe("discoverOwnReplies", () => {
       session: {
         configured: true,
         bearerToken: "t",
-        operatorUserId: "",
-        operatorUsername: "me",
       },
       resolveScreenName: async () => "me",
       foldOwnPosts: async ({ threads, screenName }) => {

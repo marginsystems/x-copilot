@@ -70,17 +70,16 @@ Bearer token and LLM keys stay in `.env` on the sidecar. The browser never store
 
 ```bash
 cp .env.example .env
-# set X_API_BEARER_TOKEN (+ X_OPERATOR_USERNAME), and DEEPSEEK_API_KEY
+# set X_API_BEARER_TOKEN and DEEPSEEK_API_KEY
 
 npm install
-npm run test:session   # prove Pay Per Use bearer works
+npm run test:x-api     # prove Pay Per Use bearer works
 npm run build:server   # emit server/dist for production-shaped runs
 npm run dev:server     # tsx watch → http://127.0.0.1:8787
 npm run dev            # http://127.0.0.1:5173  (proxies /api → sidecar)
 ```
 
-Health: `curl http://127.0.0.1:8787/api/health`  
-API verify: `curl http://127.0.0.1:8787/api/session/verify`
+Health: `curl http://127.0.0.1:8787/api/health`
 
 **Important:** Vite alone is not enough. If you only run `npm run dev`, Search hits a dead proxy and shows a proxy/500 error. Always run `dev:server` too.
 
@@ -90,7 +89,7 @@ API verify: `curl http://127.0.0.1:8787/api/session/verify`
 |--------|----------------|
 | `npm run dev:server` | `tsx watch server/src/index.ts` |
 | `npm run build:server` | `tsc -p tsconfig.server.json` → `server/dist/` |
-| `npm run test:session` | `tsx scripts/test-session.ts` |
+| `npm run test:x-api` | `tsx scripts/test-x-api.ts` |
 | `npm test` | Unit tests (`node:test` via tsx) |
 | `npm run test:search -- "query"` | Live recent-search smoke |
 
@@ -104,26 +103,22 @@ Use a **Pay Per Use** project/app from [console.x.com](https://console.x.com) (n
 |---------|------|
 | `X_API_BEARER_TOKEN` | App-only Bearer (keep URL-encoding as issued) |
 | `X_API_KEY` / `X_API_SECRET` | Consumer key/secret (optional; stored for OAuth later) |
-| `X_OPERATOR_USERNAME` | Your handle (no `@`) for Mark detect / reply discover |
-| `X_OPERATOR_USER_ID` | Optional numeric id |
 
 ### Setup
 
 1. Create a Project/App under **Pay Per Use**.
 2. Billing → buy credits + set a spending limit.
 3. Copy the App **Bearer Token** into `.env` as `X_API_BEARER_TOKEN=...` (do not decode `%2F` / `%2B` / `%3D`).
-4. Set `X_OPERATOR_USERNAME=yourhandle`.
-5. Run:
+4. Run:
 
 ```bash
-npm run test:session
+npm run test:x-api
 ```
 
 Expected success looks like:
 
 ```
-OK via api_users_by_username
-  @yourhandle (id=…)
+OK via api_bearer_probe
 ```
 
 If you see HTTP **402**, buy credits. HTTP **401** usually means the bearer was URL-decoded or rotated — paste it again as shown in the console.
@@ -137,7 +132,7 @@ Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only 
 | `src/` | Vite dashboard (agenda, Scout, threads) |
 | `server/src/` | TypeScript sidecar (HTTP API + X API v2 + recent search) |
 | `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
-| `scripts/test-session.ts` | CLI X API smoke test |
+| `scripts/test-x-api.ts` | CLI X API bearer smoke test |
 | `tsconfig.server.json` | Server emit config |
 | `pm2-manager.sh` | start/stop/restart/status/logs/setup-logrotate |
 | `ecosystem.config.example.cjs` | PM2 template (copy → local `ecosystem.config.cjs`) |

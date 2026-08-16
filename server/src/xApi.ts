@@ -4,14 +4,13 @@
  */
 
 import { countPostsRead, recordUsageEvent } from "./usageMeter.js";
+import { parseXHandle } from "./xHandle.js";
 
 export const X_API_BASE = "https://api.x.com/2";
 
 export type XApiCreds = {
   bearerToken: string;
   configured: boolean;
-  operatorUserId: string;
-  operatorUsername: string;
 };
 
 export type XApiErrorBody = {
@@ -28,10 +27,6 @@ export function getXApiCredsFromEnv(
   return {
     bearerToken,
     configured: Boolean(bearerToken),
-    operatorUserId: (env.X_OPERATOR_USER_ID ?? "").trim(),
-    operatorUsername: (env.X_OPERATOR_USERNAME ?? "")
-      .trim()
-      .replace(/^@+/, ""),
   };
 }
 
@@ -205,6 +200,94 @@ export function startTimeFromWithin(within: string): string {
   // Recent search max lookback is 7 days.
   ms = Math.min(ms, 7 * 24 * 60 * 60 * 1000);
   return new Date(Date.now() - ms).toISOString();
+}
+
+export type XUserLookupOk = {
+  ok: true;
+  user: {
+    id: string;
+    screen_name: string;
+    name: string;
+    protected: boolean;
+  };
+};
+
+export type XUserLookupFail = {
+  ok: false;
+  status: number;
+  error: string;
+  message?: string;
+};
+
+/** Public username lookup for onboarding. App bearer only — not an operator session. */
+export async function lookupXUserByUsername(
+  username: string,
+  creds: XApiCreds = getXApiCredsFromEnv(),
+): Promise<XUserLookupOk | XUserLookupFail> {
+  const handle = parseXHandle(username);
+  if (!handle) {
+    return {
+      ok: false,
+      status: 400,
+      error: "bad_handle",
+      message: "Enter a valid X username (letters, digits, underscore).",
+    };
+  }
+  if (!creds.configured) {
+    return {
+      ok: false,
+      status: 0,
+      error: "missing_credentials",
+      message: "Set X_API_BEARER_TOKEN in .env (Pay Per Use app bearer).",
+    };
+  }
+  const res = await xApiGet({
+    path: `/users/by/username/${encodeURIComponent(handle)}`,
+    query: { "user.fields": "protected,name,username" },
+    creds,
+  });
+  if (!res.ok) {
+    if (res.status === 404) {
+      return {
+        ok: false,
+        status: 404,
+        error: "user_not_found",
+        message: `No X account found for @${handle}.`,
+      };
+    }
+    return {
+      ok: false,
+      status: res.status,
+      error: res.error,
+      message: res.message,
+    };
+  }
+  const data = res.json as {
+    data?: {
+      id?: string;
+      username?: string;
+      name?: string;
+      protected?: boolean;
+    };
+  };
+  const u = data.data;
+  if (!u?.id || !u.username) {
+    return {
+      ok: false,
+      status: 404,
+      error: "user_not_found",
+      message: `No X account found for @${handle}.`,
+    };
+  }
+  return {
+    ok: true,
+    user: {
+      id: u.id,
+      screen_name: u.username,
+      name: u.name || u.username,
+      protected: Boolean(u.protected),
+    },
+  };
 }
 
 /** Strip session-only within_time/since_time operators for v2 recent search. */

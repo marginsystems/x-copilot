@@ -49,12 +49,8 @@ export type DetectLogFn = (line: string) => void;
 
 export function resolveDetectScreenName(
   userHandle: string | null | undefined,
-  envScreenName: string | null | undefined,
 ): string | null {
-  const fromUser = parseXHandle(userHandle ?? "");
-  if (fromUser) return fromUser;
-  if (!envScreenName || envScreenName === "unknown") return null;
-  return parseXHandle(envScreenName);
+  return parseXHandle(userHandle ?? "");
 }
 
 function normalizeScreenName(screenName: string): string {

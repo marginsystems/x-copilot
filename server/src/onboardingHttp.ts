@@ -16,7 +16,7 @@ import {
 import { getSessionUser } from "./sessionCookie.js";
 import { allowRate, clientIp } from "./authGuard.js";
 import { parseXHandle } from "./xHandle.js";
-import { lookupXUserByUsername } from "./xSession.js";
+import { lookupXUserByUsername } from "./xApi.js";
 import { runUserIngest } from "./userIngest.js";
 import {
   VOICE_UNLOCK_MIN_CONVERSATIONS,

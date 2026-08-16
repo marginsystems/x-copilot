@@ -76,23 +76,19 @@ export function UserMenu(props: {
   view: MenuView;
   theme: Theme;
   authUser: MenuUser | null;
-  sessionHandle: string | null;
   needsLogin: boolean;
   needsOnboarding: boolean;
-  actionBusy: boolean;
   onTheme: () => void;
   onLogout: () => void;
   onGoogle: () => void;
   onX: () => void;
-  onVerify: () => void;
   onAnalytics: () => void;
   onVoice: () => void;
   onUsage: () => void;
   onSettings: () => void;
   onPrivacySettings: () => void;
 }) {
-  const handle =
-    props.authUser?.xUsername || props.sessionHandle || null;
+  const handle = props.authUser?.xUsername || null;
   const name =
     props.authUser?.displayName ||
     props.authUser?.email ||
@@ -112,7 +108,7 @@ export function UserMenu(props: {
               {handle ? (
                 <p className="menu-profile-handle">@{handle}</p>
               ) : props.needsLogin || props.needsOnboarding ? null : (
-                <p className="menu-profile-handle">X API not verified</p>
+                <p className="menu-profile-handle">X handle not set</p>
               )}
             </>
           ) : (
@@ -157,15 +153,6 @@ export function UserMenu(props: {
         {props.needsLogin || props.needsOnboarding ? null : (
           <>
             <p className="menu-group-label">Desk</p>
-            <button
-              type="button"
-              className="menu-item"
-              disabled={props.actionBusy}
-              onClick={props.onVerify}
-            >
-              <MenuIcon d="M12 3l8 4v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4zM8.5 12l2.5 2.5 4.5-5" />
-              Verify X API
-            </button>
             <button
               type="button"
               className={
