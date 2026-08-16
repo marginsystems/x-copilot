@@ -102,7 +102,9 @@ export type VoiceUiStatus =
 
 /** GET /api/voice fold throttle: the fold scans every knowledge note and
  *  writes counts, so dedupe repeated mounts/midnight hydrates instead of
- *  running it on every request. POST learn always folds. */
+ *  running it on every request. Handle-less users are exempt — the fold is
+ *  their only count path, and throttling it would delay the memories-first
+ *  auto-learn right at the unlock bar. POST learn always folds. */
 const lastLocalFoldAt = new Map<string, number>();
 const LOCAL_FOLD_COOLDOWN_MS = 60_000;
 
@@ -597,7 +599,14 @@ export async function tryHandleVoice(
     // full note scan so bursts (mount + per-tab midnight hydrates) fold once
     // per window instead of once per GET. Learn always folds.
     const now = Date.now();
-    if ((lastLocalFoldAt.get(user.id) ?? 0) <= now - LOCAL_FOLD_COOLDOWN_MS) {
+    const handle = resolveVoiceHandle(user);
+    // Handle-less users have no X pull to advance their count — the GET fold
+    // is their only path, so never throttle it away (a throttled reload right
+    // after marking the unlock-bar memory would suppress the silent learn).
+    if (
+      !handle ||
+      (lastLocalFoldAt.get(user.id) ?? 0) <= now - LOCAL_FOLD_COOLDOWN_MS
+    ) {
       lastLocalFoldAt.set(user.id, now);
       await foldLocalVoiceSources(user.id);
     }
