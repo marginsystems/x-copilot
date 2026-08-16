@@ -6,6 +6,7 @@ import {
   PLAN_CREDIT_LIMITS,
   PLAN_DAILY_ACTIVITY_EVENTS,
   PLAN_DAILY_SORTIES,
+  PLAN_DAILY_SUGGESTS,
   derivePlanState,
   isPaidPlanKey,
   isPlanKey,
@@ -33,6 +34,15 @@ describe("plans", () => {
       pulse: 50,
       radar: 120,
       horizon: 250,
+    });
+  });
+
+  it("caps voice suggests per UTC day, free at 10", () => {
+    assert.deepEqual(PLAN_DAILY_SUGGESTS, {
+      free: 10,
+      pulse: 20,
+      radar: 30,
+      horizon: 40,
     });
   });
 

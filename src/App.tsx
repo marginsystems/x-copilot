@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   SCOUT_SEARCH_TIMELINE,
   SCOUT_STAGE_RANK,
@@ -66,6 +66,9 @@ import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
 import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
 import { Analytics } from "./Analytics";
+import { VoiceCardPanel } from "./VoiceCard";
+import { SuggestPane } from "./SuggestPane";
+import { parseVoiceState, type VoiceState } from "./lib/voice";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -351,6 +354,7 @@ function ThreadRow({
   onSkip,
   onDismiss,
   onWatch,
+  suggest,
 }: {
   thread: ThreadCard;
   open: boolean;
@@ -361,6 +365,7 @@ function ThreadRow({
   onSkip: () => void;
   onDismiss: () => void;
   onWatch?: () => void;
+  suggest?: ReactNode;
 }) {
   const bait = baitRisk(thread);
   const ago = formatTimeAgo(thread.createdAt);
@@ -464,6 +469,7 @@ function ThreadRow({
               Not interested
             </button>
           </div>
+          {!interacted ? suggest : null}
         </div>
       ) : null}
     </article>
@@ -788,6 +794,11 @@ export default function App() {
     typeof window !== "undefined" ? window.location.hostname : "localhost",
   );
   const manualVerifyDoneRef = useRef(false);
+  const [voice, setVoice] = useState<VoiceState | null>(null);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  /** Silent once-a-day learn — quiet, but still gating the Refresh button. */
+  const [voicePending, setVoicePending] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
     loadSettings(),
@@ -1297,6 +1308,53 @@ export default function App() {
     }
   }
 
+  async function learnVoice(opts?: { silent?: boolean }) {
+    if (!opts?.silent) {
+      setVoiceBusy(true);
+      setVoiceError(null);
+    }
+    setVoicePending(true);
+    try {
+      const res = await apiFetch("/api/voice/learn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: string;
+      };
+      if (res.ok) {
+        const parsed = parseVoiceState(data);
+        if (parsed) setVoice(parsed);
+      } else if (!opts?.silent) {
+        setVoiceError(data.message ?? "Voice learn failed — try again.");
+        // Learn flipped the profile server-side; re-read the resting state.
+        void hydrateVoice({ skipDaily: true });
+      }
+    } catch {
+      if (!opts?.silent) setVoiceError("Couldn't reach the desk — try again.");
+    } finally {
+      if (!opts?.silent) setVoiceBusy(false);
+      setVoicePending(false);
+    }
+  }
+
+  async function hydrateVoice(opts?: { skipDaily?: boolean }) {
+    try {
+      const res = await apiFetch("/api/voice");
+      if (!res.ok) return;
+      const parsed = parseVoiceState(await res.json());
+      if (!parsed) return;
+      setVoice(parsed);
+      // Once-a-day incremental: fold new replies since the cursor, quietly.
+      if (parsed.needsDailyUpdate && !opts?.skipDaily) {
+        void learnVoice({ silent: true });
+      }
+    } catch {
+      // Sidecar may be offline on first paint — voice stays hidden.
+    }
+  }
+
   async function hydrateSession() {
     try {
       const res = await apiFetch("/api/session/verify");
@@ -1372,7 +1430,10 @@ export default function App() {
         await confirmCheckout(sessionId);
       }
       void loadBilling();
-      if (user) ensureActivitySubscribe();
+      if (user) {
+        ensureActivitySubscribe();
+        void hydrateVoice();
+      }
       if (viewFromPath(window.location.pathname) === "usage" || checkout) {
         void loadUsage();
       }
@@ -1400,6 +1461,7 @@ export default function App() {
       );
       timer = setTimeout(() => {
         void loadBilling();
+        void hydrateVoice();
         arm();
       }, Math.max(0, nextUtcDay - Date.now()) + 500);
     };
@@ -2768,6 +2830,13 @@ export default function App() {
               Back
             </button>
           </div>
+          <VoiceCardPanel
+            voice={voice}
+            busy={voiceBusy}
+            refreshing={voiceBusy || voicePending}
+            error={voiceError}
+            onLearn={() => void learnVoice()}
+          />
           <p className="status settings-lede">
             Filter prefs apply on the next Scout search. Env defaults remain the
             fallback when overrides are omitted.
@@ -3219,6 +3288,25 @@ export default function App() {
                         onMark={() => onMark(t)}
                         onSkip={() => void onSkip(t)}
                         onDismiss={() => openDismissModal(t)}
+                        suggest={
+                          voice?.status === "ready" && voice.unlocked ? (
+                            <SuggestPane
+                              threadId={t.id}
+                              author={t.author}
+                              text={t.text}
+                              opAuthor={t.opAuthor}
+                              opText={t.opText}
+                              agenda={agenda}
+                              usage={voice.suggests}
+                              onUsage={(u) =>
+                                setVoice((v) =>
+                                  v ? { ...v, suggests: u } : v,
+                                )
+                              }
+                              onOpenIntent={() => watchDeskThreads([t])}
+                            />
+                          ) : undefined
+                        }
                       />
                     ))}
                   </div>

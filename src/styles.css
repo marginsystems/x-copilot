@@ -2909,3 +2909,358 @@ button.agenda-option.is-on {
   font-family: var(--font-head);
   font-size: 0.95rem;
 }
+
+/* --- Voice card (Settings) --- */
+
+.voice-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--accent) 7%, transparent),
+      transparent 42%
+    ),
+    var(--raised);
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.voice-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.voice-title {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.voice-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  max-width: 52ch;
+}
+
+.voice-refresh {
+  flex-shrink: 0;
+}
+
+.voice-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  max-width: 60ch;
+}
+
+.voice-locked {
+  display: grid;
+  gap: 10px;
+}
+
+.voice-meter {
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.voice-meter-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--accent-dim),
+    var(--accent)
+  );
+  border-radius: inherit;
+  transition: width 480ms var(--ease-out);
+}
+
+.voice-meter-label {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.voice-card {
+  display: grid;
+  gap: 12px;
+}
+
+.voice-row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.voice-label {
+  font-family: var(--font-head);
+  font-size: 0.64rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.voice-value {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.voice-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.voice-chip {
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.7rem;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.voice-chip-never {
+  color: var(--danger);
+  border-color: var(--danger-dim);
+  background: color-mix(in srgb, var(--danger) 7%, transparent);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.voice-examples {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.voice-examples li {
+  font-size: 0.78rem;
+  border-left: 2px solid var(--accent-dim);
+  padding-left: 10px;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.voice-foot {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+/* Learn / refresh loading */
+
+.voice-loader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 4px;
+}
+
+.voice-loader-line {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.voice-loader-pulse {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.voice-loader-pulse span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+
+.voice-loader-pulse span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.voice-loader-pulse span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes voice-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.voice-loader-steps {
+  display: inline-flex;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.voice-step {
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: background 240ms ease;
+}
+
+.voice-step.active {
+  background: var(--accent);
+}
+
+.voice-step.done {
+  background: var(--accent-dim);
+}
+
+/* --- Suggest pane (open thread row) --- */
+
+.suggest-pane {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.suggest-idle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.suggest-quota {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.suggest-banner {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px dashed var(--accent-dim);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+}
+
+.suggest-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 88px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  padding: 10px 12px;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.suggest-textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.suggest-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.suggest-count {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.suggest-count.over {
+  color: var(--danger);
+}
+
+.suggest-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+a.suggest-open {
+  border-radius: var(--radius);
+  padding: 7px 14px;
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+  text-decoration: none;
+  display: inline-block;
+}
+
+.suggest-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.suggest-note {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.suggest-note.is-hint {
+  color: var(--muted);
+}
+
+.suggest-note.is-fail {
+  color: var(--danger);
+}
+
+.suggest-note.is-ok {
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-loader-pulse span {
+    animation: none;
+    opacity: 0.8;
+  }
+
+  .voice-meter-fill {
+    transition: none;
+  }
+
+  .voice-step {
+    transition: none;
+  }
+}
