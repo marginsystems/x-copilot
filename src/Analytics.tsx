@@ -340,8 +340,8 @@ export function Analytics(props: { onBack: () => void }) {
       </div>
       <p className="status settings-lede">
         Every public tweet you send — originals and replies — lands here. Views,
-        likes, replies, reposts, and bookmarks are sampled at post time, 1h, and
-        24h. That watch is priced into your monthly credits.
+        likes, replies, reposts, and bookmarks are sampled hourly. That watch is
+        platform-paced and does not spend your Scout credits.
       </p>
 
       {error ? (
@@ -376,8 +376,9 @@ export function Analytics(props: { onBack: () => void }) {
         <div className="analytics-empty">
           <p>No watched posts yet.</p>
           <p className="settings-help">
-            Link X, keep the desk online for CRC, and post in public. Protected
-            accounts and missed webhooks can still use Mark interacted.
+            Save your X handle, then post in public. The hourly search fills
+            this from the last day — no second pull. Protected accounts can
+            still use Mark interacted.
           </p>
         </div>
       ) : null}

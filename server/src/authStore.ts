@@ -8,6 +8,7 @@ import {
 } from "./billingStore.js";
 import { getPlatformDb } from "./db.js";
 import { parseXHandle } from "./xHandle.js";
+import { VOICE_UNLOCK_MIN_CONVERSATIONS } from "./voiceStore.js";
 
 export type AuthUser = {
   id: string;
@@ -104,6 +105,36 @@ export function getXOauthUsername(userId: string): string | null {
     )
     .get(userId) as { username: string | null } | undefined;
   return parseXHandle(row?.username ?? "") ?? null;
+}
+
+/**
+ * Match a public handle to a desk user. Point lookups only — no full-table
+ * scans. Prefers the verified X oauth identity (a real X login) over a handle
+ * merely claimed during onboarding.
+ */
+export function findUserIdByXUsername(username: string): string | null {
+  const handle = parseXHandle(username);
+  if (!handle) return null;
+  const key = handle.toLowerCase();
+  const oauth = getPlatformDb()
+    .prepare(
+      `SELECT user_id FROM oauth_accounts
+       WHERE provider = 'x'
+         AND username IS NOT NULL
+         AND (lower(TRIM(username)) = ? OR lower(TRIM(username)) = '@' || ?)
+       LIMIT 1`,
+    )
+    .get(key, key) as { user_id: string } | undefined;
+  if (oauth?.user_id) return oauth.user_id;
+  const user = getPlatformDb()
+    .prepare(
+      `SELECT id FROM users
+       WHERE x_username IS NOT NULL
+         AND (lower(TRIM(x_username)) = ? OR lower(TRIM(x_username)) = '@' || ?)
+       LIMIT 1`,
+    )
+    .get(key, key) as { id: string } | undefined;
+  return user?.id ?? null;
 }
 
 function stampXUsername(
@@ -434,4 +465,26 @@ export function completeOnboarding(
 export function userNeedsXHandle(user: AuthUser): boolean {
   if (parseXHandle(user.xUsername ?? "")) return false;
   return !getXOauthUsername(user.id);
+}
+
+/** Desk users the hourly ingest serves: handle users, plus memory-only users
+ *  past the unlock bar without a card. One query, ordered least-recently-pulled
+ *  first so the per-tick budget rotates instead of starving users past #20. */
+export function listIngestUsers(): AuthUser[] {
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT DISTINCT
+         u.id, u.email, u.display_name, u.avatar_url, u.created_at,
+         u.last_login_at, u.onboarding_completed_at, u.agenda, u.x_username
+       FROM users u
+       LEFT JOIN oauth_accounts oa
+         ON oa.user_id = u.id AND oa.provider = 'x' AND oa.username IS NOT NULL
+       LEFT JOIN voice_profiles vp ON vp.user_id = u.id
+       WHERE (u.x_username IS NOT NULL AND TRIM(u.x_username) != '')
+          OR oa.user_id IS NOT NULL
+          OR (vp.conversation_count >= ? AND vp.card_json IS NULL)
+       ORDER BY (vp.last_pull_at IS NULL) DESC, vp.last_pull_at ASC`,
+    )
+    .all(VOICE_UNLOCK_MIN_CONVERSATIONS) as UserRow[];
+  return rows.map(mapUser);
 }

@@ -1,6 +1,6 @@
 /**
- * Hourly off-app reply discovery — one Latest search for our own replies,
- * upsert into the interaction store for Scout cooldown + 1h/24h stats.
+ * Hourly own-post discovery — one Latest `from:` search.
+ * Replies go to the interaction store; every card also fills Analytics own_posts.
  */
 import {
   MAX_INTERACTION_STORE,
@@ -25,6 +25,15 @@ import {
   verifySession,
   type SessionCreds,
 } from "./xSession.js";
+import { findUserIdByXUsername, getUserById } from "./authStore.js";
+import { dailyActivityUsage, ensureUserTenant } from "./billingStore.js";
+import { upsertOwnPost } from "./ownPostStore.js";
+import {
+  findUserIdByXUserId,
+  lookupXUserId,
+  resolveStoredXUserId,
+} from "./xActivitySubscribe.js";
+import type { OwnPostKind, ParsedPostCreate } from "./xActivity.js";
 
 export type SearchTimelinePagesFn = (opts: {
   query: string;
@@ -46,6 +55,7 @@ export type DiscoverRepliesResult = {
   searched: number;
   discovered: number;
   skipped: number;
+  ownPostsIngested?: number;
   error?: string;
 };
 
@@ -53,13 +63,136 @@ function normalizeScreenName(screenName: string): string {
   return screenName.trim().replace(/^@+/, "");
 }
 
-/** Latest own-replies query used by the hourly stats tick. */
+/** Latest own-posts query used by the hourly stats tick for the Analytics fold. */
+export function buildOwnPostsQuery(
+  screenName: string,
+  withinTime = "24h",
+): string {
+  const name = normalizeScreenName(screenName);
+  // Exclude retweets: they are someone else's post re-posted by the operator and
+  // must not be folded into own_posts as originals (matches scoutCollect).
+  return withSearchRecency(`from:${name} -is:retweet`, withinTime);
+}
+
+/** Latest own-replies query used by the hourly stats tick for the Interacted import. */
 export function buildOwnRepliesQuery(
   screenName: string,
   withinTime = "24h",
 ): string {
   const name = normalizeScreenName(screenName);
   return withSearchRecency(`from:${name} is:reply`, withinTime);
+}
+
+export function ownPostKindFromCard(card: ThreadCard): OwnPostKind {
+  if (card.isReply || card.inReplyToId) return "reply";
+  if (card.isQuote) return "quote";
+  return "original";
+}
+
+export function postedAtFromCard(card: ThreadCard, nowMs: number): string {
+  const createdMs = card.createdAt ? Date.parse(card.createdAt) : NaN;
+  if (Number.isFinite(createdMs)) return new Date(createdMs).toISOString();
+  return new Date(nowMs).toISOString();
+}
+
+export function cardToOwnPostParsed(
+  card: ThreadCard,
+  opts: { xUserId: string; screenName: string; nowMs: number },
+): ParsedPostCreate {
+  const handle = normalizeScreenName(opts.screenName);
+  return {
+    eventUuid: `search:${card.id}`,
+    xUserId: opts.xUserId,
+    postId: card.id.trim(),
+    kind: ownPostKindFromCard(card),
+    text: card.text,
+    postedAt: postedAtFromCard(card, opts.nowMs),
+    inReplyToId: card.inReplyToId?.trim() || null,
+    inReplyToUserId: null,
+    conversationId: card.conversationId?.trim() || null,
+    authorUsername: handle,
+    metrics: {},
+  };
+}
+
+export type FoldOwnPostsFn = (opts: {
+  threads: ThreadCard[];
+  screenName: string;
+  nowMs: number;
+}) => Promise<number>;
+
+/**
+ * Write the hourly `from:` page into own_posts for the matching desk user.
+ * Fed by the own-posts search; the Interacted import runs its own `is:reply`
+ * page. Soft-skips when no user/handle.
+ */
+export async function foldDiscoveredOwnPosts(opts: {
+  threads: ThreadCard[];
+  screenName: string;
+  nowMs: number;
+  resolveUserId?: (handle: string) => string | null;
+  resolveXUserId?: (userId: string, handle: string) => Promise<string | null>;
+}): Promise<number> {
+  const handle = normalizeScreenName(opts.screenName);
+  const matchedUserId = (opts.resolveUserId ?? findUserIdByXUsername)(handle);
+  if (!matchedUserId) return 0;
+  const resolveX =
+    opts.resolveXUserId ??
+    (async (id: string, name: string) =>
+      resolveStoredXUserId(id) ?? (await lookupXUserId(name)));
+  const xUserId = await resolveX(matchedUserId, handle);
+  if (!xUserId) {
+    console.warn(
+      `[reply-discover] own_posts fold skipped screenName=${handle}: xUserId unresolvable (no stored X identity and username lookup failed)`,
+    );
+    return 0;
+  }
+  // Pin the fold to the desk user who actually owns this X identity (verified
+  // X oauth / activity subscription), never the first user that merely claimed
+  // the handle during onboarding — a claimed handle must not capture another
+  // desk's Analytics or side-effect-create its tenant + billing rows.
+  const userId = findUserIdByXUserId(xUserId) ?? matchedUserId;
+  const user = getUserById(userId);
+  const activity = dailyActivityUsage(userId, user?.email ?? null);
+  if (!activity.can_watch) {
+    console.warn(
+      `[reply-discover] own_posts fold suppressed userId=${userId}: daily activity watch cap reached (${activity.used}/${activity.limit})`,
+    );
+    return 0;
+  }
+  const tenantId = ensureUserTenant(userId);
+  let ingested = 0;
+  // Hoist the daily count (already computed by dailyActivityUsage) and advance
+  // it locally on new inserts instead of re-running a COUNT per card.
+  let used = activity.used;
+  for (const card of opts.threads) {
+    const postId = card.id.trim();
+    if (!postId) continue;
+    if (used >= activity.limit) {
+      console.warn(
+        `[reply-discover] own_posts fold stopped at daily activity cap userId=${userId} (${used}/${activity.limit})`,
+      );
+      break;
+    }
+    // An unparseable createdAt must not be silently replaced with discovery
+    // time: that wrong posted_at would permanently skew the day-series
+    // bucketing, t1h/t24h sample scheduling, and the daily cap.
+    if (!card.createdAt || !Number.isFinite(Date.parse(card.createdAt))) continue;
+    const isNew = upsertOwnPost({
+      parsed: cardToOwnPostParsed(card, {
+        xUserId,
+        screenName: handle,
+        nowMs: opts.nowMs,
+      }),
+      userId,
+      tenantId,
+    });
+    if (isNew) {
+      used += 1;
+      ingested += 1;
+    }
+  }
+  return ingested;
 }
 
 export function shouldImportDiscoveredReply(opts: {
@@ -146,8 +279,9 @@ async function softWriteMemory(opts: {
 }
 
 /**
- * One Latest page of our own replies (~24h). Upserts new parents into the
- * interaction store. No gamification. Soft-fails on session/search errors.
+ * One Latest page of our own posts and one Latest page of our own replies
+ * (~24h each). Writes replies into the interaction store and every own-post
+ * card into own_posts (Analytics).
  */
 export async function discoverOwnReplies(opts?: {
   withinTime?: string;
@@ -162,6 +296,8 @@ export async function discoverOwnReplies(opts?: {
   signal?: AbortSignal;
   searchTimelinePages?: SearchTimelinePagesFn;
   resolveScreenName?: () => Promise<string | null>;
+  /** Override Analytics fold. Tests omit this so the platform DB is untouched. */
+  foldOwnPosts?: FoldOwnPostsFn | null;
 }): Promise<DiscoverRepliesResult> {
   const session = opts?.session ?? getSessionFromEnv();
   if (!session.bearerToken) {
@@ -208,17 +344,18 @@ export async function discoverOwnReplies(opts?: {
     };
   }
 
-  const query = buildOwnRepliesQuery(screenName, opts?.withinTime ?? "24h");
+  const query = buildOwnPostsQuery(screenName, opts?.withinTime ?? "24h");
   const search = opts?.searchTimelinePages ?? searchTimelinePages;
+  const searchOpts = {
+    product: "Latest" as const,
+    count: opts?.count ?? 20,
+    maxPages: opts?.maxPages ?? 1,
+    signal: opts?.signal,
+  };
+
   let result: SearchTimelineResult;
   try {
-    result = await search({
-      query,
-      product: "Latest",
-      count: opts?.count ?? 20,
-      maxPages: opts?.maxPages ?? 1,
-      signal: opts?.signal,
-    });
+    result = await search({ query, ...searchOpts });
   } catch (err) {
     return {
       ok: false,
@@ -241,6 +378,54 @@ export async function discoverOwnReplies(opts?: {
     };
   }
 
+  let replyResult: SearchTimelineResult;
+  try {
+    replyResult = await search({
+      query: buildOwnRepliesQuery(screenName, opts?.withinTime ?? "24h"),
+      ...searchOpts,
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      screenName,
+      searched: 0,
+      discovered: 0,
+      skipped: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  if (!replyResult.ok) {
+    return {
+      ok: false,
+      screenName,
+      searched: 0,
+      discovered: 0,
+      skipped: 0,
+      error: replyResult.message || replyResult.error || "reply_search_failed",
+    };
+  }
+
+  const nowMs = opts?.nowMs ?? Date.now();
+  let ownPostsIngested = 0;
+  const fold =
+    opts?.foldOwnPosts === undefined
+      ? process.env.NODE_TEST_CONTEXT
+        ? null
+        : foldDiscoveredOwnPosts
+      : opts.foldOwnPosts;
+  if (fold) {
+    try {
+      ownPostsIngested = await fold({
+        threads: [...result.threads, ...replyResult.threads],
+        screenName,
+        nowMs,
+      });
+    } catch (err) {
+      console.warn("[reply-discover] own_posts fold soft-fail:", err);
+    }
+  }
+
   // Dedupe against the full durable retain (not the 200-row feed cap) so an
   // older manual interaction cannot be silently overwritten by an upsert.
   const history = await listInteractionHistory({
@@ -250,9 +435,8 @@ export async function discoverOwnReplies(opts?: {
   const { knownReplyIds, knownThreadIds } = indexKnownIds(history);
   let discovered = 0;
   let skipped = 0;
-  const nowMs = opts?.nowMs ?? Date.now();
 
-  for (const card of result.threads) {
+  for (const card of replyResult.threads) {
     const verdict = shouldImportDiscoveredReply({
       card,
       ownScreenName: screenName,
@@ -269,18 +453,11 @@ export async function discoverOwnReplies(opts?: {
       ? card.inReplyToScreenName!.trim()
       : `@${card.inReplyToScreenName!.trim()}`;
     const replyId = card.id.trim();
-    // X's search API returns createdAt in its non-ISO created_at format
-    // ("Sat Jul 25 00:00:00 +0000 2026"); normalize to ISO before persisting so
-    // note frontmatter/`utcDatePrefix` parse it. Fall back to now on failure.
-    const createdMs = card.createdAt ? Date.parse(card.createdAt) : NaN;
-    let postedAt: string;
-    if (Number.isFinite(createdMs)) {
-      postedAt = new Date(createdMs).toISOString();
-    } else {
+    const postedAt = postedAtFromCard(card, nowMs);
+    if (card.createdAt && Number.isNaN(Date.parse(card.createdAt))) {
       console.warn(
-        `[reply-discover] unparseable createdAt "${card.createdAt ?? ""}" replyId=${replyId}; falling back to discovery time`,
+        `[reply-discover] unparseable createdAt "${card.createdAt}" replyId=${replyId}; falling back to discovery time`,
       );
-      postedAt = new Date(nowMs).toISOString();
     }
 
     try {
@@ -326,8 +503,9 @@ export async function discoverOwnReplies(opts?: {
   return {
     ok: true,
     screenName,
-    searched: result.threads.length,
+    searched: replyResult.threads.length,
     discovered,
     skipped,
+    ownPostsIngested,
   };
 }

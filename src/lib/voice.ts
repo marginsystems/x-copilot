@@ -189,21 +189,22 @@ export function voiceUnlockCopy(state: VoiceState | null): string {
   const need = state?.unlockAt ?? 100;
   const n = state?.conversationCount ?? 0;
   if (!state || state.status === "unlinked") {
-    return `Suggest unlocks at ${need} distinct reply conversations. We start from replies you've already marked on the desk, then fill gaps from your public X timeline (official API — no scrape). Mark replies with your text, or link X.`;
+    return `Suggest unlocks at ${need} distinct reply conversations. We read your public replies once at setup, then hourly. Mark replies on the desk to add more. Scout is the only action that spends credits.`;
   }
+  if (state.lastError) return state.lastError;
   if (state.status === "learning") {
-    return "Reading your marked replies and writing a voice card…";
+    return "Reading your public replies and writing a voice card…";
   }
   if (state.status === "empty" && n === 0) {
-    return `Nothing in the corpus yet. Learn reads marked memories first, then your public timeline if X is linked. Need ${need} conversations.`;
+    return `Nothing in the corpus yet. The hourly ingest will retry. Need ${need} conversations — mark replies on the desk to add more.`;
   }
   if (state.status === "empty") {
-    return `Found ${n} reply conversations in your marked memories. Learn writes the voice card so Suggest can unlock.`;
+    return n >= need
+      ? `Found ${n} reply conversations — you've hit ${need}. The hourly ingest writes the voice card on its next pass.`
+      : `Found ${n} reply conversations. The hourly ingest writes the voice card when you hit ${need}.`;
   }
   if (state.status === "insufficient") {
-    return state.handle
-      ? `Suggest unlocks at ${need} distinct reply conversations — you're at ${n}. Refresh pulls more of your public timeline.`
-      : `Suggest unlocks at ${need} distinct reply conversations — you're at ${n} from marked memories. Link X to pull older public replies.`;
+    return `Suggest unlocks at ${need} distinct reply conversations — you're at ${n}. The hourly ingest adds new public replies; marking on the desk counts too.`;
   }
   return state.lastError ?? "";
 }
