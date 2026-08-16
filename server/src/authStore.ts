@@ -465,3 +465,18 @@ export function userNeedsXHandle(user: AuthUser): boolean {
   if (parseXHandle(user.xUsername ?? "")) return false;
   return !getXOauthUsername(user.id);
 }
+
+/** Desk users we can ingest for (typed handle or official X oauth). */
+export function listUsersWithXHandles(): AuthUser[] {
+  const rows = getPlatformDb()
+    .prepare(`SELECT ${USER_COLUMNS} FROM users`)
+    .all() as UserRow[];
+  const out: AuthUser[] = [];
+  for (const row of rows) {
+    const user = mapUser(row);
+    if (parseXHandle(user.xUsername ?? "") || getXOauthUsername(user.id)) {
+      out.push(user);
+    }
+  }
+  return out;
+}
