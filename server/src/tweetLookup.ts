@@ -220,6 +220,7 @@ export async function fetchTweetMetrics(opts: {
   tweetId: string;
   session?: SessionCreds;
   signal?: AbortSignal;
+  skipUsage?: boolean;
 }): Promise<TweetMetrics | null> {
   const tweetId = opts.tweetId.trim();
   if (!tweetId) return null;
@@ -238,6 +239,7 @@ export async function fetchTweetMetrics(opts: {
     creds: session,
     signal: opts.signal,
     timeoutMs: 12000,
+    skipUsage: opts.skipUsage,
   });
   if (!res.ok) return null;
   return parseTweetMetrics(res.json);

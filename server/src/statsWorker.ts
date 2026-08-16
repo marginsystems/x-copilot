@@ -386,14 +386,6 @@ async function main(): Promise<void> {
 
   const tick = async () => {
     try {
-      const ingest = await ingestUsersHourly();
-      console.log(
-        `[stats-worker] ingest ran=${ingest.ran} pulled=${ingest.pulled} unlocked=${ingest.unlocked}`,
-      );
-    } catch (err) {
-      console.warn("[stats-worker] ingest soft-fail:", err);
-    }
-    try {
       const result = await runStatsTick({
         discoverReplies: () => discoverOwnReplies(),
       });
@@ -456,6 +448,7 @@ async function main(): Promise<void> {
           () =>
             fetchTweetMetrics({
               tweetId: item.postId,
+              skipUsage: true,
             }),
         );
         if (!metrics) {
@@ -474,6 +467,14 @@ async function main(): Promise<void> {
       }
     } catch (err) {
       console.warn("[stats-worker] own-post snapshots", err);
+    }
+    try {
+      const ingest = await ingestUsersHourly();
+      console.log(
+        `[stats-worker] ingest ran=${ingest.ran} pulled=${ingest.pulled} unlocked=${ingest.unlocked}`,
+      );
+    } catch (err) {
+      console.warn("[stats-worker] ingest soft-fail:", err);
     }
   };
 

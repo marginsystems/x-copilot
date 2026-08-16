@@ -8,6 +8,7 @@ import {
 } from "./billingStore.js";
 import { getPlatformDb } from "./db.js";
 import { parseXHandle } from "./xHandle.js";
+import { VOICE_UNLOCK_MIN_CONVERSATIONS } from "./voiceStore.js";
 
 export type AuthUser = {
   id: string;
@@ -466,17 +467,22 @@ export function userNeedsXHandle(user: AuthUser): boolean {
   return !getXOauthUsername(user.id);
 }
 
-/** Desk users we can ingest for (typed handle or official X oauth). */
-export function listUsersWithXHandles(): AuthUser[] {
+/** Desk users the hourly ingest serves: handle users, plus memory-only users
+ *  past the unlock bar without a card. One query, ordered least-recently-pulled
+ *  first so the per-tick budget rotates instead of starving users past #20. */
+export function listIngestUsers(): AuthUser[] {
   const rows = getPlatformDb()
-    .prepare(`SELECT ${USER_COLUMNS} FROM users`)
-    .all() as UserRow[];
-  const out: AuthUser[] = [];
-  for (const row of rows) {
-    const user = mapUser(row);
-    if (parseXHandle(user.xUsername ?? "") || getXOauthUsername(user.id)) {
-      out.push(user);
-    }
-  }
-  return out;
+    .prepare(
+      `SELECT DISTINCT ${USER_COLUMNS}
+       FROM users u
+       LEFT JOIN oauth_accounts oa
+         ON oa.user_id = u.id AND oa.provider = 'x' AND oa.username IS NOT NULL
+       LEFT JOIN voice_profiles vp ON vp.user_id = u.id
+       WHERE (u.x_username IS NOT NULL AND TRIM(u.x_username) != '')
+          OR oa.user_id IS NOT NULL
+          OR (vp.conversation_count >= ? AND vp.card_json IS NULL)
+       ORDER BY (vp.last_pull_at IS NULL) DESC, vp.last_pull_at ASC`,
+    )
+    .all(VOICE_UNLOCK_MIN_CONVERSATIONS) as UserRow[];
+  return rows.map(mapUser);
 }

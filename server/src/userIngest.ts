@@ -6,7 +6,7 @@ import type { AuthUser } from "./authStore.js";
 import {
   getUserById,
   getXOauthUsername,
-  listUsersWithXHandles,
+  listIngestUsers,
 } from "./authStore.js";
 import { dailyActivityUsage, ensureUserTenant } from "./billingStore.js";
 import {
@@ -19,6 +19,7 @@ import { generateVoiceCard } from "./voiceLlm.js";
 import {
   pullOwnReplies,
   resolveXUser,
+  MAX_TIMELINE_PAGES,
   VOICE_TARGET_REPLIES,
   type XApiGetFn,
 } from "./voiceIngest.js";
@@ -192,7 +193,10 @@ export async function runUserIngest(opts: {
         userId: user.id,
         xUsername: resolved.username,
         xUserId: resolved.id,
-        sinceId: pull.completed ? pull.newestId : profile.sinceId,
+        sinceId:
+          pull.completed || pull.pages >= MAX_TIMELINE_PAGES
+            ? (pull.newestId ?? profile.sinceId)
+            : profile.sinceId,
         lastPullAt: nowIso(),
       });
     } else {
@@ -207,7 +211,7 @@ export async function runUserIngest(opts: {
     const conversations = updated?.conversationCount ?? 0;
     const unlocked = voiceUnlocked(conversations);
     const hadCard = Boolean(updated?.cardJson);
-    if (unlocked && (!hadCard || (opts.mode === "initial" && pulled > 0))) {
+    if (unlocked && !hadCard && opts.mode === "hourly") {
       const cardResult = await generateCard({
         handle: handle || "you",
         replies: listVoiceReplies(user.id, 120),
@@ -218,16 +222,11 @@ export async function runUserIngest(opts: {
           cardJson: cardResult.cardJson,
           model: cardResult.model,
         });
-      } else if (opts.mode === "initial") {
-        setVoiceProfileStatus(
-          user.id,
-          priorStatus === "ready" ? "ready" : "empty",
-          cardResult.message,
-        );
       } else {
         setVoiceProfileStatus(
           user.id,
           priorStatus === "ready" ? "ready" : "empty",
+          cardResult.message,
         );
       }
     } else {
@@ -261,7 +260,7 @@ export async function ingestUsersHourly(opts?: {
   users?: AuthUser[];
   limit?: number;
 }): Promise<{ ran: number; unlocked: number; pulled: number }> {
-  const users = (opts?.users ?? listUsersWithXHandles()).slice(
+  const users = (opts?.users ?? listIngestUsers()).slice(
     0,
     Math.min(opts?.limit ?? 20, 40),
   );

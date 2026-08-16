@@ -198,7 +198,9 @@ export function voiceUnlockCopy(state: VoiceState | null): string {
     return `Nothing in the corpus yet. The hourly ingest will retry. Need ${need} conversations — mark replies on the desk to add more.`;
   }
   if (state.status === "empty") {
-    return `Found ${n} reply conversations. The hourly ingest writes the voice card when you hit ${need}.`;
+    return n >= need
+      ? `Found ${n} reply conversations — you've hit ${need}. The hourly ingest writes the voice card on its next pass.`
+      : `Found ${n} reply conversations. The hourly ingest writes the voice card when you hit ${need}.`;
   }
   if (state.status === "insufficient") {
     return `Suggest unlocks at ${need} distinct reply conversations — you're at ${n}. The hourly ingest adds new public replies; marking on the desk counts too.`;
