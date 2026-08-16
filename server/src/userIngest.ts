@@ -219,7 +219,7 @@ export async function runUserIngest(opts: {
     const conversations = updated?.conversationCount ?? 0;
     const unlocked = voiceUnlocked(conversations);
     const hadCard = Boolean(updated?.cardJson);
-    if (unlocked && !hadCard && opts.mode === "hourly") {
+    if (unlocked && !hadCard) {
       const cardResult = await generateCard({
         handle: handle || "you",
         replies: listVoiceReplies(user.id, 120),

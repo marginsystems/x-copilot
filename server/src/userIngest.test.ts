@@ -8,7 +8,7 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
-import { upsertOauthUser } from "./authStore.ts";
+import { listIngestUsers, upsertOauthUser } from "./authStore.ts";
 import { getVoiceProfile } from "./voiceStore.ts";
 import { VOICE_TARGET_REPLIES } from "./voiceIngest.ts";
 import { runUserIngest } from "./userIngest.ts";
@@ -193,6 +193,77 @@ describe("runUserIngest", () => {
       },
     });
     assert.equal(target, VOICE_TARGET_REPLIES);
+  });
+
+  it("initial pull that unlocks writes the voice card so Suggest opens", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const replies = Array.from({ length: 100 }, (_, i) => ({
+      id: `r${i}`,
+      text: `public reply ${i}`,
+      conversationId: `c${i}`,
+      inReplyToId: `p${i}`,
+      postedAt: "2026-08-16T10:00:00.000Z",
+      source: "api" as const,
+    }));
+    let cardCalls = 0;
+    const result = await runUserIngest({
+      user,
+      mode: "initial",
+      deps: {
+        foldLocal: async () => {},
+        resolveUser: async () => ({
+          ok: true,
+          id: "99",
+          username: "me",
+          protected: false,
+        }),
+        pullReplies: async () => ({
+          ok: true,
+          replies,
+          newestId: "r99",
+          pages: 1,
+          completed: true,
+        }),
+        generateCard: async () => {
+          cardCalls += 1;
+          return {
+            ok: true,
+            card: {
+              tone: "dry",
+              typicalLength: "short",
+              habits: [],
+              neverDo: [],
+              examples: ["a", "b", "c"],
+            },
+            cardJson: JSON.stringify({ tone: "dry" }),
+            model: "test-model",
+          };
+        },
+      },
+    });
+    assert.equal(result.unlocked, true);
+    assert.equal(cardCalls, 1);
+    const profile = getVoiceProfile(user.id);
+    assert.equal(profile?.status, "ready");
+    assert.notEqual(profile?.cardJson, null);
+  });
+
+  it("listIngestUsers prepares and returns rotation-eligible users", () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const users = listIngestUsers();
+    assert.equal(users.length, 1);
+    assert.equal(users[0].id, user.id);
+    assert.equal(users[0].xUsername, "@me");
   });
 
   it("fail path stamps last_pull_at so failing users demote in rotation", async () => {

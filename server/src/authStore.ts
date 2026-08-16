@@ -473,7 +473,9 @@ export function userNeedsXHandle(user: AuthUser): boolean {
 export function listIngestUsers(): AuthUser[] {
   const rows = getPlatformDb()
     .prepare(
-      `SELECT DISTINCT ${USER_COLUMNS}
+      `SELECT DISTINCT
+         u.id, u.email, u.display_name, u.avatar_url, u.created_at,
+         u.last_login_at, u.onboarding_completed_at, u.agenda, u.x_username
        FROM users u
        LEFT JOIN oauth_accounts oa
          ON oa.user_id = u.id AND oa.provider = 'x' AND oa.username IS NOT NULL
