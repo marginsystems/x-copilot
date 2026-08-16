@@ -106,6 +106,31 @@ export function getXOauthUsername(userId: string): string | null {
   return parseXHandle(row?.username ?? "") ?? null;
 }
 
+/** Match a public handle to a desk user (onboarding x_username or X oauth). */
+export function findUserIdByXUsername(username: string): string | null {
+  const handle = parseXHandle(username);
+  if (!handle) return null;
+  const key = handle.toLowerCase();
+  const users = getPlatformDb()
+    .prepare(`SELECT id, x_username FROM users WHERE x_username IS NOT NULL`)
+    .all() as Array<{ id: string; x_username: string | null }>;
+  for (const row of users) {
+    if (parseXHandle(row.x_username ?? "")?.toLowerCase() === key) return row.id;
+  }
+  const oauth = getPlatformDb()
+    .prepare(
+      `SELECT user_id, username FROM oauth_accounts
+       WHERE provider = 'x' AND username IS NOT NULL`,
+    )
+    .all() as Array<{ user_id: string; username: string | null }>;
+  for (const row of oauth) {
+    if (parseXHandle(row.username ?? "")?.toLowerCase() === key) {
+      return row.user_id;
+    }
+  }
+  return null;
+}
+
 function stampXUsername(
   database: ReturnType<typeof getPlatformDb>,
   userId: string,

@@ -154,7 +154,7 @@ export async function runStatsTick(opts?: {
         );
       } else if (discovered > 0 || discovery.searched > 0) {
         console.log(
-          `[stats-worker] discover searched=${discovery.searched} discovered=${discovered} skipped=${discoverSkipped}`,
+          `[stats-worker] discover searched=${discovery.searched} discovered=${discovered} skipped=${discoverSkipped} own_posts=${discovery.ownPostsIngested ?? 0}`,
         );
       }
     } catch (err) {
