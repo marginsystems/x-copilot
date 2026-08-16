@@ -36,6 +36,7 @@ import {
   getSuggestUsage,
   getVoiceProfile,
   listVoiceReplies,
+  nowIso,
   refreshVoiceCounts,
   removeSuggestRecord,
   reserveSuggestSlot,
@@ -238,6 +239,7 @@ async function handleLearn(
     xUsername: resolved.username,
     xUserId: resolved.id,
     sinceId: pull.completed ? pull.newestId : profile.sinceId,
+    lastPullAt: pull.completed ? nowIso() : profile.lastPullAt,
   });
 
   let updated = getVoiceProfile(user.id);
