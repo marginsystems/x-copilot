@@ -2530,7 +2530,25 @@ export default function App() {
     <div className={showGateChrome ? "app app-gate" : "app"}>
       <header className={showGateChrome ? "brand brand-gate" : "brand"}>
         <div className="brand-bar">
-          <div className="brand-lockup">
+          <a
+            className="brand-lockup"
+            href="/"
+            aria-label="Home"
+            onClick={(e) => {
+              if (
+                e.metaKey ||
+                e.ctrlKey ||
+                e.shiftKey ||
+                e.altKey ||
+                e.button !== 0
+              ) {
+                return;
+              }
+              e.preventDefault();
+              closeMenu();
+              goToView("dashboard");
+            }}
+          >
             <img
               className="brand-mark"
               src="/favicon.svg"
@@ -2541,7 +2559,7 @@ export default function App() {
             <div className="brand-copy">
               <h1>x-copilot</h1>
             </div>
-          </div>
+          </a>
           <button
             type="button"
             className={
