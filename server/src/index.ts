@@ -73,7 +73,8 @@ import {
 import { fetchTweetMetricsMany } from "./tweetLookup.js";
 import { getPlatformDb, getLocalTenantId } from "./db.js";
 import { getUsageSummary, toTenantUsageView } from "./usageMeter.js";
-import { getSessionFromEnv, verifySession } from "./xSession.js";
+import { getXApiCredsFromEnv } from "./xApi.js";
+import { getXOauthUsername } from "./authStore.js";
 import { tryHandleAuth } from "./authHttp.js";
 import { tryHandleOnboarding } from "./onboardingHttp.js";
 import { corsHeaders, isLocalOrigin, isOriginAllowed, requestOrigin } from "./cors.js";
@@ -365,12 +366,12 @@ const server = http.createServer(async (req, res) => {
         req.method === "GET" &&
         (url.pathname === "/api/health" || url.pathname === "/health")
       ) {
-        const session = getSessionFromEnv();
+        const xApi = getXApiCredsFromEnv();
         const hasDeepseek = Boolean(process.env.DEEPSEEK_API_KEY?.trim());
         const memory = await memoryIndexStatus();
         return send(req, res, 200, {
           ok: true,
-          sessionConfigured: session.configured,
+          xApiConfigured: xApi.configured,
           deepseekConfigured: hasDeepseek,
           memoryIndex: {
             dbExists: memory.dbExists,
@@ -443,14 +444,6 @@ const server = http.createServer(async (req, res) => {
           indexed: result.indexed,
           skipped: result.skipped,
         });
-      }
-
-      if (
-        req.method === "GET" &&
-        (url.pathname === "/api/session/verify" || url.pathname === "/api/session")
-      ) {
-        const result = await verifySession();
-        return send(req, res, result.ok ? 200 : result.status || 401, result);
       }
 
       if (req.method === "GET" && url.pathname === "/api/usage") {
@@ -944,17 +937,10 @@ const server = http.createServer(async (req, res) => {
           typeof body.conversationId === "string"
             ? body.conversationId.trim()
             : undefined;
-        const session = await verifySession();
-        if (!session.ok) {
-          return send(req, res, session.status || 401, {
-            error: session.error,
-            message: session.message || "Session unavailable",
-          });
-        }
         const appUser = getSessionUser(req);
         const screenName = resolveDetectScreenName(
-          appUser?.xUsername,
-          session.user.screen_name,
+          appUser?.xUsername ??
+            (appUser ? getXOauthUsername(appUser.id) : null),
         );
         if (!screenName) {
           return send(req, res, 503, {
@@ -1133,7 +1119,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, bindHost(), () => {
-  const session = getSessionFromEnv();
+  const xApi = getXApiCredsFromEnv();
   const host = bindHost();
   console.log(`x-copilot sidecar on http://${host}:${PORT}`);
   if (host !== "127.0.0.1" && host !== "localhost") {
@@ -1142,8 +1128,8 @@ server.listen(PORT, bindHost(), () => {
     );
   }
   console.log(
-    session.configured
-      ? "X API: bearer configured (run npm run test:session to verify)"
+    xApi.configured
+      ? "X API: bearer configured (run npm run test:x-api to verify)"
       : "X API: missing — set X_API_BEARER_TOKEN in .env",
   );
   void resumeDueSubscriptions().catch((err) => {

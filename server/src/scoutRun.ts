@@ -30,7 +30,7 @@ import {
 import { hydrateReplyParents } from "./tweetLookup.js";
 import { triageThreads } from "./threadTriage.js";
 import { searchMany, type ThreadCard } from "./xSearch.js";
-import { getSessionFromEnv, type SessionCreds } from "./xSession.js";
+import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
 
 export type ScoutStageId =
   | "planning"
@@ -135,10 +135,10 @@ export async function runScoutSearch(opts: {
   agenda?: string;
   queries?: string[];
   filters?: ScoutFilters;
-  session?: SessionCreds;
+  session?: XApiCreds;
   onEvent?: (event: ScoutEvent) => void;
 }): Promise<ScoutRunResult> {
-  const session = opts.session ?? getSessionFromEnv();
+  const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.bearerToken) {
     return {
       ok: false,

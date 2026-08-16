@@ -25,11 +25,11 @@ import {
   type SyncInteractionOutcomeResult,
 } from "./memoryOutcome.js";
 import {
-  discoverOwnReplies,
+  discoverOwnRepliesForIngestUsers,
   type DiscoverRepliesResult,
 } from "./replyDiscover.js";
 import { fetchTweetMetrics } from "./tweetLookup.js";
-import { getSessionFromEnv } from "./xSession.js";
+import { getXApiCredsFromEnv } from "./xApi.js";
 import {
   listDueOwnPostSamples,
   patchOwnPostSnapshot,
@@ -195,7 +195,7 @@ export async function runStatsTick(opts?: {
   let failed = 0;
   let memorySynced = 0;
   let memorySyncFailed = 0;
-  const session = getSessionFromEnv();
+  const session = getXApiCredsFromEnv();
 
   // Retry outcome projections that failed on a previous tick. Sampled before
   // the due loop so a fresh failure below waits for the next tick, and so the
@@ -387,7 +387,7 @@ async function main(): Promise<void> {
   const tick = async () => {
     try {
       const result = await runStatsTick({
-        discoverReplies: () => discoverOwnReplies(),
+        discoverReplies: () => discoverOwnRepliesForIngestUsers(),
       });
       console.log(
         `[stats-worker] tick due=${result.due} sampled=${result.sampled} failed=${result.failed} discovered=${result.discovered ?? 0}`,

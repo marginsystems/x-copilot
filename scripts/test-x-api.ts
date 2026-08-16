@@ -1,14 +1,14 @@
 #!/usr/bin/env npx tsx
 /**
- * Basic X API test — loads .env and verifies the Pay Per Use bearer.
+ * Prove the Pay Per Use app bearer works. No operator identity.
  *
- *   npm run test:session
+ *   npm run test:x-api
  *
  * Exit 0 on success, 1 on failure. Never prints full token values.
  */
 import { resolve } from "node:path";
 import { loadEnv } from "../server/src/loadEnv.js";
-import { getSessionFromEnv, verifySession } from "../server/src/xSession.js";
+import { getXApiCredsFromEnv, xApiGet } from "../server/src/xApi.js";
 
 const envPath = resolve(process.cwd(), ".env");
 if (!loadEnv(envPath)) {
@@ -16,30 +16,25 @@ if (!loadEnv(envPath)) {
   process.exit(1);
 }
 
-const session = getSessionFromEnv();
+const creds = getXApiCredsFromEnv();
 console.log("x-copilot X API test");
 console.log(`  .env:                    ${envPath}`);
 console.log(
-  `  X_API_BEARER_TOKEN set:  ${Boolean(session.bearerToken)} (len ${session.bearerToken.length})`,
-);
-console.log(
-  `  X_OPERATOR_USERNAME:     ${session.operatorUsername || "(unset)"}`,
+  `  X_API_BEARER_TOKEN set:  ${Boolean(creds.bearerToken)} (len ${creds.bearerToken.length})`,
 );
 
-if (!session.configured) {
+if (!creds.configured) {
   console.error("\nFAIL: missing X_API_BEARER_TOKEN in .env");
   console.error("See README → Official X API");
   process.exit(1);
 }
 
-let result;
-try {
-  result = await verifySession(session);
-} catch (err) {
-  const message = err instanceof Error ? err.message : String(err);
-  console.error(`\nFAIL: ${message}`);
-  process.exit(1);
-}
+const result = await xApiGet({
+  path: "/users/by/username/X",
+  query: { "user.fields": "username" },
+  creds,
+  skipUsage: true,
+});
 
 if (!result.ok) {
   console.error(`\nFAIL: ${result.error} (HTTP ${result.status})`);
@@ -50,7 +45,5 @@ if (!result.ok) {
   process.exit(1);
 }
 
-console.log(`\nOK via ${result.method}`);
-console.log(`  @${result.user.screen_name} (id=${result.user.id || "n/a"})`);
-if (result.warning) console.log(`  warning: ${result.warning}`);
+console.log("\nOK via api_bearer_probe");
 process.exit(0);

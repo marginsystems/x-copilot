@@ -20,12 +20,13 @@ import {
   type SearchTimelineResult,
   type ThreadCard,
 } from "./xSearch.js";
+import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
 import {
-  getSessionFromEnv,
-  verifySession,
-  type SessionCreds,
-} from "./xSession.js";
-import { findUserIdByXUsername, getUserById } from "./authStore.js";
+  findUserIdByXUsername,
+  getUserById,
+  listIngestUsers,
+} from "./authStore.js";
+import { resolveIngestHandle } from "./userIngest.js";
 import { dailyActivityUsage, ensureUserTenant } from "./billingStore.js";
 import { upsertOwnPost } from "./ownPostStore.js";
 import {
@@ -292,14 +293,16 @@ export async function discoverOwnReplies(opts?: {
   knowledgeRoot?: string;
   /** When false, skip MiniLM upsert after note write (tests). Default true. */
   upsertMemory?: boolean;
-  session?: SessionCreds;
+  session?: XApiCreds;
+  /** Desk user's handle. Required unless resolveScreenName is set. */
+  screenName?: string;
   signal?: AbortSignal;
   searchTimelinePages?: SearchTimelinePagesFn;
   resolveScreenName?: () => Promise<string | null>;
   /** Override Analytics fold. Tests omit this so the platform DB is untouched. */
   foldOwnPosts?: FoldOwnPostsFn | null;
 }): Promise<DiscoverRepliesResult> {
-  const session = opts?.session ?? getSessionFromEnv();
+  const session = opts?.session ?? getXApiCredsFromEnv();
   if (!session.bearerToken) {
     return {
       ok: false,
@@ -312,17 +315,10 @@ export async function discoverOwnReplies(opts?: {
 
   let screenName: string | null = null;
   try {
-    if (opts?.resolveScreenName) {
+    if (opts?.screenName) {
+      screenName = normalizeScreenName(opts.screenName);
+    } else if (opts?.resolveScreenName) {
       screenName = await opts.resolveScreenName();
-    } else {
-      const verified = await verifySession(session);
-      if (
-        verified.ok &&
-        verified.user.screen_name &&
-        verified.user.screen_name !== "unknown"
-      ) {
-        screenName = verified.user.screen_name;
-      }
     }
   } catch (err) {
     return {
@@ -508,4 +504,38 @@ export async function discoverOwnReplies(opts?: {
     skipped,
     ownPostsIngested,
   };
+}
+
+/** Hourly Analytics fold — one from: search per desk user with a handle. */
+export async function discoverOwnRepliesForIngestUsers(opts?: {
+  session?: XApiCreds;
+  signal?: AbortSignal;
+}): Promise<DiscoverRepliesResult> {
+  const users = listIngestUsers();
+  const acc: DiscoverRepliesResult = {
+    ok: true,
+    searched: 0,
+    discovered: 0,
+    skipped: 0,
+    ownPostsIngested: 0,
+  };
+  for (const user of users) {
+    const handle = resolveIngestHandle(user);
+    if (!handle) continue;
+    const result = await discoverOwnReplies({
+      screenName: handle,
+      session: opts?.session,
+      signal: opts?.signal,
+    });
+    acc.searched += result.searched;
+    acc.discovered += result.discovered;
+    acc.skipped += result.skipped;
+    acc.ownPostsIngested =
+      (acc.ownPostsIngested ?? 0) + (result.ownPostsIngested ?? 0);
+    if (!result.ok) {
+      acc.ok = false;
+      acc.error = result.error;
+    }
+  }
+  return acc;
 }

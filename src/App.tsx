@@ -731,11 +731,11 @@ export default function App() {
     "Find builders sharing opinions, tradeoffs, or concrete takes on shipping AI / software tools in public. Prefer posts with a clear point of view or a specific technical claim I can agree/disagree with.\nSkip open-ended engagement questions (“what are you shipping?”, “drop your stack”, “who should I follow?”, generic peer polls) even when they mention AI/build-in-public. A lone question with little substance is not interesting.",
   );
   const [status, setStatus] = useState(
-    "Idle — verify session, then let Scout search from your agenda",
+    "On the ground — set an agenda and take off.",
   );
   const [threads, setThreads] = useState<ThreadCard[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  /** Short mutex for mark/skip/dismiss/session/settings — not Scout-in-flight. */
+  /** Short mutex for mark/skip/dismiss/settings — not Scout-in-flight. */
   const [actionBusy, setActionBusy] = useState(false);
   const [searching, setSearching] = useState(false);
   const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
@@ -800,10 +800,6 @@ export default function App() {
   const [adminError, setAdminError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
-  const [sessionUser, setSessionUser] = useState<{
-    screen_name: string;
-    name: string;
-  } | null>(null);
   const [authUser, setAuthUser] = useState<AuthSessionUser | null>(null);
   const [onboardingDoneLocal, setOnboardingDoneLocal] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -815,7 +811,6 @@ export default function App() {
   const localUi = isLocalHostname(
     typeof window !== "undefined" ? window.location.hostname : "localhost",
   );
-  const manualVerifyDoneRef = useRef(false);
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const voiceError: string | null = voice?.lastError ?? null;
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
@@ -1341,34 +1336,6 @@ export default function App() {
     }
   }
 
-  async function hydrateSession() {
-    try {
-      const res = await apiFetch("/api/session/verify");
-      if (manualVerifyDoneRef.current) return;
-      const data = (await res.json()) as {
-        ok?: boolean;
-        user?: { screen_name: string; name: string };
-      };
-      if (
-        !res.ok ||
-        !data.ok ||
-        !data.user?.screen_name ||
-        data.user.screen_name === "unknown"
-      ) {
-        setSessionUser(null);
-        return;
-      }
-      setSessionUser({
-        screen_name: data.user.screen_name,
-        name: data.user.name ?? data.user.screen_name,
-      });
-    } catch {
-      // Sidecar may be offline on first paint — leave unverified.
-      if (manualVerifyDoneRef.current) return;
-      setSessionUser(null);
-    }
-  }
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const err = authErrorMessage(params.get("auth_error"));
@@ -1392,7 +1359,6 @@ export default function App() {
       const next = `${path}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
       window.history.replaceState({}, "", next);
     }
-    void hydrateSession();
     void (async () => {
       const user = await hydrateAuth();
       const onboarded = user
@@ -1827,45 +1793,6 @@ export default function App() {
     } catch {
       setStatus("Sidecar offline — could not mark interacted");
       return false;
-    }
-  }
-
-  async function onVerifySession() {
-    setActionBusy(true);
-    setStatus("Verifying X session…");
-    try {
-      const res = await apiFetch("/api/session/verify");
-      const data = (await res.json()) as {
-        ok?: boolean;
-        user?: { screen_name: string; name: string };
-        message?: string;
-        error?: string;
-        warning?: string;
-      };
-      if (
-        !res.ok ||
-        !data.ok ||
-        !data.user?.screen_name ||
-        data.user.screen_name === "unknown"
-      ) {
-        setSessionUser(null);
-        setStatus(data.warning || `Session fail: ${data.message || data.error || res.status}`);
-        return;
-      }
-      setSessionUser({
-        screen_name: data.user.screen_name,
-        name: data.user.name ?? data.user.screen_name,
-      });
-      setStatus(
-        `Session OK — @${data.user.screen_name} (${data.user.name ?? data.user.screen_name})`,
-      );
-      closeMenu();
-    } catch {
-      setSessionUser(null);
-      setStatus("Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server");
-    } finally {
-      manualVerifyDoneRef.current = true;
-      setActionBusy(false);
     }
   }
 
@@ -2627,15 +2554,12 @@ export default function App() {
               view={view}
               theme={theme}
               authUser={authUser}
-              sessionHandle={sessionUser?.screen_name ?? null}
               needsLogin={needsLogin}
               needsOnboarding={needsOnboarding}
-              actionBusy={actionBusy}
               onTheme={() => setTheme((t) => nextTheme(t))}
               onLogout={() => void onLogout()}
               onGoogle={startGoogleLogin}
               onX={startXLogin}
-              onVerify={() => void onVerifySession()}
               onAnalytics={openAnalytics}
               onVoice={openVoice}
               onUsage={openUsage}

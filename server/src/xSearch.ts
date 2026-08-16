@@ -5,11 +5,12 @@
 import { normalizeTcoKey } from "./mediaText.js";
 import type { ThreadKind } from "./threadTriage.js";
 import {
+  getXApiCredsFromEnv,
   startTimeFromWithin,
   stripSessionTimeOps,
   xApiGet,
+  type XApiCreds,
 } from "./xApi.js";
-import { getSessionFromEnv, type SessionCreds } from "./xSession.js";
 
 export type ThreadCard = {
   id: string;
@@ -882,10 +883,10 @@ export async function searchTimeline(opts: {
   startTime?: string;
   /** When false, do not bill includes.tweets parents. Default true. */
   expandReferenced?: boolean;
-  session?: SessionCreds;
+  session?: XApiCreds;
   signal?: AbortSignal;
 }): Promise<SearchTimelineResult> {
-  const session = opts.session ?? getSessionFromEnv();
+  const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.bearerToken) {
     return {
       ok: false,
@@ -969,7 +970,7 @@ export async function searchTimelinePages(opts: {
   pageDelayMs?: number;
   /** When false, do not bill includes.tweets parents. Default true. */
   expandReferenced?: boolean;
-  session?: SessionCreds;
+  session?: XApiCreds;
   signal?: AbortSignal;
   /** Injected for tests — same shape as searchTimeline. */
   fetchPage?: typeof searchTimeline;
@@ -1068,7 +1069,7 @@ export async function searchMany(
     maxQueries?: number;
     maxPages?: number;
     delayMs?: number;
-    session?: SessionCreds;
+    session?: XApiCreds;
     signal?: AbortSignal;
     /** 1-based index, total, query string — for Scout progress. */
     onQuery?: (index: number, total: number, query: string) => void;

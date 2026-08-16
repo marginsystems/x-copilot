@@ -188,8 +188,6 @@ describe("runScoutCollect bucket loop", () => {
   const session = {
     bearerToken: "t",
     configured: true,
-    operatorUserId: "",
-    operatorUsername: "me",
   };
 
   it("asks search for one page and no referenced-tweet expansions", async () => {

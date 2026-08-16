@@ -46,7 +46,7 @@ import {
   searchTimelinePages,
   type ThreadCard,
 } from "./xSearch.js";
-import { getSessionFromEnv, type SessionCreds } from "./xSession.js";
+import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
 
 export type ScoutStopReason =
   | "qualified"
@@ -222,7 +222,7 @@ export async function runScoutCollect(opts: {
   filters?: ScoutFilters;
   targetCool?: number;
   bucketSize?: number;
-  session?: SessionCreds;
+  session?: XApiCreds;
   signal?: AbortSignal;
   onEvent?: (event: ScoutCollectEvent) => void;
   deps?: ScoutCollectDeps;
@@ -242,7 +242,7 @@ export async function runScoutCollect(opts: {
   const doHydrate = deps.hydrateReplyParents ?? hydrateReplyParents;
   const doSleep = deps.sleep ?? sleep;
 
-  const session = opts.session ?? getSessionFromEnv();
+  const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.bearerToken) {
     return {
       ok: false,

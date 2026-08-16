@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "deploy:workers": "vite build && npx wrangler deploy",
     "test": "tsx --test server/src/**/*.test.ts src/**/*.test.ts",
-    "test:session": "tsx scripts/test-session.ts",
+    "test:x-api": "tsx scripts/test-x-api.ts",
     "test:stripe": "tsx scripts/test-stripe.ts",
     "test:search": "tsx scripts/test-search.ts",
     "probe:tags": "tsx scripts/probe-triage-tags.ts",

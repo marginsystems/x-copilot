@@ -3,7 +3,7 @@
  */
 import { normalizeAuthorKey } from "./interactionStore.js";
 import { xApiGet } from "./xApi.js";
-import { getSessionFromEnv, type SessionCreds } from "./xSession.js";
+import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
 import { tweetResultToCard, v2TweetToCard } from "./xSearch.js";
 
 const parentCache = new Map<string, { author: string; text: string } | null>();
@@ -166,7 +166,7 @@ function parentFromV2(json: unknown): ParentTweet | null {
  */
 export async function fetchParentTweet(opts: {
   tweetId: string;
-  session?: SessionCreds;
+  session?: XApiCreds;
   signal?: AbortSignal;
 }): Promise<ParentTweet | null> {
   const tweetId = opts.tweetId.trim();
@@ -174,7 +174,7 @@ export async function fetchParentTweet(opts: {
   if (opts.signal?.aborted) return null;
   if (parentCache.has(tweetId)) return parentCache.get(tweetId) ?? null;
 
-  const session = opts.session ?? getSessionFromEnv();
+  const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.configured) {
     parentCache.set(tweetId, null);
     return null;
@@ -218,7 +218,7 @@ export async function fetchParentTweet(opts: {
  */
 export async function fetchTweetMetrics(opts: {
   tweetId: string;
-  session?: SessionCreds;
+  session?: XApiCreds;
   signal?: AbortSignal;
   skipUsage?: boolean;
 }): Promise<TweetMetrics | null> {
@@ -226,7 +226,7 @@ export async function fetchTweetMetrics(opts: {
   if (!tweetId) return null;
   if (opts.signal?.aborted) return null;
 
-  const session = opts.session ?? getSessionFromEnv();
+  const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.configured) {
     return null;
   }
@@ -277,7 +277,7 @@ const liveMetricsCache = new Map<
  */
 export async function fetchTweetMetricsMany(opts: {
   tweetIds: string[];
-  session?: SessionCreds;
+  session?: XApiCreds;
   signal?: AbortSignal;
 }): Promise<Map<string, TweetMetrics>> {
   const ids = [...new Set(opts.tweetIds.map((id) => id.trim()).filter(Boolean))];
@@ -300,7 +300,7 @@ export async function fetchTweetMetricsMany(opts: {
     if (now - entry.at >= LIVE_METRICS_TTL_MS) liveMetricsCache.delete(id);
   }
 
-  const session = opts.session ?? getSessionFromEnv();
+  const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.configured) return out;
 
   const res = await xApiGet({
@@ -345,7 +345,7 @@ export type HydrateReplyParentsResult = {
  */
 export async function hydrateReplyParents(opts: {
   threads: import("./xSearch.js").ThreadCard[];
-  session?: SessionCreds;
+  session?: XApiCreds;
   signal?: AbortSignal;
   delayMs?: number;
   fetchParent?: typeof fetchParentTweet;

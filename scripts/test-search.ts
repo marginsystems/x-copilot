@@ -6,7 +6,7 @@
  */
 import { resolve } from "node:path";
 import { loadEnv } from "../server/src/loadEnv.ts";
-import { getSessionFromEnv } from "../server/src/xSession.ts";
+import { getXApiCredsFromEnv } from "../server/src/xApi.ts";
 import { searchTimeline } from "../server/src/xSearch.ts";
 
 const envPath = resolve(process.cwd(), ".env");
@@ -16,12 +16,12 @@ if (!loadEnv(envPath)) {
 }
 
 const query = (process.argv.slice(2).join(" ") || "AI tools").trim();
-const session = getSessionFromEnv();
+const creds = getXApiCredsFromEnv();
 console.log("x-copilot search test");
 console.log(`  query: ${query}`);
-console.log(`  api: ${session.configured}`);
+console.log(`  api: ${creds.configured}`);
 
-if (!session.bearerToken) {
+if (!creds.bearerToken) {
   console.error("FAIL: missing X_API_BEARER_TOKEN");
   process.exit(1);
 }
