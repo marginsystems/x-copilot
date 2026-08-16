@@ -589,7 +589,8 @@ h3 {
 
 @media (min-width: 1100px) {
   .desk-top {
-    min-height: 168px;
+    min-height: 0;
+    align-items: start;
   }
 }
 
@@ -1797,10 +1798,13 @@ button.primary.scout-run {
   margin-bottom: 2px;
 }
 
-/* Decorative pixel flight field filling the leftover Agenda stretch */
+/* Decorative pixel flight field. Explicit height so the canvas bitmap
+   (devicePixelRatio × wrap) cannot inflate the Agenda column. */
 .scout-field {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 72px;
+  height: 72px;
+  min-height: 72px;
+  max-height: 72px;
   overflow: hidden;
   border-radius: calc(var(--radius) - 6px);
 }
@@ -2333,12 +2337,47 @@ button:disabled {
 }
 
 @media (max-width: 1099px) {
+  /* Locked-viewport desk clips Threads on a phone. Scroll the main column. */
+  .app-main {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dashboard,
+  .desk {
+    flex: 0 0 auto;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .threads-scroll {
+    flex: none;
+    min-height: 0;
+    overflow: visible;
+  }
+
   .desk-top {
     grid-template-columns: 1fr;
   }
 
+  .control-pane {
+    overflow: visible;
+    max-height: none;
+  }
+
+  .scout-field {
+    flex: 0 0 72px;
+    height: 72px;
+    min-height: 72px;
+    max-height: 72px;
+  }
+
   .threads-activity {
     min-height: 120px;
+    max-height: 180px;
   }
 
   .threads-activity.is-collapsed {
