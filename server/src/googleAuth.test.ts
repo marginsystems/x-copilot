@@ -14,14 +14,11 @@ import {
 
 describe("googleAuth", () => {
   let dir: string;
-  const prevWhitelist = process.env.AUTH_EMAIL_WHITELIST;
-
   beforeEach(() => {
     resetPlatformDbForTests();
     dir = mkdtempSync(join(tmpdir(), "x-google-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
-    process.env.AUTH_EMAIL_WHITELIST = "alice@example.com";
     getPlatformDb();
   });
 
@@ -29,8 +26,6 @@ describe("googleAuth", () => {
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
-    if (prevWhitelist === undefined) delete process.env.AUTH_EMAIL_WHITELIST;
-    else process.env.AUTH_EMAIL_WHITELIST = prevWhitelist;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -129,7 +124,7 @@ describe("googleAuth", () => {
     assert.equal(result.ok, false);
   });
 
-  it("completes login only for verified whitelist emails", () => {
+  it("completes login for any verified Google email", () => {
     const okProfile: GoogleProfile = {
       sub: "gid-ok",
       email: "alice@example.com",
@@ -142,14 +137,14 @@ describe("googleAuth", () => {
     if (!ok.ok) return;
     assert.equal(getUserForSessionToken(ok.token)?.email, "alice@example.com");
 
-    const denied = completeGoogleLogin({
+    const other = completeGoogleLogin({
       ...okProfile,
-      sub: "gid-no",
+      sub: "gid-eve",
       email: "eve@example.com",
     });
-    assert.equal(denied.ok, false);
-    if (denied.ok) return;
-    assert.equal(denied.error, "not_whitelisted");
+    assert.equal(other.ok, true);
+    if (!other.ok) return;
+    assert.equal(getUserForSessionToken(other.token)?.email, "eve@example.com");
 
     const unverified = completeGoogleLogin({
       ...okProfile,

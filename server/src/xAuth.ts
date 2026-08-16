@@ -12,11 +12,7 @@ import {
   upsertOauthUser,
   type AuthUser,
 } from "./authStore.js";
-import {
-  authErrorRedirect,
-  authSuccessRedirect,
-  isXHandleWhitelisted,
-} from "./authConfig.js";
+import { authErrorRedirect, authSuccessRedirect } from "./authConfig.js";
 import { corsHeaders } from "./cors.js";
 import { buildSignedAuthHeader, parseFormEncoded } from "./oauth1.js";
 import {
@@ -281,7 +277,7 @@ export function completeXLogin(opts: {
     });
     if (!linked.ok) return { ok: false, error: linked.error };
     user = linked.user;
-  } else if (isXHandleWhitelisted(profile.username)) {
+  } else {
     const alreadyLinked = findOauthAccount("x", profile.providerUserId);
     const existingAvatar = alreadyLinked
       ? getUserById(alreadyLinked.userId)?.avatarUrl ?? null
@@ -294,8 +290,6 @@ export function completeXLogin(opts: {
       avatarUrl: existingAvatar ? null : (profile.avatarUrl ?? null),
       emailVerified: false,
     });
-  } else {
-    return { ok: false, error: "google_required" };
   }
   const session = createSession(user.id);
   void import("./xActivitySubscribe.js")

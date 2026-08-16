@@ -2,6 +2,10 @@
  * Users, OAuth identities, and hashed sessions in the platform SQLite DB.
  */
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import {
+  getUserBilling,
+  hasLiveStripeSubscription,
+} from "./billingStore.js";
 import { getPlatformDb } from "./db.js";
 import { parseXHandle } from "./xHandle.js";
 
@@ -259,7 +263,8 @@ export function upsertOauthUser(opts: {
 /**
  * Attach a provider identity to an already-signed-in user (e.g. Google session + X).
  * Fails if that provider account is already owned by a different real user; an
- * email-less X-only owner is adopted so a later Google login can reclaim it.
+ * email-less X-only owner is adopted so a later Google login can reclaim it,
+ * unless it holds a live Stripe subscription, whose billing must stay attached.
  */
 export function linkOauthToUser(opts: {
   userId: string;
@@ -277,6 +282,12 @@ export function linkOauthToUser(opts: {
     const owner = getUserById(existing.userId);
     if (owner && owner.email === null) {
       const orphanUserId = existing.userId;
+      // A paying orphan must keep its billing row — deleting it would detach
+      // a live Stripe subscription and leave the app charging the wrong user.
+      const orphanBilling = getUserBilling(orphanUserId);
+      if (orphanBilling && hasLiveStripeSubscription(orphanBilling)) {
+        return { ok: false, error: "already_linked" };
+      }
       const database = getPlatformDb();
       database.transaction(() => {
         database

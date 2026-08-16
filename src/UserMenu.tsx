@@ -111,7 +111,7 @@ export function UserMenu(props: {
               <p className="menu-profile-name">Not signed in</p>
               {props.needsLogin ? null : (
                 <p className="menu-profile-email">
-                  Google allowlist on the API. X is identity-only.
+                  Sign in with Google or X. X is identity-only.
                 </p>
               )}
             </>

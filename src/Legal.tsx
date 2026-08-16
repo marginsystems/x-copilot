@@ -167,7 +167,7 @@ function TermsBody() {
 
       <h2>Accounts</h2>
       <p>
-        You must sign in with Google (and may link X). You are responsible for
+        You must sign in with Google or X. You are responsible for
         activity under your account. We may suspend or terminate access for
         conduct we reasonably believe violates these Terms, X’s rules, or puts
         the service at risk.

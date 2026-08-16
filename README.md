@@ -183,7 +183,7 @@ npm run deploy:workers   # vite build && npx wrangler deploy
 
 Then attach the custom domain `xcopilot.dev` in the Cloudflare dashboard (or `wrangler.toml` `[[routes]]`). There is no `www`. DNS for `api` is a grey-cloud A record to the VPS — see [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md).
 
-Sign-in: hamburger menu → **Continue with Google** (allowlisted email) or **Continue with X**. OAuth redirects hit the API host, then bounce back to this SPA.
+Sign-in: hamburger menu → **Continue with Google** or **Continue with X**. New accounts land on Free. OAuth redirects hit the API host, then bounce back to this SPA.
 
 ## Stream 1 definition of done
 

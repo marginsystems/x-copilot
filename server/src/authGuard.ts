@@ -1,8 +1,8 @@
 /**
- * Public-bind + session gate. Local loopback stays open unless a whitelist is set.
+ * Public-bind + session gate. Signup is open; a session is still required
+ * unless AUTH_REQUIRED is explicitly off on loopback.
  */
 import type { IncomingMessage } from "node:http";
-import { parseEmailWhitelist } from "./authConfig.js";
 
 export function bindHost(env: NodeJS.ProcessEnv = process.env): string {
   const raw = env.BIND_HOST?.trim();
@@ -16,8 +16,7 @@ export function authRequired(env: NodeJS.ProcessEnv = process.env): boolean {
   if (publicBind) return true;
   const flag = env.AUTH_REQUIRED?.trim().toLowerCase();
   if (flag === "0" || flag === "false" || flag === "off") return false;
-  if (flag === "1" || flag === "true" || flag === "on") return true;
-  return parseEmailWhitelist(env.AUTH_EMAIL_WHITELIST).length > 0;
+  return true;
 }
 
 export function isPublicApiPath(pathname: string): boolean {

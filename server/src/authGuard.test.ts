@@ -20,14 +20,11 @@ describe("authGuard", () => {
     assert.equal(bindHost({ BIND_HOST: "0.0.0.0" }), "0.0.0.0");
   });
 
-  it("requires auth when whitelist or public bind is set", () => {
-    assert.equal(authRequired({ AUTH_EMAIL_WHITELIST: "" }), false);
-    assert.equal(
-      authRequired({ AUTH_EMAIL_WHITELIST: "margin707@gmail.com" }),
-      true,
-    );
+  it("requires a session by default and on a public bind", () => {
+    assert.equal(authRequired({}), true);
     assert.equal(authRequired({ BIND_HOST: "0.0.0.0" }), true);
     assert.equal(authRequired({ AUTH_REQUIRED: "1" }), true);
+    assert.equal(authRequired({ BIND_HOST: "127.0.0.1", AUTH_REQUIRED: "0" }), false);
   });
 
   it("never disables the gate on a public bind", () => {

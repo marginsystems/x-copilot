@@ -6,7 +6,7 @@ describe("authErrorMessage", () => {
   it("maps known codes and falls back", () => {
     assert.equal(
       authErrorMessage("not_whitelisted"),
-      "That account is not on the allowlist.",
+      "Sign-in is open — try again, or use another Google or X account.",
     );
     assert.match(authErrorMessage("mystery") ?? "", /mystery/);
     assert.equal(authErrorMessage(null), null);
