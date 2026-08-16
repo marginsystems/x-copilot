@@ -2566,7 +2566,7 @@ export default function App() {
               onX={startXLogin}
               onAnalytics={openAnalytics}
               onVoice={openVoice}
-              needsXLink={voiceNeedsXLink(voice, authUser?.xUsername)}
+              needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false}
               onUsage={openUsage}
               onSettings={openSettings}
               onPrivacySettings={() => {
@@ -2658,7 +2658,7 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            {voiceNeedsXLink(voice, authUser?.xUsername)
+            {authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false
               ? "Link X first — Voice reads your public replies at setup and hourly. Scout takeoffs are what spend credits."
               : `Suggest reply uses this card. We ingest public replies at setup and hourly — you cannot refresh it by hand. Unlock is ${voice?.unlockAt ?? 100} distinct reply conversations. Scout takeoffs are what spend credits.`}
           </p>
@@ -2666,7 +2666,7 @@ export default function App() {
             voice={voice}
             busy={false}
             error={voiceError}
-            needsXLink={voiceNeedsXLink(voice, authUser?.xUsername)}
+            needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false}
             onLinkX={startXLogin}
           />
         </section>
@@ -2809,7 +2809,7 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            {voiceNeedsXLink(voice, authUser?.xUsername) ? (
+            {authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false ? (
               <>
                 Link X first — Voice and Suggest need it.{" "}
                 <button
@@ -2999,6 +2999,7 @@ export default function App() {
         <VoiceUnlockBanner
           voice={voice}
           xUsername={authUser?.xUsername}
+          hasSession={Boolean(authUser)}
           onOpenSettings={openVoice}
           onLinkX={startXLogin}
         />
@@ -3319,6 +3320,7 @@ export default function App() {
                             <SuggestLocked
                               voice={voice}
                               xUsername={authUser?.xUsername}
+                              hasSession={Boolean(authUser)}
                               onOpenSettings={openVoice}
                               onLinkX={startXLogin}
                             />

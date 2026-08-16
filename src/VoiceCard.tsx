@@ -203,18 +203,20 @@ function UnlockMeter({ voice }: { voice: VoiceState }) {
 export function VoiceUnlockBanner({
   voice,
   xUsername,
+  hasSession,
   onOpenSettings,
   onLinkX,
 }: {
   voice: VoiceState | null;
   xUsername?: string | null;
+  hasSession: boolean;
   busy?: boolean;
   onLearn?: () => void;
   onOpenSettings: () => void;
   onLinkX: () => void;
 }) {
   if (voice?.status === "ready" && voice.unlocked) return null;
-  const needsX = voiceNeedsXLink(voice, xUsername);
+  const needsX = hasSession && voiceNeedsXLink(voice, xUsername);
   return (
     <aside className="voice-desk-banner" aria-label="How to unlock Suggest">
       <div className="voice-desk-banner-copy">
@@ -255,17 +257,19 @@ export function VoiceUnlockBanner({
 export function SuggestLocked({
   voice,
   xUsername,
+  hasSession,
   onOpenSettings,
   onLinkX,
 }: {
   voice: VoiceState | null;
   xUsername?: string | null;
+  hasSession: boolean;
   busy?: boolean;
   onLearn?: () => void;
   onOpenSettings: () => void;
   onLinkX: () => void;
 }) {
-  const needsX = voiceNeedsXLink(voice, xUsername);
+  const needsX = hasSession && voiceNeedsXLink(voice, xUsername);
   return (
     <div className="suggest-pane suggest-locked">
       <p className="suggest-banner" role="note">

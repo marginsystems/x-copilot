@@ -137,6 +137,36 @@ describe("voiceNeedsXLink", () => {
     );
   });
 
+  it("is true when the API says unlinked with no handle", () => {
+    assert.equal(
+      voiceNeedsXLink(
+        {
+          status: "unlinked",
+          handle: null,
+          replyCount: 0,
+          conversationCount: 0,
+          unlockAt: 100,
+          unlocked: false,
+          card: null,
+          cardUpdatedAt: null,
+          lastPullAt: null,
+          needsDailyUpdate: false,
+          needsLearn: false,
+          lastError: null,
+          suggests: {
+            used: 0,
+            limit: 10,
+            remaining: 10,
+            canSuggest: true,
+            planKey: "free",
+          },
+        },
+        null,
+      ),
+      true,
+    );
+  });
+
   it("stays false when memories already produced a corpus without a handle", () => {
     assert.equal(
       voiceNeedsXLink(
