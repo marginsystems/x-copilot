@@ -100,6 +100,12 @@ export type VoiceUiStatus =
   | "insufficient"
   | "ready";
 
+/** GET /api/voice fold throttle: the fold scans every knowledge note and
+ *  writes counts, so dedupe repeated mounts/midnight hydrates instead of
+ *  running it on every request. POST learn always folds. */
+const lastLocalFoldAt = new Map<string, number>();
+const LOCAL_FOLD_COOLDOWN_MS = 60_000;
+
 function parseCard(cardJson: string | null): VoiceCard | null {
   if (!cardJson) return null;
   try {
@@ -171,11 +177,13 @@ function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
   const planKey = effectivePlanKey(billing, user.email);
   const status = deriveVoiceUiStatus(profile, handle);
   const unlocked = voiceUnlocked(profile?.conversationCount ?? 0);
+  // Handle-linked users re-learn daily; memory-only users with a corpus do
+  // too, so their card is regenerated as new marks fold in.
   const needsDailyUpdate = Boolean(
-    handle &&
-      profile?.lastPullAt &&
+    profile?.lastPullAt &&
       profile.lastPullAt < startOfUtcDayIso() &&
-      profile.status !== "learning",
+      profile.status !== "learning" &&
+      (Boolean(handle) || (profile.conversationCount ?? 0) > 0),
   );
   const needsLearn = deriveNeedsLearn({
     status,
@@ -304,7 +312,9 @@ async function handleLearn(
       });
     }
 
-    if (handle && !shouldPullXApi({ conversationCount: localCount, handle })) {
+    // No timeline was pulled (memories already unlock, or no handle): stamp the
+    // learn so memory-only users also get the once-a-day silent refresh.
+    if (!shouldPullXApi({ conversationCount: localCount, handle })) {
       updateVoiceProfilePull({
         userId: user.id,
         xUsername: handle,
@@ -583,8 +593,14 @@ export async function tryHandleVoice(
   if (req.method === "GET" && url.pathname === "/api/voice") {
     const tenantId = ensureUserTenant(user.id);
     ensureVoiceProfile(user.id, tenantId);
-    // Local memories first — cheap, and often enough to unlock.
-    await foldLocalVoiceSources(user.id);
+    // Local memories first — cheap, and often enough to unlock. Throttle the
+    // full note scan so bursts (mount + per-tab midnight hydrates) fold once
+    // per window instead of once per GET. Learn always folds.
+    const now = Date.now();
+    if ((lastLocalFoldAt.get(user.id) ?? 0) <= now - LOCAL_FOLD_COOLDOWN_MS) {
+      lastLocalFoldAt.set(user.id, now);
+      await foldLocalVoiceSources(user.id);
+    }
     const profile = getVoiceProfile(user.id);
     send(req, res, 200, voicePayload(user, profile));
     return true;

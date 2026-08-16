@@ -278,7 +278,7 @@ export function setVoiceProfileStatus(
 
 export function updateVoiceProfilePull(input: {
   userId: string;
-  xUsername: string;
+  xUsername: string | null;
   xUserId?: string | null;
   sinceId?: string | null;
   lastPullAt?: string | null;
