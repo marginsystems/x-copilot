@@ -20,9 +20,11 @@ describe("markDetectPoll notes", () => {
     assert.match(markDetectTimeoutNote(), /Timed out/);
     assert.match(markDetectTimeoutNote(), /mark again/);
     assert.match(markDetectMissNote("ambiguous"), /Multiple replies/);
+    assert.match(markDetectMissNote("ambiguous"), /mark again/);
     assert.match(markDetectMissNote("none"), /Couldn't find/);
     assert.doesNotMatch(markDetectTimeoutNote(), /paste/i);
     assert.doesNotMatch(markDetectMissNote("none"), /paste/i);
+    assert.doesNotMatch(markDetectMissNote("ambiguous"), /paste/i);
   });
 });
 

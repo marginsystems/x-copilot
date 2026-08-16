@@ -1639,7 +1639,7 @@ export default function App() {
 
         if (found) {
           setMarkDetectNote("Found your reply — saving…");
-          const ok = await postInteracted(thread, replyUrl, replyText);
+          const ok = await postInteracted(thread, replyUrl, replyText, ac.signal);
           if (markDetectGenRef.current !== gen) return;
           finishMarkDetect(
             gen,
@@ -1708,13 +1708,10 @@ export default function App() {
     thread: ThreadCard,
     replyUrl: string,
     reply: string,
+    signal?: AbortSignal,
   ): Promise<boolean> {
     const urlTrimmed = replyUrl.trim();
-    const replyId = parseStatusIdFromUrl(urlTrimmed);
-    if (!replyId) {
-      setStatus("Reply URL is required — paste the link to your reply on X.");
-      return false;
-    }
+    const replyId = parseStatusIdFromUrl(urlTrimmed) ?? undefined;
     const trimmed = reply.trim();
     try {
       const res = await apiFetch("/api/interacted", {
@@ -1740,13 +1737,13 @@ export default function App() {
           intent: thread.intent,
           reason: thread.reason,
         }),
+        signal,
       });
       const data = (await res.json().catch(() => ({}))) as {
         message?: string;
         interaction?: InteractionHistoryEntry;
       };
       if (!res.ok) {
-        setStatus(`Mark fail: ${data.message || res.status}`);
         return false;
       }
       const key = normalizeAuthorKey(thread.author);
@@ -1791,7 +1788,6 @@ export default function App() {
       void hydrateGamification();
       return true;
     } catch {
-      setStatus("Sidecar offline — could not mark interacted");
       return false;
     }
   }
