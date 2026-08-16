@@ -48,13 +48,12 @@ export function VoiceCardPanel({
   busy,
   refreshing = busy,
   error,
-  onLearn,
 }: {
   voice: VoiceState | null;
   busy: boolean;
   refreshing?: boolean;
   error: string | null;
-  onLearn: () => void;
+  onLearn?: () => void;
 }) {
   const [learnStartedAt, setLearnStartedAt] = useState<number | null>(null);
   useEffect(() => {
@@ -75,17 +74,8 @@ export function VoiceCardPanel({
             borrow it — you always edit and post yourself.
           </p>
         </div>
-        {!refreshing ? (
-          <button
-            type="button"
-            className="ghost voice-refresh"
-            onClick={onLearn}
-            disabled={refreshing}
-          >
-            {voice?.status === "ready" || voice?.status === "insufficient"
-              ? "Refresh"
-              : "Learn my voice"}
-          </button>
+        {refreshing ? (
+          <p className="voice-sub">Updating from the hourly ingest…</p>
         ) : null}
       </div>
 
@@ -190,13 +180,11 @@ function UnlockMeter({ voice }: { voice: VoiceState }) {
 /** Compact desk banner — always explains how Suggest unlocks. */
 export function VoiceUnlockBanner({
   voice,
-  busy,
-  onLearn,
   onOpenSettings,
 }: {
   voice: VoiceState | null;
-  busy: boolean;
-  onLearn: () => void;
+  busy?: boolean;
+  onLearn?: () => void;
   onOpenSettings: () => void;
 }) {
   if (voice?.status === "ready" && voice.unlocked) return null;
@@ -211,16 +199,8 @@ export function VoiceUnlockBanner({
         ) : null}
       </div>
       <div className="voice-desk-banner-actions">
-        <button
-          type="button"
-          className="primary"
-          disabled={busy}
-          onClick={onLearn}
-        >
-          {voice?.status === "insufficient" ? "Refresh voice" : "Learn my voice"}
-        </button>
         <button type="button" className="ghost" onClick={onOpenSettings}>
-          Voice settings
+          Voice
         </button>
       </div>
     </aside>
@@ -230,13 +210,11 @@ export function VoiceUnlockBanner({
 /** Locked teaser on an open Scout thread so the button is never a secret. */
 export function SuggestLocked({
   voice,
-  busy,
-  onLearn,
   onOpenSettings,
 }: {
   voice: VoiceState | null;
-  busy: boolean;
-  onLearn: () => void;
+  busy?: boolean;
+  onLearn?: () => void;
   onOpenSettings: () => void;
 }) {
   return (
@@ -247,14 +225,6 @@ export function SuggestLocked({
       <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
       {voice && voice.conversationCount > 0 ? <UnlockMeter voice={voice} /> : null}
       <div className="suggest-actions">
-        <button
-          type="button"
-          className="ghost suggest-trigger"
-          disabled={busy}
-          onClick={onLearn}
-        >
-          {busy ? "Learning…" : "Learn my voice"}
-        </button>
         <button type="button" className="ghost" onClick={onOpenSettings}>
           What unlocks this
         </button>

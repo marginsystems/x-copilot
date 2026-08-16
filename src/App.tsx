@@ -817,10 +817,7 @@ export default function App() {
   );
   const manualVerifyDoneRef = useRef(false);
   const [voice, setVoice] = useState<VoiceState | null>(null);
-  const [voiceBusy, setVoiceBusy] = useState(false);
-  /** Silent once-a-day learn — quiet, but still gating the Refresh button. */
-  const [voicePending, setVoicePending] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const voiceError: string | null = null;
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
     loadSettings(),
@@ -1332,48 +1329,13 @@ export default function App() {
     }
   }
 
-  async function learnVoice(opts?: { silent?: boolean }) {
-    if (!opts?.silent) {
-      setVoiceBusy(true);
-      setVoiceError(null);
-    }
-    setVoicePending(true);
-    try {
-      const res = await apiFetch("/api/voice/learn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        message?: string;
-      };
-      if (res.ok) {
-        const parsed = parseVoiceState(data);
-        if (parsed) setVoice(parsed);
-      } else if (!opts?.silent) {
-        setVoiceError(data.message ?? "Voice learn failed — try again.");
-        // Learn flipped the profile server-side; re-read the resting state.
-        void hydrateVoice({ skipDaily: true });
-      }
-    } catch {
-      if (!opts?.silent) setVoiceError("Couldn't reach the desk — try again.");
-    } finally {
-      if (!opts?.silent) setVoiceBusy(false);
-      setVoicePending(false);
-    }
-  }
-
-  async function hydrateVoice(opts?: { skipDaily?: boolean }) {
+  async function hydrateVoice(_opts?: { skipDaily?: boolean }) {
     try {
       const res = await apiFetch("/api/voice");
       if (!res.ok) return;
       const parsed = parseVoiceState(await res.json());
       if (!parsed) return;
       setVoice(parsed);
-      // Memories-first learn, or the once-a-day incremental, quietly.
-      if ((parsed.needsLearn || parsed.needsDailyUpdate) && !opts?.skipDaily) {
-        void learnVoice({ silent: true });
-      }
     } catch {
       // Sidecar may be offline on first paint — voice stays hidden.
     }
@@ -1947,6 +1909,7 @@ export default function App() {
         : prev,
     );
     ensureActivitySubscribe();
+    void hydrateVoice({ skipDaily: true });
   }
 
   function chooseConsent(choice: ConsentChoice) {
@@ -2766,16 +2729,15 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            Suggest reply uses this card. It learns from replies you&apos;ve
-            already marked, then fills gaps from your public X timeline. Unlock
-            is {voice?.unlockAt ?? 100} distinct reply conversations.
+            Suggest reply uses this card. We ingest public replies at setup
+            and hourly — you cannot refresh it by hand. Unlock is{" "}
+            {voice?.unlockAt ?? 100} distinct reply conversations. Scout
+            takeoffs are what spend credits.
           </p>
           <VoiceCardPanel
             voice={voice}
-            busy={voiceBusy}
-            refreshing={voiceBusy || voicePending}
+            busy={false}
             error={voiceError}
-            onLearn={() => void learnVoice()}
           />
         </section>
       ) : null}
@@ -3090,8 +3052,6 @@ export default function App() {
         <>
         <VoiceUnlockBanner
           voice={voice}
-          busy={voiceBusy || voicePending}
-          onLearn={() => void learnVoice()}
           onOpenSettings={openVoice}
         />
         <div className="dashboard">
@@ -3410,8 +3370,6 @@ export default function App() {
                           ) : (
                             <SuggestLocked
                               voice={voice}
-                              busy={voiceBusy || voicePending}
-                              onLearn={() => void learnVoice()}
                               onOpenSettings={openVoice}
                             />
                           )

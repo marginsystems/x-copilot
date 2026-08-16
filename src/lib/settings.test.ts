@@ -191,6 +191,7 @@ describe("loadSettings / saveSettings", () => {
       dedupeAccounts: false,
       preferredLanguage: "fr",
       excludedTags: ["supportive_encouragement", "political", "promo"],
+      excludedAccounts: [...DEFAULT_EXCLUDED_ACCOUNTS],
     });
     assert.deepEqual(saved, {
       maxThreadChars: 320,

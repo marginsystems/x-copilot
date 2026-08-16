@@ -216,8 +216,8 @@ export function Onboarding(props: {
           <>
             <h1 className="gate-title">Your X account</h1>
             <p className="gate-lede">
-              Scout finds threads. When you reply on X, we look up posts from
-              this handle — no extra login.
+              We&apos;ll read up to 100 of your public replies once, then update
+              hourly. No extra X login. Scout is what spends credits.
             </p>
             <label className="onboarding-handle">
               <span>X username</span>
@@ -316,7 +316,7 @@ export function Onboarding(props: {
             {busy && !onPick && !onLinkX
               ? "Writing…"
               : busy && onLinkX
-                ? "Checking…"
+                ? "Reading replies…"
                 : onLinkX
                   ? "Finish setup"
                   : onPick

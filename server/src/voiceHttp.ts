@@ -12,7 +12,6 @@ import {
   ensureUserTenant,
 } from "./billingStore.js";
 import { corsHeaders } from "./cors.js";
-import { startOfUtcDayIso } from "./ownPostStore.js";
 import { getSessionUser } from "./sessionCookie.js";
 import type { AuthUser } from "./authStore.js";
 import { getXOauthUsername } from "./authStore.js";
@@ -23,10 +22,8 @@ import {
   checkTrivialEdit,
   trivialEditNote,
 } from "./voiceEdit.js";
-import { pullOwnReplies, resolveXUser } from "./voiceIngest.js";
 import { foldLocalVoiceSources } from "./voiceLocal.js";
 import {
-  generateVoiceCard,
   suggestReply,
   verifyReplyEdit,
   type VoiceCard,
@@ -36,14 +33,8 @@ import {
   ensureVoiceProfile,
   getSuggestUsage,
   getVoiceProfile,
-  listVoiceReplies,
-  nowIso,
   removeSuggestRecord,
   reserveSuggestSlot,
-  saveVoiceCard,
-  setVoiceProfileStatus,
-  updateVoiceProfilePull,
-  upsertVoiceReplies,
   voiceUnlocked,
   type VoiceProfileRow,
 } from "./voiceStore.js";
@@ -148,28 +139,14 @@ export function deriveVoiceUiStatus(
   return "empty";
 }
 
-export function deriveNeedsLearn(opts: {
+export function deriveNeedsLearn(_opts: {
   status: VoiceUiStatus;
   handle: string | null;
   profile: VoiceProfileRow | null;
   needsDailyUpdate: boolean;
 }): boolean {
-  const { status, handle, profile, needsDailyUpdate } = opts;
-  // A failed learn attempt (lastError set) must not re-arm the silent learn
-  // while the corpus is still below the unlock bar, or every hydrate would
-  // re-POST learn against the same dead end. Once the local fold unlocks the
-  // corpus, that dead end is gone: re-arm so the memories-first learn writes
-  // the card.
-  const failedAttempt =
-    Boolean(profile?.lastError) && !voiceUnlocked(profile?.conversationCount ?? 0);
-  return (
-    needsDailyUpdate ||
-    (status === "empty" && !failedAttempt) ||
-    (status === "insufficient" &&
-      Boolean(handle) &&
-      !profile?.lastPullAt &&
-      !failedAttempt)
-  );
+  // Ingest is onboarding + hourly only. The client must not POST learn.
+  return false;
 }
 
 function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
@@ -179,20 +156,8 @@ function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
   const planKey = effectivePlanKey(billing, user.email);
   const status = deriveVoiceUiStatus(profile, handle);
   const unlocked = voiceUnlocked(profile?.conversationCount ?? 0);
-  // Handle-linked users re-learn daily; memory-only users with a corpus do
-  // too, so their card is regenerated as new marks fold in.
-  const needsDailyUpdate = Boolean(
-    profile?.lastPullAt &&
-      profile.lastPullAt < startOfUtcDayIso() &&
-      profile.status !== "learning" &&
-      (Boolean(handle) || (profile.conversationCount ?? 0) > 0),
-  );
-  const needsLearn = deriveNeedsLearn({
-    status,
-    handle,
-    profile,
-    needsDailyUpdate,
-  });
+  const needsDailyUpdate = false;
+  const needsLearn = false;
   return {
     ok: true as const,
     voice: {
@@ -216,147 +181,13 @@ function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
 async function handleLearn(
   req: IncomingMessage,
   res: ServerResponse,
-  user: AuthUser,
+  _user: AuthUser,
 ): Promise<void> {
-  if (!allowRate(`voice-learn:${user.id}`, 6, 10 * 60_000)) {
-    send(req, res, 429, {
-      error: "rate_limited",
-      message: "Voice learn is rate limited — try again in a few minutes.",
-    });
-    return;
-  }
-  const handle = resolveVoiceHandle(user);
-  const tenantId = ensureUserTenant(user.id);
-  const exhausted = creditsExhaustedResponse({
-    userId: user.id,
-    tenantId,
-    email: user.email,
+  send(req, res, 403, {
+    error: "ingest_not_user_triggered",
+    message:
+      "Voice updates on onboarding and the hourly ingest. Scout takeoffs are the only action that spends your credits.",
   });
-  if (exhausted) {
-    send(req, res, 402, exhausted);
-    return;
-  }
-
-  const profile = ensureVoiceProfile(user.id, tenantId);
-  const priorStatus = profile.status;
-  setVoiceProfileStatus(user.id, "learning");
-
-  const finishWithError = (
-    status: number,
-    error: string,
-    message: string,
-  ): void => {
-    setVoiceProfileStatus(
-      user.id,
-      priorStatus === "ready" ? "ready" : "empty",
-      message,
-    );
-    send(req, res, status, { error, message });
-  };
-
-  try {
-    // Memories + desk own_posts first. The timeline is a fill-in only.
-    await foldLocalVoiceSources(user.id);
-    let updated = getVoiceProfile(user.id);
-    const localCount = updated?.conversationCount ?? 0;
-
-    if (!shouldPullXApi({ conversationCount: localCount, handle })) {
-      if (localCount === 0 && !handle) {
-        finishWithError(
-          400,
-          "x_not_linked",
-          `No reply memories yet and X isn't linked. Mark replies with your text, or link X — Suggest unlocks at ${VOICE_UNLOCK_MIN_CONVERSATIONS} distinct reply conversations.`,
-        );
-        return;
-      }
-    } else {
-      const resolved = await resolveXUser(handle!);
-      if (!resolved.ok) {
-        finishWithError(
-          resolved.status >= 400 && resolved.status < 600 ? resolved.status : 502,
-          resolved.error,
-          resolved.message,
-        );
-        return;
-      }
-      if (resolved.protected) {
-        finishWithError(
-          409,
-          "account_protected",
-          `@${handle} is protected. Voice only reads public replies — there is no workaround, and we will not scrape.`,
-        );
-        return;
-      }
-
-      const pull = await pullOwnReplies({
-        xUserId: resolved.id,
-        sinceId: profile.sinceId,
-      });
-      if (!pull.ok) {
-        finishWithError(
-          pull.status >= 400 && pull.status < 600 ? pull.status : 502,
-          pull.error,
-          pull.message,
-        );
-        return;
-      }
-
-      upsertVoiceReplies(user.id, pull.replies);
-      await foldLocalVoiceSources(user.id);
-      updateVoiceProfilePull({
-        userId: user.id,
-        xUsername: resolved.username,
-        xUserId: resolved.id,
-        sinceId: pull.completed ? pull.newestId : profile.sinceId,
-        // Stamp the attempt even when truncated (page cap / partial-error break)
-        // so needsLearn does not re-arm a full timeline pull on every load.
-        lastPullAt: nowIso(),
-      });
-    }
-
-    // No timeline was pulled (memories already unlock, or no handle): stamp the
-    // learn so memory-only users also get the once-a-day silent refresh.
-    if (!shouldPullXApi({ conversationCount: localCount, handle })) {
-      updateVoiceProfilePull({
-        userId: user.id,
-        xUsername: handle,
-        lastPullAt: nowIso(),
-      });
-    }
-
-    updated = getVoiceProfile(user.id);
-    if (updated && voiceUnlocked(updated.conversationCount)) {
-      const cardResult = await generateVoiceCard({
-        handle: handle || "you",
-        replies: listVoiceReplies(user.id, 120),
-      });
-      if (!cardResult.ok) {
-        finishWithError(502, cardResult.error, cardResult.message);
-        return;
-      }
-      saveVoiceCard({
-        userId: user.id,
-        cardJson: cardResult.cardJson,
-        model: cardResult.model,
-      });
-    } else {
-      setVoiceProfileStatus(
-        user.id,
-        priorStatus === "ready" ? "ready" : "empty",
-      );
-    }
-
-    updated = getVoiceProfile(user.id);
-    send(req, res, 200, voicePayload(user, updated));
-  } finally {
-    const current = getVoiceProfile(user.id);
-    if (current && current.status === "learning") {
-      setVoiceProfileStatus(
-        user.id,
-        priorStatus === "ready" ? "ready" : "empty",
-      );
-    }
-  }
 }
 
 async function handleSuggest(

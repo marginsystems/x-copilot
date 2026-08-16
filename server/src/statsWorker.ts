@@ -37,6 +37,7 @@ import {
   type DueOwnPostSample,
 } from "./ownPostStore.js";
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
+import { ingestUsersHourly } from "./userIngest.js";
 import { runWithRequestContext } from "./requestContext.js";
 import { getUserById } from "./authStore.js";
 import { creditsExhaustedResponse } from "./billingStore.js";
@@ -384,6 +385,14 @@ async function main(): Promise<void> {
   console.log("[stats-worker] started — tick every 1h");
 
   const tick = async () => {
+    try {
+      const ingest = await ingestUsersHourly();
+      console.log(
+        `[stats-worker] ingest ran=${ingest.ran} pulled=${ingest.pulled} unlocked=${ingest.unlocked}`,
+      );
+    } catch (err) {
+      console.warn("[stats-worker] ingest soft-fail:", err);
+    }
     try {
       const result = await runStatsTick({
         discoverReplies: () => discoverOwnReplies(),
