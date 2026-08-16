@@ -21,10 +21,10 @@ type Props = {
 };
 
 /**
- * Decorative Conway-life "flight field" filling the leftover stretch of the
- * Agenda pane. Idle: sparse and slow. Searching: denser, with a paper-plane
- * silhouette drifting through and stirring the cells. Renders a single static
- * frame when the user prefers reduced motion.
+ * Decorative Conway-life "flight field" in the Agenda pane. Idle: sparse and
+ * slow. Searching: denser, with a paper-plane silhouette drifting through and
+ * stirring the cells. Renders a single static frame when the user prefers
+ * reduced motion. Sized by CSS — do not let the canvas bitmap set layout.
  */
 export function ScoutPixelField({ searching }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -92,6 +92,8 @@ export function ScoutPixelField({ searching }: Props) {
       height = h;
       canvas!.width = w * dpr;
       canvas!.height = h * dpr;
+      canvas!.style.width = `${w}px`;
+      canvas!.style.height = `${h}px`;
       const nextCols = Math.max(1, Math.floor((w + GAP) / STEP));
       const nextRows = Math.max(1, Math.floor((h + GAP) / STEP));
       if (nextCols === cols && nextRows === rows) return;
