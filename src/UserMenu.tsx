@@ -84,6 +84,7 @@ export function UserMenu(props: {
   onX: () => void;
   onAnalytics: () => void;
   onVoice: () => void;
+  needsXLink?: boolean;
   onUsage: () => void;
   onSettings: () => void;
   onPrivacySettings: () => void;
@@ -163,16 +164,28 @@ export function UserMenu(props: {
               <MenuIcon d="M4 19V9M10 19V5M16 19v-7M22 19H2" />
               Analytics
             </button>
-            <button
-              type="button"
-              className={
-                props.view === "voice" ? "menu-item is-current" : "menu-item"
-              }
-              onClick={props.onVoice}
-            >
-              <MenuIcon d="M4 14c2-4 4-6 8-6s6 2 8 6M12 14v6M9 17h6" />
-              Voice
-            </button>
+            {props.needsXLink ? (
+              <button
+                type="button"
+                className="menu-item"
+                onClick={props.onX}
+                title="Voice needs your X account so we can read public replies."
+              >
+                <MenuIcon d="M4 4h16v16H4zM8 12h8M12 8v8" />
+                Link X
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={
+                  props.view === "voice" ? "menu-item is-current" : "menu-item"
+                }
+                onClick={props.onVoice}
+              >
+                <MenuIcon d="M4 14c2-4 4-6 8-6s6 2 8 6M12 14v6M9 17h6" />
+                Voice
+              </button>
+            )}
             <button
               type="button"
               className={

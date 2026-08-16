@@ -7,7 +7,9 @@ import {
   phaseIndexAt,
   suggestsLeftLabel,
   unlockProgress,
+  voiceNeedsXLink,
   voiceUnlockCopy,
+  VOICE_LINK_X_COPY,
 } from "./voice.ts";
 
 describe("localEditHint", () => {
@@ -64,9 +66,105 @@ describe("voice state parsing", () => {
 });
 
 describe("voiceUnlockCopy", () => {
-  it("explains the 100-conversation bar when nothing is linked", () => {
+  it("explains the 100-conversation bar when state has not loaded", () => {
     assert.match(voiceUnlockCopy(null), /100 distinct reply conversations/);
     assert.match(voiceUnlockCopy(null), /hourly/);
+  });
+
+  it("asks to link X when the API says unlinked", () => {
+    assert.equal(
+      voiceUnlockCopy({
+        status: "unlinked",
+        handle: null,
+        replyCount: 0,
+        conversationCount: 0,
+        unlockAt: 100,
+        unlocked: false,
+        card: null,
+        cardUpdatedAt: null,
+        lastPullAt: null,
+        needsDailyUpdate: false,
+        needsLearn: false,
+        lastError: null,
+        suggests: {
+          used: 0,
+          limit: 10,
+          remaining: 10,
+          canSuggest: true,
+          planKey: "free",
+        },
+      }),
+      VOICE_LINK_X_COPY,
+    );
+  });
+});
+
+describe("voiceNeedsXLink", () => {
+  it("is true with no handle and no voice payload yet", () => {
+    assert.equal(voiceNeedsXLink(null, null), true);
+    assert.equal(voiceNeedsXLink(null, ""), true);
+  });
+
+  it("is false once a user or voice handle exists", () => {
+    assert.equal(voiceNeedsXLink(null, "marginsystems"), false);
+    assert.equal(voiceNeedsXLink(null, "@alice"), false);
+    assert.equal(
+      voiceNeedsXLink(
+        {
+          status: "unlinked",
+          handle: "alice",
+          replyCount: 0,
+          conversationCount: 0,
+          unlockAt: 100,
+          unlocked: false,
+          card: null,
+          cardUpdatedAt: null,
+          lastPullAt: null,
+          needsDailyUpdate: false,
+          needsLearn: false,
+          lastError: null,
+          suggests: {
+            used: 0,
+            limit: 10,
+            remaining: 10,
+            canSuggest: true,
+            planKey: "free",
+          },
+        },
+        null,
+      ),
+      false,
+    );
+  });
+
+  it("stays false when memories already produced a corpus without a handle", () => {
+    assert.equal(
+      voiceNeedsXLink(
+        {
+          status: "insufficient",
+          handle: null,
+          replyCount: 12,
+          conversationCount: 8,
+          unlockAt: 100,
+          unlocked: false,
+          card: null,
+          cardUpdatedAt: null,
+          lastPullAt: null,
+          needsDailyUpdate: false,
+          needsLearn: false,
+          lastError: null,
+          suggests: {
+            used: 0,
+            limit: 10,
+            remaining: 10,
+            canSuggest: true,
+            planKey: "free",
+          },
+        },
+        null,
+      ),
+      false,
+    );
   });
 });
 

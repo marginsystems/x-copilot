@@ -184,11 +184,30 @@ export function unlockProgress(state: {
   );
 }
 
+export const VOICE_LINK_X_COPY =
+  "Voice and Suggest need your X account. Link X so we can read your public replies at setup and hourly. Scout is the only action that spends credits.";
+
+export const VOICE_LINK_X_TIP =
+  "Without an X account we cannot learn your voice or suggest replies.";
+
+/** True when Voice/Suggest cannot run because no X handle is linked. */
+export function voiceNeedsXLink(
+  voice: VoiceState | null,
+  xUsername?: string | null,
+): boolean {
+  const fromUser = (xUsername ?? "").replace(/^@+/, "").trim();
+  if (fromUser) return false;
+  if (voice?.handle) return false;
+  if (!voice) return true;
+  return voice.status === "unlinked";
+}
+
 /** Plain-language next step so Suggest is never a mystery. */
 export function voiceUnlockCopy(state: VoiceState | null): string {
   const need = state?.unlockAt ?? 100;
   const n = state?.conversationCount ?? 0;
-  if (!state || state.status === "unlinked") {
+  if (state?.status === "unlinked") return VOICE_LINK_X_COPY;
+  if (!state) {
     return `Suggest unlocks at ${need} distinct reply conversations. We read your public replies once at setup, then hourly. Mark replies on the desk to add more. Scout is the only action that spends credits.`;
   }
   if (state.lastError) return state.lastError;
