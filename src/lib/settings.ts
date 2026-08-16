@@ -37,6 +37,22 @@ export const MAX_EXCLUDED_TAGS = 20;
 export const MAX_TAG_TOKEN_LEN = 40;
 
 /**
+ * Pre-triage author excludes (chatbot product accounts).
+ * Keep in sync with `DEFAULT_EXCLUDED_ACCOUNTS` in server/src/threadFilters.ts.
+ */
+export const DEFAULT_EXCLUDED_ACCOUNTS = [
+  "grok",
+  "chatgpt",
+  "chatgptapp",
+  "claudeai",
+  "geminiapp",
+  "metaai",
+  "copilot",
+  "perplexity_ai",
+] as const;
+export const MAX_EXCLUDED_ACCOUNTS = 40;
+
+/**
  * Known excludeable tokens for Settings autocomplete / picker.
  * Keep in sync with `EXCLUDEABLE_TAG_VOCAB` in server/src/threadFilters.ts
  * and the flags list in TRIAGE_SYSTEM_PROMPT.
@@ -78,6 +94,11 @@ export type AppSettings = {
    * Empty = no tag excludes. Default includes supportive_encouragement + political.
    */
   excludedTags: string[];
+  /**
+   * Never curate these authors (handles, no @). Empty = no handle excludes.
+   * Default is a small chatbot list.
+   */
+  excludedAccounts: string[];
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -89,6 +110,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dedupeAccounts: true,
   preferredLanguage: DEFAULT_PREFERRED_LANGUAGE,
   excludedTags: [...DEFAULT_EXCLUDED_TAGS],
+  excludedAccounts: [...DEFAULT_EXCLUDED_ACCOUNTS],
 };
 
 export function clampMaxThreadChars(value: unknown): number {
@@ -189,6 +211,21 @@ export function threadHasExcludedTag(
   return Boolean(intent && excluded.has(intent));
 }
 
+export function normalizeExcludedAccounts(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [...DEFAULT_EXCLUDED_ACCOUNTS];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const handle = item.trim().replace(/^@+/, "").toLowerCase();
+    if (!/^[a-z0-9_]{1,15}$/.test(handle) || seen.has(handle)) continue;
+    seen.add(handle);
+    out.push(handle);
+    if (out.length >= MAX_EXCLUDED_ACCOUNTS) break;
+  }
+  return out;
+}
+
 export function normalizeSettings(raw: unknown): AppSettings {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
   const obj = raw as Record<string, unknown>;
@@ -196,6 +233,10 @@ export function normalizeSettings(raw: unknown): AppSettings {
     "excludedTags" in obj
       ? normalizeExcludedTags(obj.excludedTags)
       : [...DEFAULT_EXCLUDED_TAGS];
+  const excludedAccounts =
+    "excludedAccounts" in obj
+      ? normalizeExcludedAccounts(obj.excludedAccounts)
+      : [...DEFAULT_EXCLUDED_ACCOUNTS];
   return {
     maxThreadChars: clampMaxThreadChars(obj.maxThreadChars),
     dropArticles:
@@ -217,6 +258,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
         : DEFAULT_SETTINGS.dedupeAccounts,
     preferredLanguage: normalizePreferredLanguage(obj.preferredLanguage),
     excludedTags,
+    excludedAccounts,
   };
 }
 

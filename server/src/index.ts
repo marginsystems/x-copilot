@@ -131,6 +131,12 @@ function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
       .map((t) => t.trim())
       .filter(Boolean);
   }
+  if (Array.isArray(obj.excludedAccounts)) {
+    filters.excludedAccounts = obj.excludedAccounts
+      .filter((t): t is string => typeof t === "string")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
   return Object.keys(filters).length ? filters : undefined;
 }
 

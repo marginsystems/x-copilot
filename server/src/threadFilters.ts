@@ -3,6 +3,7 @@
  */
 import { franc } from "franc-min";
 import { normalizeAuthorKey } from "./interactionStore.js";
+import { parseXHandle } from "./xHandle.js";
 import { textHasOutboundLink, type ThreadCard } from "./xSearch.js";
 
 export const DEFAULT_MAX_THREAD_CHARS = 480;
@@ -24,6 +25,22 @@ export const DEFAULT_EXCLUDED_TAGS = [
 export const LEGACY_DEFAULT_EXCLUDED_TAGS = ["supportive_encouragement"] as const;
 export const MAX_EXCLUDED_TAGS = 20;
 export const MAX_TAG_TOKEN_LEN = 40;
+
+/**
+ * Pre-triage author excludes. Chatbot product accounts — not company news
+ * handles. Keep in sync with `DEFAULT_EXCLUDED_ACCOUNTS` in src/lib/settings.ts.
+ */
+export const DEFAULT_EXCLUDED_ACCOUNTS = [
+  "grok",
+  "chatgpt",
+  "chatgptapp",
+  "claudeai",
+  "geminiapp",
+  "metaai",
+  "copilot",
+  "perplexity_ai",
+] as const;
+export const MAX_EXCLUDED_ACCOUNTS = 40;
 
 /**
  * Known excludeable tokens for Settings autocomplete / picker.
@@ -221,6 +238,54 @@ export function filterAutomatedAccounts(
     kept.push(thread);
   }
   return { threads: kept, automatedFilteredCount };
+}
+
+/** Dedupe/normalize handles. Non-arrays → default chatbot list. */
+export function normalizeExcludedAccounts(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [...DEFAULT_EXCLUDED_ACCOUNTS];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const handle = parseXHandle(item)?.toLowerCase();
+    if (!handle || seen.has(handle)) continue;
+    seen.add(handle);
+    out.push(handle);
+    if (out.length >= MAX_EXCLUDED_ACCOUNTS) break;
+  }
+  return out;
+}
+
+/** Omit → defaults. Explicit `[]` disables handle excludes. */
+export function resolveExcludedAccounts(override?: string[]): string[] {
+  if (override === undefined) return [...DEFAULT_EXCLUDED_ACCOUNTS];
+  return normalizeExcludedAccounts(override);
+}
+
+/** Hard-drop authors on the exclude list before length/triage. */
+export function filterExcludedAccounts(
+  threads: ThreadCard[],
+  excludedAccounts: readonly string[] = DEFAULT_EXCLUDED_ACCOUNTS,
+): {
+  threads: ThreadCard[];
+  excludedAccountFilteredCount: number;
+} {
+  if (!excludedAccounts.length) {
+    return { threads: [...threads], excludedAccountFilteredCount: 0 };
+  }
+  const blocked = new Set(
+    excludedAccounts.map((h) => normalizeAuthorKey(h)).filter(Boolean),
+  );
+  const kept: ThreadCard[] = [];
+  let excludedAccountFilteredCount = 0;
+  for (const thread of threads) {
+    const key = normalizeAuthorKey(thread.author);
+    if (key && blocked.has(key)) {
+      excludedAccountFilteredCount += 1;
+      continue;
+    }
+    kept.push(thread);
+  }
+  return { threads: kept, excludedAccountFilteredCount };
 }
 
 export function normalizePreferredLanguageCode(

@@ -1,12 +1,14 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
+  DEFAULT_EXCLUDED_ACCOUNTS,
   DEFAULT_EXCLUDED_TAGS,
   DEFAULT_SETTINGS,
   clampMaxThreadChars,
   clampTargetCoolThreads,
   formatExcludedTagsText,
   loadSettings,
+  normalizeExcludedAccounts,
   normalizeExcludedTags,
   normalizePreferredLanguage,
   normalizeSettings,
@@ -127,6 +129,18 @@ describe("excludedTags settings", () => {
     );
     assert.deepEqual(normalizeSettings({ excludedTags: [] }).excludedTags, []);
   });
+
+  it("defaults missing excludedAccounts and preserves an explicit empty list", () => {
+    assert.deepEqual(normalizeSettings({}).excludedAccounts, [
+      ...DEFAULT_EXCLUDED_ACCOUNTS,
+    ]);
+    assert.ok(normalizeSettings({}).excludedAccounts.includes("grok"));
+    assert.deepEqual(
+      normalizeExcludedAccounts(["@Grok", "not a handle"]),
+      ["grok"],
+    );
+    assert.deepEqual(normalizeSettings({ excludedAccounts: [] }).excludedAccounts, []);
+  });
 });
 
 describe("normalizeSettings", () => {
@@ -152,6 +166,7 @@ describe("normalizeSettings", () => {
         dedupeAccounts: false,
         preferredLanguage: "es",
         excludedTags: ["promo"],
+        excludedAccounts: [...DEFAULT_EXCLUDED_ACCOUNTS],
       },
     );
     assert.equal(normalizeSettings({}).dedupeAccounts, true);
@@ -186,6 +201,7 @@ describe("loadSettings / saveSettings", () => {
       dedupeAccounts: false,
       preferredLanguage: "fr",
       excludedTags: ["supportive_encouragement", "political", "promo"],
+      excludedAccounts: [...DEFAULT_EXCLUDED_ACCOUNTS],
     });
     assert.deepEqual(loadSettings(), saved);
     assert.ok(localStorage.getItem(SETTINGS_STORAGE_KEY));

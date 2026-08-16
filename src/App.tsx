@@ -20,6 +20,7 @@ import {
   PREFERRED_LANGUAGES,
   DEFAULT_SETTINGS,
 } from "./lib/settings";
+import { ExcludedAccountsField } from "./ExcludedAccountsField";
 import { ExcludedTagsField } from "./ExcludedTagsField";
 import {
   MARK_DETECT_TIMEOUT_MS,
@@ -130,6 +131,7 @@ type ScoutStreamEvent = {
   emDashWarning?: string;
   emDashFiltered?: number;
   automatedWarning?: string;
+  excludedAccountWarning?: string;
   lengthWarning?: string;
   pipelineCounts?: {
     raw: number;
@@ -2149,6 +2151,7 @@ export default function App() {
             dedupeAccounts: settings.dedupeAccounts,
             preferredLanguage: settings.preferredLanguage,
             excludedTags: settings.excludedTags,
+            excludedAccounts: settings.excludedAccounts,
           },
         }),
         signal: ac.signal,
@@ -2250,6 +2253,9 @@ export default function App() {
           (doneEvent.linkWarning ? ` · ${doneEvent.linkWarning}` : "") +
           (doneEvent.emDashWarning ? ` · ${doneEvent.emDashWarning}` : "") +
           (doneEvent.automatedWarning ? ` · ${doneEvent.automatedWarning}` : "") +
+          (doneEvent.excludedAccountWarning
+            ? ` · ${doneEvent.excludedAccountWarning}`
+            : "") +
           (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");
         setStatus(scoutStageMessage("done"));
         pushScoutLine(summary);
@@ -2989,6 +2995,12 @@ export default function App() {
               tags={settingsDraft.excludedTags}
               onChange={(excludedTags) =>
                 setSettingsDraft((prev) => ({ ...prev, excludedTags }))
+              }
+            />
+            <ExcludedAccountsField
+              accounts={settingsDraft.excludedAccounts}
+              onChange={(excludedAccounts) =>
+                setSettingsDraft((prev) => ({ ...prev, excludedAccounts }))
               }
             />
           </div>
