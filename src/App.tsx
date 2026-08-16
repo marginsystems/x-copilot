@@ -69,7 +69,11 @@ import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
 import { Analytics } from "./Analytics";
 import { SuggestLocked, VoiceCardPanel, VoiceUnlockBanner } from "./VoiceCard";
 import { SuggestPane } from "./SuggestPane";
-import { parseVoiceState, type VoiceState } from "./lib/voice";
+import {
+  parseVoiceState,
+  voiceNeedsXLink,
+  type VoiceState,
+} from "./lib/voice";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
@@ -2562,6 +2566,7 @@ export default function App() {
               onX={startXLogin}
               onAnalytics={openAnalytics}
               onVoice={openVoice}
+              needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false}
               onUsage={openUsage}
               onSettings={openSettings}
               onPrivacySettings={() => {
@@ -2653,15 +2658,16 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            Suggest reply uses this card. We ingest public replies at setup
-            and hourly — you cannot refresh it by hand. Unlock is{" "}
-            {voice?.unlockAt ?? 100} distinct reply conversations. Scout
-            takeoffs are what spend credits.
+            {authUser && voiceNeedsXLink(voice, authUser.xUsername)
+              ? "Link X first — Voice reads your public replies at setup and hourly. Scout takeoffs are what spend credits."
+              : `Suggest reply uses this card. We ingest public replies at setup and hourly — you cannot refresh it by hand. Unlock is ${voice?.unlockAt ?? 100} distinct reply conversations. Scout takeoffs are what spend credits.`}
           </p>
           <VoiceCardPanel
             voice={voice}
             busy={false}
             error={voiceError}
+            needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false}
+            onLinkX={startXLogin}
           />
         </section>
       ) : null}
@@ -2803,15 +2809,31 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            Voice and Suggest live under{" "}
-            <button
-              type="button"
-              className="linkish"
-              onClick={() => goToView("voice")}
-            >
-              Voice
-            </button>{" "}
-            in the menu — this page is Scout filters.
+            {authUser && voiceNeedsXLink(voice, authUser.xUsername) ? (
+              <>
+                Link X first — Voice and Suggest need it.{" "}
+                <button
+                  type="button"
+                  className="linkish"
+                  onClick={startXLogin}
+                >
+                  Link X
+                </button>
+                . This page is Scout filters.
+              </>
+            ) : (
+              <>
+                Voice and Suggest live under{" "}
+                <button
+                  type="button"
+                  className="linkish"
+                  onClick={() => goToView("voice")}
+                >
+                  Voice
+                </button>{" "}
+                in the menu — this page is Scout filters.
+              </>
+            )}
           </p>
           <p className="status settings-lede">
             Filter prefs apply on the next Scout search. Env defaults remain the
@@ -2976,7 +2998,10 @@ export default function App() {
         <>
         <VoiceUnlockBanner
           voice={voice}
+          xUsername={authUser?.xUsername}
+          hasSession={Boolean(authUser)}
           onOpenSettings={openVoice}
+          onLinkX={startXLogin}
         />
         <div className="dashboard">
           <section className="desk">
@@ -3294,7 +3319,10 @@ export default function App() {
                           ) : (
                             <SuggestLocked
                               voice={voice}
+                              xUsername={authUser?.xUsername}
+                              hasSession={Boolean(authUser)}
                               onOpenSettings={openVoice}
+                              onLinkX={startXLogin}
                             />
                           )
                         }

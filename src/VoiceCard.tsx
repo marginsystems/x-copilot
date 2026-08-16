@@ -5,7 +5,10 @@ import {
   phaseIndexAt,
   suggestsLeftLabel,
   unlockProgress,
+  voiceNeedsXLink,
   voiceUnlockCopy,
+  VOICE_LINK_X_COPY,
+  VOICE_LINK_X_TIP,
   type VoiceState,
 } from "./lib/voice";
 
@@ -48,11 +51,15 @@ export function VoiceCardPanel({
   busy,
   refreshing = busy,
   error,
+  needsXLink = false,
+  onLinkX,
 }: {
   voice: VoiceState | null;
   busy: boolean;
   refreshing?: boolean;
   error: string | null;
+  needsXLink?: boolean;
+  onLinkX?: () => void;
   onLearn?: () => void;
 }) {
   const [learnStartedAt, setLearnStartedAt] = useState<number | null>(null);
@@ -83,7 +90,22 @@ export function VoiceCardPanel({
 
       {busy ? (
         <VoiceLoader startedAt={learnStartedAt ?? Date.now()} />
-      ) : !voice || voice.status === "unlinked" || voice.status === "empty" ? (
+      ) : needsXLink || voice?.status === "unlinked" ? (
+        <div className="voice-link-x">
+          <p className="voice-empty">{VOICE_LINK_X_COPY}</p>
+          {onLinkX ? (
+            <button
+              type="button"
+              className="primary has-tip"
+              onClick={onLinkX}
+              title={VOICE_LINK_X_TIP}
+              data-tip={VOICE_LINK_X_TIP}
+            >
+              Link X
+            </button>
+          ) : null}
+        </div>
+      ) : !voice || voice.status === "empty" ? (
         <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
       ) : voice.status === "insufficient" ? (
         <div className="voice-locked">
@@ -180,28 +202,52 @@ function UnlockMeter({ voice }: { voice: VoiceState }) {
 /** Compact desk banner — always explains how Suggest unlocks. */
 export function VoiceUnlockBanner({
   voice,
+  xUsername,
+  hasSession,
   onOpenSettings,
+  onLinkX,
 }: {
   voice: VoiceState | null;
+  xUsername?: string | null;
+  hasSession: boolean;
   busy?: boolean;
   onLearn?: () => void;
   onOpenSettings: () => void;
+  onLinkX: () => void;
 }) {
   if (voice?.status === "ready" && voice.unlocked) return null;
+  const needsX = hasSession && voiceNeedsXLink(voice, xUsername);
   return (
     <aside className="voice-desk-banner" aria-label="How to unlock Suggest">
       <div className="voice-desk-banner-copy">
-        <p className="voice-desk-banner-title">Suggest reply</p>
-        <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
+        <p className="voice-desk-banner-title">
+          {needsX ? "Link X" : "Suggest reply"}
+        </p>
+        <p className="voice-empty">
+          {needsX ? VOICE_LINK_X_COPY : voiceUnlockCopy(voice)}
+        </p>
         {voice &&
+        !needsX &&
         (voice.status === "insufficient" || voice.conversationCount > 0) ? (
           <UnlockMeter voice={voice} />
         ) : null}
       </div>
       <div className="voice-desk-banner-actions">
-        <button type="button" className="ghost" onClick={onOpenSettings}>
-          Voice
-        </button>
+        {needsX ? (
+          <button
+            type="button"
+            className="primary has-tip"
+            onClick={onLinkX}
+            title={VOICE_LINK_X_TIP}
+            data-tip={VOICE_LINK_X_TIP}
+          >
+            Link X
+          </button>
+        ) : (
+          <button type="button" className="ghost" onClick={onOpenSettings}>
+            Voice
+          </button>
+        )}
       </div>
     </aside>
   );
@@ -210,24 +256,47 @@ export function VoiceUnlockBanner({
 /** Locked teaser on an open Scout thread so the button is never a secret. */
 export function SuggestLocked({
   voice,
+  xUsername,
+  hasSession,
   onOpenSettings,
+  onLinkX,
 }: {
   voice: VoiceState | null;
+  xUsername?: string | null;
+  hasSession: boolean;
   busy?: boolean;
   onLearn?: () => void;
   onOpenSettings: () => void;
+  onLinkX: () => void;
 }) {
+  const needsX = hasSession && voiceNeedsXLink(voice, xUsername);
   return (
     <div className="suggest-pane suggest-locked">
       <p className="suggest-banner" role="note">
-        Suggest reply — locked
+        {needsX ? "Suggest reply — link X" : "Suggest reply — locked"}
       </p>
-      <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
-      {voice && voice.conversationCount > 0 ? <UnlockMeter voice={voice} /> : null}
+      <p className="voice-empty">
+        {needsX ? VOICE_LINK_X_COPY : voiceUnlockCopy(voice)}
+      </p>
+      {voice && !needsX && voice.conversationCount > 0 ? (
+        <UnlockMeter voice={voice} />
+      ) : null}
       <div className="suggest-actions">
-        <button type="button" className="ghost" onClick={onOpenSettings}>
-          What unlocks this
-        </button>
+        {needsX ? (
+          <button
+            type="button"
+            className="primary has-tip"
+            onClick={onLinkX}
+            title={VOICE_LINK_X_TIP}
+            data-tip={VOICE_LINK_X_TIP}
+          >
+            Link X
+          </button>
+        ) : (
+          <button type="button" className="ghost" onClick={onOpenSettings}>
+            What unlocks this
+          </button>
+        )}
       </div>
     </div>
   );
