@@ -590,7 +590,17 @@ h3 {
 @media (min-width: 1100px) {
   .desk-top {
     min-height: 0;
-    align-items: start;
+  }
+
+  .control-pane {
+    max-height: 220px;
+  }
+
+  .scout-field {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
   }
 }
 
