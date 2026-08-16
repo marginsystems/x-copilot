@@ -106,29 +106,34 @@ export function getXOauthUsername(userId: string): string | null {
   return parseXHandle(row?.username ?? "") ?? null;
 }
 
-/** Match a public handle to a desk user (onboarding x_username or X oauth). */
+/**
+ * Match a public handle to a desk user. Point lookups only — no full-table
+ * scans. Prefers the verified X oauth identity (a real X login) over a handle
+ * merely claimed during onboarding.
+ */
 export function findUserIdByXUsername(username: string): string | null {
   const handle = parseXHandle(username);
   if (!handle) return null;
   const key = handle.toLowerCase();
-  const users = getPlatformDb()
-    .prepare(`SELECT id, x_username FROM users WHERE x_username IS NOT NULL`)
-    .all() as Array<{ id: string; x_username: string | null }>;
-  for (const row of users) {
-    if (parseXHandle(row.x_username ?? "")?.toLowerCase() === key) return row.id;
-  }
   const oauth = getPlatformDb()
     .prepare(
-      `SELECT user_id, username FROM oauth_accounts
-       WHERE provider = 'x' AND username IS NOT NULL`,
+      `SELECT user_id FROM oauth_accounts
+       WHERE provider = 'x'
+         AND username IS NOT NULL
+         AND (lower(TRIM(username)) = ? OR lower(TRIM(username)) = '@' || ?)
+       LIMIT 1`,
     )
-    .all() as Array<{ user_id: string; username: string | null }>;
-  for (const row of oauth) {
-    if (parseXHandle(row.username ?? "")?.toLowerCase() === key) {
-      return row.user_id;
-    }
-  }
-  return null;
+    .get(key, key) as { user_id: string } | undefined;
+  if (oauth?.user_id) return oauth.user_id;
+  const user = getPlatformDb()
+    .prepare(
+      `SELECT id FROM users
+       WHERE x_username IS NOT NULL
+         AND (lower(TRIM(x_username)) = ? OR lower(TRIM(x_username)) = '@' || ?)
+       LIMIT 1`,
+    )
+    .get(key, key) as { id: string } | undefined;
+  return user?.id ?? null;
 }
 
 function stampXUsername(

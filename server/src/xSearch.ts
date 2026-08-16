@@ -41,6 +41,8 @@ export type ThreadCard = {
   inReplyToScreenName?: string;
   conversationId?: string;
   isReply?: boolean;
+  /** True when the card is a quote tweet (own referenced_tweets / quoted payload). */
+  isQuote?: boolean;
   /** Parent or quoted root author/text when available. */
   opAuthor?: string;
   opText?: string;
@@ -615,6 +617,7 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
       : `@${inReplyToScreenName}`;
   }
   if (conversationId) card.conversationId = conversationId;
+  if (inner.quoted_status_result) card.isQuote = true;
   if (op.opAuthor) card.opAuthor = op.opAuthor;
   if (op.opText) card.opText = op.opText;
   return card;
@@ -782,6 +785,7 @@ export function v2TweetToCard(
 
   const quoted = tweet.referenced_tweets?.find((r) => r.type === "quoted");
   if (quoted?.id) {
+    card.isQuote = true;
     const qt = tweetsById.get(quoted.id);
     if (qt?.text && qt.author_id) {
       const qa = usersById.get(qt.author_id);

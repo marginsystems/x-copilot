@@ -21,8 +21,13 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
-import { upsertOauthUser } from "./authStore.ts";
-import { analyticsSummary } from "./ownPostStore.ts";
+import { completeOnboarding, upsertOauthUser } from "./authStore.ts";
+import { ensureUserTenant } from "./billingStore.ts";
+import {
+  analyticsSummary,
+  startOfUtcDayIso,
+  upsertOwnPost,
+} from "./ownPostStore.ts";
 import type { ThreadCard } from "./xSearch.ts";
 import { runStatsTick } from "./statsWorker.ts";
 
@@ -38,9 +43,9 @@ function card(
 }
 
 describe("buildOwnPostsQuery", () => {
-  it("builds from: with within_time and no is:reply", () => {
+  it("builds from: with within_time, excludes retweets, and no is:reply", () => {
     const q = buildOwnPostsQuery("@alice", "24h");
-    assert.match(q, /^from:alice within_time:24h$/);
+    assert.match(q, /^from:alice -is:retweet within_time:24h$/);
     assert.doesNotMatch(q, /is:reply/);
   });
 });
@@ -53,12 +58,13 @@ describe("buildOwnRepliesQuery", () => {
 });
 
 describe("ownPostKindFromCard", () => {
-  it("treats inReplyToId as a reply and bare posts as originals", () => {
+  it("treats inReplyToId as a reply, quotes as quotes, and bare posts as originals", () => {
     assert.equal(
       ownPostKindFromCard(card({ id: "1", inReplyToId: "p" })),
       "reply",
     );
     assert.equal(ownPostKindFromCard(card({ id: "2" })), "original");
+    assert.equal(ownPostKindFromCard(card({ id: "3", isQuote: true })), "quote");
   });
 });
 
@@ -181,7 +187,7 @@ describe("discoverOwnReplies", () => {
       },
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => {
-        assert.match(opts.query, /^from:me within_time:24h$/);
+        assert.match(opts.query, /^from:me -is:retweet within_time:24h$/);
         assert.doesNotMatch(opts.query, /is:reply/);
         assert.equal(opts.product, "Latest");
         assert.equal(opts.maxPages, 1);
@@ -433,6 +439,216 @@ describe("foldDiscoveredOwnPosts", () => {
       threads: [card({ id: "x", text: "nope" })],
     });
     assert.equal(n, 0);
+  });
+
+  it("dedups a re-fold of the same threads by post id", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const opts = {
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "99",
+      threads: [
+        card({
+          id: "orig-1",
+          text: "original take",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+        card({
+          id: "r-1",
+          text: "reply take",
+          inReplyToId: "p-1",
+          createdAt: "2026-08-16T11:30:00.000Z",
+        }),
+      ],
+    };
+    const first = await foldDiscoveredOwnPosts(opts);
+    const second = await foldDiscoveredOwnPosts(opts);
+    assert.equal(first, 2);
+    assert.equal(second, 0);
+    const summary = analyticsSummary(user.id);
+    assert.equal(summary.totals.posts, 2);
+    assert.equal(summary.totals.originals, 1);
+    assert.equal(summary.totals.replies, 1);
+  });
+
+  it("stops the fold once the daily watch cap is reached", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const today = startOfUtcDayIso();
+    for (let i = 0; i < 15; i++) {
+      upsertOwnPost({
+        parsed: {
+          eventUuid: `evt-seed-${i}`,
+          xUserId: "99",
+          postId: `seed-${i}`,
+          kind: "original",
+          text: "seed",
+          postedAt: today,
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "me",
+          metrics: {},
+        },
+        userId: user.id,
+        tenantId,
+      });
+    }
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "99",
+      threads: [
+        card({
+          id: "cap-1",
+          text: "too many",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 0);
+    assert.equal(analyticsSummary(user.id).totals.posts, 15);
+  });
+
+  it("truncates a page mid-way at the daily cap", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const today = startOfUtcDayIso();
+    for (let i = 0; i < 14; i++) {
+      upsertOwnPost({
+        parsed: {
+          eventUuid: `evt-seed-${i}`,
+          xUserId: "99",
+          postId: `seed-${i}`,
+          kind: "original",
+          text: "seed",
+          postedAt: today,
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "me",
+          metrics: {},
+        },
+        userId: user.id,
+        tenantId,
+      });
+    }
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "99",
+      threads: [
+        card({
+          id: "cap-1",
+          text: "fits",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+        card({
+          id: "cap-2",
+          text: "truncated",
+          createdAt: "2026-08-16T11:05:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 1);
+    const summary = analyticsSummary(user.id);
+    assert.equal(summary.totals.posts, 15);
+  });
+
+  it("matches a user that only set x_username during onboarding (no X oauth)", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-1",
+      email: "me@example.com",
+      emailVerified: true,
+    });
+    completeOnboarding(user.id, "Find builders shipping AI tools in public.", {
+      xUsername: "me",
+    });
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "99",
+      threads: [
+        card({
+          id: "orig-onboard",
+          text: "onboarding-only take",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 1);
+    assert.equal(analyticsSummary(user.id).totals.posts, 1);
+  });
+
+  it("resolves xUserId from the stored X oauth via the default chain", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      threads: [
+        card({
+          id: "orig-stored",
+          text: "stored identity take",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 1);
+    assert.equal(analyticsSummary(user.id).totals.posts, 1);
+  });
+
+  it("attributes the fold to the X oauth owner, not a handle claimed in onboarding", async () => {
+    const claimant = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-claim",
+      email: "claim@example.com",
+      emailVerified: true,
+    });
+    completeOnboarding(claimant.id, "Find builders shipping AI tools in public.", {
+      xUsername: "me",
+    });
+    const operator = upsertOauthUser({
+      provider: "x",
+      providerUserId: "op-xid",
+      emailVerified: false,
+      username: "me",
+    });
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      resolveXUserId: async () => "op-xid",
+      threads: [
+        card({
+          id: "orig-pinned",
+          text: "operator post",
+          createdAt: "2026-08-16T11:00:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(n, 1);
+    assert.equal(analyticsSummary(operator.id).totals.posts, 1);
+    assert.equal(analyticsSummary(claimant.id).totals.posts, 0);
   });
 });
 

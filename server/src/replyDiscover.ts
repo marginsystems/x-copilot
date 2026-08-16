@@ -27,12 +27,9 @@ import {
 } from "./xSession.js";
 import { findUserIdByXUsername, getUserById } from "./authStore.js";
 import { dailyActivityUsage, ensureUserTenant } from "./billingStore.js";
+import { upsertOwnPost } from "./ownPostStore.js";
 import {
-  countOwnPostsSince,
-  startOfUtcDayIso,
-  upsertOwnPost,
-} from "./ownPostStore.js";
-import {
+  findUserIdByXUserId,
   lookupXUserId,
   resolveStoredXUserId,
 } from "./xActivitySubscribe.js";
@@ -72,7 +69,9 @@ export function buildOwnPostsQuery(
   withinTime = "24h",
 ): string {
   const name = normalizeScreenName(screenName);
-  return withSearchRecency(`from:${name}`, withinTime);
+  // Exclude retweets: they are someone else's post re-posted by the operator and
+  // must not be folded into own_posts as originals (matches scoutCollect).
+  return withSearchRecency(`from:${name} -is:retweet`, withinTime);
 }
 
 /** Latest own-replies query. Prefer `buildOwnPostsQuery` for the hourly tick. */
@@ -86,6 +85,7 @@ export function buildOwnRepliesQuery(
 
 export function ownPostKindFromCard(card: ThreadCard): OwnPostKind {
   if (card.isReply || card.inReplyToId) return "reply";
+  if (card.isQuote) return "quote";
   return "original";
 }
 
@@ -133,23 +133,35 @@ export async function foldDiscoveredOwnPosts(opts: {
   resolveXUserId?: (userId: string, handle: string) => Promise<string | null>;
 }): Promise<number> {
   const handle = normalizeScreenName(opts.screenName);
-  const userId = (opts.resolveUserId ?? findUserIdByXUsername)(handle);
-  if (!userId) return 0;
-  const user = getUserById(userId);
-  const activity = dailyActivityUsage(userId, user?.email ?? null);
-  if (!activity.can_watch) return 0;
+  const matchedUserId = (opts.resolveUserId ?? findUserIdByXUsername)(handle);
+  if (!matchedUserId) return 0;
   const resolveX =
     opts.resolveXUserId ??
     (async (id: string, name: string) =>
       resolveStoredXUserId(id) ?? (await lookupXUserId(name)));
-  const xUserId = await resolveX(userId, handle);
+  const xUserId = await resolveX(matchedUserId, handle);
   if (!xUserId) return 0;
+  // Pin the fold to the desk user who actually owns this X identity (verified
+  // X oauth / activity subscription), never the first user that merely claimed
+  // the handle during onboarding — a claimed handle must not capture another
+  // desk's Analytics or side-effect-create its tenant + billing rows.
+  const userId = findUserIdByXUserId(xUserId) ?? matchedUserId;
+  const user = getUserById(userId);
+  const activity = dailyActivityUsage(userId, user?.email ?? null);
+  if (!activity.can_watch) return 0;
   const tenantId = ensureUserTenant(userId);
   let ingested = 0;
+  // Hoist the daily count (already computed by dailyActivityUsage) and advance
+  // it locally on new inserts instead of re-running a COUNT per card.
+  let used = activity.used;
   for (const card of opts.threads) {
     const postId = card.id.trim();
     if (!postId) continue;
-    if (countOwnPostsSince(userId, startOfUtcDayIso()) >= activity.limit) break;
+    if (used >= activity.limit) break;
+    // An unparseable createdAt must not be silently replaced with discovery
+    // time: that wrong posted_at would permanently skew the day-series
+    // bucketing, t1h/t24h sample scheduling, and the daily cap.
+    if (!card.createdAt || !Number.isFinite(Date.parse(card.createdAt))) continue;
     const isNew = upsertOwnPost({
       parsed: cardToOwnPostParsed(card, {
         xUserId,
@@ -159,7 +171,10 @@ export async function foldDiscoveredOwnPosts(opts: {
       userId,
       tenantId,
     });
-    if (isNew) ingested += 1;
+    if (isNew) {
+      used += 1;
+      ingested += 1;
+    }
   }
   return ingested;
 }
