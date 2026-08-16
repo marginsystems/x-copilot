@@ -510,8 +510,13 @@ export async function discoverOwnReplies(opts?: {
 export async function discoverOwnRepliesForIngestUsers(opts?: {
   session?: XApiCreds;
   signal?: AbortSignal;
+  /** Per-tick user budget (default 20, max 40) — mirrors ingestUsersHourly. */
+  limit?: number;
 }): Promise<DiscoverRepliesResult> {
-  const users = listIngestUsers();
+  const users = listIngestUsers().slice(
+    0,
+    Math.min(opts?.limit ?? 20, 40),
+  );
   const acc: DiscoverRepliesResult = {
     ok: true,
     searched: 0,
