@@ -348,7 +348,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(result.discovered, 0);
   });
 
-  it("folds the same search page into own_posts when asked", async () => {
+  it("folds the own-posts page and the is:reply page into own_posts", async () => {
     const folded: string[] = [];
     const result = await discoverOwnReplies({
       storePath,
@@ -366,24 +366,31 @@ describe("discoverOwnReplies", () => {
         for (const row of threads) folded.push(row.id);
         return threads.length;
       },
-      searchTimelinePages: async () => ({
-        ok: true,
-        threads: [
-          card({
-            id: "orig-1",
-            text: "shipping note",
-          }),
-          card({
-            id: "r-fold",
-            text: "reply take",
-            inReplyToId: "p-fold",
-            inReplyToScreenName: "@other",
-          }),
-        ],
-        queryId: "q",
-        bottomCursor: null,
-        pages: 1,
-      }),
+      searchTimelinePages: async (opts) => {
+        if (/is:reply/.test(opts.query)) {
+          return {
+            ok: true,
+            threads: [
+              card({
+                id: "r-fold",
+                text: "reply take",
+                inReplyToId: "p-fold",
+                inReplyToScreenName: "@other",
+              }),
+            ],
+            queryId: "q",
+            bottomCursor: null,
+            pages: 1,
+          };
+        }
+        return {
+          ok: true,
+          threads: [card({ id: "orig-1", text: "shipping note" })],
+          queryId: "q",
+          bottomCursor: null,
+          pages: 1,
+        };
+      },
     });
     assert.deepEqual(folded, ["orig-1", "r-fold"]);
     assert.equal(result.ownPostsIngested, 2);

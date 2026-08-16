@@ -191,6 +191,7 @@ export function voiceUnlockCopy(state: VoiceState | null): string {
   if (!state || state.status === "unlinked") {
     return `Suggest unlocks at ${need} distinct reply conversations. We read your public replies once at setup, then hourly. Mark replies on the desk to add more. Scout is the only action that spends credits.`;
   }
+  if (state.lastError) return state.lastError;
   if (state.status === "learning") {
     return "Reading your public replies and writing a voice card…";
   }

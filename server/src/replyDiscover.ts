@@ -154,7 +154,12 @@ export async function foldDiscoveredOwnPosts(opts: {
   const userId = findUserIdByXUserId(xUserId) ?? matchedUserId;
   const user = getUserById(userId);
   const activity = dailyActivityUsage(userId, user?.email ?? null);
-  if (!activity.can_watch) return 0;
+  if (!activity.can_watch) {
+    console.warn(
+      `[reply-discover] own_posts fold suppressed userId=${userId}: daily activity watch cap reached (${activity.used}/${activity.limit})`,
+    );
+    return 0;
+  }
   const tenantId = ensureUserTenant(userId);
   let ingested = 0;
   // Hoist the daily count (already computed by dailyActivityUsage) and advance
@@ -163,7 +168,12 @@ export async function foldDiscoveredOwnPosts(opts: {
   for (const card of opts.threads) {
     const postId = card.id.trim();
     if (!postId) continue;
-    if (used >= activity.limit) break;
+    if (used >= activity.limit) {
+      console.warn(
+        `[reply-discover] own_posts fold stopped at daily activity cap userId=${userId} (${used}/${activity.limit})`,
+      );
+      break;
+    }
     // An unparseable createdAt must not be silently replaced with discovery
     // time: that wrong posted_at would permanently skew the day-series
     // bucketing, t1h/t24h sample scheduling, and the daily cap.
@@ -407,7 +417,7 @@ export async function discoverOwnReplies(opts?: {
   if (fold) {
     try {
       ownPostsIngested = await fold({
-        threads: result.threads,
+        threads: [...result.threads, ...replyResult.threads],
         screenName,
         nowMs,
       });

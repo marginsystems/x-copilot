@@ -817,7 +817,7 @@ export default function App() {
   );
   const manualVerifyDoneRef = useRef(false);
   const [voice, setVoice] = useState<VoiceState | null>(null);
-  const voiceError: string | null = null;
+  const voiceError: string | null = voice?.lastError ?? null;
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
     loadSettings(),

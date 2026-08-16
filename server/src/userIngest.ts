@@ -86,12 +86,20 @@ function foldRepliesIntoOwnPosts(opts: {
 }): number {
   const user = getUserById(opts.userId);
   const activity = dailyActivityUsage(opts.userId, user?.email ?? null);
-  if (!activity.can_watch) return 0;
+  if (!activity.can_watch) {
+    console.warn(
+      `[ingest] own_posts fold suppressed userId=${opts.userId}: daily activity watch cap reached (${activity.used}/${activity.limit})`,
+    );
+    return 0;
+  }
   const tenantId = ensureUserTenant(opts.userId);
   let n = 0;
   for (const reply of opts.replies) {
     if (!reply.id.trim()) continue;
     if (countOwnPostsSince(opts.userId, startOfUtcDayIso()) >= activity.limit) {
+      console.warn(
+        `[ingest] own_posts fold stopped at daily activity cap userId=${opts.userId} limit=${activity.limit}`,
+      );
       break;
     }
     const isNew = upsertOwnPost({
@@ -288,6 +296,13 @@ export async function ingestUsersHourly(opts?: {
       }
     } catch (err) {
       console.warn("[ingest] hourly soft-fail:", err);
+      const current = getVoiceProfile(user.id);
+      updateVoiceProfilePull({
+        userId: user.id,
+        xUsername: current?.xUsername ?? null,
+        sinceId: current?.sinceId ?? null,
+        lastPullAt: nowIso(),
+      });
     }
   }
   return { ran, unlocked, pulled };
