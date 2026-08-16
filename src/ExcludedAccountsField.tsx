@@ -34,7 +34,9 @@ export function ExcludedAccountsField({ accounts, onChange }: Props) {
       return;
     }
     const merged = mergeAccounts(accounts, normalized);
-    const requestedNew = normalized.filter((h) => !selected.has(h));
+    const requestedNew = tokens
+      .map((part) => part.trim().replace(/^@+/, "").toLowerCase())
+      .filter((h) => /^[a-z0-9_]{1,15}$/.test(h) && !selected.has(h));
     onChange(merged);
     setInput("");
     setNotice(

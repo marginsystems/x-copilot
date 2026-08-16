@@ -240,6 +240,17 @@ function normalizeAuthorKey(author: string): string {
   return author.trim().replace(/^@+/, "").toLowerCase();
 }
 
+function threadHasExcludedAuthor(
+  thread: ThreadCard,
+  excludedAccounts: readonly string[],
+): boolean {
+  if (!excludedAccounts.length) return false;
+  const key = normalizeAuthorKey(thread.author);
+  if (!key) return false;
+  const excluded = new Set(excludedAccounts.map((h) => normalizeAuthorKey(h)));
+  return excluded.has(key);
+}
+
 function baitRisk(thread: ThreadCard): number | null {
   const value = thread.baitScore ?? thread.score;
   return typeof value === "number" ? value : null;
@@ -1081,6 +1092,7 @@ export default function App() {
   function keepInCurated(
     thread: ThreadCard,
     excludedTags: readonly string[] = settings.excludedTags,
+    excludedAccounts: readonly string[] = settings.excludedAccounts,
   ): boolean {
     const blocked = blockedConversationsRef.current;
     return (
@@ -1088,7 +1100,8 @@ export default function App() {
       !blocked.has(thread.id) &&
       !(thread.conversationId && blocked.has(thread.conversationId)) &&
       !(thread.inReplyToId && blocked.has(thread.inReplyToId)) &&
-      !threadHasExcludedTag(thread, excludedTags)
+      !threadHasExcludedTag(thread, excludedTags) &&
+      !threadHasExcludedAuthor(thread, excludedAccounts)
     );
   }
 
@@ -2094,7 +2107,11 @@ export default function App() {
     setSettings(next);
     setSettingsDraft(next);
     setThreads((prev) =>
-      prev.filter((t) => !threadHasExcludedTag(t, next.excludedTags)),
+      prev.filter(
+        (t) =>
+          !threadHasExcludedTag(t, next.excludedTags) &&
+          !threadHasExcludedAuthor(t, next.excludedAccounts),
+      ),
     );
     setSettingsStatus("Saved — filters apply to Curated now and the next Scout.");
   }
