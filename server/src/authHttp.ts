@@ -3,7 +3,7 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { revokeSessionToken, toPublicUser } from "./authStore.js";
-import { corsHeaders } from "./cors.js";
+import { corsHeaders, isOriginAllowed, requestOrigin } from "./cors.js";
 import { handleGoogleCallback, handleGoogleStart } from "./googleAuth.js";
 import { handleXCallback, handleXStart } from "./xAuth.js";
 import { isAdminEmail } from "./adminEmails.js";
@@ -139,6 +139,13 @@ export async function tryHandleAuth(
     return true;
   }
   if (req.method === "POST" && url.pathname === "/api/auth/x-username") {
+    if (!isOriginAllowed(requestOrigin(req))) {
+      sendJson(req, res, 403, {
+        error: "forbidden",
+        message: "Origin not allowed",
+      });
+      return true;
+    }
     if (
       !allowRate(
         `auth-x-username:${clientIp(req)}`,
@@ -185,7 +192,14 @@ export async function tryHandleAuth(
       });
       return true;
     }
-    if (applied.changed) {
+    if (
+      applied.changed &&
+      allowRate(
+        `onboarding-ingest:${applied.user.id}`,
+        6,
+        10 * 60 * 1000,
+      )
+    ) {
       try {
         await runUserIngest({ user: applied.user, mode: "initial" });
       } catch (err) {

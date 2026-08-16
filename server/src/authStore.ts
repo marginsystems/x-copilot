@@ -144,6 +144,13 @@ function stampXUsername(
 ): void {
   const handle = parseXHandle(username ?? "");
   if (!handle) return;
+  const row = database
+    .prepare(`SELECT x_username FROM users WHERE id = ?`)
+    .get(userId) as { x_username: string | null } | undefined;
+  const current = parseXHandle(row?.x_username ?? "") ?? "";
+  if (current && current.toLowerCase() !== handle.toLowerCase()) {
+    return;
+  }
   database
     .prepare(`UPDATE users SET x_username = ? WHERE id = ?`)
     .run(handle, userId);
