@@ -2658,7 +2658,7 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            {authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false
+            {authUser && voiceNeedsXLink(voice, authUser.xUsername)
               ? "Link X first — Voice reads your public replies at setup and hourly. Scout takeoffs are what spend credits."
               : `Suggest reply uses this card. We ingest public replies at setup and hourly — you cannot refresh it by hand. Unlock is ${voice?.unlockAt ?? 100} distinct reply conversations. Scout takeoffs are what spend credits.`}
           </p>
@@ -2809,7 +2809,7 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            {authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false ? (
+            {authUser && voiceNeedsXLink(voice, authUser.xUsername) ? (
               <>
                 Link X first — Voice and Suggest need it.{" "}
                 <button
