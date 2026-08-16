@@ -10,7 +10,15 @@ type MenuUser = {
   xUsername: string | null;
 };
 
-type MenuView = "dashboard" | "settings" | "usage" | "admin" | "analytics" | "privacy" | "terms";
+type MenuView =
+  | "dashboard"
+  | "voice"
+  | "settings"
+  | "usage"
+  | "admin"
+  | "analytics"
+  | "privacy"
+  | "terms";
 
 function MenuIcon({ d }: { d: string }) {
   return (
@@ -78,6 +86,7 @@ export function UserMenu(props: {
   onX: () => void;
   onVerify: () => void;
   onAnalytics: () => void;
+  onVoice: () => void;
   onUsage: () => void;
   onSettings: () => void;
   onPrivacySettings: () => void;
@@ -166,6 +175,16 @@ export function UserMenu(props: {
             >
               <MenuIcon d="M4 19V9M10 19V5M16 19v-7M22 19H2" />
               Analytics
+            </button>
+            <button
+              type="button"
+              className={
+                props.view === "voice" ? "menu-item is-current" : "menu-item"
+              }
+              onClick={props.onVoice}
+            >
+              <MenuIcon d="M4 14c2-4 4-6 8-6s6 2 8 6M12 14v6M9 17h6" />
+              Voice
             </button>
             <button
               type="button"

@@ -1436,6 +1436,18 @@ button.menu-item-signout:hover {
   max-width: 52rem;
 }
 
+button.linkish {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 .settings-grid {
   display: grid;
   gap: 16px;
@@ -3211,6 +3223,52 @@ button.agenda-option.is-on {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.voice-desk-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--accent) 8%, transparent),
+      transparent 50%
+    ),
+    var(--raised);
+}
+
+.voice-desk-banner-copy {
+  display: grid;
+  gap: 8px;
+  min-width: min(100%, 36ch);
+  flex: 1;
+}
+
+.voice-desk-banner-title {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.voice-desk-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggest-locked {
+  gap: 8px;
 }
 
 a.suggest-open {

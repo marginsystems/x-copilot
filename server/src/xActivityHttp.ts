@@ -177,6 +177,7 @@ async function handleActivityPost(
           threadId: watched.threadId,
           author: watched.author,
           source: "discovered",
+          userId,
           url: watched.url ?? undefined,
           text: watched.text ?? undefined,
           replyId: parsed.postId,

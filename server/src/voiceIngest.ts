@@ -11,7 +11,7 @@ import type { VoiceReplyInput } from "./voiceStore.js";
 export const VOICE_TARGET_REPLIES = 100;
 
 /** Timeline pages per pull — replies are usually a fraction of a timeline. */
-const MAX_TIMELINE_PAGES = 5;
+export const MAX_TIMELINE_PAGES = 20;
 
 export type XApiGetFn = typeof xApiGet;
 

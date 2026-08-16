@@ -7,6 +7,7 @@ import {
   phaseIndexAt,
   suggestsLeftLabel,
   unlockProgress,
+  voiceUnlockCopy,
 } from "./voice.ts";
 
 describe("localEditHint", () => {
@@ -49,6 +50,7 @@ describe("voice state parsing", () => {
         cardUpdatedAt: "2026-08-15T00:00:00.000Z",
         lastPullAt: "2026-08-15T00:00:00.000Z",
         needsDailyUpdate: false,
+        needsLearn: false,
         lastError: null,
         suggests: { used: 3, limit: 10, remaining: 7, canSuggest: true, planKey: "free" },
       },
@@ -56,7 +58,15 @@ describe("voice state parsing", () => {
     assert.equal(state?.status, "ready");
     assert.equal(state?.card?.tone, "dry");
     assert.equal(state?.suggests.remaining, 7);
+    assert.equal(state?.needsLearn, false);
     assert.equal(parseVoiceState({}), null);
+  });
+});
+
+describe("voiceUnlockCopy", () => {
+  it("explains the 100-conversation bar when nothing is linked", () => {
+    assert.match(voiceUnlockCopy(null), /100 distinct reply conversations/);
+    assert.match(voiceUnlockCopy(null), /marked/);
   });
 });
 

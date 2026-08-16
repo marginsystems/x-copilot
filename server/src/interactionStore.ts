@@ -40,6 +40,8 @@ export type Interaction = {
   authorKey: string;
   at: string;
   source: InteractionSource;
+  /** Platform user who marked this thread — scopes voice folds to their own replies. */
+  userId?: string;
   url?: string;
   summary?: string;
   text?: string;
@@ -252,6 +254,7 @@ function parseStore(raw: string): StoreFile {
       const postedAt = optionalString(row.postedAt);
       const conversationId = optionalString(row.conversationId);
       const inReplyToId = optionalString(row.inReplyToId);
+      const userId = optionalString(row.userId);
       if (url) item.url = url;
       if (summary) item.summary = summary;
       if (text) item.text = text;
@@ -260,6 +263,7 @@ function parseStore(raw: string): StoreFile {
       if (postedAt) item.postedAt = postedAt;
       if (conversationId) item.conversationId = conversationId;
       if (inReplyToId) item.inReplyToId = inReplyToId;
+      if (userId) item.userId = userId;
       if (row.stats && typeof row.stats === "object") {
         item.stats = row.stats as InteractionStats;
       }
@@ -360,6 +364,7 @@ export async function markInteracted(opts: {
   threadId: string;
   author: string;
   source?: InteractionSource;
+  userId?: string;
   url?: string;
   summary?: string;
   text?: string;
@@ -396,12 +401,14 @@ export async function markInteracted(opts: {
   const postedAt = optionalString(opts.postedAt) ?? at;
   const conversationId = optionalString(opts.conversationId);
   const inReplyToId = optionalString(opts.inReplyToId);
+  const userId = optionalString(opts.userId);
   if (url) next.url = url;
   if (summary) next.summary = summary;
   if (text) next.text = text;
   if (replyId) next.replyId = replyId;
   if (replyUrl) next.replyUrl = replyUrl;
   if (replyId || replyUrl) next.postedAt = postedAt;
+  if (userId) next.userId = userId;
   // Prefer explicit conversation root; fall back so ancestry still blocks.
   const root =
     conversationId ||
@@ -452,13 +459,15 @@ export async function listActiveInteractions(opts?: {
 export async function listInteractionHistory(opts?: {
   storePath?: string;
   limit?: number;
+  /** Only rows marked by this platform user (voice folds). */
+  userId?: string;
 }): Promise<Interaction[]> {
   const path = opts?.storePath ?? defaultStorePath();
   const store = await readStore(path);
-  return trimInteractionHistory(
-    store.interactions,
-    opts?.limit ?? MAX_INTERACTION_HISTORY,
-  );
+  const rows = opts?.userId
+    ? store.interactions.filter((i) => i.userId === opts.userId)
+    : store.interactions;
+  return trimInteractionHistory(rows, opts?.limit ?? MAX_INTERACTION_HISTORY);
 }
 
 export async function getCooledAuthorKeys(opts?: {

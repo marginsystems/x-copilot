@@ -8,8 +8,10 @@ import {
   buildInteractionNotePath,
   findInteractionNotePath,
   formatOutcomeSection,
+  listInteractionMemoryReplies,
   normalizeReply,
   renderDismissalMarkdown,
+  parseInteractionNoteReply,
   renderInteractionMarkdown,
   safeThreadIdForFilename,
   stripManagedOutcomeFrontmatter,
@@ -50,6 +52,34 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
         }),
       /reply is required/,
     );
+  });
+
+  it("parses threadId and Reply out of a rendered note", async () => {
+    const md = renderInteractionMarkdown({
+      threadId: "2081",
+      author: "@Builder",
+      reply: "Thanks — here's a concrete tip.",
+      interactedAt: "2026-07-27T12:00:00.000Z",
+    });
+    assert.deepEqual(parseInteractionNoteReply(md), {
+      threadId: "2081",
+      text: "Thanks — here's a concrete tip.",
+      postedAt: "2026-07-27T12:00:00.000Z",
+    });
+  });
+
+  it("round-trips a multi-line Reply body", () => {
+    const md = renderInteractionMarkdown({
+      threadId: "2081",
+      author: "@Builder",
+      reply: "Line one\nLine two",
+      interactedAt: "2026-07-27T12:00:00.000Z",
+    });
+    assert.deepEqual(parseInteractionNoteReply(md), {
+      threadId: "2081",
+      text: "Line one\nLine two",
+      postedAt: "2026-07-27T12:00:00.000Z",
+    });
   });
 
   it("includes threadId and reply in markdown", () => {
@@ -513,5 +543,106 @@ describe("updateInteractionMemoryOutcome", () => {
     });
     assert.ok(found);
     assert.match(found!, /2026-07-26-99\.md$/);
+  });
+});
+
+describe("listInteractionMemoryReplies", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "x-copilot-knowledge-list-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("only returns notes owned by the requested userId", async () => {
+    await writeInteractionMemory({
+      threadId: "111",
+      author: "@A",
+      reply: "A's reply",
+      userId: "user-a",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    await writeInteractionMemory({
+      threadId: "222",
+      author: "@B",
+      reply: "B's reply",
+      userId: "user-b",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+
+    const forA = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-a",
+    });
+    assert.deepEqual(
+      forA.map((n) => n.text),
+      ["A's reply"],
+    );
+
+    const forB = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-b",
+    });
+    assert.deepEqual(
+      forB.map((n) => n.text),
+      ["B's reply"],
+    );
+  });
+
+  it("skips unowned notes so they never leak into a user's corpus", async () => {
+    await writeInteractionMemory({
+      threadId: "111",
+      author: "@A",
+      reply: "A's reply",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const rows = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-a",
+    });
+    assert.equal(rows.length, 0);
+  });
+
+  it("folds unowned notes when the caller opts in (single-user sidecar)", async () => {
+    await writeInteractionMemory({
+      threadId: "111",
+      author: "@A",
+      reply: "pre-PR reply",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const rows = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-a",
+      includeUnowned: true,
+    });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.text, "pre-PR reply");
+  });
+
+  it("still keeps another user's notes out even with includeUnowned", async () => {
+    await writeInteractionMemory({
+      threadId: "111",
+      author: "@B",
+      reply: "B's reply",
+      userId: "user-b",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const rows = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-a",
+      includeUnowned: true,
+    });
+    assert.deepEqual(
+      rows.map((n) => n.text),
+      [],
+    );
   });
 });

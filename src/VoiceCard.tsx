@@ -5,6 +5,7 @@ import {
   phaseIndexAt,
   suggestsLeftLabel,
   unlockProgress,
+  voiceUnlockCopy,
   type VoiceState,
 } from "./lib/voice";
 
@@ -69,18 +70,19 @@ export function VoiceCardPanel({
         <div>
           <h3 className="voice-title">Your voice</h3>
           <p className="voice-sub">
-            Learned from your own public replies via the official X API. Suggest
-            drafts borrow it — you always edit and post yourself.
+            Starts from replies you&apos;ve marked on the desk, then fills gaps
+            from your public X timeline via the official API. Suggest drafts
+            borrow it — you always edit and post yourself.
           </p>
         </div>
-        {voice && voice.status !== "unlinked" && !refreshing ? (
+        {!refreshing ? (
           <button
             type="button"
             className="ghost voice-refresh"
             onClick={onLearn}
             disabled={refreshing}
           >
-            {voice.status === "ready" || voice.status === "insufficient"
+            {voice?.status === "ready" || voice?.status === "insufficient"
               ? "Refresh"
               : "Learn my voice"}
           </button>
@@ -91,41 +93,12 @@ export function VoiceCardPanel({
 
       {busy ? (
         <VoiceLoader startedAt={learnStartedAt ?? Date.now()} />
-      ) : !voice || voice.status === "unlinked" ? (
-        <p className="voice-empty">
-          Link your X account first — voice learning reads your public replies
-          only, and never posts for you.
-        </p>
-      ) : voice.status === "empty" ? (
-        <p className="voice-empty">
-          Nothing learned yet. Learning reads your last ~100 public replies once
-          and writes a card you can check.
-        </p>
+      ) : !voice || voice.status === "unlinked" || voice.status === "empty" ? (
+        <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
       ) : voice.status === "insufficient" ? (
         <div className="voice-locked">
-          <p className="voice-empty">
-            Suggest unlocks at {voice.unlockAt} distinct reply conversations —
-            enough to hear a real voice. You&apos;re at{" "}
-            <strong>{voice.conversationCount}</strong>. Keep replying on X; the
-            desk folds new replies in daily.
-          </p>
-          <div
-            className="voice-meter"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={voice.unlockAt}
-            aria-valuenow={Math.min(voice.conversationCount, voice.unlockAt)}
-            aria-label="Reply conversations toward unlock"
-          >
-            <span
-              className="voice-meter-fill"
-              style={{ width: `${unlockProgress(voice) * 100}%` }}
-            />
-          </div>
-          <p className="voice-meter-label">
-            {Math.min(voice.conversationCount, voice.unlockAt)} / {voice.unlockAt}{" "}
-            conversations
-          </p>
+          <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
+          <UnlockMeter voice={voice} />
         </div>
       ) : card ? (
         <div className="voice-card">
@@ -187,5 +160,105 @@ export function VoiceCardPanel({
         </p>
       )}
     </section>
+  );
+}
+
+function UnlockMeter({ voice }: { voice: VoiceState }) {
+  return (
+    <>
+      <div
+        className="voice-meter"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={voice.unlockAt}
+        aria-valuenow={Math.min(voice.conversationCount, voice.unlockAt)}
+        aria-label="Reply conversations toward unlock"
+      >
+        <span
+          className="voice-meter-fill"
+          style={{ width: `${unlockProgress(voice) * 100}%` }}
+        />
+      </div>
+      <p className="voice-meter-label">
+        {Math.min(voice.conversationCount, voice.unlockAt)} / {voice.unlockAt}{" "}
+        conversations
+      </p>
+    </>
+  );
+}
+
+/** Compact desk banner — always explains how Suggest unlocks. */
+export function VoiceUnlockBanner({
+  voice,
+  busy,
+  onLearn,
+  onOpenSettings,
+}: {
+  voice: VoiceState | null;
+  busy: boolean;
+  onLearn: () => void;
+  onOpenSettings: () => void;
+}) {
+  if (voice?.status === "ready" && voice.unlocked) return null;
+  return (
+    <aside className="voice-desk-banner" aria-label="How to unlock Suggest">
+      <div className="voice-desk-banner-copy">
+        <p className="voice-desk-banner-title">Suggest reply</p>
+        <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
+        {voice &&
+        (voice.status === "insufficient" || voice.conversationCount > 0) ? (
+          <UnlockMeter voice={voice} />
+        ) : null}
+      </div>
+      <div className="voice-desk-banner-actions">
+        <button
+          type="button"
+          className="primary"
+          disabled={busy}
+          onClick={onLearn}
+        >
+          {voice?.status === "insufficient" ? "Refresh voice" : "Learn my voice"}
+        </button>
+        <button type="button" className="ghost" onClick={onOpenSettings}>
+          Voice settings
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+/** Locked teaser on an open Scout thread so the button is never a secret. */
+export function SuggestLocked({
+  voice,
+  busy,
+  onLearn,
+  onOpenSettings,
+}: {
+  voice: VoiceState | null;
+  busy: boolean;
+  onLearn: () => void;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <div className="suggest-pane suggest-locked">
+      <p className="suggest-banner" role="note">
+        Suggest reply — locked
+      </p>
+      <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
+      {voice && voice.conversationCount > 0 ? <UnlockMeter voice={voice} /> : null}
+      <div className="suggest-actions">
+        <button
+          type="button"
+          className="ghost suggest-trigger"
+          disabled={busy}
+          onClick={onLearn}
+        >
+          {busy ? "Learning…" : "Learn my voice"}
+        </button>
+        <button type="button" className="ghost" onClick={onOpenSettings}>
+          What unlocks this
+        </button>
+      </div>
+    </div>
   );
 }

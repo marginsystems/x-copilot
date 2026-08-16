@@ -118,6 +118,14 @@ function stampXUsername(
     .run(handle, userId);
 }
 
+/** Number of platform users — the single-user sidecar folds unowned notes. */
+export function countPlatformUsers(): number {
+  const row = getPlatformDb()
+    .prepare(`SELECT COUNT(*) AS n FROM users`)
+    .get() as { n: number } | undefined;
+  return Number(row?.n ?? 0);
+}
+
 export function getUserById(id: string): AuthUser | null {
   const row = getPlatformDb()
     .prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)

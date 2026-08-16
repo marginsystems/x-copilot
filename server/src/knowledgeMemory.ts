@@ -35,6 +35,8 @@ export type InteractionMemoryInput = {
   reason?: string;
   source?: "manual" | "copy" | "discovered";
   interactedAt?: string;
+  /** Platform user who marked this thread — scopes voice folds to their own replies. */
+  userId?: string;
   /** Override root for tests. Default: <projectRoot>/knowledge */
   knowledgeRoot?: string;
 };
@@ -162,6 +164,76 @@ export function normalizeReply(reply: unknown): string {
   return reply.trim();
 }
 
+export type MemoryReplyInput = {
+  threadId: string;
+  text: string;
+  postedAt: string | null;
+  /** Owning platform user, when the mark carried one. */
+  userId?: string;
+};
+
+/** Pull threadId + ## Reply out of an interaction note. */
+export function parseInteractionNoteReply(
+  markdown: string,
+): MemoryReplyInput | null {
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown);
+  if (!fm) return null;
+  const threadId = /(?:^|\n)threadId:\s*"?(\d+)"?/.exec(fm[1]!)?.[1] ?? "";
+  const interactedAt =
+    /(?:^|\n)interactedAt:\s*"?([^\s"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
+  const userId = /(?:^|\n)userId:\s*"?([^"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
+  const replyMatch = /^##\s+Reply\s*\r?\n+([\s\S]*?)(?=^##\s|$(?![\s\S]))/m.exec(
+    markdown,
+  );
+  const text = normalizeReply(replyMatch?.[1] ?? "");
+  if (!threadId || !text) return null;
+  const parsed: MemoryReplyInput = {
+    threadId,
+    text,
+    postedAt: interactedAt || null,
+  };
+  if (userId) parsed.userId = userId;
+  return parsed;
+}
+
+/** Every interaction note for `userId` that still has a usable ## Reply. */
+export async function listInteractionMemoryReplies(opts?: {
+  knowledgeRoot?: string;
+  userId?: string;
+  /** Fold notes with no `userId:` frontmatter (pre-PR and hourly-discovered). */
+  includeUnowned?: boolean;
+}): Promise<MemoryReplyInput[]> {
+  const root = opts?.knowledgeRoot ?? defaultKnowledgeRoot();
+  const dir = join(root, "interactions");
+  if (!existsSync(dir)) return [];
+  let names: string[];
+  try {
+    names = (await readdir(dir)).filter((n) => n.endsWith(".md"));
+  } catch {
+    return [];
+  }
+  const out: MemoryReplyInput[] = [];
+  for (const name of names) {
+    try {
+      const raw = await readFile(join(dir, name), "utf8");
+      const parsed = parseInteractionNoteReply(raw);
+      if (!parsed) continue;
+      // Fold only the calling user's own notes. Notes without a userId (written
+      // before userId scoping, or by the hourly discover tick) fold only when
+      // the caller opts in — the single-user sidecar — so they cannot leak into
+      // any one user's corpus on a multi-user install.
+      if (opts?.userId) {
+        if (parsed.userId && parsed.userId !== opts.userId) continue;
+        if (!parsed.userId && !opts.includeUnowned) continue;
+      }
+      out.push(parsed);
+    } catch {
+      // Skip unreadable notes — one bad file must not block learn.
+    }
+  }
+  return out;
+}
+
 export function renderInteractionMarkdown(
   input: InteractionMemoryInput,
 ): string {
@@ -188,6 +260,8 @@ export function renderInteractionMarkdown(
 
   const lines: string[] = ["---", "type: interaction"];
   lines.push(`threadId: ${yamlString(threadId)}`);
+  const userId = optionalStringTrim(input.userId);
+  if (userId) lines.push(`userId: ${yamlString(userId)}`);
   const url = yamlOptionalString(input.url);
   if (url) lines.push(`url: ${url}`);
   lines.push(`author: ${yamlString(author)}`);

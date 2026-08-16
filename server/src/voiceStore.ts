@@ -19,7 +19,7 @@ export type VoiceReplyInput = {
   conversationId?: string | null;
   inReplyToId?: string | null;
   postedAt?: string | null;
-  source?: "api" | "desk";
+  source?: "api" | "desk" | "memory";
 };
 
 export type VoiceReplyRow = {
@@ -233,6 +233,21 @@ export function foldDeskReplies(userId: string): number {
   );
 }
 
+/** Fold replies already sitting in interacted memories (no X API). */
+export function foldMemoryReplies(
+  userId: string,
+  replies: VoiceReplyInput[],
+): number {
+  if (!replies.length) return 0;
+  return upsertVoiceReplies(
+    userId,
+    replies.map((r) => ({
+      ...r,
+      source: "memory",
+    })),
+  );
+}
+
 /** Recompute stored reply/conversation counts without touching pull cursors. */
 export function refreshVoiceCounts(userId: string): void {
   getPlatformDb()
@@ -263,7 +278,7 @@ export function setVoiceProfileStatus(
 
 export function updateVoiceProfilePull(input: {
   userId: string;
-  xUsername: string;
+  xUsername: string | null;
   xUserId?: string | null;
   sinceId?: string | null;
   lastPullAt?: string | null;
