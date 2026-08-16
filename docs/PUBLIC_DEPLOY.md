@@ -12,14 +12,13 @@ Operational requirement: port 8787 must never be reachable from the public inter
 BIND_HOST=127.0.0.1
 PORT=8787
 AUTH_REQUIRED=1
-AUTH_EMAIL_WHITELIST=margin707@gmail.com
 ALLOWED_ORIGINS=https://xcopilot.dev
 FRONTEND_ORIGIN=https://xcopilot.dev
 GOOGLE_REDIRECT_URI=https://api.xcopilot.dev/api/auth/google/callback
 X_OAUTH_CALLBACK=https://api.xcopilot.dev/api/auth/x/callback
 ```
 
-`AUTH_REQUIRED` is implied when a whitelist is set **or** `BIND_HOST` is `0.0.0.0`. Here the bind is loopback (`127.0.0.1`), so the public-bind guard does not apply: an explicit `AUTH_REQUIRED=0` disables the session gate even in production. `AUTH_REQUIRED=1` (or the whitelist when the flag is unset) is the only thing keeping it on. Set `AUTH_REQUIRED=0` only for break-glass local debugging — never on the deployed `.env`.
+Signup is open (Free plan). A session is still required: public bind always gates, and loopback defaults to gated unless `AUTH_REQUIRED=0`. Set `AUTH_REQUIRED=0` only for break-glass local debugging — never on the deployed `.env`. Keep `ADMIN_EMAILS` for the operator admin panel.
 
 ### Keep 8787 off the public internet
 

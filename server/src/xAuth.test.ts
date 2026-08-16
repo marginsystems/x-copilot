@@ -15,14 +15,11 @@ import {
 
 describe("xAuth", () => {
   let dir: string;
-  const prevHandle = process.env.AUTH_X_HANDLE_WHITELIST;
-
   beforeEach(() => {
     resetPlatformDbForTests();
     dir = mkdtempSync(join(tmpdir(), "x-xauth-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
-    process.env.AUTH_X_HANDLE_WHITELIST = "alice";
     getPlatformDb();
   });
 
@@ -30,8 +27,6 @@ describe("xAuth", () => {
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
-    if (prevHandle === undefined) delete process.env.AUTH_X_HANDLE_WHITELIST;
-    else process.env.AUTH_X_HANDLE_WHITELIST = prevHandle;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -73,7 +68,7 @@ describe("xAuth", () => {
     assert.equal(got.profile.username, "alice");
   });
 
-  it("allows X-only login when the handle is whitelisted", () => {
+  it("allows X-only login for any handle", () => {
     const login = completeXLogin({
       profile: { providerUserId: "42", username: "alice" },
       existingUser: null,
@@ -81,16 +76,14 @@ describe("xAuth", () => {
     assert.equal(login.ok, true);
     if (!login.ok) return;
     assert.equal(getUserForSessionToken(login.token)?.displayName, "alice");
-  });
 
-  it("requires Google when the handle is not whitelisted", () => {
-    const denied = completeXLogin({
+    const other = completeXLogin({
       profile: { providerUserId: "99", username: "eve" },
       existingUser: null,
     });
-    assert.equal(denied.ok, false);
-    if (denied.ok) return;
-    assert.equal(denied.error, "google_required");
+    assert.equal(other.ok, true);
+    if (!other.ok) return;
+    assert.equal(getUserForSessionToken(other.token)?.displayName, "eve");
   });
 
   it("enlarges the X _normal avatar crop", () => {
@@ -102,7 +95,7 @@ describe("xAuth", () => {
     );
   });
 
-  it("stores an X photo on a whitelist login when provided", () => {
+  it("stores an X photo on an X-only login when provided", () => {
     const login = completeXLogin({
       profile: {
         providerUserId: "42",
@@ -158,8 +151,7 @@ describe("xAuth", () => {
     );
   });
 
-  it("links X onto an existing Google session without a handle whitelist", () => {
-    process.env.AUTH_X_HANDLE_WHITELIST = "";
+  it("links X onto an existing Google session", () => {
     const google = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-x",
@@ -181,7 +173,6 @@ describe("xAuth", () => {
   });
 
   it("does not overwrite an existing Google photo when linking X with an avatar", () => {
-    process.env.AUTH_X_HANDLE_WHITELIST = "";
     const google = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-x",

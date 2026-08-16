@@ -1,5 +1,6 @@
 /**
- * Auth env: email/handle allowlists, OAuth client settings, frontend return URL.
+ * Auth env: OAuth client settings and frontend return URL.
+ * Signup is open — Free is the default plan. ADMIN_EMAILS stays operator-only.
  */
 
 export function parseCsvList(raw: string | undefined): string[] {
@@ -7,36 +8,6 @@ export function parseCsvList(raw: string | undefined): string[] {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-export function parseEmailWhitelist(
-  raw: string | undefined = process.env.AUTH_EMAIL_WHITELIST,
-): string[] {
-  return parseCsvList(raw).map((e) => e.toLowerCase());
-}
-
-export function isEmailWhitelisted(
-  email: string | null | undefined,
-  whitelist: string[] = parseEmailWhitelist(),
-): boolean {
-  if (!email) return false;
-  if (whitelist.length === 0) return false;
-  return whitelist.includes(email.trim().toLowerCase());
-}
-
-export function parseXHandleWhitelist(
-  raw: string | undefined = process.env.AUTH_X_HANDLE_WHITELIST,
-): string[] {
-  return parseCsvList(raw).map((h) => h.replace(/^@/, "").toLowerCase());
-}
-
-export function isXHandleWhitelisted(
-  handle: string | null | undefined,
-  whitelist: string[] = parseXHandleWhitelist(),
-): boolean {
-  if (!handle) return false;
-  if (whitelist.length === 0) return false;
-  return whitelist.includes(handle.replace(/^@/, "").trim().toLowerCase());
 }
 
 export function googleClientConfig(env: NodeJS.ProcessEnv = process.env): {

@@ -7,7 +7,6 @@ import {
   authErrorRedirect,
   authSuccessRedirect,
   googleClientConfig,
-  isEmailWhitelisted,
 } from "./authConfig.js";
 import { corsHeaders } from "./cors.js";
 import {
@@ -146,9 +145,6 @@ export function completeGoogleLogin(profile: GoogleProfile):
   }
   if (!profile.emailVerified) {
     return { ok: false, error: "email_unverified" };
-  }
-  if (!isEmailWhitelisted(profile.email)) {
-    return { ok: false, error: "not_whitelisted" };
   }
   const user = upsertOauthUser({
     provider: "google",
