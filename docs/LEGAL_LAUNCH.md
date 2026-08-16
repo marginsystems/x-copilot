@@ -43,10 +43,15 @@ Settings → Public business information (or Checkout settings):
 
 Checkout will fail with `consent_collection.terms_of_service` until the ToS URL is set on the account.
 
+### Free (no Stripe product)
+
+Every new user lands on **Free** — 1,500 credits / UTC month, 1 takeoff / UTC day, 15 watch posts / UTC day. No card, no Checkout, no `STRIPE_PRICE_FREE`. Do not create a $0 Stripe product.
+
 ### Products — create three, recurring monthly USD
 
 | Dashboard product name | Price | In-app name | Credits / UTC month | Takeoffs / UTC day | Watch posts / UTC day |
 |---|---|---|---|---|---|
+| — | $0 | Free | 1,500 | 1 | 15 |
 | x-copilot Pulse | $12 | Pulse | 6,000 | 5 | 50 |
 | x-copilot Radar | $36 | Radar | 18,000 | 10 | 120 |
 | x-copilot Horizon | $99 | Horizon | 40,000 | 25 | 250 |

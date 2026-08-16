@@ -2710,8 +2710,8 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            Your plan is a monthly credit pool of X post reads. Unused credits
-            do not roll over. Hosted billing is Mergestorm, Inc.
+            Start free with 1,500 credits a month — no credit card. Unused
+            credits do not roll over. Paid plans are billed by Mergestorm, Inc.
           </p>
           <BillingPanel
             billing={billing}

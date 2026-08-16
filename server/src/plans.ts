@@ -63,6 +63,53 @@ export const PLAN_PRICE_LABELS: Record<PaidPlanKey, string> = {
   horizon: "$99 / month",
 };
 
+/** Endless Free tier — no Stripe product, no card. */
+export const FREE_PLAN = {
+  key: "free" as const,
+  name: "Free",
+  priceUsd: 0,
+  priceLabel: "Free",
+  credits: PLAN_CREDIT_LIMITS.free,
+  sorties: PLAN_DAILY_SORTIES.free,
+  dailyEvents: PLAN_DAILY_ACTIVITY_EVENTS.free,
+  blurb: "One Scout takeoff a day and a small watch. No credit card.",
+  image: "/favicon.svg",
+};
+
+export type PlanState =
+  | "free_active"
+  | "free_limit_reached"
+  | "subscription_active"
+  | "past_due";
+
+/**
+ * A paid plan key wins: either a live Stripe sub in an active state, or an
+ * operator's Horizon allotment. A live sub that is paused, incomplete, past
+ * due, or unpaid is reported as past_due so the portal can fix it; a live sub
+ * on a plan that resolved to "free" stays free. free_* states only apply to
+ * the "free" plan key so plan_state never contradicts plan_key.
+ */
+export function derivePlanState(input: {
+  planKey: PlanKey;
+  live: boolean;
+  status: string | null | undefined;
+  creditsCanUse: boolean;
+}): PlanState {
+  if (input.planKey !== "free") {
+    if (
+      input.live &&
+      (input.status === "past_due" ||
+        input.status === "unpaid" ||
+        input.status === "paused" ||
+        input.status === "incomplete")
+    ) {
+      return "past_due";
+    }
+    return "subscription_active";
+  }
+  return input.creditsCanUse ? "free_active" : "free_limit_reached";
+}
+
 export type PlanCatalogEntry = {
   key: PaidPlanKey;
   name: string;
@@ -131,7 +178,7 @@ export function dailyActivityLimit(key: PlanKey): number {
 }
 
 export function planDisplayName(key: PlanKey): string {
-  if (key === "free") return "Free";
+  if (key === "free") return FREE_PLAN.name;
   const paid = PAID_PLANS.find((p) => p.key === key);
   return paid?.name ?? key;
 }

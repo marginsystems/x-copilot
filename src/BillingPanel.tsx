@@ -1,4 +1,33 @@
 export type PaidPlanKey = "pulse" | "radar" | "horizon";
+export type CatalogPlanKey = "free" | PaidPlanKey;
+
+type PlanCard = {
+  available: boolean;
+  price_label: string;
+  credits: number;
+  daily_events?: number;
+  daily_sorties?: number;
+  name: string;
+  blurb: string;
+  image: string;
+  sorties?: number;
+};
+
+const FREE_CARD: PlanCard = {
+  available: true,
+  price_label: "Free",
+  credits: 1500,
+  daily_events: 15,
+  daily_sorties: 1,
+  name: "Free",
+  blurb: "One Scout takeoff a day and a small watch. No credit card.",
+  image: "/favicon.svg",
+  sorties: 1,
+};
+
+function isPaidPlanKey(key: string): key is PaidPlanKey {
+  return key === "pulse" || key === "radar" || key === "horizon";
+}
 
 export type BillingMe = {
   ok?: boolean;
@@ -32,25 +61,12 @@ export type BillingMe = {
     current_period_end?: string | null;
     cancel_at_period_end?: boolean;
   };
-  plans?: Record<
-    PaidPlanKey,
-    {
-      available: boolean;
-      price_label: string;
-      credits: number;
-      daily_events?: number;
-      daily_sorties?: number;
-      name: string;
-      blurb: string;
-      image: string;
-      sorties?: number;
-    }
-  >;
+  plans?: Partial<Record<CatalogPlanKey, PlanCard>>;
   error?: string;
   message?: string;
 };
 
-const PLAN_ORDER: PaidPlanKey[] = ["pulse", "radar", "horizon"];
+const PLAN_ORDER: CatalogPlanKey[] = ["free", "pulse", "radar", "horizon"];
 
 function planName(key: string): string {
   if (key === "pulse") return "Pulse";
@@ -110,7 +126,15 @@ export function BillingPanel(props: {
         <p className="settings-help">
           {billing?.operator_allotment
             ? "Operator allotment (Horizon pool) until you subscribe. One credit = one X post read."
-            : `Plan: ${planName(billing?.plan_key ?? "free")}. One credit = one X post read (Scout, post watch, and 1h/24h snapshots). Hard ceiling, no rollover.`}
+            : billing?.plan_state === "free_limit_reached"
+              ? "Free · monthly credit limit reached. Upgrade below, or wait until the next UTC month."
+              : !billing
+                ? props.busy
+                  ? "…"
+                  : "—"
+                : !live
+                  ? `Free · ${(credits?.limit ?? FREE_CARD.credits).toLocaleString()} credits/month. No credit card. Subscribe below when you need more.`
+                  : `Plan: ${planName(billing?.plan_key ?? "free")}. One credit = one X post read (Scout, post watch, and 1h/24h snapshots). Hard ceiling, no rollover.`}
           {billing?.subscription?.current_period_end
             ? ` Period ends ${new Date(billing.subscription.current_period_end).toLocaleDateString()}.`
             : ""}
@@ -143,6 +167,14 @@ export function BillingPanel(props: {
         </div>
       ) : null}
 
+      {billing?.plan_state === "free_limit_reached" &&
+      !billing?.operator_allotment ? (
+        <p className="usage-banner">
+          You've used this month's free credits. Upgrade below, or wait until
+          the next UTC month.
+        </p>
+      ) : null}
+
       {paymentFailed ? (
         <p className="usage-banner">
           Payment failed. Update your card in Manage billing to keep the paid pool.
@@ -166,8 +198,8 @@ export function BillingPanel(props: {
 
       <h3 className="usage-log-title">Plans</h3>
       <p className="settings-help">
-        Hosted credits billed by Mergestorm, Inc. Change plans in the Stripe portal
-        once you subscribe.
+        Start free — no credit card. Paid pools are billed by Mergestorm, Inc.
+        Change paid plans in the Stripe portal once you subscribe.
       </p>
       {!billing?.stripe_configured ? (
         <p className="status">
@@ -177,19 +209,33 @@ export function BillingPanel(props: {
 
       <div className="plan-grid">
         {PLAN_ORDER.map((key) => {
-          const plan = billing?.plans?.[key];
+          const plan =
+            billing?.plans?.[key] ?? (key === "free" ? FREE_CARD : undefined);
+          const onFree = !live && billing?.plan_key === "free";
           const isCurrent =
-            live &&
-            billing?.plan_state === "subscription_active" &&
-            billing.plan_key === key;
+            key === "free"
+              ? onFree
+              : live &&
+                billing?.plan_state === "subscription_active" &&
+                billing.plan_key === key;
+          const takeoffs = plan?.daily_sorties ?? plan?.sorties;
           return (
             <article
               key={key}
-              className={isCurrent ? "plan-card is-current" : "plan-card"}
+              className={
+                isCurrent
+                  ? "plan-card is-current"
+                  : key === "free"
+                    ? "plan-card is-free"
+                    : "plan-card"
+              }
             >
               <img
                 className="plan-card-art"
-                src={plan?.image ?? `/images/plan-${key}.png`}
+                src={
+                  plan?.image ??
+                  (key === "free" ? "/favicon.svg" : `/images/plan-${key}.png`)
+                }
                 alt=""
                 width={120}
                 height={120}
@@ -201,13 +247,15 @@ export function BillingPanel(props: {
                 {plan?.daily_events
                   ? ` · ${plan.daily_events} posts watched / day`
                   : ""}
-                {(plan?.daily_sorties ?? plan?.sorties)
-                  ? ` · ${plan?.daily_sorties ?? plan?.sorties} takeoff${(plan?.daily_sorties ?? plan?.sorties) === 1 ? "" : "s"} / day`
+                {takeoffs
+                  ? ` · ${takeoffs} takeoff${takeoffs === 1 ? "" : "s"} / day`
                   : ""}
               </p>
               <p className="plan-card-blurb">{plan?.blurb ?? ""}</p>
               {isCurrent ? (
                 <p className="plan-card-current">Current plan</p>
+              ) : key === "free" ? (
+                <p className="plan-card-current">No credit card</p>
               ) : usePortal ? (
                 <button
                   type="button"
@@ -226,7 +274,9 @@ export function BillingPanel(props: {
                     !plan?.available ||
                     props.checkoutPlan !== null
                   }
-                  onClick={() => props.onSubscribe(key)}
+                  onClick={() => {
+                    if (isPaidPlanKey(key)) props.onSubscribe(key);
+                  }}
                 >
                   {props.checkoutPlan === key ? "Redirecting…" : "Subscribe"}
                 </button>

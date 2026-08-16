@@ -5,11 +5,13 @@ import { randomUUID } from "node:crypto";
 import { isAdminEmail } from "./adminEmails.js";
 import { getPlatformDb } from "./db.js";
 import {
+  FREE_PLAN,
   PAID_PLANS,
   PLAN_CREDIT_LIMITS,
   PLAN_DAILY_ACTIVITY_EVENTS,
   PLAN_DAILY_SORTIES,
   PLAN_PRICE_LABELS,
+  derivePlanState,
   isPaidPlanKey,
   type PaidPlanKey,
   type PlanKey,
@@ -455,9 +457,13 @@ export function creditsExhaustedResponse(input: {
   const planKey = effectivePlanKey(row, input.email);
   const usage = getCreditUsage(input.tenantId, planKey);
   if (usage.canUse) return null;
+  const pool =
+    planKey === "free"
+      ? `${usage.limit.toLocaleString()} free credits`
+      : `${usage.limit.toLocaleString()} credits`;
   return {
     error: "credits_exhausted",
-    message: `This month's ${usage.limit.toLocaleString()} credits are used. Upgrade on Usage & Billing, or wait until the next UTC month.`,
+    message: `You've used this month's ${pool}. Upgrade on Usage & Billing, or wait until the next UTC month.`,
     used: usage.used,
     limit: usage.limit,
     planKey,
@@ -501,29 +507,42 @@ export function billingMePayload(input: {
   const sorties = getSortieUsage(tenantId, planKey);
   const secretOk = stripeSecretPresent();
   const live = hasLiveStripeSubscription(row);
-  const plans = Object.fromEntries(
-    PAID_PLANS.map((p) => [
-      p.key,
-      {
-        available: secretOk && Boolean(resolveStripePriceId(p.key)),
-        price_label: PLAN_PRICE_LABELS[p.key],
-        credits: p.credits,
-        sorties: p.sorties,
-        daily_events: PLAN_DAILY_ACTIVITY_EVENTS[p.key],
-        daily_sorties: PLAN_DAILY_SORTIES[p.key],
-        name: p.name,
-        blurb: p.blurb,
-        image: p.image,
-      },
-    ]),
-  );
+  const plans = {
+    free: {
+      available: true,
+      price_label: FREE_PLAN.priceLabel,
+      credits: FREE_PLAN.credits,
+      sorties: FREE_PLAN.sorties,
+      daily_events: FREE_PLAN.dailyEvents,
+      daily_sorties: FREE_PLAN.sorties,
+      name: FREE_PLAN.name,
+      blurb: FREE_PLAN.blurb,
+      image: FREE_PLAN.image,
+    },
+    ...Object.fromEntries(
+      PAID_PLANS.map((p) => [
+        p.key,
+        {
+          available: secretOk && Boolean(resolveStripePriceId(p.key)),
+          price_label: PLAN_PRICE_LABELS[p.key],
+          credits: p.credits,
+          sorties: p.sorties,
+          daily_events: PLAN_DAILY_ACTIVITY_EVENTS[p.key],
+          daily_sorties: PLAN_DAILY_SORTIES[p.key],
+          name: p.name,
+          blurb: p.blurb,
+          image: p.image,
+        },
+      ]),
+    ),
+  };
   const status = row.subscriptionStatus;
-  const planState =
-    live && (status === "active" || status === "trialing")
-      ? "subscription_active"
-      : live && (status === "past_due" || status === "unpaid")
-        ? "past_due"
-        : "free";
+  const planState = derivePlanState({
+    planKey,
+    live,
+    status,
+    creditsCanUse: usage.canUse,
+  });
 
   return {
     plan_key: planKey,
