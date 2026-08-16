@@ -187,37 +187,47 @@ describe("discoverOwnReplies", () => {
       },
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => {
-        assert.match(opts.query, /^from:me -is:retweet within_time:24h$/);
-        assert.doesNotMatch(opts.query, /is:reply/);
         assert.equal(opts.product, "Latest");
         assert.equal(opts.maxPages, 1);
+        if (/is:reply/.test(opts.query)) {
+          assert.match(opts.query, /^from:me is:reply within_time:24h$/);
+          return {
+            ok: true,
+            threads: [
+              card({
+                id: "new-reply",
+                text: "off-app take",
+                inReplyToId: "new-parent",
+                inReplyToScreenName: "@builder",
+                conversationId: "conv-1",
+                createdAt: "2026-08-02T11:30:00.000Z",
+                opText: "parent lead",
+              }),
+              card({
+                id: "already-reply",
+                inReplyToId: "already-parent",
+                inReplyToScreenName: "@prior",
+              }),
+              card({
+                id: "self-reply",
+                inReplyToId: "my-own",
+                inReplyToScreenName: "@me",
+              }),
+              card({
+                id: "no-parent",
+                text: "not a reply card",
+              }),
+            ],
+            queryId: "q",
+            bottomCursor: null,
+            pages: 1,
+          };
+        }
+        assert.match(opts.query, /^from:me -is:retweet within_time:24h$/);
+        assert.doesNotMatch(opts.query, /is:reply/);
         return {
           ok: true,
-          threads: [
-            card({
-              id: "new-reply",
-              text: "off-app take",
-              inReplyToId: "new-parent",
-              inReplyToScreenName: "@builder",
-              conversationId: "conv-1",
-              createdAt: "2026-08-02T11:30:00.000Z",
-              opText: "parent lead",
-            }),
-            card({
-              id: "already-reply",
-              inReplyToId: "already-parent",
-              inReplyToScreenName: "@prior",
-            }),
-            card({
-              id: "self-reply",
-              inReplyToId: "my-own",
-              inReplyToScreenName: "@me",
-            }),
-            card({
-              id: "no-parent",
-              text: "not a reply card",
-            }),
-          ],
+          threads: [],
           queryId: "q",
           bottomCursor: null,
           pages: 1,

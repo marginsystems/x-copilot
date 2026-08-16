@@ -63,7 +63,7 @@ function normalizeScreenName(screenName: string): string {
   return screenName.trim().replace(/^@+/, "");
 }
 
-/** Latest own-posts query used by the hourly stats tick (Analytics + Interacted). */
+/** Latest own-posts query used by the hourly stats tick for the Analytics fold. */
 export function buildOwnPostsQuery(
   screenName: string,
   withinTime = "24h",
@@ -74,7 +74,7 @@ export function buildOwnPostsQuery(
   return withSearchRecency(`from:${name} -is:retweet`, withinTime);
 }
 
-/** Latest own-replies query. Prefer `buildOwnPostsQuery` for the hourly tick. */
+/** Latest own-replies query used by the hourly stats tick for the Interacted import. */
 export function buildOwnRepliesQuery(
   screenName: string,
   withinTime = "24h",
@@ -123,7 +123,8 @@ export type FoldOwnPostsFn = (opts: {
 
 /**
  * Write the hourly `from:` page into own_posts for the matching desk user.
- * Same search as Interacted — no second pull. Soft-skips when no user/handle.
+ * Fed by the own-posts search; the Interacted import runs its own `is:reply`
+ * page. Soft-skips when no user/handle.
  */
 export async function foldDiscoveredOwnPosts(opts: {
   threads: ThreadCard[];
@@ -140,7 +141,12 @@ export async function foldDiscoveredOwnPosts(opts: {
     (async (id: string, name: string) =>
       resolveStoredXUserId(id) ?? (await lookupXUserId(name)));
   const xUserId = await resolveX(matchedUserId, handle);
-  if (!xUserId) return 0;
+  if (!xUserId) {
+    console.warn(
+      `[reply-discover] own_posts fold skipped screenName=${handle}: xUserId unresolvable (no stored X identity and username lookup failed)`,
+    );
+    return 0;
+  }
   // Pin the fold to the desk user who actually owns this X identity (verified
   // X oauth / activity subscription), never the first user that merely claimed
   // the handle during onboarding — a claimed handle must not capture another
@@ -263,8 +269,9 @@ async function softWriteMemory(opts: {
 }
 
 /**
- * One Latest page of our own posts (~24h). Writes replies into the
- * interaction store and every card into own_posts (Analytics). One search.
+ * One Latest page of our own posts and one Latest page of our own replies
+ * (~24h each). Writes replies into the interaction store and every own-post
+ * card into own_posts (Analytics).
  */
 export async function discoverOwnReplies(opts?: {
   withinTime?: string;
@@ -329,15 +336,16 @@ export async function discoverOwnReplies(opts?: {
 
   const query = buildOwnPostsQuery(screenName, opts?.withinTime ?? "24h");
   const search = opts?.searchTimelinePages ?? searchTimelinePages;
+  const searchOpts = {
+    product: "Latest" as const,
+    count: opts?.count ?? 20,
+    maxPages: opts?.maxPages ?? 1,
+    signal: opts?.signal,
+  };
+
   let result: SearchTimelineResult;
   try {
-    result = await search({
-      query,
-      product: "Latest",
-      count: opts?.count ?? 20,
-      maxPages: opts?.maxPages ?? 1,
-      signal: opts?.signal,
-    });
+    result = await search({ query, ...searchOpts });
   } catch (err) {
     return {
       ok: false,
@@ -357,6 +365,34 @@ export async function discoverOwnReplies(opts?: {
       discovered: 0,
       skipped: 0,
       error: result.message || result.error || "search_failed",
+    };
+  }
+
+  let replyResult: SearchTimelineResult;
+  try {
+    replyResult = await search({
+      query: buildOwnRepliesQuery(screenName, opts?.withinTime ?? "24h"),
+      ...searchOpts,
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      screenName,
+      searched: 0,
+      discovered: 0,
+      skipped: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  if (!replyResult.ok) {
+    return {
+      ok: false,
+      screenName,
+      searched: 0,
+      discovered: 0,
+      skipped: 0,
+      error: replyResult.message || replyResult.error || "reply_search_failed",
     };
   }
 
@@ -390,7 +426,7 @@ export async function discoverOwnReplies(opts?: {
   let discovered = 0;
   let skipped = 0;
 
-  for (const card of result.threads) {
+  for (const card of replyResult.threads) {
     const verdict = shouldImportDiscoveredReply({
       card,
       ownScreenName: screenName,
@@ -457,7 +493,7 @@ export async function discoverOwnReplies(opts?: {
   return {
     ok: true,
     screenName,
-    searched: result.threads.length,
+    searched: replyResult.threads.length,
     discovered,
     skipped,
     ownPostsIngested,
