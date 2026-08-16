@@ -162,6 +162,59 @@ export function normalizeReply(reply: unknown): string {
   return reply.trim();
 }
 
+export type MemoryReplyInput = {
+  threadId: string;
+  text: string;
+  postedAt: string | null;
+};
+
+/** Pull threadId + ## Reply out of an interaction note. */
+export function parseInteractionNoteReply(
+  markdown: string,
+): MemoryReplyInput | null {
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown);
+  if (!fm) return null;
+  const threadId = /(?:^|\n)threadId:\s*"?(\d+)"?/.exec(fm[1]!)?.[1] ?? "";
+  const interactedAt =
+    /(?:^|\n)interactedAt:\s*"?([^\s"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
+  const replyMatch = /^##\s+Reply\s*\r?\n+([\s\S]*?)(?=^##\s|\s*$)/m.exec(
+    markdown,
+  );
+  const text = normalizeReply(replyMatch?.[1] ?? "");
+  if (!threadId || !text) return null;
+  return {
+    threadId,
+    text,
+    postedAt: interactedAt || null,
+  };
+}
+
+/** Every interaction note that still has a usable ## Reply. */
+export async function listInteractionMemoryReplies(opts?: {
+  knowledgeRoot?: string;
+}): Promise<MemoryReplyInput[]> {
+  const root = opts?.knowledgeRoot ?? defaultKnowledgeRoot();
+  const dir = join(root, "interactions");
+  if (!existsSync(dir)) return [];
+  let names: string[];
+  try {
+    names = (await readdir(dir)).filter((n) => n.endsWith(".md"));
+  } catch {
+    return [];
+  }
+  const out: MemoryReplyInput[] = [];
+  for (const name of names) {
+    try {
+      const raw = await readFile(join(dir, name), "utf8");
+      const parsed = parseInteractionNoteReply(raw);
+      if (parsed) out.push(parsed);
+    } catch {
+      // Skip unreadable notes — one bad file must not block learn.
+    }
+  }
+  return out;
+}
+
 export function renderInteractionMarkdown(
   input: InteractionMemoryInput,
 ): string {

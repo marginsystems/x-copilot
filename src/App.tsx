@@ -66,7 +66,7 @@ import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
 import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
 import { Analytics } from "./Analytics";
-import { VoiceCardPanel } from "./VoiceCard";
+import { SuggestLocked, VoiceCardPanel, VoiceUnlockBanner } from "./VoiceCard";
 import { SuggestPane } from "./SuggestPane";
 import { parseVoiceState, type VoiceState } from "./lib/voice";
 
@@ -641,7 +641,14 @@ function InteractedRow({
   );
 }
 
-type AppView = "dashboard" | "settings" | "usage" | "admin" | "analytics" | LegalKind;
+type AppView =
+  | "dashboard"
+  | "voice"
+  | "settings"
+  | "usage"
+  | "admin"
+  | "analytics"
+  | LegalKind;
 
 type UsageWindow = "24h" | "7d" | "all";
 
@@ -687,6 +694,7 @@ function viewFromPath(pathname: string): AppView {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   if (pathname === "/usage" || pathname === "/billing") return "usage";
   if (pathname === "/analytics") return "analytics";
+  if (pathname === "/voice") return "voice";
   if (pathname === "/settings") return "settings";
   return "dashboard";
 }
@@ -697,6 +705,7 @@ function pathFromView(view: AppView): string {
   if (view === "admin") return "/admin";
   if (view === "usage") return "/usage";
   if (view === "analytics") return "/analytics";
+  if (view === "voice") return "/voice";
   if (view === "settings") return "/settings";
   return "/";
 }
@@ -1346,8 +1355,8 @@ export default function App() {
       const parsed = parseVoiceState(await res.json());
       if (!parsed) return;
       setVoice(parsed);
-      // Once-a-day incremental: fold new replies since the cursor, quietly.
-      if (parsed.needsDailyUpdate && !opts?.skipDaily) {
+      // Memories-first learn, or the once-a-day incremental, quietly.
+      if ((parsed.needsLearn || parsed.needsDailyUpdate) && !opts?.skipDaily) {
         void learnVoice({ silent: true });
       }
     } catch {
@@ -1948,6 +1957,11 @@ export default function App() {
 
   function openAnalytics() {
     goToView("analytics");
+    closeMenu();
+  }
+
+  function openVoice() {
+    goToView("voice");
     closeMenu();
   }
 
@@ -2637,6 +2651,7 @@ export default function App() {
               onX={startXLogin}
               onVerify={() => void onVerifySession()}
               onAnalytics={openAnalytics}
+              onVoice={openVoice}
               onUsage={openUsage}
               onSettings={openSettings}
               onPrivacySettings={() => {
@@ -2713,6 +2728,33 @@ export default function App() {
 
       {view === "analytics" ? (
         <Analytics onBack={() => goToView("dashboard")} />
+      ) : null}
+
+      {view === "voice" ? (
+        <section className="panel settings-pane">
+          <div className="settings-head">
+            <h2>Voice</h2>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => goToView("dashboard")}
+            >
+              Back
+            </button>
+          </div>
+          <p className="status settings-lede">
+            Suggest reply uses this card. It learns from replies you&apos;ve
+            already marked, then fills gaps from your public X timeline. Unlock
+            is {voice?.unlockAt ?? 100} distinct reply conversations.
+          </p>
+          <VoiceCardPanel
+            voice={voice}
+            busy={voiceBusy}
+            refreshing={voiceBusy || voicePending}
+            error={voiceError}
+            onLearn={() => void learnVoice()}
+          />
+        </section>
       ) : null}
 
       {view === "usage" ? (
@@ -2836,7 +2878,10 @@ export default function App() {
         </section>
       ) : null}
 
-      {view === "usage" || view === "admin" || view === "analytics" ? null : view === "settings" ? (
+      {view === "usage" ||
+      view === "admin" ||
+      view === "analytics" ||
+      view === "voice" ? null : view === "settings" ? (
         <section className="panel settings-pane">
           <div className="settings-head">
             <h2>Settings</h2>
@@ -2848,13 +2893,17 @@ export default function App() {
               Back
             </button>
           </div>
-          <VoiceCardPanel
-            voice={voice}
-            busy={voiceBusy}
-            refreshing={voiceBusy || voicePending}
-            error={voiceError}
-            onLearn={() => void learnVoice()}
-          />
+          <p className="status settings-lede">
+            Voice and Suggest live under{" "}
+            <button
+              type="button"
+              className="linkish"
+              onClick={() => goToView("voice")}
+            >
+              Voice
+            </button>{" "}
+            in the menu — this page is Scout filters.
+          </p>
           <p className="status settings-lede">
             Filter prefs apply on the next Scout search. Env defaults remain the
             fallback when overrides are omitted.
@@ -3010,6 +3059,12 @@ export default function App() {
         </section>
       ) : (
         <>
+        <VoiceUnlockBanner
+          voice={voice}
+          busy={voiceBusy || voicePending}
+          onLearn={() => void learnVoice()}
+          onOpenSettings={openVoice}
+        />
         <div className="dashboard">
           <section className="desk">
             <div className="desk-top">
@@ -3323,7 +3378,14 @@ export default function App() {
                               }
                               onOpenIntent={() => watchDeskThreads([t])}
                             />
-                          ) : undefined
+                          ) : (
+                            <SuggestLocked
+                              voice={voice}
+                              busy={voiceBusy || voicePending}
+                              onLearn={() => void learnVoice()}
+                              onOpenSettings={openVoice}
+                            />
+                          )
                         }
                       />
                     ))}

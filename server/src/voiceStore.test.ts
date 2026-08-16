@@ -15,6 +15,7 @@ import {
   countVoiceReplies,
   ensureVoiceProfile,
   foldDeskReplies,
+  foldMemoryReplies,
   getSuggestUsage,
   getVoiceProfile,
   listVoiceReplies,
@@ -177,5 +178,31 @@ describe("voiceStore", () => {
     const rows = listVoiceReplies(USER, 10);
     assert.equal(rows.length, 1);
     assert.equal(rows[0]?.source, "desk");
+  });
+
+  it("folds interacted-memory replies into the corpus", () => {
+    assert.equal(
+      foldMemoryReplies(USER, [
+        {
+          id: "mem:1",
+          text: "marked reply from a memory note",
+          conversationId: "conv-mem",
+        },
+      ]),
+      1,
+    );
+    assert.equal(
+      foldMemoryReplies(USER, [
+        {
+          id: "mem:1",
+          text: "marked reply from a memory note",
+          conversationId: "conv-mem",
+        },
+      ]),
+      0,
+    );
+    const rows = listVoiceReplies(USER, 10);
+    assert.equal(rows[0]?.source, "memory");
+    assert.equal(rows[0]?.conversationId, "conv-mem");
   });
 });

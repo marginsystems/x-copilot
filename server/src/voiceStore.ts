@@ -19,7 +19,7 @@ export type VoiceReplyInput = {
   conversationId?: string | null;
   inReplyToId?: string | null;
   postedAt?: string | null;
-  source?: "api" | "desk";
+  source?: "api" | "desk" | "memory";
 };
 
 export type VoiceReplyRow = {
@@ -229,6 +229,21 @@ export function foldDeskReplies(userId: string): number {
       inReplyToId: r.in_reply_to_id,
       postedAt: r.posted_at,
       source: "desk" as const,
+    })),
+  );
+}
+
+/** Fold replies already sitting in interacted memories (no X API). */
+export function foldMemoryReplies(
+  userId: string,
+  replies: VoiceReplyInput[],
+): number {
+  if (!replies.length) return 0;
+  return upsertVoiceReplies(
+    userId,
+    replies.map((r) => ({
+      ...r,
+      source: "memory",
     })),
   );
 }

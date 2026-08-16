@@ -15,6 +15,7 @@ import { corsHeaders } from "./cors.js";
 import { startOfUtcDayIso } from "./ownPostStore.js";
 import { getSessionUser } from "./sessionCookie.js";
 import type { AuthUser } from "./authStore.js";
+import { getXOauthUsername } from "./authStore.js";
 import { parseXHandle } from "./xHandle.js";
 import {
   MAX_REPLY_CHARS,
@@ -23,6 +24,7 @@ import {
   trivialEditNote,
 } from "./voiceEdit.js";
 import { pullOwnReplies, resolveXUser } from "./voiceIngest.js";
+import { foldLocalVoiceSources } from "./voiceLocal.js";
 import {
   generateVoiceCard,
   suggestReply,
@@ -32,12 +34,10 @@ import {
 import {
   VOICE_UNLOCK_MIN_CONVERSATIONS,
   ensureVoiceProfile,
-  foldDeskReplies,
   getSuggestUsage,
   getVoiceProfile,
   listVoiceReplies,
   nowIso,
-  refreshVoiceCounts,
   removeSuggestRecord,
   reserveSuggestSlot,
   saveVoiceCard,
@@ -109,20 +109,39 @@ function parseCard(cardJson: string | null): VoiceCard | null {
   }
 }
 
+export function resolveVoiceHandle(user: AuthUser): string | null {
+  return (
+    parseXHandle(user.xUsername ?? "") ?? getXOauthUsername(user.id)
+  );
+}
+
+/**
+ * API fill-in only: skip the timeline when memories already unlock, or
+ * when there is no handle to pull as.
+ */
+export function shouldPullXApi(opts: {
+  conversationCount: number;
+  handle: string | null;
+}): boolean {
+  return Boolean(opts.handle) && !voiceUnlocked(opts.conversationCount);
+}
+
 export function deriveVoiceUiStatus(
   profile: VoiceProfileRow | null,
   linkedHandle: string | null,
 ): VoiceUiStatus {
+  if (profile?.status === "learning") return "learning";
+  if (profile?.status === "ready" && profile.cardJson) return "ready";
+  const conversations = profile?.conversationCount ?? 0;
+  const hasCorpus = conversations > 0 || Boolean(profile?.lastPullAt);
+  if (hasCorpus && !voiceUnlocked(conversations)) return "insufficient";
+  if (hasCorpus) return "empty";
   if (!linkedHandle) return "unlinked";
-  if (!profile) return "empty";
-  if (profile.status === "learning") return "learning";
-  if (profile.status === "ready" && profile.cardJson) return "ready";
-  if (profile.lastPullAt) return "insufficient";
   return "empty";
 }
 
 function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
-  const handle = parseXHandle(user.xUsername ?? "");
+  const handle = resolveVoiceHandle(user);
   const tenantId = ensureUserTenant(user.id);
   const billing = ensureUserBillingRow(user.id, tenantId);
   const planKey = effectivePlanKey(billing, user.email);
@@ -134,6 +153,10 @@ function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
       profile.lastPullAt < startOfUtcDayIso() &&
       profile.status !== "learning",
   );
+  const needsLearn =
+    status === "empty" ||
+    (status === "insufficient" && Boolean(handle) && !profile?.lastPullAt) ||
+    needsDailyUpdate;
   return {
     ok: true as const,
     voice: {
@@ -147,6 +170,7 @@ function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
       cardUpdatedAt: profile?.cardUpdatedAt ?? null,
       lastPullAt: profile?.lastPullAt ?? null,
       needsDailyUpdate,
+      needsLearn,
       lastError: profile?.lastError ?? null,
       suggests: getSuggestUsage(user.id, planKey),
     },
@@ -165,14 +189,7 @@ async function handleLearn(
     });
     return;
   }
-  const handle = parseXHandle(user.xUsername ?? "");
-  if (!handle) {
-    send(req, res, 400, {
-      error: "x_not_linked",
-      message: "Link your X account first — voice learns from your public replies.",
-    });
-    return;
-  }
+  const handle = resolveVoiceHandle(user);
   const tenantId = ensureUserTenant(user.id);
   const exhausted = creditsExhaustedResponse({
     userId: user.id,
@@ -202,51 +219,75 @@ async function handleLearn(
   };
 
   try {
-    const resolved = await resolveXUser(handle);
-    if (!resolved.ok) {
-      finishWithError(
-        resolved.status >= 400 && resolved.status < 600 ? resolved.status : 502,
-        resolved.error,
-        resolved.message,
-      );
-      return;
-    }
-    if (resolved.protected) {
-      finishWithError(
-        409,
-        "account_protected",
-        `@${handle} is protected. Voice only reads public replies — there is no workaround, and we will not scrape.`,
-      );
-      return;
-    }
-
-    const pull = await pullOwnReplies({
-      xUserId: resolved.id,
-      sinceId: profile.sinceId,
-    });
-    if (!pull.ok) {
-      finishWithError(
-        pull.status >= 400 && pull.status < 600 ? pull.status : 502,
-        pull.error,
-        pull.message,
-      );
-      return;
-    }
-
-    upsertVoiceReplies(user.id, pull.replies);
-    foldDeskReplies(user.id);
-    updateVoiceProfilePull({
-      userId: user.id,
-      xUsername: resolved.username,
-      xUserId: resolved.id,
-      sinceId: pull.completed ? pull.newestId : profile.sinceId,
-      lastPullAt: pull.completed ? nowIso() : profile.lastPullAt,
-    });
-
+    // Memories + desk own_posts first. The timeline is a fill-in only.
+    await foldLocalVoiceSources(user.id);
     let updated = getVoiceProfile(user.id);
+    const localCount = updated?.conversationCount ?? 0;
+
+    if (!shouldPullXApi({ conversationCount: localCount, handle })) {
+      if (localCount === 0 && !handle) {
+        finishWithError(
+          400,
+          "x_not_linked",
+          `No reply memories yet and X isn't linked. Mark replies with your text, or link X — Suggest unlocks at ${VOICE_UNLOCK_MIN_CONVERSATIONS} distinct reply conversations.`,
+        );
+        return;
+      }
+    } else {
+      const resolved = await resolveXUser(handle!);
+      if (!resolved.ok) {
+        finishWithError(
+          resolved.status >= 400 && resolved.status < 600 ? resolved.status : 502,
+          resolved.error,
+          resolved.message,
+        );
+        return;
+      }
+      if (resolved.protected) {
+        finishWithError(
+          409,
+          "account_protected",
+          `@${handle} is protected. Voice only reads public replies — there is no workaround, and we will not scrape.`,
+        );
+        return;
+      }
+
+      const pull = await pullOwnReplies({
+        xUserId: resolved.id,
+        sinceId: profile.sinceId,
+      });
+      if (!pull.ok) {
+        finishWithError(
+          pull.status >= 400 && pull.status < 600 ? pull.status : 502,
+          pull.error,
+          pull.message,
+        );
+        return;
+      }
+
+      upsertVoiceReplies(user.id, pull.replies);
+      await foldLocalVoiceSources(user.id);
+      updateVoiceProfilePull({
+        userId: user.id,
+        xUsername: resolved.username,
+        xUserId: resolved.id,
+        sinceId: pull.completed ? pull.newestId : profile.sinceId,
+        lastPullAt: pull.completed ? nowIso() : profile.lastPullAt,
+      });
+    }
+
+    if (handle && !shouldPullXApi({ conversationCount: localCount, handle })) {
+      updateVoiceProfilePull({
+        userId: user.id,
+        xUsername: handle,
+        lastPullAt: nowIso(),
+      });
+    }
+
+    updated = getVoiceProfile(user.id);
     if (updated && voiceUnlocked(updated.conversationCount)) {
       const cardResult = await generateVoiceCard({
-        handle: resolved.username,
+        handle: handle || "you",
         replies: listVoiceReplies(user.id, 120),
       });
       if (!cardResult.ok) {
@@ -259,8 +300,15 @@ async function handleLearn(
         model: cardResult.model,
       });
     } else {
-      // Below the unlock bar — keep an existing card if one was already earned.
-      setVoiceProfileStatus(user.id, priorStatus === "ready" ? "ready" : "empty");
+      const n = updated?.conversationCount ?? 0;
+      const need = VOICE_UNLOCK_MIN_CONVERSATIONS;
+      setVoiceProfileStatus(
+        user.id,
+        priorStatus === "ready" ? "ready" : "empty",
+        handle
+          ? `Suggest unlocks at ${need} distinct reply conversations — you're at ${n}. Refresh pulls more of your public timeline.`
+          : `Suggest unlocks at ${need} distinct reply conversations — you're at ${n} from marked memories. Link X to pull older public replies.`,
+      );
     }
 
     updated = getVoiceProfile(user.id);
@@ -511,15 +559,10 @@ export async function tryHandleVoice(
 
   if (req.method === "GET" && url.pathname === "/api/voice") {
     const tenantId = ensureUserTenant(user.id);
-    let profile = getVoiceProfile(user.id);
-    if (profile) {
-      // Desk-detected replies fold in for free; API pulls stay explicit.
-      foldDeskReplies(user.id);
-      refreshVoiceCounts(user.id);
-      profile = getVoiceProfile(user.id);
-    } else {
-      profile = ensureVoiceProfile(user.id, tenantId);
-    }
+    ensureVoiceProfile(user.id, tenantId);
+    // Local memories first — cheap, and often enough to unlock.
+    await foldLocalVoiceSources(user.id);
+    const profile = getVoiceProfile(user.id);
     send(req, res, 200, voicePayload(user, profile));
     return true;
   }

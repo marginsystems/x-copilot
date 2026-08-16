@@ -39,6 +39,7 @@ export type VoiceState = {
   cardUpdatedAt: string | null;
   lastPullAt: string | null;
   needsDailyUpdate: boolean;
+  needsLearn: boolean;
   lastError: string | null;
   suggests: SuggestUsage;
 };
@@ -72,6 +73,7 @@ export function parseVoiceState(raw: unknown): VoiceState | null {
       typeof voice.cardUpdatedAt === "string" ? voice.cardUpdatedAt : null,
     lastPullAt: typeof voice.lastPullAt === "string" ? voice.lastPullAt : null,
     needsDailyUpdate: voice.needsDailyUpdate === true,
+    needsLearn: voice.needsLearn === true,
     lastError: typeof voice.lastError === "string" ? voice.lastError : null,
     suggests: {
       used: Number(suggests.used) || 0,
@@ -180,4 +182,28 @@ export function unlockProgress(state: {
     0,
     Math.min(1, state.conversationCount / state.unlockAt),
   );
+}
+
+/** Plain-language next step so Suggest is never a mystery. */
+export function voiceUnlockCopy(state: VoiceState | null): string {
+  const need = state?.unlockAt ?? 100;
+  const n = state?.conversationCount ?? 0;
+  if (!state || state.status === "unlinked") {
+    return `Suggest unlocks at ${need} distinct reply conversations. We start from replies you've already marked on the desk, then fill gaps from your public X timeline (official API — no scrape). Mark replies with your text, or link X.`;
+  }
+  if (state.status === "learning") {
+    return "Reading your marked replies and writing a voice card…";
+  }
+  if (state.status === "empty" && n === 0) {
+    return `Nothing in the corpus yet. Learn reads marked memories first, then your public timeline if X is linked. Need ${need} conversations.`;
+  }
+  if (state.status === "empty") {
+    return `Found ${n} reply conversations in your marked memories. Learn writes the voice card so Suggest can unlock.`;
+  }
+  if (state.status === "insufficient") {
+    return state.handle
+      ? `Suggest unlocks at ${need} distinct reply conversations — you're at ${n}. Refresh pulls more of your public timeline.`
+      : `Suggest unlocks at ${need} distinct reply conversations — you're at ${n} from marked memories. Link X to pull older public replies.`;
+  }
+  return state.lastError ?? "";
 }

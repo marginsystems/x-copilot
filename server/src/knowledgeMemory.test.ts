@@ -10,6 +10,7 @@ import {
   formatOutcomeSection,
   normalizeReply,
   renderDismissalMarkdown,
+  parseInteractionNoteReply,
   renderInteractionMarkdown,
   safeThreadIdForFilename,
   stripManagedOutcomeFrontmatter,
@@ -50,6 +51,20 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
         }),
       /reply is required/,
     );
+  });
+
+  it("parses threadId and Reply out of a rendered note", async () => {
+    const md = renderInteractionMarkdown({
+      threadId: "2081",
+      author: "@Builder",
+      reply: "Thanks — here's a concrete tip.",
+      interactedAt: "2026-07-27T12:00:00.000Z",
+    });
+    assert.deepEqual(parseInteractionNoteReply(md), {
+      threadId: "2081",
+      text: "Thanks — here's a concrete tip.",
+      postedAt: "2026-07-27T12:00:00.000Z",
+    });
   });
 
   it("includes threadId and reply in markdown", () => {
