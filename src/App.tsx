@@ -822,6 +822,8 @@ export default function App() {
     loadSettings(),
   );
   const [settingsStatus, setSettingsStatus] = useState("");
+  const [xHandleDraft, setXHandleDraft] = useState("");
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [markThread, setMarkThread] = useState<ThreadCard | null>(null);
@@ -1316,6 +1318,7 @@ export default function App() {
           isAdmin: Boolean(data.user.isAdmin),
         };
         setAuthUser(user);
+        setXHandleDraft(user.xUsername ?? "");
         return user;
       }
       setAuthUser(null);
@@ -1829,13 +1832,15 @@ export default function App() {
   function finishOnboarding(agenda: string, xUsername?: string | null) {
     setAgenda(agenda);
     setOnboardingDoneLocal(true);
+    const handle = xUsername ?? null;
+    if (handle) setXHandleDraft(handle);
     setAuthUser((prev) =>
       prev
         ? {
             ...prev,
             onboardingCompleted: true,
             agenda,
-            xUsername: xUsername ?? prev.xUsername,
+            xUsername: handle ?? prev.xUsername,
           }
         : prev,
     );
@@ -2010,7 +2015,7 @@ export default function App() {
     }
   }
 
-  function onSaveSettings() {
+  function persistFilterSettings() {
     const next = saveSettings(settingsDraft);
     setSettings(next);
     setSettingsDraft(next);
@@ -2021,7 +2026,55 @@ export default function App() {
           !threadHasExcludedAuthor(t, next.excludedAccounts),
       ),
     );
-    setSettingsStatus("Saved — filters apply to Curated now and the next Scout.");
+    return next;
+  }
+
+  async function onSaveSettings() {
+    persistFilterSettings();
+    const current = (authUser?.xUsername ?? "").replace(/^@+/, "").trim();
+    const nextHandle = xHandleDraft.trim().replace(/^@+/, "");
+    if (nextHandle.toLowerCase() === current.toLowerCase()) {
+      setSettingsStatus(
+        "Saved — filters apply to Curated now and the next Scout.",
+      );
+      return;
+    }
+    if (!/^[A-Za-z0-9_]{1,15}$/.test(nextHandle)) {
+      setSettingsStatus("Enter a valid X username (letters, digits, underscore).");
+      return;
+    }
+    setSettingsSaving(true);
+    setSettingsStatus("Saving X username…");
+    try {
+      const res = await apiFetch("/api/auth/x-username", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ xUsername: nextHandle }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        message?: string;
+        user?: { xUsername?: string | null };
+      };
+      if (!res.ok || data.ok === false) {
+        setSettingsStatus(
+          data.message || "Could not save that X username. Filters are saved.",
+        );
+        return;
+      }
+      const saved =
+        typeof data.user?.xUsername === "string"
+          ? data.user.xUsername.replace(/^@+/, "")
+          : nextHandle;
+      setXHandleDraft(saved);
+      setAuthUser((prev) => (prev ? { ...prev, xUsername: saved } : prev));
+      void hydrateVoice({ skipDaily: true });
+      setSettingsStatus("Saved — X username and filters updated.");
+    } catch {
+      setSettingsStatus("Could not reach the API. Filters are saved.");
+    } finally {
+      setSettingsSaving(false);
+    }
   }
 
   async function onSearch() {
@@ -2809,37 +2862,29 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            {authUser && voiceNeedsXLink(voice, authUser.xUsername) ? (
-              <>
-                Link X first — Voice and Suggest need it.{" "}
-                <button
-                  type="button"
-                  className="linkish"
-                  onClick={startXLogin}
-                >
-                  Link X
-                </button>
-                . This page is Scout filters.
-              </>
-            ) : (
-              <>
-                Voice and Suggest live under{" "}
-                <button
-                  type="button"
-                  className="linkish"
-                  onClick={() => goToView("voice")}
-                >
-                  Voice
-                </button>{" "}
-                in the menu — this page is Scout filters.
-              </>
-            )}
-          </p>
-          <p className="status settings-lede">
-            Filter prefs apply on the next Scout search. Env defaults remain the
-            fallback when overrides are omitted.
+            X username is the public handle Voice reads — set during setup, or
+            here. X login prefills it; you can change it. Filter prefs apply on
+            the next Scout search.
           </p>
           <div className="settings-grid">
+            <label className="settings-field settings-field-wide">
+              <span>X username</span>
+              <input
+                type="text"
+                inputMode="text"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="username"
+                placeholder="yourhandle"
+                value={xHandleDraft}
+                onChange={(e) => setXHandleDraft(e.target.value)}
+                disabled={settingsSaving}
+              />
+              <span className="settings-help">
+                Public replies only. No extra X login required.
+              </span>
+            </label>
             <label className="settings-field">
               <span>Max thread characters</span>
               <input
@@ -2984,9 +3029,10 @@ export default function App() {
               <button
                 type="button"
                 className="primary"
-                onClick={onSaveSettings}
+                onClick={() => void onSaveSettings()}
+                disabled={settingsSaving}
               >
-                Save
+                {settingsSaving ? "Saving…" : "Save"}
               </button>
               {settingsStatus ? (
                 <p className="status settings-save-status">{settingsStatus}</p>
