@@ -201,69 +201,79 @@ async function handleLearn(
     send(req, res, status, { error, message });
   };
 
-  const resolved = await resolveXUser(handle);
-  if (!resolved.ok) {
-    finishWithError(
-      resolved.status >= 400 && resolved.status < 600 ? resolved.status : 502,
-      resolved.error,
-      resolved.message,
-    );
-    return;
-  }
-  if (resolved.protected) {
-    finishWithError(
-      409,
-      "account_protected",
-      `@${handle} is protected. Voice only reads public replies — there is no workaround, and we will not scrape.`,
-    );
-    return;
-  }
-
-  const pull = await pullOwnReplies({
-    xUserId: resolved.id,
-    sinceId: profile.sinceId,
-  });
-  if (!pull.ok) {
-    finishWithError(
-      pull.status >= 400 && pull.status < 600 ? pull.status : 502,
-      pull.error,
-      pull.message,
-    );
-    return;
-  }
-
-  upsertVoiceReplies(user.id, pull.replies);
-  foldDeskReplies(user.id);
-  updateVoiceProfilePull({
-    userId: user.id,
-    xUsername: resolved.username,
-    xUserId: resolved.id,
-    sinceId: pull.completed ? pull.newestId : profile.sinceId,
-    lastPullAt: pull.completed ? nowIso() : profile.lastPullAt,
-  });
-
-  let updated = getVoiceProfile(user.id);
-  if (updated && voiceUnlocked(updated.conversationCount)) {
-    const cardResult = await generateVoiceCard({
-      handle: resolved.username,
-      replies: listVoiceReplies(user.id, 120),
-    });
-    if (!cardResult.ok) {
-      finishWithError(502, cardResult.error, cardResult.message);
+  try {
+    const resolved = await resolveXUser(handle);
+    if (!resolved.ok) {
+      finishWithError(
+        resolved.status >= 400 && resolved.status < 600 ? resolved.status : 502,
+        resolved.error,
+        resolved.message,
+      );
       return;
     }
-    saveVoiceCard({
-      userId: user.id,
-      cardJson: cardResult.cardJson,
-      model: cardResult.model,
-    });
-  } else {
-    // Below the unlock bar — keep an existing card if one was already earned.
-    setVoiceProfileStatus(user.id, priorStatus === "ready" ? "ready" : "empty");
-  }
+    if (resolved.protected) {
+      finishWithError(
+        409,
+        "account_protected",
+        `@${handle} is protected. Voice only reads public replies — there is no workaround, and we will not scrape.`,
+      );
+      return;
+    }
 
-  updated = getVoiceProfile(user.id);
-  send(req, res, 200, voicePayload(user, updated));
+    const pull = await pullOwnReplies({
+      xUserId: resolved.id,
+      sinceId: profile.sinceId,
+    });
+    if (!pull.ok) {
+      finishWithError(
+        pull.status >= 400 && pull.status < 600 ? pull.status : 502,
+        pull.error,
+        pull.message,
+      );
+      return;
+    }
+
+    upsertVoiceReplies(user.id, pull.replies);
+    foldDeskReplies(user.id);
+    updateVoiceProfilePull({
+      userId: user.id,
+      xUsername: resolved.username,
+      xUserId: resolved.id,
+      sinceId: pull.completed ? pull.newestId : profile.sinceId,
+      lastPullAt: pull.completed ? nowIso() : profile.lastPullAt,
+    });
+
+    let updated = getVoiceProfile(user.id);
+    if (updated && voiceUnlocked(updated.conversationCount)) {
+      const cardResult = await generateVoiceCard({
+        handle: resolved.username,
+        replies: listVoiceReplies(user.id, 120),
+      });
+      if (!cardResult.ok) {
+        finishWithError(502, cardResult.error, cardResult.message);
+        return;
+      }
+      saveVoiceCard({
+        userId: user.id,
+        cardJson: cardResult.cardJson,
+        model: cardResult.model,
+      });
+    } else {
+      // Below the unlock bar — keep an existing card if one was already earned.
+      setVoiceProfileStatus(user.id, priorStatus === "ready" ? "ready" : "empty");
+    }
+
+    updated = getVoiceProfile(user.id);
+    send(req, res, 200, voicePayload(user, updated));
+  } finally {
+    const current = getVoiceProfile(user.id);
+    if (current && current.status === "learning") {
+      setVoiceProfileStatus(
+        user.id,
+        priorStatus === "ready" ? "ready" : "empty",
+      );
+    }
+  }
 }
 
 async function handleSuggest(
@@ -284,8 +294,14 @@ async function handleSuggest(
     return;
   }
   const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
-  const author = typeof body.author === "string" ? body.author.trim() : "";
-  const text = typeof body.text === "string" ? body.text.trim() : "";
+  const author = (typeof body.author === "string" ? body.author.trim() : "").slice(
+    0,
+    100,
+  );
+  const text = (typeof body.text === "string" ? body.text.trim() : "").slice(
+    0,
+    2000,
+  );
   if (!threadId || !author || !text) {
     send(req, res, 400, {
       error: "bad_request",
@@ -349,10 +365,19 @@ async function handleSuggest(
     thread: {
       author,
       text,
-      opAuthor: typeof body.opAuthor === "string" ? body.opAuthor : undefined,
-      opText: typeof body.opText === "string" ? body.opText : undefined,
+      opAuthor:
+        typeof body.opAuthor === "string"
+          ? body.opAuthor.trim().slice(0, 100)
+          : undefined,
+      opText:
+        typeof body.opText === "string"
+          ? body.opText.trim().slice(0, 2000)
+          : undefined,
     },
-    agenda: typeof body.agenda === "string" ? body.agenda : undefined,
+    agenda:
+      typeof body.agenda === "string"
+        ? body.agenda.trim().slice(0, 1000)
+        : undefined,
   });
   if (!result.ok) {
     removeSuggestRecord(reservationId);
@@ -383,7 +408,10 @@ async function handleVerify(
     send(req, res, 400, { error: "invalid_json", message: "Invalid JSON body." });
     return;
   }
-  const draft = typeof body.draft === "string" ? body.draft : "";
+  const draft = (typeof body.draft === "string" ? body.draft.trim() : "").slice(
+    0,
+    MAX_REPLY_CHARS,
+  );
   const edited = typeof body.edited === "string" ? body.edited : "";
   const inReplyToId =
     typeof body.inReplyToId === "string" ? body.inReplyToId.trim() : "";
