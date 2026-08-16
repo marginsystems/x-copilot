@@ -66,7 +66,7 @@ describe("voice state parsing", () => {
 describe("voiceUnlockCopy", () => {
   it("explains the 100-conversation bar when nothing is linked", () => {
     assert.match(voiceUnlockCopy(null), /100 distinct reply conversations/);
-    assert.match(voiceUnlockCopy(null), /marked/);
+    assert.match(voiceUnlockCopy(null), /hourly/);
   });
 });
 

@@ -340,8 +340,8 @@ export function Analytics(props: { onBack: () => void }) {
       </div>
       <p className="status settings-lede">
         Every public tweet you send — originals and replies — lands here. Views,
-        likes, replies, reposts, and bookmarks are sampled at post time, 1h, and
-        24h. That watch is priced into your monthly credits.
+        likes, replies, reposts, and bookmarks are sampled hourly. That watch is
+        platform-paced and does not spend your Scout credits.
       </p>
 
       {error ? (
