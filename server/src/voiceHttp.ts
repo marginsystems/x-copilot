@@ -140,6 +140,26 @@ export function deriveVoiceUiStatus(
   return "empty";
 }
 
+export function deriveNeedsLearn(opts: {
+  status: VoiceUiStatus;
+  handle: string | null;
+  profile: VoiceProfileRow | null;
+  needsDailyUpdate: boolean;
+}): boolean {
+  const { status, handle, profile, needsDailyUpdate } = opts;
+  // A failed learn attempt (lastError set) must not re-arm the silent learn,
+  // or every hydrate would re-POST learn against the same dead end.
+  const failedAttempt = Boolean(profile?.lastError);
+  return (
+    needsDailyUpdate ||
+    (status === "empty" && !failedAttempt) ||
+    (status === "insufficient" &&
+      Boolean(handle) &&
+      !profile?.lastPullAt &&
+      !failedAttempt)
+  );
+}
+
 function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
   const handle = resolveVoiceHandle(user);
   const tenantId = ensureUserTenant(user.id);
@@ -153,10 +173,12 @@ function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
       profile.lastPullAt < startOfUtcDayIso() &&
       profile.status !== "learning",
   );
-  const needsLearn =
-    status === "empty" ||
-    (status === "insufficient" && Boolean(handle) && !profile?.lastPullAt) ||
-    needsDailyUpdate;
+  const needsLearn = deriveNeedsLearn({
+    status,
+    handle,
+    profile,
+    needsDailyUpdate,
+  });
   return {
     ok: true as const,
     voice: {
@@ -272,7 +294,9 @@ async function handleLearn(
         xUsername: resolved.username,
         xUserId: resolved.id,
         sinceId: pull.completed ? pull.newestId : profile.sinceId,
-        lastPullAt: pull.completed ? nowIso() : profile.lastPullAt,
+        // Stamp the attempt even when truncated (page cap / partial-error break)
+        // so needsLearn does not re-arm a full timeline pull on every load.
+        lastPullAt: nowIso(),
       });
     }
 

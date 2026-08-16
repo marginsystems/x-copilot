@@ -177,7 +177,7 @@ export function parseInteractionNoteReply(
   const threadId = /(?:^|\n)threadId:\s*"?(\d+)"?/.exec(fm[1]!)?.[1] ?? "";
   const interactedAt =
     /(?:^|\n)interactedAt:\s*"?([^\s"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
-  const replyMatch = /^##\s+Reply\s*\r?\n+([\s\S]*?)(?=^##\s|\s*$)/m.exec(
+  const replyMatch = /^##\s+Reply\s*\r?\n+([\s\S]*?)(?=^##\s|$(?![\s\S]))/m.exec(
     markdown,
   );
   const text = normalizeReply(replyMatch?.[1] ?? "");

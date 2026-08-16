@@ -67,6 +67,20 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     });
   });
 
+  it("round-trips a multi-line Reply body", () => {
+    const md = renderInteractionMarkdown({
+      threadId: "2081",
+      author: "@Builder",
+      reply: "Line one\nLine two",
+      interactedAt: "2026-07-27T12:00:00.000Z",
+    });
+    assert.deepEqual(parseInteractionNoteReply(md), {
+      threadId: "2081",
+      text: "Line one\nLine two",
+      postedAt: "2026-07-27T12:00:00.000Z",
+    });
+  });
+
   it("includes threadId and reply in markdown", () => {
     const md = renderInteractionMarkdown({
       threadId: "2081",

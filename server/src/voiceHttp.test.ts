@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  deriveNeedsLearn,
   deriveVoiceUiStatus,
   shouldPullXApi,
 } from "./voiceHttp.ts";
@@ -81,6 +82,76 @@ describe("deriveVoiceUiStatus", () => {
         null,
       ),
       "ready",
+    );
+  });
+});
+
+describe("deriveNeedsLearn", () => {
+  it("arms the first learn for a fresh linked user", () => {
+    assert.equal(
+      deriveNeedsLearn({
+        status: "empty",
+        handle: "margin",
+        profile: profile(),
+        needsDailyUpdate: false,
+      }),
+      true,
+    );
+  });
+
+  it("does not re-arm after a truncated pull stamped lastPullAt", () => {
+    assert.equal(
+      deriveNeedsLearn({
+        status: "insufficient",
+        handle: "margin",
+        profile: profile({
+          conversationCount: 40,
+          lastPullAt: "2026-08-16T12:00:00.000Z",
+        }),
+        needsDailyUpdate: false,
+      }),
+      false,
+    );
+  });
+
+  it("does not re-arm after a failed learn attempt", () => {
+    assert.equal(
+      deriveNeedsLearn({
+        status: "empty",
+        handle: "margin",
+        profile: profile({ lastError: "@margin is protected." }),
+        needsDailyUpdate: false,
+      }),
+      false,
+    );
+  });
+
+  it("still arms the fill-in pull when the corpus was never pulled", () => {
+    assert.equal(
+      deriveNeedsLearn({
+        status: "insufficient",
+        handle: "margin",
+        profile: profile({ conversationCount: 40 }),
+        needsDailyUpdate: false,
+      }),
+      true,
+    );
+  });
+
+  it("always arms the once-a-day incremental", () => {
+    assert.equal(
+      deriveNeedsLearn({
+        status: "ready",
+        handle: "margin",
+        profile: profile({
+          status: "ready",
+          cardJson: '{"tone":"dry"}',
+          conversationCount: 107,
+          lastPullAt: "2026-08-15T12:00:00.000Z",
+        }),
+        needsDailyUpdate: true,
+      }),
+      true,
     );
   });
 });
