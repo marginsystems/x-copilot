@@ -2,6 +2,7 @@
  * Local voice corpus: interacted memories first, then Activity own_posts.
  * The X API is a fill-in only — call this before any timeline pull.
  */
+import { countPlatformUsers } from "./authStore.js";
 import { MAX_INTERACTION_STORE, listInteractionHistory } from "./interactionStore.js";
 import {
   listInteractionMemoryReplies,
@@ -52,6 +53,10 @@ export async function foldLocalVoiceSources(
     listInteractionMemoryReplies({
       knowledgeRoot: opts?.knowledgeRoot,
       userId,
+      // Single-user sidecar: fold pre-PR and hourly-discovered notes that carry
+      // no userId, or the unlock bar is unreachable for that persona. In
+      // multi-user installs unowned notes stay excluded from every corpus.
+      includeUnowned: countPlatformUsers() === 1,
     }),
     listInteractionHistory({
       storePath: opts?.storePath,

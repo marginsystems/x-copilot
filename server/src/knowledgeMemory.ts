@@ -200,6 +200,8 @@ export function parseInteractionNoteReply(
 export async function listInteractionMemoryReplies(opts?: {
   knowledgeRoot?: string;
   userId?: string;
+  /** Fold notes with no `userId:` frontmatter (pre-PR and hourly-discovered). */
+  includeUnowned?: boolean;
 }): Promise<MemoryReplyInput[]> {
   const root = opts?.knowledgeRoot ?? defaultKnowledgeRoot();
   const dir = join(root, "interactions");
@@ -216,9 +218,14 @@ export async function listInteractionMemoryReplies(opts?: {
       const raw = await readFile(join(dir, name), "utf8");
       const parsed = parseInteractionNoteReply(raw);
       if (!parsed) continue;
-      // Fold only the calling user's own notes; unowned notes must not leak
-      // into anyone's per-user voice corpus.
-      if (opts?.userId && parsed.userId !== opts.userId) continue;
+      // Fold only the calling user's own notes. Notes without a userId (written
+      // before userId scoping, or by the hourly discover tick) fold only when
+      // the caller opts in — the single-user sidecar — so they cannot leak into
+      // any one user's corpus on a multi-user install.
+      if (opts?.userId) {
+        if (parsed.userId && parsed.userId !== opts.userId) continue;
+        if (!parsed.userId && !opts.includeUnowned) continue;
+      }
       out.push(parsed);
     } catch {
       // Skip unreadable notes — one bad file must not block learn.

@@ -106,4 +106,32 @@ describe("foldLocalVoiceSources", () => {
     assert.equal(rows[0]?.text, "A's own reply");
     assert.equal(rows[0]?.id, "999");
   });
+
+  it("folds unowned notes when exactly one platform user exists", async () => {
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO users (id, email, created_at, last_login_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(
+        "user-a",
+        "a@example.com",
+        new Date().toISOString(),
+        new Date().toISOString(),
+      );
+    await writeInteractionMemory({
+      threadId: "333",
+      author: "@A",
+      reply: "pre-PR reply with no userId",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const added = await foldLocalVoiceSources("user-a", {
+      knowledgeRoot: root,
+      storePath,
+    });
+    assert.equal(added, 1);
+    const rows = listVoiceReplies("user-a", 10);
+    assert.equal(rows[0]?.text, "pre-PR reply with no userId");
+  });
 });

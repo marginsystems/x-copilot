@@ -608,4 +608,41 @@ describe("listInteractionMemoryReplies", () => {
     });
     assert.equal(rows.length, 0);
   });
+
+  it("folds unowned notes when the caller opts in (single-user sidecar)", async () => {
+    await writeInteractionMemory({
+      threadId: "111",
+      author: "@A",
+      reply: "pre-PR reply",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const rows = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-a",
+      includeUnowned: true,
+    });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.text, "pre-PR reply");
+  });
+
+  it("still keeps another user's notes out even with includeUnowned", async () => {
+    await writeInteractionMemory({
+      threadId: "111",
+      author: "@B",
+      reply: "B's reply",
+      userId: "user-b",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const rows = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-a",
+      includeUnowned: true,
+    });
+    assert.deepEqual(
+      rows.map((n) => n.text),
+      [],
+    );
+  });
 });
