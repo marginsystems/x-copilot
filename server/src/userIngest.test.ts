@@ -10,6 +10,7 @@ import {
 } from "./db.ts";
 import { upsertOauthUser } from "./authStore.ts";
 import { getVoiceProfile } from "./voiceStore.ts";
+import { VOICE_TARGET_REPLIES } from "./voiceIngest.ts";
 import { runUserIngest } from "./userIngest.ts";
 
 describe("runUserIngest", () => {
@@ -153,5 +154,68 @@ describe("runUserIngest", () => {
       },
     });
     assert.equal(seenSince, "r1");
+  });
+
+  it("hourly pull with no cursor targets the full corpus", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    let target: number | undefined;
+    await runUserIngest({
+      user,
+      mode: "hourly",
+      deps: {
+        foldLocal: async () => {},
+        resolveUser: async () => ({
+          ok: true,
+          id: "99",
+          username: "me",
+          protected: false,
+        }),
+        pullReplies: async (opts) => {
+          target = opts.targetReplies;
+          return {
+            ok: true,
+            replies: [],
+            newestId: "r1",
+            pages: 1,
+            completed: true,
+          };
+        },
+        generateCard: async () => ({
+          ok: false,
+          error: "skip",
+          message: "under bar",
+        }),
+      },
+    });
+    assert.equal(target, VOICE_TARGET_REPLIES);
+  });
+
+  it("fail path stamps last_pull_at so failing users demote in rotation", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const result = await runUserIngest({
+      user,
+      mode: "hourly",
+      deps: {
+        foldLocal: async () => {},
+        resolveUser: async () => ({
+          ok: true,
+          id: "99",
+          username: "me",
+          protected: true,
+        }),
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.notEqual(getVoiceProfile(user.id)?.lastPullAt, null);
   });
 });
