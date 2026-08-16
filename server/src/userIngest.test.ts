@@ -253,6 +253,86 @@ describe("runUserIngest", () => {
     assert.notEqual(profile?.cardJson, null);
   });
 
+  it("a slower concurrent run cannot wedge a card-holder back to empty", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const replies = Array.from({ length: 100 }, (_, i) => ({
+      id: `r${i}`,
+      text: `public reply ${i}`,
+      conversationId: `c${i}`,
+      inReplyToId: `p${i}`,
+      postedAt: "2026-08-16T10:00:00.000Z",
+      source: "api" as const,
+    }));
+    const cardOk = {
+      ok: true as const,
+      card: {
+        tone: "dry",
+        typicalLength: "short",
+        habits: [],
+        neverDo: [],
+        examples: ["a", "b", "c"],
+      },
+      cardJson: JSON.stringify({ tone: "dry" }),
+      model: "test-model",
+    };
+    let releaseSlow: (() => void) | null = null;
+    const slowGate = new Promise<void>((resolve) => {
+      releaseSlow = resolve;
+    });
+    const common = {
+      foldLocal: async () => {},
+      resolveUser: async () => ({
+        ok: true as const,
+        id: "99",
+        username: "me",
+        protected: false,
+      }),
+      generateCard: async () => cardOk,
+    };
+    const slowRun = runUserIngest({
+      user,
+      mode: "initial",
+      deps: {
+        ...common,
+        pullReplies: async () => {
+          await slowGate;
+          return {
+            ok: true,
+            replies: [],
+            newestId: "r0",
+            pages: 1,
+            completed: true,
+          };
+        },
+      },
+    });
+    const fastRun = runUserIngest({
+      user,
+      mode: "initial",
+      deps: {
+        ...common,
+        pullReplies: async () => ({
+          ok: true,
+          replies,
+          newestId: "r99",
+          pages: 1,
+          completed: true,
+        }),
+      },
+    });
+    await fastRun;
+    releaseSlow?.();
+    await slowRun;
+    const profile = getVoiceProfile(user.id);
+    assert.equal(profile?.status, "ready");
+    assert.notEqual(profile?.cardJson, null);
+  });
+
   it("listIngestUsers prepares and returns rotation-eligible users", () => {
     const user = upsertOauthUser({
       provider: "x",

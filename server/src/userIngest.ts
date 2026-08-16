@@ -240,7 +240,7 @@ export async function runUserIngest(opts: {
     } else {
       setVoiceProfileStatus(
         user.id,
-        priorStatus === "ready" ? "ready" : "empty",
+        priorStatus === "ready" || hadCard ? "ready" : "empty",
       );
     }
 
