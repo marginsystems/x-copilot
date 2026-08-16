@@ -17,12 +17,14 @@ import { planQueriesFromAgenda } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
 import {
   filterAutomatedAccounts,
+  filterExcludedAccounts,
   filterByLanguage,
   filterEmDashes,
   filterOutboundLinks,
   filterSelfReplies,
   filterThreadsByLength,
   normalizePreferredLanguageCode,
+  resolveExcludedAccounts,
   resolveMaxThreadCharsFromFilters,
 } from "./threadFilters.js";
 import { hydrateReplyParents } from "./tweetLookup.js";
@@ -70,6 +72,8 @@ export type ScoutEvent = ScoutStageEvent & {
   emDashWarning?: string;
   automatedFiltered?: number;
   automatedWarning?: string;
+  excludedAccountFiltered?: number;
+  excludedAccountWarning?: string;
   languageFiltered?: number;
   lengthFiltered?: number;
   lengthWarning?: string;
@@ -120,6 +124,11 @@ export type ScoutFilters = {
    * Omit → server default (`supportive_encouragement`, `political`); `[]` → no tag excludes.
    */
   excludedTags?: string[];
+  /**
+   * Pre-triage author excludes (handles, no @).
+   * Omit → default chatbot list; `[]` → no handle excludes.
+   */
+  excludedAccounts?: string[];
 };
 
 export async function runScoutSearch(opts: {
@@ -223,12 +232,16 @@ export async function runScoutSearch(opts: {
   const afterAutomated = filterAutomatedAccounts(afterEmDash.threads, {
     dropAutomatedAccounts,
   });
+  const afterExcludedAccounts = filterExcludedAccounts(
+    afterAutomated.threads,
+    resolveExcludedAccounts(opts.filters?.excludedAccounts),
+  );
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
-  const byLength = filterThreadsByLength(afterAutomated.threads, maxChars, {
+  const byLength = filterThreadsByLength(afterExcludedAccounts.threads, maxChars, {
     dropArticles,
   });
 
@@ -280,6 +293,9 @@ export async function runScoutSearch(opts: {
   const automatedWarning = afterAutomated.automatedFilteredCount
     ? `Dropped ${afterAutomated.automatedFilteredCount} automated accounts.`
     : undefined;
+  const excludedAccountWarning = afterExcludedAccounts.excludedAccountFilteredCount
+    ? `Dropped ${afterExcludedAccounts.excludedAccountFilteredCount} excluded accounts.`
+    : undefined;
   const overChars =
     byLength.filteredCount -
     byLength.openerFilteredCount -
@@ -312,6 +328,8 @@ export async function runScoutSearch(opts: {
     emDashWarning,
     automatedFiltered: afterAutomated.automatedFilteredCount,
     automatedWarning,
+    excludedAccountFiltered: afterExcludedAccounts.excludedAccountFilteredCount,
+    excludedAccountWarning,
     languageFiltered:
       afterLang.languageFilteredCount + afterHydrateLang.languageFilteredCount,
     lengthFiltered: byLength.filteredCount,

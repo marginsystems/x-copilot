@@ -5,6 +5,7 @@ import {
   DEFAULT_MAX_THREAD_CHARS,
   EM_DASH,
   filterAutomatedAccounts,
+  filterExcludedAccounts,
   filterByLanguage,
   filterEmDashes,
   filterOutboundLinks,
@@ -15,9 +16,11 @@ import {
   isOversizedThread,
   isSelfReply,
   isThreadOpener,
+  normalizeExcludedAccounts,
   normalizeExcludedTags,
   normalizePreferredLanguageCode,
   normalizeTagToken,
+  resolveExcludedAccounts,
   resolveExcludedTags,
   resolveMaxThreadChars,
   resolveMaxThreadCharsFromFilters,
@@ -356,6 +359,34 @@ describe("filterAutomatedAccounts", () => {
     });
     assert.equal(result.threads.length, 1);
     assert.equal(result.automatedFilteredCount, 0);
+  });
+});
+
+describe("filterExcludedAccounts", () => {
+  it("drops default chatbot authors including grok", () => {
+    const bot = thread("1", "YPP numbers", undefined, { author: "@grok" });
+    const human = thread("2", "Human take", undefined, { author: "@alice" });
+    const result = filterExcludedAccounts([bot, human]);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+    assert.equal(result.excludedAccountFilteredCount, 1);
+  });
+
+  it("keeps everyone when the exclude list is empty", () => {
+    const bot = thread("1", "YPP numbers", undefined, { author: "@grok" });
+    const result = filterExcludedAccounts([bot], []);
+    assert.equal(result.threads.length, 1);
+    assert.equal(result.excludedAccountFilteredCount, 0);
+  });
+
+  it("treats omit as the default chatbot list and [] as off", () => {
+    assert.ok(resolveExcludedAccounts().includes("grok"));
+    assert.deepEqual(resolveExcludedAccounts([]), []);
+    assert.deepEqual(normalizeExcludedAccounts(["@Grok", "grok", "nope!!"]), [
+      "grok",
+    ]);
   });
 });
 

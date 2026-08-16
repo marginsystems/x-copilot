@@ -20,6 +20,7 @@ import {
   PREFERRED_LANGUAGES,
   DEFAULT_SETTINGS,
 } from "./lib/settings";
+import { ExcludedAccountsField } from "./ExcludedAccountsField";
 import { ExcludedTagsField } from "./ExcludedTagsField";
 import {
   MARK_DETECT_TIMEOUT_MS,
@@ -130,6 +131,7 @@ type ScoutStreamEvent = {
   emDashWarning?: string;
   emDashFiltered?: number;
   automatedWarning?: string;
+  excludedAccountWarning?: string;
   lengthWarning?: string;
   pipelineCounts?: {
     raw: number;
@@ -236,6 +238,17 @@ type ExpiredHistoryEntry = {
 
 function normalizeAuthorKey(author: string): string {
   return author.trim().replace(/^@+/, "").toLowerCase();
+}
+
+function threadHasExcludedAuthor(
+  thread: ThreadCard,
+  excludedAccounts: readonly string[],
+): boolean {
+  if (!excludedAccounts.length) return false;
+  const key = normalizeAuthorKey(thread.author);
+  if (!key) return false;
+  const excluded = new Set(excludedAccounts.map((h) => normalizeAuthorKey(h)));
+  return excluded.has(key);
 }
 
 function baitRisk(thread: ThreadCard): number | null {
@@ -1088,6 +1101,7 @@ export default function App() {
   function keepInCurated(
     thread: ThreadCard,
     excludedTags: readonly string[] = settings.excludedTags,
+    excludedAccounts: readonly string[] = settings.excludedAccounts,
   ): boolean {
     const blocked = blockedConversationsRef.current;
     return (
@@ -1095,7 +1109,8 @@ export default function App() {
       !blocked.has(thread.id) &&
       !(thread.conversationId && blocked.has(thread.conversationId)) &&
       !(thread.inReplyToId && blocked.has(thread.inReplyToId)) &&
-      !threadHasExcludedTag(thread, excludedTags)
+      !threadHasExcludedTag(thread, excludedTags) &&
+      !threadHasExcludedAuthor(thread, excludedAccounts)
     );
   }
 
@@ -2106,7 +2121,11 @@ export default function App() {
     setSettings(next);
     setSettingsDraft(next);
     setThreads((prev) =>
-      prev.filter((t) => !threadHasExcludedTag(t, next.excludedTags)),
+      prev.filter(
+        (t) =>
+          !threadHasExcludedTag(t, next.excludedTags) &&
+          !threadHasExcludedAuthor(t, next.excludedAccounts),
+      ),
     );
     setSettingsStatus("Saved — filters apply to Curated now and the next Scout.");
   }
@@ -2163,6 +2182,7 @@ export default function App() {
             dedupeAccounts: settings.dedupeAccounts,
             preferredLanguage: settings.preferredLanguage,
             excludedTags: settings.excludedTags,
+            excludedAccounts: settings.excludedAccounts,
           },
         }),
         signal: ac.signal,
@@ -2264,6 +2284,9 @@ export default function App() {
           (doneEvent.linkWarning ? ` · ${doneEvent.linkWarning}` : "") +
           (doneEvent.emDashWarning ? ` · ${doneEvent.emDashWarning}` : "") +
           (doneEvent.automatedWarning ? ` · ${doneEvent.automatedWarning}` : "") +
+          (doneEvent.excludedAccountWarning
+            ? ` · ${doneEvent.excludedAccountWarning}`
+            : "") +
           (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");
         setStatus(scoutStageMessage("done"));
         pushScoutLine(summary);
@@ -3038,6 +3061,12 @@ export default function App() {
               tags={settingsDraft.excludedTags}
               onChange={(excludedTags) =>
                 setSettingsDraft((prev) => ({ ...prev, excludedTags }))
+              }
+            />
+            <ExcludedAccountsField
+              accounts={settingsDraft.excludedAccounts}
+              onChange={(excludedAccounts) =>
+                setSettingsDraft((prev) => ({ ...prev, excludedAccounts }))
               }
             />
           </div>
