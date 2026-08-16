@@ -263,7 +263,7 @@ describe("runUserIngest", () => {
     const users = listIngestUsers();
     assert.equal(users.length, 1);
     assert.equal(users[0].id, user.id);
-    assert.equal(users[0].xUsername, "@me");
+    assert.equal(users[0].xUsername, "me");
   });
 
   it("fail path stamps last_pull_at so failing users demote in rotation", async () => {
