@@ -825,11 +825,12 @@ export default function App() {
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [markThread, setMarkThread] = useState<ThreadCard | null>(null);
-  const [markReplyUrl, setMarkReplyUrl] = useState("");
-  const [markReply, setMarkReply] = useState("");
-  const [markDetecting, setMarkDetecting] = useState(false);
   const [markDetectNote, setMarkDetectNote] = useState("");
-  const [markDetectMissed, setMarkDetectMissed] = useState(false);
+  const [toast, setToast] = useState<{
+    id: number;
+    text: string;
+    kind: "ok" | "warn";
+  } | null>(null);
   const [dismissThread, setDismissThread] = useState<ThreadCard | null>(null);
   const [dismissReason, setDismissReason] = useState("");
   const abortRef = useRef<AbortController | null>(null);
@@ -1537,21 +1538,31 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);
 
+  function showToast(text: string, kind: "ok" | "warn" = "ok") {
+    setToast({ id: Date.now(), text, kind });
+  }
+
+  function finishMarkDetect(
+    gen: number,
+    text: string,
+    kind: "ok" | "warn" = "warn",
+  ) {
+    if (markDetectGenRef.current !== gen) return;
+    closeMarkModal();
+    showToast(text, kind);
+  }
+
   async function runMarkDetect(thread: ThreadCard, gen: number) {
     markDetectAbortRef.current?.abort();
     const ac = new AbortController();
     markDetectAbortRef.current = ac;
-    setMarkDetecting(true);
-    setMarkDetectMissed(false);
     const startedAt = Date.now();
     let attempt = 0;
     let lastReason: string | undefined;
 
-    try {
-      while (markDetectGenRef.current === gen && !ac.signal.aborted) {
+    while (markDetectGenRef.current === gen && !ac.signal.aborted) {
         if (Date.now() - startedAt >= MARK_DETECT_TIMEOUT_MS) {
-          setMarkDetectMissed(true);
-          setMarkDetectNote(markDetectTimeoutNote());
+          finishMarkDetect(gen, markDetectTimeoutNote());
           return;
         }
         attempt += 1;
@@ -1586,15 +1597,15 @@ export default function App() {
           if (!res.ok) {
             // Identity / auth failures won't recover by polling.
             if (res.status === 401 || res.status === 503) {
-              setMarkDetectMissed(true);
-              setMarkDetectNote(
-                "Detection unavailable — session identity unresolved. Paste the URL manually.",
+              finishMarkDetect(
+                gen,
+                "Could not look up your reply — sign in again and mark.",
               );
               return;
             }
             if (res.status === 402 || data.error === "credits_exhausted") {
-              setMarkDetectMissed(true);
-              setMarkDetectNote(
+              finishMarkDetect(
+                gen,
                 typeof data.message === "string" && data.message
                   ? data.message
                   : "This month's credits are used. Upgrade on Usage & Billing, or wait until the next UTC month.",
@@ -1627,11 +1638,17 @@ export default function App() {
         }
 
         if (found) {
-          setMarkReplyUrl(replyUrl);
-          setMarkReply(replyText);
-          setMarkDetectMissed(false);
-          setMarkDetectNote(
-            "Found your reply — confirm or edit before saving.",
+          setMarkDetectNote("Found your reply — saving…");
+          const ok = await postInteracted(thread, replyUrl, replyText);
+          if (markDetectGenRef.current !== gen) return;
+          finishMarkDetect(
+            gen,
+            ok
+              ? replyText.trim()
+                ? `Marked ${thread.author} interacted — memory saved`
+                : `Marked ${thread.author} interacted`
+              : "Could not save the mark. Try again.",
+            ok ? "ok" : "warn",
           );
           return;
         }
@@ -1644,22 +1661,18 @@ export default function App() {
             elapsedMs,
           })
         ) {
-          setMarkDetectMissed(true);
-          if (
-            elapsedMs >= MARK_DETECT_TIMEOUT_MS &&
-            reason !== "ambiguous"
-          ) {
-            setMarkDetectNote(markDetectTimeoutNote());
-          } else {
-            setMarkDetectNote(markDetectMissNote(reason ?? lastReason));
-          }
+          finishMarkDetect(
+            gen,
+            elapsedMs >= MARK_DETECT_TIMEOUT_MS && reason !== "ambiguous"
+              ? markDetectTimeoutNote()
+              : markDetectMissNote(reason ?? lastReason),
+          );
           return;
         }
 
         const waitMs = nextMarkDetectWaitMs({ elapsedMs });
         if (waitMs <= 0) {
-          setMarkDetectMissed(true);
-          setMarkDetectNote(markDetectTimeoutNote());
+          finishMarkDetect(gen, markDetectTimeoutNote());
           return;
         }
 
@@ -1674,25 +1687,12 @@ export default function App() {
         });
         if (waited === "aborted" || markDetectGenRef.current !== gen) return;
       }
-    } finally {
-      if (markDetectGenRef.current === gen) {
-        setMarkDetecting(false);
-      }
-    }
   }
 
   function openMarkModal(thread: ThreadCard) {
     const gen = ++markDetectGenRef.current;
     setMarkThread(thread);
-    setMarkReplyUrl("");
-    setMarkReply("");
-    void runMarkDetect(thread, gen);
-  }
-
-  function retryMarkDetect() {
-    const thread = markThread;
-    if (!thread || markDetecting) return;
-    const gen = ++markDetectGenRef.current;
+    setMarkDetectNote(`Looking for your reply to ${thread.author}…`);
     void runMarkDetect(thread, gen);
   }
 
@@ -1701,11 +1701,7 @@ export default function App() {
     markDetectAbortRef.current?.abort();
     markDetectAbortRef.current = null;
     setMarkThread(null);
-    setMarkReplyUrl("");
-    setMarkReply("");
-    setMarkDetecting(false);
     setMarkDetectNote("");
-    setMarkDetectMissed(false);
   }
 
   async function postInteracted(
@@ -2402,28 +2398,13 @@ export default function App() {
     }
   }
 
-  async function confirmMarkInteracted() {
-    const thread = markThread;
-    if (!thread) return;
-    if (!parseStatusIdFromUrl(markReplyUrl)) {
-      setStatus("Reply URL is required — paste the link to your reply on X.");
-      return;
-    }
-    setActionBusy(true);
-    try {
-      const ok = await postInteracted(thread, markReplyUrl, markReply);
-      if (ok) {
-        closeMarkModal();
-        setStatus(
-          markReply.trim()
-            ? `Marked ${thread.author} interacted — memory saved · 24h cooldown`
-            : `Marked ${thread.author} interacted — 24h cooldown`,
-        );
-      }
-    } finally {
-      setActionBusy(false);
-    }
-  }
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => {
+      setToast((current) => (current?.id === toast.id ? null : current));
+    }, 4200);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   useEffect(() => {
     if (!markThread && !dismissThread) return;
@@ -3411,76 +3392,46 @@ export default function App() {
             type="button"
             className="modal-backdrop"
             aria-label="Cancel mark interacted"
-            disabled={actionBusy}
             onClick={closeMarkModal}
           />
           <div
-            className="modal-sheet"
+            className="modal-sheet mark-detect-sheet"
             role="dialog"
             aria-modal="true"
             aria-labelledby="mark-reply-title"
+            aria-live="polite"
           >
-            <h2 id="mark-reply-title">Mark interacted</h2>
+            <h2 id="mark-reply-title">Looking for your reply</h2>
+            <div className="mark-detect-anim" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
             <p className="status">
               {markDetectNote ||
-                `Reply you posted on X for ${markThread.author}. Optional reply text is saved to local knowledge memory.`}
+                `Checking X for a reply to ${markThread.author}…`}
             </p>
-            <label className="settings-field">
-              <span>Reply URL on X</span>
-              <input
-                className="mark-reply-url"
-                type="url"
-                value={markReplyUrl}
-                onChange={(e) => setMarkReplyUrl(e.target.value)}
-                placeholder="https://x.com/you/status/…"
-                autoFocus
-                disabled={actionBusy}
-              />
-            </label>
-            <label className="settings-field">
-              <span>Reply text (optional, for memory)</span>
-              <textarea
-                className="mark-reply-text"
-                value={markReply}
-                onChange={(e) => setMarkReply(e.target.value)}
-                placeholder="What you actually typed / posted…"
-                rows={4}
-                disabled={actionBusy}
-              />
-            </label>
             <div className="row">
               <button
                 type="button"
-                className="primary"
-                disabled={
-                  actionBusy ||
-                  markDetecting ||
-                  !parseStatusIdFromUrl(markReplyUrl)
-                }
-                onClick={() => void confirmMarkInteracted()}
-              >
-                {markDetecting ? "Checking…" : "Confirm"}
-              </button>
-              {markDetectMissed && !markDetecting ? (
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={actionBusy}
-                  onClick={() => retryMarkDetect()}
-                >
-                  Retry
-                </button>
-              ) : null}
-              <button
-                type="button"
                 className="ghost"
-                disabled={actionBusy}
                 onClick={closeMarkModal}
               >
                 Cancel
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {toast ? (
+        <div
+          className={
+            toast.kind === "warn" ? "app-toast is-warn" : "app-toast"
+          }
+          role="status"
+        >
+          {toast.text}
         </div>
       ) : null}
 

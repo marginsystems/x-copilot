@@ -18,8 +18,11 @@ describe("markDetectPoll notes", () => {
     assert.equal(markDetectWaitingNote(5, 2), "Waiting 5s… (next check 2)");
     assert.equal(markDetectWaitingNote(0, 3), "Waiting 1s… (next check 3)");
     assert.match(markDetectTimeoutNote(), /Timed out/);
+    assert.match(markDetectTimeoutNote(), /mark again/);
     assert.match(markDetectMissNote("ambiguous"), /Multiple replies/);
     assert.match(markDetectMissNote("none"), /Couldn't find/);
+    assert.doesNotMatch(markDetectTimeoutNote(), /paste/i);
+    assert.doesNotMatch(markDetectMissNote("none"), /paste/i);
   });
 });
 
