@@ -136,6 +136,13 @@ export async function runUserIngest(opts: {
     error: string,
     message: string,
   ): UserIngestResult => {
+    const current = getVoiceProfile(user.id);
+    updateVoiceProfilePull({
+      userId: user.id,
+      xUsername: current?.xUsername ?? null,
+      sinceId: current?.sinceId ?? null,
+      lastPullAt: nowIso(),
+    });
     setVoiceProfileStatus(
       user.id,
       priorStatus === "ready" ? "ready" : "empty",
@@ -170,11 +177,12 @@ export async function runUserIngest(opts: {
           `@${handle} is protected. Voice only reads public replies — there is no workaround, and we will not scrape.`,
         );
       }
+      const sinceId = opts.mode === "hourly" ? profile.sinceId : null;
       const pull = await pullReplies({
         xUserId: resolved.id,
-        sinceId: opts.mode === "hourly" ? profile.sinceId : null,
+        sinceId,
         targetReplies:
-          opts.mode === "hourly" ? 40 : VOICE_TARGET_REPLIES,
+          sinceId === null ? VOICE_TARGET_REPLIES : 40,
         deps: { get: ingestGet },
       });
       if (!pull.ok) {
