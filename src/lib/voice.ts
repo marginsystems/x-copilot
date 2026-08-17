@@ -200,6 +200,22 @@ export function voiceNeedsXLink(
   return true;
 }
 
+export const VOICE_UNLOCK_TOAST_KEY = "xc.voiceUnlockToast.dismissed";
+
+/**
+ * Desk toast only after Voice has loaded, and only while Suggest is still
+ * locked. Never flash the default copy and then hide it.
+ */
+export function shouldShowVoiceUnlockToast(opts: {
+  voice: VoiceState | null;
+  hasSession: boolean;
+}): boolean {
+  if (!opts.hasSession) return false;
+  if (!opts.voice) return false;
+  if (opts.voice.status === "ready" && opts.voice.unlocked) return false;
+  return true;
+}
+
 /** Plain-language next step so Suggest is never a mystery. */
 export function voiceUnlockCopy(state: VoiceState | null): string {
   const need = state?.unlockAt ?? 100;

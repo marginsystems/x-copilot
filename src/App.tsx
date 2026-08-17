@@ -69,7 +69,7 @@ import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
 import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
 import { Analytics } from "./Analytics";
 import { Account } from "./Account";
-import { SuggestLocked, VoiceCardPanel, VoiceUnlockBanner } from "./VoiceCard";
+import { SuggestLocked, VoiceCardPanel, VoiceUnlockToast } from "./VoiceCard";
 import { SuggestPane } from "./SuggestPane";
 import {
   parseVoiceState,
@@ -2971,7 +2971,7 @@ export default function App() {
         </section>
       ) : (
         <>
-        <VoiceUnlockBanner
+        <VoiceUnlockToast
           voice={voice}
           xLinked={authUser?.xLinked}
           hasSession={Boolean(authUser)}
@@ -3275,7 +3275,7 @@ export default function App() {
                         onSkip={() => void onSkip(t)}
                         onDismiss={() => openDismissModal(t)}
                         suggest={
-                          voice?.status === "ready" && voice.unlocked ? (
+                          !voice ? null : voice.status === "ready" && voice.unlocked ? (
                             <SuggestPane
                               threadId={t.id}
                               author={t.author}

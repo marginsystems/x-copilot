@@ -5,10 +5,12 @@ import {
   phaseIndexAt,
   suggestsLeftLabel,
   unlockProgress,
+  shouldShowVoiceUnlockToast,
   voiceNeedsXLink,
   voiceUnlockCopy,
   VOICE_LINK_X_COPY,
   VOICE_LINK_X_TIP,
+  VOICE_UNLOCK_TOAST_KEY,
   type VoiceState,
 } from "./lib/voice";
 
@@ -198,8 +200,16 @@ function UnlockMeter({ voice }: { voice: VoiceState }) {
   );
 }
 
-/** Compact desk banner — always explains how Suggest unlocks. */
-export function VoiceUnlockBanner({
+function readVoiceToastDismissed(): boolean {
+  try {
+    return sessionStorage.getItem(VOICE_UNLOCK_TOAST_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Overlay toast — never in document flow, never shown before Voice loads. */
+export function VoiceUnlockToast({
   voice,
   xLinked,
   hasSession,
@@ -214,10 +224,12 @@ export function VoiceUnlockBanner({
   onOpenSettings: () => void;
   onLinkX: () => void;
 }) {
-  if (voice?.status === "ready" && voice.unlocked) return null;
-  const needsX = hasSession && voiceNeedsXLink(voice, xLinked);
+  const [dismissed, setDismissed] = useState(readVoiceToastDismissed);
+  if (dismissed) return null;
+  if (!shouldShowVoiceUnlockToast({ voice, hasSession })) return null;
+  const needsX = voiceNeedsXLink(voice, xLinked);
   return (
-    <aside className="voice-desk-banner" aria-label="How to unlock Suggest">
+    <aside className="voice-unlock-toast" aria-label="How to unlock Suggest">
       <div className="voice-desk-banner-copy">
         <p className="voice-desk-banner-title">
           {needsX ? "Link X" : "Suggest reply"}
@@ -247,6 +259,20 @@ export function VoiceUnlockBanner({
             Voice
           </button>
         )}
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => {
+            try {
+              sessionStorage.setItem(VOICE_UNLOCK_TOAST_KEY, "1");
+            } catch {
+              /* private mode */
+            }
+            setDismissed(true);
+          }}
+        >
+          Dismiss
+        </button>
       </div>
     </aside>
   );
