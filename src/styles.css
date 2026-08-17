@@ -3333,13 +3333,18 @@ button.agenda-option.is-on {
   flex-wrap: wrap;
 }
 
-.voice-desk-banner {
+.voice-unlock-toast {
+  position: fixed;
+  right: 16px;
+  top: 56px;
+  z-index: 35;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin: 0 0 12px;
+  width: min(28rem, calc(100% - 24px));
+  margin: 0;
   padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -3350,6 +3355,7 @@ button.agenda-option.is-on {
       transparent 50%
     ),
     var(--raised);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
 .voice-desk-banner-copy {

@@ -7,9 +7,11 @@ import {
   phaseIndexAt,
   suggestsLeftLabel,
   unlockProgress,
+  shouldShowVoiceUnlockToast,
   voiceNeedsXLink,
   voiceUnlockCopy,
   VOICE_LINK_X_COPY,
+  type VoiceState,
 } from "./voice.ts";
 
 describe("localEditHint", () => {
@@ -95,6 +97,91 @@ describe("voiceUnlockCopy", () => {
         },
       }),
       VOICE_LINK_X_COPY,
+    );
+  });
+});
+
+describe("shouldShowVoiceUnlockToast", () => {
+  const locked: VoiceState = {
+    status: "insufficient",
+    handle: "margin",
+    replyCount: 40,
+    conversationCount: 40,
+    unlockAt: 100,
+    unlocked: false,
+    card: null,
+    cardUpdatedAt: null,
+    lastPullAt: null,
+    needsDailyUpdate: false,
+    needsLearn: false,
+    lastError: null,
+    suggests: {
+      used: 0,
+      limit: 10,
+      remaining: 10,
+      canSuggest: true,
+      planKey: "free",
+    },
+  };
+
+  it("stays hidden until Voice has loaded", () => {
+    assert.equal(
+      shouldShowVoiceUnlockToast({ voice: null, hasSession: true }),
+      false,
+    );
+  });
+
+  it("stays hidden without a session", () => {
+    assert.equal(
+      shouldShowVoiceUnlockToast({ voice: locked, hasSession: false }),
+      false,
+    );
+  });
+
+  it("stays hidden when Suggest is already unlocked", () => {
+    assert.equal(
+      shouldShowVoiceUnlockToast({
+        voice: { ...locked, status: "ready", unlocked: true, replyCount: 120 },
+        hasSession: true,
+      }),
+      false,
+    );
+  });
+
+  it("stays hidden on the impossible ready-but-not-unlocked state", () => {
+    assert.equal(
+      shouldShowVoiceUnlockToast({
+        voice: { ...locked, status: "ready", unlocked: false },
+        hasSession: true,
+      }),
+      false,
+    );
+  });
+
+  it("stays hidden for an already-unlocked user mid-ingest", () => {
+    assert.equal(
+      shouldShowVoiceUnlockToast({
+        voice: { ...locked, status: "learning", unlocked: true, replyCount: 120 },
+        hasSession: true,
+      }),
+      false,
+    );
+  });
+
+  it("still shows for a locked user mid-ingest", () => {
+    assert.equal(
+      shouldShowVoiceUnlockToast({
+        voice: { ...locked, status: "learning", unlocked: false },
+        hasSession: true,
+      }),
+      true,
+    );
+  });
+
+  it("shows only after load while Suggest is still locked", () => {
+    assert.equal(
+      shouldShowVoiceUnlockToast({ voice: locked, hasSession: true }),
+      true,
     );
   });
 });
