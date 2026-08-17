@@ -99,8 +99,13 @@ export function Account(props: {
       const data = (await res.json()) as AccountPayload & {
         signedOut?: boolean;
       };
+      if (res.status === 401) {
+        props.onSignedOut();
+        return;
+      }
       if (!res.ok) {
         setError(data.message || data.error || `Revoke failed (${res.status})`);
+        setPendingId(null);
         return;
       }
       if (data.signedOut) {
@@ -111,6 +116,7 @@ export function Account(props: {
       setPendingId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setPendingId(null);
     } finally {
       setActing(false);
     }
@@ -124,14 +130,20 @@ export function Account(props: {
         method: "POST",
       });
       const data = (await res.json()) as AccountPayload;
+      if (res.status === 401) {
+        props.onSignedOut();
+        return;
+      }
       if (!res.ok) {
         setError(data.message || data.error || `Revoke failed (${res.status})`);
+        setPendingOthers(false);
         return;
       }
       setSessions(data.sessions ?? []);
       setPendingOthers(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setPendingOthers(false);
     } finally {
       setActing(false);
     }
