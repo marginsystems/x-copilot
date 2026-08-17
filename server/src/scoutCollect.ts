@@ -32,6 +32,7 @@ import {
   filterSelfReplies,
   filterThreadsByLength,
   normalizePreferredLanguageCode,
+  collectArticleConversationIds,
   collectBaitConversationIds,
   replyUnderBaitConversation,
   resolveExcludedAccounts,
@@ -367,6 +368,8 @@ export async function runScoutCollect(opts: {
   const coolAuthors = new Set<string>();
   /** Bait roots/parents seen this Scout run — suppress sibling replies. */
   const baitConversationIds = new Set<string>();
+  /** Article roots seen this Scout run — suppress replies under them. */
+  const articleConversationIds = new Set<string>();
   let bucket: ThreadCard[] = [];
   const searchErrors: Array<{ query: string; message: string }> = [];
   let triageWarning: string | undefined;
@@ -560,10 +563,15 @@ export async function runScoutCollect(opts: {
           afterAutomated.threads,
           excludedAccounts,
         );
+        for (const id of collectArticleConversationIds(
+          afterExcludedAccounts.threads,
+        )) {
+          articleConversationIds.add(id);
+        }
         const afterLen = filterThreadsByLength(
           afterExcludedAccounts.threads,
           maxChars,
-          { dropArticles },
+          { dropArticles, articleIds: articleConversationIds },
         );
 
         funnelCounts.raw += result.threads.length;
@@ -664,18 +672,27 @@ export async function runScoutCollect(opts: {
         afterHydrateSelf.threads,
         preferredLanguage,
       );
-      const forTriage = afterHydrateLang.threads;
+      const afterHydrateLen = filterThreadsByLength(
+        afterHydrateLang.threads,
+        maxChars,
+        { dropArticles, articleIds: articleConversationIds },
+      );
+      const forTriage = afterHydrateLen.threads;
       languageFilteredTotal += afterHydrateLang.languageFilteredCount;
 
       if (forTriage.length === 0) {
-        if (isPartial && afterHydrateLang.languageFilteredCount === 0) {
+        if (
+          isPartial &&
+          afterHydrateLang.languageFilteredCount === 0 &&
+          afterHydrateLen.filteredCount === 0
+        ) {
           bucket = [];
           stopReason = "exhausted";
           break;
         }
         track(
           "filtering",
-          "0 candidates after post-hydrate self-reply + language filter — discarding bucket…",
+          "0 candidates after post-hydrate self-reply + language + length filter — discarding bucket…",
           {
             candidates: 0,
             coolCount: cool.length,
@@ -685,6 +702,8 @@ export async function runScoutCollect(opts: {
                 afterHydrateSelf.selfReplyFilteredCount,
               languageFilteredPostHydrate:
                 afterHydrateLang.languageFilteredCount,
+              lengthFilteredPostHydrate: afterHydrateLen.filteredCount,
+              articleFilteredPostHydrate: afterHydrateLen.articleFilteredCount,
             },
           },
         );

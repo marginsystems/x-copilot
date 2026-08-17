@@ -1405,6 +1405,201 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
+  it("drops replies under a hydrated Article parent before triage", async () => {
+    let triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "art-reply",
+              author: "@reader",
+              inReplyToId: "art1",
+              isReply: true,
+              text: "Great piece, thanks for writing this up.",
+            }),
+            card({ id: "n1", author: "@alice" }),
+            card({ id: "n2", author: "@bob" }),
+            card({ id: "n3", author: "@carol" }),
+            card({ id: "n4", author: "@dave" }),
+            card({ id: "n5", author: "@erin" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads: threads.map((t) =>
+            t.id === "art-reply"
+              ? {
+                  ...t,
+                  opAuthor: "@writer",
+                  opText: "Short article teaser",
+                  opLongform: "article" as const,
+                  opCharCount: 20,
+                  opParentDerived: true,
+                }
+              : t,
+          ),
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 20 : 80,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.ok(!triageIds.includes("art-reply"));
+    assert.deepEqual(triageIds, ["n1", "n2", "n3", "n4"]);
+    assert.equal(result.event.stopReason, "target");
+  });
+
+  it("drops replies under a parent over the char cap after hydrate", async () => {
+    let triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      filters: { maxThreadChars: 400 },
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "long-parent-reply",
+              author: "@reader",
+              inReplyToId: "wall1",
+              isReply: true,
+              text: "This is the bit I keep coming back to.",
+            }),
+            card({ id: "n1", author: "@alice" }),
+            card({ id: "n2", author: "@bob" }),
+            card({ id: "n3", author: "@carol" }),
+            card({ id: "n4", author: "@dave" }),
+            card({ id: "n5", author: "@erin" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads: threads.map((t) =>
+            t.id === "long-parent-reply"
+              ? {
+                  ...t,
+                  opAuthor: "@essayist",
+                  opText: "preview",
+                  opCharCount: 900,
+                  opParentDerived: true,
+                }
+              : t,
+          ),
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 20 : 80,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.ok(!triageIds.includes("long-parent-reply"));
+    assert.deepEqual(triageIds, ["n1", "n2", "n3", "n4"]);
+    assert.equal(result.event.stopReason, "target");
+  });
+
+  it("exhausts when the post-hydrate length filter empties a partial bucket", async () => {
+    let triageCalls = 0;
+    let searchCalls = 0;
+
+    const result = await runScoutCollect({
+      queries: ["q1", "q2"],
+      bucketSize: 5,
+      targetCool: 5,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        // First page yields a partial bucket of replies; supply is empty after.
+        searchTimeline: async () => {
+          searchCalls += 1;
+          if (searchCalls === 1) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [1, 2, 3].map((n) =>
+                card({
+                  id: `r${n}`,
+                  author: `@r${n}`,
+                  inReplyToId: `op${n}`,
+                  isReply: true,
+                  text: "How do you pick which products to build?",
+                }),
+              ),
+              bottomCursor: null,
+            };
+          }
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: [],
+            bottomCursor: null,
+          };
+        },
+        // Hydrate reveals every replied-to parent is oversized.
+        hydrateReplyParents: async ({ threads }) => ({
+          threads: threads.map((t) => ({
+            ...t,
+            opAuthor: "@parent",
+            opText: "preview",
+            opCharCount: 900,
+            opParentDerived: true,
+          })),
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageCalls += 1;
+          return { threads };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(triageCalls, 0, "length-emptied bucket must not reach triage");
+    assert.equal(result.event.stopReason, "exhausted");
+  });
+
   it("drops non-preferred-language cards before triage", async () => {
     let triageIds: string[] = [];
     const spanish =

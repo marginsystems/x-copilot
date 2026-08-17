@@ -473,6 +473,139 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.filteredCount, 1);
     assert.equal(result.articleFilteredCount, 0);
   });
+
+  it("drops replies under a hydrated Article parent", () => {
+    const reply = thread("2", "Short take on this", undefined, {
+      isReply: true,
+      inReplyToId: "1",
+      opLongform: "article",
+      opText: "Short article teaser",
+    });
+    const short = thread("3", "Concrete take: ship weekly.");
+    const result = filterThreadsByLength([reply, short], 480);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["3"],
+    );
+    assert.equal(result.articleFilteredCount, 1);
+  });
+
+  it("drops replies whose conversation root is an Article in the same batch", () => {
+    const article = thread("1", "Short article teaser", "article");
+    const reply = thread("2", "Nice writeup", undefined, {
+      isReply: true,
+      inReplyToId: "1",
+      conversationId: "1",
+    });
+    const result = filterThreadsByLength([article, reply], 480);
+    assert.equal(result.threads.length, 0);
+    assert.equal(result.articleFilteredCount, 2);
+  });
+
+  it("keeps article replies when dropArticles is false", () => {
+    const reply = thread("2", "Short take", undefined, {
+      isReply: true,
+      inReplyToId: "1",
+      opLongform: "article",
+      opText: "teaser",
+    });
+    const result = filterThreadsByLength([reply], 480, { dropArticles: false });
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+  });
+
+  it("drops replies under a parent over the char cap", () => {
+    const reply = thread("2", "Agree", undefined, {
+      isReply: true,
+      inReplyToId: "1",
+      opText: "preview",
+      opCharCount: 481,
+    });
+    const result = filterThreadsByLength([reply], 480);
+    assert.equal(result.threads.length, 0);
+    assert.equal(result.filteredCount, 1);
+    assert.equal(result.articleFilteredCount, 0);
+  });
+
+  it("uses opCharCount instead of the sliced opText preview", () => {
+    const reply = thread("2", "Agree", undefined, {
+      isReply: true,
+      inReplyToId: "1",
+      opText: "x".repeat(500),
+      opCharCount: 200,
+    });
+    const result = filterThreadsByLength([reply], 480);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+  });
+
+  it("does not treat quote-derived opText as the parent length", () => {
+    const reply = thread("2", "Agree", undefined, {
+      isReply: true,
+      inReplyToId: "1",
+      // Quote-bearing card: opText is the quoted tweet, not the replied-to
+      // parent, so a long quote must not count as an oversized parent.
+      opText: "y".repeat(900),
+    });
+    const result = filterThreadsByLength([reply], 480);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+  });
+
+  it("drops replies under a thread-opener parent", () => {
+    const reply = thread("2", "First point is strong", undefined, {
+      isReply: true,
+      inReplyToId: "1",
+      opText: "1/12 Starting a thread about shipping",
+    });
+    const result = filterThreadsByLength([reply], 480);
+    assert.equal(result.threads.length, 0);
+    assert.equal(result.openerFilteredCount, 1);
+  });
+
+  it("keeps unhydrated replies when the parent is unknown", () => {
+    const reply = thread("2", "Agree", undefined, {
+      isReply: true,
+      inReplyToId: "1",
+    });
+    const result = filterThreadsByLength([reply], 480);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+  });
+
+  it("does not apply the parent cap to a quote of a long post", () => {
+    const quote = thread("2", "This bit", undefined, {
+      isQuote: true,
+      opText: "preview",
+      opCharCount: 900,
+    });
+    const result = filterThreadsByLength([quote], 480);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+  });
+
+  it("drops replies using article ids from an earlier page", () => {
+    const reply = thread("9", "Nice writeup", undefined, {
+      isReply: true,
+      inReplyToId: "art1",
+      conversationId: "art1",
+    });
+    const result = filterThreadsByLength([reply], 480, {
+      articleIds: new Set(["art1"]),
+    });
+    assert.equal(result.threads.length, 0);
+    assert.equal(result.articleFilteredCount, 1);
+  });
 });
 
 describe("resolveMaxThreadCharsFromFilters", () => {

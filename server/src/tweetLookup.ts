@@ -4,11 +4,45 @@
 import { normalizeAuthorKey } from "./interactionStore.js";
 import { xApiGet } from "./xApi.js";
 import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
-import { tweetResultToCard, v2TweetToCard } from "./xSearch.js";
+import {
+  MAX_OP_TEXT_CHARS,
+  tweetResultToCard,
+  v2TweetToCard,
+} from "./xSearch.js";
 
-const parentCache = new Map<string, { author: string; text: string } | null>();
+const parentCache = new Map<string, ParentTweet | null>();
 
-export type ParentTweet = { author: string; text: string };
+export type ParentTweet = {
+  author: string;
+  text: string;
+  longform?: "note_tweet" | "article";
+};
+
+function parentFromCard(card: {
+  author: string;
+  text: string;
+  longform?: "note_tweet" | "article";
+}): ParentTweet {
+  return {
+    author: card.author,
+    text: card.text,
+    ...(card.longform ? { longform: card.longform } : {}),
+  };
+}
+
+function applyHydratedParent(
+  card: import("./xSearch.js").ThreadCard,
+  parent: ParentTweet,
+): import("./xSearch.js").ThreadCard {
+  return {
+    ...card,
+    opAuthor: parent.author,
+    opText: parent.text.slice(0, MAX_OP_TEXT_CHARS),
+    opParentDerived: true,
+    opCharCount: parent.text.length,
+    ...(parent.longform ? { opLongform: parent.longform } : {}),
+  };
+}
 
 export type TweetMetrics = {
   views?: number;
@@ -130,7 +164,7 @@ function parseTweetResultPayload(data: unknown): ParentTweet | null {
   const result = tweetResultFromPayload(data);
   const card = tweetResultToCard(result);
   if (!card?.author || !card.text) return null;
-  return { author: card.author, text: card.text };
+  return parentFromCard(card);
 }
 
 type V2LookupJson = {
@@ -139,6 +173,14 @@ type V2LookupJson = {
     text?: string;
     author_id?: string;
     note_tweet?: { text?: string };
+    article?: unknown;
+    entities?: {
+      urls?: Array<{
+        url?: string;
+        expanded_url?: string;
+        display_url?: string;
+      }>;
+    };
     public_metrics?: Record<string, unknown>;
   };
   includes?: {
@@ -157,7 +199,7 @@ function parentFromV2(json: unknown): ParentTweet | null {
   );
   const card = v2TweetToCard(tw, usersById);
   if (!card?.author || !card.text) return null;
-  return { author: card.author, text: card.text };
+  return parentFromCard(card);
 }
 
 /**
@@ -183,7 +225,7 @@ export async function fetchParentTweet(opts: {
   const res = await xApiGet({
     path: `/tweets/${encodeURIComponent(tweetId)}`,
     query: {
-      "tweet.fields": "created_at,author_id,note_tweet,entities",
+      "tweet.fields": "created_at,author_id,note_tweet,entities,article",
       expansions: "author_id",
       "user.fields": "username,name",
     },
@@ -371,12 +413,7 @@ export async function hydrateReplyParents(opts: {
       parent &&
       normalizeAuthorKey(parent.author) === normalizeAuthorKey(t.author)
     ) {
-      out[i] = {
-        ...t,
-        opAuthor: parent.author,
-        opText: parent.text.slice(0, 500),
-        opParentDerived: true,
-      };
+      out[i] = applyHydratedParent(t, parent);
       continue;
     }
     let source = parent;
@@ -399,12 +436,7 @@ export async function hydrateReplyParents(opts: {
       unhydratedReplyCount += 1;
       continue;
     }
-    out[i] = {
-      ...t,
-      opAuthor: source.author,
-      opText: source.text.slice(0, 500),
-      opParentDerived: true,
-    };
+    out[i] = applyHydratedParent(t, source);
   }
   return { threads: out, unhydratedReplyCount };
 }

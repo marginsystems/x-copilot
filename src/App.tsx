@@ -2863,7 +2863,7 @@ export default function App() {
               </span>
             </label>
             <label className="settings-field">
-              <span>Max thread characters</span>
+              <span>Max post characters</span>
               <input
                 type="number"
                 min={120}
@@ -2881,6 +2881,9 @@ export default function App() {
                   }))
                 }
               />
+              <span className="settings-help">
+                Skip the candidate and replies under a parent over this length.
+              </span>
             </label>
             <label className="settings-field">
               <span>Cool threads target (1–20)</span>
@@ -2945,7 +2948,7 @@ export default function App() {
                     }))
                   }
                 />
-                <span>Drop X Articles</span>
+                <span>Drop X Articles and replies to them</span>
               </label>
               <label className="settings-check">
                 <input

@@ -256,16 +256,21 @@ export async function runScoutSearch(opts: {
     afterHydrateSelf.threads,
     preferredLanguage,
   );
+  const afterHydrateLen = filterThreadsByLength(
+    afterHydrateLang.threads,
+    maxChars,
+    { dropArticles },
+  );
   const selfReplyFiltered =
     afterSelf.selfReplyFilteredCount +
     afterHydrateSelf.selfReplyFilteredCount;
 
   track("triaging", "Scout is scoring threads for bait risk…", {
-    count: afterHydrateLang.threads.length,
+    count: afterHydrateLen.threads.length,
   });
   const triaged = await triageThreads({
     agenda,
-    threads: afterHydrateLang.threads,
+    threads: afterHydrateLen.threads,
   });
   llmUsage = addTokenUsage(llmUsage, triaged.usage);
 
@@ -296,12 +301,14 @@ export async function runScoutSearch(opts: {
   const excludedAccountWarning = afterExcludedAccounts.excludedAccountFilteredCount
     ? `Dropped ${afterExcludedAccounts.excludedAccountFilteredCount} excluded accounts.`
     : undefined;
-  const overChars =
-    byLength.filteredCount -
-    byLength.openerFilteredCount -
-    byLength.articleFilteredCount;
-  const lengthWarning = byLength.filteredCount
-    ? `Dropped ${byLength.filteredCount} posts (${byLength.articleFilteredCount} articles, ${byLength.openerFilteredCount} thread openers, ${overChars} over ${maxChars} chars).`
+  const articleFiltered =
+    byLength.articleFilteredCount + afterHydrateLen.articleFilteredCount;
+  const openerFiltered =
+    byLength.openerFilteredCount + afterHydrateLen.openerFilteredCount;
+  const lengthFiltered = byLength.filteredCount + afterHydrateLen.filteredCount;
+  const overChars = lengthFiltered - openerFiltered - articleFiltered;
+  const lengthWarning = lengthFiltered
+    ? `Dropped ${lengthFiltered} posts (${articleFiltered} articles, ${openerFiltered} thread openers, ${overChars} over ${maxChars} chars).`
     : undefined;
 
   const done: ScoutEvent = {
