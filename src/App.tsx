@@ -55,7 +55,8 @@ import { UserMenu } from "./UserMenu";
 import { BootScreen, Landing } from "./Landing";
 import { LegalPage } from "./Legal";
 import { CookieConsent } from "./CookieConsent";
-import { isLegalKind, SITE_ORIGIN, type LegalKind } from "./lib/legal";
+import { isLegalKind, SITE_ORIGIN } from "./lib/legal";
+import { pathFromView, viewFromPath, type AppView } from "./lib/appView";
 import {
   readConsent,
   writeConsent,
@@ -659,16 +660,6 @@ function InteractedRow({
   );
 }
 
-type AppView =
-  | "dashboard"
-  | "voice"
-  | "settings"
-  | "account"
-  | "usage"
-  | "admin"
-  | "analytics"
-  | LegalKind;
-
 type UsageWindow = "24h" | "7d" | "all";
 
 type UsageRecentRow = {
@@ -706,30 +697,6 @@ type AuthSessionUser = {
   xUsername: string | null;
   isAdmin: boolean;
 };
-
-function viewFromPath(pathname: string): AppView {
-  if (pathname === "/privacy" || pathname.startsWith("/privacy/")) return "privacy";
-  if (pathname === "/terms" || pathname.startsWith("/terms/")) return "terms";
-  if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
-  if (pathname === "/usage" || pathname === "/billing") return "usage";
-  if (pathname === "/analytics") return "analytics";
-  if (pathname === "/voice") return "voice";
-  if (pathname === "/account") return "account";
-  if (pathname === "/settings") return "settings";
-  return "dashboard";
-}
-
-function pathFromView(view: AppView): string {
-  if (view === "privacy") return "/privacy";
-  if (view === "terms") return "/terms";
-  if (view === "admin") return "/admin";
-  if (view === "usage") return "/usage";
-  if (view === "analytics") return "/analytics";
-  if (view === "voice") return "/voice";
-  if (view === "account") return "/account";
-  if (view === "settings") return "/settings";
-  return "/";
-}
 
 /** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
 const SEARCH_COOLDOWN_MS = 15_000;
