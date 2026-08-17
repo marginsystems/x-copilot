@@ -32,6 +32,7 @@ export function parseUserAgent(ua: string | null | undefined): {
   if (/Edg\//i.test(raw)) browser = "Edge";
   else if (/OPR\/|Opera\//i.test(raw)) browser = "Opera";
   else if (/Chrome\//i.test(raw) && !/Chromium/i.test(raw)) browser = "Chrome";
+  else if (/Chromium\//i.test(raw)) browser = "Chromium";
   else if (/Firefox\//i.test(raw)) browser = "Firefox";
   else if (/Safari\//i.test(raw) && !/Chrome|Chromium|Android/i.test(raw)) {
     browser = "Safari";

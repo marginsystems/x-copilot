@@ -92,7 +92,7 @@ function ipInCidr(ip: string, cidr: string): boolean {
   const ipNum = ipToBigInt(ip);
   const netNum = ipToBigInt(network);
   if (ipNum === null || netNum === null) return false;
-  const bits = ip.includes(":") ? 128 : 32;
+  const bits = network.includes(":") ? 128 : 32;
   if (prefix < 0 || prefix > bits) return false;
   if (prefix === 0) return true;
   const mask = ((1n << BigInt(prefix)) - 1n) << BigInt(bits - prefix);
@@ -107,20 +107,16 @@ export function isCloudflarePeer(address: string | undefined): boolean {
 }
 
 /**
- * Client IP for rate limiting. Forwarded headers (CF-Connecting-IP /
- * X-Forwarded-For) are spoofable, so they are trusted only from the same peers
- * sessionCookie.ts trusts (Cloudflare edge, see isCloudflarePeer) plus loopback,
- * which covers a local TLS terminator / tunnel in front of the origin. Any other
- * peer falls back to the socket address.
+ * Client IP for rate limiting and session IP tracking. Forwarded headers
+ * (CF-Connecting-IP / X-Forwarded-For) are spoofable, so they are trusted only
+ * from Cloudflare edge peers (see isCloudflarePeer). Loopback is deliberately
+ * not trusted: a local TLS terminator in front of the origin passes client
+ * headers through as-is, so a loopback peer would resolve to a client-controlled
+ * value. Any other peer falls back to the socket address.
  */
 export function clientIp(req: IncomingMessage): string {
   const peer = req.socket.remoteAddress || "unknown";
-  const trustedPeer =
-    isCloudflarePeer(peer) ||
-    peer === "127.0.0.1" ||
-    peer === "::1" ||
-    peer === "::ffff:127.0.0.1";
-  if (trustedPeer) {
+  if (isCloudflarePeer(peer)) {
     const cf = req.headers["cf-connecting-ip"];
     if (typeof cf === "string" && cf.trim()) return cf.trim();
     const xff = req.headers["x-forwarded-for"];

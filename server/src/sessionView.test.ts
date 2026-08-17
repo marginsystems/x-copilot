@@ -39,6 +39,15 @@ describe("parseUserAgent", () => {
     );
   });
 
+  it("reads Chromium-only UAs as Chromium", () => {
+    assert.deepEqual(
+      parseUserAgent(
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chromium/128.0.6613.86 Safari/537.36",
+      ),
+      { browser: "Chromium", os: "Linux" },
+    );
+  });
+
   it("falls back when empty", () => {
     assert.deepEqual(parseUserAgent(null), { browser: "Unknown", os: "Unknown" });
     assert.deepEqual(parseUserAgent(""), { browser: "Unknown", os: "Unknown" });
