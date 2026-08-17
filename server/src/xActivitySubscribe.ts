@@ -254,12 +254,15 @@ export async function subscribeUserToPostCreate(
 }
 
 /**
- * Delete the user's live X-side post.create subscription and its stored row so
- * an account/handle change can re-subscribe against the new account. Keeps the
- * stored id when the X-side DELETE fails so a later attempt can retry it.
- * Returns `{ ok: true }` when the stored row was removed (nothing blocks a
- * fresh re-subscribe) and `{ ok: false }` when the DELETE failed and the old
- * id was retained.
+ * Remove the user's live X-side post.create subscription so an account/handle
+ * change can re-subscribe against the new account. Keeps the stored id when the
+ * X-side DELETE fails so a later attempt can retry it. On success the stored
+ * `subscription_id` is cleared but the row is kept (like `pauseUserSubscription`)
+ * so a concurrent claim reservation and the `paused_until`-based resume scan
+ * keep functioning.
+ * Returns `{ ok: true }` when the stored id was cleared (nothing blocks a fresh
+ * re-subscribe) and `{ ok: false }` when the DELETE failed and the old id was
+ * retained.
  */
 export async function removeUserPostCreateSubscription(
   userId: string,
@@ -275,11 +278,17 @@ export async function removeUserPostCreateSubscription(
     });
     deleteOk = res.ok || res.status === 404;
   }
-  if (deleteOk) {
-    getPlatformDb()
-      .prepare(`DELETE FROM activity_subscriptions WHERE user_id = ?`)
-      .run(userId);
-  }
+  getPlatformDb()
+    .prepare(
+      `UPDATE activity_subscriptions
+       SET subscription_id = ?, updated_at = ?
+       WHERE user_id = ?`,
+    )
+    .run(
+      deleteOk ? null : row?.subscription_id ?? null,
+      new Date().toISOString(),
+      userId,
+    );
   return { ok: deleteOk };
 }
 
