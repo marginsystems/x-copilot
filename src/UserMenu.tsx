@@ -14,6 +14,7 @@ type MenuView =
   | "dashboard"
   | "voice"
   | "settings"
+  | "account"
   | "usage"
   | "admin"
   | "analytics"
@@ -86,6 +87,7 @@ export function UserMenu(props: {
   onVoice: () => void;
   needsXLink?: boolean;
   onUsage: () => void;
+  onAccount: () => void;
   onSettings: () => void;
   onPrivacySettings: () => void;
 }) {
@@ -186,6 +188,16 @@ export function UserMenu(props: {
                 Voice
               </button>
             )}
+            <button
+              type="button"
+              className={
+                props.view === "account" ? "menu-item is-current" : "menu-item"
+              }
+              onClick={props.onAccount}
+            >
+              <MenuIcon d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM4 20c1.6-3.2 4.2-5 8-5s6.4 1.8 8 5" />
+              Account
+            </button>
             <button
               type="button"
               className={
