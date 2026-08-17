@@ -222,4 +222,16 @@ describe("sessions HTTP", () => {
     }
     assert.equal(last.status, 429);
   });
+
+  it("rejects typed X username updates", async () => {
+    const alice = user("typed");
+    const sess = createSession(alice.id);
+    const res = await call({
+      method: "POST",
+      path: "/api/auth/x-username",
+      token: sess.token,
+      origin: LOCAL_ORIGIN,
+    });
+    assert.equal(res.status, 404);
+  });
 });

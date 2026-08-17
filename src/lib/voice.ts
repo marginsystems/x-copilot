@@ -190,13 +190,12 @@ export const VOICE_LINK_X_COPY =
 export const VOICE_LINK_X_TIP =
   "Without an X account we cannot learn your voice or suggest replies.";
 
-/** True when Voice/Suggest cannot run because no X handle is linked. */
+/** True when Voice/Suggest cannot run because official X OAuth is missing. */
 export function voiceNeedsXLink(
   voice: VoiceState | null,
-  xUsername?: string | null,
+  xLinked?: boolean | null,
 ): boolean {
-  const fromUser = (xUsername ?? "").replace(/^@+/, "").trim();
-  if (fromUser) return false;
+  if (xLinked) return false;
   if (voice?.handle) return false;
   if (!voice) return true;
   return voice.status === "unlinked";

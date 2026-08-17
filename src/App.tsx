@@ -695,6 +695,7 @@ type AuthSessionUser = {
   onboardingCompleted: boolean;
   agenda: string | null;
   xUsername: string | null;
+  xLinked: boolean;
   isAdmin: boolean;
 };
 
@@ -793,8 +794,6 @@ export default function App() {
     loadSettings(),
   );
   const [settingsStatus, setSettingsStatus] = useState("");
-  const [xHandleDraft, setXHandleDraft] = useState("");
-  const [settingsSaving, setSettingsSaving] = useState(false);
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [markThread, setMarkThread] = useState<ThreadCard | null>(null);
@@ -1268,6 +1267,7 @@ export default function App() {
           onboardingCompleted?: boolean;
           agenda?: string | null;
           xUsername?: string | null;
+          xLinked?: boolean;
           isAdmin?: boolean;
         };
       };
@@ -1287,10 +1287,10 @@ export default function App() {
             typeof data.user.xUsername === "string" && data.user.xUsername.trim()
               ? data.user.xUsername.replace(/^@+/, "")
               : null,
+          xLinked: Boolean(data.user.xLinked),
           isAdmin: Boolean(data.user.isAdmin),
         };
         setAuthUser(user);
-        setXHandleDraft(user.xUsername ?? "");
         return user;
       }
       setAuthUser(null);
@@ -1797,18 +1797,15 @@ export default function App() {
     closeMenu();
   }
 
-  function finishOnboarding(agenda: string, xUsername?: string | null) {
+  function finishOnboarding(agenda: string) {
     setAgenda(agenda);
     setOnboardingDoneLocal(true);
-    const handle = xUsername ?? null;
-    if (handle) setXHandleDraft(handle);
     setAuthUser((prev) =>
       prev
         ? {
             ...prev,
             onboardingCompleted: true,
             agenda,
-            xUsername: handle ?? prev.xUsername,
           }
         : prev,
     );
@@ -1997,52 +1994,11 @@ export default function App() {
     return next;
   }
 
-  async function onSaveSettings() {
+  function onSaveSettings() {
     persistFilterSettings();
-    const current = (authUser?.xUsername ?? "").replace(/^@+/, "").trim();
-    const nextHandle = xHandleDraft.trim().replace(/^@+/, "");
-    if (nextHandle.toLowerCase() === current.toLowerCase()) {
-      setSettingsStatus(
-        "Saved — filters apply to Curated now and the next Scout.",
-      );
-      return;
-    }
-    if (!/^[A-Za-z0-9_]{1,15}$/.test(nextHandle)) {
-      setSettingsStatus("Enter a valid X username (letters, digits, underscore).");
-      return;
-    }
-    setSettingsSaving(true);
-    setSettingsStatus("Saving X username…");
-    try {
-      const res = await apiFetch("/api/auth/x-username", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ xUsername: nextHandle }),
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        message?: string;
-        user?: { xUsername?: string | null };
-      };
-      if (!res.ok || data.ok === false) {
-        setSettingsStatus(
-          data.message || "Could not save that X username. Filters are saved.",
-        );
-        return;
-      }
-      const saved =
-        typeof data.user?.xUsername === "string"
-          ? data.user.xUsername.replace(/^@+/, "")
-          : nextHandle;
-      setXHandleDraft(saved);
-      setAuthUser((prev) => (prev ? { ...prev, xUsername: saved } : prev));
-      void hydrateVoice({ skipDaily: true });
-      setSettingsStatus("Saved — X username and filters updated.");
-    } catch {
-      setSettingsStatus("Could not reach the API. Filters are saved.");
-    } finally {
-      setSettingsSaving(false);
-    }
+    setSettingsStatus(
+      "Saved — filters apply to Curated now and the next Scout.",
+    );
   }
 
   async function onSearch() {
@@ -2572,7 +2528,7 @@ export default function App() {
               onX={startXLogin}
               onAnalytics={openAnalytics}
               onVoice={openVoice}
-              needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false}
+              needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xLinked) : false}
               onUsage={openUsage}
               onAccount={openAccount}
               onSettings={openSettings}
@@ -2605,7 +2561,8 @@ export default function App() {
         <Onboarding
           persist={Boolean(authUser)}
           userId={authUser?.id ?? null}
-          needsXHandle={Boolean(authUser) && !authUser?.xUsername}
+          needsXLink={Boolean(authUser && !authUser.xLinked)}
+          onLinkX={startXLogin}
           onComplete={finishOnboarding}
         />
       ) : null}
@@ -2678,7 +2635,7 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            {authUser && voiceNeedsXLink(voice, authUser.xUsername)
+            {authUser && voiceNeedsXLink(voice, authUser.xLinked)
               ? "Link X first — Voice reads your public replies at setup and hourly. Scout takeoffs are what spend credits."
               : `Suggest reply uses this card. We ingest public replies at setup and hourly — you cannot refresh it by hand. Unlock is ${voice?.unlockAt ?? 100} distinct reply conversations. Scout takeoffs are what spend credits.`}
           </p>
@@ -2686,7 +2643,7 @@ export default function App() {
             voice={voice}
             busy={false}
             error={voiceError}
-            needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false}
+            needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xLinked) : false}
             onLinkX={startXLogin}
           />
         </section>
@@ -2830,29 +2787,31 @@ export default function App() {
             </button>
           </div>
           <p className="status settings-lede">
-            X username is the public handle Voice reads — set during setup, or
-            here. X login prefills it; you can change it. Filter prefs apply on
-            the next Scout search.
+            Filter prefs apply on the next Scout search. X is linked on Account
+            through official X login — you cannot type a handle here.
           </p>
           <div className="settings-grid">
-            <label className="settings-field settings-field-wide">
-              <span>X username</span>
-              <input
-                type="text"
-                inputMode="text"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                autoComplete="username"
-                placeholder="yourhandle"
-                value={xHandleDraft}
-                onChange={(e) => setXHandleDraft(e.target.value)}
-                disabled={settingsSaving}
-              />
-              <span className="settings-help">
-                Public replies only. No extra X login required.
-              </span>
-            </label>
+            <div className="settings-field settings-field-wide">
+              <span>X account</span>
+              <p className="settings-help">
+                {authUser?.xLinked && authUser.xUsername
+                  ? `@${authUser.xUsername} — change it on Account via X login.`
+                  : "Required. Link X with the official login."}
+              </p>
+              {authUser?.xLinked ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => goToView("account")}
+                >
+                  Account
+                </button>
+              ) : (
+                <button type="button" className="ghost" onClick={startXLogin}>
+                  Link X
+                </button>
+              )}
+            </div>
             <label className="settings-field">
               <span>Max post characters</span>
               <input
@@ -3000,10 +2959,9 @@ export default function App() {
               <button
                 type="button"
                 className="primary"
-                onClick={() => void onSaveSettings()}
-                disabled={settingsSaving}
+                onClick={() => onSaveSettings()}
               >
-                {settingsSaving ? "Saving…" : "Save"}
+                Save
               </button>
               {settingsStatus ? (
                 <p className="status settings-save-status">{settingsStatus}</p>
@@ -3015,7 +2973,7 @@ export default function App() {
         <>
         <VoiceUnlockBanner
           voice={voice}
-          xUsername={authUser?.xUsername}
+          xLinked={authUser?.xLinked}
           hasSession={Boolean(authUser)}
           onOpenSettings={openVoice}
           onLinkX={startXLogin}
@@ -3336,7 +3294,7 @@ export default function App() {
                           ) : (
                             <SuggestLocked
                               voice={voice}
-                              xUsername={authUser?.xUsername}
+                              xLinked={authUser?.xLinked}
                               hasSession={Boolean(authUser)}
                               onOpenSettings={openVoice}
                               onLinkX={startXLogin}

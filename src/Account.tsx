@@ -223,7 +223,11 @@ export function Account(props: {
               {hasX && x ? providerLabel(x) : "Not linked"}
             </p>
           </div>
-          {hasX ? null : (
+          {hasX ? (
+            <button type="button" className="ghost" onClick={props.onX}>
+              Switch X
+            </button>
+          ) : (
             <button type="button" className="ghost" onClick={props.onX}>
               Link X
             </button>

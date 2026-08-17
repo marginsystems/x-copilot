@@ -121,6 +121,7 @@ function mapUser(row: UserRow): AuthUser {
 }
 
 export function toPublicUser(user: AuthUser) {
+  const xUsername = getXOauthUsername(user.id);
   return {
     id: user.id,
     email: user.email,
@@ -128,7 +129,8 @@ export function toPublicUser(user: AuthUser) {
     avatarUrl: user.avatarUrl,
     onboardingCompleted: Boolean(user.onboardingCompletedAt),
     agenda: user.agenda,
-    xUsername: user.xUsername,
+    xUsername,
+    xLinked: Boolean(xUsername),
   };
 }
 
@@ -666,11 +668,10 @@ export function revokeSessionToken(token: string): void {
 export function completeOnboarding(
   userId: string,
   agenda: string,
-  opts?: { xUsername?: string | null },
 ): AuthUser | null {
   const trimmed = agenda.trim();
   const at = nowIso();
-  const handle = parseXHandle(opts?.xUsername ?? "") ?? null;
+  const handle = getXOauthUsername(userId);
   const result = getPlatformDb()
     .prepare(
       `UPDATE users SET
@@ -684,8 +685,8 @@ export function completeOnboarding(
   return getUserById(userId);
 }
 
+/** True until official X OAuth is linked. A typed users.x_username does not count. */
 export function userNeedsXHandle(user: AuthUser): boolean {
-  if (parseXHandle(user.xUsername ?? "")) return false;
   return !getXOauthUsername(user.id);
 }
 

@@ -63,7 +63,7 @@ export type UserIngestResult = {
 const ingestGet: XApiGetFn = (opts) => xApiGet({ ...opts, skipUsage: true });
 
 export function resolveIngestHandle(user: AuthUser): string | null {
-  return parseXHandle(user.xUsername ?? "") ?? getXOauthUsername(user.id);
+  return getXOauthUsername(user.id);
 }
 
 export type BeginVoiceCorpusReason = "x_oauth" | "onboarding" | "x_username";

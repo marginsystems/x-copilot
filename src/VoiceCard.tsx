@@ -202,13 +202,13 @@ function UnlockMeter({ voice }: { voice: VoiceState }) {
 /** Compact desk banner — always explains how Suggest unlocks. */
 export function VoiceUnlockBanner({
   voice,
-  xUsername,
+  xLinked,
   hasSession,
   onOpenSettings,
   onLinkX,
 }: {
   voice: VoiceState | null;
-  xUsername?: string | null;
+  xLinked?: boolean | null;
   hasSession: boolean;
   busy?: boolean;
   onLearn?: () => void;
@@ -216,7 +216,7 @@ export function VoiceUnlockBanner({
   onLinkX: () => void;
 }) {
   if (voice?.status === "ready" && voice.unlocked) return null;
-  const needsX = hasSession && voiceNeedsXLink(voice, xUsername);
+  const needsX = hasSession && voiceNeedsXLink(voice, xLinked);
   return (
     <aside className="voice-desk-banner" aria-label="How to unlock Suggest">
       <div className="voice-desk-banner-copy">
@@ -256,20 +256,20 @@ export function VoiceUnlockBanner({
 /** Locked teaser on an open Scout thread so the button is never a secret. */
 export function SuggestLocked({
   voice,
-  xUsername,
+  xLinked,
   hasSession,
   onOpenSettings,
   onLinkX,
 }: {
   voice: VoiceState | null;
-  xUsername?: string | null;
+  xLinked?: boolean | null;
   hasSession: boolean;
   busy?: boolean;
   onLearn?: () => void;
   onOpenSettings: () => void;
   onLinkX: () => void;
 }) {
-  const needsX = hasSession && voiceNeedsXLink(voice, xUsername);
+  const needsX = hasSession && voiceNeedsXLink(voice, xLinked);
   return (
     <div className="suggest-pane suggest-locked">
       <p className="suggest-banner" role="note">

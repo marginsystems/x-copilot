@@ -43,8 +43,9 @@ const QUESTIONS: Array<{
 export function Onboarding(props: {
   persist: boolean;
   userId?: string | null;
-  needsXHandle?: boolean;
-  onComplete: (agenda: string, xUsername?: string | null) => void;
+  needsXLink?: boolean;
+  onLinkX?: () => void;
+  onComplete: (agenda: string) => void;
 }) {
   const [step, setStep] = useState(0);
   const [topics, setTopics] = useState<string[]>([]);
@@ -55,8 +56,7 @@ export function Onboarding(props: {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [generatedFor, setGeneratedFor] = useState("");
-  const [xHandle, setXHandle] = useState("");
-  const needsXHandle = Boolean(props.needsXHandle);
+  const needsXLink = Boolean(props.needsXLink);
 
   const fingerprint = useMemo(
     () => JSON.stringify({ topics, goals, audiences }),
@@ -65,7 +65,6 @@ export function Onboarding(props: {
 
   const question = QUESTIONS[step];
   const onPick = step === QUESTIONS.length;
-  const onLinkX = step === QUESTIONS.length + 1;
   const selected = question
     ? question.id === "topics"
       ? topics
@@ -126,7 +125,7 @@ export function Onboarding(props: {
       setStep(step + 1);
       return;
     }
-    if (!onPick && !onLinkX) {
+    if (!onPick) {
       const ok = await generate();
       if (ok) setStep(QUESTIONS.length);
       return;
@@ -136,19 +135,6 @@ export function Onboarding(props: {
       setNotice("Pick an agenda to continue.");
       return;
     }
-    if (needsXHandle && !onLinkX) {
-      setStep(QUESTIONS.length + 1);
-      return;
-    }
-    let handle: string | undefined;
-    if (onLinkX) {
-      const trimmed = xHandle.trim().replace(/^@+/, "");
-      if (!/^[A-Za-z0-9_]{1,15}$/.test(trimmed)) {
-        setNotice("Enter your X username (no @ needed).");
-        return;
-      }
-      handle = trimmed;
-    }
     setBusy(true);
     try {
       if (props.persist) {
@@ -157,7 +143,6 @@ export function Onboarding(props: {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             agenda: choice.body,
-            ...(handle ? { xUsername: handle } : {}),
           }),
         });
         if (!res.ok) {
@@ -167,7 +152,7 @@ export function Onboarding(props: {
         }
       }
       writeOnboardingComplete(choice.body, props.userId ?? undefined);
-      props.onComplete(choice.body, handle ?? null);
+      props.onComplete(choice.body);
     } catch {
       setNotice("Could not save your setup. Try again.");
     } finally {
@@ -181,12 +166,32 @@ export function Onboarding(props: {
     setStep(step - 1);
   }
 
-  const totalSteps = QUESTIONS.length + 1 + (needsXHandle ? 1 : 0);
-  const currentStep = onLinkX
-    ? totalSteps
-    : onPick
-      ? QUESTIONS.length + 1
-      : step + 1;
+  const totalSteps = QUESTIONS.length + 1;
+  const currentStep = onPick ? QUESTIONS.length + 1 : step + 1;
+
+  if (needsXLink) {
+    return (
+      <div className="gate onboarding">
+        <div className="onboarding-card">
+          <p className="onboarding-kicker">Set up your desk</p>
+          <h1 className="gate-title">Link X to continue</h1>
+          <p className="gate-lede">
+            Voice reads the account you log into. Sign in with X — you cannot
+            type a handle. If you already signed in with X, you are linked.
+          </p>
+          <div className="onboarding-nav">
+            <button
+              type="button"
+              className="primary"
+              onClick={props.onLinkX}
+            >
+              Link X
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="gate onboarding">
@@ -212,30 +217,7 @@ export function Onboarding(props: {
           ))}
         </div>
 
-        {onLinkX ? (
-          <>
-            <h1 className="gate-title">Your X account</h1>
-            <p className="gate-lede">
-              We&apos;ll read up to 100 of your public replies once, then update
-              hourly. No extra X login. Scout is what spends credits.
-            </p>
-            <label className="onboarding-handle">
-              <span>X username</span>
-              <input
-                type="text"
-                inputMode="text"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                autoComplete="username"
-                placeholder="yourhandle"
-                value={xHandle}
-                onChange={(e) => setXHandle(e.target.value)}
-                disabled={busy}
-              />
-            </label>
-          </>
-        ) : onPick ? (
+        {onPick ? (
           <>
             <h1 className="gate-title">Pick an agenda</h1>
             <p className="gate-lede">
@@ -287,7 +269,7 @@ export function Onboarding(props: {
           </>
         )}
 
-        {busy && !onPick && !onLinkX ? (
+        {busy && !onPick ? (
           <p className="gate-status" role="status">
             Writing agendas…
           </p>
@@ -313,17 +295,13 @@ export function Onboarding(props: {
             disabled={busy}
             onClick={() => void goNext()}
           >
-            {busy && !onPick && !onLinkX
+            {busy && !onPick
               ? "Writing…"
-              : busy && onLinkX
-                ? "Reading replies…"
-                : onLinkX
-                  ? "Finish setup"
-                  : onPick
-                    ? "Continue"
-                    : step === QUESTIONS.length - 1
-                      ? "Generate agendas"
-                      : "Next"}
+              : onPick
+                ? "Continue"
+                : step === QUESTIONS.length - 1
+                  ? "Generate agendas"
+                  : "Next"}
           </button>
         </div>
       </div>
