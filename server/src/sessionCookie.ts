@@ -3,8 +3,12 @@
  */
 import type { IncomingMessage, OutgoingHttpHeaders } from "node:http";
 import { randomBytes } from "node:crypto";
-import { getUserForSessionToken, type AuthUser } from "./authStore.js";
-import { isCloudflarePeer } from "./authGuard.js";
+import {
+  getSessionForToken,
+  touchSessionMeta,
+  type AuthUser,
+} from "./authStore.js";
+import { clientIp, isCloudflarePeer } from "./authGuard.js";
 
 export const SESSION_COOKIE = "xc_session";
 export const OAUTH_STATE_COOKIE = "xc_oauth_state";
@@ -151,10 +155,23 @@ export function newOauthState(): string {
   return randomBytes(24).toString("base64url");
 }
 
-export function getSessionUser(req: IncomingMessage): AuthUser | null {
+export function getRequestSession(
+  req: IncomingMessage,
+): { user: AuthUser; sessionId: string } | null {
   const token = requestCookies(req)[SESSION_COOKIE];
   if (!token) return null;
-  return getUserForSessionToken(token);
+  const session = getSessionForToken(token);
+  if (!session) return null;
+  const ua = req.headers["user-agent"];
+  touchSessionMeta(session.sessionId, session.user.id, {
+    ip: clientIp(req),
+    userAgent: typeof ua === "string" ? ua : null,
+  });
+  return session;
+}
+
+export function getSessionUser(req: IncomingMessage): AuthUser | null {
+  return getRequestSession(req)?.user ?? null;
 }
 
 export function appendSetCookie(

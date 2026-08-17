@@ -11,7 +11,9 @@ import {
   linkOauthToUser,
   upsertOauthUser,
   type AuthUser,
+  type SessionClientMeta,
 } from "./authStore.js";
+import { clientIp } from "./authGuard.js";
 import { authErrorRedirect, authSuccessRedirect } from "./authConfig.js";
 import { corsHeaders } from "./cors.js";
 import { buildSignedAuthHeader, parseFormEncoded } from "./oauth1.js";
@@ -263,6 +265,7 @@ export async function fetchXAccessToken(opts: {
 export function completeXLogin(opts: {
   profile: XOauthProfile;
   existingUser: AuthUser | null;
+  meta?: SessionClientMeta;
 }):
   | { ok: true; user: AuthUser; token: string; expiresAt: string }
   | { ok: false; error: string } {
@@ -292,7 +295,7 @@ export function completeXLogin(opts: {
       emailVerified: false,
     });
   }
-  const session = createSession(user.id);
+  const session = createSession(user.id, opts.meta);
   return { ok: true, user, token: session.token, expiresAt: session.expiresAt };
 }
 
@@ -365,9 +368,14 @@ export async function handleXCallback(
     access.profile.username,
     fetchImpl,
   );
+  const ua = req.headers["user-agent"];
   const login = completeXLogin({
     profile: { ...access.profile, avatarUrl },
     existingUser: getSessionUser(req),
+    meta: {
+      ip: clientIp(req),
+      userAgent: typeof ua === "string" ? ua : null,
+    },
   });
   if (!login.ok) {
     return redirect(req, res, authErrorRedirect(login.error), [

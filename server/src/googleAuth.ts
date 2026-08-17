@@ -2,7 +2,13 @@
  * Google OAuth (openid email profile) — server-side code exchange.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createSession, upsertOauthUser, type AuthUser } from "./authStore.js";
+import {
+  createSession,
+  upsertOauthUser,
+  type AuthUser,
+  type SessionClientMeta,
+} from "./authStore.js";
+import { clientIp } from "./authGuard.js";
 import {
   authErrorRedirect,
   authSuccessRedirect,
@@ -137,7 +143,10 @@ export async function exchangeGoogleCode(opts: {
   };
 }
 
-export function completeGoogleLogin(profile: GoogleProfile):
+export function completeGoogleLogin(
+  profile: GoogleProfile,
+  meta?: SessionClientMeta,
+):
   | { ok: true; user: AuthUser; token: string; expiresAt: string }
   | { ok: false; error: string } {
   if (!profile.email) {
@@ -154,7 +163,7 @@ export function completeGoogleLogin(profile: GoogleProfile):
     displayName: profile.name,
     avatarUrl: profile.picture,
   });
-  const session = createSession(user.id);
+  const session = createSession(user.id, meta);
   return { ok: true, user, token: session.token, expiresAt: session.expiresAt };
 }
 
@@ -228,7 +237,11 @@ export async function handleGoogleCallback(
       oauthStateClearCookie(req),
     ]);
   }
-  const login = completeGoogleLogin(exchanged.profile);
+  const ua = req.headers["user-agent"];
+  const login = completeGoogleLogin(exchanged.profile, {
+    ip: clientIp(req),
+    userAgent: typeof ua === "string" ? ua : null,
+  });
   if (!login.ok) {
     return redirect(req, res, authErrorRedirect(login.error), [
       oauthStateClearCookie(req),
