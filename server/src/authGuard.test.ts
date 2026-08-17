@@ -78,14 +78,15 @@ describe("authGuard", () => {
     assert.equal(clientIp(req), "10.0.0.1");
   });
 
-  it("trusts forwarded headers from a loopback proxy", () => {
+  it("ignores forwarded headers from a loopback peer", () => {
     const req = {
       headers: {
+        "cf-connecting-ip": "1.2.3.4",
         "x-forwarded-for": "9.9.9.9, 8.8.8.8",
       },
       socket: { remoteAddress: "::1" },
     } as unknown as IncomingMessage;
-    assert.equal(clientIp(req), "9.9.9.9");
+    assert.equal(clientIp(req), "::1");
   });
 
   it("falls back to the socket address without forwarded headers", () => {
