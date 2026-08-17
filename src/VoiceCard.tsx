@@ -162,7 +162,7 @@ export function VoiceCardPanel({
             {voice.cardUpdatedAt
               ? `Updated ${formatTimeAgo(voice.cardUpdatedAt) ?? "recently"} · `
               : ""}
-            {voice.conversationCount} reply conversations ·{" "}
+            {voice.replyCount} posts ·{" "}
             {suggestsLeftLabel(voice.suggests)}
           </p>
         </div>
@@ -183,8 +183,8 @@ function UnlockMeter({ voice }: { voice: VoiceState }) {
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={voice.unlockAt}
-        aria-valuenow={Math.min(voice.conversationCount, voice.unlockAt)}
-        aria-label="Reply conversations toward unlock"
+        aria-valuenow={Math.min(voice.replyCount, voice.unlockAt)}
+        aria-label="Public posts toward unlock"
       >
         <span
           className="voice-meter-fill"
@@ -192,8 +192,7 @@ function UnlockMeter({ voice }: { voice: VoiceState }) {
         />
       </div>
       <p className="voice-meter-label">
-        {Math.min(voice.conversationCount, voice.unlockAt)} / {voice.unlockAt}{" "}
-        conversations
+        {Math.min(voice.replyCount, voice.unlockAt)} / {voice.unlockAt} posts
       </p>
     </>
   );
@@ -228,7 +227,7 @@ export function VoiceUnlockBanner({
         </p>
         {voice &&
         !needsX &&
-        (voice.status === "insufficient" || voice.conversationCount > 0) ? (
+        (voice.status === "insufficient" || voice.replyCount > 0) ? (
           <UnlockMeter voice={voice} />
         ) : null}
       </div>
@@ -278,7 +277,7 @@ export function SuggestLocked({
       <p className="voice-empty">
         {needsX ? VOICE_LINK_X_COPY : voiceUnlockCopy(voice)}
       </p>
-      {voice && !needsX && voice.conversationCount > 0 ? (
+      {voice && !needsX && voice.replyCount > 0 ? (
         <UnlockMeter voice={voice} />
       ) : null}
       <div className="suggest-actions">

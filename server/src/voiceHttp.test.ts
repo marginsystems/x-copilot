@@ -43,21 +43,21 @@ function profile(
 describe("shouldPullXApi", () => {
   it("skips the timeline when memories already unlock", () => {
     assert.equal(
-      shouldPullXApi({ conversationCount: 107, handle: "margin" }),
+      shouldPullXApi({ postCount: 107, handle: "margin" }),
       false,
     );
   });
 
   it("skips the timeline when there is no handle", () => {
     assert.equal(
-      shouldPullXApi({ conversationCount: 40, handle: null }),
+      shouldPullXApi({ postCount: 40, handle: null }),
       false,
     );
   });
 
   it("pulls only to fill a short corpus", () => {
     assert.equal(
-      shouldPullXApi({ conversationCount: 40, handle: "margin" }),
+      shouldPullXApi({ postCount: 40, handle: "margin" }),
       true,
     );
   });
@@ -71,14 +71,14 @@ describe("deriveVoiceUiStatus", () => {
 
   it("treats memory corpus without a handle as insufficient, not unlinked", () => {
     assert.equal(
-      deriveVoiceUiStatus(profile({ conversationCount: 40 }), null),
+      deriveVoiceUiStatus(profile({ replyCount: 40 }), null),
       "insufficient",
     );
   });
 
   it("is empty when memories already unlock but the card is not written", () => {
     assert.equal(
-      deriveVoiceUiStatus(profile({ conversationCount: 107 }), null),
+      deriveVoiceUiStatus(profile({ replyCount: 107 }), null),
       "empty",
     );
   });
@@ -89,6 +89,7 @@ describe("deriveVoiceUiStatus", () => {
         profile({
           status: "ready",
           cardJson: '{"tone":"dry"}',
+          replyCount: 107,
           conversationCount: 107,
         }),
         null,

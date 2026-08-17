@@ -1,6 +1,6 @@
 /**
- * Voice profile persistence: the user's own public replies, the learned
- * style card, and the UTC-day suggest ledger. Their replies only — other
+ * Voice profile persistence: the user's own public posts, the learned
+ * style card, and the UTC-day suggest ledger. Their writing only — other
  * people's feeds are never stored here.
  */
 import { randomUUID } from "node:crypto";
@@ -8,8 +8,11 @@ import { getPlatformDb } from "./db.js";
 import { startOfUtcDayIso } from "./ownPostStore.js";
 import { PLAN_DAILY_SUGGESTS, type PlanKey } from "./plans.js";
 
-/** Suggest unlocks only after this many distinct reply conversations. */
-export const VOICE_UNLOCK_MIN_CONVERSATIONS = 100;
+/** Suggest unlocks after this many of their public posts in the corpus. */
+export const VOICE_UNLOCK_MIN_POSTS = 100;
+
+/** @deprecated Use VOICE_UNLOCK_MIN_POSTS. */
+export const VOICE_UNLOCK_MIN_CONVERSATIONS = VOICE_UNLOCK_MIN_POSTS;
 
 export type VoiceProfileStatus = "empty" | "learning" | "ready";
 
@@ -46,8 +49,8 @@ export type VoiceProfileRow = {
   lastError: string | null;
 };
 
-export function voiceUnlocked(conversationCount: number): boolean {
-  return conversationCount >= VOICE_UNLOCK_MIN_CONVERSATIONS;
+export function voiceUnlocked(postCount: number): boolean {
+  return postCount >= VOICE_UNLOCK_MIN_POSTS;
 }
 
 export function nowIso(): string {
@@ -162,8 +165,8 @@ export function countVoiceReplies(userId: string): number {
 }
 
 /**
- * Distinct reply conversations — the unlock metric. Replies without a
- * conversation id fall back to their own post id (still one conversation).
+ * Distinct conversations among stored posts. Posts without a
+ * conversation id fall back to their own post id.
  */
 export function countDistinctConversations(userId: string): number {
   const row = getPlatformDb()

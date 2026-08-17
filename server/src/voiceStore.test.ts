@@ -9,7 +9,7 @@ import {
   resetPlatformDbForTests,
 } from "./db.ts";
 import {
-  VOICE_UNLOCK_MIN_CONVERSATIONS,
+  VOICE_UNLOCK_MIN_POSTS,
   countDistinctConversations,
   countSuggestsToday,
   countVoiceReplies,
@@ -62,23 +62,22 @@ describe("voiceStore", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("unlocks at 100 distinct reply conversations, not 100 replies", () => {
-    assert.equal(VOICE_UNLOCK_MIN_CONVERSATIONS, 100);
-    // 150 replies all in one conversation stay locked.
-    seedReplies(150, { conversation: "same-thread" });
-    assert.equal(countVoiceReplies(USER), 150);
+  it("unlocks at 100 posts even when they share a conversation", () => {
+    assert.equal(VOICE_UNLOCK_MIN_POSTS, 100);
+    seedReplies(100, { conversation: "same-thread" });
+    assert.equal(countVoiceReplies(USER), 100);
     assert.equal(countDistinctConversations(USER), 1);
-    assert.equal(voiceUnlocked(countDistinctConversations(USER)), false);
+    assert.equal(voiceUnlocked(countVoiceReplies(USER)), true);
   });
 
-  it("unlocks at exactly the conversation threshold", () => {
+  it("unlocks at exactly 100 posts", () => {
     seedReplies(99);
-    assert.equal(voiceUnlocked(countDistinctConversations(USER)), false);
+    assert.equal(voiceUnlocked(countVoiceReplies(USER)), false);
     upsertVoiceReplies(USER, [
       { id: "999999", text: "the hundredth", conversationId: "conv-100th" },
     ]);
-    assert.equal(countDistinctConversations(USER), 100);
-    assert.equal(voiceUnlocked(countDistinctConversations(USER)), true);
+    assert.equal(countVoiceReplies(USER), 100);
+    assert.equal(voiceUnlocked(countVoiceReplies(USER)), true);
   });
 
   it("dedupes re-pulled replies so incremental never double-counts", () => {

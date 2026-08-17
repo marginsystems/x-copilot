@@ -16,7 +16,7 @@ import {
 import { getSessionUser } from "./sessionCookie.js";
 import { allowRate, clientIp } from "./authGuard.js";
 import { beginVoiceCorpus } from "./userIngest.js";
-import { VOICE_UNLOCK_MIN_CONVERSATIONS } from "./voiceStore.js";
+import { VOICE_UNLOCK_MIN_POSTS } from "./voiceStore.js";
 
 const ONBOARDING_GENERATE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 const ONBOARDING_COMPLETE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
@@ -196,7 +196,7 @@ export async function tryHandleOnboarding(
       ingest: ingest
         ? {
             conversationCount: ingest.conversationCount,
-            unlockAt: VOICE_UNLOCK_MIN_CONVERSATIONS,
+            unlockAt: VOICE_UNLOCK_MIN_POSTS,
             unlocked: ingest.unlocked,
             ok: ingest.ok,
             message: ingest.message ?? null,

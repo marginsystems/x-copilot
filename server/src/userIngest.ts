@@ -22,7 +22,7 @@ import {
   pullOwnReplies,
   resolveXUser,
   MAX_TIMELINE_PAGES,
-  VOICE_TARGET_REPLIES,
+  VOICE_TARGET_POSTS,
   type XApiGetFn,
 } from "./voiceIngest.js";
 import {
@@ -170,7 +170,7 @@ function replyToOwnPost(
     eventUuid: `ingest:${reply.id}`,
     xUserId: opts.xUserId,
     postId: reply.id,
-    kind: "reply",
+    kind: reply.inReplyToId ? "reply" : "original",
     text: reply.text,
     postedAt: reply.postedAt ?? nowIso(),
     inReplyToId: reply.inReplyToId ?? null,
@@ -219,8 +219,9 @@ function foldRepliesIntoOwnPosts(opts: {
 }
 
 /**
- * Memories first, then official timeline. `initial` aims at ~100 replies.
- * `hourly` only reads since the stored cursor. Never bills the user pool.
+ * Memories first, then one official timeline page. `initial` aims at
+ * 100 public posts. `hourly` only reads since the stored cursor.
+ * Never bills the user pool.
  */
 export async function runUserIngest(opts: {
   user: AuthUser;
@@ -286,7 +287,7 @@ export async function runUserIngest(opts: {
       if (resolved.protected) {
         return fail(
           "account_protected",
-          `@${handle} is protected. Voice only reads public replies — there is no workaround, and we will not scrape.`,
+          `@${handle} is protected. Voice only reads public posts — there is no workaround, and we will not scrape.`,
         );
       }
       const sinceId = opts.mode === "hourly" ? profile.sinceId : null;
@@ -294,7 +295,7 @@ export async function runUserIngest(opts: {
         xUserId: resolved.id,
         sinceId,
         targetReplies:
-          sinceId === null ? VOICE_TARGET_REPLIES : 40,
+          sinceId === null ? VOICE_TARGET_POSTS : 40,
         deps: { get: ingestGet },
       });
       if (!pull.ok) {
@@ -329,7 +330,8 @@ export async function runUserIngest(opts: {
 
     updated = getVoiceProfile(user.id);
     const conversations = updated?.conversationCount ?? 0;
-    const unlocked = voiceUnlocked(conversations);
+    const posts = updated?.replyCount ?? 0;
+    const unlocked = voiceUnlocked(posts);
     const hadCard = Boolean(updated?.cardJson);
     if (unlocked && !hadCard) {
       const cardResult = await generateCard({
@@ -361,7 +363,7 @@ export async function runUserIngest(opts: {
       ok: true,
       userId: user.id,
       conversationCount: updated?.conversationCount ?? conversations,
-      unlocked: voiceUnlocked(updated?.conversationCount ?? conversations),
+      unlocked: voiceUnlocked(updated?.replyCount ?? posts),
       pulled,
       ownPostsIngested,
     };

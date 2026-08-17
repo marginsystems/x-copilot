@@ -141,7 +141,7 @@ export function localEditHint(draft: string, edited: string): string | null {
 export type VoicePhase = { id: string; label: string };
 
 export const LEARN_PHASES: readonly VoicePhase[] = [
-  { id: "pull", label: "Reading your public replies…" },
+  { id: "pull", label: "Reading your public posts…" },
   { id: "listen", label: "Listening for tone and habits…" },
   { id: "write", label: "Writing your voice card…" },
 ];
@@ -172,20 +172,20 @@ export function suggestsLeftLabel(usage: SuggestUsage): string {
   return `${usage.remaining} of ${usage.limit} suggests left today`;
 }
 
-/** Progress toward the 100-conversation unlock, clamped for the meter. */
+/** Progress toward the 100-post unlock, clamped for the meter. */
 export function unlockProgress(state: {
-  conversationCount: number;
+  replyCount: number;
   unlockAt: number;
 }): number {
   if (state.unlockAt <= 0) return 0;
   return Math.max(
     0,
-    Math.min(1, state.conversationCount / state.unlockAt),
+    Math.min(1, state.replyCount / state.unlockAt),
   );
 }
 
 export const VOICE_LINK_X_COPY =
-  "Voice and Suggest need your X account. Link X so we can read your public replies at setup and hourly. Scout is the only action that spends credits.";
+  "Voice and Suggest need your X account. Link X so we can read your latest public posts at setup and hourly. Scout is the only action that spends credits.";
 
 export const VOICE_LINK_X_TIP =
   "Without an X account we cannot learn your voice or suggest replies.";
@@ -203,25 +203,25 @@ export function voiceNeedsXLink(
 /** Plain-language next step so Suggest is never a mystery. */
 export function voiceUnlockCopy(state: VoiceState | null): string {
   const need = state?.unlockAt ?? 100;
-  const n = state?.conversationCount ?? 0;
+  const n = state?.replyCount ?? 0;
   if (state?.status === "unlinked") return VOICE_LINK_X_COPY;
   if (!state) {
-    return `Suggest unlocks at ${need} distinct reply conversations. We read your public replies once at setup, then hourly. Mark replies on the desk to add more. Scout is the only action that spends credits.`;
+    return `Suggest unlocks at ${need} public posts. We read your latest posts once at setup, then hourly. Mark posts on the desk to add more. Scout is the only action that spends credits.`;
   }
   if (state.lastError) return state.lastError;
   if (state.status === "learning") {
-    return "Reading your public replies and writing a voice card…";
+    return "Reading your public posts and writing a voice card…";
   }
   if (state.status === "empty" && n === 0) {
-    return `Nothing in the corpus yet. The hourly ingest will retry. Need ${need} conversations — mark replies on the desk to add more.`;
+    return `Nothing in the corpus yet. The hourly ingest will retry. Need ${need} posts — mark on the desk to add more.`;
   }
   if (state.status === "empty") {
     return n >= need
-      ? `Found ${n} reply conversations — you've hit ${need}. The hourly ingest writes the voice card on its next pass.`
-      : `Found ${n} reply conversations. The hourly ingest writes the voice card when you hit ${need}.`;
+      ? `Found ${n} posts — you've hit ${need}. The hourly ingest writes the voice card on its next pass.`
+      : `Found ${n} posts. The hourly ingest writes the voice card when you hit ${need}.`;
   }
   if (state.status === "insufficient") {
-    return `Suggest unlocks at ${need} distinct reply conversations — you're at ${n}. The hourly ingest adds new public replies; marking on the desk counts too.`;
+    return `Suggest unlocks at ${need} public posts — you're at ${n}. The hourly ingest adds new posts; marking on the desk counts too.`;
   }
   return state.lastError ?? "";
 }

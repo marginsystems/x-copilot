@@ -66,8 +66,8 @@ describe("voice state parsing", () => {
 });
 
 describe("voiceUnlockCopy", () => {
-  it("explains the 100-conversation bar when state has not loaded", () => {
-    assert.match(voiceUnlockCopy(null), /100 distinct reply conversations/);
+  it("explains the 100-post bar when state has not loaded", () => {
+    assert.match(voiceUnlockCopy(null), /100 public posts/);
     assert.match(voiceUnlockCopy(null), /hourly/);
   });
 
@@ -205,9 +205,9 @@ describe("phase + meter helpers", () => {
   });
 
   it("clamps unlock progress", () => {
-    assert.equal(unlockProgress({ conversationCount: 50, unlockAt: 100 }), 0.5);
-    assert.equal(unlockProgress({ conversationCount: 300, unlockAt: 100 }), 1);
-    assert.equal(unlockProgress({ conversationCount: 0, unlockAt: 0 }), 0);
+    assert.equal(unlockProgress({ replyCount: 50, unlockAt: 100 }), 0.5);
+    assert.equal(unlockProgress({ replyCount: 300, unlockAt: 100 }), 1);
+    assert.equal(unlockProgress({ replyCount: 0, unlockAt: 0 }), 0);
   });
 
   it("labels suggests left", () => {

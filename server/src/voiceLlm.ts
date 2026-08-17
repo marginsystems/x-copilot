@@ -1,6 +1,6 @@
 /**
  * DeepSeek v4-flash voice work: style card, one reply draft, and the
- * edit-verify sign-off. Prompts see the user's own replies only.
+ * edit-verify sign-off. Prompts see the user's own public posts only.
  */
 import {
   chatCompletions,
@@ -66,10 +66,10 @@ export function parseVoiceCardJson(raw: string): VoiceCard | null {
   return { tone, typicalLength, habits, neverDo, examples };
 }
 
-const CARD_SYSTEM = `You are a writing-voice analyst. You get one X user's own public replies. Describe how they write so a drafting assistant can imitate them.
+const CARD_SYSTEM = `You are a writing-voice analyst. You get one X user's own public posts (originals and replies). Describe how they write so a drafting assistant can imitate them.
 Return ONLY a JSON object:
-{"tone":"one or two sentences, plain words","typicalLength":"e.g. one short sentence, 8-20 words","habits":["3-8 concrete habits: openers, punctuation, slang, emoji use"],"neverDo":["2-6 things they never do"],"examples":["8-12 verbatim replies from the input that best show the voice"]}
-Rules: examples must be copied verbatim from the input replies. Plain language, no flattery, no markdown fences.`;
+{"tone":"one or two sentences, plain words","typicalLength":"e.g. one short sentence, 8-20 words","habits":["3-8 concrete habits: openers, punctuation, slang, emoji use"],"neverDo":["2-6 things they never do"],"examples":["8-12 verbatim posts from the input that best show the voice"]}
+Rules: examples must be copied verbatim from the input posts. Plain language, no flattery, no markdown fences.`;
 
 export async function generateVoiceCard(opts: {
   handle: string;
@@ -83,7 +83,7 @@ export async function generateVoiceCard(opts: {
   const sample = opts.replies.slice(0, 120);
   const user = [
     `Handle: @${opts.handle}`,
-    `Their replies, newest first (${sample.length}):`,
+    `Their posts, newest first (${sample.length}):`,
     ...sample.map((r, i) => `${i + 1}. ${r.text.replace(/\s+/g, " ").trim()}`),
   ].join("\n");
   const result = await chat({

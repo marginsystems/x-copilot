@@ -33,15 +33,20 @@ function tweet(
 }
 
 describe("parseUserTweetsPage", () => {
-  it("keeps only genuine replies to other people", () => {
+  it("keeps originals, self-replies, and replies; drops retweets", () => {
     const page = parseUserTweetsPage(
       {
         data: [
           tweet("1", { reply: true }),
-          tweet("2"), // original — dropped
-          tweet("3", { reply: true, toUser: OWN_ID }), // self-thread — dropped
-          { id: "4" }, // malformed — dropped
+          tweet("2"),
+          tweet("3", { reply: true, toUser: OWN_ID }),
+          { id: "4" },
           tweet("5", { reply: true, conversation: "conv-x" }),
+          {
+            id: "6",
+            text: "rt",
+            referenced_tweets: [{ type: "retweeted", id: "other" }],
+          },
         ],
         meta: { next_token: "tok", newest_id: "5" },
       },
@@ -49,10 +54,12 @@ describe("parseUserTweetsPage", () => {
     );
     assert.deepEqual(
       page.replies.map((r) => r.id),
-      ["1", "5"],
+      ["1", "2", "3", "5"],
     );
     assert.equal(page.replies[0]?.inReplyToId, "p1");
-    assert.equal(page.replies[1]?.conversationId, "conv-x");
+    assert.equal(page.replies[1]?.inReplyToId, null);
+    assert.equal(page.replies[2]?.inReplyToId, "p3");
+    assert.equal(page.replies[3]?.conversationId, "conv-x");
     assert.equal(page.nextToken, "tok");
     assert.equal(page.newestId, "5");
   });
@@ -65,19 +72,16 @@ describe("parseUserTweetsPage", () => {
 });
 
 describe("pullOwnReplies", () => {
-  it("paginates until the reply target and passes since_id", async () => {
+  it("takes one page of posts and passes since_id", async () => {
     const calls: Array<Record<string, string | undefined>> = [];
     const get: XApiGetFn = async (opts) => {
       calls.push(opts.query ?? {});
-      const pageNo = calls.length;
       return {
         ok: true,
         status: 200,
         json: {
-          data: Array.from({ length: 60 }, (_, i) =>
-            tweet(`${pageNo}-${i}`, { reply: true }),
-          ),
-          meta: { next_token: pageNo < 3 ? `t${pageNo}` : undefined, newest_id: "900" },
+          data: Array.from({ length: 100 }, (_, i) => tweet(`${i}`)),
+          meta: { next_token: "more", newest_id: "900" },
         },
       };
     };
@@ -90,11 +94,34 @@ describe("pullOwnReplies", () => {
     if (result.ok) {
       assert.equal(result.replies.length, 100);
       assert.equal(result.newestId, "900");
-      assert.equal(result.pages, 2);
+      assert.equal(result.pages, 1);
       assert.equal(result.completed, true);
     }
+    assert.equal(calls.length, 1);
     assert.equal(calls[0]?.since_id, "555");
-    assert.equal(calls[1]?.pagination_token, "t1");
+  });
+
+  it("does not walk a second page even when the first is short", async () => {
+    let n = 0;
+    const get: XApiGetFn = async () => {
+      n += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: {
+          data: [tweet("1"), tweet("2")],
+          meta: { next_token: "t1", newest_id: "1" },
+        },
+      };
+    };
+    const result = await pullOwnReplies({ xUserId: OWN_ID, deps: { get } });
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.equal(n, 1);
+      assert.equal(result.pages, 1);
+      assert.equal(result.replies.length, 2);
+      assert.equal(result.completed, true);
+    }
   });
 
   it("surfaces a first-page failure", async () => {
@@ -109,7 +136,7 @@ describe("pullOwnReplies", () => {
     if (!result.ok) assert.equal(result.error, "rate_limited");
   });
 
-  it("keeps partial progress when a later page fails", async () => {
+  it("never requests a later page so a mid-walk 429 cannot happen", async () => {
     let n = 0;
     const get: XApiGetFn = async () => {
       n += 1;
@@ -128,8 +155,9 @@ describe("pullOwnReplies", () => {
     const result = await pullOwnReplies({ xUserId: OWN_ID, deps: { get } });
     assert.ok(result.ok);
     if (result.ok) {
+      assert.equal(n, 1);
       assert.equal(result.replies.length, 1);
-      assert.equal(result.completed, false);
+      assert.equal(result.completed, true);
     }
   });
 });
