@@ -10,12 +10,20 @@ import {
   verifyPublicXHandle,
 } from "./xHandleVerify.ts";
 import type { XUserLookupFail, XUserLookupOk } from "./xApi.ts";
+import {
+  ensureVoiceProfile,
+  nowIso,
+  updateVoiceProfilePull,
+} from "./voiceStore.ts";
 
-function okLookup(screenName: string): () => Promise<XUserLookupOk> {
+function okLookup(
+  screenName: string,
+  id = "1",
+): () => Promise<XUserLookupOk> {
   return async () => ({
     ok: true,
     user: {
-      id: "1",
+      id,
       screen_name: screenName,
       name: screenName,
       protected: false,
@@ -46,9 +54,9 @@ describe("verifyPublicXHandle", () => {
     assert.equal(called, 0);
   });
 
-  it("returns the canonical screen_name from a successful lookup", async () => {
+  it("returns the canonical screen_name and id from a successful lookup", async () => {
     const got = await verifyPublicXHandle("alice_dev", okLookup("Alice_Dev"));
-    assert.deepEqual(got, { ok: true, handle: "Alice_Dev" });
+    assert.deepEqual(got, { ok: true, handle: "Alice_Dev", id: "1" });
   });
 
   it("maps a missing X user to a 400", async () => {
@@ -145,5 +153,71 @@ describe("applyVerifiedXUsername", () => {
     if (!got.ok) return;
     assert.equal(got.changed, true);
     assert.equal(got.user.xUsername, "new_handle");
+  });
+
+  it("keeps the corpus and analytics when the new handle resolves to the same X account", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-same-account",
+      email: "same@example.com",
+      emailVerified: true,
+    });
+    const db = getPlatformDb();
+    ensureVoiceProfile(user.id, "tenant-same");
+    updateVoiceProfilePull({
+      userId: user.id,
+      xUsername: "alice",
+      xUserId: "xid-alice",
+    });
+    db.prepare(
+      `INSERT INTO own_posts (id, user_id, tenant_id, x_user_id, kind, text, posted_at, created_at)
+       VALUES (?, ?, ?, ?, 'reply', 'hi', ?, ?)`,
+    ).run("op-same", user.id, "tenant-same", "xid-alice", nowIso(), nowIso());
+    const got = await applyVerifiedXUsername({
+      user,
+      raw: "alice2",
+      lookup: okLookup("alice2", "xid-alice"),
+    });
+    assert.equal(got.ok, true);
+    if (!got.ok) return;
+    assert.equal(got.changed, true);
+    assert.equal(got.accountChanged, false);
+    const posts = db
+      .prepare(`SELECT COUNT(*) AS n FROM own_posts WHERE user_id = ?`)
+      .get(user.id) as { n: number };
+    assert.equal(Number(posts.n), 1);
+  });
+
+  it("prunes the previous account's corpus on a real account switch", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-switch",
+      email: "sw@example.com",
+      emailVerified: true,
+    });
+    const db = getPlatformDb();
+    ensureVoiceProfile(user.id, "tenant-switch");
+    updateVoiceProfilePull({
+      userId: user.id,
+      xUsername: "alice",
+      xUserId: "xid-alice",
+    });
+    db.prepare(
+      `INSERT INTO own_posts (id, user_id, tenant_id, x_user_id, kind, text, posted_at, created_at)
+       VALUES (?, ?, ?, ?, 'reply', 'hi', ?, ?)`,
+    ).run("op-switch", user.id, "tenant-switch", "xid-alice", nowIso(), nowIso());
+    const got = await applyVerifiedXUsername({
+      user,
+      raw: "@acme",
+      lookup: okLookup("acme", "xid-acme"),
+    });
+    assert.equal(got.ok, true);
+    if (!got.ok) return;
+    assert.equal(got.changed, true);
+    assert.equal(got.accountChanged, true);
+    const posts = db
+      .prepare(`SELECT COUNT(*) AS n FROM own_posts WHERE user_id = ?`)
+      .get(user.id) as { n: number };
+    assert.equal(Number(posts.n), 0);
   });
 });

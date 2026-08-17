@@ -4,7 +4,7 @@
  */
 import { setUserXUsername, type AuthUser } from "./authStore.js";
 import { parseXHandle } from "./xHandle.js";
-import { resetUserVoiceCorpus } from "./voiceStore.js";
+import { getVoiceProfile, resetUserVoiceCorpus } from "./voiceStore.js";
 import {
   lookupXUserByUsername,
   type XUserLookupOk,
@@ -12,11 +12,11 @@ import {
 } from "./xApi.js";
 
 export type VerifyXHandleResult =
-  | { ok: true; handle: string }
+  | { ok: true; handle: string; id: string }
   | { ok: false; status: number; error: string; message: string };
 
 export type ApplyXUsernameResult =
-  | { ok: true; user: AuthUser; changed: boolean }
+  | { ok: true; user: AuthUser; changed: boolean; accountChanged: boolean }
   | { ok: false; status: number; error: string; message: string };
 
 type LookupFn = (
@@ -37,7 +37,9 @@ export async function verifyPublicXHandle(
     };
   }
   const looked = await lookup(parsed);
-  if (looked.ok) return { ok: true, handle: looked.user.screen_name };
+  if (looked.ok) {
+    return { ok: true, handle: looked.user.screen_name, id: looked.user.id };
+  }
   if (looked.error === "missing_credentials") {
     return {
       ok: false,
@@ -80,7 +82,7 @@ export async function applyVerifiedXUsername(opts: {
   }
   const current = parseXHandle(opts.user.xUsername ?? "");
   if (current && current.toLowerCase() === parsed.toLowerCase()) {
-    return { ok: true, user: opts.user, changed: false };
+    return { ok: true, user: opts.user, changed: false, accountChanged: false };
   }
   const verified = await verifyPublicXHandle(parsed, opts.lookup);
   if (!verified.ok) return verified;
@@ -93,9 +95,32 @@ export async function applyVerifiedXUsername(opts: {
       message: "User not found.",
     };
   }
-  // A new handle is a different X account. Drop the previous account's
-  // voice corpus (replies, folded own_posts, card, counts, cursors) so the
-  // re-ingest and hourly pulls start fresh instead of blending two accounts.
-  resetUserVoiceCorpus(opts.user.id);
-  return { ok: true, user: updated, changed: true };
+  // A handle that resolves to the same X account (a rename or typo fix) keeps
+  // the existing corpus and its Analytics — only a real account switch prunes.
+  const oldXUserId = getVoiceProfile(opts.user.id)?.xUserId ?? null;
+  const accountChanged = oldXUserId !== verified.id;
+  if (accountChanged) {
+    // A new account. Drop the previous account's voice corpus (replies,
+    // folded own_posts, card, counts, cursors) so the re-ingest and hourly
+    // pulls start fresh instead of blending two accounts, and re-point the
+    // live XAA subscription so the old account's posts stop being delivered.
+    resetUserVoiceCorpus(opts.user.id, oldXUserId);
+    void import("./xActivitySubscribe.js")
+      .then(
+        async ({
+          removeUserPostCreateSubscription,
+          subscribeUserToPostCreate,
+        }) => {
+          try {
+            await removeUserPostCreateSubscription(opts.user.id);
+            await subscribeUserToPostCreate(opts.user.id, {
+              xUserId: verified.id,
+            });
+          } catch (err) {
+            console.warn("[xaa] repoint subscription", err);
+          }
+        },
+      );
+  }
+  return { ok: true, user: updated, changed: true, accountChanged };
 }

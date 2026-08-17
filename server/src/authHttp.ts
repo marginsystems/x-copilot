@@ -193,7 +193,7 @@ export async function tryHandleAuth(
       return true;
     }
     if (
-      applied.changed &&
+      applied.accountChanged &&
       allowRate(
         `onboarding-ingest:${applied.user.id}`,
         6,

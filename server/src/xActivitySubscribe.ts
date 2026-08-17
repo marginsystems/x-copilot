@@ -142,7 +142,10 @@ export function findUserIdByXUserId(xUserId: string): string | null {
   return oauth?.user_id ?? null;
 }
 
-export async function subscribeUserToPostCreate(userId: string): Promise<{
+export async function subscribeUserToPostCreate(
+  userId: string,
+  opts?: { xUserId?: string },
+): Promise<{
   ok: boolean;
   paused?: boolean;
   subscriptionId?: string;
@@ -153,7 +156,7 @@ export async function subscribeUserToPostCreate(userId: string): Promise<{
   }
   const webhookId = await ensureActivityWebhook();
   if (!webhookId) return { ok: false, error: "webhook_unregistered" };
-  let xUserId = resolveStoredXUserId(userId);
+  let xUserId = opts?.xUserId ?? resolveStoredXUserId(userId);
   if (!xUserId) {
     const user = getUserById(userId);
     const handle = user?.xUsername || getXOauthUsername(userId);
@@ -248,6 +251,32 @@ export async function subscribeUserToPostCreate(userId: string): Promise<{
     )
     .run(userId, xUserId, subscriptionId, webhookId, at, at);
   return { ok: true, subscriptionId };
+}
+
+/**
+ * Delete the user's live X-side post.create subscription and its stored row so
+ * an account/handle change can re-subscribe against the new account. Keeps the
+ * stored id when the X-side DELETE fails so a later attempt can retry it.
+ */
+export async function removeUserPostCreateSubscription(
+  userId: string,
+): Promise<void> {
+  const row = getPlatformDb()
+    .prepare(`SELECT subscription_id FROM activity_subscriptions WHERE user_id = ?`)
+    .get(userId) as { subscription_id: string | null } | undefined;
+  let deleteOk = true;
+  if (row?.subscription_id) {
+    const res = await xJson({
+      method: "DELETE",
+      path: `/activity/subscriptions/${encodeURIComponent(row.subscription_id)}`,
+    });
+    deleteOk = res.ok || res.status === 404;
+  }
+  if (deleteOk) {
+    getPlatformDb()
+      .prepare(`DELETE FROM activity_subscriptions WHERE user_id = ?`)
+      .run(userId);
+  }
 }
 
 export async function pauseUserSubscription(userId: string, untilIso: string): Promise<void> {
