@@ -105,22 +105,29 @@ export async function applyVerifiedXUsername(opts: {
     // pulls start fresh instead of blending two accounts, and re-point the
     // live XAA subscription so the old account's posts stop being delivered.
     resetUserVoiceCorpus(opts.user.id, oldXUserId);
-    void import("./xActivitySubscribe.js")
-      .then(
-        async ({
-          removeUserPostCreateSubscription,
-          subscribeUserToPostCreate,
-        }) => {
-          try {
-            await removeUserPostCreateSubscription(opts.user.id);
-            await subscribeUserToPostCreate(opts.user.id, {
-              xUserId: verified.id,
-            });
-          } catch (err) {
-            console.warn("[xaa] repoint subscription", err);
-          }
-        },
-      );
+    try {
+      const {
+        removeUserPostCreateSubscription,
+        subscribeUserToPostCreate,
+      } = await import("./xActivitySubscribe.js");
+      const removed = await removeUserPostCreateSubscription(opts.user.id);
+      if (!removed.ok) {
+        console.warn(
+          "[xaa] repoint: could not delete the old account's post.create subscription; the new account is not subscribed yet",
+        );
+      } else {
+        const subscribed = await subscribeUserToPostCreate(opts.user.id, {
+          xUserId: verified.id,
+        });
+        if (!subscribed.ok) {
+          console.warn(
+            `[xaa] repoint: failed to subscribe the new account (${subscribed.error ?? "unknown"}); the old account may keep delivering posts`,
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("[xaa] repoint subscription", err);
+    }
   }
   return { ok: true, user: updated, changed: true, accountChanged };
 }

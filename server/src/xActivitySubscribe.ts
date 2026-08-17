@@ -257,10 +257,13 @@ export async function subscribeUserToPostCreate(
  * Delete the user's live X-side post.create subscription and its stored row so
  * an account/handle change can re-subscribe against the new account. Keeps the
  * stored id when the X-side DELETE fails so a later attempt can retry it.
+ * Returns `{ ok: true }` when the stored row was removed (nothing blocks a
+ * fresh re-subscribe) and `{ ok: false }` when the DELETE failed and the old
+ * id was retained.
  */
 export async function removeUserPostCreateSubscription(
   userId: string,
-): Promise<void> {
+): Promise<{ ok: boolean }> {
   const row = getPlatformDb()
     .prepare(`SELECT subscription_id FROM activity_subscriptions WHERE user_id = ?`)
     .get(userId) as { subscription_id: string | null } | undefined;
@@ -277,6 +280,7 @@ export async function removeUserPostCreateSubscription(
       .prepare(`DELETE FROM activity_subscriptions WHERE user_id = ?`)
       .run(userId);
   }
+  return { ok: deleteOk };
 }
 
 export async function pauseUserSubscription(userId: string, untilIso: string): Promise<void> {
