@@ -17,11 +17,8 @@ import { getSessionUser } from "./sessionCookie.js";
 import { allowRate, clientIp } from "./authGuard.js";
 import { parseXHandle } from "./xHandle.js";
 import { verifyPublicXHandle } from "./xHandleVerify.js";
-import { runUserIngest } from "./userIngest.js";
-import {
-  VOICE_UNLOCK_MIN_CONVERSATIONS,
-  getVoiceProfile,
-} from "./voiceStore.js";
+import { beginVoiceCorpus } from "./userIngest.js";
+import { VOICE_UNLOCK_MIN_CONVERSATIONS } from "./voiceStore.js";
 
 const ONBOARDING_GENERATE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 const ONBOARDING_COMPLETE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
@@ -194,18 +191,10 @@ export async function tryHandleOnboarding(
       });
       return true;
     }
-    let ingest: Awaited<ReturnType<typeof runUserIngest>> | null = null;
-    const alreadyIngested = Boolean(getVoiceProfile(user.id)?.sinceId);
-    if (
-      !alreadyIngested &&
-      allowRate(`onboarding-ingest:${user.id}`, 6, 10 * 60 * 1000)
-    ) {
-      try {
-        ingest = await runUserIngest({ user: updated, mode: "initial" });
-      } catch (err) {
-        console.warn("[onboarding] initial ingest soft-fail", err);
-      }
-    }
+    const ingest = await beginVoiceCorpus({
+      user: updated,
+      reason: "onboarding",
+    });
     sendJson(req, res, 200, {
       ok: true,
       persisted: true,
@@ -220,11 +209,6 @@ export async function tryHandleOnboarding(
           }
         : null,
     });
-    void import("./xActivitySubscribe.js")
-      .then(({ subscribeUserToPostCreate }) =>
-        subscribeUserToPostCreate(updated.id),
-      )
-      .catch((err) => console.warn("[xaa] subscribe", err));
     return true;
   }
 

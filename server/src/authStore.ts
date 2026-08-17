@@ -101,10 +101,24 @@ export function getXOauthUsername(userId: string): string | null {
     .prepare(
       `SELECT username FROM oauth_accounts
        WHERE user_id = ? AND provider = 'x' AND username IS NOT NULL
+       ORDER BY created_at DESC
        LIMIT 1`,
     )
     .get(userId) as { username: string | null } | undefined;
   return parseXHandle(row?.username ?? "") ?? null;
+}
+
+/** The X user id the user actually proved via OAuth (oauth_accounts row). */
+export function getXOauthXUserId(userId: string): string | null {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT provider_user_id FROM oauth_accounts
+       WHERE user_id = ? AND provider = 'x' AND provider_user_id IS NOT NULL
+       ORDER BY created_at DESC
+       LIMIT 1`,
+    )
+    .get(userId) as { provider_user_id: string } | undefined;
+  return row?.provider_user_id?.trim() || null;
 }
 
 /**
@@ -259,9 +273,14 @@ export function upsertOauthUser(opts: {
         );
       database
         .prepare(
-          `UPDATE oauth_accounts SET email = ?, username = ? WHERE id = ?`,
+          `UPDATE oauth_accounts SET email = ?, username = ?, created_at = ? WHERE id = ?`,
         )
-        .run(opts.emailVerified ? email : null, opts.username ?? null, existing.id);
+        .run(
+          opts.emailVerified ? email : null,
+          opts.username ?? null,
+          at,
+          existing.id,
+        );
       stampXUsername(database, existing.userId, opts.username);
       const user = getUserById(existing.userId);
       if (!user) throw new Error("oauth user missing after update");
