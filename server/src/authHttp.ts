@@ -21,7 +21,7 @@ import {
   sessionClearCookie,
 } from "./sessionCookie.js";
 import { applyVerifiedXUsername } from "./xHandleVerify.js";
-import { runUserIngest } from "./userIngest.js";
+import { beginVoiceCorpus } from "./userIngest.js";
 
 const X_USERNAME_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 
@@ -192,19 +192,12 @@ export async function tryHandleAuth(
       });
       return true;
     }
-    if (
-      applied.accountChanged &&
-      allowRate(
-        `onboarding-ingest:${applied.user.id}`,
-        6,
-        10 * 60 * 1000,
-      )
-    ) {
-      try {
-        await runUserIngest({ user: applied.user, mode: "initial" });
-      } catch (err) {
-        console.warn("[auth] x-username ingest soft-fail", err);
-      }
+    if (applied.accountChanged) {
+      await beginVoiceCorpus({
+        user: applied.user,
+        reason: "x_username",
+        force: true,
+      });
     }
     sendJson(req, res, 200, {
       ok: true,

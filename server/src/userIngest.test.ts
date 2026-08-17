@@ -9,9 +9,13 @@ import {
   resetPlatformDbForTests,
 } from "./db.ts";
 import { listIngestUsers, upsertOauthUser } from "./authStore.ts";
-import { getVoiceProfile } from "./voiceStore.ts";
+import {
+  ensureVoiceProfile,
+  getVoiceProfile,
+  updateVoiceProfilePull,
+} from "./voiceStore.ts";
 import { VOICE_TARGET_REPLIES } from "./voiceIngest.ts";
-import { runUserIngest } from "./userIngest.ts";
+import { beginVoiceCorpus, runUserIngest } from "./userIngest.ts";
 
 describe("runUserIngest", () => {
   let dir: string;
@@ -368,5 +372,194 @@ describe("runUserIngest", () => {
     });
     assert.equal(result.ok, false);
     assert.notEqual(getVoiceProfile(user.id)?.lastPullAt, null);
+  });
+});
+
+describe("beginVoiceCorpus", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    dir = mkdtempSync(join(tmpdir(), "x-corpus-"));
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("starts an initial pull on first X link", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    let ingestCalls = 0;
+    let subscribeCalls = 0;
+    const result = await beginVoiceCorpus({
+      user,
+      reason: "x_oauth",
+      deps: {
+        ingest: async () => {
+          ingestCalls += 1;
+          return {
+            ok: true,
+            userId: user.id,
+            conversationCount: 12,
+            unlocked: false,
+            pulled: 12,
+            ownPostsIngested: 0,
+          };
+        },
+        subscribe: async () => {
+          subscribeCalls += 1;
+        },
+        allow: () => true,
+      },
+    });
+    assert.equal(ingestCalls, 1);
+    assert.equal(subscribeCalls, 1);
+    assert.equal(result?.pulled, 12);
+  });
+
+  it("skips a repeat pull when a cursor already exists", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    await runUserIngest({
+      user,
+      mode: "initial",
+      deps: {
+        foldLocal: async () => {},
+        resolveUser: async () => ({
+          ok: true,
+          id: "99",
+          username: "me",
+          protected: false,
+        }),
+        pullReplies: async () => ({
+          ok: true,
+          replies: [
+            {
+              id: "1",
+              text: "hi",
+              postedAt: "2026-08-17T00:00:00.000Z",
+              conversationId: "c1",
+              source: "api",
+            },
+          ],
+          newestId: "1",
+          pages: 1,
+          completed: true,
+        }),
+        generateCard: async () => ({
+          ok: false,
+          error: "skip",
+          message: "under bar",
+        }),
+      },
+    });
+    assert.equal(getVoiceProfile(user.id)?.sinceId, "1");
+    let ingestCalls = 0;
+    await beginVoiceCorpus({
+      user,
+      reason: "x_oauth",
+      deps: {
+        ingest: async () => {
+          ingestCalls += 1;
+          return {
+            ok: true,
+            userId: user.id,
+            conversationCount: 1,
+            unlocked: false,
+            pulled: 0,
+            ownPostsIngested: 0,
+          };
+        },
+        subscribe: async () => {},
+        allow: () => true,
+      },
+    });
+    assert.equal(ingestCalls, 0);
+  });
+
+  it("forces a fresh pull after an account change", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    ensureVoiceProfile(user.id, "local");
+    updateVoiceProfilePull({
+      userId: user.id,
+      xUsername: "me",
+      xUserId: "99",
+      sinceId: "old",
+      lastPullAt: "2026-08-17T00:00:00.000Z",
+    });
+    assert.equal(getVoiceProfile(user.id)?.sinceId, "old");
+    let ingestCalls = 0;
+    await beginVoiceCorpus({
+      user,
+      reason: "x_username",
+      force: true,
+      deps: {
+        ingest: async () => {
+          ingestCalls += 1;
+          return {
+            ok: true,
+            userId: user.id,
+            conversationCount: 0,
+            unlocked: false,
+            pulled: 3,
+            ownPostsIngested: 0,
+          };
+        },
+        subscribe: async () => {},
+        allow: () => true,
+      },
+    });
+    assert.equal(ingestCalls, 1);
+  });
+
+  it("does nothing without a handle", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid",
+      email: "g@example.com",
+      emailVerified: true,
+    });
+    let ingestCalls = 0;
+    const result = await beginVoiceCorpus({
+      user,
+      reason: "onboarding",
+      deps: {
+        ingest: async () => {
+          ingestCalls += 1;
+          return {
+            ok: true,
+            userId: user.id,
+            conversationCount: 0,
+            unlocked: false,
+            pulled: 0,
+            ownPostsIngested: 0,
+          };
+        },
+        subscribe: async () => {},
+        allow: () => true,
+      },
+    });
+    assert.equal(result, null);
+    assert.equal(ingestCalls, 0);
   });
 });

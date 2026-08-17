@@ -23,6 +23,7 @@ import {
   serializeCookie,
   sessionSetCookie,
 } from "./sessionCookie.js";
+import { beginVoiceCorpus } from "./userIngest.js";
 import { X_API_BASE, getXApiCredsFromEnv } from "./xApi.js";
 import { parseXHandle } from "./xHandle.js";
 
@@ -292,11 +293,6 @@ export function completeXLogin(opts: {
     });
   }
   const session = createSession(user.id);
-  void import("./xActivitySubscribe.js")
-    .then(({ subscribeUserToPostCreate }) =>
-      subscribeUserToPostCreate(user.id),
-    )
-    .catch((err) => console.warn("[xaa] subscribe", err));
   return { ok: true, user, token: session.token, expiresAt: session.expiresAt };
 }
 
@@ -378,6 +374,7 @@ export async function handleXCallback(
       xOauthClearCookie(req),
     ]);
   }
+  await beginVoiceCorpus({ user: login.user, reason: "x_oauth" });
   return redirect(req, res, authSuccessRedirect(), [
     xOauthClearCookie(req),
     sessionSetCookie(req, login.token),

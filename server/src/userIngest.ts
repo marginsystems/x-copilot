@@ -1,6 +1,6 @@
 /**
- * Platform-paced ingest: one initial pull at onboarding, then hourly
- * incremental updates. Not user-triggered. Does not debit Scout credits.
+ * Platform-paced ingest: one initial pull when we first get the user's X,
+ * then hourly incremental updates. Does not debit Scout credits.
  */
 import type { AuthUser } from "./authStore.js";
 import {
@@ -38,6 +38,10 @@ import {
 import { xApiGet } from "./xApi.js";
 import { parseXHandle } from "./xHandle.js";
 import type { ParsedPostCreate } from "./xActivity.js";
+import { allowRate } from "./authGuard.js";
+
+/** Shared cap so Google signups cannot spray initial timeline pulls. */
+export const CORPUS_INGEST_RATE = { max: 6, windowMs: 10 * 60 * 1000 };
 
 export type IngestMode = "initial" | "hourly";
 
@@ -57,6 +61,59 @@ const ingestGet: XApiGetFn = (opts) => xApiGet({ ...opts, skipUsage: true });
 
 export function resolveIngestHandle(user: AuthUser): string | null {
   return parseXHandle(user.xUsername ?? "") ?? getXOauthUsername(user.id);
+}
+
+export type BeginVoiceCorpusReason = "x_oauth" | "onboarding" | "x_username";
+
+/**
+ * Single kickoff when we have the user's X: initial corpus pull + live
+ * subscribe. Official X OAuth is the preferred trigger (harder to fake than
+ * a typed handle). Soft-fails so login / setup still complete.
+ */
+export async function beginVoiceCorpus(opts: {
+  user: AuthUser;
+  reason: BeginVoiceCorpusReason;
+  force?: boolean;
+  deps?: {
+    ingest?: typeof runUserIngest;
+    subscribe?: (userId: string) => Promise<unknown>;
+    allow?: typeof allowRate;
+  };
+}): Promise<UserIngestResult | null> {
+  const handle = resolveIngestHandle(opts.user);
+  if (!handle) return null;
+  const alreadyIngested = Boolean(getVoiceProfile(opts.user.id)?.sinceId);
+  if (alreadyIngested && !opts.force) return null;
+  const allow = opts.deps?.allow ?? allowRate;
+  if (
+    !allow(
+      `corpus-ingest:${opts.user.id}`,
+      CORPUS_INGEST_RATE.max,
+      CORPUS_INGEST_RATE.windowMs,
+    )
+  ) {
+    return null;
+  }
+  const ingest = opts.deps?.ingest ?? runUserIngest;
+  let result: UserIngestResult | null = null;
+  try {
+    result = await ingest({ user: opts.user, mode: "initial" });
+  } catch (err) {
+    console.warn(`[corpus] ingest soft-fail (${opts.reason})`, err);
+  }
+  try {
+    if (opts.deps?.subscribe) {
+      await opts.deps.subscribe(opts.user.id);
+    } else {
+      const { subscribeUserToPostCreate } = await import(
+        "./xActivitySubscribe.js"
+      );
+      await subscribeUserToPostCreate(opts.user.id);
+    }
+  } catch (err) {
+    console.warn("[xaa] subscribe", err);
+  }
+  return result;
 }
 
 function replyToOwnPost(
