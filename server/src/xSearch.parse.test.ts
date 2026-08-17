@@ -882,6 +882,22 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.longform, "article");
   });
 
+  it("does not treat a third-party /i/article/ link as an article", () => {
+    const card = v2TweetToCard(
+      {
+        id: "446",
+        text: "New piece",
+        author_id: "u-op",
+        entities: {
+          urls: [{ expanded_url: "https://example.com/i/article/99" }],
+        },
+      },
+      usersById,
+    );
+    assert.ok(card);
+    assert.equal(card.longform, undefined);
+  });
+
   it("copies parent article longform and full char count from includes", () => {
     const tweetsById = new Map([
       [

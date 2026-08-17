@@ -687,8 +687,8 @@ function includedTweetBody(tw: V2Tweet): string {
 
 function v2UrlLooksLikeArticle(tweet: V2Tweet): boolean {
   for (const u of tweet.entities?.urls ?? []) {
-    const hay = `${u.expanded_url ?? ""} ${u.url ?? ""} ${u.display_url ?? ""}`.toLowerCase();
-    if (hay.includes("/i/article/")) return true;
+    const expanded = (u.expanded_url ?? u.url ?? "").trim();
+    if (expanded && isXArticleUrl(expanded)) return true;
   }
   return false;
 }

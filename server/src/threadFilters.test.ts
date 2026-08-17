@@ -543,6 +543,21 @@ describe("filterThreadsByLength", () => {
     );
   });
 
+  it("does not treat quote-derived opText as the parent length", () => {
+    const reply = thread("2", "Agree", undefined, {
+      isReply: true,
+      inReplyToId: "1",
+      // Quote-bearing card: opText is the quoted tweet, not the replied-to
+      // parent, so a long quote must not count as an oversized parent.
+      opText: "y".repeat(900),
+    });
+    const result = filterThreadsByLength([reply], 480);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["2"],
+    );
+  });
+
   it("drops replies under a thread-opener parent", () => {
     const reply = thread("2", "First point is strong", undefined, {
       isReply: true,

@@ -121,7 +121,11 @@ function isReplyCard(
   return thread.isReply === true || Boolean(thread.inReplyToId);
 }
 
-/** Full parent length when known; `opText` is a sliced preview. */
+/**
+ * Full parent length when known. Missing opCharCount → unknown → 0 (keep the
+ * reply): opText alone is never the parent, since quote-derived opText is the
+ * quoted post, not the replied-to parent.
+ */
 export function parentCharCount(
   thread: Pick<ThreadCard, "opCharCount" | "opText">,
 ): number {
@@ -132,7 +136,7 @@ export function parentCharCount(
   ) {
     return thread.opCharCount;
   }
-  return thread.opText?.length ?? 0;
+  return 0;
 }
 
 /** conversationId + id for every Article card in the batch. */
