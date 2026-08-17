@@ -257,9 +257,13 @@ export async function subscribeUserToPostCreate(
  * Remove the user's live X-side post.create subscription so an account/handle
  * change can re-subscribe against the new account. Keeps the stored id when the
  * X-side DELETE fails so a later attempt can retry it. On success the stored
- * `subscription_id` is cleared but the row is kept (like `pauseUserSubscription`)
- * so a concurrent claim reservation and the `paused_until`-based resume scan
- * keep functioning.
+ * `subscription_id` AND the stored `x_user_id` are cleared (the row is kept,
+ * like `pauseUserSubscription`) so a concurrent claim reservation and the
+ * `paused_until`-based resume scan keep functioning, and a later subscribe
+ * without an explicit target never re-resolves the old account. Clearing
+ * `x_user_id` matters because the claim path only overwrites it on a fresh
+ * INSERT — if the re-subscribe POST fails, a stale `x_user_id` from the old
+ * account would otherwise survive and be picked up by `resolveStoredXUserId`.
  * Returns `{ ok: true }` when the stored id was cleared (nothing blocks a fresh
  * re-subscribe) and `{ ok: false }` when the DELETE failed and the old id was
  * retained.
@@ -268,8 +272,12 @@ export async function removeUserPostCreateSubscription(
   userId: string,
 ): Promise<{ ok: boolean }> {
   const row = getPlatformDb()
-    .prepare(`SELECT subscription_id FROM activity_subscriptions WHERE user_id = ?`)
-    .get(userId) as { subscription_id: string | null } | undefined;
+    .prepare(
+      `SELECT subscription_id, x_user_id FROM activity_subscriptions WHERE user_id = ?`,
+    )
+    .get(userId) as
+    | { subscription_id: string | null; x_user_id: string | null }
+    | undefined;
   let deleteOk = true;
   if (row?.subscription_id) {
     const res = await xJson({
@@ -281,11 +289,12 @@ export async function removeUserPostCreateSubscription(
   getPlatformDb()
     .prepare(
       `UPDATE activity_subscriptions
-       SET subscription_id = ?, updated_at = ?
+       SET subscription_id = ?, x_user_id = ?, updated_at = ?
        WHERE user_id = ?`,
     )
     .run(
       deleteOk ? null : row?.subscription_id ?? null,
+      deleteOk ? null : row?.x_user_id ?? null,
       new Date().toISOString(),
       userId,
     );
