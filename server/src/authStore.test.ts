@@ -16,11 +16,17 @@ import {
   getUserById,
   getUserForSessionToken,
   linkOauthToUser,
+  listOauthProviders,
+  listSessionsForUser,
+  revokeOtherSessions,
+  revokeSessionById,
   revokeSessionToken,
   setUserXUsername,
+  touchSessionMeta,
   upsertOauthUser,
   userNeedsXHandle,
 } from "./authStore.ts";
+import { toPublicSession } from "./sessionView.ts";
 
 describe("authStore", () => {
   let dir: string;
@@ -281,5 +287,138 @@ describe("authStore", () => {
     const updated = setUserXUsername(user.id, "@NewName");
     assert.equal(updated?.xUsername, "NewName");
     assert.equal(setUserXUsername("missing", "still_here"), null);
+  });
+
+  it("records created IP/UA once and only bumps last-seen on use", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-meta",
+      email: "meta@example.com",
+      emailVerified: true,
+    });
+    const created = createSession(user.id, {
+      ip: "203.0.113.10",
+      userAgent: "CreatedUA/1.0",
+    });
+    const listed = listSessionsForUser(user.id);
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].id, created.id);
+    assert.equal(listed[0].createdIp, "203.0.113.10");
+    assert.equal(listed[0].createdUserAgent, "CreatedUA/1.0");
+    assert.equal(listed[0].lastSeenIp, "203.0.113.10");
+    touchSessionMeta(created.id, user.id, {
+      ip: "198.51.100.20",
+      userAgent: "RefreshUA/2.0",
+    });
+    const throttled = listSessionsForUser(user.id)[0];
+    assert.equal(throttled.createdIp, "203.0.113.10");
+    assert.equal(throttled.createdUserAgent, "CreatedUA/1.0");
+    assert.equal(throttled.lastSeenIp, "203.0.113.10");
+    getPlatformDb()
+      .prepare(`UPDATE session_meta SET last_seen_at = ? WHERE session_id = ?`)
+      .run(new Date(Date.now() - 61_000).toISOString(), created.id);
+    touchSessionMeta(created.id, user.id, {
+      ip: "198.51.100.20",
+      userAgent: "RefreshUA/2.0",
+    });
+    const after = listSessionsForUser(user.id)[0];
+    assert.equal(after.createdIp, "203.0.113.10");
+    assert.equal(after.createdUserAgent, "CreatedUA/1.0");
+    assert.equal(after.lastSeenIp, "198.51.100.20");
+    assert.equal(after.lastSeenUserAgent, "RefreshUA/2.0");
+  });
+
+  it("lists only this user's sessions and never exposes a token hash", () => {
+    const alice = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-alice-sess",
+      email: "alice-sess@example.com",
+      emailVerified: true,
+    });
+    const eve = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-eve-sess",
+      email: "eve-sess@example.com",
+      emailVerified: true,
+    });
+    const aliceSess = createSession(alice.id, { ip: "1.1.1.1" });
+    createSession(eve.id, { ip: "9.9.9.9" });
+    const listed = listSessionsForUser(alice.id);
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].id, aliceSess.id);
+    const pub = toPublicSession(listed[0], aliceSess.id);
+    const dumped = JSON.stringify({ listed, pub });
+    assert.equal(dumped.includes("token"), false);
+    assert.equal(dumped.includes("hash"), false);
+    assert.equal("tokenHash" in listed[0], false);
+  });
+
+  it("revokes by id only when the session belongs to that user", () => {
+    const alice = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-alice-rev",
+      email: "alice-rev@example.com",
+      emailVerified: true,
+    });
+    const eve = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-eve-rev",
+      email: "eve-rev@example.com",
+      emailVerified: true,
+    });
+    const aliceSess = createSession(alice.id);
+    const eveSess = createSession(eve.id);
+    assert.equal(revokeSessionById(eve.id, aliceSess.id), false);
+    assert.ok(getUserForSessionToken(aliceSess.token));
+    assert.equal(revokeSessionById(alice.id, aliceSess.id), true);
+    assert.equal(getUserForSessionToken(aliceSess.token), null);
+    assert.ok(getUserForSessionToken(eveSess.token));
+  });
+
+  it("revokes other sessions and keeps this device", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-keep",
+      email: "keep@example.com",
+      emailVerified: true,
+    });
+    const keep = createSession(user.id);
+    const other = createSession(user.id);
+    assert.equal(revokeOtherSessions(user.id, keep.id), 1);
+    assert.ok(getUserForSessionToken(keep.token));
+    assert.equal(getUserForSessionToken(other.token), null);
+    const listed = listSessionsForUser(user.id);
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].id, keep.id);
+  });
+
+  it("lists linked providers without provider user ids", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-providers",
+      email: "prov@example.com",
+      emailVerified: true,
+      displayName: "Prov",
+    });
+    const linked = linkOauthToUser({
+      userId: user.id,
+      provider: "x",
+      providerUserId: "xid-providers",
+      username: "provhandle",
+    });
+    assert.equal(linked.ok, true);
+    const providers = listOauthProviders(user.id);
+    assert.deepEqual(
+      providers.map((p) => p.provider).sort(),
+      ["google", "x"],
+    );
+    assert.equal(
+      JSON.stringify(providers).includes("gid-providers"),
+      false,
+    );
+    assert.equal(
+      JSON.stringify(providers).includes("xid-providers"),
+      false,
+    );
   });
 });
