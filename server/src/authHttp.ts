@@ -23,6 +23,7 @@ import {
 import { parseXHandle } from "./xHandle.js";
 import { applyVerifiedXUsername } from "./xHandleVerify.js";
 import { beginVoiceCorpus, CORPUS_INGEST_RATE } from "./userIngest.js";
+import { tryHandleSessions } from "./sessionsHttp.js";
 
 const X_USERNAME_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 
@@ -238,6 +239,8 @@ export async function tryHandleAuth(
     });
     return true;
   }
+  if (await tryHandleSessions(req, res, url)) return true;
+
   if (req.method === "POST" && url.pathname === "/api/auth/logout") {
     const token = requestCookies(req)[SESSION_COOKIE];
     if (token) revokeSessionToken(token);
