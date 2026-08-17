@@ -569,7 +569,7 @@ export function touchSessionMeta(
          last_seen_at, last_seen_ip, last_seen_user_agent
        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(sessionId, userId, ip, userAgent, now, ip, userAgent);
+    .run(sessionId, userId, null, null, now, ip, userAgent);
 }
 
 export function listSessionsForUser(userId: string): SessionListRow[] {

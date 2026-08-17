@@ -328,6 +328,31 @@ describe("authStore", () => {
     assert.equal(after.lastSeenUserAgent, "RefreshUA/2.0");
   });
 
+  it("does not backfill created IP/UA for sessions missing a meta row", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-meta-fallback",
+      email: "meta-fallback@example.com",
+      emailVerified: true,
+    });
+    const created = createSession(user.id, {
+      ip: "203.0.113.10",
+      userAgent: "CreatedUA/1.0",
+    });
+    getPlatformDb()
+      .prepare(`DELETE FROM session_meta WHERE session_id = ?`)
+      .run(created.id);
+    touchSessionMeta(created.id, user.id, {
+      ip: "198.51.100.20",
+      userAgent: "RefreshUA/2.0",
+    });
+    const listed = listSessionsForUser(user.id)[0];
+    assert.equal(listed.createdIp, null);
+    assert.equal(listed.createdUserAgent, null);
+    assert.equal(listed.lastSeenIp, "198.51.100.20");
+    assert.equal(listed.lastSeenUserAgent, "RefreshUA/2.0");
+  });
+
   it("lists only this user's sessions and never exposes a token hash", () => {
     const alice = upsertOauthUser({
       provider: "google",
