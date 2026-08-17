@@ -615,6 +615,37 @@ describe("beginVoiceCorpus", () => {
     assert.equal(getXOauthUsername(user.id), "c");
   });
 
+  it("re-linking an earlier X account resolves as the most recent login", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-relink",
+      email: "relink@example.com",
+      emailVerified: true,
+    });
+    linkOauthToUser({
+      userId: user.id,
+      provider: "x",
+      providerUserId: "B",
+      username: "b",
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    linkOauthToUser({
+      userId: user.id,
+      provider: "x",
+      providerUserId: "C",
+      username: "c",
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    linkOauthToUser({
+      userId: user.id,
+      provider: "x",
+      providerUserId: "B",
+      username: "b",
+    });
+    assert.equal(getXOauthXUserId(user.id), "B");
+    assert.equal(getXOauthUsername(user.id), "b");
+  });
+
   it("hourly ingest after an OAuth repoint follows the linked account, not the stale typed handle", async () => {
     const user = upsertOauthUser({
       provider: "google",

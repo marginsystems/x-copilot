@@ -274,9 +274,14 @@ export function upsertOauthUser(opts: {
         );
       database
         .prepare(
-          `UPDATE oauth_accounts SET email = ?, username = ? WHERE id = ?`,
+          `UPDATE oauth_accounts SET email = ?, username = ?, created_at = ? WHERE id = ?`,
         )
-        .run(opts.emailVerified ? email : null, opts.username ?? null, existing.id);
+        .run(
+          opts.emailVerified ? email : null,
+          opts.username ?? null,
+          at,
+          existing.id,
+        );
       stampXUsername(database, existing.userId, opts.username, opts.provider === "x");
       const user = getUserById(existing.userId);
       if (!user) throw new Error("oauth user missing after update");
