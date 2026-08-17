@@ -161,7 +161,7 @@ export async function tryHandleSessions(
     }
     if (
       !allowRate(
-        `sessions-revoke:${session.user.id}`,
+        `sessions-revoke-one:${session.user.id}`,
         SESSIONS_REVOKE_RATE.max,
         SESSIONS_REVOKE_RATE.windowMs,
       )
