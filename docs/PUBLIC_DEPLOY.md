@@ -6,7 +6,7 @@ Operational requirement: port 8787 must never be reachable from the public inter
 
 ## Bind
 
-`api` is grey-cloud, so the VPS fronts the API itself. Keep the API on loopback and proxy to it from a local TLS terminator (e.g. Caddy/nginx with a Let's Encrypt cert on 443):
+`api` is grey-cloud, so the VPS fronts the API itself. Keep the API on loopback and proxy to it from nginx with a Let's Encrypt cert on 443. The terminator must overwrite `X-Real-IP` before proxying (nginx: `proxy_set_header X-Real-IP $remote_addr;`); Caddy and plain tunnels do not set that header and would forward a client-supplied `X-Real-IP` unchanged, so they must not be used in front of 8787:
 
 ```
 BIND_HOST=127.0.0.1
@@ -22,7 +22,7 @@ Signup is open (Free plan). A session is still required: public bind always gate
 
 ### Keep 8787 off the public internet
 
-`clientIp()` (used for login rate limiting and session IP) trusts `CF-Connecting-IP` / `X-Forwarded-For` only when the direct peer is a Cloudflare IP. From loopback it trusts a single `X-Real-IP` (the terminator must overwrite that header, as nginx does with `$remote_addr`). A caller that reaches `IP:8787` directly is not a loopback or Cloudflare peer, so its forwarded headers are ignored and it is rate-limited by its own socket IP. Bind 8787 to loopback and reach it only through the local TLS terminator. If you switch `api` to a proxied record instead, keep 8787 firewalled to Cloudflare's published ranges ([`ips-v4`](https://www.cloudflare.com/ips-v4) / [`ips-v6`](https://www.cloudflare.com/ips-v6)).
+`clientIp()` (used for login rate limiting and session IP) trusts `CF-Connecting-IP` / `X-Forwarded-For` only when the direct peer is a Cloudflare IP. From loopback it trusts a single `X-Real-IP` only when the terminator overwrites that header, as nginx does with `proxy_set_header X-Real-IP $remote_addr;`. Any terminator that forwards a client-supplied `X-Real-IP` unchanged (Caddy, cloudflared, SSH tunnels) would let a remote client pick its own rate-limit and session IP, so only a terminator that overwrites the header may sit in front of 8787. A caller that reaches `IP:8787` directly is not a loopback or Cloudflare peer, so its forwarded headers are ignored and it is rate-limited by its own socket IP. Bind 8787 to loopback and reach it only through the local TLS terminator. If you switch `api` to a proxied record instead, keep 8787 firewalled to Cloudflare's published ranges ([`ips-v4`](https://www.cloudflare.com/ips-v4) / [`ips-v6`](https://www.cloudflare.com/ips-v6)).
 
 Keep the server-side copy of these ranges in `server/src/authGuard.ts` in sync
 with the published lists — forwarded IPs are trusted only from peers matching
