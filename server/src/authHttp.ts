@@ -1,9 +1,9 @@
 /**
- * Auth HTTP routes: Google OAuth, session me/logout, public X username.
+ * Auth HTTP routes: Google / X OAuth, session me/logout.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { revokeSessionToken, toPublicUser } from "./authStore.js";
-import { corsHeaders, isOriginAllowed, requestOrigin } from "./cors.js";
+import { corsHeaders } from "./cors.js";
 import { handleGoogleCallback, handleGoogleStart } from "./googleAuth.js";
 import { handleXCallback, handleXStart } from "./xAuth.js";
 import { isAdminEmail } from "./adminEmails.js";
@@ -20,51 +20,7 @@ import {
   SESSION_COOKIE,
   sessionClearCookie,
 } from "./sessionCookie.js";
-import { parseXHandle } from "./xHandle.js";
-import { applyVerifiedXUsername } from "./xHandleVerify.js";
-import { beginVoiceCorpus, CORPUS_INGEST_RATE } from "./userIngest.js";
 import { tryHandleSessions } from "./sessionsHttp.js";
-
-const X_USERNAME_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
-
-class BodyError extends Error {
-  statusCode: number;
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
-
-function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  return new Promise((resolveBody, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    const MAX_SIZE = 16_384;
-    req.on("data", (c: Buffer) => {
-      size += c.length;
-      if (size > MAX_SIZE) {
-        reject(new BodyError("Request body exceeds limit", 413));
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf8");
-      if (!raw) return resolveBody({});
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          reject(new BodyError("Invalid JSON", 400));
-          return;
-        }
-        resolveBody(parsed as Record<string, unknown>);
-      } catch {
-        reject(new BodyError("Invalid JSON", 400));
-      }
-    });
-    req.on("error", reject);
-  });
-}
 
 function sendJson(
   req: IncomingMessage,
@@ -138,105 +94,6 @@ export async function tryHandleAuth(
       console.error("[GET /api/auth/me] tenant", err);
     }
     sendJson(req, res, 200, { ok: true, authRequired: required, user: publicUser(user) });
-    return true;
-  }
-  if (req.method === "POST" && url.pathname === "/api/auth/x-username") {
-    if (!isOriginAllowed(requestOrigin(req))) {
-      sendJson(req, res, 403, {
-        error: "forbidden",
-        message: "Origin not allowed",
-      });
-      return true;
-    }
-    if (
-      !allowRate(
-        `auth-x-username:${clientIp(req)}`,
-        X_USERNAME_RATE.max,
-        X_USERNAME_RATE.windowMs,
-      )
-    ) {
-      sendJson(req, res, 429, {
-        error: "rate_limited",
-        message: "Too many username updates",
-      });
-      return true;
-    }
-    const user = getSessionUser(req);
-    if (!user) {
-      sendJson(req, res, 401, {
-        ok: false,
-        error: "unauthenticated",
-        message: "Sign in required",
-      });
-      return true;
-    }
-    let body: Record<string, unknown>;
-    try {
-      body = await readJsonBody(req);
-    } catch (err) {
-      const statusCode = err instanceof BodyError ? err.statusCode : 400;
-      sendJson(req, res, statusCode, {
-        error: "bad_request",
-        message: err instanceof Error ? err.message : "Invalid request body",
-      });
-      if (statusCode === 413) req.destroy();
-      return true;
-    }
-    const newHandle = parseXHandle(
-      typeof body.xUsername === "string" ? body.xUsername : "",
-    );
-    const currentHandle = parseXHandle(user.xUsername ?? "");
-    const handleDiffers = Boolean(
-      newHandle &&
-        (currentHandle === null ||
-          currentHandle.toLowerCase() !== newHandle.toLowerCase()),
-    );
-    // applyVerifiedXUsername resets the corpus for a new account before the
-    // refill runs, so gate the change on the shared corpus-ingest cap first —
-    // never wipe a filled corpus we can't refill immediately.
-    if (
-      handleDiffers &&
-      !allowRate(
-        `corpus-ingest:${user.id}`,
-        CORPUS_INGEST_RATE.max,
-        CORPUS_INGEST_RATE.windowMs,
-      )
-    ) {
-      sendJson(req, res, 429, {
-        ok: false,
-        error: "ingest_rate_limited",
-        message:
-          "Too many Voice corpus builds recently — please try again in a few minutes.",
-      });
-      return true;
-    }
-    const applied = await applyVerifiedXUsername({
-      user,
-      raw: body.xUsername,
-    });
-    if (!applied.ok) {
-      sendJson(req, res, applied.status, {
-        ok: false,
-        error: applied.error,
-        message: applied.message,
-      });
-      return true;
-    }
-    if (applied.accountChanged) {
-      await beginVoiceCorpus({
-        user: applied.user,
-        reason: "x_username",
-        force: true,
-        // The corpus-ingest cap was already checked above, before the
-        // corpus was reset; do not consume a second slot here.
-        deps: { allow: () => true },
-      });
-    }
-    sendJson(req, res, 200, {
-      ok: true,
-      changed: applied.changed,
-      user: publicUser(applied.user),
-    });
     return true;
   }
   if (await tryHandleSessions(req, res, url)) return true;

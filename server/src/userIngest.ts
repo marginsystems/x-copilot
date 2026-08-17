@@ -39,7 +39,6 @@ import {
   type VoiceReplyInput,
 } from "./voiceStore.js";
 import { xApiGet } from "./xApi.js";
-import { parseXHandle } from "./xHandle.js";
 import type { ParsedPostCreate } from "./xActivity.js";
 import { allowRate } from "./authGuard.js";
 
@@ -63,7 +62,7 @@ export type UserIngestResult = {
 const ingestGet: XApiGetFn = (opts) => xApiGet({ ...opts, skipUsage: true });
 
 export function resolveIngestHandle(user: AuthUser): string | null {
-  return parseXHandle(user.xUsername ?? "") ?? getXOauthUsername(user.id);
+  return getXOauthUsername(user.id);
 }
 
 export type BeginVoiceCorpusReason = "x_oauth" | "onboarding" | "x_username";
@@ -91,9 +90,7 @@ export async function beginVoiceCorpus(opts: {
 }): Promise<UserIngestResult | null> {
   const oauthXUserId =
     opts.reason === "x_oauth" ? getXOauthXUserId(opts.user.id) : null;
-  const handle = oauthXUserId
-    ? getXOauthUsername(opts.user.id) ?? parseXHandle(opts.user.xUsername ?? "")
-    : resolveIngestHandle(opts.user);
+  const handle = resolveIngestHandle(opts.user);
   if (!handle) return null;
   const profile = getVoiceProfile(opts.user.id);
   const alreadyIngested = Boolean(profile?.sinceId);

@@ -590,16 +590,14 @@ describe("foldDiscoveredOwnPosts", () => {
     assert.equal(summary.totals.posts, 15);
   });
 
-  it("matches a user that only set x_username during onboarding (no X oauth)", async () => {
+  it("does not match a Google user who never linked X", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-1",
       email: "me@example.com",
       emailVerified: true,
     });
-    completeOnboarding(user.id, "Find builders shipping AI tools in public.", {
-      xUsername: "me",
-    });
+    completeOnboarding(user.id, "Find builders shipping AI tools in public.");
     const n = await foldDiscoveredOwnPosts({
       screenName: "me",
       nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
@@ -612,8 +610,8 @@ describe("foldDiscoveredOwnPosts", () => {
         }),
       ],
     });
-    assert.equal(n, 1);
-    assert.equal(analyticsSummary(user.id).totals.posts, 1);
+    assert.equal(n, 0);
+    assert.equal(analyticsSummary(user.id).totals.posts, 0);
   });
 
   it("resolves xUserId from the stored X oauth via the default chain", async () => {
@@ -645,9 +643,7 @@ describe("foldDiscoveredOwnPosts", () => {
       email: "claim@example.com",
       emailVerified: true,
     });
-    completeOnboarding(claimant.id, "Find builders shipping AI tools in public.", {
-      xUsername: "me",
-    });
+    completeOnboarding(claimant.id, "Find builders shipping AI tools in public.");
     const operator = upsertOauthUser({
       provider: "x",
       providerUserId: "op-xid",

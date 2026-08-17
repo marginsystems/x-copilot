@@ -121,6 +121,7 @@ function mapUser(row: UserRow): AuthUser {
 }
 
 export function toPublicUser(user: AuthUser) {
+  const xUsername = getXOauthUsername(user.id);
   return {
     id: user.id,
     email: user.email,
@@ -128,7 +129,8 @@ export function toPublicUser(user: AuthUser) {
     avatarUrl: user.avatarUrl,
     onboardingCompleted: Boolean(user.onboardingCompletedAt),
     agenda: user.agenda,
-    xUsername: user.xUsername,
+    xUsername,
+    xLinked: Boolean(xUsername),
   };
 }
 
@@ -159,8 +161,8 @@ export function getXOauthXUserId(userId: string): string | null {
 
 /**
  * Match a public handle to a desk user. Point lookups only — no full-table
- * scans. Prefers the verified X oauth identity (a real X login) over a handle
- * merely claimed during onboarding.
+ * scans. Only a verified X oauth identity (a real X login) counts; a handle
+ * merely typed during onboarding is never trusted.
  */
 export function findUserIdByXUsername(username: string): string | null {
   const handle = parseXHandle(username);
@@ -175,16 +177,7 @@ export function findUserIdByXUsername(username: string): string | null {
        LIMIT 1`,
     )
     .get(key, key) as { user_id: string } | undefined;
-  if (oauth?.user_id) return oauth.user_id;
-  const user = getPlatformDb()
-    .prepare(
-      `SELECT id FROM users
-       WHERE x_username IS NOT NULL
-         AND (lower(TRIM(x_username)) = ? OR lower(TRIM(x_username)) = '@' || ?)
-       LIMIT 1`,
-    )
-    .get(key, key) as { id: string } | undefined;
-  return user?.id ?? null;
+  return oauth?.user_id ?? null;
 }
 
 function stampXUsername(
@@ -666,17 +659,16 @@ export function revokeSessionToken(token: string): void {
 export function completeOnboarding(
   userId: string,
   agenda: string,
-  opts?: { xUsername?: string | null },
 ): AuthUser | null {
   const trimmed = agenda.trim();
   const at = nowIso();
-  const handle = parseXHandle(opts?.xUsername ?? "") ?? null;
+  const handle = getXOauthUsername(userId);
   const result = getPlatformDb()
     .prepare(
       `UPDATE users SET
          agenda = ?,
          onboarding_completed_at = COALESCE(onboarding_completed_at, ?),
-         x_username = COALESCE(?, x_username)
+         x_username = ?
        WHERE id = ?`,
     )
     .run(trimmed, at, handle, userId);
@@ -684,8 +676,8 @@ export function completeOnboarding(
   return getUserById(userId);
 }
 
+/** True until official X OAuth is linked. A typed users.x_username does not count. */
 export function userNeedsXHandle(user: AuthUser): boolean {
-  if (parseXHandle(user.xUsername ?? "")) return false;
   return !getXOauthUsername(user.id);
 }
 
@@ -702,8 +694,7 @@ export function listIngestUsers(): AuthUser[] {
        LEFT JOIN oauth_accounts oa
          ON oa.user_id = u.id AND oa.provider = 'x' AND oa.username IS NOT NULL
        LEFT JOIN voice_profiles vp ON vp.user_id = u.id
-       WHERE (u.x_username IS NOT NULL AND TRIM(u.x_username) != '')
-          OR oa.user_id IS NOT NULL
+       WHERE oa.user_id IS NOT NULL
           OR (vp.conversation_count >= ? AND vp.card_json IS NULL)
        ORDER BY (vp.last_pull_at IS NULL) DESC, vp.last_pull_at ASC`,
     )

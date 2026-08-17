@@ -15,8 +15,6 @@ import {
 } from "./onboarding.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { allowRate, clientIp } from "./authGuard.js";
-import { parseXHandle } from "./xHandle.js";
-import { verifyPublicXHandle } from "./xHandleVerify.js";
 import { beginVoiceCorpus } from "./userIngest.js";
 import { VOICE_UNLOCK_MIN_CONVERSATIONS } from "./voiceStore.js";
 
@@ -170,20 +168,16 @@ export async function tryHandleOnboarding(
       return true;
     }
 
-    let xUsername: string | null = parseXHandle(user.xUsername ?? "") ?? null;
     if (userNeedsXHandle(user)) {
-      const verified = await verifyPublicXHandle(body.xUsername);
-      if (!verified.ok) {
-        sendJson(req, res, verified.status, {
-          error: verified.error,
-          message: verified.message,
-        });
-        return true;
-      }
-      xUsername = verified.handle;
+      sendJson(req, res, 400, {
+        ok: false,
+        error: "x_link_required",
+        message: "Link X with the official X login to finish setup.",
+      });
+      return true;
     }
 
-    const updated = completeOnboarding(user.id, parsed.agenda, { xUsername });
+    const updated = completeOnboarding(user.id, parsed.agenda);
     if (!updated) {
       sendJson(req, res, 404, {
         error: "not_found",

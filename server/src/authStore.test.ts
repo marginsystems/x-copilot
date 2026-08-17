@@ -258,7 +258,7 @@ describe("authStore", () => {
     assert.equal(userNeedsXHandle(user), false);
   });
 
-  it("requires a handle for Google-only users until they save one", () => {
+  it("requires official X OAuth for Google-only users", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-handle",
@@ -269,14 +269,20 @@ describe("authStore", () => {
     assert.equal(userNeedsXHandle(user), true);
     const agenda =
       "Find founders sharing concrete takes on shipping AI tools in public. Prefer a clear point of view. Skip empty engagement bait.";
-    const updated = completeOnboarding(user.id, agenda, {
-      xUsername: "@alice_dev",
+    const updated = completeOnboarding(user.id, agenda);
+    assert.equal(updated?.xUsername, null);
+    assert.equal(userNeedsXHandle(updated!), true);
+    const linked = linkOauthToUser({
+      userId: user.id,
+      provider: "x",
+      providerUserId: "xid-handle",
+      username: "alice_dev",
     });
-    assert.equal(updated?.xUsername, "alice_dev");
-    assert.equal(userNeedsXHandle(updated!), false);
+    assert.equal(linked.ok, true);
+    assert.equal(userNeedsXHandle(getUserById(user.id)!), false);
   });
 
-  it("overwrites a saved X username from Settings", () => {
+  it("can stamp a public handle from official X identity helpers", () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "xid-settings",

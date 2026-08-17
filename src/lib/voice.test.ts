@@ -100,14 +100,13 @@ describe("voiceUnlockCopy", () => {
 });
 
 describe("voiceNeedsXLink", () => {
-  it("is true with no handle and no voice payload yet", () => {
+  it("is true with no official X link and no voice payload yet", () => {
     assert.equal(voiceNeedsXLink(null, null), true);
-    assert.equal(voiceNeedsXLink(null, ""), true);
+    assert.equal(voiceNeedsXLink(null, false), true);
   });
 
-  it("is false once a user or voice handle exists", () => {
-    assert.equal(voiceNeedsXLink(null, "marginsystems"), false);
-    assert.equal(voiceNeedsXLink(null, "@alice"), false);
+  it("is false once official X is linked or a voice handle exists", () => {
+    assert.equal(voiceNeedsXLink(null, true), false);
     assert.equal(
       voiceNeedsXLink(
         {
@@ -167,7 +166,7 @@ describe("voiceNeedsXLink", () => {
     );
   });
 
-  it("stays false when memories already produced a corpus without a handle", () => {
+  it("stays true without official X even when a stale corpus exists", () => {
     assert.equal(
       voiceNeedsXLink(
         {
@@ -193,7 +192,7 @@ describe("voiceNeedsXLink", () => {
         },
         null,
       ),
-      false,
+      true,
     );
   });
 });

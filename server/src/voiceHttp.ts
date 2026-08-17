@@ -15,7 +15,6 @@ import { corsHeaders } from "./cors.js";
 import { getSessionUser } from "./sessionCookie.js";
 import type { AuthUser } from "./authStore.js";
 import { getXOauthUsername } from "./authStore.js";
-import { parseXHandle } from "./xHandle.js";
 import {
   MAX_REPLY_CHARS,
   buildIntentUrl,
@@ -109,9 +108,7 @@ function parseCard(cardJson: string | null): VoiceCard | null {
 }
 
 export function resolveVoiceHandle(user: AuthUser): string | null {
-  return (
-    parseXHandle(user.xUsername ?? "") ?? getXOauthUsername(user.id)
-  );
+  return getXOauthUsername(user.id);
 }
 
 /**
