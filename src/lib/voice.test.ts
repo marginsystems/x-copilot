@@ -148,6 +148,16 @@ describe("shouldShowVoiceUnlockToast", () => {
     );
   });
 
+  it("stays hidden on the impossible ready-but-not-unlocked state", () => {
+    assert.equal(
+      shouldShowVoiceUnlockToast({
+        voice: { ...locked, status: "ready", unlocked: false },
+        hasSession: true,
+      }),
+      false,
+    );
+  });
+
   it("shows only after load while Suggest is still locked", () => {
     assert.equal(
       shouldShowVoiceUnlockToast({ voice: locked, hasSession: true }),

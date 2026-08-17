@@ -3275,7 +3275,7 @@ export default function App() {
                         onSkip={() => void onSkip(t)}
                         onDismiss={() => openDismissModal(t)}
                         suggest={
-                          !voice ? null : voice.status === "ready" && voice.unlocked ? (
+                          voice?.status === "ready" && voice.unlocked ? (
                             <SuggestPane
                               threadId={t.id}
                               author={t.author}
