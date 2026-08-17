@@ -67,6 +67,7 @@ import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
 import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
 import { Analytics } from "./Analytics";
+import { Account } from "./Account";
 import { SuggestLocked, VoiceCardPanel, VoiceUnlockBanner } from "./VoiceCard";
 import { SuggestPane } from "./SuggestPane";
 import {
@@ -662,6 +663,7 @@ type AppView =
   | "dashboard"
   | "voice"
   | "settings"
+  | "account"
   | "usage"
   | "admin"
   | "analytics"
@@ -712,6 +714,7 @@ function viewFromPath(pathname: string): AppView {
   if (pathname === "/usage" || pathname === "/billing") return "usage";
   if (pathname === "/analytics") return "analytics";
   if (pathname === "/voice") return "voice";
+  if (pathname === "/account") return "account";
   if (pathname === "/settings") return "settings";
   return "dashboard";
 }
@@ -723,6 +726,7 @@ function pathFromView(view: AppView): string {
   if (view === "usage") return "/usage";
   if (view === "analytics") return "/analytics";
   if (view === "voice") return "/voice";
+  if (view === "account") return "/account";
   if (view === "settings") return "/settings";
   return "/";
 }
@@ -1802,6 +1806,11 @@ export default function App() {
     closeMenu();
   }
 
+  function openAccount() {
+    goToView("account");
+    closeMenu();
+  }
+
   function startGoogleLogin() {
     window.location.href = apiUrl("/api/auth/google");
   }
@@ -2598,6 +2607,7 @@ export default function App() {
               onVoice={openVoice}
               needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xUsername) : false}
               onUsage={openUsage}
+              onAccount={openAccount}
               onSettings={openSettings}
               onPrivacySettings={() => {
                 setConsentOpen(true);
@@ -2673,6 +2683,19 @@ export default function App() {
 
       {view === "analytics" ? (
         <Analytics onBack={() => goToView("dashboard")} />
+      ) : null}
+
+      {view === "account" ? (
+        <Account
+          onBack={() => goToView("dashboard")}
+          onGoogle={startGoogleLogin}
+          onX={startXLogin}
+          onSignedOut={() => {
+            setAuthUser(null);
+            setAuthNotice("Signed out.");
+            goToView("dashboard");
+          }}
+        />
       ) : null}
 
       {view === "voice" ? (
@@ -2826,6 +2849,7 @@ export default function App() {
       {view === "usage" ||
       view === "admin" ||
       view === "analytics" ||
+      view === "account" ||
       view === "voice" ? null : view === "settings" ? (
         <section className="panel settings-pane">
           <div className="settings-head">
