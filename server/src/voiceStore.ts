@@ -205,15 +205,16 @@ export function listVoiceReplies(
 }
 
 /**
- * Fold replies the desk already detected (Activity API own_posts) into the
- * voice corpus — free, local-only, keeps the card current between API pulls.
+ * Fold the user's own posts the desk already detected (Activity API own_posts)
+ * into the voice corpus — free, local-only, keeps the card current between API
+ * pulls. Originals, replies, and quotes all count; retweets do not.
  */
 export function foldDeskReplies(userId: string): number {
   const rows = getPlatformDb()
     .prepare(
       `SELECT id, text, conversation_id, in_reply_to_id, posted_at
        FROM own_posts
-       WHERE user_id = ? AND kind = 'reply' AND text IS NOT NULL AND text != ''`,
+       WHERE user_id = ? AND kind != 'repost' AND text IS NOT NULL AND text != ''`,
     )
     .all(userId) as Array<{
     id: string;

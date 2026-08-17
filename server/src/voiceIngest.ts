@@ -199,7 +199,7 @@ export async function pullOwnReplies(opts: {
     }
     paginationToken = page.nextToken;
   }
-  if (replies.length >= target || pages >= MAX_TIMELINE_PAGES) completed = true;
+  if (replies.length >= target) completed = true;
 
   return {
     ok: true,

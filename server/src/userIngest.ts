@@ -21,7 +21,6 @@ import { generateVoiceCard } from "./voiceLlm.js";
 import {
   pullOwnReplies,
   resolveXUser,
-  MAX_TIMELINE_PAGES,
   VOICE_TARGET_POSTS,
   type XApiGetFn,
 } from "./voiceIngest.js";
@@ -314,10 +313,9 @@ export async function runUserIngest(opts: {
         userId: user.id,
         xUsername: resolved.username,
         xUserId: resolved.id,
-        sinceId:
-          pull.completed || pull.pages >= MAX_TIMELINE_PAGES
-            ? (pull.newestId ?? profile.sinceId)
-            : profile.sinceId,
+        sinceId: pull.completed
+          ? (pull.newestId ?? profile.sinceId)
+          : profile.sinceId,
         lastPullAt: nowIso(),
       });
     } else {

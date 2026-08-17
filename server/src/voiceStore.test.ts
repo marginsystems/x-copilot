@@ -179,6 +179,38 @@ describe("voiceStore", () => {
     assert.equal(rows[0]?.source, "desk");
   });
 
+  it("folds desk-detected originals and quotes into the corpus too", () => {
+    const insert = (id: string, kind: string) =>
+      getPlatformDb()
+        .prepare(
+          `INSERT INTO own_posts (id, user_id, tenant_id, x_user_id, kind, text, posted_at, conversation_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          USER,
+          TENANT,
+          "42",
+          kind,
+          `post ${id} from the desk`,
+          "2026-08-14T10:00:00.000Z",
+          `conv-${id}`,
+          "2026-08-14T10:00:00.000Z",
+        );
+    insert("555101", "original");
+    insert("555102", "quote");
+    assert.equal(foldDeskReplies(USER), 2);
+    // Reposts stay excluded — they are someone else's words.
+    insert("555103", "repost");
+    assert.equal(foldDeskReplies(USER), 0);
+    const rows = listVoiceReplies(USER, 10);
+    assert.deepEqual(
+      new Set(rows.map((r) => r.id)),
+      new Set(["555101", "555102"]),
+    );
+    assert.ok(rows.every((r) => r.source === "desk"));
+  });
+
   it("folds interacted-memory replies into the corpus", () => {
     assert.equal(
       foldMemoryReplies(USER, [

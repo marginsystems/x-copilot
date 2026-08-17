@@ -120,6 +120,24 @@ describe("pullOwnReplies", () => {
       assert.equal(n, 1);
       assert.equal(result.pages, 1);
       assert.equal(result.replies.length, 2);
+      // Page cap stopped the walk below target with a next_token still
+      // pending: not completed, so callers keep the previous since_id.
+      assert.equal(result.completed, false);
+    }
+  });
+
+  it("marks completed when the timeline is exhausted below target", async () => {
+    const get: XApiGetFn = async () => ({
+      ok: true,
+      status: 200,
+      json: {
+        data: [tweet("1"), tweet("2")],
+        meta: { newest_id: "2" },
+      },
+    });
+    const result = await pullOwnReplies({ xUserId: OWN_ID, deps: { get } });
+    assert.ok(result.ok);
+    if (result.ok) {
       assert.equal(result.completed, true);
     }
   });
@@ -157,7 +175,7 @@ describe("pullOwnReplies", () => {
     if (result.ok) {
       assert.equal(n, 1);
       assert.equal(result.replies.length, 1);
-      assert.equal(result.completed, true);
+      assert.equal(result.completed, false);
     }
   });
 });
