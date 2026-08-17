@@ -166,7 +166,7 @@ describe("voiceNeedsXLink", () => {
     );
   });
 
-  it("stays false when memories already produced a corpus without a handle", () => {
+  it("stays true without official X even when a stale corpus exists", () => {
     assert.equal(
       voiceNeedsXLink(
         {
@@ -192,7 +192,7 @@ describe("voiceNeedsXLink", () => {
         },
         null,
       ),
-      false,
+      true,
     );
   });
 });

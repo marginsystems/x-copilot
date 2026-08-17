@@ -3,7 +3,7 @@
  */
 import { getPlatformDb } from "./db.js";
 import { X_API_BASE, getXApiCredsFromEnv } from "./xApi.js";
-import { getUserById, getXOauthUsername } from "./authStore.js";
+import { getXOauthUsername } from "./authStore.js";
 import { parseXHandle } from "./xHandle.js";
 
 // How long a subscribe "claim" reserves a due row while the X-side POST is in
@@ -158,8 +158,7 @@ export async function subscribeUserToPostCreate(
   if (!webhookId) return { ok: false, error: "webhook_unregistered" };
   let xUserId = opts?.xUserId ?? resolveStoredXUserId(userId);
   if (!xUserId) {
-    const user = getUserById(userId);
-    const handle = user?.xUsername || getXOauthUsername(userId);
+    const handle = getXOauthUsername(userId);
     if (handle) xUserId = await lookupXUserId(handle);
   }
   if (!xUserId) return { ok: false, error: "x_user_id_unresolved" };

@@ -939,8 +939,7 @@ const server = http.createServer(async (req, res) => {
             : undefined;
         const appUser = getSessionUser(req);
         const screenName = resolveDetectScreenName(
-          appUser?.xUsername ??
-            (appUser ? getXOauthUsername(appUser.id) : null),
+          appUser ? getXOauthUsername(appUser.id) : null,
         );
         if (!screenName) {
           return send(req, res, 503, {

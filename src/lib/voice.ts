@@ -197,8 +197,7 @@ export function voiceNeedsXLink(
 ): boolean {
   if (xLinked) return false;
   if (voice?.handle) return false;
-  if (!voice) return true;
-  return voice.status === "unlinked";
+  return true;
 }
 
 /** Plain-language next step so Suggest is never a mystery. */
