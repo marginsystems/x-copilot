@@ -212,7 +212,7 @@ export function shouldShowVoiceUnlockToast(opts: {
 }): boolean {
   if (!opts.hasSession) return false;
   if (!opts.voice) return false;
-  if (opts.voice.status === "ready") return false;
+  if (opts.voice.status === "ready" || opts.voice.unlocked) return false;
   return true;
 }
 

@@ -158,6 +158,26 @@ describe("shouldShowVoiceUnlockToast", () => {
     );
   });
 
+  it("stays hidden for an already-unlocked user mid-ingest", () => {
+    assert.equal(
+      shouldShowVoiceUnlockToast({
+        voice: { ...locked, status: "learning", unlocked: true, replyCount: 120 },
+        hasSession: true,
+      }),
+      false,
+    );
+  });
+
+  it("still shows for a locked user mid-ingest", () => {
+    assert.equal(
+      shouldShowVoiceUnlockToast({
+        voice: { ...locked, status: "learning", unlocked: false },
+        hasSession: true,
+      }),
+      true,
+    );
+  });
+
   it("shows only after load while Suggest is still locked", () => {
     assert.equal(
       shouldShowVoiceUnlockToast({ voice: locked, hasSession: true }),
