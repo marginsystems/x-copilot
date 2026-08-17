@@ -101,6 +101,7 @@ export function getXOauthUsername(userId: string): string | null {
     .prepare(
       `SELECT username FROM oauth_accounts
        WHERE user_id = ? AND provider = 'x' AND username IS NOT NULL
+       ORDER BY created_at DESC
        LIMIT 1`,
     )
     .get(userId) as { username: string | null } | undefined;
@@ -113,6 +114,7 @@ export function getXOauthXUserId(userId: string): string | null {
     .prepare(
       `SELECT provider_user_id FROM oauth_accounts
        WHERE user_id = ? AND provider = 'x' AND provider_user_id IS NOT NULL
+       ORDER BY created_at DESC
        LIMIT 1`,
     )
     .get(userId) as { provider_user_id: string } | undefined;
@@ -153,6 +155,7 @@ function stampXUsername(
   database: ReturnType<typeof getPlatformDb>,
   userId: string,
   username: string | null | undefined,
+  overwrite: boolean,
 ): void {
   const handle = parseXHandle(username ?? "");
   if (!handle) return;
@@ -160,7 +163,7 @@ function stampXUsername(
     .prepare(`SELECT x_username FROM users WHERE id = ?`)
     .get(userId) as { x_username: string | null } | undefined;
   const current = parseXHandle(row?.x_username ?? "") ?? "";
-  if (current && current.toLowerCase() !== handle.toLowerCase()) {
+  if (!overwrite && current && current.toLowerCase() !== handle.toLowerCase()) {
     return;
   }
   database
@@ -274,7 +277,7 @@ export function upsertOauthUser(opts: {
           `UPDATE oauth_accounts SET email = ?, username = ? WHERE id = ?`,
         )
         .run(opts.emailVerified ? email : null, opts.username ?? null, existing.id);
-      stampXUsername(database, existing.userId, opts.username);
+      stampXUsername(database, existing.userId, opts.username, opts.provider === "x");
       const user = getUserById(existing.userId);
       if (!user) throw new Error("oauth user missing after update");
       return user;
@@ -323,7 +326,7 @@ export function upsertOauthUser(opts: {
         opts.username ?? null,
         at,
       );
-    stampXUsername(database, userId, opts.username);
+    stampXUsername(database, userId, opts.username, opts.provider === "x");
 
     const user = getUserById(userId);
     if (!user) throw new Error("oauth user missing after insert");
@@ -417,7 +420,7 @@ export function linkOauthToUser(opts: {
            WHERE id = ?`,
         )
         .run(opts.displayName ?? null, opts.avatarUrl ?? null, at, opts.userId);
-      stampXUsername(database, opts.userId, opts.username);
+      stampXUsername(database, opts.userId, opts.username, opts.provider === "x");
       const row = getUserById(opts.userId);
       if (!row) throw new Error("oauth user missing after insert");
       return row;

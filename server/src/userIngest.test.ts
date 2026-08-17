@@ -8,7 +8,15 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
-import { listIngestUsers, setUserXUsername, upsertOauthUser } from "./authStore.ts";
+import {
+  getUserById,
+  getXOauthUsername,
+  getXOauthXUserId,
+  linkOauthToUser,
+  listIngestUsers,
+  setUserXUsername,
+  upsertOauthUser,
+} from "./authStore.ts";
 import {
   ensureVoiceProfile,
   getVoiceProfile,
@@ -581,6 +589,98 @@ describe("beginVoiceCorpus", () => {
       },
     });
     assert.equal(ingestCalls, 1);
+  });
+
+  it("resolves the most recently linked X account for the OAuth identity", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-oauth-order",
+      email: "order@example.com",
+      emailVerified: true,
+    });
+    linkOauthToUser({
+      userId: user.id,
+      provider: "x",
+      providerUserId: "B",
+      username: "b",
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    linkOauthToUser({
+      userId: user.id,
+      provider: "x",
+      providerUserId: "C",
+      username: "c",
+    });
+    assert.equal(getXOauthXUserId(user.id), "C");
+    assert.equal(getXOauthUsername(user.id), "c");
+  });
+
+  it("hourly ingest after an OAuth repoint follows the linked account, not the stale typed handle", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-hourly",
+      email: "hourly@example.com",
+      emailVerified: true,
+    });
+    setUserXUsername(user.id, "a");
+    ensureVoiceProfile(user.id, "local");
+    updateVoiceProfilePull({
+      userId: user.id,
+      xUsername: "a",
+      xUserId: "A",
+      sinceId: "old-a",
+    });
+    const linked = linkOauthToUser({
+      userId: user.id,
+      provider: "x",
+      providerUserId: "B",
+      username: "b",
+    });
+    assert.equal(linked.ok, true);
+    if (!linked.ok) return;
+    await beginVoiceCorpus({
+      user: linked.user,
+      reason: "x_oauth",
+      deps: {
+        ingest: async () => ({
+          ok: true,
+          userId: user.id,
+          conversationCount: 5,
+          unlocked: false,
+          pulled: 5,
+          ownPostsIngested: 0,
+        }),
+        subscribe: async () => {},
+        allow: () => true,
+      },
+    });
+    assert.equal(getXOauthXUserId(user.id), "B");
+    assert.equal(getUserById(user.id)?.xUsername, "b");
+    let resolvedHandle: string | undefined;
+    await runUserIngest({
+      user: getUserById(user.id)!,
+      mode: "hourly",
+      deps: {
+        foldLocal: async () => {},
+        resolveUser: async (handle) => {
+          resolvedHandle = handle;
+          return { ok: true, id: "B", username: "b", protected: false };
+        },
+        pullReplies: async () => ({
+          ok: true,
+          replies: [],
+          newestId: "old-b",
+          pages: 1,
+          completed: true,
+        }),
+        generateCard: async () => ({
+          ok: false,
+          error: "skip",
+          message: "under bar",
+        }),
+      },
+    });
+    assert.equal(resolvedHandle, "b");
   });
 
   it("does nothing without a handle", async () => {
