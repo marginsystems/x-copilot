@@ -23,14 +23,14 @@ export function markDetectWaitingNote(
 }
 
 export function markDetectTimeoutNote(): string {
-  return "Timed out looking for your reply — paste the URL (text optional).";
+  return "Timed out looking for your reply. Post on X, then mark again.";
 }
 
 export function markDetectMissNote(reason?: string): string {
   if (reason === "ambiguous") {
-    return "Multiple replies matched — paste the URL for the one you want.";
+    return "Multiple replies matched. Wait a moment and mark again.";
   }
-  return "Couldn't find your reply — paste the URL (text optional).";
+  return "Couldn't find your reply. Post on X, then mark again.";
 }
 
 /** Soft misses that should keep polling until timeout. */
