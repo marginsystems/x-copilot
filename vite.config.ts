@@ -28,6 +28,11 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: "http://127.0.0.1:8787",
           changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on("proxyReq", (proxyReq) => {
+              proxyReq.removeHeader("x-real-ip");
+            });
+          },
         },
       },
     },
