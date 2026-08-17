@@ -3,6 +3,7 @@
  * unless AUTH_REQUIRED is explicitly off on loopback.
  */
 import type { IncomingMessage } from "node:http";
+import { isIP } from "node:net";
 
 export function bindHost(env: NodeJS.ProcessEnv = process.env): string {
   const raw = env.BIND_HOST?.trim();
@@ -106,22 +107,44 @@ export function isCloudflarePeer(address: string | undefined): boolean {
   );
 }
 
+function isLoopbackPeer(address: string | undefined): boolean {
+  return (
+    address === "127.0.0.1" ||
+    address === "::1" ||
+    address === "::ffff:127.0.0.1"
+  );
+}
+
+/** One IP, no list. Rejects spoof-shaped values. */
+function singleHeaderIp(raw: string | string[] | undefined): string | null {
+  if (typeof raw !== "string") return null;
+  const value = raw.trim();
+  if (!value || value.includes(",") || isIP(value) === 0) return null;
+  return value;
+}
+
 /**
- * Client IP for rate limiting and session IP tracking. Forwarded headers
- * (CF-Connecting-IP / X-Forwarded-For) are spoofable, so they are trusted only
- * from Cloudflare edge peers (see isCloudflarePeer). Loopback is deliberately
- * not trusted: a local TLS terminator in front of the origin passes client
- * headers through as-is, so a loopback peer would resolve to a client-controlled
- * value. Any other peer falls back to the socket address.
+ * Client IP for rate limiting and session IP tracking.
+ *
+ * - Cloudflare peer: CF-Connecting-IP, then X-Forwarded-For.
+ * - Loopback peer (local TLS terminator): X-Real-IP only. Nginx overwrites
+ *   that header with $remote_addr. Do not trust X-Forwarded-For /
+ *   CF-Connecting-IP here — those can keep a client-supplied first hop.
+ * - Anyone else: socket address.
  */
 export function clientIp(req: IncomingMessage): string {
   const peer = req.socket.remoteAddress || "unknown";
   if (isCloudflarePeer(peer)) {
-    const cf = req.headers["cf-connecting-ip"];
-    if (typeof cf === "string" && cf.trim()) return cf.trim();
+    const cf = singleHeaderIp(req.headers["cf-connecting-ip"]);
+    if (cf) return cf;
     const xff = req.headers["x-forwarded-for"];
     const first = (Array.isArray(xff) ? xff[0] : xff)?.split(",")[0]?.trim();
-    if (first) return first;
+    if (first && isIP(first) !== 0) return first;
+    return peer;
+  }
+  if (isLoopbackPeer(peer)) {
+    const real = singleHeaderIp(req.headers["x-real-ip"]);
+    if (real) return real;
   }
   return peer;
 }

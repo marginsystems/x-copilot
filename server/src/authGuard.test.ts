@@ -78,7 +78,7 @@ describe("authGuard", () => {
     assert.equal(clientIp(req), "10.0.0.1");
   });
 
-  it("ignores forwarded headers from a loopback peer", () => {
+  it("ignores spoofable forwarded headers from a loopback peer", () => {
     const req = {
       headers: {
         "cf-connecting-ip": "1.2.3.4",
@@ -87,6 +87,39 @@ describe("authGuard", () => {
       socket: { remoteAddress: "::1" },
     } as unknown as IncomingMessage;
     assert.equal(clientIp(req), "::1");
+  });
+
+  it("trusts X-Real-IP from a loopback terminator", () => {
+    const req = {
+      headers: {
+        "x-real-ip": "203.0.113.10",
+        "x-forwarded-for": "9.9.9.9, 8.8.8.8",
+        "cf-connecting-ip": "1.2.3.4",
+      },
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+    assert.equal(clientIp(req), "203.0.113.10");
+  });
+
+  it("rejects a list or junk X-Real-IP from loopback", () => {
+    const list = {
+      headers: { "x-real-ip": "203.0.113.10, 198.51.100.1" },
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+    assert.equal(clientIp(list), "127.0.0.1");
+    const junk = {
+      headers: { "x-real-ip": "not-an-ip" },
+      socket: { remoteAddress: "::ffff:127.0.0.1" },
+    } as unknown as IncomingMessage;
+    assert.equal(clientIp(junk), "::ffff:127.0.0.1");
+  });
+
+  it("does not trust X-Real-IP from a non-loopback peer", () => {
+    const req = {
+      headers: { "x-real-ip": "203.0.113.10" },
+      socket: { remoteAddress: "10.0.0.1" },
+    } as unknown as IncomingMessage;
+    assert.equal(clientIp(req), "10.0.0.1");
   });
 
   it("falls back to the socket address without forwarded headers", () => {
