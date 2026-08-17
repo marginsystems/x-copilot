@@ -4,6 +4,7 @@
  */
 import { setUserXUsername, type AuthUser } from "./authStore.js";
 import { parseXHandle } from "./xHandle.js";
+import { resetUserVoiceCorpus } from "./voiceStore.js";
 import {
   lookupXUserByUsername,
   type XUserLookupOk,
@@ -92,5 +93,9 @@ export async function applyVerifiedXUsername(opts: {
       message: "User not found.",
     };
   }
+  // A new handle is a different X account. Drop the previous account's
+  // voice corpus (replies, folded own_posts, card, counts, cursors) so the
+  // re-ingest and hourly pulls start fresh instead of blending two accounts.
+  resetUserVoiceCorpus(opts.user.id);
   return { ok: true, user: updated, changed: true };
 }
