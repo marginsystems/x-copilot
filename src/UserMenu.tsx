@@ -171,7 +171,7 @@ export function UserMenu(props: {
                 type="button"
                 className="menu-item"
                 onClick={props.onX}
-                title="Voice needs your X account so we can read public replies."
+                title="Voice needs your X account so we can read your public posts."
               >
                 <MenuIcon d="M4 4h16v16H4zM8 12h8M12 8v8" />
                 Link X

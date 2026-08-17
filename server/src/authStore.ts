@@ -8,7 +8,7 @@ import {
 } from "./billingStore.js";
 import { getPlatformDb } from "./db.js";
 import { parseXHandle } from "./xHandle.js";
-import { VOICE_UNLOCK_MIN_CONVERSATIONS } from "./voiceStore.js";
+import { VOICE_UNLOCK_MIN_POSTS } from "./voiceStore.js";
 
 export type AuthUser = {
   id: string;
@@ -695,9 +695,9 @@ export function listIngestUsers(): AuthUser[] {
          ON oa.user_id = u.id AND oa.provider = 'x' AND oa.username IS NOT NULL
        LEFT JOIN voice_profiles vp ON vp.user_id = u.id
        WHERE oa.user_id IS NOT NULL
-          OR (vp.conversation_count >= ? AND vp.card_json IS NULL)
+          OR (vp.reply_count >= ? AND vp.card_json IS NULL)
        ORDER BY (vp.last_pull_at IS NULL) DESC, vp.last_pull_at ASC`,
     )
-    .all(VOICE_UNLOCK_MIN_CONVERSATIONS) as UserRow[];
+    .all(VOICE_UNLOCK_MIN_POSTS) as UserRow[];
   return rows.map(mapUser);
 }

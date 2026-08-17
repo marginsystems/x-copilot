@@ -28,7 +28,7 @@ import {
   type VoiceCard,
 } from "./voiceLlm.js";
 import {
-  VOICE_UNLOCK_MIN_CONVERSATIONS,
+  VOICE_UNLOCK_MIN_POSTS,
   ensureVoiceProfile,
   getSuggestUsage,
   getVoiceProfile,
@@ -116,10 +116,10 @@ export function resolveVoiceHandle(user: AuthUser): string | null {
  * when there is no handle to pull as.
  */
 export function shouldPullXApi(opts: {
-  conversationCount: number;
+  postCount: number;
   handle: string | null;
 }): boolean {
-  return Boolean(opts.handle) && !voiceUnlocked(opts.conversationCount);
+  return Boolean(opts.handle) && !voiceUnlocked(opts.postCount);
 }
 
 export function deriveVoiceUiStatus(
@@ -128,9 +128,9 @@ export function deriveVoiceUiStatus(
 ): VoiceUiStatus {
   if (profile?.status === "learning") return "learning";
   if (profile?.status === "ready" && profile.cardJson) return "ready";
-  const conversations = profile?.conversationCount ?? 0;
-  const hasCorpus = conversations > 0 || Boolean(profile?.lastPullAt);
-  if (hasCorpus && !voiceUnlocked(conversations)) return "insufficient";
+  const posts = profile?.replyCount ?? 0;
+  const hasCorpus = posts > 0 || Boolean(profile?.lastPullAt);
+  if (hasCorpus && !voiceUnlocked(posts)) return "insufficient";
   if (hasCorpus) return "empty";
   if (!linkedHandle) return "unlinked";
   return "empty";
@@ -152,7 +152,7 @@ function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
   const billing = ensureUserBillingRow(user.id, tenantId);
   const planKey = effectivePlanKey(billing, user.email);
   const status = deriveVoiceUiStatus(profile, handle);
-  const unlocked = voiceUnlocked(profile?.conversationCount ?? 0);
+  const unlocked = voiceUnlocked(profile?.replyCount ?? 0);
   const needsDailyUpdate = false;
   const needsLearn = false;
   return {
@@ -162,7 +162,7 @@ function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
       handle,
       replyCount: profile?.replyCount ?? 0,
       conversationCount: profile?.conversationCount ?? 0,
-      unlockAt: VOICE_UNLOCK_MIN_CONVERSATIONS,
+      unlockAt: VOICE_UNLOCK_MIN_POSTS,
       unlocked,
       card: parseCard(profile?.cardJson ?? null),
       cardUpdatedAt: profile?.cardUpdatedAt ?? null,
@@ -226,11 +226,11 @@ async function handleSuggest(
     !profile ||
     profile.status !== "ready" ||
     !profile.cardJson ||
-    !voiceUnlocked(profile.conversationCount)
+    !voiceUnlocked(profile.replyCount)
   ) {
     send(req, res, 409, {
       error: "voice_not_ready",
-      message: `Suggest unlocks after ${VOICE_UNLOCK_MIN_CONVERSATIONS} reply conversations and a learned voice card.`,
+      message: `Suggest unlocks after ${VOICE_UNLOCK_MIN_POSTS} public posts and a learned voice card.`,
     });
     return;
   }
@@ -339,11 +339,11 @@ async function handleVerify(
     !profile ||
     profile.status !== "ready" ||
     !profile.cardJson ||
-    !voiceUnlocked(profile.conversationCount)
+    !voiceUnlocked(profile.replyCount)
   ) {
     send(req, res, 409, {
       error: "voice_not_ready",
-      message: `Verify unlocks after ${VOICE_UNLOCK_MIN_CONVERSATIONS} reply conversations and a learned voice card.`,
+      message: `Verify unlocks after ${VOICE_UNLOCK_MIN_POSTS} public posts and a learned voice card.`,
     });
     return;
   }

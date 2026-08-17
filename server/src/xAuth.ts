@@ -383,7 +383,7 @@ export async function handleXCallback(
     ]);
   }
   // Kick the corpus ingest off without blocking the login redirect: the
-  // callback would otherwise wait on up to MAX_TIMELINE_PAGES X API calls,
+  // callback would otherwise wait on the timeline pull,
   // and a proxy timeout would strand a logged-out user whose OAuth verifier
   // was already consumed. The ingest soft-fails on its own.
   void beginVoiceCorpus({ user: login.user, reason: "x_oauth" }).catch((err) =>

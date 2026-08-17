@@ -1,17 +1,24 @@
 /**
- * Official-API pull of the user's own public replies (app-only bearer).
+ * Official-API pull of the user's latest public posts (app-only bearer).
  * GET /2/users/by/username + GET /2/users/:id/tweets — no user tokens,
  * no tweet.write, no scraping. Protected accounts come back as a clear
  * error, never a workaround.
+ *
+ * Voice learns how they write, so originals, replies, self-threads, and
+ * quotes all count. Retweets do not — those are someone else's words.
+ * Initial onboarding is one page of 100. That is the spend cap.
  */
 import { xApiGet, type XApiGetResult } from "./xApi.js";
 import type { VoiceReplyInput } from "./voiceStore.js";
 
-/** Full learn targets about this many of their latest public replies. */
-export const VOICE_TARGET_REPLIES = 100;
+/** Full learn targets this many of their latest public posts. */
+export const VOICE_TARGET_POSTS = 100;
 
-/** Timeline pages per pull — replies are usually a fraction of a timeline. */
-export const MAX_TIMELINE_PAGES = 20;
+/** @deprecated Use VOICE_TARGET_POSTS. */
+export const VOICE_TARGET_REPLIES = VOICE_TARGET_POSTS;
+
+/** One page of max_results=100 — the onboarding spend bound. */
+export const MAX_TIMELINE_PAGES = 1;
 
 export type XApiGetFn = typeof xApiGet;
 
@@ -73,13 +80,21 @@ function repliedToId(tweet: RawTweet): string | null {
   return null;
 }
 
+function isRetweet(tweet: RawTweet): boolean {
+  if (!Array.isArray(tweet.referenced_tweets)) return false;
+  return tweet.referenced_tweets.some((ref) => {
+    const r = ref as { type?: unknown };
+    return r?.type === "retweeted";
+  });
+}
+
 /**
- * Filter one /users/:id/tweets page down to genuine replies to other people.
- * Self-thread continuations do not count toward distinct conversations.
+ * Keep one /users/:id/tweets page of their own writing: originals, replies
+ * (including self-threads), and quotes. Drop retweets.
  */
 export function parseUserTweetsPage(
   json: unknown,
-  ownXUserId: string,
+  _ownXUserId: string,
 ): { replies: VoiceReplyInput[]; nextToken: string | null; newestId: string | null } {
   const root = json as {
     data?: unknown;
@@ -92,13 +107,7 @@ export function parseUserTweetsPage(
       if (typeof tweet.id !== "string" || typeof tweet.text !== "string") {
         continue;
       }
-      const parentId = repliedToId(tweet);
-      if (!parentId) continue;
-      const parentUser =
-        typeof tweet.in_reply_to_user_id === "string"
-          ? tweet.in_reply_to_user_id
-          : null;
-      if (parentUser && parentUser === ownXUserId) continue;
+      if (isRetweet(tweet)) continue;
       const createdMs =
         typeof tweet.created_at === "string" ? Date.parse(tweet.created_at) : NaN;
       replies.push({
@@ -108,7 +117,7 @@ export function parseUserTweetsPage(
           typeof tweet.conversation_id === "string"
             ? tweet.conversation_id
             : null,
-        inReplyToId: parentId,
+        inReplyToId: repliedToId(tweet),
         postedAt: Number.isFinite(createdMs)
           ? new Date(createdMs).toISOString()
           : null,
@@ -140,7 +149,7 @@ export type PullRepliesResult =
   | { ok: false; status: number; error: string; message: string };
 
 /**
- * Pull the user's latest public replies. Pass sinceId for the daily
+ * Pull the user's latest public posts. Pass sinceId for the hourly
  * incremental so we never re-read the whole history.
  */
 export async function pullOwnReplies(opts: {
@@ -150,7 +159,7 @@ export async function pullOwnReplies(opts: {
   deps?: { get?: XApiGetFn };
 }): Promise<PullRepliesResult> {
   const get = opts.deps?.get ?? xApiGet;
-  const target = opts.targetReplies ?? VOICE_TARGET_REPLIES;
+  const target = opts.targetReplies ?? VOICE_TARGET_POSTS;
   const replies: VoiceReplyInput[] = [];
   let paginationToken: string | undefined;
   let newestId: string | null = null;

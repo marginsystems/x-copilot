@@ -2636,8 +2636,8 @@ export default function App() {
           </div>
           <p className="status settings-lede">
             {authUser && voiceNeedsXLink(voice, authUser.xLinked)
-              ? "Link X first — Voice reads your public replies at setup and hourly. Scout takeoffs are what spend credits."
-              : `Suggest reply uses this card. We ingest public replies at setup and hourly — you cannot refresh it by hand. Unlock is ${voice?.unlockAt ?? 100} distinct reply conversations. Scout takeoffs are what spend credits.`}
+              ? "Link X first — Voice reads your latest public posts at setup and hourly. Scout takeoffs are what spend credits."
+              : `Suggest reply uses this card. We ingest your latest public posts at setup and hourly — you cannot refresh it by hand. Unlock is ${voice?.unlockAt ?? 100} posts. Scout takeoffs are what spend credits.`}
           </p>
           <VoiceCardPanel
             voice={voice}

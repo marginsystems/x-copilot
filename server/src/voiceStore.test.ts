@@ -9,7 +9,7 @@ import {
   resetPlatformDbForTests,
 } from "./db.ts";
 import {
-  VOICE_UNLOCK_MIN_CONVERSATIONS,
+  VOICE_UNLOCK_MIN_POSTS,
   countDistinctConversations,
   countSuggestsToday,
   countVoiceReplies,
@@ -62,23 +62,22 @@ describe("voiceStore", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("unlocks at 100 distinct reply conversations, not 100 replies", () => {
-    assert.equal(VOICE_UNLOCK_MIN_CONVERSATIONS, 100);
-    // 150 replies all in one conversation stay locked.
-    seedReplies(150, { conversation: "same-thread" });
-    assert.equal(countVoiceReplies(USER), 150);
+  it("unlocks at 100 posts even when they share a conversation", () => {
+    assert.equal(VOICE_UNLOCK_MIN_POSTS, 100);
+    seedReplies(100, { conversation: "same-thread" });
+    assert.equal(countVoiceReplies(USER), 100);
     assert.equal(countDistinctConversations(USER), 1);
-    assert.equal(voiceUnlocked(countDistinctConversations(USER)), false);
+    assert.equal(voiceUnlocked(countVoiceReplies(USER)), true);
   });
 
-  it("unlocks at exactly the conversation threshold", () => {
+  it("unlocks at exactly 100 posts", () => {
     seedReplies(99);
-    assert.equal(voiceUnlocked(countDistinctConversations(USER)), false);
+    assert.equal(voiceUnlocked(countVoiceReplies(USER)), false);
     upsertVoiceReplies(USER, [
       { id: "999999", text: "the hundredth", conversationId: "conv-100th" },
     ]);
-    assert.equal(countDistinctConversations(USER), 100);
-    assert.equal(voiceUnlocked(countDistinctConversations(USER)), true);
+    assert.equal(countVoiceReplies(USER), 100);
+    assert.equal(voiceUnlocked(countVoiceReplies(USER)), true);
   });
 
   it("dedupes re-pulled replies so incremental never double-counts", () => {
@@ -178,6 +177,38 @@ describe("voiceStore", () => {
     const rows = listVoiceReplies(USER, 10);
     assert.equal(rows.length, 1);
     assert.equal(rows[0]?.source, "desk");
+  });
+
+  it("folds desk-detected originals and quotes into the corpus too", () => {
+    const insert = (id: string, kind: string) =>
+      getPlatformDb()
+        .prepare(
+          `INSERT INTO own_posts (id, user_id, tenant_id, x_user_id, kind, text, posted_at, conversation_id, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          USER,
+          TENANT,
+          "42",
+          kind,
+          `post ${id} from the desk`,
+          "2026-08-14T10:00:00.000Z",
+          `conv-${id}`,
+          "2026-08-14T10:00:00.000Z",
+        );
+    insert("555101", "original");
+    insert("555102", "quote");
+    assert.equal(foldDeskReplies(USER), 2);
+    // Reposts stay excluded — they are someone else's words.
+    insert("555103", "repost");
+    assert.equal(foldDeskReplies(USER), 0);
+    const rows = listVoiceReplies(USER, 10);
+    assert.deepEqual(
+      new Set(rows.map((r) => r.id)),
+      new Set(["555101", "555102"]),
+    );
+    assert.ok(rows.every((r) => r.source === "desk"));
   });
 
   it("folds interacted-memory replies into the corpus", () => {
