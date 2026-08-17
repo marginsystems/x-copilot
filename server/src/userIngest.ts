@@ -8,6 +8,7 @@ import {
   getXOauthUsername,
   getXOauthXUserId,
   listIngestUsers,
+  setUserXUsername,
 } from "./authStore.js";
 import { dailyActivityUsage, ensureUserTenant } from "./billingStore.js";
 import {
@@ -120,6 +121,11 @@ export async function beginVoiceCorpus(opts: {
         // corpus fresh for the linked identity and drop the old account's
         // live subscription so the re-subscribe below targets the new one.
         resetUserVoiceCorpus(opts.user.id, profile?.xUserId);
+        // Point the public handle at the newly linked account only once the
+        // repoint runs; stamping it at OAuth time lets a rate-limited ingest
+        // leave x_username on the new account while the corpus and live
+        // subscription still track the old one.
+        setUserXUsername(opts.user.id, handle);
         try {
           const { removeUserPostCreateSubscription } = await import(
             "./xActivitySubscribe.js"

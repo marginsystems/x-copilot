@@ -155,7 +155,6 @@ function stampXUsername(
   database: ReturnType<typeof getPlatformDb>,
   userId: string,
   username: string | null | undefined,
-  overwrite: boolean,
 ): void {
   const handle = parseXHandle(username ?? "");
   if (!handle) return;
@@ -163,7 +162,7 @@ function stampXUsername(
     .prepare(`SELECT x_username FROM users WHERE id = ?`)
     .get(userId) as { x_username: string | null } | undefined;
   const current = parseXHandle(row?.x_username ?? "") ?? "";
-  if (!overwrite && current && current.toLowerCase() !== handle.toLowerCase()) {
+  if (current && current.toLowerCase() !== handle.toLowerCase()) {
     return;
   }
   database
@@ -282,7 +281,7 @@ export function upsertOauthUser(opts: {
           at,
           existing.id,
         );
-      stampXUsername(database, existing.userId, opts.username, opts.provider === "x");
+      stampXUsername(database, existing.userId, opts.username);
       const user = getUserById(existing.userId);
       if (!user) throw new Error("oauth user missing after update");
       return user;
@@ -331,7 +330,7 @@ export function upsertOauthUser(opts: {
         opts.username ?? null,
         at,
       );
-    stampXUsername(database, userId, opts.username, opts.provider === "x");
+    stampXUsername(database, userId, opts.username);
 
     const user = getUserById(userId);
     if (!user) throw new Error("oauth user missing after insert");
@@ -425,7 +424,7 @@ export function linkOauthToUser(opts: {
            WHERE id = ?`,
         )
         .run(opts.displayName ?? null, opts.avatarUrl ?? null, at, opts.userId);
-      stampXUsername(database, opts.userId, opts.username, opts.provider === "x");
+      stampXUsername(database, opts.userId, opts.username);
       const row = getUserById(opts.userId);
       if (!row) throw new Error("oauth user missing after insert");
       return row;
