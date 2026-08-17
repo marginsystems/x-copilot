@@ -144,9 +144,30 @@ function stampXUsername(
 ): void {
   const handle = parseXHandle(username ?? "");
   if (!handle) return;
+  const row = database
+    .prepare(`SELECT x_username FROM users WHERE id = ?`)
+    .get(userId) as { x_username: string | null } | undefined;
+  const current = parseXHandle(row?.x_username ?? "") ?? "";
+  if (current && current.toLowerCase() !== handle.toLowerCase()) {
+    return;
+  }
   database
     .prepare(`UPDATE users SET x_username = ? WHERE id = ?`)
     .run(handle, userId);
+}
+
+/** Overwrite the public X handle used for Voice / hourly ingest. */
+export function setUserXUsername(
+  userId: string,
+  username: string,
+): AuthUser | null {
+  const handle = parseXHandle(username);
+  if (!handle) return null;
+  const result = getPlatformDb()
+    .prepare(`UPDATE users SET x_username = ? WHERE id = ?`)
+    .run(handle, userId);
+  if (result.changes === 0) return null;
+  return getUserById(userId);
 }
 
 /** Number of platform users — the single-user sidecar folds unowned notes. */

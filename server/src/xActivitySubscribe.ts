@@ -142,7 +142,10 @@ export function findUserIdByXUserId(xUserId: string): string | null {
   return oauth?.user_id ?? null;
 }
 
-export async function subscribeUserToPostCreate(userId: string): Promise<{
+export async function subscribeUserToPostCreate(
+  userId: string,
+  opts?: { xUserId?: string },
+): Promise<{
   ok: boolean;
   paused?: boolean;
   subscriptionId?: string;
@@ -153,7 +156,7 @@ export async function subscribeUserToPostCreate(userId: string): Promise<{
   }
   const webhookId = await ensureActivityWebhook();
   if (!webhookId) return { ok: false, error: "webhook_unregistered" };
-  let xUserId = resolveStoredXUserId(userId);
+  let xUserId = opts?.xUserId ?? resolveStoredXUserId(userId);
   if (!xUserId) {
     const user = getUserById(userId);
     const handle = user?.xUsername || getXOauthUsername(userId);
@@ -248,6 +251,45 @@ export async function subscribeUserToPostCreate(userId: string): Promise<{
     )
     .run(userId, xUserId, subscriptionId, webhookId, at, at);
   return { ok: true, subscriptionId };
+}
+
+/**
+ * Remove the user's live X-side post.create subscription so an account/handle
+ * change can re-subscribe against the new account. Keeps the stored id when the
+ * X-side DELETE fails so a later attempt can retry it. On success the stored
+ * `subscription_id` is cleared but the row is kept (like `pauseUserSubscription`)
+ * so a concurrent claim reservation and the `paused_until`-based resume scan
+ * keep functioning.
+ * Returns `{ ok: true }` when the stored id was cleared (nothing blocks a fresh
+ * re-subscribe) and `{ ok: false }` when the DELETE failed and the old id was
+ * retained.
+ */
+export async function removeUserPostCreateSubscription(
+  userId: string,
+): Promise<{ ok: boolean }> {
+  const row = getPlatformDb()
+    .prepare(`SELECT subscription_id FROM activity_subscriptions WHERE user_id = ?`)
+    .get(userId) as { subscription_id: string | null } | undefined;
+  let deleteOk = true;
+  if (row?.subscription_id) {
+    const res = await xJson({
+      method: "DELETE",
+      path: `/activity/subscriptions/${encodeURIComponent(row.subscription_id)}`,
+    });
+    deleteOk = res.ok || res.status === 404;
+  }
+  getPlatformDb()
+    .prepare(
+      `UPDATE activity_subscriptions
+       SET subscription_id = ?, updated_at = ?
+       WHERE user_id = ?`,
+    )
+    .run(
+      deleteOk ? null : row?.subscription_id ?? null,
+      new Date().toISOString(),
+      userId,
+    );
+  return { ok: deleteOk };
 }
 
 export async function pauseUserSubscription(userId: string, untilIso: string): Promise<void> {

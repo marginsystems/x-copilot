@@ -248,6 +248,46 @@ export function foldMemoryReplies(
   );
 }
 
+/**
+ * Drop the user's whole voice corpus (own replies + folded own_posts) and
+ * reset the profile, so switching the public X handle starts the corpus fresh
+ * instead of blending the previous account's data into the new one. The
+ * own_posts delete is scoped to the previous account's rows (they carry
+ * x_user_id) so it never touches posts belonging to another already-ingested
+ * account.
+ */
+export function resetUserVoiceCorpus(
+  userId: string,
+  oldXUserId?: string | null,
+): void {
+  const db = getPlatformDb();
+  db.transaction(() => {
+    db.prepare(`DELETE FROM voice_replies WHERE user_id = ?`).run(userId);
+    if (oldXUserId) {
+      db.prepare(
+        `DELETE FROM own_posts WHERE user_id = ? AND x_user_id = ?`,
+      ).run(userId, oldXUserId);
+    } else {
+      db.prepare(`DELETE FROM own_posts WHERE user_id = ?`).run(userId);
+    }
+    db.prepare(
+      `UPDATE voice_profiles SET
+         x_username = NULL,
+         x_user_id = NULL,
+         status = 'empty',
+         reply_count = 0,
+         conversation_count = 0,
+         card_json = NULL,
+         card_model = NULL,
+         card_updated_at = NULL,
+         since_id = NULL,
+         last_error = NULL,
+         updated_at = ?
+       WHERE user_id = ?`,
+    ).run(nowIso(), userId);
+  })();
+}
+
 /** Recompute stored reply/conversation counts without touching pull cursors. */
 export function refreshVoiceCounts(userId: string): void {
   getPlatformDb()

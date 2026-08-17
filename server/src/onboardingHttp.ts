@@ -16,7 +16,7 @@ import {
 import { getSessionUser } from "./sessionCookie.js";
 import { allowRate, clientIp } from "./authGuard.js";
 import { parseXHandle } from "./xHandle.js";
-import { lookupXUserByUsername } from "./xApi.js";
+import { verifyPublicXHandle } from "./xHandleVerify.js";
 import { runUserIngest } from "./userIngest.js";
 import {
   VOICE_UNLOCK_MIN_CONVERSATIONS,
@@ -175,37 +175,15 @@ export async function tryHandleOnboarding(
 
     let xUsername: string | null = parseXHandle(user.xUsername ?? "") ?? null;
     if (userNeedsXHandle(user)) {
-      const parsed = parseXHandle(body.xUsername);
-      if (!parsed) {
-        sendJson(req, res, 400, {
-          error: "needs_x_handle",
-          message: "Enter your X username so we can find your replies.",
+      const verified = await verifyPublicXHandle(body.xUsername);
+      if (!verified.ok) {
+        sendJson(req, res, verified.status, {
+          error: verified.error,
+          message: verified.message,
         });
         return true;
       }
-      const looked = await lookupXUserByUsername(parsed);
-      if (looked.ok) {
-        xUsername = looked.user.screen_name;
-      } else if (looked.error === "missing_credentials") {
-        sendJson(req, res, 503, {
-          error: "x_api_unavailable",
-          message:
-            "Could not verify that X username — this server isn't connected to the X API yet. Try again later.",
-        });
-        return true;
-      } else if (looked.error === "user_not_found" || looked.status === 404) {
-        sendJson(req, res, 400, {
-          error: "x_user_not_found",
-          message: `No X account named @${parsed}.`,
-        });
-        return true;
-      } else {
-        sendJson(req, res, looked.status || 502, {
-          error: looked.error,
-          message: looked.message || "Could not verify that X username.",
-        });
-        return true;
-      }
+      xUsername = verified.handle;
     }
 
     const updated = completeOnboarding(user.id, parsed.agenda, { xUsername });

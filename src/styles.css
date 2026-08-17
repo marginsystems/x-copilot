@@ -1619,6 +1619,11 @@ button.linkish {
   margin-top: 8px;
 }
 
+.settings-field-wide {
+  grid-column: 1 / -1;
+}
+
+.settings-field input[type="text"],
 .settings-field input[type="number"],
 .settings-field .settings-select {
   width: 100%;
@@ -1649,6 +1654,7 @@ button.linkish {
   color: var(--text);
 }
 
+.settings-field input[type="text"]:focus-visible,
 .settings-field input[type="number"]:focus-visible,
 .settings-field .settings-select:focus-visible {
   outline: 1px solid var(--accent-dim);
@@ -1717,9 +1723,14 @@ button.linkish {
     gap: 18px 28px;
   }
 
+  .settings-field input[type="text"],
   .settings-field input[type="number"],
   .settings-field .settings-select {
     max-width: 20rem;
+  }
+
+  .settings-field-wide input[type="text"] {
+    max-width: 28rem;
   }
 
   .settings-footer {

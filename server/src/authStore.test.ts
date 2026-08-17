@@ -17,6 +17,7 @@ import {
   getUserForSessionToken,
   linkOauthToUser,
   revokeSessionToken,
+  setUserXUsername,
   upsertOauthUser,
   userNeedsXHandle,
 } from "./authStore.ts";
@@ -267,5 +268,18 @@ describe("authStore", () => {
     });
     assert.equal(updated?.xUsername, "alice_dev");
     assert.equal(userNeedsXHandle(updated!), false);
+  });
+
+  it("overwrites a saved X username from Settings", () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "xid-settings",
+      emailVerified: false,
+      username: "oldname",
+    });
+    assert.equal(user.xUsername, "oldname");
+    const updated = setUserXUsername(user.id, "@NewName");
+    assert.equal(updated?.xUsername, "NewName");
+    assert.equal(setUserXUsername("missing", "still_here"), null);
   });
 });
