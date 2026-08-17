@@ -19,7 +19,7 @@ export type ThreadCard = {
   url: string;
   createdAt?: string;
   /**
-   * Set when SearchTimeline exposed longform / Article payload.
+   * Set when search/lookup exposed longform / Article payload.
    * Articles are hard-dropped before triage; note_tweet body feeds the char cap.
    */
   longform?: "note_tweet" | "article";
@@ -47,6 +47,10 @@ export type ThreadCard = {
   /** Parent or quoted root author/text when available. */
   opAuthor?: string;
   opText?: string;
+  /** Parent longform when the hydrated / included OP is a note tweet or Article. */
+  opLongform?: "note_tweet" | "article";
+  /** Full parent text length (opText is sliced to MAX_OP_TEXT_CHARS). */
+  opCharCount?: number;
   /** True when opAuthor/opText were filled from the reply parent by hydrateReplyParents. */
   opParentDerived?: boolean;
   /** Triage fields (filled by threadTriage after search). */
@@ -63,7 +67,14 @@ export type ThreadCard = {
   score?: number;
 };
 
-const MAX_OP_TEXT_CHARS = 500;
+export const MAX_OP_TEXT_CHARS = 500;
+
+/** Native X Article permalink (not a status URL). */
+export function isXArticleUrl(url: string): boolean {
+  return /(?:^|\/\/)(?:www\.)?(?:x|twitter)\.com\/i\/article(?:\/|$|\?)/i.test(
+    url.trim(),
+  );
+}
 
 export type SearchProduct = "Latest" | "Top";
 
@@ -655,6 +666,8 @@ type V2Tweet = {
     }>;
   };
   note_tweet?: { text?: string };
+  /** X Article metadata when `tweet.fields=article` is requested. */
+  article?: unknown;
   public_metrics?: {
     like_count?: number;
     reply_count?: number;
@@ -670,6 +683,26 @@ function screenNameKey(handle: string | undefined): string {
 
 function includedTweetBody(tw: V2Tweet): string {
   return (tw.note_tweet?.text?.trim() || tw.text || "").trim();
+}
+
+function v2UrlLooksLikeArticle(tweet: V2Tweet): boolean {
+  for (const u of tweet.entities?.urls ?? []) {
+    const hay = `${u.expanded_url ?? ""} ${u.url ?? ""} ${u.display_url ?? ""}`.toLowerCase();
+    if (hay.includes("/i/article/")) return true;
+  }
+  return false;
+}
+
+/** Official v2 Article object, or an `/i/article/` entity URL. */
+function v2TweetHasArticle(tweet: V2Tweet): boolean {
+  if (tweet.article && typeof tweet.article === "object") return true;
+  return v2UrlLooksLikeArticle(tweet);
+}
+
+function v2TweetLongform(tweet: V2Tweet): ThreadCard["longform"] {
+  if (v2TweetHasArticle(tweet)) return "article";
+  if (tweet.note_tweet?.text?.trim()) return "note_tweet";
+  return undefined;
 }
 
 /**
@@ -742,6 +775,9 @@ function applyIncludedReplyOp(
 
   card.opAuthor = opHandle.startsWith("@") ? opHandle : `@${opHandle}`;
   card.opText = opText.slice(0, MAX_OP_TEXT_CHARS);
+  card.opCharCount = opText.length;
+  const opLongform = opTw ? v2TweetLongform(opTw) : undefined;
+  if (opLongform) card.opLongform = opLongform;
   if (canSkipHydrate) card.opParentDerived = true;
 }
 
@@ -767,7 +803,8 @@ export function v2TweetToCard(
     url: `https://x.com/${handle.replace(/^@/, "")}/status/${id}`,
     createdAt: tweet.created_at,
   };
-  if (noteText) card.longform = "note_tweet";
+  const longform = v2TweetLongform(tweet);
+  if (longform) card.longform = longform;
 
   const repliedTo = tweet.referenced_tweets?.find((r) => r.type === "replied_to");
   if (repliedTo?.id) {
@@ -932,7 +969,7 @@ export async function searchTimeline(opts: {
       start_time: startTime,
       sort_order: product === "Top" ? "relevancy" : "recency",
       "tweet.fields":
-        "created_at,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,entities,public_metrics,note_tweet",
+        "created_at,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,entities,public_metrics,note_tweet,article",
       expansions: searchExpansions(opts.expandReferenced !== false),
       "user.fields": "username,name,protected",
       ...(opts.cursor?.trim() ? { next_token: opts.cursor.trim() } : {}),

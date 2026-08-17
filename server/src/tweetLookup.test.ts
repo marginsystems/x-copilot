@@ -59,6 +59,26 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.opAuthor, "@hustler");
     assert.equal(threads[0]?.opParentDerived, true);
     assert.match(threads[0]?.opText ?? "", /\$632/);
+    assert.equal(
+      threads[0]?.opCharCount,
+      "mysaas just crossed $632 revenue 100% profit".length,
+    );
+  });
+
+  it("copies parent longform and full char count onto the reply", async () => {
+    const { threads, unhydratedReplyCount } = await hydrateReplyParents({
+      threads: [replyCard()],
+      delayMs: 0,
+      fetchParent: async () => ({
+        author: "@writer",
+        text: "y".repeat(800),
+        longform: "article",
+      }),
+    });
+    assert.equal(unhydratedReplyCount, 0);
+    assert.equal(threads[0]?.opLongform, "article");
+    assert.equal(threads[0]?.opCharCount, 800);
+    assert.equal(threads[0]?.opText?.length, 500);
   });
 
   it("skips lookup when already parent-derived", async () => {

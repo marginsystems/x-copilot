@@ -78,7 +78,9 @@ export const EXCLUDEABLE_TAG_VOCAB = [
 ] as const;
 
 export type AppSettings = {
+  /** Char cap for the candidate and the hydrated parent it replies to. */
   maxThreadChars: number;
+  /** Hard-drop X Articles and replies under those conversations. */
   dropArticles: boolean;
   /** Hard-drop candidates whose text contains an em dash (U+2014), pre-triage. */
   dropEmDashes: boolean;

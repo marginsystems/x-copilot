@@ -1,5 +1,6 @@
 /**
- * Deterministic post-search filters (length / thread openers / Articles / self-replies / links / language) before triage.
+ * Deterministic post-search filters (length / thread openers / Articles +
+ * replies under them / self-replies / links / language) before triage.
  */
 import { franc } from "franc-min";
 import { normalizeAuthorKey } from "./interactionStore.js";
@@ -84,8 +85,10 @@ export const LANGUAGE_MIN_CHARS = 40;
 const THREAD_OPENER_RE = /^\s*\d+\s*\/\s*\d+/;
 
 export type LengthFilterOptions = {
-  /** When true (default), hard-drop X Articles marked on the card. */
+  /** When true (default), hard-drop X Articles and replies under them. */
   dropArticles?: boolean;
+  /** Article conversation / status ids from earlier pages this Scout run. */
+  articleIds?: ReadonlySet<string>;
 };
 
 /** Parse X_MAX_THREAD_CHARS; invalid/empty → default 480. */
@@ -110,6 +113,57 @@ export function resolveMaxThreadCharsFromFilters(
 
 export function isOversizedThread(text: string, maxChars: number): boolean {
   return text.length > maxChars;
+}
+
+function isReplyCard(
+  thread: Pick<ThreadCard, "isReply" | "inReplyToId">,
+): boolean {
+  return thread.isReply === true || Boolean(thread.inReplyToId);
+}
+
+/** Full parent length when known; `opText` is a sliced preview. */
+export function parentCharCount(
+  thread: Pick<ThreadCard, "opCharCount" | "opText">,
+): number {
+  if (
+    typeof thread.opCharCount === "number" &&
+    Number.isFinite(thread.opCharCount) &&
+    thread.opCharCount >= 0
+  ) {
+    return thread.opCharCount;
+  }
+  return thread.opText?.length ?? 0;
+}
+
+/** conversationId + id for every Article card in the batch. */
+export function collectArticleConversationIds(
+  threads: readonly Pick<ThreadCard, "id" | "conversationId" | "longform">[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const t of threads) {
+    if (t.longform !== "article") continue;
+    if (t.id) ids.add(t.id);
+    if (t.conversationId) ids.add(t.conversationId);
+  }
+  return ids;
+}
+
+/** True for a reply under a known Article root/parent, or a hydrated Article OP. */
+export function replyUnderArticle(
+  thread: Pick<
+    ThreadCard,
+    "isReply" | "inReplyToId" | "conversationId" | "opLongform"
+  >,
+  articleIds: ReadonlySet<string>,
+): boolean {
+  if (thread.opLongform === "article") return isReplyCard(thread);
+  if (!articleIds.size) return false;
+  if (!isReplyCard(thread)) return false;
+  if (thread.conversationId && articleIds.has(thread.conversationId)) {
+    return true;
+  }
+  if (thread.inReplyToId && articleIds.has(thread.inReplyToId)) return true;
+  return false;
 }
 
 /** Obvious multi-part openers like "1/17 Here's the thread". */
@@ -509,6 +563,11 @@ export function filterThreadsByLength(
   articleFilteredCount: number;
 } {
   const dropArticles = opts.dropArticles !== false;
+  const articleIds = new Set<string>();
+  if (dropArticles) {
+    for (const id of opts.articleIds ?? []) articleIds.add(id);
+    for (const id of collectArticleConversationIds(threads)) articleIds.add(id);
+  }
   const kept: ThreadCard[] = [];
   let openerFilteredCount = 0;
   let articleFilteredCount = 0;
@@ -520,8 +579,18 @@ export function filterThreadsByLength(
       articleFilteredCount += 1;
       continue;
     }
-    const opener = isThreadOpener(thread.text);
-    const oversized = isOversizedThread(thread.text, maxChars);
+    if (dropArticles && replyUnderArticle(thread, articleIds)) {
+      filteredCount += 1;
+      articleFilteredCount += 1;
+      continue;
+    }
+    const reply = isReplyCard(thread);
+    const opener =
+      isThreadOpener(thread.text) ||
+      (reply && isThreadOpener(thread.opText ?? ""));
+    const oversized =
+      isOversizedThread(thread.text, maxChars) ||
+      (reply && parentCharCount(thread) > maxChars);
     if (opener || oversized) {
       filteredCount += 1;
       if (opener) openerFilteredCount += 1;

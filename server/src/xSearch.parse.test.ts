@@ -4,6 +4,7 @@ import {
   dedupeThreads,
   isNativeMediaUrl,
   isOutboundLinkUrl,
+  isXArticleUrl,
   parseSearchTimelinePage,
   parseSearchTimelineResponse,
   resolveWithinTime,
@@ -155,6 +156,15 @@ const fixture = {
     },
   },
 };
+
+describe("isXArticleUrl", () => {
+  it("matches native X Article permalinks", () => {
+    assert.equal(isXArticleUrl("https://x.com/i/article/99"), true);
+    assert.equal(isXArticleUrl("https://twitter.com/i/article/99?s=20"), true);
+    assert.equal(isXArticleUrl("https://x.com/dave/status/444"), false);
+    assert.equal(isXArticleUrl("https://example.com/i/article/99"), false);
+  });
+});
 
 describe("withSearchRecency / resolveWithinTime", () => {
   it("appends within_time by default", () => {
@@ -840,6 +850,66 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.opAuthor, "@hustler");
     assert.match(card.opText ?? "", /\$632/);
     assert.equal(card.opParentDerived, true);
+  });
+
+  it("marks v2 article payload as longform article", () => {
+    const card = v2TweetToCard(
+      {
+        id: "444",
+        text: "Article teaser only",
+        author_id: "u-op",
+        article: { title: "Long form", plain_text: "body" },
+      },
+      usersById,
+    );
+    assert.ok(card);
+    assert.equal(card.longform, "article");
+  });
+
+  it("marks /i/article/ entity URLs as articles", () => {
+    const card = v2TweetToCard(
+      {
+        id: "445",
+        text: "New piece",
+        author_id: "u-op",
+        entities: {
+          urls: [{ expanded_url: "https://x.com/i/article/99" }],
+        },
+      },
+      usersById,
+    );
+    assert.ok(card);
+    assert.equal(card.longform, "article");
+  });
+
+  it("copies parent article longform and full char count from includes", () => {
+    const tweetsById = new Map([
+      [
+        "800",
+        {
+          id: "800",
+          text: "teaser",
+          author_id: "u-op",
+          article: { title: "Essay" },
+          note_tweet: { text: "n".repeat(600) },
+        },
+      ],
+    ]);
+    const card = v2TweetToCard(
+      {
+        id: "900",
+        text: "How do you pick products?",
+        author_id: "u-reply",
+        conversation_id: "800",
+        referenced_tweets: [{ type: "replied_to", id: "800" }],
+      },
+      usersById,
+      tweetsById,
+    );
+    assert.ok(card);
+    assert.equal(card.opLongform, "article");
+    assert.equal(card.opCharCount, 600);
+    assert.equal(card.opText?.length, 500);
   });
 
   it("prefers conversation root from includes when nested", () => {
