@@ -107,6 +107,18 @@ export function getXOauthUsername(userId: string): string | null {
   return parseXHandle(row?.username ?? "") ?? null;
 }
 
+/** The X user id the user actually proved via OAuth (oauth_accounts row). */
+export function getXOauthXUserId(userId: string): string | null {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT provider_user_id FROM oauth_accounts
+       WHERE user_id = ? AND provider = 'x' AND provider_user_id IS NOT NULL
+       LIMIT 1`,
+    )
+    .get(userId) as { provider_user_id: string } | undefined;
+  return row?.provider_user_id?.trim() || null;
+}
+
 /**
  * Match a public handle to a desk user. Point lookups only — no full-table
  * scans. Prefers the verified X oauth identity (a real X login) over a handle

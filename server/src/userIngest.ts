@@ -6,6 +6,7 @@ import type { AuthUser } from "./authStore.js";
 import {
   getUserById,
   getXOauthUsername,
+  getXOauthXUserId,
   listIngestUsers,
 } from "./authStore.js";
 import { dailyActivityUsage, ensureUserTenant } from "./billingStore.js";
@@ -28,6 +29,7 @@ import {
   getVoiceProfile,
   listVoiceReplies,
   nowIso,
+  resetUserVoiceCorpus,
   saveVoiceCard,
   setVoiceProfileStatus,
   updateVoiceProfilePull,
@@ -69,6 +71,12 @@ export type BeginVoiceCorpusReason = "x_oauth" | "onboarding" | "x_username";
  * Single kickoff when we have the user's X: initial corpus pull + live
  * subscribe. Official X OAuth is the preferred trigger (harder to fake than
  * a typed handle). Soft-fails so login / setup still complete.
+ *
+ * For `x_oauth` the linked account is the source of truth: it wins over a
+ * typed handle, and a linked account that differs from the stored corpus is
+ * re-pulled (corpus reset + subscription repoint) instead of skipped. The
+ * subscribe always runs — the old code subscribed on every X login and every
+ * onboarding regardless of whether the pull was skipped.
  */
 export async function beginVoiceCorpus(opts: {
   user: AuthUser;
@@ -80,26 +88,58 @@ export async function beginVoiceCorpus(opts: {
     allow?: typeof allowRate;
   };
 }): Promise<UserIngestResult | null> {
-  const handle = resolveIngestHandle(opts.user);
+  const oauthXUserId =
+    opts.reason === "x_oauth" ? getXOauthXUserId(opts.user.id) : null;
+  const handle = oauthXUserId
+    ? getXOauthUsername(opts.user.id) ?? parseXHandle(opts.user.xUsername ?? "")
+    : resolveIngestHandle(opts.user);
   if (!handle) return null;
-  const alreadyIngested = Boolean(getVoiceProfile(opts.user.id)?.sinceId);
-  if (alreadyIngested && !opts.force) return null;
+  const profile = getVoiceProfile(opts.user.id);
+  const alreadyIngested = Boolean(profile?.sinceId);
+  const repoint =
+    oauthXUserId != null &&
+    profile?.xUserId != null &&
+    oauthXUserId !== profile.xUserId;
   const allow = opts.deps?.allow ?? allowRate;
-  if (
-    !allow(
-      `corpus-ingest:${opts.user.id}`,
-      CORPUS_INGEST_RATE.max,
-      CORPUS_INGEST_RATE.windowMs,
-    )
-  ) {
-    return null;
-  }
   const ingest = opts.deps?.ingest ?? runUserIngest;
   let result: UserIngestResult | null = null;
-  try {
-    result = await ingest({ user: opts.user, mode: "initial" });
-  } catch (err) {
-    console.warn(`[corpus] ingest soft-fail (${opts.reason})`, err);
+  if (alreadyIngested && !opts.force && !repoint) {
+    // Already filled and the identity is unchanged — nothing new to pull.
+  } else {
+    if (
+      !allow(
+        `corpus-ingest:${opts.user.id}`,
+        CORPUS_INGEST_RATE.max,
+        CORPUS_INGEST_RATE.windowMs,
+      )
+    ) {
+      console.warn(`[corpus] ingest rate-limited (${opts.reason})`);
+    } else {
+      if (repoint) {
+        // The linked account differs from the corpus account: start the
+        // corpus fresh for the linked identity and drop the old account's
+        // live subscription so the re-subscribe below targets the new one.
+        resetUserVoiceCorpus(opts.user.id, profile?.xUserId);
+        try {
+          const { removeUserPostCreateSubscription } = await import(
+            "./xActivitySubscribe.js"
+          );
+          const removed = await removeUserPostCreateSubscription(opts.user.id);
+          if (!removed.ok) {
+            console.warn(
+              "[xaa] repoint: could not delete the old account's post.create subscription; the new account is not subscribed yet",
+            );
+          }
+        } catch (err) {
+          console.warn("[xaa] repoint remove subscription", err);
+        }
+      }
+      try {
+        result = await ingest({ user: opts.user, mode: "initial", handle });
+      } catch (err) {
+        console.warn(`[corpus] ingest soft-fail (${opts.reason})`, err);
+      }
+    }
   }
   try {
     if (opts.deps?.subscribe) {
@@ -108,7 +148,10 @@ export async function beginVoiceCorpus(opts: {
       const { subscribeUserToPostCreate } = await import(
         "./xActivitySubscribe.js"
       );
-      await subscribeUserToPostCreate(opts.user.id);
+      await subscribeUserToPostCreate(
+        opts.user.id,
+        oauthXUserId ? { xUserId: oauthXUserId } : undefined,
+      );
     }
   } catch (err) {
     console.warn("[xaa] subscribe", err);
@@ -179,6 +222,7 @@ function foldRepliesIntoOwnPosts(opts: {
 export async function runUserIngest(opts: {
   user: AuthUser;
   mode: IngestMode;
+  handle?: string | null;
   deps?: {
     resolveUser?: typeof resolveXUser;
     pullReplies?: typeof pullOwnReplies;
@@ -190,7 +234,7 @@ export async function runUserIngest(opts: {
   const tenantId = ensureUserTenant(user.id);
   const profile = ensureVoiceProfile(user.id, tenantId);
   const priorStatus = profile.status;
-  const handle = resolveIngestHandle(user);
+  const handle = opts.handle ?? resolveIngestHandle(user);
   const resolveUser = opts.deps?.resolveUser ?? resolveXUser;
   const pullReplies = opts.deps?.pullReplies ?? pullOwnReplies;
   const generateCard = opts.deps?.generateCard ?? generateVoiceCard;

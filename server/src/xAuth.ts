@@ -374,7 +374,13 @@ export async function handleXCallback(
       xOauthClearCookie(req),
     ]);
   }
-  await beginVoiceCorpus({ user: login.user, reason: "x_oauth" });
+  // Kick the corpus ingest off without blocking the login redirect: the
+  // callback would otherwise wait on up to MAX_TIMELINE_PAGES X API calls,
+  // and a proxy timeout would strand a logged-out user whose OAuth verifier
+  // was already consumed. The ingest soft-fails on its own.
+  void beginVoiceCorpus({ user: login.user, reason: "x_oauth" }).catch((err) =>
+    console.warn("[corpus] fire-and-forget ingest after X login", err),
+  );
   return redirect(req, res, authSuccessRedirect(), [
     xOauthClearCookie(req),
     sessionSetCookie(req, login.token),

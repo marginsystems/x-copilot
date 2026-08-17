@@ -8,7 +8,7 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
-import { listIngestUsers, upsertOauthUser } from "./authStore.ts";
+import { listIngestUsers, setUserXUsername, upsertOauthUser } from "./authStore.ts";
 import {
   ensureVoiceProfile,
   getVoiceProfile,
@@ -470,6 +470,7 @@ describe("beginVoiceCorpus", () => {
     });
     assert.equal(getVoiceProfile(user.id)?.sinceId, "1");
     let ingestCalls = 0;
+    let subscribeCalls = 0;
     await beginVoiceCorpus({
       user,
       reason: "x_oauth",
@@ -485,11 +486,61 @@ describe("beginVoiceCorpus", () => {
             ownPostsIngested: 0,
           };
         },
-        subscribe: async () => {},
+        subscribe: async () => {
+          subscribeCalls += 1;
+        },
         allow: () => true,
       },
     });
     assert.equal(ingestCalls, 0);
+    // The repeat login skips the pull but still keeps the live subscribe.
+    assert.equal(subscribeCalls, 1);
+  });
+
+  it("repoints the corpus when OAuth links a different account than the typed handle", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "B",
+      emailVerified: false,
+      username: "b",
+    });
+    const typed = setUserXUsername(user.id, "a");
+    assert.equal(typed?.xUsername, "a");
+    ensureVoiceProfile(user.id, "local");
+    updateVoiceProfilePull({
+      userId: user.id,
+      xUsername: "a",
+      xUserId: "A",
+      sinceId: "old",
+    });
+    let ingestCalls = 0;
+    let subscribeCalls = 0;
+    await beginVoiceCorpus({
+      user: typed!,
+      reason: "x_oauth",
+      deps: {
+        ingest: async () => {
+          ingestCalls += 1;
+          return {
+            ok: true,
+            userId: user.id,
+            conversationCount: 5,
+            unlocked: false,
+            pulled: 5,
+            ownPostsIngested: 0,
+          };
+        },
+        subscribe: async () => {
+          subscribeCalls += 1;
+        },
+        allow: () => true,
+      },
+    });
+    assert.equal(ingestCalls, 1);
+    assert.equal(subscribeCalls, 1);
+    // The old typed-account corpus is dropped so the linked account refills fresh.
+    assert.equal(getVoiceProfile(user.id)?.sinceId, null);
+    assert.equal(getVoiceProfile(user.id)?.xUserId, null);
   });
 
   it("forces a fresh pull after an account change", async () => {

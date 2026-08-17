@@ -20,8 +20,9 @@ import {
   SESSION_COOKIE,
   sessionClearCookie,
 } from "./sessionCookie.js";
+import { parseXHandle } from "./xHandle.js";
 import { applyVerifiedXUsername } from "./xHandleVerify.js";
-import { beginVoiceCorpus } from "./userIngest.js";
+import { beginVoiceCorpus, CORPUS_INGEST_RATE } from "./userIngest.js";
 
 const X_USERNAME_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 
@@ -180,6 +181,34 @@ export async function tryHandleAuth(
       if (statusCode === 413) req.destroy();
       return true;
     }
+    const newHandle = parseXHandle(
+      typeof body.xUsername === "string" ? body.xUsername : "",
+    );
+    const currentHandle = parseXHandle(user.xUsername ?? "");
+    const handleDiffers = Boolean(
+      newHandle &&
+        (currentHandle === null ||
+          currentHandle.toLowerCase() !== newHandle.toLowerCase()),
+    );
+    // applyVerifiedXUsername resets the corpus for a new account before the
+    // refill runs, so gate the change on the shared corpus-ingest cap first —
+    // never wipe a filled corpus we can't refill immediately.
+    if (
+      handleDiffers &&
+      !allowRate(
+        `corpus-ingest:${user.id}`,
+        CORPUS_INGEST_RATE.max,
+        CORPUS_INGEST_RATE.windowMs,
+      )
+    ) {
+      sendJson(req, res, 429, {
+        ok: false,
+        error: "ingest_rate_limited",
+        message:
+          "Too many Voice corpus builds recently — please try again in a few minutes.",
+      });
+      return true;
+    }
     const applied = await applyVerifiedXUsername({
       user,
       raw: body.xUsername,
@@ -197,6 +226,9 @@ export async function tryHandleAuth(
         user: applied.user,
         reason: "x_username",
         force: true,
+        // The corpus-ingest cap was already checked above, before the
+        // corpus was reset; do not consume a second slot here.
+        deps: { allow: () => true },
       });
     }
     sendJson(req, res, 200, {
