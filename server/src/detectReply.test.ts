@@ -4,6 +4,7 @@ import {
   detectOwnReplyToThread,
   detectOwnReplyToThreadWithRetry,
   buildDetectOwnReplyQuery,
+  pickOwnReplyInConversation,
 } from "./detectReply.ts";
 import type { ThreadCard } from "./xSearch.ts";
 
@@ -36,6 +37,12 @@ describe("buildDetectOwnReplyQuery", () => {
     );
     assert.match(q, /conversation_id:root1/);
     assert.doesNotMatch(q, /conversation_id:card1/);
+  });
+});
+
+describe("pickOwnReplyInConversation", () => {
+  it("returns null when there are no hits", () => {
+    assert.equal(pickOwnReplyInConversation([], "card1"), null);
   });
 });
 
@@ -77,13 +84,13 @@ describe("detectOwnReplyToThread", () => {
     assert.equal(result.matchCount, 1);
   });
 
-  it("returns none when no parent match", async () => {
+  it("returns none when the conversation search is empty", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "parent1",
       screenName: "me",
       searchTimelinePages: async () => ({
         ok: true,
-        threads: [card({ id: "a", inReplyToId: "other" })],
+        threads: [],
         queryId: "q",
         bottomCursor: null,
       }),
@@ -92,32 +99,149 @@ describe("detectOwnReplyToThread", () => {
       ok: true,
       reply: null,
       reason: "none",
-      rawCount: 1,
+      rawCount: 0,
       matchCount: 0,
     });
   });
 
-  it("returns ambiguous when multiple parent matches", async () => {
+  it("accepts a reply to the OP when the card is a later tweet", async () => {
+    const result = await detectOwnReplyToThread({
+      threadId: "card-reply",
+      conversationId: "root1",
+      screenName: "me",
+      searchTimelinePages: async (opts) => {
+        assert.match(opts.query, /conversation_id:root1/);
+        return {
+          ok: true,
+          threads: [
+            card({
+              id: "mine",
+              inReplyToId: "root1",
+              text: "replied to the OP",
+            }),
+          ],
+          queryId: "q",
+          bottomCursor: null,
+        };
+      },
+    });
+    assert.ok(result.reply);
+    assert.equal(result.reply.replyId, "mine");
+    assert.equal(result.matchCount, 1);
+  });
+
+  it("accepts a reply to someone else in the same conversation", async () => {
+    const result = await detectOwnReplyToThread({
+      threadId: "card-reply",
+      conversationId: "root1",
+      screenName: "me",
+      searchTimelinePages: async () => ({
+        ok: true,
+        threads: [card({ id: "mine", inReplyToId: "third-tweet" })],
+        queryId: "q",
+        bottomCursor: null,
+      }),
+    });
+    assert.ok(result.reply);
+    assert.equal(result.reply.replyId, "mine");
+  });
+
+  it("prefers the exact card parent when both exist", async () => {
+    const result = await detectOwnReplyToThread({
+      threadId: "card-reply",
+      screenName: "me",
+      searchTimelinePages: async () => ({
+        ok: true,
+        threads: [
+          card({ id: "to-op", inReplyToId: "root1" }),
+          card({ id: "to-card", inReplyToId: "card-reply" }),
+        ],
+        queryId: "q",
+        bottomCursor: null,
+      }),
+    });
+    assert.ok(result.reply);
+    assert.equal(result.reply.replyId, "to-card");
+  });
+
+  it("picks the newest when several replies share the card parent", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "parent1",
       screenName: "me",
       searchTimelinePages: async () => ({
         ok: true,
         threads: [
-          card({ id: "a", inReplyToId: "parent1" }),
-          card({ id: "b", inReplyToId: "parent1" }),
+          card({
+            id: "old",
+            inReplyToId: "parent1",
+            createdAt: "2026-08-01T00:00:00.000Z",
+          }),
+          card({
+            id: "new",
+            inReplyToId: "parent1",
+            createdAt: "2026-08-18T12:00:00.000Z",
+          }),
         ],
         queryId: "q",
         bottomCursor: null,
       }),
     });
-    assert.deepEqual(result, {
-      ok: true,
-      reply: null,
-      reason: "ambiguous",
-      rawCount: 2,
-      matchCount: 2,
+    assert.ok(result.reply);
+    assert.equal(result.reply.replyId, "new");
+  });
+
+  it("picks the newest when several replies target different tweets", async () => {
+    const result = await detectOwnReplyToThread({
+      threadId: "card-reply",
+      conversationId: "root1",
+      screenName: "me",
+      searchTimelinePages: async () => ({
+        ok: true,
+        threads: [
+          card({
+            id: "to-op",
+            inReplyToId: "root1",
+            createdAt: "2026-08-01T00:00:00.000Z",
+          }),
+          card({
+            id: "to-third",
+            inReplyToId: "third-tweet",
+            createdAt: "2026-08-18T12:00:00.000Z",
+          }),
+        ],
+        queryId: "q",
+        bottomCursor: null,
+      }),
     });
+    assert.ok(result.reply);
+    assert.equal(result.reply.replyId, "to-third");
+  });
+
+  it("compares createdAt and snowflake recency on one epoch", async () => {
+    const result = await detectOwnReplyToThread({
+      threadId: "card-reply",
+      conversationId: "root1",
+      screenName: "me",
+      searchTimelinePages: async () => ({
+        ok: true,
+        threads: [
+          card({
+            id: "with-created",
+            inReplyToId: "root1",
+            createdAt: "2026-08-01T00:00:00.000Z",
+          }),
+          card({
+            id: "2089683728593846272",
+            inReplyToId: "third-tweet",
+            text: "newer by snowflake",
+          }),
+        ],
+        queryId: "q",
+        bottomCursor: null,
+      }),
+    });
+    assert.ok(result.reply);
+    assert.equal(result.reply.replyId, "2089683728593846272");
   });
 
   it("returns search_failed on search error", async () => {
@@ -177,7 +301,7 @@ describe("detectOwnReplyToThreadWithRetry", () => {
         if (calls === 1) {
           return {
             ok: true,
-            threads: [card({ id: "a", inReplyToId: "other" })],
+            threads: [],
             queryId: "q",
             bottomCursor: null,
           };
@@ -238,7 +362,7 @@ describe("detectOwnReplyToThreadWithRetry", () => {
     });
   });
 
-  it("does not retry ambiguous", async () => {
+  it("does not retry once a conversation reply is found", async () => {
     let calls = 0;
     const result = await detectOwnReplyToThreadWithRetry({
       threadId: "parent1",
@@ -253,8 +377,16 @@ describe("detectOwnReplyToThreadWithRetry", () => {
         return {
           ok: true,
           threads: [
-            card({ id: "a", inReplyToId: "parent1" }),
-            card({ id: "b", inReplyToId: "parent1" }),
+            card({
+              id: "a",
+              inReplyToId: "parent1",
+              createdAt: "2026-08-01T00:00:00.000Z",
+            }),
+            card({
+              id: "b",
+              inReplyToId: "parent1",
+              createdAt: "2026-08-18T12:00:00.000Z",
+            }),
           ],
           queryId: "q",
           bottomCursor: null,
@@ -262,8 +394,8 @@ describe("detectOwnReplyToThreadWithRetry", () => {
       },
     });
     assert.equal(calls, 1);
-    assert.equal(result.reply, null);
-    if (!result.reply) assert.equal(result.reason, "ambiguous");
+    assert.ok(result.reply);
+    assert.equal(result.reply.replyId, "b");
   });
 
   it("stops without further search when aborted mid-backoff", async () => {
