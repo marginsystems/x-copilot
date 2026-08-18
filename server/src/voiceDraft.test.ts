@@ -29,10 +29,8 @@ describe("draftHasAiTropes", () => {
   });
 
   it("flags if-then where an em-dash strip turned the comma into a period", () => {
-    assert.equal(
-      draftHasAiTropes(stripEmDashes("If you want speed \u2014 then cut process.")),
-      true,
-    );
+    const raw = "If you want speed \u2014 then cut process.";
+    assert.equal(draftHasAiTropes(stripEmDashes(raw), raw), true);
   });
 
   it("flags this-isn-t-X-it-s-Y", () => {
@@ -57,6 +55,13 @@ describe("draftHasAiTropes", () => {
     assert.equal(draftHasAiTropes("This isn't just about tooling; it's about timing."), false);
     assert.equal(
       draftHasAiTropes("If the build fails, someone will notice. Then we fix it."),
+      false,
+    );
+    assert.equal(draftHasAiTropes("Check if it shipped. Then follow up."), false);
+    assert.equal(
+      draftHasAiTropes(
+        "I'd ask if the deploy actually went out. Then I'd rerun the test.",
+      ),
       false,
     );
   });

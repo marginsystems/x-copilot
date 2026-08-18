@@ -180,8 +180,9 @@ export async function suggestReply(opts: {
   if (!first.ok) {
     return { ok: false, error: first.error, message: first.message };
   }
-  let draft = sanitizeSuggestedDraft(cleanDraft(first.content));
-  if (draft && draftHasAiTropes(draft)) {
+  let rawDraft = cleanDraft(first.content);
+  let draft = sanitizeSuggestedDraft(rawDraft);
+  if (draft && draftHasAiTropes(draft, rawDraft)) {
     const retry = await chat({
       messages: [
         { role: "system", content: SUGGEST_SYSTEM },
@@ -194,7 +195,8 @@ export async function suggestReply(opts: {
       purpose: "reply_suggest",
     });
     if (retry.ok) {
-      draft = sanitizeSuggestedDraft(cleanDraft(retry.content));
+      rawDraft = cleanDraft(retry.content);
+      draft = sanitizeSuggestedDraft(rawDraft);
     } else {
       return { ok: false, error: retry.error, message: retry.message };
     }
@@ -206,7 +208,7 @@ export async function suggestReply(opts: {
       message: "The draft came back empty. Try again.",
     };
   }
-  if (draftHasAiTropes(draft)) {
+  if (draftHasAiTropes(draft, rawDraft)) {
     return {
       ok: false,
       error: "draft_slop",
