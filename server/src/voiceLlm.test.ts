@@ -83,13 +83,36 @@ describe("suggestReply", () => {
     const result = await suggestReply({
       cardJson: CARD_JSON,
       thread: { author: "@dev", text: "we moved everything to sqlite" },
-      chat: fakeChat('"same here, sqlite all the way — what broke first?"', capture),
+      chat: fakeChat('"same here, sqlite all the way. what broke first?"', capture),
     });
     assert.ok(result.ok);
     if (result.ok) {
-      assert.equal(result.draft, "same here, sqlite all the way — what broke first?");
+      assert.equal(result.draft, "same here, sqlite all the way. what broke first?");
     }
     assert.equal(capture.purpose, "reply_suggest");
+  });
+
+  it("strips em dashes from a draft", async () => {
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "the loop is the work" },
+      chat: fakeChat("The tool was never the bottleneck \u2014 the loop is."),
+    });
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.equal(result.draft.includes("\u2014"), false);
+      assert.match(result.draft, /bottleneck/i);
+    }
+  });
+
+  it("rejects a draft that stays on the this-isn-t template", async () => {
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "tools vs process" },
+      chat: fakeChat("This isn't a tooling problem. It's a loop problem."),
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error, "draft_slop");
   });
 
   it("cleans fenced drafts and caps length", () => {

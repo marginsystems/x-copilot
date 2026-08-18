@@ -8,6 +8,10 @@ import {
   type ChatCompletionResult,
   type ChatMessage,
 } from "./deepseek.js";
+import {
+  draftHasAiTropes,
+  sanitizeSuggestedDraft,
+} from "./voiceDraft.js";
 import type { VoiceReplyRow } from "./voiceStore.js";
 
 export type ChatFn = (opts: {
@@ -114,12 +118,17 @@ export async function generateVoiceCard(opts: {
   };
 }
 
-const SUGGEST_SYSTEM = `You draft ONE reply to an X post in the user's own voice, described by their voice card and example replies.
+const SUGGEST_SYSTEM = `You draft ONE reply to an X post in this specific human's voice. The voice card and example posts are the source of truth. Imitate them, not a generic assistant.
 Rules:
-- Match their tone, typical length, and habits. Respect every neverDo.
+- Match their tone, typical length, and habits. Respect every neverDo. Steal cadence from the examples.
 - One reply only. No hashtags unless they habitually use them. No @-mentions.
-- Under 260 characters. Plain text only — no quotes around it, no markdown, no explanation.
-- Add something real (a take, a fact, a question). Never "great post!" filler.`;
+- Under 260 characters. Plain text only. No quotes around it, no markdown, no explanation.
+- Add something real (a take, a fact, a question). Never "great post!" filler.
+- Never use an em dash. Use a period, comma, or "and".
+- Never write "if X, then Y" formulas.
+- Never write "this isn't X, it's Y" or "it's not X, it's Y" contrast templates.`;
+
+const SLOP_RETRY = `Rewrite that reply. Stay in the voice card. No em dashes. No "if X, then Y". No "this isn't X, it's Y" / "it's not X, it's Y".`;
 
 /** Strip wrapping quotes/fences the model sometimes adds around a draft. */
 export function cleanDraft(raw: string): string {
@@ -139,6 +148,8 @@ export async function suggestReply(opts: {
   cardJson: string;
   thread: { author: string; text: string; opAuthor?: string; opText?: string };
   agenda?: string;
+  /** Operator-picked side when the post assumes an argument. */
+  stance?: string;
   chat?: ChatFn;
 }): Promise<
   | { ok: true; draft: string; model: string }
@@ -149,11 +160,14 @@ export async function suggestReply(opts: {
     `Voice card JSON:\n${opts.cardJson}`,
     opts.agenda?.trim() ? `The user's current agenda: ${opts.agenda.trim()}` : "",
     opts.thread.opAuthor && opts.thread.opText
-      ? `Thread context — ${opts.thread.opAuthor}: ${opts.thread.opText}`
+      ? `Thread context: ${opts.thread.opAuthor}: ${opts.thread.opText}`
+      : "",
+    opts.stance?.trim()
+      ? `Take this side (do not sit the fence): ${opts.stance.trim()}`
       : "",
     `Reply to this post by ${opts.thread.author}:\n${opts.thread.text}`,
   ].filter(Boolean);
-  const result = await chat({
+  const first = await chat({
     messages: [
       { role: "system", content: SUGGEST_SYSTEM },
       { role: "user", content: parts.join("\n\n") },
@@ -162,10 +176,26 @@ export async function suggestReply(opts: {
     temperature: 0.7,
     purpose: "reply_suggest",
   });
-  if (!result.ok) {
-    return { ok: false, error: result.error, message: result.message };
+  if (!first.ok) {
+    return { ok: false, error: first.error, message: first.message };
   }
-  const draft = cleanDraft(result.content);
+  let draft = sanitizeSuggestedDraft(cleanDraft(first.content));
+  if (draft && draftHasAiTropes(draft)) {
+    const retry = await chat({
+      messages: [
+        { role: "system", content: SUGGEST_SYSTEM },
+        { role: "user", content: parts.join("\n\n") },
+        { role: "assistant", content: draft },
+        { role: "user", content: SLOP_RETRY },
+      ],
+      model: resolveFlashModel(),
+      temperature: 0.6,
+      purpose: "reply_suggest",
+    });
+    if (retry.ok) {
+      draft = sanitizeSuggestedDraft(cleanDraft(retry.content));
+    }
+  }
   if (!draft) {
     return {
       ok: false,
@@ -173,7 +203,14 @@ export async function suggestReply(opts: {
       message: "The draft came back empty. Try again.",
     };
   }
-  return { ok: true, draft, model: result.model };
+  if (draftHasAiTropes(draft)) {
+    return {
+      ok: false,
+      error: "draft_slop",
+      message: "That draft still read as stock AI. Try Suggest again.",
+    };
+  }
+  return { ok: true, draft, model: first.model };
 }
 
 export type VerifyVerdict = { ok: boolean; reason: string };
