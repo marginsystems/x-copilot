@@ -26,6 +26,7 @@ import {
 } from "./billingStore.ts";
 import { getSuggestUsage, type VoiceProfileRow } from "./voiceStore.ts";
 import { PLAN_DAILY_SUGGESTS } from "./plans.ts";
+import type { ChatFn } from "./voiceLlm.ts";
 
 function profile(
   overrides: Partial<VoiceProfileRow> = {},
@@ -227,6 +228,7 @@ describe("POST /api/voice/stances", () => {
   async function postStances(
     user: AuthUser,
     body: Record<string, unknown>,
+    chat?: ChatFn,
   ): Promise<{ status: number; json: Record<string, unknown> }> {
     const { token } = createSession(user.id);
     const req = new EventEmitter() as unknown as IncomingMessage;
@@ -252,6 +254,7 @@ describe("POST /api/voice/stances", () => {
       req,
       res,
       new URL("http://localhost/api/voice/stances"),
+      chat,
     );
     (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
     (req as EventEmitter).emit("end");
@@ -277,13 +280,31 @@ describe("POST /api/voice/stances", () => {
 
   it("does not burn the stance rate-limit window on a non-opinion post", async () => {
     const { user } = seedReadyUser("stance-rate@example.com");
+    let chatCalls = 0;
+    const chat: ChatFn = async () => {
+      chatCalls += 1;
+      return {
+        ok: true,
+        content:
+          '{"options":["The loop is the tax","The tool still matters","Ask what they measure"]}',
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      };
+    };
     for (let i = 0; i < 20; i++) {
-      await postStances(user, {
-        author: "@dev",
-        text: "the tool is never the bottleneck",
-        threadKind: "sharp_opinion",
-      });
+      const { status, json } = await postStances(
+        user,
+        {
+          author: "@dev",
+          text: "the tool is never the bottleneck",
+          threadKind: "sharp_opinion",
+        },
+        chat,
+      );
+      assert.equal(status, 200);
+      assert.equal(json.needed, true);
     }
+    assert.equal(chatCalls, 20);
 
     const { status, json } = await postStances(user, {
       author: "@dev",
@@ -299,11 +320,20 @@ describe("POST /api/voice/stances", () => {
     const { user, planKey } = seedReadyUser("stance-count@example.com");
     const before = getSuggestUsage(user.id, planKey).used;
 
-    const { status } = await postStances(user, {
-      author: "@dev",
-      text: "the tool is never the bottleneck",
-      threadKind: "sharp_opinion",
-    });
+    const { status } = await postStances(
+      user,
+      {
+        author: "@dev",
+        text: "the tool is never the bottleneck",
+        threadKind: "sharp_opinion",
+      },
+      async () => ({
+        ok: true,
+        content: '{"options":["The loop is the tax","The tool still matters"]}',
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      }),
+    );
 
     assert.equal(status, 200);
     assert.equal(getSuggestUsage(user.id, planKey).used, before);

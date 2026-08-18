@@ -27,6 +27,7 @@ import {
   proposeStances,
   suggestReply,
   verifyReplyEdit,
+  type ChatFn,
   type VoiceCard,
 } from "./voiceLlm.js";
 import {
@@ -193,6 +194,7 @@ async function handleStances(
   req: IncomingMessage,
   res: ServerResponse,
   user: AuthUser,
+  chat?: ChatFn,
 ): Promise<void> {
   const body = await readJsonBody(req);
   if (!body) {
@@ -285,6 +287,7 @@ async function handleStances(
           ? body.opText.trim().slice(0, 2000)
           : undefined,
     },
+    chat,
   });
   send(req, res, 200, {
     ok: true,
@@ -518,6 +521,7 @@ export async function tryHandleVoice(
   req: IncomingMessage,
   res: ServerResponse,
   url: URL,
+  chat?: ChatFn,
 ): Promise<boolean> {
   if (!url.pathname.startsWith("/api/voice")) return false;
 
@@ -559,7 +563,7 @@ export async function tryHandleVoice(
   }
 
   if (req.method === "POST" && url.pathname === "/api/voice/stances") {
-    await handleStances(req, res, user);
+    await handleStances(req, res, user, chat);
     return true;
   }
 
