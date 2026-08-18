@@ -245,6 +245,7 @@ export async function runStatsTick(opts?: {
           if (!Number.isFinite(markMs)) continue;
           await recordMarkGamification({
             threadId: interaction.threadId,
+            userId: interaction.userId,
             interactionStorePath: opts?.storePath,
             gamificationPath: opts?.gamificationPath,
             nowMs: markMs,
@@ -270,6 +271,7 @@ export async function runStatsTick(opts?: {
         await recordT24hBonusGamification({
           threadId: interaction.threadId,
           snapshot: t24h,
+          userId: interaction.userId,
           interactionStorePath: opts?.storePath,
           gamificationPath: opts?.gamificationPath,
           nowMs: opts?.nowMs,
@@ -319,6 +321,7 @@ export async function runStatsTick(opts?: {
         await recordT24hBonusGamification({
           threadId: item.threadId,
           snapshot: metrics,
+          userId: patched.userId,
           interactionStorePath: opts?.storePath,
           nowMs: opts?.nowMs,
           gamificationPath: opts?.gamificationPath,

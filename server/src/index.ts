@@ -755,7 +755,12 @@ const server = http.createServer(async (req, res) => {
 
       if (req.method === "GET" && url.pathname === "/api/gamification") {
         try {
-          return send(req, res, 200, await getGamification());
+          return send(
+            req,
+            res,
+            200,
+            await getGamification({ userId: sessionUser?.id }),
+          );
         } catch (err) {
           console.error("gamification read failed:", err);
           return send(req, res, 500, {
@@ -1051,6 +1056,7 @@ const server = http.createServer(async (req, res) => {
           try {
             gamification = await recordMarkGamification({
               threadId,
+              userId: sessionUser?.id,
               nowMs: Date.parse(interaction.at) || Date.now(),
             });
           } catch (err) {
