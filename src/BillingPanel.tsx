@@ -228,7 +228,10 @@ export function BillingPanel(props: {
             billing?.plans?.[key] ?? (key === "free" ? FREE_CARD : undefined);
           const onFree = !live && billing?.plan_key === "free";
           const isCurrent =
-            key === "free" ? onFree : billing?.plan_key === key;
+            key === "free"
+              ? onFree
+              : billing?.plan_key === key &&
+                billing?.plan_state === "subscription_active";
           const takeoffs = plan?.daily_sorties ?? plan?.sorties;
           return (
             <article
