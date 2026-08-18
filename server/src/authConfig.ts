@@ -41,5 +41,5 @@ export function authErrorRedirect(code: string, env?: NodeJS.ProcessEnv): string
 }
 
 export function authSuccessRedirect(env?: NodeJS.ProcessEnv): string {
-  return `${frontendOrigin(env)}/?auth=ok`;
+  return `${frontendOrigin(env)}/dashboard?auth=ok`;
 }
