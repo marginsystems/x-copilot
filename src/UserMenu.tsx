@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { AuthButtons } from "./AuthButtons";
 import { menuAvatarUrl, menuInitials } from "./lib/menuProfile";
 import type { Theme } from "./lib/theme";
 
@@ -11,6 +10,7 @@ type MenuUser = {
 };
 
 type MenuView =
+  | "home"
   | "dashboard"
   | "voice"
   | "settings"
@@ -42,7 +42,7 @@ function MenuIcon({ d }: { d: string }) {
   );
 }
 
-function MenuAvatar({
+export function HeaderAvatar({
   user,
   handle,
 }: {
@@ -81,8 +81,9 @@ export function UserMenu(props: {
   needsOnboarding: boolean;
   onTheme: () => void;
   onLogout: () => void;
-  onGoogle: () => void;
   onX: () => void;
+  onSignIn: () => void;
+  onDesk: () => void;
   onAnalytics: () => void;
   onVoice: () => void;
   needsXLink?: boolean;
@@ -100,7 +101,7 @@ export function UserMenu(props: {
   return (
     <>
       <div className="menu-profile">
-        <MenuAvatar user={props.authUser} handle={handle} />
+        <HeaderAvatar user={props.authUser} handle={handle} />
         <div className="menu-profile-meta">
           {props.authUser ? (
             <>
@@ -149,13 +150,26 @@ export function UserMenu(props: {
       </div>
 
       <nav className="menu-nav" aria-label="User menu">
-        {props.authUser || props.needsLogin ? null : (
-          <AuthButtons stacked onGoogle={props.onGoogle} onX={props.onX} />
+        {props.authUser ? null : (
+          <button type="button" className="menu-item" onClick={props.onSignIn}>
+            <MenuIcon d="M10 7V5h10v14H10v-2M4 12h11M8 8l-4 4 4 4" />
+            Sign in
+          </button>
         )}
 
         {props.needsLogin || props.needsOnboarding ? null : (
           <>
             <p className="menu-group-label">Desk</p>
+            <button
+              type="button"
+              className={
+                props.view === "dashboard" ? "menu-item is-current" : "menu-item"
+              }
+              onClick={props.onDesk}
+            >
+              <MenuIcon d="M4 6h16v12H4zM8 10h8M8 14h5" />
+              Desk
+            </button>
             <button
               type="button"
               className={
