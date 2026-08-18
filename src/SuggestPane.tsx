@@ -111,6 +111,11 @@ export function SuggestPane({
   const [noteKind, setNoteKind] = useState<"info" | "ok" | "fail">("info");
   const [intentUrl, setIntentUrl] = useState<string | null>(null);
   const [deskCanPost, setDeskCanPost] = useState(canPost);
+  // React to an external X re-link while the pane is open: the account's
+  // write-link state changes, so the post gate must follow the prop.
+  useEffect(() => {
+    setDeskCanPost(canPost);
+  }, [canPost]);
   const [copied, setCopied] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const [stances, setStances] = useState<string[]>([]);
