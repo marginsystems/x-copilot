@@ -100,9 +100,19 @@ export function checkDeskPostLimit(opts: {
       message: `Daily desk-post cap (${cap}) reached. Next window after 00:00 UTC.`,
     };
   }
-  const latest = today[0];
-  if (latest) {
-    const lastMs = Date.parse(latest.createdAt);
+  // The cooldown is not tied to the UTC day: a post from the last minutes of
+  // the previous day must still block the next one across the day boundary.
+  const latestRow = getPlatformDb()
+    .prepare(
+      `SELECT created_at AS createdAt
+         FROM x_desk_posts
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1`,
+    )
+    .get(opts.userId) as { createdAt: string } | undefined;
+  if (latestRow) {
+    const lastMs = Date.parse(latestRow.createdAt);
     if (Number.isFinite(lastMs) && nowMs - lastMs < POST_COOLDOWN_MS) {
       const retryAfterSec = Math.max(
         1,

@@ -527,7 +527,8 @@ async function handleVerify(
     checkedBy: "llm",
     reason: result.verdict.reason || "That reads like you. Ready to post.",
     intentUrl: buildIntentUrl(inReplyToId, edited.trim()),
-    canPost: Boolean(getXWriteCreds(user.id)),
+    canPost:
+      Boolean(getXWriteCreds(user.id)) && Boolean(xConsumerCreds()),
   });
 }
 
@@ -535,6 +536,7 @@ async function handlePost(
   req: IncomingMessage,
   res: ServerResponse,
   user: AuthUser,
+  chat?: ChatFn,
 ): Promise<void> {
   if (!allowRate(`voice-post:${user.id}`, 20, 60_000)) {
     send(req, res, 429, {
@@ -628,6 +630,23 @@ async function handlePost(
     return;
   }
 
+  // Re-run the forced-edit verify server-side: draft and edited are
+  // client-supplied, so the local trivial-edit gate alone is bypassable.
+  const verify = await verifyReplyEdit({ draft, edited, chat });
+  if (!verify.ok) {
+    send(req, res, 502, { error: verify.error, message: verify.message });
+    return;
+  }
+  if (!verify.verdict.ok) {
+    send(req, res, 400, {
+      error: "verify_required",
+      message:
+        verify.verdict.reason ||
+        "That still reads as the draft — rework a clause or add your own take.",
+    });
+    return;
+  }
+
   const posted = await postUserReply({
     consumerKey: consumer.key,
     consumerSecret: consumer.secret,
@@ -647,12 +666,16 @@ async function handlePost(
   const handle = getXOauthUsername(user.id) || "i";
   const replyUrl = `https://x.com/${handle}/status/${posted.tweetId}`;
   const replyId = parseStatusIdFromUrl(replyUrl) ?? posted.tweetId;
-  recordDeskPost({
-    userId: user.id,
-    tweetId: posted.tweetId,
-    inReplyToId,
-    threadId,
-  });
+  try {
+    recordDeskPost({
+      userId: user.id,
+      tweetId: posted.tweetId,
+      inReplyToId,
+      threadId,
+    });
+  } catch (err) {
+    console.warn("desk post record soft-fail:", err);
+  }
 
   const conversationId =
     typeof body.conversationId === "string" ? body.conversationId : undefined;
@@ -758,7 +781,7 @@ export async function tryHandleVoice(
   }
 
   if (req.method === "POST" && url.pathname === "/api/voice/post") {
-    await handlePost(req, res, user);
+    await handlePost(req, res, user, chat);
     return true;
   }
 

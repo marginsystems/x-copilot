@@ -396,7 +396,7 @@ export async function handleXCallback(
   // and a proxy timeout would strand a logged-out user whose OAuth verifier
   // was already consumed. The ingest soft-fails on its own.
   if (access.token && access.secret) {
-    saveXWriteCreds(login.user.id, {
+    saveXWriteCreds(login.user.id, access.profile.providerUserId, {
       token: access.token,
       secret: access.secret,
     });

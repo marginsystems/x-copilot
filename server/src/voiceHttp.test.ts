@@ -456,7 +456,7 @@ describe("POST /api/voice/post", () => {
     ensureUserBillingRow(user.id, tenantId);
     if (withWrite) {
       assert.equal(
-        saveXWriteCreds(user.id, { token: "at", secret: "as" }),
+        saveXWriteCreds(user.id, `xid-${email}`, { token: "at", secret: "as" }),
         true,
       );
     }
@@ -466,6 +466,7 @@ describe("POST /api/voice/post", () => {
   async function postReply(
     user: AuthUser,
     body: Record<string, unknown>,
+    chat?: ChatFn,
   ): Promise<{ status: number; json: Record<string, unknown> }> {
     const { token } = createSession(user.id);
     const req = new EventEmitter() as unknown as IncomingMessage;
@@ -490,6 +491,7 @@ describe("POST /api/voice/post", () => {
       req,
       res,
       new URL("http://localhost/api/voice/post"),
+      chat,
     );
     (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
     (req as EventEmitter).emit("end");
@@ -521,7 +523,16 @@ describe("POST /api/voice/post", () => {
       });
     }) as typeof fetch;
     try {
-      const { status, json } = await postReply(user, body);
+      const { status, json } = await postReply(
+        user,
+        body,
+        async () => ({
+          ok: true,
+          content: '{"ok":true,"reason":"That reads like you."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
       assert.equal(status, 200);
       assert.equal(json.ok, true);
       const tweet = json.tweet as { id?: string; url?: string };
@@ -530,6 +541,33 @@ describe("POST /api/voice/post", () => {
       const interaction = json.interaction as { threadId?: string; replyId?: string };
       assert.equal(interaction.threadId, "1234567890");
       assert.equal(interaction.replyId, "888");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("rejects a non-trivial edit the LLM verify does not pass", async () => {
+    const user = seedPoster("post-verify@example.com", true);
+    let calls = 0;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+    try {
+      const { status, json } = await postReply(
+        user,
+        body,
+        async () => ({
+          ok: true,
+          content: '{"ok":false,"reason":"Still reads as the draft."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
+      assert.equal(status, 400);
+      assert.equal(json.error, "verify_required");
+      assert.equal(calls, 0);
     } finally {
       globalThis.fetch = origFetch;
     }
