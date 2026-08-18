@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir } from "node:fs/promises";
 import {
+  ACHIEVEMENTS,
   applyMarkToGamification,
   applyT24hBonus,
   bonusXpFromT24h,
@@ -174,6 +175,56 @@ describe("applyMarkToGamification", () => {
     assert.equal(state.lastMarkUtcDay, "2026-08-07");
     assert.equal(state.lifetimeXp, 3);
   });
+
+  it("credits a backdated mark at the tier its own day earned, not the current streak's", () => {
+    // Seven consecutive days of marks push the ledger to streak 7; the D1
+    // mark (thread "a") soft-failed and is replayed now.
+    const d1 = Date.parse("2026-08-05T12:00:00.000Z");
+    let state = emptyGamificationState(d1);
+    for (let i = 0; i < 7; i++) {
+      state = applyMarkToGamification(
+        state,
+        Date.parse(`2026-08-${String(5 + i).padStart(2, "0")}T12:00:00.000Z`),
+        `t${i}`,
+      ).state;
+    }
+    assert.equal(state.currentStreak, 7);
+    const beforeXp = state.lifetimeXp;
+
+    // Replaying the D1 mark must earn the 1 XP it earned on its own day, not
+    // the current 7-day streak tier (3 XP).
+    const replay = applyMarkToGamification(state, d1, "a");
+    assert.equal(replay.awarded.markXp, 1);
+    assert.equal(replay.state.lifetimeXp, beforeXp + 1);
+    assert.equal(replay.state.currentStreak, 7);
+    assert.equal(replay.state.lastMarkUtcDay, "2026-08-11");
+  });
+
+  it("credits a backdated mark at the recovered streak tier even after the streak breaks", () => {
+    // D1..D3 are consecutive (streak 3); the ledger then breaks to D6 (streak 1).
+    let state = emptyGamificationState(
+      Date.parse("2026-08-05T12:00:00.000Z"),
+    );
+    for (const day of ["2026-08-05", "2026-08-06", "2026-08-07", "2026-08-10"]) {
+      state = applyMarkToGamification(
+        state,
+        Date.parse(`${day}T12:00:00.000Z`),
+        `t${day}`,
+      ).state;
+    }
+    assert.equal(state.currentStreak, 1);
+
+    // A D3 mark that soft-failed earned 2 XP at the time (streak 3 → tier 2),
+    // and must not be under-credited at the now-broken streak's tier (1 XP).
+    const replay = applyMarkToGamification(
+      state,
+      Date.parse("2026-08-07T12:00:00.000Z"),
+      "a",
+    );
+    assert.equal(replay.awarded.markXp, 2);
+    assert.equal(replay.state.currentStreak, 1);
+    assert.equal(replay.state.lastMarkUtcDay, "2026-08-10");
+  });
 });
 
 describe("applyT24hBonus", () => {
@@ -265,6 +316,26 @@ describe("pickNextGoal / achievements", () => {
     const goal = pickNextGoal(state);
     assert.equal(goal.id, "streak_3");
     assert.equal(goal.remaining, 2);
+  });
+
+  it("resolves nextGoal.id against the achievements catalog", () => {
+    const catalogIds = new Set(ACHIEVEMENTS.map((def) => def.id));
+    // A fresh ledger (xp 0) must not emit a dangling `level_2` id.
+    const fresh = emptyGamificationState(Date.parse("2026-08-05T12:00:00.000Z"));
+    const freshGoal = pickNextGoal(fresh);
+    assert.ok(catalogIds.has(freshGoal.id));
+    assert.equal(freshGoal.id, "first_mark");
+
+    // One mark from the level 4 -> 5 boundary emits the real level_5 badge.
+    const boundary: GamificationState = {
+      ...emptyGamificationState(Date.parse("2026-08-05T12:00:00.000Z")),
+      currentStreak: 1,
+      lastMarkUtcDay: "2026-08-05",
+      lifetimeXp: 15,
+    };
+    const levelGoal = pickNextGoal(boundary);
+    assert.equal(levelGoal.id, "level_5");
+    assert.ok(catalogIds.has(levelGoal.id));
   });
 });
 

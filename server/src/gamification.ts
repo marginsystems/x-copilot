@@ -250,14 +250,17 @@ export function pickNextGoal(state: GamificationState): NextGoal {
   const progress = xpProgress(state.lifetimeXp);
   const xpRemaining = Math.max(0, progress.xpToNext - progress.xpIntoLevel);
   const nextMarkXp = markXpForStreak(Math.max(1, state.currentStreak));
-  const levelGoal: NextGoal = {
-    id: `level_${progress.level + 1}`,
-    kind: "level",
-    title: `Level ${progress.level + 1}`,
-    detail: `${xpRemaining} XP to go`,
-    remaining: xpRemaining,
-  };
-  if (xpRemaining > 0 && xpRemaining <= nextMarkXp) return levelGoal;
+  const nextLevelId = `level_${progress.level + 1}`;
+  const nextLevelDef = ACHIEVEMENTS.find((def) => def.id === nextLevelId);
+  if (nextLevelDef && xpRemaining > 0 && xpRemaining <= nextMarkXp) {
+    return {
+      id: nextLevelDef.id,
+      kind: "level",
+      title: nextLevelDef.title,
+      detail: `${xpRemaining} XP to go`,
+      remaining: xpRemaining,
+    };
+  }
 
   const nextStreak = ACHIEVEMENTS.find(
     (def) => def.kind === "streak" && !achievementUnlocked(def, state),
@@ -286,7 +289,17 @@ export function pickNextGoal(state: GamificationState): NextGoal {
     };
   }
 
-  return levelGoal;
+  // Every catalog goal is out of reach or already unlocked; keep nextGoal.id
+  // resolvable against ACHIEVEMENTS by pointing at the final level badge.
+  const lastLevelDef =
+    nextLevelDef ?? [...ACHIEVEMENTS].reverse().find((def) => def.kind === "level");
+  return {
+    id: lastLevelDef?.id ?? "level_25",
+    kind: "level",
+    title: `Level ${progress.level + 1}`,
+    detail: `${xpRemaining} XP to go`,
+    remaining: xpRemaining,
+  };
 }
 
 export function toLeaderboardRow(
@@ -401,6 +414,40 @@ export function bonusXpFromT24h(
 }
 
 /**
+ * XP a backdated mark (soft-failed and replayed after a newer mark already
+ * advanced the ledger) should earn on its own UTC day. The ledger only keeps
+ * the current streak counters, so replay the credited mark instances
+ * (`threadId:at` keys) up to the mark's day to recover the streak tier that
+ * was in effect then — a retry must not be credited at the current streak's
+ * multiplier.
+ */
+function backdatedMarkXp(
+  state: GamificationState,
+  nowMs: number,
+  threadId?: string,
+): number {
+  const day = utcDayKey(nowMs);
+  const priorMarks = state.markAwardedThreadIds
+    .map((key) => {
+      // Keys are `threadId:<ISO at>`; the at itself contains colons, so match
+      // the trailing ISO timestamp rather than splitting on the last colon.
+      const m = key.match(
+        /:(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)$/,
+      );
+      if (!m) return null;
+      const t = Date.parse(m[1]);
+      return Number.isFinite(t) && utcDayKey(t) <= day ? t : null;
+    })
+    .filter((t): t is number => t !== null)
+    .sort((a, b) => a - b);
+  let replay = emptyGamificationState(nowMs);
+  for (const ms of priorMarks) {
+    replay = applyMarkToGamification(replay, ms).state;
+  }
+  return applyMarkToGamification(replay, nowMs, threadId).awarded.markXp;
+}
+
+/**
  * Apply a successful Mark interacted to the ledger.
  * Same UTC day: streak unchanged, still awards XP at the current multiplier.
  * Yesterday UTC: streak += 1, then award at the new multiplier.
@@ -434,7 +481,7 @@ export function applyMarkToGamification(
   // already advanced the ledger) must not reset the streak or move the
   // lastMarkUtcDay cursor backward — credit XP only.
   if (last && day < last) {
-    const markXp = markXpForStreak(Math.max(1, state.currentStreak));
+    const markXp = backdatedMarkXp(state, nowMs, threadId);
     return {
       state: {
         ...state,
@@ -625,7 +672,10 @@ async function pathExists(path: string): Promise<boolean> {
 
 /**
  * Explicit path wins. Else per-user file. The first user may adopt the
- * legacy sidecar once so current XP is not reset.
+ * legacy sidecar once so current XP is not reset. Adoption runs under a
+ * dedicated marker lock (re-checking both files), so concurrent first
+ * requests can neither each copy the legacy ledger into their own file nor
+ * race the adoption write against a locked mark write.
  */
 export async function resolveGamificationPath(
   opts?: GamificationPaths,
@@ -636,16 +686,20 @@ export async function resolveGamificationPath(
   const userPath = gamificationPathForUser(userId);
   if (await pathExists(userPath)) return userPath;
   const legacy = defaultGamificationPath();
+  if (!(await pathExists(legacy))) return userPath;
   const marker = legacyAdoptMarkerPath();
-  if ((await pathExists(legacy)) && !(await pathExists(marker))) {
+  await mkdir(dirname(marker), { recursive: true });
+  return withFileLock(marker, async () => {
+    if (await pathExists(userPath)) return userPath;
+    if (await pathExists(marker)) return userPath;
     const legacyState = await readGamificationFile(legacy);
-    if (legacyState) {
-      await writeGamificationFile(userPath, legacyState);
-      await mkdir(dirname(marker), { recursive: true });
-      await writeFile(marker, `${userId}\n`, "utf8");
-    }
-  }
-  return userPath;
+    if (!legacyState) return userPath;
+    // Marker first so a crash between the two writes can never allow a second
+    // adoption; if the user file is lost, the caller seeds it from history.
+    await writeFile(marker, `${userId}\n`, "utf8");
+    await writeGamificationFile(userPath, legacyState);
+    return userPath;
+  });
 }
 
 function progressFromTransition(
@@ -807,9 +861,10 @@ export async function recordT24hBonusGamification(opts: {
 }
 
 /**
- * Read public gamification snapshot. Read-only: never persists a seeded
- * ledger, so a concurrent GET cannot race a first mark's ledger creation and
- * cause that mark to be double-counted.
+ * Read public gamification snapshot. Read-only apart from the one-time legacy
+ * adoption inside resolveGamificationPath: never persists a seeded ledger, so
+ * a concurrent GET cannot race a first mark's ledger creation and cause that
+ * mark to be double-counted.
  */
 export async function getGamification(
   opts?: GamificationPaths,
