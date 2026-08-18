@@ -105,11 +105,13 @@ export function buildDetectOwnReplyQuery(
   );
 }
 
+const TWITTER_SNOWFLAKE_EPOCH_MS = 1288834974657;
+
 function replyRecency(card: ThreadCard): number {
   const created = card.createdAt ? Date.parse(card.createdAt) : NaN;
   if (Number.isFinite(created)) return created;
   try {
-    return Number(BigInt(card.id) >> 22n);
+    return Number(BigInt(card.id) >> 22n) + TWITTER_SNOWFLAKE_EPOCH_MS;
   } catch {
     return 0;
   }

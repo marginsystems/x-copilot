@@ -190,6 +190,60 @@ describe("detectOwnReplyToThread", () => {
     assert.equal(result.reply.replyId, "new");
   });
 
+  it("picks the newest when several replies target different tweets", async () => {
+    const result = await detectOwnReplyToThread({
+      threadId: "card-reply",
+      conversationId: "root1",
+      screenName: "me",
+      searchTimelinePages: async () => ({
+        ok: true,
+        threads: [
+          card({
+            id: "to-op",
+            inReplyToId: "root1",
+            createdAt: "2026-08-01T00:00:00.000Z",
+          }),
+          card({
+            id: "to-third",
+            inReplyToId: "third-tweet",
+            createdAt: "2026-08-18T12:00:00.000Z",
+          }),
+        ],
+        queryId: "q",
+        bottomCursor: null,
+      }),
+    });
+    assert.ok(result.reply);
+    assert.equal(result.reply.replyId, "to-third");
+  });
+
+  it("compares createdAt and snowflake recency on one epoch", async () => {
+    const result = await detectOwnReplyToThread({
+      threadId: "card-reply",
+      conversationId: "root1",
+      screenName: "me",
+      searchTimelinePages: async () => ({
+        ok: true,
+        threads: [
+          card({
+            id: "with-created",
+            inReplyToId: "root1",
+            createdAt: "2026-08-01T00:00:00.000Z",
+          }),
+          card({
+            id: "2089683728593846272",
+            inReplyToId: "third-tweet",
+            text: "newer by snowflake",
+          }),
+        ],
+        queryId: "q",
+        bottomCursor: null,
+      }),
+    });
+    assert.ok(result.reply);
+    assert.equal(result.reply.replyId, "2089683728593846272");
+  });
+
   it("returns search_failed on search error", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "parent1",
