@@ -28,9 +28,9 @@
   --border: #ddd4c8;
   --border-strong: #c9bfb2;
   --text: #1c1814;
-  --muted: #6f675e;
-  --accent: #2f6f94;
-  --accent-dim: #b7d4e6;
+  --muted: #4a433c;
+  --accent: #14527a;
+  --accent-dim: #7ea8c4;
   --danger: #b54d45;
   --danger-dim: #f0d4d0;
   --ink: #fffaf4;
@@ -2558,7 +2558,7 @@ button:disabled {
   white-space: pre-wrap;
   border-left: 2px solid var(--border-strong);
   padding-left: 10px;
-  color: #c8d3df;
+  color: var(--text);
 }
 
 .row-detail .reason {
