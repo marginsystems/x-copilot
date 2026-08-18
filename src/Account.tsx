@@ -23,6 +23,7 @@ type AccountUser = {
   email: string | null;
   avatarUrl: string | null;
   xUsername: string | null;
+  xCanPost?: boolean;
 };
 
 type AccountPayload = {
@@ -221,6 +222,9 @@ export function Account(props: {
             <strong>X</strong>
             <p className="settings-help">
               {hasX && x ? providerLabel(x) : "Not linked"}
+              {hasX && user && !user.xCanPost
+                ? " — re-link after the app is Read and write so the desk can post as you."
+                : null}
             </p>
           </div>
           {hasX ? (

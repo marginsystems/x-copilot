@@ -16,7 +16,8 @@ type PaneStage =
   | "stance"
   | "editing"
   | "verifying"
-  | "ready";
+  | "ready"
+  | "posting";
 
 /** Mirrors server postNeedsStance: only opinionated posts need the picker. */
 function postNeedsStance(threadKind?: string, flags?: string[]): boolean {
@@ -63,7 +64,12 @@ export function SuggestPane({
   agenda,
   usage,
   onUsage,
+  canPost = false,
+  url,
+  summary,
+  conversationId,
   onOpenIntent,
+  onPosted,
 }: {
   threadId: string;
   author: string;
@@ -75,8 +81,28 @@ export function SuggestPane({
   agenda?: string;
   usage: SuggestUsage;
   onUsage: (usage: SuggestUsage) => void;
+  canPost?: boolean;
+  url?: string;
+  summary?: string;
+  conversationId?: string;
   /** Arm the existing mark/detect flow before x.com opens. */
   onOpenIntent?: () => void;
+  onPosted?: (payload: {
+    interaction?: {
+      threadId: string;
+      author: string;
+      at: string;
+      url?: string;
+      summary?: string;
+      text?: string;
+      replyId?: string;
+      replyUrl?: string;
+      postedAt?: string;
+      conversationId?: string;
+      inReplyToId?: string;
+    };
+    tweet?: { id: string; url: string };
+  }) => void;
 }) {
   const [stage, setStage] = useState<PaneStage>("idle");
   const [draft, setDraft] = useState("");
@@ -84,6 +110,7 @@ export function SuggestPane({
   const [note, setNote] = useState<string | null>(null);
   const [noteKind, setNoteKind] = useState<"info" | "ok" | "fail">("info");
   const [intentUrl, setIntentUrl] = useState<string | null>(null);
+  const [deskCanPost, setDeskCanPost] = useState(canPost);
   const [copied, setCopied] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const [stances, setStances] = useState<string[]>([]);
@@ -93,6 +120,7 @@ export function SuggestPane({
   const sessionRef = useRef(0);
   /** Synchronous in-flight guard so a double-click can't burn two suggest slots. */
   const suggestBusyRef = useRef(false);
+  const postBusyRef = useRef(false);
   const attemptRef = useRef(0);
 
   const hint = stage === "editing" ? localEditHint(draft, edited) : null;
@@ -106,6 +134,7 @@ export function SuggestPane({
     setNote(null);
     setNoteKind("info");
     setIntentUrl(null);
+    setDeskCanPost(canPost);
     setCopied(false);
     setStances([]);
     setStancesFallback(false);
@@ -266,6 +295,7 @@ export function SuggestPane({
         pass?: boolean;
         reason?: string;
         intentUrl?: string;
+        canPost?: boolean;
         message?: string;
       };
       if (attemptRef.current !== attempt) return;
@@ -277,9 +307,14 @@ export function SuggestPane({
       }
       if (data.pass && data.intentUrl) {
         setIntentUrl(data.intentUrl);
+        setDeskCanPost(Boolean(data.canPost ?? canPost));
         setStage("ready");
         setNoteKind("ok");
-        setNote(data.reason ?? "That reads like you. Ready to post.");
+        setNote(
+          data.canPost === false
+            ? `${data.reason ?? "That reads like you."} Re-link X on Account to post from here.`
+            : (data.reason ?? "That reads like you. Ready to post."),
+        );
       } else {
         setStage("editing");
         setNoteKind("fail");
@@ -298,10 +333,78 @@ export function SuggestPane({
     setEdited(next);
     setCopied(false);
     setNote(null);
-    // Any change after a pass re-locks Copy + Open on X.
-    if (stage === "ready") {
+    // Any change after a pass re-locks Copy + Post.
+    if (stage === "ready" || stage === "posting") {
       setStage("editing");
       setIntentUrl(null);
+    }
+  }
+
+  async function onPost() {
+    if (postBusyRef.current || !deskCanPost) return;
+    postBusyRef.current = true;
+    const attempt = ++attemptRef.current;
+    setStage("posting");
+    setNote(null);
+    try {
+      const res = await apiFetch("/api/voice/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draft,
+          edited,
+          inReplyToId: threadId,
+          threadId,
+          author,
+          url,
+          text,
+          summary,
+          conversationId,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+        tweet?: { id?: string; url?: string };
+        interaction?: {
+          threadId: string;
+          author: string;
+          at: string;
+          url?: string;
+          summary?: string;
+          text?: string;
+          replyId?: string;
+          replyUrl?: string;
+          postedAt?: string;
+          conversationId?: string;
+          inReplyToId?: string;
+        };
+      };
+      if (attemptRef.current !== attempt) return;
+      if (!res.ok || !data.ok) {
+        setStage("ready");
+        setNoteKind("fail");
+        setNote(data.message ?? "Could not post — try again or Open on X.");
+        return;
+      }
+      const tweetId = data.tweet?.id;
+      const tweetUrl = data.tweet?.url;
+      onPosted?.({
+        interaction: data.interaction,
+        tweet:
+          tweetId && tweetUrl
+            ? { id: tweetId, url: tweetUrl }
+            : undefined,
+      });
+      onClose();
+    } catch {
+      if (attemptRef.current !== attempt) return;
+      setStage("ready");
+      setNoteKind("fail");
+      setNote("Couldn't reach the desk — try again.");
+    } finally {
+      postBusyRef.current = false;
     }
   }
 
@@ -398,7 +501,7 @@ export function SuggestPane({
         value={edited}
         rows={4}
         maxLength={560}
-        disabled={stage === "verifying"}
+        disabled={stage === "verifying" || stage === "posting"}
         aria-label="Your reply — edit the draft"
         onChange={(e) => onEdit(e.target.value)}
       />
@@ -412,6 +515,10 @@ export function SuggestPane({
         </span>
         {stage === "verifying" ? (
           <PhaseLine phases={VERIFY_PHASES} startedAt={startedAt} />
+        ) : stage === "posting" ? (
+          <p className="suggest-note" role="status">
+            Posting your reply…
+          </p>
         ) : (
           <div className="suggest-actions">
             {!verified ? (
@@ -427,15 +534,24 @@ export function SuggestPane({
             ) : null}
             <button
               type="button"
-              className={verified ? "primary" : "ghost"}
+              className={verified && !deskCanPost ? "primary" : "ghost"}
               disabled={!verified}
               onClick={() => void onCopy()}
             >
               {copied ? "Copied" : "Copy"}
             </button>
+            {verified && deskCanPost ? (
+              <button
+                type="button"
+                className="primary suggest-verify"
+                onClick={() => void onPost()}
+              >
+                Post reply
+              </button>
+            ) : null}
             {verified && intentUrl ? (
               <a
-                className="primary suggest-open"
+                className={deskCanPost ? "ghost" : "primary suggest-open"}
                 href={intentUrl}
                 target="_blank"
                 rel="noreferrer"
