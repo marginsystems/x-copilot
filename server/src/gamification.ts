@@ -11,6 +11,7 @@ import {
   type Interaction,
   type ReplyStatSnapshot,
 } from "./interactionStore.js";
+import { getSolePlatformUserId } from "./authStore.js";
 
 export const MARK_XP = 1;
 export const MAX_T24H_BONUS_XP = 5;
@@ -682,7 +683,17 @@ export async function resolveGamificationPath(
 ): Promise<string> {
   if (opts?.gamificationPath) return opts.gamificationPath;
   const userId = opts?.userId?.trim();
-  if (!userId) return defaultGamificationPath();
+  if (!userId) {
+    // Single-user sidecar: interaction rows written before userId scoping have
+    // no owner, so their awards fall back here. Route them to the sole platform
+    // user's ledger instead of the retired legacy file, which adoption already
+    // copied into that ledger and is never read again.
+    const soleUserId = getSolePlatformUserId();
+    if (soleUserId) {
+      return resolveGamificationPath({ ...opts, userId: soleUserId });
+    }
+    return defaultGamificationPath();
+  }
   const userPath = gamificationPathForUser(userId);
   if (await pathExists(userPath)) return userPath;
   const legacy = defaultGamificationPath();

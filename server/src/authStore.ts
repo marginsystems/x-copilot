@@ -221,6 +221,15 @@ export function countPlatformUsers(): number {
   return Number(row?.n ?? 0);
 }
 
+/** The sole platform user's id when exactly one platform user exists
+ * (single-user sidecar), else null — legacy unowned rows route to it. */
+export function getSolePlatformUserId(): string | null {
+  const rows = getPlatformDb()
+    .prepare(`SELECT id FROM users LIMIT 2`)
+    .all() as Array<{ id: string }>;
+  return rows.length === 1 ? rows[0]!.id : null;
+}
+
 export function getUserById(id: string): AuthUser | null {
   const row = getPlatformDb()
     .prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)
