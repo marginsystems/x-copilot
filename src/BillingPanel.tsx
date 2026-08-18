@@ -62,6 +62,12 @@ export type BillingMe = {
     cancel_at_period_end?: boolean;
   };
   plans?: Partial<Record<CatalogPlanKey, PlanCard>>;
+  manual_grant?: {
+    plan_key: string;
+    created_at?: string | null;
+    created_by?: string | null;
+    notice: string;
+  } | null;
   error?: string;
   message?: string;
 };
@@ -124,7 +130,9 @@ export function BillingPanel(props: {
           <span style={{ width: `${pct}%` }} />
         </div>
         <p className="settings-help">
-          {billing?.operator_allotment
+          {billing?.manual_grant
+            ? `${billing.manual_grant.notice} One credit = one X post read.`
+            : billing?.operator_allotment
             ? "Operator allotment (Horizon pool) until you subscribe. One credit = one X post read."
             : billing?.plan_state === "free_limit_reached"
               ? "Free · monthly credit limit reached. Upgrade below, or wait until the next UTC month."
@@ -167,8 +175,15 @@ export function BillingPanel(props: {
         </div>
       ) : null}
 
+      {billing?.manual_grant ? (
+        <p className="usage-banner" role="status">
+          {billing.manual_grant.notice}
+        </p>
+      ) : null}
+
       {billing?.plan_state === "free_limit_reached" &&
-      !billing?.operator_allotment ? (
+      !billing?.operator_allotment &&
+      !billing?.manual_grant ? (
         <p className="usage-banner">
           You've used this month's free credits. Upgrade below, or wait until
           the next UTC month.
@@ -215,9 +230,8 @@ export function BillingPanel(props: {
           const isCurrent =
             key === "free"
               ? onFree
-              : live &&
-                billing?.plan_state === "subscription_active" &&
-                billing.plan_key === key;
+              : billing?.plan_key === key &&
+                billing?.plan_state === "subscription_active";
           const takeoffs = plan?.daily_sorties ?? plan?.sorties;
           return (
             <article
