@@ -1381,10 +1381,18 @@ export default function App() {
     bootAnalytics(consent);
   }, [consent]);
 
+  /** Last path a page_view was sent for, so a re-render can't double-count a landing. */
+  const lastTrackedPathRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (consent === "accepted") {
-      trackPageView(window.location.pathname);
+    if (consent !== "accepted") {
+      lastTrackedPathRef.current = null;
+      return;
     }
+    const path = window.location.pathname;
+    if (path === lastTrackedPathRef.current) return;
+    lastTrackedPathRef.current = path;
+    trackPageView(path);
   }, [consent, view]);
 
   useEffect(() => {
