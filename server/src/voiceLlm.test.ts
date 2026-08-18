@@ -83,13 +83,103 @@ describe("suggestReply", () => {
     const result = await suggestReply({
       cardJson: CARD_JSON,
       thread: { author: "@dev", text: "we moved everything to sqlite" },
-      chat: fakeChat('"same here, sqlite all the way — what broke first?"', capture),
+      chat: fakeChat('"same here, sqlite all the way. what broke first?"', capture),
     });
     assert.ok(result.ok);
     if (result.ok) {
-      assert.equal(result.draft, "same here, sqlite all the way — what broke first?");
+      assert.equal(result.draft, "same here, sqlite all the way. what broke first?");
     }
     assert.equal(capture.purpose, "reply_suggest");
+  });
+
+  it("strips em dashes from a draft", async () => {
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "the loop is the work" },
+      chat: fakeChat("The tool was never the bottleneck \u2014 the loop is."),
+    });
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.equal(result.draft.includes("\u2014"), false);
+      assert.match(result.draft, /bottleneck/i);
+    }
+  });
+
+  it("rejects a draft that stays on the this-isn-t template", async () => {
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "tools vs process" },
+      chat: fakeChat("This isn't a tooling problem. It's a loop problem."),
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error, "draft_slop");
+  });
+
+  it("rejects an em-dash if-then draft as slop", async () => {
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "speed vs process" },
+      chat: fakeChat("If you want speed \u2014 then cut process."),
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error, "draft_slop");
+  });
+
+  it("rescues a trope draft on retry and returns the clean retry", async () => {
+    let call = 0;
+    const chat: ChatFn = async () => {
+      call += 1;
+      return {
+        ok: true,
+        content:
+          call === 1
+            ? "If you want speed, then cut process."
+            : "Cut process, ship faster.",
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      };
+    };
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "speed vs process" },
+      chat,
+    });
+    assert.equal(call, 2);
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.equal(result.draft, "Cut process, ship faster.");
+      assert.equal(result.model, "deepseek-v4-flash");
+    }
+  });
+
+  it("propagates a retry failure instead of masking it as draft slop", async () => {
+    let call = 0;
+    const chat: ChatFn = async () => {
+      call += 1;
+      if (call === 1) {
+        return {
+          ok: true,
+          content: "If you want speed, then cut process.",
+          model: "deepseek-v4-flash",
+          provider: "deepseek",
+        };
+      }
+      return {
+        ok: false,
+        error: "upstream_quota",
+        message: "DeepSeek quota hit.",
+      };
+    };
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "speed vs process" },
+      chat,
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error, "upstream_quota");
+      assert.equal(result.message, "DeepSeek quota hit.");
+    }
   });
 
   it("cleans fenced drafts and caps length", () => {
