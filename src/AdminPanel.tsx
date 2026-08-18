@@ -10,6 +10,8 @@ export type AdminTenantRow = {
   email: string | null;
   planKey: string;
   subscriptionStatus: string | null;
+  grantPlanKey?: string | null;
+  manualGrant?: boolean;
   postsRead: number;
   estimatedUsd: number;
   creditLimit: number;
@@ -57,6 +59,12 @@ export function AdminPanel(props: {
   const [logs, setLogs] = useState<AdminTenantUsageResponse | null>(null);
   const [logsBusy, setLogsBusy] = useState(false);
   const [logsError, setLogsError] = useState("");
+  const [grantHandle, setGrantHandle] = useState("");
+  const [grantPlan, setGrantPlan] = useState<"pulse" | "radar" | "horizon" | "free">(
+    "pulse",
+  );
+  const [grantBusy, setGrantBusy] = useState(false);
+  const [grantNotice, setGrantNotice] = useState("");
   const logsRequestSeqRef = useRef(0);
 
   const selected = props.tenants?.find((t) => t.tenantId === selectedId) ?? null;
@@ -102,6 +110,55 @@ export function AdminPanel(props: {
     setLogsError("");
   }
 
+  function planLabel(row: AdminTenantRow): string {
+    if (row.manualGrant) return `${row.planKey} · granted`;
+    if (row.subscriptionStatus) return `${row.planKey} · ${row.subscriptionStatus}`;
+    return row.planKey;
+  }
+
+  async function onGrant() {
+    const who = grantHandle.trim();
+    if (!who) {
+      setGrantNotice("Pass an X handle or an email.");
+      return;
+    }
+    setGrantBusy(true);
+    setGrantNotice("");
+    try {
+      const looksEmail = who.includes("@") && !who.startsWith("@");
+      const res = await apiFetch("/api/admin/grants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan: grantPlan,
+          ...(looksEmail ? { email: who } : { handle: who }),
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        notice?: string;
+        plan_key?: string;
+        grant?: { notice?: string } | null;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        setGrantNotice(data.message || data.error || `Grant failed (${res.status})`);
+        return;
+      }
+      setGrantNotice(
+        data.notice ||
+          data.grant?.notice ||
+          `Granted ${data.plan_key ?? grantPlan}.`,
+      );
+      props.onRefresh();
+    } catch (err) {
+      setGrantNotice(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGrantBusy(false);
+    }
+  }
+
   return (
     <section className="panel settings-pane usage-pane">
       <div className="settings-head">
@@ -113,8 +170,51 @@ export function AdminPanel(props: {
       <p className="status settings-lede">
         Per-tenant X post reads this UTC month, estimated platform spend, and
         full request logs. Shared credentials; each desk has its own credit
-        pool.
+        pool. Grant a complimentary plan without Stripe — they will see a
+        notice that the account was manually upgraded.
       </p>
+      {!selected ? (
+        <div className="admin-grant">
+          <label className="settings-field">
+            <span>Handle or email</span>
+            <input
+              type="text"
+              value={grantHandle}
+              placeholder="@handle or email"
+              autoComplete="off"
+              onChange={(e) => setGrantHandle(e.target.value)}
+            />
+          </label>
+          <label className="settings-field">
+            <span>Plan</span>
+            <select
+              className="settings-select"
+              value={grantPlan}
+              onChange={(e) =>
+                setGrantPlan(e.target.value as typeof grantPlan)
+              }
+            >
+              <option value="pulse">Pulse</option>
+              <option value="radar">Radar</option>
+              <option value="horizon">Horizon</option>
+              <option value="free">Clear grant (Free)</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            className="primary"
+            disabled={grantBusy || props.busy}
+            onClick={() => void onGrant()}
+          >
+            {grantBusy ? "Granting…" : "Grant plan"}
+          </button>
+          {grantNotice ? (
+            <p className="usage-banner" role="status">
+              {grantNotice}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="usage-toolbar">
         {selected ? (
           <button type="button" className="ghost" onClick={backToList}>
@@ -158,11 +258,15 @@ export function AdminPanel(props: {
             </div>
           </div>
           <p className="settings-help">
-            {selected.email ?? "No email"} · {selected.planKey}
-            {selected.subscriptionStatus
-              ? ` · ${selected.subscriptionStatus}`
-              : ""}
+            {selected.email ?? "No email"} · {planLabel(selected)}
           </p>
+          {selected.manualGrant ? (
+            <p className="usage-banner" role="status">
+              This account was manually upgraded
+              {selected.grantPlanKey ? ` to ${selected.grantPlanKey}` : ""}{" "}
+              without a Stripe subscription.
+            </p>
+          ) : null}
           <div className="usage-toolbar">
             <label className="settings-field usage-window">
               <span>Window</span>
@@ -251,12 +355,7 @@ export function AdminPanel(props: {
                       <div className="usage-error">{row.name}</div>
                     </td>
                     <td>{row.email ?? "—"}</td>
-                    <td>
-                      {row.planKey}
-                      {row.subscriptionStatus
-                        ? ` · ${row.subscriptionStatus}`
-                        : ""}
-                    </td>
+                    <td>{planLabel(row)}</td>
                     <td>
                       {row.postsRead.toLocaleString()} /{" "}
                       {row.creditLimit.toLocaleString()}
