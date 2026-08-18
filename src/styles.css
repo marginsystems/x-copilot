@@ -1599,6 +1599,23 @@ button.menu-item-signout:hover {
   margin: 12px 0 8px;
 }
 
+.admin-grant {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin: 4px 0 16px;
+}
+
+.admin-grant .settings-field {
+  min-width: 12rem;
+  flex: 1;
+}
+
+.admin-grant .usage-banner {
+  flex-basis: 100%;
+}
+
 .usage-window {
   min-width: 10rem;
 }

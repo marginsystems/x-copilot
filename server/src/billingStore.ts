@@ -13,6 +13,7 @@ import {
   PLAN_PRICE_LABELS,
   derivePlanState,
   isPaidPlanKey,
+  planDisplayName,
   type PaidPlanKey,
   type PlanKey,
 } from "./plans.js";
@@ -34,6 +35,30 @@ export type UserBillingRow = {
   cancelAtPeriodEnd: boolean;
   stripeLastEventCreated: number;
   updatedAt: string;
+  grantPlanKey: PaidPlanKey | null;
+  grantCreatedAt: string | null;
+  grantCreatedBy: string | null;
+};
+
+const BILLING_SELECT = `user_id, tenant_id, plan_key, stripe_customer_id, stripe_subscription_id,
+              subscription_status, current_period_end, cancel_at_period_end,
+              stripe_last_event_created, updated_at,
+              grant_plan_key, grant_created_at, grant_created_by`;
+
+type BillingSqlRow = {
+  user_id: string;
+  tenant_id: string;
+  plan_key: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  subscription_status: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: number;
+  stripe_last_event_created: number;
+  updated_at: string;
+  grant_plan_key: string | null;
+  grant_created_at: string | null;
+  grant_created_by: string | null;
 };
 
 const LIVE_SUB_STATUSES = new Set(["active", "trialing", "past_due", "unpaid"]);
@@ -124,19 +149,11 @@ export function ensureUserBillingRow(
   return row;
 }
 
-function mapBilling(row: {
-  user_id: string;
-  tenant_id: string;
-  plan_key: string;
-  stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
-  subscription_status: string | null;
-  current_period_end: string | null;
-  cancel_at_period_end: number;
-  stripe_last_event_created: number;
-  updated_at: string;
-}): UserBillingRow {
+function mapBilling(row: BillingSqlRow): UserBillingRow {
   const planKey: PlanKey = isPaidPlanKey(row.plan_key) ? row.plan_key : "free";
+  const grantPlanKey = isPaidPlanKey(row.grant_plan_key ?? "")
+    ? (row.grant_plan_key as PaidPlanKey)
+    : null;
   return {
     userId: row.user_id,
     tenantId: row.tenant_id,
@@ -148,31 +165,19 @@ function mapBilling(row: {
     cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
     stripeLastEventCreated: Number(row.stripe_last_event_created) || 0,
     updatedAt: row.updated_at,
+    grantPlanKey,
+    grantCreatedAt: row.grant_created_at,
+    grantCreatedBy: row.grant_created_by,
   };
 }
 
 export function getUserBilling(userId: string): UserBillingRow | null {
   const row = getPlatformDb()
     .prepare(
-      `SELECT user_id, tenant_id, plan_key, stripe_customer_id, stripe_subscription_id,
-              subscription_status, current_period_end, cancel_at_period_end,
-              stripe_last_event_created, updated_at
+      `SELECT ${BILLING_SELECT}
        FROM user_billing WHERE user_id = ?`,
     )
-    .get(userId) as
-    | {
-        user_id: string;
-        tenant_id: string;
-        plan_key: string;
-        stripe_customer_id: string | null;
-        stripe_subscription_id: string | null;
-        subscription_status: string | null;
-        current_period_end: string | null;
-        cancel_at_period_end: number;
-        stripe_last_event_created: number;
-        updated_at: string;
-      }
-    | undefined;
+    .get(userId) as BillingSqlRow | undefined;
   return row ? mapBilling(row) : null;
 }
 
@@ -181,25 +186,10 @@ export function getUserBillingBySubscriptionId(
 ): UserBillingRow | null {
   const row = getPlatformDb()
     .prepare(
-      `SELECT user_id, tenant_id, plan_key, stripe_customer_id, stripe_subscription_id,
-              subscription_status, current_period_end, cancel_at_period_end,
-              stripe_last_event_created, updated_at
+      `SELECT ${BILLING_SELECT}
        FROM user_billing WHERE stripe_subscription_id = ?`,
     )
-    .get(subscriptionId) as
-    | {
-        user_id: string;
-        tenant_id: string;
-        plan_key: string;
-        stripe_customer_id: string | null;
-        stripe_subscription_id: string | null;
-        subscription_status: string | null;
-        current_period_end: string | null;
-        cancel_at_period_end: number;
-        stripe_last_event_created: number;
-        updated_at: string;
-      }
-    | undefined;
+    .get(subscriptionId) as BillingSqlRow | undefined;
   return row ? mapBilling(row) : null;
 }
 
@@ -371,20 +361,84 @@ export function hasPaidBillingHistory(row: UserBillingRow): boolean {
   return Boolean(row.stripeCustomerId?.trim() || row.stripeSubscriptionId?.trim());
 }
 
+/** True when the live Stripe sub actually resolves to the effective plan. */
+export function liveSubTakesPrecedence(row: UserBillingRow): boolean {
+  const status = row.subscriptionStatus?.trim() || null;
+  return (
+    hasLiveStripeSubscription(row) &&
+    isPaidPlanKey(row.planKey) &&
+    (!status || LIVE_SUB_STATUSES.has(status))
+  );
+}
+
 export function effectivePlanKey(
   row: UserBillingRow,
   email: string | null | undefined,
 ): PlanKey {
-  const status = row.subscriptionStatus?.trim() || null;
-  if (
-    hasLiveStripeSubscription(row) &&
-    isPaidPlanKey(row.planKey) &&
-    (!status || LIVE_SUB_STATUSES.has(status))
-  ) {
-    return row.planKey;
-  }
+  if (liveSubTakesPrecedence(row)) return row.planKey;
   if (isAdminEmail(email)) return "horizon";
+  if (row.grantPlanKey && isPaidPlanKey(row.grantPlanKey)) return row.grantPlanKey;
   return "free";
+}
+
+export function manualGrantNotice(planKey: PaidPlanKey): string {
+  return `This account was manually upgraded to ${planDisplayName(planKey)} without a Stripe subscription.`;
+}
+
+export function grantManualPlan(opts: {
+  userId: string;
+  planKey: PaidPlanKey | "free";
+  grantedBy: string;
+}): UserBillingRow {
+  ensureUserBillingRow(opts.userId);
+  const at = nowIso();
+  const by = opts.grantedBy.trim().toLowerCase();
+  if (opts.planKey === "free") {
+    getPlatformDb()
+      .prepare(
+        `UPDATE user_billing SET
+           grant_plan_key = NULL,
+           grant_created_at = NULL,
+           grant_created_by = NULL,
+           updated_at = ?
+         WHERE user_id = ?`,
+      )
+      .run(at, opts.userId);
+  } else {
+    getPlatformDb()
+      .prepare(
+        `UPDATE user_billing SET
+           grant_plan_key = ?,
+           grant_created_at = ?,
+           grant_created_by = ?,
+           updated_at = ?
+         WHERE user_id = ?`,
+      )
+      .run(opts.planKey, at, by, at, opts.userId);
+  }
+  const row = getUserBilling(opts.userId);
+  if (!row) throw new Error("billing_row_missing");
+  return row;
+}
+
+export function activeManualGrant(
+  row: UserBillingRow,
+  email: string | null | undefined,
+): {
+  plan_key: PaidPlanKey;
+  created_at: string | null;
+  created_by: string | null;
+  notice: string;
+} | null {
+  if (!row.grantPlanKey) return null;
+  if (liveSubTakesPrecedence(row)) return null;
+  if (isAdminEmail(email)) return null;
+  return {
+    plan_key: row.grantPlanKey,
+    created_at: row.grantCreatedAt,
+    created_by: row.grantCreatedBy,
+    notice: manualGrantNotice(row.grantPlanKey),
+  };
 }
 
 export function creditLimitForPlan(plan: PlanKey): number {
@@ -539,7 +593,7 @@ export function billingMePayload(input: {
   const status = row.subscriptionStatus;
   const planState = derivePlanState({
     planKey,
-    live,
+    live: liveSubTakesPrecedence(row),
     status,
     creditsCanUse: usage.canUse,
   });
@@ -571,6 +625,7 @@ export function billingMePayload(input: {
     stripe_configured: secretOk,
     plans,
     operator_allotment: isAdminEmail(input.email) && planKey === "horizon" && !live,
+    manual_grant: activeManualGrant(row, input.email),
   };
 }
 
@@ -583,6 +638,8 @@ export type AdminTenantUsage = {
   email: string | null;
   planKey: PlanKey;
   subscriptionStatus: string | null;
+  grantPlanKey: PaidPlanKey | null;
+  manualGrant: boolean;
   postsRead: number;
   estimatedUsd: number;
   creditLimit: number;
@@ -602,6 +659,9 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
          b.plan_key,
          b.subscription_status,
          b.stripe_subscription_id,
+         b.grant_plan_key,
+         b.grant_created_at,
+         b.grant_created_by,
          COALESCE(agg.posts_read, 0) AS posts_read,
          COALESCE(agg.cost_usd_micros, 0) AS cost_usd_micros
        FROM tenants t
@@ -627,11 +687,17 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
     plan_key: string | null;
     subscription_status: string | null;
     stripe_subscription_id: string | null;
+    grant_plan_key: string | null;
+    grant_created_at: string | null;
+    grant_created_by: string | null;
     posts_read: number;
     cost_usd_micros: number;
   }>;
 
   return rows.map((r) => {
+    const grantPlanKey = isPaidPlanKey(r.grant_plan_key ?? "")
+      ? (r.grant_plan_key as PaidPlanKey)
+      : null;
     const billing: UserBillingRow = {
       userId: r.user_id ?? "",
       tenantId: r.tenant_id,
@@ -643,6 +709,9 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
       cancelAtPeriodEnd: false,
       stripeLastEventCreated: 0,
       updatedAt: r.created_at,
+      grantPlanKey,
+      grantCreatedAt: r.grant_created_at,
+      grantCreatedBy: r.grant_created_by,
     };
     const planKey = r.user_id
       ? effectivePlanKey(billing, r.email)
@@ -657,6 +726,8 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
       email: r.email,
       planKey,
       subscriptionStatus: r.subscription_status,
+      grantPlanKey,
+      manualGrant: Boolean(activeManualGrant(billing, r.email)),
       postsRead,
       estimatedUsd:
         Math.round(((Number(r.cost_usd_micros) || 0) / 1_000_000) * 1_000_000) /
