@@ -7,10 +7,10 @@ import {
 } from "./voiceDraft.ts";
 
 describe("stripEmDashes", () => {
-  it("turns an em dash clause into a period", () => {
+  it("turns an em dash clause into a capitalized period", () => {
     assert.equal(
       stripEmDashes("The tool was never the bottleneck \u2014 the loop is."),
-      "The tool was never the bottleneck. the loop is.",
+      "The tool was never the bottleneck. The loop is.",
     );
   });
 

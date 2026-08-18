@@ -115,6 +115,63 @@ describe("suggestReply", () => {
     if (!result.ok) assert.equal(result.error, "draft_slop");
   });
 
+  it("rescues a trope draft on retry and returns the clean retry", async () => {
+    let call = 0;
+    const chat: ChatFn = async () => {
+      call += 1;
+      return {
+        ok: true,
+        content:
+          call === 1
+            ? "If you want speed, then cut process."
+            : "Cut process, ship faster.",
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      };
+    };
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "speed vs process" },
+      chat,
+    });
+    assert.equal(call, 2);
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.equal(result.draft, "Cut process, ship faster.");
+      assert.equal(result.model, "deepseek-v4-flash");
+    }
+  });
+
+  it("propagates a retry failure instead of masking it as draft slop", async () => {
+    let call = 0;
+    const chat: ChatFn = async () => {
+      call += 1;
+      if (call === 1) {
+        return {
+          ok: true,
+          content: "If you want speed, then cut process.",
+          model: "deepseek-v4-flash",
+          provider: "deepseek",
+        };
+      }
+      return {
+        ok: false,
+        error: "upstream_quota",
+        message: "DeepSeek quota hit.",
+      };
+    };
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "speed vs process" },
+      chat,
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error, "upstream_quota");
+      assert.equal(result.message, "DeepSeek quota hit.");
+    }
+  });
+
   it("cleans fenced drafts and caps length", () => {
     assert.equal(cleanDraft("```\nhello there\n```"), "hello there");
     assert.equal(cleanDraft(`“smart quotes”`), "smart quotes");

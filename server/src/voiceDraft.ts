@@ -6,9 +6,12 @@
 
 export const EM_DASH = "\u2014";
 
-/** Replace typographic em dashes with a period so the draft stays readable. */
+/** Replace typographic em dashes with a period so the draft stays readable.
+ *  Capitalize the word after the inserted period so the continuation does
+ *  not read as a lowercased fragment. */
 export function stripEmDashes(text: string): string {
   return text
+    .replace(/\s*\u2014\s*([A-Za-z])/g, (_m: string, ch: string) => `. ${ch.toUpperCase()}`)
     .replace(/\s*\u2014\s*/g, ". ")
     .replace(/\s{2,}/g, " ")
     .replace(/\.\s+\./g, ".")

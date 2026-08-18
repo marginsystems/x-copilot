@@ -148,8 +148,6 @@ export async function suggestReply(opts: {
   cardJson: string;
   thread: { author: string; text: string; opAuthor?: string; opText?: string };
   agenda?: string;
-  /** Operator-picked side when the post assumes an argument. */
-  stance?: string;
   chat?: ChatFn;
 }): Promise<
   | { ok: true; draft: string; model: string }
@@ -161,9 +159,6 @@ export async function suggestReply(opts: {
     opts.agenda?.trim() ? `The user's current agenda: ${opts.agenda.trim()}` : "",
     opts.thread.opAuthor && opts.thread.opText
       ? `Thread context: ${opts.thread.opAuthor}: ${opts.thread.opText}`
-      : "",
-    opts.stance?.trim()
-      ? `Take this side (do not sit the fence): ${opts.stance.trim()}`
       : "",
     `Reply to this post by ${opts.thread.author}:\n${opts.thread.text}`,
   ].filter(Boolean);
@@ -194,6 +189,8 @@ export async function suggestReply(opts: {
     });
     if (retry.ok) {
       draft = sanitizeSuggestedDraft(cleanDraft(retry.content));
+    } else {
+      return { ok: false, error: retry.error, message: retry.message };
     }
   }
   if (!draft) {
