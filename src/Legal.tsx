@@ -90,7 +90,10 @@ function PrivacyBody() {
         <code>xc_x_oauth</code> for X sign-in). We also store
         your theme preference in your browser so the interface looks the same
         next time. The service cannot function without the session cookies.
-        Google Fonts are loaded to render the UI.
+        If you accept analytics cookies, we load Google Analytics (GA4) to
+        understand how the site is used. That script is not loaded until you
+        accept, and we do not use it for ads. Google Fonts are loaded to render
+        the UI.
       </p>
 
       <h2>Sharing</h2>

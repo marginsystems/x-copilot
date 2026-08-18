@@ -62,7 +62,7 @@ import {
   writeConsent,
   type ConsentChoice,
 } from "./lib/consent";
-import { bootAnalytics } from "./lib/analytics";
+import { bootAnalytics, trackPageView } from "./lib/analytics";
 import { Onboarding } from "./Onboarding";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
@@ -1380,6 +1380,20 @@ export default function App() {
   useEffect(() => {
     bootAnalytics(consent);
   }, [consent]);
+
+  /** Last path a page_view was sent for, so a re-render can't double-count a landing. */
+  const lastTrackedPathRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (consent !== "accepted") {
+      lastTrackedPathRef.current = null;
+      return;
+    }
+    const path = window.location.pathname;
+    if (path === lastTrackedPathRef.current) return;
+    lastTrackedPathRef.current = path;
+    trackPageView(path);
+  }, [consent, view]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
