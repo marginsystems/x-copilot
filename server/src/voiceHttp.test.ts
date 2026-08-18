@@ -612,4 +612,75 @@ describe("POST /api/voice/post", () => {
     assert.equal(status, 429);
     assert.equal(json.error, "cooldown");
   });
+
+  it("consumes the idempotency key on an ambiguous X failure so a retry cannot duplicate the reply", async () => {
+    const user = seedPoster("post-ambig@example.com", true);
+    let calls = 0;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      throw new Error("socket hang up");
+    }) as typeof fetch;
+    const chat: ChatFn = async () => ({
+      ok: true,
+      content: '{"ok":true,"reason":"That reads like you."}',
+      model: "deepseek-v4-flash",
+      provider: "deepseek",
+    });
+    try {
+      const first = await postReply(
+        user,
+        { ...body, requestKey: "rk-ambig" },
+        chat,
+      );
+      assert.equal(first.status, 502);
+      assert.equal(first.json.error, "network");
+
+      const retry = await postReply(
+        user,
+        { ...body, requestKey: "rk-ambig" },
+        chat,
+      );
+      assert.equal(calls, 1);
+      assert.equal(retry.status, 409);
+      assert.equal(retry.json.error, "outcome_unknown");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("replays an ambiguous-failure key as outcome_unknown instead of re-posting", async () => {
+    const user = seedPoster("post-replay@example.com", true);
+    recordDeskPost({
+      userId: user.id,
+      tweetId: "",
+      inReplyToId: "1234567890",
+      threadId: "1234567890",
+      requestKey: "rk-replay",
+      atIso: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    });
+    let calls = 0;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      throw new Error("socket hang up");
+    }) as typeof fetch;
+    try {
+      const { status, json } = await postReply(
+        user,
+        { ...body, requestKey: "rk-replay" },
+        async () => ({
+          ok: true,
+          content: '{"ok":true,"reason":"That reads like you."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
+      assert.equal(calls, 0);
+      assert.equal(status, 409);
+      assert.equal(json.error, "outcome_unknown");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
 });

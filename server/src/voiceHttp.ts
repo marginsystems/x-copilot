@@ -595,7 +595,7 @@ async function handlePost(
     rawRequestKey.length > 0 && rawRequestKey.length <= 80 ? rawRequestKey : "";
   if (requestKey.length > 0) {
     const prior = findDeskPostByKey(user.id, requestKey);
-    if (prior) {
+    if (prior && prior.tweetId) {
       const handle = getXOauthUsername(user.id) || "i";
       const replyUrl = `https://x.com/${handle}/status/${prior.tweetId}`;
       const replyId = parseStatusIdFromUrl(replyUrl) ?? prior.tweetId;
@@ -632,6 +632,18 @@ async function handlePost(
         interaction,
         remainingToday: limit.remainingToday,
         cap: limit.cap,
+      });
+      return;
+    }
+    if (prior) {
+      // The key was consumed by an ambiguous X failure: the response was
+      // lost, or X accepted the post without returning an id. The reply may
+      // already exist on X, so never re-issue the POST — replay the unknown
+      // outcome instead of duplicating the reply.
+      send(req, res, 409, {
+        error: "outcome_unknown",
+        message:
+          "That reply may have posted — X never confirmed the id. Check your timeline before posting again.",
       });
       return;
     }
@@ -713,6 +725,26 @@ async function handlePost(
     inReplyToId,
   });
   if (!posted.ok) {
+    // An ambiguous failure — the fetch dropped after X may have created the
+    // reply, or X accepted it without returning an id — must still consume
+    // the idempotency key. Otherwise a client retry with the same key finds
+    // no desk-post row and issues a duplicate POST /2/tweets.
+    if (
+      requestKey &&
+      (posted.error === "network" || posted.error === "tweet_create_invalid")
+    ) {
+      try {
+        recordDeskPost({
+          userId: user.id,
+          tweetId: "",
+          inReplyToId,
+          threadId,
+          requestKey,
+        });
+      } catch (err) {
+        console.warn("desk post record soft-fail:", err);
+      }
+    }
     send(req, res, posted.status >= 400 ? posted.status : 502, {
       error: posted.error,
       message: posted.message,
