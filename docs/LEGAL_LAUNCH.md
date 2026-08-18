@@ -20,14 +20,9 @@ These Privacy / Terms pages are MVP templates, not a lawyer sign-off.
 
 1. Create a **separate** GA4 property named `x-copilot` (do not reuse the mergestorm.ai Measurement ID unless you intend one property for both products).
 2. Web stream URL: `https://xcopilot.dev`
-3. Copy the Measurement ID (`G-…`) into the **SPA build** env:
+3. The SPA uses Measurement ID `G-103S1LZBF3` (xcopilot.dev web stream). Override with `VITE_GA_MEASUREMENT_ID` if you need another property.
 
-```bash
-export VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
-npm run deploy:workers
-```
-
-The site loads gtag only after the visitor accepts analytics. Consent Mode defaults to denied. Leave the var empty and no GA script is injected.
+The site loads gtag only after the visitor accepts analytics. Consent Mode defaults to denied. Reject keeps analytics storage denied.
 
 ## Stripe (Mergestorm, Inc.)
 

@@ -7,9 +7,13 @@ declare global {
   }
 }
 
+/** Public GA4 web stream for xcopilot.dev. Override with VITE_GA_MEASUREMENT_ID. */
+export const DEFAULT_GA_MEASUREMENT_ID = "G-103S1LZBF3";
+
 export function gaMeasurementId(): string {
-  const id = import.meta.env.VITE_GA_MEASUREMENT_ID;
-  return typeof id === "string" ? id.trim() : "";
+  const override = import.meta.env?.VITE_GA_MEASUREMENT_ID;
+  if (typeof override === "string" && override.trim()) return override.trim();
+  return DEFAULT_GA_MEASUREMENT_ID;
 }
 
 export function gscVerification(): string {
@@ -72,7 +76,10 @@ export function bootAnalytics(consent: ConsentChoice | null): void {
     if (!document.getElementById("xc-ga4")) {
       injectGtagScript(id);
       window.gtag!("js", new Date());
-      window.gtag!("config", id, { anonymize_ip: true });
+      window.gtag!("config", id, {
+        anonymize_ip: true,
+        send_page_view: false,
+      });
     }
   }
   if (consent !== null) {
@@ -84,5 +91,17 @@ export function applyAnalyticsConsent(choice: ConsentChoice): void {
   if (typeof window === "undefined" || !window.gtag) return;
   window.gtag("consent", "update", {
     analytics_storage: choice === "accepted" ? "granted" : "denied",
+  });
+}
+
+/** Desk is an SPA — config does not send page views; we emit them on route change. */
+export function trackPageView(path: string): void {
+  if (typeof window === "undefined" || !window.gtag) return;
+  const id = gaMeasurementId();
+  if (!id) return;
+  window.gtag("event", "page_view", {
+    page_path: path,
+    page_location: `${window.location.origin}${path}`,
+    send_to: id,
   });
 }

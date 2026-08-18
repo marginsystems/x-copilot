@@ -62,7 +62,7 @@ import {
   writeConsent,
   type ConsentChoice,
 } from "./lib/consent";
-import { bootAnalytics } from "./lib/analytics";
+import { bootAnalytics, trackPageView } from "./lib/analytics";
 import { Onboarding } from "./Onboarding";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
@@ -1380,6 +1380,12 @@ export default function App() {
   useEffect(() => {
     bootAnalytics(consent);
   }, [consent]);
+
+  useEffect(() => {
+    if (consent === "accepted") {
+      trackPageView(pathFromView(view));
+    }
+  }, [consent, view]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
