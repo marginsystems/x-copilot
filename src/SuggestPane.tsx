@@ -68,10 +68,23 @@ export function SuggestPane({
   const [copied, setCopied] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const attemptRef = useRef(0);
 
   const hint = stage === "editing" ? localEditHint(draft, edited) : null;
 
+  function onClose() {
+    attemptRef.current++;
+    setStage("idle");
+    setDraft("");
+    setEdited("");
+    setNote(null);
+    setNoteKind("info");
+    setIntentUrl(null);
+    setCopied(false);
+  }
+
   async function onSuggest() {
+    const attempt = ++attemptRef.current;
     setStage("composing");
     setStartedAt(Date.now());
     setNote(null);
@@ -91,20 +104,21 @@ export function SuggestPane({
         limit?: number;
         planKey?: string;
       };
+      if (data.error === "suggest_daily_limit") {
+        const used = typeof data.used === "number" ? data.used : usage.used;
+        const limit =
+          typeof data.limit === "number" ? data.limit : usage.limit;
+        onUsage({
+          used,
+          limit,
+          remaining: Math.max(0, limit - used),
+          canSuggest: used < limit,
+          planKey:
+            typeof data.planKey === "string" ? data.planKey : usage.planKey,
+        });
+      }
+      if (attemptRef.current !== attempt) return;
       if (!res.ok || !data.ok || !data.draft) {
-        if (data.error === "suggest_daily_limit") {
-          const used = typeof data.used === "number" ? data.used : usage.used;
-          const limit =
-            typeof data.limit === "number" ? data.limit : usage.limit;
-          onUsage({
-            used,
-            limit,
-            remaining: Math.max(0, limit - used),
-            canSuggest: used < limit,
-            planKey:
-              typeof data.planKey === "string" ? data.planKey : usage.planKey,
-          });
-        }
         setStage("idle");
         setNoteKind("fail");
         setNote(
@@ -122,6 +136,7 @@ export function SuggestPane({
       setNote(null);
       window.setTimeout(() => textareaRef.current?.focus(), 50);
     } catch {
+      if (attemptRef.current !== attempt) return;
       setStage("idle");
       setNoteKind("fail");
       setNote("Couldn't reach the desk — try again.");
@@ -129,6 +144,7 @@ export function SuggestPane({
   }
 
   async function onVerify() {
+    const attempt = ++attemptRef.current;
     setStage("verifying");
     setStartedAt(Date.now());
     setNote(null);
@@ -145,6 +161,7 @@ export function SuggestPane({
         intentUrl?: string;
         message?: string;
       };
+      if (attemptRef.current !== attempt) return;
       if (!res.ok || !data.ok) {
         setStage("editing");
         setNoteKind("fail");
@@ -163,6 +180,7 @@ export function SuggestPane({
         window.setTimeout(() => textareaRef.current?.focus(), 50);
       }
     } catch {
+      if (attemptRef.current !== attempt) return;
       setStage("editing");
       setNoteKind("fail");
       setNote("Couldn't reach the desk — try again.");
@@ -211,7 +229,12 @@ export function SuggestPane({
   if (stage === "composing") {
     return (
       <div className="suggest-pane">
-        <PhaseLine phases={SUGGEST_PHASES} startedAt={startedAt} />
+        <div className="suggest-pane-head">
+          <PhaseLine phases={SUGGEST_PHASES} startedAt={startedAt} />
+          <button type="button" className="ghost suggest-close" onClick={onClose}>
+            Close
+          </button>
+        </div>
       </div>
     );
   }
@@ -220,10 +243,19 @@ export function SuggestPane({
 
   return (
     <div className="suggest-pane">
-      <p className="suggest-banner" role="note">
-        AI-generated — edit before posting. It won&apos;t unlock until you make
-        it yours.
-      </p>
+      <div className="suggest-pane-head">
+        <p className="suggest-banner" role="note">
+          AI-generated. Edit before posting. It won&apos;t unlock until you make
+          it yours.
+        </p>
+        <button
+          type="button"
+          className="ghost suggest-close"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
       <textarea
         ref={textareaRef}
         className="suggest-textarea"
