@@ -378,7 +378,7 @@ export function Analytics(props: { onBack: () => void }) {
           <p className="settings-help">
             Save your X handle, then post in public. The hourly search fills
             this from the last day — no second pull. Protected accounts can
-            still use Mark interacted.
+            still use I posted on X.
           </p>
         </div>
       ) : null}

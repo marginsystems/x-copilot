@@ -1,6 +1,7 @@
 /**
  * X OAuth 1.0a identity login using the app consumer key/secret.
- * Does not persist user access tokens; Scout still uses the app-only bearer.
+ * Persists user access tokens so the desk can POST /2/tweets as them.
+ * Scout still uses the app-only bearer for reads.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHmac } from "node:crypto";
@@ -9,6 +10,7 @@ import {
   findOauthAccount,
   getUserById,
   linkOauthToUser,
+  saveXWriteCreds,
   upsertOauthUser,
   type AuthUser,
   type SessionClientMeta,
@@ -228,7 +230,7 @@ export async function fetchXAccessToken(opts: {
   verifier: string;
   fetchImpl?: typeof fetch;
 }): Promise<
-  | { ok: true; profile: XOauthProfile }
+  | { ok: true; profile: XOauthProfile; token: string; secret: string }
   | { ok: false; error: string }
 > {
   const signed = buildSignedAuthHeader({
@@ -258,8 +260,15 @@ export async function fetchXAccessToken(opts: {
   const parsed = parseFormEncoded(text);
   const userId = parsed.user_id?.trim() ?? "";
   const username = (parsed.screen_name ?? "").trim().replace(/^@/, "");
+  const accessToken = parsed.oauth_token?.trim() ?? "";
+  const accessSecret = parsed.oauth_token_secret?.trim() ?? "";
   if (!userId || !username) return { ok: false, error: "access_token_invalid" };
-  return { ok: true, profile: { providerUserId: userId, username } };
+  return {
+    ok: true,
+    profile: { providerUserId: userId, username },
+    token: accessToken,
+    secret: accessSecret,
+  };
 }
 
 export function completeXLogin(opts: {
@@ -386,6 +395,12 @@ export async function handleXCallback(
   // callback would otherwise wait on the timeline pull,
   // and a proxy timeout would strand a logged-out user whose OAuth verifier
   // was already consumed. The ingest soft-fails on its own.
+  if (access.token && access.secret) {
+    saveXWriteCreds(login.user.id, access.profile.providerUserId, {
+      token: access.token,
+      secret: access.secret,
+    });
+  }
   void beginVoiceCorpus({ user: login.user, reason: "x_oauth" }).catch((err) =>
     console.warn("[corpus] fire-and-forget ingest after X login", err),
   );

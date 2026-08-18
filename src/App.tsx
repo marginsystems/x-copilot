@@ -471,7 +471,7 @@ function ThreadRow({
               disabled={busy || interacted}
               onClick={onMark}
             >
-              {interacted ? "Interacted" : "Mark interacted"}
+              {interacted ? "Interacted" : "I posted on X"}
             </button>
             <button
               className="ghost"
@@ -696,6 +696,7 @@ type AuthSessionUser = {
   agenda: string | null;
   xUsername: string | null;
   xLinked: boolean;
+  xCanPost: boolean;
   isAdmin: boolean;
 };
 
@@ -1268,6 +1269,7 @@ export default function App() {
           agenda?: string | null;
           xUsername?: string | null;
           xLinked?: boolean;
+          xCanPost?: boolean;
           isAdmin?: boolean;
         };
       };
@@ -1288,6 +1290,7 @@ export default function App() {
               ? data.user.xUsername.replace(/^@+/, "")
               : null,
           xLinked: Boolean(data.user.xLinked),
+          xCanPost: Boolean(data.user.xCanPost),
           isAdmin: Boolean(data.user.isAdmin),
         };
         setAuthUser(user);
@@ -1692,6 +1695,40 @@ export default function App() {
     setMarkDetectNote("");
   }
 
+  function applyInteractionLocally(
+    thread: ThreadCard,
+    historyEntry: InteractionHistoryEntry,
+  ): void {
+    const key = normalizeAuthorKey(thread.author);
+    const conversationRoot =
+      thread.conversationId?.trim() ||
+      thread.inReplyToId?.trim() ||
+      thread.id;
+    interactedIdsRef.current = new Set(interactedIdsRef.current).add(thread.id);
+    setInteractedIds((prev) => new Set(prev).add(thread.id));
+    blockedConversationsRef.current = new Set(
+      blockedConversationsRef.current,
+    ).add(conversationRoot);
+    setInteractedHistory((prev) => [
+      historyEntry,
+      ...prev.filter((i) => i.threadId !== thread.id),
+    ]);
+    setThreads((prev) =>
+      prev.filter((t) => {
+        if (normalizeAuthorKey(t.author) === key) return false;
+        if (t.id === conversationRoot) return false;
+        if (t.conversationId && t.conversationId === conversationRoot) {
+          return false;
+        }
+        if (t.inReplyToId && t.inReplyToId === conversationRoot) return false;
+        return true;
+      }),
+    );
+    setExpandedId((id) => (id === thread.id ? null : id));
+    void hydrateActivityStats();
+    void hydrateGamification();
+  }
+
   async function postInteracted(
     thread: ThreadCard,
     replyUrl: string,
@@ -1734,46 +1771,22 @@ export default function App() {
       if (!res.ok) {
         return false;
       }
-      const key = normalizeAuthorKey(thread.author);
-      const conversationRoot =
-        thread.conversationId?.trim() ||
-        thread.inReplyToId?.trim() ||
-        thread.id;
-      interactedIdsRef.current = new Set(interactedIdsRef.current).add(thread.id);
-      setInteractedIds((prev) => new Set(prev).add(thread.id));
-      blockedConversationsRef.current = new Set(blockedConversationsRef.current).add(conversationRoot);
-      const historyEntry: InteractionHistoryEntry = data.interaction ?? {
-        threadId: thread.id,
-        author: thread.author,
-        at: new Date().toISOString(),
-        url: thread.url,
-        summary: thread.summary,
-        text: thread.text,
-        replyId,
-        replyUrl: urlTrimmed,
-        postedAt: new Date().toISOString(),
-        conversationId: thread.conversationId?.trim(),
-        inReplyToId: thread.inReplyToId?.trim(),
-      };
-      setInteractedHistory((prev) => [
-        historyEntry,
-        ...prev.filter((i) => i.threadId !== thread.id),
-      ]);
-      // Drop this author and the whole conversation (OP + sibling replies).
-      setThreads((prev) =>
-        prev.filter((t) => {
-          if (normalizeAuthorKey(t.author) === key) return false;
-          if (t.id === conversationRoot) return false;
-          if (t.conversationId && t.conversationId === conversationRoot) {
-            return false;
-          }
-          if (t.inReplyToId && t.inReplyToId === conversationRoot) return false;
-          return true;
-        }),
+      applyInteractionLocally(
+        thread,
+        data.interaction ?? {
+          threadId: thread.id,
+          author: thread.author,
+          at: new Date().toISOString(),
+          url: thread.url,
+          summary: thread.summary,
+          text: thread.text,
+          replyId,
+          replyUrl: urlTrimmed,
+          postedAt: new Date().toISOString(),
+          conversationId: thread.conversationId?.trim(),
+          inReplyToId: thread.inReplyToId?.trim(),
+        },
       );
-      setExpandedId((id) => (id === thread.id ? null : id));
-      void hydrateActivityStats();
-      void hydrateGamification();
       return true;
     } catch {
       return false;
@@ -3165,7 +3178,7 @@ export default function App() {
               <div className="threads-activity-chart">
                 {activityStats.totals.interactions === 0 ? (
                   <p className="threads-activity-empty">
-                    Mark a reply to start a flight path.
+                    Post a reply to start a flight path.
                   </p>
                 ) : (
                   <ActivityChart
@@ -3305,7 +3318,31 @@ export default function App() {
                                   v ? { ...v, suggests: u } : v,
                                 )
                               }
+                              canPost={Boolean(authUser?.xCanPost)}
+                              url={t.url}
+                              summary={t.summary}
+                              conversationId={t.conversationId}
                               onOpenIntent={() => watchDeskThreads([t])}
+                              onPosted={(payload) => {
+                                const tweetUrl = payload.tweet?.url;
+                                applyInteractionLocally(
+                                  t,
+                                  payload.interaction ?? {
+                                    threadId: t.id,
+                                    author: t.author,
+                                    at: new Date().toISOString(),
+                                    url: t.url,
+                                    summary: t.summary,
+                                    text: t.text,
+                                    replyId: payload.tweet?.id,
+                                    replyUrl: tweetUrl,
+                                    postedAt: new Date().toISOString(),
+                                    conversationId: t.conversationId?.trim(),
+                                    inReplyToId: t.inReplyToId?.trim(),
+                                  },
+                                );
+                                setStatus(`Posted reply to ${t.author}`);
+                              }}
                             />
                           ) : (
                             <SuggestLocked
@@ -3324,7 +3361,7 @@ export default function App() {
               ) : threadsTab === "interacted" ? (
                 interactedHistory.length === 0 ? (
                   <p className="empty">
-                    No interacted threads yet. Mark a curated lead after you reply
+                    No interacted threads yet. Post from the desk, or tap I posted on X after you reply
                     on X.
                   </p>
                 ) : (
