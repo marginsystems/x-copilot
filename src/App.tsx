@@ -1383,7 +1383,7 @@ export default function App() {
 
   useEffect(() => {
     if (consent === "accepted") {
-      trackPageView(pathFromView(view));
+      trackPageView(window.location.pathname);
     }
   }, [consent, view]);
 

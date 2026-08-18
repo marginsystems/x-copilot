@@ -11,9 +11,10 @@ declare global {
 export const DEFAULT_GA_MEASUREMENT_ID = "G-103S1LZBF3";
 
 export function gaMeasurementId(): string {
-  const override = import.meta.env?.VITE_GA_MEASUREMENT_ID;
+  if (typeof import.meta.env === "undefined") return DEFAULT_GA_MEASUREMENT_ID;
+  const override = import.meta.env.VITE_GA_MEASUREMENT_ID;
   if (typeof override === "string" && override.trim()) return override.trim();
-  return DEFAULT_GA_MEASUREMENT_ID;
+  return import.meta.env.PROD ? DEFAULT_GA_MEASUREMENT_ID : "";
 }
 
 export function gscVerification(): string {
