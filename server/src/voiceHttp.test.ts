@@ -275,6 +275,26 @@ describe("POST /api/voice/stances", () => {
     assert.deepEqual(getSuggestUsage(user.id, planKey), before);
   });
 
+  it("does not burn the stance rate-limit window on a non-opinion post", async () => {
+    const { user } = seedReadyUser("stance-rate@example.com");
+    for (let i = 0; i < 20; i++) {
+      await postStances(user, {
+        author: "@dev",
+        text: "the tool is never the bottleneck",
+        threadKind: "sharp_opinion",
+      });
+    }
+
+    const { status, json } = await postStances(user, {
+      author: "@dev",
+      text: "sqlite 3.46 shipped today",
+      threadKind: "fact_add",
+    });
+
+    assert.equal(status, 200);
+    assert.equal(json.needed, false);
+  });
+
   it("counts an opinionated stance lookup toward the daily suggest cap", async () => {
     const { user, planKey } = seedReadyUser("stance-count@example.com");
     const before = getSuggestUsage(user.id, planKey).used;

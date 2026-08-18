@@ -195,13 +195,6 @@ async function handleStances(
   res: ServerResponse,
   user: AuthUser,
 ): Promise<void> {
-  if (!allowRate(`voice-stances:${user.id}`, 20, 60_000)) {
-    send(req, res, 429, {
-      error: "rate_limited",
-      message: "Too many stance lookups. Slow down a moment.",
-    });
-    return;
-  }
   const body = await readJsonBody(req);
   if (!body) {
     send(req, res, 400, { error: "invalid_json", message: "Invalid JSON body." });
@@ -257,6 +250,13 @@ async function handleStances(
       ? body.threadKind.trim().slice(0, 40)
       : undefined;
   if (postNeedsStance({ threadKind, flags })) {
+    if (!allowRate(`voice-stances:${user.id}`, 20, 60_000)) {
+      send(req, res, 429, {
+        error: "rate_limited",
+        message: "Too many stance lookups. Slow down a moment.",
+      });
+      return;
+    }
     const billing = ensureUserBillingRow(user.id, tenantId);
     const planKey = effectivePlanKey(billing, user.email);
     const usage = getSuggestUsage(user.id, planKey);

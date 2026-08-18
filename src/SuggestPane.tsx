@@ -18,6 +18,15 @@ type PaneStage =
   | "verifying"
   | "ready";
 
+/** Mirrors server postNeedsStance: only opinionated posts need the picker. */
+function postNeedsStance(threadKind?: string, flags?: string[]): boolean {
+  const kind = (threadKind ?? "").trim().toLowerCase();
+  if (kind === "sharp_opinion" || kind === "timely_take") return true;
+  return (flags ?? []).some(
+    (flag) => flag === "political" || flag === "rage_bait",
+  );
+}
+
 function PhaseLine({
   phases,
   startedAt,
@@ -99,10 +108,15 @@ export function SuggestPane({
   }
 
   async function onStart() {
+    if (suggestBusyRef.current) return;
     const session = sessionRef.current;
     setStage("composing");
     setStartedAt(Date.now());
     setNote(null);
+    if (!postNeedsStance(threadKind, flags)) {
+      await onSuggest();
+      return;
+    }
     let res: Response;
     let data: {
       ok?: boolean;
