@@ -1,7 +1,7 @@
 /**
  * Forced-edit gate: cheap local rejection of trivial rewrites before the
- * DeepSeek verify call, plus the x.com intent URL builder (we never
- * POST /2/tweets — the user posts on X themselves).
+ * DeepSeek verify call, plus the x.com intent URL builder for the fallback
+ * when the desk cannot post as them.
  */
 
 export type TrivialEditReason =

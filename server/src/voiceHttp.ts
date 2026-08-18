@@ -1,7 +1,6 @@
 /**
  * Assisted-reply routes: voice card, one suggested draft per thread, and the
- * forced-edit verify that gates the x.com intent URL. Human posts on X;
- * we never POST /2/tweets.
+ * forced-edit verify that gates a desk post (or the x.com intent fallback).
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { allowRate } from "./authGuard.js";
@@ -14,7 +13,16 @@ import {
 import { corsHeaders } from "./cors.js";
 import { getSessionUser } from "./sessionCookie.js";
 import type { AuthUser } from "./authStore.js";
-import { getXOauthUsername } from "./authStore.js";
+import { getXOauthUsername, getXWriteCreds } from "./authStore.js";
+import { recordMarkGamification, getGamification } from "./gamification.js";
+import {
+  markInteracted,
+  normalizeAuthorKey,
+  parseStatusIdFromUrl,
+} from "./interactionStore.js";
+import { xConsumerCreds } from "./xAuth.js";
+import { checkDeskPostLimit, recordDeskPost } from "./xPostLimits.js";
+import { postUserReply } from "./xTweet.js";
 import {
   MAX_REPLY_CHARS,
   buildIntentUrl,
@@ -519,6 +527,173 @@ async function handleVerify(
     checkedBy: "llm",
     reason: result.verdict.reason || "That reads like you. Ready to post.",
     intentUrl: buildIntentUrl(inReplyToId, edited.trim()),
+    canPost: Boolean(getXWriteCreds(user.id)),
+  });
+}
+
+async function handlePost(
+  req: IncomingMessage,
+  res: ServerResponse,
+  user: AuthUser,
+): Promise<void> {
+  if (!allowRate(`voice-post:${user.id}`, 20, 60_000)) {
+    send(req, res, 429, {
+      error: "rate_limited",
+      message: "Too many post attempts — slow down a moment.",
+    });
+    return;
+  }
+  const body = await readJsonBody(req);
+  if (!body) {
+    send(req, res, 400, { error: "invalid_json", message: "Invalid JSON body." });
+    return;
+  }
+  const draft = (typeof body.draft === "string" ? body.draft.trim() : "").slice(
+    0,
+    MAX_REPLY_CHARS,
+  );
+  const edited = typeof body.edited === "string" ? body.edited : "";
+  const inReplyToId =
+    typeof body.inReplyToId === "string" ? body.inReplyToId.trim() : "";
+  const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
+  const author = typeof body.author === "string" ? body.author.trim() : "";
+  if (!draft.trim() || !/^\d+$/.test(inReplyToId) || !threadId || !author) {
+    send(req, res, 400, {
+      error: "bad_request",
+      message: "Pass { draft, edited, inReplyToId, threadId, author }.",
+    });
+    return;
+  }
+  if (!normalizeAuthorKey(author)) {
+    send(req, res, 400, {
+      error: "bad_request",
+      message: "author must be a handle.",
+    });
+    return;
+  }
+  if (edited.trim().length > MAX_REPLY_CHARS) {
+    send(req, res, 400, {
+      error: "too_long",
+      message: `X replies cap at ${MAX_REPLY_CHARS} characters.`,
+    });
+    return;
+  }
+  const profile = getVoiceProfile(user.id);
+  if (
+    !profile ||
+    profile.status !== "ready" ||
+    !profile.cardJson ||
+    !voiceUnlocked(profile.replyCount)
+  ) {
+    send(req, res, 409, {
+      error: "voice_not_ready",
+      message: `Posting unlocks after ${VOICE_UNLOCK_MIN_POSTS} public posts and a learned voice card.`,
+    });
+    return;
+  }
+  const local = checkTrivialEdit(draft, edited);
+  if (local.trivial) {
+    send(req, res, 400, {
+      error: "edit_required",
+      message: trivialEditNote(local.reason),
+    });
+    return;
+  }
+
+  const write = getXWriteCreds(user.id);
+  const consumer = xConsumerCreds();
+  if (!write || !consumer) {
+    send(req, res, 403, {
+      error: "x_write_required",
+      message:
+        "Re-link X so the desk can post as you. The app must be Read and write in the Developer Portal.",
+    });
+    return;
+  }
+
+  const snap = await getGamification({ userId: user.id });
+  const limit = checkDeskPostLimit({
+    userId: user.id,
+    level: snap.level,
+    currentStreak: snap.currentStreak,
+  });
+  if (!limit.ok) {
+    send(req, res, 429, {
+      error: limit.error,
+      message: limit.message,
+      retryAfterSec: limit.retryAfterSec,
+      remainingToday: limit.remainingToday,
+      cap: limit.cap,
+    });
+    return;
+  }
+
+  const posted = await postUserReply({
+    consumerKey: consumer.key,
+    consumerSecret: consumer.secret,
+    accessToken: write.token,
+    accessTokenSecret: write.secret,
+    text: edited.trim(),
+    inReplyToId,
+  });
+  if (!posted.ok) {
+    send(req, res, posted.status >= 400 ? posted.status : 502, {
+      error: posted.error,
+      message: posted.message,
+    });
+    return;
+  }
+
+  const handle = getXOauthUsername(user.id) || "i";
+  const replyUrl = `https://x.com/${handle}/status/${posted.tweetId}`;
+  const replyId = parseStatusIdFromUrl(replyUrl) ?? posted.tweetId;
+  recordDeskPost({
+    userId: user.id,
+    tweetId: posted.tweetId,
+    inReplyToId,
+    threadId,
+  });
+
+  const conversationId =
+    typeof body.conversationId === "string" ? body.conversationId : undefined;
+  let interaction;
+  try {
+    interaction = await markInteracted({
+      threadId,
+      author,
+      source: "manual",
+      userId: user.id,
+      url: typeof body.url === "string" ? body.url : undefined,
+      text: typeof body.text === "string" ? body.text : undefined,
+      summary: typeof body.summary === "string" ? body.summary : undefined,
+      replyId,
+      replyUrl,
+      conversationId,
+      inReplyToId,
+    });
+  } catch (err) {
+    console.warn("mark after desk post soft-fail:", err);
+  }
+  let gamification;
+  if (interaction) {
+    try {
+      gamification = await recordMarkGamification({
+        threadId,
+        userId: user.id,
+        nowMs: Date.parse(interaction.at) || Date.now(),
+      });
+    } catch (err) {
+      console.warn("gamification mark after desk post soft-fail:", err);
+    }
+  }
+
+  send(req, res, 200, {
+    ok: true,
+    tweet: { id: posted.tweetId, url: replyUrl },
+    interaction,
+    remainingToday: Math.max(0, limit.remainingToday - 1),
+    cap: limit.cap,
+    ...(gamification ? { gamification } : {}),
   });
 }
 
@@ -579,6 +754,11 @@ export async function tryHandleVoice(
 
   if (req.method === "POST" && url.pathname === "/api/voice/verify") {
     await handleVerify(req, res, user);
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/voice/post") {
+    await handlePost(req, res, user);
     return true;
   }
 

@@ -131,6 +131,7 @@ export function toPublicUser(user: AuthUser) {
     agenda: user.agenda,
     xUsername,
     xLinked: Boolean(xUsername),
+    xCanPost: hasXWriteCreds(user.id),
   };
 }
 
@@ -683,6 +684,50 @@ export function completeOnboarding(
     .run(trimmed, at, handle, userId);
   if (result.changes === 0) return null;
   return getUserById(userId);
+}
+
+export type XWriteCreds = {
+  token: string;
+  secret: string;
+};
+
+export function getXWriteCreds(userId: string): XWriteCreds | null {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT access_token AS token, access_token_secret AS secret
+         FROM oauth_accounts
+        WHERE user_id = ? AND provider = 'x'
+          AND access_token IS NOT NULL AND access_token != ''
+          AND access_token_secret IS NOT NULL AND access_token_secret != ''
+        ORDER BY created_at DESC
+        LIMIT 1`,
+    )
+    .get(userId) as { token: string; secret: string } | undefined;
+  if (!row?.token?.trim() || !row.secret?.trim()) return null;
+  return { token: row.token, secret: row.secret };
+}
+
+export function hasXWriteCreds(userId: string): boolean {
+  return getXWriteCreds(userId) !== null;
+}
+
+export function saveXWriteCreds(
+  userId: string,
+  creds: XWriteCreds,
+): boolean {
+  const token = creds.token.trim();
+  const secret = creds.secret.trim();
+  if (!token || !secret) return false;
+  const result = getPlatformDb()
+    .prepare(
+      `UPDATE oauth_accounts
+          SET access_token = ?,
+              access_token_secret = ?,
+              write_granted_at = ?
+        WHERE user_id = ? AND provider = 'x'`,
+    )
+    .run(token, secret, new Date().toISOString(), userId);
+  return result.changes > 0;
 }
 
 /** True until official X OAuth is linked. A typed users.x_username does not count. */

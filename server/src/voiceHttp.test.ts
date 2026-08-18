@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
@@ -10,7 +10,8 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
-import { createSession, upsertOauthUser } from "./authStore.ts";
+import { createSession, saveXWriteCreds, upsertOauthUser } from "./authStore.ts";
+import { recordDeskPost } from "./xPostLimits.ts";
 import type { AuthUser } from "./authStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import {
@@ -401,5 +402,176 @@ describe("POST /api/voice/stances", () => {
     assert.equal(json.ok, true);
     assert.equal(json.needed, true);
     assert.equal(json.fallback, true);
+  });
+});
+
+describe("POST /api/voice/post", () => {
+  let dir: string;
+  let cwd: string;
+  const prevKey = process.env.X_API_KEY;
+  const prevSecret = process.env.X_API_SECRET;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    dir = mkdtempSync(join(tmpdir(), "voice-post-"));
+    cwd = process.cwd();
+    process.chdir(dir);
+    mkdirSync(join(dir, "data", "gamification"), { recursive: true });
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    process.env.X_API_KEY = "ck";
+    process.env.X_API_SECRET = "cs";
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    process.chdir(cwd);
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    if (prevKey === undefined) delete process.env.X_API_KEY;
+    else process.env.X_API_KEY = prevKey;
+    if (prevSecret === undefined) delete process.env.X_API_SECRET;
+    else process.env.X_API_SECRET = prevSecret;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function seedPoster(email: string, withWrite: boolean) {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: `xid-${email}`,
+      username: "alice",
+      email,
+      emailVerified: true,
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const at = new Date().toISOString();
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO voice_profiles
+           (user_id, tenant_id, status, reply_count, card_json, created_at, updated_at)
+         VALUES (?, ?, 'ready', 100, '{"tone":"dry"}', ?, ?)`,
+      )
+      .run(user.id, tenantId, at, at);
+    ensureUserBillingRow(user.id, tenantId);
+    if (withWrite) {
+      assert.equal(
+        saveXWriteCreds(user.id, { token: "at", secret: "as" }),
+        true,
+      );
+    }
+    return user;
+  }
+
+  async function postReply(
+    user: AuthUser,
+    body: Record<string, unknown>,
+  ): Promise<{ status: number; json: Record<string, unknown> }> {
+    const { token } = createSession(user.id);
+    const req = new EventEmitter() as unknown as IncomingMessage;
+    Object.assign(req, {
+      method: "POST",
+      headers: {
+        cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+      },
+      socket: { remoteAddress: "127.0.0.1" },
+    });
+    let status = 0;
+    let raw = "";
+    const res = {
+      writeHead: (code: number) => {
+        status = code;
+      },
+      end: (chunk: string) => {
+        raw = chunk;
+      },
+    } as unknown as ServerResponse;
+    const handledPromise = tryHandleVoice(
+      req,
+      res,
+      new URL("http://localhost/api/voice/post"),
+    );
+    (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
+    (req as EventEmitter).emit("end");
+    assert.equal(await handledPromise, true);
+    return { status, json: JSON.parse(raw || "{}") as Record<string, unknown> };
+  }
+
+  const draft = "The loop is the tax on shipping.";
+  const edited =
+    "The loop is the tax on shipping. I would still pick the tool if it cut the wait.";
+  const body = {
+    draft,
+    edited,
+    inReplyToId: "1234567890",
+    threadId: "1234567890",
+    author: "@dev",
+    url: "https://x.com/dev/status/1234567890",
+    text: "the tool is never the bottleneck",
+  };
+
+  it("posts as the user and auto-marks the thread", async () => {
+    const user = seedPoster("post-ok@example.com", true);
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async (input, init) => {
+      assert.match(String(input), /\/2\/tweets$/);
+      assert.equal(init?.method, "POST");
+      return new Response(JSON.stringify({ data: { id: "888" } }), {
+        status: 201,
+      });
+    }) as typeof fetch;
+    try {
+      const { status, json } = await postReply(user, body);
+      assert.equal(status, 200);
+      assert.equal(json.ok, true);
+      const tweet = json.tweet as { id?: string; url?: string };
+      assert.equal(tweet.id, "888");
+      assert.equal(tweet.url, "https://x.com/alice/status/888");
+      const interaction = json.interaction as { threadId?: string; replyId?: string };
+      assert.equal(interaction.threadId, "1234567890");
+      assert.equal(interaction.replyId, "888");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("refuses to post without write tokens", async () => {
+    const user = seedPoster("post-nowrite@example.com", false);
+    const { status, json } = await postReply(user, body);
+    assert.equal(status, 403);
+    assert.equal(json.error, "x_write_required");
+  });
+
+  it("rejects a trivial edit before calling X", async () => {
+    const user = seedPoster("post-trivial@example.com", true);
+    let calls = 0;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+    try {
+      const { status, json } = await postReply(user, {
+        ...body,
+        edited: draft,
+      });
+      assert.equal(status, 400);
+      assert.equal(json.error, "edit_required");
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("returns 429 during the desk-post cooldown", async () => {
+    const user = seedPoster("post-cool@example.com", true);
+    recordDeskPost({
+      userId: user.id,
+      tweetId: "1",
+      inReplyToId: "2",
+    });
+    const { status, json } = await postReply(user, body);
+    assert.equal(status, 429);
+    assert.equal(json.error, "cooldown");
   });
 });

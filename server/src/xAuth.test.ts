@@ -66,6 +66,8 @@ describe("xAuth", () => {
     if (!got.ok) return;
     assert.equal(got.profile.providerUserId, "42");
     assert.equal(got.profile.username, "alice");
+    assert.equal(got.token, "at");
+    assert.equal(got.secret, "as");
   });
 
   it("allows X-only login for any handle", () => {
