@@ -361,18 +361,21 @@ export function hasPaidBillingHistory(row: UserBillingRow): boolean {
   return Boolean(row.stripeCustomerId?.trim() || row.stripeSubscriptionId?.trim());
 }
 
+/** True when the live Stripe sub actually resolves to the effective plan. */
+export function liveSubTakesPrecedence(row: UserBillingRow): boolean {
+  const status = row.subscriptionStatus?.trim() || null;
+  return (
+    hasLiveStripeSubscription(row) &&
+    isPaidPlanKey(row.planKey) &&
+    (!status || LIVE_SUB_STATUSES.has(status))
+  );
+}
+
 export function effectivePlanKey(
   row: UserBillingRow,
   email: string | null | undefined,
 ): PlanKey {
-  const status = row.subscriptionStatus?.trim() || null;
-  if (
-    hasLiveStripeSubscription(row) &&
-    isPaidPlanKey(row.planKey) &&
-    (!status || LIVE_SUB_STATUSES.has(status))
-  ) {
-    return row.planKey;
-  }
+  if (liveSubTakesPrecedence(row)) return row.planKey;
   if (isAdminEmail(email)) return "horizon";
   if (row.grantPlanKey && isPaidPlanKey(row.grantPlanKey)) return row.grantPlanKey;
   return "free";
@@ -428,7 +431,7 @@ export function activeManualGrant(
   notice: string;
 } | null {
   if (!row.grantPlanKey) return null;
-  if (hasLiveStripeSubscription(row)) return null;
+  if (liveSubTakesPrecedence(row)) return null;
   if (isAdminEmail(email)) return null;
   return {
     plan_key: row.grantPlanKey,

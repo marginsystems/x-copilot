@@ -197,6 +197,36 @@ describe("POST /api/admin/grants", () => {
     assert.doesNotMatch(String(json.notice), /back on Free/);
   });
 
+  it("reports the grant as live when the target's Stripe sub is incomplete", async () => {
+    const target = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-incomplete-sub",
+      email: "incomplete@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(target.id);
+    activateSubscription({
+      userId: target.id,
+      planKey: "pulse",
+      stripeCustomerId: "cus_inc",
+      stripeSubscriptionId: "sub_inc",
+      subscriptionStatus: "incomplete",
+      currentPeriodEnd: new Date().toISOString(),
+      cancelAtPeriodEnd: false,
+      stripeEventCreated: 1,
+    });
+    const { status, json } = await postGrant("margin707@gmail.com", {
+      userId: target.id,
+      plan: "pulse",
+    });
+    assert.equal(status, 200);
+    assert.equal(json.plan_key, "pulse");
+    const grant = json.grant as { plan_key?: string; notice?: string };
+    assert.equal(grant.plan_key, "pulse");
+    assert.match(String(grant.notice), /manually upgraded to Pulse/);
+    assert.doesNotMatch(String(json.notice), /takes precedence/);
+  });
+
   it("reports a stored-but-inert grant for an admin-email target", async () => {
     process.env.ADMIN_EMAILS = "margin707@gmail.com,ops2@example.com";
     const target = upsertOauthUser({

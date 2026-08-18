@@ -291,6 +291,37 @@ describe("billingStore", () => {
     assert.equal(me.manual_grant, null);
   });
 
+  it("keeps the grant live when the Stripe sub is incomplete", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-grant-incomplete",
+      email: "incomplete-grant@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(user.id);
+    grantManualPlan({
+      userId: user.id,
+      planKey: "pulse",
+      grantedBy: "ops@example.com",
+    });
+    activateSubscription({
+      userId: user.id,
+      planKey: "pulse",
+      stripeCustomerId: "cus_gi",
+      stripeSubscriptionId: "sub_gi",
+      subscriptionStatus: "incomplete",
+      currentPeriodEnd: new Date().toISOString(),
+      cancelAtPeriodEnd: false,
+      stripeEventCreated: 1,
+    });
+    const me = billingMePayload({ userId: user.id, email: user.email });
+    assert.equal(me.plan_key, "pulse");
+    const grant = me.manual_grant as { plan_key?: string };
+    assert.equal(grant?.plan_key, "pulse");
+    const tenants = listAdminTenantUsage();
+    assert.equal(tenants.find((t) => t.userId === user.id)?.manualGrant, true);
+  });
+
   it("clears a grant back to Free", () => {
     const user = upsertOauthUser({
       provider: "google",

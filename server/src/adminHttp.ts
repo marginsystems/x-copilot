@@ -9,6 +9,7 @@ import {
   billingMePayload,
   grantManualPlan,
   listAdminTenantUsage,
+  liveSubTakesPrecedence,
 } from "./billingStore.js";
 import {
   findUserIdByXUsername,
@@ -215,7 +216,7 @@ export async function tryHandleAdmin(
     const me = billingMePayload({ userId: target.id, email: target.email });
     const grant = activeManualGrant(row, target.email);
     const planKey = String(me.plan_key);
-    const hasLiveSub = Boolean(me.has_stripe_subscription);
+    const hasLiveSub = liveSubTakesPrecedence(row);
     let notice = grant?.notice;
     if (notice === undefined) {
       if (planRaw === "free") {
