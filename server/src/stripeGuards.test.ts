@@ -19,6 +19,9 @@ function row(over: Partial<UserBillingRow> = {}): UserBillingRow {
     cancelAtPeriodEnd: false,
     stripeLastEventCreated: 0,
     updatedAt: new Date().toISOString(),
+    grantPlanKey: null,
+    grantCreatedAt: null,
+    grantCreatedBy: null,
     ...over,
   };
 }
