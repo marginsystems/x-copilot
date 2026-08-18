@@ -585,9 +585,13 @@ async function handlePost(
   // A retry after an ambiguous network failure re-sends the same client key.
   // If the first attempt actually posted (response was lost), replay that
   // result instead of posting a duplicate reply on X.
-  const requestKey =
+  const rawRequestKey =
     typeof body.requestKey === "string" ? body.requestKey.trim() : "";
-  if (requestKey.length > 0 && requestKey.length <= 80) {
+  // Keys must fit the x_desk_posts id column: out-of-range keys are ignored
+  // entirely (no replay lookup, no row id) so a retry can't PK-conflict.
+  const requestKey =
+    rawRequestKey.length > 0 && rawRequestKey.length <= 80 ? rawRequestKey : "";
+  if (requestKey.length > 0) {
     const prior = findDeskPostByKey(user.id, requestKey);
     if (prior) {
       const handle = getXOauthUsername(user.id) || "i";
