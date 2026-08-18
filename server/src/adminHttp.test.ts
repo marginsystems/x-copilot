@@ -62,6 +62,7 @@ describe("POST /api/admin/grants", () => {
       method: "POST",
       headers,
       socket: { remoteAddress: "127.0.0.1" },
+      destroy: () => {},
     });
     let status = 0;
     let raw = "";
@@ -110,6 +111,16 @@ describe("POST /api/admin/grants", () => {
     const grant = json.grant as { plan_key?: string; notice?: string };
     assert.equal(grant.plan_key, "pulse");
     assert.match(String(json.notice ?? grant.notice), /manually upgraded to Pulse/);
+  });
+
+  it("rejects an oversized grant body with 413", async () => {
+    const { status, json } = await postGrant("margin707@gmail.com", {
+      handle: "x".repeat(20_000),
+      plan: "pulse",
+    });
+    assert.equal(status, 413);
+    assert.equal(json.error, "bad_request");
+    assert.match(String(json.message), /16 KiB/);
   });
 
   it("rejects a non-admin", async () => {

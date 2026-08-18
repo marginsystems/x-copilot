@@ -316,6 +316,7 @@ describe("billingStore", () => {
     });
     const me = billingMePayload({ userId: user.id, email: user.email });
     assert.equal(me.plan_key, "pulse");
+    assert.equal(me.plan_state, "subscription_active");
     const grant = me.manual_grant as { plan_key?: string };
     assert.equal(grant?.plan_key, "pulse");
     const tenants = listAdminTenantUsage();

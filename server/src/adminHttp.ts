@@ -46,19 +46,27 @@ function requireOrigin(req: IncomingMessage, res: ServerResponse): boolean {
   return false;
 }
 
+class BodyError extends Error {
+  statusCode: number;
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 function readJsonBody(
   req: IncomingMessage,
 ): Promise<Record<string, unknown> | null> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
     req.on("data", (c: Buffer) => {
       size += c.length;
       if (size > 16_384) {
-        resolve(null);
-      } else {
-        chunks.push(c);
+        reject(new BodyError("Request body exceeds 16 KiB limit", 413));
+        return;
       }
+      chunks.push(c);
     });
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf8");
@@ -184,7 +192,21 @@ export async function tryHandleAdmin(
       });
       return true;
     }
-    const body = await readJsonBody(req);
+    let body: Record<string, unknown> | null;
+    try {
+      body = await readJsonBody(req);
+    } catch (err) {
+      const statusCode = err instanceof BodyError ? err.statusCode : 400;
+      sendJson(req, res, statusCode, {
+        error: "bad_request",
+        message: err instanceof Error ? err.message : "Invalid request body",
+      });
+      // Oversized body: the rest of the stream is still flowing. Destroy the
+      // request after responding so leftover bytes are not parsed as the start
+      // of a keep-alive connection's next request.
+      if (statusCode === 413) req.destroy();
+      return true;
+    }
     if (!body) {
       sendJson(req, res, 400, {
         error: "invalid_json",

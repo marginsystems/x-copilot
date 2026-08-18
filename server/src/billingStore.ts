@@ -593,7 +593,7 @@ export function billingMePayload(input: {
   const status = row.subscriptionStatus;
   const planState = derivePlanState({
     planKey,
-    live,
+    live: liveSubTakesPrecedence(row),
     status,
     creditsCanUse: usage.canUse,
   });
