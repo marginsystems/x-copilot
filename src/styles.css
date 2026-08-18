@@ -806,8 +806,8 @@ h3 {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  /* Room for the fixed top-right menu toggle */
-  padding-right: 48px;
+  /* Room for the fixed top-right avatar / Sign in */
+  padding-right: 96px;
 }
 
 .brand-lockup {
@@ -953,7 +953,7 @@ h3 {
   font-size: 0.82rem;
 }
 
-/* One top-right slot — hamburger and close share the same spot */
+/* One top-right slot — avatar (or Sign in) and close share the same spot */
 .menu-toggle {
   position: fixed;
   top: 4px;
@@ -990,6 +990,167 @@ h3 {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent);
   outline: none;
+}
+
+.menu-toggle.is-avatar {
+  border-radius: 50%;
+  overflow: hidden;
+  border-color: var(--border);
+  padding: 0;
+}
+
+.menu-toggle.is-avatar .menu-avatar,
+.menu-toggle.is-avatar .menu-avatar-fallback {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+}
+
+.menu-toggle.is-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.header-signin {
+  position: fixed;
+  top: 6px;
+  right: 8px;
+  z-index: 50;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.header-signin:hover,
+.header-signin:focus-visible {
+  filter: brightness(1.06);
+  outline: none;
+}
+
+.landing-signin {
+  width: 100%;
+  min-height: 44px;
+}
+
+.signin-root {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: end center;
+  padding: 0;
+}
+
+@media (min-width: 720px) {
+  .signin-root {
+    place-items: center;
+    padding: 24px;
+  }
+}
+
+.signin-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(22, 19, 16, 0.55);
+  cursor: pointer;
+}
+
+.signin-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 28px 22px 22px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.18);
+  text-align: center;
+}
+
+@media (min-width: 720px) {
+  .signin-sheet {
+    border-radius: var(--radius);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+  }
+}
+
+.signin-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.signin-close:hover,
+.signin-close:focus-visible {
+  color: var(--text);
+  border-color: var(--border-strong);
+  outline: none;
+}
+
+.signin-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.signin-wordmark {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: var(--muted);
+}
+
+.signin-sheet h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
+
+.signin-lede,
+.signin-fine {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  max-width: 32em;
+}
+
+.signin-sheet .auth-actions {
+  width: 100%;
 }
 
 .menu-root {

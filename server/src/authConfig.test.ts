@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { frontendOrigin, googleClientConfig } from "./authConfig.ts";
+import {
+  authSuccessRedirect,
+  frontendOrigin,
+  googleClientConfig,
+} from "./authConfig.ts";
 
 describe("authConfig", () => {
   it("picks FRONTEND_ORIGIN then first https allowed origin", () => {
@@ -15,6 +19,13 @@ describe("authConfig", () => {
       "https://xcopilot.dev",
     );
     assert.equal(frontendOrigin({}), "http://127.0.0.1:5173");
+  });
+
+  it("sends a successful login to the desk, not the landing page", () => {
+    assert.equal(
+      authSuccessRedirect({ FRONTEND_ORIGIN: "https://xcopilot.dev" }),
+      "https://xcopilot.dev/dashboard?auth=ok",
+    );
   });
 
   it("defaults the Google redirect URI to the API host (loopback, like X)", () => {

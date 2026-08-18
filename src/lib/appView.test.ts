@@ -21,6 +21,9 @@ describe("desk routes", () => {
     assert.equal(viewFromPath("/terms"), "terms");
     assert.equal(viewFromPath("/analytics"), "analytics");
     assert.equal(viewFromPath("/voice"), "voice");
-    assert.equal(viewFromPath("/"), "dashboard");
+    assert.equal(viewFromPath("/"), "home");
+    assert.equal(viewFromPath("/dashboard"), "dashboard");
+    assert.equal(pathFromView("home"), "/");
+    assert.equal(pathFromView("dashboard"), "/dashboard");
   });
 });
