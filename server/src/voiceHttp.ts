@@ -34,7 +34,6 @@ import {
   ensureVoiceProfile,
   getSuggestUsage,
   getVoiceProfile,
-  recordSuggest,
   removeSuggestRecord,
   reserveSuggestSlot,
   voiceUnlocked,
@@ -270,7 +269,6 @@ async function handleStances(
       });
       return;
     }
-    recordSuggest(user.id);
   }
   const proposed = await proposeStances({
     thread: {

@@ -295,7 +295,7 @@ describe("POST /api/voice/stances", () => {
     assert.equal(json.needed, false);
   });
 
-  it("counts an opinionated stance lookup toward the daily suggest cap", async () => {
+  it("does not spend a suggest slot on a stance lookup — the draft charges", async () => {
     const { user, planKey } = seedReadyUser("stance-count@example.com");
     const before = getSuggestUsage(user.id, planKey).used;
 
@@ -306,7 +306,7 @@ describe("POST /api/voice/stances", () => {
     });
 
     assert.equal(status, 200);
-    assert.equal(getSuggestUsage(user.id, planKey).used, before + 1);
+    assert.equal(getSuggestUsage(user.id, planKey).used, before);
   });
 
   it("rejects an opinionated stance lookup when today's suggest cap is spent", async () => {

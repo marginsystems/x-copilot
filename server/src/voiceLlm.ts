@@ -327,5 +327,8 @@ export async function proposeStances(opts: {
     return { needed: true, options: FALLBACK_STANCES };
   }
   const options = parseStanceOptions(result.content);
-  return { needed: options.length >= 2, options };
+  if (options.length >= 2) return { needed: true, options };
+  // The metadata gate said this post takes a side; when the model finds no
+  // side, fall back to generic sides instead of silently drafting un-picked.
+  return { needed: true, options: FALLBACK_STANCES };
 }

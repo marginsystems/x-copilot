@@ -253,7 +253,7 @@ describe("proposeStances", () => {
     assert.deepEqual(parseStanceOptions("nope"), []);
   });
 
-  it("honors the model's explicit no-side answer", async () => {
+  it("falls back to generic sides when the model finds no side on an opinion post", async () => {
     const result = await proposeStances({
       thread: {
         author: "@dev",
@@ -262,7 +262,8 @@ describe("proposeStances", () => {
       },
       chat: fakeChat('{"options":[]}'),
     });
-    assert.deepEqual(result, { needed: false, options: [] });
+    assert.equal(result.needed, true);
+    assert.deepEqual(result.options, FALLBACK_STANCES);
   });
 
   it("falls back to generic stances only when the LLM call fails", async () => {
