@@ -51,8 +51,9 @@ import { stripMediaShortlinksFromText } from "./lib/mediaText";
 import { apiFetch, apiUrl, isLocalHostname } from "./lib/apiBase";
 import { authErrorMessage } from "./lib/authErrors";
 import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
-import { UserMenu } from "./UserMenu";
+import { HeaderAvatar, UserMenu } from "./UserMenu";
 import { BootScreen, Landing } from "./Landing";
+import { SignInModal } from "./SignInModal";
 import { LegalPage } from "./Legal";
 import { CookieConsent } from "./CookieConsent";
 import { isLegalKind, SITE_ORIGIN } from "./lib/legal";
@@ -754,7 +755,7 @@ export default function App() {
   /** Monotonic token so out-of-order gamification responses don't regress the chip. */
   const gamificationRequestSeqRef = useRef(0);
   const [view, setView] = useState<AppView>(() =>
-    typeof window === "undefined" ? "dashboard" : viewFromPath(window.location.pathname),
+    typeof window === "undefined" ? "home" : viewFromPath(window.location.pathname),
   );
   const [consent, setConsent] = useState<ConsentChoice | null>(() =>
     typeof window === "undefined" ? null : readConsent(),
@@ -776,6 +777,7 @@ export default function App() {
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminError, setAdminError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [signInOpen, setSignInOpen] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
   const [authUser, setAuthUser] = useState<AuthSessionUser | null>(null);
   const [onboardingDoneLocal, setOnboardingDoneLocal] = useState(false);
@@ -1321,8 +1323,9 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const err = authErrorMessage(params.get("auth_error"));
-    if (err) setAuthNotice(err);
-    else if (params.get("auth") === "ok") setAuthNotice("Signed in.");
+    if (err) {
+      setAuthNotice(err);
+    } else if (params.get("auth") === "ok") setAuthNotice("Signed in.");
     const checkout = params.get("checkout");
     const sessionId = params.get("session_id");
     if (checkout === "success") {
@@ -1343,6 +1346,7 @@ export default function App() {
     }
     void (async () => {
       const user = await hydrateAuth();
+      if (err && !user) setSignInOpen(true);
       const onboarded = user
         ? user.onboardingCompleted
         : readOnboardingComplete();
@@ -2415,15 +2419,19 @@ export default function App() {
   }, [toast]);
 
   useEffect(() => {
-    if (!markThread && !dismissThread) return;
+    if (!markThread && !dismissThread && !signInOpen) return;
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape" || actionBusy) return;
       if (markThread) closeMarkModal();
       if (dismissThread) closeDismissModal();
+      if (signInOpen) {
+        setSignInOpen(false);
+        setAuthNotice("");
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [markThread, dismissThread, actionBusy]);
+  }, [markThread, dismissThread, signInOpen, actionBusy]);
 
   const needsLogin = authChecked && authRequired && !authUser && !localUi;
   const needsOnboarding =
@@ -2435,8 +2443,10 @@ export default function App() {
       : !readOnboardingComplete());
   const booting = !localUi && !authChecked;
   const legalView = isLegalKind(view);
+  const showLanding =
+    !legalView && !needsOnboarding && (view === "home" || needsLogin);
   const showGateChrome =
-    (needsLogin || needsOnboarding) && !legalView;
+    (showLanding || needsOnboarding) && !legalView;
 
   if (booting) {
     return (
@@ -2466,7 +2476,7 @@ export default function App() {
               }
               e.preventDefault();
               closeMenu();
-              goToView("dashboard");
+              goToView("home");
             }}
           >
             <img
@@ -2480,52 +2490,53 @@ export default function App() {
               <h1>x-copilot</h1>
             </div>
           </a>
-          <button
-            type="button"
-            className={
-              menuOpen && menuEntered ? "menu-toggle is-open" : "menu-toggle"
-            }
-            aria-label={menuOpen && menuEntered ? "Close menu" : "Open menu"}
-            aria-expanded={menuOpen && menuEntered}
-            onClick={() => {
-              if (menuOpen && menuEntered) closeMenu();
-              else openMenu();
-            }}
-          >
-            {menuOpen && menuEntered ? (
-              <svg
-                className="menu-toggle-icon"
-                viewBox="0 0 24 24"
-                width="20"
-                height="20"
-                aria-hidden="true"
-              >
-                <path
-                  d="M6 6l12 12M18 6L6 18"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="square"
+          {authUser ? (
+            <button
+              type="button"
+              className={
+                menuOpen && menuEntered
+                  ? "menu-toggle is-open"
+                  : "menu-toggle is-avatar"
+              }
+              aria-label={menuOpen && menuEntered ? "Close menu" : "Open menu"}
+              aria-expanded={menuOpen && menuEntered}
+              onClick={() => {
+                if (menuOpen && menuEntered) closeMenu();
+                else openMenu();
+              }}
+            >
+              {menuOpen && menuEntered ? (
+                <svg
+                  className="menu-toggle-icon"
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M6 6l12 12M18 6L6 18"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="square"
+                  />
+                </svg>
+              ) : (
+                <HeaderAvatar
+                  user={authUser}
+                  handle={authUser.xUsername}
                 />
-              </svg>
-            ) : (
-              <svg
-                className="menu-toggle-icon"
-                viewBox="0 0 24 24"
-                width="20"
-                height="20"
-                aria-hidden="true"
-              >
-                <path
-                  d="M5 7h14M5 12h14M5 17h14"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="square"
-                />
-              </svg>
-            )}
-          </button>
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="header-signin"
+              onClick={() => setSignInOpen(true)}
+            >
+              Sign in
+            </button>
+          )}
         </div>
       </header>
 
@@ -2551,7 +2562,14 @@ export default function App() {
               needsOnboarding={needsOnboarding}
               onTheme={() => setTheme((t) => nextTheme(t))}
               onLogout={() => void onLogout()}
-              onGoogle={startGoogleLogin}
+              onSignIn={() => {
+                closeMenu();
+                setSignInOpen(true);
+              }}
+              onDesk={() => {
+                closeMenu();
+                goToView("dashboard");
+              }}
               onX={startXLogin}
               onAnalytics={openAnalytics}
               onVoice={openVoice}
@@ -2572,15 +2590,16 @@ export default function App() {
         <main className="app-main app-main-scroll">
           <LegalPage
             kind={view}
-            onHome={() => goToView("dashboard")}
+            onHome={() => goToView("home")}
             onOther={() => goToView(view === "privacy" ? "terms" : "privacy")}
           />
         </main>
-      ) : needsLogin ? (
+      ) : showLanding ? (
         <Landing
           notice={authNotice}
-          onGoogle={startGoogleLogin}
-          onX={startXLogin}
+          signedIn={Boolean(authUser)}
+          onSignIn={() => setSignInOpen(true)}
+          onOpenDesk={() => goToView("dashboard")}
         />
       ) : null}
 
@@ -2594,7 +2613,7 @@ export default function App() {
         />
       ) : null}
 
-      {!legalView && !needsLogin && !needsOnboarding ? (
+      {!legalView && !showLanding && !needsOnboarding ? (
         <main
           className={
             view === "dashboard" ? "app-main" : "app-main app-main-scroll"
@@ -2644,7 +2663,7 @@ export default function App() {
           onSignedOut={() => {
             setAuthUser(null);
             setAuthNotice("Signed out.");
-            goToView("dashboard");
+            goToView("home");
           }}
         />
       ) : null}
@@ -3534,6 +3553,17 @@ export default function App() {
           </div>
         </div>
       ) : null}
+
+      <SignInModal
+        open={signInOpen}
+        notice={authNotice}
+        onClose={() => {
+          setSignInOpen(false);
+          setAuthNotice("");
+        }}
+        onGoogle={startGoogleLogin}
+        onX={startXLogin}
+      />
 
       <CookieConsent open={consentOpen} onChoose={chooseConsent} />
     </div>

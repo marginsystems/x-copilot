@@ -2,6 +2,7 @@ import type { LegalKind } from "./legal";
 
 /** Desk panes. Account is identity/sessions; Settings is Scout filters; Usage is billing. */
 export type AppView =
+  | "home"
   | "dashboard"
   | "voice"
   | "settings"
@@ -20,7 +21,10 @@ export function viewFromPath(pathname: string): AppView {
   if (pathname === "/voice") return "voice";
   if (pathname === "/account") return "account";
   if (pathname === "/settings") return "settings";
-  return "dashboard";
+  if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+    return "dashboard";
+  }
+  return "home";
 }
 
 export function pathFromView(view: AppView): string {
@@ -32,5 +36,6 @@ export function pathFromView(view: AppView): string {
   if (view === "voice") return "/voice";
   if (view === "account") return "/account";
   if (view === "settings") return "/settings";
+  if (view === "dashboard") return "/dashboard";
   return "/";
 }

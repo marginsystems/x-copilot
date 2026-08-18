@@ -1,5 +1,4 @@
-import { useRef, useState } from "react";
-import { AuthButtons } from "./AuthButtons";
+import { useState } from "react";
 import { LegalLinks } from "./Legal";
 
 export function BootScreen() {
@@ -87,11 +86,13 @@ const MOCK_CARDS: MockCard[] = [
 function MockThreadRow({
   card,
   open,
+  signedIn,
   onToggle,
   onCta,
 }: {
   card: MockCard;
   open: boolean;
+  signedIn: boolean;
   onToggle: () => void;
   onCta: () => void;
 }) {
@@ -145,7 +146,11 @@ function MockThreadRow({
             <button className="ghost" type="button" onClick={onCta}>
               Not interested
             </button>
-            <span className="landing-demo-hint">demo — sign in to use the desk</span>
+            <span className="landing-demo-hint">
+              {signedIn
+                ? "demo — open the desk to use this"
+                : "demo — sign in to use the desk"}
+            </span>
           </div>
         </div>
       ) : null}
@@ -155,15 +160,11 @@ function MockThreadRow({
 
 export function Landing(props: {
   notice?: string;
-  onGoogle: () => void;
-  onX: () => void;
+  signedIn?: boolean;
+  onSignIn: () => void;
+  onOpenDesk: () => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(MOCK_CARDS[0]!.id);
-  const ctaRef = useRef<HTMLDivElement | null>(null);
-
-  function scrollToCta() {
-    ctaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }
 
   return (
     <div className="landing">
@@ -182,8 +183,24 @@ export function Landing(props: {
             scored against your agenda and your style. You review. You post.
             Always as yourself.
           </p>
-          <div className="landing-cta" ref={ctaRef}>
-            <AuthButtons stacked onGoogle={props.onGoogle} onX={props.onX} />
+          <div className="landing-cta">
+            {props.signedIn ? (
+              <button
+                type="button"
+                className="primary landing-signin"
+                onClick={props.onOpenDesk}
+              >
+                Open the desk
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="primary landing-signin"
+                onClick={props.onSignIn}
+              >
+                Sign in
+              </button>
+            )}
             <p className="gate-free">
               Free plan — 1,500 credits every month. No credit card.
             </p>
@@ -225,10 +242,11 @@ export function Landing(props: {
                 key={card.id}
                 card={card}
                 open={openId === card.id}
+                signedIn={Boolean(props.signedIn)}
                 onToggle={() =>
                   setOpenId((id) => (id === card.id ? null : card.id))
                 }
-                onCta={scrollToCta}
+                onCta={props.signedIn ? props.onOpenDesk : props.onSignIn}
               />
             ))}
           </div>
@@ -239,8 +257,8 @@ export function Landing(props: {
           <ul className="landing-list">
             <li>
               <strong>Nothing is ever auto-sent.</strong> No auto-replies, no
-              auto-likes, no scheduled blasts. x-copilot has no button that
-              posts for you.
+              auto-likes, no scheduled blasts. You post from the desk or on X
+              — nothing fires without you.
             </li>
             <li>
               <strong>Suggested drafts require your edit.</strong> Voice
@@ -295,7 +313,23 @@ export function Landing(props: {
             </li>
           </ul>
           <div className="landing-cta">
-            <AuthButtons stacked onGoogle={props.onGoogle} onX={props.onX} />
+            {props.signedIn ? (
+              <button
+                type="button"
+                className="primary landing-signin"
+                onClick={props.onOpenDesk}
+              >
+                Open the desk
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="primary landing-signin"
+                onClick={props.onSignIn}
+              >
+                Sign in
+              </button>
+            )}
             <p className="gate-free">
               No credit card. Upgrade only if the desk earns it.
             </p>
