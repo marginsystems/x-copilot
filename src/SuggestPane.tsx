@@ -381,8 +381,8 @@ export function SuggestPane({
           inReplyToId?: string;
         };
       };
-      if (attemptRef.current !== attempt) return;
       if (!res.ok || !data.ok) {
+        if (attemptRef.current !== attempt) return;
         setStage("ready");
         setNoteKind("fail");
         setNote(data.message ?? "Could not post — try again or Open on X.");
@@ -397,7 +397,7 @@ export function SuggestPane({
             ? { id: tweetId, url: tweetUrl }
             : undefined,
       });
-      onClose();
+      if (attemptRef.current === attempt) onClose();
     } catch {
       if (attemptRef.current !== attempt) return;
       setStage("ready");
