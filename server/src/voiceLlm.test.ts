@@ -115,6 +115,16 @@ describe("suggestReply", () => {
     if (!result.ok) assert.equal(result.error, "draft_slop");
   });
 
+  it("rejects an em-dash if-then draft as slop", async () => {
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "speed vs process" },
+      chat: fakeChat("If you want speed \u2014 then cut process."),
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error, "draft_slop");
+  });
+
   it("rescues a trope draft on retry and returns the clean retry", async () => {
     let call = 0;
     const chat: ChatFn = async () => {

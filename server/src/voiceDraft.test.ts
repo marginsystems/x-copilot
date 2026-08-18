@@ -27,6 +27,13 @@ describe("draftHasAiTropes", () => {
     );
   });
 
+  it("flags if-then where an em-dash strip turned the comma into a period", () => {
+    assert.equal(
+      draftHasAiTropes(stripEmDashes("If you want speed \u2014 then cut process.")),
+      true,
+    );
+  });
+
   it("flags this-isn-t-X-it-s-Y", () => {
     assert.equal(
       draftHasAiTropes("This isn't a tooling problem. It's a loop problem."),
