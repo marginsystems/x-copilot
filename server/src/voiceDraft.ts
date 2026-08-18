@@ -25,15 +25,15 @@ export function stripEmDashes(text: string): string {
 export function draftHasAiTropes(text: string): boolean {
   const t = text.replace(/\s+/g, " ").trim();
   if (!t) return false;
-  if (/\bif\b.{0,90}[.,]\s+then\b/i.test(t)) return true;
+  if (/\bif\b[^.,;]{0,90}[.,]\s+then\b/i.test(t)) return true;
   if (
-    /\b(?:this|that|it)\s+(?:isn['’]t|is not)\b.{0,80}\b(?:it['’]s|it is)\b/i.test(
+    /\b(?:this|that|it)\s+(?:isn['’]t|is not)\b[^.,;]{0,80}[.,]\s*\b(?:it['’]s|it is)\b/i.test(
       t,
     )
   ) {
     return true;
   }
-  if (/\bit['’]s not\b.{0,80}\bit['’]s\b/i.test(t)) return true;
+  if (/\bit['’]s not\b[^.,;]{0,80}[.,]\s*\bit['’]s\b/i.test(t)) return true;
   return false;
 }
 

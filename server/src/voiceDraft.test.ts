@@ -51,6 +51,13 @@ describe("draftHasAiTropes", () => {
       false,
     );
     assert.equal(draftHasAiTropes("If it ships, tell me."), false);
+    assert.equal(draftHasAiTropes("This isn't the first time it's happened."), false);
+    assert.equal(draftHasAiTropes("It's not that it's easy."), false);
+    assert.equal(draftHasAiTropes("This isn't just about tooling; it's about timing."), false);
+    assert.equal(
+      draftHasAiTropes("If the build fails, someone will notice. Then we fix it."),
+      false,
+    );
   });
 });
 
