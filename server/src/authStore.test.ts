@@ -465,7 +465,7 @@ describe("authStore", () => {
     });
     assert.equal(toPublicUser(user).xCanPost, false);
     assert.equal(
-      saveXWriteCreds(user.id, { token: "at", secret: "as" }),
+      saveXWriteCreds(user.id, "xid-write", { token: "at", secret: "as" }),
       true,
     );
     assert.equal(toPublicUser(user).xCanPost, true);

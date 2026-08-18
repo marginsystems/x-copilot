@@ -713,6 +713,7 @@ export function hasXWriteCreds(userId: string): boolean {
 
 export function saveXWriteCreds(
   userId: string,
+  providerUserId: string,
   creds: XWriteCreds,
 ): boolean {
   const token = creds.token.trim();
@@ -724,9 +725,9 @@ export function saveXWriteCreds(
           SET access_token = ?,
               access_token_secret = ?,
               write_granted_at = ?
-        WHERE user_id = ? AND provider = 'x'`,
+        WHERE user_id = ? AND provider = 'x' AND provider_user_id = ?`,
     )
-    .run(token, secret, new Date().toISOString(), userId);
+    .run(token, secret, new Date().toISOString(), userId, providerUserId);
   return result.changes > 0;
 }
 
