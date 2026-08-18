@@ -125,6 +125,18 @@ describe("suggestReply", () => {
     if (!result.ok) assert.equal(result.error, "draft_slop");
   });
 
+  it("lets a contrast-cadence draft pass when the operator's card uses that cadence", async () => {
+    const card = JSON.parse(CARD_JSON) as { examples: string[] };
+    card.examples = ["It's not the tool, it's the loop."];
+    const result = await suggestReply({
+      cardJson: JSON.stringify(card),
+      thread: { author: "@dev", text: "tools vs process" },
+      chat: fakeChat("It's not the tool, it's the loop."),
+    });
+    assert.ok(result.ok);
+    if (result.ok) assert.equal(result.draft, "It's not the tool, it's the loop.");
+  });
+
   it("rejects an em-dash if-then draft as slop", async () => {
     const result = await suggestReply({
       cardJson: CARD_JSON,
@@ -224,7 +236,12 @@ describe("proposeStances", () => {
       },
       chat: fakeChat('{"options":["should never run"]}'),
     });
-    assert.deepEqual(result, { needed: false, options: [] });
+    assert.deepEqual(result, {
+      ok: true,
+      needed: false,
+      options: [],
+      fallback: false,
+    });
   });
 
   it("returns 2-3 sides for a sharp opinion", async () => {
@@ -240,8 +257,12 @@ describe("proposeStances", () => {
         capture,
       ),
     });
-    assert.equal(result.needed, true);
-    assert.equal(result.options.length, 3);
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.needed, true);
+      assert.equal(result.options.length, 3);
+      assert.equal(result.fallback, false);
+    }
     assert.equal(capture.purpose, "reply_stances");
   });
 
@@ -253,7 +274,7 @@ describe("proposeStances", () => {
     assert.deepEqual(parseStanceOptions("nope"), []);
   });
 
-  it("falls back to generic sides when the model finds no side on an opinion post", async () => {
+  it("falls back to generic sides marked as fallback when the model finds no side on an opinion post", async () => {
     const result = await proposeStances({
       thread: {
         author: "@dev",
@@ -262,11 +283,15 @@ describe("proposeStances", () => {
       },
       chat: fakeChat('{"options":[]}'),
     });
-    assert.equal(result.needed, true);
-    assert.deepEqual(result.options, FALLBACK_STANCES);
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.needed, true);
+      assert.equal(result.fallback, true);
+      assert.deepEqual(result.options, FALLBACK_STANCES);
+    }
   });
 
-  it("falls back to generic stances only when the LLM call fails", async () => {
+  it("propagates a failed stance LLM call instead of masking it as generic sides", async () => {
     const result = await proposeStances({
       thread: {
         author: "@dev",
@@ -280,8 +305,11 @@ describe("proposeStances", () => {
         message: "deepseek HTTP 500",
       }),
     });
-    assert.equal(result.needed, true);
-    assert.deepEqual(result.options, FALLBACK_STANCES);
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.error, "deepseek_http");
+      assert.equal(result.message, "deepseek HTTP 500");
+    }
   });
 });
 

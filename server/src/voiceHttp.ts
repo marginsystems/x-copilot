@@ -289,10 +289,15 @@ async function handleStances(
     },
     chat,
   });
+  if (!proposed.ok) {
+    send(req, res, 502, { error: proposed.error, message: proposed.message });
+    return;
+  }
   send(req, res, 200, {
     ok: true,
     needed: proposed.needed,
     options: proposed.options,
+    fallback: proposed.fallback,
   });
 }
 

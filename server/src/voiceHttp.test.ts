@@ -358,4 +358,48 @@ describe("POST /api/voice/stances", () => {
     assert.equal(status, 429);
     assert.equal(json.error, "suggest_daily_limit");
   });
+
+  it("surfaces a stance LLM failure as a 502 instead of masking it with generic sides", async () => {
+    const { user } = seedReadyUser("stance-502@example.com");
+    const { status, json } = await postStances(
+      user,
+      {
+        author: "@dev",
+        text: "the tool is never the bottleneck",
+        threadKind: "sharp_opinion",
+      },
+      async () => ({
+        ok: false as const,
+        status: 500,
+        error: "deepseek_http",
+        message: "deepseek HTTP 500",
+      }),
+    );
+
+    assert.equal(status, 502);
+    assert.equal(json.error, "deepseek_http");
+  });
+
+  it("marks generic sides as fallback when the model finds no side", async () => {
+    const { user } = seedReadyUser("stance-fallback@example.com");
+    const { status, json } = await postStances(
+      user,
+      {
+        author: "@dev",
+        text: "just reporting a fix",
+        threadKind: "sharp_opinion",
+      },
+      async () => ({
+        ok: true,
+        content: '{"options":[]}',
+        model: "deepseek-v4-flash",
+        provider: "deepseek" as const,
+      }),
+    );
+
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    assert.equal(json.needed, true);
+    assert.equal(json.fallback, true);
+  });
 });

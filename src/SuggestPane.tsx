@@ -87,6 +87,7 @@ export function SuggestPane({
   const [copied, setCopied] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const [stances, setStances] = useState<string[]>([]);
+  const [stancesFallback, setStancesFallback] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   /** Bumped on every close so an in-flight fetch can't reopen the pane. */
   const sessionRef = useRef(0);
@@ -107,6 +108,7 @@ export function SuggestPane({
     setIntentUrl(null);
     setCopied(false);
     setStances([]);
+    setStancesFallback(false);
   }
 
   async function onStart() {
@@ -124,6 +126,7 @@ export function SuggestPane({
       ok?: boolean;
       needed?: boolean;
       options?: string[];
+      fallback?: boolean;
       message?: string;
     };
     try {
@@ -157,6 +160,7 @@ export function SuggestPane({
       data.options.length >= 2
     ) {
       setStances(data.options.slice(0, 3));
+      setStancesFallback(Boolean(data.fallback));
       setStage("stance");
       return;
     }
@@ -334,7 +338,9 @@ export function SuggestPane({
       <div className="suggest-pane">
         <div className="suggest-pane-head">
           <p className="suggest-banner" role="note">
-            This post takes a side. Pick yours, then we draft in your voice.
+            {stancesFallback
+              ? "The voice model couldn't pin down sides on this post — here are some general angles."
+              : "This post takes a side. Pick yours, then we draft in your voice."}
           </p>
           <button type="button" className="ghost suggest-close" onClick={onClose}>
             Close

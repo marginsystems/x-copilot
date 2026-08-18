@@ -5,6 +5,7 @@ import {
   postNeedsStance,
   sanitizeSuggestedDraft,
   stripEmDashes,
+  textUsesContrastCadence,
 } from "./voiceDraft.ts";
 
 describe("stripEmDashes", () => {
@@ -64,6 +65,39 @@ describe("draftHasAiTropes", () => {
       ),
       false,
     );
+  });
+
+  it("lets the contrast cadence through when it is the operator's own voice", () => {
+    assert.equal(
+      draftHasAiTropes("It's not the model, it's the workflow.", undefined, {
+        allowContrastCadence: true,
+      }),
+      false,
+    );
+    assert.equal(
+      draftHasAiTropes("This isn't a tooling problem. It's a loop problem.", undefined, {
+        allowContrastCadence: true,
+      }),
+      false,
+    );
+    assert.equal(
+      draftHasAiTropes("If you want speed, then cut process.", undefined, {
+        allowContrastCadence: true,
+      }),
+      true,
+    );
+  });
+
+  it("detects the contrast cadence in a card exemplar", () => {
+    assert.equal(
+      textUsesContrastCadence("It's not the tool, it's the loop."),
+      true,
+    );
+    assert.equal(
+      textUsesContrastCadence("This isn't a tooling problem. It's a loop problem."),
+      true,
+    );
+    assert.equal(textUsesContrastCadence("Ship it and ask what broke."), false);
   });
 });
 

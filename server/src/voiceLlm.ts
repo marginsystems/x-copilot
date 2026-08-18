@@ -12,6 +12,7 @@ import {
   draftHasAiTropes,
   postNeedsStance,
   sanitizeSuggestedDraft,
+  textUsesContrastCadence,
 } from "./voiceDraft.js";
 import type { VoiceReplyRow } from "./voiceStore.js";
 
@@ -131,6 +132,17 @@ Rules:
 
 const SLOP_RETRY = `Rewrite that reply. Stay in the voice card. No em dashes. No "if X, then Y". No "this isn't X, it's Y" / "it's not X, it's Y".`;
 
+function cardAllowsContrastCadence(cardJson: string): boolean {
+  try {
+    const card = JSON.parse(cardJson) as VoiceCard;
+    return (card.examples ?? []).some((example) =>
+      textUsesContrastCadence(example),
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Strip wrapping quotes/fences the model sometimes adds around a draft. */
 export function cleanDraft(raw: string): string {
   let text = raw.trim();
@@ -157,6 +169,7 @@ export async function suggestReply(opts: {
   | { ok: false; error: string; message: string }
 > {
   const chat = opts.chat ?? chatCompletions;
+  const allowContrastCadence = cardAllowsContrastCadence(opts.cardJson);
   const parts = [
     `Voice card JSON:\n${opts.cardJson}`,
     opts.agenda?.trim() ? `The user's current agenda: ${opts.agenda.trim()}` : "",
@@ -182,7 +195,7 @@ export async function suggestReply(opts: {
   }
   let rawDraft = cleanDraft(first.content);
   let draft = sanitizeSuggestedDraft(rawDraft);
-  if (draft && draftHasAiTropes(draft, rawDraft)) {
+  if (draft && draftHasAiTropes(draft, rawDraft, { allowContrastCadence })) {
     const retry = await chat({
       messages: [
         { role: "system", content: SUGGEST_SYSTEM },
@@ -208,7 +221,7 @@ export async function suggestReply(opts: {
       message: "The draft came back empty. Try again.",
     };
   }
-  if (draftHasAiTropes(draft, rawDraft)) {
+  if (draftHasAiTropes(draft, rawDraft, { allowContrastCadence })) {
     return {
       ok: false,
       error: "draft_slop",
@@ -290,6 +303,11 @@ export function parseStanceOptions(raw: string): string[] {
   return out;
 }
 
+export type StanceProposal =
+  | { ok: true; needed: false; options: string[]; fallback: false }
+  | { ok: true; needed: true; options: string[]; fallback: boolean }
+  | { ok: false; error: string; message: string };
+
 export async function proposeStances(opts: {
   thread: {
     author: string;
@@ -300,14 +318,14 @@ export async function proposeStances(opts: {
     opText?: string;
   };
   chat?: ChatFn;
-}): Promise<{ needed: boolean; options: string[] }> {
+}): Promise<StanceProposal> {
   if (
     !postNeedsStance({
       threadKind: opts.thread.threadKind,
       flags: opts.thread.flags,
     })
   ) {
-    return { needed: false, options: [] };
+    return { ok: true, needed: false, options: [], fallback: false };
   }
   const chat = opts.chat ?? chatCompletions;
   const parts = [
@@ -326,11 +344,14 @@ export async function proposeStances(opts: {
     purpose: "reply_stances",
   });
   if (!result.ok) {
-    return { needed: true, options: FALLBACK_STANCES };
+    console.error(
+      `[llm] purpose=reply_stances failed error=${result.error} message=${result.message}`,
+    );
+    return { ok: false, error: result.error, message: result.message };
   }
   const options = parseStanceOptions(result.content);
-  if (options.length >= 2) return { needed: true, options };
+  if (options.length >= 2) return { ok: true, needed: true, options, fallback: false };
   // The metadata gate said this post takes a side; when the model finds no
   // side, fall back to generic sides instead of silently drafting un-picked.
-  return { needed: true, options: FALLBACK_STANCES };
+  return { ok: true, needed: true, options: FALLBACK_STANCES, fallback: true };
 }
