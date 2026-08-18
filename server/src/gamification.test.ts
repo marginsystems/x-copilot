@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { writeFile, mkdir } from "node:fs/promises";
 import {
   applyMarkToGamification,
   applyT24hBonus,
@@ -10,10 +11,15 @@ import {
   emptyGamificationState,
   getGamification,
   levelFromXp,
+  markXpForStreak,
+  pickNextGoal,
   prevUtcDayKey,
   recordMarkGamification,
   recordT24hBonusGamification,
+  resolveGamificationPath,
   seedGamificationFromHistory,
+  toLeaderboardRow,
+  unlockedAchievementIds,
   utcDayKey,
   xpProgress,
   type GamificationState,
@@ -39,6 +45,18 @@ describe("levelFromXp / xpProgress", () => {
     assert.deepEqual(xpProgress(0), { level: 1, xpIntoLevel: 0, xpToNext: 1 });
     assert.deepEqual(xpProgress(1), { level: 2, xpIntoLevel: 0, xpToNext: 3 });
     assert.deepEqual(xpProgress(5), { level: 3, xpIntoLevel: 1, xpToNext: 5 });
+  });
+});
+
+describe("markXpForStreak", () => {
+  it("steps 1 / 2 / 3 / 4 / 5 at 1, 3, 7, 14, 30", () => {
+    assert.equal(markXpForStreak(1), 1);
+    assert.equal(markXpForStreak(2), 1);
+    assert.equal(markXpForStreak(3), 2);
+    assert.equal(markXpForStreak(6), 2);
+    assert.equal(markXpForStreak(7), 3);
+    assert.equal(markXpForStreak(14), 4);
+    assert.equal(markXpForStreak(30), 5);
   });
 });
 
@@ -111,6 +129,19 @@ describe("applyMarkToGamification", () => {
     const replay = applyMarkToGamification(state, d1, "t1");
     assert.equal(replay.awarded.markXp, 0);
     assert.equal(replay.state.lifetimeXp, 2);
+  });
+
+  it("awards 2 XP once the UTC streak hits 3", () => {
+    let state = emptyGamificationState(Date.parse("2026-08-04T12:00:00.000Z"));
+    state = applyMarkToGamification(state, Date.parse("2026-08-04T12:00:00.000Z")).state;
+    state = applyMarkToGamification(state, Date.parse("2026-08-05T12:00:00.000Z")).state;
+    const third = applyMarkToGamification(
+      state,
+      Date.parse("2026-08-06T12:00:00.000Z"),
+    );
+    assert.equal(third.awarded.markXp, 2);
+    assert.equal(third.awarded.currentStreak, 3);
+    assert.equal(third.state.lifetimeXp, 4);
   });
 
   it("credits XP only for a backdated mark without regressing the cursor", () => {
@@ -204,6 +235,55 @@ describe("seedGamificationFromHistory", () => {
   });
 });
 
+describe("pickNextGoal / achievements", () => {
+  it("keeps streak badges after the streak breaks", () => {
+    let state = emptyGamificationState(Date.parse("2026-08-01T12:00:00.000Z"));
+    for (let i = 0; i < 7; i++) {
+      state = applyMarkToGamification(
+        state,
+        Date.parse(`2026-08-0${i + 1}T12:00:00.000Z`),
+        `t${i}`,
+      ).state;
+    }
+    assert.ok(unlockedAchievementIds(state).includes("streak_7"));
+    state = applyMarkToGamification(
+      state,
+      Date.parse("2026-08-10T12:00:00.000Z"),
+      "later",
+    ).state;
+    assert.equal(state.currentStreak, 1);
+    assert.ok(unlockedAchievementIds(state).includes("streak_7"));
+  });
+
+  it("points at the next streak badge while a run is live", () => {
+    let state = emptyGamificationState(Date.parse("2026-08-05T12:00:00.000Z"));
+    state = applyMarkToGamification(
+      state,
+      Date.parse("2026-08-05T12:00:00.000Z"),
+      "a",
+    ).state;
+    const goal = pickNextGoal(state);
+    assert.equal(goal.id, "streak_3");
+    assert.equal(goal.remaining, 2);
+  });
+});
+
+describe("toLeaderboardRow", () => {
+  it("exports a stable row for a later board", () => {
+    const now = Date.parse("2026-08-06T12:00:00.000Z");
+    const state = applyMarkToGamification(emptyGamificationState(now), now, "t1")
+      .state;
+    assert.deepEqual(toLeaderboardRow("user-1", state), {
+      userId: "user-1",
+      lifetimeXp: 1,
+      level: 2,
+      currentStreak: 1,
+      longestStreak: 1,
+      lifetimeMarks: 1,
+    });
+  });
+});
+
 describe("recordMarkGamification / getGamification", () => {
   let dir: string;
   let gamificationPath: string;
@@ -243,6 +323,45 @@ describe("recordMarkGamification / getGamification", () => {
     });
     assert.equal(snap.lifetimeXp, 1);
     assert.equal(snap.level, 2);
+    assert.equal(snap.lifetimeMarks, 1);
+    assert.equal(snap.markXpAtStreak, 1);
+    assert.ok(snap.nextGoal);
+    assert.ok(afterMark.progress);
+    assert.equal(afterMark.progress?.markXp, 1);
+    assert.deepEqual(afterMark.progress?.unlockedAchievementIds, ["first_mark"]);
+  });
+
+  it("adopts the legacy ledger once onto the first user file", async () => {
+    const now = Date.parse("2026-08-06T12:00:00.000Z");
+    const cwd = process.cwd();
+    process.chdir(dir);
+    try {
+      await mkdir(join(dir, "data"), { recursive: true });
+      await writeFile(
+        join(dir, "data", "gamification.json"),
+        JSON.stringify({
+          currentStreak: 6,
+          longestStreak: 6,
+          lastMarkUtcDay: "2026-08-06",
+          lifetimeXp: 108,
+          bonusAwardedThreadIds: [],
+          markAwardedThreadIds: ["legacy:1"],
+          updatedAt: "2026-08-06T12:00:00.000Z",
+        }) + "\n",
+        "utf8",
+      );
+      const adopted = await resolveGamificationPath({ userId: "op-1" });
+      assert.equal(adopted, join(dir, "data", "gamification", "op-1.json"));
+      const snap = await getGamification({ userId: "op-1" });
+      assert.equal(snap.lifetimeXp, 108);
+      assert.equal(snap.currentStreak, 6);
+      const other = await resolveGamificationPath({ userId: "user-2" });
+      assert.equal(other, join(dir, "data", "gamification", "user-2.json"));
+      const otherSnap = await getGamification({ userId: "user-2" });
+      assert.equal(otherSnap.lifetimeXp, 0);
+    } finally {
+      process.chdir(cwd);
+    }
   });
 
   it("records idempotent t24h bonus", async () => {

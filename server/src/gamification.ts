@@ -2,7 +2,7 @@
  * Durable streak + XP ledger for marked replies.
  * Counters live in data/gamification.json so interaction retain caps cannot erase progress.
  */
-import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
   listInteractionHistory,
@@ -14,6 +14,148 @@ import {
 
 export const MARK_XP = 1;
 export const MAX_T24H_BONUS_XP = 5;
+
+/** Integer XP for one successful mark at this UTC streak. */
+export const STREAK_XP_TIERS = [
+  { min: 1, xp: 1 },
+  { min: 3, xp: 2 },
+  { min: 7, xp: 3 },
+  { min: 14, xp: 4 },
+  { min: 30, xp: 5 },
+] as const;
+
+export type AchievementKind = "streak" | "level" | "marks";
+
+export type AchievementDef = {
+  id: string;
+  title: string;
+  detail: string;
+  kind: AchievementKind;
+  threshold: number;
+};
+
+export const ACHIEVEMENTS: readonly AchievementDef[] = [
+  {
+    id: "first_mark",
+    title: "First reply",
+    detail: "Mark your first interacted thread",
+    kind: "marks",
+    threshold: 1,
+  },
+  {
+    id: "marks_10",
+    title: "Warming up",
+    detail: "10 marked replies",
+    kind: "marks",
+    threshold: 10,
+  },
+  {
+    id: "marks_50",
+    title: "Regular",
+    detail: "50 marked replies",
+    kind: "marks",
+    threshold: 50,
+  },
+  {
+    id: "marks_100",
+    title: "Century",
+    detail: "100 marked replies",
+    kind: "marks",
+    threshold: 100,
+  },
+  {
+    id: "marks_250",
+    title: "Deep bench",
+    detail: "250 marked replies",
+    kind: "marks",
+    threshold: 250,
+  },
+  {
+    id: "streak_3",
+    title: "On a run",
+    detail: "3 UTC days in a row",
+    kind: "streak",
+    threshold: 3,
+  },
+  {
+    id: "streak_7",
+    title: "Week locked",
+    detail: "7 UTC days in a row",
+    kind: "streak",
+    threshold: 7,
+  },
+  {
+    id: "streak_14",
+    title: "Fortnight",
+    detail: "14 UTC days in a row",
+    kind: "streak",
+    threshold: 14,
+  },
+  {
+    id: "streak_30",
+    title: "Month locked",
+    detail: "30 UTC days in a row",
+    kind: "streak",
+    threshold: 30,
+  },
+  {
+    id: "level_5",
+    title: "Scout",
+    detail: "Reach level 5",
+    kind: "level",
+    threshold: 5,
+  },
+  {
+    id: "level_10",
+    title: "Operator",
+    detail: "Reach level 10",
+    kind: "level",
+    threshold: 10,
+  },
+  {
+    id: "level_15",
+    title: "Veteran",
+    detail: "Reach level 15",
+    kind: "level",
+    threshold: 15,
+  },
+  {
+    id: "level_25",
+    title: "Ace",
+    detail: "Reach level 25",
+    kind: "level",
+    threshold: 25,
+  },
+];
+
+export type AchievementPublic = AchievementDef & {
+  unlocked: boolean;
+};
+
+export type NextGoal = {
+  id: string;
+  kind: AchievementKind;
+  title: string;
+  detail: string;
+  remaining: number;
+};
+
+export type MarkProgress = {
+  markXp: number;
+  streakMultiplier: number;
+  leveledUp: boolean;
+  previousLevel: number;
+  unlockedAchievementIds: string[];
+};
+
+export type LeaderboardRow = {
+  userId: string;
+  lifetimeXp: number;
+  level: number;
+  currentStreak: number;
+  longestStreak: number;
+  lifetimeMarks: number;
+};
 
 export type GamificationState = {
   currentStreak: number;
@@ -33,15 +175,132 @@ export type GamificationPublic = {
   xpIntoLevel: number;
   xpToNext: number;
   lastMarkUtcDay: string | null;
+  lifetimeMarks: number;
+  streakMultiplier: number;
+  markXpAtStreak: number;
+  nextGoal: NextGoal;
+  achievements: AchievementPublic[];
+  progress?: MarkProgress;
 };
 
 export type MarkAward = {
   markXp: number;
   currentStreak: number;
+  streakMultiplier: number;
 };
 
 export function defaultGamificationPath(): string {
   return resolve(process.cwd(), "data", "gamification.json");
+}
+
+/** Per-user ledger. Legacy `data/gamification.json` is adopted once. */
+export function gamificationPathForUser(userId: string): string {
+  return resolve(process.cwd(), "data", "gamification", `${userId.trim()}.json`);
+}
+
+export function legacyAdoptMarkerPath(): string {
+  return resolve(process.cwd(), "data", "gamification", ".legacy-adopted");
+}
+
+export function markXpForStreak(streak: number): number {
+  const n = Math.max(0, Math.floor(streak));
+  let xp = MARK_XP;
+  for (const tier of STREAK_XP_TIERS) {
+    if (n >= tier.min) xp = tier.xp;
+  }
+  return xp;
+}
+
+export function lifetimeMarksOf(state: GamificationState): number {
+  return state.markAwardedThreadIds.length;
+}
+
+export function achievementValue(
+  def: AchievementDef,
+  state: GamificationState,
+): number {
+  if (def.kind === "streak") {
+    return Math.max(state.currentStreak, state.longestStreak);
+  }
+  if (def.kind === "level") return levelFromXp(state.lifetimeXp);
+  return lifetimeMarksOf(state);
+}
+
+export function achievementUnlocked(
+  def: AchievementDef,
+  state: GamificationState,
+): boolean {
+  return achievementValue(def, state) >= def.threshold;
+}
+
+export function listAchievements(state: GamificationState): AchievementPublic[] {
+  return ACHIEVEMENTS.map((def) => ({
+    ...def,
+    unlocked: achievementUnlocked(def, state),
+  }));
+}
+
+export function unlockedAchievementIds(state: GamificationState): string[] {
+  return ACHIEVEMENTS.filter((def) => achievementUnlocked(def, state)).map(
+    (def) => def.id,
+  );
+}
+
+export function pickNextGoal(state: GamificationState): NextGoal {
+  const progress = xpProgress(state.lifetimeXp);
+  const xpRemaining = Math.max(0, progress.xpToNext - progress.xpIntoLevel);
+  const nextMarkXp = markXpForStreak(Math.max(1, state.currentStreak));
+  const levelGoal: NextGoal = {
+    id: `level_${progress.level + 1}`,
+    kind: "level",
+    title: `Level ${progress.level + 1}`,
+    detail: `${xpRemaining} XP to go`,
+    remaining: xpRemaining,
+  };
+  if (xpRemaining > 0 && xpRemaining <= nextMarkXp) return levelGoal;
+
+  const nextStreak = ACHIEVEMENTS.find(
+    (def) => def.kind === "streak" && !achievementUnlocked(def, state),
+  );
+  if (nextStreak && state.currentStreak > 0) {
+    return {
+      id: nextStreak.id,
+      kind: "streak",
+      title: nextStreak.title,
+      detail: `${nextStreak.threshold - state.currentStreak} more UTC day(s)`,
+      remaining: Math.max(0, nextStreak.threshold - state.currentStreak),
+    };
+  }
+
+  const nextMarks = ACHIEVEMENTS.find(
+    (def) => def.kind === "marks" && !achievementUnlocked(def, state),
+  );
+  if (nextMarks) {
+    const have = lifetimeMarksOf(state);
+    return {
+      id: nextMarks.id,
+      kind: "marks",
+      title: nextMarks.title,
+      detail: `${nextMarks.threshold - have} more mark(s)`,
+      remaining: Math.max(0, nextMarks.threshold - have),
+    };
+  }
+
+  return levelGoal;
+}
+
+export function toLeaderboardRow(
+  userId: string,
+  state: GamificationState,
+): LeaderboardRow {
+  return {
+    userId,
+    lifetimeXp: state.lifetimeXp,
+    level: levelFromXp(state.lifetimeXp),
+    currentStreak: state.currentStreak,
+    longestStreak: state.longestStreak,
+    lifetimeMarks: lifetimeMarksOf(state),
+  };
 }
 
 export function emptyGamificationState(
@@ -100,9 +359,11 @@ export function xpProgress(lifetimeXp: number): {
 
 export function toPublicGamification(
   state: GamificationState,
+  opts?: { progress?: MarkProgress },
 ): GamificationPublic {
   const progress = xpProgress(state.lifetimeXp);
-  return {
+  const streakMultiplier = markXpForStreak(Math.max(1, state.currentStreak));
+  const pub: GamificationPublic = {
     currentStreak: state.currentStreak,
     longestStreak: state.longestStreak,
     lifetimeXp: state.lifetimeXp,
@@ -110,7 +371,14 @@ export function toPublicGamification(
     xpIntoLevel: progress.xpIntoLevel,
     xpToNext: progress.xpToNext,
     lastMarkUtcDay: state.lastMarkUtcDay,
+    lifetimeMarks: lifetimeMarksOf(state),
+    streakMultiplier,
+    markXpAtStreak: streakMultiplier,
+    nextGoal: pickNextGoal(state),
+    achievements: listAchievements(state),
   };
+  if (opts?.progress) pub.progress = opts.progress;
+  return pub;
 }
 
 export function bonusXpFromT24h(
@@ -134,8 +402,8 @@ export function bonusXpFromT24h(
 
 /**
  * Apply a successful Mark interacted to the ledger.
- * Same UTC day: streak unchanged, still +1 XP.
- * Yesterday UTC: streak += 1.
+ * Same UTC day: streak unchanged, still awards XP at the current multiplier.
+ * Yesterday UTC: streak += 1, then award at the new multiplier.
  * Older / null: streak = 1.
  */
 export function applyMarkToGamification(
@@ -147,12 +415,16 @@ export function applyMarkToGamification(
   // Retry idempotency key is the mark instance (threadId + exact at): a retry
   // replays the same at, while a re-mark of the same thread has a new at and is
   // still a new mark (+1 XP, advances streak).
-  const markKey = id ? `${id}:${new Date(nowMs).toISOString()}` : "";
+  const markKey = `${id || "anon"}:${new Date(nowMs).toISOString()}`;
   if (id && state.markAwardedThreadIds.includes(markKey)) {
     // Idempotent: this mark instance's XP/streak was already credited.
     return {
       state,
-      awarded: { markXp: 0, currentStreak: state.currentStreak },
+      awarded: {
+        markXp: 0,
+        currentStreak: state.currentStreak,
+        streakMultiplier: markXpForStreak(Math.max(1, state.currentStreak)),
+      },
     };
   }
   const day = utcDayKey(nowMs);
@@ -162,16 +434,19 @@ export function applyMarkToGamification(
   // already advanced the ledger) must not reset the streak or move the
   // lastMarkUtcDay cursor backward — credit XP only.
   if (last && day < last) {
+    const markXp = markXpForStreak(Math.max(1, state.currentStreak));
     return {
       state: {
         ...state,
-        lifetimeXp: state.lifetimeXp + MARK_XP,
-        markAwardedThreadIds: id
-          ? [...state.markAwardedThreadIds, markKey]
-          : state.markAwardedThreadIds,
+        lifetimeXp: state.lifetimeXp + markXp,
+        markAwardedThreadIds: [...state.markAwardedThreadIds, markKey],
         updatedAt: new Date(nowMs).toISOString(),
       },
-      awarded: { markXp: MARK_XP, currentStreak: state.currentStreak },
+      awarded: {
+        markXp,
+        currentStreak: state.currentStreak,
+        streakMultiplier: markXp,
+      },
     };
   }
 
@@ -188,20 +463,19 @@ export function applyMarkToGamification(
   }
 
   const longestStreak = Math.max(state.longestStreak, currentStreak);
+  const markXp = markXpForStreak(currentStreak);
   const next: GamificationState = {
     ...state,
     currentStreak,
     longestStreak,
     lastMarkUtcDay: day,
-    lifetimeXp: state.lifetimeXp + MARK_XP,
-    markAwardedThreadIds: id
-      ? [...state.markAwardedThreadIds, markKey]
-      : state.markAwardedThreadIds,
+    lifetimeXp: state.lifetimeXp + markXp,
+    markAwardedThreadIds: [...state.markAwardedThreadIds, markKey],
     updatedAt: new Date(nowMs).toISOString(),
   };
   return {
     state: next,
-    awarded: { markXp: MARK_XP, currentStreak },
+    awarded: { markXp, currentStreak, streakMultiplier: markXp },
   };
 }
 
@@ -337,19 +611,72 @@ export type GamificationPaths = {
   gamificationPath?: string;
   interactionStorePath?: string;
   nowMs?: number;
+  userId?: string;
 };
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Explicit path wins. Else per-user file. The first user may adopt the
+ * legacy sidecar once so current XP is not reset.
+ */
+export async function resolveGamificationPath(
+  opts?: GamificationPaths,
+): Promise<string> {
+  if (opts?.gamificationPath) return opts.gamificationPath;
+  const userId = opts?.userId?.trim();
+  if (!userId) return defaultGamificationPath();
+  const userPath = gamificationPathForUser(userId);
+  if (await pathExists(userPath)) return userPath;
+  const legacy = defaultGamificationPath();
+  const marker = legacyAdoptMarkerPath();
+  if ((await pathExists(legacy)) && !(await pathExists(marker))) {
+    const legacyState = await readGamificationFile(legacy);
+    if (legacyState) {
+      await writeGamificationFile(userPath, legacyState);
+      await mkdir(dirname(marker), { recursive: true });
+      await writeFile(marker, `${userId}\n`, "utf8");
+    }
+  }
+  return userPath;
+}
+
+function progressFromTransition(
+  before: GamificationState,
+  awarded: MarkAward,
+  after: GamificationState,
+): MarkProgress {
+  const beforeIds = new Set(unlockedAchievementIds(before));
+  return {
+    markXp: awarded.markXp,
+    streakMultiplier: awarded.streakMultiplier,
+    leveledUp: levelFromXp(after.lifetimeXp) > levelFromXp(before.lifetimeXp),
+    previousLevel: levelFromXp(before.lifetimeXp),
+    unlockedAchievementIds: unlockedAchievementIds(after).filter(
+      (id) => !beforeIds.has(id),
+    ),
+  };
+}
 
 async function loadOrSeedState(opts: GamificationPaths): Promise<{
   path: string;
   state: GamificationState;
 }> {
-  const path = opts.gamificationPath ?? defaultGamificationPath();
+  const path = await resolveGamificationPath(opts);
   const nowMs = opts.nowMs ?? Date.now();
   const existing = await readGamificationFile(path);
   if (existing) return { path, state: existing };
   const history = await listInteractionHistory({
     limit: MAX_INTERACTION_STORE,
     storePath: opts.interactionStorePath,
+    userId: opts.userId,
   });
   const state = seedGamificationFromHistory(history, nowMs);
   await writeGamificationFile(path, state);
@@ -363,9 +690,10 @@ export async function withGamificationState<T>(opts: {
   gamificationPath?: string;
   interactionStorePath?: string;
   nowMs?: number;
+  userId?: string;
   fn: (state: GamificationState) => { state: GamificationState; result: T };
 }): Promise<T> {
-  const path = opts.gamificationPath ?? defaultGamificationPath();
+  const path = await resolveGamificationPath(opts);
   return withFileLock(path, async () => {
     const loaded = await loadOrSeedState(opts);
     const { state: next, result } = opts.fn(loaded.state);
@@ -378,7 +706,7 @@ export async function withGamificationState<T>(opts: {
 export async function recordMarkGamification(
   opts?: GamificationPaths & { threadId?: string },
 ): Promise<GamificationPublic> {
-  const path = opts?.gamificationPath ?? defaultGamificationPath();
+  const path = await resolveGamificationPath(opts);
   const nowMs = opts?.nowMs ?? Date.now();
   const threadId = opts?.threadId?.trim() || undefined;
   const markKey = threadId
@@ -390,29 +718,64 @@ export async function recordMarkGamification(
       // A mark retried after a soft-fail replays the same at, so it must not
       // credit XP/streak again; a re-mark with a new at is a new mark.
       if (threadId && existing.markAwardedThreadIds.includes(markKey)) {
-        return toPublicGamification(existing);
+        return toPublicGamification(existing, {
+          progress: progressFromTransition(
+            existing,
+            {
+              markXp: 0,
+              currentStreak: existing.currentStreak,
+              streakMultiplier: markXpForStreak(
+                Math.max(1, existing.currentStreak),
+              ),
+            },
+            existing,
+          ),
+        });
       }
-      const { state: next } = applyMarkToGamification(existing, nowMs, threadId);
+      const { state: next, awarded } = applyMarkToGamification(
+        existing,
+        nowMs,
+        threadId,
+      );
       await writeGamificationFile(path, next);
-      return toPublicGamification(next);
+      return toPublicGamification(next, {
+        progress: progressFromTransition(existing, awarded, next),
+      });
     }
     // First ledger write: seed from retained history (includes the mark that
     // just landed) so we do not double-apply XP/streak for that mark.
     const history = await listInteractionHistory({
       limit: MAX_INTERACTION_STORE,
       storePath: opts?.interactionStorePath,
+      userId: opts?.userId,
     });
+    const empty = emptyGamificationState(nowMs);
     let seeded = seedGamificationFromHistory(history, nowMs);
+    let awarded: MarkAward = {
+      markXp: 0,
+      currentStreak: seeded.currentStreak,
+      streakMultiplier: markXpForStreak(Math.max(1, seeded.currentStreak)),
+    };
     // No history yet (e.g. tests) or the mark is not part of the retained
     // history — still credit it exactly once.
     if (
       history.length === 0 ||
       (threadId && !seeded.markAwardedThreadIds.includes(markKey))
     ) {
-      seeded = applyMarkToGamification(seeded, nowMs, threadId).state;
+      const applied = applyMarkToGamification(seeded, nowMs, threadId);
+      seeded = applied.state;
+      awarded = applied.awarded;
+    } else {
+      awarded = {
+        markXp: markXpForStreak(Math.max(1, seeded.currentStreak)),
+        currentStreak: seeded.currentStreak,
+        streakMultiplier: markXpForStreak(Math.max(1, seeded.currentStreak)),
+      };
     }
     await writeGamificationFile(path, seeded);
-    return toPublicGamification(seeded);
+    return toPublicGamification(seeded, {
+      progress: progressFromTransition(empty, awarded, seeded),
+    });
   });
 }
 
@@ -423,11 +786,13 @@ export async function recordT24hBonusGamification(opts: {
   gamificationPath?: string;
   interactionStorePath?: string;
   nowMs?: number;
+  userId?: string;
 }): Promise<GamificationPublic> {
   const nowMs = opts.nowMs ?? Date.now();
   return withGamificationState({
     gamificationPath: opts.gamificationPath,
     interactionStorePath: opts.interactionStorePath,
+    userId: opts.userId,
     nowMs,
     fn: (state) => {
       const { state: next } = applyT24hBonus(
@@ -449,7 +814,7 @@ export async function recordT24hBonusGamification(opts: {
 export async function getGamification(
   opts?: GamificationPaths,
 ): Promise<GamificationPublic> {
-  const path = opts?.gamificationPath ?? defaultGamificationPath();
+  const path = await resolveGamificationPath(opts);
   const nowMs = opts?.nowMs ?? Date.now();
   return withFileLock(path, async () => {
     const existing = await readGamificationFile(path);
@@ -457,6 +822,7 @@ export async function getGamification(
     const history = await listInteractionHistory({
       limit: MAX_INTERACTION_STORE,
       storePath: opts?.interactionStorePath,
+      userId: opts?.userId,
     });
     return toPublicGamification(seedGamificationFromHistory(history, nowMs));
   });
