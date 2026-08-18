@@ -10,6 +10,7 @@ import {
 } from "./deepseek.js";
 import {
   draftHasAiTropes,
+  postNeedsStance,
   sanitizeSuggestedDraft,
 } from "./voiceDraft.js";
 import type { VoiceReplyRow } from "./voiceStore.js";
@@ -148,6 +149,8 @@ export async function suggestReply(opts: {
   cardJson: string;
   thread: { author: string; text: string; opAuthor?: string; opText?: string };
   agenda?: string;
+  /** Operator-picked side when the post assumes an argument. */
+  stance?: string;
   chat?: ChatFn;
 }): Promise<
   | { ok: true; draft: string; model: string }
@@ -159,6 +162,9 @@ export async function suggestReply(opts: {
     opts.agenda?.trim() ? `The user's current agenda: ${opts.agenda.trim()}` : "",
     opts.thread.opAuthor && opts.thread.opText
       ? `Thread context: ${opts.thread.opAuthor}: ${opts.thread.opText}`
+      : "",
+    opts.stance?.trim()
+      ? `Take this side (do not sit the fence): ${opts.stance.trim()}`
       : "",
     `Reply to this post by ${opts.thread.author}:\n${opts.thread.text}`,
   ].filter(Boolean);
@@ -174,8 +180,9 @@ export async function suggestReply(opts: {
   if (!first.ok) {
     return { ok: false, error: first.error, message: first.message };
   }
-  let draft = sanitizeSuggestedDraft(cleanDraft(first.content));
-  if (draft && draftHasAiTropes(draft)) {
+  let rawDraft = cleanDraft(first.content);
+  let draft = sanitizeSuggestedDraft(rawDraft);
+  if (draft && draftHasAiTropes(draft, rawDraft)) {
     const retry = await chat({
       messages: [
         { role: "system", content: SUGGEST_SYSTEM },
@@ -188,7 +195,8 @@ export async function suggestReply(opts: {
       purpose: "reply_suggest",
     });
     if (retry.ok) {
-      draft = sanitizeSuggestedDraft(cleanDraft(retry.content));
+      rawDraft = cleanDraft(retry.content);
+      draft = sanitizeSuggestedDraft(rawDraft);
     } else {
       return { ok: false, error: retry.error, message: retry.message };
     }
@@ -200,7 +208,7 @@ export async function suggestReply(opts: {
       message: "The draft came back empty. Try again.",
     };
   }
-  if (draftHasAiTropes(draft)) {
+  if (draftHasAiTropes(draft, rawDraft)) {
     return {
       ok: false,
       error: "draft_slop",
@@ -257,4 +265,72 @@ export async function verifyReplyEdit(opts: {
     };
   }
   return { ok: true, verdict, model: result.model };
+}
+
+export const FALLBACK_STANCES = ["Agree with this", "Push back", "Another angle"];
+
+const STANCE_SYSTEM = `You list 2 or 3 sides a human could take on this X post.
+Return ONLY JSON: {"options":["short side 1","short side 2","short side 3"]}
+Rules: each option is under 8 words, names a real side in THIS argument, no em dashes, no "this isn't X" templates. If the post does not assume a side, return {"options":[]}.`;
+
+export function parseStanceOptions(raw: string): string[] {
+  const data = extractJsonObject(raw) as { options?: unknown } | null;
+  if (!data || !Array.isArray(data.options)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of data.options) {
+    if (typeof item !== "string") continue;
+    const label = item.replace(/\u2014/g, " ").replace(/\s+/g, " ").trim();
+    const key = label.toLowerCase();
+    if (!label || label.length > 60 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+    if (out.length === 3) break;
+  }
+  return out;
+}
+
+export async function proposeStances(opts: {
+  thread: {
+    author: string;
+    text: string;
+    threadKind?: string;
+    flags?: string[];
+    opAuthor?: string;
+    opText?: string;
+  };
+  chat?: ChatFn;
+}): Promise<{ needed: boolean; options: string[] }> {
+  if (
+    !postNeedsStance({
+      threadKind: opts.thread.threadKind,
+      flags: opts.thread.flags,
+    })
+  ) {
+    return { needed: false, options: [] };
+  }
+  const chat = opts.chat ?? chatCompletions;
+  const parts = [
+    opts.thread.opAuthor && opts.thread.opText
+      ? `Thread context: ${opts.thread.opAuthor}: ${opts.thread.opText}`
+      : "",
+    `Post by ${opts.thread.author}:\n${opts.thread.text}`,
+  ].filter(Boolean);
+  const result = await chat({
+    messages: [
+      { role: "system", content: STANCE_SYSTEM },
+      { role: "user", content: parts.join("\n\n") },
+    ],
+    model: resolveFlashModel(),
+    temperature: 0.4,
+    purpose: "reply_stances",
+  });
+  if (!result.ok) {
+    return { needed: true, options: FALLBACK_STANCES };
+  }
+  const options = parseStanceOptions(result.content);
+  if (options.length >= 2) return { needed: true, options };
+  // The metadata gate said this post takes a side; when the model finds no
+  // side, fall back to generic sides instead of silently drafting un-picked.
+  return { needed: true, options: FALLBACK_STANCES };
 }

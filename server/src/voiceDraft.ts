@@ -22,10 +22,12 @@ export function stripEmDashes(text: string): string {
  * Stock assistant formulas: "if X, then Y" and "this isn't X, it's Y".
  * After em-dash strip, the contrast form is usually two clauses.
  */
-export function draftHasAiTropes(text: string): boolean {
+export function draftHasAiTropes(text: string, original?: string): boolean {
   const t = text.replace(/\s+/g, " ").trim();
   if (!t) return false;
-  if (/\bif\b[^.,;]{0,90}[.,]\s+then\b/i.test(t)) return true;
+  if (/\bif\b[^.,;]{0,90},\s+then\b/i.test(t)) return true;
+  const src = original ?? t;
+  if (/\bif\b[^\u2014.,;]{0,90}\u2014\s*then\b/i.test(src)) return true;
   if (
     /\b(?:this|that|it)\s+(?:isn['’]t|is not)\b[^.,;]{0,80}[.,]\s*\b(?:it['’]s|it is)\b/i.test(
       t,
@@ -39,4 +41,16 @@ export function draftHasAiTropes(text: string): boolean {
 
 export function sanitizeSuggestedDraft(text: string): string {
   return stripEmDashes(text);
+}
+
+/** Posts that assume a side before we should draft a reply. */
+export function postNeedsStance(opts: {
+  threadKind?: string | null;
+  flags?: string[] | null;
+}): boolean {
+  const kind = (opts.threadKind ?? "").trim().toLowerCase();
+  if (kind === "sharp_opinion" || kind === "timely_take") return true;
+  return (opts.flags ?? []).some(
+    (flag) => flag === "political" || flag === "rage_bait",
+  );
 }

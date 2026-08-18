@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   draftHasAiTropes,
+  postNeedsStance,
   sanitizeSuggestedDraft,
   stripEmDashes,
 } from "./voiceDraft.ts";
@@ -28,10 +29,8 @@ describe("draftHasAiTropes", () => {
   });
 
   it("flags if-then where an em-dash strip turned the comma into a period", () => {
-    assert.equal(
-      draftHasAiTropes(stripEmDashes("If you want speed \u2014 then cut process.")),
-      true,
-    );
+    const raw = "If you want speed \u2014 then cut process.";
+    assert.equal(draftHasAiTropes(stripEmDashes(raw), raw), true);
   });
 
   it("flags this-isn-t-X-it-s-Y", () => {
@@ -58,6 +57,29 @@ describe("draftHasAiTropes", () => {
       draftHasAiTropes("If the build fails, someone will notice. Then we fix it."),
       false,
     );
+    assert.equal(draftHasAiTropes("Check if it shipped. Then follow up."), false);
+    assert.equal(
+      draftHasAiTropes(
+        "I'd ask if the deploy actually went out. Then I'd rerun the test.",
+      ),
+      false,
+    );
+  });
+});
+
+describe("postNeedsStance", () => {
+  it("asks on sharp opinions and timely takes", () => {
+    assert.equal(postNeedsStance({ threadKind: "sharp_opinion" }), true);
+    assert.equal(postNeedsStance({ threadKind: "timely_take" }), true);
+    assert.equal(postNeedsStance({ threadKind: "fact_add" }), false);
+  });
+
+  it("asks on political or rage-bait flags", () => {
+    assert.equal(
+      postNeedsStance({ threadKind: "other", flags: ["political"] }),
+      true,
+    );
+    assert.equal(postNeedsStance({ threadKind: "fact_add", flags: ["on_agenda"] }), false);
   });
 });
 

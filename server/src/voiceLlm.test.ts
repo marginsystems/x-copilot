@@ -1,11 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import type { ChatMessage } from "./deepseek.js";
 import {
+  FALLBACK_STANCES,
   cleanDraft,
   extractJsonObject,
   generateVoiceCard,
   parseVerifyJson,
+  parseStanceOptions,
   parseVoiceCardJson,
+  proposeStances,
   suggestReply,
   verifyReplyEdit,
   type ChatFn,
@@ -19,9 +23,15 @@ const CARD_JSON = JSON.stringify({
   examples: ["ship it", "what broke first?", "same here, sqlite all the way"],
 });
 
-function fakeChat(content: string, capture?: { purpose?: string }): ChatFn {
+function fakeChat(
+  content: string,
+  capture?: { purpose?: string; messages?: ChatMessage[] },
+): ChatFn {
   return async (opts) => {
-    if (capture) capture.purpose = opts.purpose;
+    if (capture) {
+      capture.purpose = opts.purpose;
+      capture.messages = opts.messages;
+    }
     return {
       ok: true,
       content,
@@ -186,6 +196,92 @@ describe("suggestReply", () => {
     assert.equal(cleanDraft("```\nhello there\n```"), "hello there");
     assert.equal(cleanDraft(`“smart quotes”`), "smart quotes");
     assert.equal(cleanDraft("x".repeat(400)).length, 280);
+  });
+
+  it("injects the chosen stance into the draft prompt", async () => {
+    const capture: { purpose?: string; messages?: ChatMessage[] } = {};
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@dev", text: "the tool is never the bottleneck" },
+      stance: "The loop is the tax",
+      chat: fakeChat("The loop between research and shipping is the real tax.", capture),
+    });
+    assert.ok(result.ok);
+    const userMsg = capture.messages?.find((m) => m.role === "user");
+    assert.ok(userMsg);
+    assert.match(userMsg.content, /Take this side/);
+    assert.ok(userMsg.content.includes("The loop is the tax"));
+  });
+});
+
+describe("proposeStances", () => {
+  it("skips the picker on a fact add", async () => {
+    const result = await proposeStances({
+      thread: {
+        author: "@dev",
+        text: "sqlite 3.46 shipped",
+        threadKind: "fact_add",
+      },
+      chat: fakeChat('{"options":["should never run"]}'),
+    });
+    assert.deepEqual(result, { needed: false, options: [] });
+  });
+
+  it("returns 2-3 sides for a sharp opinion", async () => {
+    const capture: { purpose?: string } = {};
+    const result = await proposeStances({
+      thread: {
+        author: "@dev",
+        text: "the tool is never the bottleneck",
+        threadKind: "sharp_opinion",
+      },
+      chat: fakeChat(
+        '{"options":["The loop is the tax","The tool still matters","Ask what they measure"]}',
+        capture,
+      ),
+    });
+    assert.equal(result.needed, true);
+    assert.equal(result.options.length, 3);
+    assert.equal(capture.purpose, "reply_stances");
+  });
+
+  it("parses stance JSON and drops empties", () => {
+    assert.deepEqual(parseStanceOptions('{"options":["Agree","", "Push back"]}'), [
+      "Agree",
+      "Push back",
+    ]);
+    assert.deepEqual(parseStanceOptions("nope"), []);
+  });
+
+  it("falls back to generic sides when the model finds no side on an opinion post", async () => {
+    const result = await proposeStances({
+      thread: {
+        author: "@dev",
+        text: "just reporting a fix",
+        threadKind: "sharp_opinion",
+      },
+      chat: fakeChat('{"options":[]}'),
+    });
+    assert.equal(result.needed, true);
+    assert.deepEqual(result.options, FALLBACK_STANCES);
+  });
+
+  it("falls back to generic stances only when the LLM call fails", async () => {
+    const result = await proposeStances({
+      thread: {
+        author: "@dev",
+        text: "the tool is never the bottleneck",
+        threadKind: "sharp_opinion",
+      },
+      chat: async () => ({
+        ok: false as const,
+        status: 500,
+        error: "deepseek_http",
+        message: "deepseek HTTP 500",
+      }),
+    });
+    assert.equal(result.needed, true);
+    assert.deepEqual(result.options, FALLBACK_STANCES);
   });
 });
 
