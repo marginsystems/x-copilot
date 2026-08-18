@@ -71,6 +71,16 @@ export function SuggestPane({
 
   const hint = stage === "editing" ? localEditHint(draft, edited) : null;
 
+  function onClose() {
+    setStage("idle");
+    setDraft("");
+    setEdited("");
+    setNote(null);
+    setNoteKind("info");
+    setIntentUrl(null);
+    setCopied(false);
+  }
+
   async function onSuggest() {
     setStage("composing");
     setStartedAt(Date.now());
@@ -211,7 +221,12 @@ export function SuggestPane({
   if (stage === "composing") {
     return (
       <div className="suggest-pane">
-        <PhaseLine phases={SUGGEST_PHASES} startedAt={startedAt} />
+        <div className="suggest-pane-head">
+          <PhaseLine phases={SUGGEST_PHASES} startedAt={startedAt} />
+          <button type="button" className="ghost suggest-close" onClick={onClose}>
+            Close
+          </button>
+        </div>
       </div>
     );
   }
@@ -220,10 +235,19 @@ export function SuggestPane({
 
   return (
     <div className="suggest-pane">
-      <p className="suggest-banner" role="note">
-        AI-generated — edit before posting. It won&apos;t unlock until you make
-        it yours.
-      </p>
+      <div className="suggest-pane-head">
+        <p className="suggest-banner" role="note">
+          AI-generated. Edit before posting. It won&apos;t unlock until you make
+          it yours.
+        </p>
+        <button
+          type="button"
+          className="ghost suggest-close"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
       <textarea
         ref={textareaRef}
         className="suggest-textarea"
