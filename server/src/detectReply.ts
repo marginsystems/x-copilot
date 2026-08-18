@@ -1,5 +1,5 @@
 /**
- * Find the operator's reply to a curated parent tweet via official recent search.
+ * Find the operator's reply in a curated conversation via official recent search.
  */
 import {
   searchTimelinePages,
@@ -105,9 +105,42 @@ export function buildDetectOwnReplyQuery(
   );
 }
 
+function replyRecency(card: ThreadCard): number {
+  const created = card.createdAt ? Date.parse(card.createdAt) : NaN;
+  if (Number.isFinite(created)) return created;
+  try {
+    return Number(BigInt(card.id) >> 22n);
+  } catch {
+    return 0;
+  }
+}
+
+function newestReply(cards: ThreadCard[]): ThreadCard {
+  return cards.reduce((best, card) =>
+    replyRecency(card) > replyRecency(best) ? card : best,
+  );
+}
+
 /**
- * Latest search from the operator; keep exact in_reply_to matches.
- * Exactly one hit → reply; zero → none; many → ambiguous; search error → search_failed.
+ * Prefer a reply to the curated card. Otherwise any own-reply in this
+ * conversation counts (OP or another tweet). Several hits → newest.
+ */
+export function pickOwnReplyInConversation(
+  threads: ThreadCard[],
+  threadId: string,
+): ThreadCard | null {
+  if (threads.length === 0) return null;
+  const exact = threads.filter((t) => t.inReplyToId === threadId);
+  if (exact.length === 1) return exact[0]!;
+  if (exact.length > 1) return newestReply(exact);
+  if (threads.length === 1) return threads[0]!;
+  return newestReply(threads);
+}
+
+/**
+ * Latest search from the operator in this conversation. A reply to the
+ * card, the OP, or anyone else in the thread qualifies. Search error →
+ * search_failed. Empty → none.
  */
 export async function detectOwnReplyToThread(opts: {
   threadId: string;
@@ -171,9 +204,9 @@ export async function detectOwnReplyToThread(opts: {
   }
 
   const rawCount = result.threads.length;
-  const hits = result.threads.filter((t) => t.inReplyToId === threadId);
-  const matchCount = hits.length;
-  if (hits.length === 0) {
+  const chosen = pickOwnReplyInConversation(result.threads, threadId);
+  const matchCount = chosen ? 1 : 0;
+  if (!chosen) {
     return {
       ok: true,
       reply: null,
@@ -182,18 +215,9 @@ export async function detectOwnReplyToThread(opts: {
       matchCount,
     };
   }
-  if (hits.length > 1) {
-    return {
-      ok: true,
-      reply: null,
-      reason: "ambiguous",
-      rawCount,
-      matchCount,
-    };
-  }
   return {
     ok: true,
-    reply: toDetected(hits[0]!),
+    reply: toDetected(chosen),
     rawCount,
     matchCount,
   };
@@ -211,7 +235,7 @@ function shouldRetry(result: DetectReplyResult): boolean {
 
 /**
  * Retry soft misses (none / search_failed) with backoff for SearchTimeline index lag.
- * Does not retry ambiguous. Honors AbortSignal between attempts.
+ * Does not retry a found hit. Honors AbortSignal between attempts.
  */
 export async function detectOwnReplyToThreadWithRetry(opts: {
   threadId: string;
