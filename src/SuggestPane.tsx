@@ -92,11 +92,13 @@ export function SuggestPane({
   const sessionRef = useRef(0);
   /** Synchronous in-flight guard so a double-click can't burn two suggest slots. */
   const suggestBusyRef = useRef(false);
+  const attemptRef = useRef(0);
 
   const hint = stage === "editing" ? localEditHint(draft, edited) : null;
 
   function onClose() {
     sessionRef.current += 1;
+    attemptRef.current++;
     setStage("idle");
     setDraft("");
     setEdited("");
@@ -173,6 +175,7 @@ export function SuggestPane({
     if (suggestBusyRef.current) return;
     suggestBusyRef.current = true;
     const session = sessionRef.current;
+    const attempt = ++attemptRef.current;
     setStage("composing");
     setStartedAt(Date.now());
     setNote(null);
@@ -201,20 +204,21 @@ export function SuggestPane({
         planKey?: string;
       };
       if (session !== sessionRef.current) return;
+      if (data.error === "suggest_daily_limit") {
+        const used = typeof data.used === "number" ? data.used : usage.used;
+        const limit =
+          typeof data.limit === "number" ? data.limit : usage.limit;
+        onUsage({
+          used,
+          limit,
+          remaining: Math.max(0, limit - used),
+          canSuggest: used < limit,
+          planKey:
+            typeof data.planKey === "string" ? data.planKey : usage.planKey,
+        });
+      }
+      if (attemptRef.current !== attempt) return;
       if (!res.ok || !data.ok || !data.draft) {
-        if (data.error === "suggest_daily_limit") {
-          const used = typeof data.used === "number" ? data.used : usage.used;
-          const limit =
-            typeof data.limit === "number" ? data.limit : usage.limit;
-          onUsage({
-            used,
-            limit,
-            remaining: Math.max(0, limit - used),
-            canSuggest: used < limit,
-            planKey:
-              typeof data.planKey === "string" ? data.planKey : usage.planKey,
-          });
-        }
         setStage("idle");
         setNoteKind("fail");
         setNote(
@@ -233,6 +237,7 @@ export function SuggestPane({
       window.setTimeout(() => textareaRef.current?.focus(), 50);
     } catch {
       if (session !== sessionRef.current) return;
+      if (attemptRef.current !== attempt) return;
       setStage("idle");
       setNoteKind("fail");
       setNote("Couldn't reach the desk — try again.");
@@ -242,6 +247,7 @@ export function SuggestPane({
   }
 
   async function onVerify() {
+    const attempt = ++attemptRef.current;
     setStage("verifying");
     setStartedAt(Date.now());
     setNote(null);
@@ -258,6 +264,7 @@ export function SuggestPane({
         intentUrl?: string;
         message?: string;
       };
+      if (attemptRef.current !== attempt) return;
       if (!res.ok || !data.ok) {
         setStage("editing");
         setNoteKind("fail");
@@ -276,6 +283,7 @@ export function SuggestPane({
         window.setTimeout(() => textareaRef.current?.focus(), 50);
       }
     } catch {
+      if (attemptRef.current !== attempt) return;
       setStage("editing");
       setNoteKind("fail");
       setNote("Couldn't reach the desk — try again.");

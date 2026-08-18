@@ -8,10 +8,10 @@ import {
 } from "./voiceDraft.ts";
 
 describe("stripEmDashes", () => {
-  it("turns an em dash clause into a period", () => {
+  it("turns an em dash clause into a capitalized period", () => {
     assert.equal(
       stripEmDashes("The tool was never the bottleneck \u2014 the loop is."),
-      "The tool was never the bottleneck. the loop is.",
+      "The tool was never the bottleneck. The loop is.",
     );
   });
 
@@ -24,6 +24,13 @@ describe("draftHasAiTropes", () => {
   it("flags if-this-then-that", () => {
     assert.equal(
       draftHasAiTropes("If you want speed, then you have to cut process."),
+      true,
+    );
+  });
+
+  it("flags if-then where an em-dash strip turned the comma into a period", () => {
+    assert.equal(
+      draftHasAiTropes(stripEmDashes("If you want speed \u2014 then cut process.")),
       true,
     );
   });
@@ -45,6 +52,13 @@ describe("draftHasAiTropes", () => {
       false,
     );
     assert.equal(draftHasAiTropes("If it ships, tell me."), false);
+    assert.equal(draftHasAiTropes("This isn't the first time it's happened."), false);
+    assert.equal(draftHasAiTropes("It's not that it's easy."), false);
+    assert.equal(draftHasAiTropes("This isn't just about tooling; it's about timing."), false);
+    assert.equal(
+      draftHasAiTropes("If the build fails, someone will notice. Then we fix it."),
+      false,
+    );
   });
 });
 

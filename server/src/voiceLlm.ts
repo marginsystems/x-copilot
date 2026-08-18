@@ -195,6 +195,8 @@ export async function suggestReply(opts: {
     });
     if (retry.ok) {
       draft = sanitizeSuggestedDraft(cleanDraft(retry.content));
+    } else {
+      return { ok: false, error: retry.error, message: retry.message };
     }
   }
   if (!draft) {
