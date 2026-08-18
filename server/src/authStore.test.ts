@@ -21,7 +21,9 @@ import {
   revokeOtherSessions,
   revokeSessionById,
   revokeSessionToken,
+  saveXWriteCreds,
   setUserXUsername,
+  toPublicUser,
   touchSessionMeta,
   upsertOauthUser,
   userNeedsXHandle,
@@ -451,5 +453,21 @@ describe("authStore", () => {
       JSON.stringify(providers).includes("xid-providers"),
       false,
     );
+  });
+
+  it("exposes xCanPost only after X write tokens are saved", () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "xid-write",
+      username: "writer",
+      email: "writer@example.com",
+      emailVerified: true,
+    });
+    assert.equal(toPublicUser(user).xCanPost, false);
+    assert.equal(
+      saveXWriteCreds(user.id, "xid-write", { token: "at", secret: "as" }),
+      true,
+    );
+    assert.equal(toPublicUser(user).xCanPost, true);
   });
 });
