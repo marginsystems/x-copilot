@@ -81,6 +81,8 @@ export function SuggestPane({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   /** Bumped on every close so an in-flight fetch can't reopen the pane. */
   const sessionRef = useRef(0);
+  /** Synchronous in-flight guard so a double-click can't burn two suggest slots. */
+  const suggestBusyRef = useRef(false);
 
   const hint = stage === "editing" ? localEditHint(draft, edited) : null;
 
@@ -154,6 +156,8 @@ export function SuggestPane({
   }
 
   async function onSuggest(stance?: string) {
+    if (suggestBusyRef.current) return;
+    suggestBusyRef.current = true;
     const session = sessionRef.current;
     setStage("composing");
     setStartedAt(Date.now());
@@ -218,6 +222,8 @@ export function SuggestPane({
       setStage("idle");
       setNoteKind("fail");
       setNote("Couldn't reach the desk — try again.");
+    } finally {
+      suggestBusyRef.current = false;
     }
   }
 
