@@ -122,12 +122,15 @@ export function SuggestPane({
   const suggestBusyRef = useRef(false);
   const postBusyRef = useRef(false);
   const attemptRef = useRef(0);
+  /** Client-generated idempotency key reused across retries of the same post. */
+  const postKeyRef = useRef<string | null>(null);
 
   const hint = stage === "editing" ? localEditHint(draft, edited) : null;
 
   function onClose() {
     sessionRef.current += 1;
     attemptRef.current++;
+    postKeyRef.current = null;
     setStage("idle");
     setDraft("");
     setEdited("");
@@ -333,6 +336,8 @@ export function SuggestPane({
     setEdited(next);
     setCopied(false);
     setNote(null);
+    // An edit makes this a new post, so a fresh idempotency key is required.
+    postKeyRef.current = null;
     // Any change after a pass re-locks Copy + Post.
     if (stage === "ready" || stage === "posting") {
       setStage("editing");
@@ -344,6 +349,14 @@ export function SuggestPane({
     if (postBusyRef.current || !deskCanPost) return;
     postBusyRef.current = true;
     const attempt = ++attemptRef.current;
+    // Same key across retries so an ambiguous network failure can't double-post.
+    if (!postKeyRef.current) {
+      postKeyRef.current =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    }
+    const requestKey = postKeyRef.current;
     setStage("posting");
     setNote(null);
     try {
@@ -360,6 +373,7 @@ export function SuggestPane({
           text,
           summary,
           conversationId,
+          requestKey,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {

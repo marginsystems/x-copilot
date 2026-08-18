@@ -45,6 +45,7 @@ export function recordDeskPost(opts: {
   tweetId: string;
   inReplyToId: string;
   threadId?: string;
+  requestKey?: string;
   atIso?: string;
 }): void {
   getPlatformDb()
@@ -54,13 +55,30 @@ export function recordDeskPost(opts: {
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
     .run(
-      randomUUID(),
+      // The client-generated idempotency key doubles as the row id so a lost
+      // response can be replayed (findDeskPostByKey) without posting twice.
+      opts.requestKey || randomUUID(),
       opts.userId,
       opts.tweetId,
       opts.inReplyToId,
       opts.threadId ?? null,
       opts.atIso ?? new Date().toISOString(),
     );
+}
+
+/** Replay lookup for a client-generated idempotency key. */
+export function findDeskPostByKey(
+  userId: string,
+  requestKey: string,
+): { tweetId: string } | undefined {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT tweet_id AS tweetId
+         FROM x_desk_posts
+        WHERE user_id = ? AND id = ?`,
+    )
+    .get(userId, requestKey) as { tweetId: string } | undefined;
+  return row;
 }
 
 export type PostLimitBlock =
