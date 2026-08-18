@@ -36,7 +36,8 @@ function sendJson(
 }
 
 function requireOrigin(req: IncomingMessage, res: ServerResponse): boolean {
-  if (isOriginAllowed(requestOrigin(req))) return true;
+  const origin = requestOrigin(req);
+  if (origin && isOriginAllowed(origin)) return true;
   sendJson(req, res, 403, {
     error: "forbidden",
     message: "Origin not allowed",
@@ -212,6 +213,24 @@ export async function tryHandleAdmin(
       grantedBy: user.email ?? user.id,
     });
     const me = billingMePayload({ userId: target.id, email: target.email });
+    const grant = activeManualGrant(row, target.email);
+    const planKey = String(me.plan_key);
+    const hasLiveSub = Boolean(me.has_stripe_subscription);
+    let notice = grant?.notice;
+    if (notice === undefined) {
+      if (planRaw === "free") {
+        notice =
+          planKey === "free"
+            ? "Manual grant cleared. This account is back on Free."
+            : hasLiveSub
+              ? "Manual grant cleared, but this account still runs on its live Stripe subscription."
+              : `Manual grant cleared; this account still runs on ${planKey}.`;
+      } else if (row.grantPlanKey !== null) {
+        notice = hasLiveSub
+          ? `Manual grant for ${row.grantPlanKey} is stored; this account's live Stripe subscription (${planKey}) takes precedence until it ends.`
+          : `Manual grant for ${row.grantPlanKey} is stored; admin accounts always run on ${planKey}.`;
+      }
+    }
     sendJson(req, res, 200, {
       ok: true,
       user: {
@@ -219,13 +238,9 @@ export async function tryHandleAdmin(
         email: target.email,
         xUsername: getXOauthUsername(target.id),
       },
-      grant: activeManualGrant(row, target.email),
-      plan_key: me.plan_key,
-      notice:
-        activeManualGrant(row, target.email)?.notice ??
-        (planRaw === "free"
-          ? "Manual grant cleared. This account is back on Free."
-          : undefined),
+      grant,
+      plan_key: planKey,
+      notice,
     });
     return true;
   }

@@ -11,7 +11,11 @@ import {
   resetPlatformDbForTests,
 } from "./db.ts";
 import { createSession, upsertOauthUser } from "./authStore.ts";
-import { ensureUserTenant } from "./billingStore.ts";
+import {
+  activateSubscription,
+  ensureUserTenant,
+  getUserBilling,
+} from "./billingStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { tryHandleAdmin } from "./adminHttp.ts";
 
@@ -40,6 +44,7 @@ describe("POST /api/admin/grants", () => {
   async function postGrant(
     cookieEmail: string,
     body: Record<string, unknown>,
+    origin: string | null = "http://localhost:5173",
   ): Promise<{ status: number; json: Record<string, unknown> }> {
     const actor = upsertOauthUser({
       provider: "google",
@@ -49,12 +54,13 @@ describe("POST /api/admin/grants", () => {
     });
     const { token } = createSession(actor.id);
     const req = new EventEmitter() as unknown as IncomingMessage;
+    const headers: Record<string, string> = {
+      cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    };
+    if (origin !== null) headers.origin = origin;
     Object.assign(req, {
       method: "POST",
-      headers: {
-        cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
-        origin: "http://localhost:5173",
-      },
+      headers,
       socket: { remoteAddress: "127.0.0.1" },
     });
     let status = 0;
@@ -113,5 +119,101 @@ describe("POST /api/admin/grants", () => {
     });
     assert.equal(status, 403);
     assert.equal(json.error, "forbidden");
+  });
+
+  it("rejects a grant request with no Origin header", async () => {
+    upsertOauthUser({
+      provider: "x",
+      providerUserId: "xid-no-origin",
+      username: "noorigin",
+      email: "noorigin@example.com",
+      emailVerified: true,
+    });
+    const { status, json } = await postGrant(
+      "margin707@gmail.com",
+      { handle: "noorigin", plan: "pulse" },
+      null,
+    );
+    assert.equal(status, 403);
+    assert.equal(json.error, "forbidden");
+    assert.match(String(json.message), /Origin not allowed/);
+  });
+
+  it("reports a stored-but-inert grant when a live Stripe sub wins", async () => {
+    const target = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-live-sub",
+      email: "paid@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(target.id);
+    activateSubscription({
+      userId: target.id,
+      planKey: "radar",
+      stripeCustomerId: "cus_p",
+      stripeSubscriptionId: "sub_p",
+      subscriptionStatus: "active",
+      currentPeriodEnd: new Date().toISOString(),
+      cancelAtPeriodEnd: false,
+      stripeEventCreated: 1,
+    });
+    const { status, json } = await postGrant("margin707@gmail.com", {
+      userId: target.id,
+      plan: "pulse",
+    });
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    assert.equal(json.plan_key, "radar");
+    assert.equal(json.grant, null);
+    assert.equal(getUserBilling(target.id)?.grantPlanKey, "pulse");
+    assert.match(String(json.notice), /is stored/);
+  });
+
+  it("does not claim Free when clearing a grant under a live Stripe sub", async () => {
+    const target = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-clear-live",
+      email: "clearlive@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(target.id);
+    activateSubscription({
+      userId: target.id,
+      planKey: "radar",
+      stripeCustomerId: "cus_c",
+      stripeSubscriptionId: "sub_c",
+      subscriptionStatus: "active",
+      currentPeriodEnd: new Date().toISOString(),
+      cancelAtPeriodEnd: false,
+      stripeEventCreated: 1,
+    });
+    const { status, json } = await postGrant("margin707@gmail.com", {
+      userId: target.id,
+      plan: "free",
+    });
+    assert.equal(status, 200);
+    assert.equal(json.plan_key, "radar");
+    assert.match(String(json.notice), /live Stripe subscription/);
+    assert.doesNotMatch(String(json.notice), /back on Free/);
+  });
+
+  it("reports a stored-but-inert grant for an admin-email target", async () => {
+    process.env.ADMIN_EMAILS = "margin707@gmail.com,ops2@example.com";
+    const target = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-admin-target",
+      email: "ops2@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(target.id);
+    const { status, json } = await postGrant("margin707@gmail.com", {
+      userId: target.id,
+      plan: "pulse",
+    });
+    assert.equal(status, 200);
+    assert.equal(json.plan_key, "horizon");
+    assert.equal(json.grant, null);
+    assert.equal(getUserBilling(target.id)?.grantPlanKey, "pulse");
+    assert.match(String(json.notice), /admin accounts always run on/);
   });
 });
