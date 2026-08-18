@@ -5,7 +5,9 @@ import {
   extractJsonObject,
   generateVoiceCard,
   parseVerifyJson,
+  parseStanceOptions,
   parseVoiceCardJson,
+  proposeStances,
   suggestReply,
   verifyReplyEdit,
   type ChatFn,
@@ -119,6 +121,46 @@ describe("suggestReply", () => {
     assert.equal(cleanDraft("```\nhello there\n```"), "hello there");
     assert.equal(cleanDraft(`“smart quotes”`), "smart quotes");
     assert.equal(cleanDraft("x".repeat(400)).length, 280);
+  });
+});
+
+describe("proposeStances", () => {
+  it("skips the picker on a fact add", async () => {
+    const result = await proposeStances({
+      thread: {
+        author: "@dev",
+        text: "sqlite 3.46 shipped",
+        threadKind: "fact_add",
+      },
+      chat: fakeChat('{"options":["should never run"]}'),
+    });
+    assert.deepEqual(result, { needed: false, options: [] });
+  });
+
+  it("returns 2-3 sides for a sharp opinion", async () => {
+    const capture: { purpose?: string } = {};
+    const result = await proposeStances({
+      thread: {
+        author: "@dev",
+        text: "the tool is never the bottleneck",
+        threadKind: "sharp_opinion",
+      },
+      chat: fakeChat(
+        '{"options":["The loop is the tax","The tool still matters","Ask what they measure"]}',
+        capture,
+      ),
+    });
+    assert.equal(result.needed, true);
+    assert.equal(result.options.length, 3);
+    assert.equal(capture.purpose, "reply_stances");
+  });
+
+  it("parses stance JSON and drops empties", () => {
+    assert.deepEqual(parseStanceOptions('{"options":["Agree","", "Push back"]}'), [
+      "Agree",
+      "Push back",
+    ]);
+    assert.deepEqual(parseStanceOptions("nope"), []);
   });
 });
 

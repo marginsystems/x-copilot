@@ -3278,6 +3278,16 @@ button.agenda-option.is-on {
   flex-shrink: 0;
 }
 
+.suggest-stances {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggest-stance {
+  text-align: left;
+}
+
 .suggest-idle {
   display: flex;
   align-items: center;

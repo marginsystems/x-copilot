@@ -37,3 +37,15 @@ export function draftHasAiTropes(text: string): boolean {
 export function sanitizeSuggestedDraft(text: string): string {
   return stripEmDashes(text);
 }
+
+/** Posts that assume a side before we should draft a reply. */
+export function postNeedsStance(opts: {
+  threadKind?: string | null;
+  flags?: string[] | null;
+}): boolean {
+  const kind = (opts.threadKind ?? "").trim().toLowerCase();
+  if (kind === "sharp_opinion" || kind === "timely_take") return true;
+  return (opts.flags ?? []).some(
+    (flag) => flag === "political" || flag === "rage_bait",
+  );
+}

@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   draftHasAiTropes,
+  postNeedsStance,
   sanitizeSuggestedDraft,
   stripEmDashes,
 } from "./voiceDraft.ts";
@@ -44,6 +45,22 @@ describe("draftHasAiTropes", () => {
       false,
     );
     assert.equal(draftHasAiTropes("If it ships, tell me."), false);
+  });
+});
+
+describe("postNeedsStance", () => {
+  it("asks on sharp opinions and timely takes", () => {
+    assert.equal(postNeedsStance({ threadKind: "sharp_opinion" }), true);
+    assert.equal(postNeedsStance({ threadKind: "timely_take" }), true);
+    assert.equal(postNeedsStance({ threadKind: "fact_add" }), false);
+  });
+
+  it("asks on political or rage-bait flags", () => {
+    assert.equal(
+      postNeedsStance({ threadKind: "other", flags: ["political"] }),
+      true,
+    );
+    assert.equal(postNeedsStance({ threadKind: "fact_add", flags: ["on_agenda"] }), false);
   });
 });
 

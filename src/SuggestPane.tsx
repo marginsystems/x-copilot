@@ -10,7 +10,13 @@ import {
   type VoicePhase,
 } from "./lib/voice";
 
-type PaneStage = "idle" | "composing" | "editing" | "verifying" | "ready";
+type PaneStage =
+  | "idle"
+  | "composing"
+  | "stance"
+  | "editing"
+  | "verifying"
+  | "ready";
 
 function PhaseLine({
   phases,
@@ -43,6 +49,8 @@ export function SuggestPane({
   text,
   opAuthor,
   opText,
+  threadKind,
+  flags,
   agenda,
   usage,
   onUsage,
@@ -53,6 +61,8 @@ export function SuggestPane({
   text: string;
   opAuthor?: string;
   opText?: string;
+  threadKind?: string;
+  flags?: string[];
   agenda?: string;
   usage: SuggestUsage;
   onUsage: (usage: SuggestUsage) => void;
@@ -67,6 +77,7 @@ export function SuggestPane({
   const [intentUrl, setIntentUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
+  const [stances, setStances] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const hint = stage === "editing" ? localEditHint(draft, edited) : null;
@@ -79,9 +90,51 @@ export function SuggestPane({
     setNoteKind("info");
     setIntentUrl(null);
     setCopied(false);
+    setStances([]);
   }
 
-  async function onSuggest() {
+  async function onStart() {
+    setStage("composing");
+    setStartedAt(Date.now());
+    setNote(null);
+    try {
+      const res = await apiFetch("/api/voice/stances", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          threadId,
+          author,
+          text,
+          opAuthor,
+          opText,
+          threadKind,
+          flags,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        needed?: boolean;
+        options?: string[];
+        message?: string;
+      };
+      if (
+        res.ok &&
+        data.ok &&
+        data.needed &&
+        Array.isArray(data.options) &&
+        data.options.length >= 2
+      ) {
+        setStances(data.options.slice(0, 3));
+        setStage("stance");
+        return;
+      }
+      await onSuggest();
+    } catch {
+      await onSuggest();
+    }
+  }
+
+  async function onSuggest(stance?: string) {
     setStage("composing");
     setStartedAt(Date.now());
     setNote(null);
@@ -89,7 +142,15 @@ export function SuggestPane({
       const res = await apiFetch("/api/voice/suggest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId, author, text, opAuthor, opText, agenda }),
+        body: JSON.stringify({
+          threadId,
+          author,
+          text,
+          opAuthor,
+          opText,
+          agenda,
+          stance,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -208,12 +269,39 @@ export function SuggestPane({
           type="button"
           className="ghost suggest-trigger"
           disabled={!usage.canSuggest}
-          onClick={() => void onSuggest()}
+          onClick={() => void onStart()}
         >
           Suggest reply
         </button>
         <span className="suggest-quota">{suggestsLeftLabel(usage)}</span>
         {note ? <p className="suggest-note is-fail">{note}</p> : null}
+      </div>
+    );
+  }
+
+  if (stage === "stance") {
+    return (
+      <div className="suggest-pane">
+        <div className="suggest-pane-head">
+          <p className="suggest-banner" role="note">
+            This post takes a side. Pick yours, then we draft in your voice.
+          </p>
+          <button type="button" className="ghost suggest-close" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <div className="suggest-stances">
+          {stances.map((side) => (
+            <button
+              key={side}
+              type="button"
+              className="ghost suggest-stance"
+              onClick={() => void onSuggest(side)}
+            >
+              {side}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }

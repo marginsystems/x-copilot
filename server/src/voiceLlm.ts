@@ -10,6 +10,7 @@ import {
 } from "./deepseek.js";
 import {
   draftHasAiTropes,
+  postNeedsStance,
   sanitizeSuggestedDraft,
 } from "./voiceDraft.js";
 import type { VoiceReplyRow } from "./voiceStore.js";
@@ -260,4 +261,69 @@ export async function verifyReplyEdit(opts: {
     };
   }
   return { ok: true, verdict, model: result.model };
+}
+
+export const FALLBACK_STANCES = ["Agree with this", "Push back", "Another angle"];
+
+const STANCE_SYSTEM = `You list 2 or 3 sides a human could take on this X post.
+Return ONLY JSON: {"options":["short side 1","short side 2","short side 3"]}
+Rules: each option is under 8 words, names a real side in THIS argument, no em dashes, no "this isn't X" templates. If the post does not assume a side, return {"options":[]}.`;
+
+export function parseStanceOptions(raw: string): string[] {
+  const data = extractJsonObject(raw) as { options?: unknown } | null;
+  if (!data || !Array.isArray(data.options)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of data.options) {
+    if (typeof item !== "string") continue;
+    const label = item.replace(/\u2014/g, " ").replace(/\s+/g, " ").trim();
+    const key = label.toLowerCase();
+    if (!label || label.length > 60 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+    if (out.length === 3) break;
+  }
+  return out;
+}
+
+export async function proposeStances(opts: {
+  thread: {
+    author: string;
+    text: string;
+    threadKind?: string;
+    flags?: string[];
+    opAuthor?: string;
+    opText?: string;
+  };
+  chat?: ChatFn;
+}): Promise<{ needed: boolean; options: string[] }> {
+  if (
+    !postNeedsStance({
+      threadKind: opts.thread.threadKind,
+      flags: opts.thread.flags,
+    })
+  ) {
+    return { needed: false, options: [] };
+  }
+  const chat = opts.chat ?? chatCompletions;
+  const parts = [
+    opts.thread.opAuthor && opts.thread.opText
+      ? `Thread context: ${opts.thread.opAuthor}: ${opts.thread.opText}`
+      : "",
+    `Post by ${opts.thread.author}:\n${opts.thread.text}`,
+  ].filter(Boolean);
+  const result = await chat({
+    messages: [
+      { role: "system", content: STANCE_SYSTEM },
+      { role: "user", content: parts.join("\n\n") },
+    ],
+    model: resolveFlashModel(),
+    temperature: 0.4,
+    purpose: "reply_stances",
+  });
+  const options = result.ok ? parseStanceOptions(result.content) : [];
+  return {
+    needed: true,
+    options: options.length >= 2 ? options : FALLBACK_STANCES,
+  };
 }
