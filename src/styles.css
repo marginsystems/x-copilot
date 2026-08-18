@@ -3267,6 +3267,27 @@ button.agenda-option.is-on {
   gap: 10px;
 }
 
+.suggest-pane-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.suggest-close {
+  flex-shrink: 0;
+}
+
+.suggest-stances {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggest-stance {
+  text-align: left;
+}
+
 .suggest-idle {
   display: flex;
   align-items: center;

@@ -8,6 +8,12 @@ import {
   type ChatCompletionResult,
   type ChatMessage,
 } from "./deepseek.js";
+import {
+  draftHasAiTropes,
+  postNeedsStance,
+  sanitizeSuggestedDraft,
+  textUsesContrastCadence,
+} from "./voiceDraft.js";
 import type { VoiceReplyRow } from "./voiceStore.js";
 
 export type ChatFn = (opts: {
@@ -114,12 +120,28 @@ export async function generateVoiceCard(opts: {
   };
 }
 
-const SUGGEST_SYSTEM = `You draft ONE reply to an X post in the user's own voice, described by their voice card and example replies.
+const SUGGEST_SYSTEM = `You draft ONE reply to an X post in this specific human's voice. The voice card and example posts are the source of truth. Imitate them, not a generic assistant.
 Rules:
-- Match their tone, typical length, and habits. Respect every neverDo.
+- Match their tone, typical length, and habits. Respect every neverDo. Steal cadence from the examples.
 - One reply only. No hashtags unless they habitually use them. No @-mentions.
-- Under 260 characters. Plain text only — no quotes around it, no markdown, no explanation.
-- Add something real (a take, a fact, a question). Never "great post!" filler.`;
+- Under 260 characters. Plain text only. No quotes around it, no markdown, no explanation.
+- Add something real (a take, a fact, a question). Never "great post!" filler.
+- Never use an em dash. Use a period, comma, or "and".
+- Never write "if X, then Y" formulas.
+- Never write "this isn't X, it's Y" or "it's not X, it's Y" contrast templates.`;
+
+const SLOP_RETRY = `Rewrite that reply. Stay in the voice card. No em dashes. No "if X, then Y". No "this isn't X, it's Y" / "it's not X, it's Y".`;
+
+function cardAllowsContrastCadence(cardJson: string): boolean {
+  try {
+    const card = JSON.parse(cardJson) as VoiceCard;
+    return (card.examples ?? []).some((example) =>
+      textUsesContrastCadence(example),
+    );
+  } catch {
+    return false;
+  }
+}
 
 /** Strip wrapping quotes/fences the model sometimes adds around a draft. */
 export function cleanDraft(raw: string): string {
@@ -139,21 +161,27 @@ export async function suggestReply(opts: {
   cardJson: string;
   thread: { author: string; text: string; opAuthor?: string; opText?: string };
   agenda?: string;
+  /** Operator-picked side when the post assumes an argument. */
+  stance?: string;
   chat?: ChatFn;
 }): Promise<
   | { ok: true; draft: string; model: string }
   | { ok: false; error: string; message: string }
 > {
   const chat = opts.chat ?? chatCompletions;
+  const allowContrastCadence = cardAllowsContrastCadence(opts.cardJson);
   const parts = [
     `Voice card JSON:\n${opts.cardJson}`,
     opts.agenda?.trim() ? `The user's current agenda: ${opts.agenda.trim()}` : "",
     opts.thread.opAuthor && opts.thread.opText
-      ? `Thread context — ${opts.thread.opAuthor}: ${opts.thread.opText}`
+      ? `Thread context: ${opts.thread.opAuthor}: ${opts.thread.opText}`
+      : "",
+    opts.stance?.trim()
+      ? `Take this side (do not sit the fence): ${opts.stance.trim()}`
       : "",
     `Reply to this post by ${opts.thread.author}:\n${opts.thread.text}`,
   ].filter(Boolean);
-  const result = await chat({
+  const first = await chat({
     messages: [
       { role: "system", content: SUGGEST_SYSTEM },
       { role: "user", content: parts.join("\n\n") },
@@ -162,10 +190,30 @@ export async function suggestReply(opts: {
     temperature: 0.7,
     purpose: "reply_suggest",
   });
-  if (!result.ok) {
-    return { ok: false, error: result.error, message: result.message };
+  if (!first.ok) {
+    return { ok: false, error: first.error, message: first.message };
   }
-  const draft = cleanDraft(result.content);
+  let rawDraft = cleanDraft(first.content);
+  let draft = sanitizeSuggestedDraft(rawDraft);
+  if (draft && draftHasAiTropes(draft, rawDraft, { allowContrastCadence })) {
+    const retry = await chat({
+      messages: [
+        { role: "system", content: SUGGEST_SYSTEM },
+        { role: "user", content: parts.join("\n\n") },
+        { role: "assistant", content: draft },
+        { role: "user", content: SLOP_RETRY },
+      ],
+      model: resolveFlashModel(),
+      temperature: 0.6,
+      purpose: "reply_suggest",
+    });
+    if (retry.ok) {
+      rawDraft = cleanDraft(retry.content);
+      draft = sanitizeSuggestedDraft(rawDraft);
+    } else {
+      return { ok: false, error: retry.error, message: retry.message };
+    }
+  }
   if (!draft) {
     return {
       ok: false,
@@ -173,7 +221,14 @@ export async function suggestReply(opts: {
       message: "The draft came back empty. Try again.",
     };
   }
-  return { ok: true, draft, model: result.model };
+  if (draftHasAiTropes(draft, rawDraft, { allowContrastCadence })) {
+    return {
+      ok: false,
+      error: "draft_slop",
+      message: "That draft still read as stock AI. Try Suggest again.",
+    };
+  }
+  return { ok: true, draft, model: first.model };
 }
 
 export type VerifyVerdict = { ok: boolean; reason: string };
@@ -223,4 +278,80 @@ export async function verifyReplyEdit(opts: {
     };
   }
   return { ok: true, verdict, model: result.model };
+}
+
+export const FALLBACK_STANCES = ["Agree with this", "Push back", "Another angle"];
+
+const STANCE_SYSTEM = `You list 2 or 3 sides a human could take on this X post.
+Return ONLY JSON: {"options":["short side 1","short side 2","short side 3"]}
+Rules: each option is under 8 words, names a real side in THIS argument, no em dashes, no "this isn't X" templates. If the post does not assume a side, return {"options":[]}.`;
+
+export function parseStanceOptions(raw: string): string[] {
+  const data = extractJsonObject(raw) as { options?: unknown } | null;
+  if (!data || !Array.isArray(data.options)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of data.options) {
+    if (typeof item !== "string") continue;
+    const label = item.replace(/\u2014/g, " ").replace(/\s+/g, " ").trim();
+    const key = label.toLowerCase();
+    if (!label || label.length > 60 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+    if (out.length === 3) break;
+  }
+  return out;
+}
+
+export type StanceProposal =
+  | { ok: true; needed: false; options: string[]; fallback: false }
+  | { ok: true; needed: true; options: string[]; fallback: boolean }
+  | { ok: false; error: string; message: string };
+
+export async function proposeStances(opts: {
+  thread: {
+    author: string;
+    text: string;
+    threadKind?: string;
+    flags?: string[];
+    opAuthor?: string;
+    opText?: string;
+  };
+  chat?: ChatFn;
+}): Promise<StanceProposal> {
+  if (
+    !postNeedsStance({
+      threadKind: opts.thread.threadKind,
+      flags: opts.thread.flags,
+    })
+  ) {
+    return { ok: true, needed: false, options: [], fallback: false };
+  }
+  const chat = opts.chat ?? chatCompletions;
+  const parts = [
+    opts.thread.opAuthor && opts.thread.opText
+      ? `Thread context: ${opts.thread.opAuthor}: ${opts.thread.opText}`
+      : "",
+    `Post by ${opts.thread.author}:\n${opts.thread.text}`,
+  ].filter(Boolean);
+  const result = await chat({
+    messages: [
+      { role: "system", content: STANCE_SYSTEM },
+      { role: "user", content: parts.join("\n\n") },
+    ],
+    model: resolveFlashModel(),
+    temperature: 0.4,
+    purpose: "reply_stances",
+  });
+  if (!result.ok) {
+    console.error(
+      `[llm] purpose=reply_stances failed error=${result.error} message=${result.message}`,
+    );
+    return { ok: false, error: result.error, message: result.message };
+  }
+  const options = parseStanceOptions(result.content);
+  if (options.length >= 2) return { ok: true, needed: true, options, fallback: false };
+  // The metadata gate said this post takes a side; when the model finds no
+  // side, fall back to generic sides instead of silently drafting un-picked.
+  return { ok: true, needed: true, options: FALLBACK_STANCES, fallback: true };
 }

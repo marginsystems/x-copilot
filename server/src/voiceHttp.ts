@@ -21,10 +21,13 @@ import {
   checkTrivialEdit,
   trivialEditNote,
 } from "./voiceEdit.js";
+import { postNeedsStance } from "./voiceDraft.js";
 import { foldLocalVoiceSources } from "./voiceLocal.js";
 import {
+  proposeStances,
   suggestReply,
   verifyReplyEdit,
+  type ChatFn,
   type VoiceCard,
 } from "./voiceLlm.js";
 import {
@@ -187,6 +190,117 @@ async function handleLearn(
   });
 }
 
+async function handleStances(
+  req: IncomingMessage,
+  res: ServerResponse,
+  user: AuthUser,
+  chat?: ChatFn,
+): Promise<void> {
+  const body = await readJsonBody(req);
+  if (!body) {
+    send(req, res, 400, { error: "invalid_json", message: "Invalid JSON body." });
+    return;
+  }
+  const author = (typeof body.author === "string" ? body.author.trim() : "").slice(
+    0,
+    100,
+  );
+  const text = (typeof body.text === "string" ? body.text.trim() : "").slice(
+    0,
+    2000,
+  );
+  if (!author || !text) {
+    send(req, res, 400, {
+      error: "bad_request",
+      message: "Pass { author, text } from the thread card.",
+    });
+    return;
+  }
+  const profile = getVoiceProfile(user.id);
+  if (
+    !profile ||
+    profile.status !== "ready" ||
+    !profile.cardJson ||
+    !voiceUnlocked(profile.replyCount)
+  ) {
+    send(req, res, 409, {
+      error: "voice_not_ready",
+      message: `Suggest unlocks after ${VOICE_UNLOCK_MIN_POSTS} public posts and a learned voice card.`,
+    });
+    return;
+  }
+  const tenantId = ensureUserTenant(user.id);
+  const exhausted = creditsExhaustedResponse({
+    userId: user.id,
+    tenantId,
+    email: user.email,
+  });
+  if (exhausted) {
+    send(req, res, 402, exhausted);
+    return;
+  }
+  const flags = Array.isArray(body.flags)
+    ? body.flags
+        .filter((f): f is string => typeof f === "string")
+        .map((f) => f.trim())
+        .filter(Boolean)
+        .slice(0, 12)
+    : undefined;
+  const threadKind =
+    typeof body.threadKind === "string"
+      ? body.threadKind.trim().slice(0, 40)
+      : undefined;
+  if (postNeedsStance({ threadKind, flags })) {
+    if (!allowRate(`voice-stances:${user.id}`, 20, 60_000)) {
+      send(req, res, 429, {
+        error: "rate_limited",
+        message: "Too many stance lookups. Slow down a moment.",
+      });
+      return;
+    }
+    const billing = ensureUserBillingRow(user.id, tenantId);
+    const planKey = effectivePlanKey(billing, user.email);
+    const usage = getSuggestUsage(user.id, planKey);
+    if (!usage.canSuggest) {
+      send(req, res, 429, {
+        error: "suggest_daily_limit",
+        message: `That's ${usage.limit} suggested drafts today — the well refills at 00:00 UTC.`,
+        used: usage.used,
+        limit: usage.limit,
+        planKey,
+      });
+      return;
+    }
+  }
+  const proposed = await proposeStances({
+    thread: {
+      author,
+      text,
+      threadKind,
+      flags,
+      opAuthor:
+        typeof body.opAuthor === "string"
+          ? body.opAuthor.trim().slice(0, 100)
+          : undefined,
+      opText:
+        typeof body.opText === "string"
+          ? body.opText.trim().slice(0, 2000)
+          : undefined,
+    },
+    chat,
+  });
+  if (!proposed.ok) {
+    send(req, res, 502, { error: proposed.error, message: proposed.message });
+    return;
+  }
+  send(req, res, 200, {
+    ok: true,
+    needed: proposed.needed,
+    options: proposed.options,
+    fallback: proposed.fallback,
+  });
+}
+
 async function handleSuggest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -288,6 +402,10 @@ async function handleSuggest(
     agenda:
       typeof body.agenda === "string"
         ? body.agenda.trim().slice(0, 1000)
+        : undefined,
+    stance:
+      typeof body.stance === "string"
+        ? body.stance.trim().slice(0, 80)
         : undefined,
   });
   if (!result.ok) {
@@ -408,6 +526,7 @@ export async function tryHandleVoice(
   req: IncomingMessage,
   res: ServerResponse,
   url: URL,
+  chat?: ChatFn,
 ): Promise<boolean> {
   if (!url.pathname.startsWith("/api/voice")) return false;
 
@@ -445,6 +564,11 @@ export async function tryHandleVoice(
 
   if (req.method === "POST" && url.pathname === "/api/voice/learn") {
     await handleLearn(req, res, user);
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/voice/stances") {
+    await handleStances(req, res, user, chat);
     return true;
   }
 

@@ -10,7 +10,22 @@ import {
   type VoicePhase,
 } from "./lib/voice";
 
-type PaneStage = "idle" | "composing" | "editing" | "verifying" | "ready";
+type PaneStage =
+  | "idle"
+  | "composing"
+  | "stance"
+  | "editing"
+  | "verifying"
+  | "ready";
+
+/** Mirrors server postNeedsStance: only opinionated posts need the picker. */
+function postNeedsStance(threadKind?: string, flags?: string[]): boolean {
+  const kind = (threadKind ?? "").trim().toLowerCase();
+  if (kind === "sharp_opinion" || kind === "timely_take") return true;
+  return (flags ?? []).some(
+    (flag) => flag === "political" || flag === "rage_bait",
+  );
+}
 
 function PhaseLine({
   phases,
@@ -43,6 +58,8 @@ export function SuggestPane({
   text,
   opAuthor,
   opText,
+  threadKind,
+  flags,
   agenda,
   usage,
   onUsage,
@@ -53,6 +70,8 @@ export function SuggestPane({
   text: string;
   opAuthor?: string;
   opText?: string;
+  threadKind?: string;
+  flags?: string[];
   agenda?: string;
   usage: SuggestUsage;
   onUsage: (usage: SuggestUsage) => void;
@@ -67,11 +86,100 @@ export function SuggestPane({
   const [intentUrl, setIntentUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
+  const [stances, setStances] = useState<string[]>([]);
+  const [stancesFallback, setStancesFallback] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  /** Bumped on every close so an in-flight fetch can't reopen the pane. */
+  const sessionRef = useRef(0);
+  /** Synchronous in-flight guard so a double-click can't burn two suggest slots. */
+  const suggestBusyRef = useRef(false);
+  const attemptRef = useRef(0);
 
   const hint = stage === "editing" ? localEditHint(draft, edited) : null;
 
-  async function onSuggest() {
+  function onClose() {
+    sessionRef.current += 1;
+    attemptRef.current++;
+    setStage("idle");
+    setDraft("");
+    setEdited("");
+    setNote(null);
+    setNoteKind("info");
+    setIntentUrl(null);
+    setCopied(false);
+    setStances([]);
+    setStancesFallback(false);
+  }
+
+  async function onStart() {
+    if (suggestBusyRef.current) return;
+    const session = sessionRef.current;
+    setStage("composing");
+    setStartedAt(Date.now());
+    setNote(null);
+    if (!postNeedsStance(threadKind, flags)) {
+      await onSuggest();
+      return;
+    }
+    let res: Response;
+    let data: {
+      ok?: boolean;
+      needed?: boolean;
+      options?: string[];
+      fallback?: boolean;
+      message?: string;
+    };
+    try {
+      res = await apiFetch("/api/voice/stances", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          threadId,
+          author,
+          text,
+          opAuthor,
+          opText,
+          threadKind,
+          flags,
+        }),
+      });
+      data = (await res.json().catch(() => ({}))) as typeof data;
+    } catch {
+      if (session !== sessionRef.current) return;
+      setStage("idle");
+      setNoteKind("fail");
+      setNote("Stance lookup hiccuped — try again.");
+      return;
+    }
+    if (session !== sessionRef.current) return;
+    if (
+      res.ok &&
+      data.ok &&
+      data.needed &&
+      Array.isArray(data.options) &&
+      data.options.length >= 2
+    ) {
+      setStances(data.options.slice(0, 3));
+      setStancesFallback(Boolean(data.fallback));
+      setStage("stance");
+      return;
+    }
+    if (!res.ok || !data.ok) {
+      setStage("idle");
+      setNoteKind("fail");
+      setNote(
+        data.message ?? "Stance lookup failed — try again.",
+      );
+      return;
+    }
+    await onSuggest();
+  }
+
+  async function onSuggest(stance?: string) {
+    if (suggestBusyRef.current) return;
+    suggestBusyRef.current = true;
+    const session = sessionRef.current;
+    const attempt = ++attemptRef.current;
     setStage("composing");
     setStartedAt(Date.now());
     setNote(null);
@@ -79,7 +187,15 @@ export function SuggestPane({
       const res = await apiFetch("/api/voice/suggest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId, author, text, opAuthor, opText, agenda }),
+        body: JSON.stringify({
+          threadId,
+          author,
+          text,
+          opAuthor,
+          opText,
+          agenda,
+          stance,
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -91,20 +207,22 @@ export function SuggestPane({
         limit?: number;
         planKey?: string;
       };
+      if (session !== sessionRef.current) return;
+      if (data.error === "suggest_daily_limit") {
+        const used = typeof data.used === "number" ? data.used : usage.used;
+        const limit =
+          typeof data.limit === "number" ? data.limit : usage.limit;
+        onUsage({
+          used,
+          limit,
+          remaining: Math.max(0, limit - used),
+          canSuggest: used < limit,
+          planKey:
+            typeof data.planKey === "string" ? data.planKey : usage.planKey,
+        });
+      }
+      if (attemptRef.current !== attempt) return;
       if (!res.ok || !data.ok || !data.draft) {
-        if (data.error === "suggest_daily_limit") {
-          const used = typeof data.used === "number" ? data.used : usage.used;
-          const limit =
-            typeof data.limit === "number" ? data.limit : usage.limit;
-          onUsage({
-            used,
-            limit,
-            remaining: Math.max(0, limit - used),
-            canSuggest: used < limit,
-            planKey:
-              typeof data.planKey === "string" ? data.planKey : usage.planKey,
-          });
-        }
         setStage("idle");
         setNoteKind("fail");
         setNote(
@@ -122,13 +240,18 @@ export function SuggestPane({
       setNote(null);
       window.setTimeout(() => textareaRef.current?.focus(), 50);
     } catch {
+      if (session !== sessionRef.current) return;
+      if (attemptRef.current !== attempt) return;
       setStage("idle");
       setNoteKind("fail");
       setNote("Couldn't reach the desk — try again.");
+    } finally {
+      suggestBusyRef.current = false;
     }
   }
 
   async function onVerify() {
+    const attempt = ++attemptRef.current;
     setStage("verifying");
     setStartedAt(Date.now());
     setNote(null);
@@ -145,6 +268,7 @@ export function SuggestPane({
         intentUrl?: string;
         message?: string;
       };
+      if (attemptRef.current !== attempt) return;
       if (!res.ok || !data.ok) {
         setStage("editing");
         setNoteKind("fail");
@@ -163,6 +287,7 @@ export function SuggestPane({
         window.setTimeout(() => textareaRef.current?.focus(), 50);
       }
     } catch {
+      if (attemptRef.current !== attempt) return;
       setStage("editing");
       setNoteKind("fail");
       setNote("Couldn't reach the desk — try again.");
@@ -198,7 +323,7 @@ export function SuggestPane({
           type="button"
           className="ghost suggest-trigger"
           disabled={!usage.canSuggest}
-          onClick={() => void onSuggest()}
+          onClick={() => void onStart()}
         >
           Suggest reply
         </button>
@@ -208,10 +333,44 @@ export function SuggestPane({
     );
   }
 
+  if (stage === "stance") {
+    return (
+      <div className="suggest-pane">
+        <div className="suggest-pane-head">
+          <p className="suggest-banner" role="note">
+            {stancesFallback
+              ? "The voice model couldn't pin down sides on this post — here are some general angles."
+              : "This post takes a side. Pick yours, then we draft in your voice."}
+          </p>
+          <button type="button" className="ghost suggest-close" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <div className="suggest-stances">
+          {stances.map((side) => (
+            <button
+              key={side}
+              type="button"
+              className="ghost suggest-stance"
+              onClick={() => void onSuggest(side)}
+            >
+              {side}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (stage === "composing") {
     return (
       <div className="suggest-pane">
-        <PhaseLine phases={SUGGEST_PHASES} startedAt={startedAt} />
+        <div className="suggest-pane-head">
+          <PhaseLine phases={SUGGEST_PHASES} startedAt={startedAt} />
+          <button type="button" className="ghost suggest-close" onClick={onClose}>
+            Close
+          </button>
+        </div>
       </div>
     );
   }
@@ -220,10 +379,19 @@ export function SuggestPane({
 
   return (
     <div className="suggest-pane">
-      <p className="suggest-banner" role="note">
-        AI-generated — edit before posting. It won&apos;t unlock until you make
-        it yours.
-      </p>
+      <div className="suggest-pane-head">
+        <p className="suggest-banner" role="note">
+          AI-generated. Edit before posting. It won&apos;t unlock until you make
+          it yours.
+        </p>
+        <button
+          type="button"
+          className="ghost suggest-close"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
       <textarea
         ref={textareaRef}
         className="suggest-textarea"

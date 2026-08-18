@@ -3282,6 +3282,8 @@ export default function App() {
                               text={t.text}
                               opAuthor={t.opAuthor}
                               opText={t.opText}
+                              threadKind={t.threadKind}
+                              flags={t.flags}
                               agenda={agenda}
                               usage={voice.suggests}
                               onUsage={(u) =>
