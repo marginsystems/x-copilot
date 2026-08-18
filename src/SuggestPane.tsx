@@ -79,10 +79,13 @@ export function SuggestPane({
   const [startedAt, setStartedAt] = useState(0);
   const [stances, setStances] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  /** Bumped on every close so an in-flight fetch can't reopen the pane. */
+  const sessionRef = useRef(0);
 
   const hint = stage === "editing" ? localEditHint(draft, edited) : null;
 
   function onClose() {
+    sessionRef.current += 1;
     setStage("idle");
     setDraft("");
     setEdited("");
@@ -94,11 +97,19 @@ export function SuggestPane({
   }
 
   async function onStart() {
+    const session = sessionRef.current;
     setStage("composing");
     setStartedAt(Date.now());
     setNote(null);
+    let res: Response;
+    let data: {
+      ok?: boolean;
+      needed?: boolean;
+      options?: string[];
+      message?: string;
+    };
     try {
-      const res = await apiFetch("/api/voice/stances", {
+      res = await apiFetch("/api/voice/stances", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -111,30 +122,39 @@ export function SuggestPane({
           flags,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        needed?: boolean;
-        options?: string[];
-        message?: string;
-      };
-      if (
-        res.ok &&
-        data.ok &&
-        data.needed &&
-        Array.isArray(data.options) &&
-        data.options.length >= 2
-      ) {
-        setStances(data.options.slice(0, 3));
-        setStage("stance");
-        return;
-      }
-      await onSuggest();
+      data = (await res.json().catch(() => ({}))) as typeof data;
     } catch {
-      await onSuggest();
+      if (session !== sessionRef.current) return;
+      setStage("idle");
+      setNoteKind("fail");
+      setNote("Stance lookup hiccuped — try again.");
+      return;
     }
+    if (session !== sessionRef.current) return;
+    if (
+      res.ok &&
+      data.ok &&
+      data.needed &&
+      Array.isArray(data.options) &&
+      data.options.length >= 2
+    ) {
+      setStances(data.options.slice(0, 3));
+      setStage("stance");
+      return;
+    }
+    if (!res.ok || !data.ok) {
+      setStage("idle");
+      setNoteKind("fail");
+      setNote(
+        data.message ?? "Stance lookup failed — try again.",
+      );
+      return;
+    }
+    await onSuggest();
   }
 
   async function onSuggest(stance?: string) {
+    const session = sessionRef.current;
     setStage("composing");
     setStartedAt(Date.now());
     setNote(null);
@@ -162,6 +182,7 @@ export function SuggestPane({
         limit?: number;
         planKey?: string;
       };
+      if (session !== sessionRef.current) return;
       if (!res.ok || !data.ok || !data.draft) {
         if (data.error === "suggest_daily_limit") {
           const used = typeof data.used === "number" ? data.used : usage.used;
@@ -193,6 +214,7 @@ export function SuggestPane({
       setNote(null);
       window.setTimeout(() => textareaRef.current?.focus(), 50);
     } catch {
+      if (session !== sessionRef.current) return;
       setStage("idle");
       setNoteKind("fail");
       setNote("Couldn't reach the desk — try again.");

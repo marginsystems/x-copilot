@@ -233,6 +233,16 @@ async function handleStances(
     });
     return;
   }
+  const tenantId = ensureUserTenant(user.id);
+  const exhausted = creditsExhaustedResponse({
+    userId: user.id,
+    tenantId,
+    email: user.email,
+  });
+  if (exhausted) {
+    send(req, res, 402, exhausted);
+    return;
+  }
   const flags = Array.isArray(body.flags)
     ? body.flags
         .filter((f): f is string => typeof f === "string")

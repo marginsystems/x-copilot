@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   defaultMigrationsDir,
@@ -17,7 +18,12 @@ import {
   shouldPullXApi,
   tryHandleVoice,
 } from "./voiceHttp.ts";
-import type { VoiceProfileRow } from "./voiceStore.ts";
+import {
+  effectivePlanKey,
+  ensureUserBillingRow,
+  ensureUserTenant,
+} from "./billingStore.ts";
+import { getSuggestUsage, type VoiceProfileRow } from "./voiceStore.ts";
 
 function profile(
   overrides: Partial<VoiceProfileRow> = {},
@@ -174,5 +180,90 @@ describe("POST /api/voice/learn", () => {
     assert.equal(status, 403);
     const json = JSON.parse(body) as { error?: string };
     assert.equal(json.error, "ingest_not_user_triggered");
+  });
+});
+
+describe("POST /api/voice/stances", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    dir = mkdtempSync(join(tmpdir(), "voice-stances-"));
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns needed:false on a non-opinion post without spending a suggest slot", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-stances",
+      email: "stance@example.com",
+      emailVerified: true,
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const at = new Date().toISOString();
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO voice_profiles
+           (user_id, tenant_id, status, reply_count, card_json, created_at, updated_at)
+         VALUES (?, ?, 'ready', 100, '{"tone":"dry"}', ?, ?)`,
+      )
+      .run(user.id, tenantId, at, at);
+    const billing = ensureUserBillingRow(user.id, tenantId);
+    const planKey = effectivePlanKey(billing, user.email);
+    const before = getSuggestUsage(user.id, planKey);
+
+    const { token } = createSession(user.id);
+    const req = new EventEmitter() as unknown as IncomingMessage;
+    Object.assign(req, {
+      method: "POST",
+      headers: {
+        cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+      },
+      socket: { remoteAddress: "127.0.0.1" },
+    });
+    let status = 0;
+    let body = "";
+    const res = {
+      writeHead: (code: number) => {
+        status = code;
+      },
+      end: (chunk: string) => {
+        body = chunk;
+      },
+    } as unknown as ServerResponse;
+
+    const handledPromise = tryHandleVoice(
+      req,
+      res,
+      new URL("http://localhost/api/voice/stances"),
+    );
+    (req as EventEmitter).emit(
+      "data",
+      Buffer.from(
+        JSON.stringify({
+          author: "@dev",
+          text: "sqlite 3.46 shipped today",
+          threadKind: "fact_add",
+        }),
+      ),
+    );
+    (req as EventEmitter).emit("end");
+    const handled = await handledPromise;
+
+    assert.equal(handled, true);
+    assert.equal(status, 200);
+    const json = JSON.parse(body) as { ok?: boolean; needed?: boolean };
+    assert.equal(json.ok, true);
+    assert.equal(json.needed, false);
+    assert.deepEqual(getSuggestUsage(user.id, planKey), before);
   });
 });

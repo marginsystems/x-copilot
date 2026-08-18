@@ -321,9 +321,9 @@ export async function proposeStances(opts: {
     temperature: 0.4,
     purpose: "reply_stances",
   });
-  const options = result.ok ? parseStanceOptions(result.content) : [];
-  return {
-    needed: true,
-    options: options.length >= 2 ? options : FALLBACK_STANCES,
-  };
+  if (!result.ok) {
+    return { needed: true, options: FALLBACK_STANCES };
+  }
+  const options = parseStanceOptions(result.content);
+  return { needed: options.length >= 2, options };
 }
