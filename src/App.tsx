@@ -1325,7 +1325,6 @@ export default function App() {
     const err = authErrorMessage(params.get("auth_error"));
     if (err) {
       setAuthNotice(err);
-      setSignInOpen(true);
     } else if (params.get("auth") === "ok") setAuthNotice("Signed in.");
     const checkout = params.get("checkout");
     const sessionId = params.get("session_id");
@@ -1347,6 +1346,7 @@ export default function App() {
     }
     void (async () => {
       const user = await hydrateAuth();
+      if (err && !user) setSignInOpen(true);
       const onboarded = user
         ? user.onboardingCompleted
         : readOnboardingComplete();
@@ -2424,7 +2424,10 @@ export default function App() {
       if (e.key !== "Escape" || actionBusy) return;
       if (markThread) closeMarkModal();
       if (dismissThread) closeDismissModal();
-      if (signInOpen) setSignInOpen(false);
+      if (signInOpen) {
+        setSignInOpen(false);
+        setAuthNotice("");
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -3554,7 +3557,10 @@ export default function App() {
       <SignInModal
         open={signInOpen}
         notice={authNotice}
-        onClose={() => setSignInOpen(false)}
+        onClose={() => {
+          setSignInOpen(false);
+          setAuthNotice("");
+        }}
         onGoogle={startGoogleLogin}
         onX={startXLogin}
       />
