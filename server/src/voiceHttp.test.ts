@@ -11,6 +11,7 @@ import {
   resetPlatformDbForTests,
 } from "./db.ts";
 import { createSession, upsertOauthUser } from "./authStore.ts";
+import type { AuthUser } from "./authStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import {
   deriveNeedsLearn,
@@ -24,6 +25,7 @@ import {
   ensureUserTenant,
 } from "./billingStore.ts";
 import { getSuggestUsage, type VoiceProfileRow } from "./voiceStore.ts";
+import { PLAN_DAILY_SUGGESTS } from "./plans.ts";
 
 function profile(
   overrides: Partial<VoiceProfileRow> = {},
@@ -201,11 +203,11 @@ describe("POST /api/voice/stances", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("returns needed:false on a non-opinion post without spending a suggest slot", async () => {
+  function seedReadyUser(email: string) {
     const user = upsertOauthUser({
       provider: "google",
-      providerUserId: "gid-stances",
-      email: "stance@example.com",
+      providerUserId: `gid-${email}`,
+      email,
       emailVerified: true,
     });
     const tenantId = ensureUserTenant(user.id);
@@ -219,8 +221,13 @@ describe("POST /api/voice/stances", () => {
       .run(user.id, tenantId, at, at);
     const billing = ensureUserBillingRow(user.id, tenantId);
     const planKey = effectivePlanKey(billing, user.email);
-    const before = getSuggestUsage(user.id, planKey);
+    return { user, tenantId, planKey };
+  }
 
+  async function postStances(
+    user: AuthUser,
+    body: Record<string, unknown>,
+  ): Promise<{ status: number; json: Record<string, unknown> }> {
     const { token } = createSession(user.id);
     const req = new EventEmitter() as unknown as IncomingMessage;
     Object.assign(req, {
@@ -231,13 +238,13 @@ describe("POST /api/voice/stances", () => {
       socket: { remoteAddress: "127.0.0.1" },
     });
     let status = 0;
-    let body = "";
+    let raw = "";
     const res = {
       writeHead: (code: number) => {
         status = code;
       },
       end: (chunk: string) => {
-        body = chunk;
+        raw = chunk;
       },
     } as unknown as ServerResponse;
 
@@ -246,24 +253,59 @@ describe("POST /api/voice/stances", () => {
       res,
       new URL("http://localhost/api/voice/stances"),
     );
-    (req as EventEmitter).emit(
-      "data",
-      Buffer.from(
-        JSON.stringify({
-          author: "@dev",
-          text: "sqlite 3.46 shipped today",
-          threadKind: "fact_add",
-        }),
-      ),
-    );
+    (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
     (req as EventEmitter).emit("end");
-    const handled = await handledPromise;
+    assert.equal(await handledPromise, true);
+    return { status, json: JSON.parse(raw || "{}") as Record<string, unknown> };
+  }
 
-    assert.equal(handled, true);
+  it("returns needed:false on a non-opinion post without spending a suggest slot", async () => {
+    const { user, planKey } = seedReadyUser("stance@example.com");
+    const before = getSuggestUsage(user.id, planKey);
+
+    const { status, json } = await postStances(user, {
+      author: "@dev",
+      text: "sqlite 3.46 shipped today",
+      threadKind: "fact_add",
+    });
+
     assert.equal(status, 200);
-    const json = JSON.parse(body) as { ok?: boolean; needed?: boolean };
     assert.equal(json.ok, true);
     assert.equal(json.needed, false);
     assert.deepEqual(getSuggestUsage(user.id, planKey), before);
+  });
+
+  it("counts an opinionated stance lookup toward the daily suggest cap", async () => {
+    const { user, planKey } = seedReadyUser("stance-count@example.com");
+    const before = getSuggestUsage(user.id, planKey).used;
+
+    const { status } = await postStances(user, {
+      author: "@dev",
+      text: "the tool is never the bottleneck",
+      threadKind: "sharp_opinion",
+    });
+
+    assert.equal(status, 200);
+    assert.equal(getSuggestUsage(user.id, planKey).used, before + 1);
+  });
+
+  it("rejects an opinionated stance lookup when today's suggest cap is spent", async () => {
+    const { user } = seedReadyUser("stance-cap@example.com");
+    const at = new Date().toISOString();
+    const stmt = getPlatformDb().prepare(
+      `INSERT INTO voice_suggests (id, user_id, thread_id, at) VALUES (?, ?, NULL, ?)`,
+    );
+    for (let i = 0; i < PLAN_DAILY_SUGGESTS.free; i++) {
+      stmt.run(`stance-cap-${i}`, user.id, at);
+    }
+
+    const { status, json } = await postStances(user, {
+      author: "@dev",
+      text: "the tool is never the bottleneck",
+      threadKind: "sharp_opinion",
+    });
+
+    assert.equal(status, 429);
+    assert.equal(json.error, "suggest_daily_limit");
   });
 });

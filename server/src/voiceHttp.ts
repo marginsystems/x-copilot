@@ -21,6 +21,7 @@ import {
   checkTrivialEdit,
   trivialEditNote,
 } from "./voiceEdit.js";
+import { postNeedsStance } from "./voiceDraft.js";
 import { foldLocalVoiceSources } from "./voiceLocal.js";
 import {
   proposeStances,
@@ -33,6 +34,7 @@ import {
   ensureVoiceProfile,
   getSuggestUsage,
   getVoiceProfile,
+  recordSuggest,
   removeSuggestRecord,
   reserveSuggestSlot,
   voiceUnlocked,
@@ -250,14 +252,31 @@ async function handleStances(
         .filter(Boolean)
         .slice(0, 12)
     : undefined;
+  const threadKind =
+    typeof body.threadKind === "string"
+      ? body.threadKind.trim().slice(0, 40)
+      : undefined;
+  if (postNeedsStance({ threadKind, flags })) {
+    const billing = ensureUserBillingRow(user.id, tenantId);
+    const planKey = effectivePlanKey(billing, user.email);
+    const usage = getSuggestUsage(user.id, planKey);
+    if (!usage.canSuggest) {
+      send(req, res, 429, {
+        error: "suggest_daily_limit",
+        message: `That's ${usage.limit} suggested drafts today — the well refills at 00:00 UTC.`,
+        used: usage.used,
+        limit: usage.limit,
+        planKey,
+      });
+      return;
+    }
+    recordSuggest(user.id);
+  }
   const proposed = await proposeStances({
     thread: {
       author,
       text,
-      threadKind:
-        typeof body.threadKind === "string"
-          ? body.threadKind.trim().slice(0, 40)
-          : undefined,
+      threadKind,
       flags,
       opAuthor:
         typeof body.opAuthor === "string"
