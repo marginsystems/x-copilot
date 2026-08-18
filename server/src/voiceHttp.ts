@@ -21,7 +21,11 @@ import {
   parseStatusIdFromUrl,
 } from "./interactionStore.js";
 import { xConsumerCreds } from "./xAuth.js";
-import { checkDeskPostLimit, recordDeskPost } from "./xPostLimits.js";
+import {
+  checkDeskPostLimit,
+  findDeskPostByKey,
+  recordDeskPost,
+} from "./xPostLimits.js";
 import { postUserReply } from "./xTweet.js";
 import {
   MAX_REPLY_CHARS,
@@ -580,6 +584,59 @@ async function handlePost(
     });
     return;
   }
+  // A retry after an ambiguous network failure re-sends the same client key.
+  // If the first attempt actually posted (response was lost), replay that
+  // result instead of posting a duplicate reply on X.
+  const rawRequestKey =
+    typeof body.requestKey === "string" ? body.requestKey.trim() : "";
+  // Keys must fit the x_desk_posts id column: out-of-range keys are ignored
+  // entirely (no replay lookup, no row id) so a retry can't PK-conflict.
+  const requestKey =
+    rawRequestKey.length > 0 && rawRequestKey.length <= 80 ? rawRequestKey : "";
+  if (requestKey.length > 0) {
+    const prior = findDeskPostByKey(user.id, requestKey);
+    if (prior) {
+      const handle = getXOauthUsername(user.id) || "i";
+      const replyUrl = `https://x.com/${handle}/status/${prior.tweetId}`;
+      const replyId = parseStatusIdFromUrl(replyUrl) ?? prior.tweetId;
+      let interaction;
+      try {
+        interaction = await markInteracted({
+          threadId,
+          author,
+          source: "manual",
+          userId: user.id,
+          url: typeof body.url === "string" ? body.url : undefined,
+          text: typeof body.text === "string" ? body.text : undefined,
+          summary: typeof body.summary === "string" ? body.summary : undefined,
+          replyId,
+          replyUrl,
+          conversationId:
+            typeof body.conversationId === "string"
+              ? body.conversationId
+              : undefined,
+          inReplyToId,
+        });
+      } catch (err) {
+        console.warn("mark after desk post replay soft-fail:", err);
+      }
+      const snap = await getGamification({ userId: user.id });
+      const limit = checkDeskPostLimit({
+        userId: user.id,
+        level: snap.level,
+        currentStreak: snap.currentStreak,
+      });
+      send(req, res, 200, {
+        ok: true,
+        tweet: { id: prior.tweetId, url: replyUrl },
+        interaction,
+        remainingToday: limit.remainingToday,
+        cap: limit.cap,
+      });
+      return;
+    }
+  }
+
   const profile = getVoiceProfile(user.id);
   if (
     !profile ||
@@ -672,6 +729,7 @@ async function handlePost(
       tweetId: posted.tweetId,
       inReplyToId,
       threadId,
+      requestKey: requestKey || undefined,
     });
   } catch (err) {
     console.warn("desk post record soft-fail:", err);
