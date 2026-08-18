@@ -19,6 +19,8 @@ import {
   ensureUserTenant,
   getCreditUsage,
   getUserBilling,
+  grantManualPlan,
+  listAdminTenantUsage,
   shouldApplyStripeEvent,
 } from "./billingStore.ts";
 import { upsertOwnPost } from "./ownPostStore.ts";
@@ -230,6 +232,117 @@ describe("billingStore", () => {
     const full = dailyActivityUsage(user.id, user.email);
     assert.equal(full.used, 15);
     assert.equal(full.can_watch, false);
+  });
+
+  it("applies a complimentary Pulse grant without a Stripe sub", () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "xid-grant",
+      username: "willizuchukwu",
+      email: "will@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(user.id);
+    grantManualPlan({
+      userId: user.id,
+      planKey: "pulse",
+      grantedBy: "margin707@gmail.com",
+    });
+    const me = billingMePayload({ userId: user.id, email: user.email });
+    assert.equal(me.plan_key, "pulse");
+    assert.equal(me.plan_state, "subscription_active");
+    assert.equal(me.has_stripe_subscription, false);
+    const grant = me.manual_grant as { plan_key?: string; notice?: string };
+    assert.equal(grant.plan_key, "pulse");
+    assert.match(grant.notice ?? "", /manually upgraded to Pulse/);
+    const tenants = listAdminTenantUsage();
+    const row = tenants.find((t) => t.userId === user.id);
+    assert.equal(row?.manualGrant, true);
+    assert.equal(row?.grantPlanKey, "pulse");
+    assert.equal(row?.planKey, "pulse");
+    assert.equal(getCreditUsage(row!.tenantId, "pulse").limit, 6000);
+  });
+
+  it("lets a live Stripe sub win over a leftover grant", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-grant-stripe",
+      email: "paid@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(user.id);
+    grantManualPlan({
+      userId: user.id,
+      planKey: "pulse",
+      grantedBy: "ops@example.com",
+    });
+    activateSubscription({
+      userId: user.id,
+      planKey: "radar",
+      stripeCustomerId: "cus_g",
+      stripeSubscriptionId: "sub_g",
+      subscriptionStatus: "active",
+      currentPeriodEnd: new Date().toISOString(),
+      cancelAtPeriodEnd: false,
+      stripeEventCreated: 1,
+    });
+    const me = billingMePayload({ userId: user.id, email: user.email });
+    assert.equal(me.plan_key, "radar");
+    assert.equal(me.manual_grant, null);
+  });
+
+  it("keeps the grant live when the Stripe sub is incomplete", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-grant-incomplete",
+      email: "incomplete-grant@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(user.id);
+    grantManualPlan({
+      userId: user.id,
+      planKey: "pulse",
+      grantedBy: "ops@example.com",
+    });
+    activateSubscription({
+      userId: user.id,
+      planKey: "pulse",
+      stripeCustomerId: "cus_gi",
+      stripeSubscriptionId: "sub_gi",
+      subscriptionStatus: "incomplete",
+      currentPeriodEnd: new Date().toISOString(),
+      cancelAtPeriodEnd: false,
+      stripeEventCreated: 1,
+    });
+    const me = billingMePayload({ userId: user.id, email: user.email });
+    assert.equal(me.plan_key, "pulse");
+    const grant = me.manual_grant as { plan_key?: string };
+    assert.equal(grant?.plan_key, "pulse");
+    const tenants = listAdminTenantUsage();
+    assert.equal(tenants.find((t) => t.userId === user.id)?.manualGrant, true);
+  });
+
+  it("clears a grant back to Free", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-grant-clear",
+      email: "clear@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(user.id);
+    grantManualPlan({
+      userId: user.id,
+      planKey: "horizon",
+      grantedBy: "ops@example.com",
+    });
+    grantManualPlan({
+      userId: user.id,
+      planKey: "free",
+      grantedBy: "ops@example.com",
+    });
+    const me = billingMePayload({ userId: user.id, email: user.email });
+    assert.equal(me.plan_key, "free");
+    assert.equal(me.manual_grant, null);
   });
 
   it("applies equal-or-newer Stripe watermarks", () => {
