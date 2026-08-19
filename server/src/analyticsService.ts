@@ -188,8 +188,8 @@ function main(): void {
     setInterval(() => {}, 2 ** 31 - 1);
     return;
   }
-  const port = Number(process.env.PORT || process.env.ANALYTICS_PORT || DEFAULT_PORT);
-  if (!Number.isFinite(port) || port <= 0) {
+  const port = Number(process.env.ANALYTICS_PORT || process.env.PORT || DEFAULT_PORT);
+  if (!Number.isFinite(port) || port <= 0 || port > 65535) {
     console.error("[analytics] invalid PORT");
     process.exit(1);
   }

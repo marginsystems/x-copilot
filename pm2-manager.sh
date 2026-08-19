@@ -45,6 +45,19 @@ require_ecosystem() {
   fi
 }
 
+# A machine-local $ECOSYSTEM that predates the analytics sidecar defines no
+# $ANALYTICS app, so `pm2 start --only $ANALYTICS` aborts the start/restart
+# loop with a raw app-not-found error and no migration hint. Point the
+# operator back at the tracked example instead.
+require_analytics_app() {
+  if ! grep -q "$ANALYTICS" "$ECOSYSTEM"; then
+    echo "$ECOSYSTEM predates the analytics sidecar (defines no $ANALYTICS)." >&2
+    echo "Re-sync with the tracked example, keeping machine-local tweaks:" >&2
+    echo "  cp ecosystem.config.example.cjs ecosystem.config.cjs" >&2
+    exit 1
+  fi
+}
+
 ensure_build() {
   if [ "${SKIP_BUILD:-}" = "1" ] && [ -f "server/dist/index.js" ]; then
     echo "Skipping build (--skip-build, server/dist present)."
@@ -95,6 +108,7 @@ recycle_app() {
 case "$cmd" in
   start)
     require_ecosystem
+    require_analytics_app
     ensure_build
     mkdir -p logs
     for name in "${APPS[@]}"; do
@@ -107,6 +121,7 @@ case "$cmd" in
     ;;
   restart)
     require_ecosystem
+    require_analytics_app
     ensure_build
     mkdir -p logs
     # Recycle without truncating or deleting anything under logs/
