@@ -76,6 +76,12 @@ import { Account } from "./Account";
 import { SuggestLocked, VoiceCardPanel, VoiceUnlockToast } from "./VoiceCard";
 import { SuggestPane } from "./SuggestPane";
 import {
+  forYouKindLabel,
+  forYouOpenUrl,
+  parseForYouSuggestion,
+  type ForYouSuggestion,
+} from "./lib/forYou";
+import {
   parseVoiceState,
   voiceNeedsXLink,
   type VoiceState,
@@ -618,6 +624,76 @@ function ExpiredRow({
   );
 }
 
+function SuggestedRow({
+  row,
+  index = 0,
+  busy,
+  onPosted,
+  onSkip,
+  onDismiss,
+}: {
+  row: ForYouSuggestion;
+  index?: number;
+  busy: boolean;
+  onPosted: () => void;
+  onSkip: () => void;
+  onDismiss: () => void;
+}) {
+  const openUrl = forYouOpenUrl(row);
+  return (
+    <article
+      className="history-row for-you-row"
+      style={{ ["--i" as string]: index }}
+    >
+      <div className="history-row-body">
+        <span className="row-meta">
+          <span className="chip">{forYouKindLabel(row.kind)}</span>
+          {row.targetAuthor ? <span>{row.targetAuthor}</span> : null}
+        </span>
+        <span className="row-summary">{row.why}</span>
+        {row.draft ? (
+          <span className="for-you-draft">{row.draft}</span>
+        ) : null}
+      </div>
+      <div className="history-row-actions">
+        {openUrl ? (
+          <a className="ghost" href={openUrl} target="_blank" rel="noreferrer">
+            Open on X
+          </a>
+        ) : (
+          <button type="button" className="ghost" disabled>
+            Open on X
+          </button>
+        )}
+        <button
+          type="button"
+          className="primary"
+          disabled={busy}
+          onClick={onPosted}
+        >
+          I posted on X
+        </button>
+        <button
+          type="button"
+          className="ghost"
+          disabled={busy}
+          onClick={onSkip}
+        >
+          Skip
+        </button>
+        <button
+          type="button"
+          className="ghost"
+          disabled={busy}
+          onClick={onDismiss}
+        >
+          Not interested
+        </button>
+      </div>
+    </article>
+  );
+}
+
 function formatStatChip(
   label: string,
   snap: ReplyStatSnapshot | undefined,
@@ -748,6 +824,9 @@ export default function App() {
   const [expiredHistory, setExpiredHistory] = useState<ExpiredHistoryEntry[]>(
     [],
   );
+  const [forYouSuggestions, setForYouSuggestions] = useState<
+    ForYouSuggestion[]
+  >([]);
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const [activityBucket, setActivityBucket] = useState<ActivityBucket>("day");
   const [flightPathOpen, setFlightPathOpen] = useState(() => {
@@ -1218,6 +1297,46 @@ export default function App() {
     }
   }
 
+  async function hydrateForYou() {
+    try {
+      const res = await apiFetch("/api/for-you");
+      if (!res.ok) return;
+      const data = (await res.json()) as { suggestions?: unknown[] };
+      const rows = (Array.isArray(data.suggestions) ? data.suggestions : [])
+        .map(parseForYouSuggestion)
+        .filter((row): row is ForYouSuggestion => Boolean(row));
+      setForYouSuggestions(rows);
+    } catch {
+      /* sidecar may be offline */
+    }
+  }
+
+  async function actForYou(
+    id: string,
+    path: "done" | "skip" | "dismiss",
+  ) {
+    setActionBusy(true);
+    try {
+      const res = await apiFetch(`/api/for-you/${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        setStatus(`For You fail: ${data.message || res.status}`);
+        return;
+      }
+      setForYouSuggestions((prev) => prev.filter((row) => row.id !== id));
+    } catch {
+      setStatus("For You fail — desk offline.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   async function hydrateLastScout() {
     try {
       const res = await apiFetch(`/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`);
@@ -1385,6 +1504,7 @@ export default function App() {
       await hydrateActivityStats();
       await hydrateGamification();
       await hydrateExpired();
+      await hydrateForYou();
       if (onboarded) await hydrateLastScout();
       await hydrateScoutLog();
       if (checkout === "success" && sessionId) {
@@ -2051,7 +2171,7 @@ export default function App() {
   function onSaveSettings() {
     persistFilterSettings();
     setSettingsStatus(
-      "Saved — filters apply to Curated now and the next Scout.",
+      "Saved — filters apply to For You now and the next Scout.",
     );
   }
 
@@ -3259,9 +3379,9 @@ export default function App() {
                   }
                   onClick={() => setThreadsTab("curated")}
                 >
-                  Curated
-                  {curatedThreads.length > 0
-                    ? ` (${curatedThreads.length})`
+                  For You
+                  {curatedThreads.length + forYouSuggestions.length > 0
+                    ? ` (${curatedThreads.length + forYouSuggestions.length})`
                     : ""}
                 </button>
                 <button
@@ -3332,14 +3452,31 @@ export default function App() {
             </div>
             <div className="threads-scroll">
               {threadsTab === "curated" ? (
-                curatedThreads.length === 0 ? (
+                curatedThreads.length === 0 &&
+                forYouSuggestions.length === 0 ? (
                   <p className="empty">
                     {searching
                       ? "Scout is working…"
-                      : "No threads yet. Set an agenda and take off."}
+                      : "Nothing in For You yet. Take off for reply targets. Daily suggestions land here once we have enough of your 24h post stats."}
                   </p>
                 ) : (
                   <div className="threads">
+                    {forYouSuggestions.length > 0 ? (
+                      <div className="for-you-suggested">
+                        <h3 className="section-label">Suggested</h3>
+                        {forYouSuggestions.map((row, i) => (
+                          <SuggestedRow
+                            key={row.id}
+                            row={row}
+                            index={i}
+                            busy={actionBusy}
+                            onPosted={() => void actForYou(row.id, "done")}
+                            onSkip={() => void actForYou(row.id, "skip")}
+                            onDismiss={() => void actForYou(row.id, "dismiss")}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
                     {sortThreadsByCreatedAtNewest(curatedThreads).map((t) => (
                       <ThreadRow
                         key={t.id}
@@ -3408,7 +3545,7 @@ export default function App() {
               ) : threadsTab === "skipped" ? (
                 skippedHistory.length === 0 ? (
                   <p className="empty">
-                    No skipped threads yet. Skip a curated lead to pass on it
+                    No skipped threads yet. Skip a For You lead to pass on it
                     without dismissing the author.
                   </p>
                 ) : (
@@ -3425,7 +3562,7 @@ export default function App() {
               ) : threadsTab === "dismissed" ? (
                 dismissedHistory.length === 0 ? (
                   <p className="empty">
-                    No dismissed threads yet. Mark a curated lead as not interested
+                    No dismissed threads yet. Mark a For You lead as not interested
                     to dismiss it with an optional reason.
                   </p>
                 ) : (
@@ -3529,7 +3666,7 @@ export default function App() {
           >
             <h2 id="dismiss-title">Not interested</h2>
             <p className="status">
-              Dismiss {dismissThread.author} from Curated. Optional reason is
+              Dismiss {dismissThread.author} from For You. Optional reason is
               saved to local knowledge memory.
             </p>
             <label className="settings-field">
