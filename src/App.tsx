@@ -33,6 +33,7 @@ import {
   waitWithCountdown,
 } from "./lib/markDetectPoll";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
+import { XThreadView } from "./XThreadView";
 import { ScoutPixelField } from "./ScoutPixelField";
 import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
 import {
@@ -110,6 +111,7 @@ type ThreadCard = {
   conversationId?: string;
   /** Immediate parent status id when this card is a reply. */
   inReplyToId?: string;
+  isQuote?: boolean;
   /** Native media t.co keys (lowercased); hide from card text display. */
   mediaShortlinks?: string[];
   /** 0–100, higher = more engagement bait. */
@@ -448,7 +450,23 @@ function ThreadRow({
 
       {open ? (
         <div className="row-detail">
-          <p className="original">{displayText}</p>
+          <XThreadView
+            author={thread.author}
+            text={displayText}
+            createdAt={thread.createdAt}
+            opAuthor={thread.opAuthor}
+            opText={
+              thread.opText
+                ? stripMediaShortlinksFromText(
+                    thread.opText,
+                    thread.mediaShortlinks,
+                  )
+                : undefined
+            }
+            isReply={thread.isReply}
+            isQuote={thread.isQuote}
+            inReplyToId={thread.inReplyToId}
+          />
           {thread.reason ? <p className="reason">{thread.reason}</p> : null}
           {tags.length > 0 ? (
             <div className="tags">

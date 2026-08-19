@@ -76,6 +76,7 @@ export function SuggestPane({
   const [noteKind, setNoteKind] = useState<"info" | "ok" | "fail">("info");
   const [intentUrl, setIntentUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [draftCopied, setDraftCopied] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const [stances, setStances] = useState<string[]>([]);
   const [stancesFallback, setStancesFallback] = useState(false);
@@ -99,6 +100,7 @@ export function SuggestPane({
     setNoteKind("info");
     setIntentUrl(null);
     setCopied(false);
+    setDraftCopied(false);
     setStances([]);
     setStancesFallback(false);
     setCustomStance("");
@@ -222,7 +224,7 @@ export function SuggestPane({
         return;
       }
       setDraft(data.draft);
-      setEdited(data.draft);
+      setEdited("");
       if (data.suggests) onUsage(data.suggests);
       setStage("editing");
       setNoteKind("info");
@@ -395,8 +397,8 @@ export function SuggestPane({
     <div className="suggest-pane">
       <div className="suggest-pane-head">
         <p className="suggest-banner" role="note">
-          AI-generated. Edit before posting. It won&apos;t unlock until you make
-          it yours.
+          AI draft is a reference — write your own reply below. It won&apos;t
+          unlock until you make it yours.
         </p>
         <button
           type="button"
@@ -406,6 +408,32 @@ export function SuggestPane({
           Close
         </button>
       </div>
+      {draft ? (
+        <div className="suggest-reference">
+          <div className="suggest-reference-head">
+            <p className="suggest-reference-label">Suggested</p>
+            <button
+              type="button"
+              className="ghost suggest-reference-copy"
+              onClick={() => {
+                void navigator.clipboard.writeText(draft).then(
+                  () => {
+                    setDraftCopied(true);
+                    window.setTimeout(() => setDraftCopied(false), 2000);
+                  },
+                  () => {
+                    setNoteKind("fail");
+                    setNote("Clipboard blocked — select and copy by hand.");
+                  },
+                );
+              }}
+            >
+              {draftCopied ? "Copied" : "Copy draft"}
+            </button>
+          </div>
+          <p className="suggest-reference-text">{draft}</p>
+        </div>
+      ) : null}
       <textarea
         ref={textareaRef}
         className="suggest-textarea"
@@ -413,7 +441,8 @@ export function SuggestPane({
         rows={4}
         maxLength={560}
         disabled={stage === "verifying"}
-        aria-label="Your reply — edit the draft"
+        placeholder="Write your reply"
+        aria-label="Your reply"
         onChange={(e) => onEdit(e.target.value)}
       />
       <div className="suggest-foot">
