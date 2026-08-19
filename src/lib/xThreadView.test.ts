@@ -27,6 +27,8 @@ describe("xThreadView helpers", () => {
     assert.equal(parentKind({ isQuote: true }), "quote");
     assert.equal(parentKind({ isReply: true }), "reply");
     assert.equal(parentKind({ inReplyToId: "1" }), "reply");
+    assert.equal(parentKind({ isQuote: true, isReply: true }), "reply");
+    assert.equal(parentKind({ isQuote: true, inReplyToId: "1" }), "reply");
     assert.equal(parentKind({}), "reply");
   });
 });

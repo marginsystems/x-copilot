@@ -24,6 +24,5 @@ export function parentKind(thread: {
   inReplyToId?: string | null;
 }): "quote" | "reply" {
   if (thread.isQuote && !thread.isReply && !thread.inReplyToId) return "quote";
-  if (thread.isQuote) return "quote";
   return "reply";
 }
