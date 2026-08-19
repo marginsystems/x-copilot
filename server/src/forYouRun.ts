@@ -44,11 +44,14 @@ export async function runForYouDigestForUser(opts: {
     userId: opts.userId,
     getScout: opts.getScout,
   });
-  const drafts = await draftForYouActions({
+  const result = await draftForYouActions({
     digest,
     chat: opts.chat,
   });
-  if (drafts.length < 2) {
+  if (!result.ok) {
+    return { wrote: 0, reason: "llm_error" };
+  }
+  if (result.drafts.length < 2) {
     recordForYouRun(opts.userId, nowMs);
     return { wrote: 0, reason: "empty" };
   }
@@ -56,7 +59,7 @@ export async function runForYouDigestForUser(opts: {
   const rows = replaceDailySuggestions({
     userId: opts.userId,
     tenantId,
-    drafts,
+    drafts: result.drafts,
     nowMs,
   });
   return { wrote: rows.length, reason: "ok" };

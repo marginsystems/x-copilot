@@ -154,4 +154,34 @@ describe("runForYouDigestForUser", () => {
     });
     assert.equal(again.reason, "already_ran");
   });
+
+  it("does not burn the daily run on an LLM failure; retries next tick", async () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    seedSnapshots("u1", MIN_T24H_SNAPSHOTS);
+    const failingChat: ChatFn = async () => ({
+      ok: false,
+      status: 503,
+      error: "upstream",
+      message: "DeepSeek unavailable",
+    });
+    const failed = await runForYouDigestForUser({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      chat: failingChat,
+      getScout: async () => ({ threads: [] }),
+    });
+    assert.equal(failed.wrote, 0);
+    assert.equal(failed.reason, "llm_error");
+    assert.equal(hasForYouRunToday("u1", now), false);
+
+    const retried = await runForYouDigestForUser({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now + 3600_000,
+      chat,
+      getScout: async () => ({ threads: [] }),
+    });
+    assert.equal(retried.reason, "ok");
+  });
 });

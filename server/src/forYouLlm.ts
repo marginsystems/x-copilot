@@ -63,10 +63,14 @@ function buildUserPrompt(digest: ForYouDigest): string {
   ].join("\n");
 }
 
+export type ForYouDraftResult =
+  | { ok: true; drafts: ForYouDraft[] }
+  | { ok: false; error: string };
+
 export async function draftForYouActions(opts: {
   digest: ForYouDigest;
   chat?: ChatFn;
-}): Promise<ForYouDraft[]> {
+}): Promise<ForYouDraftResult> {
   const chat = opts.chat ?? chatCompletions;
   const user = buildUserPrompt(opts.digest);
   const first = await chat({
@@ -77,9 +81,9 @@ export async function draftForYouActions(opts: {
       { role: "user", content: user },
     ],
   });
-  if (!first.ok) return [];
+  if (!first.ok) return { ok: false, error: first.message };
   let parsed = filterDigestActions(extractJsonObject(first.content), opts.digest);
-  if (parsed.length >= 2) return parsed;
+  if (parsed.length >= 2) return { ok: true, drafts: parsed };
 
   const repair = await chat({
     purpose: "for_you_digest_repair",
@@ -95,9 +99,9 @@ export async function draftForYouActions(opts: {
       },
     ],
   });
-  if (!repair.ok) return parsed;
+  if (!repair.ok) return { ok: true, drafts: parsed };
   parsed = filterDigestActions(extractJsonObject(repair.content), opts.digest);
-  return parsed;
+  return { ok: true, drafts: parsed };
 }
 
 export type { ChatCompletionResult, ChatMessage };

@@ -56,7 +56,7 @@ function fakeChat(content: string, capture?: { purposes: string[] }): ChatFn {
 describe("draftForYouActions", () => {
   it("parses a valid first pass", async () => {
     const capture = { purposes: [] as string[] };
-    const actions = await draftForYouActions({
+    const result = await draftForYouActions({
       digest,
       chat: fakeChat(
         JSON.stringify({
@@ -73,7 +73,8 @@ describe("draftForYouActions", () => {
         capture,
       ),
     });
-    assert.equal(actions.length, 2);
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.drafts.length, 2);
     assert.deepEqual(capture.purposes, ["for_you_digest"]);
   });
 
@@ -109,11 +110,23 @@ describe("draftForYouActions", () => {
         provider: "deepseek",
       };
     };
-    const actions = await draftForYouActions({ digest, chat });
-    assert.equal(actions.length, 2);
+    const result = await draftForYouActions({ digest, chat });
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.drafts.length, 2);
     assert.deepEqual(capture.purposes, [
       "for_you_digest",
       "for_you_digest_repair",
     ]);
+  });
+
+  it("reports an LLM failure without drafts", async () => {
+    const chat: ChatFn = async () => ({
+      ok: false,
+      status: 429,
+      error: "rate_limited",
+      message: "Too many requests",
+    });
+    const result = await draftForYouActions({ digest, chat });
+    assert.equal(result.ok, false);
   });
 });
