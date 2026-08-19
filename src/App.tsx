@@ -3327,31 +3327,7 @@ export default function App() {
                                   v ? { ...v, suggests: u } : v,
                                 )
                               }
-                              canPost={Boolean(authUser?.xCanPost)}
-                              url={t.url}
-                              summary={t.summary}
-                              conversationId={t.conversationId}
                               onOpenIntent={() => watchDeskThreads([t])}
-                              onPosted={(payload) => {
-                                const tweetUrl = payload.tweet?.url;
-                                applyInteractionLocally(
-                                  t,
-                                  payload.interaction ?? {
-                                    threadId: t.id,
-                                    author: t.author,
-                                    at: new Date().toISOString(),
-                                    url: t.url,
-                                    summary: t.summary,
-                                    text: t.text,
-                                    replyId: payload.tweet?.id,
-                                    replyUrl: tweetUrl,
-                                    postedAt: new Date().toISOString(),
-                                    conversationId: t.conversationId?.trim(),
-                                    inReplyToId: t.inReplyToId?.trim(),
-                                  },
-                                );
-                                setStatus(`Posted reply to ${t.author}`);
-                              }}
                             />
                           ) : (
                             <SuggestLocked
@@ -3370,8 +3346,7 @@ export default function App() {
               ) : threadsTab === "interacted" ? (
                 interactedHistory.length === 0 ? (
                   <p className="empty">
-                    No interacted threads yet. Post from the desk, or tap I posted on X after you reply
-                    on X.
+                    No interacted threads yet. Open on X, then tap I posted on X after you reply.
                   </p>
                 ) : (
                   <div className="history-list">
