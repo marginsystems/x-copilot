@@ -135,7 +135,13 @@ describe("googleAuth", () => {
     const ok = completeGoogleLogin(okProfile);
     assert.equal(ok.ok, true);
     if (!ok.ok) return;
+    assert.equal(ok.created, true);
     assert.equal(getUserForSessionToken(ok.token)?.email, "alice@example.com");
+    const again = completeGoogleLogin(okProfile);
+    assert.equal(again.ok, true);
+    if (!again.ok) return;
+    assert.equal(again.created, false);
+    assert.equal(again.user.id, ok.user.id);
 
     const other = completeGoogleLogin({
       ...okProfile,

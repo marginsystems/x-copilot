@@ -25,6 +25,7 @@ import {
   setUserXUsername,
   toPublicUser,
   touchSessionMeta,
+  upsertOauthIdentity,
   upsertOauthUser,
   userNeedsXHandle,
 } from "./authStore.ts";
@@ -61,6 +62,34 @@ describe("authStore", () => {
     const loaded = getUserForSessionToken(token);
     assert.equal(loaded?.id, user.id);
     assert.equal(loaded?.email, "alice@example.com");
+  });
+
+  it("flags created only for a new users row", () => {
+    const first = upsertOauthIdentity({
+      provider: "google",
+      providerUserId: "gid-new",
+      email: "new@example.com",
+      emailVerified: true,
+      displayName: "New",
+    });
+    assert.equal(first.created, true);
+    const again = upsertOauthIdentity({
+      provider: "google",
+      providerUserId: "gid-new",
+      email: "new@example.com",
+      emailVerified: true,
+    });
+    assert.equal(again.created, false);
+    assert.equal(again.user.id, first.user.id);
+    const linked = upsertOauthIdentity({
+      provider: "x",
+      providerUserId: "xid-new",
+      email: "new@example.com",
+      emailVerified: true,
+      username: "newhandle",
+    });
+    assert.equal(linked.created, false);
+    assert.equal(linked.user.id, first.user.id);
   });
 
   it("links a second provider onto the same email user", () => {

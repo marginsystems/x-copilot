@@ -90,7 +90,7 @@ export function parseAnalyticsEvent(
   return { ok: true, event };
 }
 
-/** Slack mrkdwn: escape & < > so user-supplied fields can't inject mentions/links. */
+/** Slack mrkdwn: escape & < > so untrusted user-supplied fields can't inject mentions/links. */
 function slackEscape(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -107,5 +107,5 @@ export function formatSlackText(event: AnalyticsEvent): string {
   if (event.ok === false) bits.push("failed");
   if (event.detail) bits.push(slackEscape(event.detail));
   const line = bits.join(" · ");
-  return event.userId ? `${line}\n\`${event.userId}\`` : line;
+  return event.userId ? `${line}\n\`${slackEscape(event.userId)}\`` : line;
 }
