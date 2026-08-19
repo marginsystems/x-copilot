@@ -129,4 +129,34 @@ describe("draftForYouActions", () => {
     const result = await draftForYouActions({ digest, chat });
     assert.equal(result.ok, false);
   });
+
+  it("reports a repair-call LLM failure as an error", async () => {
+    const capture = { purposes: [] as string[] };
+    let calls = 0;
+    const chat: ChatFn = async (opts) => {
+      capture.purposes.push(opts.purpose ?? "");
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: true,
+          content: "not json",
+          model: "deepseek-v4-flash",
+          provider: "deepseek",
+        };
+      }
+      return {
+        ok: false,
+        status: 500,
+        error: "upstream",
+        message: "Upstream blew up",
+      };
+    };
+    const result = await draftForYouActions({ digest, chat });
+    assert.equal(result.ok, false);
+    assert.equal(result.ok || result.error, "Upstream blew up");
+    assert.deepEqual(capture.purposes, [
+      "for_you_digest",
+      "for_you_digest_repair",
+    ]);
+  });
 });

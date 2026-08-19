@@ -99,7 +99,7 @@ export async function draftForYouActions(opts: {
       },
     ],
   });
-  if (!repair.ok) return { ok: true, drafts: parsed };
+  if (!repair.ok) return { ok: false, error: repair.message };
   parsed = filterDigestActions(extractJsonObject(repair.content), opts.digest);
   return { ok: true, drafts: parsed };
 }
