@@ -119,6 +119,35 @@ describe("analytics HTTP", () => {
     }
   });
 
+  it("rejects browser-originated events when no secret is set", async () => {
+    const server = createAnalyticsServer({ log: () => {} });
+    const base = await listen(server);
+    try {
+      const browser = await fetch(`${base}/event`, {
+        method: "POST",
+        headers: {
+          Origin: "https://evil.example",
+          "Sec-Fetch-Site": "cross-site",
+          "Content-Type": "text/plain",
+        },
+        body: JSON.stringify({
+          name: "user.signin",
+          email: "victim@example.com",
+        }),
+      });
+      assert.equal(browser.status, 401);
+
+      const local = await fetch(`${base}/event`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "user.signin" }),
+      });
+      assert.equal(local.status, 202);
+    } finally {
+      await close(server);
+    }
+  });
+
   it("accepts an event and logs when Slack is unset", async () => {
     const logs: string[] = [];
     const server = createAnalyticsServer({

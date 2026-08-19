@@ -90,7 +90,7 @@ export function parseAnalyticsEvent(
   return { ok: true, event };
 }
 
-/** Escape Slack markup so untrusted text can't inject mentions or links. */
+/** Slack mrkdwn: escape & < > so untrusted user-supplied fields can't inject mentions/links. */
 function slackEscape(value: string): string {
   return value
     .replace(/&/g, "&amp;")
