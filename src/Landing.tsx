@@ -312,28 +312,9 @@ export function Landing(props: {
               <strong>10</strong> voice suggests / day
             </li>
           </ul>
-          <div className="landing-cta">
-            {props.signedIn ? (
-              <button
-                type="button"
-                className="primary landing-signin"
-                onClick={props.onOpenDesk}
-              >
-                Open the desk
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="primary landing-signin"
-                onClick={props.onSignIn}
-              >
-                Sign in
-              </button>
-            )}
-            <p className="gate-free">
-              No credit card. Upgrade only if the desk earns it.
-            </p>
-          </div>
+          <p className="gate-free">
+            No credit card. Upgrade only if the desk earns it.
+          </p>
         </section>
 
         <footer className="landing-footer">

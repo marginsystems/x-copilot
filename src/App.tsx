@@ -863,7 +863,7 @@ export default function App() {
     menuCloseTimer.current = setTimeout(() => {
       setMenuOpen(false);
       menuCloseTimer.current = null;
-    }, 160);
+    }, 240);
   }
 
   function pushScoutLine(line: string, stage?: string) {
@@ -2490,53 +2490,43 @@ export default function App() {
               <h1>x-copilot</h1>
             </div>
           </a>
-          {authUser ? (
-            <button
-              type="button"
-              className={
-                menuOpen && menuEntered
-                  ? "menu-toggle is-open"
-                  : "menu-toggle is-avatar"
-              }
-              aria-label={menuOpen && menuEntered ? "Close menu" : "Open menu"}
-              aria-expanded={menuOpen && menuEntered}
-              onClick={() => {
-                if (menuOpen && menuEntered) closeMenu();
-                else openMenu();
-              }}
-            >
-              {menuOpen && menuEntered ? (
-                <svg
-                  className="menu-toggle-icon"
-                  viewBox="0 0 24 24"
-                  width="20"
-                  height="20"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M6 6l12 12M18 6L6 18"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="square"
-                  />
-                </svg>
-              ) : (
-                <HeaderAvatar
-                  user={authUser}
-                  handle={authUser.xUsername}
+          <button
+            type="button"
+            className={
+              menuOpen && menuEntered
+                ? "menu-toggle is-open"
+                : "menu-toggle is-avatar"
+            }
+            aria-label={menuOpen && menuEntered ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen && menuEntered}
+            onClick={() => {
+              if (menuOpen && menuEntered) closeMenu();
+              else openMenu();
+            }}
+          >
+            {menuOpen && menuEntered ? (
+              <svg
+                className="menu-toggle-icon"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                aria-hidden="true"
+              >
+                <path
+                  d="M6 6l12 12M18 6L6 18"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="square"
                 />
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="header-signin"
-              onClick={() => setSignInOpen(true)}
-            >
-              Sign in
-            </button>
-          )}
+              </svg>
+            ) : (
+              <HeaderAvatar
+                user={authUser}
+                handle={authUser?.xUsername ?? null}
+              />
+            )}
+          </button>
         </div>
       </header>
 

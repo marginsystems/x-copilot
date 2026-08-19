@@ -246,19 +246,79 @@ h3 {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  /* The page is the scroller — no visible chrome, scrolling still works */
+  scrollbar-width: none;
+}
+
+.landing::-webkit-scrollbar {
+  display: none;
 }
 
 .landing-inner {
-  width: min(720px, 100%);
+  width: 100%;
   margin: 0 auto;
-  padding: 72px 20px 48px;
+  padding: 72px clamp(20px, 5vw, 72px) 48px;
   padding-bottom: max(48px, env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 56px;
 }
 
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.landing-hero,
+.landing-section,
+.landing-footer {
+  animation: landing-rise 620ms var(--ease-out) both;
+}
+
+.landing-section {
+  animation-delay: 90ms;
+}
+
+.landing-footer {
+  animation-delay: 140ms;
+}
+
+.landing-mock .thread-row {
+  animation: landing-rise 560ms var(--ease-out) both;
+  animation-delay: 140ms;
+}
+
+.landing-mock .thread-row:nth-child(2) {
+  animation-delay: 200ms;
+}
+
+.landing-mock .thread-row:nth-child(3) {
+  animation-delay: 260ms;
+}
+
+.landing-mock .thread-row:nth-child(4) {
+  animation-delay: 320ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero,
+  .landing-section,
+  .landing-footer,
+  .landing-mock .thread-row {
+    animation: none;
+  }
+}
+
 .landing-hero {
+  /* Hero keeps a readable measure while the rest of the page uses the width */
+  width: min(760px, 100%);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -321,6 +381,7 @@ h3 {
   color: var(--muted);
   font-size: 0.88rem;
   line-height: 1.6;
+  max-width: 62em;
 }
 
 .landing-section p strong,
@@ -360,6 +421,14 @@ h3 {
   line-height: 1.6;
   border-left: 2px solid var(--accent-dim);
   padding-left: 12px;
+}
+
+@media (min-width: 900px) {
+  .landing-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
 }
 
 .landing-fine {
@@ -1014,31 +1083,6 @@ h3 {
   display: block;
 }
 
-.header-signin {
-  position: fixed;
-  top: 6px;
-  right: 8px;
-  z-index: 50;
-  min-height: 36px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--on-accent);
-  border: 1px solid var(--accent);
-  font-family: var(--font-head);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.header-signin:hover,
-.header-signin:focus-visible {
-  filter: brightness(1.06);
-  outline: none;
-}
-
 .landing-signin {
   width: 100%;
   min-height: 44px;
@@ -1078,7 +1122,10 @@ h3 {
   gap: 14px;
   justify-items: center;
   padding: 28px 22px 22px;
-  background: var(--panel);
+  /* Light glass — translucent panel over a mild blur, not heavy frost */
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius) var(--radius) 0 0;
   box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.18);
@@ -1170,10 +1217,12 @@ h3 {
   border: none;
   padding: 0;
   margin: 0;
-  background: rgba(4, 6, 9, 0.55);
+  background: rgba(4, 6, 9, 0.45);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 160ms ease;
+  transition: opacity 240ms var(--ease-out);
 }
 
 .menu-root.is-open .menu-backdrop {
@@ -1190,7 +1239,10 @@ h3 {
   width: min(320px, 100vw);
   height: 100%;
   max-height: none;
-  background: var(--panel);
+  /* Light glass — translucent panel over a mild blur, not heavy frost */
+  background: color-mix(in srgb, var(--panel) 84%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.05);
+  backdrop-filter: blur(12px) saturate(1.05);
   border: none;
   border-left: 1px solid var(--border-strong);
   /* Clear the fixed toggle (top 12 + 40 + gap) */
@@ -1201,10 +1253,10 @@ h3 {
   overflow-y: auto;
   overscroll-behavior: contain;
   opacity: 0;
-  transform: translateX(12px);
+  transform: translateX(24px);
   transition:
-    opacity 160ms ease,
-    transform 160ms ease;
+    opacity 240ms var(--ease-out),
+    transform 240ms var(--ease-out);
   pointer-events: auto;
 }
 
@@ -1263,6 +1315,17 @@ h3 {
   font-size: 0.92rem;
   letter-spacing: -0.02em;
   color: var(--accent);
+}
+
+.menu-avatar-guest {
+  color: var(--accent);
+  background: var(--raised);
+}
+
+.menu-avatar-guest svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .menu-profile-meta {
@@ -2719,6 +2782,35 @@ button:disabled {
 .chip-interacted {
   color: #9bb7a5;
   border-color: #3a5244;
+}
+
+/* Cream needs darker ink than the dark-theme pastels */
+[data-theme="light"] .row-meta {
+  color: var(--text);
+}
+
+[data-theme="light"] .chip {
+  color: var(--text);
+}
+
+[data-theme="light"] .chip-skip {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+[data-theme="light"] .chip-priority {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+[data-theme="light"] .chip-interacted {
+  color: #2e5c42;
+  border-color: #2e5c42;
+}
+
+[data-theme="light"] .landing-title em,
+[data-theme="light"] .gate-free {
+  color: color-mix(in srgb, var(--accent) 75%, var(--text));
 }
 
 /* Expanded detail */

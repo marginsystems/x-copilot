@@ -42,6 +42,48 @@ function MenuIcon({ d }: { d: string }) {
   );
 }
 
+/**
+ * Guest avatar — a deterministic scatter of tiny paper airplanes. Inline
+ * SVG only: same seed, same pattern, nothing fetched.
+ */
+function guestPlanes(seed: number, count: number) {
+  let a = seed >>> 0;
+  const next = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return Array.from({ length: count }, () => ({
+    x: 5 + next() * 30,
+    y: 5 + next() * 30,
+    rot: next() * 360,
+    scale: 0.5 + next() * 0.55,
+    opacity: 0.35 + next() * 0.5,
+  }));
+}
+
+const GUEST_PLANES = guestPlanes(0x5eed, 7);
+
+export function GuestAvatar() {
+  return (
+    <span className="menu-avatar menu-avatar-guest" aria-hidden="true">
+      <svg viewBox="0 0 40 40" width="40" height="40" focusable="false">
+        {GUEST_PLANES.map((p, i) => (
+          <path
+            key={i}
+            d="M-4.5 -3 L5.5 0 L-4.5 3 L-2 0 Z"
+            transform={`translate(${p.x.toFixed(2)} ${p.y.toFixed(2)}) rotate(${p.rot.toFixed(1)}) scale(${p.scale.toFixed(2)})`}
+            fill="currentColor"
+            opacity={p.opacity.toFixed(2)}
+          />
+        ))}
+      </svg>
+    </span>
+  );
+}
+
 export function HeaderAvatar({
   user,
   handle,
@@ -52,6 +94,8 @@ export function HeaderAvatar({
   const src = menuAvatarUrl(user?.avatarUrl);
   const [broken, setBroken] = useState(false);
   const initials = menuInitials(user?.displayName, user?.email, handle);
+
+  if (!user) return <GuestAvatar />;
 
   if (src && !broken) {
     return (
