@@ -1323,6 +1323,10 @@ export default function App() {
         body: JSON.stringify({ id }),
       });
       if (!res.ok) {
+        if (res.status === 404) {
+          setForYouSuggestions((prev) => prev.filter((row) => row.id !== id));
+          return;
+        }
         const data = (await res.json().catch(() => ({}))) as {
           message?: string;
         };

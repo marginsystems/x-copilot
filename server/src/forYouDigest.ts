@@ -193,12 +193,22 @@ export async function buildForYouDigest(opts: {
 export function digestAllowlist(digest: ForYouDigest): {
   ids: Set<string>;
   urls: Set<string>;
+  replyIds: Set<string>;
+  replyUrls: Set<string>;
 } {
   const ids = new Set<string>();
   const urls = new Set<string>();
-  const add = (id?: string | null, url?: string | null) => {
-    if (id?.trim()) ids.add(id.trim());
-    if (url?.trim()) urls.add(url.trim());
+  const replyIds = new Set<string>();
+  const replyUrls = new Set<string>();
+  const add = (id?: string | null, url?: string | null, reply = false) => {
+    if (id?.trim()) {
+      ids.add(id.trim());
+      if (reply) replyIds.add(id.trim());
+    }
+    if (url?.trim()) {
+      urls.add(url.trim());
+      if (reply) replyUrls.add(url.trim());
+    }
   };
   for (const p of [
     ...digest.best,
@@ -209,9 +219,9 @@ export function digestAllowlist(digest: ForYouDigest): {
   ]) {
     add(p.id, p.url);
   }
-  for (const m of digest.memories) add(m.threadId, m.url);
-  for (const t of digest.leftoverScout) add(t.id, t.url);
-  return { ids, urls };
+  for (const m of digest.memories) add(m.threadId, m.url, true);
+  for (const t of digest.leftoverScout) add(t.id, t.url, true);
+  return { ids, urls, replyIds, replyUrls };
 }
 
 function asKind(value: unknown): ForYouKind | null {
@@ -231,7 +241,7 @@ export function filterDigestActions(
 ): ForYouDraft[] {
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
   const list = Array.isArray(obj?.actions) ? obj.actions : [];
-  const { ids, urls } = digestAllowlist(digest);
+  const { ids, urls, replyIds, replyUrls } = digestAllowlist(digest);
   const out: ForYouDraft[] = [];
   const seen = new Set<string>();
   for (const item of list) {
@@ -269,8 +279,12 @@ export function filterDigestActions(
       seen.add(key);
       out.push({ kind, why, draft });
     } else {
-      const knownId = targetId && ids.has(targetId);
-      const knownUrl = targetUrl && urls.has(targetUrl);
+      const knownId =
+        targetId &&
+        (kind === "reply" ? replyIds.has(targetId) : ids.has(targetId));
+      const knownUrl =
+        targetUrl &&
+        (kind === "reply" ? replyUrls.has(targetUrl) : urls.has(targetUrl));
       if (!knownId && !knownUrl) continue;
       const key = `${kind}:${targetId || targetUrl}`;
       if (seen.has(key)) continue;
