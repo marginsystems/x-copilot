@@ -48,8 +48,12 @@ export function analyticsAuthorized(
 ): boolean {
   const expected = secret?.trim() ?? "";
   if (!expected) {
-    // No shared secret configured — only accept from this machine.
-    return peerIsLoopback(req);
+    // No shared secret configured — only accept local processes, never
+    // browser-initiated requests: any page loaded in a local browser is also
+    // a loopback peer (simple fetch with text/plain needs no preflight).
+    const isBrowser =
+      req.headers.origin != null || req.headers["sec-fetch-site"] != null;
+    return peerIsLoopback(req) && !isBrowser;
   }
   const auth = req.headers.authorization ?? "";
   return auth === `Bearer ${expected}`;
