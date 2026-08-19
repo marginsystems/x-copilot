@@ -3939,11 +3939,9 @@ button.agenda-option.is-on {
 }
 
 .suggest-actions {
-  position: relative;
   display: flex;
-  justify-content: flex-end;
-  flex: 1;
-  min-width: 0;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .suggest-actions-row {
@@ -3951,6 +3949,17 @@ button.agenda-option.is-on {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+/* Base .suggest-actions row styles are shared with SuggestLocked, which
+   stays left-aligned. The flex-end overlay layout is only for the
+   SuggestPane verify state. */
+.suggest-actions.is-checking {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
 }
 
 /* Keep the Check my edit / Copy / Open on X box while verify runs so
