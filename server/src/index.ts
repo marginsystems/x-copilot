@@ -75,6 +75,7 @@ import { getPlatformDb, getLocalTenantId } from "./db.js";
 import { getUsageSummary, toTenantUsageView } from "./usageMeter.js";
 import { getXApiCredsFromEnv } from "./xApi.js";
 import { getXOauthUsername } from "./authStore.js";
+import { xLinkRequiredResponse } from "./xLinkGate.js";
 import { tryHandleAuth } from "./authHttp.js";
 import { tryHandleOnboarding } from "./onboardingHttp.js";
 import { corsHeaders, isLocalOrigin, isOriginAllowed, requestOrigin } from "./cors.js";
@@ -252,6 +253,16 @@ function sendSortiesExhausted(
   });
   if (!exhausted) return false;
   send(req, res, 429, exhausted);
+  return true;
+}
+
+function sendXLinkRequired(
+  req: IncomingMessage,
+  res: ServerResponse,
+): boolean {
+  const blocked = xLinkRequiredResponse(getSessionUser(req));
+  if (!blocked) return false;
+  send(req, res, 403, blocked);
   return true;
 }
 
@@ -496,6 +507,7 @@ const server = http.createServer(async (req, res) => {
           ? body.queries.filter((q): q is string => typeof q === "string")
           : [];
         const filters = parseScoutFilters(body.filters);
+        if (sendXLinkRequired(req, res)) return;
         if (sendCreditsExhausted(req, res)) return;
         if (sendSortiesExhausted(req, res)) return;
         const gate = tryBeginScout();
@@ -584,6 +596,7 @@ const server = http.createServer(async (req, res) => {
         const targetCool = clampTargetCool(body.targetCool);
         const bucketSize = clampBucketSize(body.bucketSize);
 
+        if (sendXLinkRequired(req, res)) return;
         if (sendCreditsExhausted(req, res)) return;
         if (sendSortiesExhausted(req, res)) return;
 
