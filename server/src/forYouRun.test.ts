@@ -11,7 +11,10 @@ import {
 import { patchOwnPostSnapshot, upsertOwnPost } from "./ownPostStore.ts";
 import type { ParsedPostCreate } from "./xActivity.ts";
 import { MIN_T24H_SNAPSHOTS } from "./forYouDigest.ts";
-import { listActiveSuggestions } from "./forYouStore.ts";
+import {
+  hasForYouRunToday,
+  listActiveSuggestions,
+} from "./forYouStore.ts";
 import { runForYouDigestForUser } from "./forYouRun.ts";
 import type { ChatFn } from "./voiceLlm.ts";
 
@@ -116,5 +119,31 @@ describe("runForYouDigestForUser", () => {
       chat,
     });
     assert.equal(again.reason, "already_ran");
+  });
+
+  it("treats a 1-action day as empty and records no run or rows", async () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    seedSnapshots("u1", MIN_T24H_SNAPSHOTS);
+    const singleChat: ChatFn = async () => ({
+      ok: true,
+      content: JSON.stringify({
+        actions: [
+          { kind: "post", why: "top post did 400 views", draft: "Ship a recap." },
+        ],
+      }),
+      model: "deepseek-v4-flash",
+      provider: "deepseek",
+    });
+    const result = await runForYouDigestForUser({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      chat: singleChat,
+      getScout: async () => ({ threads: [] }),
+    });
+    assert.equal(result.wrote, 0);
+    assert.equal(result.reason, "empty");
+    assert.equal(listActiveSuggestions("u1", now + 1000).length, 0);
+    assert.equal(hasForYouRunToday("u1", now), false);
   });
 });

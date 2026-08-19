@@ -47,7 +47,7 @@ export async function runForYouDigestForUser(opts: {
     digest,
     chat: opts.chat,
   });
-  if (drafts.length < 1) {
+  if (drafts.length < 2) {
     return { wrote: 0, reason: "empty" };
   }
   const tenantId = opts.tenantId?.trim() || ensureUserTenant(opts.userId);
