@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
+import { LinkXGate } from "./LinkXGate";
 import {
   AUDIENCE_OPTIONS,
   GOAL_OPTIONS,
@@ -171,25 +172,11 @@ export function Onboarding(props: {
 
   if (needsXLink) {
     return (
-      <div className="gate onboarding">
-        <div className="onboarding-card">
-          <p className="onboarding-kicker">Set up your desk</p>
-          <h1 className="gate-title">Link X to continue</h1>
-          <p className="gate-lede">
-            Voice reads the account you log into. Sign in with X — you cannot
-            type a handle. If you already signed in with X, you are linked.
-          </p>
-          <div className="onboarding-nav">
-            <button
-              type="button"
-              className="primary"
-              onClick={props.onLinkX}
-            >
-              Link X
-            </button>
-          </div>
-        </div>
-      </div>
+      <LinkXGate
+        kicker="Set up your desk"
+        lede="Voice reads the account you log into. Sign in with X — you cannot type a handle. If you already signed in with X, you are linked."
+        onLinkX={props.onLinkX}
+      />
     );
   }
 

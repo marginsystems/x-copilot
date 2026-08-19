@@ -65,6 +65,8 @@ import {
 } from "./lib/consent";
 import { bootAnalytics, trackPageView } from "./lib/analytics";
 import { Onboarding } from "./Onboarding";
+import { LinkXGate } from "./LinkXGate";
+import { deskNeedsXLink, showDeskXGate } from "./lib/deskGate";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
 import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
@@ -838,7 +840,10 @@ export default function App() {
   const grounded =
     billing?.sorties != null && billing.sorties.can_fly === false;
   const searchBlocked =
-    searching || searchCooldownRemaining > 0 || grounded;
+    searching ||
+    searchCooldownRemaining > 0 ||
+    grounded ||
+    deskNeedsXLink(authUser);
 
   function clearMenuCloseTimer() {
     if (menuCloseTimer.current) {
@@ -2033,6 +2038,15 @@ export default function App() {
   }
 
   async function onSearch() {
+    if (deskNeedsXLink(authUser)) {
+      const line = formatScoutFailure(
+        "Link X with the official login before Take off.",
+        { soft: true },
+      );
+      setStatus(line);
+      pushScoutLine(line, "error");
+      return;
+    }
     if (Date.now() < searchingRef.current) {
       if (isFinite(searchingRef.current)) {
         const waitSec = Math.ceil((searchingRef.current - Date.now()) / 1000);
@@ -2441,12 +2455,21 @@ export default function App() {
       ? authUser.onboardingCompleted === false &&
         !readOnboardingComplete(authUser.id)
       : !readOnboardingComplete());
+  const needsXLink = deskNeedsXLink(authUser);
   const booting = !localUi && !authChecked;
   const legalView = isLegalKind(view);
   const showLanding =
     !legalView && !needsOnboarding && (view === "home" || needsLogin);
+  const deskXGate = showDeskXGate({
+    needsXLink,
+    needsLogin,
+    needsOnboarding,
+    legalView,
+    showLanding,
+    view,
+  });
   const showGateChrome =
-    (showLanding || needsOnboarding) && !legalView;
+    (showLanding || needsOnboarding || deskXGate) && !legalView;
 
   if (booting) {
     return (
@@ -2597,13 +2620,15 @@ export default function App() {
         <Onboarding
           persist={Boolean(authUser)}
           userId={authUser?.id ?? null}
-          needsXLink={Boolean(authUser && !authUser.xLinked)}
+          needsXLink={needsXLink}
           onLinkX={startXLogin}
           onComplete={finishOnboarding}
         />
+      ) : deskXGate ? (
+        <LinkXGate onLinkX={startXLogin} />
       ) : null}
 
-      {!legalView && !showLanding && !needsOnboarding ? (
+      {!legalView && !showLanding && !needsOnboarding && !deskXGate ? (
         <main
           className={
             view === "dashboard" ? "app-main" : "app-main app-main-scroll"
