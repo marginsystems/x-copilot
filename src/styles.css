@@ -2669,6 +2669,30 @@ button:disabled {
   gap: 8px;
 }
 
+.for-you-suggested {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.for-you-suggested .section-label {
+  margin: 0 0 2px;
+}
+
+.for-you-row {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 5%, var(--panel));
+}
+
+.for-you-draft {
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .thread-row {
   border: 1px solid var(--border);
   border-radius: var(--radius);
