@@ -88,7 +88,8 @@ export function SuggestPane({
   const suggestBusyRef = useRef(false);
   const attemptRef = useRef(0);
 
-  const hint = stage === "editing" ? localEditHint(draft, edited) : null;
+  const editHint = localEditHint(draft, edited);
+  const hint = stage === "editing" ? editHint : null;
 
   function onClose() {
     sessionRef.current += 1;
@@ -453,15 +454,22 @@ export function SuggestPane({
         >
           {edited.trim().length} / 280
         </span>
-        {stage === "verifying" ? (
-          <PhaseLine phases={VERIFY_PHASES} startedAt={startedAt} />
-        ) : (
-          <div className="suggest-actions">
+        <div
+          className={
+            stage === "verifying"
+              ? "suggest-actions is-checking"
+              : "suggest-actions"
+          }
+        >
+          <div
+            className="suggest-actions-row"
+            aria-hidden={stage === "verifying"}
+          >
             {!verified ? (
               <button
                 type="button"
                 className="primary suggest-verify"
-                disabled={Boolean(hint)}
+                disabled={stage === "verifying" || Boolean(hint)}
                 title={hint ?? undefined}
                 onClick={() => void onVerify()}
               >
@@ -492,9 +500,22 @@ export function SuggestPane({
               </button>
             )}
           </div>
-        )}
+          {stage === "verifying" ? (
+            <PhaseLine phases={VERIFY_PHASES} startedAt={startedAt} />
+          ) : null}
+        </div>
       </div>
-      {hint && !note ? <p className="suggest-note is-hint">{hint}</p> : null}
+      {editHint && !note ? (
+        <p
+          className={
+            stage === "verifying"
+              ? "suggest-note is-hint is-reserved"
+              : "suggest-note is-hint"
+          }
+        >
+          {editHint}
+        </p>
+      ) : null}
       {note ? (
         <p
           className={
