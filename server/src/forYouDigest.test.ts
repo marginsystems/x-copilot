@@ -1,0 +1,160 @@
+import { describe, it, beforeEach, afterEach } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import {
+  defaultMigrationsDir,
+  getPlatformDb,
+  resetPlatformDbForTests,
+} from "./db.ts";
+import { patchOwnPostSnapshot, upsertOwnPost } from "./ownPostStore.ts";
+import type { ParsedPostCreate } from "./xActivity.ts";
+import {
+  MIN_T24H_SNAPSHOTS,
+  countT24hSnapshots,
+  filterDigestActions,
+  listEligibleForYouUsers,
+  rankOwnPosts,
+  type ForYouDigest,
+} from "./forYouDigest.ts";
+
+function post(
+  partial: Partial<ParsedPostCreate> & { postId: string },
+): ParsedPostCreate {
+  return {
+    eventUuid: partial.eventUuid ?? `evt-${partial.postId}`,
+    xUserId: partial.xUserId ?? "99",
+    postId: partial.postId,
+    kind: partial.kind ?? "original",
+    text: partial.text ?? `post ${partial.postId}`,
+    postedAt: partial.postedAt ?? "2026-08-15T12:00:00.000Z",
+    inReplyToId: partial.inReplyToId ?? null,
+    inReplyToUserId: partial.inReplyToUserId ?? null,
+    conversationId: partial.conversationId ?? null,
+    authorUsername: partial.authorUsername ?? "desk",
+    metrics: partial.metrics ?? { views: 10, likes: 1, replies: 0, retweets: 0, bookmarks: 0 },
+  };
+}
+
+function emptyDigest(overrides: Partial<ForYouDigest> = {}): ForYouDigest {
+  return {
+    agenda: "Find builders",
+    voice: null,
+    best: [],
+    worst: [],
+    recentOriginals: [],
+    recentReplies: [],
+    recentQuotes: [],
+    memories: [],
+    leftoverScout: [],
+    ...overrides,
+  };
+}
+
+describe("forYouDigest", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    dir = mkdtempSync(join(tmpdir(), "x-fydigest-"));
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("ranks t24h snapshots and waits for a handful before eligibility", () => {
+    for (let i = 1; i <= MIN_T24H_SNAPSHOTS; i++) {
+      upsertOwnPost({
+        parsed: post({
+          postId: String(i),
+          kind: i === 3 ? "reply" : "original",
+          postedAt: `2026-08-${10 + i}T12:00:00.000Z`,
+        }),
+        userId: "u1",
+        tenantId: "local",
+      });
+      patchOwnPostSnapshot(String(i), "t24h", {
+        views: i * 100,
+        likes: i,
+        replies: 0,
+        retweets: 0,
+        bookmarks: 0,
+      });
+    }
+    assert.equal(countT24hSnapshots("u1"), MIN_T24H_SNAPSHOTS);
+    assert.deepEqual(
+      listEligibleForYouUsers().map((u) => u.userId),
+      ["u1"],
+    );
+    const ranked = rankOwnPosts("u1");
+    assert.equal(ranked.best[0]?.id, "5");
+    assert.equal(ranked.worst[0]?.id, "1");
+    assert.ok(ranked.recentOriginals.length >= 1);
+  });
+
+  it("drops invented targets and keeps digest-grounded actions", () => {
+    const digest = emptyDigest({
+      best: [
+        {
+          id: "10",
+          kind: "original",
+          text: "shipped",
+          url: "https://x.com/desk/status/10",
+          views: 900,
+          likes: 20,
+          replies: 4,
+          retweets: 2,
+          postedAt: "2026-08-18T00:00:00.000Z",
+        },
+      ],
+      leftoverScout: [
+        {
+          id: "77",
+          author: "@a",
+          text: "who is hiring",
+          url: "https://x.com/a/status/77",
+        },
+      ],
+    });
+    const kept = filterDigestActions(
+      {
+        actions: [
+          { kind: "post", why: "best post was 900 views", draft: "A recap." },
+          {
+            kind: "quote",
+            why: "that 900-view post",
+            draft: "Still true.",
+            targetId: "10",
+            targetUrl: "https://x.com/desk/status/10",
+          },
+          {
+            kind: "reply",
+            why: "open scout thread",
+            targetId: "77",
+            targetUrl: "https://x.com/a/status/77",
+            targetAuthor: "@a",
+          },
+          {
+            kind: "repost",
+            why: "made up",
+            targetId: "999",
+            targetUrl: "https://x.com/nope/status/999",
+          },
+        ],
+      },
+      digest,
+    );
+    assert.deepEqual(
+      kept.map((a) => a.kind),
+      ["post", "quote", "reply"],
+    );
+  });
+});

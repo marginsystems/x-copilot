@@ -1,0 +1,111 @@
+/**
+ * For You suggestion inbox — list + I posted / Skip / Not interested.
+ */
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { corsHeaders } from "./cors.js";
+import { getSessionUser } from "./sessionCookie.js";
+import {
+  listActiveSuggestions,
+  markSuggestion,
+} from "./forYouStore.js";
+
+function send(
+  req: IncomingMessage,
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+): void {
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    ...corsHeaders(req),
+  });
+  res.end(JSON.stringify(body));
+}
+
+function readJsonBody(
+  req: IncomingMessage,
+): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > 262_144) {
+        resolve(null);
+      } else {
+        chunks.push(c);
+      }
+    });
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8");
+      if (!raw) return resolve({});
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        resolve(
+          parsed && typeof parsed === "object"
+            ? (parsed as Record<string, unknown>)
+            : null,
+        );
+      } catch {
+        resolve(null);
+      }
+    });
+    req.on("error", () => resolve(null));
+  });
+}
+
+export async function tryHandleForYou(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<boolean> {
+  if (!url.pathname.startsWith("/api/for-you")) return false;
+
+  const user = getSessionUser(req);
+  if (!user) {
+    send(req, res, 401, {
+      error: "unauthenticated",
+      message: "Sign in required",
+    });
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/for-you") {
+    const suggestions = listActiveSuggestions(user.id);
+    send(req, res, 200, { ok: true, suggestions });
+    return true;
+  }
+
+  if (
+    req.method === "POST" &&
+    (url.pathname === "/api/for-you/done" ||
+      url.pathname === "/api/for-you/skip" ||
+      url.pathname === "/api/for-you/dismiss")
+  ) {
+    const body = await readJsonBody(req);
+    const id = typeof body?.id === "string" ? body.id.trim() : "";
+    if (!id) {
+      send(req, res, 400, { error: "bad_request", message: "id required" });
+      return true;
+    }
+    const status =
+      url.pathname === "/api/for-you/done" ? "done" : "skipped";
+    const suggestion = markSuggestion({
+      id,
+      userId: user.id,
+      status,
+    });
+    if (!suggestion) {
+      send(req, res, 404, {
+        error: "not_found",
+        message: "Suggestion is gone or already acted on.",
+      });
+      return true;
+    }
+    send(req, res, 200, { ok: true, suggestion });
+    return true;
+  }
+
+  send(req, res, 404, { error: "not_found" });
+  return true;
+}
