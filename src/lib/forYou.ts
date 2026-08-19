@@ -41,7 +41,9 @@ export function forYouKindLabel(kind: ForYouKind): string {
 
 /** Open on X — target post, reply intent, or a compose intent with the draft. */
 export function forYouOpenUrl(row: ForYouSuggestion): string | null {
-  if (row.targetUrl) return row.targetUrl;
+  if (row.targetUrl && /^https?:\/\//i.test(row.targetUrl)) {
+    return row.targetUrl;
+  }
   if (row.kind === "reply" && row.targetId && /^\d+$/.test(row.targetId)) {
     const params = new URLSearchParams({
       in_reply_to: row.targetId,
