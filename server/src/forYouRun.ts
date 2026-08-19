@@ -13,6 +13,7 @@ import { draftForYouActions } from "./forYouLlm.js";
 import type { ChatFn } from "./voiceLlm.js";
 import {
   hasForYouRunToday,
+  recordForYouRun,
   replaceDailySuggestions,
 } from "./forYouStore.js";
 
@@ -48,6 +49,7 @@ export async function runForYouDigestForUser(opts: {
     chat: opts.chat,
   });
   if (drafts.length < 2) {
+    recordForYouRun(opts.userId, nowMs);
     return { wrote: 0, reason: "empty" };
   }
   const tenantId = opts.tenantId?.trim() || ensureUserTenant(opts.userId);

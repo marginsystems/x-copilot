@@ -121,7 +121,7 @@ describe("runForYouDigestForUser", () => {
     assert.equal(again.reason, "already_ran");
   });
 
-  it("treats a 1-action day as empty and records no run or rows", async () => {
+  it("treats a 1-action day as empty and records no rows but caps the daily run", async () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     seedSnapshots("u1", MIN_T24H_SNAPSHOTS);
     const singleChat: ChatFn = async () => ({
@@ -144,6 +144,14 @@ describe("runForYouDigestForUser", () => {
     assert.equal(result.wrote, 0);
     assert.equal(result.reason, "empty");
     assert.equal(listActiveSuggestions("u1", now + 1000).length, 0);
-    assert.equal(hasForYouRunToday("u1", now), false);
+    assert.equal(hasForYouRunToday("u1", now), true);
+
+    const again = await runForYouDigestForUser({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now + 3600_000,
+      chat,
+    });
+    assert.equal(again.reason, "already_ran");
   });
 });
