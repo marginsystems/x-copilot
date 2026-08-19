@@ -3734,6 +3734,25 @@ button.agenda-option.is-on {
   text-align: left;
 }
 
+.suggest-stance-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.suggest-stance-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--text);
+}
+
 .suggest-idle {
   display: flex;
   align-items: center;

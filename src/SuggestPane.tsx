@@ -19,15 +19,6 @@ type PaneStage =
   | "ready"
   | "posting";
 
-/** Mirrors server postNeedsStance: only opinionated posts need the picker. */
-function postNeedsStance(threadKind?: string, flags?: string[]): boolean {
-  const kind = (threadKind ?? "").trim().toLowerCase();
-  if (kind === "sharp_opinion" || kind === "timely_take") return true;
-  return (flags ?? []).some(
-    (flag) => flag === "political" || flag === "rage_bait",
-  );
-}
-
 function PhaseLine({
   phases,
   startedAt,
@@ -120,6 +111,7 @@ export function SuggestPane({
   const [startedAt, setStartedAt] = useState(0);
   const [stances, setStances] = useState<string[]>([]);
   const [stancesFallback, setStancesFallback] = useState(false);
+  const [customStance, setCustomStance] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   /** Bumped on every close so an in-flight fetch can't reopen the pane. */
   const sessionRef = useRef(0);
@@ -146,6 +138,7 @@ export function SuggestPane({
     setCopied(false);
     setStances([]);
     setStancesFallback(false);
+    setCustomStance("");
   }
 
   async function onStart() {
@@ -154,10 +147,6 @@ export function SuggestPane({
     setStage("composing");
     setStartedAt(Date.now());
     setNote(null);
-    if (!postNeedsStance(threadKind, flags)) {
-      await onSuggest();
-      return;
-    }
     let res: Response;
     let data: {
       ok?: boolean;
@@ -462,7 +451,7 @@ export function SuggestPane({
           <p className="suggest-banner" role="note">
             {stancesFallback
               ? "The voice model couldn't pin down sides on this post — here are some general angles."
-              : "This post takes a side. Pick yours, then we draft in your voice."}
+              : "Pick a side, then we draft in your voice."}
           </p>
           <button type="button" className="ghost suggest-close" onClick={onClose}>
             Close
@@ -480,6 +469,31 @@ export function SuggestPane({
             </button>
           ))}
         </div>
+        <form
+          className="suggest-stance-custom"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const side = customStance.trim();
+            if (side) void onSuggest(side);
+          }}
+        >
+          <input
+            type="text"
+            className="suggest-stance-input"
+            value={customStance}
+            maxLength={140}
+            placeholder="Or type your own side"
+            aria-label="Your own side"
+            onChange={(e) => setCustomStance(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="ghost"
+            disabled={!customStance.trim()}
+          >
+            Draft this
+          </button>
+        </form>
       </div>
     );
   }

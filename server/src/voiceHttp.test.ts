@@ -27,6 +27,7 @@ import {
 } from "./billingStore.ts";
 import { getSuggestUsage, type VoiceProfileRow } from "./voiceStore.ts";
 import { PLAN_DAILY_SUGGESTS } from "./plans.ts";
+import type { ChatMessage } from "./deepseek.js";
 import type { ChatFn } from "./voiceLlm.ts";
 
 function profile(
@@ -263,23 +264,37 @@ describe("POST /api/voice/stances", () => {
     return { status, json: JSON.parse(raw || "{}") as Record<string, unknown> };
   }
 
-  it("returns needed:false on a non-opinion post without spending a suggest slot", async () => {
+  it("returns needed:true on a fact-add without spending a suggest slot", async () => {
     const { user, planKey } = seedReadyUser("stance@example.com");
     const before = getSuggestUsage(user.id, planKey);
-
-    const { status, json } = await postStances(user, {
-      author: "@dev",
-      text: "sqlite 3.46 shipped today",
-      threadKind: "fact_add",
+    const chat: ChatFn = async () => ({
+      ok: true,
+      content: '{"options":["Ship notes matter","The version is the story"]}',
+      model: "deepseek-v4-flash",
+      provider: "deepseek",
     });
+
+    const { status, json } = await postStances(
+      user,
+      {
+        author: "@dev",
+        text: "sqlite 3.46 shipped today",
+        threadKind: "fact_add",
+      },
+      chat,
+    );
 
     assert.equal(status, 200);
     assert.equal(json.ok, true);
-    assert.equal(json.needed, false);
+    assert.equal(json.needed, true);
+    assert.deepEqual(json.options, [
+      "Ship notes matter",
+      "The version is the story",
+    ]);
     assert.deepEqual(getSuggestUsage(user.id, planKey), before);
   });
 
-  it("does not burn the stance rate-limit window on a non-opinion post", async () => {
+  it("rate-limits the 21st stance lookup in a minute, on any thread kind", async () => {
     const { user } = seedReadyUser("stance-rate@example.com");
     let chatCalls = 0;
     const chat: ChatFn = async () => {
@@ -307,14 +322,18 @@ describe("POST /api/voice/stances", () => {
     }
     assert.equal(chatCalls, 20);
 
-    const { status, json } = await postStances(user, {
-      author: "@dev",
-      text: "sqlite 3.46 shipped today",
-      threadKind: "fact_add",
-    });
+    const { status, json } = await postStances(
+      user,
+      {
+        author: "@dev",
+        text: "sqlite 3.46 shipped today",
+        threadKind: "fact_add",
+      },
+      chat,
+    );
 
-    assert.equal(status, 200);
-    assert.equal(json.needed, false);
+    assert.equal(status, 429);
+    assert.equal(json.error, "rate_limited");
   });
 
   it("does not spend a suggest slot on a stance lookup — the draft charges", async () => {
@@ -402,6 +421,112 @@ describe("POST /api/voice/stances", () => {
     assert.equal(json.ok, true);
     assert.equal(json.needed, true);
     assert.equal(json.fallback, true);
+  });
+});
+
+describe("POST /api/voice/suggest", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    dir = mkdtempSync(join(tmpdir(), "voice-suggest-"));
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function seedReadyUser(email: string) {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: `gid-${email}`,
+      email,
+      emailVerified: true,
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const at = new Date().toISOString();
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO voice_profiles
+           (user_id, tenant_id, status, reply_count, card_json, created_at, updated_at)
+         VALUES (?, ?, 'ready', 100, '{"tone":"dry"}', ?, ?)`,
+      )
+      .run(user.id, tenantId, at, at);
+    ensureUserBillingRow(user.id, tenantId);
+    return user;
+  }
+
+  async function postSuggest(
+    user: AuthUser,
+    body: Record<string, unknown>,
+    chat?: ChatFn,
+  ): Promise<{ status: number; json: Record<string, unknown> }> {
+    const { token } = createSession(user.id);
+    const req = new EventEmitter() as unknown as IncomingMessage;
+    Object.assign(req, {
+      method: "POST",
+      headers: {
+        cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+      },
+      socket: { remoteAddress: "127.0.0.1" },
+    });
+    let status = 0;
+    let raw = "";
+    const res = {
+      writeHead: (code: number) => {
+        status = code;
+      },
+      end: (chunk: string) => {
+        raw = chunk;
+      },
+    } as unknown as ServerResponse;
+    const handledPromise = tryHandleVoice(
+      req,
+      res,
+      new URL("http://localhost/api/voice/suggest"),
+      chat,
+    );
+    (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
+    (req as EventEmitter).emit("end");
+    assert.equal(await handledPromise, true);
+    return { status, json: JSON.parse(raw || "{}") as Record<string, unknown> };
+  }
+
+  it("passes a ~130-char typed side through to the draft prompt untruncated", async () => {
+    const user = seedReadyUser("suggest-stance@example.com");
+    const capture: { messages?: ChatMessage[] } = {};
+    const stance = "Ship the sqlite migration now before the quarter-end freeze";
+    const longStance = stance.padEnd(130, ".");
+    const { status, json } = await postSuggest(
+      user,
+      {
+        threadId: "1234567890",
+        author: "@dev",
+        text: "the tool is never the bottleneck",
+        stance: longStance,
+      },
+      async (opts) => {
+        capture.messages = opts.messages;
+        return {
+          ok: true,
+          content: "The loop between research and shipping is the real tax.",
+          model: "deepseek-v4-flash",
+          provider: "deepseek",
+        };
+      },
+    );
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    const userMsg = capture.messages?.find((m) => m.role === "user");
+    assert.ok(userMsg);
+    assert.match(userMsg.content, /Take this side/);
+    assert.ok(userMsg.content.includes(longStance));
   });
 });
 

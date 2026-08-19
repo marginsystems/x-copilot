@@ -227,21 +227,21 @@ describe("suggestReply", () => {
 });
 
 describe("proposeStances", () => {
-  it("skips the picker on a fact add", async () => {
+  it("asks for a side on a fact add", async () => {
     const result = await proposeStances({
       thread: {
         author: "@dev",
         text: "sqlite 3.46 shipped",
         threadKind: "fact_add",
       },
-      chat: fakeChat('{"options":["should never run"]}'),
+      chat: fakeChat('{"options":["Ship notes matter","The version is the story"]}'),
     });
-    assert.deepEqual(result, {
-      ok: true,
-      needed: false,
-      options: [],
-      fallback: false,
-    });
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.needed, true);
+      assert.equal(result.options.length, 2);
+      assert.equal(result.fallback, false);
+    }
   });
 
   it("returns 2-3 sides for a sharp opinion", async () => {
