@@ -53,4 +53,27 @@ describe("forYou helpers", () => {
       null,
     );
   });
+
+  it("rejects non-http(s) targetUrl schemes and falls back", () => {
+    for (const bad of [
+      "javascript:alert(1)",
+      "data:text/html,x",
+      "vbscript:msgbox(1)",
+    ]) {
+      const url = forYouOpenUrl({ ...base, targetUrl: bad });
+      assert.ok(url);
+      assert.ok(/^https?:\/\//i.test(url!), `got unsafe url ${url}`);
+      assert.ok(!url?.includes(bad));
+    }
+    assert.ok(
+      forYouOpenUrl({ ...base, targetUrl: "HTTPS://x.com/a/status/9" })?.startsWith(
+        "HTTPS://",
+      ),
+    );
+    assert.ok(
+      forYouOpenUrl({ ...base, targetUrl: "http://x.com/a/status/9" })?.startsWith(
+        "http://",
+      ),
+    );
+  });
 });
