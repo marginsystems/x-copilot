@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { menuAvatarUrl, menuInitials } from "./lib/menuProfile";
 import type { Theme } from "./lib/theme";
 
@@ -42,11 +42,8 @@ function MenuIcon({ d }: { d: string }) {
   );
 }
 
-/**
- * Guest avatar — a deterministic scatter of tiny paper airplanes. Inline
- * SVG only: same seed, same pattern, nothing fetched.
- */
-function guestPlanes(seed: number, count: number) {
+/** Deterministic HSL tiles for the guest plane — same seed, same mark. */
+function guestTileColors(seed: number) {
   let a = seed >>> 0;
   const next = () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -55,30 +52,60 @@ function guestPlanes(seed: number, count: number) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  return Array.from({ length: count }, () => ({
-    x: 5 + next() * 30,
-    y: 5 + next() * 30,
-    rot: next() * 360,
-    scale: 0.5 + next() * 0.55,
-    opacity: 0.35 + next() * 0.5,
-  }));
+  const hue = 198 + next() * 26;
+  return {
+    ink: `hsl(${(hue - 8).toFixed(1)} 28% 18%)`,
+    tile: `hsl(${hue.toFixed(1)} 44% 42%)`,
+    tileHi: `hsl(${(hue + 16).toFixed(1)} 38% 58%)`,
+    edge: `hsl(${(hue + 8).toFixed(1)} 32% 72%)`,
+  };
 }
 
-const GUEST_PLANES = guestPlanes(0x5eed, 7);
+const GUEST_TILES = guestTileColors(0x5eed);
 
 export function GuestAvatar() {
+  const uid = useId().replace(/:/g, "");
+  const tileId = `guest-tile-${uid}`;
+  const clipId = `guest-plane-${uid}`;
+
   return (
     <span className="menu-avatar menu-avatar-guest" aria-hidden="true">
-      <svg viewBox="0 0 40 40" width="40" height="40" focusable="false">
-        {GUEST_PLANES.map((p, i) => (
-          <path
-            key={i}
-            d="M-4.5 -3 L5.5 0 L-4.5 3 L-2 0 Z"
-            transform={`translate(${p.x.toFixed(2)} ${p.y.toFixed(2)}) rotate(${p.rot.toFixed(1)}) scale(${p.scale.toFixed(2)})`}
-            fill="currentColor"
-            opacity={p.opacity.toFixed(2)}
-          />
-        ))}
+      <svg viewBox="0 0 32 32" width="32" height="32" focusable="false">
+        <defs>
+          <pattern
+            id={tileId}
+            width="6"
+            height="6"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <rect width="6" height="6" fill={GUEST_TILES.ink} />
+            <rect width="3" height="3" fill={GUEST_TILES.tile} />
+            <rect x="3" y="3" width="3" height="3" fill={GUEST_TILES.tileHi} />
+          </pattern>
+          <clipPath id={clipId}>
+            <path d="M4 16 L27.5 7 L18 16 L27.5 25 Z" />
+          </clipPath>
+        </defs>
+        <rect width="32" height="32" fill={GUEST_TILES.ink} />
+        <g clipPath={`url(#${clipId})`}>
+          <rect width="32" height="32" fill={`url(#${tileId})`} />
+        </g>
+        <path
+          d="M4 16 L27.5 7 L18 16 L27.5 25 Z"
+          fill="none"
+          stroke={GUEST_TILES.edge}
+          strokeWidth="0.85"
+          strokeLinejoin="miter"
+        />
+        <path
+          d="M18 16 L9 16"
+          fill="none"
+          stroke={GUEST_TILES.edge}
+          strokeWidth="0.7"
+          strokeLinecap="square"
+          opacity="0.75"
+        />
       </svg>
     </span>
   );
