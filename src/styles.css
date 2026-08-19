@@ -14,7 +14,7 @@
   --danger-dim: #5d3535;
   --ink: #161310;
   --on-accent: #161310;
-  --radius: 12px;
+  --radius: 4px;
   --font-head: "Space Grotesk", "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --font-body: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -174,7 +174,7 @@ h3 {
 
 .gate-mark {
   display: block;
-  border-radius: 12px;
+  border-radius: var(--radius);
 }
 
 .gate-mark.is-busy {
@@ -501,7 +501,7 @@ h3 {
   width: 100%;
   min-height: 44px;
   padding: 10px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   font-family: var(--font-head);
   font-size: 0.92rem;
   font-weight: 600;
@@ -876,7 +876,7 @@ h3 {
   gap: 12px;
   width: 100%;
   /* Room for the fixed top-right avatar / Sign in */
-  padding-right: 96px;
+  padding-right: 48px;
 }
 
 .brand-lockup {
@@ -1025,11 +1025,11 @@ h3 {
 /* One top-right slot — avatar (or Sign in) and close share the same spot */
 .menu-toggle {
   position: fixed;
-  top: 4px;
+  top: 6px;
   right: 8px;
   z-index: 50;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1070,8 +1070,8 @@ h3 {
 
 .menu-toggle.is-avatar .menu-avatar,
 .menu-toggle.is-avatar .menu-avatar-fallback {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: 50%;
 }
@@ -1245,11 +1245,11 @@ h3 {
   backdrop-filter: blur(12px) saturate(1.05);
   border: none;
   border-left: 1px solid var(--border-strong);
-  /* Clear the fixed toggle (top 12 + 40 + gap) */
-  padding: 56px 14px 20px;
+  /* Clear the fixed toggle (top 6 + 32 + gap) */
+  padding: 46px 10px 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   overflow-y: auto;
   overscroll-behavior: contain;
   opacity: 0;
@@ -1284,16 +1284,16 @@ h3 {
 .menu-profile {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 8px;
+  padding: 8px;
   background: var(--raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 
 .menu-avatar {
-  width: 48px;
-  height: 48px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
@@ -1312,7 +1312,7 @@ h3 {
 .menu-avatar-fallback {
   font-family: var(--font-head);
   font-weight: 700;
-  font-size: 0.92rem;
+  font-size: 0.7rem;
   letter-spacing: -0.02em;
   color: var(--accent);
 }
@@ -1358,8 +1358,8 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 8px;
   background: var(--raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1392,7 +1392,7 @@ h3 {
   height: 24px;
   flex-shrink: 0;
   padding: 0;
-  border-radius: 999px;
+  border-radius: var(--radius);
   border: 1px solid var(--border-strong);
   background: var(--bg);
   cursor: pointer;
@@ -1428,7 +1428,7 @@ h3 {
 }
 
 .menu-group-label {
-  margin: 10px 10px 4px;
+  margin: 8px 8px 2px;
   font-family: var(--font-head);
   font-size: 0.66rem;
   font-weight: 600;
@@ -1448,11 +1448,11 @@ a.menu-item {
   justify-content: flex-start;
   gap: 10px;
   width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
+  min-height: 34px;
+  padding: 6px 8px;
   box-sizing: border-box;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--text);
   font-family: var(--font-head);
@@ -2283,7 +2283,7 @@ button.primary.scout-run {
   min-height: 72px;
   max-height: 72px;
   overflow: hidden;
-  border-radius: calc(var(--radius) - 6px);
+  border-radius: var(--radius);
 }
 
 @media (min-width: 1100px) {
@@ -2646,7 +2646,7 @@ button:disabled {
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: transparent;
   animation: history-row-in 320ms var(--ease-out) both;
   animation-delay: calc(min(var(--i, 0), 10) * 28ms);
@@ -2966,7 +2966,7 @@ button:disabled {
 .onboarding-dot {
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: 50%;
   background: var(--border-strong);
 }
 
@@ -3020,7 +3020,7 @@ button.chip {
   border: 1px solid var(--border-strong);
   background: var(--panel);
   color: var(--text);
-  border-radius: 999px;
+  border-radius: var(--radius);
   padding: 8px 14px;
   font-family: var(--font-head);
   font-size: 0.82rem;
@@ -3107,7 +3107,7 @@ button.agenda-option.is-on {
   text-transform: uppercase;
   color: var(--on-accent);
   background: var(--accent);
-  border-radius: 999px;
+  border-radius: var(--radius);
   padding: 3px 8px;
 }
 
@@ -3535,7 +3535,7 @@ button.agenda-option.is-on {
 
 .voice-meter {
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   border: 1px solid var(--border-strong);
   background: var(--panel);
   overflow: hidden;
@@ -3594,7 +3594,7 @@ button.agenda-option.is-on {
 
 .voice-chip {
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius);
   padding: 2px 9px;
   font-size: 0.7rem;
   color: var(--text);
@@ -3689,7 +3689,7 @@ button.agenda-option.is-on {
 .voice-step {
   width: 18px;
   height: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius);
   background: var(--border-strong);
   transition: background 240ms ease;
 }
