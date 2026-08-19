@@ -2109,6 +2109,9 @@ export default function App() {
           message?: string;
           error?: string;
         };
+        if (fallback.error === "x_link_required") {
+          await hydrateAuth();
+        }
         const detail =
           fallback.message ||
           fallback.error ||
