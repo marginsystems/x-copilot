@@ -89,6 +89,7 @@ import {
   ensureUserTenant,
   sortiesExhaustedResponse,
 } from "./billingStore.js";
+import { trackAnalytics } from "./analyticsClient.js";
 import { recordSortie } from "./scoutSorties.js";
 import { PLAN_CREDIT_LIMITS } from "./plans.js";
 import { getRequestContext, getRequestTenantId, runWithRequestContext } from "./requestContext.js";
@@ -507,8 +508,23 @@ const server = http.createServer(async (req, res) => {
         try {
           await ensureMemoryIndex();
           recordSortie();
+          trackAnalytics({
+            name: "scout.takeoff",
+            userId: sessionUser?.id,
+            email: sessionUser?.email,
+            handle: sessionUser?.xUsername,
+            detail: `${queries.length} queries`,
+          });
           const result = await runScoutSearch({ agenda, queries, filters });
           if (!result.ok) {
+            trackAnalytics({
+              name: "scout.failed",
+              userId: sessionUser?.id,
+              email: sessionUser?.email,
+              handle: sessionUser?.xUsername,
+              detail: result.message,
+              ok: false,
+            });
             return send(req, res, result.status, {
               error: result.error,
               message: result.message,
@@ -606,6 +622,13 @@ const server = http.createServer(async (req, res) => {
 
           await ensureMemoryIndex();
           recordSortie();
+          trackAnalytics({
+            name: "scout.takeoff",
+            userId: sessionUser?.id,
+            email: sessionUser?.email,
+            handle: sessionUser?.xUsername,
+            detail: `${queries.length} queries`,
+          });
           const requestCtx = getRequestContext();
           const result = await runScoutCollect({
             agenda,
@@ -627,6 +650,14 @@ const server = http.createServer(async (req, res) => {
             },
           });
           if (!result.ok && !sawTerminal) {
+            trackAnalytics({
+              name: "scout.failed",
+              userId: sessionUser?.id,
+              email: sessionUser?.email,
+              handle: sessionUser?.xUsername,
+              detail: result.message,
+              ok: false,
+            });
             writeLine({
               agent: "scout",
               stage: "error",
@@ -1051,6 +1082,13 @@ const server = http.createServer(async (req, res) => {
             replyUrl,
             conversationId,
             inReplyToId,
+          });
+          trackAnalytics({
+            name: "mark.interacted",
+            userId: sessionUser?.id,
+            email: sessionUser?.email,
+            handle: sessionUser?.xUsername,
+            detail: author,
           });
           let gamification;
           try {

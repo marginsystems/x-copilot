@@ -6,7 +6,7 @@
 //   ./pm2-manager.sh start
 //
 // ecosystem.config.cjs is gitignored — do not commit machine-local copies.
-// Secrets live in .env and are read by both processes via loadEnv at startup
+// Secrets live in .env and are read by each process via loadEnv at startup
 // (with override), so a recycle picks up rotated keys and stale ones cannot
 // stick. Only NODE_ENV/PORT are pinned here; loadEnv never overrides them.
 
@@ -27,6 +27,10 @@ function runner(distEntry, srcEntry) {
 
 const api = runner("server/dist/index.js", "server/src/index.ts");
 const stats = runner("server/dist/statsWorker.js", "server/src/statsWorker.ts");
+const analytics = runner(
+  "server/dist/analyticsService.js",
+  "server/src/analyticsService.ts",
+);
 
 module.exports = {
   apps: [
@@ -41,6 +45,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: "8787",
+        ANALYTICS_URL: "http://127.0.0.1:8788",
         // BIND_HOST: "0.0.0.0", // only behind Cloudflare TLS; see docs/PUBLIC_DEPLOY.md
       },
       out_file: path.join(root, "logs", "x-copilot-api.out.log"),
@@ -59,6 +64,21 @@ module.exports = {
       },
       out_file: path.join(root, "logs", "x-copilot-stats.out.log"),
       error_file: path.join(root, "logs", "x-copilot-stats.err.log"),
+    },
+    {
+      name: "x-copilot-analytics",
+      script: analytics.script,
+      ...(analytics.interpreter ? { interpreter: analytics.interpreter } : {}),
+      cwd: root,
+      autorestart: true,
+      max_restarts: 10,
+      time: true,
+      env: {
+        NODE_ENV: "production",
+        PORT: "8788",
+      },
+      out_file: path.join(root, "logs", "x-copilot-analytics.out.log"),
+      error_file: path.join(root, "logs", "x-copilot-analytics.err.log"),
     },
   ],
 };

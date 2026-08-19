@@ -4,7 +4,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   createSession,
-  upsertOauthUser,
+  upsertOauthIdentity,
   type AuthUser,
   type SessionClientMeta,
 } from "./authStore.js";
@@ -14,6 +14,7 @@ import {
   authSuccessRedirect,
   googleClientConfig,
 } from "./authConfig.js";
+import { trackAuthAnalytics } from "./analyticsClient.js";
 import { corsHeaders } from "./cors.js";
 import {
   appendSetCookie,
@@ -147,7 +148,13 @@ export function completeGoogleLogin(
   profile: GoogleProfile,
   meta?: SessionClientMeta,
 ):
-  | { ok: true; user: AuthUser; token: string; expiresAt: string }
+  | {
+      ok: true;
+      user: AuthUser;
+      token: string;
+      expiresAt: string;
+      created: boolean;
+    }
   | { ok: false; error: string } {
   if (!profile.email) {
     return { ok: false, error: "no_email" };
@@ -155,7 +162,7 @@ export function completeGoogleLogin(
   if (!profile.emailVerified) {
     return { ok: false, error: "email_unverified" };
   }
-  const user = upsertOauthUser({
+  const { user, created } = upsertOauthIdentity({
     provider: "google",
     providerUserId: profile.sub,
     email: profile.email,
@@ -164,7 +171,14 @@ export function completeGoogleLogin(
     avatarUrl: profile.picture,
   });
   const session = createSession(user.id, meta);
-  return { ok: true, user, token: session.token, expiresAt: session.expiresAt };
+  trackAuthAnalytics(user, created, "google");
+  return {
+    ok: true,
+    user,
+    token: session.token,
+    expiresAt: session.expiresAt,
+    created,
+  };
 }
 
 function redirect(

@@ -77,7 +77,16 @@ describe("xAuth", () => {
     });
     assert.equal(login.ok, true);
     if (!login.ok) return;
+    assert.equal(login.created, true);
     assert.equal(getUserForSessionToken(login.token)?.displayName, "alice");
+    const again = completeXLogin({
+      profile: { providerUserId: "42", username: "alice" },
+      existingUser: null,
+    });
+    assert.equal(again.ok, true);
+    if (!again.ok) return;
+    assert.equal(again.created, false);
+    assert.equal(again.user.id, login.user.id);
 
     const other = completeXLogin({
       profile: { providerUserId: "99", username: "eve" },

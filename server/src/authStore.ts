@@ -279,7 +279,13 @@ export function findOauthAccount(
   };
 }
 
-export function upsertOauthUser(opts: {
+export type OauthUpsert = {
+  user: AuthUser;
+  /** True only when a new `users` row is inserted — not email-merge or re-login. */
+  created: boolean;
+};
+
+export function upsertOauthIdentity(opts: {
   provider: "google" | "x";
   providerUserId: string;
   email?: string | null;
@@ -287,11 +293,11 @@ export function upsertOauthUser(opts: {
   username?: string | null;
   displayName?: string | null;
   avatarUrl?: string | null;
-}): AuthUser {
+}): OauthUpsert {
   const database = getPlatformDb();
   const email = opts.email?.trim().toLowerCase() || null;
   const at = nowIso();
-  const upsert = database.transaction((): AuthUser => {
+  const upsert = database.transaction((): OauthUpsert => {
     const existing = findOauthAccount(opts.provider, opts.providerUserId);
     if (existing) {
       database
@@ -323,11 +329,12 @@ export function upsertOauthUser(opts: {
       stampXUsername(database, existing.userId, opts.username);
       const user = getUserById(existing.userId);
       if (!user) throw new Error("oauth user missing after update");
-      return user;
+      return { user, created: false };
     }
 
     const byEmail = email && opts.emailVerified ? getUserByEmail(email) : null;
     const userId = byEmail?.id ?? randomUUID();
+    const created = !byEmail;
     if (!byEmail) {
       database
         .prepare(
@@ -373,9 +380,21 @@ export function upsertOauthUser(opts: {
 
     const user = getUserById(userId);
     if (!user) throw new Error("oauth user missing after insert");
-    return user;
+    return { user, created };
   });
   return upsert();
+}
+
+export function upsertOauthUser(opts: {
+  provider: "google" | "x";
+  providerUserId: string;
+  email?: string | null;
+  emailVerified: boolean;
+  username?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}): AuthUser {
+  return upsertOauthIdentity(opts).user;
 }
 
 /**
