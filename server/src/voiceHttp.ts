@@ -536,7 +536,7 @@ async function handleVerify(
     ok: true,
     pass: true,
     checkedBy: "llm",
-    reason: result.verdict.reason || "That reads like you. Ready to post.",
+    reason: result.verdict.reason || "That reads like you. Open on X when you're ready.",
     intentUrl: buildIntentUrl(inReplyToId, edited.trim()),
     canPost:
       Boolean(getXWriteCreds(user.id)) && Boolean(xConsumerCreds()),
