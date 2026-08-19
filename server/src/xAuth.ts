@@ -11,12 +11,13 @@ import {
   getUserById,
   linkOauthToUser,
   saveXWriteCreds,
-  upsertOauthUser,
+  upsertOauthIdentity,
   type AuthUser,
   type SessionClientMeta,
 } from "./authStore.js";
 import { clientIp } from "./authGuard.js";
 import { authErrorRedirect, authSuccessRedirect } from "./authConfig.js";
+import { trackAuthAnalytics } from "./analyticsClient.js";
 import { corsHeaders } from "./cors.js";
 import { buildSignedAuthHeader, parseFormEncoded } from "./oauth1.js";
 import {
@@ -276,10 +277,17 @@ export function completeXLogin(opts: {
   existingUser: AuthUser | null;
   meta?: SessionClientMeta;
 }):
-  | { ok: true; user: AuthUser; token: string; expiresAt: string }
+  | {
+      ok: true;
+      user: AuthUser;
+      token: string;
+      expiresAt: string;
+      created: boolean;
+    }
   | { ok: false; error: string } {
   const { profile, existingUser } = opts;
   let user: AuthUser;
+  let created = false;
   if (existingUser) {
     const linked = linkOauthToUser({
       userId: existingUser.id,
@@ -295,7 +303,7 @@ export function completeXLogin(opts: {
     const existingAvatar = alreadyLinked
       ? getUserById(alreadyLinked.userId)?.avatarUrl ?? null
       : null;
-    user = upsertOauthUser({
+    const identity = upsertOauthIdentity({
       provider: "x",
       providerUserId: profile.providerUserId,
       username: profile.username,
@@ -303,9 +311,18 @@ export function completeXLogin(opts: {
       avatarUrl: existingAvatar ? null : (profile.avatarUrl ?? null),
       emailVerified: false,
     });
+    user = identity.user;
+    created = identity.created;
+    trackAuthAnalytics(user, created, "x");
   }
   const session = createSession(user.id, opts.meta);
-  return { ok: true, user, token: session.token, expiresAt: session.expiresAt };
+  return {
+    ok: true,
+    user,
+    token: session.token,
+    expiresAt: session.expiresAt,
+    created,
+  };
 }
 
 export async function handleXStart(

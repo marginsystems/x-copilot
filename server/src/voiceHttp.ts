@@ -3,6 +3,7 @@
  * forced-edit verify that gates a desk post (or the x.com intent fallback).
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { trackAnalytics } from "./analyticsClient.js";
 import { allowRate } from "./authGuard.js";
 import {
   creditsExhaustedResponse,
@@ -425,6 +426,13 @@ async function handleSuggest(
     send(req, res, 502, { error: result.error, message: result.message });
     return;
   }
+  trackAnalytics({
+    name: "voice.suggest",
+    userId: user.id,
+    email: user.email,
+    handle: user.xUsername,
+    detail: author,
+  });
   send(req, res, 200, {
     ok: true,
     draft: result.draft,
@@ -752,6 +760,13 @@ async function handlePost(
     return;
   }
 
+  trackAnalytics({
+    name: "desk.post",
+    userId: user.id,
+    email: user.email,
+    handle: user.xUsername,
+    detail: author,
+  });
   const handle = getXOauthUsername(user.id) || "i";
   const replyUrl = `https://x.com/${handle}/status/${posted.tweetId}`;
   const replyId = parseStatusIdFromUrl(replyUrl) ?? posted.tweetId;

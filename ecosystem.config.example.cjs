@@ -45,6 +45,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: "8787",
+        ANALYTICS_URL: "http://127.0.0.1:8788",
         // BIND_HOST: "0.0.0.0", // only behind Cloudflare TLS; see docs/PUBLIC_DEPLOY.md
       },
       out_file: path.join(root, "logs", "x-copilot-api.out.log"),
