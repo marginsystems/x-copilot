@@ -38,6 +38,7 @@ import {
 } from "./ownPostStore.js";
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
 import { ingestUsersHourly } from "./userIngest.js";
+import { runForYouDigests } from "./forYouRun.js";
 import { runWithRequestContext } from "./requestContext.js";
 import { getUserById } from "./authStore.js";
 import { creditsExhaustedResponse } from "./billingStore.js";
@@ -478,6 +479,16 @@ async function main(): Promise<void> {
       );
     } catch (err) {
       console.warn("[stats-worker] ingest soft-fail:", err);
+    }
+    try {
+      const digest = await runForYouDigests();
+      if (digest.ran || digest.skipped) {
+        console.log(
+          `[stats-worker] for-you ran=${digest.ran} wrote=${digest.wrote} skipped=${digest.skipped}`,
+        );
+      }
+    } catch (err) {
+      console.warn("[stats-worker] for-you digest soft-fail:", err);
     }
   };
 
