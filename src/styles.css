@@ -3939,9 +3939,42 @@ button.agenda-option.is-on {
 }
 
 .suggest-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+}
+
+.suggest-actions-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Keep the Check my edit / Copy / Open on X box while verify runs so
+   swapping in the loader cannot collapse the pane or move the draft. */
+.suggest-actions.is-checking .suggest-actions-row {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.suggest-actions.is-checking .suggest-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0;
+  min-width: 0;
+}
+
+.suggest-actions.is-checking .voice-loader-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .voice-unlock-toast {
@@ -4066,6 +4099,10 @@ a.suggest-open {
 
 .suggest-note.is-hint {
   color: var(--muted);
+}
+
+.suggest-note.is-reserved {
+  visibility: hidden;
 }
 
 .suggest-note.is-fail {
