@@ -263,23 +263,37 @@ describe("POST /api/voice/stances", () => {
     return { status, json: JSON.parse(raw || "{}") as Record<string, unknown> };
   }
 
-  it("returns needed:false on a non-opinion post without spending a suggest slot", async () => {
+  it("returns needed:true on a fact-add without spending a suggest slot", async () => {
     const { user, planKey } = seedReadyUser("stance@example.com");
     const before = getSuggestUsage(user.id, planKey);
-
-    const { status, json } = await postStances(user, {
-      author: "@dev",
-      text: "sqlite 3.46 shipped today",
-      threadKind: "fact_add",
+    const chat: ChatFn = async () => ({
+      ok: true,
+      content: '{"options":["Ship notes matter","The version is the story"]}',
+      model: "deepseek-v4-flash",
+      provider: "deepseek",
     });
+
+    const { status, json } = await postStances(
+      user,
+      {
+        author: "@dev",
+        text: "sqlite 3.46 shipped today",
+        threadKind: "fact_add",
+      },
+      chat,
+    );
 
     assert.equal(status, 200);
     assert.equal(json.ok, true);
-    assert.equal(json.needed, false);
+    assert.equal(json.needed, true);
+    assert.deepEqual(json.options, [
+      "Ship notes matter",
+      "The version is the story",
+    ]);
     assert.deepEqual(getSuggestUsage(user.id, planKey), before);
   });
 
-  it("does not burn the stance rate-limit window on a non-opinion post", async () => {
+  it("rate-limits the 21st stance lookup in a minute, on any thread kind", async () => {
     const { user } = seedReadyUser("stance-rate@example.com");
     let chatCalls = 0;
     const chat: ChatFn = async () => {
@@ -307,14 +321,18 @@ describe("POST /api/voice/stances", () => {
     }
     assert.equal(chatCalls, 20);
 
-    const { status, json } = await postStances(user, {
-      author: "@dev",
-      text: "sqlite 3.46 shipped today",
-      threadKind: "fact_add",
-    });
+    const { status, json } = await postStances(
+      user,
+      {
+        author: "@dev",
+        text: "sqlite 3.46 shipped today",
+        threadKind: "fact_add",
+      },
+      chat,
+    );
 
-    assert.equal(status, 200);
-    assert.equal(json.needed, false);
+    assert.equal(status, 429);
+    assert.equal(json.error, "rate_limited");
   });
 
   it("does not spend a suggest slot on a stance lookup — the draft charges", async () => {

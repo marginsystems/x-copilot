@@ -10,7 +10,6 @@ import {
 } from "./deepseek.js";
 import {
   draftHasAiTropes,
-  postNeedsStance,
   sanitizeSuggestedDraft,
   textUsesContrastCadence,
 } from "./voiceDraft.js";
@@ -282,9 +281,9 @@ export async function verifyReplyEdit(opts: {
 
 export const FALLBACK_STANCES = ["Agree with this", "Push back", "Another angle"];
 
-const STANCE_SYSTEM = `You list 2 or 3 sides a human could take on this X post.
+const STANCE_SYSTEM = `You list 2 or 3 sides a human could take when replying to this X post.
 Return ONLY JSON: {"options":["short side 1","short side 2","short side 3"]}
-Rules: each option is under 8 words, names a real side in THIS argument, no em dashes, no "this isn't X" templates. If the post does not assume a side, return {"options":[]}.`;
+Rules: each option is under 8 words, names a real angle on THIS post (a take, an answer, or a disagreement), no em dashes, no "this isn't X" templates. Always return at least two options — questions and fact posts still have sides (what you'd emphasize, who you'd back, what you'd challenge).`;
 
 export function parseStanceOptions(raw: string): string[] {
   const data = extractJsonObject(raw) as { options?: unknown } | null;
@@ -319,14 +318,6 @@ export async function proposeStances(opts: {
   };
   chat?: ChatFn;
 }): Promise<StanceProposal> {
-  if (
-    !postNeedsStance({
-      threadKind: opts.thread.threadKind,
-      flags: opts.thread.flags,
-    })
-  ) {
-    return { ok: true, needed: false, options: [], fallback: false };
-  }
   const chat = opts.chat ?? chatCompletions;
   const parts = [
     opts.thread.opAuthor && opts.thread.opText

@@ -33,7 +33,6 @@ import {
   checkTrivialEdit,
   trivialEditNote,
 } from "./voiceEdit.js";
-import { postNeedsStance } from "./voiceDraft.js";
 import { foldLocalVoiceSources } from "./voiceLocal.js";
 import {
   proposeStances,
@@ -262,27 +261,25 @@ async function handleStances(
     typeof body.threadKind === "string"
       ? body.threadKind.trim().slice(0, 40)
       : undefined;
-  if (postNeedsStance({ threadKind, flags })) {
-    if (!allowRate(`voice-stances:${user.id}`, 20, 60_000)) {
-      send(req, res, 429, {
-        error: "rate_limited",
-        message: "Too many stance lookups. Slow down a moment.",
-      });
-      return;
-    }
-    const billing = ensureUserBillingRow(user.id, tenantId);
-    const planKey = effectivePlanKey(billing, user.email);
-    const usage = getSuggestUsage(user.id, planKey);
-    if (!usage.canSuggest) {
-      send(req, res, 429, {
-        error: "suggest_daily_limit",
-        message: `That's ${usage.limit} suggested drafts today — the well refills at 00:00 UTC.`,
-        used: usage.used,
-        limit: usage.limit,
-        planKey,
-      });
-      return;
-    }
+  if (!allowRate(`voice-stances:${user.id}`, 20, 60_000)) {
+    send(req, res, 429, {
+      error: "rate_limited",
+      message: "Too many stance lookups. Slow down a moment.",
+    });
+    return;
+  }
+  const billing = ensureUserBillingRow(user.id, tenantId);
+  const planKey = effectivePlanKey(billing, user.email);
+  const usage = getSuggestUsage(user.id, planKey);
+  if (!usage.canSuggest) {
+    send(req, res, 429, {
+      error: "suggest_daily_limit",
+      message: `That's ${usage.limit} suggested drafts today — the well refills at 00:00 UTC.`,
+      used: usage.used,
+      limit: usage.limit,
+      planKey,
+    });
+    return;
   }
   const proposed = await proposeStances({
     thread: {
@@ -417,7 +414,7 @@ async function handleSuggest(
         : undefined,
     stance:
       typeof body.stance === "string"
-        ? body.stance.trim().slice(0, 80)
+        ? body.stance.trim().slice(0, 140)
         : undefined,
   });
   if (!result.ok) {

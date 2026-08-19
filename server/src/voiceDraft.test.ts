@@ -102,18 +102,12 @@ describe("draftHasAiTropes", () => {
 });
 
 describe("postNeedsStance", () => {
-  it("asks on sharp opinions and timely takes", () => {
+  it("asks on every thread kind, including questions and fact-adds", () => {
     assert.equal(postNeedsStance({ threadKind: "sharp_opinion" }), true);
     assert.equal(postNeedsStance({ threadKind: "timely_take" }), true);
-    assert.equal(postNeedsStance({ threadKind: "fact_add" }), false);
-  });
-
-  it("asks on political or rage-bait flags", () => {
-    assert.equal(
-      postNeedsStance({ threadKind: "other", flags: ["political"] }),
-      true,
-    );
-    assert.equal(postNeedsStance({ threadKind: "fact_add", flags: ["on_agenda"] }), false);
+    assert.equal(postNeedsStance({ threadKind: "fact_add" }), true);
+    assert.equal(postNeedsStance({ threadKind: "lived_answer" }), true);
+    assert.equal(postNeedsStance({ threadKind: "other", flags: ["on_agenda"] }), true);
   });
 });
 
