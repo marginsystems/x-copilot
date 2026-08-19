@@ -298,6 +298,7 @@ export function completeXLogin(opts: {
     });
     if (!linked.ok) return { ok: false, error: linked.error };
     user = linked.user;
+    trackAuthAnalytics(user, false, "x");
   } else {
     const alreadyLinked = findOauthAccount("x", profile.providerUserId);
     const existingAvatar = alreadyLinked

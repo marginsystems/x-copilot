@@ -90,14 +90,22 @@ export function parseAnalyticsEvent(
   return { ok: true, event };
 }
 
+/** Escape Slack markup so untrusted text can't inject mentions or links. */
+function slackEscape(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 /** One Slack text blob — no tokens, no request bodies. */
 export function formatSlackText(event: AnalyticsEvent): string {
   const bits = [`*${SLACK_LABEL[event.name]}*`];
-  if (event.email) bits.push(event.email);
-  if (event.handle) bits.push(`@${event.handle}`);
-  if (event.provider) bits.push(event.provider);
+  if (event.email) bits.push(slackEscape(event.email));
+  if (event.handle) bits.push(`@${slackEscape(event.handle)}`);
+  if (event.provider) bits.push(slackEscape(event.provider));
   if (event.ok === false) bits.push("failed");
-  if (event.detail) bits.push(event.detail);
+  if (event.detail) bits.push(slackEscape(event.detail));
   const line = bits.join(" · ");
-  return event.userId ? `${line}\n\`${event.userId}\`` : line;
+  return event.userId ? `${line}\n\`${slackEscape(event.userId)}\`` : line;
 }

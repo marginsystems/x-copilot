@@ -75,4 +75,16 @@ describe("formatSlackText", () => {
     });
     assert.equal(text, "*scout failed* · failed · x_rate_limit");
   });
+
+  it("escapes Slack markup in untrusted detail", () => {
+    const text = formatSlackText({
+      name: "mark.interacted",
+      at: "2026-08-19T12:00:00.000Z",
+      detail: '<!channel> [label](https://evil.example)',
+    });
+    assert.equal(
+      text,
+      "*mark* · &lt;!channel&gt; [label](https://evil.example)",
+    );
+  });
 });
