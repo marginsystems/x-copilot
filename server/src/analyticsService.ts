@@ -184,7 +184,9 @@ function main(): void {
 
   if (process.env.ANALYTICS_DISABLE === "1") {
     console.log("[analytics] ANALYTICS_DISABLE=1 — not starting");
-    process.exit(0);
+    // Idle instead of exiting: PM2 autorestart loops on a clean exit.
+    setInterval(() => {}, 2 ** 31 - 1);
+    return;
   }
 
   const port = Number(process.env.PORT || process.env.ANALYTICS_PORT || DEFAULT_PORT);

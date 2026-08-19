@@ -66,6 +66,20 @@ describe("formatSlackText", () => {
     assert.equal(text, "*signup* · alice@example.com · @alice · google\n`u-1`");
   });
 
+  it("escapes Slack control sequences in user fields", () => {
+    const text = formatSlackText({
+      name: "user.signup",
+      at: "2026-08-19T12:00:00.000Z",
+      email: "<!channel>@example.com",
+      handle: "<bob>",
+      detail: "<https://evil.example|link>",
+    });
+    assert.equal(
+      text,
+      "*signup* · &lt;!channel&gt;@example.com · @&lt;bob&gt; · &lt;https://evil.example|link&gt;",
+    );
+  });
+
   it("marks a failed takeoff", () => {
     const text = formatSlackText({
       name: "scout.failed",
