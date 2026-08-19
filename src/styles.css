@@ -2837,6 +2837,90 @@ button:disabled {
   font-size: 0.76rem;
 }
 
+.x-thread {
+  display: grid;
+  gap: 0;
+}
+
+.x-post {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.x-post + .x-post {
+  margin-top: 4px;
+}
+
+.x-post-gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100%;
+}
+
+.x-post-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--raised);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-family: var(--font-head);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.x-post-rail {
+  width: 2px;
+  flex: 1 1 auto;
+  min-height: 12px;
+  margin: 4px 0 2px;
+  background: var(--border-strong);
+}
+
+.x-post-main {
+  min-width: 0;
+  padding-bottom: 8px;
+}
+
+.x-post-kicker {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.x-post-head {
+  margin: 0 0 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: baseline;
+}
+
+.x-post-name {
+  font-family: var(--font-head);
+  font-weight: 650;
+  color: var(--text);
+}
+
+.x-post-time {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.x-post-text {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -3745,12 +3829,14 @@ button.agenda-option.is-on {
 .suggest-stance-input {
   flex: 1 1 160px;
   min-width: 0;
-  min-height: 34px;
-  padding: 6px 8px;
+  min-height: 40px;
+  padding: 8px 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--raised);
   color: var(--text);
+  /* 16px minimum — iOS Safari zooms focused inputs under 16px */
+  font-size: 16px;
 }
 
 .suggest-idle {
@@ -3778,6 +3864,44 @@ button.agenda-option.is-on {
   padding: 6px 10px;
 }
 
+.suggest-reference {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.suggest-reference-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.suggest-reference-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.suggest-reference-copy {
+  padding: 2px 8px;
+  font-size: 0.72rem;
+}
+
+.suggest-reference-text {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+
 .suggest-textarea {
   width: 100%;
   resize: vertical;
@@ -3786,8 +3910,9 @@ button.agenda-option.is-on {
   color: var(--text);
   border: 1px solid var(--border-strong);
   padding: 10px 12px;
-  font-size: 0.84rem;
-  line-height: 1.5;
+  /* 16px minimum — iOS Safari zooms focused inputs under 16px */
+  font-size: 16px;
+  line-height: 1.45;
 }
 
 .suggest-textarea:focus-visible {
