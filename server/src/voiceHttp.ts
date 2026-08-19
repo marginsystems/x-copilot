@@ -314,6 +314,7 @@ async function handleSuggest(
   req: IncomingMessage,
   res: ServerResponse,
   user: AuthUser,
+  chat?: ChatFn,
 ): Promise<void> {
   if (!allowRate(`voice-suggest:${user.id}`, 20, 60_000)) {
     send(req, res, 429, {
@@ -416,6 +417,7 @@ async function handleSuggest(
       typeof body.stance === "string"
         ? body.stance.trim().slice(0, 140)
         : undefined,
+    chat,
   });
   if (!result.ok) {
     removeSuggestRecord(reservationId);
@@ -858,7 +860,7 @@ export async function tryHandleVoice(
   }
 
   if (req.method === "POST" && url.pathname === "/api/voice/suggest") {
-    await handleSuggest(req, res, user);
+    await handleSuggest(req, res, user, chat);
     return true;
   }
 
