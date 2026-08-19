@@ -33,6 +33,8 @@ fall back to the socket address (shared rate buckets) and lose
 
 Restart after `.env` changes: `./pm2-manager.sh restart`.
 
+The analytics sidecar (`x-copilot-analytics`) binds **127.0.0.1:8788** only. It is not proxied and must never be reachable from the public internet. The API fire-and-forgets `POST /event` to `ANALYTICS_URL`; a down sidecar or missing Slack webhook does not affect signup, sign-in, or takeoff.
+
 ## Cloudflare DNS (zone `xcopilot.dev`)
 
 | Name | Type | Content | Proxy | When |

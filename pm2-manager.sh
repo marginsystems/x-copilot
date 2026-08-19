@@ -3,13 +3,14 @@
 # pm2-manager.sh — manage the x-copilot API for this instance.
 #
 # Services (see ecosystem.config.cjs — copy from ecosystem.config.example.cjs):
-#   x-copilot-api     TypeScript sidecar (session + drafts) on :8787
-#   x-copilot-stats   Hourly reply-stats sampler (1h / 24h snapshots)
+#   x-copilot-api        TypeScript sidecar (session + drafts) on :8787
+#   x-copilot-stats      Hourly reply-stats sampler (1h / 24h snapshots)
+#   x-copilot-analytics  Loopback Slack analytics on :8788
 #
 # Usage:
-#   ./pm2-manager.sh start              build server, then start API + stats
+#   ./pm2-manager.sh start              build server, then start API + stats + analytics
 #   ./pm2-manager.sh stop               stop managed apps
-#   ./pm2-manager.sh restart [prod]     build, recycle API + stats from ecosystem + .env
+#   ./pm2-manager.sh restart [prod]     build, recycle API + stats + analytics from ecosystem + .env
 #   ./pm2-manager.sh restart --skip-build
 #   ./pm2-manager.sh status             show pm2 status
 #   ./pm2-manager.sh logs [name]        tail logs (default: x-copilot-api)
@@ -27,7 +28,8 @@ mkdir -p logs
 ECOSYSTEM="ecosystem.config.cjs"
 CORE="x-copilot-api"
 STATS="x-copilot-stats"
-APPS=("$CORE" "$STATS")
+ANALYTICS="x-copilot-analytics"
+APPS=("$CORE" "$STATS" "$ANALYTICS")
 
 if ! command -v pm2 >/dev/null 2>&1; then
   echo "pm2 not found. Install it: npm i -g pm2" >&2
@@ -77,7 +79,7 @@ for arg in "$@"; do
 done
 
 # Secrets are not carried in the ecosystem `env` block (that would serialize
-# them into ~/.pm2/dump.pm2 via `pm2 save`). Both processes load .env at boot
+# them into ~/.pm2/dump.pm2 via `pm2 save`). Each process loads .env at boot
 # with override, so any restart picks up rotated keys and stale ones cannot
 # stick. Keep the recycle non-destructive: delete+start would leave the app
 # down if the fresh start fails, so restart --update-env for NODE_ENV/PORT.
