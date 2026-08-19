@@ -63,7 +63,7 @@ function readLimitedBody(req: IncomingMessage): Promise<string> {
       size += chunk.length;
       if (size > MAX_BODY_BYTES) {
         req.off("data", onData);
-        req.destroy();
+        req.pause();
         reject(Object.assign(new Error("body_too_large"), { code: "body_too_large" }));
         return;
       }
@@ -105,6 +105,7 @@ export async function handleAnalyticsRequest(
     const code = err instanceof Error ? (err as { code?: string }).code : undefined;
     if (code === "body_too_large") {
       json(res, 413, { error: "body_too_large" });
+      res.on("finish", () => res.socket?.destroy());
       return;
     }
     json(res, 400, { error: "bad_request" });
@@ -175,6 +176,11 @@ function main(): void {
     })
   ) {
     console.warn("[analytics] .env not found — Slack webhook unset, events will only log");
+  }
+
+  if (process.env.ANALYTICS_DISABLE === "1") {
+    console.log("[analytics] ANALYTICS_DISABLE=1 — not starting");
+    process.exit(0);
   }
 
   const port = Number(process.env.PORT || process.env.ANALYTICS_PORT || DEFAULT_PORT);
