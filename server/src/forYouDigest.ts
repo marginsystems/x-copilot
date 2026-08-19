@@ -6,7 +6,6 @@ import { getUserById } from "./authStore.js";
 import { getPlatformDb } from "./db.js";
 import { formatOutcomeSection } from "./knowledgeMemory.js";
 import { listInteractionHistory } from "./interactionStore.js";
-import { getLastScout } from "./scoutCache.js";
 import { getVoiceProfile } from "./voiceStore.js";
 import { parseVoiceCardJson, type VoiceCard } from "./voiceLlm.js";
 import { FOR_YOU_KINDS, type ForYouDraft, type ForYouKind } from "./forYouStore.js";
@@ -171,9 +170,7 @@ export async function buildForYouDigest(opts: {
     reply: clip(row.text) ?? undefined,
     outcome: row.stats ? formatOutcomeSection(row.stats) : undefined,
   }));
-  const scout = opts.getScout
-    ? await opts.getScout()
-    : await getLastScout();
+  const scout = opts.getScout ? await opts.getScout() : null;
   const leftoverScout: DigestScout[] = (scout?.threads ?? [])
     .filter((t) => t.id && t.url && t.author)
     .slice(0, 8)
