@@ -5,6 +5,8 @@ import {
   VERIFY_PHASES,
   localEditHint,
   phaseIndexAt,
+  suggestNoteClassName,
+  suggestNoteSlot,
   suggestsLeftLabel,
   type SuggestUsage,
   type VoicePhase,
@@ -393,6 +395,12 @@ export function SuggestPane({
   }
 
   const verified = stage === "ready";
+  const noteSlot = suggestNoteSlot({
+    note,
+    noteKind,
+    hint: editHint,
+    verifying: stage === "verifying",
+  });
 
   return (
     <div className="suggest-pane">
@@ -505,31 +513,12 @@ export function SuggestPane({
           ) : null}
         </div>
       </div>
-      {editHint && !note ? (
-        <p
-          className={
-            stage === "verifying"
-              ? "suggest-note is-hint is-reserved"
-              : "suggest-note is-hint"
-          }
-        >
-          {editHint}
-        </p>
-      ) : null}
-      {note ? (
-        <p
-          className={
-            noteKind === "ok"
-              ? "suggest-note is-ok"
-              : noteKind === "fail"
-                ? "suggest-note is-fail"
-                : "suggest-note"
-          }
-          role="status"
-        >
-          {note}
-        </p>
-      ) : null}
+      <p
+        className={suggestNoteClassName(noteSlot.kind)}
+        role={noteSlot.kind === "reserved" ? undefined : "status"}
+      >
+        {noteSlot.text}
+      </p>
     </div>
   );
 }
