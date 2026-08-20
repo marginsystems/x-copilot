@@ -1,8 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  forYouComposeSeed,
   forYouKindLabel,
   forYouOpenUrl,
+  forYouUsesDeskCompose,
   parseForYouSuggestion,
   type ForYouSuggestion,
 } from "./forYou.ts";
@@ -31,6 +33,30 @@ describe("forYou helpers", () => {
     });
     assert.equal(row?.kind, "quote");
     assert.equal(row?.targetId, "10");
+  });
+
+  it("only post and quote cards with a numeric target use the desk compose path", () => {
+    assert.equal(forYouUsesDeskCompose(base), true);
+    assert.equal(
+      forYouUsesDeskCompose({ ...base, kind: "quote", targetId: "10" }),
+      true,
+    );
+    assert.equal(
+      forYouUsesDeskCompose({
+        ...base,
+        kind: "quote",
+        targetId: null,
+        targetUrl: "https://x.com/a/status/10",
+      }),
+      false,
+    );
+    assert.equal(forYouUsesDeskCompose({ ...base, kind: "reply" }), false);
+    assert.equal(forYouUsesDeskCompose({ ...base, kind: "repost" }), false);
+    assert.equal(forYouComposeSeed(base), "900 views\n\nShip a recap.");
+    assert.equal(
+      forYouComposeSeed({ ...base, draft: null }),
+      "900 views",
+    );
   });
 
   it("labels kinds and picks an Open on X url", () => {

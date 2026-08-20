@@ -224,6 +224,24 @@ describe("suggestReply", () => {
     assert.match(userMsg.content, /Take this side/);
     assert.ok(userMsg.content.includes("The loop is the tax"));
   });
+
+  it("drafts an original post in compose mode", async () => {
+    const capture: { purpose?: string; messages?: ChatMessage[] } = {};
+    const result = await suggestReply({
+      cardJson: CARD_JSON,
+      thread: { author: "@you", text: "900 views. Ship a recap." },
+      mode: "compose",
+      composeKind: "post",
+      stance: "Lean into the recap",
+      chat: fakeChat("ship the recap while the views are warm", capture),
+    });
+    assert.ok(result.ok);
+    assert.equal(capture.purpose, "compose_suggest");
+    const userMsg = capture.messages?.find((m) => m.role === "user");
+    assert.ok(userMsg);
+    assert.match(userMsg.content, /original post/i);
+    assert.ok(!/Reply to this post/.test(userMsg.content));
+  });
 });
 
 describe("proposeStances", () => {
@@ -264,6 +282,23 @@ describe("proposeStances", () => {
       assert.equal(result.fallback, false);
     }
     assert.equal(capture.purpose, "reply_stances");
+  });
+
+  it("tags compose stance lookup separately", async () => {
+    const capture: { purpose?: string; messages?: ChatMessage[] } = {};
+    const result = await proposeStances({
+      thread: { author: "@you", text: "900 views. Ship a recap." },
+      mode: "compose",
+      chat: fakeChat(
+        '{"options":["Lean into the recap","Push a sharper claim"]}',
+        capture,
+      ),
+    });
+    assert.equal(result.ok, true);
+    assert.equal(capture.purpose, "compose_stances");
+    const userMsg = capture.messages?.find((m) => m.role === "user");
+    assert.ok(userMsg);
+    assert.match(userMsg.content, /Proposed original post/);
   });
 
   it("parses stance JSON and drops empties", () => {

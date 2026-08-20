@@ -27,9 +27,11 @@ import {
   findDeskPostByKey,
   recordDeskPost,
 } from "./xPostLimits.js";
-import { postUserReply } from "./xTweet.js";
+import { getSuggestion, markSuggestion } from "./forYouStore.js";
+import { postUserReply, postUserTweet } from "./xTweet.js";
 import {
   MAX_REPLY_CHARS,
+  buildComposeIntentUrl,
   buildIntentUrl,
   checkTrivialEdit,
   trivialEditNote,
@@ -112,6 +114,16 @@ export type VoiceUiStatus =
  *  auto-learn right at the unlock bar. POST learn always folds. */
 const lastLocalFoldAt = new Map<string, number>();
 const LOCAL_FOLD_COOLDOWN_MS = 60_000;
+
+function voiceMode(body: Record<string, unknown>): "reply" | "compose" {
+  return body.mode === "compose" ? "compose" : "reply";
+}
+
+function composeKindOf(body: Record<string, unknown>): "post" | "quote" | undefined {
+  if (body.kind === "quote") return "quote";
+  if (body.kind === "post") return "post";
+  return undefined;
+}
 
 function parseCard(cardJson: string | null): VoiceCard | null {
   if (!cardJson) return null;
@@ -297,6 +309,7 @@ async function handleStances(
           ? body.opText.trim().slice(0, 2000)
           : undefined,
     },
+    mode: voiceMode(body),
     chat,
   });
   if (!proposed.ok) {
@@ -418,6 +431,8 @@ async function handleSuggest(
       typeof body.stance === "string"
         ? body.stance.trim().slice(0, 140)
         : undefined,
+    mode: voiceMode(body),
+    composeKind: composeKindOf(body),
     chat,
   });
   if (!result.ok) {
@@ -461,12 +476,32 @@ async function handleVerify(
     MAX_REPLY_CHARS,
   );
   const edited = typeof body.edited === "string" ? body.edited : "";
+  const mode = voiceMode(body);
   const inReplyToId =
     typeof body.inReplyToId === "string" ? body.inReplyToId.trim() : "";
-  if (!draft.trim() || !/^\d+$/.test(inReplyToId)) {
+  const quoteTweetId =
+    typeof body.quoteTweetId === "string" ? body.quoteTweetId.trim() : "";
+  if (!draft.trim()) {
+    send(req, res, 400, {
+      error: "bad_request",
+      message:
+        mode === "compose"
+          ? "Pass { draft, edited, mode: \"compose\" }."
+          : "Pass { draft, edited, inReplyToId } for this thread.",
+    });
+    return;
+  }
+  if (mode === "reply" && !/^\d+$/.test(inReplyToId)) {
     send(req, res, 400, {
       error: "bad_request",
       message: "Pass { draft, edited, inReplyToId } for this thread.",
+    });
+    return;
+  }
+  if (mode === "compose" && quoteTweetId && !/^\d+$/.test(quoteTweetId)) {
+    send(req, res, 400, {
+      error: "bad_request",
+      message: "quoteTweetId must be a numeric status id.",
     });
     return;
   }
@@ -536,8 +571,15 @@ async function handleVerify(
     ok: true,
     pass: true,
     checkedBy: "llm",
-    reason: result.verdict.reason || "That reads like you. Open on X when you're ready.",
-    intentUrl: buildIntentUrl(inReplyToId, edited.trim()),
+    reason:
+      result.verdict.reason ||
+      (mode === "compose"
+        ? "That reads like you. Post from the desk or open on X."
+        : "That reads like you. Open on X when you're ready."),
+    intentUrl:
+      mode === "compose"
+        ? buildComposeIntentUrl(edited.trim(), quoteTweetId || undefined)
+        : buildIntentUrl(inReplyToId, edited.trim()),
     canPost:
       Boolean(getXWriteCreds(user.id)) && Boolean(xConsumerCreds()),
   });
@@ -566,34 +608,22 @@ async function handlePost(
     MAX_REPLY_CHARS,
   );
   const edited = typeof body.edited === "string" ? body.edited : "";
-  const inReplyToId =
+  const mode = voiceMode(body);
+  const clientReplyId =
     typeof body.inReplyToId === "string" ? body.inReplyToId.trim() : "";
-  const threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
-  const author = typeof body.author === "string" ? body.author.trim() : "";
-  if (!draft.trim() || !/^\d+$/.test(inReplyToId) || !threadId || !author) {
-    send(req, res, 400, {
-      error: "bad_request",
-      message: "Pass { draft, edited, inReplyToId, threadId, author }.",
-    });
-    return;
-  }
-  if (!normalizeAuthorKey(author)) {
-    send(req, res, 400, {
-      error: "bad_request",
-      message: "author must be a handle.",
-    });
-    return;
-  }
-  if (edited.trim().length > MAX_REPLY_CHARS) {
-    send(req, res, 400, {
-      error: "too_long",
-      message: `X replies cap at ${MAX_REPLY_CHARS} characters.`,
-    });
-    return;
-  }
+  let inReplyToId = clientReplyId;
+  let quoteTweetId = "";
+  let threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
+  let author = typeof body.author === "string" ? body.author.trim() : "";
+  let suggestionId =
+    typeof body.suggestionId === "string" ? body.suggestionId.trim() : "";
+
   // A retry after an ambiguous network failure re-sends the same client key.
   // If the first attempt actually posted (response was lost), replay that
-  // result instead of posting a duplicate reply on X.
+  // result instead of posting a duplicate reply on X. This lookup must run
+  // before the compose suggestion gate: a successful desk post flips the row
+  // to done, so a retry would otherwise hit the 404 below instead of the
+  // replay result.
   const rawRequestKey =
     typeof body.requestKey === "string" ? body.requestKey.trim() : "";
   // Keys must fit the x_desk_posts id column: out-of-range keys are ignored
@@ -605,6 +635,30 @@ async function handlePost(
     if (prior && prior.tweetId) {
       const handle = getXOauthUsername(user.id) || "i";
       const replyUrl = `https://x.com/${handle}/status/${prior.tweetId}`;
+      if (mode === "compose") {
+        try {
+          markSuggestion({
+            id: suggestionId,
+            userId: user.id,
+            status: "done",
+          });
+        } catch (err) {
+          console.warn("mark For You after desk post replay soft-fail:", err);
+        }
+        const snap = await getGamification({ userId: user.id });
+        const limit = checkDeskPostLimit({
+          userId: user.id,
+          level: snap.level,
+          currentStreak: snap.currentStreak,
+        });
+        send(req, res, 200, {
+          ok: true,
+          tweet: { id: prior.tweetId, url: replyUrl },
+          remainingToday: limit.remainingToday,
+          cap: limit.cap,
+        });
+        return;
+      }
       const replyId = parseStatusIdFromUrl(replyUrl) ?? prior.tweetId;
       let interaction;
       try {
@@ -656,6 +710,87 @@ async function handlePost(
     }
   }
 
+  if (mode === "compose") {
+    if (!draft.trim() || !suggestionId) {
+      send(req, res, 400, {
+        error: "bad_request",
+        message: 'Pass { draft, edited, mode: "compose", suggestionId }.',
+      });
+      return;
+    }
+    if (/^\d+$/.test(clientReplyId)) {
+      send(req, res, 400, {
+        error: "reply_forbidden",
+        message:
+          "For You compose posts cannot reply to another tweet. Open on X for Scout replies.",
+      });
+      return;
+    }
+    const suggestion = getSuggestion(suggestionId, user.id);
+    if (
+      !suggestion ||
+      suggestion.status !== "suggested" ||
+      Date.parse(suggestion.expiresAt) <= Date.now()
+    ) {
+      send(req, res, 404, {
+        error: "not_found",
+        message: "Suggestion is gone or already acted on.",
+      });
+      return;
+    }
+    if (suggestion.kind !== "post" && suggestion.kind !== "quote") {
+      send(req, res, 400, {
+        error: "compose_kind",
+        message: "Only For You post and quote cards can post from the desk.",
+      });
+      return;
+    }
+    if (suggestion.kind === "quote") {
+      if (!suggestion.targetId || !/^\d+$/.test(suggestion.targetId)) {
+        send(req, res, 400, {
+          error: "bad_quote",
+          message: "This quote card has no numeric target to quote.",
+        });
+        return;
+      }
+      quoteTweetId = suggestion.targetId;
+    }
+    // Client-supplied draft/edited can dodge the trivial-edit gate below, so
+    // also compare the posted text against the stored digest draft and reject
+    // a verbatim (or trivial) reuse before POST /2/tweets.
+    if (suggestion.draft && checkTrivialEdit(suggestion.draft, edited).trivial) {
+      send(req, res, 400, {
+        error: "edit_required",
+        message:
+          "That's still the digest draft — rework a clause or add your own take.",
+      });
+      return;
+    }
+    threadId = suggestion.id;
+    author = getXOauthUsername(user.id) || "you";
+  } else {
+    if (!draft.trim() || !/^\d+$/.test(inReplyToId) || !threadId || !author) {
+      send(req, res, 400, {
+        error: "bad_request",
+        message: "Pass { draft, edited, inReplyToId, threadId, author }.",
+      });
+      return;
+    }
+    if (!normalizeAuthorKey(author)) {
+      send(req, res, 400, {
+        error: "bad_request",
+        message: "author must be a handle.",
+      });
+      return;
+    }
+  }
+  if (edited.trim().length > MAX_REPLY_CHARS) {
+    send(req, res, 400, {
+      error: "too_long",
+      message: `X replies cap at ${MAX_REPLY_CHARS} characters.`,
+    });
+    return;
+  }
   const profile = getVoiceProfile(user.id);
   if (
     !profile ||
@@ -723,14 +858,25 @@ async function handlePost(
     return;
   }
 
-  const posted = await postUserReply({
-    consumerKey: consumer.key,
-    consumerSecret: consumer.secret,
-    accessToken: write.token,
-    accessTokenSecret: write.secret,
-    text: edited.trim(),
-    inReplyToId,
-  });
+  const posted =
+    mode === "compose"
+      ? await postUserTweet({
+          consumerKey: consumer.key,
+          consumerSecret: consumer.secret,
+          accessToken: write.token,
+          accessTokenSecret: write.secret,
+          text: edited.trim(),
+          quoteTweetId: quoteTweetId || undefined,
+        })
+      : await postUserReply({
+          consumerKey: consumer.key,
+          consumerSecret: consumer.secret,
+          accessToken: write.token,
+          accessTokenSecret: write.secret,
+          text: edited.trim(),
+          inReplyToId,
+        });
+  const relatedId = mode === "compose" ? quoteTweetId : inReplyToId;
   if (!posted.ok) {
     // An ambiguous failure — the fetch dropped after X may have created the
     // reply, or X accepted it without returning an id — must still consume
@@ -744,7 +890,7 @@ async function handlePost(
         recordDeskPost({
           userId: user.id,
           tweetId: "",
-          inReplyToId,
+          inReplyToId: relatedId,
           threadId,
           requestKey,
         });
@@ -764,7 +910,7 @@ async function handlePost(
     userId: user.id,
     email: user.email,
     handle: user.xUsername,
-    detail: author,
+    detail: mode === "compose" ? suggestionId : author,
   });
   const handle = getXOauthUsername(user.id) || "i";
   const replyUrl = `https://x.com/${handle}/status/${posted.tweetId}`;
@@ -773,12 +919,31 @@ async function handlePost(
     recordDeskPost({
       userId: user.id,
       tweetId: posted.tweetId,
-      inReplyToId,
+      inReplyToId: relatedId,
       threadId,
       requestKey: requestKey || undefined,
     });
   } catch (err) {
     console.warn("desk post record soft-fail:", err);
+  }
+
+  if (mode === "compose") {
+    try {
+      markSuggestion({
+        id: suggestionId,
+        userId: user.id,
+        status: "done",
+      });
+    } catch (err) {
+      console.warn("mark For You after desk post soft-fail:", err);
+    }
+    send(req, res, 200, {
+      ok: true,
+      tweet: { id: posted.tweetId, url: replyUrl },
+      remainingToday: Math.max(0, limit.remainingToday - 1),
+      cap: limit.cap,
+    });
+    return;
   }
 
   const conversationId =

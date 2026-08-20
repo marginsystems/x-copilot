@@ -76,8 +76,10 @@ import { Account } from "./Account";
 import { SuggestLocked, VoiceCardPanel, VoiceUnlockToast } from "./VoiceCard";
 import { SuggestPane } from "./SuggestPane";
 import {
+  forYouComposeSeed,
   forYouKindLabel,
   forYouOpenUrl,
+  forYouUsesDeskCompose,
   parseForYouSuggestion,
   type ForYouSuggestion,
 } from "./lib/forYou";
@@ -640,18 +642,35 @@ function SuggestedRow({
   row,
   index = 0,
   busy,
+  voice,
+  agenda,
+  xLinked,
+  hasSession,
   onPosted,
   onSkip,
   onDismiss,
+  onOpenSettings,
+  onLinkX,
+  onUsage,
 }: {
   row: ForYouSuggestion;
   index?: number;
   busy: boolean;
+  voice: VoiceState | null;
+  agenda: string;
+  xLinked?: boolean;
+  hasSession: boolean;
   onPosted: () => void;
   onSkip: () => void;
   onDismiss: () => void;
+  onOpenSettings: () => void;
+  onLinkX: () => void;
+  onUsage: (usage: VoiceState["suggests"]) => void;
 }) {
   const openUrl = forYouOpenUrl(row);
+  const compose = forYouUsesDeskCompose(row);
+  const seed = forYouComposeSeed(row);
+  const handle = voice?.handle ? `@${voice.handle}` : "@you";
   return (
     <article
       className="history-row for-you-row"
@@ -663,28 +682,67 @@ function SuggestedRow({
           {row.targetAuthor ? <span>{row.targetAuthor}</span> : null}
         </span>
         <span className="row-summary">{row.why}</span>
-        {row.draft ? (
+        {!compose && row.draft ? (
           <span className="for-you-draft">{row.draft}</span>
         ) : null}
       </div>
-      <div className="history-row-actions">
-        {openUrl ? (
-          <a className="ghost" href={openUrl} target="_blank" rel="noreferrer">
-            Open on X
-          </a>
+      {compose ? (
+        voice?.status === "ready" && voice.unlocked && seed ? (
+          <SuggestPane
+            variant="compose"
+            composeKind={row.kind === "quote" ? "quote" : "post"}
+            suggestionId={row.id}
+            quoteTweetId={row.targetId}
+            threadId={row.id}
+            author={row.targetAuthor || handle}
+            text={seed}
+            agenda={agenda}
+            usage={voice.suggests}
+            onUsage={onUsage}
+            onDeskPosted={onPosted}
+          />
         ) : (
-          <button type="button" className="ghost" disabled>
-            Open on X
+          <SuggestLocked
+            voice={voice}
+            xLinked={xLinked}
+            hasSession={hasSession}
+            lockNoun="post"
+            onOpenSettings={onOpenSettings}
+            onLinkX={onLinkX}
+          />
+        )
+      ) : (
+        <div className="history-row-actions">
+          {openUrl ? (
+            <a className="ghost" href={openUrl} target="_blank" rel="noreferrer">
+              Open on X
+            </a>
+          ) : (
+            <button type="button" className="ghost" disabled>
+              Open on X
+            </button>
+          )}
+          <button
+            type="button"
+            className="primary"
+            disabled={busy}
+            onClick={onPosted}
+          >
+            I posted on X
           </button>
-        )}
-        <button
-          type="button"
-          className="primary"
-          disabled={busy}
-          onClick={onPosted}
-        >
-          I posted on X
-        </button>
+        </div>
+      )}
+      <div className="history-row-actions">
+        {compose ? (
+          <button
+            type="button"
+            className="ghost"
+            disabled={busy}
+            onClick={onPosted}
+          >
+            I posted on X
+          </button>
+        ) : null}
         <button
           type="button"
           className="ghost"
@@ -3478,9 +3536,18 @@ export default function App() {
                             row={row}
                             index={i}
                             busy={actionBusy}
+                            voice={voice}
+                            agenda={agenda}
+                            xLinked={authUser?.xLinked}
+                            hasSession={Boolean(authUser)}
                             onPosted={() => void actForYou(row.id, "done")}
                             onSkip={() => void actForYou(row.id, "skip")}
                             onDismiss={() => void actForYou(row.id, "dismiss")}
+                            onOpenSettings={openVoice}
+                            onLinkX={startXLogin}
+                            onUsage={(u) =>
+                              setVoice((v) => (v ? { ...v, suggests: u } : v))
+                            }
                           />
                         ))}
                       </div>

@@ -86,8 +86,8 @@ export function trivialEditNote(reason: TrivialEditReason): string {
 export const MAX_REPLY_CHARS = 280;
 
 /**
- * Web intent URL — opens x.com compose prefilled as a reply. The human taps
- * Post there; this app never writes tweets.
+ * Web intent URL — opens x.com compose prefilled as a reply. Scout cards
+ * stay on this path; the human taps Post there.
  */
 export function buildIntentUrl(inReplyToId: string, text: string): string {
   const id = inReplyToId.trim();
@@ -95,5 +95,24 @@ export function buildIntentUrl(inReplyToId: string, text: string): string {
     throw new Error("in_reply_to must be a numeric status id");
   }
   const params = new URLSearchParams({ in_reply_to: id, text });
+  return `https://x.com/intent/tweet?${params.toString()}`;
+}
+
+/**
+ * Web intent for an original or quote on the operator's own account.
+ * Never attaches in_reply_to — that is the Scout-only fallback.
+ */
+export function buildComposeIntentUrl(
+  text: string,
+  quoteTweetId?: string,
+): string {
+  const params = new URLSearchParams({ text });
+  const quote = quoteTweetId?.trim() ?? "";
+  if (quote) {
+    if (!/^\d+$/.test(quote)) {
+      throw new Error("quote_tweet_id must be a numeric status id");
+    }
+    params.set("url", `https://x.com/i/status/${quote}`);
+  }
   return `https://x.com/intent/tweet?${params.toString()}`;
 }

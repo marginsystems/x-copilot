@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   MAX_REPLY_CHARS,
+  buildComposeIntentUrl,
   buildIntentUrl,
   checkTrivialEdit,
   editDistanceCapped,
@@ -113,5 +114,25 @@ describe("buildIntentUrl", () => {
 
   it("keeps the X reply cap in one place", () => {
     assert.equal(MAX_REPLY_CHARS, 280);
+  });
+});
+
+describe("buildComposeIntentUrl", () => {
+  it("builds an original compose intent without in_reply_to", () => {
+    const url = buildComposeIntentUrl("ship the recap & go");
+    const parsed = new URL(url);
+    assert.equal(parsed.pathname, "/intent/tweet");
+    assert.equal(parsed.searchParams.get("text"), "ship the recap & go");
+    assert.equal(parsed.searchParams.get("in_reply_to"), null);
+  });
+
+  it("attaches a quote url and refuses a non-numeric quote id", () => {
+    const url = buildComposeIntentUrl("still true", "99");
+    const parsed = new URL(url);
+    assert.equal(
+      parsed.searchParams.get("url"),
+      "https://x.com/i/status/99",
+    );
+    assert.throws(() => buildComposeIntentUrl("hi", "javascript:alert(1)"));
   });
 });

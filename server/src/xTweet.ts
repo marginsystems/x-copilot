@@ -16,28 +16,80 @@ export type PostUserReplyResult =
       message: string;
     };
 
-export async function postUserReply(opts: {
+export type TweetCreateBody =
+  | { text: string }
+  | { text: string; reply: { in_reply_to_tweet_id: string } }
+  | { text: string; quote_tweet_id: string };
+
+/**
+ * Build POST /2/tweets JSON. A tweet is an original, a quote, or a reply —
+ * never a mix. Compose callers must not pass inReplyToId.
+ */
+export function buildTweetCreateBody(opts: {
+  text: string;
+  inReplyToId?: string;
+  quoteTweetId?: string;
+}):
+  | { ok: true; body: TweetCreateBody }
+  | { ok: false; status: number; error: string; message: string } {
+  const text = opts.text.trim();
+  if (!text) {
+    return { ok: false, status: 400, error: "empty", message: "Post is empty." };
+  }
+  const inReplyToId = opts.inReplyToId?.trim() ?? "";
+  const quoteTweetId = opts.quoteTweetId?.trim() ?? "";
+  if (inReplyToId && quoteTweetId) {
+    return {
+      ok: false,
+      status: 400,
+      error: "mixed_target",
+      message: "A post cannot be both a reply and a quote.",
+    };
+  }
+  if (inReplyToId) {
+    if (!/^\d+$/.test(inReplyToId)) {
+      return {
+        ok: false,
+        status: 400,
+        error: "bad_parent",
+        message: "inReplyToId must be a numeric status id.",
+      };
+    }
+    return {
+      ok: true,
+      body: { text, reply: { in_reply_to_tweet_id: inReplyToId } },
+    };
+  }
+  if (quoteTweetId) {
+    if (!/^\d+$/.test(quoteTweetId)) {
+      return {
+        ok: false,
+        status: 400,
+        error: "bad_quote",
+        message: "quoteTweetId must be a numeric status id.",
+      };
+    }
+    return { ok: true, body: { text, quote_tweet_id: quoteTweetId } };
+  }
+  return { ok: true, body: { text } };
+}
+
+async function createUserTweet(opts: {
   consumerKey: string;
   consumerSecret: string;
   accessToken: string;
   accessTokenSecret: string;
   text: string;
-  inReplyToId: string;
+  inReplyToId?: string;
+  quoteTweetId?: string;
   fetchImpl?: typeof fetch;
 }): Promise<PostUserReplyResult> {
-  const text = opts.text.trim();
-  const inReplyToId = opts.inReplyToId.trim();
-  if (!text) {
-    return { ok: false, status: 400, error: "empty", message: "Reply is empty." };
-  }
-  if (!/^\d+$/.test(inReplyToId)) {
-    return {
-      ok: false,
-      status: 400,
-      error: "bad_parent",
-      message: "inReplyToId must be a numeric status id.",
-    };
-  }
+  const built = buildTweetCreateBody({
+    text: opts.text,
+    inReplyToId: opts.inReplyToId,
+    quoteTweetId: opts.quoteTweetId,
+  });
+  if (!built.ok) return built;
   const signed = buildSignedAuthHeader({
     method: "POST",
     url: CREATE_TWEET_URL,
@@ -56,10 +108,7 @@ export async function postUserReply(opts: {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        text,
-        reply: { in_reply_to_tweet_id: inReplyToId },
-      }),
+      body: JSON.stringify(built.body),
       signal: AbortSignal.timeout(20_000),
     });
   } catch (err) {
@@ -105,4 +154,43 @@ export async function postUserReply(opts: {
     };
   }
   return { ok: true, tweetId: id };
+}
+
+export async function postUserReply(opts: {
+  consumerKey: string;
+  consumerSecret: string;
+  accessToken: string;
+  accessTokenSecret: string;
+  text: string;
+  inReplyToId: string;
+  fetchImpl?: typeof fetch;
+}): Promise<PostUserReplyResult> {
+  if (!opts.inReplyToId.trim()) {
+    return {
+      ok: false,
+      status: 400,
+      error: "bad_parent",
+      message: "inReplyToId must be a numeric status id.",
+    };
+  }
+  return createUserTweet({
+    ...opts,
+    inReplyToId: opts.inReplyToId,
+  });
+}
+
+/** Original or quote on the operator's own timeline. Never a reply. */
+export async function postUserTweet(opts: {
+  consumerKey: string;
+  consumerSecret: string;
+  accessToken: string;
+  accessTokenSecret: string;
+  text: string;
+  quoteTweetId?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<PostUserReplyResult> {
+  return createUserTweet({
+    ...opts,
+    quoteTweetId: opts.quoteTweetId,
+  });
 }
