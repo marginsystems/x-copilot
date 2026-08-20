@@ -73,6 +73,49 @@ describe("suggestNoteSlot", () => {
     assert.equal(suggestNoteClassName(pass.kind), "suggest-note is-ok");
     assert.match(pass.text, /reworked/);
   });
+
+  it("shows the hint while editing and reserves the slot while verifying", () => {
+    const editing = suggestNoteSlot({
+      note: null,
+      noteKind: "info",
+      hint: "That's a very small touch — rework a clause or add your own take.",
+      verifying: false,
+    });
+    assert.equal(editing.kind, "hint");
+    assert.equal(suggestNoteClassName(editing.kind), "suggest-note is-hint");
+    assert.match(editing.text, /very small touch/);
+
+    const scanning = suggestNoteSlot({
+      note: null,
+      noteKind: "info",
+      hint: "That's a very small touch — rework a clause or add your own take.",
+      verifying: true,
+    });
+    assert.equal(scanning.kind, "reserved");
+    assert.equal(suggestNoteClassName(scanning.kind), "suggest-note is-reserved");
+  });
+
+  it("shows a fail verdict and lets the verdict outrank the hint", () => {
+    const fail = suggestNoteSlot({
+      note: "Punctuation, spacing, or capitalization alone doesn't count. Change something real.",
+      noteKind: "fail",
+      hint: null,
+      verifying: false,
+    });
+    assert.equal(fail.kind, "fail");
+    assert.equal(suggestNoteClassName(fail.kind), "suggest-note is-fail");
+    assert.match(fail.text, /Change something real/);
+
+    const noteWins = suggestNoteSlot({
+      note: "You've clearly reworked the idea into your own phrasing.",
+      noteKind: "ok",
+      hint: "That's a very small touch — rework a clause or add your own take.",
+      verifying: false,
+    });
+    assert.equal(noteWins.kind, "ok");
+    assert.match(noteWins.text, /reworked/);
+    assert.doesNotMatch(noteWins.text, /very small touch/);
+  });
 });
 
 describe("voice state parsing", () => {
