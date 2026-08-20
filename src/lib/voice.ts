@@ -114,6 +114,33 @@ function editDistanceCapped(a: string, b: string, cap: number): number {
   return Math.min(prev[b.length]!, cap + 1);
 }
 
+export type SuggestNoteKind = "ok" | "fail" | "hint" | "reserved";
+
+/** One slot under Check my edit — hint, verdict, or reserved empty height. */
+export function suggestNoteSlot(opts: {
+  note: string | null;
+  noteKind: "info" | "ok" | "fail";
+  hint: string | null;
+  verifying: boolean;
+}): { text: string; kind: SuggestNoteKind } {
+  if (opts.note) {
+    if (opts.noteKind === "ok") return { text: opts.note, kind: "ok" };
+    if (opts.noteKind === "fail") return { text: opts.note, kind: "fail" };
+    return { text: opts.note, kind: "hint" };
+  }
+  if (opts.hint && !opts.verifying) {
+    return { text: opts.hint, kind: "hint" };
+  }
+  return { text: "\u00a0", kind: "reserved" };
+}
+
+export function suggestNoteClassName(kind: SuggestNoteKind): string {
+  if (kind === "ok") return "suggest-note is-ok";
+  if (kind === "fail") return "suggest-note is-fail";
+  if (kind === "hint") return "suggest-note is-hint";
+  return "suggest-note is-reserved";
+}
+
 /** null = looks substantive enough to send to the server verify. */
 export function localEditHint(draft: string, edited: string): string | null {
   const editedTrim = edited.trim();

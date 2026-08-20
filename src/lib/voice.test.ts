@@ -4,6 +4,8 @@ import {
   LEARN_PHASES,
   localEditHint,
   parseVoiceState,
+  suggestNoteClassName,
+  suggestNoteSlot,
   phaseIndexAt,
   suggestsLeftLabel,
   unlockProgress,
@@ -37,6 +39,39 @@ describe("localEditHint", () => {
       ),
       null,
     );
+  });
+});
+
+describe("suggestNoteSlot", () => {
+  it("keeps a reserved slot when there is no hint or verdict", () => {
+    const empty = suggestNoteSlot({
+      note: null,
+      noteKind: "info",
+      hint: null,
+      verifying: false,
+    });
+    assert.equal(empty.kind, "reserved");
+    assert.equal(suggestNoteClassName(empty.kind), "suggest-note is-reserved");
+
+    const scanning = suggestNoteSlot({
+      note: null,
+      noteKind: "info",
+      hint: null,
+      verifying: true,
+    });
+    assert.equal(scanning.kind, "reserved");
+  });
+
+  it("fills the same slot with the verdict instead of mounting a new line", () => {
+    const pass = suggestNoteSlot({
+      note: "You've clearly reworked the idea into your own phrasing.",
+      noteKind: "ok",
+      hint: null,
+      verifying: false,
+    });
+    assert.equal(pass.kind, "ok");
+    assert.equal(suggestNoteClassName(pass.kind), "suggest-note is-ok");
+    assert.match(pass.text, /reworked/);
   });
 });
 

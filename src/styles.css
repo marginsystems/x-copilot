@@ -4124,9 +4124,12 @@ a.suggest-open {
   padding: 4px 0;
 }
 
+/* Always painted so the LLM verdict cannot grow the pane on first flash. */
 .suggest-note {
   margin: 0;
   font-size: 0.76rem;
+  line-height: 1.35;
+  min-height: calc(1.35em * 3);
   color: var(--muted);
 }
 
