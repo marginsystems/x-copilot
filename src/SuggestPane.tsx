@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
 import {
+  COMPOSE_SUGGEST_PHASES,
   SUGGEST_PHASES,
   VERIFY_PHASES,
   localEditHint,
@@ -55,6 +56,11 @@ export function SuggestPane({
   usage,
   onUsage,
   onOpenIntent,
+  variant = "reply",
+  composeKind = "post",
+  suggestionId,
+  quoteTweetId,
+  onDeskPosted,
 }: {
   threadId: string;
   author: string;
@@ -68,6 +74,12 @@ export function SuggestPane({
   onUsage: (usage: SuggestUsage) => void;
   /** Arm the existing mark/detect flow before x.com opens. */
   onOpenIntent?: () => void;
+  /** For You originals/quotes. Scout stays on reply (no desk Post). */
+  variant?: "reply" | "compose";
+  composeKind?: "post" | "quote";
+  suggestionId?: string;
+  quoteTweetId?: string | null;
+  onDeskPosted?: () => void;
 }) {
   const [stage, setStage] = useState<PaneStage>("idle");
   const [draft, setDraft] = useState("");
@@ -81,15 +93,31 @@ export function SuggestPane({
   const [stances, setStances] = useState<string[]>([]);
   const [stancesFallback, setStancesFallback] = useState(false);
   const [customStance, setCustomStance] = useState("");
+  const [canPost, setCanPost] = useState(false);
+  const [posting, setPosting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   /** Bumped on every close so an in-flight fetch can't reopen the pane. */
   const sessionRef = useRef(0);
   /** Synchronous in-flight guard so a double-click can't burn two suggest slots. */
   const suggestBusyRef = useRef(false);
   const attemptRef = useRef(0);
+  const postKeyRef = useRef("");
+  const compose = variant === "compose";
+  const suggestPhases = compose ? COMPOSE_SUGGEST_PHASES : SUGGEST_PHASES;
+  const noun = compose ? "post" : "reply";
 
   const editHint = localEditHint(draft, edited);
   const hint = stage === "editing" ? editHint : null;
+
+  function composeFields() {
+    return compose
+      ? {
+          mode: "compose" as const,
+          kind: composeKind,
+          suggestionId: suggestionId ?? threadId,
+        }
+      : {};
+  }
 
   function onClose() {
     sessionRef.current += 1;
@@ -105,6 +133,9 @@ export function SuggestPane({
     setStances([]);
     setStancesFallback(false);
     setCustomStance("");
+    setCanPost(false);
+    setPosting(false);
+    postKeyRef.current = "";
   }
 
   async function onStart() {
@@ -133,6 +164,7 @@ export function SuggestPane({
           opText,
           threadKind,
           flags,
+          ...composeFields(),
         }),
       });
       data = (await res.json().catch(() => ({}))) as typeof data;
@@ -187,6 +219,7 @@ export function SuggestPane({
           opText,
           agenda,
           stance,
+          ...composeFields(),
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -251,7 +284,16 @@ export function SuggestPane({
       const res = await apiFetch("/api/voice/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft, edited, inReplyToId: threadId }),
+        body: JSON.stringify(
+          compose
+            ? {
+                draft,
+                edited,
+                mode: "compose",
+                quoteTweetId: quoteTweetId || undefined,
+              }
+            : { draft, edited, inReplyToId: threadId },
+        ),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -259,6 +301,7 @@ export function SuggestPane({
         reason?: string;
         intentUrl?: string;
         message?: string;
+        canPost?: boolean;
       };
       if (attemptRef.current !== attempt) return;
       if (!res.ok || !data.ok) {
@@ -269,9 +312,18 @@ export function SuggestPane({
       }
       if (data.pass && data.intentUrl) {
         setIntentUrl(data.intentUrl);
+        setCanPost(Boolean(data.canPost) && compose);
+        postKeyRef.current = compose
+          ? `fy-${suggestionId ?? threadId}-${crypto.randomUUID()}`
+          : "";
         setStage("ready");
         setNoteKind("ok");
-        setNote(data.reason ?? "That reads like you. Open on X when you're ready.");
+        setNote(
+          data.reason ??
+            (compose
+              ? "That reads like you. Post from the desk or open on X."
+              : "That reads like you. Open on X when you're ready."),
+        );
       } else {
         setStage("editing");
         setNoteKind("fail");
@@ -294,6 +346,54 @@ export function SuggestPane({
     if (stage === "ready") {
       setStage("editing");
       setIntentUrl(null);
+      setCanPost(false);
+      postKeyRef.current = "";
+    }
+  }
+
+  async function onDeskPost() {
+    if (!compose || !canPost || posting || !suggestionId) return;
+    const attempt = ++attemptRef.current;
+    setPosting(true);
+    setNote(null);
+    try {
+      const res = await apiFetch("/api/voice/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "compose",
+          kind: composeKind,
+          suggestionId,
+          draft,
+          edited,
+          requestKey: postKeyRef.current || undefined,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+        tweet?: { url?: string };
+      };
+      if (attemptRef.current !== attempt) return;
+      if (!res.ok || !data.ok) {
+        setNoteKind("fail");
+        setNote(
+          data.error === "x_write_required"
+            ? "Re-link X with Read and write to post from the desk."
+            : data.message ?? "Could not post — try Open on X.",
+        );
+        return;
+      }
+      setNoteKind("ok");
+      setNote("Posted from the desk.");
+      onDeskPosted?.();
+    } catch {
+      if (attemptRef.current !== attempt) return;
+      setNoteKind("fail");
+      setNote("Couldn't reach the desk — try Open on X.");
+    } finally {
+      if (attemptRef.current === attempt) setPosting(false);
     }
   }
 
@@ -317,7 +417,7 @@ export function SuggestPane({
           disabled={!usage.canSuggest}
           onClick={() => void onStart()}
         >
-          Suggest reply
+          {compose ? "Suggest post" : "Suggest reply"}
         </button>
         <span className="suggest-quota">{suggestsLeftLabel(usage)}</span>
         {note ? <p className="suggest-note is-fail">{note}</p> : null}
@@ -383,7 +483,7 @@ export function SuggestPane({
     return (
       <div className="suggest-pane">
         <div className="suggest-pane-head">
-          <PhaseLine phases={SUGGEST_PHASES} startedAt={startedAt} />
+          <PhaseLine phases={suggestPhases} startedAt={startedAt} />
           <button type="button" className="ghost suggest-close" onClick={onClose}>
             Close
           </button>
@@ -398,7 +498,7 @@ export function SuggestPane({
     <div className="suggest-pane">
       <div className="suggest-pane-head">
         <p className="suggest-banner" role="note">
-          AI draft is a reference — write your own reply below. It won&apos;t
+          AI draft is a reference — write your own {noun} below. It won&apos;t
           unlock until you make it yours.
         </p>
         <button
@@ -442,8 +542,8 @@ export function SuggestPane({
         rows={4}
         maxLength={560}
         disabled={stage === "verifying"}
-        placeholder="Write your reply"
-        aria-label="Your reply"
+        placeholder={compose ? "Write your post" : "Write your reply"}
+        aria-label={compose ? "Your post" : "Your reply"}
         onChange={(e) => onEdit(e.target.value)}
       />
       <div className="suggest-foot">
@@ -474,6 +574,21 @@ export function SuggestPane({
                 onClick={() => void onVerify()}
               >
                 Check my edit
+              </button>
+            ) : null}
+            {verified && compose ? (
+              <button
+                type="button"
+                className="primary suggest-post"
+                disabled={!canPost || posting}
+                title={
+                  canPost
+                    ? undefined
+                    : "Re-link X with Read and write to post from the desk."
+                }
+                onClick={() => void onDeskPost()}
+              >
+                {posting ? "Posting…" : "Post"}
               </button>
             ) : null}
             <button

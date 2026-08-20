@@ -2686,6 +2686,10 @@ button:disabled {
   background: color-mix(in srgb, var(--accent) 5%, var(--panel));
 }
 
+.for-you-row .suggest-pane {
+  width: 100%;
+}
+
 .for-you-draft {
   color: var(--text);
   font-size: 0.92rem;

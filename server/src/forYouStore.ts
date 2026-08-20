@@ -173,6 +173,18 @@ export function replaceDailySuggestions(opts: {
   return rows;
 }
 
+export function getSuggestion(
+  id: string,
+  userId: string,
+): ForYouSuggestion | null {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT * FROM for_you_suggestions WHERE id = ? AND user_id = ?`,
+    )
+    .get(id, userId) as Record<string, unknown> | undefined;
+  return row ? mapRow(row) : null;
+}
+
 export function listActiveSuggestions(
   userId: string,
   nowMs: number = Date.now(),

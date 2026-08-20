@@ -129,7 +129,20 @@ Rules:
 - Never write "if X, then Y" formulas.
 - Never write "this isn't X, it's Y" or "it's not X, it's Y" contrast templates.`;
 
+const SUGGEST_COMPOSE_SYSTEM = `You draft ONE original X post in this specific human's voice. The voice card and example posts are the source of truth. Imitate them, not a generic assistant.
+Rules:
+- Match their tone, typical length, and habits. Respect every neverDo. Steal cadence from the examples.
+- This is a standalone post, not a reply. No hashtags unless they habitually use them. No @-mentions.
+- If they are quoting another post, write only the quote caption. Do not repeat the quoted post.
+- Under 260 characters. Plain text only. No quotes around it, no markdown, no explanation.
+- Add something real (a take, a fact, a question). Never "great post!" filler.
+- Never use an em dash. Use a period, comma, or "and".
+- Never write "if X, then Y" formulas.
+- Never write "this isn't X, it's Y" or "it's not X, it's Y" contrast templates.`;
+
 const SLOP_RETRY = `Rewrite that reply. Stay in the voice card. No em dashes. No "if X, then Y". No "this isn't X, it's Y" / "it's not X, it's Y".`;
+
+const SLOP_RETRY_COMPOSE = `Rewrite that post. Stay in the voice card. No em dashes. No "if X, then Y". No "this isn't X, it's Y" / "it's not X, it's Y".`;
 
 function cardAllowsContrastCadence(cardJson: string): boolean {
   try {
@@ -162,6 +175,9 @@ export async function suggestReply(opts: {
   agenda?: string;
   /** Operator-picked side when the post assumes an argument. */
   stance?: string;
+  /** Original / quote on their timeline, not a reply to someone else. */
+  mode?: "reply" | "compose";
+  composeKind?: "post" | "quote";
   chat?: ChatFn;
 }): Promise<
   | { ok: true; draft: string; model: string }
@@ -169,6 +185,8 @@ export async function suggestReply(opts: {
 > {
   const chat = opts.chat ?? chatCompletions;
   const allowContrastCadence = cardAllowsContrastCadence(opts.cardJson);
+  const compose = opts.mode === "compose";
+  const quote = compose && opts.composeKind === "quote";
   const parts = [
     `Voice card JSON:\n${opts.cardJson}`,
     opts.agenda?.trim() ? `The user's current agenda: ${opts.agenda.trim()}` : "",
@@ -178,16 +196,22 @@ export async function suggestReply(opts: {
     opts.stance?.trim()
       ? `Take this side (do not sit the fence): ${opts.stance.trim()}`
       : "",
-    `Reply to this post by ${opts.thread.author}:\n${opts.thread.text}`,
+    compose
+      ? quote
+        ? `Write a quote caption. The daily digest proposed this thought about a post by ${opts.thread.author}:\n${opts.thread.text}`
+        : `Write an original post. The daily digest proposed this thought:\n${opts.thread.text}`
+      : `Reply to this post by ${opts.thread.author}:\n${opts.thread.text}`,
   ].filter(Boolean);
+  const system = compose ? SUGGEST_COMPOSE_SYSTEM : SUGGEST_SYSTEM;
+  const purpose = compose ? "compose_suggest" : "reply_suggest";
   const first = await chat({
     messages: [
-      { role: "system", content: SUGGEST_SYSTEM },
+      { role: "system", content: system },
       { role: "user", content: parts.join("\n\n") },
     ],
     model: resolveFlashModel(),
     temperature: 0.7,
-    purpose: "reply_suggest",
+    purpose,
   });
   if (!first.ok) {
     return { ok: false, error: first.error, message: first.message };
@@ -197,14 +221,14 @@ export async function suggestReply(opts: {
   if (draft && draftHasAiTropes(draft, rawDraft, { allowContrastCadence })) {
     const retry = await chat({
       messages: [
-        { role: "system", content: SUGGEST_SYSTEM },
+        { role: "system", content: system },
         { role: "user", content: parts.join("\n\n") },
         { role: "assistant", content: draft },
-        { role: "user", content: SLOP_RETRY },
+        { role: "user", content: compose ? SLOP_RETRY_COMPOSE : SLOP_RETRY },
       ],
       model: resolveFlashModel(),
       temperature: 0.6,
-      purpose: "reply_suggest",
+      purpose,
     });
     if (retry.ok) {
       rawDraft = cleanDraft(retry.content);
@@ -285,6 +309,10 @@ const STANCE_SYSTEM = `You list 2 or 3 sides a human could take when replying to
 Return ONLY JSON: {"options":["short side 1","short side 2","short side 3"]}
 Rules: each option is under 8 words, names a real angle on THIS post (a take, an answer, or a disagreement), no em dashes, no "this isn't X" templates. Always return at least two options — questions and fact posts still have sides (what you'd emphasize, who you'd back, what you'd challenge).`;
 
+const STANCE_COMPOSE_SYSTEM = `You list 2 or 3 sides a human could take when writing this original X post (or quote caption).
+Return ONLY JSON: {"options":["short side 1","short side 2","short side 3"]}
+Rules: each option is under 8 words, names a real take (lean in harder, push back, a sharper claim, a different example), no em dashes, no "this isn't X" templates. Always return at least two options.`;
+
 export function parseStanceOptions(raw: string): string[] {
   const data = extractJsonObject(raw) as { options?: unknown } | null;
   if (!data || !Array.isArray(data.options)) return [];
@@ -316,23 +344,27 @@ export async function proposeStances(opts: {
     opAuthor?: string;
     opText?: string;
   };
+  mode?: "reply" | "compose";
   chat?: ChatFn;
 }): Promise<StanceProposal> {
   const chat = opts.chat ?? chatCompletions;
+  const compose = opts.mode === "compose";
   const parts = [
     opts.thread.opAuthor && opts.thread.opText
       ? `Thread context: ${opts.thread.opAuthor}: ${opts.thread.opText}`
       : "",
-    `Post by ${opts.thread.author}:\n${opts.thread.text}`,
+    compose
+      ? `Proposed original post:\n${opts.thread.text}`
+      : `Post by ${opts.thread.author}:\n${opts.thread.text}`,
   ].filter(Boolean);
   const result = await chat({
     messages: [
-      { role: "system", content: STANCE_SYSTEM },
+      { role: "system", content: compose ? STANCE_COMPOSE_SYSTEM : STANCE_SYSTEM },
       { role: "user", content: parts.join("\n\n") },
     ],
     model: resolveFlashModel(),
     temperature: 0.4,
-    purpose: "reply_stances",
+    purpose: compose ? "compose_stances" : "reply_stances",
   });
   if (!result.ok) {
     console.error(

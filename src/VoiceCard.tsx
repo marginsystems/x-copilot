@@ -283,6 +283,7 @@ export function SuggestLocked({
   voice,
   xLinked,
   hasSession,
+  lockNoun = "reply",
   onOpenSettings,
   onLinkX,
 }: {
@@ -290,15 +291,17 @@ export function SuggestLocked({
   xLinked?: boolean | null;
   hasSession: boolean;
   busy?: boolean;
+  lockNoun?: "reply" | "post";
   onLearn?: () => void;
   onOpenSettings: () => void;
   onLinkX: () => void;
 }) {
   const needsX = hasSession && voiceNeedsXLink(voice, xLinked);
+  const lockLabel = lockNoun === "post" ? "Suggest post" : "Suggest reply";
   return (
     <div className="suggest-pane suggest-locked">
       <p className="suggest-banner" role="note">
-        {needsX ? "Suggest reply — link X" : "Suggest reply — locked"}
+        {needsX ? `${lockLabel} — link X` : `${lockLabel} — locked`}
       </p>
       <p className="voice-empty">
         {needsX ? VOICE_LINK_X_COPY : voiceUnlockCopy(voice)}

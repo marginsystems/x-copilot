@@ -152,6 +152,12 @@ export const SUGGEST_PHASES: readonly VoicePhase[] = [
   { id: "draft", label: "Drafting one reply…" },
 ];
 
+export const COMPOSE_SUGGEST_PHASES: readonly VoicePhase[] = [
+  { id: "read", label: "Reading the suggestion…" },
+  { id: "voice", label: "Finding your voice…" },
+  { id: "draft", label: "Drafting one post…" },
+];
+
 export const VERIFY_PHASES: readonly VoicePhase[] = [
   { id: "compare", label: "Comparing against the draft…" },
   { id: "check", label: "Checking it reads like you…" },

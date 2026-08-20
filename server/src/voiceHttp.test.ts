@@ -12,6 +12,7 @@ import {
 } from "./db.ts";
 import { createSession, saveXWriteCreds, upsertOauthUser } from "./authStore.ts";
 import { recordDeskPost } from "./xPostLimits.ts";
+import { insertSuggestions, listActiveSuggestions } from "./forYouStore.ts";
 import type { AuthUser } from "./authStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import {
@@ -804,6 +805,130 @@ describe("POST /api/voice/post", () => {
       assert.equal(calls, 0);
       assert.equal(status, 409);
       assert.equal(json.error, "outcome_unknown");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("posts a For You original without in_reply_to and marks the card done", async () => {
+    const user = seedPoster("compose-ok@example.com", true);
+    const [row] = insertSuggestions({
+      userId: user.id,
+      tenantId: ensureUserTenant(user.id),
+      drafts: [{ kind: "post", why: "900 views", draft: "Ship the recap." }],
+    });
+    assert.ok(row);
+    let posted = "";
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async (_input, init) => {
+      posted = String(init?.body ?? "");
+      return new Response(JSON.stringify({ data: { id: "901" } }), {
+        status: 201,
+      });
+    }) as typeof fetch;
+    try {
+      const { status, json } = await postReply(
+        user,
+        {
+          mode: "compose",
+          suggestionId: row.id,
+          draft,
+          edited,
+        },
+        async () => ({
+          ok: true,
+          content: '{"ok":true,"reason":"That reads like you."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
+      assert.equal(status, 200);
+      assert.equal(json.ok, true);
+      assert.deepEqual(JSON.parse(posted), { text: edited });
+      assert.equal(json.interaction, undefined);
+      assert.equal(listActiveSuggestions(user.id).length, 0);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("quotes from the suggestion targetId and rejects a compose reply", async () => {
+    const user = seedPoster("compose-quote@example.com", true);
+    const tenantId = ensureUserTenant(user.id);
+    const [quote] = insertSuggestions({
+      userId: user.id,
+      tenantId,
+      drafts: [
+        {
+          kind: "quote",
+          why: "the winner",
+          draft: "still true",
+          targetId: "555",
+          targetUrl: "https://x.com/a/status/555",
+        },
+      ],
+    });
+    const [replyCard] = insertSuggestions({
+      userId: user.id,
+      tenantId,
+      drafts: [
+        {
+          kind: "reply",
+          why: "open thread",
+          targetId: "777",
+          targetUrl: "https://x.com/a/status/777",
+        },
+      ],
+    });
+    assert.ok(quote);
+    assert.ok(replyCard);
+    let posted = "";
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async (_input, init) => {
+      posted = String(init?.body ?? "");
+      return new Response(JSON.stringify({ data: { id: "902" } }), {
+        status: 201,
+      });
+    }) as typeof fetch;
+    const chat: ChatFn = async () => ({
+      ok: true,
+      content: '{"ok":true,"reason":"That reads like you."}',
+      model: "deepseek-v4-flash",
+      provider: "deepseek",
+    });
+    try {
+      const ok = await postReply(
+        user,
+        { mode: "compose", suggestionId: quote.id, draft, edited },
+        chat,
+      );
+      assert.equal(ok.status, 200);
+      assert.deepEqual(JSON.parse(posted), {
+        text: edited,
+        quote_tweet_id: "555",
+      });
+
+      const forbidden = await postReply(
+        user,
+        {
+          mode: "compose",
+          suggestionId: quote.id,
+          draft,
+          edited,
+          inReplyToId: "1234567890",
+        },
+        chat,
+      );
+      assert.equal(forbidden.status, 400);
+      assert.equal(forbidden.json.error, "reply_forbidden");
+
+      const replyKind = await postReply(
+        user,
+        { mode: "compose", suggestionId: replyCard.id, draft, edited },
+        chat,
+      );
+      assert.equal(replyKind.status, 400);
+      assert.equal(replyKind.json.error, "compose_kind");
     } finally {
       globalThis.fetch = origFetch;
     }

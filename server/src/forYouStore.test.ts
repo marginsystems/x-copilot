@@ -11,6 +11,7 @@ import {
 import {
   SUGGESTION_TTL_MS,
   expireOpenSuggestions,
+  getSuggestion,
   hasForYouRunToday,
   insertSuggestions,
   listActiveSuggestions,
@@ -104,5 +105,16 @@ describe("forYouStore", () => {
     });
     assert.equal(expireOpenSuggestions("u1", now + 5000), 1);
     assert.equal(listActiveSuggestions("u1", now + 6000).length, 0);
+  });
+
+  it("getSuggestion is scoped to the owner", () => {
+    const [row] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      drafts: [{ kind: "post", why: "best 24h", draft: "Ship it." }],
+    });
+    assert.ok(row);
+    assert.equal(getSuggestion(row.id, "u1")?.why, "best 24h");
+    assert.equal(getSuggestion(row.id, "u2"), null);
   });
 });
