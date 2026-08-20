@@ -35,11 +35,23 @@ describe("forYou helpers", () => {
     assert.equal(row?.targetId, "10");
   });
 
-  it("only post and quote cards use the desk compose path", () => {
-    assert.equal(forYouUsesDeskCompose("post"), true);
-    assert.equal(forYouUsesDeskCompose("quote"), true);
-    assert.equal(forYouUsesDeskCompose("reply"), false);
-    assert.equal(forYouUsesDeskCompose("repost"), false);
+  it("only post and quote cards with a numeric target use the desk compose path", () => {
+    assert.equal(forYouUsesDeskCompose(base), true);
+    assert.equal(
+      forYouUsesDeskCompose({ ...base, kind: "quote", targetId: "10" }),
+      true,
+    );
+    assert.equal(
+      forYouUsesDeskCompose({
+        ...base,
+        kind: "quote",
+        targetId: null,
+        targetUrl: "https://x.com/a/status/10",
+      }),
+      false,
+    );
+    assert.equal(forYouUsesDeskCompose({ ...base, kind: "reply" }), false);
+    assert.equal(forYouUsesDeskCompose({ ...base, kind: "repost" }), false);
     assert.equal(forYouComposeSeed(base), "900 views\n\nShip a recap.");
     assert.equal(
       forYouComposeSeed({ ...base, draft: null }),

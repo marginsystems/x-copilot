@@ -12,7 +12,12 @@ import {
 } from "./db.ts";
 import { createSession, saveXWriteCreds, upsertOauthUser } from "./authStore.ts";
 import { recordDeskPost } from "./xPostLimits.ts";
-import { insertSuggestions, listActiveSuggestions } from "./forYouStore.ts";
+import {
+  SUGGESTION_TTL_MS,
+  insertSuggestions,
+  listActiveSuggestions,
+  markSuggestion,
+} from "./forYouStore.ts";
 import type { AuthUser } from "./authStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import {
@@ -929,6 +934,128 @@ describe("POST /api/voice/post", () => {
       );
       assert.equal(replyKind.status, 400);
       assert.equal(replyKind.json.error, "compose_kind");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("rejects posting an expired For You suggestion", async () => {
+    const user = seedPoster("compose-expired@example.com", true);
+    const [row] = insertSuggestions({
+      userId: user.id,
+      tenantId: ensureUserTenant(user.id),
+      nowMs: Date.now() - SUGGESTION_TTL_MS - 1000,
+      drafts: [{ kind: "post", why: "old views", draft: "Ship the old recap." }],
+    });
+    assert.ok(row);
+    let calls = 0;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+    try {
+      const { status, json } = await postReply(
+        user,
+        { mode: "compose", suggestionId: row.id, draft, edited },
+        async () => ({
+          ok: true,
+          content: '{"ok":true,"reason":"That reads like you."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
+      assert.equal(status, 404);
+      assert.equal(json.error, "not_found");
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("rejects posting the stored digest draft verbatim", async () => {
+    const user = seedPoster("compose-digest@example.com", true);
+    const digestDraft = "Ship the recap.";
+    const [row] = insertSuggestions({
+      userId: user.id,
+      tenantId: ensureUserTenant(user.id),
+      drafts: [{ kind: "post", why: "900 views", draft: digestDraft }],
+    });
+    assert.ok(row);
+    let calls = 0;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+    try {
+      // The client spoofs a different "draft" and posts the digest draft as
+      // "edited" — the digest-draft gate must reject it before X.
+      const { status, json } = await postReply(
+        user,
+        {
+          mode: "compose",
+          suggestionId: row.id,
+          draft: "filler",
+          edited: digestDraft,
+        },
+        async () => ({
+          ok: true,
+          content: '{"ok":true,"reason":"That reads like you."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
+      assert.equal(status, 400);
+      assert.equal(json.error, "edit_required");
+      assert.equal(calls, 0);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("replays a completed For You desk post by key even after the card is marked done", async () => {
+    const user = seedPoster("compose-replay@example.com", true);
+    const [row] = insertSuggestions({
+      userId: user.id,
+      tenantId: ensureUserTenant(user.id),
+      drafts: [{ kind: "post", why: "900 views", draft: "Ship the recap." }],
+    });
+    assert.ok(row);
+    markSuggestion({ id: row.id, userId: user.id, status: "done" });
+    recordDeskPost({
+      userId: user.id,
+      tweetId: "555",
+      inReplyToId: "",
+      threadId: row.id,
+      requestKey: "rk-compose-replay",
+    });
+    let calls = 0;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+    try {
+      const { status, json } = await postReply(
+        user,
+        {
+          mode: "compose",
+          suggestionId: row.id,
+          draft,
+          edited,
+          requestKey: "rk-compose-replay",
+        },
+        async () => ({
+          ok: true,
+          content: '{"ok":true,"reason":"That reads like you."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
+      assert.equal(calls, 0);
+      assert.equal(status, 200);
+      assert.equal((json.tweet as { id?: string })?.id, "555");
     } finally {
       globalThis.fetch = origFetch;
     }

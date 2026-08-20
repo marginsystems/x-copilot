@@ -656,7 +656,7 @@ function SuggestedRow({
   onUsage: (usage: VoiceState["suggests"]) => void;
 }) {
   const openUrl = forYouOpenUrl(row);
-  const compose = forYouUsesDeskCompose(row.kind);
+  const compose = forYouUsesDeskCompose(row);
   const seed = forYouComposeSeed(row);
   const handle = voice?.handle ? `@${voice.handle}` : "@you";
   return (

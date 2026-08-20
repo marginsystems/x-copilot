@@ -63,6 +63,26 @@ describe("postUserReply", () => {
     assert.equal(got.error, "bad_parent");
   });
 
+  it("rejects an empty parent id instead of posting an original", async () => {
+    let calls = 0;
+    const got = await postUserReply({
+      consumerKey: "k",
+      consumerSecret: "s",
+      accessToken: "at",
+      accessTokenSecret: "as",
+      text: "hello",
+      inReplyToId: "",
+      fetchImpl: async () => {
+        calls += 1;
+        return new Response("{}", { status: 200 });
+      },
+    });
+    assert.equal(got.ok, false);
+    if (got.ok) return;
+    assert.equal(got.error, "bad_parent");
+    assert.equal(calls, 0);
+  });
+
   it("posts JSON as a reply and returns the tweet id", async () => {
     let body = "";
     const got = await postUserReply({

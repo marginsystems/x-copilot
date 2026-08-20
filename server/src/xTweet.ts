@@ -165,6 +165,14 @@ export async function postUserReply(opts: {
   inReplyToId: string;
   fetchImpl?: typeof fetch;
 }): Promise<PostUserReplyResult> {
+  if (!opts.inReplyToId.trim()) {
+    return {
+      ok: false,
+      status: 400,
+      error: "bad_parent",
+      message: "inReplyToId must be a numeric status id.",
+    };
+  }
   return createUserTweet({
     ...opts,
     inReplyToId: opts.inReplyToId,

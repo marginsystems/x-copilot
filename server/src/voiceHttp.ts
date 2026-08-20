@@ -611,84 +611,19 @@ async function handlePost(
   const mode = voiceMode(body);
   const clientReplyId =
     typeof body.inReplyToId === "string" ? body.inReplyToId.trim() : "";
-  let inReplyToId = "";
+  let inReplyToId = clientReplyId;
   let quoteTweetId = "";
   let threadId = typeof body.threadId === "string" ? body.threadId.trim() : "";
   let author = typeof body.author === "string" ? body.author.trim() : "";
-  let suggestionId = "";
+  let suggestionId =
+    typeof body.suggestionId === "string" ? body.suggestionId.trim() : "";
 
-  if (mode === "compose") {
-    suggestionId =
-      typeof body.suggestionId === "string" ? body.suggestionId.trim() : "";
-    if (!draft.trim() || !suggestionId) {
-      send(req, res, 400, {
-        error: "bad_request",
-        message: 'Pass { draft, edited, mode: "compose", suggestionId }.',
-      });
-      return;
-    }
-    if (/^\d+$/.test(clientReplyId)) {
-      send(req, res, 400, {
-        error: "reply_forbidden",
-        message:
-          "For You compose posts cannot reply to another tweet. Open on X for Scout replies.",
-      });
-      return;
-    }
-    const suggestion = getSuggestion(suggestionId, user.id);
-    if (!suggestion || suggestion.status !== "suggested") {
-      send(req, res, 404, {
-        error: "not_found",
-        message: "Suggestion is gone or already acted on.",
-      });
-      return;
-    }
-    if (suggestion.kind !== "post" && suggestion.kind !== "quote") {
-      send(req, res, 400, {
-        error: "compose_kind",
-        message: "Only For You post and quote cards can post from the desk.",
-      });
-      return;
-    }
-    if (suggestion.kind === "quote") {
-      if (!suggestion.targetId || !/^\d+$/.test(suggestion.targetId)) {
-        send(req, res, 400, {
-          error: "bad_quote",
-          message: "This quote card has no numeric target to quote.",
-        });
-        return;
-      }
-      quoteTweetId = suggestion.targetId;
-    }
-    threadId = suggestion.id;
-    author = getXOauthUsername(user.id) || "you";
-  } else {
-    inReplyToId = clientReplyId;
-    if (!draft.trim() || !/^\d+$/.test(inReplyToId) || !threadId || !author) {
-      send(req, res, 400, {
-        error: "bad_request",
-        message: "Pass { draft, edited, inReplyToId, threadId, author }.",
-      });
-      return;
-    }
-    if (!normalizeAuthorKey(author)) {
-      send(req, res, 400, {
-        error: "bad_request",
-        message: "author must be a handle.",
-      });
-      return;
-    }
-  }
-  if (edited.trim().length > MAX_REPLY_CHARS) {
-    send(req, res, 400, {
-      error: "too_long",
-      message: `X replies cap at ${MAX_REPLY_CHARS} characters.`,
-    });
-    return;
-  }
   // A retry after an ambiguous network failure re-sends the same client key.
   // If the first attempt actually posted (response was lost), replay that
-  // result instead of posting a duplicate reply on X.
+  // result instead of posting a duplicate reply on X. This lookup must run
+  // before the compose suggestion gate: a successful desk post flips the row
+  // to done, so a retry would otherwise hit the 404 below instead of the
+  // replay result.
   const rawRequestKey =
     typeof body.requestKey === "string" ? body.requestKey.trim() : "";
   // Keys must fit the x_desk_posts id column: out-of-range keys are ignored
@@ -775,6 +710,87 @@ async function handlePost(
     }
   }
 
+  if (mode === "compose") {
+    if (!draft.trim() || !suggestionId) {
+      send(req, res, 400, {
+        error: "bad_request",
+        message: 'Pass { draft, edited, mode: "compose", suggestionId }.',
+      });
+      return;
+    }
+    if (/^\d+$/.test(clientReplyId)) {
+      send(req, res, 400, {
+        error: "reply_forbidden",
+        message:
+          "For You compose posts cannot reply to another tweet. Open on X for Scout replies.",
+      });
+      return;
+    }
+    const suggestion = getSuggestion(suggestionId, user.id);
+    if (
+      !suggestion ||
+      suggestion.status !== "suggested" ||
+      Date.parse(suggestion.expiresAt) <= Date.now()
+    ) {
+      send(req, res, 404, {
+        error: "not_found",
+        message: "Suggestion is gone or already acted on.",
+      });
+      return;
+    }
+    if (suggestion.kind !== "post" && suggestion.kind !== "quote") {
+      send(req, res, 400, {
+        error: "compose_kind",
+        message: "Only For You post and quote cards can post from the desk.",
+      });
+      return;
+    }
+    if (suggestion.kind === "quote") {
+      if (!suggestion.targetId || !/^\d+$/.test(suggestion.targetId)) {
+        send(req, res, 400, {
+          error: "bad_quote",
+          message: "This quote card has no numeric target to quote.",
+        });
+        return;
+      }
+      quoteTweetId = suggestion.targetId;
+    }
+    // Client-supplied draft/edited can dodge the trivial-edit gate below, so
+    // also compare the posted text against the stored digest draft and reject
+    // a verbatim (or trivial) reuse before POST /2/tweets.
+    if (suggestion.draft && checkTrivialEdit(suggestion.draft, edited).trivial) {
+      send(req, res, 400, {
+        error: "edit_required",
+        message:
+          "That's still the digest draft — rework a clause or add your own take.",
+      });
+      return;
+    }
+    threadId = suggestion.id;
+    author = getXOauthUsername(user.id) || "you";
+  } else {
+    if (!draft.trim() || !/^\d+$/.test(inReplyToId) || !threadId || !author) {
+      send(req, res, 400, {
+        error: "bad_request",
+        message: "Pass { draft, edited, inReplyToId, threadId, author }.",
+      });
+      return;
+    }
+    if (!normalizeAuthorKey(author)) {
+      send(req, res, 400, {
+        error: "bad_request",
+        message: "author must be a handle.",
+      });
+      return;
+    }
+  }
+  if (edited.trim().length > MAX_REPLY_CHARS) {
+    send(req, res, 400, {
+      error: "too_long",
+      message: `X replies cap at ${MAX_REPLY_CHARS} characters.`,
+    });
+    return;
+  }
   const profile = getVoiceProfile(user.id);
   if (
     !profile ||

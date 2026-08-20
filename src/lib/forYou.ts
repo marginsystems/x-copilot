@@ -39,9 +39,17 @@ export function forYouKindLabel(kind: ForYouKind): string {
   return "Reply";
 }
 
-/** Own-account originals/quotes may post from the desk. Scout replies may not. */
-export function forYouUsesDeskCompose(kind: ForYouKind): boolean {
-  return kind === "post" || kind === "quote";
+/**
+ * Own-account originals/quotes may post from the desk. Quote cards need a
+ * numeric targetId — the desk quotes that status id, and a quote without one
+ * cannot be desk-posted or quoted via the compose intent. Scout replies may not.
+ */
+export function forYouUsesDeskCompose(row: ForYouSuggestion): boolean {
+  if (row.kind === "post") return true;
+  if (row.kind === "quote") {
+    return row.targetId !== null && /^\d+$/.test(row.targetId);
+  }
+  return false;
 }
 
 /** Why + digest draft — seed for the Suggest compose stance/draft pass. */
