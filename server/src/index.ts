@@ -10,10 +10,7 @@ import {
   parseActivityBucket,
   pendingReplyIds,
 } from "./activityStats.js";
-import {
-  getGamification,
-  recordMarkGamification,
-} from "./gamification.js";
+import { recordMarkGamification } from "./gamification.js";
 import {
   filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
@@ -46,7 +43,6 @@ import {
   writeDismissalMemory,
   writeInteractionMemory,
 } from "./knowledgeMemory.js";
-import { memoryIndexStatus, searchMemory } from "./memoryIndex.js";
 import { loadEnv } from "./loadEnv.js";
 import { getLastScout } from "./scoutCache.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
@@ -64,25 +60,20 @@ import {
 } from "./detectReply.js";
 import { fetchTweetMetricsMany } from "./tweetLookup.js";
 import { getPlatformDb, getLocalTenantId } from "./db.js";
-import { getUsageSummary, toTenantUsageView } from "./usageMeter.js";
 import { getXApiCredsFromEnv } from "./xApi.js";
 import { getXOauthUsername } from "./authStore.js";
 import { tryHandleAuth } from "./authHttp.js";
 import { tryHandleOnboarding } from "./onboardingHttp.js";
-import { corsHeaders, isLocalOrigin, isOriginAllowed, requestOrigin } from "./cors.js";
+import { corsHeaders, isOriginAllowed, requestOrigin } from "./cors.js";
 import { authRequired, bindHost, isPublicApiPath } from "./authGuard.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { tryHandleAdmin } from "./adminHttp.js";
 import {
-  creditLimitForPlan,
   creditsExhaustedResponse,
-  effectivePlanKey,
-  ensureUserBillingRow,
   ensureUserTenant,
 } from "./billingStore.js";
 import { trackAnalytics } from "./analyticsClient.js";
 import { recordSortie } from "./scoutSorties.js";
-import { PLAN_CREDIT_LIMITS } from "./plans.js";
 import { getRequestContext, getRequestTenantId, runWithRequestContext } from "./requestContext.js";
 import {
   tryHandleBilling,
@@ -94,6 +85,8 @@ import {
 } from "./xActivityHttp.js";
 import { tryHandleVoice } from "./voiceHttp.js";
 import { tryHandleForYou } from "./forYouHttp.js";
+import { tryHandleMemory } from "./memoryHttp.js";
+import { tryHandleUsage } from "./usageHttp.js";
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
 import { BodyError, readBody, send } from "./httpJson.js";
 import {
@@ -101,12 +94,7 @@ import {
   sendSortiesExhausted,
   sendXLinkRequired,
 } from "./httpGates.js";
-import {
-  ensureMemoryIndex,
-  parseMemoryTypes,
-  runMemoryReindex,
-  scheduleMemoryUpsert,
-} from "./memoryReindex.js";
+import { ensureMemoryIndex, scheduleMemoryUpsert } from "./memoryReindex.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -245,118 +233,11 @@ const server = http.createServer(async (req, res) => {
       if (await tryHandleForYou(req, res, url)) {
         return;
       }
-
-      if (
-        req.method === "GET" &&
-        (url.pathname === "/api/health" || url.pathname === "/health")
-      ) {
-        const xApi = getXApiCredsFromEnv();
-        const hasDeepseek = Boolean(process.env.DEEPSEEK_API_KEY?.trim());
-        const memory = await memoryIndexStatus();
-        return send(req, res, 200, {
-          ok: true,
-          xApiConfigured: xApi.configured,
-          deepseekConfigured: hasDeepseek,
-          memoryIndex: {
-            dbExists: memory.dbExists,
-            modelCached: memory.modelCached,
-            modelError: memory.modelError,
-          },
-        });
+      if (await tryHandleMemory(req, res, url)) {
+        return;
       }
-
-      if (req.method === "POST" && url.pathname === "/api/memory/search") {
-        if (!isLocalOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined)) {
-          return send(req, res, 403, {
-            error: "forbidden",
-            message: "Origin not allowed",
-          });
-        }
-        let body: Record<string, unknown>;
-        try {
-          body = (await readBody(req)) as Record<string, unknown>;
-        } catch (err) {
-          const statusCode = err instanceof BodyError ? err.statusCode : 400;
-          return send(req, res, statusCode, {
-            error: "bad_request",
-            message: err instanceof Error ? err.message : "Invalid request body",
-          });
-        }
-        const query = typeof body.query === "string" ? body.query.trim() : "";
-        if (!query) {
-          return send(req, res, 400, {
-            error: "bad_request",
-            message: 'Pass { query: string, k?: number, types?: ("interaction"|"dismissal")[] }.',
-          });
-        }
-        const k =
-          typeof body.k === "number" && Number.isFinite(body.k)
-            ? Math.max(1, Math.min(20, Math.round(body.k)))
-            : undefined;
-        const types = parseMemoryTypes(body.types);
-        await ensureMemoryIndex();
-        const result = await searchMemory({ query, k, types });
-        if (result.error) {
-          return send(req, res, 503, {
-            ok: false,
-            error: "memory_unavailable",
-            message: result.error,
-            hits: result.hits,
-          });
-        }
-        return send(req, res, 200, { ok: true, hits: result.hits });
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/memory/reindex") {
-        if (!isLocalOrigin(typeof req.headers.origin === "string" ? req.headers.origin : undefined)) {
-          return send(req, res, 403, {
-            error: "forbidden",
-            message: "Origin not allowed",
-          });
-        }
-        const result = await runMemoryReindex();
-        if (!result.ok) {
-          return send(req, res, 503, {
-            error: "reindex_failed",
-            message: result.error ?? "Failed to reindex memory",
-            indexed: result.indexed,
-            skipped: result.skipped,
-          });
-        }
-        return send(req, res, 200, {
-          ok: true,
-          indexed: result.indexed,
-          skipped: result.skipped,
-        });
-      }
-
-      if (req.method === "GET" && url.pathname === "/api/usage") {
-        const windowRaw = (url.searchParams.get("window") || "7d").toLowerCase();
-        const window =
-          windowRaw === "24h" || windowRaw === "all" || windowRaw === "7d"
-            ? windowRaw
-            : "7d";
-        try {
-          const user = getSessionUser(req);
-          const tenantId = getRequestTenantId();
-          let creditLimit = PLAN_CREDIT_LIMITS.free;
-          if (user) {
-            const row = ensureUserBillingRow(user.id, tenantId);
-            creditLimit = creditLimitForPlan(
-              effectivePlanKey(row, user.email),
-            );
-          }
-          const summary = getUsageSummary({ window, creditLimit });
-          return send(req, res, 200, {
-            ok: true,
-            ...toTenantUsageView(summary),
-          });
-        } catch (err) {
-          return send(req, res, 500, {
-            error: "usage_unavailable",
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
+      if (await tryHandleUsage(req, res, url)) {
+        return;
       }
 
       if (req.method === "POST" && url.pathname === "/api/search") {
@@ -667,23 +548,6 @@ const server = http.createServer(async (req, res) => {
           rows = mergeLiveMetrics(history, live);
         }
         return send(req, res, 200, bucketInteractions(rows, { bucket }));
-      }
-
-      if (req.method === "GET" && url.pathname === "/api/gamification") {
-        try {
-          return send(
-            req,
-            res,
-            200,
-            await getGamification({ userId: sessionUser?.id }),
-          );
-        } catch (err) {
-          console.error("gamification read failed:", err);
-          return send(req, res, 500, {
-            error: "store_failed",
-            message: "Failed to load gamification",
-          });
-        }
       }
 
       if (req.method === "GET" && url.pathname === "/api/interacted") {
