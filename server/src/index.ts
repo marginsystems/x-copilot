@@ -2,7 +2,6 @@
  * Local sidecar — holds X API bearer + LLM keys off the browser.
  */
 import http from "node:http";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import {
   LIVE_METRICS_ID_CAP,
@@ -47,14 +46,7 @@ import {
   writeDismissalMemory,
   writeInteractionMemory,
 } from "./knowledgeMemory.js";
-import {
-  memoryIndexStatus,
-  reindexMemory,
-  searchMemory,
-  upsertMemoryNote,
-  type MemoryType,
-  type ReindexResult,
-} from "./memoryIndex.js";
+import { memoryIndexStatus, searchMemory } from "./memoryIndex.js";
 import { loadEnv } from "./loadEnv.js";
 import { getLastScout } from "./scoutCache.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
@@ -75,7 +67,6 @@ import { getPlatformDb, getLocalTenantId } from "./db.js";
 import { getUsageSummary, toTenantUsageView } from "./usageMeter.js";
 import { getXApiCredsFromEnv } from "./xApi.js";
 import { getXOauthUsername } from "./authStore.js";
-import { xLinkRequiredResponse } from "./xLinkGate.js";
 import { tryHandleAuth } from "./authHttp.js";
 import { tryHandleOnboarding } from "./onboardingHttp.js";
 import { corsHeaders, isLocalOrigin, isOriginAllowed, requestOrigin } from "./cors.js";
@@ -88,7 +79,6 @@ import {
   effectivePlanKey,
   ensureUserBillingRow,
   ensureUserTenant,
-  sortiesExhaustedResponse,
 } from "./billingStore.js";
 import { trackAnalytics } from "./analyticsClient.js";
 import { recordSortie } from "./scoutSorties.js";
@@ -105,6 +95,18 @@ import {
 import { tryHandleVoice } from "./voiceHttp.js";
 import { tryHandleForYou } from "./forYouHttp.js";
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
+import { BodyError, readBody, send } from "./httpJson.js";
+import {
+  sendCreditsExhausted,
+  sendSortiesExhausted,
+  sendXLinkRequired,
+} from "./httpGates.js";
+import {
+  ensureMemoryIndex,
+  parseMemoryTypes,
+  runMemoryReindex,
+  scheduleMemoryUpsert,
+} from "./memoryReindex.js";
 
 function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -165,140 +167,6 @@ try {
     "[db] platform migrate failed:",
     err instanceof Error ? err.message : String(err),
   );
-}
-
-/** Best-effort index upsert — never fails the request. */
-function scheduleMemoryUpsert(notePath: string, type: MemoryType): void {
-  void (async () => {
-    if (memoryReindexInFlight) {
-      await memoryReindexInFlight;
-    }
-    const result = await upsertMemoryNote(notePath, { type });
-    if (!result.ok && result.error) {
-      console.warn(`memory upsert soft-fail (${type}):`, result.error);
-    }
-  })();
-}
-
-/** Dedupe concurrent reindexes so only one full rebuild runs at a time. */
-let memoryReindexInFlight: Promise<ReindexResult> | null = null;
-
-/** Rebuild index, sharing the in-flight guard across lazy and manual paths. */
-function runMemoryReindex(): Promise<ReindexResult> {
-  if (!memoryReindexInFlight) {
-    memoryReindexInFlight = reindexMemory().finally(() => {
-      memoryReindexInFlight = null;
-    });
-  }
-  return memoryReindexInFlight;
-}
-
-/** Rebuild index when it has never been fully built (lazy boot). Soft-fails. */
-async function ensureMemoryIndex(): Promise<void> {
-  const status = await memoryIndexStatus();
-  if (status.dbIndexed) return;
-  const result = await runMemoryReindex();
-  if (!result.ok && result.error) {
-    console.warn("memory reindex soft-fail:", result.error);
-  }
-}
-
-
-function parseMemoryTypes(raw: unknown): MemoryType[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
-  const types = raw.filter(
-    (t): t is MemoryType => t === "interaction" || t === "dismissal",
-  );
-  return types.length ? [...new Set(types)] : undefined;
-}
-
-function send(
-  req: IncomingMessage,
-  res: ServerResponse,
-  status: number,
-  body: unknown,
-): void {
-  const json = JSON.stringify(body);
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...corsHeaders(req),
-  };
-  res.writeHead(status, headers);
-  res.end(json);
-}
-
-function sendCreditsExhausted(
-  req: IncomingMessage,
-  res: ServerResponse,
-): boolean {
-  const ctx = getRequestContext();
-  const exhausted = creditsExhaustedResponse({
-    userId: ctx?.userId,
-    tenantId: ctx?.tenantId ?? getRequestTenantId(),
-    email: getSessionUser(req)?.email,
-  });
-  if (!exhausted) return false;
-  send(req, res, 402, exhausted);
-  return true;
-}
-
-function sendSortiesExhausted(
-  req: IncomingMessage,
-  res: ServerResponse,
-): boolean {
-  const ctx = getRequestContext();
-  const exhausted = sortiesExhaustedResponse({
-    userId: ctx?.userId,
-    tenantId: ctx?.tenantId ?? getRequestTenantId(),
-    email: getSessionUser(req)?.email,
-  });
-  if (!exhausted) return false;
-  send(req, res, 429, exhausted);
-  return true;
-}
-
-function sendXLinkRequired(
-  req: IncomingMessage,
-  res: ServerResponse,
-): boolean {
-  const blocked = xLinkRequiredResponse(getSessionUser(req));
-  if (!blocked) return false;
-  send(req, res, 403, blocked);
-  return true;
-}
-
-class BodyError extends Error {
-  statusCode: number;
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
-
-function readBody(req: IncomingMessage): Promise<unknown> {
-  return new Promise((resolveBody, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    const MAX_SIZE = 1_048_576;
-    req.on("data", (c: Buffer) => {
-      size += c.length;
-      if (size > MAX_SIZE) {
-        reject(new BodyError("Request body exceeds 1 MB limit", 413));
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf8");
-      if (!raw) return resolveBody({});
-      try {
-        resolveBody(JSON.parse(raw));
-      } catch {
-        reject(new BodyError("Invalid JSON", 400));
-      }
-    });
-    req.on("error", reject);
-  });
 }
 
 const server = http.createServer(async (req, res) => {
