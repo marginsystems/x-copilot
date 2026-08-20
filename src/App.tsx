@@ -221,6 +221,17 @@ type ThreadsTab =
   | "dismissed"
   | "expired";
 
+/** Always occupies a count slot so hydrate cannot grow the tab pills. */
+function ThreadsTabCount({ n }: { n: number }) {
+  return (
+    <span
+      className={n > 0 ? "threads-tab-count" : "threads-tab-count is-empty"}
+    >
+      {n > 0 ? `(${n})` : "(0)"}
+    </span>
+  );
+}
+
 type DismissalHistoryEntry = {
   threadId: string;
   author: string;
@@ -3384,9 +3395,9 @@ export default function App() {
                   onClick={() => setThreadsTab("curated")}
                 >
                   For You
-                  {curatedThreads.length + forYouSuggestions.length > 0
-                    ? ` (${curatedThreads.length + forYouSuggestions.length})`
-                    : ""}
+                  <ThreadsTabCount
+                    n={curatedThreads.length + forYouSuggestions.length}
+                  />
                 </button>
                 <button
                   type="button"
@@ -3400,9 +3411,7 @@ export default function App() {
                   onClick={() => setThreadsTab("interacted")}
                 >
                   Interacted
-                  {interactedHistory.length > 0
-                    ? ` (${interactedHistory.length})`
-                    : ""}
+                  <ThreadsTabCount n={interactedHistory.length} />
                 </button>
                 <button
                   type="button"
@@ -3416,9 +3425,7 @@ export default function App() {
                   onClick={() => setThreadsTab("skipped")}
                 >
                   Skipped
-                  {skippedHistory.length > 0
-                    ? ` (${skippedHistory.length})`
-                    : ""}
+                  <ThreadsTabCount n={skippedHistory.length} />
                 </button>
                 <button
                   type="button"
@@ -3432,9 +3439,7 @@ export default function App() {
                   onClick={() => setThreadsTab("dismissed")}
                 >
                   Not interested
-                  {dismissedHistory.length > 0
-                    ? ` (${dismissedHistory.length})`
-                    : ""}
+                  <ThreadsTabCount n={dismissedHistory.length} />
                 </button>
                 <button
                   type="button"
@@ -3448,9 +3453,7 @@ export default function App() {
                   onClick={() => setThreadsTab("expired")}
                 >
                   Expired
-                  {expiredHistory.length > 0
-                    ? ` (${expiredHistory.length})`
-                    : ""}
+                  <ThreadsTabCount n={expiredHistory.length} />
                 </button>
               </div>
             </div>
