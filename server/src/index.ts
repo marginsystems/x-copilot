@@ -25,22 +25,12 @@ import {
 import {
   getBlockedConversationIds,
   getDismissedThreadIds,
-  listDismissalHistory,
-  markDismissed,
 } from "./dismissalStore.js";
 import { runExpirePass } from "./expirePass.js";
-import {
-  getExpiredThreadIds,
-  listExpiredHistory,
-} from "./expiredStore.js";
-import {
-  getSkippedThreadIds,
-  listSkipHistory,
-  markSkipped,
-} from "./skipStore.js";
+import { getExpiredThreadIds } from "./expiredStore.js";
+import { getSkippedThreadIds } from "./skipStore.js";
 import {
   normalizeReply,
-  writeDismissalMemory,
   writeInteractionMemory,
 } from "./knowledgeMemory.js";
 import { loadEnv } from "./loadEnv.js";
@@ -87,6 +77,7 @@ import { tryHandleVoice } from "./voiceHttp.js";
 import { tryHandleForYou } from "./forYouHttp.js";
 import { tryHandleMemory } from "./memoryHttp.js";
 import { tryHandleUsage } from "./usageHttp.js";
+import { tryHandleHistory } from "./historyHttp.js";
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
 import { BodyError, readBody, send } from "./httpJson.js";
 import {
@@ -237,6 +228,9 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       if (await tryHandleUsage(req, res, url)) {
+        return;
+      }
+      if (await tryHandleHistory(req, res, url)) {
         return;
       }
 
@@ -484,14 +478,6 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      if (req.method === "GET" && url.pathname === "/api/expired") {
-        const expired = await listExpiredHistory();
-        return send(req, res, 200, {
-          expired,
-          expiredIds: expired.map((e) => e.threadId),
-        });
-      }
-
       if (req.method === "GET" && url.pathname === "/api/scout/log") {
         const entries = await getScoutLog();
         return send(req, res, 200, { ok: true, entries });
@@ -559,144 +545,6 @@ const server = http.createServer(async (req, res) => {
           interactions,
           activeIds: active.map((i) => i.threadId),
         });
-      }
-
-      if (req.method === "GET" && url.pathname === "/api/dismissed") {
-        const dismissals = await listDismissalHistory();
-        return send(req, res, 200, {
-          dismissals: dismissals.map(({ authorKey, ...rest }) => rest),
-          dismissedIds: dismissals.map((d) => d.threadId),
-        });
-      }
-
-      if (req.method === "GET" && url.pathname === "/api/skipped") {
-        const skipped = await listSkipHistory();
-        return send(req, res, 200, {
-          skipped: skipped.map(({ authorKey, ...rest }) => rest),
-          skippedIds: skipped.map((d) => d.threadId),
-        });
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/skipped") {
-        let body: Record<string, unknown>;
-        try {
-          body = (await readBody(req)) as Record<string, unknown>;
-        } catch (err) {
-          const statusCode = err instanceof BodyError ? err.statusCode : 400;
-          return send(req, res, statusCode, {
-            error: "bad_request",
-            message: err instanceof Error ? err.message : "Invalid request body",
-          });
-        }
-        const threadId =
-          typeof body.threadId === "string" ? body.threadId.trim() : "";
-        const author = typeof body.author === "string" ? body.author.trim() : "";
-        if (!threadId || !author || !normalizeAuthorKey(author)) {
-          return send(req, res, 400, {
-            error: "bad_request",
-            message: "Pass { threadId: string, author: string }.",
-          });
-        }
-        try {
-          const urlField = typeof body.url === "string" ? body.url : undefined;
-          const text = typeof body.text === "string" ? body.text : undefined;
-          const summary =
-            typeof body.summary === "string" ? body.summary : undefined;
-          const skip = await markSkipped({
-            threadId,
-            author,
-            url: urlField,
-            text,
-            summary,
-          });
-          const { authorKey: _authorKey, ...skipRest } = skip;
-          return send(req, res, 200, {
-            ok: true,
-            skip: skipRest,
-          });
-        } catch (err) {
-          console.error("Failed to store skip:", err);
-          return send(req, res, 500, {
-            error: "store_failed",
-            message: "Failed to store skip",
-          });
-        }
-      }
-
-      if (req.method === "POST" && url.pathname === "/api/dismissed") {
-        let body: Record<string, unknown>;
-        try {
-          body = (await readBody(req)) as Record<string, unknown>;
-        } catch (err) {
-          const statusCode = err instanceof BodyError ? err.statusCode : 400;
-          return send(req, res, statusCode, {
-            error: "bad_request",
-            message: err instanceof Error ? err.message : "Invalid request body",
-          });
-        }
-        const threadId =
-          typeof body.threadId === "string" ? body.threadId.trim() : "";
-        const author = typeof body.author === "string" ? body.author.trim() : "";
-        if (!threadId || !author || !normalizeAuthorKey(author)) {
-          return send(req, res, 400, {
-            error: "bad_request",
-            message: "Pass { threadId: string, author: string }.",
-          });
-        }
-        try {
-          const urlField = typeof body.url === "string" ? body.url : undefined;
-          const text = typeof body.text === "string" ? body.text : undefined;
-          const summary =
-            typeof body.summary === "string" ? body.summary : undefined;
-          const opAuthor =
-            typeof body.opAuthor === "string" ? body.opAuthor : undefined;
-          const opText =
-            typeof body.opText === "string" ? body.opText : undefined;
-          const reason =
-            typeof body.reason === "string" ? body.reason : undefined;
-          const conversationId =
-            typeof body.conversationId === "string"
-              ? body.conversationId
-              : undefined;
-          const inReplyToId =
-            typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
-          const nowMs = Date.now();
-          const dismissedAt = new Date(nowMs).toISOString();
-          const memory = await writeDismissalMemory({
-            threadId,
-            author,
-            url: urlField,
-            text,
-            summary,
-            opAuthor,
-            opText,
-            reason,
-            dismissedAt,
-          });
-          scheduleMemoryUpsert(memory.path, "dismissal");
-          const dismissal = await markDismissed({
-            threadId,
-            author,
-            url: urlField,
-            text,
-            summary,
-            reason,
-            conversationId,
-            inReplyToId,
-            nowMs,
-          });
-          return send(req, res, 200, {
-            ok: true,
-            dismissal,
-            memoryPath: memory.path,
-          });
-        } catch (err) {
-          console.error("Failed to store dismissal:", err);
-          return send(req, res, 500, {
-            error: "store_failed",
-            message: "Failed to store dismissal",
-          });
-        }
       }
 
       if (req.method === "POST" && url.pathname === "/api/interacted/detect") {
