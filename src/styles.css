@@ -602,6 +602,9 @@ h3 {
 
 .threads-tab {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex-shrink: 0;
   border: 1px solid var(--border);
   background: transparent;
@@ -615,6 +618,18 @@ h3 {
   padding: 5px 10px;
   border-radius: var(--radius);
   cursor: pointer;
+}
+
+/* Reserve "(200)" on first paint so hydrate cannot grow the pills. */
+.threads-tab-count {
+  display: inline-block;
+  min-width: 5ch;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.threads-tab-count.is-empty {
+  visibility: hidden;
 }
 
 .threads-tab:hover {
