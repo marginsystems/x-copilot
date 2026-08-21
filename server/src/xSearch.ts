@@ -2,8 +2,11 @@
  * Official X API v2 recent-search client (read-only).
  * Keeps ThreadCard shape + GraphQL fixture parsers for unit tests.
  */
-import { normalizeTcoKey } from "./mediaText.js";
-import type { ThreadKind } from "./threadTriage.js";
+import {
+  MAX_OP_TEXT_CHARS,
+  dedupeThreads,
+  type ThreadCard,
+} from "./threadCard.js";
 import {
   getXApiCredsFromEnv,
   startTimeFromWithin,
@@ -11,70 +14,25 @@ import {
   xApiGet,
   type XApiCreds,
 } from "./xApi.js";
+import {
+  isOutboundLinkUrl,
+  isXArticleUrl,
+  mediaShortlinkKeys,
+  nodeHasOutboundLink,
+  textHasOutboundLink,
+  type LinkPreviewCard,
+  type UrlEntity,
+} from "./xLinks.js";
 
-export type ThreadCard = {
-  id: string;
-  author: string;
-  text: string;
-  url: string;
-  createdAt?: string;
-  /**
-   * Set when search/lookup exposed longform / Article payload.
-   * Articles are hard-dropped before triage; note_tweet body feeds the char cap.
-   */
-  longform?: "note_tweet" | "article";
-  /**
-   * True when the candidate post has an outbound link (entities, card, or text).
-   * Native media URLs do not count. Hard-dropped before triage.
-   */
-  hasOutboundLink?: boolean;
-  /**
-   * True when the author has X's Automated badge
-   * (`affiliates_highlighted_label.label.userLabelType === "AutomatedLabel"`).
-   * Hard-dropped before triage when Settings dropAutomatedAccounts is on.
-   */
-  isAutomated?: boolean;
-  /** t.co shortlink keys (lowercased `t.co/<code>`) that resolve to native media. */
-  mediaShortlinks?: string[];
-  /** Reply / conversation context for triage (OP scoring). */
-  inReplyToId?: string;
-  /** Screen name of the tweet being replied to (SearchTimeline legacy). */
-  inReplyToScreenName?: string;
-  conversationId?: string;
-  isReply?: boolean;
-  /** True when the card is a quote tweet (own referenced_tweets / quoted payload). */
-  isQuote?: boolean;
-  /** Parent or quoted root author/text when available. */
-  opAuthor?: string;
-  opText?: string;
-  /** Parent longform when the hydrated / included OP is a note tweet or Article. */
-  opLongform?: "note_tweet" | "article";
-  /** Full parent text length (opText is sliced to MAX_OP_TEXT_CHARS). */
-  opCharCount?: number;
-  /** True when opAuthor/opText were filled from the reply parent by hydrateReplyParents. */
-  opParentDerived?: boolean;
-  /** Triage fields (filled by threadTriage after search). */
-  summary?: string;
-  /** 0–100, higher = more engagement bait / less worth replying to. */
-  baitScore?: number;
-  flags?: string[];
-  intent?: string;
-  /** Closed preference category from triage (see THREAD_KINDS). */
-  threadKind?: ThreadKind;
-  engage?: "skip" | "consider" | "priority";
-  reason?: string;
-  /** Mirrors baitScore for the existing card meta line. */
-  score?: number;
-};
-
-export const MAX_OP_TEXT_CHARS = 500;
-
-/** Native X Article permalink (not a status URL). */
-export function isXArticleUrl(url: string): boolean {
-  return /(?:^|\/\/)(?:www\.)?(?:x|twitter)\.com\/i\/article(?:\/|$|\?)/i.test(
-    url.trim(),
-  );
-}
+export type { ThreadCard };
+export { MAX_OP_TEXT_CHARS, dedupeThreads };
+export {
+  isNativeMediaUrl,
+  isOutboundLinkUrl,
+  isXArticleUrl,
+  nodeHasOutboundLink,
+  textHasOutboundLink,
+} from "./xLinks.js";
 
 export type SearchProduct = "Latest" | "Top";
 
@@ -268,23 +226,6 @@ export function parseSearchTimelineResponse(data: unknown): ThreadCard[] {
   return parseSearchTimelinePage(data).threads;
 }
 
-export function dedupeThreads(threads: ThreadCard[]): ThreadCard[] {
-  const seen = new Set<string>();
-  const out: ThreadCard[] = [];
-  for (const t of threads) {
-    if (!t.id || seen.has(t.id)) continue;
-    seen.add(t.id);
-    out.push(t);
-  }
-  return out;
-}
-
-type UrlEntity = {
-  url?: string;
-  expanded_url?: string;
-  display_url?: string;
-};
-
 type TweetResultNode = {
   __typename?: string;
   rest_id?: string;
@@ -329,174 +270,13 @@ type TweetResultNode = {
     };
   };
   /** Link-preview / summary card (shape varies by GraphQL build). */
-  card?: {
-    rest_id?: string;
-    legacy?: {
-      name?: string;
-      url?: string;
-      binding_values?: Array<{
-        key?: string;
-        value?: {
-          string_value?: string;
-          scribe_key?: string;
-        };
-      }>;
-    };
-  };
+  card?: LinkPreviewCard;
   /** X Articles / longform article payloads (shape varies by GraphQL build). */
   article?: unknown;
   article_results?: unknown;
   tweet?: unknown;
   quoted_status_result?: { result?: unknown };
 };
-
-const NATIVE_MEDIA_HOST_RE =
-  /(?:^|\.)(?:pic\.twitter\.com|pbs\.twimg\.com|video\.twimg\.com)(?:\/|$)/i;
-/** e.g. https://twitter.com/<user>/status/<id>/photo/<n> or .../video/<n>. */
-const TWITTER_MEDIA_PATH_RE =
-  /^https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[^/]+\/status\/\d+\/(?:photo|video)\//i;
-const OUTBOUND_URL_IN_TEXT_RE = /https?:\/\/[^\s]+|t\.co\/[A-Za-z0-9]+/gi;
-
-/** True when URL is native X media (not an outbound link attachment). */
-export function isNativeMediaUrl(url: string): boolean {
-  const raw = url.trim();
-  if (!raw) return false;
-  try {
-    const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-    const host = new URL(withScheme).hostname;
-    return (
-      NATIVE_MEDIA_HOST_RE.test(host) || TWITTER_MEDIA_PATH_RE.test(withScheme)
-    );
-  } catch {
-    return NATIVE_MEDIA_HOST_RE.test(raw) || TWITTER_MEDIA_PATH_RE.test(raw);
-  }
-}
-
-/** True when a URL string is an outbound (non-media) link. */
-export function isOutboundLinkUrl(url: string): boolean {
-  const raw = url.trim();
-  if (!raw) return false;
-  if (!/^https?:\/\//i.test(raw) && !/^t\.co\//i.test(raw)) return false;
-  return !isNativeMediaUrl(raw);
-}
-
-/** t.co shortlinks for native media: URLs expanded to media hosts, plus media-entity t.co keys. */
-function mediaShortlinkKeys(
-  ...entitySets: Array<
-    { urls?: UrlEntity[]; media?: UrlEntity[] } | undefined
-  >
-): Set<string> {
-  const keys = new Set<string>();
-  for (const entities of entitySets) {
-    if (!entities || typeof entities !== "object") continue;
-    for (const u of entities.urls ?? []) {
-      const expanded =
-        typeof u.expanded_url === "string" ? u.expanded_url.trim() : "";
-      if (!expanded || !isNativeMediaUrl(expanded)) continue;
-      for (const c of [u.url, u.expanded_url, u.display_url]) {
-        if (typeof c !== "string") continue;
-        const key = normalizeTcoKey(c);
-        if (key) keys.add(key);
-      }
-    }
-    for (const m of entities.media ?? []) {
-      for (const c of [m.url, m.expanded_url, m.display_url]) {
-        if (typeof c !== "string") continue;
-        const key = normalizeTcoKey(c);
-        if (key) keys.add(key);
-      }
-    }
-  }
-  return keys;
-}
-
-/**
- * True when candidate text contains an outbound link (media excluded).
- * Bare t.co shortlinks are ambiguous (native media vs outbound) when their
- * entity is absent, so they never count here; outbound t.co links are resolved
- * via URL entities/cards instead.
- */
-export function textHasOutboundLink(text: string): boolean {
-  const matches = text.match(OUTBOUND_URL_IN_TEXT_RE);
-  if (!matches) return false;
-  for (const m of matches) {
-    const cleaned = m.replace(/[),.!?;:]+$/g, "");
-    if (normalizeTcoKey(cleaned)) continue;
-    if (isOutboundLinkUrl(cleaned)) return true;
-  }
-  return false;
-}
-
-function entityUrlsHaveOutbound(urls: UrlEntity[] | undefined): boolean {
-  if (!Array.isArray(urls)) return false;
-  for (const u of urls) {
-    // Prefer expanded_url so t.co → pic.twitter.com is treated as media.
-    const expanded =
-      typeof u.expanded_url === "string" ? u.expanded_url.trim() : "";
-    if (expanded) {
-      if (isNativeMediaUrl(expanded)) continue;
-      if (isOutboundLinkUrl(expanded)) return true;
-      continue;
-    }
-    for (const c of [u.url, u.display_url]) {
-      if (typeof c === "string" && isOutboundLinkUrl(c)) return true;
-    }
-  }
-  return false;
-}
-
-function cardHasOutboundLink(
-  card: TweetResultNode["card"],
-  ignoreShortlinks: Set<string>,
-): boolean {
-  if (!card || typeof card !== "object") return false;
-  const legacy = card.legacy;
-  if (!legacy) return false;
-  if (typeof legacy.url === "string" && isOutboundLinkUrl(legacy.url)) {
-    return true;
-  }
-  const bindings = legacy.binding_values;
-  if (!Array.isArray(bindings)) return false;
-  for (const b of bindings) {
-    const key = (b.key ?? "").toLowerCase();
-    const val = b.value?.string_value;
-    if (typeof val !== "string" || !val.trim()) continue;
-    if (
-      key.includes("url") ||
-      key === "card_url" ||
-      key === "vanity_url" ||
-      key === "website_url"
-    ) {
-      const tco = normalizeTcoKey(val);
-      const isMediaShortlink = tco !== null && ignoreShortlinks.has(tco);
-      if (!isMediaShortlink && isOutboundLinkUrl(val)) return true;
-      if (textHasOutboundLink(val)) return true;
-    }
-  }
-  return false;
-}
-
-/** Detect outbound links on a GraphQL tweet node (candidate only, not quoted OP). */
-export function nodeHasOutboundLink(node: {
-  legacy?: {
-    full_text?: string;
-    entities?: { urls?: UrlEntity[]; media?: UrlEntity[] };
-  };
-  card?: TweetResultNode["card"];
-  note_tweet?: TweetResultNode["note_tweet"];
-}): boolean {
-  const legacyEntities = node.legacy?.entities;
-  const noteEntities =
-    node.note_tweet?.note_tweet_results?.result?.entity_set;
-  const ignore = mediaShortlinkKeys(legacyEntities, noteEntities);
-  if (entityUrlsHaveOutbound(legacyEntities?.urls)) return true;
-  if (entityUrlsHaveOutbound(noteEntities?.urls)) return true;
-  if (cardHasOutboundLink(node.card, ignore)) return true;
-  const noteText = noteTweetText(node as TweetResultNode);
-  const text = resolveCardText(node.legacy?.full_text, noteText);
-  if (text && textHasOutboundLink(text)) return true;
-  return false;
-}
 
 function noteTweetText(node: TweetResultNode): string | undefined {
   const text = node.note_tweet?.note_tweet_results?.result?.text;
