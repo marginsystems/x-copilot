@@ -17,7 +17,7 @@ import {
   type SearchMemoryResult,
 } from "./memoryIndex.js";
 import { stripMediaShortlinksFromText } from "./mediaText.js";
-import type { ThreadCard } from "./xSearch.js";
+import type { ThreadCard } from "./threadCard.js";
 
 export type Engage = "skip" | "consider" | "priority";
 
