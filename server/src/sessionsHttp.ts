@@ -11,7 +11,8 @@ import {
   toPublicUser,
 } from "./authStore.js";
 import { allowRate } from "./authGuard.js";
-import { corsHeaders, isOriginAllowed, requestOrigin } from "./cors.js";
+import { isOriginAllowed, requestOrigin } from "./cors.js";
+import { send } from "./httpJson.js";
 import { getRequestSession, sessionClearCookie } from "./sessionCookie.js";
 import { toPublicSession } from "./sessionView.js";
 
@@ -27,17 +28,17 @@ function sendJson(
   body: unknown,
   extraCookies: string[] = [],
 ): void {
-  const headers: Record<string, string | string[]> = {
-    "Content-Type": "application/json",
-    ...corsHeaders(req),
-  };
-  if (extraCookies.length === 1) {
-    headers["Set-Cookie"] = extraCookies[0];
-  } else if (extraCookies.length > 1) {
-    headers["Set-Cookie"] = extraCookies;
-  }
-  res.writeHead(status, headers);
-  res.end(JSON.stringify(body));
+  send(
+    req,
+    res,
+    status,
+    body,
+    extraCookies.length === 1
+      ? { "Set-Cookie": extraCookies[0] }
+      : extraCookies.length > 1
+        ? { "Set-Cookie": extraCookies }
+        : undefined,
+  );
 }
 
 function requireOrigin(req: IncomingMessage, res: ServerResponse): boolean {

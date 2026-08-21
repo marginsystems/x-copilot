@@ -3,7 +3,7 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { revokeSessionToken, toPublicUser } from "./authStore.js";
-import { corsHeaders } from "./cors.js";
+import { send } from "./httpJson.js";
 import { handleGoogleCallback, handleGoogleStart } from "./googleAuth.js";
 import { handleXCallback, handleXStart } from "./xAuth.js";
 import { isAdminEmail } from "./adminEmails.js";
@@ -29,17 +29,17 @@ function sendJson(
   body: unknown,
   extraCookies: string[] = [],
 ): void {
-  const headers: Record<string, string | string[]> = {
-    "Content-Type": "application/json",
-    ...corsHeaders(req),
-  };
-  if (extraCookies.length === 1) {
-    headers["Set-Cookie"] = extraCookies[0];
-  } else if (extraCookies.length > 1) {
-    headers["Set-Cookie"] = extraCookies;
-  }
-  res.writeHead(status, headers);
-  res.end(JSON.stringify(body));
+  send(
+    req,
+    res,
+    status,
+    body,
+    extraCookies.length === 1
+      ? { "Set-Cookie": extraCookies[0] }
+      : extraCookies.length > 1
+        ? { "Set-Cookie": extraCookies }
+        : undefined,
+  );
 }
 
 function publicUser(user: NonNullable<ReturnType<typeof getSessionUser>>) {

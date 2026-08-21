@@ -7,7 +7,12 @@ import {
   toPublicUser,
   userNeedsXHandle,
 } from "./authStore.js";
-import { corsHeaders } from "./cors.js";
+import {
+  BODY_CAP_1MB,
+  BodyError,
+  readBody,
+  send,
+} from "./httpJson.js";
 import {
   generateOnboardingAgendas,
   validateAgendaText,
@@ -21,56 +26,14 @@ import { VOICE_UNLOCK_MIN_POSTS } from "./voiceStore.js";
 const ONBOARDING_GENERATE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 const ONBOARDING_COMPLETE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 
-function sendJson(
+async function readOnboardingBody(
   req: IncomingMessage,
-  res: ServerResponse,
-  status: number,
-  body: unknown,
-): void {
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    ...corsHeaders(req),
-  });
-  res.end(JSON.stringify(body));
-}
-
-class BodyError extends Error {
-  statusCode: number;
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
-
-function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  return new Promise((resolveBody, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    const MAX_SIZE = 1_048_576;
-    req.on("data", (c: Buffer) => {
-      size += c.length;
-      if (size > MAX_SIZE) {
-        reject(new BodyError("Request body exceeds 1 MB limit", 413));
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf8");
-      if (!raw) return resolveBody({});
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          reject(new BodyError("Invalid JSON", 400));
-          return;
-        }
-        resolveBody(parsed as Record<string, unknown>);
-      } catch {
-        reject(new BodyError("Invalid JSON", 400));
-      }
-    });
-    req.on("error", reject);
-  });
+): Promise<Record<string, unknown>> {
+  return (await readBody(req, {
+    maxBytes: BODY_CAP_1MB,
+    requireObject: true,
+    rejectArray: true,
+  })) as Record<string, unknown>;
 }
 
 /** Handle /api/onboarding/* — returns true if the request was consumed. */
@@ -89,7 +52,7 @@ export async function tryHandleOnboarding(
         ONBOARDING_GENERATE_RATE.windowMs,
       )
     ) {
-      sendJson(req, res, 429, {
+      send(req, res, 429, {
         error: "rate_limited",
         message: "Too many agenda generations",
       });
@@ -97,10 +60,10 @@ export async function tryHandleOnboarding(
     }
     let body: Record<string, unknown>;
     try {
-      body = await readBody(req);
+      body = await readOnboardingBody(req);
     } catch (err) {
       const statusCode = err instanceof BodyError ? err.statusCode : 400;
-      sendJson(req, res, statusCode, {
+      send(req, res, statusCode, {
         error: "bad_request",
         message: err instanceof Error ? err.message : "Invalid request body",
       });
@@ -109,12 +72,12 @@ export async function tryHandleOnboarding(
 
     const parsed = validateOnboardingAnswers(body);
     if (!parsed.ok) {
-      sendJson(req, res, 400, { error: parsed.error, message: parsed.message });
+      send(req, res, 400, { error: parsed.error, message: parsed.message });
       return true;
     }
 
     const result = await generateOnboardingAgendas(parsed.answers);
-    sendJson(req, res, 200, {
+    send(req, res, 200, {
       ok: true,
       agendas: result.agendas,
       source: result.source,
@@ -130,7 +93,7 @@ export async function tryHandleOnboarding(
         ONBOARDING_COMPLETE_RATE.windowMs,
       )
     ) {
-      sendJson(req, res, 429, {
+      send(req, res, 429, {
         error: "rate_limited",
         message: "Too many setup completions",
       });
@@ -138,10 +101,10 @@ export async function tryHandleOnboarding(
     }
     let body: Record<string, unknown>;
     try {
-      body = await readBody(req);
+      body = await readOnboardingBody(req);
     } catch (err) {
       const statusCode = err instanceof BodyError ? err.statusCode : 400;
-      sendJson(req, res, statusCode, {
+      send(req, res, statusCode, {
         error: "bad_request",
         message: err instanceof Error ? err.message : "Invalid request body",
       });
@@ -154,13 +117,13 @@ export async function tryHandleOnboarding(
 
     const parsed = validateAgendaText(body.agenda);
     if (!parsed.ok) {
-      sendJson(req, res, 400, { error: parsed.error, message: parsed.message });
+      send(req, res, 400, { error: parsed.error, message: parsed.message });
       return true;
     }
 
     const user = getSessionUser(req);
     if (!user) {
-      sendJson(req, res, 401, {
+      send(req, res, 401, {
         ok: false,
         error: "unauthenticated",
         message: "Sign in required",
@@ -169,7 +132,7 @@ export async function tryHandleOnboarding(
     }
 
     if (userNeedsXHandle(user)) {
-      sendJson(req, res, 400, {
+      send(req, res, 400, {
         ok: false,
         error: "x_link_required",
         message: "Link X with the official X login to finish setup.",
@@ -179,7 +142,7 @@ export async function tryHandleOnboarding(
 
     const updated = completeOnboarding(user.id, parsed.agenda);
     if (!updated) {
-      sendJson(req, res, 404, {
+      send(req, res, 404, {
         error: "not_found",
         message: "User not found.",
       });
@@ -189,7 +152,7 @@ export async function tryHandleOnboarding(
       user: updated,
       reason: "onboarding",
     });
-    sendJson(req, res, 200, {
+    send(req, res, 200, {
       ok: true,
       persisted: true,
       user: toPublicUser(updated),
@@ -206,6 +169,6 @@ export async function tryHandleOnboarding(
     return true;
   }
 
-  sendJson(req, res, 404, { error: "not_found" });
+  send(req, res, 404, { error: "not_found" });
   return true;
 }

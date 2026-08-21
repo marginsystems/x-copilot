@@ -2,7 +2,7 @@
  * Public XAA webhook + authenticated watch / analytics routes.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { corsHeaders } from "./cors.js";
+import { send } from "./httpJson.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { xConsumerCreds } from "./xAuth.js";
 import { getUserById } from "./authStore.js";
@@ -37,19 +37,6 @@ import {
 import { recordUsageEvent } from "./usageMeter.js";
 import { markInteracted } from "./interactionStore.js";
 import { allowRate, clientIp } from "./authGuard.js";
-
-function send(
-  req: IncomingMessage,
-  res: ServerResponse,
-  status: number,
-  body: unknown,
-): void {
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    ...corsHeaders(req),
-  });
-  res.end(JSON.stringify(body));
-}
 
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
