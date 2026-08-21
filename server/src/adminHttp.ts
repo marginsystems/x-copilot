@@ -17,76 +17,26 @@ import {
   getUserById,
   getXOauthUsername,
 } from "./authStore.js";
-import { corsHeaders, isOriginAllowed, requestOrigin } from "./cors.js";
+import { isOriginAllowed, requestOrigin } from "./cors.js";
+import {
+  BODY_CAP_16K,
+  BodyError,
+  readJsonBody,
+  send,
+} from "./httpJson.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { isPaidPlanKey, isPlanKey } from "./plans.js";
 import { getUsageSummary } from "./usageMeter.js";
 import { allowRate } from "./authGuard.js";
 
-function sendJson(
-  req: IncomingMessage,
-  res: ServerResponse,
-  status: number,
-  body: unknown,
-): void {
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    ...corsHeaders(req),
-  });
-  res.end(JSON.stringify(body));
-}
-
 function requireOrigin(req: IncomingMessage, res: ServerResponse): boolean {
   const origin = requestOrigin(req);
   if (origin && isOriginAllowed(origin)) return true;
-  sendJson(req, res, 403, {
+  send(req, res, 403, {
     error: "forbidden",
     message: "Origin not allowed",
   });
   return false;
-}
-
-class BodyError extends Error {
-  statusCode: number;
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
-
-function readJsonBody(
-  req: IncomingMessage,
-): Promise<Record<string, unknown> | null> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    req.on("data", (c: Buffer) => {
-      size += c.length;
-      if (size > 16_384) {
-        reject(new BodyError("Request body exceeds 16 KiB limit", 413));
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => {
-      const raw = Buffer.concat(chunks).toString("utf8");
-      if (!raw.trim()) {
-        resolve({});
-        return;
-      }
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        if (!parsed || typeof parsed !== "object") {
-          resolve(null);
-          return;
-        }
-        resolve(parsed as Record<string, unknown>);
-      } catch {
-        resolve(null);
-      }
-    });
-    req.on("error", () => resolve(null));
-  });
 }
 
 function resolveGrantUser(body: Record<string, unknown>) {
@@ -117,11 +67,11 @@ export async function tryHandleAdmin(
 
   const user = getSessionUser(req);
   if (!user) {
-    sendJson(req, res, 401, { error: "unauthenticated" });
+    send(req, res, 401, { error: "unauthenticated" });
     return true;
   }
   if (!isAdminEmail(user.email)) {
-    sendJson(req, res, 403, {
+    send(req, res, 403, {
       error: "forbidden",
       message: "Admin only",
     });
@@ -131,14 +81,14 @@ export async function tryHandleAdmin(
   if (req.method === "GET" && url.pathname === "/api/admin/tenants") {
     try {
       const tenants = listAdminTenantUsage();
-      sendJson(req, res, 200, {
+      send(req, res, 200, {
         ok: true,
         window: "utc_month",
         tenants,
       });
     } catch (err) {
       console.error("[GET /api/admin/tenants]", err);
-      sendJson(req, res, 500, { error: "admin_unavailable" });
+      send(req, res, 500, { error: "admin_unavailable" });
     }
     return true;
   }
@@ -157,12 +107,12 @@ export async function tryHandleAdmin(
       try {
         tenantId = decodeURIComponent(tenantUsage[1] ?? "");
       } catch {
-        sendJson(req, res, 400, { error: "invalid_tenant_id" });
+        send(req, res, 400, { error: "invalid_tenant_id" });
         return true;
       }
       const tenant = listAdminTenantUsage().find((t) => t.tenantId === tenantId);
       if (!tenant) {
-        sendJson(req, res, 404, { error: "not_found" });
+        send(req, res, 404, { error: "not_found" });
         return true;
       }
       const summary = getUsageSummary({
@@ -171,14 +121,14 @@ export async function tryHandleAdmin(
         creditLimit: tenant.creditLimit,
         limit: 200,
       });
-      sendJson(req, res, 200, {
+      send(req, res, 200, {
         ok: true,
         tenant,
         ...summary,
       });
     } catch (err) {
       console.error("[GET /api/admin/tenants/:id/usage]", err);
-      sendJson(req, res, 500, { error: "admin_unavailable" });
+      send(req, res, 500, { error: "admin_unavailable" });
     }
     return true;
   }
@@ -186,7 +136,7 @@ export async function tryHandleAdmin(
   if (req.method === "POST" && url.pathname === "/api/admin/grants") {
     if (!requireOrigin(req, res)) return true;
     if (!allowRate(`admin-grant:${user.id}`, 20, 60_000)) {
-      sendJson(req, res, 429, {
+      send(req, res, 429, {
         error: "rate_limited",
         message: "Too many grant attempts — slow down a moment.",
       });
@@ -194,10 +144,14 @@ export async function tryHandleAdmin(
     }
     let body: Record<string, unknown> | null;
     try {
-      body = await readJsonBody(req);
+      body = await readJsonBody(req, {
+        maxBytes: BODY_CAP_16K,
+        onLimit: "reject",
+        trimEmpty: true,
+      });
     } catch (err) {
       const statusCode = err instanceof BodyError ? err.statusCode : 400;
-      sendJson(req, res, statusCode, {
+      send(req, res, statusCode, {
         error: "bad_request",
         message: err instanceof Error ? err.message : "Invalid request body",
       });
@@ -208,7 +162,7 @@ export async function tryHandleAdmin(
       return true;
     }
     if (!body) {
-      sendJson(req, res, 400, {
+      send(req, res, 400, {
         error: "invalid_json",
         message: "Invalid JSON body.",
       });
@@ -216,7 +170,7 @@ export async function tryHandleAdmin(
     }
     const planRaw = typeof body.plan === "string" ? body.plan.trim() : "";
     if (!isPlanKey(planRaw) || (planRaw !== "free" && !isPaidPlanKey(planRaw))) {
-      sendJson(req, res, 400, {
+      send(req, res, 400, {
         error: "bad_plan",
         message: "Pass plan: pulse, radar, horizon, or free.",
       });
@@ -224,7 +178,7 @@ export async function tryHandleAdmin(
     }
     const target = resolveGrantUser(body);
     if (!target) {
-      sendJson(req, res, 404, {
+      send(req, res, 404, {
         error: "user_not_found",
         message: "No user matches that handle, email, or id.",
       });
@@ -254,7 +208,7 @@ export async function tryHandleAdmin(
           : `Manual grant for ${row.grantPlanKey} is stored; admin accounts always run on ${planKey}.`;
       }
     }
-    sendJson(req, res, 200, {
+    send(req, res, 200, {
       ok: true,
       user: {
         id: target.id,
@@ -268,6 +222,6 @@ export async function tryHandleAdmin(
     return true;
   }
 
-  sendJson(req, res, 404, { error: "not_found" });
+  send(req, res, 404, { error: "not_found" });
   return true;
 }

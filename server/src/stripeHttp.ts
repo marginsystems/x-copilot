@@ -17,7 +17,12 @@ import {
   shouldApplyStripeEvent,
   updateSubscriptionFromStripe,
 } from "./billingStore.js";
-import { corsHeaders } from "./cors.js";
+import {
+  BODY_CAP_1MB,
+  BodyError,
+  readBody,
+  send,
+} from "./httpJson.js";
 import { isPaidPlanKey, type PaidPlanKey } from "./plans.js";
 import { getSessionUser } from "./sessionCookie.js";
 import {
@@ -36,28 +41,7 @@ import {
   portalBlockedWithoutStripeSubscription,
 } from "./stripeGuards.js";
 
-function sendJson(
-  req: IncomingMessage,
-  res: ServerResponse,
-  status: number,
-  body: unknown,
-): void {
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    ...corsHeaders(req),
-  });
-  res.end(JSON.stringify(body));
-}
-
-class BodyError extends Error {
-  statusCode: number;
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
-
-function readRawBody(req: IncomingMessage, max = 1_048_576): Promise<Buffer> {
+function readRawBody(req: IncomingMessage, max = BODY_CAP_1MB): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -75,18 +59,10 @@ function readRawBody(req: IncomingMessage, max = 1_048_576): Promise<Buffer> {
 }
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const raw = await readRawBody(req);
-  if (!raw.length) return {};
-  try {
-    const parsed: unknown = JSON.parse(raw.toString("utf8"));
-    if (!parsed || typeof parsed !== "object") {
-      throw new BodyError("Invalid JSON", 400);
-    }
-    return parsed as Record<string, unknown>;
-  } catch (err) {
-    if (err instanceof BodyError) throw err;
-    throw new BodyError("Invalid JSON", 400);
-  }
+  return (await readBody(req, {
+    maxBytes: BODY_CAP_1MB,
+    requireObject: true,
+  })) as Record<string, unknown>;
 }
 
 function stripeClient(): Stripe | null {
@@ -97,7 +73,7 @@ function stripeClient(): Stripe | null {
 
 function liveKeyBlocked(req: IncomingMessage, res: ServerResponse): boolean {
   if (!liveStripeKeyBlockedInNonProduction()) return false;
-  sendJson(req, res, 503, {
+  send(req, res, 503, {
     error: "stripe_live_key_in_dev",
     message:
       "This sidecar is not production but STRIPE_SECRET_KEY is a live key. Use sk_test_… and STRIPE_PRICE_*_DEV for local smoke tests.",
@@ -126,7 +102,7 @@ function periodFieldsFromSubscription(subscription: Stripe.Subscription): {
 }
 
 function notConfigured(req: IncomingMessage, res: ServerResponse): void {
-  sendJson(req, res, 503, {
+  send(req, res, 503, {
     error: "stripe_not_configured",
     message:
       "Stripe is not configured on this sidecar. Set STRIPE_SECRET_KEY and STRIPE_PRICE_PULSE / RADAR / HORIZON.",
@@ -139,16 +115,16 @@ async function handleBillingMe(
 ): Promise<void> {
   const user = getSessionUser(req);
   if (!user) {
-    sendJson(req, res, 401, { error: "unauthenticated" });
+    send(req, res, 401, { error: "unauthenticated" });
     return;
   }
   try {
     ensureUserTenant(user.id);
     const body = billingMePayload({ userId: user.id, email: user.email });
-    sendJson(req, res, 200, { ok: true, ...body });
+    send(req, res, 200, { ok: true, ...body });
   } catch (err) {
     console.error("[GET /api/billing/me]", err);
-    sendJson(req, res, 500, { error: "Failed to load billing" });
+    send(req, res, 500, { error: "Failed to load billing" });
   }
 }
 
@@ -164,7 +140,7 @@ async function handleCheckout(
   if (liveKeyBlocked(req, res)) return;
   const user = getSessionUser(req);
   if (!user) {
-    sendJson(req, res, 401, { error: "unauthenticated" });
+    send(req, res, 401, { error: "unauthenticated" });
     return;
   }
   let body: Record<string, unknown>;
@@ -172,12 +148,12 @@ async function handleCheckout(
     body = await readJson(req);
   } catch (err) {
     const status = err instanceof BodyError ? err.statusCode : 400;
-    sendJson(req, res, status, { error: "bad_request" });
+    send(req, res, status, { error: "bad_request" });
     return;
   }
   const planRaw = typeof body.plan === "string" ? body.plan.trim().toLowerCase() : "";
   if (!isPaidPlanKey(planRaw)) {
-    sendJson(req, res, 400, {
+    send(req, res, 400, {
       error: "bad_request",
       message: "plan must be pulse, radar, or horizon",
     });
@@ -186,7 +162,7 @@ async function handleCheckout(
   const plan: PaidPlanKey = planRaw;
   const priceId = resolveStripePriceId(plan);
   if (!priceId) {
-    sendJson(req, res, 503, {
+    send(req, res, 503, {
       error: "stripe_not_configured",
       message: `Missing STRIPE_PRICE_${plan.toUpperCase()}`,
     });
@@ -197,7 +173,7 @@ async function handleCheckout(
   const row = ensureUserBillingRow(user.id, tenantId);
   const blocked = checkoutBlockedByExistingSubscription(row);
   if (blocked.blocked) {
-    sendJson(req, res, 409, {
+    send(req, res, 409, {
       error: "subscription_exists",
       subscription_status: blocked.subscription_status,
       message: blocked.message,
@@ -217,7 +193,7 @@ async function handleCheckout(
     }
   } catch (err) {
     console.error("[POST /api/stripe/checkout] customer", err);
-    sendJson(req, res, 502, {
+    send(req, res, 502, {
       error: "stripe_customer_failed",
       message: "Could not create billing customer. Try again in a moment.",
     });
@@ -247,13 +223,13 @@ async function handleCheckout(
       },
     });
     if (!session.url) {
-      sendJson(req, res, 500, { error: "stripe_checkout_failed" });
+      send(req, res, 500, { error: "stripe_checkout_failed" });
       return;
     }
-    sendJson(req, res, 200, { ok: true, url: session.url });
+    send(req, res, 200, { ok: true, url: session.url });
   } catch (err) {
     console.error("[POST /api/stripe/checkout]", err);
-    sendJson(req, res, 502, {
+    send(req, res, 502, {
       error: "stripe_checkout_failed",
       message: "Could not start Checkout. Try again shortly.",
     });
@@ -272,14 +248,14 @@ async function handlePortal(
   if (liveKeyBlocked(req, res)) return;
   const user = getSessionUser(req);
   if (!user) {
-    sendJson(req, res, 401, { error: "unauthenticated" });
+    send(req, res, 401, { error: "unauthenticated" });
     return;
   }
   const tenantId = ensureUserTenant(user.id);
   const row = ensureUserBillingRow(user.id, tenantId);
   const freeBlock = portalBlockedForPureFreeUser(row);
   if (freeBlock.blocked) {
-    sendJson(req, res, 400, {
+    send(req, res, 400, {
       error: freeBlock.error,
       message: freeBlock.message,
     });
@@ -287,7 +263,7 @@ async function handlePortal(
   }
   const subBlock = portalBlockedWithoutStripeSubscription(row);
   if (subBlock.blocked) {
-    sendJson(req, res, 400, {
+    send(req, res, 400, {
       error: subBlock.error,
       message: subBlock.message,
     });
@@ -295,7 +271,7 @@ async function handlePortal(
   }
   const customerId = row.stripeCustomerId?.trim();
   if (!customerId) {
-    sendJson(req, res, 400, {
+    send(req, res, 400, {
       error: "no_billing_history",
       message: "No Stripe customer on file. Subscribe first.",
     });
@@ -310,13 +286,13 @@ async function handlePortal(
       ...(portalConfig ? { configuration: portalConfig } : {}),
     });
     if (!session.url) {
-      sendJson(req, res, 500, { error: "stripe_portal_failed" });
+      send(req, res, 500, { error: "stripe_portal_failed" });
       return;
     }
-    sendJson(req, res, 200, { ok: true, url: session.url });
+    send(req, res, 200, { ok: true, url: session.url });
   } catch (err) {
     console.error("[POST /api/stripe/portal]", err);
-    sendJson(req, res, 502, {
+    send(req, res, 502, {
       error: "stripe_portal_failed",
       message:
         "Could not open the billing portal. Enable Customer Portal in the Stripe Dashboard (Settings → Billing → Customer portal).",
@@ -336,7 +312,7 @@ async function handleCheckoutConfirm(
   if (liveKeyBlocked(req, res)) return;
   const user = getSessionUser(req);
   if (!user) {
-    sendJson(req, res, 401, { error: "unauthenticated" });
+    send(req, res, 401, { error: "unauthenticated" });
     return;
   }
   let body: Record<string, unknown>;
@@ -344,13 +320,13 @@ async function handleCheckoutConfirm(
     body = await readJson(req);
   } catch (err) {
     const status = err instanceof BodyError ? err.statusCode : 400;
-    sendJson(req, res, status, { error: "bad_request" });
+    send(req, res, status, { error: "bad_request" });
     return;
   }
   const sessionId =
     typeof body.session_id === "string" ? body.session_id.trim() : "";
   if (!sessionId) {
-    sendJson(req, res, 400, { error: "bad_request", message: "session_id required" });
+    send(req, res, 400, { error: "bad_request", message: "session_id required" });
     return;
   }
   let session: Stripe.Checkout.Session;
@@ -358,22 +334,22 @@ async function handleCheckoutConfirm(
     session = await stripe.checkout.sessions.retrieve(sessionId);
   } catch (err) {
     console.error("[POST /api/stripe/checkout/confirm] retrieve", err);
-    sendJson(req, res, 400, { error: "invalid_session" });
+    send(req, res, 400, { error: "invalid_session" });
     return;
   }
   if (session.mode !== "subscription") {
-    sendJson(req, res, 400, { error: "invalid_session" });
+    send(req, res, 400, { error: "invalid_session" });
     return;
   }
   const sessionUserId =
     session.metadata?.user_id ?? session.client_reference_id ?? null;
   if (!sessionUserId || sessionUserId !== user.id) {
-    sendJson(req, res, 403, { error: "forbidden" });
+    send(req, res, 403, { error: "forbidden" });
     return;
   }
   const planKey = session.metadata?.plan_key;
   if (!planKey || !isPaidPlanKey(planKey)) {
-    sendJson(req, res, 400, { error: "invalid_session" });
+    send(req, res, 400, { error: "invalid_session" });
     return;
   }
   const customerRaw = session.customer;
@@ -385,7 +361,7 @@ async function handleCheckoutConfirm(
       ? subscriptionRaw
       : subscriptionRaw?.id ?? null;
   if (!customerId || !subscriptionId) {
-    sendJson(req, res, 409, { error: "not_provisioned" });
+    send(req, res, 409, { error: "not_provisioned" });
     return;
   }
   let subscription: Stripe.Subscription;
@@ -393,11 +369,11 @@ async function handleCheckoutConfirm(
     subscription = await stripe.subscriptions.retrieve(subscriptionId);
   } catch (err) {
     console.error("[POST /api/stripe/checkout/confirm] sub", err);
-    sendJson(req, res, 409, { error: "not_provisioned" });
+    send(req, res, 409, { error: "not_provisioned" });
     return;
   }
   if (subscription.status !== "active" && subscription.status !== "trialing") {
-    sendJson(req, res, 409, { error: "not_provisioned" });
+    send(req, res, 409, { error: "not_provisioned" });
     return;
   }
   const period = periodFieldsFromSubscription(subscription);
@@ -411,7 +387,7 @@ async function handleCheckoutConfirm(
     cancelAtPeriodEnd: period.cancelAtPeriodEnd,
     stripeEventCreated: subscription.created,
   });
-  sendJson(req, res, 200, { ok: true, plan_key: planKey });
+  send(req, res, 200, { ok: true, plan_key: planKey });
 }
 
 async function dispatchWebhook(
@@ -503,12 +479,12 @@ async function handleWebhook(
   const secret = resolveWebhookSecret();
   const stripe = stripeClient();
   if (!stripe || !secret) {
-    sendJson(req, res, 503, { error: "stripe_not_configured" });
+    send(req, res, 503, { error: "stripe_not_configured" });
     return;
   }
   if (liveKeyBlocked(req, res)) return;
   if (liveWebhookSecretBlockedInNonProduction()) {
-    sendJson(req, res, 503, {
+    send(req, res, 503, {
       error: "stripe_live_webhook_in_dev",
       message:
         "This sidecar is not production but STRIPE_WEBHOOK_SECRET is a live webhook secret. Use STRIPE_WEBHOOK_SECRET_DEV for local webhook smoke tests.",
@@ -520,12 +496,12 @@ async function handleWebhook(
     raw = await readRawBody(req);
   } catch (err) {
     const status = err instanceof BodyError ? err.statusCode : 400;
-    sendJson(req, res, status, { error: "bad_request" });
+    send(req, res, status, { error: "bad_request" });
     return;
   }
   const sig = req.headers["stripe-signature"];
   if (typeof sig !== "string" || !sig) {
-    sendJson(req, res, 400, { error: "missing_signature" });
+    send(req, res, 400, { error: "missing_signature" });
     return;
   }
   let event: Stripe.Event;
@@ -533,19 +509,19 @@ async function handleWebhook(
     event = stripe.webhooks.constructEvent(raw, sig, secret);
   } catch (err) {
     console.error("[POST /api/stripe/webhook] signature", err);
-    sendJson(req, res, 400, { error: "invalid_signature" });
+    send(req, res, 400, { error: "invalid_signature" });
     return;
   }
   try {
     const result = await dispatchWebhook(event, stripe);
     if (!result.ok) {
-      sendJson(req, res, result.status, { error: result.error });
+      send(req, res, result.status, { error: result.error });
       return;
     }
-    sendJson(req, res, 200, { received: true });
+    send(req, res, 200, { received: true });
   } catch (err) {
     console.error("[POST /api/stripe/webhook]", err);
-    sendJson(req, res, 500, { error: "webhook_failed" });
+    send(req, res, 500, { error: "webhook_failed" });
   }
 }
 
