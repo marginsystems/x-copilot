@@ -1,13 +1,4 @@
 import type { Interaction, ReplyStatSnapshot } from "./interactionStore.js";
-import {
-  ACHIEVEMENTS,
-  type AchievementDef,
-  type AchievementPublic,
-  type LeaderboardRow,
-  type MarkProgress,
-  type NextGoal,
-} from "./gamificationAchievements.js";
-
 export const MARK_XP = 1;
 export const MAX_T24H_BONUS_XP = 5;
 
@@ -29,22 +20,6 @@ export type GamificationState = {
   updatedAt: string;
 };
 
-export type GamificationPublic = {
-  currentStreak: number;
-  longestStreak: number;
-  lifetimeXp: number;
-  level: number;
-  xpIntoLevel: number;
-  xpToNext: number;
-  lastMarkUtcDay: string | null;
-  lifetimeMarks: number;
-  streakMultiplier: number;
-  markXpAtStreak: number;
-  nextGoal: NextGoal;
-  achievements: AchievementPublic[];
-  progress?: MarkProgress;
-};
-
 export type MarkAward = {
   markXp: number;
   currentStreak: number;
@@ -61,107 +36,6 @@ export function markXpForStreak(streak: number): number {
 
 export function lifetimeMarksOf(state: GamificationState): number {
   return state.markAwardedThreadIds.length;
-}
-
-export function achievementValue(
-  def: AchievementDef,
-  state: GamificationState,
-): number {
-  if (def.kind === "streak") {
-    return Math.max(state.currentStreak, state.longestStreak);
-  }
-  if (def.kind === "level") return levelFromXp(state.lifetimeXp);
-  return lifetimeMarksOf(state);
-}
-
-export function achievementUnlocked(
-  def: AchievementDef,
-  state: GamificationState,
-): boolean {
-  return achievementValue(def, state) >= def.threshold;
-}
-
-export function listAchievements(state: GamificationState): AchievementPublic[] {
-  return ACHIEVEMENTS.map((def) => ({
-    ...def,
-    unlocked: achievementUnlocked(def, state),
-  }));
-}
-
-export function unlockedAchievementIds(state: GamificationState): string[] {
-  return ACHIEVEMENTS.filter((def) => achievementUnlocked(def, state)).map(
-    (def) => def.id,
-  );
-}
-
-export function pickNextGoal(state: GamificationState): NextGoal {
-  const progress = xpProgress(state.lifetimeXp);
-  const xpRemaining = Math.max(0, progress.xpToNext - progress.xpIntoLevel);
-  const nextMarkXp = markXpForStreak(Math.max(1, state.currentStreak));
-  const nextLevelId = `level_${progress.level + 1}`;
-  const nextLevelDef = ACHIEVEMENTS.find((def) => def.id === nextLevelId);
-  if (nextLevelDef && xpRemaining > 0 && xpRemaining <= nextMarkXp) {
-    return {
-      id: nextLevelDef.id,
-      kind: "level",
-      title: nextLevelDef.title,
-      detail: `${xpRemaining} XP to go`,
-      remaining: xpRemaining,
-    };
-  }
-
-  const nextStreak = ACHIEVEMENTS.find(
-    (def) => def.kind === "streak" && !achievementUnlocked(def, state),
-  );
-  if (nextStreak && state.currentStreak > 0) {
-    return {
-      id: nextStreak.id,
-      kind: "streak",
-      title: nextStreak.title,
-      detail: `${nextStreak.threshold - state.currentStreak} more UTC day(s)`,
-      remaining: Math.max(0, nextStreak.threshold - state.currentStreak),
-    };
-  }
-
-  const nextMarks = ACHIEVEMENTS.find(
-    (def) => def.kind === "marks" && !achievementUnlocked(def, state),
-  );
-  if (nextMarks) {
-    const have = lifetimeMarksOf(state);
-    return {
-      id: nextMarks.id,
-      kind: "marks",
-      title: nextMarks.title,
-      detail: `${nextMarks.threshold - have} more mark(s)`,
-      remaining: Math.max(0, nextMarks.threshold - have),
-    };
-  }
-
-  // Every catalog goal is out of reach or already unlocked; keep nextGoal.id
-  // resolvable against ACHIEVEMENTS by pointing at the final level badge.
-  const lastLevelDef =
-    nextLevelDef ?? [...ACHIEVEMENTS].reverse().find((def) => def.kind === "level");
-  return {
-    id: lastLevelDef?.id ?? "level_25",
-    kind: "level",
-    title: `Level ${progress.level + 1}`,
-    detail: `${xpRemaining} XP to go`,
-    remaining: xpRemaining,
-  };
-}
-
-export function toLeaderboardRow(
-  userId: string,
-  state: GamificationState,
-): LeaderboardRow {
-  return {
-    userId,
-    lifetimeXp: state.lifetimeXp,
-    level: levelFromXp(state.lifetimeXp),
-    currentStreak: state.currentStreak,
-    longestStreak: state.longestStreak,
-    lifetimeMarks: lifetimeMarksOf(state),
-  };
 }
 
 export function emptyGamificationState(
@@ -216,30 +90,6 @@ export function xpProgress(lifetimeXp: number): {
     xpIntoLevel: xp - levelStart,
     xpToNext: Math.max(1, nextStart - levelStart),
   };
-}
-
-export function toPublicGamification(
-  state: GamificationState,
-  opts?: { progress?: MarkProgress },
-): GamificationPublic {
-  const progress = xpProgress(state.lifetimeXp);
-  const streakMultiplier = markXpForStreak(Math.max(1, state.currentStreak));
-  const pub: GamificationPublic = {
-    currentStreak: state.currentStreak,
-    longestStreak: state.longestStreak,
-    lifetimeXp: state.lifetimeXp,
-    level: progress.level,
-    xpIntoLevel: progress.xpIntoLevel,
-    xpToNext: progress.xpToNext,
-    lastMarkUtcDay: state.lastMarkUtcDay,
-    lifetimeMarks: lifetimeMarksOf(state),
-    streakMultiplier,
-    markXpAtStreak: streakMultiplier,
-    nextGoal: pickNextGoal(state),
-    achievements: listAchievements(state),
-  };
-  if (opts?.progress) pub.progress = opts.progress;
-  return pub;
 }
 
 export function bonusXpFromT24h(

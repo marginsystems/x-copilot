@@ -11,7 +11,12 @@ import {
 } from "./interactionStore.js";
 import { withFileLock } from "./fileLock.js";
 import { getSolePlatformUserId } from "./authStore.js";
-import type { MarkProgress } from "./gamificationAchievements.js";
+import {
+  toPublicGamification,
+  unlockedAchievementIds,
+  type GamificationPublic,
+  type MarkProgress,
+} from "./gamificationAchievements.js";
 import {
   applyMarkToGamification,
   applyT24hBonus,
@@ -19,9 +24,42 @@ import {
   levelFromXp,
   markXpForStreak,
   seedGamificationFromHistory,
+  type GamificationState,
+  type MarkAward,
+} from "./gamificationXp.js";
+
+export {
+  ACHIEVEMENTS,
+  achievementUnlocked,
+  achievementValue,
+  listAchievements,
+  pickNextGoal,
+  toLeaderboardRow,
   toPublicGamification,
   unlockedAchievementIds,
+  type AchievementDef,
+  type AchievementKind,
+  type AchievementPublic,
   type GamificationPublic,
+  type LeaderboardRow,
+  type MarkProgress,
+  type NextGoal,
+} from "./gamificationAchievements.js";
+export {
+  MARK_XP,
+  MAX_T24H_BONUS_XP,
+  STREAK_XP_TIERS,
+  applyMarkToGamification,
+  applyT24hBonus,
+  bonusXpFromT24h,
+  emptyGamificationState,
+  levelFromXp,
+  lifetimeMarksOf,
+  markXpForStreak,
+  prevUtcDayKey,
+  seedGamificationFromHistory,
+  utcDayKey,
+  xpProgress,
   type GamificationState,
   type MarkAward,
 } from "./gamificationXp.js";
