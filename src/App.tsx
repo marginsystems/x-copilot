@@ -73,13 +73,10 @@ import type { AuthSessionUser } from "./auth/types";
 import {
   appendThreadsById,
   coolProgressLabel,
-  normalizeAuthorKey,
-  parseStatusIdFromUrl,
   scoutProgressPrefix,
   threadHasExcludedAuthor,
 } from "./desk/threadHelpers";
 import type {
-  InteractionHistoryEntry,
   ScoutLogEntry,
   ScoutStreamEvent,
   ThreadCard,
@@ -241,7 +238,19 @@ export default function App() {
     toast,
     openMarkModal,
     closeMarkModal,
-  } = useMarkDetect({ postInteracted });
+  } = useMarkDetect({
+    agenda,
+    setThreads,
+    setExpandedId,
+    setInteractedIds,
+    setInteractedHistory,
+    interactedIdsRef,
+    blockedConversationsRef,
+    onInteractionCommitted: () => {
+      void hydrateActivityStats();
+      void hydrateGamification();
+    },
+  });
   const {
     dismissThread,
     dismissReason,
@@ -808,104 +817,6 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);
-
-  function applyInteractionLocally(
-    thread: ThreadCard,
-    historyEntry: InteractionHistoryEntry,
-  ): void {
-    const key = normalizeAuthorKey(thread.author);
-    const conversationRoot =
-      thread.conversationId?.trim() ||
-      thread.inReplyToId?.trim() ||
-      thread.id;
-    interactedIdsRef.current = new Set(interactedIdsRef.current).add(thread.id);
-    setInteractedIds((prev) => new Set(prev).add(thread.id));
-    blockedConversationsRef.current = new Set(
-      blockedConversationsRef.current,
-    ).add(conversationRoot);
-    setInteractedHistory((prev) => [
-      historyEntry,
-      ...prev.filter((i) => i.threadId !== thread.id),
-    ]);
-    setThreads((prev) =>
-      prev.filter((t) => {
-        if (normalizeAuthorKey(t.author) === key) return false;
-        if (t.id === conversationRoot) return false;
-        if (t.conversationId && t.conversationId === conversationRoot) {
-          return false;
-        }
-        if (t.inReplyToId && t.inReplyToId === conversationRoot) return false;
-        return true;
-      }),
-    );
-    setExpandedId((id) => (id === thread.id ? null : id));
-    void hydrateActivityStats();
-    void hydrateGamification();
-  }
-
-  async function postInteracted(
-    thread: ThreadCard,
-    replyUrl: string,
-    reply: string,
-    signal?: AbortSignal,
-  ): Promise<boolean> {
-    const urlTrimmed = replyUrl.trim();
-    const replyId = parseStatusIdFromUrl(urlTrimmed) ?? undefined;
-    const trimmed = reply.trim();
-    try {
-      const res = await apiFetch("/api/interacted", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          threadId: thread.id,
-          author: thread.author,
-          source: "manual",
-          replyUrl: urlTrimmed,
-          ...(trimmed ? { reply: trimmed } : {}),
-          agenda,
-          url: thread.url,
-          text: thread.text,
-          summary: thread.summary,
-          opAuthor: thread.opAuthor,
-          opText: thread.opText,
-          conversationId: thread.conversationId,
-          inReplyToId: thread.inReplyToId,
-          baitScore: thread.baitScore ?? thread.score,
-          engage: thread.engage,
-          flags: thread.flags,
-          intent: thread.intent,
-          reason: thread.reason,
-        }),
-        signal,
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        message?: string;
-        interaction?: InteractionHistoryEntry;
-      };
-      if (!res.ok) {
-        return false;
-      }
-      applyInteractionLocally(
-        thread,
-        data.interaction ?? {
-          threadId: thread.id,
-          author: thread.author,
-          at: new Date().toISOString(),
-          url: thread.url,
-          summary: thread.summary,
-          text: thread.text,
-          replyId,
-          replyUrl: urlTrimmed,
-          postedAt: new Date().toISOString(),
-          conversationId: thread.conversationId?.trim(),
-          inReplyToId: thread.inReplyToId?.trim(),
-        },
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }
 
   function openSettings() {
     setSettingsDraft(settings);

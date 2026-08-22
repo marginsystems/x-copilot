@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import { apiFetch } from "../lib/apiBase";
 import {
   MARK_DETECT_TIMEOUT_MS,
@@ -10,8 +17,8 @@ import {
   shouldContinueMarkDetectPoll,
   waitWithCountdown,
 } from "../lib/markDetectPoll";
-import { parseStatusIdFromUrl } from "./threadHelpers";
-import type { ThreadCard } from "./types";
+import { normalizeAuthorKey, parseStatusIdFromUrl } from "./threadHelpers";
+import type { InteractionHistoryEntry, ThreadCard } from "./types";
 
 export type AppToast = {
   id: number;
@@ -20,15 +27,26 @@ export type AppToast = {
 };
 
 type UseMarkDetectDeps = {
-  postInteracted: (
-    thread: ThreadCard,
-    replyUrl: string,
-    reply: string,
-    signal?: AbortSignal,
-  ) => Promise<boolean>;
+  agenda: string;
+  setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
+  setExpandedId: Dispatch<SetStateAction<string | null>>;
+  setInteractedIds: Dispatch<SetStateAction<Set<string>>>;
+  setInteractedHistory: Dispatch<SetStateAction<InteractionHistoryEntry[]>>;
+  interactedIdsRef: MutableRefObject<Set<string>>;
+  blockedConversationsRef: MutableRefObject<Set<string>>;
+  onInteractionCommitted: () => void;
 };
 
-export function useMarkDetect({ postInteracted }: UseMarkDetectDeps) {
+export function useMarkDetect({
+  agenda,
+  setThreads,
+  setExpandedId,
+  setInteractedIds,
+  setInteractedHistory,
+  interactedIdsRef,
+  blockedConversationsRef,
+  onInteractionCommitted,
+}: UseMarkDetectDeps) {
   const [markThread, setMarkThread] = useState<ThreadCard | null>(null);
   const [markDetectNote, setMarkDetectNote] = useState("");
   const [toast, setToast] = useState<AppToast | null>(null);
@@ -55,6 +73,105 @@ export function useMarkDetect({ postInteracted }: UseMarkDetectDeps) {
     if (markDetectGenRef.current !== gen) return;
     closeMarkModal();
     showToast(text, kind);
+  }
+
+  function applyInteractionLocally(
+    thread: ThreadCard,
+    historyEntry: InteractionHistoryEntry,
+  ): void {
+    const key = normalizeAuthorKey(thread.author);
+    const conversationRoot =
+      thread.conversationId?.trim() ||
+      thread.inReplyToId?.trim() ||
+      thread.id;
+    interactedIdsRef.current = new Set(interactedIdsRef.current).add(thread.id);
+    setInteractedIds((prev) => new Set(prev).add(thread.id));
+    blockedConversationsRef.current = new Set(
+      blockedConversationsRef.current,
+    ).add(conversationRoot);
+    setInteractedHistory((prev) => [
+      historyEntry,
+      ...prev.filter((item) => item.threadId !== thread.id),
+    ]);
+    setThreads((prev) =>
+      prev.filter((item) => {
+        if (normalizeAuthorKey(item.author) === key) return false;
+        if (item.id === conversationRoot) return false;
+        if (
+          item.conversationId &&
+          item.conversationId === conversationRoot
+        ) {
+          return false;
+        }
+        if (item.inReplyToId && item.inReplyToId === conversationRoot) {
+          return false;
+        }
+        return true;
+      }),
+    );
+    setExpandedId((id) => (id === thread.id ? null : id));
+    onInteractionCommitted();
+  }
+
+  async function postInteracted(
+    thread: ThreadCard,
+    replyUrl: string,
+    reply: string,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
+    const urlTrimmed = replyUrl.trim();
+    const replyId = parseStatusIdFromUrl(urlTrimmed) ?? undefined;
+    const trimmed = reply.trim();
+    try {
+      const res = await apiFetch("/api/interacted", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          threadId: thread.id,
+          author: thread.author,
+          source: "manual",
+          replyUrl: urlTrimmed,
+          ...(trimmed ? { reply: trimmed } : {}),
+          agenda,
+          url: thread.url,
+          text: thread.text,
+          summary: thread.summary,
+          opAuthor: thread.opAuthor,
+          opText: thread.opText,
+          conversationId: thread.conversationId,
+          inReplyToId: thread.inReplyToId,
+          baitScore: thread.baitScore ?? thread.score,
+          engage: thread.engage,
+          flags: thread.flags,
+          intent: thread.intent,
+          reason: thread.reason,
+        }),
+        signal,
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        interaction?: InteractionHistoryEntry;
+      };
+      if (!res.ok) return false;
+      applyInteractionLocally(
+        thread,
+        data.interaction ?? {
+          threadId: thread.id,
+          author: thread.author,
+          at: new Date().toISOString(),
+          url: thread.url,
+          summary: thread.summary,
+          text: thread.text,
+          replyId,
+          replyUrl: urlTrimmed,
+          postedAt: new Date().toISOString(),
+          conversationId: thread.conversationId?.trim(),
+          inReplyToId: thread.inReplyToId?.trim(),
+        },
+      );
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async function runMarkDetect(thread: ThreadCard, gen: number) {
