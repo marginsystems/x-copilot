@@ -88,140 +88,36 @@ import {
   voiceNeedsXLink,
   type VoiceState,
 } from "./lib/voice";
+import type { AuthSessionUser } from "./auth/types";
+import {
+  appendThreadsById,
+  baitClass,
+  baitRisk,
+  coolProgressLabel,
+  normalizeAuthorKey,
+  parseStatusIdFromUrl,
+  scoutProgressPrefix,
+  threadHasExcludedAuthor,
+} from "./desk/threadHelpers";
+import type {
+  DismissalHistoryEntry,
+  ExpiredHistoryEntry,
+  InteractionHistoryEntry,
+  ReplyStatSnapshot,
+  ScoutLogEntry,
+  ScoutStreamEvent,
+  SkipHistoryEntry,
+  ThreadCard,
+  ThreadsTab,
+} from "./desk/types";
+import {
+  ensureActivitySubscribe,
+  watchDeskThreads,
+} from "./desk/watch";
+import type { UsageSummaryResponse, UsageWindow } from "./usage/types";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
 const SCOUT_BUCKET_SIZE = 20;
-
-/** Closed preference category from triage (mirrors server THREAD_KINDS). */
-type ThreadKind =
-  | "timely_take"
-  | "fact_add"
-  | "sharp_opinion"
-  | "lived_answer"
-  | "hollow_ask"
-  | "promo_context"
-  | "bare_news"
-  | "closed_thread"
-  | "other";
-
-type ThreadCard = {
-  id: string;
-  author: string;
-  text: string;
-  url: string;
-  createdAt?: string;
-  summary?: string;
-  /** Parent tweet context when this card is a reply. */
-  opAuthor?: string;
-  opText?: string;
-  isReply?: boolean;
-  /** X conversation root (OP status id) when known. */
-  conversationId?: string;
-  /** Immediate parent status id when this card is a reply. */
-  inReplyToId?: string;
-  isQuote?: boolean;
-  /** Native media t.co keys (lowercased); hide from card text display. */
-  mediaShortlinks?: string[];
-  /** 0–100, higher = more engagement bait. */
-  baitScore?: number;
-  flags?: string[];
-  intent?: string;
-  threadKind?: ThreadKind;
-  engage?: "skip" | "consider" | "priority";
-  reason?: string;
-  score?: number;
-};
-
-type ScoutStreamEvent = {
-  agent?: string;
-  stage?: ScoutStageId | string;
-  message?: string;
-  threads?: ThreadCard[];
-  queries?: string[];
-  coolCount?: number;
-  targetCool?: number;
-  stopReason?: "qualified" | "target" | "exhausted" | "aborted" | "rate_limited" | "terminal_error" | "credits_exhausted";
-  candidates?: number;
-  bucketSize?: number;
-  triageWarning?: string;
-  cooldownWarning?: string;
-  linkWarning?: string;
-  linkFiltered?: number;
-  emDashWarning?: string;
-  emDashFiltered?: number;
-  automatedWarning?: string;
-  excludedAccountWarning?: string;
-  lengthWarning?: string;
-  pipelineCounts?: {
-    raw: number;
-    afterDedupe: number;
-    afterCooldown: number;
-    afterSelfReply?: number;
-    afterLinks?: number;
-    afterLength: number;
-    afterTriage: number;
-  };
-};
-
-type ScoutLogEntry = {
-  at: string;
-  message: string;
-  stage?: string;
-};
-
-type ReplyStatSnapshot = {
-  views?: number;
-  likes?: number;
-  replies?: number;
-  retweets?: number;
-  sampledAt: string;
-};
-
-type InteractionHistoryEntry = {
-  threadId: string;
-  author: string;
-  at: string;
-  url?: string;
-  summary?: string;
-  text?: string;
-  replyId?: string;
-  replyUrl?: string;
-  postedAt?: string;
-  conversationId?: string;
-  inReplyToId?: string;
-  stats?: {
-    t1h?: ReplyStatSnapshot;
-    t24h?: ReplyStatSnapshot;
-  };
-};
-
-/** Keep in sync with server/src/interactionStore.ts parseStatusIdFromUrl. */
-function parseStatusIdFromUrl(url: string): string | null {
-  const raw = url.trim();
-  if (!raw) return null;
-  try {
-    const u = new URL(raw.includes("://") ? raw : `https://${raw}`);
-    const host = u.hostname.replace(/^www\./, "").toLowerCase();
-    if (
-      host !== "x.com" &&
-      host !== "twitter.com" &&
-      host !== "mobile.twitter.com"
-    ) {
-      return null;
-    }
-    const m = u.pathname.match(/\/status(?:es)?\/(\d+)/i);
-    return m?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-type ThreadsTab =
-  | "curated"
-  | "interacted"
-  | "skipped"
-  | "dismissed"
-  | "expired";
 
 /** Always occupies a count slot so hydrate cannot grow the tab pills. */
 function ThreadsTabCount({ n }: { n: number }) {
@@ -233,159 +129,6 @@ function ThreadsTabCount({ n }: { n: number }) {
       {n > 0 ? `(${n})` : "(0)"}
     </span>
   );
-}
-
-type DismissalHistoryEntry = {
-  threadId: string;
-  author: string;
-  at: string;
-  url?: string;
-  summary?: string;
-  text?: string;
-  reason?: string;
-  conversationId?: string;
-  inReplyToId?: string;
-};
-
-type SkipHistoryEntry = {
-  threadId: string;
-  author: string;
-  at: string;
-  url?: string;
-  summary?: string;
-  text?: string;
-};
-
-type ExpiredHistoryEntry = {
-  threadId: string;
-  author: string;
-  at: string;
-  createdAt?: string;
-  url?: string;
-  summary?: string;
-  text?: string;
-};
-
-
-function normalizeAuthorKey(author: string): string {
-  return author.trim().replace(/^@+/, "").toLowerCase();
-}
-
-function threadHasExcludedAuthor(
-  thread: ThreadCard,
-  excludedAccounts: readonly string[],
-): boolean {
-  if (!excludedAccounts.length) return false;
-  const key = normalizeAuthorKey(thread.author);
-  if (!key) return false;
-  const excluded = new Set(excludedAccounts.map((h) => normalizeAuthorKey(h)));
-  return excluded.has(key);
-}
-
-function baitRisk(thread: ThreadCard): number | null {
-  const value = thread.baitScore ?? thread.score;
-  return typeof value === "number" ? value : null;
-}
-
-function baitClass(bait: number | null): string {
-  if (bait === null) return "bait";
-  if (bait >= 65) return "bait high";
-  if (bait >= 35) return "bait mid";
-  return "bait low";
-}
-
-function appendThreadsById(
-  prev: ThreadCard[],
-  next: ThreadCard[] | undefined,
-): ThreadCard[] {
-  if (!next?.length) return prev;
-  const seen = new Set(prev.map((t) => t.id));
-  const out = [...prev];
-  for (const t of next) {
-    if (!t.id || seen.has(t.id)) continue;
-    seen.add(t.id);
-    out.push(t);
-  }
-  return out;
-}
-
-function coolProgressLabel(
-  coolCount: number | undefined,
-  targetCool: number | undefined,
-  fallbackTarget: number,
-): string {
-  const cool = typeof coolCount === "number" ? coolCount : 0;
-  const target =
-    typeof targetCool === "number" ? targetCool : fallbackTarget;
-  return `Cool ${cool}/${target}`;
-}
-
-function scoutProgressPrefix(ev: {
-  message?: string;
-  candidates?: number;
-  bucketSize?: number;
-  coolCount?: number;
-  targetCool?: number;
-}): string | null {
-  if (
-    typeof ev.candidates === "number" &&
-    typeof ev.bucketSize === "number" &&
-    (ev.coolCount ?? 0) === 0
-  ) {
-    return `Cand. ${ev.candidates}/${ev.bucketSize}`;
-  }
-  if (typeof ev.coolCount === "number" && ev.coolCount > 0) {
-    return typeof ev.targetCool === "number"
-      ? `Cool ${ev.coolCount}/${ev.targetCool}`
-      : `Cool ${ev.coolCount}`;
-  }
-  return null;
-}
-
-function watchPayloadsForThread(thread: ThreadCard): Array<{
-  threadId: string;
-  author?: string;
-  url?: string;
-  text?: string;
-  conversationId?: string;
-}> {
-  const items = [
-    {
-      threadId: thread.id,
-      author: thread.author,
-      url: thread.url,
-      text: thread.text,
-      conversationId: thread.conversationId,
-    },
-  ];
-  if (
-    thread.conversationId &&
-    thread.conversationId !== thread.id &&
-    thread.opAuthor
-  ) {
-    items.push({
-      threadId: thread.conversationId,
-      author: thread.opAuthor,
-      url: `https://x.com/${thread.opAuthor.replace(/^@/, "")}/status/${thread.conversationId}`,
-      text: thread.opText ?? thread.text,
-      conversationId: thread.conversationId,
-    });
-  }
-  return items;
-}
-
-function watchDeskThreads(list: ThreadCard[]): void {
-  const threads = list.flatMap(watchPayloadsForThread).filter((t) => t.threadId);
-  if (!threads.length) return;
-  void apiFetch("/api/watch", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ threads }),
-  }).catch(() => {});
-}
-
-function ensureActivitySubscribe(): void {
-  void apiFetch("/api/activity/subscribe", { method: "POST" }).catch(() => {});
 }
 
 function ThreadRow({
@@ -826,46 +569,6 @@ function InteractedRow({
     </article>
   );
 }
-
-type UsageWindow = "24h" | "7d" | "all";
-
-type UsageRecentRow = {
-  id: string;
-  at: string;
-  activity: string;
-  status: number;
-  error: string | null;
-  credits: number;
-  remaining: number | null;
-};
-
-type UsageSummaryResponse = {
-  ok: boolean;
-  tenantSlug?: string;
-  window?: UsageWindow;
-  calls?: number;
-  creditsUsed?: number;
-  creditLimit?: number;
-  remaining?: number;
-  creditsDepletedRecent?: boolean;
-  note?: string;
-  recent?: UsageRecentRow[];
-  error?: string;
-  message?: string;
-};
-
-type AuthSessionUser = {
-  id: string;
-  email: string | null;
-  displayName: string | null;
-  avatarUrl: string | null;
-  onboardingCompleted: boolean;
-  agenda: string | null;
-  xUsername: string | null;
-  xLinked: boolean;
-  xCanPost: boolean;
-  isAdmin: boolean;
-};
 
 /** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
 const SEARCH_COOLDOWN_MS = 15_000;
