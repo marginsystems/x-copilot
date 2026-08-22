@@ -20,6 +20,7 @@
   "include": ["server/src/**/*.ts"],
   "exclude": [
     "server/src/**/*.test.ts",
-    "server/src/**/*.test.fixtures.ts"
+    "server/src/**/*.test.fixtures.ts",
+    "server/src/**/*.testHelpers.ts"
   ]
 }

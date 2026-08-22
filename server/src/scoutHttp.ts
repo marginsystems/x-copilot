@@ -30,14 +30,12 @@ import {
   getRequestTenantId,
 } from "./requestContext.js";
 import { getLastScout } from "./scoutCache.js";
-import {
-  clampBucketSize,
-  clampTargetCool,
-  runScoutCollect,
-} from "./scoutCollect.js";
+import { runScoutCollect } from "./scoutCollect.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
 import { appendScoutLog, getScoutLog } from "./scoutLog.js";
-import { runScoutSearch, type ScoutFilters } from "./scoutRun.js";
+import { clampBucketSize, clampTargetCool } from "./scoutPolicy.js";
+import { runScoutSearch } from "./scoutRun.js";
+import type { ScoutFilters } from "./scoutTypes.js";
 import { recordSortie } from "./scoutSorties.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { getSkippedThreadIds } from "./skipStore.js";

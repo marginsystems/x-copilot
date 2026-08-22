@@ -30,27 +30,13 @@ import {
 import { hydrateReplyParents } from "./tweetLookup.js";
 import { triageThreads } from "./threadTriage.js";
 import type { ThreadCard } from "./threadCard.js";
+import type {
+  ScoutFilters,
+  ScoutPipelineCounts,
+  ScoutStageId,
+} from "./scoutTypes.js";
 import { searchMany } from "./xSearch.js";
 import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
-
-export type ScoutStageId =
-  | "planning"
-  | "searching"
-  | "filtering"
-  | "triaging"
-  | "done"
-  | "error";
-
-export type ScoutPipelineCounts = {
-  raw: number;
-  afterDedupe: number;
-  afterCooldown: number;
-  afterSelfReply: number;
-  afterLinks: number;
-  afterLength: number;
-  afterHydrateSelfReply: number;
-  afterTriage: number;
-};
 
 export type ScoutEvent = ScoutStageEvent & {
   stage: ScoutStageId;
@@ -108,29 +94,6 @@ function emit(
   onEvent?.(event);
   return event;
 }
-
-export type ScoutFilters = {
-  maxThreadChars?: number;
-  dropArticles?: boolean;
-  /** When true (default), hard-drop posts containing an em dash (U+2014). */
-  dropEmDashes?: boolean;
-  /** When true (default), hard-drop authors with X's Automated badge. */
-  dropAutomatedAccounts?: boolean;
-  /** When true (default), never curate authors from interaction history. */
-  dedupeAccounts?: boolean;
-  /** ISO 639-1; default English when omitted. */
-  preferredLanguage?: string;
-  /**
-   * Post-triage Curated excludes (flags + normalized intent).
-   * Omit → server default (`supportive_encouragement`, `political`); `[]` → no tag excludes.
-   */
-  excludedTags?: string[];
-  /**
-   * Pre-triage author excludes (handles, no @).
-   * Omit → default chatbot list; `[]` → no handle excludes.
-   */
-  excludedAccounts?: string[];
-};
 
 export async function runScoutSearch(opts: {
   agenda?: string;
