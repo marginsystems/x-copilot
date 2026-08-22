@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   SCOUT_SEARCH_TIMELINE,
   SCOUT_STAGE_RANK,
@@ -33,7 +33,6 @@ import {
   waitWithCountdown,
 } from "./lib/markDetectPoll";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
-import { XThreadView } from "./XThreadView";
 import { ScoutPixelField } from "./ScoutPixelField";
 import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
 import {
@@ -48,7 +47,6 @@ import {
   type GamificationStats,
 } from "./lib/gamification";
 import { ActivityChart } from "./ActivityChart";
-import { stripMediaShortlinksFromText } from "./lib/mediaText";
 import { apiFetch, apiUrl, isLocalHostname } from "./lib/apiBase";
 import { authErrorMessage } from "./lib/authErrors";
 import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
@@ -75,14 +73,7 @@ import { Analytics } from "./Analytics";
 import { Account } from "./Account";
 import { SuggestLocked, VoiceCardPanel, VoiceUnlockToast } from "./VoiceCard";
 import { SuggestPane } from "./SuggestPane";
-import {
-  forYouComposeSeed,
-  forYouKindLabel,
-  forYouOpenUrl,
-  forYouUsesDeskCompose,
-  parseForYouSuggestion,
-  type ForYouSuggestion,
-} from "./lib/forYou";
+import { parseForYouSuggestion, type ForYouSuggestion } from "./lib/forYou";
 import {
   parseVoiceState,
   voiceNeedsXLink,
@@ -91,8 +82,6 @@ import {
 import type { AuthSessionUser } from "./auth/types";
 import {
   appendThreadsById,
-  baitClass,
-  baitRisk,
   coolProgressLabel,
   normalizeAuthorKey,
   parseStatusIdFromUrl,
@@ -103,7 +92,6 @@ import type {
   DismissalHistoryEntry,
   ExpiredHistoryEntry,
   InteractionHistoryEntry,
-  ReplyStatSnapshot,
   ScoutLogEntry,
   ScoutStreamEvent,
   SkipHistoryEntry,
@@ -114,6 +102,14 @@ import {
   ensureActivitySubscribe,
   watchDeskThreads,
 } from "./desk/watch";
+import {
+  DismissedRow,
+  ExpiredRow,
+  InteractedRow,
+  SkippedRow,
+} from "./desk/HistoryRows";
+import { SuggestedRow } from "./desk/SuggestedRow";
+import { ThreadRow } from "./desk/ThreadRow";
 import type { UsageSummaryResponse, UsageWindow } from "./usage/types";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
@@ -128,445 +124,6 @@ function ThreadsTabCount({ n }: { n: number }) {
     >
       {n > 0 ? `(${n})` : "(0)"}
     </span>
-  );
-}
-
-function ThreadRow({
-  thread,
-  open,
-  busy,
-  interacted,
-  onToggle,
-  onMark,
-  onSkip,
-  onDismiss,
-  onWatch,
-  suggest,
-}: {
-  thread: ThreadCard;
-  open: boolean;
-  busy: boolean;
-  interacted: boolean;
-  onToggle: () => void;
-  onMark: () => void;
-  onSkip: () => void;
-  onDismiss: () => void;
-  onWatch?: () => void;
-  suggest?: ReactNode;
-}) {
-  const bait = baitRisk(thread);
-  const ago = formatTimeAgo(thread.createdAt);
-  const absolute = formatAbsoluteTime(thread.createdAt);
-  const displayText = stripMediaShortlinksFromText(
-    thread.text,
-    thread.mediaShortlinks,
-  );
-  const tags = [
-    ...new Set(
-      [thread.threadKind, thread.intent, ...(thread.flags ?? [])].filter(
-        Boolean,
-      ),
-    ),
-  ];
-  const classes = ["thread-row"];
-  if (open) classes.push("open");
-  if (thread.engage === "skip") classes.push("skip");
-
-  return (
-    <article className={classes.join(" ")}>
-      <button
-        type="button"
-        className="row-head"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        {bait !== null ? (
-          <span
-            className={baitClass(bait)}
-            title="Engagement-bait risk — higher is worse"
-          >
-            {bait}
-          </span>
-        ) : (
-          <span className="bait" aria-hidden="true" />
-        )}
-        <span className="row-main">
-          <span className="row-summary">{thread.summary ?? displayText}</span>
-          <span className="row-meta">
-            <span>{thread.author}</span>
-            {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
-            {interacted ? (
-              <span className="chip chip-interacted">interacted</span>
-            ) : null}
-            {bait !== null &&
-            (thread.engage === "skip" || thread.engage === "priority") ? (
-              <span className={`chip chip-${thread.engage}`}>
-                {thread.engage}
-              </span>
-            ) : null}
-          </span>
-        </span>
-        <span className="caret" aria-hidden="true">
-          {open ? "–" : "+"}
-        </span>
-      </button>
-
-      {open ? (
-        <div className="row-detail">
-          <XThreadView
-            author={thread.author}
-            text={displayText}
-            createdAt={thread.createdAt}
-            opAuthor={thread.opAuthor}
-            opText={
-              thread.opText
-                ? stripMediaShortlinksFromText(
-                    thread.opText,
-                    thread.mediaShortlinks,
-                  )
-                : undefined
-            }
-            isReply={thread.isReply}
-            isQuote={thread.isQuote}
-            inReplyToId={thread.inReplyToId}
-          />
-          {thread.reason ? <p className="reason">{thread.reason}</p> : null}
-          {tags.length > 0 ? (
-            <div className="tags">
-              {tags.map((tag) => (
-                <span className="tag" key={tag}>
-                  {tag}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          <div className="row">
-            <a
-              className="ghost"
-              href={thread.url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => onWatch?.()}
-            >
-              Open on X
-            </a>
-            <button
-              className="primary"
-              disabled={busy || interacted}
-              onClick={onMark}
-            >
-              {interacted ? "Interacted" : "I posted on X"}
-            </button>
-            <button
-              className="ghost"
-              disabled={busy || interacted}
-              onClick={onSkip}
-            >
-              Skip
-            </button>
-            <button
-              className="ghost"
-              disabled={busy || interacted}
-              onClick={onDismiss}
-            >
-              Not interested
-            </button>
-          </div>
-          {!interacted ? suggest : null}
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function SkippedRow({
-  entry,
-  index = 0,
-}: {
-  entry: SkipHistoryEntry;
-  index?: number;
-}) {
-  const ago = formatTimeAgo(entry.at);
-  const absolute = formatAbsoluteTime(entry.at);
-  const blurb = entry.summary || entry.text || entry.threadId;
-  return (
-    <article
-      className="history-row"
-      style={{ ["--i" as string]: index }}
-    >
-      <div className="history-row-body">
-        <span className="row-summary">{blurb}</span>
-        <span className="row-meta">
-          <span>{entry.author}</span>
-          {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
-          <span className="chip">skipped</span>
-        </span>
-      </div>
-    </article>
-  );
-}
-
-function DismissedRow({
-  entry,
-  index = 0,
-}: {
-  entry: DismissalHistoryEntry;
-  index?: number;
-}) {
-  const ago = formatTimeAgo(entry.at);
-  const absolute = formatAbsoluteTime(entry.at);
-  const blurb = entry.summary || entry.text || entry.threadId;
-  return (
-    <article
-      className="history-row"
-      style={{ ["--i" as string]: index }}
-    >
-      <div className="history-row-body">
-        <span className="row-summary">{blurb}</span>
-        <span className="row-meta">
-          <span>{entry.author}</span>
-          {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
-          <span className="chip">not interested</span>
-        </span>
-        {entry.reason ? (
-          <span className="row-meta">{entry.reason}</span>
-        ) : null}
-      </div>
-      {entry.url ? (
-        <div className="history-row-actions">
-          <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
-            Open on X
-          </a>
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function ExpiredRow({
-  entry,
-  index = 0,
-}: {
-  entry: ExpiredHistoryEntry;
-  index?: number;
-}) {
-  const tweetAgo = formatTimeAgo(entry.createdAt);
-  const expiredAgo = formatTimeAgo(entry.at);
-  const absolute = formatAbsoluteTime(entry.createdAt || entry.at);
-  const blurb = entry.summary || entry.text || entry.threadId;
-  return (
-    <article
-      className="history-row"
-      style={{ ["--i" as string]: index }}
-    >
-      <div className="history-row-body">
-        <span className="row-summary">{blurb}</span>
-        <span className="row-meta">
-          <span>{entry.author}</span>
-          {tweetAgo ? (
-            <span title={absolute ?? undefined}>{tweetAgo}</span>
-          ) : null}
-          <span className="chip">expired</span>
-          {expiredAgo ? <span>moved {expiredAgo}</span> : null}
-        </span>
-      </div>
-      {entry.url ? (
-        <div className="history-row-actions">
-          <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
-            Open on X
-          </a>
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function SuggestedRow({
-  row,
-  index = 0,
-  busy,
-  voice,
-  agenda,
-  xLinked,
-  hasSession,
-  onPosted,
-  onSkip,
-  onDismiss,
-  onOpenSettings,
-  onLinkX,
-  onUsage,
-}: {
-  row: ForYouSuggestion;
-  index?: number;
-  busy: boolean;
-  voice: VoiceState | null;
-  agenda: string;
-  xLinked?: boolean;
-  hasSession: boolean;
-  onPosted: () => void;
-  onSkip: () => void;
-  onDismiss: () => void;
-  onOpenSettings: () => void;
-  onLinkX: () => void;
-  onUsage: (usage: VoiceState["suggests"]) => void;
-}) {
-  const openUrl = forYouOpenUrl(row);
-  const compose = forYouUsesDeskCompose(row);
-  const seed = forYouComposeSeed(row);
-  const handle = voice?.handle ? `@${voice.handle}` : "@you";
-  return (
-    <article
-      className="history-row for-you-row"
-      style={{ ["--i" as string]: index }}
-    >
-      <div className="history-row-body">
-        <span className="row-meta">
-          <span className="chip">{forYouKindLabel(row.kind)}</span>
-          {row.targetAuthor ? <span>{row.targetAuthor}</span> : null}
-        </span>
-        <span className="row-summary">{row.why}</span>
-        {!compose && row.draft ? (
-          <span className="for-you-draft">{row.draft}</span>
-        ) : null}
-      </div>
-      {compose ? (
-        voice?.status === "ready" && voice.unlocked && seed ? (
-          <SuggestPane
-            variant="compose"
-            composeKind={row.kind === "quote" ? "quote" : "post"}
-            suggestionId={row.id}
-            quoteTweetId={row.targetId}
-            threadId={row.id}
-            author={row.targetAuthor || handle}
-            text={seed}
-            agenda={agenda}
-            usage={voice.suggests}
-            onUsage={onUsage}
-            onDeskPosted={onPosted}
-          />
-        ) : (
-          <SuggestLocked
-            voice={voice}
-            xLinked={xLinked}
-            hasSession={hasSession}
-            lockNoun="post"
-            onOpenSettings={onOpenSettings}
-            onLinkX={onLinkX}
-          />
-        )
-      ) : (
-        <div className="history-row-actions">
-          {openUrl ? (
-            <a className="ghost" href={openUrl} target="_blank" rel="noreferrer">
-              Open on X
-            </a>
-          ) : (
-            <button type="button" className="ghost" disabled>
-              Open on X
-            </button>
-          )}
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
-            onClick={onPosted}
-          >
-            I posted on X
-          </button>
-        </div>
-      )}
-      <div className="history-row-actions">
-        {compose ? (
-          <button
-            type="button"
-            className="ghost"
-            disabled={busy}
-            onClick={onPosted}
-          >
-            I posted on X
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="ghost"
-          disabled={busy}
-          onClick={onSkip}
-        >
-          Skip
-        </button>
-        <button
-          type="button"
-          className="ghost"
-          disabled={busy}
-          onClick={onDismiss}
-        >
-          Not interested
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function formatStatChip(
-  label: string,
-  snap: ReplyStatSnapshot | undefined,
-  pending: boolean,
-): string {
-  if (snap) {
-    const views =
-      typeof snap.views === "number" ? snap.views.toLocaleString() : "—";
-    const likes =
-      typeof snap.likes === "number" ? snap.likes.toLocaleString() : "—";
-    return `${label}: ${views} views · ${likes} likes`;
-  }
-  if (pending) return `${label}: pending`;
-  return "";
-}
-
-function InteractedRow({
-  entry,
-  index = 0,
-}: {
-  entry: InteractionHistoryEntry;
-  index?: number;
-}) {
-  const ago = formatTimeAgo(entry.at);
-  const absolute = formatAbsoluteTime(entry.at);
-  const blurb = entry.summary || entry.text || entry.threadId;
-  const hasReply = Boolean(entry.replyId);
-  const t1hLabel = formatStatChip("1h", entry.stats?.t1h, hasReply);
-  const t24hLabel = formatStatChip("24h", entry.stats?.t24h, hasReply);
-  const replyHref = entry.replyUrl;
-  return (
-    <article
-      className="history-row"
-      style={{ ["--i" as string]: index }}
-    >
-      <div className="history-row-body">
-        <span className="row-summary">{blurb}</span>
-        <span className="row-meta">
-          <span>{entry.author}</span>
-          {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
-          <span className="chip chip-interacted">interacted</span>
-          {t1hLabel ? <span className="chip">{t1hLabel}</span> : null}
-          {t24hLabel ? <span className="chip">{t24hLabel}</span> : null}
-        </span>
-      </div>
-      {entry.url || replyHref ? (
-        <div className="history-row-actions">
-          {entry.url ? (
-            <a className="ghost" href={entry.url} target="_blank" rel="noreferrer">
-              Open on X
-            </a>
-          ) : null}
-          {replyHref ? (
-            <a className="ghost" href={replyHref} target="_blank" rel="noreferrer">
-              Open reply
-            </a>
-          ) : null}
-        </div>
-      ) : null}
-    </article>
   );
 }
 
