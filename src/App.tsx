@@ -1,17 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   loadSettings,
-  saveSettings,
   type AppSettings,
-  clampMaxThreadChars,
-  clampTargetCoolThreads,
-  normalizePreferredLanguage,
-  threadHasExcludedTag,
-  PREFERRED_LANGUAGES,
-  DEFAULT_SETTINGS,
 } from "./lib/settings";
-import { ExcludedAccountsField } from "./ExcludedAccountsField";
-import { ExcludedTagsField } from "./ExcludedTagsField";
 import { ScoutPixelField } from "./ScoutPixelField";
 import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
 import {
@@ -46,7 +37,7 @@ import { Onboarding } from "./Onboarding";
 import { LinkXGate } from "./LinkXGate";
 import { deskNeedsXLink, showDeskXGate } from "./lib/deskGate";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
-import { BillingPanel, type BillingMe, type PaidPlanKey } from "./BillingPanel";
+import { type BillingMe, type PaidPlanKey } from "./BillingPanel";
 import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
 import { Analytics } from "./Analytics";
 import { Account } from "./Account";
@@ -59,7 +50,6 @@ import {
   type VoiceState,
 } from "./lib/voice";
 import type { AuthSessionUser } from "./auth/types";
-import { threadHasExcludedAuthor } from "./desk/threadHelpers";
 import type { ThreadCard, ThreadsTab } from "./desk/types";
 import {
   ensureActivitySubscribe,
@@ -79,7 +69,10 @@ import { Toast } from "./desk/Toast";
 import { useMarkDetect } from "./desk/useMarkDetect";
 import { useScoutRun } from "./desk/useScoutRun";
 import { useSkipDismiss } from "./desk/useSkipDismiss";
-import type { UsageSummaryResponse, UsageWindow } from "./usage/types";
+import { SettingsForm } from "./settings/SettingsForm";
+import { useSettingsDraft } from "./settings/useSettingsDraft";
+import { UsagePage } from "./usage/UsagePage";
+import { useUsage } from "./usage/useUsage";
 
 /** Always occupies a count slot so hydrate cannot grow the tab pills. */
 function ThreadsTabCount({ n }: { n: number }) {
@@ -169,12 +162,14 @@ export default function App() {
   const [consentOpen, setConsentOpen] = useState(
     () => (typeof window === "undefined" ? false : readConsent() === null),
   );
-  const [usageWindow, setUsageWindow] = useState<UsageWindow>("7d");
-  const [usage, setUsage] = useState<UsageSummaryResponse | null>(null);
-  const [usageBusy, setUsageBusy] = useState(false);
-  /** Monotonic token so out-of-order usage responses can't show the wrong window. */
-  const usageRequestSeqRef = useRef(0);
-  const [usageStatus, setUsageStatus] = useState("");
+  const {
+    usageWindow,
+    setUsageWindow,
+    usage,
+    usageBusy,
+    usageStatus,
+    loadUsage,
+  } = useUsage();
   const [billing, setBilling] = useState<BillingMe | null>(null);
   const [billingNotice, setBillingNotice] = useState("");
   const [checkoutPlan, setCheckoutPlan] = useState<PaidPlanKey | null>(null);
@@ -198,10 +193,13 @@ export default function App() {
   );
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const voiceError: string | null = voice?.lastError ?? null;
-  const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
-    loadSettings(),
-  );
-  const [settingsStatus, setSettingsStatus] = useState("");
+  const {
+    settingsDraft,
+    setSettingsDraft,
+    settingsStatus,
+    resetSettingsDraft,
+    onSaveSettings,
+  } = useSettingsDraft({ setSettings, setThreads });
   const {
     searching,
     searchCooldownRemaining,
@@ -561,8 +559,7 @@ export default function App() {
   }, [menuOpen]);
 
   function openSettings() {
-    setSettingsDraft(settings);
-    setSettingsStatus("");
+    resetSettingsDraft(settings);
     goToView("settings");
     closeMenu();
   }
@@ -746,53 +743,6 @@ export default function App() {
     } finally {
       setAdminBusy(false);
     }
-  }
-
-  async function loadUsage(window: UsageWindow = usageWindow) {
-    const seq = ++usageRequestSeqRef.current;
-    setUsageBusy(true);
-    setUsageStatus("");
-    try {
-      const res = await apiFetch(
-        `/api/usage?window=${encodeURIComponent(window)}`,
-      );
-      const data = (await res.json()) as UsageSummaryResponse;
-      if (seq !== usageRequestSeqRef.current) return;
-      if (!res.ok || data.ok === false) {
-        setUsage(null);
-        setUsageStatus(data.message || data.error || `Usage failed (${res.status})`);
-        return;
-      }
-      setUsage(data);
-      setUsageWindow(data.window ?? window);
-    } catch (err) {
-      if (seq !== usageRequestSeqRef.current) return;
-      setUsage(null);
-      setUsageStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      if (seq === usageRequestSeqRef.current) setUsageBusy(false);
-    }
-  }
-
-  function persistFilterSettings() {
-    const next = saveSettings(settingsDraft);
-    setSettings(next);
-    setSettingsDraft(next);
-    setThreads((prev) =>
-      prev.filter(
-        (t) =>
-          !threadHasExcludedTag(t, next.excludedTags) &&
-          !threadHasExcludedAuthor(t, next.excludedAccounts),
-      ),
-    );
-    return next;
-  }
-
-  function onSaveSettings() {
-    persistFilterSettings();
-    setSettingsStatus(
-      "Saved — filters apply to For You now and the next Scout.",
-    );
   }
 
   useEffect(() => {
@@ -1074,124 +1024,24 @@ export default function App() {
       ) : null}
 
       {view === "usage" ? (
-        <section className="panel settings-pane usage-pane">
-          <div className="settings-head">
-            <h2>Usage & Billing</h2>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => goToView("dashboard")}
-            >
-              Back
-            </button>
-          </div>
-          <p className="status settings-lede">
-            Start free with 1,500 credits a month — no credit card. Unused
-            credits do not roll over. Paid plans are billed by Mergestorm, Inc.
-          </p>
-          <BillingPanel
-            billing={billing}
-            busy={usageBusy}
-            notice={billingNotice}
-            checkoutPlan={checkoutPlan}
-            portalBusy={portalBusy}
-            onSubscribe={(plan) => void onSubscribe(plan)}
-            onManage={() => void onManageBilling()}
-          />
-          <div className="usage-toolbar">
-            <label className="settings-field usage-window">
-              <span>Window</span>
-              <select
-                className="settings-select"
-                value={usageWindow}
-                disabled={usageBusy}
-                onChange={(e) => {
-                  const next = e.target.value as UsageWindow;
-                  setUsageWindow(next);
-                  void loadUsage(next);
-                }}
-              >
-                <option value="24h">Last 24h</option>
-                <option value="7d">Last 7 days</option>
-                <option value="all">All time</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              className="ghost"
-              disabled={usageBusy}
-              onClick={() => void loadUsage(usageWindow)}
-            >
-              {usageBusy ? "Loading…" : "Refresh"}
-            </button>
-          </div>
-          {usageStatus ? <p className="status danger">{usageStatus}</p> : null}
-          {usage?.creditsDepletedRecent ? (
-            <p className="usage-banner">
-              Scout could not finish — a platform read limit was hit. Try again
-              shortly.
-            </p>
-          ) : null}
-          {usage ? (
-            <>
-              <div className="usage-stats usage-stats-3">
-                <div className="usage-stat">
-                  <span className="usage-stat-label">Credits used</span>
-                  <strong className="usage-stat-value">
-                    {usage.creditsUsed ?? 0}
-                  </strong>
-                </div>
-                <div className="usage-stat">
-                  <span className="usage-stat-label">Remaining</span>
-                  <strong className="usage-stat-value">
-                    {usage.remaining ?? 0}
-                  </strong>
-                </div>
-                <div className="usage-stat">
-                  <span className="usage-stat-label">Calls</span>
-                  <strong className="usage-stat-value">{usage.calls ?? 0}</strong>
-                </div>
-              </div>
-              <p className="settings-help">{usage.note}</p>
-              <h3 className="usage-log-title">Usage logs</h3>
-              {(usage.recent?.length ?? 0) === 0 ? (
-                <p className="status">No usage recorded in this window yet.</p>
-              ) : (
-                <div className="usage-log">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>When</th>
-                        <th>Activity</th>
-                        <th>Credits</th>
-                        <th>Remaining</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(usage.recent ?? []).map((row) => (
-                        <tr key={row.id}>
-                          <td>{new Date(row.at).toLocaleString()}</td>
-                          <td>
-                            {row.activity}
-                            {row.error ? (
-                              <span className="usage-error"> {row.error}</span>
-                            ) : null}
-                          </td>
-                          <td>{row.credits}</td>
-                          <td>
-                            {row.remaining === null || row.remaining === undefined
-                              ? "—"
-                              : row.remaining}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          ) : null}
-        </section>
+        <UsagePage
+          usageWindow={usageWindow}
+          usage={usage}
+          busy={usageBusy}
+          status={usageStatus}
+          billing={billing}
+          billingNotice={billingNotice}
+          checkoutPlan={checkoutPlan}
+          portalBusy={portalBusy}
+          onBack={() => goToView("dashboard")}
+          onLoad={(window) => void loadUsage(window)}
+          onWindowChange={(window) => {
+            setUsageWindow(window);
+            void loadUsage(window);
+          }}
+          onSubscribe={(plan) => void onSubscribe(plan)}
+          onManageBilling={() => void onManageBilling()}
+        />
       ) : null}
 
       {view === "usage" ||
@@ -1199,200 +1049,16 @@ export default function App() {
       view === "analytics" ||
       view === "account" ||
       view === "voice" ? null : view === "settings" ? (
-        <section className="panel settings-pane">
-          <div className="settings-head">
-            <h2>Settings</h2>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => goToView("dashboard")}
-            >
-              Back
-            </button>
-          </div>
-          <p className="status settings-lede">
-            Filter prefs apply on the next Scout search. X is linked on Account
-            through official X login — you cannot type a handle here.
-          </p>
-          <div className="settings-grid">
-            <div className="settings-field settings-field-wide">
-              <span>X account</span>
-              <p className="settings-help">
-                {authUser?.xLinked && authUser.xUsername
-                  ? `@${authUser.xUsername} — change it on Account via X login.`
-                  : "Required. Link X with the official login."}
-              </p>
-              {authUser?.xLinked ? (
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => goToView("account")}
-                >
-                  Account
-                </button>
-              ) : (
-                <button type="button" className="ghost" onClick={startXLogin}>
-                  Link X
-                </button>
-              )}
-            </div>
-            <label className="settings-field">
-              <span>Max post characters</span>
-              <input
-                type="number"
-                min={120}
-                max={2000}
-                step={1}
-                value={settingsDraft.maxThreadChars}
-                onChange={(e) =>
-                  setSettingsDraft((prev) => ({
-                    ...prev,
-                    maxThreadChars: clampMaxThreadChars(
-                      e.target.value === ""
-                        ? DEFAULT_SETTINGS.maxThreadChars
-                        : Number(e.target.value),
-                    ),
-                  }))
-                }
-              />
-              <span className="settings-help">
-                Skip the candidate and replies under a parent over this length.
-              </span>
-            </label>
-            <label className="settings-field">
-              <span>Cool threads target (1–20)</span>
-              <input
-                type="number"
-                min={1}
-                max={20}
-                step={1}
-                value={settingsDraft.targetCoolThreads}
-                onChange={(e) =>
-                  setSettingsDraft((prev) => ({
-                    ...prev,
-                    targetCoolThreads: clampTargetCoolThreads(
-                      e.target.value === ""
-                        ? DEFAULT_SETTINGS.targetCoolThreads
-                        : Number(e.target.value),
-                    ),
-                  }))
-                }
-              />
-            </label>
-            <label className="settings-field">
-              <span>Preferred language</span>
-              <select
-                className="settings-select"
-                value={settingsDraft.preferredLanguage}
-                onChange={(e) =>
-                  setSettingsDraft((prev) => ({
-                    ...prev,
-                    preferredLanguage: normalizePreferredLanguage(
-                      e.target.value,
-                    ),
-                  }))
-                }
-              >
-                {(
-                  [
-                    ["en", "English"],
-                    ["es", "Spanish"],
-                    ["fr", "French"],
-                    ["de", "German"],
-                    ["pt", "Portuguese"],
-                  ] as const satisfies ReadonlyArray<
-                    readonly [(typeof PREFERRED_LANGUAGES)[number], string]
-                  >
-                ).map(([code, label]) => (
-                  <option key={code} value={code}>
-                    {label} ({code})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="settings-checks">
-              <label className="settings-check">
-                <input
-                  type="checkbox"
-                  checked={settingsDraft.dropArticles}
-                  onChange={(e) =>
-                    setSettingsDraft((prev) => ({
-                      ...prev,
-                      dropArticles: e.target.checked,
-                    }))
-                  }
-                />
-                <span>Drop X Articles and replies to them</span>
-              </label>
-              <label className="settings-check">
-                <input
-                  type="checkbox"
-                  checked={settingsDraft.dropEmDashes}
-                  onChange={(e) =>
-                    setSettingsDraft((prev) => ({
-                      ...prev,
-                      dropEmDashes: e.target.checked,
-                    }))
-                  }
-                />
-                <span>Drop posts with em dashes (—)</span>
-              </label>
-              <label className="settings-check">
-                <input
-                  type="checkbox"
-                  checked={settingsDraft.dropAutomatedAccounts}
-                  onChange={(e) =>
-                    setSettingsDraft((prev) => ({
-                      ...prev,
-                      dropAutomatedAccounts: e.target.checked,
-                    }))
-                  }
-                />
-                <span>Drop automated accounts</span>
-              </label>
-              <label className="settings-check">
-                <input
-                  type="checkbox"
-                  checked={settingsDraft.dedupeAccounts}
-                  onChange={(e) =>
-                    setSettingsDraft((prev) => ({
-                      ...prev,
-                      dedupeAccounts: e.target.checked,
-                    }))
-                  }
-                />
-                <span>Dedupe accounts I&apos;ve interacted with</span>
-              </label>
-            </div>
-            <ExcludedTagsField
-              tags={settingsDraft.excludedTags}
-              onChange={(excludedTags) =>
-                setSettingsDraft((prev) => ({ ...prev, excludedTags }))
-              }
-            />
-            <ExcludedAccountsField
-              accounts={settingsDraft.excludedAccounts}
-              onChange={(excludedAccounts) =>
-                setSettingsDraft((prev) => ({ ...prev, excludedAccounts }))
-              }
-            />
-          </div>
-          <div className="settings-footer">
-            <p className="settings-readonly">Author cooldown: 24 hours</p>
-            <div className="settings-actions">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => onSaveSettings()}
-              >
-                Save
-              </button>
-              {settingsStatus ? (
-                <p className="status settings-save-status">{settingsStatus}</p>
-              ) : null}
-            </div>
-          </div>
-        </section>
+        <SettingsForm
+          authUser={authUser}
+          draft={settingsDraft}
+          setDraft={setSettingsDraft}
+          status={settingsStatus}
+          onBack={() => goToView("dashboard")}
+          onOpenAccount={() => goToView("account")}
+          onLinkX={startXLogin}
+          onSave={onSaveSettings}
+        />
       ) : (
         <>
         <VoiceUnlockToast
