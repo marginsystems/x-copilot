@@ -4,7 +4,7 @@ import {
   parseForYouSuggestion,
   type ForYouSuggestion,
 } from "../lib/forYou";
-import { loadSettings, threadHasExcludedTag } from "../lib/settings";
+import { threadHasExcludedTag } from "../lib/settings";
 import { threadHasExcludedAuthor } from "./threadHelpers";
 import type {
   DismissalHistoryEntry,
@@ -18,10 +18,13 @@ export type DeskHistoryDeps = {
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
   setStatus: (s: string) => void;
   setActionBusy: (b: boolean) => void;
+  excludedTags: readonly string[];
+  excludedAccounts: readonly string[];
 };
 
 export function useDeskHistory(deps: DeskHistoryDeps) {
-  const { setThreads, setStatus, setActionBusy } = deps;
+  const { setThreads, setStatus, setActionBusy, excludedTags, excludedAccounts } =
+    deps;
 
   const [interactedIds, setInteractedIds] = useState<Set<string>>(
     () => new Set(),
@@ -97,11 +100,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     );
   }
 
-  function keepInCurated(
-    thread: ThreadCard,
-    excludedTags: readonly string[] = loadSettings().excludedTags,
-    excludedAccounts: readonly string[] = loadSettings().excludedAccounts,
-  ): boolean {
+  function keepInCurated(thread: ThreadCard): boolean {
     const blocked = blockedConversationsRef.current;
     return (
       !isHiddenFromCurated(thread.id) &&

@@ -142,6 +142,7 @@ export default function App() {
   const [actionBusy, setActionBusy] = useState(false);
   const [searching, setSearching] = useState(false);
   const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const {
     interactedIds,
     setInteractedIds,
@@ -164,7 +165,13 @@ export default function App() {
     hydrateForYou,
     keepInCurated,
     actForYou,
-  } = useDeskHistory({ setThreads, setStatus, setActionBusy });
+  } = useDeskHistory({
+    setThreads,
+    setStatus,
+    setActionBusy,
+    excludedTags: settings.excludedTags,
+    excludedAccounts: settings.excludedAccounts,
+  });
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const [activityBucket, setActivityBucket] = useState<ActivityBucket>("day");
   const [flightPathOpen, setFlightPathOpen] = useState(() => {
@@ -229,7 +236,6 @@ export default function App() {
   );
   const [voice, setVoice] = useState<VoiceState | null>(null);
   const voiceError: string | null = voice?.lastError ?? null;
-  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
     loadSettings(),
   );
