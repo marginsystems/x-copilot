@@ -9,14 +9,18 @@ import {
 } from "./gamification.js";
 import {
   DEFAULT_STATS_TICK_CAP,
-  MAX_INTERACTION_STORE,
   listDueStatSamples,
+  patchInteractionStats,
+  type DueStatSample,
+} from "./interactionStats.js";
+import {
   listGamificationSyncRetries,
   listMemorySyncRetries,
-  patchInteractionStats,
   setGamificationSyncFailed,
   setMemorySyncFailed,
-  type DueStatSample,
+} from "./interactionSync.js";
+import {
+  MAX_INTERACTION_STORE,
   type Interaction,
 } from "./interactionStore.js";
 import { loadEnv } from "./loadEnv.js";

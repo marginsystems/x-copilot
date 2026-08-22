@@ -6,13 +6,17 @@ import { join } from "node:path";
 import {
   STATS_T1H_MS,
   STATS_T24H_MS,
-  listGamificationSyncRetries,
-  listInteractionHistory,
-  listMemorySyncRetries,
-  markInteracted,
   patchInteractionStats,
   selectDueStatSamples,
+} from "./interactionStats.ts";
+import {
+  listGamificationSyncRetries,
+  listMemorySyncRetries,
   setGamificationSyncFailed,
+} from "./interactionSync.ts";
+import {
+  listInteractionHistory,
+  markInteracted,
   type Interaction,
 } from "./interactionStore.ts";
 import { getGamification, recordMarkGamification } from "./gamification.ts";

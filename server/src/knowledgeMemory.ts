@@ -10,8 +10,8 @@ import {
   type Interaction,
   type InteractionStats,
   type ReplyStatSnapshot,
-  type StatsCheckpoint,
 } from "./interactionStore.js";
+import type { StatsCheckpoint } from "./interactionStats.js";
 import { normalizeAuthorKey } from "./interactionCooldown.js";
 
 export const MAX_THREAD_EXCERPT_CHARS = 2000;

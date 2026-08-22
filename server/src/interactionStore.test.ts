@@ -7,16 +7,18 @@ import {
   getCooledAuthorKeys,
   getAuthorKeysForScoutFilter,
   getEverInteractedAuthorKeys,
-  listGamificationSyncRetries,
   listInteractionHistory,
-  listMemorySyncRetries,
   MAX_INTERACTION_HISTORY,
   MAX_INTERACTION_STORE,
   markInteracted,
-  setGamificationSyncFailed,
-  setMemorySyncFailed,
   type Interaction,
 } from "./interactionStore.ts";
+import {
+  listGamificationSyncRetries,
+  listMemorySyncRetries,
+  setGamificationSyncFailed,
+  setMemorySyncFailed,
+} from "./interactionSync.ts";
 import {
   COOLDOWN_MS,
   conversationIdsFromHistory,
