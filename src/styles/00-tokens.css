@@ -1,0 +1,50 @@
+/* 00-tokens.css: :root / [data-theme] tokens */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #161310;
+  --panel: #1f1b17;
+  --raised: #26211c;
+  --border: #3a332c;
+  --border-strong: #4d453c;
+  --text: #f4eee6;
+  --muted: #a89f94;
+  --accent: #7eb8dc;
+  --accent-dim: #3d5f73;
+  --danger: #d4847a;
+  --danger-dim: #5d3535;
+  --ink: #161310;
+  --on-accent: #161310;
+  --radius: 4px;
+  --font-head: "Space Grotesk", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-body: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f1ea;
+  --panel: #fffaf4;
+  --raised: #efe8df;
+  --border: #ddd4c8;
+  --border-strong: #c9bfb2;
+  --text: #1c1814;
+  --muted: #4a433c;
+  --accent: #14527a;
+  --accent-dim: #7ea8c4;
+  --danger: #b54d45;
+  --danger-dim: #f0d4d0;
+  --ink: #fffaf4;
+  --on-accent: #ffffff;
+}
+
+:root {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+

@@ -1,0 +1,239 @@
+/* 03-landing.css: .landing* */
+
+/* Signed-out marketing landing — full page, scrolls inside the locked shell. */
+
+.landing {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  align-self: stretch;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* The page is the scroller — no visible chrome, scrolling still works */
+  scrollbar-width: none;
+}
+
+.landing::-webkit-scrollbar {
+  display: none;
+}
+
+.landing-inner {
+  width: 100%;
+  margin: 0 auto;
+  padding: 72px clamp(20px, 5vw, 72px) 48px;
+  padding-bottom: max(48px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.landing-hero,
+.landing-section,
+.landing-footer {
+  animation: landing-rise 620ms var(--ease-out) both;
+}
+
+.landing-section {
+  animation-delay: 90ms;
+}
+
+.landing-footer {
+  animation-delay: 140ms;
+}
+
+.landing-mock .thread-row {
+  animation: landing-rise 560ms var(--ease-out) both;
+  animation-delay: 140ms;
+}
+
+.landing-mock .thread-row:nth-child(2) {
+  animation-delay: 200ms;
+}
+
+.landing-mock .thread-row:nth-child(3) {
+  animation-delay: 260ms;
+}
+
+.landing-mock .thread-row:nth-child(4) {
+  animation-delay: 320ms;
+}
+
+
+.landing-hero {
+  /* Hero keeps a readable measure while the rest of the page uses the width */
+  width: min(760px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  padding-top: 24px;
+}
+
+.landing-title {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: clamp(1.9rem, 5.5vw, 2.8rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.12;
+}
+
+.landing-title em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.landing-lede {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  max-width: 38em;
+}
+
+.landing-lede strong {
+  color: var(--text);
+}
+
+.landing-cta {
+  width: min(400px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.landing-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.landing-section h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.landing-section p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  max-width: 62em;
+}
+
+.landing-section p strong,
+.landing-section li strong {
+  color: var(--text);
+}
+
+.landing-section-sub {
+  max-width: 42em;
+}
+
+.landing-mock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.landing-demo-hint {
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+.landing-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.landing-list li {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  border-left: 2px solid var(--accent-dim);
+  padding-left: 12px;
+}
+
+@media (min-width: 900px) {
+  .landing-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+}
+
+.landing-fine {
+  font-size: 0.74rem;
+}
+
+.landing-free {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 24px 20px;
+  align-items: center;
+  text-align: center;
+}
+
+.landing-plan {
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.landing-plan li {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--raised);
+  padding: 10px 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.landing-plan li strong {
+  display: block;
+  font-family: var(--font-head);
+  font-size: 1.3rem;
+  color: var(--accent);
+}
+
+.landing-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+

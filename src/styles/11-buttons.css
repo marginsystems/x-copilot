@@ -1,0 +1,43 @@
+/* 11-buttons.css: button.primary / .ghost */
+
+/* Buttons */
+
+button.primary,
+button.ghost,
+a.ghost {
+  border-radius: var(--radius);
+  padding: 7px 14px;
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+}
+
+button.ghost,
+a.ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  text-decoration: none;
+  display: inline-block;
+}
+
+button.ghost:hover,
+a.ghost:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+

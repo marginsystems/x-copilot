@@ -1,0 +1,44 @@
+/* 99-motion.css: prefers-reduced-motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero,
+  .landing-section,
+  .landing-footer,
+  .landing-mock .thread-row {
+    animation: none;
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-backdrop,
+  .menu-sheet {
+    transition: opacity 120ms ease;
+    transform: none;
+  }
+
+  .menu-switch-knob {
+    transition: none;
+  }
+
+  article.history-row {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-loader-pulse span,
+  .mark-detect-anim span {
+    animation: none;
+    opacity: 0.8;
+  }
+
+  .voice-meter-fill {
+    transition: none;
+  }
+
+  .voice-step {
+    transition: none;
+  }
+}
+
