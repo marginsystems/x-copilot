@@ -14,11 +14,11 @@ import {
   normalizeReply,
 } from "./knowledgeMemory.js";
 import { upsertMemoryNote } from "./memoryIndex.js";
+import type { ThreadCard } from "./threadCard.js";
 import {
   searchTimelinePages,
   withSearchRecency,
   type SearchTimelineResult,
-  type ThreadCard,
 } from "./xSearch.js";
 import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
 import {

@@ -14,7 +14,7 @@ import {
   clearScoutCacheMemory,
   saveScoutCache,
 } from "./scoutCache.ts";
-import type { ThreadCard } from "./xSearch.ts";
+import type { ThreadCard } from "./threadCard.ts";
 
 function card(
   partial: Partial<ThreadCard> & Pick<ThreadCard, "id">,

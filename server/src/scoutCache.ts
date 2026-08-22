@@ -5,7 +5,7 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import type { ThreadCard } from "./xSearch.js";
+import type { ThreadCard } from "./threadCard.js";
 
 export type LastScoutSnapshot = {
   savedAt: string;

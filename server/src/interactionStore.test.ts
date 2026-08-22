@@ -25,7 +25,7 @@ import {
   threadMatchesConversationIds,
   type Interaction,
 } from "./interactionStore.ts";
-import type { ThreadCard } from "./xSearch.ts";
+import type { ThreadCard } from "./threadCard.ts";
 
 function thread(id: string, author: string): ThreadCard {
   return {

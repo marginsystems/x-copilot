@@ -5,8 +5,8 @@ import {
   searchExpansions,
   searchTimelinePages,
   withSearchRecency,
-  type ThreadCard,
 } from "./xSearch.ts";
+import type { ThreadCard } from "./threadCard.ts";
 
 describe("withSearchRecency / resolveWithinTime", () => {
   it("appends within_time by default", () => {

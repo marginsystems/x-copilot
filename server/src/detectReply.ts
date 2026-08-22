@@ -1,11 +1,11 @@
 /**
  * Find the operator's reply in a curated conversation via official recent search.
  */
+import type { ThreadCard } from "./threadCard.js";
 import {
   searchTimelinePages,
   withSearchRecency,
   type SearchTimelineResult,
-  type ThreadCard,
 } from "./xSearch.js";
 
 export type DetectedReply = {

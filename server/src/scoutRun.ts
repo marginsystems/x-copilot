@@ -29,7 +29,8 @@ import {
 } from "./threadFilters.js";
 import { hydrateReplyParents } from "./tweetLookup.js";
 import { triageThreads } from "./threadTriage.js";
-import { searchMany, type ThreadCard } from "./xSearch.js";
+import type { ThreadCard } from "./threadCard.js";
+import { searchMany } from "./xSearch.js";
 import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
 
 export type ScoutStageId =

@@ -4,11 +4,9 @@
 import { normalizeAuthorKey } from "./interactionStore.js";
 import { xApiGet } from "./xApi.js";
 import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
-import {
-  MAX_OP_TEXT_CHARS,
-  tweetResultToCard,
-  v2TweetToCard,
-} from "./xSearch.js";
+import { MAX_OP_TEXT_CHARS, type ThreadCard } from "./threadCard.js";
+import { tweetResultToCard } from "./xGraphqlParse.js";
+import { v2TweetToCard } from "./xV2Card.js";
 
 const parentCache = new Map<string, ParentTweet | null>();
 
@@ -31,9 +29,9 @@ function parentFromCard(card: {
 }
 
 function applyHydratedParent(
-  card: import("./xSearch.js").ThreadCard,
+  card: ThreadCard,
   parent: ParentTweet,
-): import("./xSearch.js").ThreadCard {
+): ThreadCard {
   return {
     ...card,
     opAuthor: parent.author,
@@ -377,7 +375,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 export type HydrateReplyParentsResult = {
-  threads: import("./xSearch.js").ThreadCard[];
+  threads: ThreadCard[];
   /** Reply cards whose parent lookup failed (self-reply leak visibility). */
   unhydratedReplyCount: number;
 };
@@ -386,7 +384,7 @@ export type HydrateReplyParentsResult = {
  * Fill opAuthor/opText on reply cards missing OP text (before triage).
  */
 export async function hydrateReplyParents(opts: {
-  threads: import("./xSearch.js").ThreadCard[];
+  threads: ThreadCard[];
   session?: XApiCreds;
   signal?: AbortSignal;
   delayMs?: number;

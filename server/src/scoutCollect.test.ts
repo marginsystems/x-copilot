@@ -10,7 +10,7 @@ import {
 } from "./scoutCollect.ts";
 import { normalizeAuthorKey } from "./interactionStore.ts";
 import type { PlanQueriesOpts } from "./queryPlan.ts";
-import type { ThreadCard } from "./xSearch.ts";
+import type { ThreadCard } from "./threadCard.ts";
 
 function card(
   partial: Partial<ThreadCard> & Pick<ThreadCard, "id">,

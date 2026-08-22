@@ -6,7 +6,7 @@ import {
   hydrateReplyParents,
   parseTweetsMetricsMap,
 } from "./tweetLookup.ts";
-import type { ThreadCard } from "./xSearch.ts";
+import type { ThreadCard } from "./threadCard.ts";
 
 function withSession(fn: () => Promise<void>): Promise<void> {
   const prev = process.env.X_API_BEARER_TOKEN;
