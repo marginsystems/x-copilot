@@ -2,9 +2,9 @@
  * Scout search runner — same pipeline as /api/search with stage callbacks.
  */
 import {
-  filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
 } from "./interactionStore.js";
+import { filterThreadsByCooldown } from "./interactionCooldown.js";
 import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {

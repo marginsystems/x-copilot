@@ -3,12 +3,14 @@
  * Discard/refill on zero cool; keep cools and refill until cool target or exhausted.
  */
 import {
-  filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
   getCooledAuthorKeys,
   getEverInteractedConversationIds,
-  normalizeAuthorKey,
 } from "./interactionStore.js";
+import {
+  filterThreadsByCooldown,
+  normalizeAuthorKey,
+} from "./interactionCooldown.js";
 import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {

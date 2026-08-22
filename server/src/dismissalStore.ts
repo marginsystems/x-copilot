@@ -4,11 +4,11 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { getEverInteractedConversationIds } from "./interactionStore.js";
 import {
   conversationIdsFromHistory,
-  getEverInteractedConversationIds,
   normalizeAuthorKey,
-} from "./interactionStore.js";
+} from "./interactionCooldown.js";
 
 export type Dismissal = {
   threadId: string;

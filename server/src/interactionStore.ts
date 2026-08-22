@@ -8,11 +8,14 @@ import {
   readFile,
   writeFile,
   rename,
-  rmdir,
-  stat,
 } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import type { ThreadCard } from "./threadCard.js";
+import { withFileLock } from "./fileLock.js";
+import {
+  conversationIdsFromHistory,
+  normalizeAuthorKey,
+  pruneExpired,
+} from "./interactionCooldown.js";
 
 export type InteractionSource = "manual" | "copy" | "discovered";
 
@@ -70,24 +73,6 @@ export type Interaction = {
   pendingMarkAts?: string[];
 };
 
-/** Parse x.com / twitter.com status URL → numeric rest id. Keep in sync with src/App.tsx. */
-export function parseStatusIdFromUrl(url: string): string | null {
-  const raw = url.trim();
-  if (!raw) return null;
-  try {
-    const u = new URL(raw.includes("://") ? raw : `https://${raw}`);
-    const host = u.hostname.replace(/^www\./, "").toLowerCase();
-    if (host !== "x.com" && host !== "twitter.com" && host !== "mobile.twitter.com") {
-      return null;
-    }
-    const m = u.pathname.match(/\/status(?:es)?\/(\d+)/i);
-    return m?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 export const STATS_T1H_MS = 60 * 60 * 1000;
 export const STATS_T24H_MS = 24 * 60 * 60 * 1000;
 /** Interacted feed / default list cap (newest first). */
@@ -98,7 +83,6 @@ export const MAX_INTERACTION_HISTORY = 200;
  */
 export const MAX_INTERACTION_STORE = 2000;
 export const DEFAULT_STATS_TICK_CAP = 15;
-const MAX_FILTERED_AUTHORS = 12;
 const MAX_TEXT_CHARS = 280;
 
 export type StatsCheckpoint = "t1h" | "t24h";
@@ -112,98 +96,6 @@ export type DueStatSample = {
 
 export function defaultStorePath(): string {
   return resolve(process.cwd(), "data", "interactions.json");
-}
-
-/** Normalize "@Foo " / "Foo" → "foo". */
-export function normalizeAuthorKey(author: string): string {
-  return author.trim().replace(/^@+/, "").toLowerCase();
-}
-
-export function isWithinCooldown(
-  atIso: string,
-  nowMs: number = Date.now(),
-  windowMs: number = COOLDOWN_MS,
-): boolean {
-  const t = Date.parse(atIso);
-  if (!Number.isFinite(t)) return false;
-  const age = nowMs - t;
-  return age >= 0 && age < windowMs;
-}
-
-export function pruneExpired(
-  interactions: Interaction[],
-  nowMs: number = Date.now(),
-  windowMs: number = COOLDOWN_MS,
-): Interaction[] {
-  return interactions.filter((i) => isWithinCooldown(i.at, nowMs, windowMs));
-}
-
-/**
- * Conversation / ancestry ids that should stay dark after an interaction.
- * Prefer conversationId (OP root), else inReplyToId, else the marked threadId.
- */
-export function conversationRootId(row: {
-  conversationId?: string;
-  inReplyToId?: string;
-  threadId?: string;
-  id?: string;
-}): string | null {
-  const conversationId = row.conversationId?.trim();
-  if (conversationId) return conversationId;
-  const inReplyToId = row.inReplyToId?.trim();
-  if (inReplyToId) return inReplyToId;
-  const threadId = row.threadId?.trim() || row.id?.trim();
-  return threadId || null;
-}
-
-/** True when a Scout card belongs to a blocked conversation / ancestry set. */
-export function threadMatchesConversationIds(
-  thread: ThreadCard,
-  blockedIds: ReadonlySet<string>,
-): boolean {
-  if (!blockedIds.size) return false;
-  if (blockedIds.has(thread.id)) return true;
-  if (thread.conversationId && blockedIds.has(thread.conversationId)) {
-    return true;
-  }
-  if (thread.inReplyToId && blockedIds.has(thread.inReplyToId)) return true;
-  return false;
-}
-
-export function filterThreadsByCooldown(
-  threads: ThreadCard[],
-  cooledKeys: Set<string>,
-  blockedConversationIds: ReadonlySet<string> = new Set(),
-): {
-  threads: ThreadCard[];
-  filteredCount: number;
-  filteredAuthors: string[];
-} {
-  if (!cooledKeys.size && !blockedConversationIds.size) {
-    return { threads, filteredCount: 0, filteredAuthors: [] };
-  }
-  const kept: ThreadCard[] = [];
-  const removedAuthors = new Set<string>();
-  let filteredCount = 0;
-  for (const thread of threads) {
-    const key = normalizeAuthorKey(thread.author);
-    if (key && cooledKeys.has(key)) {
-      filteredCount += 1;
-      removedAuthors.add(key);
-      continue;
-    }
-    if (threadMatchesConversationIds(thread, blockedConversationIds)) {
-      filteredCount += 1;
-      if (key) removedAuthors.add(key);
-      continue;
-    }
-    kept.push(thread);
-  }
-  return {
-    threads: kept,
-    filteredCount,
-    filteredAuthors: [...removedAuthors].slice(0, MAX_FILTERED_AUTHORS),
-  };
 }
 
 function optionalString(value: unknown, maxLen?: number): string | undefined {
@@ -313,40 +205,6 @@ async function writeStore(path: string, store: StoreFile): Promise<void> {
   const tmp = `${path}.${process.pid}.tmp`;
   await writeFile(tmp, `${JSON.stringify(store, null, 2)}\n`, "utf8");
   await rename(tmp, path);
-}
-
-export async function withFileLock<T>(
-  filePath: string,
-  fn: () => Promise<T>,
-): Promise<T> {
-  const lockPath = filePath + ".lock";
-  for (let retries = 0; ; retries++) {
-    try {
-      await mkdir(lockPath);
-      break;
-    } catch (err) {
-      const e = err as NodeJS.ErrnoException;
-      if (e.code !== "EEXIST") throw err;
-      if (retries > 200)
-        throw new Error("Could not acquire lock: " + filePath);
-      // After ~1s, check if the lock dir is stale (crash orphan).
-      if (retries > 50) {
-        try {
-          const s = await stat(lockPath);
-          if (Date.now() - s.mtimeMs > 60000) {
-            await rmdir(lockPath).catch(() => {});
-            continue;
-          }
-        } catch {}
-      }
-      await new Promise((r) => setTimeout(r, 20));
-    }
-  }
-  try {
-    return await fn();
-  } finally {
-    await rmdir(lockPath).catch(() => {});
-  }
 }
 
 /** Newest-first, capped history (no 24h prune). */
@@ -489,31 +347,6 @@ export async function getEverInteractedAuthorKeys(opts?: {
     limit: MAX_INTERACTION_STORE,
   });
   return new Set(history.map((i) => i.authorKey).filter(Boolean));
-}
-
-/** Row shape for conversation ancestry (interactions, dismissals, …). */
-export type ConversationAncestryRow = {
-  conversationId?: string;
-  inReplyToId?: string;
-  threadId?: string;
-};
-
-/**
- * Conversation / ancestry ids from durable history.
- * Includes each mark's conversation root plus the marked threadId so OP and
- * sibling replies stay filtered after we engage anywhere in the chain.
- */
-export function conversationIdsFromHistory(
-  history: readonly ConversationAncestryRow[],
-): Set<string> {
-  const ids = new Set<string>();
-  for (const row of history) {
-    const root = conversationRootId(row);
-    if (root) ids.add(root);
-    if (row.threadId?.trim()) ids.add(row.threadId.trim());
-    if (row.inReplyToId?.trim()) ids.add(row.inReplyToId.trim());
-  }
-  return ids;
 }
 
 export async function getEverInteractedConversationIds(opts?: {

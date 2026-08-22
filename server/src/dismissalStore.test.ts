@@ -9,10 +9,8 @@ import {
   listDismissalHistory,
   markDismissed,
 } from "./dismissalStore.ts";
-import {
-  markInteracted,
-  threadMatchesConversationIds,
-} from "./interactionStore.ts";
+import { markInteracted } from "./interactionStore.ts";
+import { threadMatchesConversationIds } from "./interactionCooldown.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
 describe("markDismissed / listDismissalHistory", () => {

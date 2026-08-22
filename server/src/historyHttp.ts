@@ -8,7 +8,7 @@ import {
 } from "./dismissalStore.js";
 import { listExpiredHistory } from "./expiredStore.js";
 import { BodyError, readBody, send } from "./httpJson.js";
-import { normalizeAuthorKey } from "./interactionStore.js";
+import { normalizeAuthorKey } from "./interactionCooldown.js";
 import { writeDismissalMemory } from "./knowledgeMemory.js";
 import { scheduleMemoryUpsert } from "./memoryReindex.js";
 import { listSkipHistory, markSkipped } from "./skipStore.js";

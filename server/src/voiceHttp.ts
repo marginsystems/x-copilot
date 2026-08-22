@@ -16,11 +16,11 @@ import { getSessionUser } from "./sessionCookie.js";
 import type { AuthUser } from "./authStore.js";
 import { getXOauthUsername, getXWriteCreds } from "./authStore.js";
 import { recordMarkGamification, getGamification } from "./gamification.js";
+import { markInteracted } from "./interactionStore.js";
 import {
-  markInteracted,
   normalizeAuthorKey,
   parseStatusIdFromUrl,
-} from "./interactionStore.js";
+} from "./interactionCooldown.js";
 import { xConsumerCreds } from "./xAuth.js";
 import {
   checkDeskPostLimit,

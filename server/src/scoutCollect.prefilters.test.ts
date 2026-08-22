@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { runScoutCollect } from "./scoutCollect.ts";
 import { card, fillBucket } from "./scoutCollect.testHelpers.ts";
 import type { ScoutCollectEvent } from "./scoutTypes.ts";
-import { normalizeAuthorKey } from "./interactionStore.ts";
+import { normalizeAuthorKey } from "./interactionCooldown.ts";
 import type { PlanQueriesOpts } from "./queryPlan.ts";
 import type { ThreadCard } from "./threadCard.ts";
 

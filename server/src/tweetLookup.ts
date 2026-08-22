@@ -1,7 +1,7 @@
 /**
  * Official X API v2 tweet lookup (parent OP hydrate + engagement metrics).
  */
-import { normalizeAuthorKey } from "./interactionStore.js";
+import { normalizeAuthorKey } from "./interactionCooldown.js";
 import { xApiGet } from "./xApi.js";
 import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
 import { MAX_OP_TEXT_CHARS, type ThreadCard } from "./threadCard.js";

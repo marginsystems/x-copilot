@@ -7,10 +7,10 @@ import { dirname, resolve } from "node:path";
 import {
   listInteractionHistory,
   MAX_INTERACTION_STORE,
-  withFileLock,
   type Interaction,
   type ReplyStatSnapshot,
 } from "./interactionStore.js";
+import { withFileLock } from "./fileLock.js";
 import { getSolePlatformUserId } from "./authStore.js";
 
 export const MARK_XP = 1;
