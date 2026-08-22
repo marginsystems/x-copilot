@@ -1,7 +1,8 @@
 /**
  * Soft-fail orchestration: project interaction stats onto Markdown + MiniLM upsert.
  */
-import type { Interaction, StatsCheckpoint } from "./interactionStore.js";
+import type { Interaction } from "./interactionStore.js";
+import type { StatsCheckpoint } from "./interactionStats.js";
 import { updateInteractionMemoryOutcome } from "./knowledgeMemory.js";
 import { upsertMemoryNote, type Embedder } from "./memoryIndex.js";
 

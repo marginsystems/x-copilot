@@ -24,8 +24,8 @@ import {
   listInteractionHistory,
   markInteracted,
   MAX_INTERACTION_STORE,
-  setGamificationSyncFailed,
 } from "./interactionStore.js";
+import { setGamificationSyncFailed } from "./interactionSync.js";
 import {
   normalizeAuthorKey,
   parseStatusIdFromUrl,

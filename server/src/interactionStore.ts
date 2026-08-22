@@ -73,8 +73,6 @@ export type Interaction = {
   pendingMarkAts?: string[];
 };
 
-export const STATS_T1H_MS = 60 * 60 * 1000;
-export const STATS_T24H_MS = 24 * 60 * 60 * 1000;
 /** Interacted feed / default list cap (newest first). */
 export const MAX_INTERACTION_HISTORY = 200;
 /**
@@ -82,17 +80,7 @@ export const MAX_INTERACTION_HISTORY = 200;
  * `GET /api/interacted/stats` can bucket the full window before any count trim.
  */
 export const MAX_INTERACTION_STORE = 2000;
-export const DEFAULT_STATS_TICK_CAP = 15;
 const MAX_TEXT_CHARS = 280;
-
-export type StatsCheckpoint = "t1h" | "t24h";
-
-export type DueStatSample = {
-  threadId: string;
-  replyId: string;
-  checkpoint: StatsCheckpoint;
-  postedAt: string;
-};
 
 export function defaultStorePath(): string {
   return resolve(process.cwd(), "data", "interactions.json");
@@ -108,7 +96,7 @@ function optionalString(value: unknown, maxLen?: number): string | undefined {
   return t;
 }
 
-type StoreFile = { interactions: Interaction[] };
+export type StoreFile = { interactions: Interaction[] };
 
 function emptyStore(): StoreFile {
   return { interactions: [] };
@@ -187,7 +175,7 @@ function parseStore(raw: string): StoreFile {
   }
 }
 
-async function readStore(path: string): Promise<StoreFile> {
+export async function readStore(path: string): Promise<StoreFile> {
   try {
     const raw = await readFile(path, "utf8");
     return parseStore(raw);
@@ -199,7 +187,7 @@ async function readStore(path: string): Promise<StoreFile> {
   }
 }
 
-async function writeStore(path: string, store: StoreFile): Promise<void> {
+export async function writeStore(path: string, store: StoreFile): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   // Atomic replace so unlocked readers never see a truncated JSON body.
   const tmp = `${path}.${process.pid}.tmp`;
@@ -374,210 +362,4 @@ export async function getAuthorKeysForScoutFilter(opts?: {
   const ever = await getEverInteractedAuthorKeys(opts);
   if (!ever.size) return cooled;
   return new Set([...cooled, ...ever]);
-}
-
-function postedAtMs(row: Interaction): number | null {
-  if (!row.postedAt) return null;
-  const t = Date.parse(row.postedAt);
-  return Number.isFinite(t) ? t : null;
-}
-
-/**
- * Interactions due for a 1h or 24h reply-stats snapshot (oldest due first).
- * Skips rows without replyId. One checkpoint entry per due slot.
- */
-export function selectDueStatSamples(
-  interactions: Interaction[],
-  nowMs: number = Date.now(),
-  limit: number = DEFAULT_STATS_TICK_CAP,
-): DueStatSample[] {
-  const due: DueStatSample[] = [];
-  for (const row of interactions) {
-    const replyId = row.replyId?.trim();
-    if (!replyId) continue;
-    const posted = postedAtMs(row);
-    if (posted === null) continue;
-    const age = nowMs - posted;
-    if (age < 0) continue;
-    if (!row.stats?.t1h && age >= STATS_T1H_MS) {
-      due.push({
-        threadId: row.threadId,
-        replyId,
-        checkpoint: "t1h",
-        postedAt: row.postedAt!,
-      });
-    }
-    if (!row.stats?.t24h && age >= STATS_T24H_MS) {
-      due.push({
-        threadId: row.threadId,
-        replyId,
-        checkpoint: "t24h",
-        postedAt: row.postedAt!,
-      });
-    }
-  }
-  // Prefer older posts first so late 24h samples don't starve behind fresh 1h.
-  due.sort((a, b) => Date.parse(a.postedAt) - Date.parse(b.postedAt));
-  return due.slice(0, Math.max(0, limit));
-}
-
-export async function listDueStatSamples(opts?: {
-  nowMs?: number;
-  storePath?: string;
-  limit?: number;
-}): Promise<DueStatSample[]> {
-  const path = opts?.storePath ?? defaultStorePath();
-  const store = await readStore(path);
-  return selectDueStatSamples(
-    store.interactions,
-    opts?.nowMs ?? Date.now(),
-    opts?.limit ?? DEFAULT_STATS_TICK_CAP,
-  );
-}
-
-/** Merge a stats snapshot onto an interaction by threadId. */
-export async function patchInteractionStats(opts: {
-  threadId: string;
-  checkpoint: StatsCheckpoint;
-  snapshot: ReplyStatSnapshot;
-  storePath?: string;
-}): Promise<Interaction | null> {
-  const threadId = opts.threadId.trim();
-  if (!threadId) return null;
-  const path = opts.storePath ?? defaultStorePath();
-
-  return withFileLock(path, async () => {
-    const store = await readStore(path);
-    const idx = store.interactions.findIndex((i) => i.threadId === threadId);
-    if (idx < 0) return null;
-    const row = store.interactions[idx];
-    const stats: InteractionStats = { ...(row.stats ?? {}) };
-    stats[opts.checkpoint] = opts.snapshot;
-    const next: Interaction = { ...row, stats };
-    const interactions = [...store.interactions];
-    interactions[idx] = next;
-    await writeStore(path, { interactions });
-    return next;
-  });
-}
-
-/** Interactions whose stats → memory projection failed and should be retried. */
-export async function listMemorySyncRetries(opts?: {
-  storePath?: string;
-  limit?: number;
-}): Promise<Interaction[]> {
-  const path = opts?.storePath ?? defaultStorePath();
-  const store = await readStore(path);
-  return store.interactions
-    .filter((i) => i.memorySyncFailed)
-    .slice(0, Math.max(0, opts?.limit ?? DEFAULT_STATS_TICK_CAP));
-}
-
-/** Record whether a stats → memory projection failed, so the next tick retries. */
-export async function setMemorySyncFailed(opts: {
-  threadId: string;
-  failed: boolean;
-  storePath?: string;
-}): Promise<void> {
-  const threadId = opts.threadId.trim();
-  if (!threadId) return;
-  const path = opts.storePath ?? defaultStorePath();
-  await withFileLock(path, async () => {
-    const store = await readStore(path);
-    const idx = store.interactions.findIndex((i) => i.threadId === threadId);
-    if (idx < 0) return;
-    const row = store.interactions[idx]!;
-    if (!!row.memorySyncFailed === opts.failed) return;
-    const next: Interaction = { ...row };
-    if (opts.failed) next.memorySyncFailed = true;
-    else delete next.memorySyncFailed;
-    const interactions = [...store.interactions];
-    interactions[idx] = next;
-    await writeStore(path, { interactions });
-  });
-}
-
-export type GamificationCheckpoint = "mark" | "t24h";
-
-/** Interactions whose gamification ledger projection failed and should be retried. */
-export async function listGamificationSyncRetries(opts?: {
-  storePath?: string;
-  limit?: number;
-}): Promise<Interaction[]> {
-  const path = opts?.storePath ?? defaultStorePath();
-  const store = await readStore(path);
-  return store.interactions
-    .filter(
-      (i) => i.markGamificationSyncFailed || i.bonusGamificationSyncFailed,
-    )
-    .slice(0, Math.max(0, opts?.limit ?? DEFAULT_STATS_TICK_CAP));
-}
-
-/** Record whether a gamification ledger projection failed, so the next tick retries. */
-export async function setGamificationSyncFailed(opts: {
-  threadId: string;
-  checkpoint: GamificationCheckpoint;
-  failed: boolean;
-  /** Original mark `at` to replay when a mark projection soft-fails; appended
-   * to the pending list so a re-mark of the same thread (which overwrites `at`)
-   * cannot erase an earlier uncredited mark instance. */
-  pendingAt?: string;
-  /** Mark `at`s a retry tick successfully replayed. When clearing the mark
-   * flag, only these are dropped from the pending list; ats appended by a
-   * concurrent soft-fail since the retry snapshot are kept for the next tick. */
-  clearedPendingAts?: string[];
-  storePath?: string;
-}): Promise<void> {
-  const threadId = opts.threadId.trim();
-  if (!threadId) return;
-  const path = opts.storePath ?? defaultStorePath();
-  await withFileLock(path, async () => {
-    const store = await readStore(path);
-    const idx = store.interactions.findIndex((i) => i.threadId === threadId);
-    if (idx < 0) return;
-    const row = store.interactions[idx]!;
-    const field: "markGamificationSyncFailed" | "bonusGamificationSyncFailed" =
-      opts.checkpoint === "mark"
-        ? "markGamificationSyncFailed"
-        : "bonusGamificationSyncFailed";
-    let pendingAtNew = false;
-    if (opts.checkpoint === "mark" && opts.failed && opts.pendingAt) {
-      pendingAtNew = !row.pendingMarkAts?.includes(opts.pendingAt);
-    }
-    if (!!row[field] === opts.failed && !pendingAtNew) return;
-    const next: Interaction = { ...row };
-    if (opts.failed) {
-      next[field] = true;
-      if (opts.checkpoint === "mark" && opts.pendingAt) {
-        const pendingMarkAts = row.pendingMarkAts ?? [];
-        next.pendingMarkAts = pendingMarkAts.includes(opts.pendingAt)
-          ? pendingMarkAts
-          : [...pendingMarkAts, opts.pendingAt];
-      }
-    } else if (
-      opts.checkpoint === "mark" &&
-      opts.clearedPendingAts &&
-      opts.clearedPendingAts.length
-    ) {
-      // Only drop the ats this retry actually replayed; keep the flag set so
-      // an at appended by a concurrent soft-fail is retried on the next tick.
-      const remaining = (row.pendingMarkAts ?? []).filter(
-        (at) => !opts.clearedPendingAts!.includes(at),
-      );
-      if (remaining.length) {
-        next.pendingMarkAts = remaining;
-      } else {
-        delete next[field];
-        delete next.pendingMarkAts;
-      }
-    } else {
-      delete next[field];
-      if (opts.checkpoint === "mark") {
-        delete next.pendingMarkAts;
-      }
-    }
-    const interactions = [...store.interactions];
-    interactions[idx] = next;
-    await writeStore(path, { interactions });
-  });
 }
