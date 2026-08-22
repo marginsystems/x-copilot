@@ -1,0 +1,248 @@
+/* 06-header.css: .brand* / .menu-toggle / .landing-signin */
+
+/* Header */
+
+.brand {
+  flex-shrink: 0;
+  height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+}
+
+/* Landing: header is only the fixed menu control — no full-width strip. */
+.brand.brand-gate {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+
+.brand-gate .brand-bar {
+  height: 0;
+  padding: 0;
+}
+
+.brand-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  /* Room for the fixed top-right avatar / Sign in */
+  padding-right: 48px;
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.brand-mark {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  display: block;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.brand-legal {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+}
+
+.legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 14px;
+  margin: 4px 0 0;
+}
+
+.legal-links a {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.legal-links a:hover {
+  color: var(--accent);
+}
+
+.legal-page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 8px 4px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.legal-page h1 {
+  margin: 0;
+  font-size: 1.7rem;
+  letter-spacing: -0.03em;
+}
+
+.legal-page h2 {
+  margin: 10px 0 0;
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.legal-page p,
+.legal-page li {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.legal-page ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legal-page a {
+  color: var(--accent);
+}
+
+.legal-kicker {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.legal-kicker a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.legal-meta {
+  color: var(--muted) !important;
+  font-size: 0.78rem !important;
+}
+
+.legal-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.legal-foot a {
+  font-size: 0.78rem;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.brand p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* One top-right slot — avatar (or Sign in) and close share the same spot */
+.menu-toggle {
+  position: fixed;
+  top: 6px;
+  right: 8px;
+  z-index: 50;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.menu-toggle-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.menu-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.menu-toggle.is-open,
+.menu-toggle:focus-visible {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  outline: none;
+}
+
+.menu-toggle.is-avatar {
+  border-radius: 50%;
+  overflow: hidden;
+  border-color: var(--border);
+  padding: 0;
+}
+
+.menu-toggle.is-avatar .menu-avatar,
+.menu-toggle.is-avatar .menu-avatar-fallback {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+}
+
+.menu-toggle.is-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.landing-signin {
+  width: 100%;
+  min-height: 44px;
+}
+

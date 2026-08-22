@@ -1,0 +1,118 @@
+/* 07b-modals.css: .modal-* / .mark-detect-* / .app-toast */
+
+/* Mark interacted — reply capture modal */
+
+.modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(4, 10, 16, 0.62);
+  cursor: pointer;
+}
+
+.modal-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(440px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 18px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.modal-sheet h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.mark-detect-sheet {
+  justify-items: start;
+}
+
+.mark-detect-anim {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.mark-detect-anim span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+
+.mark-detect-anim span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.mark-detect-anim span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 80;
+  width: min(28rem, calc(100% - 24px));
+  transform: translateX(-50%);
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.app-toast.is-warn {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border-strong));
+}
+
+.mark-reply-url,
+.mark-reply-text {
+  width: 100%;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  /* 16px minimum — iOS Safari zooms focused inputs under 16px */
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.mark-reply-url {
+  min-height: 0;
+}
+
+.mark-reply-text {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.mark-reply-url:focus-visible,
+.mark-reply-text:focus-visible {
+  outline: 1px solid var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+

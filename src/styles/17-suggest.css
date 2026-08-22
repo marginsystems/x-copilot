@@ -1,0 +1,254 @@
+/* 17-suggest.css: .suggest-* */
+
+/* --- Suggest pane (open thread row) --- */
+
+.suggest-pane {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.suggest-pane-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.suggest-close {
+  flex-shrink: 0;
+}
+
+.suggest-stances {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggest-stance {
+  text-align: left;
+}
+
+.suggest-stance-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.suggest-stance-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--text);
+  /* 16px minimum — iOS Safari zooms focused inputs under 16px */
+  font-size: 16px;
+}
+
+.suggest-idle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.suggest-quota {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.suggest-banner {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px dashed var(--accent-dim);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+}
+
+.suggest-reference {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.suggest-reference-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.suggest-reference-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.suggest-reference-copy {
+  padding: 2px 8px;
+  font-size: 0.72rem;
+}
+
+.suggest-reference-text {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+
+.suggest-textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 88px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  padding: 10px 12px;
+  /* 16px minimum — iOS Safari zooms focused inputs under 16px */
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.suggest-textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.suggest-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.suggest-count {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.suggest-count.over {
+  color: var(--danger);
+}
+
+.suggest-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.suggest-actions-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Base .suggest-actions row styles are shared with SuggestLocked, which
+   stays left-aligned. The flex-end overlay layout is only for the
+   SuggestPane verify state. */
+.suggest-actions.is-checking {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Keep the Check my edit / Copy / Open on X box while verify runs so
+   swapping in the loader cannot collapse the pane or move the draft. */
+.suggest-actions.is-checking .suggest-actions-row {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.suggest-actions.is-checking .suggest-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0;
+  min-width: 0;
+}
+
+.suggest-actions.is-checking .voice-loader-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.suggest-locked {
+  gap: 8px;
+}
+
+a.suggest-open {
+  border-radius: var(--radius);
+  padding: 7px 14px;
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+  text-decoration: none;
+  display: inline-block;
+}
+
+.suggest-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+/* Always painted so the LLM verdict cannot grow the pane on first flash. */
+.suggest-note {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  min-height: calc(1.35em * 3);
+  color: var(--muted);
+}
+
+.suggest-note.is-hint {
+  color: var(--muted);
+}
+
+.suggest-note.is-reserved {
+  visibility: hidden;
+}
+
+.suggest-note.is-fail {
+  color: var(--danger);
+}
+
+.suggest-note.is-ok {
+  color: var(--accent);
+}
+
