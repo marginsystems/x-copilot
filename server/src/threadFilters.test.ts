@@ -31,7 +31,7 @@ import {
   threadHasExcludedTag,
   threadHasOutboundLink,
 } from "./threadFilters.ts";
-import type { ThreadCard } from "./xSearch.ts";
+import type { ThreadCard } from "./threadCard.ts";
 
 function thread(
   id: string,

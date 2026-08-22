@@ -1,6 +1,5 @@
 /**
  * Official X API v2 recent-search client (read-only).
- * Keeps transitional re-exports while card parsers live in sibling modules.
  */
 import {
   dedupeThreads,
@@ -14,29 +13,6 @@ import {
   type XApiCreds,
 } from "./xApi.js";
 import { parseV2SearchPayload } from "./xV2Card.js";
-
-export type { ThreadCard };
-export type { V2Tweet, V2User } from "./xV2Card.js";
-export { MAX_OP_TEXT_CHARS } from "./threadCard.js";
-export { dedupeThreads };
-export { v2TweetToCard } from "./xV2Card.js";
-export {
-  parseSearchTimelinePage,
-  parseSearchTimelineResponse,
-  tweetResultToCard,
-  userIsAutomated,
-} from "./xGraphqlParse.js";
-export type {
-  SearchTimelinePage,
-  TweetResultNode,
-} from "./xGraphqlParse.js";
-export {
-  isNativeMediaUrl,
-  isOutboundLinkUrl,
-  isXArticleUrl,
-  nodeHasOutboundLink,
-  textHasOutboundLink,
-} from "./xLinks.js";
 
 export type SearchProduct = "Latest" | "Top";
 

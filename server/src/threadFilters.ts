@@ -5,7 +5,8 @@
 import { franc } from "franc-min";
 import { normalizeAuthorKey } from "./interactionStore.js";
 import { parseXHandle } from "./xHandle.js";
-import { textHasOutboundLink, type ThreadCard } from "./xSearch.js";
+import type { ThreadCard } from "./threadCard.js";
+import { textHasOutboundLink } from "./xLinks.js";
 
 export const DEFAULT_MAX_THREAD_CHARS = 480;
 

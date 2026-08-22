@@ -13,7 +13,7 @@ import {
   markInteracted,
   threadMatchesConversationIds,
 } from "./interactionStore.ts";
-import type { ThreadCard } from "./xSearch.ts";
+import type { ThreadCard } from "./threadCard.ts";
 
 describe("markDismissed / listDismissalHistory", () => {
   let dir: string;

@@ -10,7 +10,8 @@ import { resolve } from "node:path";
 import { loadEnv } from "../server/src/loadEnv.ts";
 import { chatCompletions } from "../server/src/deepseek.ts";
 import { getXApiCredsFromEnv } from "../server/src/xApi.ts";
-import { searchTimeline, type ThreadCard } from "../server/src/xSearch.ts";
+import type { ThreadCard } from "../server/src/threadCard.ts";
+import { searchTimeline } from "../server/src/xSearch.ts";
 import { triageThreads } from "../server/src/threadTriage.ts";
 import {
   EXCLUDEABLE_TAG_VOCAB,

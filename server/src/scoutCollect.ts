@@ -43,10 +43,8 @@ import {
 } from "./threadFilters.js";
 import { isCoolSkipThreadKind, triageThreads } from "./threadTriage.js";
 import { hydrateReplyParents } from "./tweetLookup.js";
-import {
-  searchTimelinePages,
-  type ThreadCard,
-} from "./xSearch.js";
+import type { ThreadCard } from "./threadCard.js";
+import { searchTimelinePages } from "./xSearch.js";
 import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
 
 export type ScoutStopReason =

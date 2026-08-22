@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { tweetResultToCard } from "./xSearch.ts";
+import { tweetResultToCard } from "./xGraphqlParse.ts";
 import {
   isNativeMediaUrl,
   isOutboundLinkUrl,

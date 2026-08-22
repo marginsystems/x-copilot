@@ -18,7 +18,7 @@ import {
   MAX_TRIAGE_THREADS,
   THREAD_KINDS,
 } from "./threadTriage.ts";
-import type { ThreadCard } from "./xSearch.ts";
+import type { ThreadCard } from "./threadCard.ts";
 
 function thread(id: string): ThreadCard {
   return {
