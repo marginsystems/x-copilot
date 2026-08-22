@@ -21,9 +21,9 @@ import {
 } from "./httpGates.js";
 import { BodyError, readBody, send } from "./httpJson.js";
 import {
-  filterThreadsByCooldown,
   getAuthorKeysForScoutFilter,
 } from "./interactionStore.js";
+import { filterThreadsByCooldown } from "./interactionCooldown.js";
 import { ensureMemoryIndex } from "./memoryReindex.js";
 import {
   getRequestContext,

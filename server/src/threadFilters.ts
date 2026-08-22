@@ -3,7 +3,7 @@
  * replies under them / self-replies / links / language) before triage.
  */
 import { franc } from "franc-min";
-import { normalizeAuthorKey } from "./interactionStore.js";
+import { normalizeAuthorKey } from "./interactionCooldown.js";
 import { parseXHandle } from "./xHandle.js";
 import type { ThreadCard } from "./threadCard.js";
 import { textHasOutboundLink } from "./xLinks.js";

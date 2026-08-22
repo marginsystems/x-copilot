@@ -4,7 +4,7 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { normalizeAuthorKey } from "./interactionStore.js";
+import { normalizeAuthorKey } from "./interactionCooldown.js";
 
 export type Skip = {
   threadId: string;

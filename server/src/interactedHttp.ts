@@ -24,10 +24,12 @@ import {
   listInteractionHistory,
   markInteracted,
   MAX_INTERACTION_STORE,
-  parseStatusIdFromUrl,
-  normalizeAuthorKey,
   setGamificationSyncFailed,
 } from "./interactionStore.js";
+import {
+  normalizeAuthorKey,
+  parseStatusIdFromUrl,
+} from "./interactionCooldown.js";
 import {
   normalizeReply,
   writeInteractionMemory,

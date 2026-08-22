@@ -6,9 +6,9 @@ import {
   MAX_INTERACTION_STORE,
   listInteractionHistory,
   markInteracted,
-  normalizeAuthorKey,
   type Interaction,
 } from "./interactionStore.js";
+import { normalizeAuthorKey } from "./interactionCooldown.js";
 import {
   writeInteractionMemory,
   normalizeReply,

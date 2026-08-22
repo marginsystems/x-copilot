@@ -7,12 +7,12 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  normalizeAuthorKey,
   type Interaction,
   type InteractionStats,
   type ReplyStatSnapshot,
   type StatsCheckpoint,
 } from "./interactionStore.js";
+import { normalizeAuthorKey } from "./interactionCooldown.js";
 
 export const MAX_THREAD_EXCERPT_CHARS = 2000;
 export const MAX_REPLY_CHARS = 8000;

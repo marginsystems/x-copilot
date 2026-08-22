@@ -4,11 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  COOLDOWN_MS,
-  conversationIdsFromHistory,
-  filterThreadsByCooldown,
   getCooledAuthorKeys,
-  isWithinCooldown,
   getAuthorKeysForScoutFilter,
   getEverInteractedAuthorKeys,
   listGamificationSyncRetries,
@@ -17,14 +13,20 @@ import {
   MAX_INTERACTION_HISTORY,
   MAX_INTERACTION_STORE,
   markInteracted,
+  setGamificationSyncFailed,
+  setMemorySyncFailed,
+  type Interaction,
+} from "./interactionStore.ts";
+import {
+  COOLDOWN_MS,
+  conversationIdsFromHistory,
+  filterThreadsByCooldown,
+  isWithinCooldown,
   normalizeAuthorKey,
   parseStatusIdFromUrl,
   pruneExpired,
-  setGamificationSyncFailed,
-  setMemorySyncFailed,
   threadMatchesConversationIds,
-  type Interaction,
-} from "./interactionStore.ts";
+} from "./interactionCooldown.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
 function thread(id: string, author: string): ThreadCard {
