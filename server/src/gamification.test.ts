@@ -4,27 +4,29 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir } from "node:fs/promises";
+import { ACHIEVEMENTS } from "./gamificationAchievements.ts";
 import {
-  ACHIEVEMENTS,
+  getGamification,
+  recordMarkGamification,
+  recordT24hBonusGamification,
+  resolveGamificationPath,
+} from "./gamification.ts";
+import {
   applyMarkToGamification,
   applyT24hBonus,
   bonusXpFromT24h,
   emptyGamificationState,
-  getGamification,
   levelFromXp,
   markXpForStreak,
   pickNextGoal,
   prevUtcDayKey,
-  recordMarkGamification,
-  recordT24hBonusGamification,
-  resolveGamificationPath,
   seedGamificationFromHistory,
   toLeaderboardRow,
   unlockedAchievementIds,
   utcDayKey,
   xpProgress,
   type GamificationState,
-} from "./gamification.ts";
+} from "./gamificationXp.ts";
 import { markInteracted } from "./interactionStore.ts";
 import type { Interaction } from "./interactionStore.ts";
 
