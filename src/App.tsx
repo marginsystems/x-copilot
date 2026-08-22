@@ -22,16 +22,6 @@ import {
 } from "./lib/settings";
 import { ExcludedAccountsField } from "./ExcludedAccountsField";
 import { ExcludedTagsField } from "./ExcludedTagsField";
-import {
-  MARK_DETECT_TIMEOUT_MS,
-  markDetectCheckingNote,
-  markDetectMissNote,
-  markDetectTimeoutNote,
-  markDetectWaitingNote,
-  nextMarkDetectWaitMs,
-  shouldContinueMarkDetectPoll,
-  waitWithCountdown,
-} from "./lib/markDetectPoll";
 import { formatAbsoluteTime, formatTimeAgo } from "./lib/timeAgo";
 import { ScoutPixelField } from "./ScoutPixelField";
 import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
@@ -89,11 +79,9 @@ import {
   threadHasExcludedAuthor,
 } from "./desk/threadHelpers";
 import type {
-  DismissalHistoryEntry,
   InteractionHistoryEntry,
   ScoutLogEntry,
   ScoutStreamEvent,
-  SkipHistoryEntry,
   ThreadCard,
   ThreadsTab,
 } from "./desk/types";
@@ -109,6 +97,11 @@ import {
 } from "./desk/HistoryRows";
 import { SuggestedRow } from "./desk/SuggestedRow";
 import { ThreadRow } from "./desk/ThreadRow";
+import { DismissModal } from "./desk/DismissModal";
+import { MarkDetectModal } from "./desk/MarkDetectModal";
+import { Toast } from "./desk/Toast";
+import { useMarkDetect } from "./desk/useMarkDetect";
+import { useSkipDismiss } from "./desk/useSkipDismiss";
 import type { UsageSummaryResponse, UsageWindow } from "./usage/types";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
@@ -242,18 +235,33 @@ export default function App() {
   const [settingsStatus, setSettingsStatus] = useState("");
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [markThread, setMarkThread] = useState<ThreadCard | null>(null);
-  const [markDetectNote, setMarkDetectNote] = useState("");
-  const [toast, setToast] = useState<{
-    id: number;
-    text: string;
-    kind: "ok" | "warn";
-  } | null>(null);
-  const [dismissThread, setDismissThread] = useState<ThreadCard | null>(null);
-  const [dismissReason, setDismissReason] = useState("");
+  const {
+    markThread,
+    markDetectNote,
+    toast,
+    openMarkModal,
+    closeMarkModal,
+  } = useMarkDetect({ postInteracted });
+  const {
+    dismissThread,
+    dismissReason,
+    setDismissReason,
+    openDismissModal,
+    closeDismissModal,
+    onSkip,
+    confirmDismiss,
+  } = useSkipDismiss({
+    setActionBusy,
+    setStatus,
+    setThreads,
+    setExpandedId,
+    setSkippedHistory,
+    setDismissedHistory,
+    skippedIdsRef,
+    dismissedIdsRef,
+    blockedConversationsRef,
+  });
   const abortRef = useRef<AbortController | null>(null);
-  const markDetectGenRef = useRef(0);
-  const markDetectAbortRef = useRef<AbortController | null>(null);
   const searchingRef = useRef(0);
   const coolProgressRef = useRef({
     cool: 0,
@@ -800,172 +808,6 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);
-
-  function showToast(text: string, kind: "ok" | "warn" = "ok") {
-    setToast({ id: Date.now(), text, kind });
-  }
-
-  function finishMarkDetect(
-    gen: number,
-    text: string,
-    kind: "ok" | "warn" = "warn",
-  ) {
-    if (markDetectGenRef.current !== gen) return;
-    closeMarkModal();
-    showToast(text, kind);
-  }
-
-  async function runMarkDetect(thread: ThreadCard, gen: number) {
-    markDetectAbortRef.current?.abort();
-    const ac = new AbortController();
-    markDetectAbortRef.current = ac;
-    const startedAt = Date.now();
-    let attempt = 0;
-    let lastReason: string | undefined;
-
-    while (markDetectGenRef.current === gen && !ac.signal.aborted) {
-        if (Date.now() - startedAt >= MARK_DETECT_TIMEOUT_MS) {
-          finishMarkDetect(gen, markDetectTimeoutNote());
-          return;
-        }
-        attempt += 1;
-        setMarkDetectNote(markDetectCheckingNote(attempt));
-
-        let found = false;
-        let replyUrl = "";
-        let replyText = "";
-        let reason: string | undefined;
-
-        try {
-          const res = await apiFetch("/api/interacted/detect", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              threadId: thread.id,
-              conversationId: thread.conversationId,
-              once: true,
-            }),
-            signal: ac.signal,
-          });
-          if (markDetectGenRef.current !== gen) return;
-          const data = (await res.json().catch(() => ({}))) as {
-            found?: boolean;
-            reason?: string;
-            reply?: { replyUrl?: string; replyText?: string };
-            message?: string;
-            error?: string;
-          };
-          if (markDetectGenRef.current !== gen) return;
-
-          if (!res.ok) {
-            // Identity / auth failures won't recover by polling.
-            if (res.status === 401 || res.status === 503) {
-              finishMarkDetect(
-                gen,
-                "Could not look up your reply — sign in again and mark.",
-              );
-              return;
-            }
-            if (res.status === 402 || data.error === "credits_exhausted") {
-              finishMarkDetect(
-                gen,
-                typeof data.message === "string" && data.message
-                  ? data.message
-                  : "This month's credits are used. Upgrade on Usage & Billing, or wait until the next UTC month.",
-              );
-              return;
-            }
-            reason = "search_failed";
-            lastReason = reason;
-          } else if (
-            data.found &&
-            typeof data.reply?.replyUrl === "string" &&
-            parseStatusIdFromUrl(data.reply.replyUrl)
-          ) {
-            found = true;
-            replyUrl = data.reply.replyUrl;
-            replyText =
-              typeof data.reply.replyText === "string"
-                ? data.reply.replyText
-                : "";
-          } else {
-            reason =
-              typeof data.reason === "string" ? data.reason : "none";
-            lastReason = reason;
-          }
-        } catch (err) {
-          if (markDetectGenRef.current !== gen) return;
-          if (err instanceof DOMException && err.name === "AbortError") return;
-          reason = "search_failed";
-          lastReason = reason;
-        }
-
-        if (found) {
-          setMarkDetectNote("Found your reply — saving…");
-          const ok = await postInteracted(thread, replyUrl, replyText, ac.signal);
-          if (markDetectGenRef.current !== gen) return;
-          finishMarkDetect(
-            gen,
-            ok
-              ? replyText.trim()
-                ? `Marked ${thread.author} interacted — memory saved`
-                : `Marked ${thread.author} interacted`
-              : "Could not save the mark. Try again.",
-            ok ? "ok" : "warn",
-          );
-          return;
-        }
-
-        const elapsedMs = Date.now() - startedAt;
-        if (
-          !shouldContinueMarkDetectPoll({
-            found: false,
-            reason,
-            elapsedMs,
-          })
-        ) {
-          finishMarkDetect(
-            gen,
-            elapsedMs >= MARK_DETECT_TIMEOUT_MS && reason !== "ambiguous"
-              ? markDetectTimeoutNote()
-              : markDetectMissNote(reason ?? lastReason),
-          );
-          return;
-        }
-
-        const waitMs = nextMarkDetectWaitMs({ elapsedMs });
-        if (waitMs <= 0) {
-          finishMarkDetect(gen, markDetectTimeoutNote());
-          return;
-        }
-
-        const waited = await waitWithCountdown(waitMs, {
-          signal: ac.signal,
-          onTick: (secondsLeft) => {
-            if (markDetectGenRef.current !== gen) return;
-            setMarkDetectNote(
-              markDetectWaitingNote(secondsLeft, attempt + 1),
-            );
-          },
-        });
-        if (waited === "aborted" || markDetectGenRef.current !== gen) return;
-      }
-  }
-
-  function openMarkModal(thread: ThreadCard) {
-    const gen = ++markDetectGenRef.current;
-    setMarkThread(thread);
-    setMarkDetectNote(`Looking for your reply to ${thread.author}…`);
-    void runMarkDetect(thread, gen);
-  }
-
-  function closeMarkModal() {
-    markDetectGenRef.current += 1;
-    markDetectAbortRef.current?.abort();
-    markDetectAbortRef.current = null;
-    setMarkThread(null);
-    setMarkDetectNote("");
-  }
 
   function applyInteractionLocally(
     thread: ThreadCard,
@@ -1542,161 +1384,6 @@ export default function App() {
       }
     }
   }
-
-  function onMark(thread: ThreadCard) {
-    openMarkModal(thread);
-  }
-
-  function openDismissModal(thread: ThreadCard) {
-    setDismissThread(thread);
-    setDismissReason("");
-  }
-
-  function closeDismissModal() {
-    setDismissThread(null);
-    setDismissReason("");
-  }
-
-  async function onSkip(thread: ThreadCard) {
-    setActionBusy(true);
-    try {
-      const res = await apiFetch("/api/skipped", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          threadId: thread.id,
-          author: thread.author,
-          url: thread.url,
-          text: thread.text,
-          summary: thread.summary,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        message?: string;
-        skip?: SkipHistoryEntry;
-      };
-      if (!res.ok) {
-        setStatus(`Skip fail: ${data.message || res.status}`);
-        return;
-      }
-      const entry: SkipHistoryEntry = data.skip ?? {
-        threadId: thread.id,
-        author: thread.author,
-        at: new Date().toISOString(),
-        url: thread.url,
-        summary: thread.summary,
-        text: thread.text,
-      };
-      skippedIdsRef.current = new Set(skippedIdsRef.current).add(thread.id);
-      setSkippedHistory((prev) => [
-        entry,
-        ...prev.filter((d) => d.threadId !== thread.id),
-      ]);
-      setThreads((prev) => prev.filter((t) => t.id !== thread.id));
-      setExpandedId((id) => (id === thread.id ? null : id));
-      setStatus(`Skipped ${thread.author}`);
-    } catch {
-      setStatus("Sidecar offline — could not skip");
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
-  async function postDismissed(
-    thread: ThreadCard,
-    reason: string,
-  ): Promise<boolean> {
-    try {
-      const res = await apiFetch("/api/dismissed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          threadId: thread.id,
-          author: thread.author,
-          url: thread.url,
-          text: thread.text,
-          summary: thread.summary,
-          opAuthor: thread.opAuthor,
-          opText: thread.opText,
-          conversationId: thread.conversationId,
-          inReplyToId: thread.inReplyToId,
-          ...(reason.trim() ? { reason: reason.trim() } : {}),
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        message?: string;
-        dismissal?: DismissalHistoryEntry;
-      };
-      if (!res.ok) {
-        setStatus(`Dismiss fail: ${data.message || res.status}`);
-        return false;
-      }
-      const conversationRoot =
-        thread.conversationId?.trim() ||
-        thread.inReplyToId?.trim() ||
-        thread.id;
-      const entry: DismissalHistoryEntry = data.dismissal ?? {
-        threadId: thread.id,
-        author: thread.author,
-        at: new Date().toISOString(),
-        url: thread.url,
-        summary: thread.summary,
-        text: thread.text,
-        conversationId: thread.conversationId?.trim(),
-        inReplyToId: thread.inReplyToId?.trim(),
-        ...(reason.trim() ? { reason: reason.trim() } : {}),
-      };
-      dismissedIdsRef.current = new Set(dismissedIdsRef.current).add(thread.id);
-      const blocked = new Set(blockedConversationsRef.current);
-      blocked.add(conversationRoot);
-      if (thread.id.trim()) blocked.add(thread.id.trim());
-      if (thread.inReplyToId?.trim()) blocked.add(thread.inReplyToId.trim());
-      blockedConversationsRef.current = blocked;
-      setDismissedHistory((prev) => [
-        entry,
-        ...prev.filter((d) => d.threadId !== thread.id),
-      ]);
-      // Drop the card and sibling replies under the same conversation root.
-      setThreads((prev) =>
-        prev.filter((t) => {
-          if (t.id === thread.id || t.id === conversationRoot) return false;
-          if (t.conversationId && t.conversationId === conversationRoot) {
-            return false;
-          }
-          if (t.inReplyToId && t.inReplyToId === conversationRoot) return false;
-          return true;
-        }),
-      );
-      setExpandedId((id) => (id === thread.id ? null : id));
-      return true;
-    } catch {
-      setStatus("Sidecar offline — could not dismiss");
-      return false;
-    }
-  }
-
-  async function confirmDismiss() {
-    const thread = dismissThread;
-    if (!thread) return;
-    setActionBusy(true);
-    try {
-      const ok = await postDismissed(thread, dismissReason);
-      if (ok) {
-        closeDismissModal();
-        setStatus(`Marked ${thread.author} not interested`);
-      }
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!toast) return;
-    const id = window.setTimeout(() => {
-      setToast((current) => (current?.id === toast.id ? null : current));
-    }, 4200);
-    return () => window.clearTimeout(id);
-  }, [toast]);
 
   useEffect(() => {
     if (!markThread && !dismissThread && !signInOpen) return;
@@ -2616,7 +2303,7 @@ export default function App() {
                           if (next) watchDeskThreads([t]);
                         }}
                         onWatch={() => watchDeskThreads([t])}
-                        onMark={() => onMark(t)}
+                        onMark={() => openMarkModal(t)}
                         onSkip={() => void onSkip(t)}
                         onDismiss={() => openDismissModal(t)}
                         suggest={
@@ -2726,107 +2413,20 @@ export default function App() {
         </main>
       ) : null}
 
-      {markThread ? (
-        <div className="modal-root" role="presentation">
-          <button
-            type="button"
-            className="modal-backdrop"
-            aria-label="Cancel mark interacted"
-            onClick={closeMarkModal}
-          />
-          <div
-            className="modal-sheet mark-detect-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="mark-reply-title"
-            aria-live="polite"
-          >
-            <h2 id="mark-reply-title">Looking for your reply</h2>
-            <div className="mark-detect-anim" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-            <p className="status">
-              {markDetectNote ||
-                `Checking X for a reply to ${markThread.author}…`}
-            </p>
-            <div className="row">
-              <button
-                type="button"
-                className="ghost"
-                onClick={closeMarkModal}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {toast ? (
-        <div
-          className={
-            toast.kind === "warn" ? "app-toast is-warn" : "app-toast"
-          }
-          role="status"
-        >
-          {toast.text}
-        </div>
-      ) : null}
-
-      {dismissThread ? (
-        <div className="modal-root" role="presentation">
-          <button
-            type="button"
-            className="modal-backdrop"
-            aria-label="Cancel not interested"
-            disabled={actionBusy}
-            onClick={closeDismissModal}
-          />
-          <div
-            className="modal-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="dismiss-title"
-          >
-            <h2 id="dismiss-title">Not interested</h2>
-            <p className="status">
-              Dismiss {dismissThread.author} from For You. Optional reason is
-              saved to local knowledge memory.
-            </p>
-            <label className="settings-field">
-              <span>Reason (optional)</span>
-              <textarea
-                className="mark-reply-text"
-                value={dismissReason}
-                onChange={(e) => setDismissReason(e.target.value)}
-                placeholder="Why skip this lead…"
-                rows={3}
-                autoFocus
-              />
-            </label>
-            <div className="row">
-              <button
-                type="button"
-                className="primary"
-                disabled={actionBusy}
-                onClick={() => void confirmDismiss()}
-              >
-                Confirm
-              </button>
-              <button
-                type="button"
-                className="ghost"
-                disabled={actionBusy}
-                onClick={closeDismissModal}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <MarkDetectModal
+        thread={markThread}
+        note={markDetectNote}
+        onClose={closeMarkModal}
+      />
+      <Toast toast={toast} />
+      <DismissModal
+        thread={dismissThread}
+        reason={dismissReason}
+        busy={actionBusy}
+        setReason={setDismissReason}
+        onConfirm={() => void confirmDismiss()}
+        onClose={closeDismissModal}
+      />
 
       <SignInModal
         open={signInOpen}
