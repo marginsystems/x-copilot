@@ -6,7 +6,7 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { trackAnalytics } from "./analyticsClient.js";
-import { creditsExhaustedResponse } from "./billingStore.js";
+import { creditsExhaustedResponse } from "./billingQuotas.js";
 import { corsHeaders } from "./cors.js";
 import {
   getBlockedConversationIds,

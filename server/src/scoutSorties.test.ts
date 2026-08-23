@@ -9,10 +9,8 @@ import {
   resetPlatformDbForTests,
 } from "./db.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
-import {
-  ensureUserTenant,
-  sortiesExhaustedResponse,
-} from "./billingStore.ts";
+import { ensureUserTenant } from "./billingStore.ts";
+import { sortiesExhaustedResponse } from "./billingQuotas.ts";
 import { getSortieUsage, recordSortie } from "./scoutSorties.ts";
 
 describe("scout sorties", () => {

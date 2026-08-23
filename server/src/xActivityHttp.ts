@@ -32,8 +32,8 @@ import {
 import {
   creditsExhaustedResponse,
   dailyActivityUsage,
-  ensureUserTenant,
-} from "./billingStore.js";
+} from "./billingQuotas.js";
+import { ensureUserTenant } from "./billingStore.js";
 import { recordUsageEvent } from "./usageMeter.js";
 import { markInteracted } from "./interactionStore.js";
 import { allowRate, clientIp } from "./authGuard.js";

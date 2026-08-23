@@ -45,7 +45,7 @@ import { ingestUsersHourly } from "./userIngest.js";
 import { runForYouDigests } from "./forYouRun.js";
 import { runWithRequestContext } from "./requestContext.js";
 import { getUserById } from "./authStore.js";
-import { creditsExhaustedResponse } from "./billingStore.js";
+import { creditsExhaustedResponse } from "./billingQuotas.js";
 
 const TICK_MS = 60 * 60 * 1000;
 const LOOKUP_DELAY_MS = 400;

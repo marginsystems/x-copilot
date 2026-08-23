@@ -2,11 +2,11 @@
  * Health, usage, and gamification JSON routes.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { ensureUserBillingRow } from "./billingStore.js";
 import {
   creditLimitForPlan,
   effectivePlanKey,
-  ensureUserBillingRow,
-} from "./billingStore.js";
+} from "./planResolution.js";
 import { getGamification } from "./gamification.js";
 import { send } from "./httpJson.js";
 import { memoryIndexStatus } from "./memoryIndex.js";

@@ -12,7 +12,8 @@ import {
   getXOauthUsername,
   getXOauthXUserId,
 } from "./xIdentityStore.js";
-import { dailyActivityUsage, ensureUserTenant } from "./billingStore.js";
+import { dailyActivityUsage } from "./billingQuotas.js";
+import { ensureUserTenant } from "./billingStore.js";
 import {
   countOwnPostsSince,
   startOfUtcDayIso,

@@ -5,19 +5,28 @@ import { randomUUID } from "node:crypto";
 import { isAdminEmail } from "./adminEmails.js";
 import { getPlatformDb } from "./db.js";
 import {
+  dailyActivityUsage,
+  getCreditUsage,
+  startOfUtcMonthIso,
+} from "./billingQuotas.js";
+import {
   FREE_PLAN,
   PAID_PLANS,
-  PLAN_CREDIT_LIMITS,
   PLAN_DAILY_ACTIVITY_EVENTS,
   PLAN_DAILY_SORTIES,
   PLAN_PRICE_LABELS,
   derivePlanState,
   isPaidPlanKey,
-  planDisplayName,
   type PaidPlanKey,
   type PlanKey,
 } from "./plans.js";
-import { countOwnPostsSince, startOfUtcDayIso } from "./ownPostStore.js";
+import {
+  activeManualGrant,
+  creditLimitForPlan,
+  effectivePlanKey,
+  hasLiveStripeSubscription,
+  liveSubTakesPrecedence,
+} from "./planResolution.js";
 import { getSortieUsage } from "./scoutSorties.js";
 import {
   resolveStripePriceId,
@@ -61,17 +70,8 @@ type BillingSqlRow = {
   grant_created_by: string | null;
 };
 
-const LIVE_SUB_STATUSES = new Set(["active", "trialing", "past_due", "unpaid"]);
-const NON_LIVE_SUB_STATUSES = new Set(["canceled", "incomplete_expired"]);
-
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-export function startOfUtcMonthIso(now = new Date()): string {
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-  ).toISOString();
 }
 
 function tenantSlugForUser(userId: string, email: string | null): string {
@@ -337,54 +337,6 @@ export function cancelSubscriptionByStripeSubscriptionId(
     .run(watermark, nowIso(), row.userId);
 }
 
-export function countPostsReadThisUtcMonth(tenantId: string): number {
-  const since = startOfUtcMonthIso();
-  const row = getPlatformDb()
-    .prepare(
-      `SELECT COALESCE(SUM(posts_read), 0) AS n
-       FROM x_api_usage_events
-       WHERE tenant_id = ? AND at >= ? AND path LIKE '%/tweets%'`,
-    )
-    .get(tenantId, since) as { n: number };
-  return Number(row.n) || 0;
-}
-
-export function hasLiveStripeSubscription(row: UserBillingRow): boolean {
-  const sub = row.stripeSubscriptionId?.trim();
-  if (!sub) return false;
-  const status = row.subscriptionStatus?.trim() || null;
-  if (status && NON_LIVE_SUB_STATUSES.has(status)) return false;
-  return true;
-}
-
-export function hasPaidBillingHistory(row: UserBillingRow): boolean {
-  return Boolean(row.stripeCustomerId?.trim() || row.stripeSubscriptionId?.trim());
-}
-
-/** True when the live Stripe sub actually resolves to the effective plan. */
-export function liveSubTakesPrecedence(row: UserBillingRow): boolean {
-  const status = row.subscriptionStatus?.trim() || null;
-  return (
-    hasLiveStripeSubscription(row) &&
-    isPaidPlanKey(row.planKey) &&
-    (!status || LIVE_SUB_STATUSES.has(status))
-  );
-}
-
-export function effectivePlanKey(
-  row: UserBillingRow,
-  email: string | null | undefined,
-): PlanKey {
-  if (liveSubTakesPrecedence(row)) return row.planKey;
-  if (isAdminEmail(email)) return "horizon";
-  if (row.grantPlanKey && isPaidPlanKey(row.grantPlanKey)) return row.grantPlanKey;
-  return "free";
-}
-
-export function manualGrantNotice(planKey: PaidPlanKey): string {
-  return `This account was manually upgraded to ${planDisplayName(planKey)} without a Stripe subscription.`;
-}
-
 export function grantManualPlan(opts: {
   userId: string;
   planKey: PaidPlanKey | "free";
@@ -419,135 +371,6 @@ export function grantManualPlan(opts: {
   const row = getUserBilling(opts.userId);
   if (!row) throw new Error("billing_row_missing");
   return row;
-}
-
-export function activeManualGrant(
-  row: UserBillingRow,
-  email: string | null | undefined,
-): {
-  plan_key: PaidPlanKey;
-  created_at: string | null;
-  created_by: string | null;
-  notice: string;
-} | null {
-  if (!row.grantPlanKey) return null;
-  if (liveSubTakesPrecedence(row)) return null;
-  if (isAdminEmail(email)) return null;
-  return {
-    plan_key: row.grantPlanKey,
-    created_at: row.grantCreatedAt,
-    created_by: row.grantCreatedBy,
-    notice: manualGrantNotice(row.grantPlanKey),
-  };
-}
-
-export function creditLimitForPlan(plan: PlanKey): number {
-  return PLAN_CREDIT_LIMITS[plan];
-}
-
-export type CreditUsage = {
-  planKey: PlanKey;
-  used: number;
-  limit: number;
-  remaining: number;
-  canUse: boolean;
-};
-
-export function getCreditUsage(
-  tenantId: string,
-  planKey: PlanKey,
-): CreditUsage {
-  const used = countPostsReadThisUtcMonth(tenantId);
-  const limit = creditLimitForPlan(planKey);
-  const remaining = Math.max(0, limit - used);
-  return {
-    planKey,
-    used,
-    limit,
-    remaining,
-    canUse: remaining > 0,
-  };
-}
-
-export function dailyActivityUsage(
-  userId: string,
-  email: string | null | undefined,
-): {
-  used: number;
-  limit: number;
-  remaining: number;
-  can_watch: boolean;
-  planKey: PlanKey;
-} {
-  const tenantId = ensureUserTenant(userId);
-  const row = ensureUserBillingRow(userId, tenantId);
-  const planKey = effectivePlanKey(row, email);
-  const limit = PLAN_DAILY_ACTIVITY_EVENTS[planKey];
-  const used = countOwnPostsSince(userId, startOfUtcDayIso());
-  const remaining = Math.max(0, limit - used);
-  return {
-    used,
-    limit,
-    remaining,
-    can_watch: remaining > 0,
-    planKey,
-  };
-}
-
-/** 402 body when the monthly pool is empty. null = allow Scout. */
-export function creditsExhaustedResponse(input: {
-  userId?: string;
-  tenantId: string;
-  email?: string | null;
-}): {
-  error: "credits_exhausted";
-  message: string;
-  used: number;
-  limit: number;
-  planKey: PlanKey;
-} | null {
-  if (!input.userId) return null;
-  const row = ensureUserBillingRow(input.userId, input.tenantId);
-  const planKey = effectivePlanKey(row, input.email);
-  const usage = getCreditUsage(input.tenantId, planKey);
-  if (usage.canUse) return null;
-  const pool =
-    planKey === "free"
-      ? `${usage.limit.toLocaleString()} free credits`
-      : `${usage.limit.toLocaleString()} credits`;
-  return {
-    error: "credits_exhausted",
-    message: `You've used this month's ${pool}. Upgrade on Usage & Billing, or wait until the next UTC month.`,
-    used: usage.used,
-    limit: usage.limit,
-    planKey,
-  };
-}
-
-/** 429 body when today's Take offs are used. null = allow. */
-export function sortiesExhaustedResponse(input: {
-  userId?: string;
-  tenantId: string;
-  email?: string | null;
-}): {
-  error: "scout_daily_limit";
-  message: string;
-  used: number;
-  limit: number;
-  planKey: PlanKey;
-} | null {
-  if (!input.userId) return null;
-  const row = ensureUserBillingRow(input.userId, input.tenantId);
-  const planKey = effectivePlanKey(row, input.email);
-  const usage = getSortieUsage(input.tenantId, planKey);
-  if (usage.canFly) return null;
-  return {
-    error: "scout_daily_limit",
-    message: `Grounded — ${usage.limit} sortie${usage.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`,
-    used: usage.used,
-    limit: usage.limit,
-    planKey,
-  };
 }
 
 export function billingMePayload(input: {

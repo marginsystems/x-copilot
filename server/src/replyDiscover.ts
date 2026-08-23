@@ -24,7 +24,8 @@ import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
 import { getUserById, listIngestUsers } from "./authStore.js";
 import { findUserIdByXUsername } from "./xIdentityStore.js";
 import { resolveIngestHandle } from "./userIngest.js";
-import { dailyActivityUsage, ensureUserTenant } from "./billingStore.js";
+import { dailyActivityUsage } from "./billingQuotas.js";
+import { ensureUserTenant } from "./billingStore.js";
 import { upsertOwnPost } from "./ownPostStore.js";
 import {
   findUserIdByXUserId,
