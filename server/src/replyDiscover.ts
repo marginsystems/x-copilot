@@ -21,11 +21,8 @@ import {
   type SearchTimelineResult,
 } from "./xSearch.js";
 import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
-import {
-  findUserIdByXUsername,
-  getUserById,
-  listIngestUsers,
-} from "./authStore.js";
+import { getUserById, listIngestUsers } from "./authStore.js";
+import { findUserIdByXUsername } from "./xIdentityStore.js";
 import { resolveIngestHandle } from "./userIngest.js";
 import { dailyActivityUsage, ensureUserTenant } from "./billingStore.js";
 import { upsertOwnPost } from "./ownPostStore.js";

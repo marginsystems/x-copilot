@@ -5,11 +5,13 @@
 import type { AuthUser } from "./authStore.js";
 import {
   getUserById,
-  getXOauthUsername,
-  getXOauthXUserId,
   listIngestUsers,
   setUserXUsername,
 } from "./authStore.js";
+import {
+  getXOauthUsername,
+  getXOauthXUserId,
+} from "./xIdentityStore.js";
 import { dailyActivityUsage, ensureUserTenant } from "./billingStore.js";
 import {
   countOwnPostsSince,

@@ -10,7 +10,8 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
-import { saveXWriteCreds, upsertOauthUser } from "./authStore.ts";
+import { upsertOauthUser } from "./oauthAccountStore.ts";
+import { saveXWriteCreds } from "./xIdentityStore.ts";
 import { recordDeskPost } from "./xPostLimits.ts";
 import {
   SUGGESTION_TTL_MS,

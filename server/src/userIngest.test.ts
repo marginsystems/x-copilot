@@ -10,13 +10,17 @@ import {
 } from "./db.ts";
 import {
   getUserById,
-  getXOauthUsername,
-  getXOauthXUserId,
-  linkOauthToUser,
   listIngestUsers,
   setUserXUsername,
-  upsertOauthUser,
 } from "./authStore.ts";
+import {
+  linkOauthToUser,
+  upsertOauthUser,
+} from "./oauthAccountStore.ts";
+import {
+  getXOauthUsername,
+  getXOauthXUserId,
+} from "./xIdentityStore.ts";
 import {
   ensureVoiceProfile,
   getVoiceProfile,

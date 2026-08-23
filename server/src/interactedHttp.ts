@@ -10,7 +10,7 @@ import {
   pendingReplyIds,
 } from "./activityStats.js";
 import { trackAnalytics } from "./analyticsClient.js";
-import { getXOauthUsername } from "./authStore.js";
+import { getXOauthUsername } from "./xIdentityStore.js";
 import {
   detectOwnReplyToThread,
   detectOwnReplyToThreadWithRetry,

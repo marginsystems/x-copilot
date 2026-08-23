@@ -3,7 +3,7 @@
  */
 import { getPlatformDb } from "./db.js";
 import { X_API_BASE, getXApiCredsFromEnv } from "./xApi.js";
-import { getXOauthUsername } from "./authStore.js";
+import { getXOauthUsername } from "./xIdentityStore.js";
 import { parseXHandle } from "./xHandle.js";
 
 // How long a subscribe "claim" reserves a due row while the X-side POST is in

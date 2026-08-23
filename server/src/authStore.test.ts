@@ -11,17 +11,21 @@ import {
 } from "./billingStore.ts";
 import {
   completeOnboarding,
-  findOauthAccount,
   getUserById,
-  linkOauthToUser,
-  listOauthProviders,
-  saveXWriteCreds,
   setUserXUsername,
   toPublicUser,
+} from "./authStore.ts";
+import {
+  findOauthAccount,
+  linkOauthToUser,
+  listOauthProviders,
   upsertOauthIdentity,
   upsertOauthUser,
+} from "./oauthAccountStore.ts";
+import {
+  saveXWriteCreds,
   userNeedsXHandle,
-} from "./authStore.ts";
+} from "./xIdentityStore.ts";
 import {
   createSession,
   getUserForSessionToken,

@@ -9,7 +9,7 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
-import { upsertOauthUser } from "./authStore.ts";
+import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { createSession } from "./sessionStore.ts";
 import { resetRateLimiterForTests } from "./authGuard.ts";
 import { tryHandleAuth } from "./authHttp.ts";

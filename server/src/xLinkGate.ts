@@ -2,7 +2,7 @@
  * Scout takeoff requires an official X OAuth link, not a typed handle.
  */
 import type { AuthUser } from "./authStore.js";
-import { userNeedsXHandle } from "./authStore.js";
+import { userNeedsXHandle } from "./xIdentityStore.js";
 
 export const X_LINK_REQUIRED = {
   error: "x_link_required",

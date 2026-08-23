@@ -11,12 +11,11 @@ import {
   listAdminTenantUsage,
   liveSubTakesPrecedence,
 } from "./billingStore.js";
+import { getUserByEmail, getUserById } from "./authStore.js";
 import {
   findUserIdByXUsername,
-  getUserByEmail,
-  getUserById,
   getXOauthUsername,
-} from "./authStore.js";
+} from "./xIdentityStore.js";
 import { isOriginAllowed, requestOrigin } from "./cors.js";
 import {
   BODY_CAP_16K,

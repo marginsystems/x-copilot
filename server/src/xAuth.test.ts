@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "./db.ts";
-import { upsertOauthUser } from "./authStore.ts";
+import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { getUserForSessionToken } from "./sessionStore.ts";
 import {
   completeXLogin,
