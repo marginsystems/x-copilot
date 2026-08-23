@@ -2,7 +2,7 @@
  * Auth HTTP routes: Google / X OAuth, session me/logout.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { revokeSessionToken, toPublicUser } from "./authStore.js";
+import { toPublicUser } from "./authStore.js";
 import { send } from "./httpJson.js";
 import { handleGoogleCallback, handleGoogleStart } from "./googleAuth.js";
 import { handleXCallback, handleXStart } from "./xAuth.js";
@@ -20,6 +20,7 @@ import {
   SESSION_COOKIE,
   sessionClearCookie,
 } from "./sessionCookie.js";
+import { revokeSessionToken } from "./sessionStore.js";
 import { tryHandleSessions } from "./sessionsHttp.js";
 
 function sendJson(

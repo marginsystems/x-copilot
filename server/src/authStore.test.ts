@@ -11,24 +11,26 @@ import {
 } from "./billingStore.ts";
 import {
   completeOnboarding,
-  createSession,
   findOauthAccount,
   getUserById,
-  getUserForSessionToken,
   linkOauthToUser,
   listOauthProviders,
-  listSessionsForUser,
-  revokeOtherSessions,
-  revokeSessionById,
-  revokeSessionToken,
   saveXWriteCreds,
   setUserXUsername,
   toPublicUser,
-  touchSessionMeta,
   upsertOauthIdentity,
   upsertOauthUser,
   userNeedsXHandle,
 } from "./authStore.ts";
+import {
+  createSession,
+  getUserForSessionToken,
+  listSessionsForUser,
+  revokeOtherSessions,
+  revokeSessionById,
+  revokeSessionToken,
+  touchSessionMeta,
+} from "./sessionStore.ts";
 import { toPublicSession } from "./sessionView.ts";
 
 describe("authStore", () => {

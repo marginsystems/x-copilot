@@ -6,14 +6,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHmac } from "node:crypto";
 import {
-  createSession,
   findOauthAccount,
   getUserById,
   linkOauthToUser,
   saveXWriteCreds,
   upsertOauthIdentity,
   type AuthUser,
-  type SessionClientMeta,
 } from "./authStore.js";
 import { clientIp } from "./authGuard.js";
 import { authErrorRedirect, authSuccessRedirect } from "./authConfig.js";
@@ -28,6 +26,10 @@ import {
   serializeCookie,
   sessionSetCookie,
 } from "./sessionCookie.js";
+import {
+  createSession,
+  type SessionClientMeta,
+} from "./sessionStore.js";
 import { beginVoiceCorpus } from "./userIngest.js";
 import { X_API_BASE, getXApiCredsFromEnv } from "./xApi.js";
 import { parseXHandle } from "./xHandle.js";

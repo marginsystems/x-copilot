@@ -10,7 +10,7 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
-import { createSession, saveXWriteCreds, upsertOauthUser } from "./authStore.ts";
+import { saveXWriteCreds, upsertOauthUser } from "./authStore.ts";
 import { recordDeskPost } from "./xPostLimits.ts";
 import {
   SUGGESTION_TTL_MS,
@@ -19,6 +19,7 @@ import {
   markSuggestion,
 } from "./forYouStore.ts";
 import type { AuthUser } from "./authStore.ts";
+import { createSession } from "./sessionStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import {
   deriveNeedsLearn,
