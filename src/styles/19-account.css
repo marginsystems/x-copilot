@@ -66,8 +66,7 @@
   gap: 8px;
 }
 
-.account-provider,
-.account-session {
+.account-provider {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -94,6 +93,9 @@
 
 .account-session {
   display: block;
+  padding: 10px 12px;
+  background: var(--raised);
+  border: 1px solid var(--border-strong);
 }
 
 .account-session-top {

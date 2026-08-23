@@ -121,7 +121,7 @@ function SeriesChart({
       {[0.25, 0.5, 0.75, 1].map((f) => (
         <line
           key={f}
-          className="analytics-grid"
+          className="analytics-grid-line"
           x1={padL}
           x2={padL + innerW}
           y1={padT + innerH * (1 - f)}
