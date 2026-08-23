@@ -57,7 +57,7 @@
   margin: 12px 0;
 }
 
-@media (min-width: 720px) {
+@media (min-width: 900px) {
   .usage-stats {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
