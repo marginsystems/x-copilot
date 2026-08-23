@@ -3,10 +3,10 @@
  */
 import type { AuthUser } from "./authStore.js";
 import {
-  effectivePlanKey,
   ensureUserBillingRow,
   ensureUserTenant,
 } from "./billingStore.js";
+import { effectivePlanKey } from "./planResolution.js";
 import { getXOauthUsername } from "./xIdentityStore.js";
 import type { VoiceCard } from "./voiceLlm.js";
 import {
