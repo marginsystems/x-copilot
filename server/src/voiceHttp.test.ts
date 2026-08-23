@@ -22,12 +22,12 @@ import {
 import type { AuthUser } from "./authStore.ts";
 import { createSession } from "./sessionStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
+import { tryHandleVoice } from "./voiceHttp.ts";
 import {
   deriveNeedsLearn,
   deriveVoiceUiStatus,
   shouldPullXApi,
-  tryHandleVoice,
-} from "./voiceHttp.ts";
+} from "./voiceStatus.ts";
 import {
   ensureUserBillingRow,
   ensureUserTenant,
