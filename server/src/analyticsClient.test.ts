@@ -1,14 +1,15 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
+  analyticsBaseUrl,
   analyticsClientEnabled,
+  defaultAnalyticsUrl,
   trackAnalytics,
 } from "./analyticsClient.ts";
 
 describe("analyticsClientEnabled", () => {
-  it("is off unless ANALYTICS_URL is set, and ANALYTICS_DISABLE wins", () => {
-    assert.equal(analyticsClientEnabled({}), false);
-    assert.equal(analyticsClientEnabled({ ANALYTICS_URL: "  " }), false);
+  it("is on by default and ANALYTICS_DISABLE wins", () => {
+    assert.equal(analyticsClientEnabled({}), true);
     assert.equal(
       analyticsClientEnabled({ ANALYTICS_URL: "http://127.0.0.1:8788" }),
       true,
@@ -19,6 +20,15 @@ describe("analyticsClientEnabled", () => {
         ANALYTICS_DISABLE: "1",
       }),
       false,
+    );
+  });
+
+  it("defaults to loopback 8788 and honors ANALYTICS_PORT", () => {
+    assert.equal(defaultAnalyticsUrl({}), "http://127.0.0.1:8788");
+    assert.equal(defaultAnalyticsUrl({ ANALYTICS_PORT: "9000" }), "http://127.0.0.1:9000");
+    assert.equal(
+      analyticsBaseUrl({ ANALYTICS_URL: "http://127.0.0.1:1/" }),
+      "http://127.0.0.1:1/",
     );
   });
 });
@@ -43,7 +53,8 @@ describe("trackAnalytics", () => {
     else process.env.ANALYTICS_DISABLE = prevDisable;
   });
 
-  it("is a no-op when ANALYTICS_URL is unset", () => {
+  it("is a no-op when ANALYTICS_DISABLE=1", () => {
+    process.env.ANALYTICS_DISABLE = "1";
     let called = 0;
     const fetchImpl: typeof fetch = async () => {
       called += 1;
@@ -51,6 +62,25 @@ describe("trackAnalytics", () => {
     };
     trackAnalytics({ name: "user.signup", email: "a@b.c" }, { fetchImpl });
     assert.equal(called, 0);
+  });
+
+  it("POSTs the loopback sidecar when ANALYTICS_URL is unset", async () => {
+    let resolveFetch: (value: Response) => void = () => {};
+    const started = new Promise<void>((resolveWait) => {
+      resolveFetch = () => {
+        resolveWait();
+        return undefined as unknown as void;
+      };
+    });
+    const urls: string[] = [];
+    const fetchImpl: typeof fetch = async (input) => {
+      urls.push(String(input));
+      resolveFetch(new Response("ok", { status: 202 }));
+      return new Response(JSON.stringify({ ok: true }), { status: 202 });
+    };
+    trackAnalytics({ name: "user.signup", email: "a@b.c" }, { fetchImpl });
+    await started;
+    assert.deepEqual(urls, ["http://127.0.0.1:8788/event"]);
   });
 
   it("POSTs /event with the bearer and does not await", async () => {
