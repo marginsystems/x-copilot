@@ -37,11 +37,13 @@ describe("trackAnalytics", () => {
   const prevUrl = process.env.ANALYTICS_URL;
   const prevSecret = process.env.ANALYTICS_SECRET;
   const prevDisable = process.env.ANALYTICS_DISABLE;
+  const prevPort = process.env.ANALYTICS_PORT;
 
   beforeEach(() => {
     delete process.env.ANALYTICS_URL;
     delete process.env.ANALYTICS_SECRET;
     delete process.env.ANALYTICS_DISABLE;
+    delete process.env.ANALYTICS_PORT;
   });
 
   afterEach(() => {
@@ -51,6 +53,8 @@ describe("trackAnalytics", () => {
     else process.env.ANALYTICS_SECRET = prevSecret;
     if (prevDisable === undefined) delete process.env.ANALYTICS_DISABLE;
     else process.env.ANALYTICS_DISABLE = prevDisable;
+    if (prevPort === undefined) delete process.env.ANALYTICS_PORT;
+    else process.env.ANALYTICS_PORT = prevPort;
   });
 
   it("is a no-op when ANALYTICS_DISABLE=1", () => {
