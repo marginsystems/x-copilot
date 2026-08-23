@@ -116,8 +116,7 @@
   display: block;
 }
 
-.analytics-grid-line,
-.analytics-grid {
+.analytics-grid-line {
   stroke: var(--border);
   stroke-width: 1;
 }

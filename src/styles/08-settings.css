@@ -336,8 +336,7 @@ button.linkish {
 }
 
 .settings-field input[type="text"],
-.settings-field input[type="number"],
-.settings-field .settings-select {
+.settings-field input[type="number"] {
   width: 100%;
   max-width: none;
   background: var(--raised);
@@ -347,6 +346,12 @@ button.linkish {
 }
 
 .settings-field .settings-select {
+  width: 100%;
+  max-width: none;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 10px 12px;
   appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
     linear-gradient(135deg, var(--muted) 50%, transparent 50%);

@@ -87,9 +87,9 @@
   border-color: color-mix(in srgb, var(--danger) 45%, var(--border-strong));
 }
 
-.mark-reply-url,
-.mark-reply-text {
+.mark-reply-url {
   width: 100%;
+  min-height: 0;
   background: var(--raised);
   color: var(--text);
   border: 1px solid var(--border);
@@ -101,13 +101,18 @@
   line-height: 1.45;
 }
 
-.mark-reply-url {
-  min-height: 0;
-}
-
 .mark-reply-text {
+  width: 100%;
   min-height: 120px;
   resize: vertical;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
 }
 
 .mark-reply-url:focus-visible,

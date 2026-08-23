@@ -2,7 +2,20 @@
 
 /* Buttons */
 
-button.primary,
+button.primary {
+  border-radius: var(--radius);
+  padding: 7px 14px;
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+}
+
 button.ghost,
 a.ghost {
   border-radius: var(--radius);
@@ -13,16 +26,6 @@ a.ghost {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
-}
-
-button.primary {
-  background: var(--accent);
-  color: var(--on-accent);
-  border: 1px solid var(--accent);
-}
-
-button.ghost,
-a.ghost {
   background: transparent;
   color: var(--text);
   border: 1px solid var(--border-strong);
