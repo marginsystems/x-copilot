@@ -15,6 +15,7 @@ import {
 } from "./deepseek.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
+import { filterPostHydrateThreads } from "./scoutPipeline.js";
 import {
   filterAutomatedAccounts,
   filterExcludedAccounts,
@@ -214,17 +215,16 @@ export async function runScoutSearch(opts: {
     threads: byLength.threads,
     session,
   });
-  const afterHydrateSelf = filterSelfReplies(hydrated.threads);
-  // Re-check language now that reply-parent OP text is available (#121).
-  const afterHydrateLang = filterByLanguage(
-    afterHydrateSelf.threads,
+  const {
+    afterSelfReply: afterHydrateSelf,
+    afterLanguage: afterHydrateLang,
+    afterLength: afterHydrateLen,
+  } = filterPostHydrateThreads({
+    threads: hydrated.threads,
     preferredLanguage,
-  );
-  const afterHydrateLen = filterThreadsByLength(
-    afterHydrateLang.threads,
     maxChars,
-    { dropArticles },
-  );
+    lengthOptions: { dropArticles },
+  });
   const selfReplyFiltered =
     afterSelf.selfReplyFilteredCount +
     afterHydrateSelf.selfReplyFilteredCount;
