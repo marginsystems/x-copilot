@@ -4,11 +4,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "./db.ts";
-import {
-  activateSubscription,
-  ensureUserTenant,
-  getUserBilling,
-} from "./billingStore.ts";
+import { ensureUserTenant, getUserBilling } from "./billingStore.ts";
+import { activateSubscription } from "./stripeSubscriptionStore.ts";
 import {
   completeOnboarding,
   getUserById,
