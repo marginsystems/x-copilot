@@ -21,7 +21,8 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
-import { completeOnboarding, upsertOauthUser } from "./authStore.ts";
+import { completeOnboarding } from "./authStore.ts";
+import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { ensureUserTenant } from "./billingStore.ts";
 import {
   analyticsSummary,

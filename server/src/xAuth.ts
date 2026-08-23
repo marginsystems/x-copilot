@@ -5,14 +5,13 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHmac } from "node:crypto";
+import { getUserById, type AuthUser } from "./authStore.js";
 import {
   findOauthAccount,
-  getUserById,
   linkOauthToUser,
-  saveXWriteCreds,
   upsertOauthIdentity,
-  type AuthUser,
-} from "./authStore.js";
+} from "./oauthAccountStore.js";
+import { saveXWriteCreds } from "./xIdentityStore.js";
 import { clientIp } from "./authGuard.js";
 import { authErrorRedirect, authSuccessRedirect } from "./authConfig.js";
 import { trackAuthAnalytics } from "./analyticsClient.js";

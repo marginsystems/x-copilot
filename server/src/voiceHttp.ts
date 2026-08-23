@@ -14,7 +14,7 @@ import {
 import { BODY_CAP_256K, readJsonBody, send } from "./httpJson.js";
 import { getSessionUser } from "./sessionCookie.js";
 import type { AuthUser } from "./authStore.js";
-import { getXOauthUsername, getXWriteCreds } from "./authStore.js";
+import { getXOauthUsername, getXWriteCreds } from "./xIdentityStore.js";
 import { recordMarkGamification, getGamification } from "./gamification.js";
 import { markInteracted } from "./interactionStore.js";
 import {

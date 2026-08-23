@@ -2,10 +2,8 @@
  * Google OAuth (openid email profile) — server-side code exchange.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import {
-  upsertOauthIdentity,
-  type AuthUser,
-} from "./authStore.js";
+import type { AuthUser } from "./authStore.js";
+import { upsertOauthIdentity } from "./oauthAccountStore.js";
 import { clientIp } from "./authGuard.js";
 import {
   authErrorRedirect,

@@ -4,7 +4,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "./db.ts";
-import { setUserXUsername, upsertOauthUser } from "./authStore.ts";
+import { setUserXUsername } from "./authStore.ts";
+import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { xLinkRequiredResponse } from "./xLinkGate.ts";
 
 describe("xLinkRequiredResponse", () => {

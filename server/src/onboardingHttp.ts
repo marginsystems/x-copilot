@@ -2,11 +2,8 @@
  * First-run onboarding HTTP: persist a chosen agenda.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import {
-  completeOnboarding,
-  toPublicUser,
-  userNeedsXHandle,
-} from "./authStore.js";
+import { completeOnboarding, toPublicUser } from "./authStore.js";
+import { userNeedsXHandle } from "./xIdentityStore.js";
 import {
   BODY_CAP_1MB,
   BodyError,

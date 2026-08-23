@@ -3,10 +3,8 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isAdminEmail } from "./adminEmails.js";
-import {
-  listOauthProviders,
-  toPublicUser,
-} from "./authStore.js";
+import { toPublicUser } from "./authStore.js";
+import { listOauthProviders } from "./oauthAccountStore.js";
 import { allowRate } from "./authGuard.js";
 import { isOriginAllowed, requestOrigin } from "./cors.js";
 import { send } from "./httpJson.js";
