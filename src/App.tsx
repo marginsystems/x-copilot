@@ -17,7 +17,7 @@ import {
   type GamificationStats,
 } from "./lib/gamification";
 import { ActivityChart } from "./ActivityChart";
-import { apiFetch, apiUrl, isLocalHostname } from "./lib/apiBase";
+import { apiFetch, isLocalHostname } from "./lib/apiBase";
 import { authErrorMessage } from "./lib/authErrors";
 import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
 import { HeaderAvatar, UserMenu } from "./UserMenu";
@@ -25,20 +25,13 @@ import { BootScreen, Landing } from "./Landing";
 import { SignInModal } from "./SignInModal";
 import { LegalPage } from "./Legal";
 import { CookieConsent } from "./CookieConsent";
-import { isLegalKind, SITE_ORIGIN } from "./lib/legal";
-import { pathFromView, viewFromPath, type AppView } from "./lib/appView";
-import {
-  readConsent,
-  writeConsent,
-  type ConsentChoice,
-} from "./lib/consent";
-import { bootAnalytics, trackPageView } from "./lib/analytics";
+import { isLegalKind } from "./lib/legal";
+import { viewFromPath } from "./lib/appView";
 import { Onboarding } from "./Onboarding";
 import { LinkXGate } from "./LinkXGate";
 import { deskNeedsXLink, showDeskXGate } from "./lib/deskGate";
 import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
-import { type BillingMe, type PaidPlanKey } from "./BillingPanel";
-import { AdminPanel, type AdminTenantRow } from "./AdminPanel";
+import { AdminPanel } from "./AdminPanel";
 import { Analytics } from "./Analytics";
 import { Account } from "./Account";
 import { SuggestLocked, VoiceCardPanel, VoiceUnlockToast } from "./VoiceCard";
@@ -49,7 +42,6 @@ import {
   voiceNeedsXLink,
   type VoiceState,
 } from "./lib/voice";
-import type { AuthSessionUser } from "./auth/types";
 import type { ThreadCard, ThreadsTab } from "./desk/types";
 import {
   ensureActivitySubscribe,
@@ -73,6 +65,10 @@ import { SettingsForm } from "./settings/SettingsForm";
 import { useSettingsDraft } from "./settings/useSettingsDraft";
 import { UsagePage } from "./usage/UsagePage";
 import { useUsage } from "./usage/useUsage";
+import { useAdmin } from "./admin/useAdmin";
+import { useAuthSession } from "./auth/useAuthSession";
+import { useBilling } from "./billing/useBilling";
+import { useViewRouting } from "./routing/useViewRouting";
 
 /** Always occupies a count slot so hydrate cannot grow the tab pills. */
 function ThreadsTabCount({ n }: { n: number }) {
@@ -153,15 +149,14 @@ export default function App() {
   const activityRequestBucketRef = useRef<ActivityBucket>("day");
   /** Monotonic token so out-of-order gamification responses don't regress the chip. */
   const gamificationRequestSeqRef = useRef(0);
-  const [view, setView] = useState<AppView>(() =>
-    typeof window === "undefined" ? "home" : viewFromPath(window.location.pathname),
-  );
-  const [consent, setConsent] = useState<ConsentChoice | null>(() =>
-    typeof window === "undefined" ? null : readConsent(),
-  );
-  const [consentOpen, setConsentOpen] = useState(
-    () => (typeof window === "undefined" ? false : readConsent() === null),
-  );
+  const {
+    view,
+    setView,
+    consentOpen,
+    setConsentOpen,
+    chooseConsent,
+    goToView,
+  } = useViewRouting();
   const {
     usageWindow,
     setUsageWindow,
@@ -170,21 +165,49 @@ export default function App() {
     usageStatus,
     loadUsage,
   } = useUsage();
-  const [billing, setBilling] = useState<BillingMe | null>(null);
-  const [billingNotice, setBillingNotice] = useState("");
-  const [checkoutPlan, setCheckoutPlan] = useState<PaidPlanKey | null>(null);
-  const [portalBusy, setPortalBusy] = useState(false);
-  const [adminTenants, setAdminTenants] = useState<AdminTenantRow[] | null>(null);
-  const [adminBusy, setAdminBusy] = useState(false);
-  const [adminError, setAdminError] = useState("");
+  const {
+    billing,
+    billingNotice,
+    setBillingNotice,
+    checkoutPlan,
+    portalBusy,
+    loadBilling,
+    confirmCheckout,
+    onSubscribe,
+    onManageBilling,
+  } = useBilling({
+    onUtcDay: () => void hydrateVoice(),
+  });
+  const {
+    adminTenants,
+    adminBusy,
+    adminError,
+    loadAdmin,
+  } = useAdmin();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const [menuEntered, setMenuEntered] = useState(false);
-  const [authUser, setAuthUser] = useState<AuthSessionUser | null>(null);
-  const [onboardingDoneLocal, setOnboardingDoneLocal] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [authRequired, setAuthRequired] = useState(true);
-  const [authNotice, setAuthNotice] = useState("");
+  const {
+    authUser,
+    setAuthUser,
+    onboardingDoneLocal,
+    authChecked,
+    authRequired,
+    authNotice,
+    setAuthNotice,
+    hydrateAuth,
+    startGoogleLogin,
+    startXLogin,
+    onLogout,
+    finishOnboarding,
+  } = useAuthSession({
+    setAgenda,
+    onLoggedOut: closeMenu,
+    onOnboardingFinished: () => {
+      ensureActivitySubscribe();
+      void hydrateVoice({ skipDaily: true });
+    },
+  });
   const [theme, setTheme] = useState<Theme>(() =>
     typeof document === "undefined" ? "dark" : readTheme(),
   );
@@ -332,60 +355,6 @@ export default function App() {
 
   const curatedThreads = threads.filter((t) => keepInCurated(t));
 
-  async function hydrateAuth(): Promise<AuthSessionUser | null> {
-    try {
-      const res = await apiFetch("/api/auth/me", {
-        signal: AbortSignal.timeout(8000),
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        authRequired?: boolean;
-        user?: {
-          id: string;
-          email: string | null;
-          displayName: string | null;
-          avatarUrl: string | null;
-          onboardingCompleted?: boolean;
-          agenda?: string | null;
-          xUsername?: string | null;
-          xLinked?: boolean;
-          xCanPost?: boolean;
-          isAdmin?: boolean;
-        };
-      };
-      setAuthRequired(data.authRequired ?? true);
-      if (res.ok && data.ok && data.user?.id) {
-        const user: AuthSessionUser = {
-          id: data.user.id,
-          email: data.user.email,
-          displayName: data.user.displayName,
-          avatarUrl: data.user.avatarUrl,
-          onboardingCompleted: data.user.onboardingCompleted !== false,
-          agenda:
-            typeof data.user.agenda === "string" && data.user.agenda.trim()
-              ? data.user.agenda
-              : null,
-          xUsername:
-            typeof data.user.xUsername === "string" && data.user.xUsername.trim()
-              ? data.user.xUsername.replace(/^@+/, "")
-              : null,
-          xLinked: Boolean(data.user.xLinked),
-          xCanPost: Boolean(data.user.xCanPost),
-          isAdmin: Boolean(data.user.isAdmin),
-        };
-        setAuthUser(user);
-        return user;
-      }
-      setAuthUser(null);
-      return null;
-    } catch {
-      setAuthUser(null);
-      return null;
-    } finally {
-      setAuthChecked(true);
-    }
-  }
-
   async function hydrateVoice(_opts?: { skipDaily?: boolean }) {
     try {
       const res = await apiFetch("/api/voice");
@@ -458,69 +427,11 @@ export default function App() {
         void loadAdmin();
       }
     })();
-    const onPop = () => setView(viewFromPath(window.location.pathname));
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
-
-  useEffect(() => {
-    bootAnalytics(consent);
-  }, [consent]);
-
-  /** Last path a page_view was sent for, so a re-render can't double-count a landing. */
-  const lastTrackedPathRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (consent !== "accepted") {
-      lastTrackedPathRef.current = null;
-      return;
-    }
-    const path = window.location.pathname;
-    if (path === lastTrackedPathRef.current) return;
-    lastTrackedPathRef.current = path;
-    trackPageView(path);
-  }, [consent, view]);
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const arm = () => {
-      const now = new Date();
-      const nextUtcDay = Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() + 1,
-      );
-      timer = setTimeout(() => {
-        void loadBilling();
-        void hydrateVoice();
-        arm();
-      }, Math.max(0, nextUtcDay - Date.now()) + 500);
-    };
-    arm();
-    return () => {
-      if (timer !== undefined) clearTimeout(timer);
-    };
   }, []);
 
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
-
-  useEffect(() => {
-    const canonical = `${SITE_ORIGIN}${pathFromView(view)}`;
-    document.title =
-      view === "privacy"
-        ? "Privacy Policy — x-copilot"
-        : view === "terms"
-          ? "Terms of Service — x-copilot"
-          : "x-copilot — independent research desk";
-    document
-      .querySelector<HTMLLinkElement>('link[rel="canonical"]')
-      ?.setAttribute("href", canonical);
-    document
-      .querySelector<HTMLMetaElement>('meta[property="og:url"]')
-      ?.setAttribute("content", canonical);
-  }, [view]);
 
   // Prevent mouse wheel from changing number inputs while scrolling the page.
   useEffect(() => {
@@ -569,55 +480,6 @@ export default function App() {
     closeMenu();
   }
 
-  function startGoogleLogin() {
-    window.location.href = apiUrl("/api/auth/google");
-  }
-
-  function startXLogin() {
-    window.location.href = apiUrl("/api/auth/x");
-  }
-
-  async function onLogout() {
-    try {
-      await apiFetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      /* still clear local */
-    }
-    setAuthUser(null);
-    setAuthNotice("Signed out.");
-    closeMenu();
-  }
-
-  function finishOnboarding(agenda: string) {
-    setAgenda(agenda);
-    setOnboardingDoneLocal(true);
-    setAuthUser((prev) =>
-      prev
-        ? {
-            ...prev,
-            onboardingCompleted: true,
-            agenda,
-          }
-        : prev,
-    );
-    ensureActivitySubscribe();
-    void hydrateVoice({ skipDaily: true });
-  }
-
-  function chooseConsent(choice: ConsentChoice) {
-    writeConsent(choice);
-    setConsent(choice);
-    setConsentOpen(false);
-  }
-
-  function goToView(next: AppView) {
-    setView(next);
-    const path = pathFromView(next);
-    if (window.location.pathname !== path) {
-      window.history.pushState({}, "", path);
-    }
-  }
-
   function openUsage() {
     goToView("usage");
     closeMenu();
@@ -633,116 +495,6 @@ export default function App() {
   function openVoice() {
     goToView("voice");
     closeMenu();
-  }
-
-  async function loadBilling() {
-    try {
-      const res = await apiFetch("/api/billing/me");
-      const data = (await res.json()) as BillingMe;
-      if (!res.ok) {
-        setBillingNotice(data.message || data.error || `Billing failed (${res.status})`);
-        return;
-      }
-      setBilling(data);
-    } catch (err) {
-      setBillingNotice(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function confirmCheckout(sessionId: string) {
-    try {
-      const res = await apiFetch("/api/stripe/checkout/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId }),
-      });
-      const data = (await res.json()) as { ok?: boolean; plan_key?: string; error?: string; message?: string };
-      if (!res.ok) {
-        setBillingNotice(data.message || data.error || "Could not confirm checkout yet. Refresh in a moment.");
-        return;
-      }
-      setBillingNotice(
-        data.plan_key
-          ? `You're on ${data.plan_key}. Credits reset each UTC month.`
-          : "Subscription active.",
-      );
-      await loadBilling();
-    } catch (err) {
-      setBillingNotice(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function onSubscribe(plan: PaidPlanKey) {
-    setCheckoutPlan(plan);
-    setBillingNotice("");
-    try {
-      const res = await apiFetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
-      });
-      const data = (await res.json()) as {
-        url?: string;
-        error?: string;
-        message?: string;
-      };
-      if (!res.ok || !data.url) {
-        setBillingNotice(data.message || data.error || `Checkout failed (${res.status})`);
-        return;
-      }
-      window.location.href = data.url;
-    } catch (err) {
-      setBillingNotice(err instanceof Error ? err.message : String(err));
-    } finally {
-      setCheckoutPlan(null);
-    }
-  }
-
-  async function onManageBilling() {
-    setPortalBusy(true);
-    setBillingNotice("");
-    try {
-      const res = await apiFetch("/api/stripe/portal", { method: "POST" });
-      const data = (await res.json()) as {
-        url?: string;
-        error?: string;
-        message?: string;
-      };
-      if (!res.ok || !data.url) {
-        setBillingNotice(data.message || data.error || `Portal failed (${res.status})`);
-        return;
-      }
-      window.location.href = data.url;
-    } catch (err) {
-      setBillingNotice(err instanceof Error ? err.message : String(err));
-    } finally {
-      setPortalBusy(false);
-    }
-  }
-
-  async function loadAdmin() {
-    setAdminBusy(true);
-    setAdminError("");
-    try {
-      const res = await apiFetch("/api/admin/tenants");
-      const data = (await res.json()) as {
-        ok?: boolean;
-        tenants?: AdminTenantRow[];
-        error?: string;
-        message?: string;
-      };
-      if (!res.ok) {
-        setAdminTenants(null);
-        setAdminError(data.message || data.error || `Admin failed (${res.status})`);
-        return;
-      }
-      setAdminTenants(data.tenants ?? []);
-    } catch (err) {
-      setAdminTenants(null);
-      setAdminError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setAdminBusy(false);
-    }
   }
 
   useEffect(() => {
