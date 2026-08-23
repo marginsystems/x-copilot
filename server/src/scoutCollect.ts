@@ -25,6 +25,7 @@ import {
 } from "./queryPlan.js";
 import { saveScoutCache } from "./scoutCache.js";
 import { isAbortError, sleep } from "./scoutAbort.js";
+import { filterPostHydrateThreads } from "./scoutPipeline.js";
 import {
   COLLECT_COUNT_PER_QUERY,
   COLLECT_QUERY_DELAY_MS,
@@ -553,19 +554,20 @@ export async function runScoutCollect(opts: {
       }
       unhydratedReplyCount += hydrated.unhydratedReplyCount;
 
-      // Drop same-author replies revealed only after hydrate (missing inReplyToScreenName).
-      const afterHydrateSelf = filterSelfReplies(hydrated.threads);
-      funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
-      // Re-check language now that reply-parent OP text is available (#121).
-      const afterHydrateLang = filterByLanguage(
-        afterHydrateSelf.threads,
+      const {
+        afterSelfReply: afterHydrateSelf,
+        afterLanguage: afterHydrateLang,
+        afterLength: afterHydrateLen,
+      } = filterPostHydrateThreads({
+        threads: hydrated.threads,
         preferredLanguage,
-      );
-      const afterHydrateLen = filterThreadsByLength(
-        afterHydrateLang.threads,
         maxChars,
-        { dropArticles, articleIds: articleConversationIds },
-      );
+        lengthOptions: {
+          dropArticles,
+          articleIds: articleConversationIds,
+        },
+      });
+      funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
       const forTriage = afterHydrateLen.threads;
       languageFilteredTotal += afterHydrateLang.languageFilteredCount;
 
