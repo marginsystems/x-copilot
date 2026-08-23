@@ -38,7 +38,7 @@
   gap: 10px;
 }
 
-@media (min-width: 720px) {
+@media (min-width: 900px) {
   .analytics-hero {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
@@ -252,7 +252,7 @@
   border-bottom: 1px solid var(--border);
 }
 
-@media (min-width: 800px) {
+@media (min-width: 900px) {
   .analytics-top-list > li {
     grid-template-columns: 1.6rem 1fr auto;
     align-items: start;
