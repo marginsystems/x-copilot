@@ -12,11 +12,8 @@ import {
 } from "./db.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { createSession } from "./sessionStore.ts";
-import {
-  activateSubscription,
-  ensureUserTenant,
-  getUserBilling,
-} from "./billingStore.ts";
+import { ensureUserTenant, getUserBilling } from "./billingStore.ts";
+import { activateSubscription } from "./stripeSubscriptionStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { tryHandleAdmin } from "./adminHttp.ts";
 
