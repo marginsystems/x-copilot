@@ -156,6 +156,12 @@ export function createAnalyticsServer(
   });
 }
 
+export function resolveAnalyticsPort(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return Number(env.ANALYTICS_PORT || DEFAULT_PORT);
+}
+
 export function shouldRunAnalyticsMain(
   argv1: string | undefined,
   env: NodeJS.ProcessEnv = process.env,
@@ -188,7 +194,7 @@ function main(): void {
     setInterval(() => {}, 2 ** 31 - 1);
     return;
   }
-  const port = Number(process.env.ANALYTICS_PORT || process.env.PORT || DEFAULT_PORT);
+  const port = resolveAnalyticsPort(process.env);
   if (!Number.isFinite(port) || port <= 0 || port > 65535) {
     console.error("[analytics] invalid PORT");
     process.exit(1);

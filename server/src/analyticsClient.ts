@@ -1,6 +1,7 @@
 /**
  * Fire-and-forget client for the analytics sidecar.
- * Never throws. Never blocks the request. No-op unless ANALYTICS_URL is set.
+ * Never throws. Never blocks the request. Defaults to the loopback sidecar
+ * unless ANALYTICS_DISABLE=1.
  */
 import type { AnalyticsEventName } from "./analyticsEvents.js";
 import type { AuthUser } from "./authStore.js";
@@ -27,11 +28,24 @@ function optionalString(value: string | null | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+/** Loopback sidecar. Overridable via ANALYTICS_URL / ANALYTICS_PORT. */
+export function defaultAnalyticsUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const port = env.ANALYTICS_PORT?.trim() || "8788";
+  return `http://127.0.0.1:${port}`;
+}
+
 export function analyticsClientEnabled(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  if (env.ANALYTICS_DISABLE === "1") return false;
-  return Boolean(env.ANALYTICS_URL?.trim());
+  return env.ANALYTICS_DISABLE !== "1";
+}
+
+export function analyticsBaseUrl(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return env.ANALYTICS_URL?.trim() || defaultAnalyticsUrl(env);
 }
 
 /**
@@ -43,7 +57,7 @@ export function trackAnalytics(
 ): void {
   try {
     if (!analyticsClientEnabled()) return;
-    const base = process.env.ANALYTICS_URL?.trim();
+    const base = analyticsBaseUrl();
     if (!base) return;
     const secret = process.env.ANALYTICS_SECRET?.trim();
     const body: Record<string, unknown> = {

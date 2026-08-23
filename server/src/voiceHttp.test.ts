@@ -649,6 +649,9 @@ describe("POST /api/voice/post", () => {
     const user = seedPoster("post-ok@example.com", true);
     const origFetch = globalThis.fetch;
     globalThis.fetch = (async (input, init) => {
+      if (String(input).includes("/event")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 202 });
+      }
       assert.match(String(input), /\/2\/tweets$/);
       assert.equal(init?.method, "POST");
       return new Response(JSON.stringify({ data: { id: "888" } }), {
@@ -827,7 +830,10 @@ describe("POST /api/voice/post", () => {
     assert.ok(row);
     let posted = "";
     const origFetch = globalThis.fetch;
-    globalThis.fetch = (async (_input, init) => {
+    globalThis.fetch = (async (input, init) => {
+      if (String(input).includes("/event")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 202 });
+      }
       posted = String(init?.body ?? "");
       return new Response(JSON.stringify({ data: { id: "901" } }), {
         status: 201,
@@ -891,7 +897,10 @@ describe("POST /api/voice/post", () => {
     assert.ok(replyCard);
     let posted = "";
     const origFetch = globalThis.fetch;
-    globalThis.fetch = (async (_input, init) => {
+    globalThis.fetch = (async (input, init) => {
+      if (String(input).includes("/event")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 202 });
+      }
       posted = String(init?.body ?? "");
       return new Response(JSON.stringify({ data: { id: "902" } }), {
         status: 201,

@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import { AddressInfo } from "node:net";
 import {
   createAnalyticsServer,
+  resolveAnalyticsPort,
   shouldRunAnalyticsMain,
 } from "./analyticsService.ts";
+import { defaultAnalyticsUrl } from "./analyticsClient.ts";
 
 function listen(server: ReturnType<typeof createAnalyticsServer>): Promise<string> {
   return new Promise((resolve) => {
@@ -48,6 +50,19 @@ describe("shouldRunAnalyticsMain", () => {
       shouldRunAnalyticsMain("/root/x-copilot/node_modules/tsx/dist/cli.mjs", {}),
       false,
     );
+  });
+});
+
+describe("resolveAnalyticsPort", () => {
+  it("defaults to 8788 and ignores PORT", () => {
+    assert.equal(resolveAnalyticsPort({}), 8788);
+    assert.equal(resolveAnalyticsPort({ PORT: "8787" }), 8788);
+    assert.equal(resolveAnalyticsPort({ ANALYTICS_PORT: "9000" }), 9000);
+  });
+
+  it("pins the sidecar default to the client defaultAnalyticsUrl", () => {
+    const clientPort = Number(new URL(defaultAnalyticsUrl({})).port);
+    assert.equal(resolveAnalyticsPort({}), clientPort);
   });
 });
 
