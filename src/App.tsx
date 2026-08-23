@@ -1,26 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   loadSettings,
   type AppSettings,
 } from "./lib/settings";
 import { ScoutPixelField } from "./ScoutPixelField";
-import { sortThreadsByCreatedAtNewest } from "./lib/threadSort";
-import {
-  emptyActivityStats,
-  fetchActivityStats,
-  type ActivityBucket,
-  type ActivityStats,
-} from "./lib/activityStats";
-import {
-  emptyGamificationStats,
-  fetchGamification,
-  type GamificationStats,
-} from "./lib/gamification";
-import { ActivityChart } from "./ActivityChart";
 import { apiFetch, isLocalHostname } from "./lib/apiBase";
 import { authErrorMessage } from "./lib/authErrors";
 import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
-import { HeaderAvatar, UserMenu } from "./UserMenu";
+import { UserMenu } from "./UserMenu";
 import { BootScreen, Landing } from "./Landing";
 import { SignInModal } from "./SignInModal";
 import { LegalPage } from "./Legal";
@@ -34,8 +21,7 @@ import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
 import { AdminPanel } from "./AdminPanel";
 import { Analytics } from "./Analytics";
 import { Account } from "./Account";
-import { SuggestLocked, VoiceCardPanel, VoiceUnlockToast } from "./VoiceCard";
-import { SuggestPane } from "./SuggestPane";
+import { VoiceCardPanel, VoiceUnlockToast } from "./VoiceCard";
 import { useDeskHistory } from "./desk/useDeskHistory";
 import {
   parseVoiceState,
@@ -43,18 +29,7 @@ import {
   type VoiceState,
 } from "./lib/voice";
 import type { ThreadCard, ThreadsTab } from "./desk/types";
-import {
-  ensureActivitySubscribe,
-  watchDeskThreads,
-} from "./desk/watch";
-import {
-  DismissedRow,
-  ExpiredRow,
-  InteractedRow,
-  SkippedRow,
-} from "./desk/HistoryRows";
-import { SuggestedRow } from "./desk/SuggestedRow";
-import { ThreadRow } from "./desk/ThreadRow";
+import { ensureActivitySubscribe } from "./desk/watch";
 import { DismissModal } from "./desk/DismissModal";
 import { MarkDetectModal } from "./desk/MarkDetectModal";
 import { Toast } from "./desk/Toast";
@@ -69,18 +44,12 @@ import { useAdmin } from "./admin/useAdmin";
 import { useAuthSession } from "./auth/useAuthSession";
 import { useBilling } from "./billing/useBilling";
 import { useViewRouting } from "./routing/useViewRouting";
-
-/** Always occupies a count slot so hydrate cannot grow the tab pills. */
-function ThreadsTabCount({ n }: { n: number }) {
-  return (
-    <span
-      className={n > 0 ? "threads-tab-count" : "threads-tab-count is-empty"}
-      aria-hidden={n === 0}
-    >
-      {n > 0 ? `(${n})` : "(0)"}
-    </span>
-  );
-}
+import { AppHeader } from "./chrome/AppHeader";
+import { MenuDrawer } from "./chrome/MenuDrawer";
+import { useMenu } from "./chrome/useMenu";
+import { ActivityStrip } from "./desk/ActivityStrip";
+import { ThreadsTabs } from "./desk/ThreadsTabs";
+import { useActivityStrip } from "./desk/useActivityStrip";
 
 export default function App() {
   const [agenda, setAgenda] = useState(
@@ -124,31 +93,16 @@ export default function App() {
     excludedAccounts: settings.excludedAccounts,
   });
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
-  const [activityBucket, setActivityBucket] = useState<ActivityBucket>("day");
-  const [flightPathOpen, setFlightPathOpen] = useState(() => {
-    try {
-      const stored = sessionStorage.getItem("x-copilot-flight-path-open");
-      if (stored === "0") return false;
-      if (stored === "1") return true;
-    } catch {
-      /* private mode */
-    }
-    return (
-      typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 700px)").matches
-    );
-  });
-  const [activityStats, setActivityStats] = useState<ActivityStats>(() =>
-    emptyActivityStats("day"),
-  );
-  const [gamification, setGamification] = useState<GamificationStats>(() =>
-    emptyGamificationStats(),
-  );
-  const activityBucketRef = useRef<ActivityBucket>("day");
-  /** In-flight toggle target; may diverge from applied `activityBucketRef`. */
-  const activityRequestBucketRef = useRef<ActivityBucket>("day");
-  /** Monotonic token so out-of-order gamification responses don't regress the chip. */
-  const gamificationRequestSeqRef = useRef(0);
+  const {
+    activityBucket,
+    flightPathOpen,
+    activityStats,
+    gamification,
+    hydrateActivityStats,
+    hydrateGamification,
+    onActivityBucket,
+    onToggleFlightPath,
+  } = useActivityStrip();
   const {
     view,
     setView,
@@ -184,9 +138,8 @@ export default function App() {
     adminError,
     loadAdmin,
   } = useAdmin();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { menuOpen, menuEntered, openMenu, closeMenu } = useMenu();
   const [signInOpen, setSignInOpen] = useState(false);
-  const [menuEntered, setMenuEntered] = useState(false);
   const {
     authUser,
     setAuthUser,
@@ -286,73 +239,6 @@ export default function App() {
     dismissedIdsRef,
     blockedConversationsRef,
   });
-  const menuCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function clearMenuCloseTimer() {
-    if (menuCloseTimer.current) {
-      clearTimeout(menuCloseTimer.current);
-      menuCloseTimer.current = null;
-    }
-  }
-
-  function openMenu() {
-    clearMenuCloseTimer();
-    setMenuOpen(true);
-    setMenuEntered(false);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => setMenuEntered(true));
-    });
-  }
-
-  function closeMenu() {
-    if (!menuOpen) return;
-    setMenuEntered(false);
-    clearMenuCloseTimer();
-    menuCloseTimer.current = setTimeout(() => {
-      setMenuOpen(false);
-      menuCloseTimer.current = null;
-    }, 240);
-  }
-
-  async function hydrateActivityStats(
-    bucket: ActivityBucket = activityBucketRef.current,
-  ) {
-    const next = await fetchActivityStats(bucket);
-    if (!next) return;
-    // Ignore stale responses if a newer toggle request is in flight.
-    if (bucket !== activityRequestBucketRef.current) return;
-    // Commit the applied bucket only after a successful fetch so a failed
-    // toggle cannot silently flip the chart on a later mark refresh.
-    activityBucketRef.current = bucket;
-    setActivityBucket(bucket);
-    setActivityStats(next);
-  }
-
-  async function hydrateGamification() {
-    const seq = ++gamificationRequestSeqRef.current;
-    const next = await fetchGamification();
-    if (seq !== gamificationRequestSeqRef.current) return;
-    if (!next) return;
-    setGamification(next);
-  }
-
-  function onActivityBucket(next: ActivityBucket) {
-    activityRequestBucketRef.current = next;
-    void hydrateActivityStats(next);
-  }
-
-  function onToggleFlightPath() {
-    setFlightPathOpen((prev) => {
-      const next = !prev;
-      try {
-        sessionStorage.setItem("x-copilot-flight-path-open", next ? "1" : "0");
-      } catch {
-        /* private mode */
-      }
-      return next;
-    });
-  }
-
   const curatedThreads = threads.filter((t) => keepInCurated(t));
 
   async function hydrateVoice(_opts?: { skipDaily?: boolean }) {
@@ -445,30 +331,6 @@ export default function App() {
     return () => document.removeEventListener("wheel", onWheel);
   }, []);
 
-  useEffect(() => {
-    return () => clearMenuCloseTimer();
-  }, []);
-
-  useEffect(() => {
-    if (!menuOpen) {
-      setMenuEntered(false);
-      return;
-    }
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setMenuEntered(true));
-    });
-    return () => cancelAnimationFrame(id);
-  }, [menuOpen]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") closeMenu();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [menuOpen]);
-
   function openSettings() {
     resetSettingsDraft(settings);
     goToView("settings");
@@ -546,122 +408,52 @@ export default function App() {
 
   return (
     <div className={showGateChrome ? "app app-gate" : "app"}>
-      <header className={showGateChrome ? "brand brand-gate" : "brand"}>
-        <div className="brand-bar">
-          <a
-            className="brand-lockup"
-            href="/"
-            aria-label="Home"
-            onClick={(e) => {
-              if (
-                e.metaKey ||
-                e.ctrlKey ||
-                e.shiftKey ||
-                e.altKey ||
-                e.button !== 0
-              ) {
-                return;
-              }
-              e.preventDefault();
-              closeMenu();
-              goToView("home");
-            }}
-          >
-            <img
-              className="brand-mark"
-              src="/favicon.svg"
-              width={22}
-              height={22}
-              alt=""
-            />
-            <div className="brand-copy">
-              <h1>x-copilot</h1>
-            </div>
-          </a>
-          <button
-            type="button"
-            className={
-              menuOpen && menuEntered
-                ? "menu-toggle is-open"
-                : "menu-toggle is-avatar"
-            }
-            aria-label={menuOpen && menuEntered ? "Close menu" : "Open menu"}
-            aria-expanded={menuOpen && menuEntered}
-            onClick={() => {
-              if (menuOpen && menuEntered) closeMenu();
-              else openMenu();
-            }}
-          >
-            {menuOpen && menuEntered ? (
-              <svg
-                className="menu-toggle-icon"
-                viewBox="0 0 24 24"
-                width="20"
-                height="20"
-                aria-hidden="true"
-              >
-                <path
-                  d="M6 6l12 12M18 6L6 18"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="square"
-                />
-              </svg>
-            ) : (
-              <HeaderAvatar
-                user={authUser}
-                handle={authUser?.xUsername ?? null}
-              />
-            )}
-          </button>
-        </div>
-      </header>
+      <AppHeader
+        gate={showGateChrome}
+        menuOpen={menuOpen}
+        menuEntered={menuEntered}
+        authUser={authUser}
+        onHome={() => {
+          closeMenu();
+          goToView("home");
+        }}
+        onToggleMenu={() => {
+          if (menuOpen && menuEntered) closeMenu();
+          else openMenu();
+        }}
+      />
 
       {menuOpen ? (
-        <div className={menuEntered ? "menu-root is-open" : "menu-root"}>
-          <button
-            type="button"
-            className="menu-backdrop"
-            aria-label="Close menu"
-            onClick={closeMenu}
+        <MenuDrawer entered={menuEntered} onClose={closeMenu}>
+          <UserMenu
+            view={view}
+            theme={theme}
+            authUser={authUser}
+            needsLogin={needsLogin}
+            needsOnboarding={needsOnboarding}
+            onTheme={() => setTheme((t) => nextTheme(t))}
+            onLogout={() => void onLogout()}
+            onSignIn={() => {
+              closeMenu();
+              setSignInOpen(true);
+            }}
+            onDesk={() => {
+              closeMenu();
+              goToView("dashboard");
+            }}
+            onX={startXLogin}
+            onAnalytics={openAnalytics}
+            onVoice={openVoice}
+            needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xLinked) : false}
+            onUsage={openUsage}
+            onAccount={openAccount}
+            onSettings={openSettings}
+            onPrivacySettings={() => {
+              setConsentOpen(true);
+              closeMenu();
+            }}
           />
-          <aside
-            className={menuEntered ? "menu-sheet is-open" : "menu-sheet"}
-            role="dialog"
-            aria-modal="true"
-            aria-label="User menu"
-          >
-            <UserMenu
-              view={view}
-              theme={theme}
-              authUser={authUser}
-              needsLogin={needsLogin}
-              needsOnboarding={needsOnboarding}
-              onTheme={() => setTheme((t) => nextTheme(t))}
-              onLogout={() => void onLogout()}
-              onSignIn={() => {
-                closeMenu();
-                setSignInOpen(true);
-              }}
-              onDesk={() => {
-                closeMenu();
-                goToView("dashboard");
-              }}
-              onX={startXLogin}
-              onAnalytics={openAnalytics}
-              onVoice={openVoice}
-              needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xLinked) : false}
-              onUsage={openUsage}
-              onAccount={openAccount}
-              onSettings={openSettings}
-              onPrivacySettings={() => {
-                setConsentOpen(true);
-                closeMenu();
-              }}
-            />
-          </aside>
-        </div>
+        </MenuDrawer>
       ) : null}
 
       {legalView ? (
@@ -888,352 +680,40 @@ export default function App() {
                 </div>
                 <ScoutPixelField searching={searching} />
               </div>
-              <div
-                className={
-                  flightPathOpen
-                    ? "threads-activity"
-                    : "threads-activity is-collapsed"
-                }
-                aria-label="Flight path"
-              >
-              <div className="threads-activity-head">
-                <div className="threads-activity-copy">
-                  <button
-                    type="button"
-                    className="threads-activity-toggle-path"
-                    aria-expanded={flightPathOpen}
-                    onClick={onToggleFlightPath}
-                  >
-                    <span className="threads-activity-title">Flight path</span>
-                    <span className="threads-activity-caret" aria-hidden="true">
-                      {flightPathOpen ? "–" : "+"}
-                    </span>
-                  </button>
-                  {flightPathOpen ? (
-                    <span className="threads-activity-sub">
-                      Altitude is sampled views. Marks without a sample hold the
-                      last altitude.
-                    </span>
-                  ) : null}
-                </div>
-                <div
-                  className="threads-activity-toggle"
-                  role="group"
-                  aria-label="Activity bucket"
-                >
-                  <button
-                    type="button"
-                    className={
-                      activityBucket === "day"
-                        ? "threads-tab active"
-                        : "threads-tab"
-                    }
-                    aria-pressed={activityBucket === "day"}
-                    onClick={() => onActivityBucket("day")}
-                  >
-                    Day
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      activityBucket === "week"
-                        ? "threads-tab active"
-                        : "threads-tab"
-                    }
-                    aria-pressed={activityBucket === "week"}
-                    onClick={() => onActivityBucket("week")}
-                  >
-                    Week
-                  </button>
-                </div>
-              </div>
-              <div className="threads-activity-meta">
-                <span className="chip">
-                  {activityStats.totals.interactions} marked
-                </span>
-                <span className="chip">
-                  {activityStats.totals.views} views
-                </span>
-                {activityStats.totals.withStats > 0 ? (
-                  <span className="chip chip-muted">
-                    {activityStats.totals.withStats} sampled
-                  </span>
-                ) : null}
-                <span
-                  className="chip"
-                  title="UTC daily streak — mark ≥1 interacted each UTC day"
-                >
-                  Streak {gamification.currentStreak}
-                  {gamification.longestStreak > gamification.currentStreak
-                    ? ` · best ${gamification.longestStreak}`
-                    : ""}
-                </span>
-                <span
-                  className="chip threads-activity-level"
-                  title="XP from marks (+1) and 24h engagement bonuses"
-                >
-                  Lv {gamification.level} · {gamification.lifetimeXp} XP
-                  <span
-                    className="threads-activity-xp-bar"
-                    aria-hidden="true"
-                  >
-                    <span
-                      className="threads-activity-xp-fill"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (gamification.xpIntoLevel / gamification.xpToNext) *
-                            100,
-                        )}%`,
-                      }}
-                    />
-                  </span>
-                </span>
-              </div>
-              <div className="threads-activity-chart">
-                {activityStats.totals.interactions === 0 ? (
-                  <p className="threads-activity-empty">
-                    Post a reply to start a flight path.
-                  </p>
-                ) : (
-                  <ActivityChart
-                    series={activityStats.series}
-                    bucket={activityStats.bucket}
-                    compact={!flightPathOpen}
-                  />
-                )}
-              </div>
-              </div>
+              <ActivityStrip
+                flightPathOpen={flightPathOpen}
+                activityBucket={activityBucket}
+                activityStats={activityStats}
+                gamification={gamification}
+                onToggleFlightPath={onToggleFlightPath}
+                onActivityBucket={onActivityBucket}
+              />
             </div>
-            <div className="threads-pane-head">
-              <h2 className="section-label">Threads</h2>
-              <div className="threads-tabs" role="tablist" aria-label="Thread feeds">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={threadsTab === "curated"}
-                  className={
-                    threadsTab === "curated"
-                      ? "threads-tab active"
-                      : "threads-tab"
-                  }
-                  onClick={() => setThreadsTab("curated")}
-                >
-                  For You
-                  <ThreadsTabCount
-                    n={curatedThreads.length + forYouSuggestions.length}
-                  />
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={threadsTab === "interacted"}
-                  className={
-                    threadsTab === "interacted"
-                      ? "threads-tab active"
-                      : "threads-tab"
-                  }
-                  onClick={() => setThreadsTab("interacted")}
-                >
-                  Interacted
-                  <ThreadsTabCount n={interactedHistory.length} />
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={threadsTab === "skipped"}
-                  className={
-                    threadsTab === "skipped"
-                      ? "threads-tab active"
-                      : "threads-tab"
-                  }
-                  onClick={() => setThreadsTab("skipped")}
-                >
-                  Skipped
-                  <ThreadsTabCount n={skippedHistory.length} />
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={threadsTab === "dismissed"}
-                  className={
-                    threadsTab === "dismissed"
-                      ? "threads-tab active"
-                      : "threads-tab"
-                  }
-                  onClick={() => setThreadsTab("dismissed")}
-                >
-                  Not interested
-                  <ThreadsTabCount n={dismissedHistory.length} />
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={threadsTab === "expired"}
-                  className={
-                    threadsTab === "expired"
-                      ? "threads-tab active"
-                      : "threads-tab"
-                  }
-                  onClick={() => setThreadsTab("expired")}
-                >
-                  Expired
-                  <ThreadsTabCount n={expiredHistory.length} />
-                </button>
-              </div>
-            </div>
-            <div className="threads-scroll">
-              {threadsTab === "curated" ? (
-                curatedThreads.length === 0 &&
-                forYouSuggestions.length === 0 ? (
-                  <p className="empty">
-                    {searching
-                      ? "Scout is working…"
-                      : "Nothing in For You yet. Take off for reply targets. Daily suggestions land here once we have enough of your 24h post stats."}
-                  </p>
-                ) : (
-                  <div className="threads">
-                    {forYouSuggestions.length > 0 ? (
-                      <div className="for-you-suggested">
-                        <h3 className="section-label">Suggested</h3>
-                        {forYouSuggestions.map((row, i) => (
-                          <SuggestedRow
-                            key={row.id}
-                            row={row}
-                            index={i}
-                            busy={actionBusy}
-                            voice={voice}
-                            agenda={agenda}
-                            xLinked={authUser?.xLinked}
-                            hasSession={Boolean(authUser)}
-                            onPosted={() => void actForYou(row.id, "done")}
-                            onSkip={() => void actForYou(row.id, "skip")}
-                            onDismiss={() => void actForYou(row.id, "dismiss")}
-                            onOpenSettings={openVoice}
-                            onLinkX={startXLogin}
-                            onUsage={(u) =>
-                              setVoice((v) => (v ? { ...v, suggests: u } : v))
-                            }
-                          />
-                        ))}
-                      </div>
-                    ) : null}
-                    {sortThreadsByCreatedAtNewest(curatedThreads).map((t) => (
-                      <ThreadRow
-                        key={t.id}
-                        thread={t}
-                        open={expandedId === t.id}
-                        busy={actionBusy}
-                        interacted={interactedIds.has(t.id)}
-                        onToggle={() => {
-                          const next = expandedId === t.id ? null : t.id;
-                          setExpandedId(next);
-                          if (next) watchDeskThreads([t]);
-                        }}
-                        onWatch={() => watchDeskThreads([t])}
-                        onMark={() => openMarkModal(t)}
-                        onSkip={() => void onSkip(t)}
-                        onDismiss={() => openDismissModal(t)}
-                        suggest={
-                          voice?.status === "ready" && voice.unlocked ? (
-                            <SuggestPane
-                              threadId={t.id}
-                              author={t.author}
-                              text={t.text}
-                              opAuthor={t.opAuthor}
-                              opText={t.opText}
-                              threadKind={t.threadKind}
-                              flags={t.flags}
-                              agenda={agenda}
-                              usage={voice.suggests}
-                              onUsage={(u) =>
-                                setVoice((v) =>
-                                  v ? { ...v, suggests: u } : v,
-                                )
-                              }
-                              onOpenIntent={() => watchDeskThreads([t])}
-                            />
-                          ) : (
-                            <SuggestLocked
-                              voice={voice}
-                              xLinked={authUser?.xLinked}
-                              hasSession={Boolean(authUser)}
-                              onOpenSettings={openVoice}
-                              onLinkX={startXLogin}
-                            />
-                          )
-                        }
-                      />
-                    ))}
-                  </div>
-                )
-              ) : threadsTab === "interacted" ? (
-                interactedHistory.length === 0 ? (
-                  <p className="empty">
-                    No interacted threads yet. Open on X, then tap I posted on X after you reply.
-                  </p>
-                ) : (
-                  <div className="history-list">
-                    {interactedHistory.map((entry, i) => (
-                      <InteractedRow
-                        key={entry.threadId}
-                        entry={entry}
-                        index={i}
-                      />
-                    ))}
-                  </div>
-                )
-              ) : threadsTab === "skipped" ? (
-                skippedHistory.length === 0 ? (
-                  <p className="empty">
-                    No skipped threads yet. Skip a For You lead to pass on it
-                    without dismissing the author.
-                  </p>
-                ) : (
-                  <div className="history-list">
-                    {skippedHistory.map((entry, i) => (
-                      <SkippedRow
-                        key={entry.threadId}
-                        entry={entry}
-                        index={i}
-                      />
-                    ))}
-                  </div>
-                )
-              ) : threadsTab === "dismissed" ? (
-                dismissedHistory.length === 0 ? (
-                  <p className="empty">
-                    No dismissed threads yet. Mark a For You lead as not interested
-                    to dismiss it with an optional reason.
-                  </p>
-                ) : (
-                  <div className="history-list">
-                    {dismissedHistory.map((entry, i) => (
-                      <DismissedRow
-                        key={entry.threadId}
-                        entry={entry}
-                        index={i}
-                      />
-                    ))}
-                  </div>
-                )
-              ) : expiredHistory.length === 0 ? (
-                <p className="empty">
-                  No expired threads yet. Cool leads older than 24h move here
-                  automatically.
-                </p>
-              ) : (
-                <div className="history-list">
-                  {expiredHistory.map((entry, i) => (
-                    <ExpiredRow
-                      key={entry.threadId}
-                      entry={entry}
-                      index={i}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+            <ThreadsTabs
+              threadsTab={threadsTab}
+              setThreadsTab={setThreadsTab}
+              curatedThreads={curatedThreads}
+              forYouSuggestions={forYouSuggestions}
+              interactedHistory={interactedHistory}
+              skippedHistory={skippedHistory}
+              dismissedHistory={dismissedHistory}
+              expiredHistory={expiredHistory}
+              searching={searching}
+              actionBusy={actionBusy}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              interactedIds={interactedIds}
+              voice={voice}
+              agenda={agenda}
+              authUser={authUser}
+              setVoice={setVoice}
+              actForYou={actForYou}
+              onOpenVoice={openVoice}
+              onLinkX={startXLogin}
+              onMark={openMarkModal}
+              onSkip={onSkip}
+              onDismiss={openDismissModal}
+            />
           </section>
         </div>
         </>
