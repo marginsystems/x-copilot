@@ -5,15 +5,17 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { isAdminEmail } from "./adminEmails.js";
 import {
   listOauthProviders,
-  listSessionsForUser,
-  revokeOtherSessions,
-  revokeSessionById,
   toPublicUser,
 } from "./authStore.js";
 import { allowRate } from "./authGuard.js";
 import { isOriginAllowed, requestOrigin } from "./cors.js";
 import { send } from "./httpJson.js";
 import { getRequestSession, sessionClearCookie } from "./sessionCookie.js";
+import {
+  listSessionsForUser,
+  revokeOtherSessions,
+  revokeSessionById,
+} from "./sessionStore.js";
 import { toPublicSession } from "./sessionView.js";
 
 const SESSIONS_LIST_RATE = { max: 60, windowMs: 5 * 60 * 1000 };

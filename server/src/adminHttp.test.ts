@@ -10,7 +10,8 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
-import { createSession, upsertOauthUser } from "./authStore.ts";
+import { upsertOauthUser } from "./authStore.ts";
+import { createSession } from "./sessionStore.ts";
 import {
   activateSubscription,
   ensureUserTenant,

@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "./db.ts";
-import { getUserForSessionToken } from "./authStore.ts";
+import { getUserForSessionToken } from "./sessionStore.ts";
 import {
   buildGoogleAuthorizeUrl,
   completeGoogleLogin,

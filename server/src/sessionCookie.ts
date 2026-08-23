@@ -3,12 +3,9 @@
  */
 import type { IncomingMessage, OutgoingHttpHeaders } from "node:http";
 import { randomBytes } from "node:crypto";
-import {
-  getSessionForToken,
-  touchSessionMeta,
-  type AuthUser,
-} from "./authStore.js";
+import type { AuthUser } from "./authStore.js";
 import { clientIp, isCloudflarePeer } from "./authGuard.js";
+import { getSessionForToken, touchSessionMeta } from "./sessionStore.js";
 
 export const SESSION_COOKIE = "xc_session";
 export const OAUTH_STATE_COOKIE = "xc_oauth_state";

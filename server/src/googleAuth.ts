@@ -3,10 +3,8 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
-  createSession,
   upsertOauthIdentity,
   type AuthUser,
-  type SessionClientMeta,
 } from "./authStore.js";
 import { clientIp } from "./authGuard.js";
 import {
@@ -25,6 +23,10 @@ import {
   OAUTH_STATE_COOKIE,
   sessionSetCookie,
 } from "./sessionCookie.js";
+import {
+  createSession,
+  type SessionClientMeta,
+} from "./sessionStore.js";
 
 export type GoogleProfile = {
   sub: string;
