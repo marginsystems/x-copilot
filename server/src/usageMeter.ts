@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import {
   countPostsReadThisUtcMonth,
   startOfUtcMonthIso,
-} from "./billingStore.js";
+} from "./billingQuotas.js";
 import { getPlatformDb } from "./db.js";
 import { getRequestTenantId } from "./requestContext.js";
 

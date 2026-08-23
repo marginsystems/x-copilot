@@ -5,7 +5,7 @@ import type { UserBillingRow } from "./billingStore.js";
 import {
   hasLiveStripeSubscription,
   hasPaidBillingHistory,
-} from "./billingStore.js";
+} from "./planResolution.js";
 
 const NON_LIVE = new Set(["canceled", "incomplete_expired"]);
 

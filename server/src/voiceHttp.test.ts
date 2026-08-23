@@ -29,10 +29,10 @@ import {
   tryHandleVoice,
 } from "./voiceHttp.ts";
 import {
-  effectivePlanKey,
   ensureUserBillingRow,
   ensureUserTenant,
 } from "./billingStore.ts";
+import { effectivePlanKey } from "./planResolution.ts";
 import { getSuggestUsage, type VoiceProfileRow } from "./voiceStore.ts";
 import { PLAN_DAILY_SUGGESTS } from "./plans.ts";
 import type { ChatMessage } from "./deepseek.js";

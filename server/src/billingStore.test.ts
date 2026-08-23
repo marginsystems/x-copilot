@@ -14,15 +14,17 @@ import {
   activateSubscription,
   billingMePayload,
   cancelSubscriptionByStripeSubscriptionId,
-  creditsExhaustedResponse,
-  dailyActivityUsage,
   ensureUserTenant,
-  getCreditUsage,
   getUserBilling,
   grantManualPlan,
   listAdminTenantUsage,
   shouldApplyStripeEvent,
 } from "./billingStore.ts";
+import {
+  creditsExhaustedResponse,
+  dailyActivityUsage,
+  getCreditUsage,
+} from "./billingQuotas.ts";
 import { upsertOwnPost } from "./ownPostStore.ts";
 
 describe("billingStore", () => {

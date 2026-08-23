@@ -7,10 +7,8 @@ import {
   getUserById,
   type AuthUser,
 } from "./authStore.js";
-import {
-  getUserBilling,
-  hasLiveStripeSubscription,
-} from "./billingStore.js";
+import { getUserBilling } from "./billingStore.js";
+import { hasLiveStripeSubscription } from "./planResolution.js";
 import { getPlatformDb } from "./db.js";
 import { stampXUsername } from "./xIdentityStore.js";
 
