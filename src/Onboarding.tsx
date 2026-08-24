@@ -199,68 +199,86 @@ export function Onboarding(props: {
           ))}
         </div>
 
-        {onPick ? (
-          <>
-            <h1 className="gate-title">Pick an agenda</h1>
-            <p className="gate-lede">
-              Scout will search X using this. You can edit it later.
-            </p>
-            <div className="agenda-pick">
-              {agendas.map((agenda, i) => {
-                const on = picked === i;
-                return (
-                  <button
-                    key={`${agenda.title}-${i}`}
-                    type="button"
-                    className={on ? "agenda-option is-on" : "agenda-option"}
-                    aria-pressed={on}
-                    onClick={() => setPicked(i)}
-                  >
-                    <span className="agenda-option-head">
-                      <span className="agenda-option-title">{agenda.title}</span>
-                      {agenda.recommended ? (
-                        <span className="agenda-option-rec">Recommended</span>
-                      ) : null}
-                    </span>
-                    <span className="agenda-option-body">{agenda.body}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <>
-            <h1 className="gate-title">{question.title}</h1>
-            <p className="gate-lede">{question.lede}</p>
-            <div className="onboarding-chips">
-              {question.options.map((opt) => {
-                const on = selected.includes(opt.id);
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    className={on ? "chip is-on" : "chip"}
-                    aria-pressed={on}
-                    onClick={() => setSelected(toggleId(selected, opt.id))}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
+        <div
+          className={
+            busy && !onPick
+              ? "onboarding-pane is-writing"
+              : "onboarding-pane"
+          }
+        >
+          <div
+            key={onPick ? "pick" : `q-${step}`}
+            className="onboarding-pane-inner"
+          >
+            {onPick ? (
+              <>
+                <h1 className="gate-title">Pick an agenda</h1>
+                <p className="gate-lede">
+                  Scout will search X using this. You can edit it later.
+                </p>
+                <div className="agenda-pick">
+                  {agendas.map((agenda, i) => {
+                    const on = picked === i;
+                    return (
+                      <button
+                        key={`${agenda.title}-${i}`}
+                        type="button"
+                        className={on ? "agenda-option is-on" : "agenda-option"}
+                        aria-pressed={on}
+                        onClick={() => setPicked(i)}
+                      >
+                        <span className="agenda-option-head">
+                          <span className="agenda-option-title">
+                            {agenda.title}
+                          </span>
+                          {agenda.recommended ? (
+                            <span className="agenda-option-rec">
+                              Recommended
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="agenda-option-body">{agenda.body}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <h1 className="gate-title">{question.title}</h1>
+                <p className="gate-lede">{question.lede}</p>
+                <div className="onboarding-chips">
+                  {question.options.map((opt) => {
+                    const on = selected.includes(opt.id);
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={on ? "chip is-on" : "chip"}
+                        aria-pressed={on}
+                        onClick={() => setSelected(toggleId(selected, opt.id))}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
-        {busy && !onPick ? (
-          <p className="gate-status" role="status">
-            Writing agendas…
-          </p>
-        ) : null}
-        {notice ? (
-          <p className="status auth-notice" role="status">
-            {notice}
-          </p>
-        ) : null}
+        <p
+          className={
+            notice && !(busy && !onPick)
+              ? "status auth-notice onboarding-status"
+              : "gate-status onboarding-status"
+          }
+          role="status"
+          aria-live="polite"
+        >
+          {busy && !onPick ? "Writing agendas…" : notice || "\u00a0"}
+        </p>
 
         <div className="onboarding-nav">
           <button
