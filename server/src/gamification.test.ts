@@ -384,6 +384,7 @@ describe("recordMarkGamification / getGamification", () => {
       gamificationPath,
       interactionStorePath,
       nowMs: now,
+      threadId: "t1",
     });
     assert.equal(afterMark.lifetimeXp, 1);
     assert.equal(afterMark.currentStreak, 1);
@@ -399,7 +400,113 @@ describe("recordMarkGamification / getGamification", () => {
     assert.ok(snap.nextGoal);
     assert.ok(afterMark.progress);
     assert.equal(afterMark.progress?.markXp, 1);
-    assert.deepEqual(afterMark.progress?.unlockedAchievementIds, ["first_mark"]);
+    assert.equal(afterMark.progress?.leveledUp, true);
+    assert.deepEqual(afterMark.progress?.unlockedAchievementIds, [
+      "first_mark",
+    ]);
+  });
+
+  it("celebrates an older soft-failed mark replayed before newer retained rows", async () => {
+    const d1 = Date.parse("2026-08-05T12:00:00.000Z");
+    const d2 = Date.parse("2026-08-06T12:00:00.000Z");
+    await markInteracted({
+      threadId: "a",
+      author: "@x",
+      replyId: "ra",
+      replyUrl: "https://x.com/me/status/ra",
+      nowMs: d1,
+      storePath: interactionStorePath,
+    });
+    await markInteracted({
+      threadId: "b",
+      author: "@x",
+      replyId: "rb",
+      replyUrl: "https://x.com/me/status/rb",
+      nowMs: d2,
+      storePath: interactionStorePath,
+    });
+    // No ledger yet: the stats-worker can replay the soft-failed D1 mark
+    // before the newer D2 row lands, so the first write seeds both rows.
+    const after = await recordMarkGamification({
+      gamificationPath,
+      interactionStorePath,
+      nowMs: d1,
+      threadId: "a",
+    });
+    assert.equal(after.lifetimeXp, 2);
+    assert.equal(after.currentStreak, 2);
+    assert.ok(after.progress);
+    assert.equal(after.progress?.markXp, 1);
+    assert.equal(after.progress?.leveledUp, true);
+    assert.deepEqual(after.progress?.unlockedAchievementIds, ["first_mark"]);
+  });
+
+  it("credits a replayed older mark at its own tier, not the seed's final streak tier", async () => {
+    const d1 = Date.parse("2026-08-05T12:00:00.000Z");
+    const d2 = Date.parse("2026-08-06T12:00:00.000Z");
+    const d3 = Date.parse("2026-08-07T12:00:00.000Z");
+    for (const [threadId, replyId, nowMs] of [
+      ["a", "ra", d1],
+      ["b", "rb", d2],
+      ["c", "rc", d3],
+    ]) {
+      await markInteracted({
+        threadId,
+        author: "@x",
+        replyId,
+        replyUrl: `https://x.com/me/status/${replyId}`,
+        nowMs,
+        storePath: interactionStorePath,
+      });
+    }
+    // The D1 mark soft-failed; the first ledger write replays all three rows,
+    // so the seed's final streak is 3. The mark must earn the tier its own
+    // replay position credited (markXp 1 / streakMultiplier 1), not the tier
+    // of the seed's final streak (which would report 2 / 2).
+    const after = await recordMarkGamification({
+      gamificationPath,
+      interactionStorePath,
+      nowMs: d1,
+      threadId: "a",
+    });
+    assert.equal(after.lifetimeXp, 4);
+    assert.equal(after.currentStreak, 3);
+    assert.ok(after.progress);
+    assert.equal(after.progress?.markXp, 1);
+    assert.equal(after.progress?.streakMultiplier, 1);
+    assert.deepEqual(after.progress?.unlockedAchievementIds, ["first_mark"]);
+  });
+
+  it("does not celebrate seeded history as fresh unlocks on the first ledger write", async () => {
+    const now = Date.parse("2026-08-06T12:00:00.000Z");
+    const d1 = Date.parse("2026-07-01T12:00:00.000Z");
+    for (let i = 0; i < 10; i += 1) {
+      await markInteracted({
+        threadId: `h${i}`,
+        author: "@x",
+        replyId: `rh${i}`,
+        replyUrl: `https://x.com/me/status/rh${i}`,
+        nowMs: d1 + i * 24 * 60 * 60 * 1000,
+        storePath: interactionStorePath,
+      });
+    }
+    await markInteracted({
+      threadId: "current",
+      author: "@x",
+      replyId: "rcurrent",
+      replyUrl: "https://x.com/me/status/rcurrent",
+      nowMs: now,
+      storePath: interactionStorePath,
+    });
+    const after = await recordMarkGamification({
+      gamificationPath,
+      interactionStorePath,
+      nowMs: now,
+      threadId: "current",
+    });
+    assert.ok(after.progress);
+    assert.equal(after.progress?.leveledUp, false);
+    assert.deepEqual(after.progress?.unlockedAchievementIds, []);
   });
 
   it("adopts the legacy ledger once onto the first user file", async () => {

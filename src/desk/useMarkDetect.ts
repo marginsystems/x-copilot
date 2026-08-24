@@ -17,6 +17,10 @@ import {
   shouldContinueMarkDetectPoll,
   waitWithCountdown,
 } from "../lib/markDetectPoll";
+import {
+  parseGamificationPayload,
+  toastFromMarkProgress,
+} from "../lib/gamification";
 import { normalizeAuthorKey, parseStatusIdFromUrl } from "./threadHelpers";
 import type { InteractionHistoryEntry, ThreadCard } from "./types";
 
@@ -118,7 +122,7 @@ export function useMarkDetect({
     replyUrl: string,
     reply: string,
     signal?: AbortSignal,
-  ): Promise<boolean> {
+  ): Promise<{ ok: boolean; celebrate: string | null }> {
     const urlTrimmed = replyUrl.trim();
     const replyId = parseStatusIdFromUrl(urlTrimmed) ?? undefined;
     const trimmed = reply.trim();
@@ -150,8 +154,13 @@ export function useMarkDetect({
       });
       const data = (await res.json().catch(() => ({}))) as {
         interaction?: InteractionHistoryEntry;
+        gamification?: unknown;
       };
-      if (!res.ok) return false;
+      if (!res.ok) return { ok: false, celebrate: null };
+      const parsed = parseGamificationPayload(data.gamification);
+      const celebrate = parsed?.progress
+        ? toastFromMarkProgress(parsed.progress, parsed.stats.achievements)
+        : null;
       applyInteractionLocally(
         thread,
         data.interaction ?? {
@@ -168,9 +177,9 @@ export function useMarkDetect({
           inReplyToId: thread.inReplyToId?.trim(),
         },
       );
-      return true;
+      return { ok: true, celebrate };
     } catch {
-      return false;
+      return { ok: false, celebrate: null };
     }
   }
 
@@ -257,16 +266,22 @@ export function useMarkDetect({
 
       if (found) {
         setMarkDetectNote("Found your reply — saving…");
-        const ok = await postInteracted(thread, replyUrl, replyText, ac.signal);
+        const saved = await postInteracted(
+          thread,
+          replyUrl,
+          replyText,
+          ac.signal,
+        );
         if (markDetectGenRef.current !== gen) return;
         finishMarkDetect(
           gen,
-          ok
-            ? replyText.trim()
-              ? `Marked ${thread.author} interacted — memory saved`
-              : `Marked ${thread.author} interacted`
+          saved.ok
+            ? saved.celebrate ??
+              (replyText.trim()
+                ? `Marked ${thread.author} interacted — memory saved`
+                : `Marked ${thread.author} interacted`)
             : "Could not save the mark. Try again.",
-          ok ? "ok" : "warn",
+          saved.ok ? "ok" : "warn",
         );
         return;
       }

@@ -20,7 +20,6 @@ import {
 import {
   applyMarkToGamification,
   applyT24hBonus,
-  emptyGamificationState,
   levelFromXp,
   markXpForStreak,
   seedGamificationFromHistory,
@@ -319,13 +318,16 @@ export async function recordMarkGamification(
       storePath: opts?.interactionStorePath,
       userId: opts?.userId,
     });
-    const empty = emptyGamificationState(nowMs);
     let seeded = seedGamificationFromHistory(history, nowMs);
     let awarded: MarkAward = {
       markXp: 0,
       currentStreak: seeded.currentStreak,
       streakMultiplier: markXpForStreak(Math.max(1, seeded.currentStreak)),
     };
+    let beforeMark = seeded;
+    // Progress is diffed against beforeMark + the mark's own award, never the
+    // full seed: newer retained rows must not re-celebrate their unlocks.
+    let progressAfter = seeded;
     // No history yet (e.g. tests) or the mark is not part of the retained
     // history — still credit it exactly once.
     if (
@@ -333,18 +335,40 @@ export async function recordMarkGamification(
       (threadId && !seeded.markAwardedThreadIds.includes(markKey))
     ) {
       const applied = applyMarkToGamification(seeded, nowMs, threadId);
+      beforeMark = seeded;
       seeded = applied.state;
       awarded = applied.awarded;
+      progressAfter = applied.state;
     } else {
+      // The seed replayed retained history including this mark (production
+      // persists the interaction before this runs). Baseline progress on the
+      // rows the seed replayed strictly before this mark's own row so only
+      // this mark's unlocks and level-up are celebrated: a fresh user's first
+      // mark still unlocks first_mark / levels up, while past unlocks the seed
+      // replayed stay quiet. Comparing empty → seeded would re-celebrate all
+      // of them. When this mark is not the newest retained row (a soft-failed
+      // mark replayed ahead of newer rows), the strictly-older rows are the
+      // faithful pre-mark baseline and the mark earns the tier its own replay
+      // position credited, not the seed's final streak.
+      const markMs = Date.parse(new Date(nowMs).toISOString());
+      beforeMark = seedGamificationFromHistory(
+        history.filter((row) => {
+          const rowMs = Date.parse(row.at);
+          return Number.isFinite(rowMs) && rowMs < markMs;
+        }),
+        nowMs,
+      );
+      const applied = applyMarkToGamification(beforeMark, markMs, threadId);
       awarded = {
-        markXp: markXpForStreak(Math.max(1, seeded.currentStreak)),
+        markXp: applied.awarded.markXp,
         currentStreak: seeded.currentStreak,
-        streakMultiplier: markXpForStreak(Math.max(1, seeded.currentStreak)),
+        streakMultiplier: applied.awarded.streakMultiplier,
       };
+      progressAfter = applied.state;
     }
     await writeGamificationFile(path, seeded);
     return toPublicGamification(seeded, {
-      progress: progressFromTransition(empty, awarded, seeded),
+      progress: progressFromTransition(beforeMark, awarded, progressAfter),
     });
   });
 }
