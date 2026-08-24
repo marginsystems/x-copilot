@@ -521,10 +521,15 @@ describe("tryHandleScout", () => {
       socket: { remoteAddress: "127.0.0.1" },
     });
     const state: FakeState = { status: 0, headers: {}, chunks: [] };
+    let writeHeadCalls = 0;
     let firstEnd = true;
     const res = {
       writableEnded: false,
       writeHead(code: number, headers?: Record<string, string>) {
+        writeHeadCalls += 1;
+        if (writeHeadCalls > 1) {
+          throw new Error("ERR_HTTP_HEADERS_SENT");
+        }
         state.status = code;
         if (headers) Object.assign(state.headers, headers);
         return this;

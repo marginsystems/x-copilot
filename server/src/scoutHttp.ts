@@ -195,10 +195,14 @@ export async function tryHandleScout(
       if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
         refundSortie(sortieId);
       }
-      send(req, res, 500, {
-        error: "internal_error",
-        message: err instanceof Error ? err.message : String(err),
-      });
+      try {
+        send(req, res, 500, {
+          error: "internal_error",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      } catch {
+        // Headers already sent or socket torn down; nothing left to write.
+      }
       return true;
     } finally {
       endScout();
