@@ -33,10 +33,18 @@ import { getLastScout } from "./scoutCache.js";
 import { runScoutCollect } from "./scoutCollect.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
 import { appendScoutLog, getScoutLog } from "./scoutLog.js";
-import { clampBucketSize, clampTargetCool } from "./scoutPolicy.js";
+import {
+  clampBucketSize,
+  clampTargetCool,
+  isCoolThread,
+} from "./scoutPolicy.js";
 import { runScoutSearch } from "./scoutRun.js";
 import type { ScoutFilters } from "./scoutTypes.js";
-import { recordSortie } from "./scoutSorties.js";
+import {
+  recordSortie,
+  refundSortie,
+  sortieWasWasted,
+} from "./scoutSorties.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { getSkippedThreadIds } from "./skipStore.js";
 
@@ -81,6 +89,7 @@ export function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
 /** Test seam: stub the collect loop / memory index without touching the network. */
 export type ScoutHttpDeps = {
   runScoutCollect?: typeof runScoutCollect;
+  runScoutSearch?: typeof runScoutSearch;
   ensureMemoryIndex?: typeof ensureMemoryIndex;
 };
 
@@ -91,6 +100,7 @@ export async function tryHandleScout(
   deps: ScoutHttpDeps = {},
 ): Promise<boolean> {
   const doScoutCollect = deps.runScoutCollect ?? runScoutCollect;
+  const doScoutSearch = deps.runScoutSearch ?? runScoutSearch;
   const doEnsureMemoryIndex = deps.ensureMemoryIndex ?? ensureMemoryIndex;
 
   if (req.method === "POST" && url.pathname === "/api/search") {
@@ -126,9 +136,11 @@ export async function tryHandleScout(
       return true;
     }
     const sessionUser = getSessionUser(req);
+    let sortieId: string | undefined;
+    let coolCount = 0;
     try {
       await doEnsureMemoryIndex();
-      recordSortie();
+      sortieId = recordSortie();
       trackAnalytics({
         name: "scout.takeoff",
         userId: sessionUser?.id,
@@ -136,7 +148,15 @@ export async function tryHandleScout(
         handle: sessionUser?.xUsername,
         detail: `${queries.length} queries`,
       });
-      const result = await runScoutSearch({ agenda, queries, filters });
+      const result = await doScoutSearch({ agenda, queries, filters });
+      coolCount = result.ok
+        ? Array.isArray(result.event.threads)
+          ? result.event.threads.filter(isCoolThread).length
+          : 0
+        : 0;
+      if (sortieWasWasted({ ok: result.ok, coolCount })) {
+        refundSortie(sortieId);
+      }
       if (!result.ok) {
         trackAnalytics({
           name: "scout.failed",
@@ -170,6 +190,19 @@ export async function tryHandleScout(
         lengthWarning: done.lengthWarning,
         pipelineCounts: done.pipelineCounts,
       });
+      return true;
+    } catch (err) {
+      if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
+        refundSortie(sortieId);
+      }
+      try {
+        send(req, res, 500, {
+          error: "internal_error",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      } catch {
+        // Headers already sent or socket torn down; nothing left to write.
+      }
       return true;
     } finally {
       endScout();
@@ -228,6 +261,8 @@ export async function tryHandleScout(
     req.on("close", onClose);
 
     const sessionUser = getSessionUser(req);
+    let sortieId: string | undefined;
+    let coolCount = 0;
     try {
       res.writeHead(200, {
         "Content-Type": "application/x-ndjson; charset=utf-8",
@@ -238,6 +273,14 @@ export async function tryHandleScout(
 
       let sawTerminal = false;
       const writeLine = (event: { stage?: string; [key: string]: unknown }) => {
+        if (typeof event.coolCount === "number") {
+          coolCount = Math.max(coolCount, event.coolCount);
+        } else if (
+          event.stage === "done" &&
+          Array.isArray(event.threads)
+        ) {
+          coolCount = Math.max(coolCount, event.threads.length);
+        }
         if (event.stage === "done" || event.stage === "error") {
           sawTerminal = true;
         }
@@ -248,7 +291,7 @@ export async function tryHandleScout(
       };
 
       await doEnsureMemoryIndex();
-      recordSortie();
+      sortieId = recordSortie();
       trackAnalytics({
         name: "scout.takeoff",
         userId: sessionUser?.id,
@@ -293,7 +336,40 @@ export async function tryHandleScout(
           at: new Date().toISOString(),
         });
       }
+      if (result.ok && typeof result.event.coolCount === "number") {
+        coolCount = result.event.coolCount;
+      } else if (
+        result.ok &&
+        Array.isArray(result.event.threads)
+      ) {
+        coolCount = result.event.threads.length;
+      }
+      if (sortieWasWasted({ ok: result.ok, coolCount })) {
+        refundSortie(sortieId);
+      }
       res.end();
+      return true;
+    } catch (err) {
+      if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
+        refundSortie(sortieId);
+      }
+      console.error("scout run failed:", err);
+      try {
+        if (!res.writableEnded) {
+          res.write(
+            `${JSON.stringify({
+              agent: "scout",
+              stage: "error",
+              message: err instanceof Error ? err.message : String(err),
+              detail: { error: "internal_error", status: 500 },
+              at: new Date().toISOString(),
+            })}\n`,
+          );
+          res.end();
+        }
+      } catch {
+        // Socket already torn down (client aborted); nothing left to write.
+      }
       return true;
     } finally {
       req.off("close", onClose);

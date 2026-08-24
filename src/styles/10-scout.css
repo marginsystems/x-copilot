@@ -182,6 +182,18 @@ button.primary.scout-run {
   -webkit-line-clamp: 2;
 }
 
+button.usage-cta,
+a.usage-cta {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .status-main {
   display: block;
   line-height: 1.3;

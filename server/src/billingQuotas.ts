@@ -7,7 +7,13 @@ import {
 } from "./billingStore.js";
 import { getPlatformDb } from "./db.js";
 import { countOwnPostsSince, startOfUtcDayIso } from "./ownPostStore.js";
-import { PLAN_DAILY_ACTIVITY_EVENTS, type PlanKey } from "./plans.js";
+import {
+  PLAN_DAILY_ACTIVITY_EVENTS,
+  PLAN_DAILY_SUGGESTS,
+  nextPaidPlanKey,
+  planDisplayName,
+  type PlanKey,
+} from "./plans.js";
 import {
   creditLimitForPlan,
   effectivePlanKey,
@@ -104,7 +110,7 @@ export function creditsExhaustedResponse(input: {
       : `${usage.limit.toLocaleString()} credits`;
   return {
     error: "credits_exhausted",
-    message: `You've used this month's ${pool}. Upgrade on Usage & Billing, or wait until the next UTC month.`,
+    message: `You've used this month's ${pool}. ${upgradeHint(planKey)} Or wait until the next UTC month.`,
     used: usage.used,
     limit: usage.limit,
     planKey,
@@ -130,9 +136,23 @@ export function sortiesExhaustedResponse(input: {
   if (usage.canFly) return null;
   return {
     error: "scout_daily_limit",
-    message: `Grounded — ${usage.limit} sortie${usage.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`,
+    message: `Grounded — ${usage.limit} sortie${usage.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC. ${upgradeHint(planKey)}`,
     used: usage.used,
     limit: usage.limit,
     planKey,
   };
+}
+
+/** Next-plan line for Grounded / credits / suggest-cap copy. */
+export function upgradeHint(planKey: PlanKey): string {
+  const next = nextPaidPlanKey(planKey);
+  if (!next) return "Open Usage & Billing.";
+  return `${planDisplayName(next)} raises this — open Usage & Billing.`;
+}
+
+export function suggestCapMessage(planKey: PlanKey, limit: number): string {
+  const next = nextPaidPlanKey(planKey);
+  const base = `That's ${limit} suggested drafts today — the well refills at 00:00 UTC.`;
+  if (!next) return `${base} ${upgradeHint(planKey)}`;
+  return `${base} ${planDisplayName(next)} is ${PLAN_DAILY_SUGGESTS[next]}/day — open Usage & Billing.`;
 }

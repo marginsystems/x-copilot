@@ -7,10 +7,13 @@ import { join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   defaultMigrationsDir,
+  getLocalTenantId,
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
+import { getSortieUsage } from "./scoutSorties.ts";
 import type { runScoutCollect } from "./scoutCollect.ts";
+import type { runScoutSearch } from "./scoutRun.ts";
 import { resetScoutGateForTests, tryBeginScout } from "./scoutGate.ts";
 import {
   parseScoutFilters,
@@ -355,6 +358,285 @@ describe("tryHandleScout", () => {
     assert.equal(state.status, 400);
     const body = JSON.parse(state.chunks.join("")) as Record<string, unknown>;
     assert.equal(body.error, "bad_request");
+  });
+
+  it("refunds the sortie when collect fails", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutCollect: (async () => ({
+        ok: false,
+        status: 500,
+        error: "x_api",
+        message: "boom",
+      })) as typeof runScoutCollect,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
+  it("keeps the sortie when a run lands cool threads", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutCollect: (async (opts) => {
+        opts.onEvent?.({
+          ...doneEvent,
+          coolCount: 2,
+          threads: [{ id: "1" }, { id: "2" }],
+        });
+        return {
+          ok: true,
+          event: {
+            ...doneEvent,
+            coolCount: 2,
+            threads: [{ id: "1" }, { id: "2" }],
+          },
+        };
+      }) as typeof runScoutCollect,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 1);
+  });
+
+  it("refunds the sortie when a finished run finds no cool threads", async () => {
+    const tenantId = getLocalTenantId();
+    await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps: stubDeps(),
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
+  it("refunds the sortie on POST /api/search when the batch fails", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutSearch: (async () => ({
+        ok: false,
+        status: 502,
+        error: "bad_gateway",
+        message: "x api down",
+      })) as typeof runScoutSearch,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/search", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
+  it("keeps the sortie on POST /api/search when a batch lands cool threads", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutSearch: (async () => ({
+        ok: true,
+        event: {
+          ...doneEvent,
+          threads: [
+            { id: "1", engage: "consider", baitScore: 20 },
+            { id: "2", engage: "priority", baitScore: 10 },
+          ],
+          queries: ["q1"],
+        },
+      })) as typeof runScoutSearch,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/search", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 1);
+  });
+
+  it("refunds the sortie on POST /api/search when a batch lands only non-cool threads", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutSearch: (async () => ({
+        ok: true,
+        event: {
+          ...doneEvent,
+          threads: [
+            { id: "1", engage: "skip", baitScore: 85 },
+            { id: "2", engage: "consider", threadKind: "hollow_ask", baitScore: 20 },
+          ],
+          queries: ["q1"],
+        },
+      })) as typeof runScoutSearch,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/search", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
+  it("refunds the sortie on POST /api/search when a batch lands zero threads", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutSearch: (async () => ({
+        ok: true,
+        event: {
+          ...doneEvent,
+          threads: [],
+          queries: ["q1"],
+        },
+      })) as typeof runScoutSearch,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/search", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
+  it("keeps the sortie on POST /api/search when a batch delivered cools before the response write throws", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutSearch: (async () => ({
+        ok: true,
+        event: {
+          ...doneEvent,
+          threads: [
+            { id: "1", engage: "consider", baitScore: 20 },
+            { id: "2", engage: "priority", baitScore: 10 },
+          ],
+          queries: ["q1"],
+        },
+      })) as typeof runScoutSearch,
+      ensureMemoryIndex: async () => {},
+    };
+    const req = new EventEmitter() as unknown as IncomingMessage;
+    Object.assign(req, {
+      method: "POST",
+      headers: {},
+      socket: { remoteAddress: "127.0.0.1" },
+    });
+    const state: FakeState = { status: 0, headers: {}, chunks: [] };
+    let writeHeadCalls = 0;
+    let firstEnd = true;
+    const res = {
+      writableEnded: false,
+      writeHead(code: number, headers?: Record<string, string>) {
+        writeHeadCalls += 1;
+        if (writeHeadCalls > 1) {
+          throw new Error("ERR_HTTP_HEADERS_SENT");
+        }
+        state.status = code;
+        if (headers) Object.assign(state.headers, headers);
+        return this;
+      },
+      write(chunk: unknown) {
+        state.chunks.push(String(chunk));
+        return true;
+      },
+      end(chunk?: unknown) {
+        if (firstEnd) {
+          firstEnd = false;
+          throw new Error("socket torn down");
+        }
+        if (chunk !== undefined) state.chunks.push(String(chunk));
+        this.writableEnded = true;
+      },
+    } as unknown as ServerResponse;
+    const emitter = req as unknown as EventEmitter;
+    const handledPromise = tryHandleScout(
+      req,
+      res,
+      new URL("http://localhost/api/search"),
+      deps,
+    );
+    emitter.emit("data", Buffer.from(JSON.stringify({ queries: ["q1"] })));
+    emitter.emit("end");
+    assert.equal(await handledPromise, true);
+    assert.equal(getSortieUsage(tenantId, "free").used, 1);
+  });
+
+  it("refunds the sortie on POST /api/search when the batch rejects", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutSearch: (async () => {
+        throw new Error("boom");
+      }) as typeof runScoutSearch,
+      ensureMemoryIndex: async () => {},
+    };
+    const { handled, state } = await call("POST", "/api/search", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(handled, true);
+    assert.equal(state.status, 500);
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
+  it("refunds the sortie when a run rejects", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutCollect: (async () => {
+        throw new Error("boom");
+      }) as typeof runScoutCollect,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
+  it("ends the stream with an error line when a run rejects mid-stream", async () => {
+    const deps: ScoutHttpDeps = {
+      runScoutCollect: (async () => {
+        throw new Error("boom");
+      }) as typeof runScoutCollect,
+      ensureMemoryIndex: async () => {},
+    };
+    const { handled, state, res } = await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(handled, true);
+    const lines = ndjsonLines(state.chunks);
+    assert.equal(lines.at(-1)?.stage, "error");
+    assert.match(String(lines.at(-1)?.message), /boom/);
+    assert.equal(res.writableEnded, true);
+  });
+
+  it("keeps the sortie when a run delivered cools before failing", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutCollect: (async (opts) => {
+        opts.onEvent?.({
+          agent: "scout",
+          stage: "partial",
+          message: "Cool 2/5",
+          at: new Date().toISOString(),
+          coolCount: 2,
+        });
+        opts.onEvent?.({
+          agent: "scout",
+          stage: "searching",
+          message: "Cand. 1/5 · searching X…",
+          at: new Date().toISOString(),
+          coolCount: 0,
+        });
+        return { ok: false, status: 500, error: "x_api", message: "boom" };
+      }) as typeof runScoutCollect,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 1);
   });
 
   it("ignores unrelated paths", async () => {

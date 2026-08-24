@@ -5,7 +5,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { trackAnalytics } from "./analyticsClient.js";
 import { allowRate } from "./authGuard.js";
-import { creditsExhaustedResponse } from "./billingQuotas.js";
+import {
+  creditsExhaustedResponse,
+  suggestCapMessage,
+} from "./billingQuotas.js";
 import {
   ensureUserBillingRow,
   ensureUserTenant,
@@ -144,7 +147,7 @@ async function handleStances(
   if (!usage.canSuggest) {
     send(req, res, 429, {
       error: "suggest_daily_limit",
-      message: `That's ${usage.limit} suggested drafts today — the well refills at 00:00 UTC.`,
+      message: suggestCapMessage(planKey, usage.limit),
       used: usage.used,
       limit: usage.limit,
       planKey,
@@ -246,7 +249,7 @@ async function handleSuggest(
   if (!usage.canSuggest) {
     send(req, res, 429, {
       error: "suggest_daily_limit",
-      message: `That's ${usage.limit} suggested drafts today — the well refills at 00:00 UTC.`,
+      message: suggestCapMessage(planKey, usage.limit),
       used: usage.used,
       limit: usage.limit,
       planKey,
@@ -258,7 +261,7 @@ async function handleSuggest(
   if (!reservationId) {
     send(req, res, 429, {
       error: "suggest_daily_limit",
-      message: `That's ${usage.limit} suggested drafts today — the well refills at 00:00 UTC.`,
+      message: suggestCapMessage(planKey, usage.limit),
       used: usage.limit,
       limit: usage.limit,
       planKey,
