@@ -97,7 +97,9 @@ describe("forYouDigest", () => {
     const ranked = rankOwnPosts("u1");
     assert.equal(ranked.best[0]?.id, "6");
     assert.equal(ranked.worst[0]?.id, "1");
-    assert.ok(!ranked.best.some((p) => p.id === ranked.worst[0]?.id));
+    assert.ok(
+      ranked.worst.every((w) => !ranked.best.some((b) => b.id === w.id)),
+    );
     assert.ok(ranked.recentOriginals.length >= 1);
   });
 
@@ -195,6 +197,11 @@ describe("forYouDigest", () => {
           views: 2,
         },
         {
+          threadId: "mem-none",
+          author: "@none",
+          url: "https://x.com/none/status/5",
+        },
+        {
           threadId: "mem-ok",
           author: "@ok",
           url: "https://x.com/ok/status/4",
@@ -217,6 +224,12 @@ describe("forYouDigest", () => {
             why: "only 2 views so reply to boost",
             targetId: "mem-thin",
             targetUrl: "https://x.com/cizo/status/3",
+          },
+          {
+            kind: "reply",
+            why: "unsampled memory, views unknown",
+            targetId: "mem-none",
+            targetUrl: "https://x.com/none/status/5",
           },
           {
             kind: "reply",

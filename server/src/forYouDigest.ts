@@ -232,7 +232,7 @@ export function digestAllowlist(digest: ForYouDigest): {
     if (p.views >= FOR_YOU_MIN_ENGAGE_VIEWS) add(p.id, p.url);
   }
   for (const m of digest.memories) {
-    if (typeof m.views === "number" && m.views < FOR_YOU_MIN_ENGAGE_VIEWS) {
+    if (typeof m.views !== "number" || m.views < FOR_YOU_MIN_ENGAGE_VIEWS) {
       continue;
     }
     add(m.threadId, m.url, true);
