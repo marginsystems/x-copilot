@@ -438,7 +438,9 @@ export function SuggestPane({
           {compose ? "Suggest post" : "Suggest reply"}
         </button>
         <span className="suggest-quota">{suggestsLeftLabel(usage)}</span>
-        {note ? <p className="suggest-note is-fail">{note}</p> : null}
+        {note ? (
+          <p className="suggest-note is-fail">{noteWithUsageLink(note)}</p>
+        ) : null}
       </div>
     );
   }

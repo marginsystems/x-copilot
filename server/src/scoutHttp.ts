@@ -85,6 +85,7 @@ export function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
 /** Test seam: stub the collect loop / memory index without touching the network. */
 export type ScoutHttpDeps = {
   runScoutCollect?: typeof runScoutCollect;
+  runScoutSearch?: typeof runScoutSearch;
   ensureMemoryIndex?: typeof ensureMemoryIndex;
 };
 
@@ -95,6 +96,7 @@ export async function tryHandleScout(
   deps: ScoutHttpDeps = {},
 ): Promise<boolean> {
   const doScoutCollect = deps.runScoutCollect ?? runScoutCollect;
+  const doScoutSearch = deps.runScoutSearch ?? runScoutSearch;
   const doEnsureMemoryIndex = deps.ensureMemoryIndex ?? ensureMemoryIndex;
 
   if (req.method === "POST" && url.pathname === "/api/search") {
@@ -130,9 +132,10 @@ export async function tryHandleScout(
       return true;
     }
     const sessionUser = getSessionUser(req);
+    let sortieId: string | undefined;
     try {
       await doEnsureMemoryIndex();
-      const sortieId = recordSortie();
+      sortieId = recordSortie();
       trackAnalytics({
         name: "scout.takeoff",
         userId: sessionUser?.id,
@@ -140,7 +143,7 @@ export async function tryHandleScout(
         handle: sessionUser?.xUsername,
         detail: `${queries.length} queries`,
       });
-      const result = await runScoutSearch({ agenda, queries, filters });
+      const result = await doScoutSearch({ agenda, queries, filters });
       const coolCount = result.ok
         ? Array.isArray(result.event.threads)
           ? result.event.threads.length
@@ -181,6 +184,13 @@ export async function tryHandleScout(
         lengthFiltered: done.lengthFiltered,
         lengthWarning: done.lengthWarning,
         pipelineCounts: done.pipelineCounts,
+      });
+      return true;
+    } catch (err) {
+      if (sortieId) refundSortie(sortieId);
+      send(req, res, 500, {
+        error: "internal_error",
+        message: err instanceof Error ? err.message : String(err),
       });
       return true;
     } finally {
@@ -240,6 +250,8 @@ export async function tryHandleScout(
     req.on("close", onClose);
 
     const sessionUser = getSessionUser(req);
+    let sortieId: string | undefined;
+    let coolCount = 0;
     try {
       res.writeHead(200, {
         "Content-Type": "application/x-ndjson; charset=utf-8",
@@ -249,15 +261,14 @@ export async function tryHandleScout(
       });
 
       let sawTerminal = false;
-      let coolCount = 0;
       const writeLine = (event: { stage?: string; [key: string]: unknown }) => {
         if (typeof event.coolCount === "number") {
-          coolCount = event.coolCount;
+          coolCount = Math.max(coolCount, event.coolCount);
         } else if (
           event.stage === "done" &&
           Array.isArray(event.threads)
         ) {
-          coolCount = event.threads.length;
+          coolCount = Math.max(coolCount, event.threads.length);
         }
         if (event.stage === "done" || event.stage === "error") {
           sawTerminal = true;
@@ -269,7 +280,7 @@ export async function tryHandleScout(
       };
 
       await doEnsureMemoryIndex();
-      const sortieId = recordSortie();
+      sortieId = recordSortie();
       trackAnalytics({
         name: "scout.takeoff",
         userId: sessionUser?.id,
@@ -326,6 +337,11 @@ export async function tryHandleScout(
         refundSortie(sortieId);
       }
       res.end();
+      return true;
+    } catch {
+      if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
+        refundSortie(sortieId);
+      }
       return true;
     } finally {
       req.off("close", onClose);
