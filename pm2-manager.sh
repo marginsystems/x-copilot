@@ -145,7 +145,7 @@ case "$cmd" in
     ensure_build
     mkdir -p logs
     for name in "${APPS[@]}"; do
-      pm2 start "$ECOSYSTEM" --only "$name"
+      recycle_app "$name"
     done
     ;;
   stop)

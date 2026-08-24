@@ -82,7 +82,7 @@ done
 case "$cmd" in
   start)
     ensure_build
-    pm2 start "$ECOSYSTEM" --only "$NAME"
+    recycle_app
     ;;
   stop)
     pm2 stop "$NAME" || true
