@@ -48,7 +48,7 @@ export function latestAnalyticsInsight(userId: string): AnalyticsInsight | null 
   const row = getPlatformDb()
     .prepare(
       `SELECT day_utc, headline, bullets_json, created_at
-       FROM analytics_insights WHERE user_id = ?
+       FROM analytics_insights WHERE user_id = ? AND headline != ''
        ORDER BY day_utc DESC LIMIT 1`,
     )
     .get(userId) as Record<string, unknown> | undefined;
@@ -91,6 +91,23 @@ export function saveAnalyticsInsight(opts: {
       opts.model,
       new Date(nowMs).toISOString(),
     );
+}
+
+/**
+ * Mark today's generation as attempted even when it produced no note, so the
+ * hourly pass cannot spend the once-per-UTC-day LLM budget again on the same
+ * user. The empty-headline row gates hasInsightToday but is never returned to
+ * clients (latestAnalyticsInsight skips it).
+ */
+function recordInsightAttempt(userId: string, nowMs: number, model: string): void {
+  getPlatformDb()
+    .prepare(
+      `INSERT INTO analytics_insights
+         (user_id, day_utc, headline, bullets_json, model, created_at)
+       VALUES (?, ?, '', '[]', ?, ?)
+       ON CONFLICT(user_id, day_utc) DO NOTHING`,
+    )
+    .run(userId, utcDayKey(nowMs), model, new Date(nowMs).toISOString());
 }
 
 /** Every user with at least one watched post — the note reads own_posts only. */
@@ -181,10 +198,12 @@ export async function runAnalyticsInsightForUser(opts: {
     ],
   });
   if (!result.ok) {
+    recordInsightAttempt(opts.userId, nowMs, resolveFlashModel());
     return { wrote: false, reason: "llm_error" };
   }
   const parsed = parseInsightJson(result.content);
   if (!parsed) {
+    recordInsightAttempt(opts.userId, nowMs, result.model);
     return { wrote: false, reason: "parse_error" };
   }
   saveAnalyticsInsight({

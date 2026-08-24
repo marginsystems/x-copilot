@@ -375,9 +375,10 @@ describe("runUserIngest", () => {
     if (cardUpdatedAt) {
       getPlatformDb()
         .prepare(
-          `UPDATE voice_profiles SET card_updated_at = ? WHERE user_id = ?`,
+          `UPDATE voice_profiles SET card_updated_at = ?, card_attempt_at = ?
+           WHERE user_id = ?`,
         )
-        .run(cardUpdatedAt, userId);
+        .run(cardUpdatedAt, cardUpdatedAt, userId);
     }
   }
 
@@ -517,6 +518,97 @@ describe("runUserIngest", () => {
       }),
     });
     assert.equal(cardCalls, 0);
+    assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
+  });
+
+  it("hourly ingest does not rewrite a stale card when a pull returns only duplicates", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    seedUnlockedCard(user.id, staleIso());
+    let cardCalls = 0;
+    const result = await runUserIngest({
+      user,
+      mode: "hourly",
+      deps: {
+        foldLocal: async () => {},
+        resolveUser: async () => ({
+          ok: true,
+          id: "99",
+          username: "me",
+          protected: false,
+        }),
+        pullReplies: async () => ({
+          ok: true,
+          // The truncated pull re-returns already-stored posts and does not
+          // advance the cursor — the realistic no-growth shape.
+          replies: Array.from({ length: 100 }, (_, i) => ({
+            id: `seed-${i}`,
+            text: `seed post ${i}`,
+            conversationId: `c${i}`,
+            inReplyToId: null,
+            postedAt: "2026-08-10T10:00:00.000Z",
+            source: "api" as const,
+          })),
+          newestId: "seed-99",
+          pages: 1,
+          completed: false,
+        }),
+        generateCard: async () => {
+          cardCalls += 1;
+          return newCard();
+        },
+      },
+    });
+    assert.equal(result.ok, true);
+    assert.equal(cardCalls, 0);
+    assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
+  });
+
+  it("a failed hourly rewrite is stamped so the next pass does not retry the same day", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    seedUnlockedCard(user.id, staleIso());
+    let cardCalls = 0;
+    const first = await runUserIngest({
+      user,
+      mode: "hourly",
+      deps: hourlyDeps({
+        replies: [{ id: "new-1", text: "fresh post" }],
+        onCard: () => {
+          cardCalls += 1;
+          return {
+            ok: false as const,
+            error: "llm_down",
+            message: "model unavailable",
+          };
+        },
+      }),
+    });
+    assert.equal(first.ok, true);
+    assert.equal(cardCalls, 1);
+    assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
+    // The next hourly pass finds new posts again, but the failed attempt was
+    // stamped, so the once-per-UTC-day generation budget is not spent twice.
+    await runUserIngest({
+      user,
+      mode: "hourly",
+      deps: hourlyDeps({
+        replies: [{ id: "new-2", text: "another fresh post" }],
+        onCard: () => {
+          cardCalls += 1;
+          return newCard();
+        },
+      }),
+    });
+    assert.equal(cardCalls, 1);
     assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
   });
 

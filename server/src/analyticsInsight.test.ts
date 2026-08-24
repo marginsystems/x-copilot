@@ -128,16 +128,74 @@ describe("analyticsInsight", () => {
     assert.equal(latestAnalyticsInsight("u-empty"), null);
   });
 
-  it("writes nothing when the model returns an unusable note", async () => {
+  it("a failed generation still consumes the day's single LLM call", async () => {
     upsertOwnPost({ parsed: post({ postId: "1" }), userId: "u1", tenantId: "t1" });
+    let chatCalls = 0;
     const result = await runAnalyticsInsightForUser({
       userId: "u1",
       nowMs: NOW_MS,
-      chat: okChat('{"headline":"only one bullet","bullets":["a"]}'),
+      chat: async () => {
+        chatCalls += 1;
+        return okChat('{"headline":"only one bullet","bullets":["a"]}')();
+      },
     });
     assert.equal(result.wrote, false);
     assert.equal(result.reason, "parse_error");
+    assert.equal(chatCalls, 1);
+    // The failed attempt is recorded, so the hourly pass does not call the
+    // LLM again today — and no partial note is surfaced to clients.
+    assert.equal(hasInsightToday("u1", NOW_MS), true);
     assert.equal(latestAnalyticsInsight("u1"), null);
+    const again = await runAnalyticsInsightForUser({
+      userId: "u1",
+      nowMs: NOW_MS,
+      chat: async () => {
+        chatCalls += 1;
+        return okChat('{"headline":"fresh","bullets":["a","b"]}')();
+      },
+    });
+    assert.equal(again.wrote, false);
+    assert.equal(again.reason, "already_ran");
+    assert.equal(chatCalls, 1);
+    // A new UTC day gets a fresh generation budget.
+    const tomorrow = await runAnalyticsInsightForUser({
+      userId: "u1",
+      nowMs: NOW_MS + 24 * 60 * 60 * 1000,
+      chat: okChat('{"headline":"Fresh note.","bullets":["a","b"]}'),
+    });
+    assert.equal(tomorrow.wrote, true);
+  });
+
+  it("an LLM error also records the attempt so the day is not retried", async () => {
+    upsertOwnPost({ parsed: post({ postId: "1" }), userId: "u1", tenantId: "t1" });
+    let chatCalls = 0;
+    const result = await runAnalyticsInsightForUser({
+      userId: "u1",
+      nowMs: NOW_MS,
+      chat: async () => {
+        chatCalls += 1;
+        return {
+          ok: false as const,
+          status: 503,
+          error: "provider_down",
+          message: "unavailable",
+        };
+      },
+    });
+    assert.equal(result.wrote, false);
+    assert.equal(result.reason, "llm_error");
+    assert.equal(chatCalls, 1);
+    assert.equal(hasInsightToday("u1", NOW_MS), true);
+    const again = await runAnalyticsInsightForUser({
+      userId: "u1",
+      nowMs: NOW_MS,
+      chat: async () => {
+        chatCalls += 1;
+        return okChat('{"headline":"x","bullets":["a","b"]}')();
+      },
+    });
+    assert.equal(again.reason, "already_ran");
+    assert.equal(chatCalls, 1);
   });
 
   it("runAnalyticsInsights sweeps every own-post user and soft-fails per user", async () => {
