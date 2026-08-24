@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { LegalLinks } from "./Legal";
+import { Onboarding } from "./Onboarding";
+import { writeOnboardingAgenda } from "./lib/onboarding";
 
 export function BootScreen() {
   return (
@@ -212,6 +214,34 @@ export function Landing(props: {
             ) : null}
           </div>
         </section>
+
+        {!props.signedIn ? (
+          <section
+            className="landing-section landing-agenda-builder"
+            aria-labelledby="landing-agenda-builder-title"
+          >
+            <div className="landing-agenda-builder-head">
+              <h2 id="landing-agenda-builder-title">
+                Write your first Scout agenda
+              </h2>
+              <p>
+                Try the real setup before creating an account. Pick what you
+                care about, generate a few agendas, then sign in only when one
+                is worth running.
+              </p>
+            </div>
+            <Onboarding
+              mode="preview"
+              embedded
+              kicker="Try the agenda desk"
+              completeLabel="Sign in to run this agenda"
+              onComplete={(agenda) => {
+                writeOnboardingAgenda(agenda);
+                props.onSignIn();
+              }}
+            />
+          </section>
+        ) : null}
 
         <section className="landing-section" aria-labelledby="landing-problem">
           <h2 id="landing-problem">The feed is not on your side</h2>
