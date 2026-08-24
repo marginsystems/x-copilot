@@ -383,6 +383,7 @@ export default function App() {
     if (authUser) return;
     setOnboardingPreview(false);
     setSimulateUnlinked(false);
+    setOnboardingDoneLocal(false);
   }, [authUser]);
 
   function exitOnboardingPreview() {
