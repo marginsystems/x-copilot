@@ -378,6 +378,12 @@ export default function App() {
     window.history.replaceState({}, "", next);
   }, [authUser?.isAdmin]);
 
+  useEffect(() => {
+    if (authUser) return;
+    setOnboardingPreview(false);
+    setSimulateUnlinked(false);
+  }, [authUser]);
+
   function exitOnboardingPreview() {
     setOnboardingPreview(false);
     setSimulateUnlinked(false);
