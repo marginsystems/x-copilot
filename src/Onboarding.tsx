@@ -73,6 +73,7 @@ export function Onboarding(props: {
   const [usingSeededAgenda, setUsingSeededAgenda] = useState(
     Boolean(seededAgenda),
   );
+  const [seedDismissed, setSeedDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [generatedFor, setGeneratedFor] = useState("");
@@ -85,7 +86,7 @@ export function Onboarding(props: {
       goals.length === 0 &&
       audiences.length === 0 &&
       agendas.length === 0;
-    if (!next || !untouched) return;
+    if (!next || !untouched || seedDismissed) return;
     setAgendas([next]);
     setPicked(0);
     setUsingSeededAgenda(true);
@@ -97,6 +98,7 @@ export function Onboarding(props: {
     goals.length,
     audiences.length,
     agendas.length,
+    seedDismissed,
   ]);
 
   const fingerprint = useMemo(
@@ -208,6 +210,7 @@ export function Onboarding(props: {
     setNotice("");
     if (onPick && usingSeededAgenda) {
       setUsingSeededAgenda(false);
+      setSeedDismissed(true);
       setAgendas([]);
       setPicked(null);
       setStep(0);

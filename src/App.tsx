@@ -316,6 +316,7 @@ export default function App() {
       if (user?.agenda) {
         setAgenda(user.agenda);
         setOnboardingSeedAgenda(null);
+        readOnboardingAgenda(user.id);
       } else {
         const storedAgenda = readOnboardingAgenda(user?.id);
         if (storedAgenda) {
