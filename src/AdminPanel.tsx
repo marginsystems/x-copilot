@@ -53,6 +53,7 @@ export function AdminPanel(props: {
   error: string;
   onBack: () => void;
   onRefresh: () => void;
+  onPreviewOnboarding: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [logWindow, setLogWindow] = useState<UsageWindow>("7d");
@@ -163,9 +164,18 @@ export function AdminPanel(props: {
     <section className="panel settings-pane usage-pane">
       <div className="settings-head">
         <h2>Admin</h2>
-        <button type="button" className="ghost" onClick={props.onBack}>
-          Back
-        </button>
+        <div className="admin-head-actions">
+          <button
+            type="button"
+            className="ghost"
+            onClick={props.onPreviewOnboarding}
+          >
+            Preview onboarding
+          </button>
+          <button type="button" className="ghost" onClick={props.onBack}>
+            Back
+          </button>
+        </div>
       </div>
       <p className="status settings-lede">
         Per-tenant X post reads this UTC month, estimated platform spend, and

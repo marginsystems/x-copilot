@@ -2,6 +2,38 @@
 
 /* First-run onboarding */
 
+.onboarding-preview-bar {
+  width: min(560px, 100%);
+  margin: 0 auto 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.onboarding-preview-note {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.onboarding-preview-sim {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.admin-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .onboarding-card {
   width: min(560px, 100%);
   margin: auto;

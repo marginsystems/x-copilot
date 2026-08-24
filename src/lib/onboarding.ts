@@ -3,6 +3,40 @@
 export const ONBOARDING_STORAGE_KEY = "xc-onboarding-complete";
 export const ONBOARDING_AGENDA_KEY = "xc-onboarding-agenda";
 
+/** real = signed-in complete POST + localStorage; local = localStorage only; preview = neither. */
+export type OnboardingMode = "real" | "local" | "preview";
+
+export function resolveOnboardingMode(
+  mode?: OnboardingMode,
+  persist?: boolean,
+): OnboardingMode {
+  if (mode) return mode;
+  return persist ? "real" : "local";
+}
+
+export function onboardingPostsComplete(mode: OnboardingMode): boolean {
+  return mode === "real";
+}
+
+export function onboardingWritesLocalStorage(mode: OnboardingMode): boolean {
+  return mode !== "preview";
+}
+
+/** Deep-link `?onboarding=preview` — admin only. Caller strips the param so reload exits. */
+export function consumeOnboardingPreviewQuery(
+  search: string,
+  isAdmin: boolean,
+): { open: boolean; nextSearch: string } {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  const params = new URLSearchParams(raw);
+  if (!isAdmin || params.get("onboarding") !== "preview") {
+    return { open: false, nextSearch: search };
+  }
+  params.delete("onboarding");
+  const qs = params.toString();
+  return { open: true, nextSearch: qs ? `?${qs}` : "" };
+}
+
 function scopedKey(base: string, userId?: string): string {
   return userId ? `${base}:${userId}` : base;
 }

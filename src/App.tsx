@@ -17,7 +17,12 @@ import { viewFromPath } from "./lib/appView";
 import { Onboarding } from "./Onboarding";
 import { LinkXGate } from "./LinkXGate";
 import { deskNeedsXLink, showDeskXGate } from "./lib/deskGate";
-import { readOnboardingAgenda, readOnboardingComplete } from "./lib/onboarding";
+import {
+  consumeOnboardingPreviewQuery,
+  readOnboardingAgenda,
+  readOnboardingComplete,
+} from "./lib/onboarding";
+import { OnboardingPreviewBar } from "./OnboardingPreview";
 import { AdminPanel } from "./AdminPanel";
 import { Analytics } from "./Analytics";
 import { Account } from "./Account";
@@ -140,6 +145,8 @@ export default function App() {
   } = useAdmin();
   const { menuOpen, menuEntered, openMenu, closeMenu } = useMenu();
   const [signInOpen, setSignInOpen] = useState(false);
+  const [onboardingPreview, setOnboardingPreview] = useState(false);
+  const [simulateUnlinked, setSimulateUnlinked] = useState(false);
   const {
     authUser,
     setAuthUser,
@@ -360,9 +367,32 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!markThread && !dismissThread && !signInOpen) return;
+    if (!authUser?.isAdmin) return;
+    const { open, nextSearch } = consumeOnboardingPreviewQuery(
+      window.location.search,
+      true,
+    );
+    if (!open) return;
+    setOnboardingPreview(true);
+    const next = `${window.location.pathname}${nextSearch}${window.location.hash}`;
+    window.history.replaceState({}, "", next);
+  }, [authUser?.isAdmin]);
+
+  function exitOnboardingPreview() {
+    setOnboardingPreview(false);
+    setSimulateUnlinked(false);
+  }
+
+  useEffect(() => {
+    if (!markThread && !dismissThread && !signInOpen && !onboardingPreview) {
+      return;
+    }
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape" || actionBusy) return;
+      if (onboardingPreview) {
+        exitOnboardingPreview();
+        return;
+      }
       if (markThread) closeMarkModal();
       if (dismissThread) closeDismissModal();
       if (signInOpen) {
@@ -372,7 +402,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [markThread, dismissThread, signInOpen, actionBusy]);
+  }, [markThread, dismissThread, signInOpen, onboardingPreview, actionBusy]);
 
   const needsLogin = authChecked && authRequired && !authUser && !localUi;
   const needsOnboarding =
@@ -385,8 +415,13 @@ export default function App() {
   const needsXLink = deskNeedsXLink(authUser);
   const booting = !localUi && !authChecked;
   const legalView = isLegalKind(view);
+  const showOnboardingPreview =
+    onboardingPreview && Boolean(authUser?.isAdmin) && !legalView;
   const showLanding =
-    !legalView && !needsOnboarding && (view === "home" || needsLogin);
+    !legalView &&
+    !needsOnboarding &&
+    !showOnboardingPreview &&
+    (view === "home" || needsLogin);
   const deskXGate = showDeskXGate({
     needsXLink,
     needsLogin,
@@ -396,7 +431,8 @@ export default function App() {
     view,
   });
   const showGateChrome =
-    (showLanding || needsOnboarding || deskXGate) && !legalView;
+    (showLanding || needsOnboarding || deskXGate || showOnboardingPreview) &&
+    !legalView;
 
   if (booting) {
     return (
@@ -430,7 +466,7 @@ export default function App() {
             theme={theme}
             authUser={authUser}
             needsLogin={needsLogin}
-            needsOnboarding={needsOnboarding}
+            needsOnboarding={needsOnboarding || showOnboardingPreview}
             onTheme={() => setTheme((t) => nextTheme(t))}
             onLogout={() => void onLogout()}
             onSignIn={() => {
@@ -473,8 +509,28 @@ export default function App() {
         />
       ) : null}
 
-      {legalView ? null : needsOnboarding ? (
+      {legalView ? null : showOnboardingPreview ? (
+        <>
+          <OnboardingPreviewBar
+            simulateUnlinked={simulateUnlinked}
+            onSimulateUnlinked={setSimulateUnlinked}
+            onExit={exitOnboardingPreview}
+          />
+          <Onboarding
+            mode="preview"
+            persist={false}
+            userId={authUser?.id ?? null}
+            needsXLink={simulateUnlinked}
+            onLinkX={startXLogin}
+            onComplete={() => {
+              exitOnboardingPreview();
+              goToView("admin");
+            }}
+          />
+        </>
+      ) : needsOnboarding ? (
         <Onboarding
+          mode={authUser ? "real" : "local"}
           persist={Boolean(authUser)}
           userId={authUser?.id ?? null}
           needsXLink={needsXLink}
@@ -485,7 +541,11 @@ export default function App() {
         <LinkXGate onLinkX={startXLogin} />
       ) : null}
 
-      {!legalView && !showLanding && !needsOnboarding && !deskXGate ? (
+      {!legalView &&
+      !showLanding &&
+      !needsOnboarding &&
+      !deskXGate &&
+      !showOnboardingPreview ? (
         <main
           className={
             view === "dashboard" ? "app-main" : "app-main app-main-scroll"
@@ -505,6 +565,10 @@ export default function App() {
             error={adminError}
             onBack={() => goToView("dashboard")}
             onRefresh={() => void loadAdmin()}
+            onPreviewOnboarding={() => {
+              setSimulateUnlinked(false);
+              setOnboardingPreview(true);
+            }}
           />
         ) : (
           <section className="panel settings-pane">

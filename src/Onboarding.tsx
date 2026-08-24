@@ -6,10 +6,14 @@ import {
   GOAL_OPTIONS,
   TOPIC_OPTIONS,
   labelsFor,
+  onboardingPostsComplete,
+  onboardingWritesLocalStorage,
   parseGeneratedAgendas,
+  resolveOnboardingMode,
   toggleId,
   writeOnboardingComplete,
   type GeneratedAgenda,
+  type OnboardingMode,
   type OnboardingOption,
 } from "./lib/onboarding";
 
@@ -42,12 +46,14 @@ const QUESTIONS: Array<{
 ];
 
 export function Onboarding(props: {
-  persist: boolean;
+  persist?: boolean;
+  mode?: OnboardingMode;
   userId?: string | null;
   needsXLink?: boolean;
   onLinkX?: () => void;
   onComplete: (agenda: string) => void;
 }) {
+  const mode = resolveOnboardingMode(props.mode, props.persist);
   const [step, setStep] = useState(0);
   const [topics, setTopics] = useState<string[]>([]);
   const [goals, setGoals] = useState<string[]>([]);
@@ -138,7 +144,7 @@ export function Onboarding(props: {
     }
     setBusy(true);
     try {
-      if (props.persist) {
+      if (onboardingPostsComplete(mode)) {
         const res = await apiFetch("/api/onboarding/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -152,7 +158,9 @@ export function Onboarding(props: {
           return;
         }
       }
-      writeOnboardingComplete(choice.body, props.userId ?? undefined);
+      if (onboardingWritesLocalStorage(mode)) {
+        writeOnboardingComplete(choice.body, props.userId ?? undefined);
+      }
       props.onComplete(choice.body);
     } catch {
       setNotice("Could not save your setup. Try again.");
