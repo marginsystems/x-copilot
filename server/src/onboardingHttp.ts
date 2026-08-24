@@ -3,7 +3,6 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { completeOnboarding, toPublicUser } from "./authStore.js";
-import { userNeedsXHandle } from "./xIdentityStore.js";
 import {
   BODY_CAP_1MB,
   BodyError,
@@ -124,15 +123,6 @@ export async function tryHandleOnboarding(
         ok: false,
         error: "unauthenticated",
         message: "Sign in required",
-      });
-      return true;
-    }
-
-    if (userNeedsXHandle(user)) {
-      send(req, res, 400, {
-        ok: false,
-        error: "x_link_required",
-        message: "Link X with the official X login to finish setup.",
       });
       return true;
     }

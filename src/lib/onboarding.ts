@@ -22,6 +22,21 @@ export function onboardingWritesLocalStorage(mode: OnboardingMode): boolean {
   return mode !== "preview";
 }
 
+/**
+ * First-run wizard. Server completion wins when a session exists.
+ * localStorage is only the signed-out local flow.
+ */
+export function needsOnboardingWizard(opts: {
+  needsLogin: boolean;
+  onboardingDoneLocal: boolean;
+  authUser: { onboardingCompleted: boolean } | null;
+  localComplete: boolean;
+}): boolean {
+  if (opts.needsLogin || opts.onboardingDoneLocal) return false;
+  if (opts.authUser) return opts.authUser.onboardingCompleted === false;
+  return !opts.localComplete;
+}
+
 /** Deep-link `?onboarding=preview` — admin only. Caller strips the param so reload exits. */
 export function consumeOnboardingPreviewQuery(
   search: string,
