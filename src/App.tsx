@@ -549,27 +549,27 @@ export default function App() {
             onSimulateUnlinked={setSimulateUnlinked}
             onExit={exitOnboardingPreview}
           />
+          <Onboarding
+            mode="preview"
+            persist={false}
+            userId={authUser?.id ?? null}
+            hidden={previewReachedLink && simulateUnlinked}
+            onComplete={() => {
+              if (simulateUnlinked) {
+                setPreviewReachedLink(true);
+                return;
+              }
+              exitOnboardingPreview();
+              goToView("admin");
+            }}
+          />
           {previewReachedLink && simulateUnlinked ? (
             <LinkXGate
               kicker="Set up your desk"
               title="Link X to take off"
               lede="Voice reads the account you log into. Sign in with X — you cannot type a handle. If you already signed in with X, you are linked."
             />
-          ) : (
-            <Onboarding
-              mode="preview"
-              persist={false}
-              userId={authUser?.id ?? null}
-              onComplete={() => {
-                if (simulateUnlinked) {
-                  setPreviewReachedLink(true);
-                  return;
-                }
-                exitOnboardingPreview();
-                goToView("admin");
-              }}
-            />
-          )}
+          ) : null}
         </>
       ) : needsOnboarding ? (
         <Onboarding

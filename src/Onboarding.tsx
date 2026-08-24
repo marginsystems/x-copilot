@@ -48,6 +48,7 @@ export function Onboarding(props: {
   persist?: boolean;
   mode?: OnboardingMode;
   userId?: string | null;
+  hidden?: boolean;
   onComplete: (agenda: string) => void;
 }) {
   const mode = resolveOnboardingMode(props.mode, props.persist);
@@ -175,7 +176,7 @@ export function Onboarding(props: {
   const currentStep = onPick ? QUESTIONS.length + 1 : step + 1;
 
   return (
-    <div className="gate onboarding">
+    <div className="gate onboarding" hidden={props.hidden}>
       <div className="onboarding-card">
         <p className="onboarding-kicker">Set up your desk</p>
         <div
