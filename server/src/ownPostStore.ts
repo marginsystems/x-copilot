@@ -342,7 +342,19 @@ export function listAnalyticsPosts(opts: {
   }));
 }
 
-export function analyticsSummary(userId: string): {
+/** The last `days` UTC calendar days ending today, as YYYY-MM-DD. */
+export function lastUtcDays(days: number, now = new Date()): string[] {
+  const startMs = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() - (days - 1),
+  );
+  return Array.from({ length: days }, (_, i) =>
+    new Date(startMs + i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  );
+}
+
+export function analyticsSummary(userId: string, now = new Date()): {
   totals: {
     posts: number;
     originals: number;
@@ -398,12 +410,18 @@ export function analyticsSummary(userId: string): {
        GROUP BY day ORDER BY day ASC`,
     )
     .all(userId) as Array<{ day: string; posts: number; views: number; likes: number }>;
-  const series = dayRows.slice(-30).map((r) => ({
-    day: r.day,
-    posts: Number(r.posts ?? 0),
-    views: Number(r.views ?? 0),
-    likes: Number(r.likes ?? 0),
-  }));
+  // A continuous 30-day UTC window (zero-filled) so the chart's x-axis is a
+  // real calendar strip, not a sparse cluster of posting days.
+  const byDay = new Map(dayRows.map((r) => [r.day, r]));
+  const series = lastUtcDays(30, now).map((day) => {
+    const r = byDay.get(day);
+    return {
+      day,
+      posts: Number(r?.posts ?? 0),
+      views: Number(r?.views ?? 0),
+      likes: Number(r?.likes ?? 0),
+    };
+  });
   const kinds: Array<{ key: OwnPostKind; count: number }> = (
     [
       ["original", totals.originals],

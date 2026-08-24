@@ -162,7 +162,10 @@ export function VoiceCardPanel({
           ) : null}
           <p className="voice-foot">
             {voice.cardUpdatedAt
-              ? `Updated ${formatTimeAgo(voice.cardUpdatedAt) ?? "recently"} · `
+              ? `Card rewritten ${formatTimeAgo(voice.cardUpdatedAt) ?? "recently"} · `
+              : ""}
+            {voice.lastPullAt
+              ? `Posts pulled ${formatTimeAgo(voice.lastPullAt) ?? "recently"} · `
               : ""}
             {voice.replyCount} posts ·{" "}
             {suggestsLeftLabel(voice.suggests)}

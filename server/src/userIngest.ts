@@ -35,8 +35,10 @@ import {
   resetUserVoiceCorpus,
   saveVoiceCard,
   setVoiceProfileStatus,
+  stampVoiceCardAttempt,
   updateVoiceProfilePull,
   upsertVoiceReplies,
+  voiceCardStale,
   voiceUnlocked,
   type VoiceReplyInput,
 } from "./voiceStore.js";
@@ -334,6 +336,9 @@ export async function runUserIngest(opts: {
     const posts = updated?.replyCount ?? 0;
     const unlocked = voiceUnlocked(posts);
     const hadCard = Boolean(updated?.cardJson);
+    // The corpus moved this pull: the stored count grew (duplicate re-pulls
+    // keep the cursor and do not add rows, so they must not trigger a rewrite).
+    const corpusGrew = posts > profile.replyCount;
     if (unlocked && !hadCard) {
       const cardResult = await generateCard({
         handle: handle || "you",
@@ -351,6 +356,30 @@ export async function runUserIngest(opts: {
           priorStatus === "ready" ? "ready" : "empty",
           cardResult.message,
         );
+      }
+    } else if (
+      unlocked &&
+      hadCard &&
+      opts.mode === "hourly" &&
+      corpusGrew &&
+      voiceCardStale(updated?.cardAttemptAt ?? null)
+    ) {
+      // Hourly rewrite so the card tracks the growing corpus. The >24h
+      // staleness gate caps this at once per UTC day; the attempt stamp is
+      // recorded up front so a failed generation is not retried next hour.
+      stampVoiceCardAttempt(user.id);
+      const cardResult = await generateCard({
+        handle: handle || "you",
+        replies: listVoiceReplies(user.id, 120),
+      });
+      if (cardResult.ok) {
+        saveVoiceCard({
+          userId: user.id,
+          cardJson: cardResult.cardJson,
+          model: cardResult.model,
+        });
+      } else {
+        setVoiceProfileStatus(user.id, "ready");
       }
     } else {
       setVoiceProfileStatus(

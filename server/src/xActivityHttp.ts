@@ -33,6 +33,7 @@ import {
   creditsExhaustedResponse,
   dailyActivityUsage,
 } from "./billingQuotas.js";
+import { latestAnalyticsInsight } from "./analyticsInsight.js";
 import { ensureUserTenant } from "./billingStore.js";
 import { recordUsageEvent } from "./usageMeter.js";
 import { markInteracted } from "./interactionStore.js";
@@ -288,6 +289,7 @@ export async function tryHandleXActivityAuthed(
     send(req, res, 200, {
       ok: true,
       activity,
+      insight: latestAnalyticsInsight(user.id),
       ...analyticsSummary(user.id),
     });
     return true;

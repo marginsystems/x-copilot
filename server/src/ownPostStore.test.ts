@@ -13,6 +13,7 @@ import {
   analyticsSummary,
   countOwnPostsSince,
   getWatchedThread,
+  lastUtcDays,
   listDueOwnPostSamples,
   patchOwnPostSnapshot,
   rememberActivityEvent,
@@ -105,6 +106,45 @@ describe("ownPostStore", () => {
     assert.equal(summary.totals.likes, 10);
     assert.equal(summary.totals.bookmarks, 8);
     assert.equal(summary.top[0]?.id, "1");
+  });
+
+  it("plots a continuous zero-filled 30-day UTC window, not just posting days", () => {
+    const userId = "user-series";
+    const now = new Date("2026-08-24T15:00:00.000Z");
+    upsertOwnPost({
+      parsed: post({ postId: "a", postedAt: "2026-08-17T09:00:00.000Z" }),
+      userId,
+      tenantId: "t",
+    });
+    upsertOwnPost({
+      parsed: post({ postId: "b", postedAt: "2026-08-22T09:00:00.000Z" }),
+      userId,
+      tenantId: "t",
+    });
+    // Older than the window: stays in totals, drops off the chart.
+    upsertOwnPost({
+      parsed: post({ postId: "old", postedAt: "2026-06-01T09:00:00.000Z" }),
+      userId,
+      tenantId: "t",
+    });
+    const summary = analyticsSummary(userId, now);
+    assert.equal(summary.totals.posts, 3);
+    assert.equal(summary.series.length, 30);
+    assert.equal(summary.series[0]?.day, "2026-07-26");
+    assert.equal(summary.series[29]?.day, "2026-08-24");
+    const byDay = new Map(summary.series.map((d) => [d.day, d]));
+    assert.equal(byDay.get("2026-08-17")?.posts, 1);
+    assert.equal(byDay.get("2026-08-17")?.views, 10);
+    assert.equal(byDay.get("2026-08-22")?.posts, 1);
+    // A day with no posts is present and zero, so the x-axis is a real window.
+    assert.equal(byDay.get("2026-08-20")?.posts, 0);
+    assert.equal(byDay.get("2026-08-20")?.views, 0);
+    assert.equal(byDay.has("2026-06-01"), false);
+  });
+
+  it("lastUtcDays spans month boundaries in UTC", () => {
+    const days = lastUtcDays(3, new Date("2026-08-01T00:30:00.000Z"));
+    assert.deepEqual(days, ["2026-07-30", "2026-07-31", "2026-08-01"]);
   });
 
   it("lists due 1h then 24h samples", () => {

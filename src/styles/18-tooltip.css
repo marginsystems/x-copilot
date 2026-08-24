@@ -34,3 +34,44 @@
   transform: translateY(0);
 }
 
+/* Small "?" affordance that carries a .has-tip tooltip. Centered under the
+   chip (the default right-anchored panel walks off-card for left-side chips)
+   and clamped so it stays on small screens. */
+.tip-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: help;
+}
+
+.tip-chip:hover,
+.tip-chip:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tip-chip.has-tip::after {
+  right: auto;
+  left: 50%;
+  width: 16rem;
+  max-width: min(20rem, 76vw);
+  transform: translate(-50%, -4px);
+}
+
+.tip-chip.has-tip:hover::after,
+.tip-chip.has-tip:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+

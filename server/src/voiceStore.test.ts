@@ -9,6 +9,7 @@ import {
   resetPlatformDbForTests,
 } from "./db.ts";
 import {
+  VOICE_CARD_REFRESH_MS,
   VOICE_UNLOCK_MIN_POSTS,
   countDistinctConversations,
   countSuggestsToday,
@@ -26,6 +27,7 @@ import {
   suggestLimitForPlan,
   updateVoiceProfilePull,
   upsertVoiceReplies,
+  voiceCardStale,
   voiceUnlocked,
 } from "./voiceStore.ts";
 
@@ -235,5 +237,21 @@ describe("voiceStore", () => {
     const rows = listVoiceReplies(USER, 10);
     assert.equal(rows[0]?.source, "memory");
     assert.equal(rows[0]?.conversationId, "conv-mem");
+  });
+});
+
+describe("voiceCardStale", () => {
+  const NOW = Date.parse("2026-08-24T12:00:00.000Z");
+
+  it("treats a missing or unparseable stamp as stale", () => {
+    assert.equal(voiceCardStale(null, NOW), true);
+    assert.equal(voiceCardStale("not-a-date", NOW), true);
+  });
+
+  it("flips stale exactly at the 24h refresh window", () => {
+    const fresh = new Date(NOW - VOICE_CARD_REFRESH_MS + 60_000).toISOString();
+    const stale = new Date(NOW - VOICE_CARD_REFRESH_MS).toISOString();
+    assert.equal(voiceCardStale(fresh, NOW), false);
+    assert.equal(voiceCardStale(stale, NOW), true);
   });
 });

@@ -42,3 +42,10 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .analytics-skel {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+

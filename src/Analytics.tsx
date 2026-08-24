@@ -25,6 +25,12 @@ type AnalyticsPayload = {
     can_watch: boolean;
     planKey: string;
   };
+  insight?: {
+    headline: string;
+    bullets: string[];
+    day: string;
+    createdAt: string;
+  } | null;
   totals?: {
     posts: number;
     originals: number;
@@ -58,6 +64,33 @@ const KIND_COLOR: Record<OwnPostKind, string> = {
   repost: "#c989b0",
 };
 
+const WATCH_TIP =
+  "New public posts folded into this dashboard today (UTC), against your plan's daily watch cap. Lifetime totals below are separate. This does not spend Scout credits.";
+const LIFETIME_TIP =
+  "Running totals across every post this dashboard has watched, at each post's latest snapshot. Separate from the daily watch cap above.";
+const INSIGHT_TIP =
+  "A short note written once per UTC day after the hourly pass, grounded in the numbers on this page. It never posts anything for you.";
+const SIGNAL_TIP =
+  "Daily views and likes across your watched posts over the last 30 UTC days. Days you did not post show as zero.";
+const MIX_TIP =
+  "How your watched posts split by kind — originals, replies, quotes, reposts. Lifetime counts, not just the last 30 days.";
+const ENGAGEMENT_TIP =
+  "People engaging with your posts: likes, replies, reposts, and bookmarks summed from each watched post's latest snapshot. Not your activity toward others.";
+const TOP_TIP = "Your watched posts ranked by their latest view snapshot.";
+
+function TipChip({ tip }: { tip: string }) {
+  return (
+    <button
+      type="button"
+      className="tip-chip has-tip"
+      data-tip={tip}
+      aria-label={tip}
+    >
+      ?
+    </button>
+  );
+}
+
 function fmt(n: number): string {
   if (!Number.isFinite(n)) return "0";
   const abs = Math.abs(n);
@@ -83,6 +116,7 @@ function SeriesChart({
 }: {
   series: Array<{ day: string; posts: number; views: number; likes: number }>;
 }) {
+  const [active, setActive] = useState<number | null>(null);
   const width = 640;
   const height = 168;
   const padL = 36;
@@ -110,58 +144,85 @@ function SeriesChart({
       ? `${viewLine} L ${xAt(n - 1).toFixed(1)} ${(padT + innerH).toFixed(1)} L ${xAt(0).toFixed(1)} ${(padT + innerH).toFixed(1)} Z`
       : "";
   const labelStep = Math.max(1, Math.ceil(n / 7));
+  const activePoint = active === null ? null : series[active] ?? null;
+  const tipSide =
+    active === null ? "mid" : active / (n - 1 || 1) < 0.2 ? "start" : active / (n - 1 || 1) > 0.8 ? "end" : "mid";
 
   return (
-    <svg
-      className="analytics-svg"
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label="Views and likes over the last 30 days"
-    >
-      {[0.25, 0.5, 0.75, 1].map((f) => (
-        <line
-          key={f}
-          className="analytics-grid-line"
-          x1={padL}
-          x2={padL + innerW}
-          y1={padT + innerH * (1 - f)}
-          y2={padT + innerH * (1 - f)}
-        />
-      ))}
-      {area ? <path className="analytics-area" d={area} /> : null}
-      {series.length > 1 ? (
-        <path className="analytics-line analytics-line-views" d={viewLine} fill="none" />
-      ) : null}
-      {series.length > 1 ? (
-        <path className="analytics-line analytics-line-likes" d={likeLine} fill="none" />
-      ) : null}
-      {series.map((p, i) => (
-        <circle
-          key={`v-${p.day}`}
-          className="analytics-dot-views"
-          cx={xAt(i)}
-          cy={yViews(p.views)}
-          r={2.4}
+    <div className="analytics-chart">
+      <svg
+        className="analytics-svg"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="Views and likes over the last 30 days"
+      >
+        {[0.25, 0.5, 0.75, 1].map((f) => (
+          <line
+            key={f}
+            className="analytics-grid-line"
+            x1={padL}
+            x2={padL + innerW}
+            y1={padT + innerH * (1 - f)}
+            y2={padT + innerH * (1 - f)}
+          />
+        ))}
+        {area ? <path className="analytics-area" d={area} /> : null}
+        {series.length > 1 ? (
+          <path className="analytics-line analytics-line-views" d={viewLine} fill="none" />
+        ) : null}
+        {series.length > 1 ? (
+          <path className="analytics-line analytics-line-likes" d={likeLine} fill="none" />
+        ) : null}
+        {series.map((p, i) => (
+          <circle
+            key={`v-${p.day}`}
+            className={
+              active === i
+                ? "analytics-dot-views is-active"
+                : "analytics-dot-views"
+            }
+            cx={xAt(i)}
+            cy={yViews(p.views)}
+            r={active === i ? 3.4 : 2.4}
+            tabIndex={0}
+            aria-label={`${p.day}: ${p.views} views, ${p.likes} likes, ${p.posts} posts`}
+            onMouseEnter={() => setActive(i)}
+            onMouseLeave={() => setActive(null)}
+            onFocus={() => setActive(i)}
+            onBlur={() => setActive(null)}
+          />
+        ))}
+        {series.map((p, i) =>
+          i % labelStep === 0 || i === n - 1 ? (
+            <text
+              key={`t-${p.day}`}
+              className="analytics-axis-label"
+              x={xAt(i)}
+              y={height - 6}
+              textAnchor="middle"
+            >
+              {shortDay(p.day)}
+            </text>
+          ) : null,
+        )}
+      </svg>
+      {activePoint && active !== null ? (
+        <div
+          className={`analytics-chart-tip analytics-chart-tip-${tipSide}`}
+          style={{
+            left: `${(xAt(active) / width) * 100}%`,
+            top: `${(yViews(activePoint.views) / height) * 100}%`,
+          }}
+          role="status"
         >
-          <title>
-            {p.day}: {p.views} views · {p.likes} likes · {p.posts} posts
-          </title>
-        </circle>
-      ))}
-      {series.map((p, i) =>
-        i % labelStep === 0 || i === n - 1 ? (
-          <text
-            key={`t-${p.day}`}
-            className="analytics-axis-label"
-            x={xAt(i)}
-            y={height - 6}
-            textAnchor="middle"
-          >
-            {shortDay(p.day)}
-          </text>
-        ) : null,
-      )}
-    </svg>
+          <strong>{shortDay(activePoint.day)}</strong>
+          <span>
+            {fmt(activePoint.views)} views · {fmt(activePoint.likes)} likes ·{" "}
+            {activePoint.posts} posts
+          </span>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -289,6 +350,19 @@ function MixBars({
   );
 }
 
+const HERO_LABELS = [
+  "Posts",
+  "Views",
+  "Likes",
+  "Replies",
+  "Reposts",
+  "Bookmarks",
+] as const;
+
+function Skel({ className }: { className: string }) {
+  return <span className={`analytics-skel ${className}`} aria-hidden="true" />;
+}
+
 export function Analytics(props: { onBack: () => void }) {
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [error, setError] = useState("");
@@ -323,10 +397,30 @@ export function Analytics(props: { onBack: () => void }) {
   const kinds = data?.kinds ?? [];
   const top = data?.top ?? [];
   const activity = data?.activity;
+  const insight = data?.insight ?? null;
+  // First load only: the dashboard chrome renders immediately with skeleton
+  // pulses in the same grid tracks the live widgets use. Refresh keeps the
+  // populated tree mounted (data is never cleared while it reloads).
+  const loading = busy && !data;
   const empty = !busy && !error && (totals?.posts ?? 0) === 0;
+  const showDashboard = loading || (totals !== undefined && totals.posts > 0);
+
+  const heroValues: Array<number | null> = totals
+    ? [
+        totals.posts,
+        totals.views,
+        totals.likes,
+        totals.replyCount,
+        totals.retweets,
+        totals.bookmarks,
+      ]
+    : [null, null, null, null, null, null];
 
   return (
-    <section className="panel settings-pane analytics-pane">
+    <section
+      className="panel settings-pane analytics-pane"
+      aria-busy={busy || undefined}
+    >
       <div className="settings-head">
         <h2>Analytics</h2>
         <div className="analytics-head-actions">
@@ -350,25 +444,36 @@ export function Analytics(props: { onBack: () => void }) {
         </p>
       ) : null}
 
-      {activity ? (
+      {activity || loading ? (
         <div className="analytics-watch">
           <div className="credit-meter-head">
-            <span className="usage-stat-label">Watch today (UTC)</span>
-            <strong className="usage-stat-value">
-              {activity.used.toLocaleString()} / {activity.limit.toLocaleString()}
-            </strong>
+            <span className="usage-stat-label">
+              Watched today (UTC)
+              <TipChip tip={WATCH_TIP} />
+            </span>
+            {activity ? (
+              <strong className="usage-stat-value">
+                {activity.used.toLocaleString()} / {activity.limit.toLocaleString()}
+              </strong>
+            ) : (
+              <Skel className="analytics-skel-value" />
+            )}
           </div>
           <div className="credit-meter-bar" aria-hidden="true">
             <span
               style={{
                 width: `${
-                  activity.limit > 0
+                  activity && activity.limit > 0
                     ? Math.min(100, Math.round((activity.used / activity.limit) * 100))
                     : 0
                 }%`,
               }}
             />
           </div>
+          <p className="analytics-watch-help">
+            Today&apos;s ingest against your plan&apos;s daily cap — not your
+            lifetime totals.
+          </p>
         </div>
       ) : null}
 
@@ -383,36 +488,75 @@ export function Analytics(props: { onBack: () => void }) {
         </div>
       ) : null}
 
-      {totals && totals.posts > 0 ? (
+      {showDashboard ? (
         <>
+          <div className="analytics-section-head">
+            <h3>Lifetime</h3>
+            <TipChip tip={LIFETIME_TIP} />
+          </div>
           <div className="analytics-hero">
-            {(
-              [
-                ["Posts", totals.posts],
-                ["Views", totals.views],
-                ["Likes", totals.likes],
-                ["Replies", totals.replyCount],
-                ["Reposts", totals.retweets],
-                ["Bookmarks", totals.bookmarks],
-              ] as const
-            ).map(([label, value]) => (
+            {HERO_LABELS.map((label, i) => (
               <article key={label} className="analytics-stat">
                 <span>{label}</span>
-                <strong>{fmt(value)}</strong>
+                <strong>
+                  {heroValues[i] === null ? (
+                    <Skel className="analytics-skel-num" />
+                  ) : (
+                    fmt(heroValues[i]!)
+                  )}
+                </strong>
               </article>
             ))}
           </div>
 
+          <article className="analytics-card analytics-insight">
+            <header>
+              <h3>Insights</h3>
+              <p>
+                Daily note
+                <TipChip tip={INSIGHT_TIP} />
+              </p>
+            </header>
+            {loading ? (
+              <div className="analytics-insight-body">
+                <Skel className="analytics-skel-line analytics-skel-wide" />
+                <Skel className="analytics-skel-line" />
+                <Skel className="analytics-skel-line" />
+              </div>
+            ) : insight ? (
+              <div className="analytics-insight-body">
+                <p className="analytics-insight-headline">{insight.headline}</p>
+                <ul className="analytics-insight-bullets">
+                  {insight.bullets.map((b) => (
+                    <li key={b}>{b}</li>
+                  ))}
+                </ul>
+                <p className="analytics-insight-day">{insight.day} UTC</p>
+              </div>
+            ) : (
+              <div className="analytics-insight-body">
+                <p className="settings-help">
+                  Today&apos;s note lands after the hourly pass.
+                </p>
+              </div>
+            )}
+          </article>
+
           <div className="analytics-grid">
             <article className="analytics-card analytics-card-wide">
               <header>
-                <h3>Signal</h3>
+                <h3>
+                  Signal
+                  <TipChip tip={SIGNAL_TIP} />
+                </h3>
                 <p>
                   <span className="analytics-key analytics-key-views" /> views
                   <span className="analytics-key analytics-key-likes" /> likes
                 </p>
               </header>
-              {series.length ? (
+              {loading ? (
+                <Skel className="analytics-skel-chart" />
+              ) : series.length ? (
                 <SeriesChart series={series} />
               ) : (
                 <p className="settings-help">Not enough days yet.</p>
@@ -421,10 +565,26 @@ export function Analytics(props: { onBack: () => void }) {
 
             <article className="analytics-card">
               <header>
-                <h3>Mix</h3>
+                <h3>
+                  Mix
+                  <TipChip tip={MIX_TIP} />
+                </h3>
                 <p>How you post</p>
               </header>
-              {kinds.length ? (
+              {loading ? (
+                <div className="analytics-donut-wrap">
+                  <Skel className="analytics-skel-donut" />
+                  <ul className="analytics-legend" aria-hidden="true">
+                    {[0, 1, 2].map((i) => (
+                      <li key={i}>
+                        <span className="analytics-swatch analytics-skel" />
+                        <Skel className="analytics-skel-line" />
+                        <Skel className="analytics-skel-num" />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : kinds.length ? (
                 <KindDonut kinds={kinds} />
               ) : (
                 <p className="settings-help">No kind split yet.</p>
@@ -433,79 +593,111 @@ export function Analytics(props: { onBack: () => void }) {
 
             <article className="analytics-card">
               <header>
-                <h3>Engagement</h3>
-                <p>Latest snapshot totals</p>
+                <h3>
+                  Engagement
+                  <TipChip tip={ENGAGEMENT_TIP} />
+                </h3>
+                <p>On your posts</p>
               </header>
-              <MixBars
-                likes={totals.likes}
-                replies={totals.replyCount}
-                retweets={totals.retweets}
-                bookmarks={totals.bookmarks}
-              />
+              {loading || !totals ? (
+                <ul className="analytics-mix" aria-hidden="true">
+                  {[0, 1, 2, 3].map((i) => (
+                    <li key={i}>
+                      <Skel className="analytics-skel-line" />
+                      <span className="analytics-mix-track" />
+                      <Skel className="analytics-skel-num" />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <MixBars
+                  likes={totals.likes}
+                  replies={totals.replyCount}
+                  retweets={totals.retweets}
+                  bookmarks={totals.bookmarks}
+                />
+              )}
             </article>
           </div>
 
           <article className="analytics-card analytics-top">
             <header>
-              <h3>Top posts</h3>
+              <h3>
+                Top posts
+                <TipChip tip={TOP_TIP} />
+              </h3>
               <p>Ranked by latest views</p>
             </header>
-            <ol className="analytics-top-list">
-              {top.map((post, i) => {
-                const maxViews = Math.max(1, top[0]?.views ?? 1);
-                return (
-                  <li key={post.id}>
+            {loading ? (
+              <ol className="analytics-top-list" aria-hidden="true">
+                {[0, 1, 2].map((i) => (
+                  <li key={i}>
                     <span className="analytics-rank">{i + 1}</span>
                     <div className="analytics-top-body">
-                      <p>{clipText(post.text)}</p>
-                      <div className="analytics-top-meta">
-                        <span
-                          className="analytics-kind"
-                          style={{ color: KIND_COLOR[post.kind] }}
-                        >
-                          {KIND_LABEL[post.kind]}
-                        </span>
-                        <span>{post.postedAt.slice(0, 10)}</span>
-                        {post.url ? (
-                          <a href={post.url} target="_blank" rel="noreferrer">
-                            Open
-                          </a>
-                        ) : null}
-                      </div>
-                      <span className="analytics-top-bar" aria-hidden="true">
-                        <span
-                          style={{
-                            width: `${Math.max(6, (post.views / maxViews) * 100)}%`,
-                          }}
-                        />
-                      </span>
+                      <Skel className="analytics-skel-line analytics-skel-wide" />
+                      <Skel className="analytics-skel-line" />
                     </div>
-                    <dl className="analytics-top-metrics">
-                      <div>
-                        <dt>Views</dt>
-                        <dd>{fmt(post.views)}</dd>
-                      </div>
-                      <div>
-                        <dt>Likes</dt>
-                        <dd>{fmt(post.likes)}</dd>
-                      </div>
-                      <div>
-                        <dt>Replies</dt>
-                        <dd>{fmt(post.replies)}</dd>
-                      </div>
-                      <div>
-                        <dt>RTs</dt>
-                        <dd>{fmt(post.retweets)}</dd>
-                      </div>
-                      <div>
-                        <dt>Marks</dt>
-                        <dd>{fmt(post.bookmarks)}</dd>
-                      </div>
-                    </dl>
                   </li>
-                );
-              })}
-            </ol>
+                ))}
+              </ol>
+            ) : (
+              <ol className="analytics-top-list">
+                {top.map((post, i) => {
+                  const maxViews = Math.max(1, top[0]?.views ?? 1);
+                  return (
+                    <li key={post.id}>
+                      <span className="analytics-rank">{i + 1}</span>
+                      <div className="analytics-top-body">
+                        <p>{clipText(post.text)}</p>
+                        <div className="analytics-top-meta">
+                          <span
+                            className="analytics-kind"
+                            style={{ color: KIND_COLOR[post.kind] }}
+                          >
+                            {KIND_LABEL[post.kind]}
+                          </span>
+                          <span>{post.postedAt.slice(0, 10)}</span>
+                          {post.url ? (
+                            <a href={post.url} target="_blank" rel="noreferrer">
+                              Open
+                            </a>
+                          ) : null}
+                        </div>
+                        <span className="analytics-top-bar" aria-hidden="true">
+                          <span
+                            style={{
+                              width: `${Math.max(6, (post.views / maxViews) * 100)}%`,
+                            }}
+                          />
+                        </span>
+                      </div>
+                      <dl className="analytics-top-metrics">
+                        <div>
+                          <dt>Views</dt>
+                          <dd>{fmt(post.views)}</dd>
+                        </div>
+                        <div>
+                          <dt>Likes</dt>
+                          <dd>{fmt(post.likes)}</dd>
+                        </div>
+                        <div>
+                          <dt>Replies</dt>
+                          <dd>{fmt(post.replies)}</dd>
+                        </div>
+                        <div>
+                          <dt>RTs</dt>
+                          <dd>{fmt(post.retweets)}</dd>
+                        </div>
+                        <div>
+                          <dt>Marks</dt>
+                          <dd>{fmt(post.bookmarks)}</dd>
+                        </div>
+                      </dl>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
           </article>
         </>
       ) : null}

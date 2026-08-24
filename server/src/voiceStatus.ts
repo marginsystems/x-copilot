@@ -12,6 +12,7 @@ import type { VoiceCard } from "./voiceLlm.js";
 import {
   VOICE_UNLOCK_MIN_POSTS,
   getSuggestUsage,
+  voiceCardStale,
   voiceUnlocked,
   type VoiceProfileRow,
 } from "./voiceStore.js";
@@ -78,7 +79,11 @@ export function voicePayload(user: AuthUser, profile: VoiceProfileRow | null) {
   const planKey = effectivePlanKey(billing, user.email);
   const status = deriveVoiceUiStatus(profile, handle);
   const unlocked = voiceUnlocked(profile?.replyCount ?? 0);
-  const needsDailyUpdate = false;
+  // Display only — the hourly ingest rewrites the card; the client never
+  // POSTs learn (needsLearn stays false).
+  const needsDailyUpdate =
+    Boolean(profile?.cardJson) &&
+    voiceCardStale(profile?.cardUpdatedAt ?? null);
   const needsLearn = false;
   return {
     ok: true as const,

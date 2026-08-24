@@ -44,6 +44,7 @@ export type VoiceProfileRow = {
   cardJson: string | null;
   cardModel: string | null;
   cardUpdatedAt: string | null;
+  cardAttemptAt: string | null;
   sinceId: string | null;
   lastPullAt: string | null;
   lastError: string | null;
@@ -51,6 +52,19 @@ export type VoiceProfileRow = {
 
 export function voiceUnlocked(postCount: number): boolean {
   return postCount >= VOICE_UNLOCK_MIN_POSTS;
+}
+
+/** Hourly ingest rewrites the card at most this often (also once per UTC day). */
+export const VOICE_CARD_REFRESH_MS = 24 * 60 * 60 * 1000;
+
+export function voiceCardStale(
+  cardUpdatedAt: string | null,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!cardUpdatedAt) return true;
+  const t = Date.parse(cardUpdatedAt);
+  if (!Number.isFinite(t)) return true;
+  return nowMs - t >= VOICE_CARD_REFRESH_MS;
 }
 
 export function nowIso(): string {
@@ -79,7 +93,7 @@ export function getVoiceProfile(userId: string): VoiceProfileRow | null {
     .prepare(
       `SELECT user_id, tenant_id, x_username, x_user_id, status, reply_count,
               conversation_count, card_json, card_model, card_updated_at,
-              since_id, last_pull_at, last_error
+              card_attempt_at, since_id, last_pull_at, last_error
        FROM voice_profiles WHERE user_id = ?`,
     )
     .get(userId) as
@@ -94,6 +108,7 @@ export function getVoiceProfile(userId: string): VoiceProfileRow | null {
         card_json: string | null;
         card_model: string | null;
         card_updated_at: string | null;
+        card_attempt_at: string | null;
         since_id: string | null;
         last_pull_at: string | null;
         last_error: string | null;
@@ -113,6 +128,7 @@ export function getVoiceProfile(userId: string): VoiceProfileRow | null {
     cardJson: row.card_json,
     cardModel: row.card_model,
     cardUpdatedAt: row.card_updated_at,
+    cardAttemptAt: row.card_attempt_at,
     sinceId: row.since_id,
     lastPullAt: row.last_pull_at,
     lastError: row.last_error,
@@ -284,6 +300,7 @@ export function resetUserVoiceCorpus(
          card_json = NULL,
          card_model = NULL,
          card_updated_at = NULL,
+         card_attempt_at = NULL,
          since_id = NULL,
          last_error = NULL,
          updated_at = ?
@@ -363,11 +380,26 @@ export function saveVoiceCard(input: {
   getPlatformDb()
     .prepare(
       `UPDATE voice_profiles SET
-         card_json = ?, card_model = ?, card_updated_at = ?,
+         card_json = ?, card_model = ?, card_updated_at = ?, card_attempt_at = ?,
          status = 'ready', last_error = NULL, updated_at = ?
        WHERE user_id = ?`,
     )
-    .run(input.cardJson, input.model, at, at, input.userId);
+    .run(input.cardJson, input.model, at, at, at, input.userId);
+}
+
+/**
+ * Stamp the last card rewrite attempt (success or failure) so the hourly
+ * refresh gate caps generation at once per UTC day even when the LLM fails.
+ * `card_updated_at` still records only successful writes.
+ */
+export function stampVoiceCardAttempt(userId: string): void {
+  const at = nowIso();
+  getPlatformDb()
+    .prepare(
+      `UPDATE voice_profiles SET card_attempt_at = ?, updated_at = ?
+       WHERE user_id = ?`,
+    )
+    .run(at, at, userId);
 }
 
 // --- Daily suggest cap (UTC day, generations only — verifies are free) ---

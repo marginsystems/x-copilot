@@ -52,6 +52,7 @@ function profile(
     cardJson: null,
     cardModel: null,
     cardUpdatedAt: null,
+    cardAttemptAt: null,
     sinceId: null,
     lastPullAt: null,
     lastError: null,
