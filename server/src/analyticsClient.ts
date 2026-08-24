@@ -1,10 +1,20 @@
 /**
- * Fire-and-forget client for the analytics sidecar.
+ * Fire-and-forget client for the analytics sidecar (`analytics/`).
  * Never throws. Never blocks the request. Defaults to the loopback sidecar
- * unless ANALYTICS_DISABLE=1.
+ * unless ANALYTICS_DISABLE=1. Slack lives in the sidecar — this file only POSTs.
+ *
+ * Name union is duplicated from analytics/src/events.ts (no server ↔ analytics import).
  */
-import type { AnalyticsEventName } from "./analyticsEvents.js";
 import type { AuthUser } from "./authStore.js";
+
+export type AnalyticsEventName =
+  | "user.signup"
+  | "user.signin"
+  | "scout.takeoff"
+  | "scout.failed"
+  | "mark.interacted"
+  | "voice.suggest"
+  | "desk.post";
 
 const POST_TIMEOUT_MS = 800;
 

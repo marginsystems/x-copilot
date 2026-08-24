@@ -5,8 +5,7 @@ import {
   createAnalyticsServer,
   resolveAnalyticsPort,
   shouldRunAnalyticsMain,
-} from "./analyticsService.ts";
-import { defaultAnalyticsUrl } from "./analyticsClient.ts";
+} from "./sidecar.ts";
 
 function listen(server: ReturnType<typeof createAnalyticsServer>): Promise<string> {
   return new Promise((resolve) => {
@@ -26,11 +25,11 @@ async function close(server: ReturnType<typeof createAnalyticsServer>): Promise<
 describe("shouldRunAnalyticsMain", () => {
   it("returns true for the analytics entry file", () => {
     assert.equal(
-      shouldRunAnalyticsMain("/root/x-copilot/server/dist/analyticsService.js"),
+      shouldRunAnalyticsMain("/root/x-copilot/analytics/dist/sidecar.js"),
       true,
     );
     assert.equal(
-      shouldRunAnalyticsMain("/root/x-copilot/server/src/analyticsService.ts"),
+      shouldRunAnalyticsMain("/root/x-copilot/analytics/src/sidecar.ts"),
       true,
     );
   });
@@ -45,7 +44,11 @@ describe("shouldRunAnalyticsMain", () => {
     );
   });
 
-  it("returns false for test-runner argv", () => {
+  it("returns false for the API entry and test-runner argv", () => {
+    assert.equal(
+      shouldRunAnalyticsMain("/root/x-copilot/server/dist/index.js", {}),
+      false,
+    );
     assert.equal(
       shouldRunAnalyticsMain("/root/x-copilot/node_modules/tsx/dist/cli.mjs", {}),
       false,
@@ -58,11 +61,6 @@ describe("resolveAnalyticsPort", () => {
     assert.equal(resolveAnalyticsPort({}), 8788);
     assert.equal(resolveAnalyticsPort({ PORT: "8787" }), 8788);
     assert.equal(resolveAnalyticsPort({ ANALYTICS_PORT: "9000" }), 9000);
-  });
-
-  it("pins the sidecar default to the client defaultAnalyticsUrl", () => {
-    const clientPort = Number(new URL(defaultAnalyticsUrl({})).port);
-    assert.equal(resolveAnalyticsPort({}), clientPort);
   });
 });
 

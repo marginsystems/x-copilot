@@ -5,7 +5,7 @@
 # Services (see ecosystem.config.cjs — copy from ecosystem.config.example.cjs):
 #   x-copilot-api        TypeScript sidecar (session + drafts) on :8787
 #   x-copilot-stats      Hourly reply-stats sampler (1h / 24h snapshots)
-#   x-copilot-analytics  Loopback Slack analytics on :8788
+#   x-copilot-analytics  Loopback Slack sidecar on :8788 (code in analytics/)
 #
 # Usage:
 #   ./pm2-manager.sh start              build server, then start API + stats + analytics
@@ -63,9 +63,10 @@ ensure_build() {
     echo "Skipping build (--skip-build, server/dist present)."
     return
   fi
-  echo "Installing deps + building server before start..."
+  echo "Installing deps + building server and analytics sidecar before start..."
   npm install --no-audit --no-fund
   npm run build:server
+  npm run build:analytics
 }
 
 setup_logrotate() {

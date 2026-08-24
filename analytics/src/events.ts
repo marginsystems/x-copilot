@@ -1,6 +1,7 @@
 /**
  * Allowlisted analytics events the sidecar accepts and formats for Slack.
  * Keep this catalog small — product signals, not APM.
+ * The API client duplicates the name union; this file is the parse/format owner.
  */
 
 export const ANALYTICS_EVENT_NAMES = [
