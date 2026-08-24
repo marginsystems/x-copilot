@@ -63,6 +63,7 @@ recycle_app() {
     else
       pm2 delete "$NAME" >/dev/null 2>&1 || true
       pm2 start "$ECOSYSTEM" --only "$NAME"
+      pm2 save
     fi
   else
     pm2 start "$ECOSYSTEM" --only "$NAME"
