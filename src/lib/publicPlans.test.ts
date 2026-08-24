@@ -14,10 +14,20 @@ describe("PUBLIC_PLANS", () => {
     assert.equal(PUBLIC_PLANS.length, 4);
   });
 
-  it("shows daily suggest caps on every plan", () => {
-    for (const plan of PUBLIC_PLANS) {
-      assert.ok(plan.suggests >= 10);
-      assert.ok(plan.sorties >= 1);
-    }
+  it("pins each plan's numbers to server/src/plans.ts", () => {
+    assert.deepEqual(
+      PUBLIC_PLANS.map((plan) => ({
+        credits: plan.credits,
+        sorties: plan.sorties,
+        watch: plan.watch,
+        suggests: plan.suggests,
+      })),
+      [
+        { credits: 1_500, sorties: 1, watch: 15, suggests: 10 },
+        { credits: 6_000, sorties: 5, watch: 50, suggests: 20 },
+        { credits: 18_000, sorties: 10, watch: 120, suggests: 30 },
+        { credits: 40_000, sorties: 25, watch: 250, suggests: 40 },
+      ],
+    );
   });
 });

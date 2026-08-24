@@ -5,8 +5,10 @@ import { seoForView, SITE_TITLE } from "./seo.ts";
 describe("seoForView", () => {
   it("keeps the homepage on the index.html tagline", () => {
     const home = seoForView("home");
-    assert.equal(home.title, SITE_TITLE);
-    assert.match(home.title, /X copilot for growing your account/);
+    assert.equal(
+      home.title,
+      "x-copilot — the X copilot for growing your account",
+    );
     assert.doesNotMatch(home.title, /independent research desk/);
   });
 
