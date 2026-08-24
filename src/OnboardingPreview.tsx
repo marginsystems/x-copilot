@@ -6,7 +6,8 @@ export function OnboardingPreviewBar(props: {
   return (
     <div className="onboarding-preview-bar">
       <p className="onboarding-preview-note">
-        Preview — generate is live. Completing writes nothing.
+        Preview — generate is live. Completing writes nothing. Simulate
+        unlinked shows the X wall after you pick an agenda.
       </p>
       <label className="onboarding-preview-sim">
         <input

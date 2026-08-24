@@ -20,6 +20,7 @@ import { LinkXGate } from "./LinkXGate";
 import { deskNeedsXLink, showDeskXGate } from "./lib/deskGate";
 import {
   consumeOnboardingPreviewQuery,
+  needsOnboardingWizard,
   readOnboardingAgenda,
   readOnboardingComplete,
 } from "./lib/onboarding";
@@ -151,6 +152,7 @@ export default function App() {
   const [signInOpen, setSignInOpen] = useState(false);
   const [onboardingPreview, setOnboardingPreview] = useState(false);
   const [simulateUnlinked, setSimulateUnlinked] = useState(false);
+  const [previewReachedLink, setPreviewReachedLink] = useState(false);
   const {
     authUser,
     setAuthUser,
@@ -213,13 +215,12 @@ export default function App() {
     hydrateAuth,
   });
   const needsLogin = authChecked && authRequired && !authUser && !localUi;
-  const needsOnboarding =
-    !needsLogin &&
-    !onboardingDoneLocal &&
-    (authUser
-      ? authUser.onboardingCompleted === false &&
-        !readOnboardingComplete(authUser.id)
-      : !readOnboardingComplete());
+  const needsOnboarding = needsOnboardingWizard({
+    needsLogin,
+    onboardingDoneLocal,
+    authUser,
+    localComplete: readOnboardingComplete(),
+  });
   const { flushAgenda, onAgendaBlur } = useAgendaPersist({
     agenda,
     enabled: agendaReady && Boolean(authUser) && !needsOnboarding,
@@ -401,12 +402,14 @@ export default function App() {
     if (authUser) return;
     setOnboardingPreview(false);
     setSimulateUnlinked(false);
+    setPreviewReachedLink(false);
     setOnboardingDoneLocal(false);
   }, [authUser]);
 
   function exitOnboardingPreview() {
     setOnboardingPreview(false);
     setSimulateUnlinked(false);
+    setPreviewReachedLink(false);
   }
 
   useEffect(() => {
@@ -550,24 +553,33 @@ export default function App() {
             mode="preview"
             persist={false}
             userId={authUser?.id ?? null}
-            needsXLink={simulateUnlinked}
+            hidden={previewReachedLink && simulateUnlinked}
             onComplete={() => {
+              if (simulateUnlinked) {
+                setPreviewReachedLink(true);
+                return;
+              }
               exitOnboardingPreview();
               goToView("admin");
             }}
           />
+          {previewReachedLink && simulateUnlinked ? (
+            <LinkXGate
+              kicker="Set up your desk"
+              title="Link X to take off"
+              lede="Voice reads the account you log into. Sign in with X — you cannot type a handle. If you already signed in with X, you are linked."
+            />
+          ) : null}
         </>
       ) : needsOnboarding ? (
         <Onboarding
           mode={authUser ? "real" : "local"}
           persist={Boolean(authUser)}
           userId={authUser?.id ?? null}
-          needsXLink={needsXLink}
-          onLinkX={startXLogin}
           onComplete={finishOnboarding}
         />
       ) : deskXGate ? (
-        <LinkXGate onLinkX={startXLogin} />
+        <LinkXGate title="Link X to take off" onLinkX={startXLogin} />
       ) : null}
 
       {!publicView &&

@@ -5,6 +5,7 @@ import {
   ONBOARDING_STORAGE_KEY,
   consumeOnboardingPreviewQuery,
   labelsFor,
+  needsOnboardingWizard,
   onboardingPostsComplete,
   onboardingWritesLocalStorage,
   parseGeneratedAgendas,
@@ -98,6 +99,58 @@ describe("onboarding helpers", () => {
     assert.equal(onboardingWritesLocalStorage("real"), true);
     assert.equal(onboardingWritesLocalStorage("local"), true);
     assert.equal(onboardingWritesLocalStorage("preview"), false);
+  });
+
+  it("uses the server onboarding flag when a session exists", () => {
+    const base = {
+      needsLogin: false,
+      onboardingDoneLocal: false,
+      localComplete: true,
+    };
+    assert.equal(
+      needsOnboardingWizard({
+        ...base,
+        authUser: { onboardingCompleted: false },
+      }),
+      true,
+    );
+    assert.equal(
+      needsOnboardingWizard({
+        ...base,
+        authUser: { onboardingCompleted: true },
+        localComplete: false,
+      }),
+      false,
+    );
+    assert.equal(
+      needsOnboardingWizard({ ...base, authUser: null }),
+      false,
+    );
+    assert.equal(
+      needsOnboardingWizard({
+        ...base,
+        authUser: null,
+        localComplete: false,
+      }),
+      true,
+    );
+    assert.equal(
+      needsOnboardingWizard({
+        ...base,
+        needsLogin: true,
+        authUser: { onboardingCompleted: false },
+      }),
+      false,
+    );
+    assert.equal(
+      needsOnboardingWizard({
+        ...base,
+        onboardingDoneLocal: true,
+        authUser: { onboardingCompleted: false },
+        localComplete: false,
+      }),
+      false,
+    );
   });
 
   it("opens admin preview from the query and strips the flag so reload exits", () => {

@@ -23,6 +23,10 @@
   overflow-y: auto;
 }
 
+.gate[hidden] {
+  display: none;
+}
+
 .gate-card {
   width: min(440px, 100%);
   margin: auto;

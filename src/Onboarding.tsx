@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
-import { LinkXGate } from "./LinkXGate";
 import {
   AUDIENCE_OPTIONS,
   GOAL_OPTIONS,
@@ -49,8 +48,7 @@ export function Onboarding(props: {
   persist?: boolean;
   mode?: OnboardingMode;
   userId?: string | null;
-  needsXLink?: boolean;
-  onLinkX?: () => void;
+  hidden?: boolean;
   onComplete: (agenda: string) => void;
 }) {
   const mode = resolveOnboardingMode(props.mode, props.persist);
@@ -63,7 +61,6 @@ export function Onboarding(props: {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [generatedFor, setGeneratedFor] = useState("");
-  const needsXLink = Boolean(props.needsXLink);
 
   const fingerprint = useMemo(
     () => JSON.stringify({ topics, goals, audiences }),
@@ -178,18 +175,8 @@ export function Onboarding(props: {
   const totalSteps = QUESTIONS.length + 1;
   const currentStep = onPick ? QUESTIONS.length + 1 : step + 1;
 
-  if (needsXLink) {
-    return (
-      <LinkXGate
-        kicker="Set up your desk"
-        lede="Voice reads the account you log into. Sign in with X — you cannot type a handle. If you already signed in with X, you are linked."
-        onLinkX={props.onLinkX}
-      />
-    );
-  }
-
   return (
-    <div className="gate onboarding">
+    <div className="gate onboarding" hidden={props.hidden}>
       <div className="onboarding-card">
         <p className="onboarding-kicker">Set up your desk</p>
         <div
