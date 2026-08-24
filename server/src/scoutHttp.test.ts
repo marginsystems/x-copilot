@@ -452,6 +452,26 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 1);
   });
 
+  it("refunds the sortie on POST /api/search when a batch lands zero threads", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutSearch: (async () => ({
+        ok: true,
+        event: {
+          ...doneEvent,
+          threads: [],
+          queries: ["q1"],
+        },
+      })) as typeof runScoutSearch,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/search", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
   it("refunds the sortie on POST /api/search when the batch rejects", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
@@ -482,6 +502,24 @@ describe("tryHandleScout", () => {
       deps,
     });
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
+  it("ends the stream with an error line when a run rejects mid-stream", async () => {
+    const deps: ScoutHttpDeps = {
+      runScoutCollect: (async () => {
+        throw new Error("boom");
+      }) as typeof runScoutCollect,
+      ensureMemoryIndex: async () => {},
+    };
+    const { handled, state, res } = await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(handled, true);
+    const lines = ndjsonLines(state.chunks);
+    assert.equal(lines.at(-1)?.stage, "error");
+    assert.match(String(lines.at(-1)?.message), /boom/);
+    assert.equal(res.writableEnded, true);
   });
 
   it("keeps the sortie when a run delivered cools before failing", async () => {

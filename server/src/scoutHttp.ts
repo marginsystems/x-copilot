@@ -338,9 +338,26 @@ export async function tryHandleScout(
       }
       res.end();
       return true;
-    } catch {
+    } catch (err) {
       if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
         refundSortie(sortieId);
+      }
+      console.error("scout run failed:", err);
+      try {
+        if (!res.writableEnded) {
+          res.write(
+            `${JSON.stringify({
+              agent: "scout",
+              stage: "error",
+              message: err instanceof Error ? err.message : String(err),
+              detail: { error: "internal_error", status: 500 },
+              at: new Date().toISOString(),
+            })}\n`,
+          );
+          res.end();
+        }
+      } catch {
+        // Socket already torn down (client aborted); nothing left to write.
       }
       return true;
     } finally {
