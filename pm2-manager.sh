@@ -101,10 +101,37 @@ done
 # with override, so any restart picks up rotated keys and stale ones cannot
 # stick. Keep the recycle non-destructive: delete+start would leave the app
 # down if the fresh start fails, so restart --update-env for NODE_ENV/PORT.
+#
+# PM2 restart reuses the process's stored definition, not the ecosystem file.
+# A registration that predates the analytics sidecar move still points at
+# server/dist/analyticsService.js, so a restart would keep recycling the OLD
+# sidecar forever (crash-looping once server/dist is cleaned). Detect that by
+# comparing the stored script against the ecosystem entry and re-register
+# (delete+start) only when they differ; that keeps the one-time migration
+# while leaving steady-state recycling non-destructive.
 recycle_app() {
   local name="$1"
   if pm2 describe "$name" >/dev/null 2>&1; then
-    pm2 restart "$name" --update-env
+    if node -e '
+      const path = require("node:path");
+      const { execSync } = require("node:child_process");
+      const [root, ecosystem, name] = process.argv.slice(1);
+      const app = require(path.resolve(ecosystem)).apps.find((a) => a.name === name);
+      const expected = app && path.resolve(root, app.script);
+      let stored;
+      try {
+        stored = JSON.parse(execSync("pm2 jlist", { stdio: ["ignore", "pipe", "ignore"] }).toString());
+      } catch {
+        process.exit(1);
+      }
+      const proc = stored.find((p) => p.name === name);
+      process.exit(app && proc && proc.pm2_env.pm_exec_path === expected ? 0 : 1);
+    ' "$PWD" "$ECOSYSTEM" "$name"; then
+      pm2 restart "$name" --update-env
+    else
+      pm2 delete "$name" >/dev/null 2>&1 || true
+      pm2 start "$ECOSYSTEM" --only "$name"
+    fi
   else
     pm2 start "$ECOSYSTEM" --only "$name"
   fi
