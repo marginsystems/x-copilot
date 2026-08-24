@@ -65,10 +65,49 @@
   height: 7px;
   border-radius: 50%;
   background: var(--border-strong);
+  transition:
+    background 360ms var(--ease-out),
+    transform 360ms var(--ease-out);
 }
 
 .onboarding-dot.is-on {
   background: var(--accent);
+  transform: scale(1.2);
+}
+
+.onboarding-pane {
+  width: 100%;
+  transition: opacity 360ms var(--ease-out);
+}
+
+.onboarding-pane.is-writing {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 360ms var(--ease-out);
+}
+
+.onboarding-pane-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  animation: onboarding-pane-in 480ms var(--ease-out) both;
+}
+
+@keyframes onboarding-pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.onboarding-status {
+  min-height: calc(0.88rem * 1.45);
 }
 
 .onboarding-chips {

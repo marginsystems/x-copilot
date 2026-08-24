@@ -7,6 +7,15 @@
   .landing-mock .thread-row {
     animation: none;
   }
+
+  .onboarding-pane-inner {
+    animation: none;
+  }
+
+  .onboarding-pane,
+  .onboarding-dot {
+    transition: none;
+  }
 }
 
 
