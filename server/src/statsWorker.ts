@@ -43,6 +43,7 @@ import {
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
 import { ingestUsersHourly } from "./userIngest.js";
 import { runForYouDigests } from "./forYouRun.js";
+import { runAnalyticsInsights } from "./analyticsInsight.js";
 import { runWithRequestContext } from "./requestContext.js";
 import { getUserById } from "./authStore.js";
 import { creditsExhaustedResponse } from "./billingQuotas.js";
@@ -493,6 +494,16 @@ async function main(): Promise<void> {
       }
     } catch (err) {
       console.warn("[stats-worker] for-you digest soft-fail:", err);
+    }
+    try {
+      const insight = await runAnalyticsInsights();
+      if (insight.wrote) {
+        console.log(
+          `[stats-worker] insight wrote=${insight.wrote} skipped=${insight.skipped}`,
+        );
+      }
+    } catch (err) {
+      console.warn("[stats-worker] insight soft-fail:", err);
     }
   };
 

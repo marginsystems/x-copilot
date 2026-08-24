@@ -53,6 +53,19 @@ export function voiceUnlocked(postCount: number): boolean {
   return postCount >= VOICE_UNLOCK_MIN_POSTS;
 }
 
+/** Hourly ingest rewrites the card at most this often (also once per UTC day). */
+export const VOICE_CARD_REFRESH_MS = 24 * 60 * 60 * 1000;
+
+export function voiceCardStale(
+  cardUpdatedAt: string | null,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!cardUpdatedAt) return true;
+  const t = Date.parse(cardUpdatedAt);
+  if (!Number.isFinite(t)) return true;
+  return nowMs - t >= VOICE_CARD_REFRESH_MS;
+}
+
 export function nowIso(): string {
   return new Date().toISOString();
 }

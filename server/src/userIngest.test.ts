@@ -24,7 +24,9 @@ import {
 import {
   ensureVoiceProfile,
   getVoiceProfile,
+  saveVoiceCard,
   updateVoiceProfilePull,
+  upsertVoiceReplies,
 } from "./voiceStore.ts";
 import { VOICE_TARGET_REPLIES } from "./voiceIngest.ts";
 import { beginVoiceCorpus, runUserIngest } from "./userIngest.ts";
@@ -347,6 +349,201 @@ describe("runUserIngest", () => {
     const profile = getVoiceProfile(user.id);
     assert.equal(profile?.status, "ready");
     assert.notEqual(profile?.cardJson, null);
+  });
+
+  /** An unlocked profile whose card was written at `cardUpdatedAt`. */
+  function seedUnlockedCard(userId: string, cardUpdatedAt?: string) {
+    ensureVoiceProfile(userId, "local");
+    upsertVoiceReplies(
+      userId,
+      Array.from({ length: 100 }, (_, i) => ({
+        id: `seed-${i}`,
+        text: `seed post ${i}`,
+        conversationId: `c${i}`,
+        postedAt: "2026-08-10T10:00:00.000Z",
+        source: "api" as const,
+      })),
+    );
+    updateVoiceProfilePull({
+      userId,
+      xUsername: "me",
+      xUserId: "99",
+      sinceId: "seed-99",
+      lastPullAt: "2026-08-10T10:00:00.000Z",
+    });
+    saveVoiceCard({ userId, cardJson: '{"tone":"old"}', model: "m" });
+    if (cardUpdatedAt) {
+      getPlatformDb()
+        .prepare(
+          `UPDATE voice_profiles SET card_updated_at = ? WHERE user_id = ?`,
+        )
+        .run(cardUpdatedAt, userId);
+    }
+  }
+
+  type CardResult =
+    | {
+        ok: true;
+        card: {
+          tone: string;
+          typicalLength: string;
+          habits: string[];
+          neverDo: string[];
+          examples: string[];
+        };
+        cardJson: string;
+        model: string;
+      }
+    | { ok: false; error: string; message: string };
+
+  function hourlyDeps(opts: {
+    replies: Array<{ id: string; text: string }>;
+    onCard: () => CardResult;
+  }) {
+    return {
+      foldLocal: async () => {},
+      resolveUser: async () => ({
+        ok: true as const,
+        id: "99",
+        username: "me",
+        protected: false,
+      }),
+      pullReplies: async () => ({
+        ok: true as const,
+        replies: opts.replies.map((r) => ({
+          ...r,
+          conversationId: `c-${r.id}`,
+          inReplyToId: null,
+          postedAt: "2026-08-24T10:00:00.000Z",
+          source: "api" as const,
+        })),
+        newestId: opts.replies[0]?.id ?? "seed-99",
+        pages: 1,
+        completed: true,
+      }),
+      generateCard: async () => opts.onCard(),
+    };
+  }
+
+  const staleIso = () =>
+    new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
+  const newCard = () => ({
+    ok: true as const,
+    card: {
+      tone: "new",
+      typicalLength: "short",
+      habits: [],
+      neverDo: [],
+      examples: ["a", "b", "c"],
+    },
+    cardJson: '{"tone":"new"}',
+    model: "test-model",
+  });
+
+  it("hourly ingest rewrites a >24h-old card when the pull adds posts", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    seedUnlockedCard(user.id, staleIso());
+    let cardCalls = 0;
+    const result = await runUserIngest({
+      user,
+      mode: "hourly",
+      deps: hourlyDeps({
+        replies: [{ id: "new-1", text: "fresh post" }],
+        onCard: () => {
+          cardCalls += 1;
+          return newCard();
+        },
+      }),
+    });
+    assert.equal(result.ok, true);
+    assert.equal(cardCalls, 1);
+    const profile = getVoiceProfile(user.id);
+    assert.equal(profile?.cardJson, '{"tone":"new"}');
+    assert.equal(profile?.status, "ready");
+    assert.ok(
+      Date.now() - Date.parse(profile?.cardUpdatedAt ?? "") < 60_000,
+      "the rewrite must stamp a fresh card_updated_at",
+    );
+  });
+
+  it("hourly ingest leaves a fresh card alone even when posts arrive", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    seedUnlockedCard(user.id);
+    let cardCalls = 0;
+    await runUserIngest({
+      user,
+      mode: "hourly",
+      deps: hourlyDeps({
+        replies: [{ id: "new-1", text: "fresh post" }],
+        onCard: () => {
+          cardCalls += 1;
+          return newCard();
+        },
+      }),
+    });
+    assert.equal(cardCalls, 0);
+    assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
+  });
+
+  it("hourly ingest does not rewrite a stale card when nothing new arrived", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    seedUnlockedCard(user.id, staleIso());
+    let cardCalls = 0;
+    await runUserIngest({
+      user,
+      mode: "hourly",
+      deps: hourlyDeps({
+        replies: [],
+        onCard: () => {
+          cardCalls += 1;
+          return newCard();
+        },
+      }),
+    });
+    assert.equal(cardCalls, 0);
+    assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
+  });
+
+  it("a failed hourly rewrite keeps the old card and stays ready", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    seedUnlockedCard(user.id, staleIso());
+    const result = await runUserIngest({
+      user,
+      mode: "hourly",
+      deps: hourlyDeps({
+        replies: [{ id: "new-1", text: "fresh post" }],
+        onCard: () => ({
+          ok: false as const,
+          error: "llm_down",
+          message: "model unavailable",
+        }),
+      }),
+    });
+    assert.equal(result.ok, true);
+    const profile = getVoiceProfile(user.id);
+    assert.equal(profile?.cardJson, '{"tone":"old"}');
+    assert.equal(profile?.status, "ready");
   });
 
   it("listIngestUsers prepares and returns rotation-eligible users", () => {

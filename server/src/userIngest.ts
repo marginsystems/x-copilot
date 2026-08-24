@@ -37,6 +37,7 @@ import {
   setVoiceProfileStatus,
   updateVoiceProfilePull,
   upsertVoiceReplies,
+  voiceCardStale,
   voiceUnlocked,
   type VoiceReplyInput,
 } from "./voiceStore.js";
@@ -334,6 +335,8 @@ export async function runUserIngest(opts: {
     const posts = updated?.replyCount ?? 0;
     const unlocked = voiceUnlocked(posts);
     const hadCard = Boolean(updated?.cardJson);
+    // The corpus moved this pull: new posts came in or the fold grew it.
+    const corpusGrew = pulled > 0 || posts > profile.replyCount;
     if (unlocked && !hadCard) {
       const cardResult = await generateCard({
         handle: handle || "you",
@@ -351,6 +354,29 @@ export async function runUserIngest(opts: {
           priorStatus === "ready" ? "ready" : "empty",
           cardResult.message,
         );
+      }
+    } else if (
+      unlocked &&
+      hadCard &&
+      opts.mode === "hourly" &&
+      corpusGrew &&
+      voiceCardStale(updated?.cardUpdatedAt ?? null)
+    ) {
+      // Hourly rewrite so the card tracks the growing corpus. The >24h
+      // staleness gate caps this at once per UTC day; a failed generation
+      // keeps the existing card.
+      const cardResult = await generateCard({
+        handle: handle || "you",
+        replies: listVoiceReplies(user.id, 120),
+      });
+      if (cardResult.ok) {
+        saveVoiceCard({
+          userId: user.id,
+          cardJson: cardResult.cardJson,
+          model: cardResult.model,
+        });
+      } else {
+        setVoiceProfileStatus(user.id, "ready");
       }
     } else {
       setVoiceProfileStatus(

@@ -18,6 +18,18 @@
   border: 1px solid var(--border);
 }
 
+.analytics-watch-help {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.analytics-watch .usage-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .analytics-empty {
   padding: 28px 18px;
   text-align: center;
@@ -30,6 +42,19 @@
 .analytics-empty p {
   margin: 0 0 8px;
   font-family: var(--font-head);
+}
+
+.analytics-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.analytics-section-head h3 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 1rem;
 }
 
 .analytics-hero {
@@ -99,6 +124,9 @@
 }
 
 .analytics-card h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   font-family: var(--font-head);
   font-size: 1rem;
@@ -110,10 +138,45 @@
   color: var(--muted);
 }
 
+/* Width-driven: the chart fills the card and keeps the viewBox's shape
+   instead of letterboxing a fixed 640×168 graphic inside a 180px strip. */
+.analytics-chart {
+  position: relative;
+}
+
 .analytics-svg {
   width: 100%;
-  height: 180px;
+  height: auto;
+  aspect-ratio: 640 / 168;
   display: block;
+}
+
+.analytics-chart-tip {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  gap: 2px;
+  padding: 6px 10px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 10px));
+}
+
+.analytics-chart-tip strong {
+  color: var(--text);
+}
+
+.analytics-chart-tip-start {
+  transform: translate(-10%, calc(-100% - 10px));
+}
+
+.analytics-chart-tip-end {
+  transform: translate(-90%, calc(-100% - 10px));
 }
 
 .analytics-grid-line {
@@ -138,6 +201,16 @@
 
 .analytics-dot-views {
   fill: var(--accent);
+  /* Transparent stroke widens the hover / focus hit area past the 2.4px dot. */
+  stroke: transparent;
+  stroke-width: 12px;
+  cursor: pointer;
+}
+
+.analytics-dot-views.is-active,
+.analytics-dot-views:focus-visible {
+  outline: none;
+  stroke: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .analytics-axis-label {
@@ -184,20 +257,29 @@
   font-size: 10px;
 }
 
+/* Fits its content so labels and counts sit together instead of the count
+   drifting to the far edge of the Mix card. */
 .analytics-legend {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
   gap: 8px;
+  width: max-content;
+  min-width: 9rem;
+  max-width: 100%;
 }
 
 .analytics-legend li {
   display: grid;
-  grid-template-columns: 10px 1fr auto;
+  grid-template-columns: 10px max-content minmax(2rem, auto);
   gap: 8px;
   align-items: center;
   font-size: 0.8rem;
+}
+
+.analytics-legend strong {
+  text-align: right;
 }
 
 .analytics-swatch {
@@ -322,5 +404,118 @@
   margin: 0;
   font-family: var(--font-head);
   font-size: 0.95rem;
+}
+
+.analytics-insight {
+  min-height: 108px;
+}
+
+.analytics-insight header p {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.analytics-insight-body {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.analytics-insight-headline {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.analytics-insight-bullets {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.analytics-insight-bullets li {
+  line-height: 1.45;
+}
+
+.analytics-insight-day {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Skeleton pulses occupy the same grid tracks as the live widgets, so the
+   first paint reserves the dashboard and nothing jumps when data lands. */
+.analytics-skel {
+  display: inline-block;
+  background: color-mix(in srgb, var(--muted) 18%, var(--raised));
+  animation: analytics-skel-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes analytics-skel-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.analytics-skel-value {
+  width: 5rem;
+  height: 1.35rem;
+}
+
+.analytics-skel-num {
+  display: block;
+  width: 3.2rem;
+  height: 1.6rem;
+}
+
+.analytics-skel-line {
+  display: block;
+  width: 100%;
+  max-width: 9rem;
+  height: 0.8rem;
+}
+
+/* The legend sizes to its content, so percentage widths collapse — give the
+   skeleton lines a fixed footprint that matches a typical label. */
+.analytics-legend .analytics-skel-line {
+  width: 4.5rem;
+}
+
+.analytics-legend .analytics-skel-num {
+  width: 2rem;
+  height: 0.9rem;
+}
+
+.analytics-skel-wide {
+  max-width: 100%;
+  width: 78%;
+  height: 0.95rem;
+}
+
+.analytics-skel-chart {
+  display: block;
+  width: 100%;
+  aspect-ratio: 640 / 168;
+}
+
+.analytics-skel-donut {
+  display: block;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+}
+
+.analytics-top-list .analytics-skel-line + .analytics-skel-line {
+  margin-top: 8px;
 }
 
