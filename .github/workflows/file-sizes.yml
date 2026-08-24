@@ -1,0 +1,29 @@
+# Cheap frontend-only ratchet. Does not run on server-only PRs.
+name: File sizes
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "scripts/check-file-sizes.ts"
+      - ".github/workflows/file-sizes.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "scripts/check-file-sizes.ts"
+      - ".github/workflows/file-sizes.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --experimental-strip-types scripts/check-file-sizes.ts
