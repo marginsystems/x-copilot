@@ -389,7 +389,6 @@ export default function App() {
   function exitOnboardingPreview() {
     setOnboardingPreview(false);
     setSimulateUnlinked(false);
-    setOnboardingDoneLocal(true);
   }
 
   useEffect(() => {
