@@ -63,8 +63,8 @@ require_analytics_app() {
 }
 
 ensure_build() {
-  if [ "${SKIP_BUILD:-}" = "1" ] && [ -f "server/dist/index.js" ]; then
-    echo "Skipping build (--skip-build, server/dist present)."
+  if [ "${SKIP_BUILD:-}" = "1" ] && [ -f "server/dist/index.js" ] && [ -f "analytics/dist/sidecar.js" ]; then
+    echo "Skipping build (--skip-build, server/dist and analytics/dist present)."
     return
   fi
   echo "Installing deps + building server and analytics sidecar before start..."
