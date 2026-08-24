@@ -17,16 +17,18 @@ describe("PUBLIC_PLANS", () => {
   it("pins each plan's numbers to server/src/plans.ts", () => {
     assert.deepEqual(
       PUBLIC_PLANS.map((plan) => ({
+        priceUsd: plan.priceUsd,
+        priceLabel: plan.priceLabel,
         credits: plan.credits,
         sorties: plan.sorties,
         watch: plan.watch,
         suggests: plan.suggests,
       })),
       [
-        { credits: 1_500, sorties: 1, watch: 15, suggests: 10 },
-        { credits: 6_000, sorties: 5, watch: 50, suggests: 20 },
-        { credits: 18_000, sorties: 10, watch: 120, suggests: 30 },
-        { credits: 40_000, sorties: 25, watch: 250, suggests: 40 },
+        { priceUsd: 0, priceLabel: "Free", credits: 1_500, sorties: 1, watch: 15, suggests: 10 },
+        { priceUsd: 12, priceLabel: "$12 / month", credits: 6_000, sorties: 5, watch: 50, suggests: 20 },
+        { priceUsd: 36, priceLabel: "$36 / month", credits: 18_000, sorties: 10, watch: 120, suggests: 30 },
+        { priceUsd: 99, priceLabel: "$99 / month", credits: 40_000, sorties: 25, watch: 250, suggests: 40 },
       ],
     );
   });
