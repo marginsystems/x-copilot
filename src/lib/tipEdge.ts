@@ -2,9 +2,9 @@
 
 export type TipEdge = "start" | "center" | "end";
 
-/** Matches .tip-chip.has-tip::after — 16rem, capped at 76vw. */
+/** Matches .tip-chip.has-tip::after — 16rem @ 15px root font-size, capped at 76vw. */
 export function estimateTipWidth(viewportWidth: number): number {
-  return Math.min(16 * 16, viewportWidth * 0.76);
+  return Math.min(16 * 15, viewportWidth * 0.76);
 }
 
 export function tipEdge(

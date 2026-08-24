@@ -33,7 +33,7 @@ describe("tipEdge", () => {
 
 describe("estimateTipWidth", () => {
   it("uses 16rem until 76vw is smaller", () => {
-    assert.equal(estimateTipWidth(1200), 256);
+    assert.equal(estimateTipWidth(1200), 240);
     assert.equal(estimateTipWidth(300), 228);
   });
 });
