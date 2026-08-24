@@ -469,11 +469,12 @@ describe("recordMarkGamification / getGamification", () => {
       nowMs: d1,
       threadId: "a",
     });
-    assert.equal(after.lifetimeXp, 3);
+    assert.equal(after.lifetimeXp, 4);
     assert.equal(after.currentStreak, 3);
     assert.ok(after.progress);
     assert.equal(after.progress?.markXp, 1);
     assert.equal(after.progress?.streakMultiplier, 1);
+    assert.deepEqual(after.progress?.unlockedAchievementIds, ["first_mark"]);
   });
 
   it("does not celebrate seeded history as fresh unlocks on the first ledger write", async () => {

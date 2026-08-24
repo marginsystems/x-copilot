@@ -325,6 +325,9 @@ export async function recordMarkGamification(
       streakMultiplier: markXpForStreak(Math.max(1, seeded.currentStreak)),
     };
     let beforeMark = seeded;
+    // Progress is diffed against beforeMark + the mark's own award, never the
+    // full seed: newer retained rows must not re-celebrate their unlocks.
+    let progressAfter = seeded;
     // No history yet (e.g. tests) or the mark is not part of the retained
     // history — still credit it exactly once.
     if (
@@ -335,6 +338,7 @@ export async function recordMarkGamification(
       beforeMark = seeded;
       seeded = applied.state;
       awarded = applied.awarded;
+      progressAfter = applied.state;
     } else {
       // The seed replayed retained history including this mark (production
       // persists the interaction before this runs). Baseline progress on the
@@ -360,10 +364,11 @@ export async function recordMarkGamification(
         currentStreak: seeded.currentStreak,
         streakMultiplier: applied.awarded.streakMultiplier,
       };
+      progressAfter = applied.state;
     }
     await writeGamificationFile(path, seeded);
     return toPublicGamification(seeded, {
-      progress: progressFromTransition(beforeMark, awarded, seeded),
+      progress: progressFromTransition(beforeMark, awarded, progressAfter),
     });
   });
 }
