@@ -1,9 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import {
-  formatSlackText,
-  parseAnalyticsEvent,
-} from "./analyticsEvents.ts";
+import { formatSlackText, parseAnalyticsEvent } from "./events.ts";
 
 const frozen = () => new Date("2026-08-19T12:00:00.000Z");
 
@@ -93,7 +90,7 @@ describe("formatSlackText", () => {
     const text = formatSlackText({
       name: "mark.interacted",
       at: "2026-08-19T12:00:00.000Z",
-      detail: '<!channel> [label](https://evil.example)',
+      detail: "<!channel> [label](https://evil.example)",
     });
     assert.equal(
       text,

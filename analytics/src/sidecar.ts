@@ -8,9 +8,9 @@
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
-import { formatSlackText, parseAnalyticsEvent } from "./analyticsEvents.js";
-import { postSlackWebhook } from "./analyticsSlack.js";
+import { formatSlackText, parseAnalyticsEvent } from "./events.js";
 import { loadEnv } from "./loadEnv.js";
+import { postSlackWebhook } from "./slack.js";
 
 const MAX_BODY_BYTES = 8_192;
 const DEFAULT_PORT = 8788;
@@ -167,8 +167,10 @@ export function shouldRunAnalyticsMain(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
   if (
-    argv1?.endsWith("analyticsService.js") ||
-    argv1?.endsWith("analyticsService.ts")
+    argv1?.endsWith("/analytics/dist/sidecar.js") ||
+    argv1?.endsWith("/analytics/src/sidecar.ts") ||
+    argv1?.endsWith("\\analytics\\dist\\sidecar.js") ||
+    argv1?.endsWith("\\analytics\\src\\sidecar.ts")
   ) {
     return true;
   }

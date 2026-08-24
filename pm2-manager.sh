@@ -5,7 +5,7 @@
 # Services (see ecosystem.config.cjs — copy from ecosystem.config.example.cjs):
 #   x-copilot-api        TypeScript sidecar (session + drafts) on :8787
 #   x-copilot-stats      Hourly reply-stats sampler (1h / 24h snapshots)
-#   x-copilot-analytics  Loopback Slack analytics on :8788
+#   x-copilot-analytics  Loopback Slack sidecar on :8788 (code in analytics/)
 #
 # Usage:
 #   ./pm2-manager.sh start              build server, then start API + stats + analytics
@@ -45,13 +45,17 @@ require_ecosystem() {
   fi
 }
 
-# A machine-local $ECOSYSTEM that predates the analytics sidecar defines no
-# $ANALYTICS app, so `pm2 start --only $ANALYTICS` aborts the start/restart
-# loop with a raw app-not-found error and no migration hint. Point the
-# operator back at the tracked example instead.
+# A machine-local $ECOSYSTEM that predates the analytics sidecar move either
+# defines no $ANALYTICS app or inlines an old analytics app pointing at
+# server/dist/analyticsService.js (no longer built), so `pm2 start --only
+# $ANALYTICS` aborts or crash-loops with no migration hint. The tracked example
+# requires analytics/ecosystem.config.cjs; any config that does not is stale
+# (the app name itself never appears in the root file, only in the required
+# analytics/ecosystem.config.cjs). Point the operator back at the tracked
+# example instead.
 require_analytics_app() {
-  if ! grep -q "$ANALYTICS" "$ECOSYSTEM"; then
-    echo "$ECOSYSTEM predates the analytics sidecar (defines no $ANALYTICS)." >&2
+  if ! grep -q "analytics/ecosystem.config.cjs" "$ECOSYSTEM"; then
+    echo "$ECOSYSTEM predates the analytics sidecar move (no analytics app at analytics/)." >&2
     echo "Re-sync with the tracked example, keeping machine-local tweaks:" >&2
     echo "  cp ecosystem.config.example.cjs ecosystem.config.cjs" >&2
     exit 1
@@ -59,13 +63,14 @@ require_analytics_app() {
 }
 
 ensure_build() {
-  if [ "${SKIP_BUILD:-}" = "1" ] && [ -f "server/dist/index.js" ]; then
-    echo "Skipping build (--skip-build, server/dist present)."
+  if [ "${SKIP_BUILD:-}" = "1" ] && [ -f "server/dist/index.js" ] && [ -f "analytics/dist/sidecar.js" ]; then
+    echo "Skipping build (--skip-build, server/dist and analytics/dist present)."
     return
   fi
-  echo "Installing deps + building server before start..."
+  echo "Installing deps + building server and analytics sidecar before start..."
   npm install --no-audit --no-fund
   npm run build:server
+  npm run build:analytics
 }
 
 setup_logrotate() {
@@ -96,10 +101,51 @@ done
 # with override, so any restart picks up rotated keys and stale ones cannot
 # stick. Keep the recycle non-destructive: delete+start would leave the app
 # down if the fresh start fails, so restart --update-env for NODE_ENV/PORT.
+#
+# PM2 restart reuses the process's stored definition, not the ecosystem file.
+# A registration that predates the analytics sidecar move still points at
+# server/dist/analyticsService.js, so a restart would keep recycling the OLD
+# sidecar forever (crash-looping once server/dist is cleaned). Detect that by
+# comparing the stored script against the ecosystem entry and re-register
+# (delete+start) only when they differ; that keeps the one-time migration
+# while leaving steady-state recycling non-destructive.
 recycle_app() {
   local name="$1"
   if pm2 describe "$name" >/dev/null 2>&1; then
-    pm2 restart "$name" --update-env
+    # Exit 0: stored script matches the ecosystem entry (restart in place).
+    # Exit 1: genuine mismatch (re-register, the one-time migration path).
+    # Exit 2: comparison itself failed (pm2 jlist / config parse) or no
+    # same-named process under this project root (foreign process from another
+    # project in the shared daemon) — unknown state, so stay non-destructive
+    # and restart in place instead of delete+start.
+    local rc=0
+    node -e '
+      const path = require("node:path");
+      const { execSync } = require("node:child_process");
+      const [root, ecosystem, name] = process.argv.slice(1);
+      let app, expected;
+      try {
+        app = require(path.resolve(ecosystem)).apps.find((a) => a.name === name);
+        expected = app && path.resolve(root, app.script);
+      } catch {
+        process.exit(2);
+      }
+      let stored;
+      try {
+        stored = JSON.parse(execSync("pm2 jlist", { stdio: ["ignore", "pipe", "ignore"] }).toString());
+      } catch {
+        process.exit(2);
+      }
+      const proc = stored.find((p) => p.name === name && p.pm2_env && p.pm2_env.pm_exec_path && p.pm2_env.pm_exec_path.startsWith(path.resolve(root) + path.sep));
+      process.exit(app && proc && proc.pm2_env.pm_exec_path === expected ? 0 : proc ? 1 : 2);
+    ' "$PWD" "$ECOSYSTEM" "$name" || rc=$?
+    if [ "$rc" = "0" ] || [ "$rc" = "2" ]; then
+      pm2 restart "$name" --update-env
+    else
+      pm2 delete "$name" >/dev/null 2>&1 || true
+      pm2 start "$ECOSYSTEM" --only "$name"
+      pm2 save
+    fi
   else
     pm2 start "$ECOSYSTEM" --only "$name"
   fi
@@ -112,7 +158,7 @@ case "$cmd" in
     ensure_build
     mkdir -p logs
     for name in "${APPS[@]}"; do
-      pm2 start "$ECOSYSTEM" --only "$name"
+      recycle_app "$name"
     done
     ;;
   stop)

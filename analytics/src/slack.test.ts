@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { postSlackWebhook } from "./analyticsSlack.ts";
+import { postSlackWebhook } from "./slack.ts";
 
 describe("postSlackWebhook", () => {
   it("POSTs text JSON to the webhook", async () => {
