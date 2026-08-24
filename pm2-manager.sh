@@ -49,11 +49,12 @@ require_ecosystem() {
 # defines no $ANALYTICS app or inlines an old analytics app pointing at
 # server/dist/analyticsService.js (no longer built), so `pm2 start --only
 # $ANALYTICS` aborts or crash-loops with no migration hint. The tracked example
-# requires analytics/ecosystem.config.cjs; any config that does not is stale.
-# Point the operator back at the tracked example instead.
+# requires analytics/ecosystem.config.cjs; any config that does not is stale
+# (the app name itself never appears in the root file, only in the required
+# analytics/ecosystem.config.cjs). Point the operator back at the tracked
+# example instead.
 require_analytics_app() {
-  if ! grep -q "$ANALYTICS" "$ECOSYSTEM" ||
-    ! grep -q "analytics/ecosystem.config.cjs" "$ECOSYSTEM"; then
+  if ! grep -q "analytics/ecosystem.config.cjs" "$ECOSYSTEM"; then
     echo "$ECOSYSTEM predates the analytics sidecar move (no analytics app at analytics/)." >&2
     echo "Re-sync with the tracked example, keeping machine-local tweaks:" >&2
     echo "  cp ecosystem.config.example.cjs ecosystem.config.cjs" >&2
