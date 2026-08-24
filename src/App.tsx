@@ -521,7 +521,6 @@ export default function App() {
             persist={false}
             userId={authUser?.id ?? null}
             needsXLink={simulateUnlinked}
-            onLinkX={startXLogin}
             onComplete={() => {
               exitOnboardingPreview();
               goToView("admin");

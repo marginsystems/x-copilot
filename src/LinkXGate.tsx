@@ -16,7 +16,12 @@ export function LinkXGate(props: {
             "Take off, Voice, and replies need the account you log into. Sign in with X — you cannot type a handle."}
         </p>
         <div className="onboarding-nav">
-          <button type="button" className="primary" onClick={props.onLinkX}>
+          <button
+            type="button"
+            className="primary"
+            disabled={!props.onLinkX}
+            onClick={props.onLinkX}
+          >
             Link X
           </button>
         </div>
