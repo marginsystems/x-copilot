@@ -9,6 +9,7 @@
   padding: 12px;
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .suggest-pane-head {
@@ -16,6 +17,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
 .suggest-close {
@@ -76,6 +78,8 @@
   border: 1px dashed var(--accent-dim);
   border-radius: var(--radius);
   padding: 6px 10px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .suggest-reference {
@@ -113,11 +117,14 @@
   font-size: 0.92rem;
   line-height: 1.45;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--text);
 }
 
 .suggest-textarea {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   resize: vertical;
   min-height: 88px;
   background: var(--bg);
@@ -156,6 +163,7 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .suggest-actions-row {
@@ -163,6 +171,8 @@
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Base .suggest-actions row styles are shared with SuggestLocked, which
@@ -225,6 +235,7 @@ a.suggest-open {
   align-items: center;
   gap: 10px;
   padding: 4px 0;
+  min-width: 0;
 }
 
 /* Always painted so the LLM verdict cannot grow the pane on first flash. */
@@ -234,6 +245,7 @@ a.suggest-open {
   line-height: 1.35;
   min-height: calc(1.35em * 3);
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .suggest-note.is-hint {

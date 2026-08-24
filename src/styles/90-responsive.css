@@ -64,6 +64,132 @@
     gap: 10px;
   }
 
+  .history-row,
+  .thread-row,
+  .row-detail,
+  .suggest-pane,
+  .suggest-reference {
+    min-width: 0;
+  }
+
+  .row-detail {
+    padding: 10px;
+  }
+
+  .row-detail > .row,
+  .history-row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .row-detail > .row > *,
+  .history-row-actions > * {
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .for-you-draft,
+  .suggest-quota,
+  .suggest-reference-label,
+  .suggest-count {
+    overflow-wrap: anywhere;
+  }
+
+  .suggest-pane {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .suggest-pane-head > :first-child {
+    min-width: 0;
+  }
+
+  .suggest-pane-head .suggest-loading {
+    flex: 1 1 auto;
+  }
+
+  .suggest-pane-head .voice-loader-line {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .suggest-pane-head .voice-loader-pulse {
+    flex: 0 0 auto;
+  }
+
+  .suggest-stances > *,
+  .suggest-stance {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .suggest-stance-custom {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .suggest-stance-input {
+    width: 100%;
+  }
+
+  .suggest-reference {
+    padding: 10px;
+  }
+
+  .suggest-reference-head {
+    min-width: 0;
+  }
+
+  .suggest-reference-label {
+    min-width: 0;
+  }
+
+  .suggest-foot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .suggest-actions,
+  .suggest-actions-row {
+    width: 100%;
+  }
+
+  .suggest-actions-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .suggest-actions-row > * {
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .suggest-actions.is-checking {
+    width: 100%;
+  }
+
+  .suggest-actions.is-checking .suggest-loading {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .suggest-actions.is-checking .voice-loader-line {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .suggest-actions.is-checking .voice-loader-pulse {
+    flex: 0 0 auto;
+  }
+
   @keyframes history-row-in {
     from {
       opacity: 0;
