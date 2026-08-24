@@ -399,7 +399,38 @@ describe("recordMarkGamification / getGamification", () => {
     assert.ok(snap.nextGoal);
     assert.ok(afterMark.progress);
     assert.equal(afterMark.progress?.markXp, 1);
-    assert.deepEqual(afterMark.progress?.unlockedAchievementIds, ["first_mark"]);
+    assert.deepEqual(afterMark.progress?.unlockedAchievementIds, []);
+  });
+
+  it("does not celebrate seeded history as fresh unlocks on the first ledger write", async () => {
+    const now = Date.parse("2026-08-06T12:00:00.000Z");
+    const d1 = Date.parse("2026-07-01T12:00:00.000Z");
+    for (let i = 0; i < 10; i += 1) {
+      await markInteracted({
+        threadId: `h${i}`,
+        author: "@x",
+        replyId: `rh${i}`,
+        replyUrl: `https://x.com/me/status/rh${i}`,
+        nowMs: d1 + i * 24 * 60 * 60 * 1000,
+        storePath: interactionStorePath,
+      });
+    }
+    await markInteracted({
+      threadId: "current",
+      author: "@x",
+      replyId: "rcurrent",
+      replyUrl: "https://x.com/me/status/rcurrent",
+      nowMs: now,
+      storePath: interactionStorePath,
+    });
+    const after = await recordMarkGamification({
+      gamificationPath,
+      interactionStorePath,
+      nowMs: now,
+    });
+    assert.ok(after.progress);
+    assert.equal(after.progress?.leveledUp, false);
+    assert.deepEqual(after.progress?.unlockedAchievementIds, []);
   });
 
   it("adopts the legacy ledger once onto the first user file", async () => {

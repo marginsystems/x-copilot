@@ -20,7 +20,6 @@ import {
 import {
   applyMarkToGamification,
   applyT24hBonus,
-  emptyGamificationState,
   levelFromXp,
   markXpForStreak,
   seedGamificationFromHistory,
@@ -319,13 +318,17 @@ export async function recordMarkGamification(
       storePath: opts?.interactionStorePath,
       userId: opts?.userId,
     });
-    const empty = emptyGamificationState(nowMs);
     let seeded = seedGamificationFromHistory(history, nowMs);
     let awarded: MarkAward = {
       markXp: 0,
       currentStreak: seeded.currentStreak,
       streakMultiplier: markXpForStreak(Math.max(1, seeded.currentStreak)),
     };
+    // Baseline progress against the seeded state, not the empty ledger: the
+    // seed replays retained history (which already includes this mark), so
+    // comparing empty → seeded would re-celebrate every past unlock and
+    // level-up as if this mark had just earned them.
+    let beforeMark = seeded;
     // No history yet (e.g. tests) or the mark is not part of the retained
     // history — still credit it exactly once.
     if (
@@ -333,6 +336,7 @@ export async function recordMarkGamification(
       (threadId && !seeded.markAwardedThreadIds.includes(markKey))
     ) {
       const applied = applyMarkToGamification(seeded, nowMs, threadId);
+      beforeMark = seeded;
       seeded = applied.state;
       awarded = applied.awarded;
     } else {
@@ -344,7 +348,7 @@ export async function recordMarkGamification(
     }
     await writeGamificationFile(path, seeded);
     return toPublicGamification(seeded, {
-      progress: progressFromTransition(empty, awarded, seeded),
+      progress: progressFromTransition(beforeMark, awarded, seeded),
     });
   });
 }
