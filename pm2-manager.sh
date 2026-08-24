@@ -112,21 +112,32 @@ done
 recycle_app() {
   local name="$1"
   if pm2 describe "$name" >/dev/null 2>&1; then
-    if node -e '
+    # Exit 0: stored script matches the ecosystem entry (restart in place).
+    # Exit 1: genuine mismatch (re-register, the one-time migration path).
+    # Exit 2: comparison itself failed (pm2 jlist / config parse) — unknown
+    # state, so stay non-destructive and restart in place instead of delete+start.
+    local rc=0
+    node -e '
       const path = require("node:path");
       const { execSync } = require("node:child_process");
       const [root, ecosystem, name] = process.argv.slice(1);
-      const app = require(path.resolve(ecosystem)).apps.find((a) => a.name === name);
-      const expected = app && path.resolve(root, app.script);
+      let app, expected;
+      try {
+        app = require(path.resolve(ecosystem)).apps.find((a) => a.name === name);
+        expected = app && path.resolve(root, app.script);
+      } catch {
+        process.exit(2);
+      }
       let stored;
       try {
         stored = JSON.parse(execSync("pm2 jlist", { stdio: ["ignore", "pipe", "ignore"] }).toString());
       } catch {
-        process.exit(1);
+        process.exit(2);
       }
       const proc = stored.find((p) => p.name === name);
       process.exit(app && proc && proc.pm2_env.pm_exec_path === expected ? 0 : 1);
-    ' "$PWD" "$ECOSYSTEM" "$name"; then
+    ' "$PWD" "$ECOSYSTEM" "$name" || rc=$?
+    if [ "$rc" = "0" ] || [ "$rc" = "2" ]; then
       pm2 restart "$name" --update-env
     else
       pm2 delete "$name" >/dev/null 2>&1 || true
