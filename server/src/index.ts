@@ -7,6 +7,7 @@ import { loadEnv } from "./loadEnv.js";
 import { getPlatformDb, getLocalTenantId } from "./db.js";
 import { getXApiCredsFromEnv } from "./xApi.js";
 import { tryHandleAuth } from "./authHttp.js";
+import { tryHandleAgenda } from "./agendaHttp.js";
 import { tryHandleOnboarding } from "./onboardingHttp.js";
 import { isOriginAllowed, requestOrigin } from "./cors.js";
 import { authRequired, bindHost, isPublicApiPath } from "./authGuard.js";
@@ -94,7 +95,10 @@ const server = http.createServer(async (req, res) => {
       }
       // State-changing requests with a session must come from an allowed origin;
       // otherwise a cross-site fetch would ride the same-site-session cookie.
-      if (req.method === "POST" && !isOriginAllowed(requestOrigin(req))) {
+      if (
+        (req.method === "POST" || req.method === "PUT") &&
+        !isOriginAllowed(requestOrigin(req))
+      ) {
         return send(req, res, 403, {
           error: "forbidden",
           message: "Origin not allowed",
@@ -122,6 +126,10 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (await tryHandleOnboarding(req, res, url)) {
+        return;
+      }
+
+      if (await tryHandleAgenda(req, res, url)) {
         return;
       }
 
