@@ -19,6 +19,16 @@ describe("tipEdge", () => {
     assert.equal(tipEdge(80, 400, 200), "start");
     assert.equal(tipEdge(140, 400, 200), "end");
   });
+
+  it("stays centered when anchoring would push it off the far edge", () => {
+    assert.equal(tipEdge(100, 243.2, 320), "center");
+    assert.equal(tipEdge(190, 243.2, 320), "center");
+  });
+
+  it("anchors when the anchored panel fits the far edge", () => {
+    assert.equal(tipEdge(60, 243.2, 320), "start");
+    assert.equal(tipEdge(260, 243.2, 320), "end");
+  });
 });
 
 describe("estimateTipWidth", () => {
