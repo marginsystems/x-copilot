@@ -139,6 +139,7 @@
 }
 
 .threads-activity.is-collapsed .threads-activity-meta,
+.threads-activity.is-collapsed .threads-activity-next,
 .threads-activity.is-collapsed .threads-activity-toggle {
   display: none;
 }
@@ -218,6 +219,13 @@
 
 .threads-activity-meta .chip-muted {
   opacity: 0.75;
+}
+
+.threads-activity-next {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .threads-activity-level {

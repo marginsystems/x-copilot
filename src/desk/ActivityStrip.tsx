@@ -122,6 +122,11 @@ export function ActivityStrip({
           </span>
         </span>
       </div>
+      {flightPathOpen && gamification.nextGoal ? (
+        <p className="threads-activity-next">
+          Next: {gamification.nextGoal.title} — {gamification.nextGoal.detail}
+        </p>
+      ) : null}
       <div className="threads-activity-chart">
         {activityStats.totals.interactions === 0 ? (
           <p className="threads-activity-empty">
