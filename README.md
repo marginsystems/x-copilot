@@ -144,26 +144,27 @@ Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only 
 
 ## PM2 (prod-shaped API)
 
-The sidecar can run under PM2 with logs under `./logs/` (rotated; **never wiped on restart**).
+One script manages every process. Logs live under `./logs/` (rotated; **never wiped on restart**). Profiles recycle everything or one service.
 
 ```bash
 cp ecosystem.config.example.cjs ecosystem.config.cjs   # once; gitignored
 npm i -g pm2                                           # if needed
 ./pm2-manager.sh setup-logrotate                       # once: pm2-logrotate defaults
-./pm2-manager.sh start                                 # build:server + start x-copilot-api
+./pm2-manager.sh start                                 # api + stats + analytics
 ./pm2-manager.sh restart                               # or: ./pm2-manager.sh restart prod
-./pm2-manager.sh restart --skip-build                  # reuse server/dist
+./pm2-manager.sh restart analytics                     # Slack sidecar only
+./pm2-manager.sh restart api --skip-build              # reuse server/dist
 ./pm2-manager.sh status
 ./pm2-manager.sh logs                                  # tail x-copilot-api
+./pm2-manager.sh logs analytics
 ./pm2-manager.sh stop
 ```
 
 | Item | Value |
 |------|--------|
-| App name | `x-copilot-api` |
-| Port | `8787` (bind `127.0.0.1` by default; `BIND_HOST=0.0.0.0` behind Cloudflare — see [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md)) |
-| Out log | `logs/x-copilot-api.out.log` |
-| Err log | `logs/x-copilot-api.err.log` |
+| Apps | `x-copilot-api` (`:8787`), `x-copilot-stats`, `x-copilot-analytics` (`:8788` loopback) |
+| Profiles | `all` / `prod` (default), `api`, `stats`, `analytics` |
+| Out / err logs | `logs/<app>.out.log`, `logs/<app>.err.log` |
 | Ecosystem | `ecosystem.config.cjs` (from example; **not** tracked) |
 
 `setup-logrotate` sets `pm2-logrotate` to `max_size=10M`, `retain=14`, `compress=true`. Restart/start/stop **do not** truncate `logs/`.

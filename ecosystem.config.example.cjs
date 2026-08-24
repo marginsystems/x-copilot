@@ -11,7 +11,7 @@
 // stick. Only NODE_ENV/PORT are pinned here; loadEnv never overrides them.
 //
 // Slack sidecar lives in analytics/ — recycle it alone with
-// ./analytics/pm2-manager.sh. This file requires that app list.
+// ./pm2-manager.sh restart analytics. This file requires that app list.
 
 const fs = require("node:fs");
 const path = require("node:path");

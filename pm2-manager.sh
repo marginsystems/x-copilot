@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 #
-# pm2-manager.sh — manage the x-copilot API for this instance.
+# pm2-manager.sh — one operator script for this instance.
 #
 # Services (see ecosystem.config.cjs — copy from ecosystem.config.example.cjs):
 #   x-copilot-api        TypeScript sidecar (session + drafts) on :8787
 #   x-copilot-stats      Hourly reply-stats sampler (1h / 24h snapshots)
 #   x-copilot-analytics  Loopback Slack sidecar on :8788 (code in analytics/)
 #
+# Profiles select which apps a command touches. Default is all.
+#
 # Usage:
-#   ./pm2-manager.sh start              build server, then start API + stats + analytics
-#   ./pm2-manager.sh stop               stop managed apps
-#   ./pm2-manager.sh restart [prod]     build, recycle API + stats + analytics from ecosystem + .env
-#   ./pm2-manager.sh restart --skip-build
-#   ./pm2-manager.sh status             show pm2 status
-#   ./pm2-manager.sh logs [name]        tail logs (default: x-copilot-api)
-#   ./pm2-manager.sh save               persist process list for boot resurrection
-#   ./pm2-manager.sh setup-logrotate    install/configure pm2-logrotate
-#   ./pm2-manager.sh delete             remove apps from pm2
+#   ./pm2-manager.sh start [all|api|stats|analytics]
+#   ./pm2-manager.sh restart [all|prod|api|stats|analytics]
+#   ./pm2-manager.sh restart analytics --skip-build
+#   ./pm2-manager.sh stop [all|api|stats|analytics]
+#   ./pm2-manager.sh delete [all|api|stats|analytics]
+#   ./pm2-manager.sh status
+#   ./pm2-manager.sh logs [api|stats|analytics|name]
+#   ./pm2-manager.sh save
+#   ./pm2-manager.sh setup-logrotate
 #
 # Logs live under ./logs/ and are never truncated by this script.
 #
@@ -29,12 +31,17 @@ ECOSYSTEM="ecosystem.config.cjs"
 CORE="x-copilot-api"
 STATS="x-copilot-stats"
 ANALYTICS="x-copilot-analytics"
-APPS=("$CORE" "$STATS" "$ANALYTICS")
 
 if ! command -v pm2 >/dev/null 2>&1; then
   echo "pm2 not found. Install it: npm i -g pm2" >&2
   exit 1
 fi
+
+usage() {
+  echo "Use: start | stop | restart | delete | status | logs | save | setup-logrotate" >&2
+  echo "Profiles: all | prod | api | stats | analytics" >&2
+  echo "Flags: --skip-build" >&2
+}
 
 require_ecosystem() {
   if [ ! -f "$ECOSYSTEM" ]; then
@@ -47,12 +54,8 @@ require_ecosystem() {
 
 # A machine-local $ECOSYSTEM that predates the analytics sidecar move either
 # defines no $ANALYTICS app or inlines an old analytics app pointing at
-# server/dist/analyticsService.js (no longer built), so `pm2 start --only
-# $ANALYTICS` aborts or crash-loops with no migration hint. The tracked example
-# requires analytics/ecosystem.config.cjs; any config that does not is stale
-# (the app name itself never appears in the root file, only in the required
-# analytics/ecosystem.config.cjs). Point the operator back at the tracked
-# example instead.
+# server/dist/analyticsService.js (no longer built). The tracked example
+# requires analytics/ecosystem.config.cjs; any config that does not is stale.
 require_analytics_app() {
   if ! grep -q "analytics/ecosystem.config.cjs" "$ECOSYSTEM"; then
     echo "$ECOSYSTEM predates the analytics sidecar move (no analytics app at analytics/)." >&2
@@ -62,15 +65,72 @@ require_analytics_app() {
   fi
 }
 
+cmd="${1:-status}"
+shift || true
+PROFILE="all"
+SKIP_BUILD=""
+LOG_NAME=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --skip-build) SKIP_BUILD="1" ;;
+    prod|all) PROFILE="all" ;;
+    api|core|"$CORE") PROFILE="api" ;;
+    stats|"$STATS") PROFILE="stats" ;;
+    analytics|"$ANALYTICS") PROFILE="analytics" ;;
+    *)
+      if [ "$cmd" = "logs" ] && [ -z "$LOG_NAME" ]; then
+        LOG_NAME="$arg"
+      else
+        echo "Unknown argument: $arg" >&2
+        usage
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+case "$PROFILE" in
+  all) APPS=("$CORE" "$STATS" "$ANALYTICS") ;;
+  api) APPS=("$CORE") ;;
+  stats) APPS=("$STATS") ;;
+  analytics) APPS=("$ANALYTICS") ;;
+esac
+
+needs_server_build() {
+  [ "$PROFILE" = "all" ] || [ "$PROFILE" = "api" ] || [ "$PROFILE" = "stats" ]
+}
+
+needs_analytics_build() {
+  [ "$PROFILE" = "all" ] || [ "$PROFILE" = "analytics" ]
+}
+
 ensure_build() {
-  if [ "${SKIP_BUILD:-}" = "1" ] && [ -f "server/dist/index.js" ] && [ -f "analytics/dist/sidecar.js" ]; then
-    echo "Skipping build (--skip-build, server/dist and analytics/dist present)."
+  local have_server=0 have_analytics=0
+  [ -f "server/dist/index.js" ] && have_server=1
+  [ -f "analytics/dist/sidecar.js" ] && have_analytics=1
+
+  if [ "${SKIP_BUILD:-}" = "1" ]; then
+    if needs_server_build && [ "$have_server" != "1" ]; then
+      echo "Cannot --skip-build: server/dist/index.js is missing." >&2
+      exit 1
+    fi
+    if needs_analytics_build && [ "$have_analytics" != "1" ]; then
+      echo "Cannot --skip-build: analytics/dist/sidecar.js is missing." >&2
+      exit 1
+    fi
+    echo "Skipping build (--skip-build, required dist present for profile=$PROFILE)."
     return
   fi
-  echo "Installing deps + building server and analytics sidecar before start..."
+
+  echo "Installing deps + building profile=$PROFILE..."
   npm install --no-audit --no-fund
-  npm run build:server
-  npm run build:analytics
+  if needs_server_build; then
+    npm run build:server
+  fi
+  if needs_analytics_build; then
+    npm run build:analytics
+  fi
 }
 
 setup_logrotate() {
@@ -85,16 +145,6 @@ setup_logrotate() {
   pm2 set pm2-logrotate:rotateInterval "0 0 * * *"
   echo "pm2-logrotate configured (max_size=10M, retain=14, compress=true)."
 }
-
-cmd="${1:-status}"
-shift || true
-SKIP_BUILD=""
-for arg in "$@"; do
-  case "$arg" in
-    --skip-build) SKIP_BUILD="1" ;;
-    prod) ;; # no-op alias for ./pm2-manager.sh restart prod
-  esac
-done
 
 # Secrets are not carried in the ecosystem `env` block (that would serialize
 # them into ~/.pm2/dump.pm2 via `pm2 save`). Each process loads .env at boot
@@ -151,42 +201,54 @@ recycle_app() {
   fi
 }
 
-case "$cmd" in
-  start)
-    require_ecosystem
+recycle_profile() {
+  require_ecosystem
+  if needs_analytics_build; then
     require_analytics_app
-    ensure_build
-    mkdir -p logs
-    for name in "${APPS[@]}"; do
-      recycle_app "$name"
-    done
+  fi
+  ensure_build
+  mkdir -p logs
+  for name in "${APPS[@]}"; do
+    recycle_app "$name"
+  done
+}
+
+case "$cmd" in
+  start|restart)
+    recycle_profile
     ;;
   stop)
     require_ecosystem
-    pm2 stop "$ECOSYSTEM" || true
-    ;;
-  restart)
-    require_ecosystem
-    require_analytics_app
-    ensure_build
-    mkdir -p logs
-    # Recycle without truncating or deleting anything under logs/
-    for name in "${APPS[@]}"; do
-      recycle_app "$name"
-    done
+    if [ "$PROFILE" = "all" ]; then
+      pm2 stop "$ECOSYSTEM" || true
+    else
+      for name in "${APPS[@]}"; do
+        pm2 stop "$name" || true
+      done
+    fi
     ;;
   delete)
     require_ecosystem
-    pm2 delete "$ECOSYSTEM" || true
+    if [ "$PROFILE" = "all" ]; then
+      pm2 delete "$ECOSYSTEM" || true
+    else
+      for name in "${APPS[@]}"; do
+        pm2 delete "$name" || true
+      done
+    fi
     ;;
   status)
     pm2 list
     ;;
   logs)
-    if [ "${1:-}" != "" ]; then
-      pm2 logs "$1"
+    if [ -n "$LOG_NAME" ]; then
+      pm2 logs "$LOG_NAME"
     else
-      pm2 logs "$CORE"
+      case "$PROFILE" in
+        stats) pm2 logs "$STATS" ;;
+        analytics) pm2 logs "$ANALYTICS" ;;
+        *) pm2 logs "$CORE" ;;
+      esac
     fi
     ;;
   save)
@@ -197,8 +259,7 @@ case "$cmd" in
     ;;
   *)
     echo "Unknown command: $cmd" >&2
-    echo "Use: start | stop | restart [prod] | delete | status | logs [name] | save | setup-logrotate" >&2
-    echo "Flags: --skip-build" >&2
+    usage
     exit 1
     ;;
 esac

@@ -1,6 +1,6 @@
 // PM2 process for the Slack analytics sidecar only.
-// Recycle with ./analytics/pm2-manager.sh — or via the root manager,
-// which requires this file into the full ecosystem.
+// Recycle with ./pm2-manager.sh restart analytics.
+// The root ecosystem requires this file into the full app list.
 //
 // cwd is the repo root so loadEnv still reads ./.env.
 // Secrets stay in .env. Only NODE_ENV/PORT are pinned here.
