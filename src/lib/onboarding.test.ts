@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   ONBOARDING_AGENDA_KEY,
   ONBOARDING_STORAGE_KEY,
+  agendaSeedFromStored,
   consumeOnboardingPreviewQuery,
   labelsFor,
   needsOnboardingWizard,
@@ -14,6 +15,7 @@ import {
   resolveOnboardingMode,
   TOPIC_OPTIONS,
   toggleId,
+  writeOnboardingAgenda,
   writeOnboardingComplete,
 } from "./onboarding.ts";
 
@@ -63,6 +65,37 @@ describe("onboarding helpers", () => {
     writeOnboardingComplete("user B's agenda", "user-b");
     assert.equal(readOnboardingAgenda("user-a"), "user A's agenda");
     assert.equal(readOnboardingAgenda("user-b"), "user B's agenda");
+  });
+
+  it("carries a landing agenda through sign-in without marking setup complete", () => {
+    const agenda =
+      "Find builders discussing practical AI tools. Prefer concrete tradeoffs and skip generic engagement prompts.";
+    writeOnboardingAgenda(agenda);
+    assert.equal(readOnboardingComplete(), false);
+    assert.equal(readOnboardingAgenda(), agenda);
+    assert.equal(readOnboardingAgenda("user-a"), agenda);
+    assert.equal(readOnboardingComplete("user-a"), false);
+    assert.equal(store.has(ONBOARDING_AGENDA_KEY), false);
+    assert.equal(store.get(`${ONBOARDING_AGENDA_KEY}:user-a`), agenda);
+  });
+
+  it("clears a stale landing agenda when the signed-in user has a scoped one", () => {
+    writeOnboardingComplete("user A's agenda", "user-a");
+    writeOnboardingAgenda("landing pick");
+    assert.equal(readOnboardingAgenda("user-a"), "user A's agenda");
+    assert.equal(store.has(ONBOARDING_AGENDA_KEY), false);
+    assert.equal(store.get(`${ONBOARDING_AGENDA_KEY}:user-a`), "user A's agenda");
+  });
+
+  it("turns a carried agenda into the signed-in confirmation step", () => {
+    const agenda =
+      "Find builders discussing practical AI tools. Prefer concrete tradeoffs and skip generic engagement prompts.";
+    assert.deepEqual(agendaSeedFromStored(`  ${agenda}  `), {
+      title: "Your agenda",
+      body: agenda,
+      recommended: true,
+    });
+    assert.equal(agendaSeedFromStored("too short"), null);
   });
 
   it("migrates a prior local setup to the first signed-in account", () => {

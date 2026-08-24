@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
 import {
   AUDIENCE_OPTIONS,
   GOAL_OPTIONS,
   TOPIC_OPTIONS,
+  agendaSeedFromStored,
   labelsFor,
   onboardingPostsComplete,
   onboardingWritesLocalStorage,
@@ -49,18 +50,56 @@ export function Onboarding(props: {
   mode?: OnboardingMode;
   userId?: string | null;
   hidden?: boolean;
+  embedded?: boolean;
+  initialAgenda?: string | null;
+  completeLabel?: string;
+  kicker?: string;
   onComplete: (agenda: string) => void;
 }) {
   const mode = resolveOnboardingMode(props.mode, props.persist);
-  const [step, setStep] = useState(0);
+  const seededAgenda = agendaSeedFromStored(props.initialAgenda);
+  const [step, setStep] = useState(
+    seededAgenda ? QUESTIONS.length : 0,
+  );
   const [topics, setTopics] = useState<string[]>([]);
   const [goals, setGoals] = useState<string[]>([]);
   const [audiences, setAudiences] = useState<string[]>([]);
-  const [agendas, setAgendas] = useState<GeneratedAgenda[]>([]);
-  const [picked, setPicked] = useState<number | null>(null);
+  const [agendas, setAgendas] = useState<GeneratedAgenda[]>(
+    seededAgenda ? [seededAgenda] : [],
+  );
+  const [picked, setPicked] = useState<number | null>(
+    seededAgenda ? 0 : null,
+  );
+  const [usingSeededAgenda, setUsingSeededAgenda] = useState(
+    Boolean(seededAgenda),
+  );
+  const [seedDismissed, setSeedDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [generatedFor, setGeneratedFor] = useState("");
+
+  useEffect(() => {
+    const next = agendaSeedFromStored(props.initialAgenda);
+    const untouched =
+      step === 0 &&
+      topics.length === 0 &&
+      goals.length === 0 &&
+      audiences.length === 0 &&
+      agendas.length === 0;
+    if (!next || !untouched || seedDismissed) return;
+    setAgendas([next]);
+    setPicked(0);
+    setUsingSeededAgenda(true);
+    setStep(QUESTIONS.length);
+  }, [
+    props.initialAgenda,
+    step,
+    topics.length,
+    goals.length,
+    audiences.length,
+    agendas.length,
+    seedDismissed,
+  ]);
 
   const fingerprint = useMemo(
     () => JSON.stringify({ topics, goals, audiences }),
@@ -169,6 +208,14 @@ export function Onboarding(props: {
   function goPrev() {
     if (busy || step === 0) return;
     setNotice("");
+    if (onPick && usingSeededAgenda) {
+      setUsingSeededAgenda(false);
+      setSeedDismissed(true);
+      setAgendas([]);
+      setPicked(null);
+      setStep(0);
+      return;
+    }
     setStep(step - 1);
   }
 
@@ -176,9 +223,14 @@ export function Onboarding(props: {
   const currentStep = onPick ? QUESTIONS.length + 1 : step + 1;
 
   return (
-    <div className="gate onboarding" hidden={props.hidden}>
+    <div
+      className={props.embedded ? "onboarding onboarding-embedded" : "gate onboarding"}
+      hidden={props.hidden}
+    >
       <div className="onboarding-card">
-        <p className="onboarding-kicker">Set up your desk</p>
+        <p className="onboarding-kicker">
+          {props.kicker ?? "Set up your desk"}
+        </p>
         <div
           className="onboarding-progress"
           role="progressbar"
@@ -212,9 +264,15 @@ export function Onboarding(props: {
           >
             {onPick ? (
               <>
-                <h1 className="gate-title">Pick an agenda</h1>
+                {props.embedded ? (
+                  <h3 className="gate-title">Pick an agenda</h3>
+                ) : (
+                  <h1 className="gate-title">Pick an agenda</h1>
+                )}
                 <p className="gate-lede">
-                  Scout will search X using this. You can edit it later.
+                  {usingSeededAgenda
+                    ? "Your pick made it through sign-in. Confirm it to set up the desk."
+                    : "Scout will search X using this. You can edit it later."}
                 </p>
                 <div className="agenda-pick">
                   {agendas.map((agenda, i) => {
@@ -245,7 +303,11 @@ export function Onboarding(props: {
               </>
             ) : (
               <>
-                <h1 className="gate-title">{question.title}</h1>
+                {props.embedded ? (
+                  <h3 className="gate-title">{question.title}</h3>
+                ) : (
+                  <h1 className="gate-title">{question.title}</h1>
+                )}
                 <p className="gate-lede">{question.lede}</p>
                 <div className="onboarding-chips">
                   {question.options.map((opt) => {
@@ -287,7 +349,7 @@ export function Onboarding(props: {
             disabled={busy || step === 0}
             onClick={goPrev}
           >
-            Previous
+            {onPick && usingSeededAgenda ? "Start over" : "Previous"}
           </button>
           <button
             type="button"
@@ -298,7 +360,7 @@ export function Onboarding(props: {
             {busy && !onPick
               ? "Writing…"
               : onPick
-                ? "Continue"
+                ? props.completeLabel ?? "Continue"
                 : step === QUESTIONS.length - 1
                   ? "Generate agendas"
                   : "Next"}

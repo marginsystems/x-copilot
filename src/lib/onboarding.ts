@@ -94,6 +94,18 @@ export type GeneratedAgenda = {
   recommended: boolean;
 };
 
+export function agendaSeedFromStored(
+  value?: string | null,
+): GeneratedAgenda | null {
+  const body = value?.trim() ?? "";
+  if (body.length < 40) return null;
+  return {
+    title: "Your agenda",
+    body,
+    recommended: true,
+  };
+}
+
 export function toggleId(selected: string[], id: string): string[] {
   return selected.includes(id)
     ? selected.filter((item) => item !== id)
@@ -128,9 +140,21 @@ export function readOnboardingComplete(userId?: string): boolean {
 export function writeOnboardingComplete(agenda?: string, userId?: string): void {
   try {
     localStorage.setItem(scopedKey(ONBOARDING_STORAGE_KEY, userId), "1");
-    if (agenda)
-      localStorage.setItem(scopedKey(ONBOARDING_AGENDA_KEY, userId), agenda);
-    else localStorage.removeItem(scopedKey(ONBOARDING_AGENDA_KEY, userId));
+    writeOnboardingAgenda(agenda, userId);
+  } catch {
+    /* private mode */
+  }
+}
+
+/** Store an agenda without marking first-run complete (for landing → sign-in). */
+export function writeOnboardingAgenda(
+  agenda?: string,
+  userId?: string,
+): void {
+  try {
+    const key = scopedKey(ONBOARDING_AGENDA_KEY, userId);
+    if (agenda?.trim()) localStorage.setItem(key, agenda.trim());
+    else localStorage.removeItem(key);
   } catch {
     /* private mode */
   }
@@ -141,7 +165,10 @@ export function readOnboardingAgenda(userId?: string): string | null {
     const value = localStorage.getItem(
       scopedKey(ONBOARDING_AGENDA_KEY, userId),
     );
-    if (value && value.trim()) return value;
+    if (value && value.trim()) {
+      if (userId) localStorage.removeItem(ONBOARDING_AGENDA_KEY);
+      return value;
+    }
     if (!userId) return null;
     const unscoped = localStorage.getItem(ONBOARDING_AGENDA_KEY);
     if (unscoped && unscoped.trim()) {

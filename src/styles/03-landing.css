@@ -142,6 +142,51 @@
   max-width: 42em;
 }
 
+.landing-agenda-builder {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: clamp(22px, 4vw, 36px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.landing-agenda-builder-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.landing-agenda-builder-head p {
+  max-width: 42em;
+}
+
+.onboarding-embedded {
+  width: 100%;
+  padding-top: 8px;
+}
+
+.onboarding-embedded .onboarding-card {
+  margin: 0 auto;
+}
+
+.landing-agenda-builder .onboarding-nav .primary {
+  min-width: min(280px, 100%);
+}
+
+@media (max-width: 520px) {
+  .landing-agenda-builder .onboarding-nav {
+    flex-direction: column-reverse;
+  }
+
+  .landing-agenda-builder .onboarding-nav .ghost,
+  .landing-agenda-builder .onboarding-nav .primary {
+    width: 100%;
+  }
+}
+
 .landing-mock {
   display: flex;
   flex-direction: column;

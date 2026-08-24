@@ -63,6 +63,9 @@ import { useActivityStrip } from "./desk/useActivityStrip";
 
 export default function App() {
   const [agendaReady, setAgendaReady] = useState(false);
+  const [onboardingSeedAgenda, setOnboardingSeedAgenda] = useState<
+    string | null
+  >(null);
   const [agenda, setAgenda] = useState(
     "Find builders sharing opinions, tradeoffs, or concrete takes on shipping AI / software tools in public. Prefer posts with a clear point of view or a specific technical claim I can agree/disagree with.\nSkip open-ended engagement questions (“what are you shipping?”, “drop your stack”, “who should I follow?”, generic peer polls) even when they mention AI/build-in-public. A lone question with little substance is not interesting.",
   );
@@ -312,9 +315,14 @@ export default function App() {
         : readOnboardingComplete();
       if (user?.agenda) {
         setAgenda(user.agenda);
+        setOnboardingSeedAgenda(null);
+        readOnboardingAgenda(user.id);
       } else {
         const storedAgenda = readOnboardingAgenda(user?.id);
-        if (storedAgenda) setAgenda(storedAgenda);
+        if (storedAgenda) {
+          setAgenda(storedAgenda);
+          if (!onboarded) setOnboardingSeedAgenda(storedAgenda);
+        }
       }
       setAgendaReady(true);
       await hydrateDismissed();
@@ -577,6 +585,7 @@ export default function App() {
           mode={authUser ? "real" : "local"}
           persist={Boolean(authUser)}
           userId={authUser?.id ?? null}
+          initialAgenda={onboardingSeedAgenda}
           onComplete={finishOnboarding}
         />
       ) : deskXGate ? (
