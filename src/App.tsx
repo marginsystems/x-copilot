@@ -546,14 +546,7 @@ export default function App() {
         <>
           <OnboardingPreviewBar
             simulateUnlinked={simulateUnlinked}
-            onSimulateUnlinked={(next) => {
-              if (previewReachedLink && !next) {
-                exitOnboardingPreview();
-                goToView("admin");
-                return;
-              }
-              setSimulateUnlinked(next);
-            }}
+            onSimulateUnlinked={setSimulateUnlinked}
             onExit={exitOnboardingPreview}
           />
           {previewReachedLink && simulateUnlinked ? (
