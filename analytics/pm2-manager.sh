@@ -32,7 +32,8 @@ ensure_build() {
     echo "Skipping build (--skip-build, analytics/dist present)."
     return
   fi
-  echo "Building analytics sidecar..."
+  echo "Installing deps + building analytics sidecar..."
+  npm install --no-audit --no-fund
   npm run build:analytics
 }
 
@@ -46,8 +47,10 @@ recycle_app() {
   if pm2 describe "$NAME" >/dev/null 2>&1; then
     # Exit 0: stored script matches the ecosystem entry (restart in place).
     # Exit 1: genuine mismatch (re-register, the one-time migration path).
-    # Exit 2: comparison itself failed (pm2 jlist / config parse) — unknown
-    # state, so stay non-destructive and restart in place instead of delete+start.
+    # Exit 2: comparison itself failed (pm2 jlist / config parse) or no
+    # same-named process under this project root (foreign process from another
+    # project in the shared daemon) — unknown state, so stay non-destructive
+    # and restart in place instead of delete+start.
     local rc=0
     node -e '
       const path = require("node:path");
@@ -66,8 +69,8 @@ recycle_app() {
       } catch {
         process.exit(2);
       }
-      const proc = stored.find((p) => p.name === name);
-      process.exit(app && proc && proc.pm2_env.pm_exec_path === expected ? 0 : 1);
+      const proc = stored.find((p) => p.name === name && p.pm2_env && p.pm2_env.pm_exec_path && p.pm2_env.pm_exec_path.startsWith(path.resolve(root) + path.sep));
+      process.exit(app && proc && proc.pm2_env.pm_exec_path === expected ? 0 : proc ? 1 : 2);
     ' "$PWD" "$ECOSYSTEM" "$NAME" || rc=$?
     if [ "$rc" = "0" ] || [ "$rc" = "2" ]; then
       pm2 restart "$NAME" --update-env
