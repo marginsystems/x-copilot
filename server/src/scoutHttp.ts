@@ -33,7 +33,11 @@ import { getLastScout } from "./scoutCache.js";
 import { runScoutCollect } from "./scoutCollect.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
 import { appendScoutLog, getScoutLog } from "./scoutLog.js";
-import { clampBucketSize, clampTargetCool } from "./scoutPolicy.js";
+import {
+  clampBucketSize,
+  clampTargetCool,
+  isCoolThread,
+} from "./scoutPolicy.js";
 import { runScoutSearch } from "./scoutRun.js";
 import type { ScoutFilters } from "./scoutTypes.js";
 import {
@@ -133,6 +137,7 @@ export async function tryHandleScout(
     }
     const sessionUser = getSessionUser(req);
     let sortieId: string | undefined;
+    let coolCount = 0;
     try {
       await doEnsureMemoryIndex();
       sortieId = recordSortie();
@@ -144,9 +149,9 @@ export async function tryHandleScout(
         detail: `${queries.length} queries`,
       });
       const result = await doScoutSearch({ agenda, queries, filters });
-      const coolCount = result.ok
+      coolCount = result.ok
         ? Array.isArray(result.event.threads)
-          ? result.event.threads.length
+          ? result.event.threads.filter(isCoolThread).length
           : 0
         : 0;
       if (sortieWasWasted({ ok: result.ok, coolCount })) {
@@ -187,7 +192,9 @@ export async function tryHandleScout(
       });
       return true;
     } catch (err) {
-      if (sortieId) refundSortie(sortieId);
+      if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
+        refundSortie(sortieId);
+      }
       send(req, res, 500, {
         error: "internal_error",
         message: err instanceof Error ? err.message : String(err),

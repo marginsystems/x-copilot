@@ -432,14 +432,17 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("keeps the sortie on POST /api/search when a batch lands threads", async () => {
+  it("keeps the sortie on POST /api/search when a batch lands cool threads", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutSearch: (async () => ({
         ok: true,
         event: {
           ...doneEvent,
-          threads: [{ id: "1" }, { id: "2" }],
+          threads: [
+            { id: "1", engage: "consider", baitScore: 20 },
+            { id: "2", engage: "priority", baitScore: 10 },
+          ],
           queries: ["q1"],
         },
       })) as typeof runScoutSearch,
@@ -450,6 +453,29 @@ describe("tryHandleScout", () => {
       deps,
     });
     assert.equal(getSortieUsage(tenantId, "free").used, 1);
+  });
+
+  it("refunds the sortie on POST /api/search when a batch lands only non-cool threads", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutSearch: (async () => ({
+        ok: true,
+        event: {
+          ...doneEvent,
+          threads: [
+            { id: "1", engage: "skip", baitScore: 85 },
+            { id: "2", engage: "consider", threadKind: "hollow_ask", baitScore: 20 },
+          ],
+          queries: ["q1"],
+        },
+      })) as typeof runScoutSearch,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/search", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
   it("refunds the sortie on POST /api/search when a batch lands zero threads", async () => {
@@ -470,6 +496,63 @@ describe("tryHandleScout", () => {
       deps,
     });
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
+  it("keeps the sortie on POST /api/search when a batch delivered cools before the response write throws", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutSearch: (async () => ({
+        ok: true,
+        event: {
+          ...doneEvent,
+          threads: [
+            { id: "1", engage: "consider", baitScore: 20 },
+            { id: "2", engage: "priority", baitScore: 10 },
+          ],
+          queries: ["q1"],
+        },
+      })) as typeof runScoutSearch,
+      ensureMemoryIndex: async () => {},
+    };
+    const req = new EventEmitter() as unknown as IncomingMessage;
+    Object.assign(req, {
+      method: "POST",
+      headers: {},
+      socket: { remoteAddress: "127.0.0.1" },
+    });
+    const state: FakeState = { status: 0, headers: {}, chunks: [] };
+    let firstEnd = true;
+    const res = {
+      writableEnded: false,
+      writeHead(code: number, headers?: Record<string, string>) {
+        state.status = code;
+        if (headers) Object.assign(state.headers, headers);
+        return this;
+      },
+      write(chunk: unknown) {
+        state.chunks.push(String(chunk));
+        return true;
+      },
+      end(chunk?: unknown) {
+        if (firstEnd) {
+          firstEnd = false;
+          throw new Error("socket torn down");
+        }
+        if (chunk !== undefined) state.chunks.push(String(chunk));
+        this.writableEnded = true;
+      },
+    } as unknown as ServerResponse;
+    const emitter = req as unknown as EventEmitter;
+    const handledPromise = tryHandleScout(
+      req,
+      res,
+      new URL("http://localhost/api/search"),
+      deps,
+    );
+    emitter.emit("data", Buffer.from(JSON.stringify({ queries: ["q1"] })));
+    emitter.emit("end");
+    assert.equal(await handledPromise, true);
+    assert.equal(getSortieUsage(tenantId, "free").used, 1);
   });
 
   it("refunds the sortie on POST /api/search when the batch rejects", async () => {
