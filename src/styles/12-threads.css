@@ -151,6 +151,7 @@
 .row-summary {
   font-size: 0.85rem;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .row-meta {
@@ -160,6 +161,11 @@
   align-items: center;
   color: var(--muted);
   font-size: 0.72rem;
+}
+
+.row-meta > span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .caret {
@@ -231,12 +237,14 @@
   padding: 14px;
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .row-detail .original {
   margin: 0;
   font-size: 0.82rem;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   border-left: 2px solid var(--border-strong);
   padding-left: 10px;
   color: var(--text);
@@ -246,6 +254,7 @@
   margin: 0;
   color: var(--muted);
   font-size: 0.76rem;
+  overflow-wrap: anywhere;
 }
 
 .x-thread {
@@ -317,6 +326,8 @@
   font-family: var(--font-head);
   font-weight: 650;
   color: var(--text);
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .x-post-time {
@@ -329,6 +340,7 @@
   font-size: 0.95rem;
   line-height: 1.45;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--text);
 }
 
@@ -344,5 +356,7 @@
   padding: 1px 6px;
   color: var(--muted);
   font-size: 0.68rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
