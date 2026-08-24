@@ -39,7 +39,15 @@ export function useAgendaPersist({
     if (!enabledRef.current || !userIdRef.current) return;
     const next = agendaNeedsPersist(draft, savedRef.current);
     if (!next) return;
+    const prior = inflightRef.current;
     const pending = (async () => {
+      if (prior) {
+        try {
+          await prior;
+        } catch {
+          /* previous attempt failed — still persist this draft */
+        }
+      }
       try {
         const res = await apiFetch("/api/agenda", {
           method: "PUT",

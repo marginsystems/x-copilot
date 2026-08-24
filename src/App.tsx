@@ -40,6 +40,7 @@ import { MarkDetectModal } from "./desk/MarkDetectModal";
 import { Toast } from "./desk/Toast";
 import { useMarkDetect } from "./desk/useMarkDetect";
 import { useAgendaPersist } from "./desk/useAgendaPersist";
+import { AGENDA_MAX_CHARS } from "./lib/agendaPersist";
 import { useScoutRun } from "./desk/useScoutRun";
 import { useSkipDismiss } from "./desk/useSkipDismiss";
 import { SettingsForm } from "./settings/SettingsForm";
@@ -210,9 +211,17 @@ export default function App() {
     loadBilling,
     hydrateAuth,
   });
+  const needsLogin = authChecked && authRequired && !authUser && !localUi;
+  const needsOnboarding =
+    !needsLogin &&
+    !onboardingDoneLocal &&
+    (authUser
+      ? authUser.onboardingCompleted === false &&
+        !readOnboardingComplete(authUser.id)
+      : !readOnboardingComplete());
   const { flushAgenda, onAgendaBlur } = useAgendaPersist({
     agenda,
-    enabled: agendaReady && Boolean(authUser),
+    enabled: agendaReady && Boolean(authUser) && !needsOnboarding,
     authUser,
     setAuthUser,
   });
@@ -420,14 +429,6 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [markThread, dismissThread, signInOpen, onboardingPreview, actionBusy]);
 
-  const needsLogin = authChecked && authRequired && !authUser && !localUi;
-  const needsOnboarding =
-    !needsLogin &&
-    !onboardingDoneLocal &&
-    (authUser
-      ? authUser.onboardingCompleted === false &&
-        !readOnboardingComplete(authUser.id)
-      : !readOnboardingComplete());
   const needsXLink = deskNeedsXLink(authUser);
   const booting = !localUi && !authChecked;
   const legalView = isLegalKind(view);
@@ -699,6 +700,7 @@ export default function App() {
                 <textarea
                   className="agenda"
                   value={agenda}
+                  maxLength={AGENDA_MAX_CHARS}
                   onChange={(e) => setAgenda(e.target.value)}
                   onBlur={onAgendaBlur}
                   placeholder="What should we look for and how should we sound?"
