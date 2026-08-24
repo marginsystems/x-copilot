@@ -12,6 +12,8 @@ import { FOR_YOU_KINDS, type ForYouDraft, type ForYouKind } from "./forYouStore.
 import type { OwnPostKind } from "./xActivity.js";
 
 export const MIN_T24H_SNAPSHOTS = 5;
+/** Memories / own-posts below this are avoid-list, not reply/quote/repost targets. */
+export const FOR_YOU_MIN_ENGAGE_VIEWS = 10;
 const CLIP = 200;
 
 export type DigestPost = {
@@ -32,6 +34,7 @@ export type DigestMemory = {
   url?: string;
   reply?: string;
   outcome?: string;
+  views?: number;
 };
 
 export type DigestScout = {
@@ -121,7 +124,11 @@ export function rankOwnPosts(userId: string): {
     .all(userId) as Array<Record<string, unknown>>;
   const mapped = scored.map(mapPost);
   const best = mapped.slice(0, 5);
-  const worst = [...mapped].reverse().slice(0, 5);
+  const bestIds = new Set(best.map((p) => p.id));
+  const worst = mapped
+    .filter((p) => !bestIds.has(p.id))
+    .slice(-5)
+    .reverse();
 
   const recentKind = (kind: OwnPostKind): DigestPost[] =>
     (
@@ -163,13 +170,17 @@ export async function buildForYouDigest(opts: {
     userId: opts.userId,
     limit: 5,
   });
-  const memories: DigestMemory[] = history.map((row) => ({
-    threadId: row.threadId,
-    author: row.author,
-    url: row.url,
-    reply: clip(row.text) ?? undefined,
-    outcome: row.stats ? formatOutcomeSection(row.stats) : undefined,
-  }));
+  const memories: DigestMemory[] = history.map((row) => {
+    const views = row.stats?.t24h?.views ?? row.stats?.t1h?.views;
+    return {
+      threadId: row.threadId,
+      author: row.author,
+      url: row.url,
+      reply: clip(row.text) ?? undefined,
+      outcome: row.stats ? formatOutcomeSection(row.stats) : undefined,
+      views: typeof views === "number" && Number.isFinite(views) ? views : undefined,
+    };
+  });
   const scout = opts.getScout ? await opts.getScout() : null;
   const leftoverScout: DigestScout[] = (scout?.threads ?? [])
     .filter((t) => t.id && t.url && t.author)
@@ -210,16 +221,20 @@ export function digestAllowlist(digest: ForYouDigest): {
       if (reply) replyUrls.add(url.trim());
     }
   };
+  for (const p of digest.best) add(p.id, p.url);
   for (const p of [
-    ...digest.best,
-    ...digest.worst,
     ...digest.recentOriginals,
     ...digest.recentReplies,
     ...digest.recentQuotes,
   ]) {
-    add(p.id, p.url);
+    if (p.views >= FOR_YOU_MIN_ENGAGE_VIEWS) add(p.id, p.url);
   }
-  for (const m of digest.memories) add(m.threadId, m.url, true);
+  for (const m of digest.memories) {
+    if (typeof m.views === "number" && m.views < FOR_YOU_MIN_ENGAGE_VIEWS) {
+      continue;
+    }
+    add(m.threadId, m.url, true);
+  }
   for (const t of digest.leftoverScout) add(t.id, t.url, true);
   return { ids, urls, replyIds, replyUrls };
 }
