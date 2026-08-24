@@ -406,6 +406,41 @@ describe("recordMarkGamification / getGamification", () => {
     ]);
   });
 
+  it("celebrates an older soft-failed mark replayed before newer retained rows", async () => {
+    const d1 = Date.parse("2026-08-05T12:00:00.000Z");
+    const d2 = Date.parse("2026-08-06T12:00:00.000Z");
+    await markInteracted({
+      threadId: "a",
+      author: "@x",
+      replyId: "ra",
+      replyUrl: "https://x.com/me/status/ra",
+      nowMs: d1,
+      storePath: interactionStorePath,
+    });
+    await markInteracted({
+      threadId: "b",
+      author: "@x",
+      replyId: "rb",
+      replyUrl: "https://x.com/me/status/rb",
+      nowMs: d2,
+      storePath: interactionStorePath,
+    });
+    // No ledger yet: the stats-worker can replay the soft-failed D1 mark
+    // before the newer D2 row lands, so the first write seeds both rows.
+    const after = await recordMarkGamification({
+      gamificationPath,
+      interactionStorePath,
+      nowMs: d1,
+      threadId: "a",
+    });
+    assert.equal(after.lifetimeXp, 2);
+    assert.equal(after.currentStreak, 2);
+    assert.ok(after.progress);
+    assert.equal(after.progress?.markXp, 1);
+    assert.equal(after.progress?.leveledUp, true);
+    assert.deepEqual(after.progress?.unlockedAchievementIds, ["first_mark"]);
+  });
+
   it("does not celebrate seeded history as fresh unlocks on the first ledger write", async () => {
     const now = Date.parse("2026-08-06T12:00:00.000Z");
     const d1 = Date.parse("2026-07-01T12:00:00.000Z");
