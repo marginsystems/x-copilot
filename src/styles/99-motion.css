@@ -13,6 +13,7 @@
   }
 
   .onboarding-pane,
+  .onboarding-pane.is-writing,
   .onboarding-dot {
     transition: none;
   }
