@@ -21,7 +21,8 @@ export function showDeskXGate(opts: {
     opts.needsLogin ||
     opts.needsOnboarding ||
     opts.legalView ||
-    opts.showLanding
+    opts.showLanding ||
+    opts.view === "pricing"
   ) {
     return false;
   }

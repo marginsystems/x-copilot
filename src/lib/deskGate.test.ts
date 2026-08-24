@@ -38,6 +38,7 @@ describe("showDeskXGate", () => {
   it("does not replace landing, legal, login, or first-run onboarding", () => {
     assert.equal(showDeskXGate({ ...base, showLanding: true }), false);
     assert.equal(showDeskXGate({ ...base, legalView: true }), false);
+    assert.equal(showDeskXGate({ ...base, view: "pricing" }), false);
     assert.equal(showDeskXGate({ ...base, needsLogin: true }), false);
     assert.equal(showDeskXGate({ ...base, needsOnboarding: true }), false);
     assert.equal(showDeskXGate({ ...base, needsXLink: false }), false);

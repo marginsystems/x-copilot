@@ -11,6 +11,7 @@ import {
   type ConsentChoice,
 } from "../lib/consent";
 import { SITE_ORIGIN } from "../lib/legal";
+import { seoForView } from "../lib/seo";
 
 export function useViewRouting() {
   const [view, setView] = useState<AppView>(() =>
@@ -48,18 +49,29 @@ export function useViewRouting() {
 
   useEffect(() => {
     const canonical = `${SITE_ORIGIN}${pathFromView(view)}`;
-    document.title =
-      view === "privacy"
-        ? "Privacy Policy — x-copilot"
-        : view === "terms"
-          ? "Terms of Service — x-copilot"
-          : "x-copilot — independent research desk";
+    const seo = seoForView(view);
+    document.title = seo.title;
     document
       .querySelector<HTMLLinkElement>('link[rel="canonical"]')
       ?.setAttribute("href", canonical);
     document
       .querySelector<HTMLMetaElement>('meta[property="og:url"]')
       ?.setAttribute("content", canonical);
+    document
+      .querySelector<HTMLMetaElement>('meta[name="description"]')
+      ?.setAttribute("content", seo.description);
+    document
+      .querySelector<HTMLMetaElement>('meta[property="og:title"]')
+      ?.setAttribute("content", seo.title);
+    document
+      .querySelector<HTMLMetaElement>('meta[property="og:description"]')
+      ?.setAttribute("content", seo.description);
+    document
+      .querySelector<HTMLMetaElement>('meta[name="twitter:title"]')
+      ?.setAttribute("content", seo.title);
+    document
+      .querySelector<HTMLMetaElement>('meta[name="twitter:description"]')
+      ?.setAttribute("content", seo.description);
   }, [view]);
 
   function chooseConsent(choice: ConsentChoice) {

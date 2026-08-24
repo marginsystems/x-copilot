@@ -18,6 +18,7 @@ type MenuView =
   | "usage"
   | "admin"
   | "analytics"
+  | "pricing"
   | "privacy"
   | "terms";
 
@@ -308,6 +309,13 @@ export function UserMenu(props: {
         )}
 
         <p className="menu-group-label">Legal</p>
+        <a
+          className={props.view === "pricing" ? "menu-item is-current" : "menu-item"}
+          href="/pricing"
+        >
+          <MenuIcon d="M4 7h16v3H4zM4 14h7v6H4zM13 14h7v6h-7z" />
+          Pricing
+        </a>
         <a
           className={props.view === "privacy" ? "menu-item is-current" : "menu-item"}
           href="/privacy"

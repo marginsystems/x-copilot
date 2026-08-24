@@ -166,6 +166,24 @@
   font-size: 0.78rem;
 }
 
+.pricing-page {
+  max-width: 72rem;
+}
+
+.pricing-page .plan-grid {
+  margin: 8px 0 4px;
+}
+
+.pricing-page .plan-card h3 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--text);
+}
+
 .brand h1 {
   margin: 0;
   font-size: 1.05rem;

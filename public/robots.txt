@@ -4,5 +4,9 @@ Disallow: /usage
 Disallow: /billing
 Disallow: /settings
 Disallow: /admin
+Disallow: /dashboard
+Disallow: /account
+Disallow: /voice
+Disallow: /analytics
 
 Sitemap: https://xcopilot.dev/sitemap.xml
