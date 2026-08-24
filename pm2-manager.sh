@@ -53,12 +53,11 @@ require_ecosystem() {
 }
 
 # A machine-local $ECOSYSTEM that predates the analytics sidecar move either
-# defines no $ANALYTICS app or inlines an old analytics app pointing at
-# server/dist/analyticsService.js (no longer built). The tracked example
-# requires analytics/ecosystem.config.cjs; any config that does not is stale.
+# defines no $ANALYTICS app or still points at server/dist/analyticsService.js
+# (no longer built). The tracked example inlines analytics/dist/sidecar.js.
 require_analytics_app() {
-  if ! grep -q "analytics/ecosystem.config.cjs" "$ECOSYSTEM"; then
-    echo "$ECOSYSTEM predates the analytics sidecar move (no analytics app at analytics/)." >&2
+  if ! grep -q "analytics/dist/sidecar.js" "$ECOSYSTEM"; then
+    echo "$ECOSYSTEM predates the analytics sidecar move (no analytics/dist/sidecar.js)." >&2
     echo "Re-sync with the tracked example, keeping machine-local tweaks:" >&2
     echo "  cp ecosystem.config.example.cjs ecosystem.config.cjs" >&2
     exit 1
