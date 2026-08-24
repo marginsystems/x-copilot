@@ -38,4 +38,12 @@ describe("agendaNeedsPersist", () => {
   it("persists a draft exactly at the minimum", () => {
     assert.equal(agendaNeedsPersist("x".repeat(40), null), "x".repeat(40));
   });
+
+  it("skips a draft over 5000 characters", () => {
+    assert.equal(agendaNeedsPersist("x".repeat(5001), null), null);
+  });
+
+  it("persists a draft exactly at the maximum", () => {
+    assert.equal(agendaNeedsPersist("x".repeat(5000), null), "x".repeat(5000));
+  });
 });

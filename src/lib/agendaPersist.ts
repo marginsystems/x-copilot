@@ -10,7 +10,12 @@ export function agendaNeedsPersist(
   saved: string | null,
 ): string | null {
   const trimmed = draft.trim();
-  if (trimmed.length < AGENDA_MIN_CHARS) return null;
+  if (
+    trimmed.length < AGENDA_MIN_CHARS ||
+    trimmed.length > AGENDA_MAX_CHARS
+  ) {
+    return null;
+  }
   if (saved !== null && trimmed === saved.trim()) return null;
   return trimmed;
 }
