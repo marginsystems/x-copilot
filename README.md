@@ -4,7 +4,7 @@ Independent research + triage desk for posting on X. **Not affiliated with, endo
 
 **Live:** [xcopilot.dev](https://xcopilot.dev)
 
-Official X API search → DeepSeek triage in a Vite dashboard. Scout finds cool threads worth a human reply — no AI-written reply drafts.
+Official X API search → DeepSeek triage in a Vite dashboard. Scout finds cool threads worth a human reply. Suggest can draft in your Voice; you rewrite it before Copy / Open on X or posting from the desk. No auto-engage.
 
 **Status:** Stream 1 — agenda → DeepSeek Chat queries → recent search (official X API) → triaged thread cards (Start/Stop Scout).
 
@@ -14,7 +14,7 @@ Official X API search → DeepSeek triage in a Vite dashboard. Scout finds cool 
 2. **DeepSeek Chat** expands the agenda into 2–4 short X search queries (one LLM call).
 3. Sidecar runs those queries via the official X API **recent search** (`GET /2/tweets/search/recent`, app-only bearer).
 4. A second DeepSeek call **triages** the results (summary + bait risk + engage hint).
-5. Review cool thread cards, **Open on X**, and reply yourself (no auto-engage; no AI draft replies).
+5. Review cool thread cards. Suggest can offer a Voice-matched draft you must rewrite; then Copy / Open on X, or post from the desk. No auto-engage.
 
 ## Thread triage
 
@@ -123,7 +123,7 @@ OK via api_bearer_probe
 
 If you see HTTP **402**, buy credits. HTTP **401** usually means the bearer was URL-decoded or rotated — paste it again as shown in the console.
 
-Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only — no mass automation, no auto-posting in this MVP. You are responsible for complying with X’s terms and applicable law.
+Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only — no mass automation. Desk posting is a click you make after rewriting a suggestion, using your official X login. You are responsible for complying with X’s terms and applicable law.
 
 ## Repo layout
 
@@ -184,7 +184,7 @@ Sign-in: hamburger menu → **Continue with Google** or **Continue with X**. New
 ## Stream 1 definition of done
 
 - Agenda → Scout → triaged cool thread cards
-- Human-in-the-loop posting only (Open on X; no AI reply drafts)
+- Human-in-the-loop posting (rewrite a Suggest draft, then Open on X or post from the desk)
 - README documents official X API setup + Pay Per Use credits
 
 ## License
