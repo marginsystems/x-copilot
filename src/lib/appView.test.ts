@@ -19,6 +19,8 @@ describe("desk routes", () => {
   it("does not treat legal or scout panes as account", () => {
     assert.equal(viewFromPath("/privacy"), "privacy");
     assert.equal(viewFromPath("/terms"), "terms");
+    assert.equal(viewFromPath("/pricing"), "pricing");
+    assert.equal(pathFromView("pricing"), "/pricing");
     assert.equal(viewFromPath("/analytics"), "analytics");
     assert.equal(viewFromPath("/voice"), "voice");
     assert.equal(viewFromPath("/"), "home");

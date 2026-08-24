@@ -10,11 +10,13 @@ export type AppView =
   | "usage"
   | "admin"
   | "analytics"
+  | "pricing"
   | LegalKind;
 
 export function viewFromPath(pathname: string): AppView {
   if (pathname === "/privacy" || pathname.startsWith("/privacy/")) return "privacy";
   if (pathname === "/terms" || pathname.startsWith("/terms/")) return "terms";
+  if (pathname === "/pricing" || pathname.startsWith("/pricing/")) return "pricing";
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   if (pathname === "/usage" || pathname === "/billing") return "usage";
   if (pathname === "/analytics") return "analytics";
@@ -30,6 +32,7 @@ export function viewFromPath(pathname: string): AppView {
 export function pathFromView(view: AppView): string {
   if (view === "privacy") return "/privacy";
   if (view === "terms") return "/terms";
+  if (view === "pricing") return "/pricing";
   if (view === "admin") return "/admin";
   if (view === "usage") return "/usage";
   if (view === "analytics") return "/analytics";

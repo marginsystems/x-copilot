@@ -202,7 +202,8 @@ export function Landing(props: {
               </button>
             )}
             <p className="gate-free">
-              Free plan — 1,500 credits every month. No credit card.
+              Free plan — 1,500 credits every month. No credit card.{" "}
+              <a href="/pricing">See plans</a>
             </p>
             {props.notice ? (
               <p className="status auth-notice" role="status">

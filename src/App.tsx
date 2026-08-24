@@ -11,6 +11,7 @@ import { UserMenu } from "./UserMenu";
 import { BootScreen, Landing } from "./Landing";
 import { SignInModal } from "./SignInModal";
 import { LegalPage } from "./Legal";
+import { PricingPage } from "./Pricing";
 import { CookieConsent } from "./CookieConsent";
 import { isLegalKind } from "./lib/legal";
 import { viewFromPath } from "./lib/appView";
@@ -423,10 +424,12 @@ export default function App() {
   const needsXLink = deskNeedsXLink(authUser);
   const booting = !localUi && !authChecked;
   const legalView = isLegalKind(view);
+  const pricingView = view === "pricing";
+  const publicView = legalView || pricingView;
   const showOnboardingPreview =
-    onboardingPreview && Boolean(authUser?.isAdmin) && !legalView;
+    onboardingPreview && Boolean(authUser?.isAdmin) && !publicView;
   const showLanding =
-    !legalView &&
+    !publicView &&
     !needsOnboarding &&
     !showOnboardingPreview &&
     (view === "home" || needsLogin);
@@ -434,13 +437,13 @@ export default function App() {
     needsXLink,
     needsLogin,
     needsOnboarding,
-    legalView,
+    legalView: publicView,
     showLanding,
     view,
   });
   const showGateChrome =
     (showLanding || needsOnboarding || deskXGate || showOnboardingPreview) &&
-    !legalView;
+    !publicView;
 
   if (booting) {
     return (
@@ -508,6 +511,16 @@ export default function App() {
             onOther={() => goToView(view === "privacy" ? "terms" : "privacy")}
           />
         </main>
+      ) : pricingView ? (
+        <main className="app-main app-main-scroll">
+          <PricingPage
+            signedIn={Boolean(authUser)}
+            onHome={() => goToView("home")}
+            onSignIn={() => setSignInOpen(true)}
+            onOpenDesk={() => goToView("dashboard")}
+            onUsage={() => goToView("usage")}
+          />
+        </main>
       ) : showLanding ? (
         <Landing
           notice={authNotice}
@@ -517,7 +530,7 @@ export default function App() {
         />
       ) : null}
 
-      {legalView ? null : showOnboardingPreview ? (
+      {publicView ? null : showOnboardingPreview ? (
         <>
           <OnboardingPreviewBar
             simulateUnlinked={simulateUnlinked}
@@ -548,7 +561,7 @@ export default function App() {
         <LinkXGate onLinkX={startXLogin} />
       ) : null}
 
-      {!legalView &&
+      {!publicView &&
       !showLanding &&
       !needsOnboarding &&
       !deskXGate &&
