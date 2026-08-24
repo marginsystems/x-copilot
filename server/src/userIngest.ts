@@ -341,7 +341,12 @@ export async function runUserIngest(opts: {
     // The corpus moved this pull: the stored count grew (duplicate re-pulls
     // keep the cursor and do not add rows, so they must not trigger a rewrite).
     const corpusGrew = posts > profile.replyCount;
-    if (posts > 0 && (!hadCard || (unlocked && hadStarterCard))) {
+    if (
+      posts > 0 &&
+      (!hadCard || (unlocked && hadStarterCard)) &&
+      voiceCardStale(updated?.cardAttemptAt ?? null)
+    ) {
+      stampVoiceCardAttempt(user.id);
       const starter = !unlocked;
       const cardResult = await generateCard({
         handle: handle || "you",
