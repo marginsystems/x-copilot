@@ -252,3 +252,7 @@ a.suggest-open {
   color: var(--accent);
 }
 
+.suggest-note a.usage-cta {
+  color: inherit;
+}
+

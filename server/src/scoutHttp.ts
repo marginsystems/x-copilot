@@ -36,7 +36,11 @@ import { appendScoutLog, getScoutLog } from "./scoutLog.js";
 import { clampBucketSize, clampTargetCool } from "./scoutPolicy.js";
 import { runScoutSearch } from "./scoutRun.js";
 import type { ScoutFilters } from "./scoutTypes.js";
-import { recordSortie } from "./scoutSorties.js";
+import {
+  recordSortie,
+  refundSortie,
+  sortieWasWasted,
+} from "./scoutSorties.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { getSkippedThreadIds } from "./skipStore.js";
 
@@ -128,7 +132,7 @@ export async function tryHandleScout(
     const sessionUser = getSessionUser(req);
     try {
       await doEnsureMemoryIndex();
-      recordSortie();
+      const sortieId = recordSortie();
       trackAnalytics({
         name: "scout.takeoff",
         userId: sessionUser?.id,
@@ -137,6 +141,14 @@ export async function tryHandleScout(
         detail: `${queries.length} queries`,
       });
       const result = await runScoutSearch({ agenda, queries, filters });
+      const coolCount = result.ok
+        ? Array.isArray(result.event.threads)
+          ? result.event.threads.length
+          : 0
+        : 0;
+      if (sortieWasWasted({ ok: result.ok, coolCount })) {
+        refundSortie(sortieId);
+      }
       if (!result.ok) {
         trackAnalytics({
           name: "scout.failed",
@@ -237,7 +249,16 @@ export async function tryHandleScout(
       });
 
       let sawTerminal = false;
+      let coolCount = 0;
       const writeLine = (event: { stage?: string; [key: string]: unknown }) => {
+        if (typeof event.coolCount === "number") {
+          coolCount = event.coolCount;
+        } else if (
+          event.stage === "done" &&
+          Array.isArray(event.threads)
+        ) {
+          coolCount = event.threads.length;
+        }
         if (event.stage === "done" || event.stage === "error") {
           sawTerminal = true;
         }
@@ -248,7 +269,7 @@ export async function tryHandleScout(
       };
 
       await doEnsureMemoryIndex();
-      recordSortie();
+      const sortieId = recordSortie();
       trackAnalytics({
         name: "scout.takeoff",
         userId: sessionUser?.id,
@@ -292,6 +313,17 @@ export async function tryHandleScout(
           detail: { error: result.error, status: result.status },
           at: new Date().toISOString(),
         });
+      }
+      if (result.ok && typeof result.event.coolCount === "number") {
+        coolCount = result.event.coolCount;
+      } else if (
+        result.ok &&
+        Array.isArray(result.event.threads)
+      ) {
+        coolCount = result.event.threads.length;
+      }
+      if (sortieWasWasted({ ok: result.ok, coolCount })) {
+        refundSortie(sortieId);
       }
       res.end();
       return true;

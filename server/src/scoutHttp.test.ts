@@ -7,9 +7,11 @@ import { join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   defaultMigrationsDir,
+  getLocalTenantId,
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
+import { getSortieUsage } from "./scoutSorties.ts";
 import type { runScoutCollect } from "./scoutCollect.ts";
 import { resetScoutGateForTests, tryBeginScout } from "./scoutGate.ts";
 import {
@@ -355,6 +357,60 @@ describe("tryHandleScout", () => {
     assert.equal(state.status, 400);
     const body = JSON.parse(state.chunks.join("")) as Record<string, unknown>;
     assert.equal(body.error, "bad_request");
+  });
+
+  it("refunds the sortie when collect fails", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutCollect: (async () => ({
+        ok: false,
+        status: 500,
+        error: "x_api",
+        message: "boom",
+      })) as typeof runScoutCollect,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
+  });
+
+  it("keeps the sortie when a run lands cool threads", async () => {
+    const tenantId = getLocalTenantId();
+    const deps: ScoutHttpDeps = {
+      runScoutCollect: (async (opts) => {
+        opts.onEvent?.({
+          ...doneEvent,
+          coolCount: 2,
+          threads: [{ id: "1" }, { id: "2" }],
+        });
+        return {
+          ok: true,
+          event: {
+            ...doneEvent,
+            coolCount: 2,
+            threads: [{ id: "1" }, { id: "2" }],
+          },
+        };
+      }) as typeof runScoutCollect,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps,
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 1);
+  });
+
+  it("refunds the sortie when a finished run finds no cool threads", async () => {
+    const tenantId = getLocalTenantId();
+    await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps: stubDeps(),
+    });
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
   it("ignores unrelated paths", async () => {

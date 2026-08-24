@@ -15,6 +15,7 @@ import { PricingPage } from "./Pricing";
 import { CookieConsent } from "./CookieConsent";
 import { isLegalKind } from "./lib/legal";
 import { viewFromPath } from "./lib/appView";
+import { groundedHint } from "./lib/upgradeCta";
 import { Onboarding } from "./Onboarding";
 import { LinkXGate } from "./LinkXGate";
 import { deskNeedsXLink, showDeskXGate } from "./lib/deskGate";
@@ -767,12 +768,26 @@ export default function App() {
                       }
                     >
                       {grounded && !searching
-                        ? `Grounded — ${sortiesLimit ?? 0} sortie${sortiesLimit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`
+                        ? groundedHint({
+                            limit: sortiesLimit ?? 0,
+                            planKey: billing?.plan_key,
+                          })
                         : searchCooldownRemaining > 0 && !searching
                           ? `Hold short ${searchCooldownRemaining}s.`
                           : status || "On the ground — set an agenda and take off."}
                     </p>
-                    {billing?.sorties && !grounded && !searching ? (
+                    {!searching &&
+                    (grounded || /Usage & Billing/.test(status)) ? (
+                      <p className="status status-hint">
+                        <button
+                          type="button"
+                          className="usage-cta"
+                          onClick={openUsage}
+                        >
+                          Open Usage & Billing
+                        </button>
+                      </p>
+                    ) : billing?.sorties && !grounded && !searching ? (
                       <p className="status status-hint">
                         {sortiesLeft ?? 0} sortie
                         {sortiesLeft === 1 ? "" : "s"} left today

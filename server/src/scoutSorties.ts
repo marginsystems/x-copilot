@@ -29,7 +29,7 @@ export function countSortiesToday(
   return Number(row.n) || 0;
 }
 
-export function recordSortie(tenantId?: string, at?: string): void {
+export function recordSortie(tenantId?: string, at?: string): string {
   const id = randomUUID();
   const db = getPlatformDb();
   const insert = db.prepare(
@@ -44,6 +44,30 @@ export function recordSortie(tenantId?: string, at?: string): void {
       at ?? new Date().toISOString(),
     );
   })();
+  return id;
+}
+
+/** Drop a recorded takeoff that did not deliver a cool thread. */
+export function refundSortie(id: string): boolean {
+  const trimmed = id.trim();
+  if (!trimmed) return false;
+  const result = getPlatformDb()
+    .prepare("DELETE FROM scout_sorties WHERE id = ?")
+    .run(trimmed);
+  return result.changes > 0;
+}
+
+/**
+ * Refund when the run delivered no cool threads — error, abort, or empty.
+ * Keep the sortie if at least one cool landed, even on a later abort.
+ */
+export function sortieWasWasted({
+  coolCount,
+}: {
+  ok: boolean;
+  coolCount: number;
+}): boolean {
+  return coolCount < 1;
 }
 
 export type SortieUsage = {

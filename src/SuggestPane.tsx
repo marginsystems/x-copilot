@@ -21,6 +21,22 @@ type PaneStage =
   | "verifying"
   | "ready";
 
+const USAGE_LINK = "Usage & Billing";
+
+function noteWithUsageLink(text: string) {
+  const i = text.indexOf(USAGE_LINK);
+  if (i < 0) return text;
+  return (
+    <>
+      {text.slice(0, i)}
+      <a className="usage-cta" href="/usage">
+        {USAGE_LINK}
+      </a>
+      {text.slice(i + USAGE_LINK.length)}
+    </>
+  );
+}
+
 function PhaseLine({
   phases,
   startedAt,
@@ -632,7 +648,7 @@ export function SuggestPane({
         className={suggestNoteClassName(noteSlot.kind)}
         role={noteSlot.kind === "reserved" ? undefined : "status"}
       >
-        {noteSlot.text}
+        {noteWithUsageLink(noteSlot.text)}
       </p>
     </div>
   );

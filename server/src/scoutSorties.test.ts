@@ -10,8 +10,17 @@ import {
 } from "./db.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { ensureUserTenant } from "./billingStore.ts";
-import { sortiesExhaustedResponse } from "./billingQuotas.ts";
-import { getSortieUsage, recordSortie } from "./scoutSorties.ts";
+import {
+  sortiesExhaustedResponse,
+  suggestCapMessage,
+  upgradeHint,
+} from "./billingQuotas.ts";
+import {
+  getSortieUsage,
+  recordSortie,
+  refundSortie,
+  sortieWasWasted,
+} from "./scoutSorties.ts";
 
 describe("scout sorties", () => {
   let dir: string;
@@ -52,6 +61,31 @@ describe("scout sorties", () => {
     });
     assert.ok(blocked);
     assert.equal(blocked?.error, "scout_daily_limit");
+    assert.match(blocked?.message ?? "", /Pulse raises this/);
+    assert.match(blocked?.message ?? "", /Usage & Billing/);
+  });
+
+  it("refunds a wasted takeoff so Free can fly again", () => {
+    const tenantId = "local";
+    const id = recordSortie(tenantId);
+    assert.equal(getSortieUsage(tenantId, "free").canFly, false);
+    assert.equal(refundSortie(id), true);
+    assert.equal(getSortieUsage(tenantId, "free").canFly, true);
+    assert.equal(refundSortie("missing"), false);
+  });
+
+  it("treats zero cools as wasted and keeps a sortie that found a thread", () => {
+    assert.equal(sortieWasWasted({ ok: false, coolCount: 0 }), true);
+    assert.equal(sortieWasWasted({ ok: true, coolCount: 0 }), true);
+    assert.equal(sortieWasWasted({ ok: true, coolCount: 2 }), false);
+    assert.equal(sortieWasWasted({ ok: false, coolCount: 1 }), false);
+  });
+
+  it("names the next plan on Grounded, credits, and suggest-cap copy", () => {
+    assert.equal(upgradeHint("free"), "Pulse raises this — open Usage & Billing.");
+    assert.equal(upgradeHint("horizon"), "Open Usage & Billing.");
+    assert.match(suggestCapMessage("free", 10), /Pulse is 20\/day/);
+    assert.match(suggestCapMessage("horizon", 40), /Open Usage & Billing/);
   });
 
   it("lets Pulse take off five times", () => {

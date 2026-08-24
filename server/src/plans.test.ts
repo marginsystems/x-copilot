@@ -10,6 +10,7 @@ import {
   derivePlanState,
   isPaidPlanKey,
   isPlanKey,
+  nextPaidPlanKey,
   planDisplayName,
 } from "./plans.ts";
 
@@ -52,6 +53,10 @@ describe("plans", () => {
     assert.equal(isPaidPlanKey("horizon"), true);
     assert.equal(planDisplayName("pulse"), "Pulse");
     assert.equal(planDisplayName("free"), "Free");
+    assert.equal(nextPaidPlanKey("free"), "pulse");
+    assert.equal(nextPaidPlanKey("pulse"), "radar");
+    assert.equal(nextPaidPlanKey("radar"), "horizon");
+    assert.equal(nextPaidPlanKey("horizon"), null);
   });
 
   it("catalogs Free as $0 with no Stripe product", () => {

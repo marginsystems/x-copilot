@@ -91,6 +91,8 @@ describe("billingStore", () => {
     assert.equal(exhausted?.error, "credits_exhausted");
     assert.equal(exhausted?.limit, 1500);
     assert.match(exhausted?.message ?? "", /1,500 free credits/);
+    assert.match(exhausted?.message ?? "", /Pulse raises this/);
+    assert.match(exhausted?.message ?? "", /Usage & Billing/);
   });
 
   it("exposes Free in billing/me with free_active state", () => {
@@ -104,11 +106,16 @@ describe("billingStore", () => {
     const me = billingMePayload({ userId: user.id, email: user.email });
     assert.equal(me.plan_key, "free");
     assert.equal(me.plan_state, "free_active");
-    const plans = me.plans as Record<string, { name: string; credits: number; available: boolean }>;
+    const plans = me.plans as Record<
+      string,
+      { name: string; credits: number; available: boolean; daily_suggests?: number }
+    >;
     assert.equal(plans.free.name, "Free");
     assert.equal(plans.free.credits, 1500);
     assert.equal(plans.free.available, true);
     assert.equal(plans.pulse.name, "Pulse");
+    assert.equal(plans.free.daily_suggests, 10);
+    assert.equal(plans.pulse.daily_suggests, 20);
   });
 
   it("marks free_limit_reached when the monthly pool is empty", () => {

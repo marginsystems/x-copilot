@@ -182,3 +182,11 @@ export function planDisplayName(key: PlanKey): string {
   const paid = PAID_PLANS.find((p) => p.key === key);
   return paid?.name ?? key;
 }
+
+/** Next paid tier for upgrade copy. Horizon has nowhere to go. */
+export function nextPaidPlanKey(key: PlanKey): PaidPlanKey | null {
+  if (key === "free") return "pulse";
+  if (key === "pulse") return "radar";
+  if (key === "radar") return "horizon";
+  return null;
+}
