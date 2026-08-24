@@ -221,7 +221,9 @@ export function digestAllowlist(digest: ForYouDigest): {
       if (reply) replyUrls.add(url.trim());
     }
   };
-  for (const p of digest.best) add(p.id, p.url);
+  for (const p of digest.best) {
+    if (p.views >= FOR_YOU_MIN_ENGAGE_VIEWS) add(p.id, p.url);
+  }
   const worstIds = new Set(digest.worst.map((p) => p.id));
   for (const p of [
     ...digest.recentOriginals,

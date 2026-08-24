@@ -254,6 +254,60 @@ describe("forYouDigest", () => {
     );
   });
 
+  it("does not let thin best posts be quote/repost targets", () => {
+    const digest = emptyDigest({
+      best: [
+        {
+          id: "10",
+          kind: "original",
+          text: "shipped",
+          url: "https://x.com/desk/status/10",
+          views: 2,
+          likes: 0,
+          replies: 0,
+          retweets: 0,
+          postedAt: "2026-08-18T00:00:00.000Z",
+        },
+        {
+          id: "11",
+          kind: "original",
+          text: "winner",
+          url: "https://x.com/desk/status/11",
+          views: 900,
+          likes: 20,
+          replies: 4,
+          retweets: 2,
+          postedAt: "2026-08-18T01:00:00.000Z",
+        },
+      ],
+    });
+    const kept = filterDigestActions(
+      {
+        actions: [
+          {
+            kind: "quote",
+            why: "double down on the 2-view best post",
+            draft: "No.",
+            targetId: "10",
+            targetUrl: "https://x.com/desk/status/10",
+          },
+          {
+            kind: "quote",
+            why: "900 views on the winner",
+            draft: "Yes.",
+            targetId: "11",
+            targetUrl: "https://x.com/desk/status/11",
+          },
+        ],
+      },
+      digest,
+    );
+    assert.deepEqual(
+      kept.map((a) => a.targetId ?? a.kind),
+      ["11"],
+    );
+  });
+
   it("drops thin and worst-via-recent posts from recent allowlists", () => {
     const worstPost = {
       id: "2",
