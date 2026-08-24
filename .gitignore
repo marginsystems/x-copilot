@@ -9,7 +9,7 @@ analytics/dist/
 .env
 .env.*.local
 
-# PM2 (machine-local root copy; analytics/ecosystem.config.cjs is tracked)
+# PM2 (machine-local copy of ecosystem.config.example.cjs)
 /ecosystem.config.cjs
 
 # Local interaction / cooldown store (Mark interacted)
