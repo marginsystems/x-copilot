@@ -63,7 +63,7 @@ Local aliases stay on `http://127.0.0.1:8787/api/auth/...`.
 
 Google client secret, X consumer secret, X bearer, and LLM keys live in the API `.env` only. The SPA and Workers must not receive them.
 
-Scout continues to use the **app-only** `X_API_BEARER_TOKEN` (Pay Per Use). User X login is identity only.
+Scout continues to use the **app-only** `X_API_BEARER_TOKEN` (Pay Per Use). User X login is identity, plus optional desk posting with that user’s stored X tokens when they send a reply.
 
 ## Postgres later
 

@@ -60,7 +60,10 @@ function PrivacyBody() {
         <li>
           <strong>X data we read for you.</strong> Public posts, author handles,
           and public metrics returned by the X API so Scout can search and score
-          threads. We do not post, like, or reply as you.
+          threads. If you post a reply from the desk, we send that text to X
+          with the official X tokens from your X login. We do not like, follow,
+          or auto-reply. Suggest drafts are shown for you to rewrite — we do
+          not publish an AI draft unless you send it.
         </li>
         <li>
           <strong>Billing.</strong> If you subscribe, Stripe processes the card.
@@ -87,9 +90,13 @@ function PrivacyBody() {
       <p>
         Strictly necessary cookies keep you signed in (
         <code>xc_session</code>, <code>xc_oauth_state</code>, and{" "}
-        <code>xc_x_oauth</code> for X sign-in). We also store
-        your theme preference in your browser so the interface looks the same
-        next time. The service cannot function without the session cookies.
+        <code>xc_x_oauth</code> for X sign-in). We also store preferences in
+        your browser: <code>xc-theme</code>, <code>xc-cookie-consent</code>,
+        onboarding flags (<code>xc-onboarding-complete</code>,{" "}
+        <code>xc-onboarding-agenda</code>, scoped per account), and Scout
+        filters (<code>x-copilot-settings</code> and a one-time excluded-tags
+        migration key). The service cannot function without the session
+        cookies.
         If you accept analytics cookies, we load Google Analytics (GA4) to
         understand how the site is used. That script is not loaded until you
         accept, and we do not use it for ads. Google Fonts are loaded to render
@@ -162,9 +169,11 @@ function TermsBody() {
       <h2>The service</h2>
       <p>
         {PRODUCT_NAME} helps you find public X threads worth a human reply.
-        Scout searches X and scores candidates. You review the cards and post
-        yourself. We do not auto-engage, auto-post, or publish AI drafts on
-        your behalf. You are responsible for complying with X’s terms and
+        Scout searches X and scores candidates. Suggest may show a
+        Voice-matched draft that you must rewrite before Copy / Open on X.
+        You may post that reply from the desk with your official X login. We
+        do not auto-engage, auto-like, auto-follow, or post without your
+        click. You are responsible for complying with X’s terms and
         applicable law in anything you post.
       </p>
 
