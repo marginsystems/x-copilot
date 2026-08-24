@@ -12,6 +12,7 @@
     "build": "npm run build:server && tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "deploy:workers": "vite build && npx wrangler deploy",
+    "check:file-sizes": "tsx scripts/check-file-sizes.ts",
     "test": "tsx --test server/src/**/*.test.ts src/**/*.test.ts",
     "test:x-api": "tsx scripts/test-x-api.ts",
     "test:stripe": "tsx scripts/test-stripe.ts",
