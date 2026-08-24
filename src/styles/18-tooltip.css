@@ -34,9 +34,8 @@
   transform: translateY(0);
 }
 
-/* Small "?" affordance that carries a .has-tip tooltip. Centered under the
-   chip (the default right-anchored panel walks off-card for left-side chips)
-   and clamped so it stays on small screens. */
+/* Small "?" affordance that carries a .has-tip tooltip. Default is centered
+   under the chip; JS adds is-tip-start / is-tip-end when that would clip. */
 .tip-chip {
   display: inline-grid;
   place-items: center;
@@ -73,5 +72,24 @@
 .tip-chip.has-tip:hover::after,
 .tip-chip.has-tip:focus-visible::after {
   transform: translate(-50%, 0);
+}
+
+.tip-chip.is-tip-start.has-tip::after {
+  left: 0;
+  right: auto;
+  transform: translate(0, -4px);
+}
+
+.tip-chip.is-tip-end.has-tip::after {
+  left: auto;
+  right: 0;
+  transform: translate(0, -4px);
+}
+
+.tip-chip.is-tip-start.has-tip:hover::after,
+.tip-chip.is-tip-start.has-tip:focus-visible::after,
+.tip-chip.is-tip-end.has-tip:hover::after,
+.tip-chip.is-tip-end.has-tip:focus-visible::after {
+  transform: translate(0, 0);
 }
 

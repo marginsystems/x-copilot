@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
+import { estimateTipWidth, tipEdge, type TipEdge } from "./lib/tipEdge";
 
 type OwnPostKind = "original" | "reply" | "quote" | "repost";
 
@@ -79,12 +80,39 @@ const ENGAGEMENT_TIP =
 const TOP_TIP = "Your watched posts ranked by their latest view snapshot.";
 
 function TipChip({ tip }: { tip: string }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [edge, setEdge] = useState<TipEdge>("center");
+
+  function place() {
+    const el = ref.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    setEdge(
+      tipEdge(
+        box.left + box.width / 2,
+        estimateTipWidth(window.innerWidth),
+        window.innerWidth,
+      ),
+    );
+  }
+
+  useLayoutEffect(() => {
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, []);
+
   return (
     <button
+      ref={ref}
       type="button"
-      className="tip-chip has-tip"
+      className={
+        edge === "center" ? "tip-chip has-tip" : `tip-chip has-tip is-tip-${edge}`
+      }
       data-tip={tip}
       aria-label={tip}
+      onMouseEnter={place}
+      onFocus={place}
     >
       ?
     </button>
