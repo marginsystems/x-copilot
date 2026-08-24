@@ -441,6 +441,41 @@ describe("recordMarkGamification / getGamification", () => {
     assert.deepEqual(after.progress?.unlockedAchievementIds, ["first_mark"]);
   });
 
+  it("credits a replayed older mark at its own tier, not the seed's final streak tier", async () => {
+    const d1 = Date.parse("2026-08-05T12:00:00.000Z");
+    const d2 = Date.parse("2026-08-06T12:00:00.000Z");
+    const d3 = Date.parse("2026-08-07T12:00:00.000Z");
+    for (const [threadId, replyId, nowMs] of [
+      ["a", "ra", d1],
+      ["b", "rb", d2],
+      ["c", "rc", d3],
+    ]) {
+      await markInteracted({
+        threadId,
+        author: "@x",
+        replyId,
+        replyUrl: `https://x.com/me/status/${replyId}`,
+        nowMs,
+        storePath: interactionStorePath,
+      });
+    }
+    // The D1 mark soft-failed; the first ledger write replays all three rows,
+    // so the seed's final streak is 3. The mark must earn the tier its own
+    // replay position credited (markXp 1 / streakMultiplier 1), not the tier
+    // of the seed's final streak (which would report 2 / 2).
+    const after = await recordMarkGamification({
+      gamificationPath,
+      interactionStorePath,
+      nowMs: d1,
+      threadId: "a",
+    });
+    assert.equal(after.lifetimeXp, 3);
+    assert.equal(after.currentStreak, 3);
+    assert.ok(after.progress);
+    assert.equal(after.progress?.markXp, 1);
+    assert.equal(after.progress?.streakMultiplier, 1);
+  });
+
   it("does not celebrate seeded history as fresh unlocks on the first ledger write", async () => {
     const now = Date.parse("2026-08-06T12:00:00.000Z");
     const d1 = Date.parse("2026-07-01T12:00:00.000Z");
