@@ -324,10 +324,6 @@ export async function recordMarkGamification(
       currentStreak: seeded.currentStreak,
       streakMultiplier: markXpForStreak(Math.max(1, seeded.currentStreak)),
     };
-    // Baseline progress against the seeded state, not the empty ledger: the
-    // seed replays retained history (which already includes this mark), so
-    // comparing empty → seeded would re-celebrate every past unlock and
-    // level-up as if this mark had just earned them.
     let beforeMark = seeded;
     // No history yet (e.g. tests) or the mark is not part of the retained
     // history — still credit it exactly once.
@@ -340,6 +336,23 @@ export async function recordMarkGamification(
       seeded = applied.state;
       awarded = applied.awarded;
     } else {
+      // The seed replayed retained history including this mark (production
+      // persists the interaction before this runs). Baseline progress on the
+      // history minus this mark's own row so only this mark's unlocks and
+      // level-up are celebrated: a fresh user's first mark still unlocks
+      // first_mark / levels up, while past unlocks the seed replayed stay
+      // quiet. Comparing empty → seeded would re-celebrate all of them.
+      beforeMark = seedGamificationFromHistory(
+        history.filter((row) => {
+          if (!threadId || row.threadId?.trim() !== threadId) return true;
+          const rowMs = Date.parse(row.at);
+          return (
+            !Number.isFinite(rowMs) ||
+            new Date(rowMs).toISOString() !== new Date(nowMs).toISOString()
+          );
+        }),
+        nowMs,
+      );
       awarded = {
         markXp: markXpForStreak(Math.max(1, seeded.currentStreak)),
         currentStreak: seeded.currentStreak,

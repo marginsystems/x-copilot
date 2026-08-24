@@ -384,6 +384,7 @@ describe("recordMarkGamification / getGamification", () => {
       gamificationPath,
       interactionStorePath,
       nowMs: now,
+      threadId: "t1",
     });
     assert.equal(afterMark.lifetimeXp, 1);
     assert.equal(afterMark.currentStreak, 1);
@@ -399,7 +400,10 @@ describe("recordMarkGamification / getGamification", () => {
     assert.ok(snap.nextGoal);
     assert.ok(afterMark.progress);
     assert.equal(afterMark.progress?.markXp, 1);
-    assert.deepEqual(afterMark.progress?.unlockedAchievementIds, []);
+    assert.equal(afterMark.progress?.leveledUp, true);
+    assert.deepEqual(afterMark.progress?.unlockedAchievementIds, [
+      "first_mark",
+    ]);
   });
 
   it("does not celebrate seeded history as fresh unlocks on the first ledger write", async () => {
@@ -427,6 +431,7 @@ describe("recordMarkGamification / getGamification", () => {
       gamificationPath,
       interactionStorePath,
       nowMs: now,
+      threadId: "current",
     });
     assert.ok(after.progress);
     assert.equal(after.progress?.leveledUp, false);
