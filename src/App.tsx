@@ -160,6 +160,7 @@ export default function App() {
     startXLogin,
     onLogout,
     finishOnboarding,
+    setOnboardingDoneLocal,
   } = useAuthSession({
     setAgenda,
     onLoggedOut: closeMenu,
@@ -387,6 +388,7 @@ export default function App() {
   function exitOnboardingPreview() {
     setOnboardingPreview(false);
     setSimulateUnlinked(false);
+    setOnboardingDoneLocal(true);
   }
 
   useEffect(() => {
