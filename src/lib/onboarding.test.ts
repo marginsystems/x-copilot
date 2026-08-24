@@ -3,10 +3,14 @@ import assert from "node:assert/strict";
 import {
   ONBOARDING_AGENDA_KEY,
   ONBOARDING_STORAGE_KEY,
+  consumeOnboardingPreviewQuery,
   labelsFor,
+  onboardingPostsComplete,
+  onboardingWritesLocalStorage,
   parseGeneratedAgendas,
   readOnboardingAgenda,
   readOnboardingComplete,
+  resolveOnboardingMode,
   TOPIC_OPTIONS,
   toggleId,
   writeOnboardingComplete,
@@ -82,5 +86,32 @@ describe("onboarding helpers", () => {
     assert.equal(parsed?.length, 2);
     assert.equal(parsed?.[1].recommended, true);
     assert.equal(parseGeneratedAgendas([{ title: "A", body }]), null);
+  });
+
+  it("preview mode writes nothing — persist=false still would", () => {
+    assert.equal(resolveOnboardingMode(undefined, false), "local");
+    assert.equal(resolveOnboardingMode(undefined, true), "real");
+    assert.equal(resolveOnboardingMode("preview", true), "preview");
+    assert.equal(onboardingPostsComplete("real"), true);
+    assert.equal(onboardingPostsComplete("local"), false);
+    assert.equal(onboardingPostsComplete("preview"), false);
+    assert.equal(onboardingWritesLocalStorage("real"), true);
+    assert.equal(onboardingWritesLocalStorage("local"), true);
+    assert.equal(onboardingWritesLocalStorage("preview"), false);
+  });
+
+  it("opens admin preview from the query and strips the flag so reload exits", () => {
+    assert.deepEqual(
+      consumeOnboardingPreviewQuery("?onboarding=preview", false),
+      { open: false, nextSearch: "?onboarding=preview" },
+    );
+    assert.deepEqual(consumeOnboardingPreviewQuery("?onboarding=preview", true), {
+      open: true,
+      nextSearch: "",
+    });
+    assert.deepEqual(
+      consumeOnboardingPreviewQuery("?onboarding=preview&tab=grants", true),
+      { open: true, nextSearch: "?tab=grants" },
+    );
   });
 });

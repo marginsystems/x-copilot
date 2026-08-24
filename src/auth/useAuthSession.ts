@@ -124,5 +124,6 @@ export function useAuthSession({
     startXLogin,
     onLogout,
     finishOnboarding,
+    setOnboardingDoneLocal,
   };
 }
