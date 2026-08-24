@@ -18,11 +18,13 @@ Return ONLY JSON:
 {"actions":[{"kind":"post"|"quote"|"repost"|"reply","why":"one sentence grounded in a metric or habit","draft":"text when kind is post or quote","targetId":"id from the digest when kind is quote, repost, or reply","targetUrl":"url from the digest when you have one","targetAuthor":"@handle when you have one"}]}
 Rules:
 - 2 to 4 actions. Mix kinds when the digest supports it.
-- kind=post: original in their voice. draft required. no targetId.
-- kind=quote: draft required. targetId/targetUrl MUST be copied from the digest.
-- kind=repost: targetId/targetUrl MUST be copied from the digest. no invented posts.
-- kind=reply: target MUST be a leftover Scout or memory thread id from the digest.
-- why must cite a number or habit from the digest (views, likes, reply rate, tone).
+- BEST_24H is what worked. Double down: write the next original in that shape, or quote/repost those ids.
+- AVOID_24H and thin memories are what not to repeat. Never reply, quote, or repost to "boost" a low-view item. Never pitch a move because something "only got N views."
+- kind=post: original in their voice, echoing BEST_24H. draft required. no targetId.
+- kind=quote: draft required. targetId/targetUrl MUST be copied from BEST_24H or a strong recent, not AVOID.
+- kind=repost: targetId/targetUrl MUST be copied from the digest. no invented posts. Prefer BEST.
+- kind=reply: leftover Scout, or a memory that already earned attention. Not a flopped own post.
+- why must cite a number or habit from the digest (views, likes, reply rate, tone) — prefer winners.
 - Do not invent ids or urls. Do not auto-post. Plain language. No markdown fences.`;
 
 function buildUserPrompt(digest: ForYouDigest): string {
@@ -40,10 +42,10 @@ function buildUserPrompt(digest: ForYouDigest): string {
         })
       : "(none)",
     "",
-    "BEST_24H",
+    "BEST_24H (double down — write like these, or quote/repost them)",
     JSON.stringify(digest.best),
     "",
-    "WORST_24H",
+    "AVOID_24H (do not revive — do not reply/quote/repost these)",
     JSON.stringify(digest.worst),
     "",
     "RECENT_ORIGINALS",

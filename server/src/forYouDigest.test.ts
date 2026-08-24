@@ -71,7 +71,7 @@ describe("forYouDigest", () => {
   });
 
   it("ranks t24h snapshots and waits for a handful before eligibility", () => {
-    for (let i = 1; i <= MIN_T24H_SNAPSHOTS; i++) {
+    for (let i = 1; i <= MIN_T24H_SNAPSHOTS + 1; i++) {
       upsertOwnPost({
         parsed: post({
           postId: String(i),
@@ -89,14 +89,17 @@ describe("forYouDigest", () => {
         bookmarks: 0,
       });
     }
-    assert.equal(countT24hSnapshots("u1"), MIN_T24H_SNAPSHOTS);
+    assert.equal(countT24hSnapshots("u1"), MIN_T24H_SNAPSHOTS + 1);
     assert.deepEqual(
       listEligibleForYouUsers().map((u) => u.userId),
       ["u1"],
     );
     const ranked = rankOwnPosts("u1");
-    assert.equal(ranked.best[0]?.id, "5");
+    assert.equal(ranked.best[0]?.id, "6");
     assert.equal(ranked.worst[0]?.id, "1");
+    assert.ok(
+      ranked.worst.every((w) => !ranked.best.some((b) => b.id === w.id)),
+    );
     assert.ok(ranked.recentOriginals.length >= 1);
   });
 
@@ -155,6 +158,246 @@ describe("forYouDigest", () => {
     assert.deepEqual(
       kept.map((a) => a.kind),
       ["post", "quote", "reply"],
+    );
+  });
+
+  it("does not let worst or thin memories be engagement targets", () => {
+    const digest = emptyDigest({
+      best: [
+        {
+          id: "10",
+          kind: "original",
+          text: "shipped",
+          url: "https://x.com/desk/status/10",
+          views: 900,
+          likes: 20,
+          replies: 4,
+          retweets: 2,
+          postedAt: "2026-08-18T00:00:00.000Z",
+        },
+      ],
+      worst: [
+        {
+          id: "2",
+          kind: "original",
+          text: "flop",
+          url: "https://x.com/desk/status/2",
+          views: 2,
+          likes: 0,
+          replies: 0,
+          retweets: 0,
+          postedAt: "2026-08-17T00:00:00.000Z",
+        },
+      ],
+      memories: [
+        {
+          threadId: "mem-thin",
+          author: "@cizo",
+          url: "https://x.com/cizo/status/3",
+          views: 2,
+        },
+        {
+          threadId: "mem-none",
+          author: "@none",
+          url: "https://x.com/none/status/5",
+        },
+        {
+          threadId: "mem-ok",
+          author: "@ok",
+          url: "https://x.com/ok/status/4",
+          views: 40,
+        },
+      ],
+    });
+    const kept = filterDigestActions(
+      {
+        actions: [
+          {
+            kind: "quote",
+            why: "boost the 2-view flop",
+            draft: "More of this.",
+            targetId: "2",
+            targetUrl: "https://x.com/desk/status/2",
+          },
+          {
+            kind: "reply",
+            why: "only 2 views so reply to boost",
+            targetId: "mem-thin",
+            targetUrl: "https://x.com/cizo/status/3",
+          },
+          {
+            kind: "reply",
+            why: "unsampled memory, views unknown",
+            targetId: "mem-none",
+            targetUrl: "https://x.com/none/status/5",
+          },
+          {
+            kind: "reply",
+            why: "40 views on a memory worth another take",
+            targetId: "mem-ok",
+            targetUrl: "https://x.com/ok/status/4",
+          },
+          {
+            kind: "quote",
+            why: "900 views — write the next one like this",
+            draft: "Same shape.",
+            targetId: "10",
+            targetUrl: "https://x.com/desk/status/10",
+          },
+        ],
+      },
+      digest,
+    );
+    assert.deepEqual(
+      kept.map((a) => a.targetId ?? a.kind),
+      ["mem-ok", "10"],
+    );
+  });
+
+  it("does not let thin best posts be quote/repost targets", () => {
+    const digest = emptyDigest({
+      best: [
+        {
+          id: "10",
+          kind: "original",
+          text: "shipped",
+          url: "https://x.com/desk/status/10",
+          views: 2,
+          likes: 0,
+          replies: 0,
+          retweets: 0,
+          postedAt: "2026-08-18T00:00:00.000Z",
+        },
+        {
+          id: "11",
+          kind: "original",
+          text: "winner",
+          url: "https://x.com/desk/status/11",
+          views: 900,
+          likes: 20,
+          replies: 4,
+          retweets: 2,
+          postedAt: "2026-08-18T01:00:00.000Z",
+        },
+      ],
+    });
+    const kept = filterDigestActions(
+      {
+        actions: [
+          {
+            kind: "quote",
+            why: "double down on the 2-view best post",
+            draft: "No.",
+            targetId: "10",
+            targetUrl: "https://x.com/desk/status/10",
+          },
+          {
+            kind: "quote",
+            why: "900 views on the winner",
+            draft: "Yes.",
+            targetId: "11",
+            targetUrl: "https://x.com/desk/status/11",
+          },
+        ],
+      },
+      digest,
+    );
+    assert.deepEqual(
+      kept.map((a) => a.targetId ?? a.kind),
+      ["11"],
+    );
+  });
+
+  it("drops thin and worst-via-recent posts from recent allowlists", () => {
+    const worstPost = {
+      id: "2",
+      kind: "original" as const,
+      text: "flop",
+      url: "https://x.com/desk/status/2",
+      views: 12,
+      likes: 0,
+      replies: 0,
+      retweets: 0,
+      postedAt: "2026-08-17T00:00:00.000Z",
+    };
+    const digest = emptyDigest({
+      best: [
+        {
+          id: "10",
+          kind: "original",
+          text: "shipped",
+          url: "https://x.com/desk/status/10",
+          views: 900,
+          likes: 20,
+          replies: 4,
+          retweets: 2,
+          postedAt: "2026-08-18T00:00:00.000Z",
+        },
+      ],
+      worst: [worstPost],
+      recentOriginals: [
+        worstPost,
+        {
+          id: "3",
+          kind: "original",
+          text: "brand new",
+          url: "https://x.com/desk/status/3",
+          views: 2,
+          likes: 0,
+          replies: 0,
+          retweets: 0,
+          postedAt: "2026-08-19T00:00:00.000Z",
+        },
+        {
+          id: "4",
+          kind: "original",
+          text: "strong recent",
+          url: "https://x.com/desk/status/4",
+          views: 40,
+          likes: 5,
+          replies: 1,
+          retweets: 0,
+          postedAt: "2026-08-19T01:00:00.000Z",
+        },
+      ],
+    });
+    const kept = filterDigestActions(
+      {
+        actions: [
+          {
+            kind: "quote",
+            why: "revive the worst via recent",
+            draft: "No.",
+            targetId: "2",
+            targetUrl: "https://x.com/desk/status/2",
+          },
+          {
+            kind: "quote",
+            why: "2-view new post",
+            draft: "No.",
+            targetId: "3",
+            targetUrl: "https://x.com/desk/status/3",
+          },
+          {
+            kind: "repost",
+            why: "40-view strong recent",
+            targetId: "4",
+            targetUrl: "https://x.com/desk/status/4",
+          },
+          {
+            kind: "quote",
+            why: "900 views — keep the winner",
+            draft: "Yes.",
+            targetId: "10",
+            targetUrl: "https://x.com/desk/status/10",
+          },
+        ],
+      },
+      digest,
+    );
+    assert.deepEqual(
+      kept.map((a) => a.targetId ?? a.kind),
+      ["4", "10"],
     );
   });
 });
