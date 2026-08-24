@@ -11,6 +11,7 @@ import {
   getUserById,
   setUserXUsername,
   toPublicUser,
+  updateUserAgenda,
 } from "./authStore.ts";
 import {
   findOauthAccount,
@@ -271,6 +272,37 @@ describe("authStore", () => {
     );
     assert.equal(again?.onboardingCompletedAt, updated?.onboardingCompletedAt);
     assert.match(again?.agenda ?? "", /evaluation/);
+  });
+
+  it("updates agenda without changing onboarding completion", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-agenda-put",
+      email: "agenda-put@example.com",
+      emailVerified: true,
+    });
+    const first =
+      "Find founders sharing concrete takes on shipping AI tools in public. Prefer a clear point of view. Skip empty engagement bait.";
+    const completed = completeOnboarding(user.id, first);
+    assert.ok(completed?.onboardingCompletedAt);
+    const next =
+      "Meet researchers arguing about evaluation, not model drops. Prefer lived results. Skip launch-day hype threads.";
+    const updated = updateUserAgenda(user.id, `  ${next}  `);
+    assert.equal(updated?.agenda, next);
+    assert.equal(
+      updated?.onboardingCompletedAt,
+      completed.onboardingCompletedAt,
+    );
+  });
+
+  it("returns null when updating agenda for a missing user", () => {
+    assert.equal(
+      updateUserAgenda(
+        "missing",
+        "Find builders sharing opinions on shipping AI tools in public.",
+      ),
+      null,
+    );
   });
 
   it("returns null when completing onboarding for a missing user", () => {

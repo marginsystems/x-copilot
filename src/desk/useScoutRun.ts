@@ -45,7 +45,6 @@ export type ScoutRunDeps = {
   authUser: AuthSessionUser | null;
   billing: BillingMe | null;
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
-  setAgenda: Dispatch<SetStateAction<string>>;
   setStatus: Dispatch<SetStateAction<string>>;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
   keepInCurated: (thread: ThreadCard) => boolean;
@@ -60,7 +59,6 @@ export function useScoutRun({
   authUser,
   billing,
   setThreads,
-  setAgenda,
   setStatus,
   setExpandedId,
   keepInCurated,
@@ -223,7 +221,6 @@ export function useScoutRun({
         empty?: boolean;
         snapshot?: {
           savedAt: string;
-          agenda?: string;
           queries?: string[];
           threads?: ThreadCard[];
           message?: string;
@@ -243,9 +240,6 @@ export function useScoutRun({
       const list = Array.isArray(data.snapshot.threads)
         ? data.snapshot.threads
         : [];
-      if (typeof data.snapshot.agenda === "string" && data.snapshot.agenda.trim()) {
-        setAgenda(data.snapshot.agenda);
-      }
       const filtered = list.filter((t) => keepInCurated(t));
       setThreads(filtered);
       watchDeskThreads(filtered);

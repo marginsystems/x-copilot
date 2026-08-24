@@ -130,6 +130,19 @@ export function completeOnboarding(
   return getUserById(userId);
 }
 
+/** Update the live desk agenda without touching first-run completion. */
+export function updateUserAgenda(
+  userId: string,
+  agenda: string,
+): AuthUser | null {
+  const trimmed = agenda.trim();
+  const result = getPlatformDb()
+    .prepare("UPDATE users SET agenda = ? WHERE id = ?")
+    .run(trimmed, userId);
+  if (result.changes === 0) return null;
+  return getUserById(userId);
+}
+
 /** Desk users the hourly ingest serves: handle users, plus memory-only users
  *  past the unlock bar without a card. One query, ordered least-recently-pulled
  *  first so the per-tick budget rotates instead of starving users past #20. */

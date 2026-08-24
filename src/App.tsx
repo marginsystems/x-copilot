@@ -40,6 +40,8 @@ import { DismissModal } from "./desk/DismissModal";
 import { MarkDetectModal } from "./desk/MarkDetectModal";
 import { Toast } from "./desk/Toast";
 import { useMarkDetect } from "./desk/useMarkDetect";
+import { useAgendaPersist } from "./desk/useAgendaPersist";
+import { AGENDA_MAX_CHARS } from "./lib/agendaPersist";
 import { useScoutRun } from "./desk/useScoutRun";
 import { useSkipDismiss } from "./desk/useSkipDismiss";
 import { SettingsForm } from "./settings/SettingsForm";
@@ -58,6 +60,7 @@ import { ThreadsTabs } from "./desk/ThreadsTabs";
 import { useActivityStrip } from "./desk/useActivityStrip";
 
 export default function App() {
+  const [agendaReady, setAgendaReady] = useState(false);
   const [agenda, setAgenda] = useState(
     "Find builders sharing opinions, tradeoffs, or concrete takes on shipping AI / software tools in public. Prefer posts with a clear point of view or a specific technical claim I can agree/disagree with.\nSkip open-ended engagement questions (“what are you shipping?”, “drop your stack”, “who should I follow?”, generic peer polls) even when they mention AI/build-in-public. A lone question with little substance is not interesting.",
   );
@@ -202,13 +205,26 @@ export default function App() {
     authUser,
     billing,
     setThreads,
-    setAgenda,
     setStatus,
     setExpandedId,
     keepInCurated,
     hydrateInteracted,
     loadBilling,
     hydrateAuth,
+  });
+  const needsLogin = authChecked && authRequired && !authUser && !localUi;
+  const needsOnboarding =
+    !needsLogin &&
+    !onboardingDoneLocal &&
+    (authUser
+      ? authUser.onboardingCompleted === false &&
+        !readOnboardingComplete(authUser.id)
+      : !readOnboardingComplete());
+  const { flushAgenda, onAgendaBlur } = useAgendaPersist({
+    agenda,
+    enabled: agendaReady && Boolean(authUser) && !needsOnboarding,
+    authUser,
+    setAuthUser,
   });
   const {
     markThread,
@@ -298,6 +314,7 @@ export default function App() {
         const storedAgenda = readOnboardingAgenda(user?.id);
         if (storedAgenda) setAgenda(storedAgenda);
       }
+      setAgendaReady(true);
       await hydrateDismissed();
       await hydrateSkipped();
       await hydrateInteracted();
@@ -413,14 +430,6 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [markThread, dismissThread, signInOpen, onboardingPreview, actionBusy]);
 
-  const needsLogin = authChecked && authRequired && !authUser && !localUi;
-  const needsOnboarding =
-    !needsLogin &&
-    !onboardingDoneLocal &&
-    (authUser
-      ? authUser.onboardingCompleted === false &&
-        !readOnboardingComplete(authUser.id)
-      : !readOnboardingComplete());
   const needsXLink = deskNeedsXLink(authUser);
   const booting = !localUi && !authChecked;
   const legalView = isLegalKind(view);
@@ -704,7 +713,9 @@ export default function App() {
                 <textarea
                   className="agenda"
                   value={agenda}
+                  maxLength={AGENDA_MAX_CHARS}
                   onChange={(e) => setAgenda(e.target.value)}
+                  onBlur={onAgendaBlur}
                   placeholder="What should we look for and how should we sound?"
                 />
                 <div className="scout-cluster">
@@ -722,7 +733,10 @@ export default function App() {
                         type="button"
                         className="primary scout-run"
                         disabled={searchBlocked || !agenda.trim()}
-                        onClick={onSearch}
+                        onClick={() => {
+                          flushAgenda();
+                          onSearch();
+                        }}
                       >
                         {grounded
                           ? "Grounded"
