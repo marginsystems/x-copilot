@@ -39,7 +39,7 @@ export function useSettingsDraft({
       ),
     );
     setSettingsStatus(
-      "Saved — filters apply to For You now and the next Scout.",
+      "Saved — filters apply to Approach now and the next Scout.",
     );
   }
 

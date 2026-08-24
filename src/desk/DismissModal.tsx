@@ -37,8 +37,8 @@ export function DismissModal({
       >
         <h2 id="dismiss-title">Not interested</h2>
         <p className="status">
-          Dismiss {thread.author} from For You. Optional reason is saved to local
-          knowledge memory.
+          Dismiss {thread.author} from Approach. Optional reason is saved to
+          local knowledge memory.
         </p>
         <label className="settings-field">
           <span>Reason (optional)</span>

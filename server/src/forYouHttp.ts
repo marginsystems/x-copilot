@@ -4,6 +4,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { BODY_CAP_256K, readJsonBody, send } from "./httpJson.js";
 import { getSessionUser } from "./sessionCookie.js";
+import { countT24hSnapshots, MIN_T24H_SNAPSHOTS } from "./forYouDigest.js";
 import {
   listActiveSuggestions,
   markSuggestion,
@@ -27,7 +28,12 @@ export async function tryHandleForYou(
 
   if (req.method === "GET" && url.pathname === "/api/for-you") {
     const suggestions = listActiveSuggestions(user.id);
-    send(req, res, 200, { ok: true, suggestions });
+    send(req, res, 200, {
+      ok: true,
+      suggestions,
+      tracked: countT24hSnapshots(user.id),
+      needed: MIN_T24H_SNAPSHOTS,
+    });
     return true;
   }
 

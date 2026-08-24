@@ -1,6 +1,79 @@
 export const FOR_YOU_KINDS = ["post", "quote", "repost", "reply"] as const;
 export type ForYouKind = (typeof FOR_YOU_KINDS)[number];
 
+/** Desk tab for Scout leads + daily digest. Aviation register; not the X feed. */
+export const APPROACH_TAB_LABEL = "Approach";
+export const APPROACH_MIN_TRACKED = 5;
+
+const UTC_WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+export type ForYouProgress = {
+  tracked: number;
+  needed: number;
+};
+
+export function parseForYouProgress(raw: unknown): ForYouProgress | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Record<string, unknown>;
+  const tracked =
+    typeof row.tracked === "number" && Number.isFinite(row.tracked)
+      ? Math.max(0, Math.floor(row.tracked))
+      : null;
+  const needed =
+    typeof row.needed === "number" && Number.isFinite(row.needed)
+      ? Math.max(1, Math.floor(row.needed))
+      : APPROACH_MIN_TRACKED;
+  if (tracked == null) return null;
+  return { tracked, needed };
+}
+
+/** First digest weekday if they keep posting about one new own-post per UTC day. */
+export function firstDigestWeekday(
+  tracked: number,
+  needed: number,
+  now = new Date(),
+): string {
+  if (tracked >= needed) return "the next UTC daily pass";
+  const remaining = needed - tracked;
+  const when = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + remaining + 1,
+    ),
+  );
+  return UTC_WEEKDAYS[when.getUTCDay()] ?? "soon";
+}
+
+export function approachEmptyCopy(opts: {
+  searching: boolean;
+  progress?: ForYouProgress | null;
+  now?: Date;
+}): string {
+  if (opts.searching) return "Scout is working…";
+  const progress = opts.progress;
+  if (!progress) {
+    return "Nothing on Approach yet. Take off for reply targets. Daily suggestions land here once we have enough of your 24h post stats.";
+  }
+  if (progress.tracked >= progress.needed) {
+    return `Nothing on Approach yet. Take off for reply targets. ${progress.tracked} of ${progress.needed} posts tracked — first digest after the next UTC daily pass.`;
+  }
+  const day = firstDigestWeekday(
+    progress.tracked,
+    progress.needed,
+    opts.now,
+  );
+  return `Nothing on Approach yet. Take off for reply targets. ${progress.tracked} of ${progress.needed} posts tracked — first digest ~${day}.`;
+}
+
 export type ForYouSuggestion = {
   id: string;
   kind: ForYouKind;

@@ -158,7 +158,7 @@ export function ExcludedTagsField({ tags, onChange }: Props) {
         ) : null}
       </div>
       <span className="settings-help">
-        Still tagged by triage; dropped from For You. Matches flags and intent.
+        Still tagged by triage; dropped from Approach. Matches flags and intent.
         Comma or newline separated; whitespace stripped. Tags use lowercase
         letters, digits, and underscores, up to 40 chars; max {MAX_EXCLUDED_TAGS}
         tags. Empty list disables tag excludes.

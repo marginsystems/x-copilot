@@ -1,7 +1,9 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { apiFetch } from "../lib/apiBase";
 import {
+  parseForYouProgress,
   parseForYouSuggestion,
+  type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
 import { threadHasExcludedTag } from "../lib/settings";
@@ -42,6 +44,9 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   const [forYouSuggestions, setForYouSuggestions] = useState<
     ForYouSuggestion[]
   >([]);
+  const [forYouProgress, setForYouProgress] = useState<ForYouProgress | null>(
+    null,
+  );
 
   const dismissedIdsRef = useRef<Set<string>>(new Set());
   const skippedIdsRef = useRef<Set<string>>(new Set());
@@ -228,6 +233,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
         .map(parseForYouSuggestion)
         .filter((row): row is ForYouSuggestion => Boolean(row));
       setForYouSuggestions(rows);
+      setForYouProgress(parseForYouProgress(data));
     } catch {
       /* sidecar may be offline */
     }
@@ -275,6 +281,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     expiredHistory,
     setExpiredHistory,
     forYouSuggestions,
+    forYouProgress,
     dismissedIdsRef,
     skippedIdsRef,
     expiredIdsRef,

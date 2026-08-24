@@ -1,10 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  APPROACH_TAB_LABEL,
+  approachEmptyCopy,
+  firstDigestWeekday,
   forYouComposeSeed,
   forYouKindLabel,
   forYouOpenUrl,
   forYouUsesDeskCompose,
+  parseForYouProgress,
   parseForYouSuggestion,
   type ForYouSuggestion,
 } from "./forYou.ts";
@@ -101,5 +105,33 @@ describe("forYou helpers", () => {
         "http://",
       ),
     );
+  });
+
+  it("parses digest progress and names the first-digest weekday", () => {
+    assert.equal(APPROACH_TAB_LABEL, "Approach");
+    assert.equal(parseForYouProgress({}), null);
+    assert.deepEqual(parseForYouProgress({ tracked: 3 }), {
+      tracked: 3,
+      needed: 5,
+    });
+    const now = new Date("2026-08-25T12:00:00.000Z");
+    assert.equal(firstDigestWeekday(3, 5, now), "Friday");
+    assert.equal(firstDigestWeekday(5, 5, now), "the next UTC daily pass");
+    assert.match(
+      approachEmptyCopy({
+        searching: false,
+        progress: { tracked: 3, needed: 5 },
+        now,
+      }),
+      /3 of 5 posts tracked — first digest ~Friday/,
+    );
+    assert.match(
+      approachEmptyCopy({
+        searching: false,
+        progress: { tracked: 5, needed: 5 },
+      }),
+      /5 of 5 posts tracked — first digest after the next UTC daily pass/,
+    );
+    assert.equal(approachEmptyCopy({ searching: true }), "Scout is working…");
   });
 });
