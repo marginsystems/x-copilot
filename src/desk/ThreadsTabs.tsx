@@ -2,7 +2,12 @@ import type { Dispatch, SetStateAction } from "react";
 import { SuggestPane } from "../SuggestPane";
 import { SuggestLocked } from "../VoiceCard";
 import type { AuthSessionUser } from "../auth/types";
-import type { ForYouSuggestion } from "../lib/forYou";
+import {
+  APPROACH_TAB_LABEL,
+  approachEmptyCopy,
+  type ForYouProgress,
+  type ForYouSuggestion,
+} from "../lib/forYou";
 import { sortThreadsByCreatedAtNewest } from "../lib/threadSort";
 import type { VoiceState } from "../lib/voice";
 import {
@@ -29,6 +34,7 @@ type ThreadsTabsProps = {
   setThreadsTab: (tab: ThreadsTab) => void;
   curatedThreads: ThreadCard[];
   forYouSuggestions: ForYouSuggestion[];
+  forYouProgress?: ForYouProgress | null;
   interactedHistory: InteractionHistoryEntry[];
   skippedHistory: SkipHistoryEntry[];
   dismissedHistory: DismissalHistoryEntry[];
@@ -55,6 +61,7 @@ export function ThreadsTabs({
   setThreadsTab,
   curatedThreads,
   forYouSuggestions,
+  forYouProgress,
   interactedHistory,
   skippedHistory,
   dismissedHistory,
@@ -91,7 +98,7 @@ export function ThreadsTabs({
             }
             onClick={() => setThreadsTab("curated")}
           >
-            For You
+            {APPROACH_TAB_LABEL}
             <ThreadsTabCount
               n={curatedThreads.length + forYouSuggestions.length}
             />
@@ -159,9 +166,10 @@ export function ThreadsTabs({
           curatedThreads.length === 0 &&
           forYouSuggestions.length === 0 ? (
             <p className="empty">
-              {searching
-                ? "Scout is working…"
-                : "Nothing in For You yet. Take off for reply targets. Daily suggestions land here once we have enough of your 24h post stats."}
+              {approachEmptyCopy({
+                searching,
+                progress: forYouProgress,
+              })}
             </p>
           ) : (
             <div className="threads">
@@ -258,7 +266,7 @@ export function ThreadsTabs({
         ) : threadsTab === "skipped" ? (
           skippedHistory.length === 0 ? (
             <p className="empty">
-              No skipped threads yet. Skip a For You lead to pass on it
+              No skipped threads yet. Skip an Approach lead to pass on it
               without dismissing the author.
             </p>
           ) : (
@@ -275,7 +283,7 @@ export function ThreadsTabs({
         ) : threadsTab === "dismissed" ? (
           dismissedHistory.length === 0 ? (
             <p className="empty">
-              No dismissed threads yet. Mark a For You lead as not interested
+              No dismissed threads yet. Mark an Approach lead as not interested
               to dismiss it with an optional reason.
             </p>
           ) : (

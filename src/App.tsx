@@ -88,6 +88,7 @@ export default function App() {
     setSkippedHistory,
     expiredHistory,
     forYouSuggestions,
+    forYouProgress,
     dismissedIdsRef,
     skippedIdsRef,
     interactedIdsRef,
@@ -828,6 +829,7 @@ export default function App() {
               setThreadsTab={setThreadsTab}
               curatedThreads={curatedThreads}
               forYouSuggestions={forYouSuggestions}
+              forYouProgress={forYouProgress}
               interactedHistory={interactedHistory}
               skippedHistory={skippedHistory}
               dismissedHistory={dismissedHistory}
