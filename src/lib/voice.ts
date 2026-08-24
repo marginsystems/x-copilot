@@ -11,6 +11,7 @@ export type VoiceCardData = {
   habits: string[];
   neverDo: string[];
   examples: string[];
+  starter?: boolean;
 };
 
 export type SuggestUsage = {
@@ -67,6 +68,7 @@ export function parseVoiceState(raw: unknown): VoiceState | null {
             habits: Array.isArray(card.habits) ? card.habits : [],
             neverDo: Array.isArray(card.neverDo) ? card.neverDo : [],
             examples: card.examples,
+            starter: card.starter === true,
           }
         : null,
     cardUpdatedAt:
@@ -236,17 +238,19 @@ export function voiceNeedsXLink(
 export const VOICE_UNLOCK_TOAST_KEY = "xc.voiceUnlockToast.dismissed";
 
 /**
- * Desk toast only after Voice has loaded, and only while Suggest is still
- * locked. Never flash the default copy and then hide it.
+ * Desk toast only when a loaded, still-locked corpus gains posts. Initial
+ * hydration is state restoration, not a user-visible event.
  */
 export function shouldShowVoiceUnlockToast(opts: {
   voice: VoiceState | null;
+  previousVoice: VoiceState | null;
   hasSession: boolean;
 }): boolean {
   if (!opts.hasSession) return false;
   if (!opts.voice) return false;
+  if (!opts.previousVoice) return false;
   if (opts.voice.status === "ready" || opts.voice.unlocked) return false;
-  return true;
+  return opts.voice.replyCount > opts.previousVoice.replyCount;
 }
 
 /** Plain-language next step so Suggest is never a mystery. */

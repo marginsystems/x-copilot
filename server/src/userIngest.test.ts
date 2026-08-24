@@ -213,6 +213,142 @@ describe("runUserIngest", () => {
     assert.equal(target, VOICE_TARGET_REPLIES);
   });
 
+  it("writes a tone-only starter card below the Suggest threshold", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    let starter: boolean | undefined;
+    const result = await runUserIngest({
+      user,
+      mode: "initial",
+      deps: {
+        foldLocal: async () => {},
+        resolveUser: async () => ({
+          ok: true,
+          id: "99",
+          username: "me",
+          protected: false,
+        }),
+        pullReplies: async () => ({
+          ok: true,
+          replies: Array.from({ length: 12 }, (_, i) => ({
+            id: `starter-${i}`,
+            text: `short public post ${i}`,
+            conversationId: `starter-c${i}`,
+            inReplyToId: null,
+            postedAt: "2026-08-16T10:00:00.000Z",
+            source: "api" as const,
+          })),
+          newestId: "starter-11",
+          pages: 1,
+          completed: true,
+        }),
+        generateCard: async (opts) => {
+          starter = opts.starter;
+          const card = {
+            tone: "Brief and direct.",
+            typicalLength: "",
+            habits: [],
+            neverDo: [],
+            examples: [],
+            starter: true,
+          };
+          return {
+            ok: true,
+            card,
+            cardJson: JSON.stringify(card),
+            model: "test-model",
+          };
+        },
+      },
+    });
+    assert.equal(result.unlocked, false);
+    assert.equal(starter, true);
+    const profile = getVoiceProfile(user.id);
+    assert.equal(profile?.status, "empty");
+    assert.equal(
+      (JSON.parse(profile?.cardJson ?? "{}") as { starter?: boolean }).starter,
+      true,
+    );
+  });
+
+  it("replaces a starter with a full card at 100 posts", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    ensureVoiceProfile(user.id, "local");
+    upsertVoiceReplies(
+      user.id,
+      Array.from({ length: 99 }, (_, i) => ({
+        id: `seed-${i}`,
+        text: `seed post ${i}`,
+      })),
+    );
+    updateVoiceProfilePull({
+      userId: user.id,
+      xUsername: "me",
+      xUserId: "99",
+      sinceId: "seed-98",
+    });
+    saveVoiceCard({
+      userId: user.id,
+      cardJson: '{"tone":"Starter.","starter":true}',
+      model: "test-model",
+      starter: true,
+    });
+    let starter: boolean | undefined;
+    const result = await runUserIngest({
+      user,
+      mode: "hourly",
+      deps: {
+        foldLocal: async () => {},
+        resolveUser: async () => ({
+          ok: true,
+          id: "99",
+          username: "me",
+          protected: false,
+        }),
+        pullReplies: async () => ({
+          ok: true,
+          replies: [{ id: "post-100", text: "the hundredth post" }],
+          newestId: "post-100",
+          pages: 1,
+          completed: true,
+        }),
+        generateCard: async (opts) => {
+          starter = opts.starter;
+          return {
+            ok: true,
+            card: {
+              tone: "Dry and direct.",
+              typicalLength: "short",
+              habits: [],
+              neverDo: [],
+              examples: ["one", "two", "three"],
+            },
+            cardJson:
+              '{"tone":"Dry and direct.","typicalLength":"short","habits":[],"neverDo":[],"examples":["one","two","three"]}',
+            model: "test-model",
+          };
+        },
+      },
+    });
+    assert.equal(result.unlocked, true);
+    assert.equal(starter, false);
+    const profile = getVoiceProfile(user.id);
+    assert.equal(profile?.status, "ready");
+    assert.equal(
+      (JSON.parse(profile?.cardJson ?? "{}") as { starter?: boolean }).starter,
+      undefined,
+    );
+  });
+
   it("initial pull that unlocks writes the voice card so Suggest opens", async () => {
     const user = upsertOauthUser({
       provider: "x",

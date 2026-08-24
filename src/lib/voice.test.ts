@@ -143,6 +143,21 @@ describe("voice state parsing", () => {
     assert.equal(state?.needsLearn, false);
     assert.equal(parseVoiceState({}), null);
   });
+
+  it("parses a tone-only starter card without examples", () => {
+    const state = parseVoiceState({
+      voice: {
+        status: "insufficient",
+        replyCount: 12,
+        unlockAt: 100,
+        card: { tone: "Brief and matter-of-fact.", starter: true, examples: [] },
+        suggests: {},
+      },
+    });
+    assert.equal(state?.card?.starter, true);
+    assert.equal(state?.card?.tone, "Brief and matter-of-fact.");
+    assert.deepEqual(state?.card?.examples, []);
+  });
 });
 
 describe("voiceUnlockCopy", () => {
@@ -204,14 +219,22 @@ describe("shouldShowVoiceUnlockToast", () => {
 
   it("stays hidden until Voice has loaded", () => {
     assert.equal(
-      shouldShowVoiceUnlockToast({ voice: null, hasSession: true }),
+      shouldShowVoiceUnlockToast({
+        voice: null,
+        previousVoice: null,
+        hasSession: true,
+      }),
       false,
     );
   });
 
   it("stays hidden without a session", () => {
     assert.equal(
-      shouldShowVoiceUnlockToast({ voice: locked, hasSession: false }),
+      shouldShowVoiceUnlockToast({
+        voice: { ...locked, replyCount: 41 },
+        previousVoice: locked,
+        hasSession: false,
+      }),
       false,
     );
   });
@@ -220,6 +243,7 @@ describe("shouldShowVoiceUnlockToast", () => {
     assert.equal(
       shouldShowVoiceUnlockToast({
         voice: { ...locked, status: "ready", unlocked: true, replyCount: 120 },
+        previousVoice: locked,
         hasSession: true,
       }),
       false,
@@ -230,6 +254,7 @@ describe("shouldShowVoiceUnlockToast", () => {
     assert.equal(
       shouldShowVoiceUnlockToast({
         voice: { ...locked, status: "ready", unlocked: false },
+        previousVoice: locked,
         hasSession: true,
       }),
       false,
@@ -240,26 +265,37 @@ describe("shouldShowVoiceUnlockToast", () => {
     assert.equal(
       shouldShowVoiceUnlockToast({
         voice: { ...locked, status: "learning", unlocked: true, replyCount: 120 },
+        previousVoice: locked,
         hasSession: true,
       }),
       false,
     );
   });
 
-  it("still shows for a locked user mid-ingest", () => {
+  it("shows when a locked user's corpus meaningfully grows", () => {
     assert.equal(
       shouldShowVoiceUnlockToast({
-        voice: { ...locked, status: "learning", unlocked: false },
+        voice: {
+          ...locked,
+          status: "learning",
+          unlocked: false,
+          replyCount: 41,
+        },
+        previousVoice: locked,
         hasSession: true,
       }),
       true,
     );
   });
 
-  it("shows only after load while Suggest is still locked", () => {
+  it("does not fire merely because locked Voice hydrated", () => {
     assert.equal(
-      shouldShowVoiceUnlockToast({ voice: locked, hasSession: true }),
-      true,
+      shouldShowVoiceUnlockToast({
+        voice: locked,
+        previousVoice: null,
+        hasSession: true,
+      }),
+      false,
     );
   });
 });

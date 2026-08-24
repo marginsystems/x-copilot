@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatTimeAgo } from "./lib/timeAgo";
 import {
   LEARN_PHASES,
@@ -71,6 +71,7 @@ export function VoiceCardPanel({
   }, [busy, learnStartedAt]);
 
   const card = voice?.card ?? null;
+  const starterCard = Boolean(card && (card.starter || !voice?.unlocked));
 
   return (
     <section className="voice-panel" aria-label="Your reply voice">
@@ -109,24 +110,24 @@ export function VoiceCardPanel({
         </div>
       ) : !voice || voice.status === "empty" ? (
         <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
-      ) : voice.status === "insufficient" ? (
-        <div className="voice-locked">
-          <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
-          <UnlockMeter voice={voice} />
-        </div>
       ) : card ? (
         <div className="voice-card">
+          {starterCard ? (
+            <p className="voice-empty">
+              Starter card — tone only until Voice has {voice.unlockAt} posts.
+            </p>
+          ) : null}
           <div className="voice-row">
             <span className="voice-label">Tone</span>
             <p className="voice-value">{card.tone}</p>
           </div>
-          {card.typicalLength ? (
+          {!starterCard && card.typicalLength ? (
             <div className="voice-row">
               <span className="voice-label">Length</span>
               <p className="voice-value">{card.typicalLength}</p>
             </div>
           ) : null}
-          {card.habits.length > 0 ? (
+          {!starterCard && card.habits.length > 0 ? (
             <div className="voice-row">
               <span className="voice-label">Habits</span>
               <div className="voice-chips">
@@ -138,7 +139,7 @@ export function VoiceCardPanel({
               </div>
             </div>
           ) : null}
-          {card.neverDo.length > 0 ? (
+          {!starterCard && card.neverDo.length > 0 ? (
             <div className="voice-row">
               <span className="voice-label">Never</span>
               <div className="voice-chips">
@@ -150,7 +151,7 @@ export function VoiceCardPanel({
               </div>
             </div>
           ) : null}
-          {card.examples.length > 0 ? (
+          {!starterCard && card.examples.length > 0 ? (
             <div className="voice-row voice-row-examples">
               <span className="voice-label">In your words</span>
               <ul className="voice-examples">
@@ -160,6 +161,7 @@ export function VoiceCardPanel({
               </ul>
             </div>
           ) : null}
+          {starterCard ? <UnlockMeter voice={voice} /> : null}
           <p className="voice-foot">
             {voice.cardUpdatedAt
               ? `Card rewritten ${formatTimeAgo(voice.cardUpdatedAt) ?? "recently"} · `
@@ -171,9 +173,14 @@ export function VoiceCardPanel({
             {suggestsLeftLabel(voice.suggests)}
           </p>
         </div>
+      ) : voice.status === "insufficient" ? (
+        <div className="voice-locked">
+          <p className="voice-empty">{voiceUnlockCopy(voice)}</p>
+          <UnlockMeter voice={voice} />
+        </div>
       ) : (
         <p className="voice-empty">
-          The card needs a refresh — hit Refresh to rewrite it.
+          The hourly ingest will rewrite this card automatically.
         </p>
       )}
     </section>
@@ -228,8 +235,19 @@ export function VoiceUnlockToast({
   onLinkX: () => void;
 }) {
   const [dismissed, setDismissed] = useState(readVoiceToastDismissed);
-  if (dismissed) return null;
-  if (!shouldShowVoiceUnlockToast({ voice, hasSession })) return null;
+  const [visible, setVisible] = useState(false);
+  const previousVoice = useRef<VoiceState | null>(null);
+  useEffect(() => {
+    setVisible(
+      shouldShowVoiceUnlockToast({
+        voice,
+        previousVoice: previousVoice.current,
+        hasSession,
+      }),
+    );
+    previousVoice.current = voice;
+  }, [voice, hasSession]);
+  if (dismissed || !visible) return null;
   const needsX = voiceNeedsXLink(voice, xLinked);
   return (
     <aside className="voice-unlock-toast" aria-label="How to unlock Suggest">

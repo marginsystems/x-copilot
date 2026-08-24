@@ -28,6 +28,7 @@ export type VoiceCard = {
   habits: string[];
   neverDo: string[];
   examples: string[];
+  starter?: boolean;
 };
 
 /** Strip markdown fences and parse the outermost JSON object. */
@@ -71,14 +72,35 @@ export function parseVoiceCardJson(raw: string): VoiceCard | null {
   return { tone, typicalLength, habits, neverDo, examples };
 }
 
+export function parseStarterVoiceCardJson(raw: string): VoiceCard | null {
+  const data = extractJsonObject(raw) as Record<string, unknown> | null;
+  if (!data) return null;
+  const tone = typeof data.tone === "string" ? data.tone.trim() : "";
+  if (!tone) return null;
+  return {
+    tone,
+    typicalLength: "",
+    habits: [],
+    neverDo: [],
+    examples: [],
+    starter: true,
+  };
+}
+
 const CARD_SYSTEM = `You are a writing-voice analyst. You get one X user's own public posts (originals and replies). Describe how they write so a drafting assistant can imitate them.
 Return ONLY a JSON object:
 {"tone":"one or two sentences, plain words","typicalLength":"e.g. one short sentence, 8-20 words","habits":["3-8 concrete habits: openers, punctuation, slang, emoji use"],"neverDo":["2-6 things they never do"],"examples":["8-12 verbatim posts from the input that best show the voice"]}
 Rules: examples must be copied verbatim from the input posts. Plain language, no flattery, no markdown fences.`;
 
+const STARTER_CARD_SYSTEM = `You are a writing-voice analyst. You get a small sample of one X user's own public posts. The sample is too small for confident examples or detailed habits.
+Return ONLY a JSON object:
+{"tone":"one cautious sentence in plain words describing only the tone visible in the supplied posts"}
+Rules: do not quote, paraphrase, invent, or claim example posts. Do not infer habits, length, preferences, or things they never do. No flattery, no markdown fences.`;
+
 export async function generateVoiceCard(opts: {
   handle: string;
   replies: VoiceReplyRow[];
+  starter?: boolean;
   chat?: ChatFn;
 }): Promise<
   | { ok: true; card: VoiceCard; cardJson: string; model: string }
@@ -93,7 +115,10 @@ export async function generateVoiceCard(opts: {
   ].join("\n");
   const result = await chat({
     messages: [
-      { role: "system", content: CARD_SYSTEM },
+      {
+        role: "system",
+        content: opts.starter ? STARTER_CARD_SYSTEM : CARD_SYSTEM,
+      },
       { role: "user", content: user },
     ],
     model: resolveFlashModel(),
@@ -103,12 +128,14 @@ export async function generateVoiceCard(opts: {
   if (!result.ok) {
     return { ok: false, error: result.error, message: result.message };
   }
-  const card = parseVoiceCardJson(result.content);
+  const card = opts.starter
+    ? parseStarterVoiceCardJson(result.content)
+    : parseVoiceCardJson(result.content);
   if (!card) {
     return {
       ok: false,
       error: "card_parse_failed",
-      message: "Voice model returned an unreadable card. Try refresh.",
+      message: "Voice model returned an unreadable card. The hourly ingest will try again.",
     };
   }
   return {
