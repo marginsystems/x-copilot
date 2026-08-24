@@ -222,11 +222,13 @@ export function digestAllowlist(digest: ForYouDigest): {
     }
   };
   for (const p of digest.best) add(p.id, p.url);
+  const worstIds = new Set(digest.worst.map((p) => p.id));
   for (const p of [
     ...digest.recentOriginals,
     ...digest.recentReplies,
     ...digest.recentQuotes,
   ]) {
+    if (worstIds.has(p.id)) continue;
     if (p.views >= FOR_YOU_MIN_ENGAGE_VIEWS) add(p.id, p.url);
   }
   for (const m of digest.memories) {

@@ -240,4 +240,97 @@ describe("forYouDigest", () => {
       ["mem-ok", "10"],
     );
   });
+
+  it("drops thin and worst-via-recent posts from recent allowlists", () => {
+    const worstPost = {
+      id: "2",
+      kind: "original" as const,
+      text: "flop",
+      url: "https://x.com/desk/status/2",
+      views: 12,
+      likes: 0,
+      replies: 0,
+      retweets: 0,
+      postedAt: "2026-08-17T00:00:00.000Z",
+    };
+    const digest = emptyDigest({
+      best: [
+        {
+          id: "10",
+          kind: "original",
+          text: "shipped",
+          url: "https://x.com/desk/status/10",
+          views: 900,
+          likes: 20,
+          replies: 4,
+          retweets: 2,
+          postedAt: "2026-08-18T00:00:00.000Z",
+        },
+      ],
+      worst: [worstPost],
+      recentOriginals: [
+        worstPost,
+        {
+          id: "3",
+          kind: "original",
+          text: "brand new",
+          url: "https://x.com/desk/status/3",
+          views: 2,
+          likes: 0,
+          replies: 0,
+          retweets: 0,
+          postedAt: "2026-08-19T00:00:00.000Z",
+        },
+        {
+          id: "4",
+          kind: "original",
+          text: "strong recent",
+          url: "https://x.com/desk/status/4",
+          views: 40,
+          likes: 5,
+          replies: 1,
+          retweets: 0,
+          postedAt: "2026-08-19T01:00:00.000Z",
+        },
+      ],
+    });
+    const kept = filterDigestActions(
+      {
+        actions: [
+          {
+            kind: "quote",
+            why: "revive the worst via recent",
+            draft: "No.",
+            targetId: "2",
+            targetUrl: "https://x.com/desk/status/2",
+          },
+          {
+            kind: "quote",
+            why: "2-view new post",
+            draft: "No.",
+            targetId: "3",
+            targetUrl: "https://x.com/desk/status/3",
+          },
+          {
+            kind: "repost",
+            why: "40-view strong recent",
+            targetId: "4",
+            targetUrl: "https://x.com/desk/status/4",
+          },
+          {
+            kind: "quote",
+            why: "900 views — keep the winner",
+            draft: "Yes.",
+            targetId: "10",
+            targetUrl: "https://x.com/desk/status/10",
+          },
+        ],
+      },
+      digest,
+    );
+    assert.deepEqual(
+      kept.map((a) => a.targetId ?? a.kind),
+      ["4", "10"],
+    );
+  });
 });
