@@ -30,7 +30,7 @@ function lineCount(text: string): number {
   for (let i = 0; i < text.length; i++) {
     if (text.charCodeAt(i) === 10) n += 1;
   }
-  return n;
+  return text.endsWith("\n") ? n : n + 1;
 }
 
 function walk(dir: string, out: string[]): void {
