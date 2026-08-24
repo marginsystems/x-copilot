@@ -79,6 +79,14 @@ describe("onboarding helpers", () => {
     assert.equal(store.get(`${ONBOARDING_AGENDA_KEY}:user-a`), agenda);
   });
 
+  it("clears a stale landing agenda when the signed-in user has a scoped one", () => {
+    writeOnboardingComplete("user A's agenda", "user-a");
+    writeOnboardingAgenda("landing pick");
+    assert.equal(readOnboardingAgenda("user-a"), "user A's agenda");
+    assert.equal(store.has(ONBOARDING_AGENDA_KEY), false);
+    assert.equal(store.get(`${ONBOARDING_AGENDA_KEY}:user-a`), "user A's agenda");
+  });
+
   it("turns a carried agenda into the signed-in confirmation step", () => {
     const agenda =
       "Find builders discussing practical AI tools. Prefer concrete tradeoffs and skip generic engagement prompts.";

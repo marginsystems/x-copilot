@@ -165,7 +165,10 @@ export function readOnboardingAgenda(userId?: string): string | null {
     const value = localStorage.getItem(
       scopedKey(ONBOARDING_AGENDA_KEY, userId),
     );
-    if (value && value.trim()) return value;
+    if (value && value.trim()) {
+      if (userId) localStorage.removeItem(ONBOARDING_AGENDA_KEY);
+      return value;
+    }
     if (!userId) return null;
     const unscoped = localStorage.getItem(ONBOARDING_AGENDA_KEY);
     if (unscoped && unscoped.trim()) {
