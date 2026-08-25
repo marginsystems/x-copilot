@@ -20,8 +20,8 @@ import {
   type ScoutStageId,
 } from "../lib/scoutStages";
 import {
-  clampTargetCoolThreads,
   DEFAULT_SETTINGS,
+  DEFAULT_TARGET_COOL_THREADS,
   type AppSettings,
 } from "../lib/settings";
 import { formatAbsoluteTime, formatTimeAgo } from "../lib/timeAgo";
@@ -295,7 +295,7 @@ export function useScoutRun({
     searchingRef.current = Infinity;
     staleHydration.current = true;
 
-    const targetCool = clampTargetCoolThreads(settings.targetCoolThreads);
+    const targetCool = DEFAULT_TARGET_COOL_THREADS;
     coolProgressRef.current = { cool: 0, target: targetCool };
     flightStageRef.current = "planning";
     serverStageRef.current = null;
