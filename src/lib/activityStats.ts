@@ -101,3 +101,31 @@ export function formatPeriodLabel(period: string, bucket: ActivityBucket): strin
   const m = period.match(/^\d{4}-(\d{2})-(\d{2})$/);
   return m ? `${m[1]}-${m[2]}` : period;
 }
+
+/** Popover title: `8/11` or `Week 33`. */
+export function formatPeriodTip(period: string, bucket: ActivityBucket): string {
+  if (bucket === "week") {
+    const m = period.match(/W(\d{2})$/);
+    return m ? `Week ${Number(m[1])}` : period;
+  }
+  const m = period.match(/^\d{4}-(\d{2})-(\d{2})$/);
+  return m ? `${Number(m[1])}/${Number(m[2])}` : period;
+}
+
+export function formatCount(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}m`;
+  if (abs >= 10_000) return `${Math.round(n / 1000)}k`;
+  if (abs >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return n.toLocaleString();
+}
+
+export function activityChartTipDetail(
+  posts: number,
+  views: number,
+  held: boolean,
+): string {
+  const postLabel = posts === 1 ? "1 post" : `${formatCount(posts)} posts`;
+  return held ? `${postLabel} · views pending` : `${postLabel} · ${formatCount(views)} views`;
+}

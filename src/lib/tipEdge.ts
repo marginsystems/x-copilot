@@ -31,3 +31,13 @@ export function tipEdge(
   }
   return "center";
 }
+
+/** Flip a tip below the anchor when it would clip the top of the viewport. */
+export function tipFlipBelow(
+  triggerY: number,
+  tipHeight: number,
+  pad = 12,
+  gap = 10,
+): boolean {
+  return triggerY - tipHeight - gap < pad;
+}
