@@ -23,6 +23,8 @@ describe("desk routes", () => {
     assert.equal(pathFromView("pricing"), "/pricing");
     assert.equal(viewFromPath("/changelog"), "changelog");
     assert.equal(pathFromView("changelog"), "/changelog");
+    assert.equal(viewFromPath("/learn"), "learn");
+    assert.equal(pathFromView("learn"), "/learn");
     assert.equal(viewFromPath("/analytics"), "analytics");
     assert.equal(viewFromPath("/voice"), "voice");
     assert.equal(viewFromPath("/"), "home");
@@ -31,11 +33,12 @@ describe("desk routes", () => {
     assert.equal(pathFromView("dashboard"), "/dashboard");
   });
 
-  it("treats legal, pricing, and changelog as public", () => {
+  it("treats legal, pricing, changelog, and learn as public", () => {
     assert.equal(isPublicView("privacy"), true);
     assert.equal(isPublicView("terms"), true);
     assert.equal(isPublicView("pricing"), true);
     assert.equal(isPublicView("changelog"), true);
+    assert.equal(isPublicView("learn"), true);
     assert.equal(isPublicView("dashboard"), false);
     assert.equal(isPublicView("home"), false);
   });

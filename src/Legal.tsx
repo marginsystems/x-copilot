@@ -292,6 +292,7 @@ export function LegalLinks(props: { className?: string }) {
     <nav className={props.className ?? "legal-links"} aria-label="Legal">
       <a href="/pricing">Pricing</a>
       <a href="/changelog">Changelog</a>
+      <a href="/learn">Learn</a>
       <a href="/privacy">Privacy</a>
       <a href="/terms">Terms</a>
     </nav>

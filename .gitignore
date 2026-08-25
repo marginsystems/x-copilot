@@ -18,6 +18,9 @@ data/
 # Obsidian knowledge memories (Mark interacted reply notes) — never commit
 knowledge/
 
+# Local clones of third-party sources (never commit)
+references/
+
 # IDE / OS
 .DS_Store
 Thumbs.db

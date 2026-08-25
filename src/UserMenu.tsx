@@ -20,6 +20,7 @@ type MenuView =
   | "analytics"
   | "pricing"
   | "changelog"
+  | "learn"
   | "privacy"
   | "terms";
 
@@ -325,6 +326,13 @@ export function UserMenu(props: {
         >
           <MenuIcon d="M5 6h14v3H5zM5 12h14v3H5zM5 18h9v3H5z" />
           Changelog
+        </a>
+        <a
+          className={props.view === "learn" ? "menu-item is-current" : "menu-item"}
+          href="/learn"
+        >
+          <MenuIcon d="M5 5h14v4H5zM5 11h10v8H5zM17 11h2v8h-2z" />
+          Learn
         </a>
         <a
           className={props.view === "privacy" ? "menu-item is-current" : "menu-item"}
