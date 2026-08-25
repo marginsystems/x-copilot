@@ -20,7 +20,9 @@ export function ChangelogPage(props: { onHome: () => void }) {
       </p>
       {changelogByDate(CHANGELOG).map((day) => (
         <section key={day.date} aria-labelledby={`ship-${day.date}`}>
-          <h2 id={`ship-${day.date}`}>{formatChangelogDate(day.date)}</h2>
+          <h2 id={`ship-${day.date}`}>
+            <time dateTime={day.date}>{formatChangelogDate(day.date)}</time>
+          </h2>
           <ul>
             {day.items.map((item) => (
               <li key={`${day.date}-${item.title}`}>

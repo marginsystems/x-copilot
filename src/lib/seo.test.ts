@@ -3,9 +3,26 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { seoForView, SITE_TITLE } from "./seo.ts";
+import { CHANGELOG } from "./changelog.ts";
+import {
+  CHANGELOG_IMAGE,
+  CHANGELOG_TITLE,
+  changelogJsonLd,
+  htmlWithSeo,
+  OG_IMAGE_HEIGHT,
+  OG_IMAGE_WIDTH,
+  seoForView,
+  SITE_TITLE,
+} from "./seo.ts";
 
-const publicDir = join(dirname(fileURLToPath(import.meta.url)), "../../public");
+const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
+const publicDir = join(root, "public");
+
+function pngSize(path: string): { width: number; height: number } {
+  const buf = readFileSync(path);
+  assert.equal(buf.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+}
 
 describe("seoForView", () => {
   it("keeps the homepage on the index.html tagline", () => {
@@ -15,6 +32,7 @@ describe("seoForView", () => {
       "x-copilot — the X copilot for growing your account",
     );
     assert.doesNotMatch(home.title, /independent research desk/);
+    assert.equal(home.image, "/og.png");
   });
 
   it("gives privacy, terms, pricing, and changelog their own titles", () => {
@@ -22,8 +40,11 @@ describe("seoForView", () => {
     assert.equal(seoForView("terms").title, "Terms of Service — x-copilot");
     assert.equal(seoForView("pricing").title, "Pricing — x-copilot");
     assert.match(seoForView("pricing").description, /\$12/);
-    assert.equal(seoForView("changelog").title, "Changelog — x-copilot");
+    assert.equal(seoForView("changelog").title, CHANGELOG_TITLE);
+    assert.match(seoForView("changelog").title, /what shipped/i);
     assert.match(seoForView("changelog").description, /launch notes/i);
+    assert.match(seoForView("changelog").description, /flight-path/i);
+    assert.equal(seoForView("changelog").image, CHANGELOG_IMAGE);
   });
 
   it("noindexes Privacy and Terms and keeps product pages indexable", () => {
@@ -41,12 +62,51 @@ describe("seoForView", () => {
   });
 });
 
+describe("changelog schema", () => {
+  it("is a CollectionPage with breadcrumbs and newest-first ships", () => {
+    const graph = changelogJsonLd()["@graph"];
+    assert.ok(Array.isArray(graph));
+    const page = graph.find((node) => node["@type"] === "CollectionPage");
+    const list = graph.find((node) => node["@type"] === "ItemList");
+    const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
+    assert.ok(page && list && crumbs);
+    assert.equal(page.name, CHANGELOG_TITLE);
+    assert.equal(page.image, "https://xcopilot.dev/og-changelog.png");
+    assert.equal(page.dateModified, CHANGELOG[0]?.date);
+    assert.equal(list.numberOfItems, CHANGELOG.length);
+    assert.equal(list.itemListOrder, "https://schema.org/ItemListOrderDescending");
+    assert.equal(list.itemListElement[0]?.item?.name, CHANGELOG[0]?.title);
+    assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/changelog");
+  });
+});
+
+describe("htmlWithSeo", () => {
+  it("rewrites the SPA shell for /changelog without touching the home copy", () => {
+    const source = readFileSync(join(root, "index.html"), "utf8");
+    const html = htmlWithSeo(source, "changelog");
+    assert.match(html, /<title>Changelog — what shipped on x-copilot<\/title>/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/changelog"/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/og-changelog\.png"/);
+    assert.match(html, /CollectionPage/);
+    assert.match(html, /Share your flight path/);
+    assert.match(html, /BreadcrumbList/);
+    assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
+    assert.match(source, /<title>x-copilot — the X copilot/);
+  });
+});
+
 describe("public crawl files", () => {
   it("keeps Privacy and Terms out of the sitemap", () => {
     const xml = readFileSync(join(publicDir, "sitemap.xml"), "utf8");
     assert.match(xml, /https:\/\/xcopilot\.dev\/</);
     assert.match(xml, /https:\/\/xcopilot\.dev\/pricing</);
     assert.match(xml, /https:\/\/xcopilot\.dev\/changelog</);
+    assert.match(
+      xml,
+      new RegExp(
+        `<loc>https://xcopilot\\.dev/changelog</loc>\\s*<lastmod>${CHANGELOG[0]!.date}</lastmod>`,
+      ),
+    );
     assert.doesNotMatch(xml, /\/privacy/);
     assert.doesNotMatch(xml, /\/terms/);
   });
@@ -58,5 +118,10 @@ describe("public crawl files", () => {
     assert.match(headers, /\/terms\n\s+X-Robots-Tag: noindex, follow/);
     assert.doesNotMatch(robots, /Disallow: \/privacy/);
     assert.doesNotMatch(robots, /Disallow: \/terms/);
+  });
+
+  it("keeps the changelog featured image at the OG size", () => {
+    const size = pngSize(join(publicDir, "og-changelog.png"));
+    assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
   });
 });
