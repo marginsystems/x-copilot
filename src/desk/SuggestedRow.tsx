@@ -76,92 +76,90 @@ export function SuggestedRow({
         </span>
       </button>
 
-      {open ? (
-        <div className="row-detail">
-          {!compose && row.draft ? (
-            <p className="for-you-draft">{row.draft}</p>
-          ) : null}
-          {compose ? (
-            voice?.status === "ready" && voice.unlocked && seed ? (
-              <SuggestPane
-                variant="compose"
-                composeKind={row.kind === "quote" ? "quote" : "post"}
-                suggestionId={row.id}
-                quoteTweetId={row.targetId}
-                threadId={row.id}
-                author={row.targetAuthor || handle}
-                text={seed}
-                agenda={agenda}
-                usage={voice.suggests}
-                onUsage={onUsage}
-                onDeskPosted={onPosted}
-              />
-            ) : (
-              <SuggestLocked
-                voice={voice}
-                xLinked={xLinked}
-                hasSession={hasSession}
-                lockNoun="post"
-                onOpenSettings={onOpenSettings}
-                onLinkX={onLinkX}
-              />
-            )
+      <div className="row-detail">
+        {!compose && row.draft ? (
+          <p className="for-you-draft">{row.draft}</p>
+        ) : null}
+        {compose ? (
+          voice?.status === "ready" && voice.unlocked && seed ? (
+            <SuggestPane
+              variant="compose"
+              composeKind={row.kind === "quote" ? "quote" : "post"}
+              suggestionId={row.id}
+              quoteTweetId={row.targetId}
+              threadId={row.id}
+              author={row.targetAuthor || handle}
+              text={seed}
+              agenda={agenda}
+              usage={voice.suggests}
+              onUsage={onUsage}
+              onDeskPosted={onPosted}
+            />
           ) : (
-            <div className="row">
-              {openUrl ? (
-                <a
-                  className="ghost"
-                  href={openUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open on X
-                </a>
-              ) : (
-                <button type="button" className="ghost" disabled>
-                  Open on X
-                </button>
-              )}
-              <button
-                type="button"
-                className="primary"
-                disabled={busy}
-                onClick={onPosted}
-              >
-                I posted on X
-              </button>
-            </div>
-          )}
+            <SuggestLocked
+              voice={voice}
+              xLinked={xLinked}
+              hasSession={hasSession}
+              lockNoun="post"
+              onOpenSettings={onOpenSettings}
+              onLinkX={onLinkX}
+            />
+          )
+        ) : (
           <div className="row">
-            {compose ? (
-              <button
-                type="button"
+            {openUrl ? (
+              <a
                 className="ghost"
-                disabled={busy}
-                onClick={onPosted}
+                href={openUrl}
+                target="_blank"
+                rel="noreferrer"
               >
-                I posted on X
+                Open on X
+              </a>
+            ) : (
+              <button type="button" className="ghost" disabled>
+                Open on X
               </button>
-            ) : null}
+            )}
             <button
               type="button"
-              className="ghost"
+              className="primary"
               disabled={busy}
-              onClick={onSkip}
+              onClick={onPosted}
             >
-              Skip
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              disabled={busy}
-              onClick={onDismiss}
-            >
-              Not interested
+              I posted on X
             </button>
           </div>
+        )}
+        <div className="row">
+          {compose ? (
+            <button
+              type="button"
+              className="ghost"
+              disabled={busy}
+              onClick={onPosted}
+            >
+              I posted on X
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="ghost"
+            disabled={busy}
+            onClick={onSkip}
+          >
+            Skip
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            disabled={busy}
+            onClick={onDismiss}
+          >
+            Not interested
+          </button>
         </div>
-      ) : null}
+      </div>
     </article>
   );
 }

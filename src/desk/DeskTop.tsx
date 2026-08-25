@@ -116,7 +116,17 @@ export function DeskTop({
               <p className={searching ? "status scout-flight-line" : "status status-main"}>
                 {statusLine}
               </p>
-              {takeoffsHint ? (
+              {showUsageCta ? (
+                <p className="status status-hint">
+                  <button
+                    type="button"
+                    className="usage-cta"
+                    onClick={onOpenUsage}
+                  >
+                    Open Usage & Billing
+                  </button>
+                </p>
+              ) : takeoffsHint ? (
                 <p className="status status-hint">{takeoffsHint}</p>
               ) : null}
             </div>
