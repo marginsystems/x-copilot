@@ -2,7 +2,11 @@ import { pathFromView, type AppView } from "./appView";
 import { CHANGELOG } from "./changelog";
 import {
   LEARN_DESCRIPTION,
+  LEARN_FOLLOW_DESCRIPTION,
+  LEARN_FOLLOW_HEADING,
+  LEARN_FOLLOW_TITLE,
   LEARN_HEADING,
+  LEARN_OON_HREF,
   LEARN_PARAM_FILE_HREF,
   LEARN_SOURCE_DATE,
   LEARN_SOURCE_REPO,
@@ -31,7 +35,7 @@ export const CHANGELOG_TITLE = "Changelog — what shipped on x-copilot";
 export const CHANGELOG_DESCRIPTION =
   "Launch notes for x-copilot, newest first. Voice cards, flight-path images, Approach, and the desk. Not a blog. Not affiliated with X Corp.";
 
-export { LEARN_TITLE, LEARN_DESCRIPTION };
+export { LEARN_TITLE, LEARN_DESCRIPTION, LEARN_FOLLOW_TITLE, LEARN_FOLLOW_DESCRIPTION };
 
 export const PRIVACY_TITLE = "Privacy Policy — x-copilot";
 export const TERMS_TITLE = "Terms of Service — x-copilot";
@@ -108,6 +112,15 @@ export function seoForView(view: AppView): SeoMeta {
     return {
       title: LEARN_TITLE,
       description: LEARN_DESCRIPTION,
+      robots,
+      image: SITE_IMAGE,
+      imageAlt: SITE_IMAGE_ALT,
+    };
+  }
+  if (view === "learnFollow") {
+    return {
+      title: LEARN_FOLLOW_TITLE,
+      description: LEARN_FOLLOW_DESCRIPTION,
       robots,
       image: SITE_IMAGE,
       imageAlt: SITE_IMAGE_ALT,
@@ -320,9 +333,90 @@ export function learnJsonLd(): Record<string, unknown> {
   };
 }
 
+export function learnFollowJsonLd(): Record<string, unknown> {
+  const pageUrl = `${SITE_ORIGIN}/learn/follow`;
+  const learnUrl = `${SITE_ORIGIN}/learn`;
+  const orgId = `${SITE_ORIGIN}/#organization`;
+  const appId = `${SITE_ORIGIN}/#app`;
+  const siteId = `${SITE_ORIGIN}/#website`;
+  const pageId = `${pageUrl}#page`;
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": orgId,
+        name: LEGAL_ENTITY,
+        url: "https://mergestorm.ai/",
+        email: LEGAL_CONTACT_EMAIL,
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": appId,
+        name: PRODUCT_NAME,
+        url: `${SITE_ORIGIN}/`,
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        image: absoluteSeoUrl(SITE_IMAGE),
+        creator: { "@id": orgId },
+      },
+      {
+        "@type": "WebSite",
+        "@id": siteId,
+        url: `${SITE_ORIGIN}/`,
+        name: PRODUCT_NAME,
+        publisher: { "@id": orgId },
+        inLanguage: "en-US",
+      },
+      {
+        "@type": "Article",
+        "@id": pageId,
+        url: pageUrl,
+        name: LEARN_FOLLOW_TITLE,
+        headline: LEARN_FOLLOW_HEADING,
+        description: LEARN_FOLLOW_DESCRIPTION,
+        isPartOf: { "@id": siteId },
+        about: { "@id": appId },
+        image: absoluteSeoUrl(SITE_IMAGE),
+        inLanguage: "en-US",
+        dateModified: LEARN_SOURCE_DATE,
+        citation: LEARN_OON_HREF,
+        publisher: { "@id": orgId },
+        breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
+        sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${pageUrl}#breadcrumb`,
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: PRODUCT_NAME,
+            item: `${SITE_ORIGIN}/`,
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: LEARN_HEADING,
+            item: learnUrl,
+          },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: LEARN_FOLLOW_HEADING,
+            item: pageUrl,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export function jsonLdForView(view: AppView): Record<string, unknown> {
   if (view === "changelog") return changelogJsonLd();
   if (view === "learn") return learnJsonLd();
+  if (view === "learnFollow") return learnFollowJsonLd();
   return softwareApplicationJsonLd();
 }
 

@@ -18,7 +18,7 @@ import {
 } from "./lib/learn";
 import { PRODUCT_NAME } from "./lib/legal";
 
-export function LearnPage(props: { onHome: () => void }) {
+export function LearnPage(props: { onHome: () => void; onFollow: () => void }) {
   return (
     <article className="legal-page learn-page">
       <p className="legal-kicker">
@@ -123,8 +123,11 @@ export function LearnPage(props: { onHome: () => void }) {
       <p>
         Posts from accounts you follow come from <code>thunder/</code>.
         Out-of-network posts are multiplied by 0.75. Predicting that you will
-        follow the author is +4.0. A reply between mutual follows can add +15.0
-        on the reply term.
+        follow the author is +4.0.{" "}
+        <LegalLink href="/learn/follow" onNavigate={props.onFollow}>
+          Follow and out-of-network
+        </LegalLink>{" "}
+        has the in-network reply and repost discount.
       </p>
 
       <h2>Source</h2>

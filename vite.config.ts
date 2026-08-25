@@ -13,9 +13,17 @@ function seoRouteHtml(): Plugin {
     closeBundle() {
       const dist = join(process.cwd(), "dist");
       const index = readFileSync(join(dist, "index.html"), "utf8");
-      for (const view of ["changelog", "learn"] as const) {
-        mkdirSync(join(dist, view), { recursive: true });
-        writeFileSync(join(dist, view, "index.html"), htmlWithSeo(index, view));
+      const routes = [
+        { view: "changelog" as const, dir: "changelog" },
+        { view: "learn" as const, dir: "learn" },
+        { view: "learnFollow" as const, dir: "learn/follow" },
+      ];
+      for (const route of routes) {
+        mkdirSync(join(dist, route.dir), { recursive: true });
+        writeFileSync(
+          join(dist, route.dir, "index.html"),
+          htmlWithSeo(index, route.view),
+        );
       }
     },
   };

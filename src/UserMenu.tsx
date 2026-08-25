@@ -21,6 +21,7 @@ type MenuView =
   | "pricing"
   | "changelog"
   | "learn"
+  | "learnFollow"
   | "privacy"
   | "terms";
 
@@ -328,7 +329,11 @@ export function UserMenu(props: {
           Changelog
         </a>
         <a
-          className={props.view === "learn" ? "menu-item is-current" : "menu-item"}
+          className={
+            props.view === "learn" || props.view === "learnFollow"
+              ? "menu-item is-current"
+              : "menu-item"
+          }
           href="/learn"
         >
           <MenuIcon d="M5 5h14v4H5zM5 11h10v8H5zM17 11h2v8h-2z" />

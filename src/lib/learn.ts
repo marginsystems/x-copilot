@@ -14,6 +14,13 @@ export const LEARN_DESCRIPTION =
 export const LEARN_META =
   "Cited from xai-org/x-algorithm at d011592 (24 August 2026). Defaults in this snapshot. Not affiliated with X Corp.";
 
+export const LEARN_FOLLOW_TITLE = "Follow and out-of-network — x-copilot";
+export const LEARN_FOLLOW_HEADING = "Follow and out-of-network";
+export const LEARN_FOLLOW_DESCRIPTION =
+  "X For You in-network posts come from thunder/. Out-of-network posts, and followed replies or reposts, are multiplied by 0.75. Follow-author is +4.0. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+export const LEARN_FOLLOW_META =
+  "Cited from xai-org/x-algorithm at d011592 (24 August 2026). Defaults in this snapshot. Not affiliated with X Corp.";
+
 export const LEARN_FORMULA = "Final Score = Σ (weight_i × P(action_i))";
 
 export type LearnWeight = {
@@ -96,6 +103,32 @@ export const LEARN_SCORER_HREF = algorithmPermalink(
 );
 export const LEARN_README_SCORE_HREF = algorithmPermalink("README.md", 337, 338);
 export const LEARN_OON_HREF = algorithmPermalink("home-mixer/params/param.rs", 252, 257);
+export const LEARN_OON_SWITCH_HREF = algorithmPermalink(
+  "home-mixer/params/param.rs",
+  266,
+  271,
+);
+export const LEARN_OON_APPLY_HREF = algorithmPermalink(
+  "home-mixer/scorers/ranking_scorer.rs",
+  805,
+  816,
+);
+export const LEARN_FOLLOW_AUTHOR_HREF = algorithmPermalink(
+  "home-mixer/params/param.rs",
+  377,
+  382,
+);
+export const LEARN_MUTUAL_REPLY_HREF = algorithmPermalink(
+  "home-mixer/params/param.rs",
+  316,
+  321,
+);
+export const LEARN_MUTUAL_REPLY_APPLY_HREF = algorithmPermalink(
+  "home-mixer/scorers/ranking_scorer.rs",
+  180,
+  192,
+);
+export const LEARN_THUNDER_HREF = algorithmPermalink("README.md", 60, 63);
 export const LEARN_DIVERSITY_HREF = algorithmPermalink(
   "home-mixer/params/param.rs",
   228,

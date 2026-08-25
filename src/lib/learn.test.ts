@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   LEARN_FORMULA,
+  LEARN_OON_HREF,
+  LEARN_OON_SWITCH_HREF,
   LEARN_PARAM_COMMENT_HREF,
   LEARN_SOURCE_SHA,
   LEARN_WEIGHTS,
@@ -41,5 +43,14 @@ describe("learn citations", () => {
     assert.equal(formatLearnWeight(0.5), "+0.5");
     assert.equal(formatLearnWeight(-234.0), "-234.0");
     assert.equal(LEARN_FORMULA, "Final Score = Σ (weight_i × P(action_i))");
+  });
+
+  it("pins follow / OON citations to the same SHA", () => {
+    assert.match(LEARN_OON_HREF, /\/blob\/d011592\/home-mixer\/params\/param\.rs#L252-L257/);
+    assert.match(
+      LEARN_OON_SWITCH_HREF,
+      /EnableOonRescoreForInNetworkRepliesRetweets|#L266-L271/,
+    );
+    assert.match(LEARN_OON_SWITCH_HREF, /\/blob\/d011592\//);
   });
 });
