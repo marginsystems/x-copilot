@@ -38,6 +38,7 @@ import {
   stampVoiceCardAttempt,
   updateVoiceProfilePull,
   upsertVoiceReplies,
+  voiceCardIsStarter,
   voiceCardStale,
   voiceUnlocked,
   type VoiceReplyInput,
@@ -336,19 +337,29 @@ export async function runUserIngest(opts: {
     const posts = updated?.replyCount ?? 0;
     const unlocked = voiceUnlocked(posts);
     const hadCard = Boolean(updated?.cardJson);
+    const hadStarterCard = voiceCardIsStarter(updated?.cardJson ?? null);
     // The corpus moved this pull: the stored count grew (duplicate re-pulls
     // keep the cursor and do not add rows, so they must not trigger a rewrite).
     const corpusGrew = posts > profile.replyCount;
-    if (unlocked && !hadCard) {
+    if (
+      posts > 0 &&
+      (!hadCard || (unlocked && hadStarterCard)) &&
+      ((unlocked && hadStarterCard) ||
+        voiceCardStale(updated?.cardAttemptAt ?? null))
+    ) {
+      stampVoiceCardAttempt(user.id);
+      const starter = !unlocked;
       const cardResult = await generateCard({
         handle: handle || "you",
         replies: listVoiceReplies(user.id, 120),
+        starter,
       });
       if (cardResult.ok) {
         saveVoiceCard({
           userId: user.id,
           cardJson: cardResult.cardJson,
           model: cardResult.model,
+          starter,
         });
       } else {
         setVoiceProfileStatus(
@@ -360,6 +371,7 @@ export async function runUserIngest(opts: {
     } else if (
       unlocked &&
       hadCard &&
+      !hadStarterCard &&
       opts.mode === "hourly" &&
       corpusGrew &&
       voiceCardStale(updated?.cardAttemptAt ?? null)
@@ -381,10 +393,35 @@ export async function runUserIngest(opts: {
       } else {
         setVoiceProfileStatus(user.id, "ready");
       }
+    } else if (
+      !unlocked &&
+      hadStarterCard &&
+      opts.mode === "hourly" &&
+      corpusGrew &&
+      voiceCardStale(updated?.cardAttemptAt ?? null)
+    ) {
+      stampVoiceCardAttempt(user.id);
+      const cardResult = await generateCard({
+        handle: handle || "you",
+        replies: listVoiceReplies(user.id, 120),
+        starter: true,
+      });
+      if (cardResult.ok) {
+        saveVoiceCard({
+          userId: user.id,
+          cardJson: cardResult.cardJson,
+          model: cardResult.model,
+          starter: true,
+        });
+      } else {
+        setVoiceProfileStatus(user.id, "empty");
+      }
     } else {
       setVoiceProfileStatus(
         user.id,
-        priorStatus === "ready" || hadCard ? "ready" : "empty",
+        priorStatus === "ready" || (hadCard && !hadStarterCard)
+          ? "ready"
+          : "empty",
       );
     }
 

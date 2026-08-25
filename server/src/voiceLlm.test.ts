@@ -8,6 +8,7 @@ import {
   generateVoiceCard,
   parseVerifyJson,
   parseStanceOptions,
+  parseStarterVoiceCardJson,
   parseVoiceCardJson,
   proposeStances,
   suggestReply,
@@ -69,6 +70,24 @@ describe("voice card parsing", () => {
     );
     assert.equal(extractJsonObject("no json here"), null);
   });
+
+  it("parses a starter as tone only and discards claimed examples", () => {
+    const card = parseStarterVoiceCardJson(
+      JSON.stringify({
+        tone: "Brief and direct.",
+        habits: ["invented habit"],
+        examples: ["invented example"],
+      }),
+    );
+    assert.deepEqual(card, {
+      tone: "Brief and direct.",
+      typicalLength: "",
+      habits: [],
+      neverDo: [],
+      examples: [],
+      starter: true,
+    });
+  });
 });
 
 describe("generateVoiceCard", () => {
@@ -84,6 +103,26 @@ describe("generateVoiceCard", () => {
     assert.ok(result.ok);
     if (result.ok) assert.equal(result.card.habits.length, 2);
     assert.equal(capture.purpose, "voice_card");
+  });
+
+  it("generates a tone-only starter without asking for examples", async () => {
+    const capture: { messages?: ChatMessage[] } = {};
+    const result = await generateVoiceCard({
+      handle: "margin",
+      replies: [
+        { id: "1", text: "ship it", conversationId: "c1", postedAt: null, source: "api" },
+      ],
+      starter: true,
+      chat: fakeChat('{"tone":"Brief and direct.","examples":["ship it"]}', capture),
+    });
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.equal(result.card.starter, true);
+      assert.deepEqual(result.card.examples, []);
+      assert.equal(JSON.parse(result.cardJson).starter, true);
+    }
+    const system = capture.messages?.find((message) => message.role === "system");
+    assert.match(system?.content ?? "", /do not quote, paraphrase, invent/i);
   });
 });
 

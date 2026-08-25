@@ -54,6 +54,15 @@ export function voiceUnlocked(postCount: number): boolean {
   return postCount >= VOICE_UNLOCK_MIN_POSTS;
 }
 
+export function voiceCardIsStarter(cardJson: string | null): boolean {
+  if (!cardJson) return false;
+  try {
+    return (JSON.parse(cardJson) as { starter?: unknown }).starter === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Hourly ingest rewrites the card at most this often (also once per UTC day). */
 export const VOICE_CARD_REFRESH_MS = 24 * 60 * 60 * 1000;
 
@@ -375,16 +384,25 @@ export function saveVoiceCard(input: {
   userId: string;
   cardJson: string;
   model: string;
+  starter?: boolean;
 }): void {
   const at = nowIso();
   getPlatformDb()
     .prepare(
       `UPDATE voice_profiles SET
          card_json = ?, card_model = ?, card_updated_at = ?, card_attempt_at = ?,
-         status = 'ready', last_error = NULL, updated_at = ?
+         status = ?, last_error = NULL, updated_at = ?
        WHERE user_id = ?`,
     )
-    .run(input.cardJson, input.model, at, at, at, input.userId);
+    .run(
+      input.cardJson,
+      input.model,
+      at,
+      at,
+      input.starter ? "empty" : "ready",
+      at,
+      input.userId,
+    );
 }
 
 /**

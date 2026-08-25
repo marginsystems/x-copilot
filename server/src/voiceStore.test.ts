@@ -27,6 +27,7 @@ import {
   suggestLimitForPlan,
   updateVoiceProfilePull,
   upsertVoiceReplies,
+  voiceCardIsStarter,
   voiceCardStale,
   voiceUnlocked,
 } from "./voiceStore.ts";
@@ -154,6 +155,25 @@ describe("voiceStore", () => {
     assert.equal(profile?.replyCount, 3);
     assert.equal(profile?.conversationCount, 3);
     assert.ok(profile?.cardUpdatedAt);
+  });
+
+  it("persists a starter card without marking Suggest ready", () => {
+    ensureVoiceProfile(USER, TENANT);
+    const cardJson = JSON.stringify({
+      tone: "Brief and direct.",
+      starter: true,
+    });
+    saveVoiceCard({
+      userId: USER,
+      cardJson,
+      model: "deepseek-v4-flash",
+      starter: true,
+    });
+    const profile = getVoiceProfile(USER);
+    assert.equal(profile?.status, "empty");
+    assert.equal(profile?.cardJson, cardJson);
+    assert.equal(voiceCardIsStarter(profile?.cardJson ?? null), true);
+    assert.equal(voiceCardIsStarter('{"tone":"full"}'), false);
   });
 
   it("folds desk-detected replies from own_posts into the corpus", () => {
