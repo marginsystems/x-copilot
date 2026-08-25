@@ -1,0 +1,14 @@
+# Privacy and Terms stay fetchable (no robots.txt Disallow) so Google
+# can honor noindex. The SPA shell is index.html for every path — this
+# header is the signal that does not depend on JS.
+/privacy
+  X-Robots-Tag: noindex, follow
+
+/privacy/
+  X-Robots-Tag: noindex, follow
+
+/terms
+  X-Robots-Tag: noindex, follow
+
+/terms/
+  X-Robots-Tag: noindex, follow

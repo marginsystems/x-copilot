@@ -24,7 +24,7 @@ Approach digest delivery uses Resend:
 1. [Search Console](https://search.google.com/search-console) → Add property → **URL prefix** `https://xcopilot.dev`
 2. Verify with a **DNS TXT** record on the `xcopilot.dev` zone (no deploy). HTML-file or meta-tag also work.
 3. Meta-tag path: put the verification string in `VITE_GSC_VERIFICATION` and `npm run deploy:workers`.
-4. Sitemaps → submit `https://xcopilot.dev/sitemap.xml` (`/`, `/privacy`, `/terms`).
+4. Sitemaps → submit `https://xcopilot.dev/sitemap.xml` (`/` and `/pricing`). Privacy and Terms stay linked but `noindex`.
 5. Request indexing on `/` after the first deploy that includes those URLs.
 
 ## Google Analytics 4
