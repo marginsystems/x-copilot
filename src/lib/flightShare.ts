@@ -374,7 +374,7 @@ function triggerDownload(blob: Blob, filename: string): void {
   document.body.append(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export async function copyFlightShareCaption(
