@@ -806,7 +806,7 @@ export default function App() {
                       </p>
                     ) : billing?.sorties && !grounded && !searching ? (
                       <p className="status status-hint">
-                        {sortiesLeft ?? 0} sortie
+                        {sortiesLeft ?? 0} takeoff
                         {sortiesLeft === 1 ? "" : "s"} left today
                       </p>
                     ) : null}

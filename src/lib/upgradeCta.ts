@@ -11,7 +11,7 @@ export function groundedHint(opts: {
   planKey?: string | null;
   firstWeek?: boolean;
 }): string {
-  const base = `Grounded — ${opts.limit} sortie${opts.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`;
+  const base = `Grounded — ${opts.limit} takeoff${opts.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`;
   if (opts.firstWeek) {
     return `${base} Subscribe to Pulse to keep these limits after your first week.`;
   }
