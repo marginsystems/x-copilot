@@ -198,7 +198,8 @@ export function BillingPanel(props: {
 
       {billing?.plan_state === "free_limit_reached" &&
       !billing?.operator_allotment &&
-      !billing?.manual_grant ? (
+      !billing?.manual_grant &&
+      !billing?.first_week_pulse ? (
         <p className="usage-banner">
           You've used this month's free credits. Pulse raises this — upgrade
           below, or wait until the next UTC month.

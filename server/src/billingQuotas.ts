@@ -159,9 +159,14 @@ export function upgradeHint(
   return `${planDisplayName(next)} raises this — open Usage & Billing.`;
 }
 
-export function suggestCapMessage(planKey: PlanKey, limit: number): string {
-  const next = nextPaidPlanKey(planKey);
+export function suggestCapMessage(
+  planKey: PlanKey,
+  limit: number,
+  reason: PlanResolveReason = "free",
+): string {
   const base = `That's ${limit} suggested drafts today — the well refills at 00:00 UTC.`;
-  if (!next) return `${base} ${upgradeHint(planKey)}`;
+  if (reason === "first_week") return `${base} ${upgradeHint(planKey, reason)}`;
+  const next = nextPaidPlanKey(planKey);
+  if (!next) return `${base} ${upgradeHint(planKey, reason)}`;
   return `${base} ${planDisplayName(next)} is ${PLAN_DAILY_SUGGESTS[next]}/day — open Usage & Billing.`;
 }

@@ -13,7 +13,7 @@ import {
   ensureUserBillingRow,
   ensureUserTenant,
 } from "./billingStore.js";
-import { effectivePlanKey } from "./planResolution.js";
+import { resolvePlan } from "./planResolution.js";
 import { BODY_CAP_256K, readJsonBody, send } from "./httpJson.js";
 import { getSessionUser } from "./sessionCookie.js";
 import type { AuthUser } from "./authStore.js";
@@ -142,12 +142,13 @@ async function handleStances(
     return;
   }
   const billing = ensureUserBillingRow(user.id, tenantId);
-  const planKey = effectivePlanKey(billing, user.email);
+  const resolved = resolvePlan(billing, user.email);
+  const planKey = resolved.planKey;
   const usage = getSuggestUsage(user.id, planKey);
   if (!usage.canSuggest) {
     send(req, res, 429, {
       error: "suggest_daily_limit",
-      message: suggestCapMessage(planKey, usage.limit),
+      message: suggestCapMessage(planKey, usage.limit, resolved.reason),
       used: usage.used,
       limit: usage.limit,
       planKey,
@@ -235,7 +236,8 @@ async function handleSuggest(
 
   const tenantId = ensureUserTenant(user.id);
   const billing = ensureUserBillingRow(user.id, tenantId);
-  const planKey = effectivePlanKey(billing, user.email);
+  const resolved = resolvePlan(billing, user.email);
+  const planKey = resolved.planKey;
   const exhausted = creditsExhaustedResponse({
     userId: user.id,
     tenantId,
@@ -249,7 +251,7 @@ async function handleSuggest(
   if (!usage.canSuggest) {
     send(req, res, 429, {
       error: "suggest_daily_limit",
-      message: suggestCapMessage(planKey, usage.limit),
+      message: suggestCapMessage(planKey, usage.limit, resolved.reason),
       used: usage.used,
       limit: usage.limit,
       planKey,
@@ -261,7 +263,7 @@ async function handleSuggest(
   if (!reservationId) {
     send(req, res, 429, {
       error: "suggest_daily_limit",
-      message: suggestCapMessage(planKey, usage.limit),
+      message: suggestCapMessage(planKey, usage.limit, resolved.reason),
       used: usage.limit,
       limit: usage.limit,
       planKey,
