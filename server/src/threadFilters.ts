@@ -41,6 +41,7 @@ export const DEFAULT_EXCLUDED_ACCOUNTS = [
   "metaai",
   "copilot",
   "perplexity_ai",
+  "boardyai",
 ] as const;
 export const MAX_EXCLUDED_ACCOUNTS = 40;
 

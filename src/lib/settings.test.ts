@@ -4,6 +4,7 @@ import {
   DEFAULT_EXCLUDED_ACCOUNTS,
   DEFAULT_EXCLUDED_TAGS,
   DEFAULT_SETTINGS,
+  LEGACY_DEFAULT_EXCLUDED_ACCOUNTS,
   clampMaxThreadChars,
   clampTargetCoolThreads,
   formatExcludedTagsText,
@@ -135,6 +136,7 @@ describe("excludedTags settings", () => {
       ...DEFAULT_EXCLUDED_ACCOUNTS,
     ]);
     assert.ok(normalizeSettings({}).excludedAccounts.includes("grok"));
+    assert.ok(normalizeSettings({}).excludedAccounts.includes("boardyai"));
     assert.deepEqual(
       normalizeExcludedAccounts(["@Grok", "not a handle"]),
       ["grok"],
@@ -242,6 +244,29 @@ describe("loadSettings / saveSettings", () => {
     });
     assert.deepEqual(loadSettings().excludedTags, [
       "supportive_encouragement",
+    ]);
+  });
+
+  it("adds boardyai when stored accounts are still the previous default", () => {
+    store.set(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        ...DEFAULT_SETTINGS,
+        excludedAccounts: [...LEGACY_DEFAULT_EXCLUDED_ACCOUNTS],
+      }),
+    );
+    assert.deepEqual(loadSettings().excludedAccounts, [
+      ...DEFAULT_EXCLUDED_ACCOUNTS,
+    ]);
+  });
+
+  it("does not re-add boardyai after an explicit save without it", () => {
+    saveSettings({
+      ...DEFAULT_SETTINGS,
+      excludedAccounts: [...LEGACY_DEFAULT_EXCLUDED_ACCOUNTS],
+    });
+    assert.deepEqual(loadSettings().excludedAccounts, [
+      ...LEGACY_DEFAULT_EXCLUDED_ACCOUNTS,
     ]);
   });
 });

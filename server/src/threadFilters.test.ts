@@ -363,15 +363,16 @@ describe("filterAutomatedAccounts", () => {
 });
 
 describe("filterExcludedAccounts", () => {
-  it("drops default chatbot authors including grok", () => {
+  it("drops default chatbot authors including grok and boardyai", () => {
     const bot = thread("1", "YPP numbers", undefined, { author: "@grok" });
+    const boardy = thread("3", "Boardy take", undefined, { author: "@boardyai" });
     const human = thread("2", "Human take", undefined, { author: "@alice" });
-    const result = filterExcludedAccounts([bot, human]);
+    const result = filterExcludedAccounts([bot, boardy, human]);
     assert.deepEqual(
       result.threads.map((t) => t.id),
       ["2"],
     );
-    assert.equal(result.excludedAccountFilteredCount, 1);
+    assert.equal(result.excludedAccountFilteredCount, 2);
   });
 
   it("keeps everyone when the exclude list is empty", () => {
@@ -383,6 +384,7 @@ describe("filterExcludedAccounts", () => {
 
   it("treats omit as the default chatbot list and [] as off", () => {
     assert.ok(resolveExcludedAccounts().includes("grok"));
+    assert.ok(resolveExcludedAccounts().includes("boardyai"));
     assert.deepEqual(resolveExcludedAccounts([]), []);
     assert.deepEqual(normalizeExcludedAccounts(["@Grok", "grok", "nope!!"]), [
       "grok",
