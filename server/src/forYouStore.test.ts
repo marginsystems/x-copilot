@@ -120,23 +120,35 @@ describe("forYouStore", () => {
   });
 
   it("rewrites stored first-person why on read", () => {
-    const [row] = insertSuggestions({
-      userId: "u1",
-      tenantId: "local",
-      drafts: [
-        {
-          kind: "post",
-          why: "My recent originals about shipping got 18 views",
-          draft: "I shipped it.",
-        },
-      ],
-    });
-    assert.ok(row);
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO for_you_suggestions (
+           id, user_id, tenant_id, kind, status, why, draft,
+           target_id, target_url, target_author, created_at, expires_at, acted_at
+         ) VALUES (?, ?, ?, ?, 'suggested', ?, ?, NULL, NULL, NULL, ?, ?, NULL)`,
+      )
+      .run(
+        "legacy-1",
+        "u1",
+        "local",
+        "post",
+        "My recent originals about shipping got 18 views",
+        "I shipped it.",
+        new Date(now).toISOString(),
+        new Date(now + SUGGESTION_TTL_MS).toISOString(),
+      );
+    const [listed] = listActiveSuggestions("u1", now + 1000);
     assert.equal(
-      listActiveSuggestions("u1")[0]?.why,
+      listed?.why,
       "Your recent originals about shipping got 18 views",
     );
-    assert.equal(getSuggestion(row.id, "u1")?.draft, "I shipped it.");
+    const read = getSuggestion("legacy-1", "u1");
+    assert.equal(
+      read?.why,
+      "Your recent originals about shipping got 18 views",
+    );
+    assert.equal(read?.draft, "I shipped it.");
   });
 
   it("returns a second-person why from insertSuggestions / replaceDailySuggestions", () => {
@@ -203,6 +215,14 @@ describe("secondPersonWhy", () => {
     assert.equal(
       secondPersonWhy("my recap got 900 views"),
       "your recap got 900 views",
+    );
+    assert.equal(
+      secondPersonWhy("MY recap got 900 views"),
+      "Your recap got 900 views",
+    );
+    assert.equal(
+      secondPersonWhy("I'M shipping, I'VE got it, I'D go, I'LL try"),
+      "You're shipping, You've got it, You'd go, You'll try",
     );
     assert.equal(
       secondPersonWhy("give me the recap"),

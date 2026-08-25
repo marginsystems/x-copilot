@@ -21,11 +21,11 @@ export const SUGGESTION_TTL_MS = 48 * 60 * 60 * 1000;
  */
 export function secondPersonWhy(why: string): string {
   return why
-    .replace(/\b[Mm]y\b/g, (m) => (m[0] === "M" ? "Your" : "your"))
-    .replace(/\b[Ii]['’]m\b/g, (m) => (m[0] === "I" ? "You're" : "you're"))
-    .replace(/\b[Ii]['’]ve\b/g, (m) => (m[0] === "I" ? "You've" : "you've"))
-    .replace(/\b[Ii]['’]d\b/g, (m) => (m[0] === "I" ? "You'd" : "you'd"))
-    .replace(/\b[Ii]['’]ll\b/g, (m) => (m[0] === "I" ? "You'll" : "you'll"))
+    .replace(/\bmy\b/gi, (m) => (m[0] === "M" ? "Your" : "your"))
+    .replace(/\bI['’]m\b/gi, (m) => (m[0] === "I" ? "You're" : "you're"))
+    .replace(/\bI['’]ve\b/gi, (m) => (m[0] === "I" ? "You've" : "you've"))
+    .replace(/\bI['’]d\b/gi, (m) => (m[0] === "I" ? "You'd" : "you'd"))
+    .replace(/\bI['’]ll\b/gi, (m) => (m[0] === "I" ? "You'll" : "you'll"))
     .replace(/\bI\s+am\b/gi, (m) => (m[0] === "I" ? "You're" : "you're"))
     .replace(/\bI\s+was\b/gi, (m) => (m[0] === "I" ? "You were" : "you were"))
     .replace(/\bI\s+wasn['’]t\b/gi, (m) => (m[0] === "I" ? "You weren't" : "you weren't"))
