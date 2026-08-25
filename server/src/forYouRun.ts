@@ -16,6 +16,7 @@ import {
   recordForYouRun,
   replaceDailySuggestions,
 } from "./forYouStore.js";
+import { sendApproachDigestEmail } from "./mail.js";
 
 export type ForYouRunResult = {
   ran: number;
@@ -62,6 +63,21 @@ export async function runForYouDigestForUser(opts: {
     drafts: result.drafts,
     nowMs,
   });
+  try {
+    const mail = await sendApproachDigestEmail({
+      userId: opts.userId,
+      suggestions: rows,
+      nowMs,
+    });
+    if (mail.sent) {
+      console.log(`[mail] Approach digest sent user=${opts.userId}`);
+    }
+  } catch (err) {
+    console.warn(
+      "[mail] Approach digest soft-fail:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
   return { wrote: rows.length, reason: "ok" };
 }
 

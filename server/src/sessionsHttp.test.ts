@@ -136,6 +136,10 @@ describe("sessions HTTP", () => {
     assert.equal(userBody.email, "account@example.com");
     const providers = res.body.providers as Array<{ provider: string }>;
     assert.equal(providers.some((p) => p.provider === "google"), true);
+    assert.deepEqual(res.body.mail, {
+      digestEmailOptIn: false,
+      digestEmailAvailable: true,
+    });
     assert.equal(JSON.stringify(res.body).includes("gid-account"), false);
   });
 

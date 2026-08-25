@@ -189,6 +189,14 @@ button.chip.is-on {
   min-width: 132px;
 }
 
+.onboarding-brand {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .agenda-pick {
   display: flex;
   flex-direction: column;

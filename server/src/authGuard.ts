@@ -26,6 +26,7 @@ export function isPublicApiPath(pathname: string): boolean {
   if (pathname === "/api/stripe/webhook") return true;
   if (pathname === "/api/x/activity") return true;
   if (pathname === "/api/onboarding/generate") return true;
+  if (pathname === "/api/mail/unsubscribe") return true;
   return false;
 }
 

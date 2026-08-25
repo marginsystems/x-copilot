@@ -53,6 +53,8 @@ describe("authGuard", () => {
     assert.equal(isPublicApiPath("/api/stripe/webhook"), true);
     assert.equal(isPublicApiPath("/api/x/activity"), true);
     assert.equal(isPublicApiPath("/api/onboarding/generate"), true);
+    assert.equal(isPublicApiPath("/api/mail/unsubscribe"), true);
+    assert.equal(isPublicApiPath("/api/mail/preferences"), false);
     assert.equal(isPublicApiPath("/api/scout/run"), false);
     assert.equal(isPublicApiPath("/api/usage"), false);
     assert.equal(isPublicApiPath("/api/analytics"), false);

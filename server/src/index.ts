@@ -25,6 +25,7 @@ import {
 } from "./xActivityHttp.js";
 import { tryHandleVoice } from "./voiceHttp.js";
 import { tryHandleForYou } from "./forYouHttp.js";
+import { tryHandleDigestEmail } from "./digestEmailHttp.js";
 import { tryHandleMemory } from "./memoryHttp.js";
 import { tryHandleUsage } from "./usageHttp.js";
 import { tryHandleHistory } from "./historyHttp.js";
@@ -73,6 +74,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (await tryHandleXActivityWebhook(req, res, url)) {
+      return;
+    }
+
+    if (await tryHandleDigestEmail(req, res, url)) {
       return;
     }
 

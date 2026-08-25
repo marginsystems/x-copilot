@@ -77,6 +77,7 @@
 }
 
 .account-provider strong,
+.account-mail strong,
 .account-session-agent {
   margin: 0;
   font-family: var(--font-head);
@@ -84,11 +85,37 @@
 }
 
 .account-provider .settings-help,
+.account-mail .settings-help,
 .account-session-meta {
   margin: 4px 0 0;
   font-size: 0.72rem;
   color: var(--muted);
   line-height: 1.4;
+}
+
+.account-mail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--raised);
+  border: 1px solid var(--border-strong);
+}
+
+.account-mail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+}
+
+.account-mail-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
 }
 
 .account-session {
@@ -130,4 +157,11 @@
   display: grid;
   gap: 8px;
   margin-top: 14px;
+}
+
+@media (max-width: 560px) {
+  .account-mail {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
 }
