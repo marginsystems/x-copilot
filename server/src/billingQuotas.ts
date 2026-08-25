@@ -139,7 +139,7 @@ export function sortiesExhaustedResponse(input: {
   if (usage.canFly) return null;
   return {
     error: "scout_daily_limit",
-    message: `Grounded — ${usage.limit} sortie${usage.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC. ${upgradeHint(planKey, resolved.reason)}`,
+    message: `Grounded — ${usage.limit} takeoff${usage.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC. ${upgradeHint(planKey, resolved.reason)}`,
     used: usage.used,
     limit: usage.limit,
     planKey,
