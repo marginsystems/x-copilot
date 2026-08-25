@@ -13,6 +13,7 @@ import {
   VOICE_UNLOCK_TOAST_KEY,
   type VoiceState,
 } from "./lib/voice";
+import { shareVoiceCard, voiceSharePayload } from "./lib/voiceShare";
 
 /** Cycling phase line + quiet pulse for learn / refresh. */
 function VoiceLoader({ startedAt }: { startedAt: number }) {
@@ -65,6 +66,8 @@ export function VoiceCardPanel({
   onLearn?: () => void;
 }) {
   const [learnStartedAt, setLearnStartedAt] = useState<number | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [shareNote, setShareNote] = useState<string | null>(null);
   useEffect(() => {
     if (busy && learnStartedAt === null) setLearnStartedAt(Date.now());
     if (!busy) setLearnStartedAt(null);
@@ -72,6 +75,27 @@ export function VoiceCardPanel({
 
   const card = voice?.card ?? null;
   const starterCard = Boolean(card && (card.starter || !voice?.unlocked));
+  const sharePayload = voiceSharePayload(voice);
+
+  async function onShareCard() {
+    if (!sharePayload || sharing) return;
+    setSharing(true);
+    try {
+      const result = await shareVoiceCard(sharePayload);
+      setShareNote(
+        result.method === "share"
+          ? "Share sheet opened — post the PNG on X."
+          : result.copiedCaption
+            ? "PNG saved. Caption copied — paste it on X."
+            : "PNG saved — attach it on X.",
+      );
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      setShareNote("Could not save the card image.");
+    } finally {
+      setSharing(false);
+    }
+  }
 
   return (
     <section className="voice-panel" aria-label="Your reply voice">
@@ -84,12 +108,30 @@ export function VoiceCardPanel({
             borrow it — you always edit and post yourself.
           </p>
         </div>
-        {refreshing ? (
-          <p className="voice-sub">Updating from the hourly ingest…</p>
-        ) : null}
+        <div className="voice-head-actions">
+          {refreshing ? (
+            <p className="voice-sub">Updating from the hourly ingest…</p>
+          ) : null}
+          {sharePayload ? (
+            <button
+              type="button"
+              className="ghost voice-share"
+              disabled={sharing}
+              onClick={() => void onShareCard()}
+            >
+              {sharing ? "Saving…" : "Share card"}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {error ? <p className="status danger">{error}</p> : null}
+      {sharePayload ? (
+        <p className="voice-share-status" aria-live="polite">
+          {shareNote ??
+            "Save a PNG to post on X. Watermarked xcopilot.dev — never on replies."}
+        </p>
+      ) : null}
 
       {busy ? (
         <VoiceLoader startedAt={learnStartedAt ?? Date.now()} />
