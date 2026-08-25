@@ -54,6 +54,9 @@ describe("cors", () => {
     assert.ok(
       (headers["Access-Control-Allow-Methods"] ?? "").includes("PUT"),
     );
+    assert.ok(
+      (headers["Access-Control-Allow-Methods"] ?? "").includes("PATCH"),
+    );
     assert.notEqual(headers["Access-Control-Allow-Origin"], "*");
   });
 
