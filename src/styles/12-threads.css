@@ -64,7 +64,7 @@
   margin: 0 0 2px;
 }
 
-.for-you-row {
+.thread-row.for-you-row {
   background: color-mix(in srgb, var(--accent) 5%, var(--panel));
 }
 
@@ -307,6 +307,10 @@
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+
+.thread-row:not(.open) .row-detail {
+  display: none;
 }
 
 .row-detail .original {
