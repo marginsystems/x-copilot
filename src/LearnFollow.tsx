@@ -21,16 +21,14 @@ import { PRODUCT_NAME } from "./lib/legal";
 
 export function LearnFollowPage(props: {
   onHome: () => void;
-  onLearn: () => void;
+  onCatalog: () => void;
 }) {
   return (
     <LearnChrome
       heading={LEARN_FOLLOW_HEADING}
       meta={LEARN_FOLLOW_META}
-      note="learnFollow"
       onHome={props.onHome}
-      onLearn={props.onLearn}
-      onFollow={() => undefined}
+      onCatalog={props.onCatalog}
       rail={
         <>
           <p className="learn-rail-kicker">Score</p>

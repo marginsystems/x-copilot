@@ -8,6 +8,9 @@ import {
   LEARN_DESCRIPTION,
   LEARN_FOLLOW_DESCRIPTION,
   LEARN_FOLLOW_TITLE,
+  LEARN_HUB_DESCRIPTION,
+  LEARN_HUB_TITLE,
+  LEARN_IMAGE,
   LEARN_TITLE,
 } from "./learn.ts";
 import {
@@ -17,6 +20,7 @@ import {
   htmlWithSeo,
   learnFollowJsonLd,
   learnJsonLd,
+  learnWeightsJsonLd,
   OG_IMAGE_HEIGHT,
   OG_IMAGE_WIDTH,
   seoForView,
@@ -53,15 +57,19 @@ describe("seoForView", () => {
     assert.match(seoForView("changelog").description, /launch notes/i);
     assert.match(seoForView("changelog").description, /flight-path/i);
     assert.equal(seoForView("changelog").image, CHANGELOG_IMAGE);
-    assert.equal(seoForView("learn").title, LEARN_TITLE);
+    assert.equal(seoForView("learn").title, LEARN_HUB_TITLE);
+    assert.equal(seoForView("learn").description, LEARN_HUB_DESCRIPTION);
     assert.match(seoForView("learn").description, /P\(action\)/);
-    assert.equal(seoForView("learn").description, LEARN_DESCRIPTION);
     assert.match(seoForView("learn").description, /not affiliated/i);
-    assert.equal(seoForView("learn").image, "/og.png");
+    assert.equal(seoForView("learn").image, LEARN_IMAGE);
+    assert.equal(seoForView("learnWeights").title, LEARN_TITLE);
+    assert.equal(seoForView("learnWeights").description, LEARN_DESCRIPTION);
+    assert.equal(seoForView("learnWeights").image, LEARN_IMAGE);
     assert.equal(seoForView("learnFollow").title, LEARN_FOLLOW_TITLE);
     assert.equal(seoForView("learnFollow").description, LEARN_FOLLOW_DESCRIPTION);
     assert.match(seoForView("learnFollow").description, /0\.75/);
     assert.match(seoForView("learnFollow").description, /not affiliated/i);
+    assert.equal(seoForView("learnFollow").image, LEARN_IMAGE);
   });
 
   it("noindexes Privacy and Terms and keeps product pages indexable", () => {
@@ -71,6 +79,7 @@ describe("seoForView", () => {
     assert.equal(seoForView("pricing").robots, "index,follow");
     assert.equal(seoForView("changelog").robots, "index,follow");
     assert.equal(seoForView("learn").robots, "index,follow");
+    assert.equal(seoForView("learnWeights").robots, "index,follow");
     assert.equal(seoForView("learnFollow").robots, "index,follow");
     assert.equal(seoForView("dashboard").robots, "index,follow");
   });
@@ -100,8 +109,25 @@ describe("changelog schema", () => {
 });
 
 describe("learn schema", () => {
-  it("is an Article with breadcrumbs and the cited SHA", () => {
+  it("is a CollectionPage of one lesson", () => {
     const graph = learnJsonLd()["@graph"];
+    assert.ok(Array.isArray(graph));
+    const page = graph.find((node) => node["@type"] === "CollectionPage");
+    const list = graph.find((node) => node["@type"] === "ItemList");
+    const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
+    assert.ok(page && list && crumbs);
+    assert.equal(page.name, LEARN_HUB_TITLE);
+    assert.equal(page.image, "https://xcopilot.dev/og-learn.png");
+    assert.equal(list.numberOfItems, 1);
+    assert.equal(
+      list.itemListElement[0]?.url,
+      "https://xcopilot.dev/learn/what-a-like-is-worth",
+    );
+    assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
+  });
+
+  it("is an Article for the weights lesson with a learn breadcrumb", () => {
+    const graph = learnWeightsJsonLd()["@graph"];
     assert.ok(Array.isArray(graph));
     const page = graph.find((node) => node["@type"] === "Article");
     const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
@@ -109,7 +135,12 @@ describe("learn schema", () => {
     assert.equal(page.name, LEARN_TITLE);
     assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs/);
     assert.equal(page.sameAs, "https://github.com/xai-org/x-algorithm/tree/d011592");
+    assert.equal(page.image, "https://xcopilot.dev/og-learn.png");
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
+    assert.equal(
+      crumbs.itemListElement[2]?.item,
+      "https://xcopilot.dev/learn/what-a-like-is-worth",
+    );
   });
 
   it("is an Article for /learn/follow with a learn breadcrumb", () => {
@@ -142,8 +173,21 @@ describe("htmlWithSeo", () => {
   it("rewrites the SPA shell for /learn without touching the home copy", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
     const html = htmlWithSeo(source, "learn");
-    assert.match(html, /<title>What a like is worth — x-copilot<\/title>/);
+    assert.match(html, /<title>Learn the X algorithm — x-copilot<\/title>/);
     assert.match(html, /content="https:\/\/xcopilot\.dev\/learn"/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn\.png"/);
+    assert.match(html, /P\(action\)/);
+    assert.match(html, /CollectionPage/);
+    assert.match(html, /d011592/);
+    assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
+  });
+
+  it("rewrites the SPA shell for the weights lesson", () => {
+    const source = readFileSync(join(root, "index.html"), "utf8");
+    const html = htmlWithSeo(source, "learnWeights");
+    assert.match(html, /<title>What a like is worth — x-copilot<\/title>/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/learn\/what-a-like-is-worth"/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn\.png"/);
     assert.match(html, /P\(action\)/);
     assert.match(html, /"@type":"Article"/);
     assert.match(html, /d011592/);
@@ -168,6 +212,7 @@ describe("public crawl files", () => {
     assert.match(xml, /https:\/\/xcopilot\.dev\/pricing</);
     assert.match(xml, /https:\/\/xcopilot\.dev\/changelog</);
     assert.match(xml, /https:\/\/xcopilot\.dev\/learn</);
+    assert.match(xml, /https:\/\/xcopilot\.dev\/learn\/what-a-like-is-worth</);
     assert.match(xml, /https:\/\/xcopilot\.dev\/learn\/follow</);
     assert.match(
       xml,
@@ -190,6 +235,11 @@ describe("public crawl files", () => {
 
   it("keeps the changelog featured image at the OG size", () => {
     const size = pngSize(join(publicDir, "og-changelog.png"));
+    assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
+  });
+
+  it("keeps the learn featured image at the OG size", () => {
+    const size = pngSize(join(publicDir, "og-learn.png"));
     assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
   });
 });

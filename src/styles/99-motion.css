@@ -65,7 +65,7 @@
   }
 
   .learn-tip-panel,
-  .learn-notes a,
+  .learn-card,
   .learn-page tbody tr {
     transition: none;
   }

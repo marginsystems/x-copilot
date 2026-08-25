@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LegalLink } from "./Legal";
 import { LearnChrome } from "./LearnChrome";
 import { LearnCode } from "./LearnCode";
 import { LearnTip } from "./LearnTip";
@@ -9,6 +10,8 @@ import {
   LEARN_FORMULA,
   LEARN_HEADING,
   LEARN_META,
+  LEARN_FOLLOW_HEADING,
+  LEARN_FOLLOW_PATH,
   LEARN_OON_HREF,
   LEARN_PARAM_COMMENT_HREF,
   LEARN_PARAM_COMMENT_SNIPPET,
@@ -25,17 +28,19 @@ import {
 } from "./lib/learn";
 import { PRODUCT_NAME } from "./lib/legal";
 
-export function LearnPage(props: { onHome: () => void; onFollow: () => void }) {
+export function LearnPage(props: {
+  onHome: () => void;
+  onCatalog: () => void;
+  onFollow: () => void;
+}) {
   const [selected, setSelected] = useState(LEARN_WEIGHTS[0]!);
 
   return (
     <LearnChrome
       heading={LEARN_HEADING}
       meta={LEARN_META}
-      note="learn"
       onHome={props.onHome}
-      onLearn={() => undefined}
-      onFollow={props.onFollow}
+      onCatalog={props.onCatalog}
       rail={
         <>
           <p className="learn-rail-kicker">Score</p>
@@ -131,6 +136,13 @@ export function LearnPage(props: { onHome: () => void; onFollow: () => void }) {
       </p>
       <p>
         {PRODUCT_NAME} is not affiliated with X Corp.
+      </p>
+      <p>
+        Related:{" "}
+        <LegalLink href={LEARN_FOLLOW_PATH} onNavigate={props.onFollow}>
+          {LEARN_FOLLOW_HEADING}
+        </LegalLink>
+        .
       </p>
     </LearnChrome>
   );
