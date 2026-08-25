@@ -39,7 +39,7 @@ export function LearnPage(props: { onHome: () => void }) {
         <a href={LEARN_PARAM_COMMENT_HREF} rel="noreferrer">
           param.rs
         </a>{" "}
-        as of 14 August 2026.
+        as of 24 August 2026.
       </p>
       <p>
         One common misread is “1 report = 468 likes.” That is wrong. Report is
