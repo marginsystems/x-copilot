@@ -53,5 +53,7 @@ describe("formatChangelogDate", () => {
     assert.equal(formatChangelogDate("2026-08-25"), "August 25, 2026");
     assert.equal(isChangelogDate("2026-08-25"), true);
     assert.equal(isChangelogDate("25-08-2026"), false);
+    assert.equal(isChangelogDate("2026-13-01"), false);
+    assert.equal(isChangelogDate("2026-02-31"), false);
   });
 });
