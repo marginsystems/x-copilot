@@ -71,7 +71,7 @@
   letter-spacing: -0.03em;
 }
 
-@media (width >= 1100px) {
+@media (min-width: 1100px) {
   .learn-layout {
     grid-template-columns: minmax(0, 1fr) 20rem;
     align-items: start;
