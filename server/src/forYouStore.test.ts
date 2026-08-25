@@ -190,6 +190,10 @@ describe("secondPersonWhy", () => {
       secondPersonWhy("I was the top performer this week"),
       "You were the top performer this week",
     );
+    assert.equal(
+      secondPersonWhy("I wasn't sure the recap would hit 900 views"),
+      "You weren't sure the recap would hit 900 views",
+    );
   });
 
   it("is stable under a second pass", () => {
