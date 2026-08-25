@@ -8,7 +8,13 @@ import {
   type ActivityBucket,
   type ActivitySeriesPoint,
 } from "./lib/activityStats";
-import { estimateTipWidth, tipEdge, tipFlipBelow, type TipEdge } from "./lib/tipEdge";
+import {
+  estimateTipWidth,
+  tipAnchor,
+  tipEdge,
+  tipFlipBelow,
+  type TipEdge,
+} from "./lib/tipEdge";
 
 type Props = {
   series: ActivitySeriesPoint[];
@@ -109,7 +115,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
         x2={padL + innerW}
         y2={padT + innerH}
       />
-      {points.map((pt, i) => (
+      {points.map((pt) => (
         <rect
           key={`b-${pt.p.period}`}
           className={
@@ -133,7 +139,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
       {points.length > 1 ? (
         <path className="activity-chart-line" d={lineD} fill="none" />
       ) : null}
-      {points.map((pt, i) =>
+      {points.map((pt) =>
         pt.p.views > 0 || pt.p.interactions > 0 ? (
           <circle
             key={`c-${pt.p.period}`}
@@ -174,7 +180,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
           )
         : null}
       {!compact
-        ? points.map((pt, i) => (
+        ? points.map((pt) => (
             <rect
               key={`h-${pt.p.period}`}
               className={
@@ -246,8 +252,16 @@ function ActivityChartTipHost({
       const pt = points.find((p) => p.p.period === active);
       if (!pt) return;
       const box = wrapRef.current.getBoundingClientRect();
-      const x = box.left + (pt.x / width) * box.width;
-      const y = box.top + (pt.y / height) * box.height;
+      const { x, y } = tipAnchor(
+        box.left,
+        box.top,
+        box.width,
+        box.height,
+        pt.x,
+        pt.y,
+        width,
+        height,
+      );
       setAnchor({ x, y });
       const tipW = tipRef.current?.offsetWidth ?? estimateTipWidth(window.innerWidth);
       const tipH = tipRef.current?.offsetHeight ?? 44;

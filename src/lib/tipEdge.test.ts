@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { estimateTipWidth, tipEdge, tipFlipBelow } from "./tipEdge.ts";
+import { estimateTipWidth, tipAnchor, tipEdge, tipFlipBelow } from "./tipEdge.ts";
 
 describe("tipEdge", () => {
   it("stays centered when the panel fits", () => {
@@ -45,5 +45,21 @@ describe("tipFlipBelow", () => {
 
   it("stays above when there is room", () => {
     assert.equal(tipFlipBelow(120, 44), false);
+  });
+});
+
+describe("tipAnchor", () => {
+  it("maps a point from chart viewBox coordinates to fixed viewport coordinates", () => {
+    assert.deepEqual(
+      tipAnchor(40, 20, 300, 60, 150, 30, 600, 120),
+      { x: 115, y: 35 },
+    );
+  });
+
+  it("scales x by the wrapper's rendered width ratio", () => {
+    assert.deepEqual(
+      tipAnchor(0, 0, 240, 48, 30, 60, 600, 120),
+      { x: 12, y: 24 },
+    );
   });
 });

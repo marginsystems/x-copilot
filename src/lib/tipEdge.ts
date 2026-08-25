@@ -41,3 +41,20 @@ export function tipFlipBelow(
 ): boolean {
   return triggerY - tipHeight - gap < pad;
 }
+
+/** Map a point's viewBox coordinates to fixed viewport coordinates. */
+export function tipAnchor(
+  boxLeft: number,
+  boxTop: number,
+  boxWidth: number,
+  boxHeight: number,
+  pointX: number,
+  pointY: number,
+  chartWidth: number,
+  chartHeight: number,
+): { x: number; y: number } {
+  return {
+    x: boxLeft + (pointX / chartWidth) * boxWidth,
+    y: boxTop + (pointY / chartHeight) * boxHeight,
+  };
+}
