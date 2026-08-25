@@ -11,7 +11,7 @@ import {
   type ConsentChoice,
 } from "../lib/consent";
 import { SITE_ORIGIN } from "../lib/legal";
-import { seoForView } from "../lib/seo";
+import { applyRobotsMeta, seoForView } from "../lib/seo";
 
 export function useViewRouting() {
   const [view, setView] = useState<AppView>(() =>
@@ -72,6 +72,7 @@ export function useViewRouting() {
     document
       .querySelector<HTMLMetaElement>('meta[name="twitter:description"]')
       ?.setAttribute("content", seo.description);
+    applyRobotsMeta(document, seo.robots);
   }, [view]);
 
   function chooseConsent(choice: ConsentChoice) {

@@ -20,23 +20,47 @@ export const TERMS_TITLE = "Terms of Service — x-copilot";
 export const LEGAL_DESCRIPTION =
   "How Mergestorm, Inc. runs x-copilot: what we store, how Suggest and desk posting work, and the terms for using the desk.";
 
+export type RobotsDirective = "index,follow" | "noindex,follow";
+
 export type SeoMeta = {
   title: string;
   description: string;
+  robots: RobotsDirective;
 };
 
+/** Privacy and Terms stay public and linked. They should not rank. */
+export function robotsForView(view: AppView): RobotsDirective {
+  return view === "privacy" || view === "terms"
+    ? "noindex,follow"
+    : "index,follow";
+}
+
 export function seoForView(view: AppView): SeoMeta {
+  const robots = robotsForView(view);
   if (view === "privacy") {
-    return { title: PRIVACY_TITLE, description: LEGAL_DESCRIPTION };
+    return { title: PRIVACY_TITLE, description: LEGAL_DESCRIPTION, robots };
   }
   if (view === "terms") {
-    return { title: TERMS_TITLE, description: LEGAL_DESCRIPTION };
+    return { title: TERMS_TITLE, description: LEGAL_DESCRIPTION, robots };
   }
   if (view === "pricing") {
-    return { title: PRICING_TITLE, description: PRICING_DESCRIPTION };
+    return { title: PRICING_TITLE, description: PRICING_DESCRIPTION, robots };
   }
   if (view === "changelog") {
-    return { title: CHANGELOG_TITLE, description: CHANGELOG_DESCRIPTION };
+    return { title: CHANGELOG_TITLE, description: CHANGELOG_DESCRIPTION, robots };
   }
-  return { title: SITE_TITLE, description: SITE_DESCRIPTION };
+  return { title: SITE_TITLE, description: SITE_DESCRIPTION, robots };
+}
+
+export function applyRobotsMeta(
+  doc: Pick<Document, "head" | "querySelector" | "createElement">,
+  robots: RobotsDirective,
+): void {
+  let el = doc.querySelector<HTMLMetaElement>('meta[name="robots"]');
+  if (!el) {
+    el = doc.createElement("meta");
+    el.setAttribute("name", "robots");
+    doc.head.appendChild(el);
+  }
+  el.setAttribute("content", robots);
 }
