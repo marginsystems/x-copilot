@@ -366,6 +366,11 @@ export function Onboarding(props: {
                   : "Next"}
           </button>
         </div>
+        {!props.embedded ? (
+          <p className="onboarding-brand">
+            Built by Mergestorm, Inc. Not affiliated with X Corp.
+          </p>
+        ) : null}
       </div>
     </div>
   );

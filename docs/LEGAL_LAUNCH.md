@@ -8,6 +8,17 @@ These Privacy / Terms pages are MVP templates, not a lawyer sign-off.
 
 `contact@mergestorm.ai` is the public inbox (same as mergestorm.ai). Confirm it receives mail before launch.
 
+Approach digest delivery uses Resend:
+
+1. Verify `info.xcopilot.dev` in Resend (DKIM/SPF status must be **Verified**).
+2. Create a send-only API key and put it in the machine-local `.env` as
+   `RESEND_API_KEY`. Never put the key in git, an issue, or the frontend.
+3. Set `MAIL_FROM=x-copilot <hello@info.xcopilot.dev>` and
+   `MAIL_REPLY_TO=contact@mergestorm.ai`.
+4. Send a dashboard test to the operator before enabling user opt-ins.
+5. Optional: Cloudflare Email Routing can forward
+   `hello@info.xcopilot.dev` to `contact@mergestorm.ai`.
+
 ## Google Search Console
 
 1. [Search Console](https://search.google.com/search-console) → Add property → **URL prefix** `https://xcopilot.dev`

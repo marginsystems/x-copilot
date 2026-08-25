@@ -7,6 +7,7 @@ import { toPublicUser } from "./authStore.js";
 import { listOauthProviders } from "./oauthAccountStore.js";
 import { allowRate } from "./authGuard.js";
 import { isOriginAllowed, requestOrigin } from "./cors.js";
+import { digestEmailPreferencePayload } from "./digestEmailHttp.js";
 import { send } from "./httpJson.js";
 import { getRequestSession, sessionClearCookie } from "./sessionCookie.js";
 import {
@@ -87,6 +88,7 @@ export async function tryHandleSessions(
         ...toPublicUser(session.user),
         isAdmin: isAdminEmail(session.user.email),
       },
+      mail: digestEmailPreferencePayload(session.user.id),
       providers: listOauthProviders(session.user.id),
       sessions: publicSessions(session.user.id, session.sessionId),
     });

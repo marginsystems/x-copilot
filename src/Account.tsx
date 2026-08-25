@@ -29,6 +29,10 @@ type AccountUser = {
 type AccountPayload = {
   ok?: boolean;
   user?: AccountUser;
+  mail?: {
+    digestEmailOptIn?: boolean;
+    digestEmailAvailable?: boolean;
+  };
   providers?: LinkedProvider[];
   sessions?: PublicSession[];
   error?: string;
@@ -63,6 +67,10 @@ export function Account(props: {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [pendingOthers, setPendingOthers] = useState(false);
   const [acting, setActing] = useState(false);
+  const [digestEmailOptIn, setDigestEmailOptIn] = useState(false);
+  const [digestEmailAvailable, setDigestEmailAvailable] = useState(false);
+  const [savingDigestEmail, setSavingDigestEmail] = useState(false);
+  const [digestNotice, setDigestNotice] = useState("");
 
   async function load() {
     setBusy(true);
@@ -79,12 +87,53 @@ export function Account(props: {
         return;
       }
       setUser(data.user ?? null);
+      setDigestEmailOptIn(data.mail?.digestEmailOptIn === true);
+      setDigestEmailAvailable(data.mail?.digestEmailAvailable === true);
       setProviders(data.providers ?? []);
       setSessions(data.sessions ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function updateDigestEmail(optedIn: boolean) {
+    setSavingDigestEmail(true);
+    setDigestNotice("");
+    setError("");
+    try {
+      const res = await apiFetch("/api/mail/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ digestEmailOptIn: optedIn }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        digestEmailOptIn?: boolean;
+        digestEmailAvailable?: boolean;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        setError(
+          data.message ||
+            data.error ||
+            `Email preference failed (${res.status})`,
+        );
+        return;
+      }
+      setDigestEmailOptIn(data.digestEmailOptIn === true);
+      setDigestEmailAvailable(data.digestEmailAvailable === true);
+      setDigestNotice(
+        data.digestEmailOptIn
+          ? "Approach email is on."
+          : "Approach email is off.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingDigestEmail(false);
     }
   }
 
@@ -235,6 +284,42 @@ export function Account(props: {
           )}
         </li>
       </ul>
+
+      <h3 className="account-section-title">Approach email</h3>
+      <div className="account-mail">
+        <div>
+          <strong>Daily digest ready</strong>
+          <p className="settings-help">
+            {digestEmailAvailable
+              ? `Email ${user?.email ?? "your verified address"} only when a new Approach is ready.`
+              : "Digest needs a verified email. Link Google to opt in."}
+          </p>
+          {digestNotice ? (
+            <p className="settings-help" role="status">
+              {digestNotice}
+            </p>
+          ) : null}
+        </div>
+        {digestEmailAvailable ? (
+          <label className="account-mail-toggle">
+            <input
+              type="checkbox"
+              checked={digestEmailOptIn}
+              disabled={busy || savingDigestEmail}
+              onChange={(event) =>
+                void updateDigestEmail(event.currentTarget.checked)
+              }
+            />
+            <span>
+              {savingDigestEmail ? "Saving…" : digestEmailOptIn ? "On" : "Off"}
+            </span>
+          </label>
+        ) : (
+          <button type="button" className="ghost" onClick={props.onGoogle}>
+            Link Google
+          </button>
+        )}
+      </div>
 
       <h3 className="account-section-title">Sessions</h3>
       {busy && sessions.length === 0 ? (

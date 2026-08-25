@@ -85,6 +85,11 @@ function PrivacyBody() {
         to return results and must not use it to train their public models under
         our API terms, but it still leaves our servers.
       </p>
+      <p>
+        If you explicitly opt in, we email your verified account address only
+        when a new Approach digest is ready. The preference is off by default,
+        and every digest includes a one-click unsubscribe link.
+      </p>
 
       <h2>Cookies</h2>
       <p>
@@ -106,9 +111,10 @@ function PrivacyBody() {
       <h2>Sharing</h2>
       <p>
         We share data with vendors who help us run the product: Google (sign-in),
-        X (identity and search), Stripe (payments), DeepSeek (triage), and
-        Cloudflare (hosting the site). We do not sell personal information. We
-        may disclose information if required by law or to protect the service.
+        X (identity and search), Stripe (payments), DeepSeek (triage), Resend
+        (opt-in digest delivery), and Cloudflare (hosting the site). We do not
+        sell personal information. We may disclose information if required by
+        law or to protect the service.
       </p>
 
       <h2>Retention and deletion</h2>
