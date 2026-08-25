@@ -193,8 +193,6 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
                 if (ev.pointerType === "mouse") return;
                 setActive((cur) => (cur === i ? null : i));
               }}
-              onFocus={() => setActive(i)}
-              onBlur={() => setActive(null)}
             />
           ))
         : null}
