@@ -14,12 +14,12 @@ describe("upgrade CTAs", () => {
   it("points Grounded copy at the next plan", () => {
     assert.match(
       groundedHint({ limit: 1, planKey: "free" }),
-      /1 sortie used today/,
+      /1 takeoff used today/,
     );
     assert.match(groundedHint({ limit: 1, planKey: "free" }), /Pulse raises this/);
     assert.match(
       groundedHint({ limit: 5, planKey: "pulse" }),
-      /5 sorties used today/,
+      /5 takeoffs used today/,
     );
     assert.equal(
       groundedHint({ limit: 25, planKey: "horizon" }).includes("raises this"),

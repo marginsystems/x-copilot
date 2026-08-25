@@ -13,19 +13,12 @@ import {
 
 export function useActivityStrip() {
   const [activityBucket, setActivityBucket] = useState<ActivityBucket>("day");
-  const [flightPathOpen, setFlightPathOpen] = useState(() => {
-    try {
-      const stored = sessionStorage.getItem("x-copilot-flight-path-open");
-      if (stored === "0") return false;
-      if (stored === "1") return true;
-    } catch {
-      /* private mode */
-    }
-    return (
-      typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 700px)").matches
-    );
-  });
+  const [flightPathOpen, setFlightPathOpen] = useState(() =>
+    readSessionFlag("x-copilot-flight-path-open", 700),
+  );
+  const [deskTopOpen, setDeskTopOpen] = useState(() =>
+    readSessionFlag("x-copilot-desk-top-open", 1100),
+  );
   const [activityStats, setActivityStats] = useState<ActivityStats>(() =>
     emptyActivityStats("day"),
   );
@@ -66,25 +59,46 @@ export function useActivityStrip() {
   }
 
   function onToggleFlightPath() {
-    setFlightPathOpen((prev) => {
-      const next = !prev;
-      try {
-        sessionStorage.setItem("x-copilot-flight-path-open", next ? "1" : "0");
-      } catch {
-        /* private mode */
-      }
-      return next;
-    });
+    setFlightPathOpen((prev) => writeSessionFlag("x-copilot-flight-path-open", !prev));
+  }
+
+  function onToggleDeskTop() {
+    setDeskTopOpen((prev) => writeSessionFlag("x-copilot-desk-top-open", !prev));
   }
 
   return {
     activityBucket,
     flightPathOpen,
+    deskTopOpen,
     activityStats,
     gamification,
     hydrateActivityStats,
     hydrateGamification,
     onActivityBucket,
     onToggleFlightPath,
+    onToggleDeskTop,
   };
+}
+
+function readSessionFlag(key: string, openFromPx: number): boolean {
+  try {
+    const stored = sessionStorage.getItem(key);
+    if (stored === "0") return false;
+    if (stored === "1") return true;
+  } catch {
+    /* private mode */
+  }
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia(`(min-width: ${openFromPx}px)`).matches
+  );
+}
+
+function writeSessionFlag(key: string, next: boolean): boolean {
+  try {
+    sessionStorage.setItem(key, next ? "1" : "0");
+  } catch {
+    /* private mode */
+  }
+  return next;
 }

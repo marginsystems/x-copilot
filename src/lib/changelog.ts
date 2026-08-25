@@ -55,7 +55,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-08-24",
     title: "Failed takeoffs no longer burn the day",
-    body: "A sortie refunds when the run errors, aborts with no cools, or lands zero threads. Cap hits name the next plan.",
+    body: "A takeoff refunds when the run errors, aborts with no cools, or lands zero threads. Cap hits name the next plan.",
     href: "https://github.com/marginsystems/x-copilot/pull/463",
   },
   {

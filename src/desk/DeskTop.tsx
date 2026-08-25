@@ -1,0 +1,223 @@
+import { AGENDA_MAX_CHARS } from "../lib/agendaPersist";
+import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
+import type { GamificationStats } from "../lib/gamification";
+import { ScoutPixelField } from "../ScoutPixelField";
+import { ActivityStrip } from "./ActivityStrip";
+
+type DeskTopProps = {
+  open: boolean;
+  onToggle: () => void;
+  agenda: string;
+  onAgendaChange: (value: string) => void;
+  onAgendaBlur: () => void;
+  searching: boolean;
+  searchBlocked: boolean;
+  grounded: boolean;
+  searchCooldownRemaining: number;
+  status: string;
+  groundedLine: string | null;
+  takeoffsLeft: number | null;
+  showTakeoffsLeft: boolean;
+  showUsageCta: boolean;
+  onSearch: () => void;
+  onStopScout: () => void;
+  onFlushAgenda: () => void;
+  onOpenUsage: () => void;
+  flightPathOpen: boolean;
+  activityBucket: ActivityBucket;
+  activityStats: ActivityStats;
+  gamification: GamificationStats;
+  onToggleFlightPath: () => void;
+  onActivityBucket: (bucket: ActivityBucket) => void;
+};
+
+export function DeskTop({
+  open,
+  onToggle,
+  agenda,
+  onAgendaChange,
+  onAgendaBlur,
+  searching,
+  searchBlocked,
+  grounded,
+  searchCooldownRemaining,
+  status,
+  groundedLine,
+  takeoffsLeft,
+  showTakeoffsLeft,
+  showUsageCta,
+  onSearch,
+  onStopScout,
+  onFlushAgenda,
+  onOpenUsage,
+  flightPathOpen,
+  activityBucket,
+  activityStats,
+  gamification,
+  onToggleFlightPath,
+  onActivityBucket,
+}: DeskTopProps) {
+  const takeoffLabel = grounded
+    ? "Grounded"
+    : searchCooldownRemaining > 0
+      ? `Hold short ${searchCooldownRemaining}s`
+      : "Take off";
+  const statusLine =
+    groundedLine ??
+    (searchCooldownRemaining > 0 && !searching
+      ? `Hold short ${searchCooldownRemaining}s.`
+      : status || "On the ground — set an agenda and take off.");
+  const takeoffsHint =
+    showTakeoffsLeft && takeoffsLeft != null
+      ? `${takeoffsLeft} takeoff${takeoffsLeft === 1 ? "" : "s"} left today`
+      : null;
+
+  function runTakeoff() {
+    onFlushAgenda();
+    onSearch();
+  }
+
+  return (
+    <div className={open ? "desk-top" : "desk-top is-collapsed"}>
+      <div className="desk-top-bar">
+        {open ? (
+          <button
+            type="button"
+            className="desk-top-toggle"
+            aria-expanded={true}
+            onClick={onToggle}
+          >
+            <span>Agenda & flight path</span>
+            <span className="desk-top-caret" aria-hidden="true">
+              –
+            </span>
+          </button>
+        ) : (
+          <>
+            {searching ? (
+              <button
+                type="button"
+                className="primary scout-run desk-top-takeoff"
+                onClick={onStopScout}
+              >
+                Land
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="primary scout-run desk-top-takeoff"
+                disabled={searchBlocked || !agenda.trim()}
+                onClick={runTakeoff}
+              >
+                {takeoffLabel}
+              </button>
+            )}
+            <div className="desk-top-bar-copy" aria-live="polite">
+              <p className={searching ? "status scout-flight-line" : "status status-main"}>
+                {statusLine}
+              </p>
+              {showUsageCta ? (
+                <p className="status status-hint">
+                  <button
+                    type="button"
+                    className="usage-cta"
+                    onClick={onOpenUsage}
+                  >
+                    Open Usage & Billing
+                  </button>
+                </p>
+              ) : takeoffsHint ? (
+                <p className="status status-hint">{takeoffsHint}</p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className="desk-top-toggle"
+              aria-expanded={false}
+              onClick={onToggle}
+            >
+              <span>Agenda</span>
+              <span className="desk-top-caret" aria-hidden="true">
+                +
+              </span>
+            </button>
+          </>
+        )}
+      </div>
+      {open ? (
+        <>
+          <div className="control-pane">
+            <h2>Agenda</h2>
+            <textarea
+              className="agenda"
+              value={agenda}
+              maxLength={AGENDA_MAX_CHARS}
+              onChange={(e) => onAgendaChange(e.target.value)}
+              onBlur={onAgendaBlur}
+              placeholder="What should we look for and how should we sound?"
+            />
+            <div className="scout-cluster">
+              <div className="scout-controls">
+                {searching ? (
+                  <button
+                    type="button"
+                    className="primary scout-run"
+                    onClick={onStopScout}
+                  >
+                    Land
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="primary scout-run"
+                    disabled={searchBlocked || !agenda.trim()}
+                    onClick={runTakeoff}
+                  >
+                    {takeoffLabel}
+                  </button>
+                )}
+              </div>
+              <div className="status-stack" aria-live="polite">
+                <p
+                  className={
+                    searching ? "status scout-flight-line" : "status status-main"
+                  }
+                >
+                  {statusLine}
+                </p>
+                {showUsageCta ? (
+                  <p className="status status-hint">
+                    <button
+                      type="button"
+                      className="usage-cta"
+                      onClick={onOpenUsage}
+                    >
+                      Open Usage & Billing
+                    </button>
+                  </p>
+                ) : takeoffsHint ? (
+                  <p className="status status-hint">{takeoffsHint}</p>
+                ) : null}
+              </div>
+              <div className={searching ? "scout-strip active" : "scout-strip"}>
+                <div
+                  className={searching ? "scout-bar" : "scout-bar idle"}
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
+            <ScoutPixelField searching={searching} />
+          </div>
+          <ActivityStrip
+            flightPathOpen={flightPathOpen}
+            activityBucket={activityBucket}
+            activityStats={activityStats}
+            gamification={gamification}
+            onToggleFlightPath={onToggleFlightPath}
+            onActivityBucket={onActivityBucket}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
