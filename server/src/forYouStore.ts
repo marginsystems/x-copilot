@@ -22,13 +22,15 @@ export const SUGGESTION_TTL_MS = 48 * 60 * 60 * 1000;
 export function secondPersonWhy(why: string): string {
   return why
     .replace(/\b[Mm]y\b/g, (m) => (m[0] === "M" ? "Your" : "your"))
-    .replace(/\bI['’]m\b/g, "You're")
-    .replace(/\bI['’]ve\b/g, "You've")
-    .replace(/\bI['’]d\b/g, "You'd")
-    .replace(/\bI['’]ll\b/g, "You'll")
-    .replace(/\bI\b/g, "You")
-    .replace(/\bme\b/g, "you")
-    .replace(/\bmine\b/g, "yours");
+    .replace(/\b[Ii]['’]m\b/g, (m) => (m[0] === "I" ? "You're" : "you're"))
+    .replace(/\b[Ii]['’]ve\b/g, (m) => (m[0] === "I" ? "You've" : "you've"))
+    .replace(/\b[Ii]['’]d\b/g, (m) => (m[0] === "I" ? "You'd" : "you'd"))
+    .replace(/\b[Ii]['’]ll\b/g, (m) => (m[0] === "I" ? "You'll" : "you'll"))
+    .replace(/\bI\s+am\b/gi, (m) => (m[0] === "I" ? "You're" : "you're"))
+    .replace(/\bI\s+was\b/gi, (m) => (m[0] === "I" ? "You were" : "you were"))
+    .replace(/\bI\b/gi, (m) => (m[0] === "I" ? "You" : "you"))
+    .replace(/\bme\b/gi, (m) => (m[0] === "M" ? "You" : "you"))
+    .replace(/\bmine\b/gi, (m) => (m[0] === "M" ? "Yours" : "yours"));
 }
 
 export type ForYouSuggestion = {

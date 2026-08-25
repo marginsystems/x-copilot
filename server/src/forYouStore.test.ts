@@ -160,4 +160,47 @@ describe("secondPersonWhy", () => {
       "Your reply hit 1588 views — double down",
     );
   });
+
+  it("rewrites contractions and lowercase first-person variants", () => {
+    assert.equal(
+      secondPersonWhy("I'm shipping, I've got it, I'd go, I'll try"),
+      "You're shipping, You've got it, You'd go, You'll try",
+    );
+    assert.equal(
+      secondPersonWhy("i got 900 views on the recap"),
+      "you got 900 views on the recap",
+    );
+    assert.equal(
+      secondPersonWhy("my recap got 900 views"),
+      "your recap got 900 views",
+    );
+    assert.equal(
+      secondPersonWhy("give me the recap"),
+      "give you the recap",
+    );
+    assert.equal(secondPersonWhy("Mine got 3"), "Yours got 3");
+  });
+
+  it("handles uncontracted first-person slips", () => {
+    assert.equal(
+      secondPersonWhy("I am seeing 900 views on the recap"),
+      "You're seeing 900 views on the recap",
+    );
+    assert.equal(
+      secondPersonWhy("I was the top performer this week"),
+      "You were the top performer this week",
+    );
+  });
+
+  it("is stable under a second pass", () => {
+    const cases = [
+      "I was the top performer this week",
+      "My recent originals about shipping got 18 views",
+      "I'm seeing 900 views on the recap",
+      "i got a lot of views on the recap",
+    ];
+    for (const c of cases) {
+      assert.equal(secondPersonWhy(secondPersonWhy(c)), secondPersonWhy(c));
+    }
+  });
 });
