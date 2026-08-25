@@ -27,6 +27,10 @@
     grid-template-columns: 1fr;
   }
 
+  .desk-top-bar-copy .status {
+    white-space: normal;
+  }
+
   .control-pane {
     overflow: visible;
     max-height: none;

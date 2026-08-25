@@ -3,7 +3,6 @@ import {
   loadSettings,
   type AppSettings,
 } from "./lib/settings";
-import { ScoutPixelField } from "./ScoutPixelField";
 import { apiFetch, isLocalHostname } from "./lib/apiBase";
 import { authErrorMessage } from "./lib/authErrors";
 import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
@@ -44,7 +43,6 @@ import { MarkDetectModal } from "./desk/MarkDetectModal";
 import { Toast } from "./desk/Toast";
 import { useMarkDetect } from "./desk/useMarkDetect";
 import { useAgendaPersist } from "./desk/useAgendaPersist";
-import { AGENDA_MAX_CHARS } from "./lib/agendaPersist";
 import { useScoutRun } from "./desk/useScoutRun";
 import { useSkipDismiss } from "./desk/useSkipDismiss";
 import { SettingsForm } from "./settings/SettingsForm";
@@ -58,7 +56,7 @@ import { useViewRouting } from "./routing/useViewRouting";
 import { AppHeader } from "./chrome/AppHeader";
 import { MenuDrawer } from "./chrome/MenuDrawer";
 import { useMenu } from "./chrome/useMenu";
-import { ActivityStrip } from "./desk/ActivityStrip";
+import { DeskTop } from "./desk/DeskTop";
 import { ThreadsTabs } from "./desk/ThreadsTabs";
 import { useActivityStrip } from "./desk/useActivityStrip";
 
@@ -112,12 +110,14 @@ export default function App() {
   const {
     activityBucket,
     flightPathOpen,
+    deskTopOpen,
     activityStats,
     gamification,
     hydrateActivityStats,
     hydrateGamification,
     onActivityBucket,
     onToggleFlightPath,
+    onToggleDeskTop,
   } = useActivityStrip();
   const {
     view,
@@ -736,101 +736,45 @@ export default function App() {
         />
         <div className="dashboard">
           <section className="desk">
-            <div className="desk-top">
-              <div className="control-pane">
-                <h2>Agenda</h2>
-                <textarea
-                  className="agenda"
-                  value={agenda}
-                  maxLength={AGENDA_MAX_CHARS}
-                  onChange={(e) => setAgenda(e.target.value)}
-                  onBlur={onAgendaBlur}
-                  placeholder="What should we look for and how should we sound?"
-                />
-                <div className="scout-cluster">
-                  <div className="scout-controls">
-                    {searching ? (
-                      <button
-                        type="button"
-                        className="primary scout-run"
-                        onClick={onStopScout}
-                      >
-                        Land
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="primary scout-run"
-                        disabled={searchBlocked || !agenda.trim()}
-                        onClick={() => {
-                          flushAgenda();
-                          onSearch();
-                        }}
-                      >
-                        {grounded
-                          ? "Grounded"
-                          : searchCooldownRemaining > 0
-                            ? `Hold short ${searchCooldownRemaining}s`
-                            : "Take off"}
-                      </button>
-                    )}
-                  </div>
-                  <div className="status-stack" aria-live="polite">
-                    <p
-                      className={
-                        searching
-                          ? "status scout-flight-line"
-                          : "status status-main"
-                      }
-                    >
-                      {grounded && !searching
-                        ? groundedHint({
-                            limit: sortiesLimit ?? 0,
-                            planKey: billing?.plan_key,
-                            firstWeek: Boolean(billing?.first_week_pulse),
-                          })
-                        : searchCooldownRemaining > 0 && !searching
-                          ? `Hold short ${searchCooldownRemaining}s.`
-                          : status || "On the ground — set an agenda and take off."}
-                    </p>
-                    {!searching &&
-                    (grounded || /Usage & Billing/.test(status)) ? (
-                      <p className="status status-hint">
-                        <button
-                          type="button"
-                          className="usage-cta"
-                          onClick={openUsage}
-                        >
-                          Open Usage & Billing
-                        </button>
-                      </p>
-                    ) : billing?.sorties && !grounded && !searching ? (
-                      <p className="status status-hint">
-                        {sortiesLeft ?? 0} takeoff
-                        {sortiesLeft === 1 ? "" : "s"} left today
-                      </p>
-                    ) : null}
-                  </div>
-                  <div
-                    className={searching ? "scout-strip active" : "scout-strip"}
-                  >
-                    <div
-                      className={searching ? "scout-bar" : "scout-bar idle"}
-                      aria-hidden="true"
-                    />
-                  </div>
-                </div>
-                <ScoutPixelField searching={searching} />
-              </div>
-              <ActivityStrip
-                flightPathOpen={flightPathOpen}
-                activityBucket={activityBucket}
-                activityStats={activityStats}
-                gamification={gamification}
-                onToggleFlightPath={onToggleFlightPath}
-                onActivityBucket={onActivityBucket}
-              />
-            </div>
+            <DeskTop
+              open={deskTopOpen}
+              onToggle={onToggleDeskTop}
+              agenda={agenda}
+              onAgendaChange={setAgenda}
+              onAgendaBlur={onAgendaBlur}
+              searching={searching}
+              searchBlocked={searchBlocked}
+              grounded={grounded}
+              searchCooldownRemaining={searchCooldownRemaining}
+              status={status}
+              groundedLine={
+                grounded && !searching
+                  ? groundedHint({
+                      limit: sortiesLimit ?? 0,
+                      planKey: billing?.plan_key,
+                      firstWeek: Boolean(billing?.first_week_pulse),
+                    })
+                  : null
+              }
+              takeoffsLeft={sortiesLeft ?? null}
+              showTakeoffsLeft={Boolean(
+                billing?.sorties && !grounded && !searching,
+              )}
+              showUsageCta={
+                !searching &&
+                (grounded || /Usage & Billing/.test(status))
+              }
+              onSearch={onSearch}
+              onStopScout={onStopScout}
+              onFlushAgenda={flushAgenda}
+              onOpenUsage={openUsage}
+              flightPathOpen={flightPathOpen}
+              activityBucket={activityBucket}
+              activityStats={activityStats}
+              gamification={gamification}
+              onToggleFlightPath={onToggleFlightPath}
+              onActivityBucket={onActivityBucket}
+            />
             <ThreadsTabs
               threadsTab={threadsTab}
               setThreadsTab={setThreadsTab}
