@@ -161,6 +161,51 @@ describe("forYouDigest", () => {
     );
   });
 
+  it("rewrites first-person why and leaves the draft in their voice", () => {
+    const digest = emptyDigest({
+      best: [
+        {
+          id: "10",
+          kind: "original",
+          text: "shipped",
+          url: "https://x.com/desk/status/10",
+          views: 900,
+          likes: 20,
+          replies: 4,
+          retweets: 2,
+          postedAt: "2026-08-18T00:00:00.000Z",
+        },
+      ],
+    });
+    const kept = filterDigestActions(
+      {
+        actions: [
+          {
+            kind: "post",
+            why: "My recent originals got 18 views",
+            draft: "I shipped the recap.",
+          },
+          {
+            kind: "quote",
+            why: "I got 900 views on this one",
+            draft: "Still true.",
+            targetId: "10",
+            targetUrl: "https://x.com/desk/status/10",
+          },
+        ],
+      },
+      digest,
+    );
+    assert.deepEqual(
+      kept.map((a) => a.why),
+      [
+        "Your recent originals got 18 views",
+        "You got 900 views on this one",
+      ],
+    );
+    assert.equal(kept[0]?.draft, "I shipped the recap.");
+  });
+
   it("does not let worst or thin memories be engagement targets", () => {
     const digest = emptyDigest({
       best: [

@@ -17,6 +17,7 @@ import {
   listActiveSuggestions,
   markSuggestion,
   replaceDailySuggestions,
+  secondPersonWhy,
 } from "./forYouStore.ts";
 
 describe("forYouStore", () => {
@@ -116,5 +117,47 @@ describe("forYouStore", () => {
     assert.ok(row);
     assert.equal(getSuggestion(row.id, "u1")?.why, "best 24h");
     assert.equal(getSuggestion(row.id, "u2"), null);
+  });
+
+  it("rewrites stored first-person why on read", () => {
+    const [row] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      drafts: [
+        {
+          kind: "post",
+          why: "My recent originals about shipping got 18 views",
+          draft: "I shipped it.",
+        },
+      ],
+    });
+    assert.ok(row);
+    assert.equal(
+      listActiveSuggestions("u1")[0]?.why,
+      "Your recent originals about shipping got 18 views",
+    );
+    assert.equal(getSuggestion(row.id, "u1")?.draft, "I shipped it.");
+  });
+});
+
+describe("secondPersonWhy", () => {
+  it("addresses the operator, not the copilot", () => {
+    assert.equal(
+      secondPersonWhy(
+        "My recent originals about AI model lineups got 18-23 views",
+      ),
+      "Your recent originals about AI model lineups got 18-23 views",
+    );
+    assert.equal(
+      secondPersonWhy("I got a lot of views on the recap"),
+      "You got a lot of views on the recap",
+    );
+  });
+
+  it("leaves already-second-person copy alone", () => {
+    assert.equal(
+      secondPersonWhy("Your reply hit 1588 views — double down"),
+      "Your reply hit 1588 views — double down",
+    );
   });
 });

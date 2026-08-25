@@ -24,6 +24,7 @@ Rules:
 - kind=quote: draft required. targetId/targetUrl MUST be copied from BEST_24H or a strong recent, not AVOID.
 - kind=repost: targetId/targetUrl MUST be copied from the digest. no invented posts. Prefer BEST.
 - kind=reply: leftover Scout, or a memory that already earned attention. Not a flopped own post.
+- why talks to the operator in second person ("Your originals…", "You got 900 views…"). Never first person ("My posts…", "I got…") — the copilot is not the user. draft stays in their voice.
 - why must cite a number or habit from the digest (views, likes, reply rate, tone) — prefer winners.
 - Do not invent ids or urls. Do not auto-post. Plain language. No markdown fences.`;
 
