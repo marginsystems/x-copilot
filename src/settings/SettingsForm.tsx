@@ -4,7 +4,6 @@ import { ExcludedTagsField } from "../ExcludedTagsField";
 import type { AuthSessionUser } from "../auth/types";
 import {
   clampMaxThreadChars,
-  clampTargetCoolThreads,
   DEFAULT_SETTINGS,
   normalizePreferredLanguage,
   PREFERRED_LANGUAGES,
@@ -84,26 +83,6 @@ export function SettingsForm({
           <span className="settings-help">
             Skip the candidate and replies under a parent over this length.
           </span>
-        </label>
-        <label className="settings-field">
-          <span>Cool threads target (1–20)</span>
-          <input
-            type="number"
-            min={1}
-            max={20}
-            step={1}
-            value={draft.targetCoolThreads}
-            onChange={(e) =>
-              setDraft((prev) => ({
-                ...prev,
-                targetCoolThreads: clampTargetCoolThreads(
-                  e.target.value === ""
-                    ? DEFAULT_SETTINGS.targetCoolThreads
-                    : Number(e.target.value),
-                ),
-              }))
-            }
-          />
         </label>
         <label className="settings-field">
           <span>Preferred language</span>
