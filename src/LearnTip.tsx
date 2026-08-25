@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 type LearnTipProps = {
   title: string;
@@ -9,13 +9,6 @@ type LearnTipProps = {
 export function LearnTip(props: LearnTipProps) {
   const [open, setOpen] = useState(Boolean(props.defaultOpen));
   const panelId = useId();
-  const panelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) return;
-    if (open) panel.removeAttribute("inert");
-    else panel.setAttribute("inert", "");
-  }, [open]);
   return (
     <div className={open ? "learn-tip is-open" : "learn-tip"}>
       <button
@@ -31,7 +24,11 @@ export function LearnTip(props: LearnTipProps) {
       <div
         className="learn-tip-panel"
         id={panelId}
-        ref={panelRef}
+        ref={(panel) => {
+          if (!panel) return;
+          if (open) panel.removeAttribute("inert");
+          else panel.setAttribute("inert", "");
+        }}
         aria-hidden={!open}
       >
         <div className="learn-tip-inner">{props.children}</div>
