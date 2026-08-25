@@ -26,8 +26,12 @@ describe("CHANGELOG", () => {
     }
   });
 
-  it("opens with Voice card share", () => {
-    assert.equal(CHANGELOG[0]?.title, "Share your Voice card");
+  it("opens with flight-path share", () => {
+    assert.equal(CHANGELOG[0]?.title, "Share your flight path");
+    assert.equal(
+      CHANGELOG[0]?.href,
+      "https://github.com/marginsystems/x-copilot/pull/483",
+    );
   });
 });
 

@@ -18,6 +18,12 @@ export type ChangelogDay = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-08-25",
+    title: "Share your flight path",
+    body: "A quiet icon next to Flight path downloads a PNG of this week's marks, altitude, streak, and level. Watermarked xcopilot.dev. Replies stay unstamped.",
+    href: "https://github.com/marginsystems/x-copilot/pull/483",
+  },
+  {
+    date: "2026-08-25",
     title: "Share your Voice card",
     body: "Download a PNG of what Voice learned from your public posts. Watermarked xcopilot.dev. Replies stay unstamped.",
     href: "https://github.com/marginsystems/x-copilot/pull/477",
