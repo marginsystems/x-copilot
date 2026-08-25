@@ -12,11 +12,13 @@ describe("seoForView", () => {
     assert.doesNotMatch(home.title, /independent research desk/);
   });
 
-  it("gives privacy, terms, and pricing their own titles", () => {
+  it("gives privacy, terms, pricing, and changelog their own titles", () => {
     assert.equal(seoForView("privacy").title, "Privacy Policy — x-copilot");
     assert.equal(seoForView("terms").title, "Terms of Service — x-copilot");
     assert.equal(seoForView("pricing").title, "Pricing — x-copilot");
     assert.match(seoForView("pricing").description, /\$12/);
+    assert.equal(seoForView("changelog").title, "Changelog — x-copilot");
+    assert.match(seoForView("changelog").description, /launch notes/i);
   });
 
   it("does not give desk panes a second tagline", () => {

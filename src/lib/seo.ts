@@ -11,6 +11,10 @@ export const PRICING_TITLE = "Pricing — x-copilot";
 export const PRICING_DESCRIPTION =
   "Free, Pulse ($12), Radar ($36), and Horizon ($99). Credits, daily takeoffs, watch posts, and voice suggests. No credit card for Free. Not affiliated with X Corp.";
 
+export const CHANGELOG_TITLE = "Changelog — x-copilot";
+export const CHANGELOG_DESCRIPTION =
+  "What shipped on x-copilot. Newest first. Launch notes, not a blog. Not affiliated with X Corp.";
+
 export const PRIVACY_TITLE = "Privacy Policy — x-copilot";
 export const TERMS_TITLE = "Terms of Service — x-copilot";
 export const LEGAL_DESCRIPTION =
@@ -30,6 +34,9 @@ export function seoForView(view: AppView): SeoMeta {
   }
   if (view === "pricing") {
     return { title: PRICING_TITLE, description: PRICING_DESCRIPTION };
+  }
+  if (view === "changelog") {
+    return { title: CHANGELOG_TITLE, description: CHANGELOG_DESCRIPTION };
   }
   return { title: SITE_TITLE, description: SITE_DESCRIPTION };
 }

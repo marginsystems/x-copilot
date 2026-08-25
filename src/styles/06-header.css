@@ -166,6 +166,11 @@
   font-size: 0.78rem;
 }
 
+.changelog-page section {
+  display: grid;
+  gap: 8px;
+}
+
 .pricing-page {
   max-width: 72rem;
 }

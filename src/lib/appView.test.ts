@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { pathFromView, viewFromPath } from "./appView.ts";
+import { isPublicView, pathFromView, viewFromPath } from "./appView.ts";
 
 describe("desk routes", () => {
   it("keeps Account, Settings, and Usage on separate paths", () => {
@@ -21,11 +21,22 @@ describe("desk routes", () => {
     assert.equal(viewFromPath("/terms"), "terms");
     assert.equal(viewFromPath("/pricing"), "pricing");
     assert.equal(pathFromView("pricing"), "/pricing");
+    assert.equal(viewFromPath("/changelog"), "changelog");
+    assert.equal(pathFromView("changelog"), "/changelog");
     assert.equal(viewFromPath("/analytics"), "analytics");
     assert.equal(viewFromPath("/voice"), "voice");
     assert.equal(viewFromPath("/"), "home");
     assert.equal(viewFromPath("/dashboard"), "dashboard");
     assert.equal(pathFromView("home"), "/");
     assert.equal(pathFromView("dashboard"), "/dashboard");
+  });
+
+  it("treats legal, pricing, and changelog as public", () => {
+    assert.equal(isPublicView("privacy"), true);
+    assert.equal(isPublicView("terms"), true);
+    assert.equal(isPublicView("pricing"), true);
+    assert.equal(isPublicView("changelog"), true);
+    assert.equal(isPublicView("dashboard"), false);
+    assert.equal(isPublicView("home"), false);
   });
 });
