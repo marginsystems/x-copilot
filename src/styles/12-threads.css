@@ -16,11 +16,9 @@
 @keyframes history-row-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 8px, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -119,6 +117,15 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
+}
+
+.thread-row:not(.open) {
+  min-height: 68px;
+}
+
+.thread-row:not(.open) .row-head {
+  min-height: 68px;
+  align-items: center;
 }
 
 .thread-row.open {
