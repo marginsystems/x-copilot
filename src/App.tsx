@@ -787,6 +787,7 @@ export default function App() {
                         ? groundedHint({
                             limit: sortiesLimit ?? 0,
                             planKey: billing?.plan_key,
+                            firstWeek: Boolean(billing?.first_week_pulse),
                           })
                         : searchCooldownRemaining > 0 && !searching
                           ? `Hold short ${searchCooldownRemaining}s.`

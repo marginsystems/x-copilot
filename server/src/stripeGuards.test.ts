@@ -22,6 +22,7 @@ function row(over: Partial<UserBillingRow> = {}): UserBillingRow {
     grantPlanKey: null,
     grantCreatedAt: null,
     grantCreatedBy: null,
+    userCreatedAt: null,
     ...over,
   };
 }

@@ -32,6 +32,13 @@ import {
 import type { ThreadCard } from "./threadCard.ts";
 import { runStatsTick } from "./statsWorker.ts";
 
+function ageUser(userId: string, days: number): void {
+  const at = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  getPlatformDb()
+    .prepare(`UPDATE users SET created_at = ? WHERE id = ?`)
+    .run(at, userId);
+}
+
 function card(
   partial: Partial<ThreadCard> & Pick<ThreadCard, "id">,
 ): ThreadCard {
@@ -505,6 +512,7 @@ describe("foldDiscoveredOwnPosts", () => {
       username: "me",
     });
     const tenantId = ensureUserTenant(user.id);
+    ageUser(user.id, 8);
     const today = startOfUtcDayIso();
     for (let i = 0; i < 15; i++) {
       upsertOwnPost({
@@ -549,6 +557,7 @@ describe("foldDiscoveredOwnPosts", () => {
       username: "me",
     });
     const tenantId = ensureUserTenant(user.id);
+    ageUser(user.id, 8);
     const today = startOfUtcDayIso();
     for (let i = 0; i < 14; i++) {
       upsertOwnPost({

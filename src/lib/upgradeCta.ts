@@ -9,8 +9,12 @@ export function nextPlanLabel(planKey?: string | null): string | null {
 export function groundedHint(opts: {
   limit: number;
   planKey?: string | null;
+  firstWeek?: boolean;
 }): string {
-  const next = nextPlanLabel(opts.planKey);
   const base = `Grounded — ${opts.limit} sortie${opts.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC.`;
+  if (opts.firstWeek) {
+    return `${base} Subscribe to Pulse to keep these limits after your first week.`;
+  }
+  const next = nextPlanLabel(opts.planKey);
   return next ? `${base} ${next} raises this.` : `${base}`;
 }

@@ -28,9 +28,10 @@ import {
 import {
   activeManualGrant,
   creditLimitForPlan,
-  effectivePlanKey,
+  firstWeekPulseNotice,
   hasLiveStripeSubscription,
   liveSubTakesPrecedence,
+  resolvePlan,
 } from "./planResolution.js";
 import { getSortieUsage } from "./scoutSorties.js";
 import {
@@ -44,7 +45,8 @@ export function billingMePayload(input: {
 }): Record<string, unknown> {
   const tenantId = ensureUserTenant(input.userId);
   const row = ensureUserBillingRow(input.userId, tenantId);
-  const planKey = effectivePlanKey(row, input.email);
+  const resolved = resolvePlan(row, input.email);
+  const planKey = resolved.planKey;
   const usage = getCreditUsage(tenantId, planKey);
   const sorties = getSortieUsage(tenantId, planKey);
   const secretOk = stripeSecretPresent();
@@ -82,15 +84,24 @@ export function billingMePayload(input: {
   };
   const status = row.subscriptionStatus;
   const planState = derivePlanState({
-    planKey,
+    planKey: resolved.reason === "first_week" ? "free" : planKey,
     live: liveSubTakesPrecedence(row),
     status,
     creditsCanUse: usage.canUse,
   });
+  const firstWeek =
+    resolved.reason === "first_week" && resolved.firstWeekEndsAt
+      ? {
+          plan_key: planKey,
+          ends_at: resolved.firstWeekEndsAt,
+          notice: firstWeekPulseNotice(resolved.firstWeekEndsAt),
+        }
+      : null;
 
   return {
     plan_key: planKey,
     plan_state: planState,
+    first_week_pulse: firstWeek,
     subscription_status: status,
     has_stripe_customer: Boolean(row.stripeCustomerId),
     has_stripe_subscription: live,
@@ -146,6 +157,7 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
          t.created_at,
          u.id AS user_id,
          u.email,
+         u.created_at AS user_created_at,
          b.plan_key,
          b.subscription_status,
          b.stripe_subscription_id,
@@ -174,6 +186,7 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
     created_at: string;
     user_id: string | null;
     email: string | null;
+    user_created_at: string | null;
     plan_key: string | null;
     subscription_status: string | null;
     stripe_subscription_id: string | null;
@@ -202,9 +215,10 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
       grantPlanKey,
       grantCreatedAt: r.grant_created_at,
       grantCreatedBy: r.grant_created_by,
+      userCreatedAt: r.user_created_at,
     };
     const planKey = r.user_id
-      ? effectivePlanKey(billing, r.email)
+      ? resolvePlan(billing, r.email).planKey
       : "free";
     const postsRead = Number(r.posts_read) || 0;
     return {

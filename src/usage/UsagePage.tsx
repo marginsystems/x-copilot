@@ -41,8 +41,9 @@ export function UsagePage({
         </button>
       </div>
       <p className="status settings-lede">
-        Start free with 1,500 credits a month — no credit card. Unused credits do
-        not roll over. Paid plans are billed by Mergestorm, Inc.
+        First week is a Pulse week. Then Free — 1,500 credits a month, no credit
+        card. Unused credits do not roll over. Paid plans are billed by
+        Mergestorm, Inc.
       </p>
       <BillingPanel
         billing={billing}
