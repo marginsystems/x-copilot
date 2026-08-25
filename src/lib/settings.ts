@@ -9,6 +9,8 @@ export const SETTINGS_STORAGE_KEY = "x-copilot-settings";
  */
 export const SETTINGS_EXCLUDED_TAGS_MIGRATED_KEY =
   "x-copilot-settings-excluded-tags-migrated";
+export const SETTINGS_EXCLUDED_ACCOUNTS_MIGRATED_KEY =
+  "x-copilot-settings-excluded-accounts-migrated";
 
 export const DEFAULT_MAX_THREAD_CHARS = 480;
 export const MIN_MAX_THREAD_CHARS = 120;
@@ -41,6 +43,18 @@ export const MAX_TAG_TOKEN_LEN = 40;
  * Keep in sync with `DEFAULT_EXCLUDED_ACCOUNTS` in server/src/threadFilters.ts.
  */
 export const DEFAULT_EXCLUDED_ACCOUNTS = [
+  "grok",
+  "chatgpt",
+  "chatgptapp",
+  "claudeai",
+  "geminiapp",
+  "metaai",
+  "copilot",
+  "perplexity_ai",
+  "boardyai",
+] as const;
+/** Pre-boardyai default — upgrade on load when storage still matches this. */
+export const LEGACY_DEFAULT_EXCLUDED_ACCOUNTS = [
   "grok",
   "chatgpt",
   "chatgptapp",
@@ -181,6 +195,20 @@ export function upgradeLegacyExcludedTags(tags: string[]): string[] {
   return tags;
 }
 
+function sameAccountSet(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const left = new Set(a);
+  return b.every((handle) => left.has(handle));
+}
+
+/** Upgrade the pre-boardyai chatbot list to the current default. */
+export function upgradeLegacyExcludedAccounts(accounts: string[]): string[] {
+  if (sameAccountSet(accounts, LEGACY_DEFAULT_EXCLUDED_ACCOUNTS)) {
+    return [...DEFAULT_EXCLUDED_ACCOUNTS];
+  }
+  return accounts;
+}
+
 /**
  * Parse Settings text (comma and/or newline separated; whitespace stripped).
  * Examples: `tag1, tag2` · `tag1,\ntag2` · one token per line.
@@ -272,6 +300,11 @@ export function loadSettings(): AppSettings {
     if (localStorage.getItem(SETTINGS_EXCLUDED_TAGS_MIGRATED_KEY) === null) {
       settings.excludedTags = upgradeLegacyExcludedTags(settings.excludedTags);
     }
+    if (localStorage.getItem(SETTINGS_EXCLUDED_ACCOUNTS_MIGRATED_KEY) === null) {
+      settings.excludedAccounts = upgradeLegacyExcludedAccounts(
+        settings.excludedAccounts,
+      );
+    }
     return settings;
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -282,5 +315,6 @@ export function saveSettings(settings: AppSettings): AppSettings {
   const normalized = normalizeSettings(settings);
   localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(normalized));
   localStorage.setItem(SETTINGS_EXCLUDED_TAGS_MIGRATED_KEY, "1");
+  localStorage.setItem(SETTINGS_EXCLUDED_ACCOUNTS_MIGRATED_KEY, "1");
   return normalized;
 }
