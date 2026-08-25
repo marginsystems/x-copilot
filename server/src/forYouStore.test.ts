@@ -17,6 +17,7 @@ import {
   listActiveSuggestions,
   markSuggestion,
   replaceDailySuggestions,
+  secondPersonWhy,
 } from "./forYouStore.ts";
 
 describe("forYouStore", () => {
@@ -116,5 +117,144 @@ describe("forYouStore", () => {
     assert.ok(row);
     assert.equal(getSuggestion(row.id, "u1")?.why, "best 24h");
     assert.equal(getSuggestion(row.id, "u2"), null);
+  });
+
+  it("rewrites stored first-person why on read", () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO for_you_suggestions (
+           id, user_id, tenant_id, kind, status, why, draft,
+           target_id, target_url, target_author, created_at, expires_at, acted_at
+         ) VALUES (?, ?, ?, ?, 'suggested', ?, ?, NULL, NULL, NULL, ?, ?, NULL)`,
+      )
+      .run(
+        "legacy-1",
+        "u1",
+        "local",
+        "post",
+        "My recent originals about shipping got 18 views",
+        "I shipped it.",
+        new Date(now).toISOString(),
+        new Date(now + SUGGESTION_TTL_MS).toISOString(),
+      );
+    const [listed] = listActiveSuggestions("u1", now + 1000);
+    assert.equal(
+      listed?.why,
+      "Your recent originals about shipping got 18 views",
+    );
+    const read = getSuggestion("legacy-1", "u1");
+    assert.equal(
+      read?.why,
+      "Your recent originals about shipping got 18 views",
+    );
+    assert.equal(read?.draft, "I shipped it.");
+  });
+
+  it("returns a second-person why from insertSuggestions / replaceDailySuggestions", () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    const [inserted] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [
+        {
+          kind: "post",
+          why: "My recent originals about shipping got 18 views",
+          draft: "I shipped it.",
+        },
+      ],
+    });
+    assert.ok(inserted);
+    assert.equal(
+      inserted.why,
+      "Your recent originals about shipping got 18 views",
+    );
+
+    const [replaced] = replaceDailySuggestions({
+      userId: "u2",
+      tenantId: "local",
+      nowMs: now + 1000,
+      drafts: [{ kind: "post", why: "I got 900 views", draft: "Ship it." }],
+    });
+    assert.ok(replaced);
+    assert.equal(replaced.why, "You got 900 views");
+  });
+});
+
+describe("secondPersonWhy", () => {
+  it("addresses the operator, not the copilot", () => {
+    assert.equal(
+      secondPersonWhy(
+        "My recent originals about AI model lineups got 18-23 views",
+      ),
+      "Your recent originals about AI model lineups got 18-23 views",
+    );
+    assert.equal(
+      secondPersonWhy("I got a lot of views on the recap"),
+      "You got a lot of views on the recap",
+    );
+  });
+
+  it("leaves already-second-person copy alone", () => {
+    assert.equal(
+      secondPersonWhy("Your reply hit 1588 views — double down"),
+      "Your reply hit 1588 views — double down",
+    );
+  });
+
+  it("rewrites contractions and lowercase first-person variants", () => {
+    assert.equal(
+      secondPersonWhy("I'm shipping, I've got it, I'd go, I'll try"),
+      "You're shipping, You've got it, You'd go, You'll try",
+    );
+    assert.equal(
+      secondPersonWhy("i got 900 views on the recap"),
+      "you got 900 views on the recap",
+    );
+    assert.equal(
+      secondPersonWhy("my recap got 900 views"),
+      "your recap got 900 views",
+    );
+    assert.equal(
+      secondPersonWhy("MY recap got 900 views"),
+      "Your recap got 900 views",
+    );
+    assert.equal(
+      secondPersonWhy("I'M shipping, I'VE got it, I'D go, I'LL try"),
+      "You're shipping, You've got it, You'd go, You'll try",
+    );
+    assert.equal(
+      secondPersonWhy("give me the recap"),
+      "give you the recap",
+    );
+    assert.equal(secondPersonWhy("Mine got 3"), "Yours got 3");
+  });
+
+  it("handles uncontracted first-person slips", () => {
+    assert.equal(
+      secondPersonWhy("I am seeing 900 views on the recap"),
+      "You're seeing 900 views on the recap",
+    );
+    assert.equal(
+      secondPersonWhy("I was the top performer this week"),
+      "You were the top performer this week",
+    );
+    assert.equal(
+      secondPersonWhy("I wasn't sure the recap would hit 900 views"),
+      "You weren't sure the recap would hit 900 views",
+    );
+  });
+
+  it("is stable under a second pass", () => {
+    const cases = [
+      "I was the top performer this week",
+      "My recent originals about shipping got 18 views",
+      "I'm seeing 900 views on the recap",
+      "i got a lot of views on the recap",
+    ];
+    for (const c of cases) {
+      assert.equal(secondPersonWhy(secondPersonWhy(c)), secondPersonWhy(c));
+    }
   });
 });

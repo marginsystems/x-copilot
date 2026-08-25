@@ -8,7 +8,12 @@ import { formatOutcomeSection } from "./knowledgeMemory.js";
 import { listInteractionHistory } from "./interactionStore.js";
 import { getVoiceProfile } from "./voiceStore.js";
 import { parseVoiceCardJson, type VoiceCard } from "./voiceLlm.js";
-import { FOR_YOU_KINDS, type ForYouDraft, type ForYouKind } from "./forYouStore.js";
+import {
+  FOR_YOU_KINDS,
+  secondPersonWhy,
+  type ForYouDraft,
+  type ForYouKind,
+} from "./forYouStore.js";
 import type { OwnPostKind } from "./xActivity.js";
 
 export const MIN_T24H_SNAPSHOTS = 5;
@@ -267,7 +272,8 @@ export function filterDigestActions(
     if (!item || typeof item !== "object") continue;
     const row = item as Record<string, unknown>;
     const kind = asKind(row.kind);
-    const why = typeof row.why === "string" ? row.why.trim() : "";
+    const why =
+      typeof row.why === "string" ? secondPersonWhy(row.why.trim()) : "";
     if (!kind || !why) continue;
     const draft =
       typeof row.draft === "string" && row.draft.trim()

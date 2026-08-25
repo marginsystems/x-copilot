@@ -15,6 +15,25 @@ export type ForYouStatus = (typeof FOR_YOU_STATUSES)[number];
 
 export const SUGGESTION_TTL_MS = 48 * 60 * 60 * 1000;
 
+/**
+ * Approach `why` is copilot-to-operator. Rewrite first-person slips so
+ * the desk never says "My posts got…". Draft text is untouched.
+ */
+export function secondPersonWhy(why: string): string {
+  return why
+    .replace(/\bmy\b/gi, (m) => (m[0] === "M" ? "Your" : "your"))
+    .replace(/\bI['’]m\b/gi, (m) => (m[0] === "I" ? "You're" : "you're"))
+    .replace(/\bI['’]ve\b/gi, (m) => (m[0] === "I" ? "You've" : "you've"))
+    .replace(/\bI['’]d\b/gi, (m) => (m[0] === "I" ? "You'd" : "you'd"))
+    .replace(/\bI['’]ll\b/gi, (m) => (m[0] === "I" ? "You'll" : "you'll"))
+    .replace(/\bI\s+am\b/gi, (m) => (m[0] === "I" ? "You're" : "you're"))
+    .replace(/\bI\s+was\b/gi, (m) => (m[0] === "I" ? "You were" : "you were"))
+    .replace(/\bI\s+wasn['’]t\b/gi, (m) => (m[0] === "I" ? "You weren't" : "you weren't"))
+    .replace(/\bI\b/gi, (m) => (m[0] === "I" ? "You" : "you"))
+    .replace(/\bme\b/gi, (m) => (m[0] === "M" ? "You" : "you"))
+    .replace(/\bmine\b/gi, (m) => (m[0] === "M" ? "Yours" : "yours"));
+}
+
 export type ForYouSuggestion = {
   id: string;
   userId: string;
@@ -58,7 +77,7 @@ function mapRow(row: Record<string, unknown>): ForYouSuggestion | null {
     tenantId: String(row.tenant_id),
     kind,
     status,
-    why: String(row.why ?? ""),
+    why: secondPersonWhy(String(row.why ?? "")),
     draft: (row.draft as string | null) ?? null,
     targetId: (row.target_id as string | null) ?? null,
     targetUrl: (row.target_url as string | null) ?? null,
@@ -126,12 +145,13 @@ export function insertSuggestions(opts: {
   const tx = db.transaction(() => {
     for (const draft of opts.drafts) {
       const id = randomUUID();
+      const why = secondPersonWhy(draft.why.trim());
       insert.run(
         id,
         opts.userId,
         opts.tenantId,
         draft.kind,
-        draft.why.trim(),
+        why,
         draft.draft?.trim() || null,
         draft.targetId?.trim() || null,
         draft.targetUrl?.trim() || null,
@@ -145,7 +165,7 @@ export function insertSuggestions(opts: {
         tenantId: opts.tenantId,
         kind: draft.kind,
         status: "suggested",
-        why: draft.why.trim(),
+        why,
         draft: draft.draft?.trim() || null,
         targetId: draft.targetId?.trim() || null,
         targetUrl: draft.targetUrl?.trim() || null,
