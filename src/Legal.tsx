@@ -67,7 +67,7 @@ function PrivacyBody() {
         </li>
         <li>
           <strong>Billing.</strong> If you subscribe, Stripe processes the card.
-          We store Stripe customer and subscription IDs, plan, and credit/sortie
+          We store Stripe customer and subscription IDs, plan, and credit/takeoff
           usage — not full card numbers.
         </li>
         <li>
