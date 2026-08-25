@@ -176,26 +176,32 @@ export function ThreadsTabs({
               {forYouSuggestions.length > 0 ? (
                 <div className="for-you-suggested">
                   <h3 className="section-label">Suggested</h3>
-                  {forYouSuggestions.map((row, i) => (
-                    <SuggestedRow
-                      key={row.id}
-                      row={row}
-                      index={i}
-                      busy={actionBusy}
-                      voice={voice}
-                      agenda={agenda}
-                      xLinked={authUser?.xLinked}
-                      hasSession={Boolean(authUser)}
-                      onPosted={() => void actForYou(row.id, "done")}
-                      onSkip={() => void actForYou(row.id, "skip")}
-                      onDismiss={() => void actForYou(row.id, "dismiss")}
-                      onOpenSettings={onOpenVoice}
-                      onLinkX={onLinkX}
-                      onUsage={(u) =>
-                        setVoice((v) => (v ? { ...v, suggests: u } : v))
-                      }
-                    />
-                  ))}
+                  {forYouSuggestions.map((row) => {
+                    const key = `suggest:${row.id}`;
+                    return (
+                      <SuggestedRow
+                        key={row.id}
+                        row={row}
+                        open={expandedId === key}
+                        busy={actionBusy}
+                        voice={voice}
+                        agenda={agenda}
+                        xLinked={authUser?.xLinked}
+                        hasSession={Boolean(authUser)}
+                        onToggle={() =>
+                          setExpandedId((id) => (id === key ? null : key))
+                        }
+                        onPosted={() => void actForYou(row.id, "done")}
+                        onSkip={() => void actForYou(row.id, "skip")}
+                        onDismiss={() => void actForYou(row.id, "dismiss")}
+                        onOpenSettings={onOpenVoice}
+                        onLinkX={onLinkX}
+                        onUsage={(u) =>
+                          setVoice((v) => (v ? { ...v, suggests: u } : v))
+                        }
+                      />
+                    );
+                  })}
                 </div>
               ) : null}
               {sortThreadsByCreatedAtNewest(curatedThreads).map((t) => (
