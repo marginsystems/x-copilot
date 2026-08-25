@@ -344,7 +344,8 @@ export async function runUserIngest(opts: {
     if (
       posts > 0 &&
       (!hadCard || (unlocked && hadStarterCard)) &&
-      voiceCardStale(updated?.cardAttemptAt ?? null)
+      ((unlocked && hadStarterCard) ||
+        voiceCardStale(updated?.cardAttemptAt ?? null))
     ) {
       stampVoiceCardAttempt(user.id);
       const starter = !unlocked;

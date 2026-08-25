@@ -302,16 +302,8 @@ describe("runUserIngest", () => {
       model: "test-model",
       starter: true,
     });
-    getPlatformDb()
-      .prepare(
-        `UPDATE voice_profiles SET card_updated_at = ?, card_attempt_at = ?
-         WHERE user_id = ?`,
-      )
-      .run(
-        new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-        new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-        user.id,
-      );
+    // The card attempt is still fresh (<24h) — the starter→full transition
+    // must bypass the attempt-staleness gate so the unlock is not deferred.
     let starter: boolean | undefined;
     const result = await runUserIngest({
       user,
