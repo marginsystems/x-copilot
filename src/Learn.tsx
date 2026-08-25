@@ -16,6 +16,7 @@ import {
   LEARN_README_SCORE_HREF,
   LEARN_SCORER_HREF,
   LEARN_SOURCE_DATE,
+  LEARN_SOURCE_DATE_LABEL,
   LEARN_SOURCE_REPO,
   LEARN_SOURCE_SHA,
   LEARN_WEIGHTS,
@@ -59,7 +60,7 @@ export function LearnPage(props: { onHome: () => void; onFollow: () => void }) {
         <a href={LEARN_PARAM_COMMENT_HREF} rel="noreferrer">
           param.rs
         </a>{" "}
-        as of 14 August 2026.
+        as of {LEARN_SOURCE_DATE_LABEL}.
       </p>
       <LearnCode file="home-mixer/params/param.rs" href={LEARN_PARAM_COMMENT_HREF}>
         {LEARN_PARAM_COMMENT_SNIPPET}

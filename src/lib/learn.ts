@@ -7,19 +7,29 @@ export const LEARN_SOURCE_SHA = "d011592";
 export const LEARN_SOURCE_DATE = "2026-08-24";
 export const LEARN_SOURCE_REPO = "https://github.com/xai-org/x-algorithm";
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+export function formatLearnSourceDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return `${day} ${MONTH_NAMES[(month ?? 1) - 1]} ${year}`;
+}
+
+export const LEARN_SOURCE_DATE_LABEL = formatLearnSourceDate(LEARN_SOURCE_DATE);
+
 export const LEARN_TITLE = "What a like is worth — x-copilot";
 export const LEARN_HEADING = "What a like is worth";
 export const LEARN_DESCRIPTION =
   "X For You ranking weights multiply P(action) for this viewer, not raw likes or reports. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
-export const LEARN_META =
-  "Cited from xai-org/x-algorithm at d011592 (24 August 2026). Defaults in this snapshot. Not affiliated with X Corp.";
+export const LEARN_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 
 export const LEARN_FOLLOW_TITLE = "Follow and out-of-network — x-copilot";
 export const LEARN_FOLLOW_HEADING = "Follow and out-of-network";
 export const LEARN_FOLLOW_DESCRIPTION =
   "X For You in-network posts come from thunder/. Out-of-network posts, and followed replies or reposts, are multiplied by 0.75. Follow-author is +4.0. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
-export const LEARN_FOLLOW_META =
-  "Cited from xai-org/x-algorithm at d011592 (24 August 2026). Defaults in this snapshot. Not affiliated with X Corp.";
+export const LEARN_FOLLOW_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 
 export const LEARN_DRAWER_HEADING = "How ranking works";
 export const LEARN_DRAWER_LEAD =

@@ -21,7 +21,7 @@ export function LearnTip(props: LearnTipProps) {
         <span>Tip</span>
         {props.title}
       </button>
-      <div className="learn-tip-panel" id={panelId}>
+      <div className="learn-tip-panel" id={panelId} hidden={!open}>
         <div className="learn-tip-inner">{props.children}</div>
       </div>
     </div>
