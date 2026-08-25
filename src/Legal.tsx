@@ -12,10 +12,12 @@ export function LegalLink(props: {
   href: string;
   children: ReactNode;
   onNavigate?: () => void;
+  className?: string;
 }) {
   return (
     <a
       href={props.href}
+      className={props.className}
       onClick={(e) => {
         if (!props.onNavigate) return;
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {

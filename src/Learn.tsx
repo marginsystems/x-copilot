@@ -1,15 +1,22 @@
-import { LegalLink, LegalLinks } from "./Legal";
+import { useState } from "react";
+import { LearnChrome } from "./LearnChrome";
+import { LearnCode } from "./LearnCode";
+import { LearnTip } from "./LearnTip";
+import { LearnWeights } from "./LearnWeights";
 import {
+  LEARN_APPLY_SNIPPET,
   LEARN_DIVERSITY_HREF,
   LEARN_FORMULA,
   LEARN_HEADING,
   LEARN_META,
   LEARN_OON_HREF,
   LEARN_PARAM_COMMENT_HREF,
+  LEARN_PARAM_COMMENT_SNIPPET,
   LEARN_PARAM_FILE_HREF,
   LEARN_README_SCORE_HREF,
   LEARN_SCORER_HREF,
   LEARN_SOURCE_DATE,
+  LEARN_SOURCE_DATE_LABEL,
   LEARN_SOURCE_REPO,
   LEARN_SOURCE_SHA,
   LEARN_WEIGHTS,
@@ -19,18 +26,32 @@ import {
 import { PRODUCT_NAME } from "./lib/legal";
 
 export function LearnPage(props: { onHome: () => void; onFollow: () => void }) {
-  return (
-    <article className="legal-page learn-page">
-      <p className="legal-kicker">
-        <LegalLink href="/" onNavigate={props.onHome}>
-          {PRODUCT_NAME}
-        </LegalLink>
-        {" / "}
-        Learn
-      </p>
-      <h1>{LEARN_HEADING}</h1>
-      <p className="legal-meta">{LEARN_META}</p>
+  const [selected, setSelected] = useState(LEARN_WEIGHTS[0]!);
 
+  return (
+    <LearnChrome
+      heading={LEARN_HEADING}
+      meta={LEARN_META}
+      note="learn"
+      onHome={props.onHome}
+      onLearn={() => undefined}
+      onFollow={props.onFollow}
+      rail={
+        <>
+          <p className="learn-rail-kicker">Score</p>
+          <p className="learn-rail-formula">{LEARN_FORMULA}</p>
+          <p className="learn-rail-kicker">Selected default</p>
+          <p className="learn-rail-weight">{formatLearnWeight(selected.weight)}</p>
+          <p>
+            {selected.action}. Multiplies P(action), not a raw count.{" "}
+            <a href={weightPermalink(selected)} rel="noreferrer">
+              {selected.param}
+            </a>{" "}
+            at <code>{LEARN_SOURCE_SHA}</code>.
+          </p>
+        </>
+      }
+    >
       <h2>Weights multiply P(action)</h2>
       <p>
         X ranks each post by how likely you are to take each action, then
@@ -39,33 +60,35 @@ export function LearnPage(props: { onHome: () => void; onFollow: () => void }) {
         <a href={LEARN_PARAM_COMMENT_HREF} rel="noreferrer">
           param.rs
         </a>{" "}
-        as of 24 August 2026.
+        as of {LEARN_SOURCE_DATE_LABEL}.
       </p>
-      <p>
-        One common misread is “1 report = 468 likes.” That is wrong. Report is
-        rare, so it is weighted hard so the prediction can move the score at
-        all. Mass report or block campaigns mostly move ranking for people
-        similar to the reporters, and only for posts served on Home — not a
-        coordinated visit.
-      </p>
+      <LearnCode file="home-mixer/params/param.rs" href={LEARN_PARAM_COMMENT_HREF}>
+        {LEARN_PARAM_COMMENT_SNIPPET}
+      </LearnCode>
+      <LearnTip title="Do not read 1 report = 468 likes" defaultOpen>
+        <p>
+          Report is rare, so it is weighted hard so the prediction can move
+          the score at all. Mass report or block campaigns mostly move ranking
+          for people similar to the reporters, and only for posts served on
+          Home — not a coordinated visit.
+        </p>
+      </LearnTip>
 
       <h2>The score</h2>
       <p>
         <a href={LEARN_README_SCORE_HREF} rel="noreferrer">
           X writes the formula
         </a>{" "}
-        as:
+        as <code>{LEARN_FORMULA}</code>. The arithmetic is:
       </p>
-      <pre className="learn-formula">
-        <code>{LEARN_FORMULA}</code>
-      </pre>
+      <LearnCode
+        file="home-mixer/scorers/ranking_scorer.rs"
+        href={LEARN_SCORER_HREF}
+      >
+        {LEARN_APPLY_SNIPPET}
+      </LearnCode>
       <p>
-        The arithmetic is{" "}
-        <code>score.unwrap_or(0.0) * weight</code> in{" "}
-        <a href={LEARN_SCORER_HREF} rel="noreferrer">
-          ranking_scorer.rs
-        </a>
-        . Then{" "}
+        Then{" "}
         <a href={LEARN_DIVERSITY_HREF} rel="noreferrer">
           author-diversity decay
         </a>{" "}
@@ -87,47 +110,12 @@ export function LearnPage(props: { onHome: () => void; onFollow: () => void }) {
         mute, block, or report. Feature switches still exist — cite defaults in
         this snapshot, not every For You feed.
       </p>
-      <div className="learn-table-wrap">
-        <table>
-          <caption>Default For You action weights at {LEARN_SOURCE_SHA}</caption>
-          <thead>
-            <tr>
-              <th scope="col">Action</th>
-              <th scope="col">Default</th>
-              <th scope="col">Param</th>
-            </tr>
-          </thead>
-          <tbody>
-            {LEARN_WEIGHTS.map((row) => (
-              <tr key={row.param}>
-                <td>{row.action}</td>
-                <td>{formatLearnWeight(row.weight)}</td>
-                <td>
-                  <a href={weightPermalink(row)} rel="noreferrer">
-                    {row.param}
-                  </a>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <LearnWeights selected={selected} onSelect={setSelected} />
       <p>
         Like 0.5, retweet 1.0, reply 5.0, quote 5.0 is the relative value of
         those predicted actions — not “a reply is worth 10 likes on the post.”
         Copy-link share is the largest positive default (+20.0). Dwell weight
         is 0.0; continuous dwell time is +0.004.
-      </p>
-
-      <h2>Follow and out-of-network</h2>
-      <p>
-        Posts from accounts you follow come from <code>thunder/</code>.
-        Out-of-network posts are multiplied by 0.75. Predicting that you will
-        follow the author is +4.0.{" "}
-        <LegalLink href="/learn/follow" onNavigate={props.onFollow}>
-          Follow and out-of-network
-        </LegalLink>{" "}
-        has the in-network reply and repost discount.
       </p>
 
       <h2>Source</h2>
@@ -138,20 +126,12 @@ export function LearnPage(props: { onHome: () => void; onFollow: () => void }) {
         </a>{" "}
         at <code>{LEARN_SOURCE_SHA}</code> ({LEARN_SOURCE_DATE}). That is the
         current For You code. <code>twitter/the-algorithm</code> is the 2023
-        dump — useful history, the wrong source for today. Production defaults
-        are mirrored into <code>param.rs</code>. If a number is not in this
-        snapshot, we do not say it.
+        dump — useful history, the wrong source for today. If a number is not
+        in this snapshot, we do not say it.
       </p>
       <p>
         {PRODUCT_NAME} is not affiliated with X Corp.
       </p>
-
-      <nav className="legal-foot" aria-label="Learn footer">
-        <LegalLinks />
-        <LegalLink href="/" onNavigate={props.onHome}>
-          Back to {PRODUCT_NAME}
-        </LegalLink>
-      </nav>
-    </article>
+    </LearnChrome>
   );
 }

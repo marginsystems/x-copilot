@@ -1,16 +1,23 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  LEARN_APPLY_SNIPPET,
   LEARN_DRAWER_LEAD,
+  LEARN_FOLLOW_META,
+  LEARN_META,
+  LEARN_OON_SNIPPET,
+  LEARN_PARAM_COMMENT_SNIPPET,
   LEARN_DRAWER_OON,
   LEARN_DRAWER_SOURCE,
   LEARN_FORMULA,
   LEARN_OON_HREF,
   LEARN_OON_SWITCH_HREF,
   LEARN_PARAM_COMMENT_HREF,
+  LEARN_SOURCE_DATE,
   LEARN_SOURCE_SHA,
   LEARN_WEIGHTS,
   algorithmPermalink,
+  formatLearnSourceDate,
   formatLearnWeight,
   weightPermalink,
 } from "./learn.ts";
@@ -24,6 +31,13 @@ describe("learn citations", () => {
       algorithmPermalink("home-mixer/scorers/ranking_scorer.rs", 447, 458),
       "https://github.com/xai-org/x-algorithm/blob/d011592/home-mixer/scorers/ranking_scorer.rs#L447-L458",
     );
+  });
+
+  it("ties the on-page date to LEARN_SOURCE_DATE", () => {
+    assert.equal(LEARN_SOURCE_DATE, "2026-08-24");
+    assert.equal(formatLearnSourceDate(LEARN_SOURCE_DATE), "24 August 2026");
+    assert.match(LEARN_META, /24 August 2026/);
+    assert.match(LEARN_FOLLOW_META, /24 August 2026/);
   });
 
   it("keeps the published defaults and does not invent extras", () => {
@@ -63,5 +77,11 @@ describe("learn citations", () => {
     assert.match(LEARN_DRAWER_OON, /0\.75/);
     assert.match(LEARN_DRAWER_SOURCE, /d011592/);
     assert.match(LEARN_DRAWER_SOURCE, /not affiliated/i);
+  });
+
+  it("keeps official snippets verbatim", () => {
+    assert.match(LEARN_APPLY_SNIPPET, /score\.unwrap_or\(0\.0\) \* weight/);
+    assert.match(LEARN_PARAM_COMMENT_SNIPPET, /one report cancels 468 likes/);
+    assert.match(LEARN_OON_SNIPPET, /deboost_in_network_replies_retweets/);
   });
 });
