@@ -70,7 +70,6 @@ export function Account(props: {
   const [digestEmailOptIn, setDigestEmailOptIn] = useState(false);
   const [digestEmailAvailable, setDigestEmailAvailable] = useState(false);
   const [savingDigestEmail, setSavingDigestEmail] = useState(false);
-  const [digestNotice, setDigestNotice] = useState("");
 
   async function load() {
     setBusy(true);
@@ -100,7 +99,6 @@ export function Account(props: {
 
   async function updateDigestEmail(optedIn: boolean) {
     setSavingDigestEmail(true);
-    setDigestNotice("");
     setError("");
     try {
       const res = await apiFetch("/api/mail/preferences", {
@@ -125,11 +123,6 @@ export function Account(props: {
       }
       setDigestEmailOptIn(data.digestEmailOptIn === true);
       setDigestEmailAvailable(data.digestEmailAvailable === true);
-      setDigestNotice(
-        data.digestEmailOptIn
-          ? "Approach email is on."
-          : "Approach email is off.",
-      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -225,12 +218,13 @@ export function Account(props: {
         Profile, linked sign-in, and devices. Settings stays Scout filters.
         Usage & Billing stays billing.
       </p>
-
-      {error ? (
-        <p className="status danger" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <p
+        className={error ? "status danger account-alert" : "account-alert"}
+        role="status"
+        aria-live="polite"
+      >
+        {error || "\u00a0"}
+      </p>
 
       <div className="account-profile">
         {avatar ? (
@@ -260,11 +254,13 @@ export function Account(props: {
               {hasGoogle && google ? providerLabel(google) : "Not linked"}
             </p>
           </div>
-          {hasGoogle ? null : (
-            <button type="button" className="ghost" onClick={props.onGoogle}>
-              Link Google
-            </button>
-          )}
+          <div className="account-row-action">
+            {hasGoogle ? null : (
+              <button type="button" className="ghost" onClick={props.onGoogle}>
+                Link Google
+              </button>
+            )}
+          </div>
         </li>
         <li className="account-provider">
           <div>
@@ -273,52 +269,45 @@ export function Account(props: {
               {hasX && x ? providerLabel(x) : "Not linked"}
             </p>
           </div>
-          {hasX ? (
+          <div className="account-row-action">
             <button type="button" className="ghost" onClick={props.onX}>
-              Switch X
+              {hasX ? "Switch X" : "Link X"}
             </button>
-          ) : (
-            <button type="button" className="ghost" onClick={props.onX}>
-              Link X
-            </button>
-          )}
+          </div>
         </li>
       </ul>
 
       <h3 className="account-section-title">Approach email</h3>
       <div className="account-mail">
-        <div>
+        <div className="account-mail-copy">
           <strong>Daily digest ready</strong>
           <p className="settings-help">
             {digestEmailAvailable
               ? `Email ${user?.email ?? "your verified address"} only when a new Approach is ready.`
               : "Digest needs a verified email. Link Google to opt in."}
           </p>
-          {digestNotice ? (
-            <p className="settings-help" role="status">
-              {digestNotice}
-            </p>
-          ) : null}
         </div>
-        {digestEmailAvailable ? (
-          <label className="account-mail-toggle">
-            <input
-              type="checkbox"
-              checked={digestEmailOptIn}
-              disabled={busy || savingDigestEmail}
-              onChange={(event) =>
-                void updateDigestEmail(event.currentTarget.checked)
-              }
-            />
-            <span>
-              {savingDigestEmail ? "Saving…" : digestEmailOptIn ? "On" : "Off"}
-            </span>
-          </label>
-        ) : (
-          <button type="button" className="ghost" onClick={props.onGoogle}>
-            Link Google
-          </button>
-        )}
+        <div className="account-row-action">
+          {digestEmailAvailable ? (
+            <label className="account-mail-toggle">
+              <input
+                type="checkbox"
+                checked={digestEmailOptIn}
+                disabled={busy || savingDigestEmail}
+                onChange={(event) =>
+                  void updateDigestEmail(event.currentTarget.checked)
+                }
+              />
+              <span aria-live="polite">
+                {savingDigestEmail ? "Saving…" : digestEmailOptIn ? "On" : "Off"}
+              </span>
+            </label>
+          ) : (
+            <button type="button" className="ghost" onClick={props.onGoogle}>
+              Link Google
+            </button>
+          )}
+        </div>
       </div>
 
       <h3 className="account-section-title">Sessions</h3>
@@ -331,7 +320,7 @@ export function Account(props: {
           {sessions.map((row) => (
             <li key={row.id} className="account-session">
               <div className="account-session-top">
-                <div>
+                <div className="account-session-copy">
                   <p className="account-session-agent">
                     {row.browser} · {row.os}
                     {row.current ? (
@@ -346,39 +335,41 @@ export function Account(props: {
                     Last seen {formatWhen(row.lastSeenAt)}
                   </p>
                 </div>
-                {pendingId === row.id ? (
-                  <div className="account-confirm">
-                    <span>Revoke this session?</span>
+                <div className="account-row-action">
+                  {pendingId === row.id ? (
+                    <div className="account-confirm">
+                      <span>Revoke?</span>
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={acting}
+                        onClick={() => void revokeOne(row.id)}
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={acting}
+                        onClick={() => setPendingId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
                       className="ghost"
                       disabled={acting}
-                      onClick={() => void revokeOne(row.id)}
+                      onClick={() => {
+                        setPendingOthers(false);
+                        setPendingId(row.id);
+                      }}
                     >
-                      Confirm
+                      Revoke
                     </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      disabled={acting}
-                      onClick={() => setPendingId(null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="ghost"
-                    disabled={acting}
-                    onClick={() => {
-                      setPendingOthers(false);
-                      setPendingId(row.id);
-                    }}
-                  >
-                    Revoke
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
             </li>
           ))}
@@ -386,39 +377,41 @@ export function Account(props: {
       )}
 
       <div className="account-footer">
-        {pendingOthers ? (
-          <div className="account-confirm">
-            <span>Sign out every other session?</span>
+        <div className="account-footer-action">
+          {pendingOthers ? (
+            <div className="account-confirm">
+              <span>Sign out others?</span>
+              <button
+                type="button"
+                className="ghost"
+                disabled={acting}
+                onClick={() => void revokeOthers()}
+              >
+                Confirm
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                disabled={acting}
+                onClick={() => setPendingOthers(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
               className="ghost"
-              disabled={acting}
-              onClick={() => void revokeOthers()}
+              disabled={acting || sessions.length <= 1}
+              onClick={() => {
+                setPendingId(null);
+                setPendingOthers(true);
+              }}
             >
-              Confirm
+              Sign out other sessions
             </button>
-            <button
-              type="button"
-              className="ghost"
-              disabled={acting}
-              onClick={() => setPendingOthers(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="ghost"
-            disabled={acting || sessions.length <= 1}
-            onClick={() => {
-              setPendingId(null);
-              setPendingOthers(true);
-            }}
-          >
-            Sign out other sessions
-          </button>
-        )}
+          )}
+        </div>
         <p className="settings-help">
           Other devices are signed out on their next request.
         </p>
