@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { ActivityChart } from "../ActivityChart";
 import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import type { GamificationStats } from "../lib/gamification";
+import { flightSharePayload, shareFlightPath } from "../lib/flightShare";
 
 type ActivityStripProps = {
   flightPathOpen: boolean;
@@ -19,6 +21,30 @@ export function ActivityStrip({
   onToggleFlightPath,
   onActivityBucket,
 }: ActivityStripProps) {
+  const sharePayload = flightSharePayload(activityStats, gamification);
+  const [sharing, setSharing] = useState(false);
+  const [shareNote, setShareNote] = useState<string | null>(null);
+
+  async function onSharePath() {
+    if (!sharePayload || sharing) return;
+    setSharing(true);
+    try {
+      const result = await shareFlightPath(sharePayload);
+      setShareNote(
+        result.method === "share"
+          ? "Share sheet opened."
+          : result.copiedCaption
+            ? "PNG saved. Caption copied."
+            : "PNG saved.",
+      );
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      setShareNote("Could not save the path.");
+    } finally {
+      setSharing(false);
+    }
+  }
+
   return (
     <div
       className={
@@ -30,17 +56,31 @@ export function ActivityStrip({
     >
       <div className="threads-activity-head">
         <div className="threads-activity-copy">
-          <button
-            type="button"
-            className="threads-activity-toggle-path"
-            aria-expanded={flightPathOpen}
-            onClick={onToggleFlightPath}
-          >
-            <span className="threads-activity-title">Flight path</span>
-            <span className="threads-activity-caret" aria-hidden="true">
-              {flightPathOpen ? "–" : "+"}
-            </span>
-          </button>
+          <div className="threads-activity-title-row">
+            <button
+              type="button"
+              className="threads-activity-toggle-path"
+              aria-expanded={flightPathOpen}
+              onClick={onToggleFlightPath}
+            >
+              <span className="threads-activity-title">Flight path</span>
+              <span className="threads-activity-caret" aria-hidden="true">
+                {flightPathOpen ? "–" : "+"}
+              </span>
+            </button>
+            {sharePayload ? (
+              <button
+                type="button"
+                className="threads-activity-share"
+                disabled={sharing}
+                onClick={() => void onSharePath()}
+                title="Share this path"
+                aria-label="Share this path"
+              >
+                <FlightShareIcon />
+              </button>
+            ) : null}
+          </div>
           {flightPathOpen ? (
             <span className="threads-activity-sub">
               Altitude is sampled views. Marks without a sample hold the
@@ -140,6 +180,27 @@ export function ActivityStrip({
           />
         )}
       </div>
+      <p className="threads-activity-share-status" aria-live="polite">
+        {shareNote ?? ""}
+      </p>
     </div>
+  );
+}
+
+function FlightShareIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 12.5 5.2 8.2 8 10l3.6-6.2L14 5.2" />
+    </svg>
   );
 }
