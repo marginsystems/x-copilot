@@ -149,6 +149,10 @@
   transition: grid-template-rows 360ms var(--ease-out);
 }
 
+.learn-tip-panel[hidden] {
+  display: none;
+}
+
 .learn-tip.is-open .learn-tip-panel {
   grid-template-rows: 1fr;
 }
