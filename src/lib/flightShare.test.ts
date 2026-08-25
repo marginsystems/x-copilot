@@ -115,6 +115,7 @@ describe("drawFlightShareImage", () => {
       moveTo() {},
       lineTo() {},
       roundRect() {},
+      rect() {},
       fillText(text: string) {
         texts.push(text);
       },

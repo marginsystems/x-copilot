@@ -129,6 +129,7 @@ type DrawCtx = {
     y1: number,
   ) => { addColorStop: (offset: number, color: string) => void };
   roundRect: CanvasRenderingContext2D["roundRect"];
+  rect: CanvasRenderingContext2D["rect"];
   moveTo: CanvasRenderingContext2D["moveTo"];
   lineTo: CanvasRenderingContext2D["lineTo"];
 };
@@ -137,6 +138,21 @@ function clip(text: string, max: number): string {
   const t = text.trim();
   if (t.length <= max) return t;
   return `${t.slice(0, Math.max(1, max - 1))}…`;
+}
+
+function roundedRect(
+  ctx: DrawCtx,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+): void {
+  if (typeof ctx.roundRect === "function") {
+    ctx.roundRect(x, y, w, h, r);
+    return;
+  }
+  ctx.rect(x, y, w, h);
 }
 
 export function drawFlightShareImage(
@@ -153,7 +169,7 @@ export function drawFlightShareImage(
   ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = C.panel;
   ctx.beginPath();
-  ctx.roundRect(36, 36, width - 72, height - 72, 18);
+  roundedRect(ctx, 36, 36, width - 72, height - 72, 18);
   ctx.fill();
   ctx.strokeStyle = C.border;
   ctx.lineWidth = 2;
@@ -250,7 +266,7 @@ function drawPathChart(
 ): void {
   ctx.fillStyle = C.raised;
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 8);
+  roundedRect(ctx, x, y, w, h, 8);
   ctx.fill();
   ctx.strokeStyle = C.border;
   ctx.lineWidth = 2;
@@ -314,7 +330,7 @@ function drawPathChart(
   for (const pt of pts) {
     if (pt.p.interactions < 1 && pt.p.views < 1) continue;
     ctx.beginPath();
-    ctx.roundRect(pt.cx - 3, pt.cy - 3, 6, 6, 3);
+    roundedRect(ctx, pt.cx - 3, pt.cy - 3, 6, 6, 3);
     ctx.fill();
   }
 
