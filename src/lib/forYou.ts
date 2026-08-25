@@ -112,6 +112,18 @@ export function forYouKindLabel(kind: ForYouKind): string {
   return "Reply";
 }
 
+/** Two-letter badge in the Approach row square. */
+export function forYouKindShort(kind: ForYouKind): string {
+  if (kind === "post") return "OG";
+  if (kind === "quote") return "QT";
+  if (kind === "repost") return "RT";
+  return "RE";
+}
+
+export function forYouKindClass(kind: ForYouKind): string {
+  return `kind-${kind}`;
+}
+
 /**
  * Own-account originals/quotes may post from the desk. Quote cards need a
  * numeric targetId — the desk quotes that status id, and a quote without one

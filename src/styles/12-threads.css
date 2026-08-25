@@ -16,11 +16,9 @@
 @keyframes history-row-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 8px, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -64,13 +62,48 @@
   margin: 0 0 2px;
 }
 
-.for-you-row {
-  border: 1px solid var(--border);
+.thread-row.for-you-row {
   background: color-mix(in srgb, var(--accent) 5%, var(--panel));
 }
 
 .for-you-row .suggest-pane {
   width: 100%;
+}
+
+.thread-row.kind-post {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
+}
+
+.thread-row.kind-quote {
+  border-color: #6b5ea8;
+}
+
+.thread-row.kind-repost {
+  border-color: #2f5a42;
+}
+
+.thread-row.kind-reply {
+  border-color: #5c4a26;
+}
+
+.bait.kind-post {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.bait.kind-quote {
+  color: #b8a8e8;
+  border-color: #6b5ea8;
+}
+
+.bait.kind-repost {
+  color: #6fbf8f;
+  border-color: #2f5a42;
+}
+
+.bait.kind-reply {
+  color: #d2b168;
+  border-color: #5c4a26;
 }
 
 .for-you-draft {
@@ -84,6 +117,15 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
+}
+
+.thread-row:not(.open) {
+  min-height: 68px;
+}
+
+.thread-row:not(.open) .row-head {
+  min-height: 68px;
+  align-items: center;
 }
 
 .thread-row.open {
@@ -152,6 +194,13 @@
   font-size: 0.85rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
+}
+
+.thread-row:not(.open) .row-summary {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .row-meta {
@@ -225,6 +274,33 @@
   border-color: #2e5c42;
 }
 
+[data-theme="light"] .thread-row.kind-quote {
+  border-color: #4a3d8a;
+}
+
+[data-theme="light"] .thread-row.kind-repost {
+  border-color: #2e5c42;
+}
+
+[data-theme="light"] .thread-row.kind-reply {
+  border-color: #6a4e12;
+}
+
+[data-theme="light"] .bait.kind-quote {
+  color: #4a3d8a;
+  border-color: #4a3d8a;
+}
+
+[data-theme="light"] .bait.kind-repost {
+  color: #2e5c42;
+  border-color: #2e5c42;
+}
+
+[data-theme="light"] .bait.kind-reply {
+  color: #6a4e12;
+  border-color: #6a4e12;
+}
+
 [data-theme="light"] .landing-title em,
 [data-theme="light"] .gate-free {
   color: color-mix(in srgb, var(--accent) 75%, var(--text));
@@ -238,6 +314,10 @@
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+
+.thread-row:not(.open) .row-detail {
+  display: none;
 }
 
 .row-detail .original {
