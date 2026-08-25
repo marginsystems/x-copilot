@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
 import { htmlWithSeo } from "./src/lib/seo";
 
-/** Emit `/changelog/index.html` so crawlers that skip JS still see the tags. */
+/** Emit public-route HTML so crawlers that skip JS still see the tags. */
 function seoRouteHtml(): Plugin {
   return {
     name: "seo-route-html",
@@ -13,11 +13,10 @@ function seoRouteHtml(): Plugin {
     closeBundle() {
       const dist = join(process.cwd(), "dist");
       const index = readFileSync(join(dist, "index.html"), "utf8");
-      mkdirSync(join(dist, "changelog"), { recursive: true });
-      writeFileSync(
-        join(dist, "changelog", "index.html"),
-        htmlWithSeo(index, "changelog"),
-      );
+      for (const view of ["changelog", "learn"] as const) {
+        mkdirSync(join(dist, view), { recursive: true });
+        writeFileSync(join(dist, view, "index.html"), htmlWithSeo(index, view));
+      }
     },
   };
 }

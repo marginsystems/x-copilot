@@ -171,6 +171,56 @@
   gap: 8px;
 }
 
+.learn-formula {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  overflow-x: auto;
+}
+
+.learn-formula code {
+  font-size: 0.82rem;
+}
+
+.learn-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+}
+
+.learn-page table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.learn-page caption {
+  caption-side: bottom;
+  padding: 8px 10px 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: left;
+}
+
+.learn-page th,
+.learn-page td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.learn-page th {
+  color: var(--muted);
+  font-weight: 500;
+  background: var(--raised);
+}
+
+.learn-page td:nth-child(2) {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .pricing-page {
   max-width: 72rem;
 }

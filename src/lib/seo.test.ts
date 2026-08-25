@@ -4,11 +4,13 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHANGELOG } from "./changelog.ts";
+import { LEARN_DESCRIPTION, LEARN_TITLE } from "./learn.ts";
 import {
   CHANGELOG_IMAGE,
   CHANGELOG_TITLE,
   changelogJsonLd,
   htmlWithSeo,
+  learnJsonLd,
   OG_IMAGE_HEIGHT,
   OG_IMAGE_WIDTH,
   seoForView,
@@ -35,7 +37,7 @@ describe("seoForView", () => {
     assert.equal(home.image, "/og.png");
   });
 
-  it("gives privacy, terms, pricing, and changelog their own titles", () => {
+  it("gives privacy, terms, pricing, changelog, and learn their own titles", () => {
     assert.equal(seoForView("privacy").title, "Privacy Policy — x-copilot");
     assert.equal(seoForView("terms").title, "Terms of Service — x-copilot");
     assert.equal(seoForView("pricing").title, "Pricing — x-copilot");
@@ -45,6 +47,11 @@ describe("seoForView", () => {
     assert.match(seoForView("changelog").description, /launch notes/i);
     assert.match(seoForView("changelog").description, /flight-path/i);
     assert.equal(seoForView("changelog").image, CHANGELOG_IMAGE);
+    assert.equal(seoForView("learn").title, LEARN_TITLE);
+    assert.match(seoForView("learn").description, /P\(action\)/);
+    assert.equal(seoForView("learn").description, LEARN_DESCRIPTION);
+    assert.match(seoForView("learn").description, /not affiliated/i);
+    assert.equal(seoForView("learn").image, "/og.png");
   });
 
   it("noindexes Privacy and Terms and keeps product pages indexable", () => {
@@ -53,6 +60,7 @@ describe("seoForView", () => {
     assert.equal(seoForView("home").robots, "index,follow");
     assert.equal(seoForView("pricing").robots, "index,follow");
     assert.equal(seoForView("changelog").robots, "index,follow");
+    assert.equal(seoForView("learn").robots, "index,follow");
     assert.equal(seoForView("dashboard").robots, "index,follow");
   });
 
@@ -80,6 +88,20 @@ describe("changelog schema", () => {
   });
 });
 
+describe("learn schema", () => {
+  it("is an Article with breadcrumbs and the cited SHA", () => {
+    const graph = learnJsonLd()["@graph"];
+    assert.ok(Array.isArray(graph));
+    const page = graph.find((node) => node["@type"] === "Article");
+    const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
+    assert.ok(page && crumbs);
+    assert.equal(page.name, LEARN_TITLE);
+    assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs/);
+    assert.equal(page.sameAs, "https://github.com/xai-org/x-algorithm/tree/d011592");
+    assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
+  });
+});
+
 describe("htmlWithSeo", () => {
   it("rewrites the SPA shell for /changelog without touching the home copy", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
@@ -93,6 +115,17 @@ describe("htmlWithSeo", () => {
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
     assert.match(source, /<title>x-copilot — the X copilot/);
   });
+
+  it("rewrites the SPA shell for /learn without touching the home copy", () => {
+    const source = readFileSync(join(root, "index.html"), "utf8");
+    const html = htmlWithSeo(source, "learn");
+    assert.match(html, /<title>What a like is worth — x-copilot<\/title>/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/learn"/);
+    assert.match(html, /P\(action\)/);
+    assert.match(html, /"@type":"Article"/);
+    assert.match(html, /d011592/);
+    assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
+  });
 });
 
 describe("public crawl files", () => {
@@ -101,6 +134,7 @@ describe("public crawl files", () => {
     assert.match(xml, /https:\/\/xcopilot\.dev\/</);
     assert.match(xml, /https:\/\/xcopilot\.dev\/pricing</);
     assert.match(xml, /https:\/\/xcopilot\.dev\/changelog</);
+    assert.match(xml, /https:\/\/xcopilot\.dev\/learn</);
     assert.match(
       xml,
       new RegExp(

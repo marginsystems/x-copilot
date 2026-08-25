@@ -12,6 +12,7 @@ export type AppView =
   | "analytics"
   | "pricing"
   | "changelog"
+  | "learn"
   | LegalKind;
 
 /** Signed-out public pages — no desk, no X gate, no onboarding wall. */
@@ -20,7 +21,8 @@ export function isPublicView(view: string): boolean {
     view === "privacy" ||
     view === "terms" ||
     view === "pricing" ||
-    view === "changelog"
+    view === "changelog" ||
+    view === "learn"
   );
 }
 
@@ -31,6 +33,7 @@ export function viewFromPath(pathname: string): AppView {
   if (pathname === "/changelog" || pathname.startsWith("/changelog/")) {
     return "changelog";
   }
+  if (pathname === "/learn" || pathname.startsWith("/learn/")) return "learn";
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   if (pathname === "/usage" || pathname === "/billing") return "usage";
   if (pathname === "/analytics") return "analytics";
@@ -48,6 +51,7 @@ export function pathFromView(view: AppView): string {
   if (view === "terms") return "/terms";
   if (view === "pricing") return "/pricing";
   if (view === "changelog") return "/changelog";
+  if (view === "learn") return "/learn";
   if (view === "admin") return "/admin";
   if (view === "usage") return "/usage";
   if (view === "analytics") return "/analytics";

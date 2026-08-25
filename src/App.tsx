@@ -12,6 +12,7 @@ import { SignInModal } from "./SignInModal";
 import { LegalPage } from "./Legal";
 import { PricingPage } from "./Pricing";
 import { ChangelogPage } from "./Changelog";
+import { LearnPage } from "./Learn";
 import { CookieConsent } from "./CookieConsent";
 import { isLegalKind } from "./lib/legal";
 import { isPublicView, viewFromPath } from "./lib/appView";
@@ -449,6 +450,7 @@ export default function App() {
   const legalView = isLegalKind(view);
   const pricingView = view === "pricing";
   const changelogView = view === "changelog";
+  const learnView = view === "learn";
   const publicView = isPublicView(view);
   const showOnboardingPreview =
     onboardingPreview && Boolean(authUser?.isAdmin) && !publicView;
@@ -548,6 +550,10 @@ export default function App() {
       ) : changelogView ? (
         <main className="app-main app-main-scroll">
           <ChangelogPage onHome={() => goToView("home")} />
+        </main>
+      ) : learnView ? (
+        <main className="app-main app-main-scroll">
+          <LearnPage onHome={() => goToView("home")} />
         </main>
       ) : showLanding ? (
         <Landing
