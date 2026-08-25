@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  LEARN_APPLY_SNIPPET,
   LEARN_DRAWER_LEAD,
+  LEARN_OON_SNIPPET,
+  LEARN_PARAM_COMMENT_SNIPPET,
   LEARN_DRAWER_OON,
   LEARN_DRAWER_SOURCE,
   LEARN_FORMULA,
@@ -63,5 +66,11 @@ describe("learn citations", () => {
     assert.match(LEARN_DRAWER_OON, /0\.75/);
     assert.match(LEARN_DRAWER_SOURCE, /d011592/);
     assert.match(LEARN_DRAWER_SOURCE, /not affiliated/i);
+  });
+
+  it("keeps official snippets verbatim", () => {
+    assert.match(LEARN_APPLY_SNIPPET, /score\.unwrap_or\(0\.0\) \* weight/);
+    assert.match(LEARN_PARAM_COMMENT_SNIPPET, /one report cancels 468 likes/);
+    assert.match(LEARN_OON_SNIPPET, /deboost_in_network_replies_retweets/);
   });
 });

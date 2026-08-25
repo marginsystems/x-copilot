@@ -1,12 +1,16 @@
-import { LegalLink, LegalLinks } from "./Legal";
+import { LearnChrome } from "./LearnChrome";
+import { LearnCode } from "./LearnCode";
+import { LearnTip } from "./LearnTip";
 import {
   LEARN_FOLLOW_AUTHOR_HREF,
   LEARN_FOLLOW_HEADING,
   LEARN_FOLLOW_META,
+  LEARN_FORMULA,
   LEARN_MUTUAL_REPLY_APPLY_HREF,
   LEARN_MUTUAL_REPLY_HREF,
   LEARN_OON_APPLY_HREF,
   LEARN_OON_HREF,
+  LEARN_OON_SNIPPET,
   LEARN_OON_SWITCH_HREF,
   LEARN_SOURCE_DATE,
   LEARN_SOURCE_REPO,
@@ -20,19 +24,30 @@ export function LearnFollowPage(props: {
   onLearn: () => void;
 }) {
   return (
-    <article className="legal-page learn-page">
-      <p className="legal-kicker">
-        <LegalLink href="/" onNavigate={props.onHome}>
-          {PRODUCT_NAME}
-        </LegalLink>
-        {" / "}
-        <LegalLink href="/learn" onNavigate={props.onLearn}>
-          Learn
-        </LegalLink>
-      </p>
-      <h1>{LEARN_FOLLOW_HEADING}</h1>
-      <p className="legal-meta">{LEARN_FOLLOW_META}</p>
-
+    <LearnChrome
+      heading={LEARN_FOLLOW_HEADING}
+      meta={LEARN_FOLLOW_META}
+      note="learnFollow"
+      onHome={props.onHome}
+      onLearn={props.onLearn}
+      onFollow={() => undefined}
+      rail={
+        <>
+          <p className="learn-rail-kicker">Score</p>
+          <p className="learn-rail-formula">{LEARN_FORMULA}</p>
+          <p className="learn-rail-kicker">Then</p>
+          <p className="learn-rail-weight">× 0.75</p>
+          <p>
+            Out-of-network posts, and followed replies or reposts when the
+            switch is on.{" "}
+            <a href={LEARN_OON_HREF} rel="noreferrer">
+              OonWeightFactor
+            </a>{" "}
+            at <code>{LEARN_SOURCE_SHA}</code>.
+          </p>
+        </>
+      }
+    >
       <h2>In-network vs out-of-network</h2>
       <p>
         For You is assembled from two retrievals.{" "}
@@ -58,12 +73,24 @@ export function LearnFollowPage(props: {
         <a href={LEARN_OON_SWITCH_HREF} rel="noreferrer">
           EnableOonRescoreForInNetworkRepliesRetweets
         </a>{" "}
-        is on. The default in this snapshot is true. The check is{" "}
-        <a href={LEARN_OON_APPLY_HREF} rel="noreferrer">
-          oon_applies
-        </a>{" "}
-        in <code>ranking_scorer.rs</code>.
+        is on. The default in this snapshot is true.
       </p>
+      <LearnCode
+        file="home-mixer/scorers/ranking_scorer.rs"
+        href={LEARN_OON_APPLY_HREF}
+      >
+        {LEARN_OON_SNIPPET}
+      </LearnCode>
+      <LearnTip title="Followed is not always in-network">
+        <p>
+          A reply or repost from someone you follow can still take the
+          out-of-network discount. The check is{" "}
+          <a href={LEARN_OON_APPLY_HREF} rel="noreferrer">
+            oon_applies
+          </a>
+          .
+        </p>
+      </LearnTip>
 
       <h2>Follow-author and mutual-follow reply</h2>
       <p>
@@ -88,11 +115,7 @@ export function LearnFollowPage(props: {
 
       <h2>Source</h2>
       <p>
-        Same snapshot as{" "}
-        <LegalLink href="/learn" onNavigate={props.onLearn}>
-          What a like is worth
-        </LegalLink>
-        :{" "}
+        Same snapshot as What a like is worth:{" "}
         <a href={`${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`} rel="noreferrer">
           xai-org/x-algorithm
         </a>{" "}
@@ -103,16 +126,6 @@ export function LearnFollowPage(props: {
       <p>
         {PRODUCT_NAME} is not affiliated with X Corp.
       </p>
-
-      <nav className="legal-foot" aria-label="Learn footer">
-        <LegalLinks />
-        <LegalLink href="/learn" onNavigate={props.onLearn}>
-          What a like is worth
-        </LegalLink>
-        <LegalLink href="/" onNavigate={props.onHome}>
-          Back to {PRODUCT_NAME}
-        </LegalLink>
-      </nav>
-    </article>
+    </LearnChrome>
   );
 }

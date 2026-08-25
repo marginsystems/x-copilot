@@ -31,6 +31,33 @@ export const LEARN_DRAWER_SOURCE =
 
 export const LEARN_FORMULA = "Final Score = Σ (weight_i × P(action_i))";
 
+/** Official snippets at LEARN_SOURCE_SHA. Do not rewrite the math. */
+export const LEARN_APPLY_SNIPPET = `fn apply(score: Option<f64>, weight: f64) -> f64 {
+    score.unwrap_or(0.0) * weight
+}`;
+
+export const LEARN_PARAM_COMMENT_SNIPPET = `// Each weight multiplies the *predicted* probability of that
+// action (P(favorite), P(repost), …) or a continuous value e.g.
+// watch time -- the weights do not multiply raw engagement counts.
+// One common misinterpretation is that you can read these weight
+// ratios as count equivalences, e.g. the incorrect statement that
+// "one report cancels 468 likes" -- this is incorrect because the
+// weights apply to the predicted probabilities rather than raw counts.`;
+
+export const LEARN_OON_SNIPPET = `let oon_applies = |c: &PostCandidate| match c.in_network {
+    Some(false) => true,
+    Some(true) => {
+        deboost_in_network_replies_retweets
+            && (c.in_reply_to_tweet_id.is_some() || c.retweeted_tweet_id.is_some())
+    }
+    None => false,
+};`;
+
+export const LEARN_NOTES = [
+  { view: "learn" as const, href: "/learn", label: LEARN_HEADING },
+  { view: "learnFollow" as const, href: "/learn/follow", label: LEARN_FOLLOW_HEADING },
+];
+
 export type LearnWeight = {
   action: string;
   weight: number;

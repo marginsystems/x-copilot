@@ -59,3 +59,15 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .learn-page > * {
+    animation: none;
+  }
+
+  .learn-tip-panel,
+  .learn-notes a,
+  .learn-page tbody tr {
+    transition: none;
+  }
+}
+
