@@ -74,12 +74,12 @@ export function LearnFollowPage(props: {
         . That multiplies P(follow author), not a raw follow.
       </p>
       <p>
-        If the author is a mutual follow and the post is not itself a reply
-        or repost, the reply weight becomes 5.0 +{" "}
+        The reply-action weight becomes 5.0 +{" "}
         <a href={LEARN_MUTUAL_REPLY_HREF} rel="noreferrer">
           15.0
-        </a>
-        . That is{" "}
+        </a>{" "}
+        for posts from a mutual-follow author that are not themselves replies
+        or reposts. That is{" "}
         <a href={LEARN_MUTUAL_REPLY_APPLY_HREF} rel="noreferrer">
           reply_weight_for
         </a>
