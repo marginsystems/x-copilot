@@ -121,7 +121,13 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
           y={padT + innerH - pt.barH}
           width={barW}
           height={Math.max(pt.barH, pt.p.interactions > 0 ? 1.5 : 0)}
-        />
+        >
+          {compact ? (
+            <title>
+              {`${formatPeriodTip(pt.p.period, bucket)}: ${activityChartTipDetail(pt.p.interactions, pt.p.views, false)}`}
+            </title>
+          ) : null}
+        </rect>
       ))}
       {areaD ? <path className="activity-chart-area" d={areaD} /> : null}
       {points.length > 1 ? (
@@ -143,7 +149,13 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
             cx={pt.x}
             cy={pt.y}
             r={!compact && active === i ? 3.4 : 2.2}
-          />
+          >
+            {compact ? (
+              <title>
+                {`${formatPeriodTip(pt.p.period, bucket)}: ${activityChartTipDetail(pt.p.interactions, pt.lineViews, pt.held)}`}
+              </title>
+            ) : null}
+          </circle>
         ) : null,
       )}
       {!compact
@@ -240,7 +252,8 @@ function ActivityChartTipHost({
       const tipW = tipRef.current?.offsetWidth ?? estimateTipWidth(window.innerWidth);
       const tipH = tipRef.current?.offsetHeight ?? 44;
       setEdge(tipEdge(x, tipW, window.innerWidth));
-      setBelow(tipFlipBelow(y, tipH));
+      // 44 keeps the tip below the fixed .menu-toggle band (top 6px + 32px height).
+      setBelow(tipFlipBelow(y, tipH, 44));
     }
     place();
     window.addEventListener("resize", place);
