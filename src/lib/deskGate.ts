@@ -1,3 +1,5 @@
+import { isPublicView } from "./appView";
+
 /** Official X OAuth only — a typed handle does not unlock the desk. */
 export function deskNeedsXLink(
   user: { xLinked?: boolean } | null | undefined,
@@ -22,7 +24,7 @@ export function showDeskXGate(opts: {
     opts.needsOnboarding ||
     opts.legalView ||
     opts.showLanding ||
-    opts.view === "pricing"
+    isPublicView(opts.view)
   ) {
     return false;
   }

@@ -12,9 +12,10 @@ import { BootScreen, Landing } from "./Landing";
 import { SignInModal } from "./SignInModal";
 import { LegalPage } from "./Legal";
 import { PricingPage } from "./Pricing";
+import { ChangelogPage } from "./Changelog";
 import { CookieConsent } from "./CookieConsent";
 import { isLegalKind } from "./lib/legal";
-import { viewFromPath } from "./lib/appView";
+import { isPublicView, viewFromPath } from "./lib/appView";
 import { groundedHint } from "./lib/upgradeCta";
 import { Onboarding } from "./Onboarding";
 import { LinkXGate } from "./LinkXGate";
@@ -447,7 +448,8 @@ export default function App() {
   const booting = !localUi && !authChecked;
   const legalView = isLegalKind(view);
   const pricingView = view === "pricing";
-  const publicView = legalView || pricingView;
+  const changelogView = view === "changelog";
+  const publicView = isPublicView(view);
   const showOnboardingPreview =
     onboardingPreview && Boolean(authUser?.isAdmin) && !publicView;
   const showLanding =
@@ -542,6 +544,10 @@ export default function App() {
             onOpenDesk={() => goToView("dashboard")}
             onUsage={() => goToView("usage")}
           />
+        </main>
+      ) : changelogView ? (
+        <main className="app-main app-main-scroll">
+          <ChangelogPage onHome={() => goToView("home")} />
         </main>
       ) : showLanding ? (
         <Landing
