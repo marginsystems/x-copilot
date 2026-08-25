@@ -28,6 +28,13 @@ import {
 } from "./stripeSubscriptionStore.ts";
 import { upsertOwnPost } from "./ownPostStore.ts";
 
+function ageUser(userId: string, days: number): void {
+  const at = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  getPlatformDb()
+    .prepare(`UPDATE users SET created_at = ? WHERE id = ?`)
+    .run(at, userId);
+}
+
 describe("billingStore", () => {
   let dir: string;
   const prevAdmin = process.env.ADMIN_EMAILS;
@@ -77,6 +84,7 @@ describe("billingStore", () => {
       emailVerified: true,
     });
     const tenantId = ensureUserTenant(user.id);
+    ageUser(user.id, 8);
     recordUsageEvent({
       tenantId,
       path: "/2/tweets/search/recent",
@@ -103,9 +111,11 @@ describe("billingStore", () => {
       emailVerified: true,
     });
     ensureUserTenant(user.id);
+    ageUser(user.id, 8);
     const me = billingMePayload({ userId: user.id, email: user.email });
     assert.equal(me.plan_key, "free");
     assert.equal(me.plan_state, "free_active");
+    assert.equal(me.first_week_pulse, null);
     const plans = me.plans as Record<
       string,
       { name: string; credits: number; available: boolean; daily_suggests?: number }
@@ -126,6 +136,7 @@ describe("billingStore", () => {
       emailVerified: true,
     });
     const tenantId = ensureUserTenant(user.id);
+    ageUser(user.id, 8);
     recordUsageEvent({
       tenantId,
       path: "/2/tweets/search/recent",
@@ -217,6 +228,7 @@ describe("billingStore", () => {
       emailVerified: true,
     });
     const tenantId = ensureUserTenant(user.id);
+    ageUser(user.id, 8);
     const empty = dailyActivityUsage(user.id, user.email);
     assert.equal(empty.limit, 15);
     assert.equal(empty.can_watch, true);
@@ -341,6 +353,7 @@ describe("billingStore", () => {
       emailVerified: true,
     });
     ensureUserTenant(user.id);
+    ageUser(user.id, 8);
     grantManualPlan({
       userId: user.id,
       planKey: "horizon",
@@ -354,6 +367,26 @@ describe("billingStore", () => {
     const me = billingMePayload({ userId: user.id, email: user.email });
     assert.equal(me.plan_key, "free");
     assert.equal(me.manual_grant, null);
+  });
+
+  it("gives a new account Pulse limits for the first week", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-first-week",
+      email: "week@example.com",
+      emailVerified: true,
+    });
+    ensureUserTenant(user.id);
+    const me = billingMePayload({ userId: user.id, email: user.email });
+    assert.equal(me.plan_key, "pulse");
+    assert.equal(me.plan_state, "free_active");
+    assert.equal(me.has_stripe_subscription, false);
+    const week = me.first_week_pulse as { plan_key?: string; notice?: string };
+    assert.equal(week.plan_key, "pulse");
+    assert.match(week.notice ?? "", /first week is a Pulse week/);
+    assert.equal((me.credits as { limit?: number }).limit, 6000);
+    assert.equal((me.sorties as { limit?: number }).limit, 5);
+    assert.equal(dailyActivityUsage(user.id, user.email).limit, 50);
   });
 
   it("applies equal-or-newer Stripe watermarks", () => {

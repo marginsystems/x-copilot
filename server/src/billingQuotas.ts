@@ -16,7 +16,8 @@ import {
 } from "./plans.js";
 import {
   creditLimitForPlan,
-  effectivePlanKey,
+  resolvePlan,
+  type PlanResolveReason,
 } from "./planResolution.js";
 import { getSortieUsage } from "./scoutSorties.js";
 
@@ -74,7 +75,7 @@ export function dailyActivityUsage(
 } {
   const tenantId = ensureUserTenant(userId);
   const row = ensureUserBillingRow(userId, tenantId);
-  const planKey = effectivePlanKey(row, email);
+  const planKey = resolvePlan(row, email).planKey;
   const limit = PLAN_DAILY_ACTIVITY_EVENTS[planKey];
   const used = countOwnPostsSince(userId, startOfUtcDayIso());
   const remaining = Math.max(0, limit - used);
@@ -101,7 +102,8 @@ export function creditsExhaustedResponse(input: {
 } | null {
   if (!input.userId) return null;
   const row = ensureUserBillingRow(input.userId, input.tenantId);
-  const planKey = effectivePlanKey(row, input.email);
+  const resolved = resolvePlan(row, input.email);
+  const planKey = resolved.planKey;
   const usage = getCreditUsage(input.tenantId, planKey);
   if (usage.canUse) return null;
   const pool =
@@ -110,7 +112,7 @@ export function creditsExhaustedResponse(input: {
       : `${usage.limit.toLocaleString()} credits`;
   return {
     error: "credits_exhausted",
-    message: `You've used this month's ${pool}. ${upgradeHint(planKey)} Or wait until the next UTC month.`,
+    message: `You've used this month's ${pool}. ${upgradeHint(planKey, resolved.reason)} Or wait until the next UTC month.`,
     used: usage.used,
     limit: usage.limit,
     planKey,
@@ -131,12 +133,13 @@ export function sortiesExhaustedResponse(input: {
 } | null {
   if (!input.userId) return null;
   const row = ensureUserBillingRow(input.userId, input.tenantId);
-  const planKey = effectivePlanKey(row, input.email);
+  const resolved = resolvePlan(row, input.email);
+  const planKey = resolved.planKey;
   const usage = getSortieUsage(input.tenantId, planKey);
   if (usage.canFly) return null;
   return {
     error: "scout_daily_limit",
-    message: `Grounded — ${usage.limit} sortie${usage.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC. ${upgradeHint(planKey)}`,
+    message: `Grounded — ${usage.limit} sortie${usage.limit === 1 ? "" : "s"} used today. Next takeoff after 00:00 UTC. ${upgradeHint(planKey, resolved.reason)}`,
     used: usage.used,
     limit: usage.limit,
     planKey,
@@ -144,15 +147,26 @@ export function sortiesExhaustedResponse(input: {
 }
 
 /** Next-plan line for Grounded / credits / suggest-cap copy. */
-export function upgradeHint(planKey: PlanKey): string {
+export function upgradeHint(
+  planKey: PlanKey,
+  reason: PlanResolveReason = "free",
+): string {
+  if (reason === "first_week") {
+    return "Subscribe to Pulse to keep these limits after your first week. Open Usage & Billing.";
+  }
   const next = nextPaidPlanKey(planKey);
   if (!next) return "Open Usage & Billing.";
   return `${planDisplayName(next)} raises this — open Usage & Billing.`;
 }
 
-export function suggestCapMessage(planKey: PlanKey, limit: number): string {
-  const next = nextPaidPlanKey(planKey);
+export function suggestCapMessage(
+  planKey: PlanKey,
+  limit: number,
+  reason: PlanResolveReason = "free",
+): string {
   const base = `That's ${limit} suggested drafts today — the well refills at 00:00 UTC.`;
-  if (!next) return `${base} ${upgradeHint(planKey)}`;
+  if (reason === "first_week") return `${base} ${upgradeHint(planKey, reason)}`;
+  const next = nextPaidPlanKey(planKey);
+  if (!next) return `${base} ${upgradeHint(planKey, reason)}`;
   return `${base} ${planDisplayName(next)} is ${PLAN_DAILY_SUGGESTS[next]}/day — open Usage & Billing.`;
 }

@@ -23,6 +23,7 @@ export type UserBillingRow = {
   grantPlanKey: PaidPlanKey | null;
   grantCreatedAt: string | null;
   grantCreatedBy: string | null;
+  userCreatedAt: string | null;
 };
 
 const BILLING_SELECT = `user_id, tenant_id, plan_key, stripe_customer_id, stripe_subscription_id,
@@ -44,6 +45,7 @@ type BillingSqlRow = {
   grant_plan_key: string | null;
   grant_created_at: string | null;
   grant_created_by: string | null;
+  user_created_at: string | null;
 };
 
 function nowIso(): string {
@@ -144,13 +146,15 @@ function mapBilling(row: BillingSqlRow): UserBillingRow {
     grantPlanKey,
     grantCreatedAt: row.grant_created_at,
     grantCreatedBy: row.grant_created_by,
+    userCreatedAt: row.user_created_at,
   };
 }
 
 export function getUserBilling(userId: string): UserBillingRow | null {
   const row = getPlatformDb()
     .prepare(
-      `SELECT ${BILLING_SELECT}
+      `SELECT ${BILLING_SELECT},
+              (SELECT created_at FROM users WHERE id = user_billing.user_id) AS user_created_at
        FROM user_billing WHERE user_id = ?`,
     )
     .get(userId) as BillingSqlRow | undefined;
@@ -162,7 +166,8 @@ export function getUserBillingBySubscriptionId(
 ): UserBillingRow | null {
   const row = getPlatformDb()
     .prepare(
-      `SELECT ${BILLING_SELECT}
+      `SELECT ${BILLING_SELECT},
+              (SELECT created_at FROM users WHERE id = user_billing.user_id) AS user_created_at
        FROM user_billing WHERE stripe_subscription_id = ?`,
     )
     .get(subscriptionId) as BillingSqlRow | undefined;

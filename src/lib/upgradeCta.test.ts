@@ -25,5 +25,9 @@ describe("upgrade CTAs", () => {
       groundedHint({ limit: 25, planKey: "horizon" }).includes("raises this"),
       false,
     );
+    assert.match(
+      groundedHint({ limit: 5, planKey: "pulse", firstWeek: true }),
+      /Subscribe to Pulse to keep these limits/,
+    );
   });
 });

@@ -48,6 +48,9 @@ describe("scout sorties", () => {
       emailVerified: true,
     });
     const tenantId = ensureUserTenant(user.id);
+    getPlatformDb()
+      .prepare(`UPDATE users SET created_at = ? WHERE id = ?`)
+      .run(new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), user.id);
     assert.equal(getSortieUsage(tenantId, "free").canFly, true);
     recordSortie(tenantId);
     const usage = getSortieUsage(tenantId, "free");

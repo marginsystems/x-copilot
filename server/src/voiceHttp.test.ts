@@ -369,12 +369,12 @@ describe("POST /api/voice/stances", () => {
   });
 
   it("rejects an opinionated stance lookup when today's suggest cap is spent", async () => {
-    const { user } = seedReadyUser("stance-cap@example.com");
+    const { user, planKey } = seedReadyUser("stance-cap@example.com");
     const at = new Date().toISOString();
     const stmt = getPlatformDb().prepare(
       `INSERT INTO voice_suggests (id, user_id, thread_id, at) VALUES (?, ?, NULL, ?)`,
     );
-    for (let i = 0; i < PLAN_DAILY_SUGGESTS.free; i++) {
+    for (let i = 0; i < PLAN_DAILY_SUGGESTS[planKey]; i++) {
       stmt.run(`stance-cap-${i}`, user.id, at);
     }
 

@@ -1,5 +1,6 @@
 /**
- * Plan precedence: live Stripe sub, complimentary grant, then Free.
+ * Plan precedence: live Stripe sub, complimentary grant, first-week
+ * Pulse, then Free. First week is not a Stripe trial.
  */
 import { isAdminEmail } from "./adminEmails.js";
 import type { UserBillingRow } from "./billingStore.js";
@@ -13,6 +14,22 @@ import {
 
 const LIVE_SUB_STATUSES = new Set(["active", "trialing", "past_due", "unpaid"]);
 const NON_LIVE_SUB_STATUSES = new Set(["canceled", "incomplete_expired"]);
+
+export const FIRST_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+export const FIRST_WEEK_PLAN: PaidPlanKey = "pulse";
+
+export type PlanResolveReason =
+  | "stripe"
+  | "admin"
+  | "grant"
+  | "first_week"
+  | "free";
+
+export type PlanResolution = {
+  planKey: PlanKey;
+  reason: PlanResolveReason;
+  firstWeekEndsAt: string | null;
+};
 
 export function hasLiveStripeSubscription(row: UserBillingRow): boolean {
   const sub = row.stripeSubscriptionId?.trim();
@@ -36,14 +53,64 @@ export function liveSubTakesPrecedence(row: UserBillingRow): boolean {
   );
 }
 
+export function firstWeekEndsAt(
+  createdAt: string | null | undefined,
+): string | null {
+  if (!createdAt?.trim()) return null;
+  const start = Date.parse(createdAt);
+  if (!Number.isFinite(start)) return null;
+  return new Date(start + FIRST_WEEK_MS).toISOString();
+}
+
+export function firstWeekPulseActive(
+  createdAt: string | null | undefined,
+  now = new Date(),
+): boolean {
+  const ends = firstWeekEndsAt(createdAt);
+  if (!ends) return false;
+  return now.getTime() < Date.parse(ends);
+}
+
+export function firstWeekPulseNotice(endsAt: string): string {
+  const when = new Date(endsAt).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return `Your first week is a Pulse week — 5 takeoffs and 6,000 credits until ${when} UTC. Then Free. No credit card.`;
+}
+
+export function resolvePlan(
+  row: UserBillingRow,
+  email: string | null | undefined,
+  now = new Date(),
+): PlanResolution {
+  if (liveSubTakesPrecedence(row)) {
+    return { planKey: row.planKey, reason: "stripe", firstWeekEndsAt: null };
+  }
+  if (isAdminEmail(email)) {
+    return { planKey: "horizon", reason: "admin", firstWeekEndsAt: null };
+  }
+  if (row.grantPlanKey && isPaidPlanKey(row.grantPlanKey)) {
+    return { planKey: row.grantPlanKey, reason: "grant", firstWeekEndsAt: null };
+  }
+  if (firstWeekPulseActive(row.userCreatedAt, now)) {
+    return {
+      planKey: FIRST_WEEK_PLAN,
+      reason: "first_week",
+      firstWeekEndsAt: firstWeekEndsAt(row.userCreatedAt),
+    };
+  }
+  return { planKey: "free", reason: "free", firstWeekEndsAt: null };
+}
+
 export function effectivePlanKey(
   row: UserBillingRow,
   email: string | null | undefined,
+  now = new Date(),
 ): PlanKey {
-  if (liveSubTakesPrecedence(row)) return row.planKey;
-  if (isAdminEmail(email)) return "horizon";
-  if (row.grantPlanKey && isPaidPlanKey(row.grantPlanKey)) return row.grantPlanKey;
-  return "free";
+  return resolvePlan(row, email, now).planKey;
 }
 
 export function manualGrantNotice(planKey: PaidPlanKey): string {
