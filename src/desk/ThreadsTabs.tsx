@@ -16,6 +16,7 @@ import {
   InteractedRow,
   SkippedRow,
 } from "./HistoryRows";
+import { RankingDrawer } from "./RankingDrawer";
 import { SuggestedRow } from "./SuggestedRow";
 import { ThreadRow } from "./ThreadRow";
 import { ThreadsTabCount } from "./ThreadsTabCount";
@@ -161,6 +162,7 @@ export function ThreadsTabs({
           </button>
         </div>
       </div>
+      {threadsTab === "curated" ? <RankingDrawer /> : null}
       <div className="threads-scroll">
         {threadsTab === "curated" ? (
           curatedThreads.length === 0 &&

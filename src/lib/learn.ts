@@ -21,6 +21,14 @@ export const LEARN_FOLLOW_DESCRIPTION =
 export const LEARN_FOLLOW_META =
   "Cited from xai-org/x-algorithm at d011592 (24 August 2026). Defaults in this snapshot. Not affiliated with X Corp.";
 
+export const LEARN_DRAWER_HEADING = "How ranking works";
+export const LEARN_DRAWER_LEAD =
+  "X For You multiplies each weight by P(action) for this viewer, not raw likes or reports.";
+export const LEARN_DRAWER_OON =
+  "Out-of-network posts, and followed replies or reposts, are then multiplied by 0.75.";
+export const LEARN_DRAWER_SOURCE =
+  "Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+
 export const LEARN_FORMULA = "Final Score = Σ (weight_i × P(action_i))";
 
 export type LearnWeight = {

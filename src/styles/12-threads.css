@@ -440,3 +440,44 @@
   overflow-wrap: anywhere;
 }
 
+.ranking-drawer {
+  flex: 0 0 auto;
+  padding-bottom: 8px;
+}
+
+.ranking-drawer summary {
+  cursor: pointer;
+  font-family: var(--font-head);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  user-select: none;
+}
+
+.ranking-drawer[open] summary {
+  margin-bottom: 6px;
+}
+
+.ranking-drawer p {
+  margin: 0 0 6px;
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.ranking-drawer p:last-child {
+  margin-bottom: 0;
+}
+
+.ranking-drawer a {
+  color: var(--accent);
+}
+
+.ranking-drawer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+

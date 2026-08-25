@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  LEARN_DRAWER_LEAD,
+  LEARN_DRAWER_OON,
+  LEARN_DRAWER_SOURCE,
   LEARN_FORMULA,
   LEARN_OON_HREF,
   LEARN_OON_SWITCH_HREF,
@@ -52,5 +55,13 @@ describe("learn citations", () => {
       /EnableOonRescoreForInNetworkRepliesRetweets|#L266-L271/,
     );
     assert.match(LEARN_OON_SWITCH_HREF, /\/blob\/d011592\//);
+  });
+
+  it("keeps the Approach drawer to three cited sentences", () => {
+    assert.match(LEARN_DRAWER_LEAD, /P\(action\)/);
+    assert.doesNotMatch(LEARN_DRAWER_LEAD, /468 likes/);
+    assert.match(LEARN_DRAWER_OON, /0\.75/);
+    assert.match(LEARN_DRAWER_SOURCE, /d011592/);
+    assert.match(LEARN_DRAWER_SOURCE, /not affiliated/i);
   });
 });
