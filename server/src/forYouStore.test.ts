@@ -138,6 +138,36 @@ describe("forYouStore", () => {
     );
     assert.equal(getSuggestion(row.id, "u1")?.draft, "I shipped it.");
   });
+
+  it("returns a second-person why from insertSuggestions / replaceDailySuggestions", () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    const [inserted] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [
+        {
+          kind: "post",
+          why: "My recent originals about shipping got 18 views",
+          draft: "I shipped it.",
+        },
+      ],
+    });
+    assert.ok(inserted);
+    assert.equal(
+      inserted.why,
+      "Your recent originals about shipping got 18 views",
+    );
+
+    const [replaced] = replaceDailySuggestions({
+      userId: "u2",
+      tenantId: "local",
+      nowMs: now + 1000,
+      drafts: [{ kind: "post", why: "I got 900 views", draft: "Ship it." }],
+    });
+    assert.ok(replaced);
+    assert.equal(replaced.why, "You got 900 views");
+  });
 });
 
 describe("secondPersonWhy", () => {

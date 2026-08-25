@@ -145,12 +145,13 @@ export function insertSuggestions(opts: {
   const tx = db.transaction(() => {
     for (const draft of opts.drafts) {
       const id = randomUUID();
+      const why = secondPersonWhy(draft.why.trim());
       insert.run(
         id,
         opts.userId,
         opts.tenantId,
         draft.kind,
-        draft.why.trim(),
+        why,
         draft.draft?.trim() || null,
         draft.targetId?.trim() || null,
         draft.targetUrl?.trim() || null,
@@ -164,7 +165,7 @@ export function insertSuggestions(opts: {
         tenantId: opts.tenantId,
         kind: draft.kind,
         status: "suggested",
-        why: draft.why.trim(),
+        why,
         draft: draft.draft?.trim() || null,
         targetId: draft.targetId?.trim() || null,
         targetUrl: draft.targetUrl?.trim() || null,
