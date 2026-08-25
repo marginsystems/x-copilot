@@ -146,7 +146,7 @@ describe("digest email HTTP", () => {
     assert.equal(rejected.body.error, "verified_email_required");
   });
 
-  it("unsubscribes from a signed public link without a session", async () => {
+  it("requires confirmation before a signed public link unsubscribes", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "unsubscribe-google",
@@ -158,8 +158,16 @@ describe("digest email HTTP", () => {
       .run(user.id);
     const token = makeUnsubscribeToken(user.id);
     assert.ok(token);
-    const result = await call({
+    const preview = await call({
       method: "GET",
+      path: `/api/mail/unsubscribe?t=${encodeURIComponent(token)}`,
+    });
+    assert.equal(preview.status, 200);
+    assert.match(preview.raw, /Unsubscribe from Approach email/);
+    assert.equal(getDigestEmailSettings(user.id)?.optedIn, true);
+
+    const result = await call({
+      method: "POST",
       path: `/api/mail/unsubscribe?t=${encodeURIComponent(token)}`,
     });
     assert.equal(result.status, 200);

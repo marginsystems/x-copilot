@@ -20,13 +20,34 @@ import { getRequestSession } from "./sessionCookie.js";
 const PREFERENCE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 const UNSUBSCRIBE_RATE = { max: 60, windowMs: 10 * 60 * 1000 };
 
-function sendUnsubscribePage(res: ServerResponse, ok: boolean): void {
-  const title = ok ? "Approach email is off" : "Unsubscribe link is invalid";
-  const detail = ok
-    ? "You will no longer receive the x-copilot Approach digest."
-    : "This link is invalid or expired. You can update email preferences in your x-copilot account.";
-  const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title><body><main><h1>${title}</h1><p>${detail}</p><p><a href="https://xcopilot.dev/dashboard">Open x-copilot</a></p><p>Built by Mergestorm, Inc.</p></main></body></html>`;
-  res.writeHead(ok ? 200 : 400, {
+function sendUnsubscribePage(
+  res: ServerResponse,
+  userId: string | null,
+  token: string,
+): void {
+  const valid = Boolean(userId);
+  const title = valid
+    ? "Unsubscribe from Approach email?"
+    : "Unsubscribe link is invalid";
+  const detail = valid
+    ? "Confirm below to stop the x-copilot Approach digest."
+    : "This link is invalid or no longer valid. You can update email preferences in your x-copilot account.";
+  const action = `/api/mail/unsubscribe?t=${encodeURIComponent(token)}`;
+  const confirmation = valid
+    ? `<form method="post" action="${action}"><button type="submit">Turn off Approach email</button></form>`
+    : "";
+  const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title><body><main><h1>${title}</h1><p>${detail}</p>${confirmation}<p><a href="https://xcopilot.dev/dashboard">Open x-copilot</a></p><p>Built by Mergestorm, Inc.</p></main></body></html>`;
+  res.writeHead(valid ? 200 : 400, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+  });
+  res.end(html);
+}
+
+function sendUnsubscribedPage(res: ServerResponse): void {
+  const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Approach email is off</title><body><main><h1>Approach email is off</h1><p>You will no longer receive the x-copilot Approach digest.</p><p><a href="https://xcopilot.dev/dashboard">Open x-copilot</a></p><p>Built by Mergestorm, Inc.</p></main></body></html>`;
+  res.writeHead(200, {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
@@ -66,11 +87,15 @@ export async function tryHandleDigestEmail(
       return true;
     }
     const userId = verifyUnsubscribeToken(token);
-    const updated = userId ? setDigestEmailOptIn(userId, false) : null;
     if (req.method === "POST") {
-      send(req, res, updated ? 204 : 400, updated ? {} : { error: "invalid_token" });
+      const updated = userId ? setDigestEmailOptIn(userId, false) : null;
+      if (updated) {
+        sendUnsubscribedPage(res);
+      } else {
+        send(req, res, 400, { error: "invalid_token" });
+      }
     } else {
-      sendUnsubscribePage(res, Boolean(updated));
+      sendUnsubscribePage(res, userId, token);
     }
     return true;
   }
