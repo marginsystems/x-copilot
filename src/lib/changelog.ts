@@ -18,6 +18,12 @@ export type ChangelogDay = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-08-25",
+    title: "What a like is worth",
+    body: "A public /learn note on X For You ranking weights. They multiply P(action), not raw counts. Cited from the Aug 13-14 xai-org/x-algorithm drop. Not a blog.",
+    href: "https://github.com/marginsystems/x-copilot/pull/506",
+  },
+  {
+    date: "2026-08-25",
     title: "Share your flight path",
     body: "A quiet icon next to Flight path downloads a PNG of this week's marks, altitude, streak, and level. Watermarked xcopilot.dev. Replies stay unstamped.",
     href: "https://github.com/marginsystems/x-copilot/pull/483",

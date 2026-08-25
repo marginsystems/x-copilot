@@ -26,12 +26,14 @@ describe("CHANGELOG", () => {
     }
   });
 
-  it("opens with flight-path share", () => {
-    assert.equal(CHANGELOG[0]?.title, "Share your flight path");
+  it("opens with the /learn note", () => {
+    assert.equal(CHANGELOG[0]?.title, "What a like is worth");
     assert.equal(
       CHANGELOG[0]?.href,
-      "https://github.com/marginsystems/x-copilot/pull/483",
+      "https://github.com/marginsystems/x-copilot/pull/506",
     );
+    assert.match(CHANGELOG[0]!.body, /P\(action\)/);
+    assert.match(CHANGELOG[0]!.body, /\/learn/);
   });
 });
 
