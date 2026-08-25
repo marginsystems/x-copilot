@@ -84,7 +84,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
   const barW = Math.max(2, (innerW - gap * (n - 1)) / n);
   const points = buildPoints(series, innerH, padL, padT, barW, gap);
   const labelStep = bucket === "week" ? 1 : Math.max(1, Math.ceil(n / 7));
-  const [active, setActive] = useState<number | null>(null);
+  const [active, setActive] = useState<string | null>(null);
 
   const lineD = points
     .map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`)
@@ -113,7 +113,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
         <rect
           key={`b-${pt.p.period}`}
           className={
-            !compact && active === i
+            !compact && active === pt.p.period
               ? "activity-chart-bar is-active"
               : "activity-chart-bar"
           }
@@ -141,14 +141,14 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
               [
                 "activity-chart-dot",
                 pt.held ? "activity-chart-dot-held" : "",
-                !compact && active === i ? "is-active" : "",
+                !compact && active === pt.p.period ? "is-active" : "",
               ]
                 .filter(Boolean)
                 .join(" ")
             }
             cx={pt.x}
             cy={pt.y}
-            r={!compact && active === i ? 3.4 : 2.2}
+            r={!compact && active === pt.p.period ? 3.4 : 2.2}
           >
             {compact ? (
               <title>
@@ -178,20 +178,21 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
             <rect
               key={`h-${pt.p.period}`}
               className={
-                active === i ? "activity-chart-hit is-active" : "activity-chart-hit"
+                active === pt.p.period
+                  ? "activity-chart-hit is-active"
+                  : "activity-chart-hit"
               }
               x={pt.barX}
               y={padT}
               width={barW + gap}
               height={innerH}
-              tabIndex={0}
               aria-label={`${formatPeriodTip(pt.p.period, bucket)}: ${activityChartTipDetail(pt.p.interactions, pt.lineViews, pt.held)}`}
               onPointerEnter={(ev) => {
-                if (ev.pointerType === "mouse") setActive(i);
+                if (ev.pointerType === "mouse") setActive(pt.p.period);
               }}
               onPointerUp={(ev) => {
                 if (ev.pointerType === "mouse") return;
-                setActive((cur) => (cur === i ? null : i));
+                setActive((cur) => (cur === pt.p.period ? null : pt.p.period));
               }}
             />
           ))
@@ -227,7 +228,7 @@ function ActivityChartTipHost({
   height: number;
   points: BuiltPoint[];
   bucket: ActivityBucket;
-  active: number | null;
+  active: string | null;
   onDismiss: () => void;
   children: ReactNode;
 }) {
@@ -236,12 +237,13 @@ function ActivityChartTipHost({
   const [edge, setEdge] = useState<TipEdge>("center");
   const [below, setBelow] = useState(false);
   const [anchor, setAnchor] = useState({ x: 0, y: 0 });
-  const activePoint = active === null ? null : points[active] ?? null;
+  const activePoint =
+    active === null ? null : points.find((pt) => pt.p.period === active) ?? null;
 
   useLayoutEffect(() => {
     function place() {
       if (active === null || !wrapRef.current) return;
-      const pt = points[active];
+      const pt = points.find((p) => p.p.period === active);
       if (!pt) return;
       const box = wrapRef.current.getBoundingClientRect();
       const x = box.left + (pt.x / width) * box.width;
