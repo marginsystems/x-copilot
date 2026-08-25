@@ -5,7 +5,9 @@ import {
   approachEmptyCopy,
   firstDigestWeekday,
   forYouComposeSeed,
+  forYouKindClass,
   forYouKindLabel,
+  forYouKindShort,
   forYouOpenUrl,
   forYouUsesDeskCompose,
   parseForYouProgress,
@@ -65,6 +67,11 @@ describe("forYou helpers", () => {
 
   it("labels kinds and picks an Open on X url", () => {
     assert.equal(forYouKindLabel("repost"), "Repost");
+    assert.equal(forYouKindShort("post"), "OG");
+    assert.equal(forYouKindShort("quote"), "QT");
+    assert.equal(forYouKindShort("repost"), "RT");
+    assert.equal(forYouKindShort("reply"), "RE");
+    assert.equal(forYouKindClass("quote"), "kind-quote");
     assert.equal(
       forYouOpenUrl({
         ...base,
