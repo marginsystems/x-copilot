@@ -14,6 +14,11 @@ import {
   LEARN_LESSONS,
   LEARN_OON_HREF,
   LEARN_PARAM_FILE_HREF,
+  LEARN_REPLY_DESCRIPTION,
+  LEARN_REPLY_HEADING,
+  LEARN_REPLY_PATH,
+  LEARN_REPLY_TITLE,
+  LEARN_REPLY_WEIGHT_HREF,
   LEARN_SOURCE_DATE,
   LEARN_SOURCE_REPO,
   LEARN_SOURCE_SHA,
@@ -48,6 +53,8 @@ export {
   LEARN_FOLLOW_TITLE,
   LEARN_HUB_DESCRIPTION,
   LEARN_HUB_TITLE,
+  LEARN_REPLY_DESCRIPTION,
+  LEARN_REPLY_TITLE,
   LEARN_TITLE,
 };
 
@@ -136,6 +143,15 @@ export function seoForView(view: AppView): SeoMeta {
     return {
       title: LEARN_TITLE,
       description: LEARN_DESCRIPTION,
+      robots,
+      image: LEARN_IMAGE,
+      imageAlt: LEARN_IMAGE_ALT,
+    };
+  }
+  if (view === "learnReply") {
+    return {
+      title: LEARN_REPLY_TITLE,
+      description: LEARN_REPLY_DESCRIPTION,
       robots,
       image: LEARN_IMAGE,
       imageAlt: LEARN_IMAGE_ALT,
@@ -535,10 +551,91 @@ export function learnFollowJsonLd(): Record<string, unknown> {
   };
 }
 
+export function learnReplyJsonLd(): Record<string, unknown> {
+  const pageUrl = `${SITE_ORIGIN}${LEARN_REPLY_PATH}`;
+  const learnUrl = `${SITE_ORIGIN}/learn`;
+  const orgId = `${SITE_ORIGIN}/#organization`;
+  const appId = `${SITE_ORIGIN}/#app`;
+  const siteId = `${SITE_ORIGIN}/#website`;
+  const pageId = `${pageUrl}#page`;
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": orgId,
+        name: LEGAL_ENTITY,
+        url: "https://mergestorm.ai/",
+        email: LEGAL_CONTACT_EMAIL,
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": appId,
+        name: PRODUCT_NAME,
+        url: `${SITE_ORIGIN}/`,
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        image: absoluteSeoUrl(LEARN_IMAGE),
+        creator: { "@id": orgId },
+      },
+      {
+        "@type": "WebSite",
+        "@id": siteId,
+        url: `${SITE_ORIGIN}/`,
+        name: PRODUCT_NAME,
+        publisher: { "@id": orgId },
+        inLanguage: "en-US",
+      },
+      {
+        "@type": "Article",
+        "@id": pageId,
+        url: pageUrl,
+        name: LEARN_REPLY_TITLE,
+        headline: LEARN_REPLY_HEADING,
+        description: LEARN_REPLY_DESCRIPTION,
+        isPartOf: { "@id": siteId },
+        about: { "@id": appId },
+        image: absoluteSeoUrl(LEARN_IMAGE),
+        inLanguage: "en-US",
+        dateModified: LEARN_SOURCE_DATE,
+        citation: LEARN_REPLY_WEIGHT_HREF,
+        publisher: { "@id": orgId },
+        breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
+        sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${pageUrl}#breadcrumb`,
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: PRODUCT_NAME,
+            item: `${SITE_ORIGIN}/`,
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: LEARN_HUB_HEADING,
+            item: learnUrl,
+          },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: LEARN_REPLY_HEADING,
+            item: pageUrl,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export function jsonLdForView(view: AppView): Record<string, unknown> {
   if (view === "changelog") return changelogJsonLd();
   if (view === "learn") return learnJsonLd();
   if (view === "learnWeights") return learnWeightsJsonLd();
+  if (view === "learnReply") return learnReplyJsonLd();
   if (view === "learnFollow") return learnFollowJsonLd();
   return softwareApplicationJsonLd();
 }

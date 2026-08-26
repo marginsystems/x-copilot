@@ -4,11 +4,12 @@ import {
   LEARN_HUB_HEADING,
   LEARN_HUB_META,
   LEARN_LESSONS,
+  type LearnLessonView,
 } from "./lib/learn";
 
 export function LearnHubPage(props: {
   onHome: () => void;
-  onOpenLesson: () => void;
+  onOpenLesson: (view: LearnLessonView) => void;
 }) {
   return (
     <LearnChrome
@@ -22,7 +23,7 @@ export function LearnHubPage(props: {
             <LegalLink
               href={lesson.href}
               className="learn-card"
-              onNavigate={props.onOpenLesson}
+              onNavigate={() => props.onOpenLesson(lesson.view)}
             >
               <span className="learn-card-num">{lesson.number}</span>
               <span className="learn-card-body">

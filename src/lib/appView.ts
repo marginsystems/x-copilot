@@ -14,6 +14,7 @@ export type AppView =
   | "changelog"
   | "learn"
   | "learnWeights"
+  | "learnReply"
   | "learnFollow"
   | LegalKind;
 
@@ -26,6 +27,7 @@ export function isPublicView(view: string): boolean {
     view === "changelog" ||
     view === "learn" ||
     view === "learnWeights" ||
+    view === "learnReply" ||
     view === "learnFollow"
   );
 }
@@ -45,6 +47,12 @@ export function viewFromPath(pathname: string): AppView {
     pathname.startsWith("/learn/what-a-like-is-worth/")
   ) {
     return "learnWeights";
+  }
+  if (
+    pathname === "/learn/posts-that-get-a-reply" ||
+    pathname.startsWith("/learn/posts-that-get-a-reply/")
+  ) {
+    return "learnReply";
   }
   if (pathname === "/learn" || pathname.startsWith("/learn/")) return "learn";
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
@@ -66,6 +74,7 @@ export function pathFromView(view: AppView): string {
   if (view === "changelog") return "/changelog";
   if (view === "learn") return "/learn";
   if (view === "learnWeights") return "/learn/what-a-like-is-worth";
+  if (view === "learnReply") return "/learn/posts-that-get-a-reply";
   if (view === "learnFollow") return "/learn/follow";
   if (view === "admin") return "/admin";
   if (view === "usage") return "/usage";

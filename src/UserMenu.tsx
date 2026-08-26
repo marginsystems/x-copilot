@@ -22,6 +22,7 @@ type MenuView =
   | "changelog"
   | "learn"
   | "learnWeights"
+  | "learnReply"
   | "learnFollow"
   | "privacy"
   | "terms";
@@ -333,6 +334,7 @@ export function UserMenu(props: {
           className={
             props.view === "learn" ||
             props.view === "learnWeights" ||
+            props.view === "learnReply" ||
             props.view === "learnFollow"
               ? "menu-item is-current"
               : "menu-item"
