@@ -224,6 +224,21 @@ export function applyMarkToGamification(
   };
 }
 
+/** Flat XP for a completed daily mission. Caller must be idempotent. */
+export function applyMissionXp(
+  state: GamificationState,
+  xp: number,
+  nowMs: number = Date.now(),
+): GamificationState {
+  const add = Math.max(0, Math.floor(xp));
+  if (add === 0) return state;
+  return {
+    ...state,
+    lifetimeXp: state.lifetimeXp + add,
+    updatedAt: new Date(nowMs).toISOString(),
+  };
+}
+
 /** Award t24h bonus XP once per threadId. */
 export function applyT24hBonus(
   state: GamificationState,

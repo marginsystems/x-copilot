@@ -51,6 +51,7 @@ export type ScoutRunDeps = {
   hydrateInteracted: () => Promise<void>;
   loadBilling: () => Promise<void>;
   hydrateAuth: () => Promise<AuthSessionUser | null>;
+  onScoutFinished?: () => void;
 };
 
 export function useScoutRun({
@@ -65,6 +66,7 @@ export function useScoutRun({
   hydrateInteracted,
   loadBilling,
   hydrateAuth,
+  onScoutFinished,
 }: ScoutRunDeps) {
   const [searching, setSearching] = useState(false);
   const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
@@ -365,6 +367,7 @@ export function useScoutRun({
         if (ev.stage === "done") {
           stream.doneEvent = ev;
           applyScoutEvent(ev);
+          onScoutFinished?.();
           return;
         }
         if (ev.stage === "error") {

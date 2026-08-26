@@ -49,6 +49,7 @@ export {
   MAX_T24H_BONUS_XP,
   STREAK_XP_TIERS,
   applyMarkToGamification,
+  applyMissionXp,
   applyT24hBonus,
   bonusXpFromT24h,
   emptyGamificationState,
