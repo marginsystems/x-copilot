@@ -477,12 +477,14 @@ export function useScoutRun({
         const summary = `Cool ${cool}/${target} · stop: aborted`;
         setStatus(scoutStageMessage("done"));
         pushScoutLine(summary);
+        onScoutFinished?.();
       } else {
         const line = formatScoutFailure(
           "Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server",
         );
         setStatus(line);
         pushScoutLine(line, "error");
+        onScoutFinished?.();
       }
     } finally {
       if (abortRef.current === ac) {

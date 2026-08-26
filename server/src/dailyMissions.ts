@@ -120,23 +120,36 @@ export async function listMissionsWithProgress(opts: {
     const completed = progress >= def.target;
     let claimed = Boolean(claimedAt(opts.userId, dayUtc, def.id));
     if (completed && !claimed) {
+      const atIso = new Date(nowMs).toISOString();
       if (
         tryClaim({
           userId: opts.userId,
           dayUtc,
           missionId: def.id,
-          atIso: new Date(nowMs).toISOString(),
+          atIso,
         })
       ) {
-        await withGamificationState({
-          userId: opts.userId,
-          nowMs,
-          gamificationPath: opts.gamificationPath,
-          fn: (state) => ({
-            state: applyMissionXp(state, def.xpReward, nowMs),
-            result: null,
-          }),
-        });
+        try {
+          await withGamificationState({
+            userId: opts.userId,
+            nowMs,
+            gamificationPath: opts.gamificationPath,
+            fn: (state) => ({
+              state: applyMissionXp(state, def.xpReward, nowMs),
+              result: null,
+            }),
+          });
+        } catch (err) {
+          getPlatformDb()
+            .prepare(
+              `UPDATE daily_missions
+                  SET claimed_at = NULL
+                WHERE user_id = ? AND day_utc = ? AND mission_id = ?
+                  AND claimed_at = ?`,
+            )
+            .run(opts.userId, dayUtc, def.id, atIso);
+          throw err;
+        }
         claimed = true;
       } else {
         claimed = Boolean(claimedAt(opts.userId, dayUtc, def.id));

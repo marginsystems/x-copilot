@@ -190,7 +190,10 @@ export function ThreadsTabs({
           ) : (
             <div className="threads">
               {curatedThreads.length === 0 &&
-              forYouSuggestions.length === 0 ? (
+              forYouSuggestions.length === 0 &&
+              !coaching?.nextAction &&
+              !(coaching && coaching.missions.length > 0) &&
+              !(forYouExtra && extrasUnlocked(forYouProgress)) ? (
                 <p className="empty">
                   {approachEmptyCopy({
                     searching,

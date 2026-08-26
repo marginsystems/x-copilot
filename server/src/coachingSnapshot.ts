@@ -35,7 +35,11 @@ export type CoachingSnapshot = {
 
 export function hashCoachingSnapshot(snapshot: CoachingSnapshot): string {
   return createHash("sha256")
-    .update(JSON.stringify(snapshot))
+    .update(
+      JSON.stringify(snapshot, (key, value) =>
+        key === "lifetimeXp" || key === "level" ? undefined : value,
+      ),
+    )
     .digest("hex")
     .slice(0, 32);
 }
