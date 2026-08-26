@@ -9,6 +9,7 @@ import {
 import { extractJsonObject, type ChatFn } from "./voiceLlm.js";
 import {
   filterDigestActions,
+  filterExtraPosts,
   type ForYouDigest,
 } from "./forYouDigest.js";
 import type { ForYouDraft } from "./forYouStore.js";
@@ -114,6 +115,61 @@ export async function draftForYouActions(opts: {
     };
   }
   return { ok: true, drafts: parsed };
+}
+
+export const FOR_YOU_EXTRA_SYSTEM = `You write 3 original X posts for this operator from a ranked digest of THEIR posts, voice, and agenda.
+Return ONLY JSON:
+{"actions":[{"kind":"post","why":"one sentence grounded in a metric or habit","draft":"the original post"}]}
+Rules:
+- Exactly 3 kind=post items. draft required. no targetId.
+- Each draft invites a reply — a real question, a stake they can cut, or a named other side. Not a slogan. Not "thoughts?".
+- Echo BEST_24H shape and their voice. Do not revive AVOID_24H.
+- why talks to the operator in second person. Never first person. draft stays in their voice.
+- why must cite a number or habit from the digest.
+- Do not invent ids or urls. Do not auto-post. Plain language. No markdown fences.`;
+
+export async function draftForYouExtraPosts(opts: {
+  digest: ForYouDigest;
+  chat?: ChatFn;
+}): Promise<ForYouDraftResult> {
+  const chat = opts.chat ?? chatCompletions;
+  const user = buildUserPrompt(opts.digest);
+  const first = await chat({
+    purpose: "for_you_extra",
+    temperature: 0.5,
+    messages: [
+      { role: "system", content: FOR_YOU_EXTRA_SYSTEM },
+      { role: "user", content: user },
+    ],
+  });
+  if (!first.ok) return { ok: false, error: first.message };
+  let parsed = filterExtraPosts(extractJsonObject(first.content));
+  if (parsed.length >= 3) return { ok: true, drafts: parsed.slice(0, 3) };
+
+  const repair = await chat({
+    purpose: "for_you_extra_repair",
+    temperature: 0.3,
+    messages: [
+      { role: "system", content: FOR_YOU_EXTRA_SYSTEM },
+      { role: "user", content: user },
+      { role: "assistant", content: first.content },
+      {
+        role: "user",
+        content:
+          'Reply again with ONLY {"actions":[...]} using exactly 3 kind=post items. Each draft invites a reply (a real question, a stake, or a named other side).',
+      },
+    ],
+  });
+  if (!repair.ok) return { ok: false, error: repair.message };
+  parsed = filterExtraPosts(extractJsonObject(repair.content));
+  if (parsed.length < 3) {
+    return {
+      ok: false,
+      error: "repair did not return 3 originals",
+      exhausted: true,
+    };
+  }
+  return { ok: true, drafts: parsed.slice(0, 3) };
 }
 
 export type { ChatCompletionResult, ChatMessage };

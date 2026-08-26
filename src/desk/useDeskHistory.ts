@@ -1,8 +1,10 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { apiFetch } from "../lib/apiBase";
 import {
+  parseForYouExtra,
   parseForYouProgress,
   parseForYouSuggestion,
+  type ForYouExtraUsage,
   type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
@@ -47,6 +49,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   const [forYouProgress, setForYouProgress] = useState<ForYouProgress | null>(
     null,
   );
+  const [forYouExtra, setForYouExtra] = useState<ForYouExtraUsage | null>(null);
 
   const dismissedIdsRef = useRef<Set<string>>(new Set());
   const skippedIdsRef = useRef<Set<string>>(new Set());
@@ -234,6 +237,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
         .filter((row): row is ForYouSuggestion => Boolean(row));
       setForYouSuggestions(rows);
       setForYouProgress(parseForYouProgress(data));
+      setForYouExtra(parseForYouExtra(data));
     } catch {
       /* sidecar may be offline */
     }
@@ -269,6 +273,34 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     }
   }
 
+  async function requestExtra() {
+    setActionBusy(true);
+    try {
+      const res = await apiFetch("/api/for-you/extra", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        suggestions?: unknown[];
+      };
+      const extra = parseForYouExtra(data);
+      if (extra) setForYouExtra(extra);
+      if (!res.ok) {
+        setStatus(data.message || `Approach extras fail: ${res.status}`);
+        return;
+      }
+      const rows = (Array.isArray(data.suggestions) ? data.suggestions : [])
+        .map(parseForYouSuggestion)
+        .filter((row): row is ForYouSuggestion => Boolean(row));
+      setForYouSuggestions((prev) => {
+        const seen = new Set(prev.map((row) => row.id));
+        return [...rows.filter((row) => !seen.has(row.id)), ...prev];
+      });
+    } catch {
+      setStatus("Approach extras fail — desk offline.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   return {
     interactedIds,
     setInteractedIds,
@@ -282,6 +314,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     setExpiredHistory,
     forYouSuggestions,
     forYouProgress,
+    forYouExtra,
     dismissedIdsRef,
     skippedIdsRef,
     expiredIdsRef,
@@ -295,5 +328,6 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     isHiddenFromCurated,
     keepInCurated,
     actForYou,
+    requestExtra,
   };
 }

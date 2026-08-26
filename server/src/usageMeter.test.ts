@@ -136,6 +136,10 @@ describe("usage ledger", () => {
       "Scout search (platform read limit)",
     );
     assert.equal(describeUsageActivity("/tweets/1234567890"), "Post lookup");
+    assert.equal(
+      describeUsageActivity("/internal/for-you-extra"),
+      "Approach extras",
+    );
   });
 
   it("walks remaining credits newest-first for this UTC month", () => {

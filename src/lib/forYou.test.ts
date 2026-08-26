@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import {
   APPROACH_TAB_LABEL,
   approachEmptyCopy,
+  extraButtonLabel,
+  extrasUnlocked,
   firstDigestWeekday,
+  parseForYouExtra,
   forYouComposeSeed,
   forYouKindClass,
   forYouKindLabel,
@@ -140,5 +143,36 @@ describe("forYou helpers", () => {
       /5 of 5 posts tracked — first digest after the next UTC daily pass/,
     );
     assert.equal(approachEmptyCopy({ searching: true }), "Scout is working…");
+  });
+
+  it("parses extra usage from GET /api/for-you", () => {
+    assert.equal(parseForYouExtra(null), null);
+    assert.equal(parseForYouExtra({ extra: { cost: 15 } }), null);
+    const extra = parseForYouExtra({
+      extra: {
+        cost: 15,
+        batchSize: 3,
+        used: 1,
+        limit: 10,
+        remaining: 9,
+        creditsRemaining: 80,
+        canExtra: true,
+      },
+    });
+    assert.deepEqual(extra, {
+      cost: 15,
+      batchSize: 3,
+      used: 1,
+      limit: 10,
+      remaining: 9,
+      creditsRemaining: 80,
+      canExtra: true,
+    });
+    assert.equal(
+      extraButtonLabel(extra!),
+      "3 more originals · 15 credits · 9 left today",
+    );
+    assert.equal(extrasUnlocked({ tracked: 4, needed: 5 }), false);
+    assert.equal(extrasUnlocked({ tracked: 5, needed: 5 }), true);
   });
 });

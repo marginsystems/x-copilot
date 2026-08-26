@@ -48,6 +48,7 @@ export type ForYouSuggestion = {
   createdAt: string;
   expiresAt: string;
   actedAt: string | null;
+  origin: "daily" | "extra";
 };
 
 export type ForYouDraft = {
@@ -85,6 +86,7 @@ function mapRow(row: Record<string, unknown>): ForYouSuggestion | null {
     createdAt: String(row.created_at),
     expiresAt: String(row.expires_at),
     actedAt: (row.acted_at as string | null) ?? null,
+    origin: row.origin === "extra" ? "extra" : "daily",
   };
 }
 
@@ -110,7 +112,8 @@ export function recordForYouRun(
     .run(randomUUID(), userId, new Date(nowMs).toISOString());
 }
 
-/** Close leftover suggested cards so the next daily set can replace them. */
+/** Close leftover suggested cards so the next daily set can replace them.
+ *  Paid extra batches (origin='extra') keep their 48h TTL instead. */
 export function expireOpenSuggestions(
   userId: string,
   nowMs: number = Date.now(),
@@ -119,7 +122,7 @@ export function expireOpenSuggestions(
     .prepare(
       `UPDATE for_you_suggestions
        SET expires_at = ?
-       WHERE user_id = ? AND status = 'suggested' AND expires_at > ?`,
+       WHERE user_id = ? AND status = 'suggested' AND origin != 'extra' AND expires_at > ?`,
     )
     .run(new Date(nowMs).toISOString(), userId, new Date(nowMs).toISOString());
   return info.changes;
@@ -130,16 +133,18 @@ export function insertSuggestions(opts: {
   tenantId: string;
   drafts: ForYouDraft[];
   nowMs?: number;
+  origin?: "daily" | "extra";
 }): ForYouSuggestion[] {
   const nowMs = opts.nowMs ?? Date.now();
   const createdAt = new Date(nowMs).toISOString();
   const expiresAt = new Date(nowMs + SUGGESTION_TTL_MS).toISOString();
+  const origin = opts.origin ?? "daily";
   const db = getPlatformDb();
   const insert = db.prepare(
     `INSERT INTO for_you_suggestions (
        id, user_id, tenant_id, kind, status, why, draft,
-       target_id, target_url, target_author, created_at, expires_at, acted_at
-     ) VALUES (?, ?, ?, ?, 'suggested', ?, ?, ?, ?, ?, ?, ?, NULL)`,
+       target_id, target_url, target_author, created_at, expires_at, acted_at, origin
+     ) VALUES (?, ?, ?, ?, 'suggested', ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
   );
   const out: ForYouSuggestion[] = [];
   const tx = db.transaction(() => {
@@ -158,6 +163,7 @@ export function insertSuggestions(opts: {
         draft.targetAuthor?.trim() || null,
         createdAt,
         expiresAt,
+        origin,
       );
       out.push({
         id,
@@ -173,6 +179,7 @@ export function insertSuggestions(opts: {
         createdAt,
         expiresAt,
         actedAt: null,
+        origin,
       });
     }
   });

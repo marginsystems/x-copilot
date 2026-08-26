@@ -27,13 +27,28 @@ export function startOfUtcMonthIso(now = new Date()): string {
   ).toISOString();
 }
 
+/** Approach extras debit credits without pretending to be an X tweet read. */
+export const FOR_YOU_EXTRA_USAGE_PATH = "/internal/for-you-extra";
+
+/** Monthly credit pool: X tweet reads plus Approach extra batches. */
+export const CREDIT_EVENT_PATH_SQL =
+  "(path LIKE '%/tweets%' OR path = '/internal/for-you-extra')";
+
+/**
+ * Display "X posts read" per event row: extras record their 15-credit cost in
+ * posts_read for the credit pool (countPostsReadThisUtcMonth) but made no X
+ * reads, so they contribute 0 to the posts-read ledger shown to operators.
+ */
+export const POSTS_READ_EXCLUDING_EXTRA_SQL =
+  `CASE WHEN path = '${FOR_YOU_EXTRA_USAGE_PATH}' THEN 0 ELSE posts_read END`;
+
 export function countPostsReadThisUtcMonth(tenantId: string): number {
   const since = startOfUtcMonthIso();
   const row = getPlatformDb()
     .prepare(
       `SELECT COALESCE(SUM(posts_read), 0) AS n
        FROM x_api_usage_events
-       WHERE tenant_id = ? AND at >= ? AND path LIKE '%/tweets%'`,
+       WHERE tenant_id = ? AND at >= ? AND ${CREDIT_EVENT_PATH_SQL}`,
     )
     .get(tenantId, since) as { n: number };
   return Number(row.n) || 0;

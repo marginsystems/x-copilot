@@ -17,6 +17,7 @@ import {
   grantManualPlan,
 } from "./billingStore.ts";
 import {
+  countPostsReadThisUtcMonth,
   creditsExhaustedResponse,
   dailyActivityUsage,
   getCreditUsage,
@@ -101,6 +102,29 @@ describe("billingStore", () => {
     assert.match(exhausted?.message ?? "", /1,500 free credits/);
     assert.match(exhausted?.message ?? "", /Pulse raises this/);
     assert.match(exhausted?.message ?? "", /Usage & Billing/);
+  });
+
+  it("counts Approach extras toward monthly credits, not user lookups", () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-b-extra",
+      email: "extra-credits@example.com",
+      emailVerified: true,
+    });
+    const tenantId = ensureUserTenant(user.id);
+    recordUsageEvent({
+      tenantId,
+      path: "/users/123",
+      status: 200,
+      postsRead: 99,
+    });
+    recordUsageEvent({
+      tenantId,
+      path: "/internal/for-you-extra",
+      status: 200,
+      postsRead: 15,
+    });
+    assert.equal(countPostsReadThisUtcMonth(tenantId), 15);
   });
 
   it("exposes Free in billing/me with free_active state", () => {

@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { draftForYouActions, FOR_YOU_DIGEST_SYSTEM } from "./forYouLlm.ts";
+import {
+  draftForYouActions,
+  draftForYouExtraPosts,
+  FOR_YOU_DIGEST_SYSTEM,
+} from "./forYouLlm.ts";
 import type { ForYouDigest } from "./forYouDigest.ts";
 import type { ChatFn } from "./voiceLlm.ts";
 
@@ -293,6 +297,106 @@ describe("draftForYouActions", () => {
     assert.deepEqual(capture.purposes, [
       "for_you_digest",
       "for_you_digest_repair",
+    ]);
+  });
+});
+
+describe("draftForYouExtraPosts", () => {
+  it("keeps three unique originals", async () => {
+    const capture = { purposes: [] as string[] };
+    const result = await draftForYouExtraPosts({
+      digest,
+      chat: fakeChat(
+        JSON.stringify({
+          actions: [
+            { kind: "post", why: "900 views", draft: "What would you cut?" },
+            { kind: "reply", why: "scout", targetId: "77" },
+            { kind: "post", why: "4 replies", draft: "Is the other side wrong?" },
+            { kind: "post", why: "20 likes", draft: "I'll take the under." },
+          ],
+        }),
+        capture,
+      ),
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.drafts.length, 3);
+    assert.ok(result.ok && result.drafts.every((d) => d.kind === "post"));
+    assert.deepEqual(capture.purposes, ["for_you_extra"]);
+  });
+
+  it("repairs when the first pass is short", async () => {
+    const capture = { purposes: [] as string[] };
+    let calls = 0;
+    const chat: ChatFn = async (opts) => {
+      capture.purposes.push(opts.purpose ?? "");
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: true,
+          content: JSON.stringify({
+            actions: [{ kind: "post", why: "900 views", draft: "One." }],
+          }),
+          model: "deepseek-v4-flash",
+          provider: "deepseek",
+        };
+      }
+      return {
+        ok: true,
+        content: JSON.stringify({
+          actions: [
+            { kind: "post", why: "900 views", draft: "What would you cut?" },
+            { kind: "post", why: "4 replies", draft: "Is the other side wrong?" },
+            { kind: "post", why: "20 likes", draft: "I'll take the under." },
+          ],
+        }),
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      };
+    };
+    const result = await draftForYouExtraPosts({ digest, chat });
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.drafts.length, 3);
+    assert.deepEqual(capture.purposes, [
+      "for_you_extra",
+      "for_you_extra_repair",
+    ]);
+  });
+
+  it("rejects a repair pass that is still short", async () => {
+    const capture = { purposes: [] as string[] };
+    let calls = 0;
+    const chat: ChatFn = async (opts) => {
+      capture.purposes.push(opts.purpose ?? "");
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: true,
+          content: JSON.stringify({
+            actions: [{ kind: "post", why: "900 views", draft: "One." }],
+          }),
+          model: "deepseek-v4-flash",
+          provider: "deepseek",
+        };
+      }
+      return {
+        ok: true,
+        content: JSON.stringify({
+          actions: [{ kind: "post", why: "900 views", draft: "Two." }],
+        }),
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      };
+    };
+    const result = await draftForYouExtraPosts({ digest, chat });
+    assert.equal(result.ok, false);
+    assert.equal(result.ok || result.exhausted, true);
+    assert.equal(
+      result.ok || result.error,
+      "repair did not return 3 originals",
+    );
+    assert.deepEqual(capture.purposes, [
+      "for_you_extra",
+      "for_you_extra_repair",
     ]);
   });
 });

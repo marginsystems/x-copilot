@@ -5,6 +5,9 @@
 import { randomUUID } from "node:crypto";
 import {
   countPostsReadThisUtcMonth,
+  CREDIT_EVENT_PATH_SQL,
+  FOR_YOU_EXTRA_USAGE_PATH,
+  POSTS_READ_EXCLUDING_EXTRA_SQL,
   startOfUtcMonthIso,
 } from "./billingQuotas.js";
 import { getPlatformDb } from "./db.js";
@@ -92,10 +95,10 @@ export type TenantUsageView = {
 };
 
 const TENANT_USAGE_NOTE =
-  "Each Scout search, post lookup, and watched post.create spends credits from this month's pool. One credit is one X post. Unused credits do not roll over.";
+  "Each Scout search, post lookup, watched post.create, and Approach extra batch spends credits from this month's pool. One credit is one X post, except extras which cost 15 for three originals. Unused credits do not roll over.";
 
 const ADMIN_USAGE_NOTE =
-  "Credits are X post reads this UTC month (hard ceiling, no rollover). Est. $ is platform COGS at ~$0.005/post — console.x.com remains wallet truth for the shared key.";
+  "Credits are X post reads plus Approach extra batches this UTC month (hard ceiling, no rollover). Est. $ is platform COGS at ~$0.005/post — console.x.com remains wallet truth for the shared key.";
 
 /** Friendly label for a logged X path. Scout search is the common tenant call. */
 export function describeUsageActivity(
@@ -113,6 +116,7 @@ export function describeUsageActivity(
     return "Scout search";
   }
   if (p.includes("/activity/post.create")) return "Post watch";
+  if (p === "/internal/for-you-extra") return "Approach extras";
   if (/\/tweets\/[^/]+$/.test(p)) return "Post lookup";
   if (p.includes("/tweets")) return "Post read";
   return "X API call";
@@ -188,12 +192,17 @@ export function estimatePostReadCostMicros(postsRead: number): number {
   return Math.floor(postsRead) * POST_READ_USD_MICROS;
 }
 
-export function recordUsageEvent(input: UsageEventInput): void {
+export function recordUsageEvent(input: UsageEventInput): boolean {
   try {
     const database = getPlatformDb();
     const tenantId = input.tenantId?.trim() || getRequestTenantId();
     const postsRead = Math.max(0, Math.floor(input.postsRead ?? 0));
-    const costUsdMicros = estimatePostReadCostMicros(postsRead);
+    // Extras count toward the credit pool but make no X reads, so they add
+    // no post-read COGS to the admin estimate.
+    const costUsdMicros =
+      input.path === FOR_YOU_EXTRA_USAGE_PATH
+        ? 0
+        : estimatePostReadCostMicros(postsRead);
     const id = randomUUID();
     const at = input.at ?? new Date().toISOString();
     database
@@ -214,11 +223,13 @@ export function recordUsageEvent(input: UsageEventInput): void {
         costUsdMicros,
         input.meta ? JSON.stringify(input.meta) : null,
       );
+    return true;
   } catch (err) {
     console.error(
       "[usage-meter] record failed:",
       err instanceof Error ? err.message : String(err),
     );
+    return false;
   }
 }
 
@@ -258,20 +269,20 @@ export function getUsageSummary(opts?: {
           .prepare(
             `SELECT
                COUNT(*) AS calls,
-               COALESCE(SUM(posts_read), 0) AS posts_read,
+               COALESCE(SUM(${POSTS_READ_EXCLUDING_EXTRA_SQL}), 0) AS posts_read,
                COALESCE(SUM(cost_usd_micros), 0) AS cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ? AND at >= ? AND path LIKE '%/tweets%'`,
+             WHERE tenant_id = ? AND at >= ? AND ${CREDIT_EVENT_PATH_SQL}`,
           )
           .get(tenantId, since)
       : database
           .prepare(
             `SELECT
                COUNT(*) AS calls,
-               COALESCE(SUM(posts_read), 0) AS posts_read,
+               COALESCE(SUM(${POSTS_READ_EXCLUDING_EXTRA_SQL}), 0) AS posts_read,
                COALESCE(SUM(cost_usd_micros), 0) AS cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ? AND path LIKE '%/tweets%'`,
+             WHERE tenant_id = ? AND ${CREDIT_EVENT_PATH_SQL}`,
           )
           .get(tenantId)
   ) as {
@@ -302,7 +313,7 @@ export function getUsageSummary(opts?: {
           .prepare(
             `SELECT id, at, method, path, status, error, posts_read, cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ? AND at >= ? AND path LIKE '%/tweets%'
+             WHERE tenant_id = ? AND at >= ? AND ${CREDIT_EVENT_PATH_SQL}
              ORDER BY at DESC
              LIMIT ?`,
           )
@@ -311,7 +322,7 @@ export function getUsageSummary(opts?: {
           .prepare(
             `SELECT id, at, method, path, status, error, posts_read, cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ? AND path LIKE '%/tweets%'
+             WHERE tenant_id = ? AND ${CREDIT_EVENT_PATH_SQL}
              ORDER BY at DESC
              LIMIT ?`,
           )
