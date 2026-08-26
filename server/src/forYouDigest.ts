@@ -328,3 +328,29 @@ export function filterDigestActions(
   }
   return out;
 }
+
+/** Extra batches are originals only — three unique drafts that invite a reply. */
+export function filterExtraPosts(raw: unknown): ForYouDraft[] {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const list = Array.isArray(obj?.actions) ? obj.actions : [];
+  const out: ForYouDraft[] = [];
+  const seen = new Set<string>();
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    if (row.kind !== "post") continue;
+    const why =
+      typeof row.why === "string" ? secondPersonWhy(row.why.trim()) : "";
+    const draft =
+      typeof row.draft === "string" && row.draft.trim()
+        ? row.draft.trim().slice(0, 560)
+        : "";
+    if (!why || !draft) continue;
+    const key = `post:${draft}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ kind: "post", why, draft });
+    if (out.length >= 3) break;
+  }
+  return out;
+}

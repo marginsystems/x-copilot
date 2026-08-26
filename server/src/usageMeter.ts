@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import {
   countPostsReadThisUtcMonth,
+  CREDIT_EVENT_PATH_SQL,
   startOfUtcMonthIso,
 } from "./billingQuotas.js";
 import { getPlatformDb } from "./db.js";
@@ -92,7 +93,7 @@ export type TenantUsageView = {
 };
 
 const TENANT_USAGE_NOTE =
-  "Each Scout search, post lookup, and watched post.create spends credits from this month's pool. One credit is one X post. Unused credits do not roll over.";
+  "Each Scout search, post lookup, watched post.create, and Approach extra batch spends credits from this month's pool. One credit is one X post, except extras which cost 15 for three originals. Unused credits do not roll over.";
 
 const ADMIN_USAGE_NOTE =
   "Credits are X post reads this UTC month (hard ceiling, no rollover). Est. $ is platform COGS at ~$0.005/post — console.x.com remains wallet truth for the shared key.";
@@ -113,6 +114,7 @@ export function describeUsageActivity(
     return "Scout search";
   }
   if (p.includes("/activity/post.create")) return "Post watch";
+  if (p === "/internal/for-you-extra") return "Approach extras";
   if (/\/tweets\/[^/]+$/.test(p)) return "Post lookup";
   if (p.includes("/tweets")) return "Post read";
   return "X API call";
@@ -261,7 +263,7 @@ export function getUsageSummary(opts?: {
                COALESCE(SUM(posts_read), 0) AS posts_read,
                COALESCE(SUM(cost_usd_micros), 0) AS cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ? AND at >= ? AND path LIKE '%/tweets%'`,
+             WHERE tenant_id = ? AND at >= ? AND ${CREDIT_EVENT_PATH_SQL}`,
           )
           .get(tenantId, since)
       : database
@@ -271,7 +273,7 @@ export function getUsageSummary(opts?: {
                COALESCE(SUM(posts_read), 0) AS posts_read,
                COALESCE(SUM(cost_usd_micros), 0) AS cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ? AND path LIKE '%/tweets%'`,
+             WHERE tenant_id = ? AND ${CREDIT_EVENT_PATH_SQL}`,
           )
           .get(tenantId)
   ) as {
@@ -302,7 +304,7 @@ export function getUsageSummary(opts?: {
           .prepare(
             `SELECT id, at, method, path, status, error, posts_read, cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ? AND at >= ? AND path LIKE '%/tweets%'
+             WHERE tenant_id = ? AND at >= ? AND ${CREDIT_EVENT_PATH_SQL}
              ORDER BY at DESC
              LIMIT ?`,
           )
@@ -311,7 +313,7 @@ export function getUsageSummary(opts?: {
           .prepare(
             `SELECT id, at, method, path, status, error, posts_read, cost_usd_micros
              FROM x_api_usage_events
-             WHERE tenant_id = ? AND path LIKE '%/tweets%'
+             WHERE tenant_id = ? AND ${CREDIT_EVENT_PATH_SQL}
              ORDER BY at DESC
              LIMIT ?`,
           )

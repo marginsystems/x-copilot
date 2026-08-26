@@ -3,6 +3,7 @@
  */
 import { isAdminEmail } from "./adminEmails.js";
 import {
+  CREDIT_EVENT_PATH_SQL,
   dailyActivityUsage,
   getCreditUsage,
   startOfUtcMonthIso,
@@ -174,7 +175,7 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
                 SUM(posts_read) AS posts_read,
                 SUM(cost_usd_micros) AS cost_usd_micros
          FROM x_api_usage_events
-         WHERE at >= ? AND path LIKE '%/tweets%'
+         WHERE at >= ? AND ${CREDIT_EVENT_PATH_SQL}
          GROUP BY tenant_id
        ) agg ON agg.tenant_id = t.id
        ORDER BY posts_read DESC, t.created_at ASC`,

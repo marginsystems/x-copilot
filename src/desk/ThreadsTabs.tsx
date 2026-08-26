@@ -5,6 +5,9 @@ import type { AuthSessionUser } from "../auth/types";
 import {
   APPROACH_TAB_LABEL,
   approachEmptyCopy,
+  extraButtonLabel,
+  extrasUnlocked,
+  type ForYouExtraUsage,
   type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
@@ -36,6 +39,8 @@ type ThreadsTabsProps = {
   curatedThreads: ThreadCard[];
   forYouSuggestions: ForYouSuggestion[];
   forYouProgress?: ForYouProgress | null;
+  forYouExtra?: ForYouExtraUsage | null;
+  requestExtra?: () => void | Promise<void>;
   interactedHistory: InteractionHistoryEntry[];
   skippedHistory: SkipHistoryEntry[];
   dismissedHistory: DismissalHistoryEntry[];
@@ -63,6 +68,8 @@ export function ThreadsTabs({
   curatedThreads,
   forYouSuggestions,
   forYouProgress,
+  forYouExtra,
+  requestExtra,
   interactedHistory,
   skippedHistory,
   dismissedHistory,
@@ -166,7 +173,8 @@ export function ThreadsTabs({
       <div className="threads-scroll">
         {threadsTab === "curated" ? (
           curatedThreads.length === 0 &&
-          forYouSuggestions.length === 0 ? (
+          forYouSuggestions.length === 0 &&
+          !(forYouExtra && extrasUnlocked(forYouProgress)) ? (
             <p className="empty">
               {approachEmptyCopy({
                 searching,
@@ -175,6 +183,27 @@ export function ThreadsTabs({
             </p>
           ) : (
             <div className="threads">
+              {curatedThreads.length === 0 &&
+              forYouSuggestions.length === 0 ? (
+                <p className="empty">
+                  {approachEmptyCopy({
+                    searching,
+                    progress: forYouProgress,
+                  })}
+                </p>
+              ) : null}
+              {forYouExtra && extrasUnlocked(forYouProgress) ? (
+                <div className="for-you-extra">
+                  <button
+                    type="button"
+                    className="for-you-extra-btn"
+                    disabled={actionBusy || !forYouExtra.canExtra}
+                    onClick={() => void requestExtra?.()}
+                  >
+                    {extraButtonLabel(forYouExtra)}
+                  </button>
+                </div>
+              ) : null}
               {forYouSuggestions.length > 0 ? (
                 <div className="for-you-suggested">
                   <h3 className="section-label">Suggested</h3>

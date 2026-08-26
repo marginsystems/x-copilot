@@ -20,6 +20,62 @@ export type ForYouProgress = {
   needed: number;
 };
 
+export type ForYouExtraUsage = {
+  cost: number;
+  batchSize: number;
+  used: number;
+  limit: number;
+  remaining: number;
+  creditsRemaining: number;
+  canExtra: boolean;
+};
+
+export function parseForYouExtra(raw: unknown): ForYouExtraUsage | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Record<string, unknown>;
+  const extra =
+    row.extra && typeof row.extra === "object"
+      ? (row.extra as Record<string, unknown>)
+      : row;
+  const num = (value: unknown): number | null =>
+    typeof value === "number" && Number.isFinite(value)
+      ? Math.max(0, Math.floor(value))
+      : null;
+  const cost = num(extra.cost);
+  const batchSize = num(extra.batchSize);
+  const used = num(extra.used);
+  const limit = num(extra.limit);
+  const remaining = num(extra.remaining);
+  const creditsRemaining = num(extra.creditsRemaining);
+  if (
+    cost == null ||
+    batchSize == null ||
+    used == null ||
+    limit == null ||
+    remaining == null ||
+    creditsRemaining == null
+  ) {
+    return null;
+  }
+  return {
+    cost,
+    batchSize,
+    used,
+    limit,
+    remaining,
+    creditsRemaining,
+    canExtra: extra.canExtra === true,
+  };
+}
+
+export function extraButtonLabel(extra: ForYouExtraUsage): string {
+  return `${extra.batchSize} more originals · ${extra.cost} credits · ${extra.remaining} left today`;
+}
+
+export function extrasUnlocked(progress?: ForYouProgress | null): boolean {
+  return Boolean(progress && progress.tracked >= progress.needed);
+}
+
 export function parseForYouProgress(raw: unknown): ForYouProgress | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;

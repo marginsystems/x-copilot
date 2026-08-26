@@ -92,6 +92,7 @@ export default function App() {
     expiredHistory,
     forYouSuggestions,
     forYouProgress,
+    forYouExtra,
     dismissedIdsRef,
     skippedIdsRef,
     interactedIdsRef,
@@ -103,6 +104,7 @@ export default function App() {
     hydrateForYou,
     keepInCurated,
     actForYou,
+    requestExtra,
   } = useDeskHistory({
     setThreads,
     setStatus,
@@ -820,6 +822,8 @@ export default function App() {
               curatedThreads={curatedThreads}
               forYouSuggestions={forYouSuggestions}
               forYouProgress={forYouProgress}
+              forYouExtra={forYouExtra}
+              requestExtra={requestExtra}
               interactedHistory={interactedHistory}
               skippedHistory={skippedHistory}
               dismissedHistory={dismissedHistory}

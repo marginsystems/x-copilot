@@ -14,6 +14,7 @@ import {
   MIN_T24H_SNAPSHOTS,
   countT24hSnapshots,
   filterDigestActions,
+  filterExtraPosts,
   listEligibleForYouUsers,
   rankOwnPosts,
   type ForYouDigest,
@@ -443,6 +444,27 @@ describe("forYouDigest", () => {
     assert.deepEqual(
       kept.map((a) => a.targetId ?? a.kind),
       ["4", "10"],
+    );
+  });
+
+  it("keeps three unique extra originals and drops other kinds", () => {
+    const kept = filterExtraPosts({
+      actions: [
+        { kind: "reply", why: "scout", draft: "hey", targetId: "77" },
+        { kind: "post", why: "900 views", draft: "What would you cut?" },
+        { kind: "post", why: "900 views", draft: "What would you cut?" },
+        { kind: "post", why: "4 replies", draft: "Is the other side wrong?" },
+        { kind: "post", why: "20 likes", draft: "I'll take the under." },
+        { kind: "post", why: "extra", draft: "Fourth should drop." },
+      ],
+    });
+    assert.deepEqual(
+      kept.map((a) => a.draft),
+      [
+        "What would you cut?",
+        "Is the other side wrong?",
+        "I'll take the under.",
+      ],
     );
   });
 });
