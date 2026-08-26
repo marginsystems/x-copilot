@@ -12,6 +12,14 @@ import {
   LEARN_REPLY_DESCRIPTION,
   LEARN_REPLY_PATH,
   LEARN_REPLY_WEIGHT_SNIPPET,
+  LEARN_VOLUME_DESCRIPTION,
+  LEARN_VOLUME_PATH,
+  LEARN_DIVERSITY_FN_HREF,
+  LEARN_DIVERSITY_SNIPPET,
+  LEARN_THUNDER_CAP_HREF,
+  LEARN_THUNDER_CAP_SNIPPET,
+  LEARN_BDSM_HEADS_HREF,
+  learnDiversityMultiplier,
   LEARN_WEIGHTS_PATH,
   LEARN_OON_SNIPPET,
   LEARN_PARAM_COMMENT_SNIPPET,
@@ -87,12 +95,14 @@ describe("learn citations", () => {
     assert.match(LEARN_DRAWER_SOURCE, /not affiliated/i);
   });
 
-  it("publishes two catalog lessons", () => {
-    assert.equal(LEARN_LESSONS.length, 2);
+  it("publishes three catalog lessons", () => {
+    assert.equal(LEARN_LESSONS.length, 3);
     assert.equal(LEARN_LESSONS[0]!.href, LEARN_WEIGHTS_PATH);
     assert.equal(LEARN_LESSONS[1]!.href, LEARN_REPLY_PATH);
+    assert.equal(LEARN_LESSONS[2]!.href, LEARN_VOLUME_PATH);
     assert.equal(LEARN_WEIGHTS_PATH, "/learn/what-a-like-is-worth");
     assert.equal(LEARN_REPLY_PATH, "/learn/posts-that-get-a-reply");
+    assert.equal(LEARN_VOLUME_PATH, "/learn/how-many-replies");
     assert.equal(LEARN_IMAGE, "/og-learn.png");
     assert.match(LEARN_HUB_TITLE, /Learn the X algorithm/);
     assert.match(LEARN_HUB_DESCRIPTION, /P\(action\)/);
@@ -100,6 +110,11 @@ describe("learn citations", () => {
     assert.match(LEARN_REPLY_DESCRIPTION, /P\(reply\)/);
     assert.match(LEARN_REPLY_DESCRIPTION, /not affiliated/i);
     assert.doesNotMatch(LEARN_REPLY_DESCRIPTION, /reply farming/i);
+    assert.match(LEARN_VOLUME_DESCRIPTION, /no daily/);
+    assert.match(LEARN_VOLUME_DESCRIPTION, /does not subtract/);
+    assert.match(LEARN_VOLUME_DESCRIPTION, /not affiliated/i);
+    assert.doesNotMatch(LEARN_VOLUME_DESCRIPTION, /50 a day/i);
+    assert.doesNotMatch(LEARN_VOLUME_DESCRIPTION, /lose points/i);
   });
 
   it("keeps official snippets verbatim", () => {
@@ -108,5 +123,21 @@ describe("learn citations", () => {
     assert.match(LEARN_OON_SNIPPET, /deboost_in_network_replies_retweets/);
     assert.match(LEARN_REPLY_WEIGHT_SNIPPET, /reply_weight_for/);
     assert.match(LEARN_REPLY_WEIGHT_SNIPPET, /is_mutual_follow_author/);
+    assert.match(LEARN_DIVERSITY_SNIPPET, /decay_factor\.powf\(exponent\)/);
+    assert.match(LEARN_THUNDER_CAP_SNIPPET, /MAX_REPLY_POSTS_PER_AUTHOR: usize = 30/);
+    assert.match(LEARN_THUNDER_CAP_SNIPPET, /MAX_ORIGINAL_POSTS_PER_AUTHOR: usize = 50/);
+  });
+
+  it("pins volume citations and does not invent a daily quota", () => {
+    assert.match(
+      LEARN_DIVERSITY_FN_HREF,
+      /\/blob\/d011592\/home-mixer\/scorers\/ranking_scorer\.rs#L643-L645/,
+    );
+    assert.match(LEARN_THUNDER_CAP_HREF, /\/blob\/d011592\/thunder\/config\.rs#L1-L6/);
+    assert.match(LEARN_BDSM_HEADS_HREF, /\/blob\/d011592\/bdsm\/README\.md#L30-L34/);
+    assert.equal(learnDiversityMultiplier(0), 1);
+    assert.equal(learnDiversityMultiplier(1), 0.625);
+    assert.equal(learnDiversityMultiplier(2), 0.4375);
+    assert.equal(learnDiversityMultiplier(3), 0.34375);
   });
 });

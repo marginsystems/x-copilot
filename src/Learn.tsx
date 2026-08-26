@@ -14,6 +14,8 @@ import {
   LEARN_FOLLOW_PATH,
   LEARN_REPLY_HEADING,
   LEARN_REPLY_PATH,
+  LEARN_VOLUME_HEADING,
+  LEARN_VOLUME_PATH,
   LEARN_OON_HREF,
   LEARN_PARAM_COMMENT_HREF,
   LEARN_PARAM_COMMENT_SNIPPET,
@@ -35,6 +37,7 @@ export function LearnPage(props: {
   onCatalog: () => void;
   onFollow: () => void;
   onReply: () => void;
+  onVolume: () => void;
 }) {
   const [selected, setSelected] = useState(LEARN_WEIGHTS[0]!);
 
@@ -144,6 +147,10 @@ export function LearnPage(props: {
         Related:{" "}
         <LegalLink href={LEARN_REPLY_PATH} onNavigate={props.onReply}>
           {LEARN_REPLY_HEADING}
+        </LegalLink>
+        .{" "}
+        <LegalLink href={LEARN_VOLUME_PATH} onNavigate={props.onVolume}>
+          {LEARN_VOLUME_HEADING}
         </LegalLink>
         .{" "}
         <LegalLink href={LEARN_FOLLOW_PATH} onNavigate={props.onFollow}>
