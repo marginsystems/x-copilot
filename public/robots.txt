@@ -8,5 +8,6 @@ Disallow: /dashboard
 Disallow: /account
 Disallow: /voice
 Disallow: /analytics
+Disallow: /play
 
 Sitemap: https://xcopilot.dev/sitemap.xml
