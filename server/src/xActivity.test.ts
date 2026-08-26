@@ -97,6 +97,24 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.metrics.views, 7);
   });
 
+  it("normalizes X's real created_at format to ISO postedAt", () => {
+    const parsed = parsePostCreateEvent({
+      data: {
+        event_uuid: "evt-legacy",
+        event_type: "post.create",
+        filter: { user_id: "99" },
+        payload: {
+          id: "555",
+          author_id: "99",
+          text: "legacy stamp",
+          created_at: "Sat Jul 25 00:00:00 +0000 2026",
+        },
+      },
+    });
+    assert.ok(parsed);
+    assert.equal(parsed?.postedAt, "2026-07-25T00:00:00.000Z");
+  });
+
   it("ignores non-create events", () => {
     assert.equal(
       parsePostCreateEvent({

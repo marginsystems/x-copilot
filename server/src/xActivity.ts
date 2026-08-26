@@ -141,10 +141,13 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
   if (!xUserId) return null;
 
   const eventUuid = String(data.event_uuid ?? root.event_uuid ?? postId).trim();
-  const postedAt =
+  const createdMs =
     typeof post.created_at === "string" && post.created_at.trim()
-      ? post.created_at
-      : new Date().toISOString();
+      ? Date.parse(post.created_at)
+      : NaN;
+  const postedAt = Number.isFinite(createdMs)
+    ? new Date(createdMs).toISOString()
+    : new Date().toISOString();
 
   return {
     eventUuid,
