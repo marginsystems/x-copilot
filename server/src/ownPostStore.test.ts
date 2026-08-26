@@ -221,10 +221,35 @@ describe("ownPostStore", () => {
     );
   });
 
-  it("upsert conflict repairs posted_at on re-ingest", () => {
+  it("leaves unparseable posted_at rows unchanged during backfill", () => {
+    const db = getPlatformDb();
+    db.prepare(
+      `INSERT INTO own_posts (
+         id, user_id, tenant_id, x_user_id, kind, text, posted_at, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      "unparseable",
+      "u",
+      "t",
+      "99",
+      "original",
+      "garbled",
+      "not-a-real-timestamp",
+      "2026-08-01T00:00:00.000Z",
+    );
+    backfillOwnPostPostedAt(db);
+    const row = db
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("unparseable") as { posted_at: string };
+    assert.equal(row.posted_at, "not-a-real-timestamp");
+  });
+
+  it("keeps a correct stored posted_at and only repairs non-ISO values on re-ingest", () => {
+    // A re-ingest must not clobber a good ISO timestamp with a fallback "now"
+    // (parsePostCreateEvent / replyToOwnPost emit `now` when created_at is unknown).
     assert.equal(
       upsertOwnPost({
-        parsed: post({ postId: "repair", postedAt: "2026-07-25T00:00:00.000Z" }),
+        parsed: post({ postId: "kept", postedAt: "2026-07-25T00:00:00.000Z" }),
         userId: "u",
         tenantId: "t",
       }),
@@ -232,16 +257,49 @@ describe("ownPostStore", () => {
     );
     assert.equal(
       upsertOwnPost({
-        parsed: post({ postId: "repair", postedAt: "2026-08-01T09:00:00.000Z" }),
+        parsed: post({ postId: "kept", postedAt: new Date().toISOString() }),
         userId: "u",
         tenantId: "t",
       }),
       false,
     );
-    const row = getPlatformDb()
+    const kept = getPlatformDb()
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("repair") as { posted_at: string };
-    assert.equal(row.posted_at, "2026-08-01T09:00:00.000Z");
+      .get("kept") as { posted_at: string };
+    assert.equal(kept.posted_at, "2026-07-25T00:00:00.000Z");
+
+    // A legacy raw stored value is still repaired to the incoming ISO value.
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO own_posts (
+           id, user_id, tenant_id, x_user_id, kind, text, posted_at, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "legacy-conflict",
+        "u",
+        "t",
+        "99",
+        "original",
+        "old post",
+        "Sat Jul 25 00:00:00 +0000 2026",
+        "2026-08-01T00:00:00.000Z",
+      );
+    assert.equal(
+      upsertOwnPost({
+        parsed: post({
+          postId: "legacy-conflict",
+          postedAt: "2026-07-25T00:00:00.000Z",
+        }),
+        userId: "u",
+        tenantId: "t",
+      }),
+      false,
+    );
+    const repaired = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("legacy-conflict") as { posted_at: string };
+    assert.equal(repaired.posted_at, "2026-07-25T00:00:00.000Z");
   });
 
   it("dedupes activity event ids and watches threads", () => {

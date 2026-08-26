@@ -99,7 +99,11 @@ export function upsertOwnPost(input: {
        text = excluded.text,
        kind = excluded.kind,
        url = excluded.url,
-       posted_at = excluded.posted_at`,
+       posted_at = CASE
+         WHEN own_posts.posted_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'
+           THEN excluded.posted_at
+         ELSE own_posts.posted_at
+       END`,
   ).run(
     input.parsed.postId,
     input.userId,
