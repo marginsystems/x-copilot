@@ -126,6 +126,102 @@ describe("draftForYouActions", () => {
     ]);
   });
 
+  it("repairs a first pass that has 2+ actions but no post", async () => {
+    const capture = { purposes: [] as string[] };
+    const noPost = JSON.stringify({
+      actions: [
+        {
+          kind: "reply",
+          why: "leftover scout",
+          targetId: "77",
+          targetUrl: "https://x.com/a/status/77",
+        },
+        {
+          kind: "quote",
+          why: "quote the winner",
+          draft: "still true",
+          targetId: "10",
+          targetUrl: "https://x.com/desk/status/10",
+        },
+      ],
+    });
+    let calls = 0;
+    const chat: ChatFn = async (opts) => {
+      capture.purposes.push(opts.purpose ?? "");
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: true,
+          content: noPost,
+          model: "deepseek-v4-flash",
+          provider: "deepseek",
+        };
+      }
+      return {
+        ok: true,
+        content: JSON.stringify({
+          actions: [
+            { kind: "post", why: "900 views on the recap", draft: "Another recap." },
+            {
+              kind: "reply",
+              why: "leftover scout",
+              targetId: "77",
+              targetUrl: "https://x.com/a/status/77",
+            },
+          ],
+        }),
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      };
+    };
+    const result = await draftForYouActions({ digest, chat });
+    assert.equal(result.ok, true);
+    assert.equal(
+      result.ok && result.drafts.some((a) => a.kind === "post"),
+      true,
+    );
+    assert.deepEqual(capture.purposes, [
+      "for_you_digest",
+      "for_you_digest_repair",
+    ]);
+  });
+
+  it("rejects a repair pass that still has no post", async () => {
+    const capture = { purposes: [] as string[] };
+    const noPost = JSON.stringify({
+      actions: [
+        {
+          kind: "reply",
+          why: "leftover scout",
+          targetId: "77",
+          targetUrl: "https://x.com/a/status/77",
+        },
+        {
+          kind: "quote",
+          why: "quote the winner",
+          draft: "still true",
+          targetId: "10",
+          targetUrl: "https://x.com/desk/status/10",
+        },
+      ],
+    });
+    const chat: ChatFn = async (opts) => {
+      capture.purposes.push(opts.purpose ?? "");
+      return {
+        ok: true,
+        content: noPost,
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      };
+    };
+    const result = await draftForYouActions({ digest, chat });
+    assert.equal(result.ok, false);
+    assert.deepEqual(capture.purposes, [
+      "for_you_digest",
+      "for_you_digest_repair",
+    ]);
+  });
+
   it("reports an LLM failure without drafts", async () => {
     const chat: ChatFn = async () => ({
       ok: false,

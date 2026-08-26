@@ -86,7 +86,9 @@ export async function draftForYouActions(opts: {
   });
   if (!first.ok) return { ok: false, error: first.message };
   let parsed = filterDigestActions(extractJsonObject(first.content), opts.digest);
-  if (parsed.length >= 2) return { ok: true, drafts: parsed };
+  if (parsed.length >= 2 && parsed.some((a) => a.kind === "post")) {
+    return { ok: true, drafts: parsed };
+  }
 
   const repair = await chat({
     purpose: "for_you_digest_repair",
@@ -104,6 +106,9 @@ export async function draftForYouActions(opts: {
   });
   if (!repair.ok) return { ok: false, error: repair.message };
   parsed = filterDigestActions(extractJsonObject(repair.content), opts.digest);
+  if (!parsed.some((a) => a.kind === "post")) {
+    return { ok: false, error: "no kind=post action after repair" };
+  }
   return { ok: true, drafts: parsed };
 }
 
