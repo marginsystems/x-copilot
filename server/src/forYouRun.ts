@@ -50,6 +50,10 @@ export async function runForYouDigestForUser(opts: {
     chat: opts.chat,
   });
   if (!result.ok) {
+    if (result.exhausted) {
+      recordForYouRun(opts.userId, nowMs);
+      return { wrote: 0, reason: "empty" };
+    }
     return { wrote: 0, reason: "llm_error" };
   }
   if (result.drafts.length < 2) {
