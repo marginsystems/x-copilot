@@ -276,6 +276,15 @@ export async function tryHandleScout(
 
       let sawTerminal = false;
       const writeLine = (event: { stage?: string; [key: string]: unknown }) => {
+        if (event.stage === "done" || event.stage === "error") {
+          sawTerminal = true;
+        }
+        res.write(`${JSON.stringify(event)}\n`);
+        // Push each NDJSON line through proxies (Vite) promptly.
+        const flushable = res as typeof res & { flush?: () => void };
+        flushable.flush?.();
+        // Only count an event's cool threads once the write actually landed,
+        // so a torn-down socket does not mark a sortie as delivered.
         if (typeof event.coolCount === "number") {
           coolCount = Math.max(coolCount, event.coolCount);
         } else if (
@@ -284,13 +293,6 @@ export async function tryHandleScout(
         ) {
           coolCount = Math.max(coolCount, event.threads.length);
         }
-        if (event.stage === "done" || event.stage === "error") {
-          sawTerminal = true;
-        }
-        res.write(`${JSON.stringify(event)}\n`);
-        // Push each NDJSON line through proxies (Vite) promptly.
-        const flushable = res as typeof res & { flush?: () => void };
-        flushable.flush?.();
       };
 
       await doEnsureMemoryIndex();
