@@ -16,15 +16,19 @@ export const FOR_YOU_EXTRA_CREDIT_COST = 15;
 export const FOR_YOU_EXTRA_BATCH_SIZE = 3;
 export const FOR_YOU_EXTRA_DAILY_BATCHES = 10;
 
+/** Reservations older than this are orphaned (process died mid-flight). */
+export const FOR_YOU_EXTRA_RESERVATION_TTL_MS = 10 * 60 * 1000;
+
 export function countExtraBatchesToday(
   userId: string,
   now = new Date(),
 ): number {
   const row = getPlatformDb()
     .prepare(
-      `SELECT COUNT(*) AS n FROM for_you_extras WHERE user_id = ? AND at >= ?`,
+      `SELECT COUNT(*) AS n FROM for_you_extras
+       WHERE user_id = ? AND at >= ? AND (expires_at IS NULL OR expires_at > ?)`,
     )
-    .get(userId, startOfUtcDayIso(now)) as { n: number };
+    .get(userId, startOfUtcDayIso(now), now.toISOString()) as { n: number };
   return Number(row?.n ?? 0);
 }
 
@@ -32,13 +36,15 @@ export function recordExtraBatch(
   userId: string,
   tenantId: string,
   at = new Date().toISOString(),
+  expiresAt: string | null = null,
 ): string {
   const id = randomUUID();
   getPlatformDb()
     .prepare(
-      `INSERT INTO for_you_extras (id, user_id, tenant_id, at) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO for_you_extras (id, user_id, tenant_id, at, expires_at)
+       VALUES (?, ?, ?, ?, ?)`,
     )
-    .run(id, userId, tenantId, at);
+    .run(id, userId, tenantId, at, expiresAt);
   return id;
 }
 
@@ -51,8 +57,18 @@ export function reserveExtraSlot(
     if (countExtraBatchesToday(userId, now) >= FOR_YOU_EXTRA_DAILY_BATCHES) {
       return null;
     }
-    return recordExtraBatch(userId, tenantId, now.toISOString());
+    const expiresAt = new Date(
+      now.getTime() + FOR_YOU_EXTRA_RESERVATION_TTL_MS,
+    ).toISOString();
+    return recordExtraBatch(userId, tenantId, now.toISOString(), expiresAt);
   })();
+}
+
+/** A delivered batch is a permanent ledger entry for the UTC-day cap. */
+export function confirmExtraBatch(id: string): void {
+  getPlatformDb()
+    .prepare(`UPDATE for_you_extras SET expires_at = NULL WHERE id = ?`)
+    .run(id);
 }
 
 export function removeExtraRecord(id: string): void {

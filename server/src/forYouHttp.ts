@@ -17,6 +17,7 @@ import {
   MIN_T24H_SNAPSHOTS,
 } from "./forYouDigest.js";
 import {
+  confirmExtraBatch,
   extraCapMessage,
   FOR_YOU_EXTRA_CREDIT_COST,
   FOR_YOU_EXTRA_USAGE_PATH,
@@ -209,6 +210,7 @@ async function handleForYouExtra(
 
     const creditsAfter = getCreditUsage(opts.tenantId, opts.planKey);
     if (creditsAfter.remaining < FOR_YOU_EXTRA_CREDIT_COST) {
+      removeExtraRecord(reservationId);
       send(req, res, 402, {
         error: "credits_exhausted",
         message: `Three more originals cost ${FOR_YOU_EXTRA_CREDIT_COST} credits. Open Usage & Billing.`,
@@ -243,6 +245,7 @@ async function handleForYouExtra(
       ) {
         throw new Error("extra debit write failed");
       }
+      confirmExtraBatch(reservationId);
       return rows;
     })();
     delivered = true;

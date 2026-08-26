@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import {
   countPostsReadThisUtcMonth,
   CREDIT_EVENT_PATH_SQL,
+  FOR_YOU_EXTRA_USAGE_PATH,
   startOfUtcMonthIso,
 } from "./billingQuotas.js";
 import { getPlatformDb } from "./db.js";
@@ -195,7 +196,12 @@ export function recordUsageEvent(input: UsageEventInput): boolean {
     const database = getPlatformDb();
     const tenantId = input.tenantId?.trim() || getRequestTenantId();
     const postsRead = Math.max(0, Math.floor(input.postsRead ?? 0));
-    const costUsdMicros = estimatePostReadCostMicros(postsRead);
+    // Extras count toward the credit pool but make no X reads, so they add
+    // no post-read COGS to the admin estimate.
+    const costUsdMicros =
+      input.path === FOR_YOU_EXTRA_USAGE_PATH
+        ? 0
+        : estimatePostReadCostMicros(postsRead);
     const id = randomUUID();
     const at = input.at ?? new Date().toISOString();
     database
