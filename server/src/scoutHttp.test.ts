@@ -498,7 +498,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("keeps the sortie on POST /api/search when a batch delivered cools before the response write throws", async () => {
+  it("refunds the sortie on POST /api/search when the 200 write throws", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutSearch: (async () => ({
@@ -557,7 +557,9 @@ describe("tryHandleScout", () => {
     emitter.emit("data", Buffer.from(JSON.stringify({ queries: ["q1"] })));
     emitter.emit("end");
     assert.equal(await handledPromise, true);
-    assert.equal(getSortieUsage(tenantId, "free").used, 1);
+    // writeHead(200) ran, but end(json) threw — the client never got the
+    // threads, so the takeoff is wasted the same as a failed batch.
+    assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
   it("refunds the sortie on POST /api/search when the batch rejects", async () => {
