@@ -157,8 +157,6 @@ export async function tryHandleScout(
         : 0;
       if (sortieWasWasted({ ok: result.ok, coolCount })) {
         refundSortie(sortieId);
-      } else {
-        markSortieDelivered(sortieId);
       }
       if (!result.ok) {
         trackAnalytics({
@@ -193,6 +191,12 @@ export async function tryHandleScout(
         lengthWarning: done.lengthWarning,
         pipelineCounts: done.pipelineCounts,
       });
+      // Mark delivered only once the response write actually landed, so a
+      // torn-down socket does not complete the takeoff mission for threads
+      // the client never received (mirrors the streaming writeLine reorder).
+      if (coolCount >= 1) {
+        markSortieDelivered(sortieId);
+      }
       return true;
     } catch (err) {
       if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
