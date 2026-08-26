@@ -40,6 +40,21 @@ export function listDeskPostsSince(
   return rows;
 }
 
+/** Confirmed desk-published originals (empty in_reply_to_id) today. */
+export function countDeskOriginalsSince(
+  userId: string,
+  sinceIso: string,
+): number {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT COUNT(*) AS n FROM x_desk_posts
+        WHERE user_id = ? AND created_at >= ?
+          AND in_reply_to_id = ? AND tweet_id != ?`,
+    )
+    .get(userId, sinceIso, "", "") as { n: number };
+  return Number(row.n) || 0;
+}
+
 export function recordDeskPost(opts: {
   userId: string;
   tweetId: string;

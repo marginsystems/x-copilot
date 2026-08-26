@@ -41,6 +41,7 @@ import {
 import { runScoutSearch } from "./scoutRun.js";
 import type { ScoutFilters } from "./scoutTypes.js";
 import {
+  markSortieDelivered,
   recordSortie,
   refundSortie,
   sortieWasWasted,
@@ -193,9 +194,18 @@ export async function tryHandleScout(
         lengthWarning: done.lengthWarning,
         pipelineCounts: done.pipelineCounts,
       });
+      // Mark delivered only once the response write actually landed, so a
+      // torn-down socket does not complete the takeoff mission for threads
+      // the client never received (mirrors the streaming writeLine reorder).
+      if (coolCount >= 1) {
+        markSortieDelivered(sortieId);
+      }
       return true;
     } catch (err) {
-      if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
+      if (sortieId) {
+        // The batch response never reached the client — the single 200 write
+        // threw on a torn socket — so refund the sortie rather than stranding
+        // it (neither delivered nor refunded).
         refundSortie(sortieId);
       }
       try {
@@ -276,6 +286,15 @@ export async function tryHandleScout(
 
       let sawTerminal = false;
       const writeLine = (event: { stage?: string; [key: string]: unknown }) => {
+        if (event.stage === "done" || event.stage === "error") {
+          sawTerminal = true;
+        }
+        res.write(`${JSON.stringify(event)}\n`);
+        // Push each NDJSON line through proxies (Vite) promptly.
+        const flushable = res as typeof res & { flush?: () => void };
+        flushable.flush?.();
+        // Only count an event's cool threads once the write actually landed,
+        // so a torn-down socket does not mark a sortie as delivered.
         if (typeof event.coolCount === "number") {
           coolCount = Math.max(coolCount, event.coolCount);
         } else if (
@@ -284,13 +303,6 @@ export async function tryHandleScout(
         ) {
           coolCount = Math.max(coolCount, event.threads.length);
         }
-        if (event.stage === "done" || event.stage === "error") {
-          sawTerminal = true;
-        }
-        res.write(`${JSON.stringify(event)}\n`);
-        // Push each NDJSON line through proxies (Vite) promptly.
-        const flushable = res as typeof res & { flush?: () => void };
-        flushable.flush?.();
       };
 
       await doEnsureMemoryIndex();
@@ -349,12 +361,16 @@ export async function tryHandleScout(
       }
       if (sortieWasWasted({ ok: result.ok, coolCount })) {
         refundSortie(sortieId);
+      } else {
+        markSortieDelivered(sortieId);
       }
       res.end();
       return true;
     } catch (err) {
       if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
         refundSortie(sortieId);
+      } else if (sortieId) {
+        markSortieDelivered(sortieId);
       }
       console.error("scout run failed:", err);
       try {

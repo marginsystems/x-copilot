@@ -20,7 +20,9 @@ import {
   SkippedRow,
 } from "./HistoryRows";
 import { RankingDrawer } from "./RankingDrawer";
+import { DailyMissionsRow, NextActionRow } from "./NextActionRow";
 import { SuggestedRow } from "./SuggestedRow";
+import type { CoachingState } from "../lib/coaching";
 import { ThreadRow } from "./ThreadRow";
 import { ThreadsTabCount } from "./ThreadsTabCount";
 import type {
@@ -40,6 +42,7 @@ type ThreadsTabsProps = {
   forYouSuggestions: ForYouSuggestion[];
   forYouProgress?: ForYouProgress | null;
   forYouExtra?: ForYouExtraUsage | null;
+  coaching?: CoachingState | null;
   requestExtra?: () => void | Promise<void>;
   interactedHistory: InteractionHistoryEntry[];
   skippedHistory: SkipHistoryEntry[];
@@ -69,6 +72,7 @@ export function ThreadsTabs({
   forYouSuggestions,
   forYouProgress,
   forYouExtra,
+  coaching,
   requestExtra,
   interactedHistory,
   skippedHistory,
@@ -174,6 +178,8 @@ export function ThreadsTabs({
         {threadsTab === "curated" ? (
           curatedThreads.length === 0 &&
           forYouSuggestions.length === 0 &&
+          !coaching?.nextAction &&
+          !(coaching && coaching.missions.length > 0) &&
           !(forYouExtra && extrasUnlocked(forYouProgress)) ? (
             <p className="empty">
               {approachEmptyCopy({
@@ -184,13 +190,27 @@ export function ThreadsTabs({
           ) : (
             <div className="threads">
               {curatedThreads.length === 0 &&
-              forYouSuggestions.length === 0 ? (
+              forYouSuggestions.length === 0 &&
+              !coaching?.nextAction &&
+              !(coaching && coaching.missions.length > 0) &&
+              !(forYouExtra && extrasUnlocked(forYouProgress)) ? (
                 <p className="empty">
                   {approachEmptyCopy({
                     searching,
                     progress: forYouProgress,
                   })}
                 </p>
+              ) : null}
+              {coaching &&
+              (coaching.nextAction || coaching.missions.length > 0) ? (
+                <div className="for-you-suggested">
+                  {coaching.nextAction ? (
+                    <NextActionRow coaching={coaching} />
+                  ) : null}
+                  {coaching.missions.length > 0 ? (
+                    <DailyMissionsRow coaching={coaching} />
+                  ) : null}
+                </div>
               ) : null}
               {forYouExtra && extrasUnlocked(forYouProgress) ? (
                 <div className="for-you-extra">

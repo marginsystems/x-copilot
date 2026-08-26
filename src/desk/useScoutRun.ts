@@ -51,6 +51,7 @@ export type ScoutRunDeps = {
   hydrateInteracted: () => Promise<void>;
   loadBilling: () => Promise<void>;
   hydrateAuth: () => Promise<AuthSessionUser | null>;
+  onScoutFinished?: () => void;
 };
 
 export function useScoutRun({
@@ -65,6 +66,7 @@ export function useScoutRun({
   hydrateInteracted,
   loadBilling,
   hydrateAuth,
+  onScoutFinished,
 }: ScoutRunDeps) {
   const [searching, setSearching] = useState(false);
   const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
@@ -366,6 +368,7 @@ export function useScoutRun({
         if (ev.stage === "done") {
           stream.doneEvent = ev;
           applyScoutEvent(ev);
+          onScoutFinished?.();
           return;
         }
         if (ev.stage === "error") {
@@ -475,12 +478,14 @@ export function useScoutRun({
         const summary = `Cool ${cool}/${target} · stop: aborted`;
         setStatus(scoutStageMessage("done"));
         pushScoutLine(summary);
+        onScoutFinished?.();
       } else {
         const line = formatScoutFailure(
           "Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server",
         );
         setStatus(line);
         pushScoutLine(line, "error");
+        onScoutFinished?.();
       }
     } finally {
       if (abortRef.current === ac) {

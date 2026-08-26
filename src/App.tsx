@@ -64,6 +64,7 @@ import { useMenu } from "./chrome/useMenu";
 import { DeskTop } from "./desk/DeskTop";
 import { ThreadsTabs } from "./desk/ThreadsTabs";
 import { useActivityStrip } from "./desk/useActivityStrip";
+import { useCoaching } from "./desk/useCoaching";
 
 export default function App() {
   const [agendaReady, setAgendaReady] = useState(false);
@@ -126,6 +127,7 @@ export default function App() {
     onToggleFlightPath,
     onToggleDeskTop,
   } = useActivityStrip();
+  const { coaching, hydrateCoaching } = useCoaching();
   const {
     view,
     setView,
@@ -226,6 +228,9 @@ export default function App() {
     hydrateInteracted,
     loadBilling,
     hydrateAuth,
+    onScoutFinished: () => {
+      void hydrateCoaching();
+    },
   });
   const needsLogin = authChecked && authRequired && !authUser && !localUi;
   const needsOnboarding = needsOnboardingWizard({
@@ -257,6 +262,7 @@ export default function App() {
     onInteractionCommitted: () => {
       void hydrateActivityStats();
       void hydrateGamification();
+      void hydrateCoaching();
     },
   });
   const {
@@ -339,6 +345,7 @@ export default function App() {
       await hydrateInteracted();
       await hydrateActivityStats();
       await hydrateGamification();
+      await hydrateCoaching();
       await hydrateExpired();
       await hydrateForYou();
       if (onboarded) await hydrateLastScout();
@@ -836,7 +843,11 @@ export default function App() {
               forYouSuggestions={forYouSuggestions}
               forYouProgress={forYouProgress}
               forYouExtra={forYouExtra}
-              requestExtra={requestExtra}
+              coaching={coaching}
+              requestExtra={async () => {
+                await requestExtra();
+                void hydrateCoaching();
+              }}
               interactedHistory={interactedHistory}
               skippedHistory={skippedHistory}
               dismissedHistory={dismissedHistory}
@@ -850,7 +861,10 @@ export default function App() {
               agenda={agenda}
               authUser={authUser}
               setVoice={setVoice}
-              actForYou={actForYou}
+              actForYou={async (id, action) => {
+                await actForYou(id, action);
+                void hydrateCoaching();
+              }}
               onOpenVoice={openVoice}
               onLinkX={startXLogin}
               onMark={openMarkModal}

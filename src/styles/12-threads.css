@@ -88,6 +88,31 @@
   margin: 0 0 2px;
 }
 
+.next-action-head {
+  grid-template-columns: 44px 1fr;
+  cursor: default;
+}
+
+.next-action-head:hover {
+  background: transparent;
+}
+
+.daily-missions-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip.daily-mission {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.chip.daily-mission.is-done {
+  color: var(--text);
+  border-color: var(--accent-dim);
+}
+
 .thread-row.for-you-row {
   background: color-mix(in srgb, var(--accent) 5%, var(--panel));
 }

@@ -57,6 +57,30 @@ export function refundSortie(id: string): boolean {
   return result.changes > 0;
 }
 
+/** Mark a takeoff as delivered — it landed at least one cool thread. */
+export function markSortieDelivered(id: string): boolean {
+  const trimmed = id.trim();
+  if (!trimmed) return false;
+  const result = getPlatformDb()
+    .prepare("UPDATE scout_sorties SET delivered = 1 WHERE id = ?")
+    .run(trimmed);
+  return result.changes > 0;
+}
+
+/** Delivered (non-wasted) takeoffs today — the daily mission metric. */
+export function countDeliveredSortiesToday(
+  tenantId: string,
+  now = new Date(),
+): number {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT COUNT(*) AS n FROM scout_sorties
+       WHERE tenant_id = ? AND at >= ? AND delivered = 1`,
+    )
+    .get(tenantId, startOfUtcDayIso(now)) as { n: number };
+  return Number(row.n) || 0;
+}
+
 /**
  * Refund when the run delivered no cool threads — error, abort, or empty.
  * Keep the sortie if at least one cool landed, even on a later abort.
