@@ -495,9 +495,22 @@ describe("runScoutCollect hydrate", () => {
             return {
               ok: true as const,
               queryId: "test",
-              // Underfill the bucket so isPartial is true: the run must keep
-              // searching (not stop at exhausted) to reach `kept`.
               threads: [1, 2, 3].map((n) =>
+                card({
+                  id: `r${n}`,
+                  author: `@r${n}`,
+                  inReplyToId: `op${n}`,
+                  isReply: true,
+                }),
+              ),
+              bottomCursor: null,
+            };
+          }
+          if (searchCalls === 2) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [4, 5].map((n) =>
                 card({
                   id: `r${n}`,
                   author: `@r${n}`,
@@ -544,9 +557,8 @@ describe("runScoutCollect hydrate", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.ok(searchCalls >= 2);
-    assert.ok(triageIds.includes("kept"));
-    assert.ok(!triageIds.includes("r1"));
+    assert.ok(searchCalls >= 3);
+    assert.deepEqual(triageIds, ["kept"]);
   });
 
 });

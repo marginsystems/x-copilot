@@ -152,6 +152,41 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.hasOutboundLink, undefined);
   });
 
+  it("flags a quote when the quoted tweet has an off-platform link", () => {
+    const tweetsById = new Map([
+      [
+        "800",
+        {
+          id: "800",
+          text: "New essay https://t.co/abc",
+          author_id: "u-op",
+          entities: {
+            urls: [
+              {
+                url: "https://t.co/abc",
+                expanded_url: "https://substack.com/p/hello",
+              },
+            ],
+          },
+        },
+      ],
+    ]);
+    const card = v2TweetToCard(
+      {
+        id: "900",
+        text: "This essay changed my mind",
+        author_id: "u-reply",
+        referenced_tweets: [{ type: "quoted", id: "800" }],
+      },
+      usersById,
+      tweetsById,
+    );
+    assert.ok(card);
+    assert.equal(card.isQuote, true);
+    assert.equal(card.hasOutboundLink, true);
+    assert.equal(filterOutboundLinks([card]).linkFilteredCount, 1);
+  });
+
   it("marks v2 article payload as longform article", () => {
     const card = v2TweetToCard(
       {

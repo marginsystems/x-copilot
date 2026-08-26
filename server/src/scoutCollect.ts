@@ -574,13 +574,10 @@ export async function runScoutCollect(opts: {
       languageFilteredTotal += afterHydrateLang.languageFilteredCount;
 
       if (forTriage.length === 0) {
-        if (
-          isPartial &&
+        const emptiedByOpLinks =
           afterHydrateSelf.selfReplyFilteredCount === 0 &&
-          afterHydrateLinks.linkFilteredCount === 0 &&
-          afterHydrateLang.languageFilteredCount === 0 &&
-          afterHydrateLen.filteredCount === 0
-        ) {
+          afterHydrateLinks.linkFilteredCount > 0;
+        if (!emptiedByOpLinks) {
           bucket = [];
           stopReason = "exhausted";
           break;
