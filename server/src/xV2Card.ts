@@ -9,6 +9,7 @@ import {
   isXArticleUrl,
   mediaShortlinkKeys,
   textHasOutboundLink,
+  type UrlEntity,
 } from "./xLinks.js";
 
 export type V2User = {
@@ -37,7 +38,13 @@ export type V2Tweet = {
       display_url?: string;
     }>;
   };
-  note_tweet?: { text?: string };
+  note_tweet?: {
+    text?: string;
+    entity_set?: {
+      urls?: UrlEntity[];
+      media?: UrlEntity[];
+    };
+  };
   /** X Article metadata when `tweet.fields=article` is requested. */
   article?: unknown;
   public_metrics?: {
@@ -61,6 +68,7 @@ function includedTweetBody(tw: V2Tweet): string {
 
 function v2TweetHasOutboundLink(tweet: V2Tweet): boolean {
   if (entityUrlsHaveOutbound(tweet.entities?.urls)) return true;
+  if (entityUrlsHaveOutbound(tweet.note_tweet?.entity_set?.urls)) return true;
   return textHasOutboundLink(includedTweetBody(tweet));
 }
 
@@ -227,6 +235,9 @@ export function v2TweetToCard(
       card.hasOutboundLink = true;
       break;
     }
+  }
+  if (entityUrlsHaveOutbound(tweet.note_tweet?.entity_set?.urls)) {
+    card.hasOutboundLink = true;
   }
   if (!card.hasOutboundLink && textHasOutboundLink(text)) {
     card.hasOutboundLink = true;

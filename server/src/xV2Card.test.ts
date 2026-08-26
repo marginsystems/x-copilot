@@ -75,6 +75,83 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.match(card.opText ?? "", /New essay/);
   });
 
+  it("flags a reply when the included OP is a note_tweet with an off-platform note link", () => {
+    const tweetsById = new Map([
+      [
+        "800",
+        {
+          id: "800",
+          text: "teaser",
+          author_id: "u-op",
+          note_tweet: {
+            text: "Long essay https://t.co/abc",
+            entity_set: {
+              urls: [
+                {
+                  url: "https://t.co/abc",
+                  expanded_url: "https://substack.com/p/long",
+                },
+              ],
+            },
+          },
+        },
+      ],
+    ]);
+    const card = v2TweetToCard(
+      {
+        id: "900",
+        text: "How do you pick products?",
+        author_id: "u-reply",
+        conversation_id: "800",
+        referenced_tweets: [{ type: "replied_to", id: "800" }],
+      },
+      usersById,
+      tweetsById,
+    );
+    assert.ok(card);
+    assert.equal(card.hasOutboundLink, true);
+    assert.match(card.opText ?? "", /Long essay/);
+  });
+
+  it("flags a note_tweet candidate with an off-platform note entity link", () => {
+    const card = v2TweetToCard(
+      {
+        id: "777",
+        text: "preview",
+        author_id: "u-op",
+        note_tweet: {
+          text: "Long-form post https://t.co/xyz",
+          entity_set: {
+            urls: [
+              {
+                url: "https://t.co/xyz",
+                expanded_url: "https://github.com/foo/bar",
+              },
+            ],
+          },
+        },
+      },
+      usersById,
+    );
+    assert.ok(card);
+    assert.equal(card.hasOutboundLink, true);
+  });
+
+  it("does not crash when a quoted tweet is missing from includes.tweets", () => {
+    const card = v2TweetToCard(
+      {
+        id: "999",
+        text: "Quote tweet about the essay",
+        author_id: "u-reply",
+        referenced_tweets: [{ type: "quoted", id: "absent" }],
+      },
+      usersById,
+    );
+    assert.ok(card);
+    assert.equal(card.isQuote, true);
+    assert.equal(card.hasOutboundLink, undefined);
+  });
+
   it("marks v2 article payload as longform article", () => {
     const card = v2TweetToCard(
       {

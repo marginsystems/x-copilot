@@ -447,6 +447,44 @@ describe("fetchParentTweet cache semantics", () => {
       }
     });
   });
+
+  it("flags a note_tweet parent with an off-platform note entity link", async () => {
+    await withSession(async () => {
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () =>
+        jsonResponse(
+          {
+            data: {
+              id: "800",
+              text: "teaser",
+              author_id: "1",
+              note_tweet: {
+                text: "Long essay https://t.co/abc",
+                entity_set: {
+                  urls: [
+                    {
+                      url: "https://t.co/abc",
+                      expanded_url: "https://substack.com/p/long",
+                    },
+                  ],
+                },
+              },
+            },
+            includes: {
+              users: [{ id: "1", username: "writer", name: "Writer" }],
+            },
+          },
+          200,
+        );
+      try {
+        const parent = await fetchParentTweet({ tweetId: "800" });
+        assert.equal(parent?.author, "@writer");
+        assert.equal(parent?.hasOutboundLink, true);
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
 });
 
 describe("parseTweetsMetricsMap", () => {

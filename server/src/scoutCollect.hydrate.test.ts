@@ -495,7 +495,9 @@ describe("runScoutCollect hydrate", () => {
             return {
               ok: true as const,
               queryId: "test",
-              threads: [1, 2, 3, 4, 5].map((n) =>
+              // Underfill the bucket so isPartial is true: the run must keep
+              // searching (not stop at exhausted) to reach `kept`.
+              threads: [1, 2, 3].map((n) =>
                 card({
                   id: `r${n}`,
                   author: `@r${n}`,
