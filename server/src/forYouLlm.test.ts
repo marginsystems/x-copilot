@@ -361,4 +361,42 @@ describe("draftForYouExtraPosts", () => {
       "for_you_extra_repair",
     ]);
   });
+
+  it("rejects a repair pass that is still short", async () => {
+    const capture = { purposes: [] as string[] };
+    let calls = 0;
+    const chat: ChatFn = async (opts) => {
+      capture.purposes.push(opts.purpose ?? "");
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: true,
+          content: JSON.stringify({
+            actions: [{ kind: "post", why: "900 views", draft: "One." }],
+          }),
+          model: "deepseek-v4-flash",
+          provider: "deepseek",
+        };
+      }
+      return {
+        ok: true,
+        content: JSON.stringify({
+          actions: [{ kind: "post", why: "900 views", draft: "Two." }],
+        }),
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      };
+    };
+    const result = await draftForYouExtraPosts({ digest, chat });
+    assert.equal(result.ok, false);
+    assert.equal(result.ok || result.exhausted, true);
+    assert.equal(
+      result.ok || result.error,
+      "repair did not return 3 originals",
+    );
+    assert.deepEqual(capture.purposes, [
+      "for_you_extra",
+      "for_you_extra_repair",
+    ]);
+  });
 });

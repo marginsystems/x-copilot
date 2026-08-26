@@ -162,6 +162,13 @@ export async function draftForYouExtraPosts(opts: {
   });
   if (!repair.ok) return { ok: false, error: repair.message };
   parsed = filterExtraPosts(extractJsonObject(repair.content));
+  if (parsed.length < 3) {
+    return {
+      ok: false,
+      error: "repair did not return 3 originals",
+      exhausted: true,
+    };
+  }
   return { ok: true, drafts: parsed.slice(0, 3) };
 }
 
