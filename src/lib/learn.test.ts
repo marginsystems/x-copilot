@@ -9,6 +9,9 @@ import {
   LEARN_IMAGE,
   LEARN_LESSONS,
   LEARN_META,
+  LEARN_REPLY_DESCRIPTION,
+  LEARN_REPLY_PATH,
+  LEARN_REPLY_WEIGHT_SNIPPET,
   LEARN_WEIGHTS_PATH,
   LEARN_OON_SNIPPET,
   LEARN_PARAM_COMMENT_SNIPPET,
@@ -84,19 +87,26 @@ describe("learn citations", () => {
     assert.match(LEARN_DRAWER_SOURCE, /not affiliated/i);
   });
 
-  it("publishes one catalog lesson at the weights slug", () => {
-    assert.equal(LEARN_LESSONS.length, 1);
+  it("publishes two catalog lessons", () => {
+    assert.equal(LEARN_LESSONS.length, 2);
     assert.equal(LEARN_LESSONS[0]!.href, LEARN_WEIGHTS_PATH);
+    assert.equal(LEARN_LESSONS[1]!.href, LEARN_REPLY_PATH);
     assert.equal(LEARN_WEIGHTS_PATH, "/learn/what-a-like-is-worth");
+    assert.equal(LEARN_REPLY_PATH, "/learn/posts-that-get-a-reply");
     assert.equal(LEARN_IMAGE, "/og-learn.png");
     assert.match(LEARN_HUB_TITLE, /Learn the X algorithm/);
     assert.match(LEARN_HUB_DESCRIPTION, /P\(action\)/);
     assert.match(LEARN_HUB_DESCRIPTION, /not affiliated/i);
+    assert.match(LEARN_REPLY_DESCRIPTION, /P\(reply\)/);
+    assert.match(LEARN_REPLY_DESCRIPTION, /not affiliated/i);
+    assert.doesNotMatch(LEARN_REPLY_DESCRIPTION, /reply farming/i);
   });
 
   it("keeps official snippets verbatim", () => {
     assert.match(LEARN_APPLY_SNIPPET, /score\.unwrap_or\(0\.0\) \* weight/);
     assert.match(LEARN_PARAM_COMMENT_SNIPPET, /one report cancels 468 likes/);
     assert.match(LEARN_OON_SNIPPET, /deboost_in_network_replies_retweets/);
+    assert.match(LEARN_REPLY_WEIGHT_SNIPPET, /reply_weight_for/);
+    assert.match(LEARN_REPLY_WEIGHT_SNIPPET, /is_mutual_follow_author/);
   });
 });

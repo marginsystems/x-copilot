@@ -23,7 +23,7 @@ export const LEARN_HUB_TITLE = "Learn the X algorithm — x-copilot";
 export const LEARN_HUB_HEADING = "Learn";
 export const LEARN_HUB_DESCRIPTION =
   "Cited notes on how X For You ranks posts. Weights multiply P(action), not raw likes. From xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
-export const LEARN_HUB_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). One lesson. Not affiliated with X Corp.`;
+export const LEARN_HUB_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 
 export const LEARN_TITLE = "What a like is worth — x-copilot";
 export const LEARN_HEADING = "What a like is worth";
@@ -61,6 +61,21 @@ export const LEARN_PARAM_COMMENT_SNIPPET = `// Each weight multiplies the *predi
 // "one report cancels 468 likes" -- this is incorrect because the
 // weights apply to the predicted probabilities rather than raw counts.`;
 
+export const LEARN_REPLY_WEIGHT_SNIPPET = `fn bidirectional_boost_eligible(candidate: &PostCandidate) -> bool {
+    candidate.in_reply_to_tweet_id.is_none()
+        && candidate.retweeted_tweet_id.is_none()
+        && candidate.is_mutual_follow_author == Some(true)
+}
+
+fn reply_weight_for(&self, candidate: &PostCandidate) -> f64 {
+    if self.bidirectional_follow_reply_weight_boost != 0.0
+        && Self::bidirectional_boost_eligible(candidate)
+    {
+        return self.reply + self.bidirectional_follow_reply_weight_boost;
+    }
+    self.reply
+}`;
+
 export const LEARN_OON_SNIPPET = `let oon_applies = |c: &PostCandidate| match c.in_network {
     Some(false) => true,
     Some(true) => {
@@ -70,21 +85,30 @@ export const LEARN_OON_SNIPPET = `let oon_applies = |c: &PostCandidate| match c.
     None => false,
 };`;
 
+export const LEARN_REPLY_TITLE = "Posts that get a reply — x-copilot";
+export const LEARN_REPLY_HEADING = "Posts that get a reply";
+export const LEARN_REPLY_DESCRIPTION =
+  "X For You reply weight is +5.0. Mutual-follow originals add +15.0. Both multiply P(reply), not raw replies. Craft that invites a reply. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+export const LEARN_REPLY_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+export const LEARN_REPLY_PATH = "/learn/posts-that-get-a-reply";
+
 export const LEARN_FOLLOW_PATH = "/learn/follow";
 
 export const LEARN_IMAGE = "/og-learn.png";
 export const LEARN_IMAGE_ALT =
   "x-copilot Learn — ranking weights on a dark field";
 
+export type LearnLessonView = "learnWeights" | "learnReply";
+
 export type LearnLesson = {
-  view: "learnWeights";
+  view: LearnLessonView;
   href: string;
   number: string;
   heading: string;
   lede: string;
 };
 
-/** Published catalog cards. Follow stays a related note, not a second lesson. */
+/** Published catalog cards. Follow stays a related note, not a catalog lesson. */
 export const LEARN_LESSONS: readonly LearnLesson[] = [
   {
     view: "learnWeights",
@@ -92,6 +116,13 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     number: "01",
     heading: LEARN_HEADING,
     lede: "Weights multiply P(action), not raw likes or reports.",
+  },
+  {
+    view: "learnReply",
+    href: LEARN_REPLY_PATH,
+    number: "02",
+    heading: LEARN_REPLY_HEADING,
+    lede: "Reply is +5.0. Mutual-follow originals add +15.0. Then craft.",
   },
 ];
 
@@ -190,6 +221,11 @@ export const LEARN_FOLLOW_AUTHOR_HREF = algorithmPermalink(
   377,
   382,
 );
+export const LEARN_REPLY_WEIGHT_HREF = algorithmPermalink(
+  "home-mixer/params/param.rs",
+  315,
+  315,
+);
 export const LEARN_MUTUAL_REPLY_HREF = algorithmPermalink(
   "home-mixer/params/param.rs",
   316,
@@ -198,7 +234,7 @@ export const LEARN_MUTUAL_REPLY_HREF = algorithmPermalink(
 export const LEARN_MUTUAL_REPLY_APPLY_HREF = algorithmPermalink(
   "home-mixer/scorers/ranking_scorer.rs",
   180,
-  192,
+  193,
 );
 export const LEARN_THUNDER_HREF = algorithmPermalink("README.md", 60, 63);
 export const LEARN_DIVERSITY_HREF = algorithmPermalink(
