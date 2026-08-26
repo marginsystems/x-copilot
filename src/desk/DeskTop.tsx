@@ -148,76 +148,78 @@ export function DeskTop({
         aria-hidden={!open}
       >
         <div className="desk-top-body-inner">
-          <div className="control-pane">
-            <h2>Agenda</h2>
-            <textarea
-              className="agenda"
-              value={agenda}
-              maxLength={AGENDA_MAX_CHARS}
-              onChange={(e) => onAgendaChange(e.target.value)}
-              onBlur={onAgendaBlur}
-              placeholder="What should we look for and how should we sound?"
-            />
-            <div className="scout-cluster">
-              <div className="scout-controls">
-                {searching ? (
-                  <button
-                    type="button"
-                    className="primary scout-run"
-                    onClick={onStopScout}
-                  >
-                    Land
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="primary scout-run"
-                    disabled={searchBlocked || !agenda.trim()}
-                    onClick={runTakeoff}
-                  >
-                    {takeoffLabel}
-                  </button>
-                )}
-              </div>
-              <div className="status-stack" aria-live="polite">
-                <p
-                  className={
-                    searching ? "status scout-flight-line" : "status status-main"
-                  }
-                >
-                  {statusLine}
-                </p>
-                {showUsageCta ? (
-                  <p className="status status-hint">
+          <div className="desk-top-body-content">
+            <div className="control-pane">
+              <h2>Agenda</h2>
+              <textarea
+                className="agenda"
+                value={agenda}
+                maxLength={AGENDA_MAX_CHARS}
+                onChange={(e) => onAgendaChange(e.target.value)}
+                onBlur={onAgendaBlur}
+                placeholder="What should we look for and how should we sound?"
+              />
+              <div className="scout-cluster">
+                <div className="scout-controls">
+                  {searching ? (
                     <button
                       type="button"
-                      className="usage-cta"
-                      onClick={onOpenUsage}
+                      className="primary scout-run"
+                      onClick={onStopScout}
                     >
-                      Open Usage & Billing
+                      Land
                     </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="primary scout-run"
+                      disabled={searchBlocked || !agenda.trim()}
+                      onClick={runTakeoff}
+                    >
+                      {takeoffLabel}
+                    </button>
+                  )}
+                </div>
+                <div className="status-stack" aria-live="polite">
+                  <p
+                    className={
+                      searching ? "status scout-flight-line" : "status status-main"
+                    }
+                  >
+                    {statusLine}
                   </p>
-                ) : takeoffsHint ? (
-                  <p className="status status-hint">{takeoffsHint}</p>
-                ) : null}
+                  {showUsageCta ? (
+                    <p className="status status-hint">
+                      <button
+                        type="button"
+                        className="usage-cta"
+                        onClick={onOpenUsage}
+                      >
+                        Open Usage & Billing
+                      </button>
+                    </p>
+                  ) : takeoffsHint ? (
+                    <p className="status status-hint">{takeoffsHint}</p>
+                  ) : null}
+                </div>
+                <div className={searching ? "scout-strip active" : "scout-strip"}>
+                  <div
+                    className={searching ? "scout-bar" : "scout-bar idle"}
+                    aria-hidden="true"
+                  />
+                </div>
               </div>
-              <div className={searching ? "scout-strip active" : "scout-strip"}>
-                <div
-                  className={searching ? "scout-bar" : "scout-bar idle"}
-                  aria-hidden="true"
-                />
-              </div>
+              <ScoutPixelField searching={searching} active={open} />
             </div>
-            <ScoutPixelField searching={searching} />
+            <ActivityStrip
+              flightPathOpen={flightPathOpen}
+              activityBucket={activityBucket}
+              activityStats={activityStats}
+              gamification={gamification}
+              onToggleFlightPath={onToggleFlightPath}
+              onActivityBucket={onActivityBucket}
+            />
           </div>
-          <ActivityStrip
-            flightPathOpen={flightPathOpen}
-            activityBucket={activityBucket}
-            activityStats={activityStats}
-            gamification={gamification}
-            onToggleFlightPath={onToggleFlightPath}
-            onActivityBucket={onActivityBucket}
-          />
         </div>
       </div>
     </div>

@@ -23,7 +23,7 @@
     overflow: visible;
   }
 
-  .desk-top-body-inner {
+  .desk-top-body-content {
     grid-template-columns: 1fr;
   }
 

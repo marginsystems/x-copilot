@@ -84,13 +84,16 @@
 .desk-top-body-inner {
   min-height: 0;
   overflow: hidden;
+  opacity: 1;
+  transition: opacity 280ms var(--ease-out);
+}
+
+.desk-top-body-content {
   display: grid;
   grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
   padding-top: 12px;
-  opacity: 1;
-  transition: opacity 280ms var(--ease-out);
 }
 
 .desk-top.is-collapsed .desk-top-body-inner {
