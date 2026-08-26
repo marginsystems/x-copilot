@@ -12,6 +12,8 @@ import {
   LEARN_REPLY_WEIGHT_HREF,
   LEARN_REPLY_WEIGHT_SNIPPET,
   LEARN_SOURCE_DATE,
+  LEARN_VOLUME_HEADING,
+  LEARN_VOLUME_PATH,
   LEARN_SOURCE_REPO,
   LEARN_SOURCE_SHA,
   LEARN_WEIGHTS_PATH,
@@ -22,6 +24,7 @@ export function LearnReplyPage(props: {
   onHome: () => void;
   onCatalog: () => void;
   onWeights: () => void;
+  onVolume: () => void;
 }) {
   return (
     <LearnChrome
@@ -132,6 +135,10 @@ export function LearnReplyPage(props: {
         Related:{" "}
         <LegalLink href={LEARN_WEIGHTS_PATH} onNavigate={props.onWeights}>
           {LEARN_HEADING}
+        </LegalLink>
+        .{" "}
+        <LegalLink href={LEARN_VOLUME_PATH} onNavigate={props.onVolume}>
+          {LEARN_VOLUME_HEADING}
         </LegalLink>
         .
       </p>

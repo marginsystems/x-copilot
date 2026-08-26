@@ -43,6 +43,7 @@ describe("showDeskXGate", () => {
     assert.equal(showDeskXGate({ ...base, view: "learn" }), false);
     assert.equal(showDeskXGate({ ...base, view: "learnWeights" }), false);
     assert.equal(showDeskXGate({ ...base, view: "learnReply" }), false);
+    assert.equal(showDeskXGate({ ...base, view: "learnVolume" }), false);
     assert.equal(showDeskXGate({ ...base, view: "learnFollow" }), false);
     assert.equal(showDeskXGate({ ...base, needsLogin: true }), false);
     assert.equal(showDeskXGate({ ...base, needsOnboarding: true }), false);
