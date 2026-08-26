@@ -130,6 +130,19 @@ export function SettingsForm({
           <label className="settings-check">
             <input
               type="checkbox"
+              checked={draft.dropOutboundLinks}
+              onChange={(e) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  dropOutboundLinks: e.target.checked,
+                }))
+              }
+            />
+            <span>Drop posts with off-platform links</span>
+          </label>
+          <label className="settings-check">
+            <input
+              type="checkbox"
               checked={draft.dropEmDashes}
               onChange={(e) =>
                 setDraft((prev) => ({

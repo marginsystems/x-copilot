@@ -14,6 +14,8 @@ import {
   LEARN_REPLY_DESCRIPTION,
   LEARN_REPLY_TITLE,
   LEARN_TITLE,
+  LEARN_VOLUME_DESCRIPTION,
+  LEARN_VOLUME_TITLE,
 } from "./learn.ts";
 import {
   CHANGELOG_IMAGE,
@@ -23,6 +25,7 @@ import {
   learnFollowJsonLd,
   learnJsonLd,
   learnReplyJsonLd,
+  learnVolumeJsonLd,
   learnWeightsJsonLd,
   OG_IMAGE_HEIGHT,
   OG_IMAGE_WIDTH,
@@ -72,6 +75,11 @@ describe("seoForView", () => {
     assert.equal(seoForView("learnReply").description, LEARN_REPLY_DESCRIPTION);
     assert.match(seoForView("learnReply").description, /P\(reply\)/);
     assert.equal(seoForView("learnReply").image, LEARN_IMAGE);
+    assert.equal(seoForView("learnVolume").title, LEARN_VOLUME_TITLE);
+    assert.equal(seoForView("learnVolume").description, LEARN_VOLUME_DESCRIPTION);
+    assert.match(seoForView("learnVolume").description, /no daily/);
+    assert.match(seoForView("learnVolume").description, /not affiliated/i);
+    assert.equal(seoForView("learnVolume").image, LEARN_IMAGE);
     assert.equal(seoForView("learnFollow").title, LEARN_FOLLOW_TITLE);
     assert.equal(seoForView("learnFollow").description, LEARN_FOLLOW_DESCRIPTION);
     assert.match(seoForView("learnFollow").description, /0\.75/);
@@ -88,6 +96,7 @@ describe("seoForView", () => {
     assert.equal(seoForView("learn").robots, "index,follow");
     assert.equal(seoForView("learnWeights").robots, "index,follow");
     assert.equal(seoForView("learnReply").robots, "index,follow");
+    assert.equal(seoForView("learnVolume").robots, "index,follow");
     assert.equal(seoForView("learnFollow").robots, "index,follow");
     assert.equal(seoForView("dashboard").robots, "index,follow");
   });
@@ -126,7 +135,7 @@ describe("learn schema", () => {
     assert.ok(page && list && crumbs);
     assert.equal(page.name, LEARN_HUB_TITLE);
     assert.equal(page.image, "https://xcopilot.dev/og-learn.png");
-    assert.equal(list.numberOfItems, 2);
+    assert.equal(list.numberOfItems, 3);
     assert.equal(
       list.itemListElement[0]?.url,
       "https://xcopilot.dev/learn/what-a-like-is-worth",
@@ -134,6 +143,10 @@ describe("learn schema", () => {
     assert.equal(
       list.itemListElement[1]?.url,
       "https://xcopilot.dev/learn/posts-that-get-a-reply",
+    );
+    assert.equal(
+      list.itemListElement[2]?.url,
+      "https://xcopilot.dev/learn/how-many-replies",
     );
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
   });
@@ -166,6 +179,23 @@ describe("learn schema", () => {
     assert.equal(
       crumbs.itemListElement[2]?.item,
       "https://xcopilot.dev/learn/posts-that-get-a-reply",
+    );
+  });
+
+  it("is an Article for the volume lesson with a learn breadcrumb", () => {
+    const graph = learnVolumeJsonLd()["@graph"];
+    assert.ok(Array.isArray(graph));
+    const page = graph.find((node) => node["@type"] === "Article");
+    const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
+    assert.ok(page && crumbs);
+    assert.equal(page.name, LEARN_VOLUME_TITLE);
+    assert.match(
+      String(page.citation),
+      /\/blob\/d011592\/home-mixer\/scorers\/ranking_scorer\.rs#L643-L645/,
+    );
+    assert.equal(
+      crumbs.itemListElement[2]?.item,
+      "https://xcopilot.dev/learn/how-many-replies",
     );
   });
 
@@ -231,6 +261,17 @@ describe("htmlWithSeo", () => {
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
   });
 
+  it("rewrites the SPA shell for the volume lesson", () => {
+    const source = readFileSync(join(root, "index.html"), "utf8");
+    const html = htmlWithSeo(source, "learnVolume");
+    assert.match(html, /<title>How many replies a day — x-copilot<\/title>/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/learn\/how-many-replies"/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn\.png"/);
+    assert.match(html, /no daily/);
+    assert.match(html, /"@type":"Article"/);
+    assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
+  });
+
   it("rewrites the SPA shell for /learn/follow without touching the home copy", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
     const html = htmlWithSeo(source, "learnFollow");
@@ -251,6 +292,7 @@ describe("public crawl files", () => {
     assert.match(xml, /https:\/\/xcopilot\.dev\/learn</);
     assert.match(xml, /https:\/\/xcopilot\.dev\/learn\/what-a-like-is-worth</);
     assert.match(xml, /https:\/\/xcopilot\.dev\/learn\/posts-that-get-a-reply</);
+    assert.match(xml, /https:\/\/xcopilot\.dev\/learn\/how-many-replies</);
     assert.match(xml, /https:\/\/xcopilot\.dev\/learn\/follow</);
     assert.match(
       xml,

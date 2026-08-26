@@ -18,6 +18,7 @@ function seoRouteHtml(): Plugin {
         { view: "learn" as const, dir: "learn" },
         { view: "learnWeights" as const, dir: "learn/what-a-like-is-worth" },
         { view: "learnReply" as const, dir: "learn/posts-that-get-a-reply" },
+        { view: "learnVolume" as const, dir: "learn/how-many-replies" },
         { view: "learnFollow" as const, dir: "learn/follow" },
       ];
       for (const route of routes) {

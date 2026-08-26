@@ -76,6 +76,17 @@ fn reply_weight_for(&self, candidate: &PostCandidate) -> f64 {
     self.reply
 }`;
 
+export const LEARN_DIVERSITY_SNIPPET = `fn diversity_multiplier(decay_factor: f64, floor: f64, exponent: f64) -> f64 {
+    (1.0 - floor) * decay_factor.powf(exponent) + floor
+}`;
+
+export const LEARN_THUNDER_CAP_SNIPPET = `pub const MAX_POSTS_TO_RETURN: usize = 1200;
+pub const MAX_VIDEOS_TO_RETURN: usize = 600;
+pub const MAX_INPUT_LIST_SIZE: usize = 10000;
+
+pub const MAX_REPLY_POSTS_PER_AUTHOR: usize = 30;
+pub const MAX_ORIGINAL_POSTS_PER_AUTHOR: usize = 50;`;
+
 export const LEARN_OON_SNIPPET = `let oon_applies = |c: &PostCandidate| match c.in_network {
     Some(false) => true,
     Some(true) => {
@@ -94,11 +105,18 @@ export const LEARN_REPLY_PATH = "/learn/posts-that-get-a-reply";
 
 export const LEARN_FOLLOW_PATH = "/learn/follow";
 
+export const LEARN_VOLUME_TITLE = "How many replies a day — x-copilot";
+export const LEARN_VOLUME_HEADING = "How many replies a day";
+export const LEARN_VOLUME_DESCRIPTION =
+  "X For You has no daily reply or post quota in this snapshot. Extra posts from one author decay in a single slate. A quiet reply adds ~0; it does not subtract. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+export const LEARN_VOLUME_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+export const LEARN_VOLUME_PATH = "/learn/how-many-replies";
+
 export const LEARN_IMAGE = "/og-learn.png";
 export const LEARN_IMAGE_ALT =
   "x-copilot Learn — ranking weights on a dark field";
 
-export type LearnLessonView = "learnWeights" | "learnReply";
+export type LearnLessonView = "learnWeights" | "learnReply" | "learnVolume";
 
 export type LearnLesson = {
   view: LearnLessonView;
@@ -123,6 +141,13 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     number: "02",
     heading: LEARN_REPLY_HEADING,
     lede: "Reply is +5.0. Mutual-follow originals add +15.0. Then craft.",
+  },
+  {
+    view: "learnVolume",
+    href: LEARN_VOLUME_PATH,
+    number: "03",
+    heading: LEARN_VOLUME_HEADING,
+    lede: "No daily quota in this snapshot. Extra posts in one slate decay. Silence does not subtract.",
   },
 ];
 
@@ -242,6 +267,38 @@ export const LEARN_DIVERSITY_HREF = algorithmPermalink(
   228,
   239,
 );
+export const LEARN_DIVERSITY_ENABLE_HREF = algorithmPermalink(
+  "home-mixer/params/param.rs",
+  222,
+  227,
+);
+export const LEARN_DIVERSITY_FN_HREF = algorithmPermalink(
+  "home-mixer/scorers/ranking_scorer.rs",
+  643,
+  645,
+);
+export const LEARN_DIVERSITY_APPLY_HREF = algorithmPermalink(
+  "home-mixer/scorers/ranking_scorer.rs",
+  717,
+  740,
+);
+export const LEARN_README_ADJUST_HREF = algorithmPermalink("README.md", 345, 349);
+export const LEARN_THUNDER_CAP_HREF = algorithmPermalink("thunder/config.rs", 1, 6);
+export const LEARN_THUNDER_FETCH_HREF = algorithmPermalink(
+  "thunder/posts/post_store.rs",
+  251,
+  365,
+);
+export const LEARN_BDSM_HEADS_HREF = algorithmPermalink("bdsm/README.md", 30, 34);
+export const LEARN_BDSM_ACTION_HREF = algorithmPermalink("bdsm/README.md", 63, 66);
+
+/** Defaults at LEARN_DIVERSITY_HREF. k is prior posts from this author in this slate. */
+export const LEARN_DIVERSITY_DECAY = 0.5;
+export const LEARN_DIVERSITY_FLOOR = 0.25;
+
+export function learnDiversityMultiplier(k: number): number {
+  return (1 - LEARN_DIVERSITY_FLOOR) * LEARN_DIVERSITY_DECAY ** k + LEARN_DIVERSITY_FLOOR;
+}
 
 export function formatLearnWeight(weight: number): string {
   const sign = weight > 0 ? "+" : "";

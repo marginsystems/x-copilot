@@ -79,6 +79,16 @@ export type ScoutRunResult =
   | { ok: true; event: ScoutEvent }
   | { ok: false; status: number; error: string; message: string };
 
+/** Test seam: stub the X search / store reads without touching the network. */
+export type ScoutRunDeps = {
+  searchMany?: typeof searchMany;
+  getAuthorKeysForScoutFilter?: typeof getAuthorKeysForScoutFilter;
+  getBlockedConversationIds?: typeof getBlockedConversationIds;
+  hydrateReplyParents?: typeof hydrateReplyParents;
+  triageThreads?: typeof triageThreads;
+  saveScoutCache?: typeof saveScoutCache;
+};
+
 function emit(
   onEvent: ((e: ScoutEvent) => void) | undefined,
   stage: ScoutStageId,
@@ -102,7 +112,18 @@ export async function runScoutSearch(opts: {
   filters?: ScoutFilters;
   session?: XApiCreds;
   onEvent?: (event: ScoutEvent) => void;
+  deps?: ScoutRunDeps;
 }): Promise<ScoutRunResult> {
+  const deps = opts.deps ?? {};
+  const doSearch = deps.searchMany ?? searchMany;
+  const doGetFilterKeys =
+    deps.getAuthorKeysForScoutFilter ?? getAuthorKeysForScoutFilter;
+  const doGetConversationIds =
+    deps.getBlockedConversationIds ?? getBlockedConversationIds;
+  const doHydrate = deps.hydrateReplyParents ?? hydrateReplyParents;
+  const doTriage = deps.triageThreads ?? triageThreads;
+  const doSaveCache = deps.saveScoutCache ?? saveScoutCache;
+
   const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.bearerToken) {
     return {
@@ -163,7 +184,7 @@ export async function runScoutSearch(opts: {
     track("planning", "Scout is using client-provided queries…", { queries });
   }
 
-  const result = await searchMany(queries, {
+  const result = await doSearch(queries, {
     session,
     countPerQuery: 20,
     onQuery: (index, qTotal, query) => {
@@ -176,17 +197,20 @@ export async function runScoutSearch(opts: {
   });
 
   track("filtering", "Scout is applying cooldown + length filters…");
-  const cooled = await getAuthorKeysForScoutFilter({
+  const cooled = await doGetFilterKeys({
     dedupeAccounts: opts.filters?.dedupeAccounts,
   });
-  const blockedConversations = await getBlockedConversationIds();
+  const blockedConversations = await doGetConversationIds();
   const filtered = filterThreadsByCooldown(
     result.threads,
     cooled,
     blockedConversations,
   );
   const afterSelf = filterSelfReplies(filtered.threads);
-  const afterLinks = filterOutboundLinks(afterSelf.threads);
+  const dropOutboundLinks = opts.filters?.dropOutboundLinks !== false;
+  const afterLinks = filterOutboundLinks(afterSelf.threads, {
+    dropOutboundLinks,
+  });
   const preferredLanguage = normalizePreferredLanguageCode(
     opts.filters?.preferredLanguage,
   );
@@ -211,7 +235,7 @@ export async function runScoutSearch(opts: {
   });
 
   // Hydrate OP context, then re-drop self-replies missing inReplyToScreenName.
-  const hydrated = await hydrateReplyParents({
+  const hydrated = await doHydrate({
     threads: byLength.threads,
     session,
   });
@@ -233,7 +257,7 @@ export async function runScoutSearch(opts: {
   track("triaging", "Scout is scoring threads for bait risk…", {
     count: afterHydrateLen.threads.length,
   });
-  const triaged = await triageThreads({
+  const triaged = await doTriage({
     agenda,
     threads: afterHydrateLen.threads,
   });
@@ -320,7 +344,7 @@ export async function runScoutSearch(opts: {
   }
 
   try {
-    await saveScoutCache({
+    await doSaveCache({
       savedAt: done.at ?? new Date().toISOString(),
       agenda: agenda || undefined,
       queries: result.queries,
