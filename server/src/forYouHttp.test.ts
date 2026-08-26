@@ -274,6 +274,7 @@ describe("POST /api/for-you/extra", () => {
     });
     assert.equal(out.status, 402);
     assert.equal(out.json.error, "credits_exhausted");
+    assert.ok(out.json.extra);
     assert.equal(countExtraBatchesToday(user.id), 0);
     assert.equal(countPostsReadThisUtcMonth(tenantId), 1490);
   });
@@ -299,6 +300,7 @@ describe("POST /api/for-you/extra", () => {
     });
     assert.equal(out.status, 429);
     assert.equal(out.json.error, "extra_daily_limit");
+    assert.ok(out.json.extra);
     assert.equal(countPostsReadThisUtcMonth(tenantId), 0);
   });
 

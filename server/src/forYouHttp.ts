@@ -10,6 +10,7 @@ import {
 } from "./billingQuotas.js";
 import { ensureUserBillingRow, ensureUserTenant } from "./billingStore.js";
 import { deepseekConfigured } from "./deepseek.js";
+import { getPlatformDb } from "./db.js";
 import {
   buildForYouDigest,
   countT24hSnapshots,
@@ -163,6 +164,11 @@ async function handleForYouExtra(
       used: credits.used,
       limit: credits.limit,
       planKey: opts.planKey,
+      extra: getExtraUsage({
+        userId: opts.userId,
+        tenantId: opts.tenantId,
+        planKey: opts.planKey,
+      }),
     });
     return;
   }
@@ -179,46 +185,77 @@ async function handleForYouExtra(
       message: extraCapMessage(extra.used, extra.limit),
       used: extra.used,
       limit: extra.limit,
+      extra,
     });
     return;
   }
 
-  const digest = await buildForYouDigest({ userId: opts.userId });
-  const result = await draftForYouExtraPosts({
-    digest,
-    chat: opts.chat,
-  });
-  if (!result.ok || result.drafts.length < 3) {
-    removeExtraRecord(reservationId);
-    send(req, res, 502, {
-      error: result.ok ? "empty" : "llm_error",
-      message: result.ok
-        ? "Could not draft three originals. Try again in a moment."
-        : result.error,
+  let delivered = false;
+  try {
+    const digest = await buildForYouDigest({ userId: opts.userId });
+    const result = await draftForYouExtraPosts({
+      digest,
+      chat: opts.chat,
     });
-    return;
-  }
+    if (!result.ok || result.drafts.length < 3) {
+      send(req, res, 502, {
+        error: result.ok ? "empty" : "llm_error",
+        message: result.ok
+          ? "Could not draft three originals. Try again in a moment."
+          : result.error,
+      });
+      return;
+    }
 
-  const suggestions = insertSuggestions({
-    userId: opts.userId,
-    tenantId: opts.tenantId,
-    drafts: result.drafts.slice(0, 3),
-  });
-  recordUsageEvent({
-    tenantId: opts.tenantId,
-    method: "POST",
-    path: FOR_YOU_EXTRA_USAGE_PATH,
-    status: 200,
-    postsRead: FOR_YOU_EXTRA_CREDIT_COST,
-    meta: { batch: suggestions.length },
-  });
-  send(req, res, 200, {
-    ok: true,
-    suggestions,
-    extra: getExtraUsage({
-      userId: opts.userId,
-      tenantId: opts.tenantId,
-      planKey: opts.planKey,
-    }),
-  });
+    const creditsAfter = getCreditUsage(opts.tenantId, opts.planKey);
+    if (creditsAfter.remaining < FOR_YOU_EXTRA_CREDIT_COST) {
+      send(req, res, 402, {
+        error: "credits_exhausted",
+        message: `Three more originals cost ${FOR_YOU_EXTRA_CREDIT_COST} credits. Open Usage & Billing.`,
+        used: creditsAfter.used,
+        limit: creditsAfter.limit,
+        planKey: opts.planKey,
+        extra: getExtraUsage({
+          userId: opts.userId,
+          tenantId: opts.tenantId,
+          planKey: opts.planKey,
+        }),
+      });
+      return;
+    }
+
+    const suggestions = getPlatformDb().transaction(() => {
+      const rows = insertSuggestions({
+        userId: opts.userId,
+        tenantId: opts.tenantId,
+        drafts: result.drafts.slice(0, 3),
+        origin: "extra",
+      });
+      if (
+        !recordUsageEvent({
+          tenantId: opts.tenantId,
+          method: "POST",
+          path: FOR_YOU_EXTRA_USAGE_PATH,
+          status: 200,
+          postsRead: FOR_YOU_EXTRA_CREDIT_COST,
+          meta: { batch: rows.length },
+        })
+      ) {
+        throw new Error("extra debit write failed");
+      }
+      return rows;
+    })();
+    delivered = true;
+    send(req, res, 200, {
+      ok: true,
+      suggestions,
+      extra: getExtraUsage({
+        userId: opts.userId,
+        tenantId: opts.tenantId,
+        planKey: opts.planKey,
+      }),
+    });
+  } finally {
+    if (!delivered) removeExtraRecord(reservationId);
+  }
 }

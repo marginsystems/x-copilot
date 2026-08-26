@@ -42,6 +42,7 @@ function suggestion(userId: string, id: string): ForYouSuggestion {
     createdAt: new Date(NOW).toISOString(),
     expiresAt: new Date(NOW + 86_400_000).toISOString(),
     actedAt: null,
+    origin: "daily",
   };
 }
 

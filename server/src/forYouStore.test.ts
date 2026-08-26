@@ -108,6 +108,28 @@ describe("forYouStore", () => {
     assert.equal(listActiveSuggestions("u1", now + 6000).length, 0);
   });
 
+  it("keeps paid extra originals through the daily expiry pass", () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [{ kind: "post", why: "extra", draft: "Paid original." }],
+      origin: "extra",
+    });
+    insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [{ kind: "post", why: "daily", draft: "Daily card." }],
+    });
+    assert.equal(expireOpenSuggestions("u1", now + 5000), 1);
+    const active = listActiveSuggestions("u1", now + 6000);
+    assert.equal(active.length, 1);
+    assert.equal(active[0]?.origin, "extra");
+    assert.equal(active[0]?.draft, "Paid original.");
+  });
+
   it("getSuggestion is scoped to the owner", () => {
     const [row] = insertSuggestions({
       userId: "u1",

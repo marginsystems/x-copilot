@@ -190,7 +190,7 @@ export function estimatePostReadCostMicros(postsRead: number): number {
   return Math.floor(postsRead) * POST_READ_USD_MICROS;
 }
 
-export function recordUsageEvent(input: UsageEventInput): void {
+export function recordUsageEvent(input: UsageEventInput): boolean {
   try {
     const database = getPlatformDb();
     const tenantId = input.tenantId?.trim() || getRequestTenantId();
@@ -216,11 +216,13 @@ export function recordUsageEvent(input: UsageEventInput): void {
         costUsdMicros,
         input.meta ? JSON.stringify(input.meta) : null,
       );
+    return true;
   } catch (err) {
     console.error(
       "[usage-meter] record failed:",
       err instanceof Error ? err.message : String(err),
     );
+    return false;
   }
 }
 
