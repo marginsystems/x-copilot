@@ -570,6 +570,7 @@ export async function runScoutCollect(opts: {
           dropArticles,
           articleIds: articleConversationIds,
         },
+        dropOutboundLinks,
       });
       funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
       linkFilteredTotal += afterHydrateLinks.linkFilteredCount;

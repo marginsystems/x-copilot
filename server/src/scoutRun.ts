@@ -249,6 +249,7 @@ export async function runScoutSearch(opts: {
     preferredLanguage,
     maxChars,
     lengthOptions: { dropArticles },
+    dropOutboundLinks,
   });
   const selfReplyFiltered =
     afterSelf.selfReplyFilteredCount +
