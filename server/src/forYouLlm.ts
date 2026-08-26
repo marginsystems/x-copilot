@@ -13,14 +13,14 @@ import {
 } from "./forYouDigest.js";
 import type { ForYouDraft } from "./forYouStore.js";
 
-const SYSTEM = `You pick the operator's next X moves from a ranked digest of THEIR posts, marked memories, voice card, agenda, and leftover Scout threads.
+export const FOR_YOU_DIGEST_SYSTEM = `You pick the operator's next X moves from a ranked digest of THEIR posts, marked memories, voice card, agenda, and leftover Scout threads.
 Return ONLY JSON:
 {"actions":[{"kind":"post"|"quote"|"repost"|"reply","why":"one sentence grounded in a metric or habit","draft":"text when kind is post or quote","targetId":"id from the digest when kind is quote, repost, or reply","targetUrl":"url from the digest when you have one","targetAuthor":"@handle when you have one"}]}
 Rules:
-- 2 to 4 actions. Mix kinds when the digest supports it.
+- 2 to 4 actions. Mix kinds when the digest supports it. At least one kind=post.
 - BEST_24H is what worked. Double down: write the next original in that shape, or quote/repost those ids.
 - AVOID_24H and thin memories are what not to repeat. Never reply, quote, or repost to "boost" a low-view item. Never pitch a move because something "only got N views."
-- kind=post: original in their voice, echoing BEST_24H. draft required. no targetId.
+- kind=post: original in their voice, echoing BEST_24H. draft required. no targetId. The draft must invite a reply — a real question, a stake they can cut, or a named other side. Not a slogan. Not "thoughts?".
 - kind=quote: draft required. targetId/targetUrl MUST be copied from BEST_24H or a strong recent, not AVOID.
 - kind=repost: targetId/targetUrl MUST be copied from the digest. no invented posts. Prefer BEST.
 - kind=reply: leftover Scout, or a memory that already earned attention. Not a flopped own post.
@@ -80,7 +80,7 @@ export async function draftForYouActions(opts: {
     purpose: "for_you_digest",
     temperature: 0.4,
     messages: [
-      { role: "system", content: SYSTEM },
+      { role: "system", content: FOR_YOU_DIGEST_SYSTEM },
       { role: "user", content: user },
     ],
   });
@@ -92,13 +92,13 @@ export async function draftForYouActions(opts: {
     purpose: "for_you_digest_repair",
     temperature: 0.2,
     messages: [
-      { role: "system", content: SYSTEM },
+      { role: "system", content: FOR_YOU_DIGEST_SYSTEM },
       { role: "user", content: user },
       { role: "assistant", content: first.content },
       {
         role: "user",
         content:
-          'Reply again with ONLY {"actions":[...]} using 2-4 items. Every targetId/targetUrl must be copied from the digest. kind=post needs a draft and no target.',
+          'Reply again with ONLY {"actions":[...]} using 2-4 items. Include at least one kind=post whose draft invites a reply (a real question, a stake, or a named other side). Every targetId/targetUrl must be copied from the digest. kind=post needs a draft and no target.',
       },
     ],
   });

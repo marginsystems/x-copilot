@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { draftForYouActions } from "./forYouLlm.ts";
+import { draftForYouActions, FOR_YOU_DIGEST_SYSTEM } from "./forYouLlm.ts";
 import type { ForYouDigest } from "./forYouDigest.ts";
 import type { ChatFn } from "./voiceLlm.ts";
 
@@ -54,6 +54,13 @@ function fakeChat(content: string, capture?: { purposes: string[] }): ChatFn {
 }
 
 describe("draftForYouActions", () => {
+  it("asks for at least one original that invites a reply", () => {
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /At least one kind=post/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /invite a reply/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /named other side/);
+    assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /reply farm/i);
+  });
+
   it("parses a valid first pass", async () => {
     const capture = { purposes: [] as string[] };
     const result = await draftForYouActions({
