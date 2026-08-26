@@ -7,6 +7,7 @@ import {
   countPostsReadThisUtcMonth,
   CREDIT_EVENT_PATH_SQL,
   FOR_YOU_EXTRA_USAGE_PATH,
+  POSTS_READ_EXCLUDING_EXTRA_SQL,
   startOfUtcMonthIso,
 } from "./billingQuotas.js";
 import { getPlatformDb } from "./db.js";
@@ -97,7 +98,7 @@ const TENANT_USAGE_NOTE =
   "Each Scout search, post lookup, watched post.create, and Approach extra batch spends credits from this month's pool. One credit is one X post, except extras which cost 15 for three originals. Unused credits do not roll over.";
 
 const ADMIN_USAGE_NOTE =
-  "Credits are X post reads this UTC month (hard ceiling, no rollover). Est. $ is platform COGS at ~$0.005/post — console.x.com remains wallet truth for the shared key.";
+  "Credits are X post reads plus Approach extra batches this UTC month (hard ceiling, no rollover). Est. $ is platform COGS at ~$0.005/post — console.x.com remains wallet truth for the shared key.";
 
 /** Friendly label for a logged X path. Scout search is the common tenant call. */
 export function describeUsageActivity(
@@ -268,7 +269,7 @@ export function getUsageSummary(opts?: {
           .prepare(
             `SELECT
                COUNT(*) AS calls,
-               COALESCE(SUM(posts_read), 0) AS posts_read,
+               COALESCE(SUM(${POSTS_READ_EXCLUDING_EXTRA_SQL}), 0) AS posts_read,
                COALESCE(SUM(cost_usd_micros), 0) AS cost_usd_micros
              FROM x_api_usage_events
              WHERE tenant_id = ? AND at >= ? AND ${CREDIT_EVENT_PATH_SQL}`,
@@ -278,7 +279,7 @@ export function getUsageSummary(opts?: {
           .prepare(
             `SELECT
                COUNT(*) AS calls,
-               COALESCE(SUM(posts_read), 0) AS posts_read,
+               COALESCE(SUM(${POSTS_READ_EXCLUDING_EXTRA_SQL}), 0) AS posts_read,
                COALESCE(SUM(cost_usd_micros), 0) AS cost_usd_micros
              FROM x_api_usage_events
              WHERE tenant_id = ? AND ${CREDIT_EVENT_PATH_SQL}`,

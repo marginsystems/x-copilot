@@ -6,6 +6,7 @@ import {
   CREDIT_EVENT_PATH_SQL,
   dailyActivityUsage,
   getCreditUsage,
+  POSTS_READ_EXCLUDING_EXTRA_SQL,
   startOfUtcMonthIso,
 } from "./billingQuotas.js";
 import {
@@ -172,7 +173,7 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
        LEFT JOIN user_billing b ON b.user_id = u.id
        LEFT JOIN (
          SELECT tenant_id,
-                SUM(posts_read) AS posts_read,
+                SUM(${POSTS_READ_EXCLUDING_EXTRA_SQL}) AS posts_read,
                 SUM(cost_usd_micros) AS cost_usd_micros
          FROM x_api_usage_events
          WHERE at >= ? AND ${CREDIT_EVENT_PATH_SQL}

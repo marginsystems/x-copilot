@@ -34,6 +34,14 @@ export const FOR_YOU_EXTRA_USAGE_PATH = "/internal/for-you-extra";
 export const CREDIT_EVENT_PATH_SQL =
   "(path LIKE '%/tweets%' OR path = '/internal/for-you-extra')";
 
+/**
+ * Display "X posts read" per event row: extras record their 15-credit cost in
+ * posts_read for the credit pool (countPostsReadThisUtcMonth) but made no X
+ * reads, so they contribute 0 to the posts-read ledger shown to operators.
+ */
+export const POSTS_READ_EXCLUDING_EXTRA_SQL =
+  `CASE WHEN path = '${FOR_YOU_EXTRA_USAGE_PATH}' THEN 0 ELSE posts_read END`;
+
 export function countPostsReadThisUtcMonth(tenantId: string): number {
   const since = startOfUtcMonthIso();
   const row = getPlatformDb()

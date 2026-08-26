@@ -339,6 +339,50 @@ describe("POST /api/for-you/extra", () => {
     assert.equal(extra.remaining, 9);
   });
 
+  it("402s when credits run out while drafting", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-extra-midflight",
+      email: "midflight@example.com",
+      emailVerified: true,
+    });
+    const tenantId = ensureUserTenant(user.id);
+    ageUser(user.id, 8);
+    seedSnapshots(user.id, MIN_T24H_SNAPSHOTS);
+    const { token } = createSession(user.id);
+    const chat: ChatFn = async () => {
+      recordUsageEvent({
+        tenantId,
+        path: "/2/tweets/search/recent",
+        status: 200,
+        postsRead: 1486,
+      });
+      return {
+        ok: true,
+        content: JSON.stringify({
+          actions: [
+            { kind: "post", why: "traction on the recap", draft: "Agree or disagree?" },
+            { kind: "post", why: "a reply chain is blowing up", draft: "The over/under is off." },
+            { kind: "post", why: "quiet week", draft: "No way it stays this calm." },
+          ],
+        }),
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      };
+    };
+    const out = await invokeForYou({
+      method: "POST",
+      path: "/api/for-you/extra",
+      token,
+      chat,
+    });
+    assert.equal(out.status, 402);
+    assert.equal(out.json.error, "credits_exhausted");
+    assert.equal(listActiveSuggestions(user.id).length, 0);
+    assert.equal(countPostsReadThisUtcMonth(tenantId), 1486);
+    assert.equal(countExtraBatchesToday(user.id), 0);
+  });
+
   it("does not debit when the model fails", async () => {
     const user = upsertOauthUser({
       provider: "google",

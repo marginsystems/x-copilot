@@ -31,6 +31,7 @@ import {
   listActiveSuggestions,
   markSuggestion,
 } from "./forYouStore.js";
+import type { ForYouSuggestion } from "./forYouStore.js";
 import { BODY_CAP_256K, readJsonBody, send } from "./httpJson.js";
 import { resolvePlan } from "./planResolution.js";
 import { getSessionUser } from "./sessionCookie.js";
@@ -208,14 +209,44 @@ async function handleForYouExtra(
       return;
     }
 
-    const creditsAfter = getCreditUsage(opts.tenantId, opts.planKey);
-    if (creditsAfter.remaining < FOR_YOU_EXTRA_CREDIT_COST) {
+    const debit = getPlatformDb().transaction(
+      ():
+        | { ok: true; suggestions: ForYouSuggestion[] }
+        | { ok: false; used: number; limit: number } => {
+        const usage = getCreditUsage(opts.tenantId, opts.planKey);
+        if (usage.remaining < FOR_YOU_EXTRA_CREDIT_COST) {
+          return { ok: false, used: usage.used, limit: usage.limit };
+        }
+        const rows = insertSuggestions({
+          userId: opts.userId,
+          tenantId: opts.tenantId,
+          drafts: result.drafts.slice(0, 3),
+          origin: "extra",
+        });
+        if (
+          !recordUsageEvent({
+            tenantId: opts.tenantId,
+            method: "POST",
+            path: FOR_YOU_EXTRA_USAGE_PATH,
+            status: 200,
+            postsRead: FOR_YOU_EXTRA_CREDIT_COST,
+            meta: { batch: rows.length },
+          })
+        ) {
+          throw new Error("extra debit write failed");
+        }
+        confirmExtraBatch(reservationId);
+        return { ok: true, suggestions: rows };
+      },
+    )();
+
+    if (!debit.ok) {
       removeExtraRecord(reservationId);
       send(req, res, 402, {
         error: "credits_exhausted",
         message: `Three more originals cost ${FOR_YOU_EXTRA_CREDIT_COST} credits. Open Usage & Billing.`,
-        used: creditsAfter.used,
-        limit: creditsAfter.limit,
+        used: debit.used,
+        limit: debit.limit,
         planKey: opts.planKey,
         extra: getExtraUsage({
           userId: opts.userId,
@@ -225,33 +256,10 @@ async function handleForYouExtra(
       });
       return;
     }
-
-    const suggestions = getPlatformDb().transaction(() => {
-      const rows = insertSuggestions({
-        userId: opts.userId,
-        tenantId: opts.tenantId,
-        drafts: result.drafts.slice(0, 3),
-        origin: "extra",
-      });
-      if (
-        !recordUsageEvent({
-          tenantId: opts.tenantId,
-          method: "POST",
-          path: FOR_YOU_EXTRA_USAGE_PATH,
-          status: 200,
-          postsRead: FOR_YOU_EXTRA_CREDIT_COST,
-          meta: { batch: rows.length },
-        })
-      ) {
-        throw new Error("extra debit write failed");
-      }
-      confirmExtraBatch(reservationId);
-      return rows;
-    })();
     delivered = true;
     send(req, res, 200, {
       ok: true,
-      suggestions,
+      suggestions: debit.suggestions,
       extra: getExtraUsage({
         userId: opts.userId,
         tenantId: opts.tenantId,
