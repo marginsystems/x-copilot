@@ -1,25 +1,16 @@
 import type { ReactNode } from "react";
 import { LegalLink, LegalLinks } from "./Legal";
-import { LEARN_NOTES } from "./lib/learn";
+import { LEARN_HUB_HEADING } from "./lib/learn";
 import { PRODUCT_NAME } from "./lib/legal";
-
-type LearnNote = (typeof LEARN_NOTES)[number]["view"];
 
 export function LearnChrome(props: {
   heading: string;
   meta: string;
-  note: LearnNote;
   onHome: () => void;
-  onLearn: () => void;
-  onFollow: () => void;
+  onCatalog?: () => void;
   rail?: ReactNode;
   children: ReactNode;
 }) {
-  function go(view: LearnNote) {
-    if (view === "learn") props.onLearn();
-    else props.onFollow();
-  }
-
   return (
     <article className="legal-page learn-page">
       <p className="legal-kicker">
@@ -27,22 +18,16 @@ export function LearnChrome(props: {
           {PRODUCT_NAME}
         </LegalLink>
         {" / "}
-        Learn
+        {props.onCatalog ? (
+          <LegalLink href="/learn" onNavigate={props.onCatalog}>
+            {LEARN_HUB_HEADING}
+          </LegalLink>
+        ) : (
+          LEARN_HUB_HEADING
+        )}
       </p>
       <h1>{props.heading}</h1>
       <p className="legal-meta">{props.meta}</p>
-      <nav className="learn-notes" aria-label="Learn notes">
-        {LEARN_NOTES.map((note) => (
-          <LegalLink
-            key={note.view}
-            href={note.href}
-            className={props.note === note.view ? "is-current" : undefined}
-            onNavigate={() => go(note.view)}
-          >
-            {note.label}
-          </LegalLink>
-        ))}
-      </nav>
       <div className="learn-layout">
         <div className="learn-main">{props.children}</div>
         {props.rail ? <aside className="learn-rail">{props.rail}</aside> : null}

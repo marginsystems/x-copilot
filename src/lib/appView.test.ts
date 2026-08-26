@@ -25,6 +25,8 @@ describe("desk routes", () => {
     assert.equal(pathFromView("changelog"), "/changelog");
     assert.equal(viewFromPath("/learn"), "learn");
     assert.equal(pathFromView("learn"), "/learn");
+    assert.equal(viewFromPath("/learn/what-a-like-is-worth"), "learnWeights");
+    assert.equal(pathFromView("learnWeights"), "/learn/what-a-like-is-worth");
     assert.equal(viewFromPath("/learn/follow"), "learnFollow");
     assert.equal(pathFromView("learnFollow"), "/learn/follow");
     assert.equal(viewFromPath("/analytics"), "analytics");
@@ -41,6 +43,7 @@ describe("desk routes", () => {
     assert.equal(isPublicView("pricing"), true);
     assert.equal(isPublicView("changelog"), true);
     assert.equal(isPublicView("learn"), true);
+    assert.equal(isPublicView("learnWeights"), true);
     assert.equal(isPublicView("learnFollow"), true);
     assert.equal(isPublicView("dashboard"), false);
     assert.equal(isPublicView("home"), false);

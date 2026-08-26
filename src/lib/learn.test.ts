@@ -4,7 +4,12 @@ import {
   LEARN_APPLY_SNIPPET,
   LEARN_DRAWER_LEAD,
   LEARN_FOLLOW_META,
+  LEARN_HUB_DESCRIPTION,
+  LEARN_HUB_TITLE,
+  LEARN_IMAGE,
+  LEARN_LESSONS,
   LEARN_META,
+  LEARN_WEIGHTS_PATH,
   LEARN_OON_SNIPPET,
   LEARN_PARAM_COMMENT_SNIPPET,
   LEARN_DRAWER_OON,
@@ -77,6 +82,16 @@ describe("learn citations", () => {
     assert.match(LEARN_DRAWER_OON, /0\.75/);
     assert.match(LEARN_DRAWER_SOURCE, /d011592/);
     assert.match(LEARN_DRAWER_SOURCE, /not affiliated/i);
+  });
+
+  it("publishes one catalog lesson at the weights slug", () => {
+    assert.equal(LEARN_LESSONS.length, 1);
+    assert.equal(LEARN_LESSONS[0]!.href, LEARN_WEIGHTS_PATH);
+    assert.equal(LEARN_WEIGHTS_PATH, "/learn/what-a-like-is-worth");
+    assert.equal(LEARN_IMAGE, "/og-learn.png");
+    assert.match(LEARN_HUB_TITLE, /Learn the X algorithm/);
+    assert.match(LEARN_HUB_DESCRIPTION, /P\(action\)/);
+    assert.match(LEARN_HUB_DESCRIPTION, /not affiliated/i);
   });
 
   it("keeps official snippets verbatim", () => {

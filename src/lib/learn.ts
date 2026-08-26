@@ -19,11 +19,18 @@ export function formatLearnSourceDate(isoDate: string): string {
 
 export const LEARN_SOURCE_DATE_LABEL = formatLearnSourceDate(LEARN_SOURCE_DATE);
 
+export const LEARN_HUB_TITLE = "Learn the X algorithm — x-copilot";
+export const LEARN_HUB_HEADING = "Learn";
+export const LEARN_HUB_DESCRIPTION =
+  "Cited notes on how X For You ranks posts. Weights multiply P(action), not raw likes. From xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+export const LEARN_HUB_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). One lesson. Not affiliated with X Corp.`;
+
 export const LEARN_TITLE = "What a like is worth — x-copilot";
 export const LEARN_HEADING = "What a like is worth";
 export const LEARN_DESCRIPTION =
   "X For You ranking weights multiply P(action) for this viewer, not raw likes or reports. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
 export const LEARN_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+export const LEARN_WEIGHTS_PATH = "/learn/what-a-like-is-worth";
 
 export const LEARN_FOLLOW_TITLE = "Follow and out-of-network — x-copilot";
 export const LEARN_FOLLOW_HEADING = "Follow and out-of-network";
@@ -63,9 +70,29 @@ export const LEARN_OON_SNIPPET = `let oon_applies = |c: &PostCandidate| match c.
     None => false,
 };`;
 
-export const LEARN_NOTES = [
-  { view: "learn" as const, href: "/learn", label: LEARN_HEADING },
-  { view: "learnFollow" as const, href: "/learn/follow", label: LEARN_FOLLOW_HEADING },
+export const LEARN_FOLLOW_PATH = "/learn/follow";
+
+export const LEARN_IMAGE = "/og-learn.png";
+export const LEARN_IMAGE_ALT =
+  "x-copilot Learn — ranking weights on a dark field";
+
+export type LearnLesson = {
+  view: "learnWeights";
+  href: string;
+  number: string;
+  heading: string;
+  lede: string;
+};
+
+/** Published catalog cards. Follow stays a related note, not a second lesson. */
+export const LEARN_LESSONS: readonly LearnLesson[] = [
+  {
+    view: "learnWeights",
+    href: LEARN_WEIGHTS_PATH,
+    number: "01",
+    heading: LEARN_HEADING,
+    lede: "Weights multiply P(action), not raw likes or reports.",
+  },
 ];
 
 export type LearnWeight = {

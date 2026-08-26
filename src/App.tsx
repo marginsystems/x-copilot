@@ -13,6 +13,7 @@ import { LegalPage } from "./Legal";
 import { PricingPage } from "./Pricing";
 import { ChangelogPage } from "./Changelog";
 import { LearnPage } from "./Learn";
+import { LearnHubPage } from "./LearnHub";
 import { LearnFollowPage } from "./LearnFollow";
 import { CookieConsent } from "./CookieConsent";
 import { isLegalKind } from "./lib/legal";
@@ -452,6 +453,7 @@ export default function App() {
   const pricingView = view === "pricing";
   const changelogView = view === "changelog";
   const learnView = view === "learn";
+  const learnWeightsView = view === "learnWeights";
   const learnFollowView = view === "learnFollow";
   const publicView = isPublicView(view);
   const showOnboardingPreview =
@@ -555,8 +557,16 @@ export default function App() {
         </main>
       ) : learnView ? (
         <main className="app-main app-main-scroll">
+          <LearnHubPage
+            onHome={() => goToView("home")}
+            onOpenLesson={() => goToView("learnWeights")}
+          />
+        </main>
+      ) : learnWeightsView ? (
+        <main className="app-main app-main-scroll">
           <LearnPage
             onHome={() => goToView("home")}
+            onCatalog={() => goToView("learn")}
             onFollow={() => goToView("learnFollow")}
           />
         </main>
@@ -564,7 +574,7 @@ export default function App() {
         <main className="app-main app-main-scroll">
           <LearnFollowPage
             onHome={() => goToView("home")}
-            onLearn={() => goToView("learn")}
+            onCatalog={() => goToView("learn")}
           />
         </main>
       ) : showLanding ? (

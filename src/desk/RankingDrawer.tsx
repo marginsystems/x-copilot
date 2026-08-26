@@ -15,7 +15,7 @@ export function RankingDrawer() {
       <p>{LEARN_DRAWER_OON}</p>
       <p>{LEARN_DRAWER_SOURCE}</p>
       <p className="ranking-drawer-links">
-        <a href="/learn">{LEARN_HEADING}</a>
+        <a href="/learn/what-a-like-is-worth">{LEARN_HEADING}</a>
         <a href="/learn/follow">{LEARN_FOLLOW_HEADING}</a>
       </p>
     </details>

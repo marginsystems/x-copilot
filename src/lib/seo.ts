@@ -6,12 +6,19 @@ import {
   LEARN_FOLLOW_HEADING,
   LEARN_FOLLOW_TITLE,
   LEARN_HEADING,
+  LEARN_HUB_DESCRIPTION,
+  LEARN_HUB_HEADING,
+  LEARN_HUB_TITLE,
+  LEARN_IMAGE,
+  LEARN_IMAGE_ALT,
+  LEARN_LESSONS,
   LEARN_OON_HREF,
   LEARN_PARAM_FILE_HREF,
   LEARN_SOURCE_DATE,
   LEARN_SOURCE_REPO,
   LEARN_SOURCE_SHA,
   LEARN_TITLE,
+  LEARN_WEIGHTS_PATH,
 } from "./learn";
 import {
   LEGAL_CONTACT_EMAIL,
@@ -35,7 +42,14 @@ export const CHANGELOG_TITLE = "Changelog — what shipped on x-copilot";
 export const CHANGELOG_DESCRIPTION =
   "Launch notes for x-copilot, newest first. Voice cards, flight-path images, Approach, and the desk. Not a blog. Not affiliated with X Corp.";
 
-export { LEARN_TITLE, LEARN_DESCRIPTION, LEARN_FOLLOW_TITLE, LEARN_FOLLOW_DESCRIPTION };
+export {
+  LEARN_DESCRIPTION,
+  LEARN_FOLLOW_DESCRIPTION,
+  LEARN_FOLLOW_TITLE,
+  LEARN_HUB_DESCRIPTION,
+  LEARN_HUB_TITLE,
+  LEARN_TITLE,
+};
 
 export const PRIVACY_TITLE = "Privacy Policy — x-copilot";
 export const TERMS_TITLE = "Terms of Service — x-copilot";
@@ -48,6 +62,7 @@ export const SITE_IMAGE_ALT =
 export const CHANGELOG_IMAGE = "/og-changelog.png";
 export const CHANGELOG_IMAGE_ALT =
   "x-copilot changelog — a quiet altitude line on a dark field";
+export { LEARN_IMAGE, LEARN_IMAGE_ALT };
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
 
@@ -110,11 +125,20 @@ export function seoForView(view: AppView): SeoMeta {
   }
   if (view === "learn") {
     return {
+      title: LEARN_HUB_TITLE,
+      description: LEARN_HUB_DESCRIPTION,
+      robots,
+      image: LEARN_IMAGE,
+      imageAlt: LEARN_IMAGE_ALT,
+    };
+  }
+  if (view === "learnWeights") {
+    return {
       title: LEARN_TITLE,
       description: LEARN_DESCRIPTION,
       robots,
-      image: SITE_IMAGE,
-      imageAlt: SITE_IMAGE_ALT,
+      image: LEARN_IMAGE,
+      imageAlt: LEARN_IMAGE_ALT,
     };
   }
   if (view === "learnFollow") {
@@ -122,8 +146,8 @@ export function seoForView(view: AppView): SeoMeta {
       title: LEARN_FOLLOW_TITLE,
       description: LEARN_FOLLOW_DESCRIPTION,
       robots,
-      image: SITE_IMAGE,
-      imageAlt: SITE_IMAGE_ALT,
+      image: LEARN_IMAGE,
+      imageAlt: LEARN_IMAGE_ALT,
     };
   }
   return {
@@ -266,6 +290,7 @@ export function learnJsonLd(): Record<string, unknown> {
   const appId = `${SITE_ORIGIN}/#app`;
   const siteId = `${SITE_ORIGIN}/#website`;
   const pageId = `${pageUrl}#page`;
+  const listId = `${pageUrl}#list`;
   return {
     "@context": "https://schema.org",
     "@graph": [
@@ -283,7 +308,98 @@ export function learnJsonLd(): Record<string, unknown> {
         url: `${SITE_ORIGIN}/`,
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web",
-        image: absoluteSeoUrl(SITE_IMAGE),
+        image: absoluteSeoUrl(LEARN_IMAGE),
+        creator: { "@id": orgId },
+      },
+      {
+        "@type": "WebSite",
+        "@id": siteId,
+        url: `${SITE_ORIGIN}/`,
+        name: PRODUCT_NAME,
+        publisher: { "@id": orgId },
+        inLanguage: "en-US",
+      },
+      {
+        "@type": "CollectionPage",
+        "@id": pageId,
+        url: pageUrl,
+        name: LEARN_HUB_TITLE,
+        description: LEARN_HUB_DESCRIPTION,
+        isPartOf: { "@id": siteId },
+        about: { "@id": appId },
+        image: absoluteSeoUrl(LEARN_IMAGE),
+        inLanguage: "en-US",
+        dateModified: LEARN_SOURCE_DATE,
+        mainEntity: { "@id": listId },
+        publisher: { "@id": orgId },
+        breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
+      },
+      {
+        "@type": "ItemList",
+        "@id": listId,
+        name: LEARN_HUB_TITLE,
+        numberOfItems: LEARN_LESSONS.length,
+        itemListElement: LEARN_LESSONS.map((lesson, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          url: `${SITE_ORIGIN}${lesson.href}`,
+          item: {
+            "@type": "Article",
+            name: lesson.heading,
+            description: lesson.lede,
+            url: `${SITE_ORIGIN}${lesson.href}`,
+            isPartOf: { "@id": pageId },
+            publisher: { "@id": orgId },
+          },
+        })),
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${pageUrl}#breadcrumb`,
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: PRODUCT_NAME,
+            item: `${SITE_ORIGIN}/`,
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: LEARN_HUB_HEADING,
+            item: pageUrl,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export function learnWeightsJsonLd(): Record<string, unknown> {
+  const pageUrl = `${SITE_ORIGIN}${LEARN_WEIGHTS_PATH}`;
+  const learnUrl = `${SITE_ORIGIN}/learn`;
+  const orgId = `${SITE_ORIGIN}/#organization`;
+  const appId = `${SITE_ORIGIN}/#app`;
+  const siteId = `${SITE_ORIGIN}/#website`;
+  const pageId = `${pageUrl}#page`;
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": orgId,
+        name: LEGAL_ENTITY,
+        url: "https://mergestorm.ai/",
+        email: LEGAL_CONTACT_EMAIL,
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": appId,
+        name: PRODUCT_NAME,
+        url: `${SITE_ORIGIN}/`,
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        image: absoluteSeoUrl(LEARN_IMAGE),
         creator: { "@id": orgId },
       },
       {
@@ -303,7 +419,7 @@ export function learnJsonLd(): Record<string, unknown> {
         description: LEARN_DESCRIPTION,
         isPartOf: { "@id": siteId },
         about: { "@id": appId },
-        image: absoluteSeoUrl(SITE_IMAGE),
+        image: absoluteSeoUrl(LEARN_IMAGE),
         inLanguage: "en-US",
         dateModified: LEARN_SOURCE_DATE,
         citation: LEARN_PARAM_FILE_HREF,
@@ -324,6 +440,12 @@ export function learnJsonLd(): Record<string, unknown> {
           {
             "@type": "ListItem",
             position: 2,
+            name: LEARN_HUB_HEADING,
+            item: learnUrl,
+          },
+          {
+            "@type": "ListItem",
+            position: 3,
             name: LEARN_HEADING,
             item: pageUrl,
           },
@@ -357,7 +479,7 @@ export function learnFollowJsonLd(): Record<string, unknown> {
         url: `${SITE_ORIGIN}/`,
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web",
-        image: absoluteSeoUrl(SITE_IMAGE),
+        image: absoluteSeoUrl(LEARN_IMAGE),
         creator: { "@id": orgId },
       },
       {
@@ -377,7 +499,7 @@ export function learnFollowJsonLd(): Record<string, unknown> {
         description: LEARN_FOLLOW_DESCRIPTION,
         isPartOf: { "@id": siteId },
         about: { "@id": appId },
-        image: absoluteSeoUrl(SITE_IMAGE),
+        image: absoluteSeoUrl(LEARN_IMAGE),
         inLanguage: "en-US",
         dateModified: LEARN_SOURCE_DATE,
         citation: LEARN_OON_HREF,
@@ -398,7 +520,7 @@ export function learnFollowJsonLd(): Record<string, unknown> {
           {
             "@type": "ListItem",
             position: 2,
-            name: LEARN_HEADING,
+            name: LEARN_HUB_HEADING,
             item: learnUrl,
           },
           {
@@ -416,6 +538,7 @@ export function learnFollowJsonLd(): Record<string, unknown> {
 export function jsonLdForView(view: AppView): Record<string, unknown> {
   if (view === "changelog") return changelogJsonLd();
   if (view === "learn") return learnJsonLd();
+  if (view === "learnWeights") return learnWeightsJsonLd();
   if (view === "learnFollow") return learnFollowJsonLd();
   return softwareApplicationJsonLd();
 }
