@@ -11,6 +11,7 @@ import {
 import { patchOwnPostSnapshot, upsertOwnPost } from "./ownPostStore.ts";
 import type { ParsedPostCreate } from "./xActivity.ts";
 import {
+  FOR_YOU_MIN_POST_AGE_MS,
   MIN_T24H_SNAPSHOTS,
   countT24hSnapshots,
   filterDigestActions,
@@ -102,6 +103,33 @@ describe("forYouDigest", () => {
       ranked.worst.every((w) => !ranked.best.some((b) => b.id === w.id)),
     );
     assert.ok(ranked.recentOriginals.length >= 1);
+  });
+
+  it("omits own posts younger than 1 hour from recent lists", () => {
+    const now = Date.parse("2026-08-26T18:00:00.000Z");
+    upsertOwnPost({
+      parsed: post({
+        postId: "fresh",
+        text: "just posted a 26-day streak",
+        postedAt: new Date(now - 10 * 60 * 1000).toISOString(),
+      }),
+      userId: "u1",
+      tenantId: "local",
+    });
+    upsertOwnPost({
+      parsed: post({
+        postId: "settled",
+        text: "yesterday's recap",
+        postedAt: new Date(now - FOR_YOU_MIN_POST_AGE_MS - 60 * 1000).toISOString(),
+      }),
+      userId: "u1",
+      tenantId: "local",
+    });
+    const ranked = rankOwnPosts("u1", now);
+    assert.deepEqual(
+      ranked.recentOriginals.map((p) => p.id),
+      ["settled"],
+    );
   });
 
   it("drops invented targets and keeps digest-grounded actions", () => {

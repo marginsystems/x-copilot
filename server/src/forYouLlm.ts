@@ -27,6 +27,7 @@ Rules:
 - kind=reply: leftover Scout, or a memory that already earned attention. Not a flopped own post.
 - why talks to the operator in second person ("Your originals…", "You got 900 views…"). Never first person ("My posts…", "I got…") — the copilot is not the user. draft stays in their voice.
 - why must cite a number or habit from the digest (views, likes, reply rate, tone) — prefer winners.
+- RECENT_* omits posts younger than 1 hour. Do not treat 0 views as a flop unless the post is in AVOID_24H.
 - Do not invent ids or urls. Do not auto-post. Plain language. No markdown fences.`;
 
 function buildUserPrompt(digest: ForYouDigest): string {
