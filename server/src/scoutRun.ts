@@ -186,7 +186,10 @@ export async function runScoutSearch(opts: {
     blockedConversations,
   );
   const afterSelf = filterSelfReplies(filtered.threads);
-  const afterLinks = filterOutboundLinks(afterSelf.threads);
+  const dropOutboundLinks = opts.filters?.dropOutboundLinks !== false;
+  const afterLinks = filterOutboundLinks(afterSelf.threads, {
+    dropOutboundLinks,
+  });
   const preferredLanguage = normalizePreferredLanguageCode(
     opts.filters?.preferredLanguage,
   );

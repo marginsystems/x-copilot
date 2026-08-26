@@ -227,6 +227,7 @@ export async function runScoutCollect(opts: {
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
+  const dropOutboundLinks = opts.filters?.dropOutboundLinks !== false;
   const dropEmDashes = opts.filters?.dropEmDashes !== false;
   const dropAutomatedAccounts = opts.filters?.dropAutomatedAccounts !== false;
   const preferredLanguage = normalizePreferredLanguageCode(
@@ -443,7 +444,9 @@ export async function runScoutCollect(opts: {
           blockedConversations,
         );
         const afterSelf = filterSelfReplies(afterCool.threads);
-        const afterLinks = filterOutboundLinks(afterSelf.threads);
+        const afterLinks = filterOutboundLinks(afterSelf.threads, {
+          dropOutboundLinks,
+        });
         const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
         const afterEmDash = filterEmDashes(afterLang.threads, { dropEmDashes });
         const afterAutomated = filterAutomatedAccounts(afterEmDash.threads, {
