@@ -98,7 +98,8 @@ export function upsertOwnPost(input: {
      ON CONFLICT(id) DO UPDATE SET
        text = excluded.text,
        kind = excluded.kind,
-       url = excluded.url`,
+       url = excluded.url,
+       posted_at = excluded.posted_at`,
   ).run(
     input.parsed.postId,
     input.userId,

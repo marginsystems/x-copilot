@@ -60,6 +60,7 @@ export function getPlatformDb(opts?: {
     instance.pragma("busy_timeout = 5000");
     instance.pragma("foreign_keys = ON");
     applyMigrations(instance, opts?.migrationsDir ?? defaultMigrationsDir());
+    backfillOwnPostPostedAt(instance);
     ensureLocalTenant(instance);
   } catch (err) {
     try {
@@ -71,6 +72,25 @@ export function getPlatformDb(opts?: {
   }
   db = instance;
   return instance;
+}
+
+export function backfillOwnPostPostedAt(database: Database.Database): void {
+  const rows = database
+    .prepare(
+      `SELECT id, posted_at FROM own_posts
+       WHERE posted_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'`,
+    )
+    .all() as Array<{ id: string; posted_at: string }>;
+  if (!rows.length) return;
+  const update = database.prepare(
+    `UPDATE own_posts SET posted_at = ? WHERE id = ?`,
+  );
+  for (const row of rows) {
+    const ms = Date.parse(row.posted_at);
+    if (Number.isFinite(ms)) {
+      update.run(new Date(ms).toISOString(), row.id);
+    }
+  }
 }
 
 export function ensureLocalTenant(database: Database.Database): void {

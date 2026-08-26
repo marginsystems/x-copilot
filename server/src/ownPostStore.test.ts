@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  backfillOwnPostPostedAt,
   defaultMigrationsDir,
   getPlatformDb,
   resetPlatformDbForTests,
@@ -188,6 +189,59 @@ describe("ownPostStore", () => {
       due.some((d) => d.tenantId === "light"),
       "light tenant's newer post must appear despite heavy tenant's oldest-first backlog",
     );
+  });
+
+  it("backfills legacy raw created_at posted_at rows to ISO so they become due", () => {
+    const db = getPlatformDb();
+    db.prepare(
+      `INSERT INTO own_posts (
+         id, user_id, tenant_id, x_user_id, kind, text, posted_at, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      "legacy",
+      "u",
+      "t",
+      "99",
+      "original",
+      "old post",
+      "Sat Jul 25 00:00:00 +0000 2026",
+      "2026-08-01T00:00:00.000Z",
+    );
+    assert.equal(
+      listDueOwnPostSamples({ limit: 10 }).some((d) => d.postId === "legacy"),
+      false,
+    );
+    backfillOwnPostPostedAt(db);
+    const row = db
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("legacy") as { posted_at: string };
+    assert.equal(row.posted_at, "2026-07-25T00:00:00.000Z");
+    assert.ok(
+      listDueOwnPostSamples({ limit: 10 }).some((d) => d.postId === "legacy"),
+    );
+  });
+
+  it("upsert conflict repairs posted_at on re-ingest", () => {
+    assert.equal(
+      upsertOwnPost({
+        parsed: post({ postId: "repair", postedAt: "2026-07-25T00:00:00.000Z" }),
+        userId: "u",
+        tenantId: "t",
+      }),
+      true,
+    );
+    assert.equal(
+      upsertOwnPost({
+        parsed: post({ postId: "repair", postedAt: "2026-08-01T09:00:00.000Z" }),
+        userId: "u",
+        tenantId: "t",
+      }),
+      false,
+    );
+    const row = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("repair") as { posted_at: string };
+    assert.equal(row.posted_at, "2026-08-01T09:00:00.000Z");
   });
 
   it("dedupes activity event ids and watches threads", () => {
