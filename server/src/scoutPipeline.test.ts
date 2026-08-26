@@ -54,4 +54,28 @@ describe("filterPostHydrateThreads", () => {
     assert.equal(result.afterLength.filteredCount, 2);
     assert.equal(result.afterLength.articleFilteredCount, 1);
   });
+
+  it("drops replies whose hydrated OP has an off-platform link", () => {
+    const result = filterPostHydrateThreads({
+      threads: [
+        card({
+          id: "promo-reply",
+          text: "Agree, ship weekly.",
+          isReply: true,
+          inReplyToId: "promo-root",
+          opAuthor: "@writer",
+          opText: "Read the rest https://substack.com/p/hello",
+          opParentDerived: true,
+        }),
+        card({ id: "kept", text: "Useful question about shipping loops." }),
+      ],
+      preferredLanguage: "en",
+      maxChars: 480,
+    });
+    assert.deepEqual(
+      result.afterLinks.threads.map((thread) => thread.id),
+      ["kept"],
+    );
+    assert.equal(result.afterLinks.linkFilteredCount, 1);
+  });
 });

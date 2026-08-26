@@ -158,4 +158,39 @@ describe("parseSearchTimelineResponse", () => {
     assert.equal(quote.opAuthor, "@hustler");
     assert.match(quote.opText ?? "", /\$632/);
   });
+
+  it("flags a quote when the quoted tweet has an off-platform link", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "901",
+      legacy: { full_text: "This is the key bit", id_str: "901" },
+      core: {
+        user_results: { result: { core: { screen_name: "alice" } } },
+      },
+      quoted_status_result: {
+        result: {
+          __typename: "Tweet",
+          rest_id: "800",
+          legacy: {
+            full_text: "New essay https://t.co/abc",
+            id_str: "800",
+            entities: {
+              urls: [
+                {
+                  url: "https://t.co/abc",
+                  expanded_url: "https://substack.com/p/hello",
+                },
+              ],
+            },
+          },
+          core: {
+            user_results: { result: { core: { screen_name: "writer" } } },
+          },
+        },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.hasOutboundLink, true);
+    assert.match(card.opText ?? "", /New essay/);
+  });
 });

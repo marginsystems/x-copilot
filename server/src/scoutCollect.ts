@@ -559,6 +559,7 @@ export async function runScoutCollect(opts: {
 
       const {
         afterSelfReply: afterHydrateSelf,
+        afterLinks: afterHydrateLinks,
         afterLanguage: afterHydrateLang,
         afterLength: afterHydrateLen,
       } = filterPostHydrateThreads({
@@ -569,24 +570,25 @@ export async function runScoutCollect(opts: {
           dropArticles,
           articleIds: articleConversationIds,
         },
+        dropOutboundLinks,
       });
       funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
+      linkFilteredTotal += afterHydrateLinks.linkFilteredCount;
       const forTriage = afterHydrateLen.threads;
       languageFilteredTotal += afterHydrateLang.languageFilteredCount;
 
       if (forTriage.length === 0) {
-        if (
-          isPartial &&
-          afterHydrateLang.languageFilteredCount === 0 &&
-          afterHydrateLen.filteredCount === 0
-        ) {
+        const emptiedByOpLinks =
+          afterHydrateSelf.selfReplyFilteredCount === 0 &&
+          afterHydrateLinks.linkFilteredCount > 0;
+        if (!emptiedByOpLinks) {
           bucket = [];
           stopReason = "exhausted";
           break;
         }
         track(
           "filtering",
-          "0 candidates after post-hydrate self-reply + language + length filter — discarding bucket…",
+          "0 candidates after post-hydrate self-reply + link + language + length filter — discarding bucket…",
           {
             candidates: 0,
             coolCount: cool.length,
@@ -594,6 +596,7 @@ export async function runScoutCollect(opts: {
               bucketAttempt: bucketAttempts,
               selfReplyFilteredPostHydrate:
                 afterHydrateSelf.selfReplyFilteredCount,
+              linkFilteredPostHydrate: afterHydrateLinks.linkFilteredCount,
               languageFilteredPostHydrate:
                 afterHydrateLang.languageFilteredCount,
               lengthFilteredPostHydrate: afterHydrateLen.filteredCount,

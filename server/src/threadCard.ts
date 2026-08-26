@@ -17,8 +17,9 @@ export type ThreadCard = {
    */
   longform?: "note_tweet" | "article";
   /**
-   * True when the candidate post has an outbound link (entities, card, or text).
-   * Native media URLs do not count. Hard-dropped before triage.
+   * True when the candidate or its OP/quoted root has an off-platform link
+   * (entities, card, or text). Native media and x.com / twitter.com URLs do
+   * not count. Hard-dropped before triage.
    */
   hasOutboundLink?: boolean;
   /**

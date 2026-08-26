@@ -20,10 +20,21 @@ describe("isXArticleUrl", () => {
 describe("outbound link detection", () => {
   it("classifies media vs outbound URLs", () => {
     assert.equal(isNativeMediaUrl("https://pic.twitter.com/abc"), true);
+    assert.equal(isNativeMediaUrl("https://pic.x.com/zK5ZiEkdNn"), true);
     assert.equal(isNativeMediaUrl("https://pbs.twimg.com/media/x.jpg"), true);
+    assert.equal(isOutboundLinkUrl("https://pic.x.com/zK5ZiEkdNn"), false);
     assert.equal(isNativeMediaUrl("https://example.com/x"), false);
     assert.equal(isOutboundLinkUrl("https://t.co/abc"), true);
     assert.equal(isOutboundLinkUrl("https://pic.twitter.com/abc"), false);
+    assert.equal(isOutboundLinkUrl("https://x.com/dave/status/444"), false);
+    assert.equal(isOutboundLinkUrl("https://twitter.com/dave/status/444"), false);
+    assert.equal(isOutboundLinkUrl("https://www.x.com/dave/status/444"), false);
+    assert.equal(
+      isOutboundLinkUrl("https://mobile.twitter.com/dave/status/444"),
+      false,
+    );
+    assert.equal(isOutboundLinkUrl("https://substack.com/p/hello"), true);
+    assert.equal(textHasOutboundLink("see https://x.com/dave/status/444"), false);
     assert.equal(textHasOutboundLink("see https://github.com/x"), true);
     assert.equal(textHasOutboundLink("bare t.co/AbCdEf"), false);
     assert.equal(textHasOutboundLink("thanks @alice"), false);

@@ -471,4 +471,175 @@ describe("runScoutCollect hydrate", () => {
     assert.equal(result.event.stopReason, "exhausted");
   });
 
+  it("keeps searching when post-hydrate OP links empty a bucket", async () => {
+    let searchCalls = 0;
+    const triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1", "q2"],
+      bucketSize: 5,
+      targetCool: 5,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        planQueriesFromAgenda: async () => ({
+          ok: false as const,
+          error: "no_replan",
+          message: "no replan",
+        }),
+        searchTimeline: async () => {
+          searchCalls += 1;
+          if (searchCalls === 1) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [1, 2, 3].map((n) =>
+                card({
+                  id: `r${n}`,
+                  author: `@r${n}`,
+                  inReplyToId: `op${n}`,
+                  isReply: true,
+                }),
+              ),
+              bottomCursor: null,
+            };
+          }
+          if (searchCalls === 2) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [4, 5].map((n) =>
+                card({
+                  id: `r${n}`,
+                  author: `@r${n}`,
+                  inReplyToId: `op${n}`,
+                  isReply: true,
+                }),
+              ),
+              bottomCursor: null,
+            };
+          }
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: [card({ id: "kept", author: "@kept" })],
+            bottomCursor: null,
+          };
+        },
+        hydrateReplyParents: async ({ threads }) => ({
+          threads: threads.map((t) =>
+            t.isReply
+              ? {
+                  ...t,
+                  opAuthor: "@writer",
+                  opText: "Read the rest https://substack.com/p/hello",
+                  opParentDerived: true,
+                  hasOutboundLink: true,
+                }
+              : t,
+          ),
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          for (const t of threads) triageIds.push(t.id);
+          return {
+            threads: threads.map((t) => ({
+              ...t,
+              engage: "consider" as const,
+              baitScore: 15,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.ok(searchCalls >= 3);
+    assert.deepEqual(triageIds, ["kept"]);
+  });
+
+  it("exhausts without refilling when post-hydrate self-replies empty a full bucket", async () => {
+    let searchCalls = 0;
+    let triageCalls = 0;
+
+    const result = await runScoutCollect({
+      queries: ["q1", "q2"],
+      bucketSize: 5,
+      targetCool: 5,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => {
+          searchCalls += 1;
+          if (searchCalls === 1) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [1, 2, 3].map((n) =>
+                card({
+                  id: `r${n}`,
+                  author: `@r${n}`,
+                  inReplyToId: `op${n}`,
+                  isReply: true,
+                }),
+              ),
+              bottomCursor: null,
+            };
+          }
+          if (searchCalls === 2) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [4, 5].map((n) =>
+                card({
+                  id: `r${n}`,
+                  author: `@r${n}`,
+                  inReplyToId: `op${n}`,
+                  isReply: true,
+                }),
+              ),
+              bottomCursor: null,
+            };
+          }
+          // A non-self-reply candidate: only reachable if the guard refills.
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: [card({ id: "kept", author: "@kept" })],
+            bottomCursor: null,
+          };
+        },
+        // Hydration reveals every candidate is a reply to its own author's tweet.
+        hydrateReplyParents: async ({ threads }) => ({
+          threads: threads.map((t) => ({
+            ...t,
+            opAuthor: t.author,
+            opText: "preview",
+            opParentDerived: true,
+          })),
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageCalls += 1;
+          return { threads };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(
+      searchCalls,
+      2,
+      "self-reply-emptied full bucket must stop, not refill",
+    );
+    assert.equal(triageCalls, 0, "self-reply-emptied bucket must not reach triage");
+    assert.equal(result.event.stopReason, "exhausted");
+  });
+
 });

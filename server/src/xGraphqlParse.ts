@@ -251,7 +251,10 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
   const conversationId = inner.legacy?.conversation_id_str?.trim();
   const op = extractOpContext(inner);
 
-  const hasOutboundLink = nodeHasOutboundLink(inner);
+  const quoted = unwrapTweetNode(inner.quoted_status_result?.result);
+  const hasOutboundLink =
+    nodeHasOutboundLink(inner) ||
+    (quoted ? nodeHasOutboundLink(quoted) : false);
   const mediaShortlinks = [
     ...mediaShortlinkKeys(
       inner.legacy?.entities,

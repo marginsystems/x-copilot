@@ -59,10 +59,25 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.opAuthor, "@hustler");
     assert.equal(threads[0]?.opParentDerived, true);
     assert.match(threads[0]?.opText ?? "", /\$632/);
+    assert.equal(threads[0]?.hasOutboundLink, undefined);
     assert.equal(
       threads[0]?.opCharCount,
       "mysaas just crossed $632 revenue 100% profit".length,
     );
+  });
+
+  it("copies an off-platform parent link onto the reply", async () => {
+    const { threads } = await hydrateReplyParents({
+      threads: [replyCard()],
+      delayMs: 0,
+      fetchParent: async () => ({
+        author: "@writer",
+        text: "Read the rest https://t.co/abc",
+        hasOutboundLink: true,
+      }),
+    });
+    assert.equal(threads[0]?.hasOutboundLink, true);
+    assert.match(threads[0]?.opText ?? "", /Read the rest/);
   });
 
   it("copies parent longform and full char count onto the reply", async () => {
@@ -366,6 +381,105 @@ describe("fetchParentTweet cache semantics", () => {
           text: "bait root text",
         });
         assert.equal(calls, afterFirst, "success should be cached");
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
+  it("follows OP t.co via expanded_url and copies the outbound flag onto the reply", async () => {
+    await withSession(async () => {
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () =>
+        jsonResponse(
+          {
+            data: {
+              id: "2091161452241354978",
+              text: "The End of Computers https://t.co/TxGWwcccfl",
+              author_id: "1184496773970173952",
+              entities: {
+                urls: [
+                  {
+                    url: "https://t.co/TxGWwcccfl",
+                    expanded_url:
+                      "https://sergeynog.substack.com/p/the-end-of-computers",
+                    display_url: "sergeynog.substack.com/p/the-end-of-c…",
+                  },
+                ],
+              },
+            },
+            includes: {
+              users: [
+                {
+                  id: "1184496773970173952",
+                  username: "sergey_nog",
+                  name: "Sergey Gorbunov",
+                },
+              ],
+            },
+          },
+          200,
+        );
+      try {
+        const parent = await fetchParentTweet({
+          tweetId: "2091161452241354978",
+        });
+        assert.equal(parent?.author, "@sergey_nog");
+        assert.equal(parent?.hasOutboundLink, true);
+        const { threads } = await hydrateReplyParents({
+          threads: [
+            replyCard({
+              id: "2092650080306119014",
+              author: "@sasasenor",
+              text: "Great article. https://t.co/zK5ZiEkdNn",
+              url: "https://x.com/sasasenor/status/2092650080306119014",
+              inReplyToId: "2091161452241354978",
+              mediaShortlinks: ["t.co/zk5ziekdnn"],
+            }),
+          ],
+          delayMs: 0,
+          fetchParent: async () => parent,
+        });
+        assert.equal(threads[0]?.hasOutboundLink, true);
+        assert.match(threads[0]?.opText ?? "", /The End of Computers/);
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
+  it("flags a note_tweet parent with an off-platform note entity link", async () => {
+    await withSession(async () => {
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () =>
+        jsonResponse(
+          {
+            data: {
+              id: "800",
+              text: "teaser",
+              author_id: "1",
+              note_tweet: {
+                text: "Long essay https://t.co/abc",
+                entity_set: {
+                  urls: [
+                    {
+                      url: "https://t.co/abc",
+                      expanded_url: "https://substack.com/p/long",
+                    },
+                  ],
+                },
+              },
+            },
+            includes: {
+              users: [{ id: "1", username: "writer", name: "Writer" }],
+            },
+          },
+          200,
+        );
+      try {
+        const parent = await fetchParentTweet({ tweetId: "800" });
+        assert.equal(parent?.author, "@writer");
+        assert.equal(parent?.hasOutboundLink, true);
       } finally {
         globalThis.fetch = origFetch;
       }

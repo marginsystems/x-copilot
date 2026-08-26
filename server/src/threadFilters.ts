@@ -212,10 +212,12 @@ export function filterSelfReplies(threads: ThreadCard[]): {
   return { threads: kept, selfReplyFilteredCount };
 }
 
-/** True when the candidate has an outbound link (flag or text fallback). */
+/** True when the candidate or its OP/quoted root has an off-platform link. */
 export function threadHasOutboundLink(thread: ThreadCard): boolean {
   if (thread.hasOutboundLink === true) return true;
-  return textHasOutboundLink(thread.text);
+  if (textHasOutboundLink(thread.text)) return true;
+  if (thread.opText && textHasOutboundLink(thread.opText)) return true;
+  return false;
 }
 
 export type OutboundLinkFilterOptions = {
