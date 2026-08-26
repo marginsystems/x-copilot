@@ -113,6 +113,24 @@ describe("parsePostCreateEvent", () => {
     });
     assert.ok(parsed);
     assert.equal(parsed?.postedAt, "2026-07-25T00:00:00.000Z");
+    assert.equal(parsed?.postedAtFallback, false);
+  });
+
+  it("flags a missing/unparseable created_at as a fallback posted_at", () => {
+    const parsed = parsePostCreateEvent({
+      data: {
+        event_uuid: "evt-no-stamp",
+        event_type: "post.create",
+        filter: { user_id: "99" },
+        payload: {
+          id: "666",
+          author_id: "99",
+          text: "no stamp",
+        },
+      },
+    });
+    assert.ok(parsed);
+    assert.equal(parsed?.postedAtFallback, true);
   });
 
   it("ignores non-create events", () => {

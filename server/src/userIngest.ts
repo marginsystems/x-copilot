@@ -178,6 +178,7 @@ function replyToOwnPost(
     kind: reply.inReplyToId ? "reply" : "original",
     text: reply.text,
     postedAt: reply.postedAt ?? nowIso(),
+    postedAtFallback: !reply.postedAt,
     inReplyToId: reply.inReplyToId ?? null,
     inReplyToUserId: null,
     conversationId: reply.conversationId ?? null,

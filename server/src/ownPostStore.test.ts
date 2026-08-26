@@ -32,6 +32,7 @@ function post(partial: Partial<ParsedPostCreate> & { postId: string }): ParsedPo
     kind: partial.kind ?? "original",
     text: partial.text ?? "hello",
     postedAt: partial.postedAt ?? "2026-08-15T12:00:00.000Z",
+    postedAtFallback: partial.postedAtFallback ?? false,
     inReplyToId: partial.inReplyToId ?? null,
     inReplyToUserId: partial.inReplyToUserId ?? null,
     conversationId: partial.conversationId ?? null,
@@ -257,7 +258,11 @@ describe("ownPostStore", () => {
     );
     assert.equal(
       upsertOwnPost({
-        parsed: post({ postId: "kept", postedAt: new Date().toISOString() }),
+        parsed: post({
+          postId: "kept",
+          postedAt: new Date().toISOString(),
+          postedAtFallback: true,
+        }),
         userId: "u",
         tenantId: "t",
       }),
@@ -300,6 +305,38 @@ describe("ownPostStore", () => {
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
       .get("legacy-conflict") as { posted_at: string };
     assert.equal(repaired.posted_at, "2026-07-25T00:00:00.000Z");
+  });
+
+  it("lets a real created_at correct a stored fallback now on re-ingest", () => {
+    // A row first inserted with the fallback timestamp (created_at unknown) must
+    // not keep that `now` forever once the true created_at arrives.
+    assert.equal(
+      upsertOwnPost({
+        parsed: post({
+          postId: "corrected",
+          postedAt: new Date().toISOString(),
+          postedAtFallback: true,
+        }),
+        userId: "u",
+        tenantId: "t",
+      }),
+      true,
+    );
+    assert.equal(
+      upsertOwnPost({
+        parsed: post({
+          postId: "corrected",
+          postedAt: "2026-07-25T00:00:00.000Z",
+        }),
+        userId: "u",
+        tenantId: "t",
+      }),
+      false,
+    );
+    const row = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("corrected") as { posted_at: string };
+    assert.equal(row.posted_at, "2026-07-25T00:00:00.000Z");
   });
 
   it("dedupes activity event ids and watches threads", () => {

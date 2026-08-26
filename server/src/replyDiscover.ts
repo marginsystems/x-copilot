@@ -99,6 +99,7 @@ export function cardToOwnPostParsed(
   opts: { xUserId: string; screenName: string; nowMs: number },
 ): ParsedPostCreate {
   const handle = normalizeScreenName(opts.screenName);
+  const createdMs = card.createdAt ? Date.parse(card.createdAt) : NaN;
   return {
     eventUuid: `search:${card.id}`,
     xUserId: opts.xUserId,
@@ -106,6 +107,7 @@ export function cardToOwnPostParsed(
     kind: ownPostKindFromCard(card),
     text: card.text,
     postedAt: postedAtFromCard(card, opts.nowMs),
+    postedAtFallback: !Number.isFinite(createdMs),
     inReplyToId: card.inReplyToId?.trim() || null,
     inReplyToUserId: null,
     conversationId: card.conversationId?.trim() || null,

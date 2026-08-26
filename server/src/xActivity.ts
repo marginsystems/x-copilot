@@ -20,6 +20,7 @@ export type ParsedPostCreate = {
   kind: OwnPostKind;
   text: string;
   postedAt: string;
+  postedAtFallback?: boolean;
   inReplyToId: string | null;
   inReplyToUserId: string | null;
   conversationId: string | null;
@@ -156,6 +157,7 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
     kind: classifyPostKind(post),
     text: typeof post.text === "string" ? post.text : "",
     postedAt,
+    postedAtFallback: !Number.isFinite(createdMs),
     inReplyToId: post.in_reply_to_tweet_id
       ? String(post.in_reply_to_tweet_id)
       : null,
