@@ -222,6 +222,39 @@ describe("draftForYouActions", () => {
     ]);
   });
 
+  it("rejects a repair pass that returns a single post", async () => {
+    const capture = { purposes: [] as string[] };
+    let calls = 0;
+    const chat: ChatFn = async (opts) => {
+      capture.purposes.push(opts.purpose ?? "");
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: true,
+          content: "not json",
+          model: "deepseek-v4-flash",
+          provider: "deepseek",
+        };
+      }
+      return {
+        ok: true,
+        content: JSON.stringify({
+          actions: [
+            { kind: "post", why: "900 views on the recap", draft: "Another recap." },
+          ],
+        }),
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      };
+    };
+    const result = await draftForYouActions({ digest, chat });
+    assert.equal(result.ok, false);
+    assert.deepEqual(capture.purposes, [
+      "for_you_digest",
+      "for_you_digest_repair",
+    ]);
+  });
+
   it("reports an LLM failure without drafts", async () => {
     const chat: ChatFn = async () => ({
       ok: false,

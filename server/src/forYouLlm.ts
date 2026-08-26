@@ -106,8 +106,8 @@ export async function draftForYouActions(opts: {
   });
   if (!repair.ok) return { ok: false, error: repair.message };
   parsed = filterDigestActions(extractJsonObject(repair.content), opts.digest);
-  if (!parsed.some((a) => a.kind === "post")) {
-    return { ok: false, error: "no kind=post action after repair" };
+  if (parsed.length < 2 || !parsed.some((a) => a.kind === "post")) {
+    return { ok: false, error: "repair did not return 2+ actions with a kind=post" };
   }
   return { ok: true, drafts: parsed };
 }
