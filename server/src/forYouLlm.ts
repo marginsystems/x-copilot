@@ -68,7 +68,7 @@ function buildUserPrompt(digest: ForYouDigest): string {
 
 export type ForYouDraftResult =
   | { ok: true; drafts: ForYouDraft[] }
-  | { ok: false; error: string };
+  | { ok: false; error: string; exhausted?: boolean };
 
 export async function draftForYouActions(opts: {
   digest: ForYouDigest;
@@ -107,7 +107,11 @@ export async function draftForYouActions(opts: {
   if (!repair.ok) return { ok: false, error: repair.message };
   parsed = filterDigestActions(extractJsonObject(repair.content), opts.digest);
   if (parsed.length < 2 || !parsed.some((a) => a.kind === "post")) {
-    return { ok: false, error: "repair did not return 2+ actions with a kind=post" };
+    return {
+      ok: false,
+      error: "repair did not return 2+ actions with a kind=post",
+      exhausted: true,
+    };
   }
   return { ok: true, drafts: parsed };
 }
