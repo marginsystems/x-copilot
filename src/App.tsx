@@ -418,6 +418,12 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (view !== "play") return;
+    void hydrateCoaching();
+    void hydrateGamification();
+  }, [view]);
+
+  useEffect(() => {
     if (!authUser?.isAdmin) return;
     const { open, nextSearch } = consumeOnboardingPreviewQuery(
       window.location.search,
@@ -731,7 +737,11 @@ export default function App() {
       ) : null}
 
       {view === "play" ? (
-        <PlayPage onBack={() => goToView("dashboard")} />
+        <PlayPage
+          onBack={() => goToView("dashboard")}
+          coaching={coaching}
+          gamification={gamification}
+        />
       ) : null}
 
       {view === "voice" ? (
