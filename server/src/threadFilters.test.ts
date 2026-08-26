@@ -306,6 +306,26 @@ describe("filterOutboundLinks", () => {
     assert.equal(threadHasOutboundLink(thread("2", "see t.co/abc123")), false);
     assert.equal(threadHasOutboundLink(thread("3", "no links here")), false);
   });
+
+  it("drops a clean reply when the OP has an off-platform link", () => {
+    const reply = thread("r1", "Agree — ship the loop.", undefined, {
+      isReply: true,
+      inReplyToId: "op1",
+      opAuthor: "@promo",
+      opText: "New essay https://substack.com/p/hello",
+    });
+    const xLink = thread("r2", "This take is right.", undefined, {
+      isReply: true,
+      inReplyToId: "op2",
+      opText: "See https://x.com/dave/status/444",
+    });
+    const result = filterOutboundLinks([reply, xLink]);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["r2"],
+    );
+    assert.equal(result.linkFilteredCount, 1);
+  });
 });
 
 describe("filterEmDashes", () => {

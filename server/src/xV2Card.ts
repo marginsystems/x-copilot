@@ -4,6 +4,7 @@
  */
 import { MAX_OP_TEXT_CHARS, type ThreadCard } from "./threadCard.js";
 import {
+  entityUrlsHaveOutbound,
   isOutboundLinkUrl,
   isXArticleUrl,
   mediaShortlinkKeys,
@@ -56,6 +57,11 @@ function screenNameKey(handle: string | undefined): string {
 
 function includedTweetBody(tw: V2Tweet): string {
   return (tw.note_tweet?.text?.trim() || tw.text || "").trim();
+}
+
+function v2TweetHasOutboundLink(tweet: V2Tweet): boolean {
+  if (entityUrlsHaveOutbound(tweet.entities?.urls)) return true;
+  return textHasOutboundLink(includedTweetBody(tweet));
 }
 
 function v2UrlLooksLikeArticle(tweet: V2Tweet): boolean {
@@ -152,6 +158,7 @@ function applyIncludedReplyOp(
   const opLongform = opTw ? v2TweetLongform(opTw) : undefined;
   if (opLongform) card.opLongform = opLongform;
   if (canSkipHydrate) card.opParentDerived = true;
+  if (opTw && v2TweetHasOutboundLink(opTw)) card.hasOutboundLink = true;
 }
 
 /** Map a v2 tweet (+ includes) into our ThreadCard. */
@@ -206,6 +213,7 @@ export function v2TweetToCard(
           : `@${qa.username}`;
         card.opText = qt.text.slice(0, MAX_OP_TEXT_CHARS);
       }
+      if (v2TweetHasOutboundLink(qt)) card.hasOutboundLink = true;
     }
   }
 

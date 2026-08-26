@@ -38,10 +38,12 @@ type NoteTweetEntities = {
 };
 
 const NATIVE_MEDIA_HOST_RE =
-  /(?:^|\.)(?:pic\.twitter\.com|pbs\.twimg\.com|video\.twimg\.com)(?:\/|$)/i;
+  /(?:^|\.)(?:pic\.twitter\.com|pic\.x\.com|pbs\.twimg\.com|video\.twimg\.com)(?:\/|$)/i;
 /** e.g. https://twitter.com/<user>/status/<id>/photo/<n> or .../video/<n>. */
 const TWITTER_MEDIA_PATH_RE =
   /^https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[^/]+\/status\/\d+\/(?:photo|video)\//i;
+const X_SITE_HOST_RE =
+  /^(?:www\.|mobile\.|m\.)?(?:twitter\.com|x\.com)$/i;
 const OUTBOUND_URL_IN_TEXT_RE = /https?:\/\/[^\s]+|t\.co\/[A-Za-z0-9]+/gi;
 
 /** Native X Article permalink (not a status URL). */
@@ -66,12 +68,26 @@ export function isNativeMediaUrl(url: string): boolean {
   }
 }
 
-/** True when a URL string is an outbound (non-media) link. */
+/** True when URL stays on X / Twitter (status, profile, article, media). */
+export function isXSiteUrl(url: string): boolean {
+  const raw = url.trim();
+  if (!raw) return false;
+  try {
+    const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const host = new URL(withScheme).hostname;
+    return X_SITE_HOST_RE.test(host) || NATIVE_MEDIA_HOST_RE.test(host);
+  } catch {
+    return false;
+  }
+}
+
+/** True when a URL string is an off-platform (non-X, non-media) link. */
 export function isOutboundLinkUrl(url: string): boolean {
   const raw = url.trim();
   if (!raw) return false;
   if (!/^https?:\/\//i.test(raw) && !/^t\.co\//i.test(raw)) return false;
-  return !isNativeMediaUrl(raw);
+  if (isNativeMediaUrl(raw) || isXSiteUrl(raw)) return false;
+  return true;
 }
 
 /** t.co shortlinks for native media: URLs expanded to media hosts, plus media-entity t.co keys. */
@@ -107,8 +123,9 @@ export function mediaShortlinkKeys(
 /**
  * True when candidate text contains an outbound link (media excluded).
  * Bare t.co shortlinks are ambiguous (native media vs outbound) when their
- * entity is absent, so they never count here; outbound t.co links are resolved
- * via URL entities/cards instead.
+ * entity is absent, so they never count here. X rewrites every URL to t.co;
+ * the follow-through is `entities.urls[].expanded_url` (and cards), not an
+ * extra HTTP hop.
  */
 export function textHasOutboundLink(text: string): boolean {
   const matches = text.match(OUTBOUND_URL_IN_TEXT_RE);
@@ -189,7 +206,7 @@ function resolveCardText(
   return note;
 }
 
-/** Detect outbound links on a GraphQL tweet node (candidate only, not quoted OP). */
+/** Detect off-platform links on a GraphQL tweet node (candidate or quoted/parent). */
 export function nodeHasOutboundLink(node: {
   legacy?: {
     full_text?: string;

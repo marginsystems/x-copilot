@@ -217,6 +217,7 @@ export async function runScoutSearch(opts: {
   });
   const {
     afterSelfReply: afterHydrateSelf,
+    afterLinks: afterHydrateLinks,
     afterLanguage: afterHydrateLang,
     afterLength: afterHydrateLen,
   } = filterPostHydrateThreads({
@@ -253,8 +254,10 @@ export async function runScoutSearch(opts: {
   const cooldownWarning = filtered.filteredCount
     ? `Filtered ${filtered.filteredCount} posts from cooled-down authors.`
     : undefined;
-  const linkWarning = afterLinks.linkFilteredCount
-    ? `Dropped ${afterLinks.linkFilteredCount} posts with outbound links.`
+  const linkFiltered =
+    afterLinks.linkFilteredCount + afterHydrateLinks.linkFilteredCount;
+  const linkWarning = linkFiltered
+    ? `Dropped ${linkFiltered} posts with outbound links.`
     : undefined;
   const emDashWarning = afterEmDash.emDashFilteredCount
     ? `Dropped ${afterEmDash.emDashFilteredCount} posts with em dashes.`
@@ -293,7 +296,7 @@ export async function runScoutSearch(opts: {
     cooldownAuthors: filtered.filteredAuthors,
     cooldownWarning,
     selfReplyFiltered,
-    linkFiltered: afterLinks.linkFilteredCount,
+    linkFiltered,
     linkWarning,
     emDashFiltered: afterEmDash.emDashFilteredCount,
     emDashWarning,

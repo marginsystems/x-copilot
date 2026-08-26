@@ -3,6 +3,7 @@
  */
 import {
   filterByLanguage,
+  filterOutboundLinks,
   filterSelfReplies,
   filterThreadsByLength,
   type LengthFilterOptions,
@@ -18,9 +19,11 @@ export function filterPostHydrateThreads(opts: {
 }) {
   // Hydration can reveal same-author replies that lacked an early author hint.
   const afterSelfReply = filterSelfReplies(opts.threads);
+  // OP/quoted root links are usually only visible after hydrate.
+  const afterLinks = filterOutboundLinks(afterSelfReply.threads);
   // Re-check language now that reply-parent OP context is available (#121).
   const afterLanguage = filterByLanguage(
-    afterSelfReply.threads,
+    afterLinks.threads,
     opts.preferredLanguage,
   );
   const afterLength = filterThreadsByLength(
@@ -29,5 +32,5 @@ export function filterPostHydrateThreads(opts: {
     opts.lengthOptions,
   );
 
-  return { afterSelfReply, afterLanguage, afterLength };
+  return { afterSelfReply, afterLinks, afterLanguage, afterLength };
 }

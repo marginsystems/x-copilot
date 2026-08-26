@@ -471,4 +471,80 @@ describe("runScoutCollect hydrate", () => {
     assert.equal(result.event.stopReason, "exhausted");
   });
 
+  it("keeps searching when post-hydrate OP links empty a bucket", async () => {
+    let searchCalls = 0;
+    const triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1", "q2"],
+      bucketSize: 5,
+      targetCool: 5,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        planQueriesFromAgenda: async () => ({
+          ok: false as const,
+          error: "no_replan",
+          message: "no replan",
+        }),
+        searchTimeline: async () => {
+          searchCalls += 1;
+          if (searchCalls === 1) {
+            return {
+              ok: true as const,
+              queryId: "test",
+              threads: [1, 2, 3, 4, 5].map((n) =>
+                card({
+                  id: `r${n}`,
+                  author: `@r${n}`,
+                  inReplyToId: `op${n}`,
+                  isReply: true,
+                }),
+              ),
+              bottomCursor: null,
+            };
+          }
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: [card({ id: "kept", author: "@kept" })],
+            bottomCursor: null,
+          };
+        },
+        hydrateReplyParents: async ({ threads }) => ({
+          threads: threads.map((t) =>
+            t.isReply
+              ? {
+                  ...t,
+                  opAuthor: "@writer",
+                  opText: "Read the rest https://substack.com/p/hello",
+                  opParentDerived: true,
+                  hasOutboundLink: true,
+                }
+              : t,
+          ),
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          for (const t of threads) triageIds.push(t.id);
+          return {
+            threads: threads.map((t) => ({
+              ...t,
+              engage: "consider" as const,
+              baitScore: 15,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.ok(searchCalls >= 2);
+    assert.ok(triageIds.includes("kept"));
+    assert.ok(!triageIds.includes("r1"));
+  });
+
 });

@@ -14,17 +14,20 @@ export type ParentTweet = {
   author: string;
   text: string;
   longform?: "note_tweet" | "article";
+  hasOutboundLink?: boolean;
 };
 
 function parentFromCard(card: {
   author: string;
   text: string;
   longform?: "note_tweet" | "article";
+  hasOutboundLink?: boolean;
 }): ParentTweet {
   return {
     author: card.author,
     text: card.text,
     ...(card.longform ? { longform: card.longform } : {}),
+    ...(card.hasOutboundLink ? { hasOutboundLink: true } : {}),
   };
 }
 
@@ -39,6 +42,9 @@ function applyHydratedParent(
     opParentDerived: true,
     opCharCount: parent.text.length,
     ...(parent.longform ? { opLongform: parent.longform } : {}),
+    ...(parent.hasOutboundLink || card.hasOutboundLink
+      ? { hasOutboundLink: true }
+      : {}),
   };
 }
 
