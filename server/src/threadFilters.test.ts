@@ -306,6 +306,15 @@ describe("filterOutboundLinks", () => {
     assert.equal(threadHasOutboundLink(thread("2", "see t.co/abc123")), false);
     assert.equal(threadHasOutboundLink(thread("3", "no links here")), false);
   });
+
+  it("keeps outbound-link posts when dropOutboundLinks is false", () => {
+    const flagged = thread("1", "no url in text", undefined, {
+      hasOutboundLink: true,
+    });
+    const result = filterOutboundLinks([flagged], { dropOutboundLinks: false });
+    assert.deepEqual(result.threads.map((t) => t.id), ["1"]);
+    assert.equal(result.linkFilteredCount, 0);
+  });
 });
 
 describe("filterEmDashes", () => {

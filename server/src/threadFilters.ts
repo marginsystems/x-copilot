@@ -218,11 +218,23 @@ export function threadHasOutboundLink(thread: ThreadCard): boolean {
   return textHasOutboundLink(thread.text);
 }
 
-/** Hard-drop posts with outbound links before hydrate/triage. */
-export function filterOutboundLinks(threads: ThreadCard[]): {
+export type OutboundLinkFilterOptions = {
+  /** When true (default), hard-drop posts with an off-platform link. */
+  dropOutboundLinks?: boolean;
+};
+
+/** Hard-drop outbound-link posts before hydrate/triage (Settings default on). */
+export function filterOutboundLinks(
+  threads: ThreadCard[],
+  opts: OutboundLinkFilterOptions = {},
+): {
   threads: ThreadCard[];
   linkFilteredCount: number;
 } {
+  const drop = opts.dropOutboundLinks !== false;
+  if (!drop) {
+    return { threads: [...threads], linkFilteredCount: 0 };
+  }
   const kept: ThreadCard[] = [];
   let linkFilteredCount = 0;
   for (const thread of threads) {

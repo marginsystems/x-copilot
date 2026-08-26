@@ -323,6 +323,7 @@ export function useScoutRun({
           filters: {
             maxThreadChars: settings.maxThreadChars,
             dropArticles: settings.dropArticles,
+            dropOutboundLinks: settings.dropOutboundLinks,
             dropEmDashes: settings.dropEmDashes,
             dropAutomatedAccounts: settings.dropAutomatedAccounts,
             dedupeAccounts: settings.dedupeAccounts,

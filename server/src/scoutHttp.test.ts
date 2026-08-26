@@ -142,12 +142,14 @@ describe("parseScoutFilters", () => {
     assert.deepEqual(
       parseScoutFilters({
         dropArticles: true,
+        dropOutboundLinks: false,
         dropEmDashes: false,
         dropAutomatedAccounts: true,
         dedupeAccounts: false,
       }),
       {
         dropArticles: true,
+        dropOutboundLinks: false,
         dropEmDashes: false,
         dropAutomatedAccounts: true,
         dedupeAccounts: false,

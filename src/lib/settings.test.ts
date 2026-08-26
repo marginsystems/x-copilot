@@ -152,6 +152,7 @@ describe("normalizeSettings", () => {
       normalizeSettings({
         maxThreadChars: 320,
         dropArticles: false,
+        dropOutboundLinks: false,
         dropEmDashes: false,
         dropAutomatedAccounts: false,
         targetCoolThreads: 3,
@@ -162,6 +163,7 @@ describe("normalizeSettings", () => {
       {
         maxThreadChars: 320,
         dropArticles: false,
+        dropOutboundLinks: false,
         dropEmDashes: false,
         dropAutomatedAccounts: false,
         targetCoolThreads: 3,
@@ -174,7 +176,11 @@ describe("normalizeSettings", () => {
     assert.equal(normalizeSettings({}).dedupeAccounts, true);
     assert.equal(normalizeSettings({}).preferredLanguage, "en");
     assert.equal(normalizeSettings({}).dropEmDashes, true);
+    assert.equal(normalizeSettings({}).dropOutboundLinks, true);
     assert.equal(normalizeSettings({}).dropAutomatedAccounts, true);
+    const stored = { ...DEFAULT_SETTINGS } as Record<string, unknown>;
+    delete stored.dropOutboundLinks;
+    assert.equal(normalizeSettings(stored).dropOutboundLinks, true);
   });
 });
 
@@ -187,6 +193,7 @@ describe("loadSettings / saveSettings", () => {
     const saved = saveSettings({
       maxThreadChars: 320,
       dropArticles: false,
+      dropOutboundLinks: false,
       dropEmDashes: false,
       dropAutomatedAccounts: false,
       targetCoolThreads: 5,
@@ -198,6 +205,7 @@ describe("loadSettings / saveSettings", () => {
     assert.deepEqual(saved, {
       maxThreadChars: 320,
       dropArticles: false,
+      dropOutboundLinks: false,
       dropEmDashes: false,
       dropAutomatedAccounts: false,
       targetCoolThreads: 5,

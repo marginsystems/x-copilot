@@ -96,6 +96,8 @@ export type AppSettings = {
   maxThreadChars: number;
   /** Hard-drop X Articles and replies under those conversations. */
   dropArticles: boolean;
+  /** Hard-drop candidates with an off-platform link, pre-triage. */
+  dropOutboundLinks: boolean;
   /** Hard-drop candidates whose text contains an em dash (U+2014), pre-triage. */
   dropEmDashes: boolean;
   /** Hard-drop authors with X's Automated badge, pre-triage. */
@@ -120,6 +122,7 @@ export type AppSettings = {
 export const DEFAULT_SETTINGS: AppSettings = {
   maxThreadChars: DEFAULT_MAX_THREAD_CHARS,
   dropArticles: true,
+  dropOutboundLinks: true,
   dropEmDashes: true,
   dropAutomatedAccounts: true,
   targetCoolThreads: DEFAULT_TARGET_COOL_THREADS,
@@ -273,6 +276,10 @@ export function normalizeSettings(raw: unknown): AppSettings {
       typeof obj.dropArticles === "boolean"
         ? obj.dropArticles
         : DEFAULT_SETTINGS.dropArticles,
+    dropOutboundLinks:
+      typeof obj.dropOutboundLinks === "boolean"
+        ? obj.dropOutboundLinks
+        : DEFAULT_SETTINGS.dropOutboundLinks,
     dropEmDashes:
       typeof obj.dropEmDashes === "boolean"
         ? obj.dropEmDashes
