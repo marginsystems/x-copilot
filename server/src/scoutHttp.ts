@@ -199,7 +199,10 @@ export async function tryHandleScout(
       }
       return true;
     } catch (err) {
-      if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
+      if (sortieId) {
+        // The batch response never reached the client — the single 200 write
+        // threw on a torn socket — so refund the sortie rather than stranding
+        // it (neither delivered nor refunded).
         refundSortie(sortieId);
       }
       try {
