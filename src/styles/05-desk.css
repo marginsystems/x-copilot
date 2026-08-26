@@ -24,33 +24,37 @@
 
 .desk-top {
   flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  gap: 12px;
-  align-items: stretch;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 
 .desk-top-bar {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 10px;
   min-height: 40px;
 }
 
-.desk-top.is-collapsed {
-  grid-template-columns: 1fr;
-  grid-template-rows: auto;
+.desk-top-bar-title {
+  margin: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  color: var(--muted);
+  font-family: var(--font-head);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
+/* Keep the min/max control pinned to the trailing edge in both states. */
 .desk-top-toggle {
   appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin: 0;
+  justify-content: center;
+  margin: 0 0 0 auto;
   padding: 0;
   border: none;
   background: transparent;
@@ -62,6 +66,38 @@
   text-transform: uppercase;
   cursor: pointer;
   flex: 0 0 auto;
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.desk-top-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  min-height: 0;
+  transition: grid-template-rows 420ms var(--ease-out);
+}
+
+.desk-top.is-collapsed .desk-top-body {
+  grid-template-rows: 0fr;
+}
+
+.desk-top-body-inner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 280ms var(--ease-out);
+}
+
+.desk-top-body-content {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  padding-top: 12px;
+}
+
+.desk-top.is-collapsed .desk-top-body-inner {
+  opacity: 0;
 }
 
 .desk-top-toggle:hover {

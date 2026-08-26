@@ -18,6 +18,7 @@ const PLANE_COLS = PLANE_MASK[0].length;
 
 type Props = {
   searching: boolean;
+  active: boolean;
 };
 
 /**
@@ -26,7 +27,7 @@ type Props = {
  * stirring the cells. Renders a single static frame when the user prefers
  * reduced motion. Sized by CSS — do not let the canvas bitmap set layout.
  */
-export function ScoutPixelField({ searching }: Props) {
+export function ScoutPixelField({ searching, active }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const searchingRef = useRef(searching);
@@ -51,6 +52,7 @@ export function ScoutPixelField({ searching }: Props) {
   }, [searching]);
 
   useEffect(() => {
+    if (!active) return;
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
     if (!wrap || !canvas) return;
@@ -253,7 +255,7 @@ export function ScoutPixelField({ searching }: Props) {
       mo.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [reducedMotion]);
+  }, [reducedMotion, active]);
 
   return (
     <div ref={wrapRef} className="scout-field" aria-hidden="true">
