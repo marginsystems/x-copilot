@@ -357,6 +357,8 @@ export async function tryHandleScout(
     } catch (err) {
       if (sortieWasWasted({ ok: false, coolCount }) && sortieId) {
         refundSortie(sortieId);
+      } else if (sortieId) {
+        markSortieDelivered(sortieId);
       }
       console.error("scout run failed:", err);
       try {
