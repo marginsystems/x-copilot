@@ -9,8 +9,11 @@ import { utcDayKey } from "./gamificationXp.js";
 import { listInteractionHistory } from "./interactionStore.js";
 import { listActiveSuggestions } from "./forYouStore.js";
 import { startOfUtcDayIso } from "./ownPostStore.js";
-import { countSortiesToday } from "./scoutSorties.js";
-import { listDeskPostsSince } from "./xPostLimits.js";
+import { countDeliveredSortiesToday } from "./scoutSorties.js";
+import {
+  countDeskOriginalsSince,
+  listDeskPostsSince,
+} from "./xPostLimits.js";
 
 export type CoachingSnapshot = {
   dayUtc: string;
@@ -81,10 +84,12 @@ export async function buildCoachingSnapshot(opts: {
   ]);
   let marksToday = 0;
   for (const row of history) {
+    if (row.source !== "manual") continue;
     const at = Date.parse(row.at);
     if (Number.isFinite(at) && utcDayKey(at) === dayUtc) marksToday += 1;
   }
   const kinds = countOwnKindsToday(opts.userId, sinceIso);
+  const deskOriginals = countDeskOriginalsSince(opts.userId, sinceIso);
   const suggestions = listActiveSuggestions(opts.userId, nowMs);
   const counts = { post: 0, quote: 0, repost: 0, reply: 0 };
   for (const row of suggestions) {
@@ -93,11 +98,11 @@ export async function buildCoachingSnapshot(opts: {
   return {
     dayUtc,
     marksToday,
-    originalsToday: kinds.originals,
+    originalsToday: Math.max(kinds.originals, deskOriginals),
     repliesPostedToday: kinds.replies,
     quotesToday: kinds.quotes,
     deskPostsToday: listDeskPostsSince(opts.userId, sinceIso).length,
-    takeoffsToday: countSortiesToday(opts.tenantId, new Date(nowMs)),
+    takeoffsToday: countDeliveredSortiesToday(opts.tenantId, new Date(nowMs)),
     suggestions: { total: suggestions.length, ...counts },
     streak: gamification.currentStreak,
     lastMarkUtcDay: gamification.lastMarkUtcDay,

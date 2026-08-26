@@ -41,6 +41,7 @@ import {
 import { runScoutSearch } from "./scoutRun.js";
 import type { ScoutFilters } from "./scoutTypes.js";
 import {
+  markSortieDelivered,
   recordSortie,
   refundSortie,
   sortieWasWasted,
@@ -156,6 +157,8 @@ export async function tryHandleScout(
         : 0;
       if (sortieWasWasted({ ok: result.ok, coolCount })) {
         refundSortie(sortieId);
+      } else {
+        markSortieDelivered(sortieId);
       }
       if (!result.ok) {
         trackAnalytics({
@@ -346,6 +349,8 @@ export async function tryHandleScout(
       }
       if (sortieWasWasted({ ok: result.ok, coolCount })) {
         refundSortie(sortieId);
+      } else {
+        markSortieDelivered(sortieId);
       }
       res.end();
       return true;
