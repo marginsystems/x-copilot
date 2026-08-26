@@ -11,6 +11,7 @@ import {
 import {
   buildOwnPostsQuery,
   buildOwnRepliesQuery,
+  cardToOwnPostParsed,
   discoverOwnReplies,
   foldDiscoveredOwnPosts,
   ownPostKindFromCard,
@@ -73,6 +74,43 @@ describe("ownPostKindFromCard", () => {
     );
     assert.equal(ownPostKindFromCard(card({ id: "2" })), "original");
     assert.equal(ownPostKindFromCard(card({ id: "3", isQuote: true })), "quote");
+  });
+});
+
+describe("cardToOwnPostParsed", () => {
+  it("flags absent/garbage createdAt as a fallback with postedAt ≈ now", () => {
+    const nowMs = Date.parse("2026-08-16T12:00:00.000Z");
+    const absent = cardToOwnPostParsed(card({ id: "n1", text: "no date" }), {
+      xUserId: "99",
+      screenName: "me",
+      nowMs,
+    });
+    assert.equal(absent.postedAtFallback, true);
+    assert.equal(absent.postedAt, "2026-08-16T12:00:00.000Z");
+
+    const garbage = cardToOwnPostParsed(
+      card({ id: "n2", text: "garbage date", createdAt: "not-a-date" }),
+      {
+        xUserId: "99",
+        screenName: "me",
+        nowMs,
+      },
+    );
+    assert.equal(garbage.postedAtFallback, true);
+    assert.equal(garbage.postedAt, "2026-08-16T12:00:00.000Z");
+  });
+
+  it("parses a real createdAt into ISO postedAt without the fallback flag", () => {
+    const parsed = cardToOwnPostParsed(
+      card({ id: "n3", text: "dated", createdAt: "2026-08-16T11:00:00.000Z" }),
+      {
+        xUserId: "99",
+        screenName: "me",
+        nowMs: Date.parse("2026-08-16T12:00:00.000Z"),
+      },
+    );
+    assert.equal(parsed.postedAtFallback, false);
+    assert.equal(parsed.postedAt, "2026-08-16T11:00:00.000Z");
   });
 });
 
@@ -502,6 +540,64 @@ describe("foldDiscoveredOwnPosts", () => {
     assert.equal(summary.totals.posts, 2);
     assert.equal(summary.totals.originals, 1);
     assert.equal(summary.totals.replies, 1);
+  });
+
+  it("folds cards without a parseable createdAt via a repairable fallback timestamp", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const nowMs = Date.parse("2026-08-16T12:00:00.000Z");
+    const n = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs,
+      resolveXUserId: async () => "99",
+      threads: [
+        card({ id: "no-created", text: "timestampless take" }),
+        card({ id: "garbage-created", text: "garbage date", createdAt: "nope" }),
+      ],
+    });
+    assert.equal(n, 2);
+    const fallbackRow = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("no-created") as { posted_at: string };
+    assert.equal(fallbackRow.posted_at, "2026-08-16T12:00:00.000Z");
+
+    // A re-fold that finally carries the real created_at repairs the stored
+    // posted_at instead of freezing the discovery-time fallback forever.
+    const reFold = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs,
+      resolveXUserId: async () => "99",
+      threads: [
+        card({
+          id: "no-created",
+          text: "timestampless take",
+          createdAt: "2026-08-16T10:00:00.000Z",
+        }),
+      ],
+    });
+    assert.equal(reFold, 0);
+    const repaired = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("no-created") as { posted_at: string };
+    assert.equal(repaired.posted_at, "2026-08-16T10:00:00.000Z");
+
+    // A later fold that again lacks the timestamp must not clobber the real
+    // posted_at back to discovery time — the fallback flag keeps it.
+    const fallbackReFold = await foldDiscoveredOwnPosts({
+      screenName: "me",
+      nowMs,
+      resolveXUserId: async () => "99",
+      threads: [card({ id: "no-created", text: "timestampless take" })],
+    });
+    assert.equal(fallbackReFold, 0);
+    const stillReal = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("no-created") as { posted_at: string };
+    assert.equal(stillReal.posted_at, "2026-08-16T10:00:00.000Z");
   });
 
   it("stops the fold once the daily watch cap is reached", async () => {

@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  backfillOwnPostPostedAt,
   defaultMigrationsDir,
   getPlatformDb,
   resetPlatformDbForTests,
@@ -31,6 +32,7 @@ function post(partial: Partial<ParsedPostCreate> & { postId: string }): ParsedPo
     kind: partial.kind ?? "original",
     text: partial.text ?? "hello",
     postedAt: partial.postedAt ?? "2026-08-15T12:00:00.000Z",
+    postedAtFallback: partial.postedAtFallback ?? false,
     inReplyToId: partial.inReplyToId ?? null,
     inReplyToUserId: partial.inReplyToUserId ?? null,
     conversationId: partial.conversationId ?? null,
@@ -188,6 +190,153 @@ describe("ownPostStore", () => {
       due.some((d) => d.tenantId === "light"),
       "light tenant's newer post must appear despite heavy tenant's oldest-first backlog",
     );
+  });
+
+  it("backfills legacy raw created_at posted_at rows to ISO so they become due", () => {
+    const db = getPlatformDb();
+    db.prepare(
+      `INSERT INTO own_posts (
+         id, user_id, tenant_id, x_user_id, kind, text, posted_at, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      "legacy",
+      "u",
+      "t",
+      "99",
+      "original",
+      "old post",
+      "Sat Jul 25 00:00:00 +0000 2026",
+      "2026-08-01T00:00:00.000Z",
+    );
+    assert.equal(
+      listDueOwnPostSamples({ limit: 10 }).some((d) => d.postId === "legacy"),
+      false,
+    );
+    backfillOwnPostPostedAt(db);
+    const row = db
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("legacy") as { posted_at: string };
+    assert.equal(row.posted_at, "2026-07-25T00:00:00.000Z");
+    assert.ok(
+      listDueOwnPostSamples({ limit: 10 }).some((d) => d.postId === "legacy"),
+    );
+  });
+
+  it("leaves unparseable posted_at rows unchanged during backfill", () => {
+    const db = getPlatformDb();
+    db.prepare(
+      `INSERT INTO own_posts (
+         id, user_id, tenant_id, x_user_id, kind, text, posted_at, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      "unparseable",
+      "u",
+      "t",
+      "99",
+      "original",
+      "garbled",
+      "not-a-real-timestamp",
+      "2026-08-01T00:00:00.000Z",
+    );
+    backfillOwnPostPostedAt(db);
+    const row = db
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("unparseable") as { posted_at: string };
+    assert.equal(row.posted_at, "not-a-real-timestamp");
+  });
+
+  it("keeps a correct stored posted_at and only repairs non-ISO values on re-ingest", () => {
+    // A re-ingest must not clobber a good ISO timestamp with a fallback "now"
+    // (parsePostCreateEvent / replyToOwnPost emit `now` when created_at is unknown).
+    assert.equal(
+      upsertOwnPost({
+        parsed: post({ postId: "kept", postedAt: "2026-07-25T00:00:00.000Z" }),
+        userId: "u",
+        tenantId: "t",
+      }),
+      true,
+    );
+    assert.equal(
+      upsertOwnPost({
+        parsed: post({
+          postId: "kept",
+          postedAt: new Date().toISOString(),
+          postedAtFallback: true,
+        }),
+        userId: "u",
+        tenantId: "t",
+      }),
+      false,
+    );
+    const kept = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("kept") as { posted_at: string };
+    assert.equal(kept.posted_at, "2026-07-25T00:00:00.000Z");
+
+    // A legacy raw stored value is still repaired to the incoming ISO value.
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO own_posts (
+           id, user_id, tenant_id, x_user_id, kind, text, posted_at, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "legacy-conflict",
+        "u",
+        "t",
+        "99",
+        "original",
+        "old post",
+        "Sat Jul 25 00:00:00 +0000 2026",
+        "2026-08-01T00:00:00.000Z",
+      );
+    assert.equal(
+      upsertOwnPost({
+        parsed: post({
+          postId: "legacy-conflict",
+          postedAt: "2026-07-25T00:00:00.000Z",
+        }),
+        userId: "u",
+        tenantId: "t",
+      }),
+      false,
+    );
+    const repaired = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("legacy-conflict") as { posted_at: string };
+    assert.equal(repaired.posted_at, "2026-07-25T00:00:00.000Z");
+  });
+
+  it("lets a real created_at correct a stored fallback now on re-ingest", () => {
+    // A row first inserted with the fallback timestamp (created_at unknown) must
+    // not keep that `now` forever once the true created_at arrives.
+    assert.equal(
+      upsertOwnPost({
+        parsed: post({
+          postId: "corrected",
+          postedAt: new Date().toISOString(),
+          postedAtFallback: true,
+        }),
+        userId: "u",
+        tenantId: "t",
+      }),
+      true,
+    );
+    assert.equal(
+      upsertOwnPost({
+        parsed: post({
+          postId: "corrected",
+          postedAt: "2026-07-25T00:00:00.000Z",
+        }),
+        userId: "u",
+        tenantId: "t",
+      }),
+      false,
+    );
+    const row = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("corrected") as { posted_at: string };
+    assert.equal(row.posted_at, "2026-07-25T00:00:00.000Z");
   });
 
   it("dedupes activity event ids and watches threads", () => {

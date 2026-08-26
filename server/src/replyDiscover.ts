@@ -99,6 +99,7 @@ export function cardToOwnPostParsed(
   opts: { xUserId: string; screenName: string; nowMs: number },
 ): ParsedPostCreate {
   const handle = normalizeScreenName(opts.screenName);
+  const createdMs = card.createdAt ? Date.parse(card.createdAt) : NaN;
   return {
     eventUuid: `search:${card.id}`,
     xUserId: opts.xUserId,
@@ -106,6 +107,7 @@ export function cardToOwnPostParsed(
     kind: ownPostKindFromCard(card),
     text: card.text,
     postedAt: postedAtFromCard(card, opts.nowMs),
+    postedAtFallback: !Number.isFinite(createdMs),
     inReplyToId: card.inReplyToId?.trim() || null,
     inReplyToUserId: null,
     conversationId: card.conversationId?.trim() || null,
@@ -173,10 +175,9 @@ export async function foldDiscoveredOwnPosts(opts: {
       );
       break;
     }
-    // An unparseable createdAt must not be silently replaced with discovery
-    // time: that wrong posted_at would permanently skew the day-series
-    // bucketing, t1h/t24h sample scheduling, and the daily cap.
-    if (!card.createdAt || !Number.isFinite(Date.parse(card.createdAt))) continue;
+    // A card without a parseable createdAt is still folded: cardToOwnPostParsed
+    // stamps discovery time and flags it as a fallback so the upsert stores it
+    // without clobbering a real posted_at and corrects it on re-ingest.
     const isNew = upsertOwnPost({
       parsed: cardToOwnPostParsed(card, {
         xUserId,

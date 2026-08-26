@@ -812,6 +812,72 @@ describe("runUserIngest", () => {
     assert.equal(result.ok, false);
     assert.notEqual(getVoiceProfile(user.id)?.lastPullAt, null);
   });
+
+  it("folds a null-postedAt reply with a fallback now that a real timestamp corrects on re-ingest", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const deps = (
+      replies: Array<{ id: string; text: string; postedAt?: string | null }>,
+    ) => ({
+      foldLocal: async () => {},
+      resolveUser: async () => ({
+        ok: true as const,
+        id: "99",
+        username: "me",
+        protected: false,
+      }),
+      pullReplies: async () => ({
+        ok: true,
+        replies: replies.map((r) => ({
+          ...r,
+          conversationId: "c1",
+          source: "api" as const,
+        })),
+        newestId: replies[0]?.id ?? "r1",
+        pages: 1,
+        completed: true,
+      }),
+      generateCard: async () => ({
+        ok: false as const,
+        error: "skip",
+        message: "under bar",
+      }),
+    });
+
+    const before = Date.now();
+    await runUserIngest({
+      user,
+      mode: "initial",
+      deps: deps([{ id: "r-no-date", text: "no timestamp" }]),
+    });
+    const fallbackRow = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("r-no-date") as { posted_at: string };
+    const fallbackMs = Date.parse(fallbackRow.posted_at);
+    assert.ok(Number.isFinite(fallbackMs));
+    assert.ok(fallbackMs >= before, "fallback posted_at should be ≈ now");
+    assert.ok(fallbackMs <= Date.now(), "fallback posted_at should be ≈ now");
+
+    await runUserIngest({
+      user,
+      mode: "initial",
+      deps: deps([
+        {
+          id: "r-no-date",
+          text: "no timestamp",
+          postedAt: "2026-08-16T10:00:00.000Z",
+        },
+      ]),
+    });
+    const repaired = getPlatformDb()
+      .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
+      .get("r-no-date") as { posted_at: string };
+    assert.equal(repaired.posted_at, "2026-08-16T10:00:00.000Z");
+  });
 });
 
 describe("beginVoiceCorpus", () => {

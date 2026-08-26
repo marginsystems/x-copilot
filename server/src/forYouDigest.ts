@@ -19,6 +19,8 @@ import type { OwnPostKind } from "./xActivity.js";
 export const MIN_T24H_SNAPSHOTS = 5;
 /** Memories / own-posts below this are avoid-list, not reply/quote/repost targets. */
 export const FOR_YOU_MIN_ENGAGE_VIEWS = 10;
+/** Recent lists omit posts younger than this — t0 views are not a real outcome. */
+export const FOR_YOU_MIN_POST_AGE_MS = 60 * 60 * 1000;
 const CLIP = 200;
 
 export type DigestPost = {
@@ -107,7 +109,7 @@ function mapPost(row: Record<string, unknown>): DigestPost {
   };
 }
 
-export function rankOwnPosts(userId: string): {
+export function rankOwnPosts(userId: string, nowMs = Date.now()): {
   best: DigestPost[];
   worst: DigestPost[];
   recentOriginals: DigestPost[];
@@ -135,6 +137,7 @@ export function rankOwnPosts(userId: string): {
     .slice(-5)
     .reverse();
 
+  const postedBefore = new Date(nowMs - FOR_YOU_MIN_POST_AGE_MS).toISOString();
   const recentKind = (kind: OwnPostKind): DigestPost[] =>
     (
       db
@@ -145,11 +148,11 @@ export function rankOwnPosts(userId: string): {
              COALESCE(t24h_replies, t1h_replies, t0_replies, 0) AS replies,
              COALESCE(t24h_retweets, t1h_retweets, t0_retweets, 0) AS retweets
            FROM own_posts
-           WHERE user_id = ? AND kind = ?
+           WHERE user_id = ? AND kind = ? AND posted_at <= ?
            ORDER BY posted_at DESC
            LIMIT 3`,
         )
-        .all(userId, kind) as Array<Record<string, unknown>>
+        .all(userId, kind, postedBefore) as Array<Record<string, unknown>>
     ).map(mapPost);
 
   return {

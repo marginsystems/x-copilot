@@ -20,6 +20,7 @@ export type ParsedPostCreate = {
   kind: OwnPostKind;
   text: string;
   postedAt: string;
+  postedAtFallback?: boolean;
   inReplyToId: string | null;
   inReplyToUserId: string | null;
   conversationId: string | null;
@@ -141,10 +142,13 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
   if (!xUserId) return null;
 
   const eventUuid = String(data.event_uuid ?? root.event_uuid ?? postId).trim();
-  const postedAt =
+  const createdMs =
     typeof post.created_at === "string" && post.created_at.trim()
-      ? post.created_at
-      : new Date().toISOString();
+      ? Date.parse(post.created_at)
+      : NaN;
+  const postedAt = Number.isFinite(createdMs)
+    ? new Date(createdMs).toISOString()
+    : new Date().toISOString();
 
   return {
     eventUuid,
@@ -153,6 +157,7 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
     kind: classifyPostKind(post),
     text: typeof post.text === "string" ? post.text : "",
     postedAt,
+    postedAtFallback: !Number.isFinite(createdMs),
     inReplyToId: post.in_reply_to_tweet_id
       ? String(post.in_reply_to_tweet_id)
       : null,

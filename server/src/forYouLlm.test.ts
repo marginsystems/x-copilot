@@ -62,6 +62,8 @@ describe("draftForYouActions", () => {
     assert.match(FOR_YOU_DIGEST_SYSTEM, /At least one kind=post/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /invite a reply/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /named other side/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /younger than 1 hour/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /AVOID_24H/);
     assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /reply farm/i);
   });
 

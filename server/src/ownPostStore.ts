@@ -88,6 +88,7 @@ export function upsertOwnPost(input: {
   const url = postUrl(input.parsed.authorUsername, input.parsed.postId);
   const m = input.parsed.metrics;
   const now = new Date().toISOString();
+  const postedAtFallback = input.parsed.postedAtFallback ? 1 : 0;
   db.prepare(
     `INSERT INTO own_posts (
        id, user_id, tenant_id, x_user_id, kind, text, posted_at,
@@ -98,7 +99,14 @@ export function upsertOwnPost(input: {
      ON CONFLICT(id) DO UPDATE SET
        text = excluded.text,
        kind = excluded.kind,
-       url = excluded.url`,
+       url = excluded.url,
+       posted_at = CASE
+         WHEN own_posts.posted_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'
+           THEN excluded.posted_at
+         WHEN ? = 1
+           THEN own_posts.posted_at
+         ELSE excluded.posted_at
+       END`,
   ).run(
     input.parsed.postId,
     input.userId,
@@ -118,6 +126,7 @@ export function upsertOwnPost(input: {
     m.bookmarks ?? null,
     now,
     now,
+    postedAtFallback,
   );
   return !existing;
 }
