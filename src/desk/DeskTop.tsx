@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { AGENDA_MAX_CHARS } from "../lib/agendaPersist";
 import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import type { GamificationStats } from "../lib/gamification";
@@ -57,6 +58,7 @@ export function DeskTop({
   onToggleFlightPath,
   onActivityBucket,
 }: DeskTopProps) {
+  const bodyId = useId();
   const takeoffLabel = grounded
     ? "Grounded"
     : searchCooldownRemaining > 0
@@ -81,17 +83,7 @@ export function DeskTop({
     <div className={open ? "desk-top" : "desk-top is-collapsed"}>
       <div className="desk-top-bar">
         {open ? (
-          <button
-            type="button"
-            className="desk-top-toggle"
-            aria-expanded={true}
-            onClick={onToggle}
-          >
-            <span>Agenda & flight path</span>
-            <span className="desk-top-caret" aria-hidden="true">
-              –
-            </span>
-          </button>
+          <p className="desk-top-bar-title">Agenda & flight path</p>
         ) : (
           <>
             {searching ? (
@@ -130,22 +122,32 @@ export function DeskTop({
                 <p className="status status-hint">{takeoffsHint}</p>
               ) : null}
             </div>
-            <button
-              type="button"
-              className="desk-top-toggle"
-              aria-expanded={false}
-              onClick={onToggle}
-            >
-              <span>Agenda</span>
-              <span className="desk-top-caret" aria-hidden="true">
-                +
-              </span>
-            </button>
           </>
         )}
+        <button
+          type="button"
+          className="desk-top-toggle"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          aria-label={open ? "Minimize agenda" : "Expand agenda"}
+          onClick={onToggle}
+        >
+          <span className="desk-top-caret" aria-hidden="true">
+            {open ? "–" : "+"}
+          </span>
+        </button>
       </div>
-      {open ? (
-        <>
+      <div
+        className="desk-top-body"
+        id={bodyId}
+        ref={(panel) => {
+          if (!panel) return;
+          if (open) panel.removeAttribute("inert");
+          else panel.setAttribute("inert", "");
+        }}
+        aria-hidden={!open}
+      >
+        <div className="desk-top-body-inner">
           <div className="control-pane">
             <h2>Agenda</h2>
             <textarea
@@ -216,8 +218,8 @@ export function DeskTop({
             onToggleFlightPath={onToggleFlightPath}
             onActivityBucket={onActivityBucket}
           />
-        </>
-      ) : null}
+        </div>
+      </div>
     </div>
   );
 }
