@@ -85,13 +85,24 @@ export async function buildCoachingSnapshot(opts: {
   userId: string;
   tenantId: string;
   nowMs?: number;
+  interactionStorePath?: string;
+  gamificationPath?: string;
 }): Promise<CoachingSnapshot> {
   const nowMs = opts.nowMs ?? Date.now();
   const dayUtc = utcDayKey(nowMs);
   const sinceIso = startOfUtcDayIso(new Date(nowMs));
   const [history, gamification] = await Promise.all([
-    listInteractionHistory({ userId: opts.userId, limit: 400 }),
-    getGamification({ userId: opts.userId, nowMs }),
+    listInteractionHistory({
+      userId: opts.userId,
+      limit: 400,
+      storePath: opts.interactionStorePath,
+    }),
+    getGamification({
+      userId: opts.userId,
+      nowMs,
+      gamificationPath: opts.gamificationPath,
+      interactionStorePath: opts.interactionStorePath,
+    }),
   ]);
   let marksToday = 0;
   for (const row of history) {

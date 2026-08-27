@@ -31,6 +31,8 @@ describe("originalsTodayCount", () => {
 
 describe("buildCoachingSnapshot", () => {
   let dir: string;
+  let gamificationPath: string;
+  let interactionStorePath: string;
 
   beforeEach(() => {
     resetPlatformDbForTests();
@@ -38,6 +40,8 @@ describe("buildCoachingSnapshot", () => {
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
     getPlatformDb();
+    gamificationPath = join(dir, "g.json");
+    interactionStorePath = join(dir, "interactions.json");
   });
 
   afterEach(() => {
@@ -61,6 +65,8 @@ describe("buildCoachingSnapshot", () => {
       userId: "u1",
       tenantId: "local",
       nowMs: NOW_MS,
+      gamificationPath,
+      interactionStorePath,
     });
     assert.equal(snapshot.originalsToday, 1);
 
@@ -68,7 +74,7 @@ describe("buildCoachingSnapshot", () => {
       userId: "u1",
       snapshot,
       nowMs: NOW_MS,
-      gamificationPath: join(dir, "g.json"),
+      gamificationPath,
     });
     const original = missions.find((m) => m.id === "original_1");
     assert.equal(original?.progress, 1);
@@ -95,6 +101,8 @@ describe("buildCoachingSnapshot", () => {
       userId: "u1",
       tenantId: "local",
       nowMs: NOW_MS,
+      gamificationPath,
+      interactionStorePath,
     });
     assert.equal(snapshot.originalsToday, 1);
 
@@ -102,7 +110,7 @@ describe("buildCoachingSnapshot", () => {
       userId: "u1",
       snapshot,
       nowMs: NOW_MS,
-      gamificationPath: join(dir, "g.json"),
+      gamificationPath,
     });
     const original = missions.find((m) => m.id === "original_1");
     assert.equal(original?.progress, 1);
@@ -129,6 +137,8 @@ describe("buildCoachingSnapshot", () => {
       userId: "u1",
       tenantId: "local",
       nowMs: NOW_MS,
+      gamificationPath,
+      interactionStorePath,
     });
     assert.equal(ownPostsOnly.originalsToday, 1);
 
@@ -145,6 +155,8 @@ describe("buildCoachingSnapshot", () => {
       userId: "u1",
       tenantId: "local",
       nowMs: NOW_MS,
+      gamificationPath,
+      interactionStorePath,
     });
     assert.equal(withCard.originalsToday, 1);
   });
@@ -161,6 +173,8 @@ describe("buildCoachingSnapshot", () => {
       userId: "u1",
       tenantId: "local",
       nowMs: NOW_MS,
+      gamificationPath,
+      interactionStorePath,
     });
     assert.equal(snapshot.deskPostsToday, 1);
     assert.equal(snapshot.originalsToday, 1);
