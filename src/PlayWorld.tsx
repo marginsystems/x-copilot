@@ -132,7 +132,6 @@ function addGates(scene: THREE.Scene): THREE.Mesh[] {
   for (const gate of CIRCUIT_GATES) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(gate.r, 0.12, 8, 20), mat.clone());
     ring.position.set(gate.x, gate.y, gate.z);
-    ring.rotation.y = Math.PI / 2;
     scene.add(ring);
     rings.push(ring);
   }

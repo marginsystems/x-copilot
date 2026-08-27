@@ -121,6 +121,7 @@ export function PlayPage(props: {
   }
   function onLookEnd(e: React.PointerEvent<HTMLDivElement>) {
     pointers.current.delete(e.pointerId);
+    inputRef.current.bank = 0;
     if (pointers.current.size === 0) orbitingRef.current = false;
   }
 
