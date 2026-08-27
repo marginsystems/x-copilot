@@ -1,0 +1,5 @@
+Cesium Air sample model
+Source: https://github.com/CesiumGS/cesium/tree/main/Apps/SampleData/models/CesiumAir
+Copyright 2011-2026 CesiumJS Contributors
+Licensed under the Apache License, Version 2.0
+http://www.apache.org/licenses/LICENSE-2.0

@@ -1,27 +1,41 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  PLAY_YARD,
-  aimMove,
-  cameraFollow,
+  PLAY_ORBIT,
+  autoOrbit,
+  cameraFromOrbit,
+  clampOrbit,
+  defaultOrbit,
+  dragOrbit,
+  pinchOrbit,
   playToastFromMissions,
-  stepMove,
 } from "./playWorld.ts";
 
 describe("playWorld", () => {
-  it("walks forward and stops at the yard fence", () => {
-    const mid = stepMove({ x: 0, z: 0 }, { x: 0, z: 1 }, 0.25, 0);
-    assert.equal(mid.moving, true);
-    assert.ok(mid.pos.z > 0);
-    const edge = stepMove({ x: 0, z: PLAY_YARD }, { x: 0, z: 1 }, 1, 0);
-    assert.ok(Math.abs(aimMove({ x: 0, z: 1 }, 0).z) > 0.5);
-    assert.equal(edge.pos.z, PLAY_YARD);
+  it("clamps pitch and radius around the parked plane", () => {
+    const o = clampOrbit({ yaw: 2, pitch: 4, radius: 200 });
+    assert.equal(o.pitch, PLAY_ORBIT.pitchMax);
+    assert.equal(o.radius, PLAY_ORBIT.radiusMax);
+    assert.equal(clampOrbit({ yaw: 0, pitch: -2, radius: 1 }).pitch, PLAY_ORBIT.pitchMin);
   });
 
-  it("keeps the camera behind the player", () => {
-    const cam = cameraFollow({ x: 0, z: 0 }, 0);
-    assert.ok(cam.z > 0);
+  it("orbits the camera around the origin", () => {
+    const start = defaultOrbit();
+    const cam = cameraFromOrbit(start);
     assert.equal(cam.lookX, 0);
+    assert.equal(cam.lookZ, 0);
+    assert.ok(cam.y > 0);
+    const dragged = dragOrbit(start, 80, 0);
+    assert.ok(dragged.yaw > start.yaw);
+    const inClose = pinchOrbit(start, 2);
+    assert.ok(inClose.radius < start.radius);
+  });
+
+  it("auto-orbits only after ten idle seconds", () => {
+    const start = defaultOrbit();
+    assert.equal(autoOrbit(start, 1, 3).yaw, start.yaw);
+    assert.ok(autoOrbit(start, 1, 11).yaw > start.yaw);
+    assert.equal(autoOrbit(start, 1, 11, true).yaw, start.yaw);
   });
 
   it("toasts a newly claimed mission once", () => {

@@ -1,21 +1,125 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import {
-  aimMove,
-  cameraFollow,
-  stepMove,
-  type PlayVec2,
-} from "./lib/playWorld";
+import { autoOrbit, cameraFromOrbit, type PlayOrbit } from "./lib/playWorld";
 
-const ASSET = (name: string) => `/play-assets/${name}`;
+const PLANE = "/play-assets/cesium-air.glb";
+const WINGSPAN = 8;
 
 type Props = {
   lit: boolean;
   reducedMotion: boolean;
-  inputRef: React.MutableRefObject<PlayVec2>;
-  orbitRef: React.MutableRefObject<number>;
+  orbitRef: React.MutableRefObject<PlayOrbit>;
+  orbitingRef: React.MutableRefObject<boolean>;
 };
+
+function duskSky(lit: boolean): number {
+  return lit ? 0x1c2240 : 0x0b101c;
+}
+
+function duskFog(lit: boolean): number {
+  return lit ? 0x2a2038 : 0x0b101c;
+}
+
+function addApron(scene: THREE.Scene, lit: boolean): THREE.Group {
+  const root = new THREE.Group();
+  root.name = "apron";
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(180, 180),
+    new THREE.MeshStandardMaterial({ color: 0x1a1c22, roughness: 1 }),
+  );
+  ground.rotation.x = -Math.PI / 2;
+  root.add(ground);
+
+  const runway = new THREE.Mesh(
+    new THREE.PlaneGeometry(8, 90),
+    new THREE.MeshStandardMaterial({ color: 0x2c2e36, roughness: 0.92 }),
+  );
+  runway.rotation.x = -Math.PI / 2;
+  runway.position.set(0, 0.01, -18);
+  root.add(runway);
+
+  const pad = new THREE.Mesh(
+    new THREE.PlaneGeometry(22, 18),
+    new THREE.MeshStandardMaterial({ color: 0x32343c, roughness: 0.9 }),
+  );
+  pad.rotation.x = -Math.PI / 2;
+  pad.position.set(0, 0.015, 4);
+  root.add(pad);
+
+  const dashMat = new THREE.MeshStandardMaterial({
+    color: 0xd8d2b8,
+    emissive: lit ? 0x3a3420 : 0x000000,
+    roughness: 0.7,
+  });
+  for (let i = -10; i <= 8; i += 1) {
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.03, 1.6), dashMat);
+    dash.position.set(0, 0.03, -4 - i * 3.4);
+    root.add(dash);
+  }
+
+  const hangar = new THREE.Group();
+  hangar.position.set(-11, 0, 6);
+  const metal = new THREE.MeshStandardMaterial({ color: 0x3a414c, roughness: 0.75, metalness: 0.2 });
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(10, 0.35, 12), metal);
+  roof.position.set(0, 5.1, 0);
+  hangar.add(roof);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(10, 5, 0.35), metal);
+  back.position.set(0, 2.5, -5.8);
+  hangar.add(back);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(0.35, 5, 12), metal);
+  left.position.set(-4.8, 2.5, 0);
+  hangar.add(left);
+  const right = new THREE.Mesh(new THREE.BoxGeometry(0.35, 5, 12), metal);
+  right.position.set(4.8, 2.5, 0);
+  hangar.add(right);
+  const interior = new THREE.PointLight(0xffc27a, lit ? 1.4 : 0.15, 16, 2);
+  interior.position.set(0, 3.4, 0);
+  hangar.add(interior);
+  root.add(hangar);
+
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.08, 4.2, 6),
+    new THREE.MeshStandardMaterial({ color: 0x4a4e56 }),
+  );
+  pole.position.set(8.4, 2.1, 7.2);
+  root.add(pole);
+  const sock = new THREE.Mesh(
+    new THREE.ConeGeometry(0.28, 1.4, 6),
+    new THREE.MeshStandardMaterial({ color: 0xc45a3a, roughness: 0.6 }),
+  );
+  sock.rotation.z = Math.PI / 2;
+  sock.position.set(9.2, 3.9, 7.2);
+  sock.name = "windsock";
+  root.add(sock);
+
+  const lampMat = new THREE.MeshStandardMaterial({
+    color: 0xffd27a,
+    emissive: lit ? 0xffc15a : 0x000000,
+    emissiveIntensity: lit ? 1.6 : 0,
+  });
+  for (const x of [-4.1, 4.1]) {
+    for (let z = 12; z >= -48; z -= 6) {
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.11, 6, 6), lampMat);
+      lamp.position.set(x, 0.18, z);
+      root.add(lamp);
+    }
+  }
+
+  scene.add(root);
+  return root;
+}
+
+function fitPlane(model: THREE.Object3D): void {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const span = Math.max(size.x, size.z, 0.001);
+  model.scale.setScalar(WINGSPAN / span);
+  const grounded = new THREE.Box3().setFromObject(model);
+  model.position.y -= grounded.min.y;
+  model.position.z = 2.2;
+}
 
 export function PlayWorld(props: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -24,6 +128,7 @@ export function PlayWorld(props: Props) {
     scene: THREE.Scene;
     hemi: THREE.HemisphereLight;
     sun: THREE.DirectionalLight;
+    setLit: (lit: boolean) => void;
     render: () => void;
   } | null>(null);
 
@@ -31,6 +136,7 @@ export function PlayWorld(props: Props) {
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
     if (!wrap || !canvas) return;
+    const host = wrap;
 
     const renderer = new THREE.WebGLRenderer({
       canvas,
@@ -43,49 +149,33 @@ export function PlayWorld(props: Props) {
     renderer.shadowMap.enabled = false;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(props.lit ? 0x87b8dc : 0x4a6280);
-    scene.fog = new THREE.Fog(scene.background, 14, 32);
+    scene.background = new THREE.Color(duskSky(props.lit));
+    scene.fog = new THREE.Fog(duskFog(props.lit), 28, 90);
 
-    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
-    const hemi = new THREE.HemisphereLight(0xe8f2ff, 0x3d5a32, props.lit ? 1.15 : 0.7);
+    const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 160);
+    const hemi = new THREE.HemisphereLight(0xffc9a8, 0x1a1524, props.lit ? 0.95 : 0.4);
     scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff4d6, props.lit ? 1.1 : 0.45);
-    sun.position.set(8, 14, 6);
+    const sun = new THREE.DirectionalLight(0xff9a62, props.lit ? 1.15 : 0.25);
+    sun.position.set(-18, 8, 10);
     scene.add(sun);
 
-    const player = new THREE.Group();
-    player.position.set(0, 0, 2.4);
-    scene.add(player);
+    addApron(scene, props.lit);
 
-    const pet = new THREE.Group();
-    pet.position.set(1.6, 0, -1.2);
-    scene.add(pet);
-
+    let mixer: THREE.AnimationMixer | null = null;
     const loader = new GLTFLoader();
-    const load = (file: string) =>
-      new Promise<THREE.Group | null>((resolve) => {
-        loader.load(
-          ASSET(file),
-          (gltf) => resolve(gltf.scene),
-          undefined,
-          () => resolve(null),
-        );
-      });
 
     let alive = true;
     let raf = 0;
     let last = performance.now();
-    let yaw = 0;
-    let lastOrbit = props.orbitRef.current;
-    const pos: PlayVec2 = { x: 0, z: 2.4 };
+    let idleSec = 0;
 
-    const host = wrap;
     function renderFrame() {
-      const cam = cameraFollow(pos, props.orbitRef.current);
+      const cam = cameraFromOrbit(props.orbitRef.current);
       camera.position.set(cam.x, cam.y, cam.z);
       camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
       renderer.render(scene, camera);
     }
+
     function resize() {
       const w = host.clientWidth;
       const h = host.clientHeight;
@@ -95,154 +185,84 @@ export function PlayWorld(props: Props) {
       camera.updateProjectionMatrix();
       if (props.reducedMotion) renderFrame();
     }
-    worldRef.current = { scene, hemi, sun, render: renderFrame };
+
+    const setLit = (lit: boolean) => {
+      scene.background = new THREE.Color(duskSky(lit));
+      scene.fog = new THREE.Fog(duskFog(lit), 28, 90);
+      hemi.intensity = lit ? 0.95 : 0.4;
+      sun.intensity = lit ? 1.15 : 0.25;
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        const mat = mesh.material as THREE.MeshStandardMaterial | undefined;
+        if (!mat?.emissive) return;
+        if (mesh.geometry?.type === "SphereGeometry") {
+          mat.emissive.setHex(lit ? 0xffc15a : 0x000000);
+          mat.emissiveIntensity = lit ? 1.6 : 0;
+        }
+      });
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.PointLight) obj.intensity = lit ? 1.4 : 0.15;
+      });
+      renderFrame();
+    };
+
+    worldRef.current = { scene, hemi, sun, setLit, render: renderFrame };
     const ro = new ResizeObserver(resize);
-    ro.observe(wrap);
+    ro.observe(host);
     resize();
 
-    void (async () => {
-      const [
-        grass,
-        grassLarge,
-        fence,
-        fenceCorner,
-        tree,
-        pine,
-        tuft,
-        flowers,
-        chest,
-        crate,
-        flag,
-        hero,
-        buddy,
-      ] = await Promise.all([
-        load("block-grass.glb"),
-        load("block-grass-large.glb"),
-        load("fence-straight.glb"),
-        load("fence-corner.glb"),
-        load("tree.glb"),
-        load("tree-pine.glb"),
-        load("grass.glb"),
-        load("flowers.glb"),
-        load("chest.glb"),
-        load("crate.glb"),
-        load("flag.glb"),
-        load("character-ooli.glb"),
-        load("character-oobi.glb"),
-      ]);
-      if (!alive) return;
-
-      const tile = 1.05;
-      for (let ix = -7; ix <= 7; ix += 1) {
-        for (let iz = -7; iz <= 7; iz += 1) {
-          const g = (Math.abs(ix) + Math.abs(iz)) % 3 === 0 ? grassLarge : grass;
-          if (!g) continue;
-          const n = g.clone();
-          n.position.set(ix * tile, 0, iz * tile);
-          scene.add(n);
+    loader.load(
+      PLANE,
+      (gltf) => {
+        if (!alive) return;
+        fitPlane(gltf.scene);
+        scene.add(gltf.scene);
+        if (gltf.animations.length > 0 && !props.reducedMotion) {
+          mixer = new THREE.AnimationMixer(gltf.scene);
+          for (const clip of gltf.animations) mixer.clipAction(clip).play();
         }
-      }
-
-      const placeFence = (x: number, z: number, rot: number, corner = false) => {
-        const f = corner ? fenceCorner : fence;
-        if (!f) return;
-        const n = f.clone();
-        n.position.set(x, 0, z);
-        n.rotation.y = rot;
-        scene.add(n);
-      };
-      const edge = 7.4;
-      for (let i = -6; i <= 6; i += 1) {
-        placeFence(i * tile, -edge, 0);
-        placeFence(i * tile, edge, Math.PI);
-        placeFence(-edge, i * tile, Math.PI / 2);
-        placeFence(edge, i * tile, -Math.PI / 2);
-      }
-      placeFence(-edge, -edge, 0, true);
-      placeFence(edge, -edge, -Math.PI / 2, true);
-      placeFence(-edge, edge, Math.PI / 2, true);
-      placeFence(edge, edge, Math.PI, true);
-
-      const deco = [
-        { m: tree, x: -9.2, z: -8.4 },
-        { m: pine, x: 9.4, z: -7.8 },
-        { m: tree, x: -8.8, z: 9.1 },
-        { m: pine, x: 9.6, z: 8.6 },
-        { m: tuft, x: -2.2, z: 3.1 },
-        { m: flowers, x: 2.8, z: 2.4 },
-        { m: tuft, x: -3.4, z: -2.6 },
-        { m: flowers, x: 3.6, z: -3.2 },
-      ];
-      for (const row of deco) {
-        if (!row.m) continue;
-        const n = row.m.clone();
-        n.position.set(row.x, 0, row.z);
-        scene.add(n);
-      }
-
-      if (chest) {
-        chest.position.set(0, 0, -1.4);
-        scene.add(chest);
-      }
-      if (crate) {
-        crate.position.set(-2.1, 0, -1.1);
-        scene.add(crate);
-      }
-      if (flag) {
-        flag.position.set(2.2, 0, -1.6);
-        scene.add(flag);
-      }
-
-      if (hero) {
-        hero.rotation.y = Math.PI;
-        player.add(hero);
-      }
-      if (buddy) {
-        buddy.rotation.y = Math.PI * 0.2;
-        pet.add(buddy);
-      }
-      if (props.reducedMotion) renderFrame();
-    })();
+        renderFrame();
+      },
+      undefined,
+      () => {
+        if (!alive) return;
+        const fallback = new THREE.Mesh(
+          new THREE.BoxGeometry(2.2, 0.7, 4.4),
+          new THREE.MeshStandardMaterial({ color: 0x7eb8dc }),
+        );
+        fallback.position.set(0, 0.35, 2.2);
+        scene.add(fallback);
+        renderFrame();
+      },
+    );
 
     const tick = (now: number) => {
       if (!alive) return;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const input = props.inputRef.current;
-      const orbit = props.orbitRef.current;
-      if (
-        props.reducedMotion &&
-        input.x === 0 &&
-        input.z === 0 &&
-        orbit === lastOrbit
-      ) {
-        raf = requestAnimationFrame(tick);
-        return;
+      if (props.orbitingRef.current) idleSec = 0;
+      else idleSec += dt;
+      if (!props.reducedMotion) {
+        props.orbitRef.current = autoOrbit(
+          props.orbitRef.current,
+          dt,
+          idleSec,
+          false,
+        );
+        mixer?.update(dt);
       }
-      lastOrbit = orbit;
-      const next = stepMove(pos, aimMove(input, orbit), dt, yaw);
-      pos.x = next.pos.x;
-      pos.z = next.pos.z;
-      if (next.moving) yaw = next.yaw;
-      player.position.set(pos.x, 0, pos.z);
-      player.rotation.y = yaw;
-      pet.position.y = 0.04 * Math.sin(now / 280);
-      const cam = cameraFollow(pos, orbit);
-      camera.position.set(cam.x, cam.y, cam.z);
-      camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
-      renderer.render(scene, camera);
+      renderFrame();
       raf = requestAnimationFrame(tick);
     };
 
-    if (props.reducedMotion) {
-      renderFrame();
-    }
+    renderFrame();
     raf = requestAnimationFrame(tick);
 
     return () => {
       alive = false;
       cancelAnimationFrame(raf);
       worldRef.current = null;
+      mixer?.stopAllAction();
       ro.disconnect();
       renderer.dispose();
       scene.traverse((obj) => {
@@ -253,16 +273,10 @@ export function PlayWorld(props: Props) {
         else mat?.dispose?.();
       });
     };
-  }, [props.reducedMotion, props.inputRef, props.orbitRef]);
+  }, [props.reducedMotion, props.orbitRef, props.orbitingRef]);
 
   useEffect(() => {
-    const world = worldRef.current;
-    if (!world) return;
-    world.scene.background = new THREE.Color(props.lit ? 0x87b8dc : 0x4a6280);
-    world.scene.fog?.color.copy(world.scene.background);
-    world.hemi.intensity = props.lit ? 1.15 : 0.7;
-    world.sun.intensity = props.lit ? 1.1 : 0.45;
-    world.render();
+    worldRef.current?.setLit(props.lit);
   }, [props.lit]);
 
   return (

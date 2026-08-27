@@ -1,4 +1,4 @@
-/* 21-play.css: fullscreen hangar yard */
+/* 21-play.css: fullscreen dusk apron */
 
 .play-world {
   position: relative;
@@ -6,7 +6,7 @@
   min-height: 0;
   width: 100%;
   overflow: hidden;
-  background: #3d5a32;
+  background: #0b101c;
 }
 
 .play-world-stage,
@@ -30,7 +30,7 @@
 .play-hud-top,
 .play-toast,
 .play-hud-missions,
-.play-stick,
+.play-hold,
 .play-desk-fab,
 .play-credit {
   position: absolute;
@@ -51,13 +51,12 @@
   margin: 0;
   font-size: 0.78rem;
   font-weight: 650;
-  color: #f4f7f2;
-  text-shadow: none;
+  color: #f4f0e6;
 }
 
 .play-hud-back {
   background: color-mix(in srgb, #111 55%, transparent);
-  color: #f4f7f2;
+  color: #f4f0e6;
   border-color: color-mix(in srgb, #fff 24%, transparent);
 }
 
@@ -69,7 +68,7 @@
   padding: 8px 12px;
   border: 1px solid color-mix(in srgb, #fff 22%, transparent);
   background: color-mix(in srgb, #111 62%, transparent);
-  color: #f4f7f2;
+  color: #f4f0e6;
   font-size: 0.8rem;
   white-space: nowrap;
 }
@@ -84,29 +83,28 @@
 
 .play-hud-missions span {
   font-size: 0.72rem;
-  color: #e8efe4;
+  color: #e8e0d4;
 }
 
 .play-hud-missions span.is-done {
-  color: #b8d48a;
+  color: #c4d48a;
 }
 
-.play-stick {
-  left: 16px;
-  bottom: max(20px, env(safe-area-inset-bottom));
-  width: 96px;
-  height: 96px;
-  border: 1px solid color-mix(in srgb, #fff 28%, transparent);
+.play-hold {
+  left: 50%;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 12px 22px;
+  border: 1px solid color-mix(in srgb, #fff 26%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, #111 42%, transparent);
-  display: grid;
-  place-items: center;
-  touch-action: none;
-  z-index: 3;
-  color: #f4f7f2;
-  font-size: 0.68rem;
+  background: color-mix(in srgb, #111 48%, transparent);
+  color: #f4f0e6;
+  font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  z-index: 3;
+  pointer-events: none;
 }
 
 .play-desk-fab {
@@ -115,16 +113,16 @@
   z-index: 3;
   border: 1px solid color-mix(in srgb, #fff 28%, transparent);
   background: color-mix(in srgb, #111 55%, transparent);
-  color: #f4f7f2;
+  color: #f4f0e6;
   padding: 10px 14px;
 }
 
 .play-credit {
-  right: 12px;
+  left: 12px;
   bottom: 6px;
   margin: 0;
   font-size: 0.6rem;
-  color: color-mix(in srgb, #fff 45%, transparent);
+  color: color-mix(in srgb, #fff 42%, transparent);
 }
 
 .app-main.app-main-play {
