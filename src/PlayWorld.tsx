@@ -187,7 +187,7 @@ export function PlayWorld(props: Props) {
     sun.position.set(-18, 8, 10);
     scene.add(sun);
 
-    addApron(scene, props.lit);
+    const apron = addApron(scene, props.lit);
     const rings = addGates(scene);
     const cleared = CIRCUIT_GATES.map(() => false);
     const craft = new THREE.Group();
@@ -228,13 +228,15 @@ export function PlayWorld(props: Props) {
       scene.fog = new THREE.Fog(duskFog(lit), 28, 90);
       hemi.intensity = lit ? 0.95 : 0.4;
       sun.intensity = lit ? 1.15 : 0.25;
-      scene.traverse((obj) => {
+      apron.traverse((obj) => {
         const mesh = obj as THREE.Mesh;
         const mat = mesh.material as THREE.MeshStandardMaterial | undefined;
         if (!mat?.emissive) return;
         if (mesh.geometry?.type === "SphereGeometry") {
           mat.emissive.setHex(lit ? 0xffc15a : 0x000000);
           mat.emissiveIntensity = lit ? 1.6 : 0;
+        } else {
+          mat.emissive.setHex(lit ? 0x3a3420 : 0x000000);
         }
       });
       scene.traverse((obj) => {
