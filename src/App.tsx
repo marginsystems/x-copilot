@@ -684,7 +684,11 @@ export default function App() {
       !showOnboardingPreview ? (
         <main
           className={
-            view === "dashboard" ? "app-main" : "app-main app-main-scroll"
+            view === "play"
+              ? "app-main app-main-play"
+              : view === "dashboard"
+                ? "app-main"
+                : "app-main app-main-scroll"
           }
         >
       {authNotice ? (
