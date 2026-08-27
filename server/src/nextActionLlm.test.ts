@@ -169,4 +169,40 @@ describe("nextActionLlm", () => {
     assert.equal(calls, 2);
     assert.equal(next.kind, "original");
   });
+
+  it("refreshes instead of serving a stale rev-1 cache row", async () => {
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO next_action_cache
+           (user_id, kind, text, inputs_hash, model, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "u1",
+        "reply",
+        "stale hit-5-replies-era copy",
+        "abc",
+        "old-model",
+        "2026-08-25T00:00:00.000Z",
+      );
+    let calls = 0;
+    const action = await getOrRefreshNextAction({
+      userId: "u1",
+      snapshot: snapshot(),
+      inputsHash: "abc",
+      nowMs: NOW_MS,
+      chat: async () => {
+        calls += 1;
+        return {
+          ok: true as const,
+          content: '{"kind":"takeoff","text":"Take off once to refill Approach."}',
+          model: "test-model",
+          provider: "deepseek" as const,
+        };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(action.kind, "takeoff");
+    assert.equal(action.text, "Take off once to refill Approach.");
+  });
 });
