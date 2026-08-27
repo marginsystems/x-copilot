@@ -62,6 +62,7 @@ export function useViewRouting() {
     if (window.location.pathname !== path) {
       window.history.pushState({}, "", path);
     }
+    document.querySelector(".app-main-scroll")?.scrollTo({ top: 0 });
   }
 
   return {
