@@ -41,6 +41,8 @@ export function PlayPage(props: {
   const orbitingRef = useRef(false);
   const flightRef = useRef<FlightState>(parkedFlight());
   const inputRef = useRef<FlightInput>({ throttle: false, bank: 0 });
+  const keyThrottleRef = useRef(false);
+  const pillThrottleRef = useRef(false);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch0 = useRef(0);
   const [holding, setHolding] = useState(false);
@@ -62,11 +64,15 @@ export function PlayPage(props: {
   }, [props.coaching]);
 
   useEffect(() => {
+    const syncThrottle = () => {
+      inputRef.current.throttle = keyThrottleRef.current || pillThrottleRef.current;
+      setHolding(keyThrottleRef.current || pillThrottleRef.current);
+    };
     const down = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (k === " " || k === "w" || k === "arrowup") {
-        inputRef.current.throttle = true;
-        setHolding(true);
+        keyThrottleRef.current = true;
+        syncThrottle();
       }
       if (k === "a" || k === "arrowleft") inputRef.current.bank = -1;
       if (k === "d" || k === "arrowright") inputRef.current.bank = 1;
@@ -74,8 +80,9 @@ export function PlayPage(props: {
     const up = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (k === " " || k === "w" || k === "arrowup") {
-        inputRef.current.throttle = false;
-        setHolding(false);
+        keyThrottleRef.current = false;
+        inputRef.current.dragBank = 0;
+        syncThrottle();
       }
       if (k === "a" || k === "arrowleft" || k === "d" || k === "arrowright") {
         inputRef.current.bank = 0;
@@ -84,6 +91,8 @@ export function PlayPage(props: {
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     const reset = () => {
+      keyThrottleRef.current = false;
+      pillThrottleRef.current = false;
       inputRef.current.throttle = false;
       inputRef.current.bank = 0;
       inputRef.current.dragBank = 0;
@@ -182,19 +191,22 @@ export function PlayPage(props: {
       <p
         className={holding ? "play-hold is-hold" : "play-hold"}
         onPointerDown={(e) => {
-          inputRef.current.throttle = true;
-          setHolding(true);
+          pillThrottleRef.current = true;
+          inputRef.current.throttle = keyThrottleRef.current || pillThrottleRef.current;
+          setHolding(inputRef.current.throttle);
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
         onPointerUp={() => {
-          inputRef.current.throttle = false;
+          pillThrottleRef.current = false;
+          inputRef.current.throttle = keyThrottleRef.current || pillThrottleRef.current;
           inputRef.current.dragBank = 0;
-          setHolding(false);
+          setHolding(inputRef.current.throttle);
         }}
         onPointerCancel={() => {
-          inputRef.current.throttle = false;
+          pillThrottleRef.current = false;
+          inputRef.current.throttle = keyThrottleRef.current || pillThrottleRef.current;
           inputRef.current.dragBank = 0;
-          setHolding(false);
+          setHolding(inputRef.current.throttle);
         }}
       >
         {holding ? "Throttle" : "Hold to take off"}

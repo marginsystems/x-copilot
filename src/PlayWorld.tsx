@@ -205,9 +205,20 @@ export function PlayWorld(props: Props) {
 
     function renderFrame() {
       const flight = props.flightRef.current;
-      const cam = flight.airborne || flight.speed > 0.8
-        ? chaseCamera(flight)
-        : cameraFromOrbit(props.orbitRef.current);
+      let cam: { x: number; y: number; z: number; lookX: number; lookY: number; lookZ: number };
+      if (flight.airborne || flight.speed > 0.8) {
+        cam = chaseCamera(flight);
+      } else {
+        const orbit = cameraFromOrbit(props.orbitRef.current);
+        cam = {
+          x: orbit.x + flight.x,
+          y: orbit.y,
+          z: orbit.z + flight.z,
+          lookX: flight.x,
+          lookY: orbit.lookY,
+          lookZ: flight.z,
+        };
+      }
       camera.position.set(cam.x, cam.y, cam.z);
       camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
       renderer.render(scene, camera);
