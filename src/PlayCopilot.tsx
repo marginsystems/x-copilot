@@ -73,8 +73,9 @@ export function PlayCopilot({ scene }: { scene: PlayScene }) {
         </g>
       </svg>
       {scene.state === "celebrate" ? (
-        // Text slot for the celebrate line; PR 4 fills it from the cursor diff.
-        <p className="play-celebrate-line" aria-live="polite" />
+        <p className="play-celebrate-line" aria-live="polite">
+          {scene.celebrateLine}
+        </p>
       ) : null}
       {showSpeech ? (
         <div className="play-speech" role="status">

@@ -1,7 +1,6 @@
 /**
  * Derive the /play scene from coaching + gamification.
  * Kept free of DOM so it can run under node:test.
- * Celebrate stays stubbed until the last-seen cursor (PR 4).
  */
 
 import {
@@ -10,6 +9,7 @@ import {
   type DailyMission,
 } from "./coaching";
 import type { GamificationStats } from "./gamification";
+import type { PlayDelta } from "./playSeen";
 
 export const PLAY_STATES = ["idle", "celebrate", "nudge", "sleep"] as const;
 export type PlayCreatureState = (typeof PLAY_STATES)[number];
@@ -19,6 +19,7 @@ export type PlayScene = {
   perchLit: boolean;
   speech: string | null;
   speechKind: string | null;
+  celebrateLine: string | null;
   dayUtc: string;
   level: number;
   currentStreak: number;
@@ -51,6 +52,7 @@ export function playStateClass(
 export function playSceneFromState(
   coaching: CoachingState | null,
   gamification: GamificationStats,
+  celebrate: PlayDelta | null = null,
 ): PlayScene {
   const dayUtc = coaching?.dayUtc ?? "";
   const nextAction = coaching?.nextAction ?? null;
@@ -58,7 +60,9 @@ export function playSceneFromState(
   const perchLit = Boolean(dayUtc) && gamification.lastMarkUtcDay === dayUtc;
 
   let state: PlayCreatureState = "idle";
-  if (noActivityToday(coaching, gamification.lastMarkUtcDay) && !nextAction) {
+  if (celebrate) {
+    state = "celebrate";
+  } else if (noActivityToday(coaching, gamification.lastMarkUtcDay) && !nextAction) {
     state = "sleep";
   } else if (nextAction) {
     state = "nudge";
@@ -69,6 +73,7 @@ export function playSceneFromState(
     perchLit,
     speech: nextAction?.text ?? null,
     speechKind: nextAction ? nextActionKindLabel(nextAction.kind) : null,
+    celebrateLine: celebrate?.line ?? null,
     dayUtc,
     level: gamification.level,
     currentStreak: gamification.currentStreak,

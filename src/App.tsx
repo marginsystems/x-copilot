@@ -739,6 +739,7 @@ export default function App() {
       {view === "play" ? (
         <PlayPage
           onBack={() => goToView("dashboard")}
+          userId={authUser?.id ?? null}
           coaching={coaching}
           gamification={gamification}
         />

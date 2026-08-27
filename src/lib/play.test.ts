@@ -114,6 +114,23 @@ describe("playSceneFromState", () => {
     );
     assert.notEqual(scene.state, "celebrate");
     assert.equal(scene.state, "nudge");
+    assert.equal(scene.celebrateLine, null);
+  });
+
+  it("lets a cursor delta outrank nudge", () => {
+    const scene = playSceneFromState(
+      coaching({
+        nextAction: {
+          kind: "reply",
+          text: "Mark a reply to keep the streak.",
+          updatedAt: "2026-08-27T12:00:00.000Z",
+        },
+      }),
+      emptyGamificationStats(),
+      { kind: "mission", line: "Mark 2 replies · +4 XP" },
+    );
+    assert.equal(scene.state, "celebrate");
+    assert.equal(scene.celebrateLine, "Mark 2 replies · +4 XP");
   });
 
   it("does not light the perch when dayUtc is empty", () => {

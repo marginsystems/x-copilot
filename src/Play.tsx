@@ -1,18 +1,39 @@
+import { useEffect, useState } from "react";
 import { playSceneFromState } from "./lib/play";
+import {
+  browserPlaySeenStorage,
+  takePlaySeenDelta,
+  type PlayDelta,
+} from "./lib/playSeen";
 import { PlayCopilot } from "./PlayCopilot";
 import type { CoachingState } from "./lib/coaching";
 import type { GamificationStats } from "./lib/gamification";
 
 export function PlayPage({
   onBack,
+  userId,
   coaching,
   gamification,
 }: {
   onBack: () => void;
+  userId: string | null;
   coaching: CoachingState | null;
   gamification: GamificationStats;
 }) {
-  const scene = playSceneFromState(coaching, gamification);
+  const [celebrate, setCelebrate] = useState<PlayDelta | null>(null);
+
+  useEffect(() => {
+    if (!userId || !coaching?.dayUtc) return;
+    const found = takePlaySeenDelta(
+      browserPlaySeenStorage(),
+      userId,
+      coaching,
+      gamification,
+    );
+    setCelebrate((current) => found ?? current);
+  }, [userId, coaching, gamification]);
+
+  const scene = playSceneFromState(coaching, gamification, celebrate);
 
   return (
     <section className="panel settings-pane play-pane">
