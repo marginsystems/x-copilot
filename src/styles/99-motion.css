@@ -68,6 +68,12 @@
     animation: none;
     transition: none;
   }
+
+  .play-scene .is-idle .play-bird,
+  .play-scene .is-idle .play-eye-shut,
+  .play-scene .is-celebrate .play-bird {
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
