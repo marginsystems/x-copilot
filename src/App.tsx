@@ -593,6 +593,7 @@ export default function App() {
           <LearnPage
             onHome={() => goToView("home")}
             onCatalog={() => goToView("learn")}
+            onOpenLesson={(lesson) => goToView(lesson)}
             onFollow={() => goToView("learnFollow")}
             onReply={() => goToView("learnReply")}
             onVolume={() => goToView("learnVolume")}
@@ -603,6 +604,7 @@ export default function App() {
           <LearnReplyPage
             onHome={() => goToView("home")}
             onCatalog={() => goToView("learn")}
+            onOpenLesson={(lesson) => goToView(lesson)}
             onWeights={() => goToView("learnWeights")}
             onVolume={() => goToView("learnVolume")}
           />
@@ -612,6 +614,7 @@ export default function App() {
           <LearnVolumePage
             onHome={() => goToView("home")}
             onCatalog={() => goToView("learn")}
+            onOpenLesson={(lesson) => goToView(lesson)}
             onWeights={() => goToView("learnWeights")}
             onReply={() => goToView("learnReply")}
           />
@@ -621,6 +624,7 @@ export default function App() {
           <LearnFollowPage
             onHome={() => goToView("home")}
             onCatalog={() => goToView("learn")}
+            onOpenLesson={(lesson) => goToView(lesson)}
           />
         </main>
       ) : showLanding ? (

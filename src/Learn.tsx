@@ -29,12 +29,14 @@ import {
   LEARN_WEIGHTS,
   formatLearnWeight,
   weightPermalink,
+  type LearnLessonView,
 } from "./lib/learn";
 import { PRODUCT_NAME } from "./lib/legal";
 
 export function LearnPage(props: {
   onHome: () => void;
   onCatalog: () => void;
+  onOpenLesson: (view: LearnLessonView) => void;
   onFollow: () => void;
   onReply: () => void;
   onVolume: () => void;
@@ -47,6 +49,8 @@ export function LearnPage(props: {
       meta={LEARN_META}
       onHome={props.onHome}
       onCatalog={props.onCatalog}
+      current="learnWeights"
+      onOpenLesson={props.onOpenLesson}
       rail={
         <>
           <p className="learn-rail-kicker">Score</p>
