@@ -244,7 +244,7 @@ export function PlayWorld(props: Props) {
     const world = worldRef.current;
     if (!world) return;
     world.scene.background = new THREE.Color(props.lit ? 0x87b8dc : 0x4a6280);
-    world.scene.fog.color.copy(world.scene.background);
+    world.scene.fog?.color.copy(world.scene.background);
     world.hemi.intensity = props.lit ? 1.15 : 0.7;
     world.sun.intensity = props.lit ? 1.1 : 0.45;
     world.render();
