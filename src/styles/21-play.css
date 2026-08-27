@@ -1,281 +1,134 @@
-/* 21-play.css: /play perch scene — copilot creature, lamp, speech. */
+/* 21-play.css: fullscreen hangar yard */
 
-.play-lede {
-  max-width: 36rem;
+.play-world {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  background: #3d5a32;
 }
 
-.play-scene {
-  margin-top: 16px;
-  max-width: 36rem;
+.play-world-stage,
+.play-world-canvas,
+.play-look {
+  position: absolute;
+  inset: 0;
 }
 
-.play-stage {
+.play-world-canvas {
   display: block;
-  width: min(264px, 100%);
-  height: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  width: 100%;
+  height: 100%;
 }
 
-/* Fills: tokens only, so both themes render for free. */
-.play-bg {
-  fill: var(--panel);
+.play-look {
+  z-index: 1;
+  touch-action: none;
 }
 
-.play-perch {
-  fill: var(--border-strong);
+.play-hud-top,
+.play-toast,
+.play-hud-missions,
+.play-stick,
+.play-desk-fab,
+.play-credit {
+  position: absolute;
+  z-index: 2;
 }
 
-.play-body,
-.play-head-block,
-.play-eye-lid {
-  fill: var(--accent);
+.play-hud-top {
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
 }
 
-.play-body,
-.play-head-block {
-  stroke: var(--accent-dim);
-  stroke-width: 0.85;
-  stroke-linejoin: miter;
-  stroke-linecap: square;
+.play-hud-name {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #f4f7f2;
+  text-shadow: none;
 }
 
-.play-tail,
-.play-shade,
-.play-wing {
-  fill: var(--accent-dim);
+.play-hud-back {
+  background: color-mix(in srgb, #111 55%, transparent);
+  color: #f4f7f2;
+  border-color: color-mix(in srgb, #fff 24%, transparent);
 }
 
-.play-eye,
-.play-beak,
-.play-feet,
-.play-eye-seam {
-  fill: var(--ink);
+.play-toast {
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
+  background: color-mix(in srgb, #111 62%, transparent);
+  color: #f4f7f2;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
-/* Lamp follows the is-lit modifier; playStateClass keeps it off in sleep. */
-.play-lamp-glow {
-  fill: var(--accent);
-  opacity: 0;
-  transition: opacity 240ms ease;
+.play-hud-missions {
+  top: 48px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.play-lamp-bulb {
-  fill: var(--accent-dim);
-  opacity: 0.45;
-  transition: opacity 240ms ease, fill 240ms ease;
+.play-hud-missions span {
+  font-size: 0.72rem;
+  color: #e8efe4;
 }
 
-.is-lit .play-lamp-glow {
-  opacity: 0.16;
+.play-hud-missions span.is-done {
+  color: #b8d48a;
 }
 
-.is-lit .play-lamp-bulb {
-  fill: var(--accent);
-  opacity: 1;
-}
-
-/* Pose groups. Static transforms carry the reduced-motion still poses;
-   keyframes only add motion on top. */
-.play-bird {
-  transform-origin: 66px 72px;
-}
-
-.play-head {
-  transform-origin: 66px 52px;
-  transition: transform 240ms var(--ease-out);
-}
-
-.play-wing {
-  transform-box: fill-box;
-  transform-origin: 20% 20%;
-  transition: transform 240ms var(--ease-out);
-}
-
-.play-eye-shut {
-  opacity: 0;
-}
-
-.is-idle .play-bird {
-  animation: play-breathe 3.6s ease-in-out infinite;
-}
-
-.is-idle .play-eye-shut {
-  animation: play-blink 8s linear infinite;
-}
-
-.is-celebrate .play-bird {
-  animation: play-hop 600ms var(--ease-out) 2;
-}
-
-.is-celebrate .play-wing {
-  transform: rotate(-32deg);
-}
-
-.is-nudge .play-head {
-  transform: rotate(7deg);
-}
-
-.is-sleep .play-bird {
-  opacity: 0.6;
-}
-
-.is-sleep .play-eye-shut {
-  opacity: 1;
-}
-
-@keyframes play-breathe {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.02);
-  }
-}
-
-@keyframes play-blink {
-  0%,
-  93.9%,
-  98%,
-  100% {
-    opacity: 0;
-  }
-  94%,
-  97.9% {
-    opacity: 1;
-  }
-}
-
-@keyframes play-hop {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  40% {
-    transform: translateY(-7px);
-  }
-}
-
-/* Layer 2 room + props (PlayPerch). Tokens only; every fill pairs with
-   the surface it sits on so both themes contrast for free. Fade-in is
-   the only motion — 99-motion.css already zeroes all animation and
-   transitions under .play-scene, and base opacity is 1, so props stay
-   visible in the reduced-motion still frame. */
-.play-stage-wide {
-  width: min(336px, 100%);
-}
-
-.play-prop,
-.play-wear {
-  animation: play-prop-in 360ms ease;
-}
-
-.play-prop-frame {
-  fill: var(--border-strong);
-}
-
-.play-prop-body {
-  fill: var(--accent);
-}
-
-.play-prop-dim {
-  fill: var(--accent-dim);
-}
-
-.play-prop-paper {
-  fill: var(--muted);
-}
-
-.play-prop-cloth {
-  fill: var(--raised);
-}
-
-.play-prop-ink {
-  fill: var(--ink);
-}
-
-.play-prop-bg {
-  fill: var(--panel);
-}
-
-.play-prop-behind {
-  opacity: 0.7;
-}
-
-.play-goggles-frame {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.5;
-  stroke-linejoin: miter;
-  stroke-linecap: square;
-}
-
-/* The patch pivots exactly like .play-wing (fill-box 20% 20% of the
-   wing's 54,52.5 13.5×13.5 box) so it rides the raised celebrate wing. */
-.play-wing-patch {
-  fill: var(--raised);
-  stroke: var(--border-strong);
-  stroke-width: 0.85;
-  transform-origin: 56.7px 55.2px;
-  transition: transform 240ms var(--ease-out);
-}
-
-.is-celebrate .play-wing-patch {
-  transform: rotate(-32deg);
-}
-
-@keyframes play-prop-in {
-  from {
-    opacity: 0;
-  }
-}
-
-/* Text under the scene */
-.play-celebrate-line {
-  margin: 10px 0 0;
-  min-height: 1.2em;
-  max-width: 36rem;
-}
-
-.play-speech {
-  margin: 12px 0 0;
-  max-width: 36rem;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--raised);
-}
-
-.play-speech-kind {
-  display: block;
-  color: var(--muted);
-  font-size: 0.7rem;
+.play-stick {
+  left: 16px;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  width: 96px;
+  height: 96px;
+  border: 1px solid color-mix(in srgb, #fff 28%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, #111 42%, transparent);
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  z-index: 3;
+  color: #f4f7f2;
+  font-size: 0.68rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.play-speech-text {
-  margin: 2px 0 0;
+.play-desk-fab {
+  right: 16px;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 3;
+  border: 1px solid color-mix(in srgb, #fff 28%, transparent);
+  background: color-mix(in srgb, #111 55%, transparent);
+  color: #f4f7f2;
+  padding: 10px 14px;
 }
 
-.play-to-desk {
-  margin-top: 10px;
+.play-credit {
+  right: 12px;
+  bottom: 6px;
+  margin: 0;
+  font-size: 0.6rem;
+  color: color-mix(in srgb, #fff 45%, transparent);
 }
 
-.play-caption {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.play-missions {
-  list-style: none;
-  margin: 16px 0 0;
+.app-main-play {
   padding: 0;
-  max-width: 36rem;
-  display: grid;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 0.85rem;
+  gap: 0;
+  overflow: hidden;
 }
