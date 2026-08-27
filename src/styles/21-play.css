@@ -185,6 +185,10 @@
   margin: 2px 0 0;
 }
 
+.play-to-desk {
+  margin-top: 10px;
+}
+
 .play-caption {
   margin: 10px 0 0;
   color: var(--muted);
