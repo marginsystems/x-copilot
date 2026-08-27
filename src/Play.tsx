@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { playSceneFromState } from "./lib/play";
 import {
   browserPlaySeenStorage,
+  mergePlayDelta,
   takePlaySeenDelta,
   type PlayDelta,
 } from "./lib/playSeen";
@@ -23,14 +24,23 @@ export function PlayPage({
   const [celebrate, setCelebrate] = useState<PlayDelta | null>(null);
 
   useEffect(() => {
-    if (!userId || !coaching?.dayUtc) return;
+    if (
+      !userId ||
+      !coaching?.dayUtc ||
+      gamification.achievements.length === 0
+    )
+      return;
     const found = takePlaySeenDelta(
       browserPlaySeenStorage(),
       userId,
       coaching,
       gamification,
     );
-    setCelebrate((current) => found ?? current);
+    setCelebrate((current) => {
+      if (!found) return current;
+      if (!current) return found;
+      return mergePlayDelta(current, found);
+    });
   }, [userId, coaching, gamification]);
 
   const scene = playSceneFromState(coaching, gamification, celebrate);

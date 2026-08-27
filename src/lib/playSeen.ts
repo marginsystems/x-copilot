@@ -150,6 +150,24 @@ function missionLine(coaching: CoachingState, id: string): string {
   return `${mission.label} · +${mission.xpReward} XP`;
 }
 
+const PLAY_DELTA_PRIORITY: Record<PlayDeltaKind, number> = {
+  level: 0,
+  achievement: 1,
+  mission: 2,
+  mark: 3,
+};
+
+/**
+ * Keep the higher-priority delta when independent hydrations land in separate
+ * effect runs, so the last-arriving fetch cannot drop an earlier event.
+ */
+export function mergePlayDelta(current: PlayDelta, next: PlayDelta): PlayDelta {
+  const currentRank = PLAY_DELTA_PRIORITY[current.kind];
+  const nextRank = PLAY_DELTA_PRIORITY[next.kind];
+  if (nextRank === currentRank) return next;
+  return nextRank < currentRank ? next : current;
+}
+
 /**
  * At most one line. Level beats achievement beats mission beats first mark.
  * First visit / missing cursor: no celebrate (do not replay history).

@@ -8,6 +8,7 @@ import {
 } from "./gamification.ts";
 import {
   memoryPlaySeenStorage,
+  mergePlayDelta,
   playSeenKey,
   takePlaySeenDelta,
 } from "./playSeen.ts";
@@ -217,5 +218,39 @@ describe("takePlaySeenDelta", () => {
     const g = stats();
     takePlaySeenDelta(store, "u1", c, g);
     assert.equal(takePlaySeenDelta(store, "u1", c, g), null);
+  });
+});
+
+describe("mergePlayDelta", () => {
+  it("keeps a pending level-up over a later mission claim", () => {
+    const merged = mergePlayDelta(
+      { kind: "mission", line: "Mark 2 replies · +4 XP" },
+      { kind: "level", line: "Level 5 — Scout" },
+    );
+    assert.deepEqual(merged, { kind: "level", line: "Level 5 — Scout" });
+  });
+
+  it("keeps the pending delta when the later arrival is lower priority", () => {
+    const merged = mergePlayDelta(
+      { kind: "level", line: "Level 5" },
+      { kind: "mark", line: "Marked today" },
+    );
+    assert.deepEqual(merged, { kind: "level", line: "Level 5" });
+  });
+
+  it("keeps a pending achievement over a later mark", () => {
+    const merged = mergePlayDelta(
+      { kind: "mark", line: "Marked today" },
+      { kind: "achievement", line: "Scout unlocked" },
+    );
+    assert.equal(merged.kind, "achievement");
+  });
+
+  it("prefers the newer arrival on a priority tie", () => {
+    const merged = mergePlayDelta(
+      { kind: "mission", line: "Mark 2 replies · +4 XP" },
+      { kind: "mission", line: "Post a reply · +6 XP" },
+    );
+    assert.deepEqual(merged, { kind: "mission", line: "Post a reply · +6 XP" });
   });
 });
