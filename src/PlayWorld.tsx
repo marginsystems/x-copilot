@@ -20,6 +20,12 @@ type Props = {
 export function PlayWorld(props: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const worldRef = useRef<{
+    scene: THREE.Scene;
+    hemi: THREE.HemisphereLight;
+    sun: THREE.DirectionalLight;
+    render: () => void;
+  } | null>(null);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -73,6 +79,12 @@ export function PlayWorld(props: Props) {
     const pos: PlayVec2 = { x: 0, z: 2.4 };
 
     const host = wrap;
+    function renderFrame() {
+      const cam = cameraFollow(pos, props.orbitRef.current);
+      camera.position.set(cam.x, cam.y, cam.z);
+      camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
+      renderer.render(scene, camera);
+    }
     function resize() {
       const w = host.clientWidth;
       const h = host.clientHeight;
@@ -80,7 +92,9 @@ export function PlayWorld(props: Props) {
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      if (props.reducedMotion) renderFrame();
     }
+    worldRef.current = { scene, hemi, sun, render: renderFrame };
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
     resize();
@@ -178,6 +192,7 @@ export function PlayWorld(props: Props) {
         fallback.position.y = 0.6;
         player.add(fallback);
       }
+      if (props.reducedMotion) renderFrame();
     })();
 
     const tick = (now: number) => {
@@ -204,10 +219,7 @@ export function PlayWorld(props: Props) {
     };
 
     if (props.reducedMotion) {
-      const cam = cameraFollow(pos, props.orbitRef.current);
-      camera.position.set(cam.x, cam.y, cam.z);
-      camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
-      renderer.render(scene, camera);
+      renderFrame();
     } else {
       raf = requestAnimationFrame(tick);
     }
@@ -215,6 +227,7 @@ export function PlayWorld(props: Props) {
     return () => {
       alive = false;
       cancelAnimationFrame(raf);
+      worldRef.current = null;
       ro.disconnect();
       renderer.dispose();
       scene.traverse((obj) => {
@@ -225,7 +238,17 @@ export function PlayWorld(props: Props) {
         else mat?.dispose?.();
       });
     };
-  }, [props.lit, props.reducedMotion, props.inputRef, props.orbitRef]);
+  }, [props.reducedMotion, props.inputRef, props.orbitRef]);
+
+  useEffect(() => {
+    const world = worldRef.current;
+    if (!world) return;
+    world.scene.background = new THREE.Color(props.lit ? 0x87b8dc : 0x4a6280);
+    world.scene.fog.color.copy(world.scene.background);
+    world.hemi.intensity = props.lit ? 1.15 : 0.7;
+    world.sun.intensity = props.lit ? 1.1 : 0.45;
+    world.render();
+  }, [props.lit]);
 
   return (
     <div className="play-world-stage" ref={wrapRef}>

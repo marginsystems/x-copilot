@@ -1,6 +1,6 @@
 /** DOM-free hangar-yard movement. Three.js stays in PlayWorld.tsx. */
 
-export const PLAY_YARD = 8;
+export const PLAY_YARD = 7.4;
 export const PLAY_SPEED = 4.4;
 
 export type PlayVec2 = { x: number; z: number };

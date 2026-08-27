@@ -127,7 +127,7 @@
   color: color-mix(in srgb, #fff 45%, transparent);
 }
 
-.app-main-play {
+.app-main.app-main-play {
   padding: 0;
   gap: 0;
   overflow: hidden;
