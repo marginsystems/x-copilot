@@ -83,9 +83,22 @@ export function PlayPage(props: {
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    const reset = () => {
+      inputRef.current.throttle = false;
+      inputRef.current.bank = 0;
+      inputRef.current.dragBank = 0;
+      setHolding(false);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") reset();
+    };
+    window.addEventListener("blur", reset);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", reset);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
@@ -114,14 +127,14 @@ export function PlayPage(props: {
     const dx = e.clientX - prev.x;
     const dy = e.clientY - prev.y;
     if (flightRef.current.airborne && inputRef.current.throttle) {
-      inputRef.current.bank = Math.max(-1, Math.min(1, dx * 0.04));
+      inputRef.current.dragBank = Math.max(-1, Math.min(1, dx * 0.04));
       return;
     }
     orbitRef.current = dragOrbit(orbitRef.current, dx, dy);
   }
   function onLookEnd(e: React.PointerEvent<HTMLDivElement>) {
     pointers.current.delete(e.pointerId);
-    inputRef.current.bank = 0;
+    inputRef.current.dragBank = 0;
     if (pointers.current.size === 0) orbitingRef.current = false;
   }
 
@@ -175,12 +188,12 @@ export function PlayPage(props: {
         }}
         onPointerUp={() => {
           inputRef.current.throttle = false;
-          inputRef.current.bank = 0;
+          inputRef.current.dragBank = 0;
           setHolding(false);
         }}
         onPointerCancel={() => {
           inputRef.current.throttle = false;
-          inputRef.current.bank = 0;
+          inputRef.current.dragBank = 0;
           setHolding(false);
         }}
       >

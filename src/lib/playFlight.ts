@@ -22,6 +22,7 @@ export const FLIGHT = {
 export type FlightInput = {
   throttle: boolean;
   bank: number;
+  dragBank?: number;
 };
 
 export type FlightState = {
@@ -76,7 +77,7 @@ export function stepFlight(
   dt: number,
 ): FlightState {
   if (dt <= 0) return state;
-  const bank = clampBank(input.bank);
+  const bank = clampBank(input.bank + (input.dragBank ?? 0));
   let { x, y, z, yaw, pitch, roll, speed, airborne } = state;
 
   if (input.throttle) speed += FLIGHT.thrust * dt;

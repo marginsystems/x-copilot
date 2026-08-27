@@ -191,6 +191,7 @@ export function PlayWorld(props: Props) {
     const rings = addGates(scene);
     const cleared = CIRCUIT_GATES.map(() => false);
     const craft = new THREE.Group();
+    craft.rotation.order = "YXZ";
     craft.position.set(props.flightRef.current.x, 0, props.flightRef.current.z);
     scene.add(craft);
 
@@ -283,7 +284,7 @@ export function PlayWorld(props: Props) {
         const flight = stepFlight(props.flightRef.current, props.inputRef.current, dt);
         props.flightRef.current = flight;
         craft.position.set(flight.x, flight.y, flight.z);
-        craft.rotation.set(flight.pitch, flight.yaw, flight.roll);
+        craft.rotation.set(-flight.pitch, flight.yaw, flight.roll);
         for (let i = 0; i < CIRCUIT_GATES.length; i += 1) {
           if (!cleared[i] && hitGate(flight, CIRCUIT_GATES[i])) {
             cleared[i] = true;
