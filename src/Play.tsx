@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { PLAY_TO_DESK_LABEL } from "./lib/play";
+import { parkedFlight, type FlightInput, type FlightState } from "./lib/playFlight";
 import {
   defaultOrbit,
   dragOrbit,
@@ -38,8 +39,11 @@ export function PlayPage(props: {
   const reducedMotion = useReducedMotion();
   const orbitRef = useRef<PlayOrbit>(defaultOrbit());
   const orbitingRef = useRef(false);
+  const flightRef = useRef<FlightState>(parkedFlight());
+  const inputRef = useRef<FlightInput>({ throttle: false, bank: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch0 = useRef(0);
+  const [holding, setHolding] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const prevMissions = useRef(props.coaching?.missions ?? null);
 
@@ -56,6 +60,34 @@ export function PlayPage(props: {
     const id = window.setTimeout(() => setToast(null), 3200);
     return () => window.clearTimeout(id);
   }, [props.coaching]);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if (k === " " || k === "w" || k === "arrowup") {
+        inputRef.current.throttle = true;
+        setHolding(true);
+      }
+      if (k === "a" || k === "arrowleft") inputRef.current.bank = -1;
+      if (k === "d" || k === "arrowright") inputRef.current.bank = 1;
+    };
+    const up = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if (k === " " || k === "w" || k === "arrowup") {
+        inputRef.current.throttle = false;
+        setHolding(false);
+      }
+      if (k === "a" || k === "arrowleft" || k === "d" || k === "arrowright") {
+        inputRef.current.bank = 0;
+      }
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, []);
 
   function onLookStart(e: React.PointerEvent<HTMLDivElement>) {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -79,7 +111,13 @@ export function PlayPage(props: {
       }
       return;
     }
-    orbitRef.current = dragOrbit(orbitRef.current, e.clientX - prev.x, e.clientY - prev.y);
+    const dx = e.clientX - prev.x;
+    const dy = e.clientY - prev.y;
+    if (flightRef.current.airborne && inputRef.current.throttle) {
+      inputRef.current.bank = Math.max(-1, Math.min(1, dx * 0.04));
+      return;
+    }
+    orbitRef.current = dragOrbit(orbitRef.current, dx, dy);
   }
   function onLookEnd(e: React.PointerEvent<HTMLDivElement>) {
     pointers.current.delete(e.pointerId);
@@ -96,6 +134,8 @@ export function PlayPage(props: {
           reducedMotion={reducedMotion}
           orbitRef={orbitRef}
           orbitingRef={orbitingRef}
+          flightRef={flightRef}
+          inputRef={inputRef}
         />
       </Suspense>
       <div
@@ -125,8 +165,25 @@ export function PlayPage(props: {
           </span>
         ))}
       </div>
-      <p className="play-hold" aria-disabled="true">
-        Hold to take off
+      <p
+        className={holding ? "play-hold is-hold" : "play-hold"}
+        onPointerDown={(e) => {
+          inputRef.current.throttle = true;
+          setHolding(true);
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerUp={() => {
+          inputRef.current.throttle = false;
+          inputRef.current.bank = 0;
+          setHolding(false);
+        }}
+        onPointerCancel={() => {
+          inputRef.current.throttle = false;
+          inputRef.current.bank = 0;
+          setHolding(false);
+        }}
+      >
+        {holding ? "Throttle" : "Hold to take off"}
       </p>
       <button type="button" className="play-desk-fab" onClick={props.onBack}>
         {PLAY_TO_DESK_LABEL}

@@ -1,6 +1,14 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import {
+  CIRCUIT_GATES,
+  chaseCamera,
+  hitGate,
+  stepFlight,
+  type FlightInput,
+  type FlightState,
+} from "./lib/playFlight";
 import { autoOrbit, cameraFromOrbit, type PlayOrbit } from "./lib/playWorld";
 
 const PLANE = "/play-assets/cesium-air.glb";
@@ -11,6 +19,8 @@ type Props = {
   reducedMotion: boolean;
   orbitRef: React.MutableRefObject<PlayOrbit>;
   orbitingRef: React.MutableRefObject<boolean>;
+  flightRef: React.MutableRefObject<FlightState>;
+  inputRef: React.MutableRefObject<FlightInput>;
 };
 
 function duskSky(lit: boolean): number {
@@ -111,6 +121,24 @@ function addApron(scene: THREE.Scene, lit: boolean): THREE.Group {
   return root;
 }
 
+function addGates(scene: THREE.Scene): THREE.Mesh[] {
+  const rings: THREE.Mesh[] = [];
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x7eb8dc,
+    emissive: 0x245a78,
+    roughness: 0.4,
+    side: THREE.DoubleSide,
+  });
+  for (const gate of CIRCUIT_GATES) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(gate.r, 0.12, 8, 20), mat.clone());
+    ring.position.set(gate.x, gate.y, gate.z);
+    ring.rotation.y = Math.PI / 2;
+    scene.add(ring);
+    rings.push(ring);
+  }
+  return rings;
+}
+
 function fitPlane(model: THREE.Object3D): void {
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
@@ -118,7 +146,8 @@ function fitPlane(model: THREE.Object3D): void {
   model.scale.setScalar(WINGSPAN / span);
   const grounded = new THREE.Box3().setFromObject(model);
   model.position.y -= grounded.min.y;
-  model.position.z = 2.2;
+  model.position.x = 0;
+  model.position.z = 0;
 }
 
 export function PlayWorld(props: Props) {
@@ -160,6 +189,11 @@ export function PlayWorld(props: Props) {
     scene.add(sun);
 
     addApron(scene, props.lit);
+    const rings = addGates(scene);
+    const cleared = CIRCUIT_GATES.map(() => false);
+    const craft = new THREE.Group();
+    craft.position.set(props.flightRef.current.x, 0, props.flightRef.current.z);
+    scene.add(craft);
 
     let mixer: THREE.AnimationMixer | null = null;
     const loader = new GLTFLoader();
@@ -170,7 +204,10 @@ export function PlayWorld(props: Props) {
     let idleSec = 0;
 
     function renderFrame() {
-      const cam = cameraFromOrbit(props.orbitRef.current);
+      const flight = props.flightRef.current;
+      const cam = flight.airborne || flight.speed > 0.8
+        ? chaseCamera(flight)
+        : cameraFromOrbit(props.orbitRef.current);
       camera.position.set(cam.x, cam.y, cam.z);
       camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
       renderer.render(scene, camera);
@@ -216,7 +253,8 @@ export function PlayWorld(props: Props) {
       (gltf) => {
         if (!alive) return;
         fitPlane(gltf.scene);
-        scene.add(gltf.scene);
+        gltf.scene.position.set(0, gltf.scene.position.y, 0);
+        craft.add(gltf.scene);
         if (gltf.animations.length > 0 && !props.reducedMotion) {
           mixer = new THREE.AnimationMixer(gltf.scene);
           for (const clip of gltf.animations) mixer.clipAction(clip).play();
@@ -230,8 +268,8 @@ export function PlayWorld(props: Props) {
           new THREE.BoxGeometry(2.2, 0.7, 4.4),
           new THREE.MeshStandardMaterial({ color: 0x7eb8dc }),
         );
-        fallback.position.set(0, 0.35, 2.2);
-        scene.add(fallback);
+        fallback.position.set(0, 0.35, 0);
+        craft.add(fallback);
         renderFrame();
       },
     );
@@ -243,12 +281,26 @@ export function PlayWorld(props: Props) {
       if (props.orbitingRef.current) idleSec = 0;
       else idleSec += dt;
       if (!props.reducedMotion) {
-        props.orbitRef.current = autoOrbit(
-          props.orbitRef.current,
-          dt,
-          idleSec,
-          false,
-        );
+        const flight = stepFlight(props.flightRef.current, props.inputRef.current, dt);
+        props.flightRef.current = flight;
+        craft.position.set(flight.x, flight.y, flight.z);
+        craft.rotation.set(flight.pitch, flight.yaw, flight.roll);
+        for (let i = 0; i < CIRCUIT_GATES.length; i += 1) {
+          if (!cleared[i] && hitGate(flight, CIRCUIT_GATES[i])) {
+            cleared[i] = true;
+            const mat = rings[i].material as THREE.MeshStandardMaterial;
+            mat.color.setHex(0xb8d48a);
+            mat.emissive.setHex(0x3a5a20);
+          }
+        }
+        if (!flight.airborne && flight.speed < 0.4) {
+          props.orbitRef.current = autoOrbit(
+            props.orbitRef.current,
+            dt,
+            idleSec,
+            false,
+          );
+        }
         mixer?.update(dt);
       }
       renderFrame();
@@ -273,7 +325,7 @@ export function PlayWorld(props: Props) {
         else mat?.dispose?.();
       });
     };
-  }, [props.reducedMotion, props.orbitRef, props.orbitingRef]);
+  }, [props.reducedMotion, props.orbitRef, props.orbitingRef, props.flightRef, props.inputRef]);
 
   useEffect(() => {
     worldRef.current?.setLit(props.lit);

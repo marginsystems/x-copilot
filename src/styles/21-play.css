@@ -104,7 +104,13 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   z-index: 3;
-  pointer-events: none;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.play-hold.is-hold {
+  border-color: color-mix(in srgb, #7eb8dc 70%, transparent);
+  background: color-mix(in srgb, #111 62%, transparent);
 }
 
 .play-desk-fab {
