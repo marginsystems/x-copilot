@@ -18,7 +18,16 @@ import {
   LEARN_DIVERSITY_SNIPPET,
   LEARN_THUNDER_CAP_HREF,
   LEARN_THUNDER_CAP_SNIPPET,
+  LEARN_BDSM_ACTION_HREF,
+  LEARN_BDSM_FEATURES_HREF,
   LEARN_BDSM_HEADS_HREF,
+  LEARN_BDSM_REDACT_HREF,
+  LEARN_BDSM_REPLY_HEAD_HREF,
+  LEARN_BDSM_REPLY_HEAD_SNIPPET,
+  LEARN_BDSM_ROPE_HREF,
+  LEARN_BDSM_SEQ_HREF,
+  LEARN_BDSM_TWEET_HEAD_HREF,
+  LEARN_BDSM_TWEET_HEAD_SNIPPET,
   learnAdjacentLessons,
   learnDiversityMultiplier,
   LEARN_WEIGHTS_PATH,
@@ -133,8 +142,22 @@ describe("learn citations", () => {
     assert.match(LEARN_VOLUME_DESCRIPTION, /no daily/);
     assert.match(LEARN_VOLUME_DESCRIPTION, /does not subtract/);
     assert.match(LEARN_VOLUME_DESCRIPTION, /not affiliated/i);
+    assert.match(LEARN_VOLUME_DESCRIPTION, /one viewer's slate/);
+    assert.match(LEARN_VOLUME_DESCRIPTION, /0\.5/);
+    assert.match(LEARN_VOLUME_DESCRIPTION, /0\.25/);
+    assert.match(LEARN_VOLUME_DESCRIPTION, /at most 30 replies/);
+    assert.match(LEARN_VOLUME_DESCRIPTION, /ReplySpamBot/);
+    assert.match(LEARN_VOLUME_DESCRIPTION, /TweetSpamBot/);
+    assert.match(LEARN_VOLUME_DESCRIPTION, /redacted/);
     assert.doesNotMatch(LEARN_VOLUME_DESCRIPTION, /50 a day/i);
+    assert.doesNotMatch(LEARN_VOLUME_DESCRIPTION, /30 a day/i);
     assert.doesNotMatch(LEARN_VOLUME_DESCRIPTION, /lose points/i);
+    assert.doesNotMatch(LEARN_VOLUME_DESCRIPTION, /without throttl/i);
+    assert.doesNotMatch(LEARN_VOLUME_DESCRIPTION, /safe daily/i);
+    assert.equal(
+      LEARN_LESSONS[2]!.lede,
+      "0.5 and 0.25 are this viewer's slate. Thunder's 30 is a fetch cap. ReplySpamBot scores sequences.",
+    );
   });
 
   it("keeps official snippets verbatim", () => {
@@ -146,6 +169,12 @@ describe("learn citations", () => {
     assert.match(LEARN_DIVERSITY_SNIPPET, /decay_factor\.powf\(exponent\)/);
     assert.match(LEARN_THUNDER_CAP_SNIPPET, /MAX_REPLY_POSTS_PER_AUTHOR: usize = 30/);
     assert.match(LEARN_THUNDER_CAP_SNIPPET, /MAX_ORIGINAL_POSTS_PER_AUTHOR: usize = 50/);
+    assert.match(LEARN_BDSM_REPLY_HEAD_SNIPPET, /REPLY_SPAM_NO_CONSUMPTION/);
+    assert.match(LEARN_BDSM_REPLY_HEAD_SNIPPET, /CONVERSATION_SPAMMER/);
+    assert.match(LEARN_BDSM_TWEET_HEAD_SNIPPET, /TWEET_CREATE_BURST/);
+    assert.match(LEARN_BDSM_TWEET_HEAD_SNIPPET, /QUOTE_TWEET_SPAMMER/);
+    assert.doesNotMatch(LEARN_BDSM_REPLY_HEAD_SNIPPET, /FOLLOW_UNFOLLOW_CYCLE/);
+    assert.doesNotMatch(LEARN_BDSM_TWEET_HEAD_SNIPPET, /REPLY_SPAM_BOT/);
   });
 
   it("pins volume citations and does not invent a daily quota", () => {
@@ -155,6 +184,19 @@ describe("learn citations", () => {
     );
     assert.match(LEARN_THUNDER_CAP_HREF, /\/blob\/d011592\/thunder\/config\.rs#L1-L6/);
     assert.match(LEARN_BDSM_HEADS_HREF, /\/blob\/d011592\/bdsm\/README\.md#L30-L34/);
+    assert.match(LEARN_BDSM_ROPE_HREF, /\/blob\/d011592\/bdsm\/README\.md#L22-L24/);
+    assert.match(LEARN_BDSM_FEATURES_HREF, /\/blob\/d011592\/bdsm\/README\.md#L26-L29/);
+    assert.match(LEARN_BDSM_SEQ_HREF, /\/blob\/d011592\/bdsm\/README\.md#L102-L103/);
+    assert.match(LEARN_BDSM_REDACT_HREF, /\/blob\/d011592\/bdsm\/README\.md#L104-L115/);
+    assert.match(LEARN_BDSM_ACTION_HREF, /\/blob\/d011592\/bdsm\/README\.md#L63-L66/);
+    assert.match(
+      LEARN_BDSM_REPLY_HEAD_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L54-L63/,
+    );
+    assert.match(
+      LEARN_BDSM_TWEET_HEAD_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L64-L73/,
+    );
     assert.equal(learnDiversityMultiplier(0), 1);
     assert.equal(learnDiversityMultiplier(1), 0.625);
     assert.equal(learnDiversityMultiplier(2), 0.4375);
