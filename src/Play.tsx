@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { playSceneFromState } from "./lib/play";
+import { PLAY_TO_DESK_LABEL, playSceneFromState } from "./lib/play";
 import {
   browserPlaySeenStorage,
   mergePlayDelta,
@@ -57,6 +57,11 @@ export function PlayPage({
         A souvenir of the day's desk work.
       </p>
       <PlayCopilot scene={scene} />
+      {scene.state === "nudge" ? (
+        <button type="button" className="ghost play-to-desk" onClick={onBack}>
+          {PLAY_TO_DESK_LABEL}
+        </button>
+      ) : null}
       <p className="play-caption">
         Level {scene.level} · Streak {scene.currentStreak}
       </p>

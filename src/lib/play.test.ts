@@ -2,7 +2,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { CoachingState, DailyMission } from "./coaching.ts";
 import { emptyGamificationStats } from "./gamification.ts";
-import { playSceneFromState, playStateClass } from "./play.ts";
+import {
+  PLAY_TO_DESK_LABEL,
+  playSceneFromState,
+  playStateClass,
+} from "./play.ts";
 
 function mission(partial: Partial<DailyMission> & Pick<DailyMission, "id">): DailyMission {
   return {
@@ -115,6 +119,25 @@ describe("playSceneFromState", () => {
     assert.notEqual(scene.state, "celebrate");
     assert.equal(scene.state, "nudge");
     assert.equal(scene.celebrateLine, null);
+  });
+
+  it("nudges instead of sleeping when a next action exists", () => {
+    const scene = playSceneFromState(
+      coaching({
+        nextAction: {
+          kind: "reply",
+          text: "Mark a reply to keep the streak.",
+          updatedAt: "2026-08-27T12:00:00.000Z",
+        },
+      }),
+      { ...emptyGamificationStats(), lastMarkUtcDay: "2026-08-26" },
+    );
+    assert.equal(scene.state, "nudge");
+    assert.equal(scene.speech, "Mark a reply to keep the streak.");
+  });
+
+  it("keeps the To the desk label as product copy", () => {
+    assert.equal(PLAY_TO_DESK_LABEL, "To the desk");
   });
 
   it("lets a cursor delta outrank nudge", () => {

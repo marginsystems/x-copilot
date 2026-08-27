@@ -12,6 +12,7 @@ import type { GamificationStats } from "./gamification";
 import type { PlayDelta } from "./playSeen";
 
 export const PLAY_STATES = ["idle", "celebrate", "nudge", "sleep"] as const;
+export const PLAY_TO_DESK_LABEL = "To the desk";
 export type PlayCreatureState = (typeof PLAY_STATES)[number];
 
 export type PlayScene = {
