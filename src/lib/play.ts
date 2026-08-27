@@ -37,6 +37,17 @@ function noActivityToday(
   return !markedToday && missions.every((m) => m.progress === 0);
 }
 
+/**
+ * CSS state modifiers for the perch scene, e.g. "is-nudge is-lit".
+ * Sleep forces the lamp off regardless of perchLit. DOM-free on purpose.
+ */
+export function playStateClass(
+  scene: Pick<PlayScene, "state" | "perchLit">,
+): string {
+  const lit = scene.perchLit && scene.state !== "sleep";
+  return lit ? `is-${scene.state} is-lit` : `is-${scene.state}`;
+}
+
 export function playSceneFromState(
   coaching: CoachingState | null,
   gamification: GamificationStats,

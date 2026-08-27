@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { CoachingState, DailyMission } from "./coaching.ts";
 import { emptyGamificationStats } from "./gamification.ts";
-import { playSceneFromState } from "./play.ts";
+import { playSceneFromState, playStateClass } from "./play.ts";
 
 function mission(partial: Partial<DailyMission> & Pick<DailyMission, "id">): DailyMission {
   return {
@@ -122,5 +122,38 @@ describe("playSceneFromState", () => {
       { ...emptyGamificationStats(), lastMarkUtcDay: "" },
     );
     assert.equal(scene.perchLit, false);
+  });
+});
+
+describe("playStateClass", () => {
+  it("maps idle with a lit perch", () => {
+    assert.equal(
+      playStateClass({ state: "idle", perchLit: true }),
+      "is-idle is-lit",
+    );
+  });
+
+  it("maps celebrate with the lamp independent of the pose", () => {
+    assert.equal(
+      playStateClass({ state: "celebrate", perchLit: false }),
+      "is-celebrate",
+    );
+    assert.equal(
+      playStateClass({ state: "celebrate", perchLit: true }),
+      "is-celebrate is-lit",
+    );
+  });
+
+  it("maps nudge", () => {
+    assert.equal(playStateClass({ state: "nudge", perchLit: false }), "is-nudge");
+  });
+
+  it("forces the lamp off while asleep", () => {
+    assert.equal(playStateClass({ state: "sleep", perchLit: true }), "is-sleep");
+  });
+
+  it("accepts a full derived scene", () => {
+    const scene = playSceneFromState(null, emptyGamificationStats());
+    assert.equal(playStateClass(scene), "is-sleep");
   });
 });
