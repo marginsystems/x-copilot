@@ -76,6 +76,7 @@ export function PlayWorld(props: Props) {
     let raf = 0;
     let last = performance.now();
     let yaw = 0;
+    let lastOrbit = props.orbitRef.current;
     const pos: PlayVec2 = { x: 0, z: 2.4 };
 
     const host = wrap;
@@ -207,30 +208,36 @@ export function PlayWorld(props: Props) {
       if (!alive) return;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const next = stepMove(
-        pos,
-        aimMove(props.inputRef.current, props.orbitRef.current),
-        dt,
-        yaw,
-      );
+      const input = props.inputRef.current;
+      const orbit = props.orbitRef.current;
+      if (
+        props.reducedMotion &&
+        input.x === 0 &&
+        input.z === 0 &&
+        orbit === lastOrbit
+      ) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      lastOrbit = orbit;
+      const next = stepMove(pos, aimMove(input, orbit), dt, yaw);
       pos.x = next.pos.x;
       pos.z = next.pos.z;
       if (next.moving) yaw = next.yaw;
       player.position.set(pos.x, 0, pos.z);
       player.rotation.y = yaw;
       pet.position.y = 0.04 * Math.sin(now / 280);
-      const cam = cameraFollow(pos, props.orbitRef.current);
+      const cam = cameraFollow(pos, orbit);
       camera.position.set(cam.x, cam.y, cam.z);
       camera.lookAt(cam.lookX, cam.lookY, cam.lookZ);
       renderer.render(scene, camera);
-      if (!props.reducedMotion) raf = requestAnimationFrame(tick);
+      raf = requestAnimationFrame(tick);
     };
 
     if (props.reducedMotion) {
       renderFrame();
-    } else {
-      raf = requestAnimationFrame(tick);
     }
+    raf = requestAnimationFrame(tick);
 
     return () => {
       alive = false;
