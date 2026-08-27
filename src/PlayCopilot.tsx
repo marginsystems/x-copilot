@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   playStateClass,
   type PlayCreatureState,
@@ -17,20 +18,39 @@ const STATE_LABELS: Record<PlayCreatureState, string> = {
  * playStateClass on the wrapper; all motion is CSS so 99-motion.css can
  * flatten it to a still pose per state. Colors are token classes only —
  * see 21-play.css.
+ *
+ * PlayPerch fills the slots: room props render between lamp and bird,
+ * wearables ride .play-bird / .play-head so they hop, breathe and sleep
+ * with the creature. Bird geometry never moves; transform-origins
+ * (play-bird 66px 72px, play-head 66px 52px) stay valid at any width.
  */
-export function PlayCopilot({ scene }: { scene: PlayScene }) {
+export function PlayCopilot({
+  scene,
+  stageWidth = 132,
+  room,
+  birdWear,
+  headWear,
+}: {
+  scene: PlayScene;
+  stageWidth?: number;
+  room?: ReactNode;
+  birdWear?: ReactNode;
+  headWear?: ReactNode;
+}) {
   const showSpeech = scene.state === "nudge" && scene.speech !== null;
+  const stageClass =
+    stageWidth > 132 ? "play-stage play-stage-wide" : "play-stage";
 
   return (
     <div className={`play-scene ${playStateClass(scene)}`}>
       <svg
-        className="play-stage"
-        viewBox="0 0 132 96"
+        className={stageClass}
+        viewBox={`0 0 ${stageWidth} 96`}
         role="img"
         aria-label={STATE_LABELS[scene.state]}
         focusable="false"
       >
-        <rect className="play-bg" width="132" height="96" />
+        <rect className="play-bg" width={stageWidth} height="96" />
 
         {/* Perch bar and legs */}
         <rect className="play-perch" x="18" y="78" width="96" height="6" />
@@ -42,6 +62,8 @@ export function PlayCopilot({ scene }: { scene: PlayScene }) {
         <rect className="play-perch" x="28.5" y="51" width="3" height="27" />
         <rect className="play-perch" x="22.5" y="45" width="15" height="6" />
         <rect className="play-lamp-bulb" x="27" y="51" width="6" height="6" />
+
+        {room}
 
         {/* The bird. Hop/breathe animate this group. */}
         <g className="play-bird">
@@ -69,7 +91,9 @@ export function PlayCopilot({ scene }: { scene: PlayScene }) {
               <rect className="play-eye-lid" x="69" y="42" width="7.5" height="7.5" />
               <rect className="play-eye-seam" x="69" y="46.5" width="7.5" height="1.5" />
             </g>
+            {headWear}
           </g>
+          {birdWear}
         </g>
       </svg>
       {scene.state === "celebrate" ? (

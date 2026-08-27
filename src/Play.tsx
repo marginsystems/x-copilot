@@ -6,7 +6,8 @@ import {
   takePlaySeenDelta,
   type PlayDelta,
 } from "./lib/playSeen";
-import { PlayCopilot } from "./PlayCopilot";
+import { propsForState } from "./lib/playProps";
+import { PlayPerch } from "./PlayPerch";
 import type { CoachingState } from "./lib/coaching";
 import type { GamificationStats } from "./lib/gamification";
 
@@ -44,6 +45,11 @@ export function PlayPage({
   }, [userId, coaching, gamification]);
 
   const scene = playSceneFromState(coaching, gamification, celebrate);
+  const propIds = propsForState(
+    scene.missions,
+    gamification.achievements,
+    scene.dayUtc,
+  );
 
   return (
     <section className="panel settings-pane play-pane">
@@ -56,7 +62,7 @@ export function PlayPage({
       <p className="status settings-lede play-lede">
         A souvenir of the day's desk work.
       </p>
-      <PlayCopilot scene={scene} />
+      <PlayPerch scene={scene} props={propIds} />
       {scene.state === "nudge" ? (
         <button type="button" className="ghost play-to-desk" onClick={onBack}>
           {PLAY_TO_DESK_LABEL}
