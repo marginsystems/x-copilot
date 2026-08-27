@@ -77,7 +77,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .learn-page > * {
+  .learn-page > *,
+  .learn-page-col > * {
     animation: none;
   }
 

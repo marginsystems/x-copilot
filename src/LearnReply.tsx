@@ -17,12 +17,14 @@ import {
   LEARN_SOURCE_REPO,
   LEARN_SOURCE_SHA,
   LEARN_WEIGHTS_PATH,
+  type LearnLessonView,
 } from "./lib/learn";
 import { PRODUCT_NAME } from "./lib/legal";
 
 export function LearnReplyPage(props: {
   onHome: () => void;
   onCatalog: () => void;
+  onOpenLesson: (view: LearnLessonView) => void;
   onWeights: () => void;
   onVolume: () => void;
 }) {
@@ -32,6 +34,8 @@ export function LearnReplyPage(props: {
       meta={LEARN_REPLY_META}
       onHome={props.onHome}
       onCatalog={props.onCatalog}
+      current="learnReply"
+      onOpenLesson={props.onOpenLesson}
       rail={
         <>
           <p className="learn-rail-kicker">Reply</p>

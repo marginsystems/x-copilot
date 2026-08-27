@@ -16,12 +16,14 @@ import {
   LEARN_SOURCE_REPO,
   LEARN_SOURCE_SHA,
   LEARN_THUNDER_HREF,
+  type LearnLessonView,
 } from "./lib/learn";
 import { PRODUCT_NAME } from "./lib/legal";
 
 export function LearnFollowPage(props: {
   onHome: () => void;
   onCatalog: () => void;
+  onOpenLesson: (view: LearnLessonView) => void;
 }) {
   return (
     <LearnChrome
@@ -29,6 +31,8 @@ export function LearnFollowPage(props: {
       meta={LEARN_FOLLOW_META}
       onHome={props.onHome}
       onCatalog={props.onCatalog}
+      current="learnFollow"
+      onOpenLesson={props.onOpenLesson}
       rail={
         <>
           <p className="learn-rail-kicker">Score</p>
