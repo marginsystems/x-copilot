@@ -212,6 +212,24 @@ describe("takePlaySeenDelta", () => {
     assert.equal(delta?.line, "Level 5 — Scout");
   });
 
+  it("celebrates a new achievement unlock with level unchanged", () => {
+    const store = memoryPlaySeenStorage();
+    takePlaySeenDelta(store, "u1", coaching(), stats({ level: 4 }));
+    const delta = takePlaySeenDelta(
+      store,
+      "u1",
+      coaching(),
+      stats({
+        level: 4,
+        achievements: [achievement("marks_10", "Sustained marks", true)],
+      }),
+    );
+    assert.deepEqual(delta, {
+      kind: "achievement",
+      line: "Sustained marks unlocked",
+    });
+  });
+
   it("returns no delta when nothing changed", () => {
     const store = memoryPlaySeenStorage();
     const c = coaching();
