@@ -43,6 +43,7 @@ export function PlayPage(props: {
   const inputRef = useRef<FlightInput>({ throttle: false, bank: 0 });
   const keyThrottleRef = useRef(false);
   const pillThrottleRef = useRef(false);
+  const heldBankRef = useRef(new Set<string>());
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch0 = useRef(0);
   const [holding, setHolding] = useState(false);
@@ -68,24 +69,39 @@ export function PlayPage(props: {
       inputRef.current.throttle = keyThrottleRef.current || pillThrottleRef.current;
       setHolding(keyThrottleRef.current || pillThrottleRef.current);
     };
+    const applyKeyboardBank = () => {
+      const held = heldBankRef.current;
+      const left = held.has("a") || held.has("arrowleft");
+      const right = held.has("d") || held.has("arrowright");
+      inputRef.current.bank = left ? -1 : right ? 1 : 0;
+    };
     const down = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (k === " " || k === "w" || k === "arrowup") {
+        e.preventDefault();
         keyThrottleRef.current = true;
         syncThrottle();
+        return;
       }
-      if (k === "a" || k === "arrowleft") inputRef.current.bank = -1;
-      if (k === "d" || k === "arrowright") inputRef.current.bank = 1;
+      if (k === "a" || k === "arrowleft" || k === "d" || k === "arrowright") {
+        e.preventDefault();
+        heldBankRef.current.add(k);
+        applyKeyboardBank();
+      }
     };
     const up = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (k === " " || k === "w" || k === "arrowup") {
+        e.preventDefault();
         keyThrottleRef.current = false;
         inputRef.current.dragBank = 0;
         syncThrottle();
+        return;
       }
       if (k === "a" || k === "arrowleft" || k === "d" || k === "arrowright") {
-        inputRef.current.bank = 0;
+        e.preventDefault();
+        heldBankRef.current.delete(k);
+        applyKeyboardBank();
       }
     };
     window.addEventListener("keydown", down);
@@ -93,6 +109,7 @@ export function PlayPage(props: {
     const reset = () => {
       keyThrottleRef.current = false;
       pillThrottleRef.current = false;
+      heldBankRef.current.clear();
       inputRef.current.throttle = false;
       inputRef.current.bank = 0;
       inputRef.current.dragBank = 0;
