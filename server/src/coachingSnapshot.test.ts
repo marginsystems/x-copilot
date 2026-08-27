@@ -14,6 +14,8 @@ import {
 } from "./coachingSnapshot.ts";
 import { listMissionsWithProgress } from "./dailyMissions.ts";
 import { insertSuggestions, markSuggestion } from "./forYouStore.ts";
+import { upsertOwnPost } from "./ownPostStore.ts";
+import type { ParsedPostCreate } from "./xActivity.ts";
 import { recordDeskPost } from "./xPostLimits.ts";
 
 const NOW_MS = Date.parse("2026-08-27T12:00:00.000Z");
@@ -105,5 +107,62 @@ describe("buildCoachingSnapshot", () => {
     const original = missions.find((m) => m.id === "original_1");
     assert.equal(original?.progress, 1);
     assert.equal(original?.completed, true);
+  });
+
+  it("counts a webhook-ingested own_posts original and does not double count its confirmed card", async () => {
+    const parsed: ParsedPostCreate = {
+      eventUuid: "evt-w1",
+      xUserId: "99",
+      postId: "w1",
+      kind: "original",
+      text: "webhook original",
+      postedAt: new Date(NOW_MS).toISOString(),
+      inReplyToId: null,
+      inReplyToUserId: null,
+      conversationId: null,
+      authorUsername: "desk",
+      metrics: {},
+    };
+    upsertOwnPost({ parsed, userId: "u1", tenantId: "local" });
+
+    const ownPostsOnly = await buildCoachingSnapshot({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: NOW_MS,
+    });
+    assert.equal(ownPostsOnly.originalsToday, 1);
+
+    const [card] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: NOW_MS,
+      drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
+    });
+    assert.ok(card);
+    markSuggestion({ id: card.id, userId: "u1", status: "done", nowMs: NOW_MS });
+
+    const withCard = await buildCoachingSnapshot({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: NOW_MS,
+    });
+    assert.equal(withCard.originalsToday, 1);
+  });
+
+  it("counts a desk-composed original on its own", async () => {
+    recordDeskPost({
+      userId: "u1",
+      tweetId: "1900000003",
+      inReplyToId: "",
+      atIso: new Date(NOW_MS).toISOString(),
+    });
+
+    const snapshot = await buildCoachingSnapshot({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: NOW_MS,
+    });
+    assert.equal(snapshot.deskPostsToday, 1);
+    assert.equal(snapshot.originalsToday, 1);
   });
 });
