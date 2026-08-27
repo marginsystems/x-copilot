@@ -87,6 +87,28 @@ pub const MAX_INPUT_LIST_SIZE: usize = 10000;
 pub const MAX_REPLY_POSTS_PER_AUTHOR: usize = 30;
 pub const MAX_ORIGINAL_POSTS_PER_AUTHOR: usize = 50;`;
 
+export const LEARN_BDSM_REPLY_HEAD_SNIPPET = `    Head(
+        "ReplySpamBot",
+        3,
+        8_922,
+        (
+            "REPLY_SPAM_NO_CONSUMPTION",
+            "REPLY_SPAM_BOT",
+            "CONVERSATION_SPAMMER",
+        ),
+    ),`;
+
+export const LEARN_BDSM_TWEET_HEAD_SNIPPET = `    Head(
+        "TweetSpamBot",
+        4,
+        23_425,
+        (
+            "TWEET_CREATE_BURST",
+            "QUOTE_TWEET_SPAMMER",
+            "CONTENT_AMPLIFIER",
+        ),
+    ),`;
+
 export const LEARN_OON_SNIPPET = `let oon_applies = |c: &PostCandidate| match c.in_network {
     Some(false) => true,
     Some(true) => {
@@ -108,7 +130,7 @@ export const LEARN_FOLLOW_PATH = "/learn/follow";
 export const LEARN_VOLUME_TITLE = "How many replies a day — x-copilot";
 export const LEARN_VOLUME_HEADING = "How many replies a day";
 export const LEARN_VOLUME_DESCRIPTION =
-  "X For You has no daily reply or post quota in this snapshot. Extra posts from one author decay in a single slate. A quiet reply adds ~0; it does not subtract. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+  "X For You has no daily reply or post quota in this snapshot. Decay 0.5 and floor 0.25 multiply extras in one viewer's slate. Thunder takes at most 30 replies per author into that viewer's in-network pool. ReplySpamBot and TweetSpamBot score action sequences; fire thresholds are redacted. A quiet reply adds ~0; it does not subtract. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
 export const LEARN_VOLUME_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_VOLUME_PATH = "/learn/how-many-replies";
 
@@ -147,7 +169,7 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     href: LEARN_VOLUME_PATH,
     number: "03",
     heading: LEARN_VOLUME_HEADING,
-    lede: "No daily quota in this snapshot. Extra posts in one slate decay. Silence does not subtract.",
+    lede: "0.5 and 0.25 are this viewer's slate. Thunder's 30 is a fetch cap. ReplySpamBot scores sequences.",
   },
 ];
 
@@ -290,7 +312,21 @@ export const LEARN_THUNDER_FETCH_HREF = algorithmPermalink(
   365,
 );
 export const LEARN_BDSM_HEADS_HREF = algorithmPermalink("bdsm/README.md", 30, 34);
+export const LEARN_BDSM_ROPE_HREF = algorithmPermalink("bdsm/README.md", 22, 24);
+export const LEARN_BDSM_FEATURES_HREF = algorithmPermalink("bdsm/README.md", 26, 29);
+export const LEARN_BDSM_SEQ_HREF = algorithmPermalink("bdsm/README.md", 102, 103);
+export const LEARN_BDSM_REDACT_HREF = algorithmPermalink("bdsm/README.md", 104, 115);
 export const LEARN_BDSM_ACTION_HREF = algorithmPermalink("bdsm/README.md", 63, 66);
+export const LEARN_BDSM_REPLY_HEAD_HREF = algorithmPermalink(
+  "bdsm/runtime/heads.py",
+  54,
+  63,
+);
+export const LEARN_BDSM_TWEET_HEAD_HREF = algorithmPermalink(
+  "bdsm/runtime/heads.py",
+  64,
+  73,
+);
 
 /** Defaults at LEARN_DIVERSITY_HREF. k is prior posts from this author in this slate. */
 export const LEARN_DIVERSITY_DECAY = 0.5;

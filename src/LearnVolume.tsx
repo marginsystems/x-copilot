@@ -5,7 +5,15 @@ import { LearnTip } from "./LearnTip";
 import {
   LEARN_APPLY_SNIPPET,
   LEARN_BDSM_ACTION_HREF,
+  LEARN_BDSM_FEATURES_HREF,
   LEARN_BDSM_HEADS_HREF,
+  LEARN_BDSM_REDACT_HREF,
+  LEARN_BDSM_REPLY_HEAD_HREF,
+  LEARN_BDSM_REPLY_HEAD_SNIPPET,
+  LEARN_BDSM_ROPE_HREF,
+  LEARN_BDSM_SEQ_HREF,
+  LEARN_BDSM_TWEET_HEAD_HREF,
+  LEARN_BDSM_TWEET_HEAD_SNIPPET,
   LEARN_DIVERSITY_APPLY_HREF,
   LEARN_DIVERSITY_DECAY,
   LEARN_DIVERSITY_ENABLE_HREF,
@@ -50,15 +58,18 @@ export function LearnVolumePage(props: {
       onCatalog={props.onCatalog}
       rail={
         <>
-          <p className="learn-rail-kicker">Daily quota</p>
-          <p className="learn-rail-weight">None</p>
-          <p className="learn-rail-kicker">2nd in one slate</p>
-          <p className="learn-rail-weight">×{SECOND_IN_SLATE}</p>
+          <p className="learn-rail-kicker">Whose list</p>
+          <p className="learn-rail-weight">This viewer</p>
+          <p className="learn-rail-kicker">Decay</p>
+          <p className="learn-rail-weight">{LEARN_DIVERSITY_DECAY}</p>
           <p className="learn-rail-kicker">Floor</p>
           <p className="learn-rail-weight">×{LEARN_DIVERSITY_FLOOR}</p>
+          <p className="learn-rail-kicker">2nd in their slate</p>
+          <p className="learn-rail-weight">×{SECOND_IN_SLATE}</p>
           <p className="learn-rail-formula">{LEARN_FORMULA}</p>
           <p>
-            No replies-per-day constant. Diversity is one viewer's slate.{" "}
+            0.5 and 0.25 are not a rank. They multiply extras already in this
+            viewer's For You list.{" "}
             <a href={LEARN_DIVERSITY_HREF} rel="noreferrer">
               AuthorDiversityDecay
             </a>{" "}
@@ -77,22 +88,28 @@ export function LearnVolumePage(props: {
         . If a daily quota is not in the code, we do not say one.
       </p>
 
-      <h2>Extra posts in one slate decay</h2>
+      <h2>0.5 and 0.25 are this viewer's slate</h2>
       <p>
         After the weighted sum,{" "}
         <a href={LEARN_README_ADJUST_HREF} rel="noreferrer">
           author diversity
         </a>{" "}
-        multiplies each later post from         the same author in{" "}
-        <em>this viewer's</em> For You slate.{" "}
+        multiplies later posts from you that already sit in{" "}
+        <em>this viewer's</em> For You list. It is not a rank of your account.
+        {" "}
         <a href={LEARN_DIVERSITY_ENABLE_HREF} rel="noreferrer">
           EnableAuthorDiversity
         </a>{" "}
         is on.{" "}
         <a href={LEARN_DIVERSITY_HREF} rel="noreferrer">
-          Decay {LEARN_DIVERSITY_DECAY}
-        </a>
-        , floor {LEARN_DIVERSITY_FLOOR}.
+          AuthorDiversityDecay
+        </a>{" "}
+        is {LEARN_DIVERSITY_DECAY} — the factor in the formula, not a score.{" "}
+        <a href={LEARN_DIVERSITY_HREF} rel="noreferrer">
+          AuthorDiversityFloor
+        </a>{" "}
+        is {LEARN_DIVERSITY_FLOOR} — later posts from you in that same list
+        never go below ×{LEARN_DIVERSITY_FLOOR}.
       </p>
       <LearnCode
         file="home-mixer/scorers/ranking_scorer.rs"
@@ -102,43 +119,55 @@ export function LearnVolumePage(props: {
       </LearnCode>
       <p>
         <code>k</code> is how many of this author's posts already sit higher in
-        the same slate.{" "}
+        the same viewer's slate.{" "}
         <a href={LEARN_DIVERSITY_APPLY_HREF} rel="noreferrer">
-          First post
+          First of yours
         </a>{" "}
-        (<code>k = 0</code>) is ×1.0. Second is ×{SECOND_IN_SLATE}. Then 0.4375,
-        0.34375… never below {LEARN_DIVERSITY_FLOOR}.
+        (<code>k = 0</code>) is ×1.0. The second in their list is ×{SECOND_IN_SLATE}
+        because (1 − {LEARN_DIVERSITY_FLOOR}) × {LEARN_DIVERSITY_DECAY} +{" "}
+        {LEARN_DIVERSITY_FLOOR} = {SECOND_IN_SLATE}. Then 0.4375, 0.34375…
+        never below ×{LEARN_DIVERSITY_FLOOR}.
       </p>
       <LearnTip title="This is not an account debit">
         <p>
           Diversity runs inside one viewer's ranked list. Posting fifty times
           today does not multiply your whole account by 0.25. It means a second
-          post from you in the same For You slate is already discounted before
-          the floor.
+          post from you in that same For You slate is already discounted for
+          that viewer, before the floor.
         </p>
       </LearnTip>
 
-      <h2>Thunder 30 / 50 is a fetch cap</h2>
+      <h2>Thunder 30 / 50 is a per-follower fetch cap</h2>
       <p>
-        When thunder builds the in-network pool, it returns at most{" "}
+        When thunder builds the in-network pool for this viewer, it walks each
+        followed author's recent store newest-first, then takes at most{" "}
         <a href={LEARN_THUNDER_CAP_HREF} rel="noreferrer">
           30 replies and 50 originals
         </a>{" "}
-        per followed author, and at most 1200 posts for the request.{" "}
+        per author, and at most 1200 posts for the request.{" "}
         <a href={LEARN_THUNDER_FETCH_HREF} rel="noreferrer">
           get_all_posts_by_users
         </a>{" "}
-        takes those limits from the recent store. That is how many of your
-        recent posts can enter that viewer's in-network candidates — not a
-        daily posting quota, and not a For You penalty.
+        applies those limits to that viewer's fetch. That is how many of your
+        recent posts can enter that follower's in-network candidates — not a
+        daily posting quota, and not a penalty on your account.
       </p>
       <LearnCode file="thunder/config.rs" href={LEARN_THUNDER_CAP_HREF}>
         {LEARN_THUNDER_CAP_SNIPPET}
       </LearnCode>
-      <LearnTip title="Do not read 30/50 as how many you may post">
+      <p>
+        If more than 30 of your replies sit in that recent store, extras may
+        not enter this viewer's thunder fetch. Each follower builds their own
+        pool. The code does not say those extras vanish for every follower, and
+        it does not say "30 a day is safe."
+      </p>
+      <LearnTip title="Do not read 30 as a daily allowance">
         <p>
-          Those constants cap retrieval per author for one in-network fetch.
-          They do not say "post 30 replies a day" or "stop at 50 originals."
+          The constant caps retrieval per author for one in-network request.
+          It does not say post 30 replies a day, or that the first 30 skip
+          every other limit. Diversity still multiplies extras already in that
+          viewer's slate. ReplySpamBot and TweetSpamBot score the action
+          sequence — a different stack.
         </p>
       </LearnTip>
 
@@ -173,19 +202,106 @@ export function LearnVolumePage(props: {
         </p>
       </LearnTip>
 
-      <h2>Burstiness is a different stack</h2>
+      <h2>ReplySpamBot and TweetSpamBot</h2>
       <p>
         <a href={LEARN_BDSM_HEADS_HREF} rel="noreferrer">
           BDSM
         </a>{" "}
-        has ReplySpamBot and TweetSpamBot heads. It reads action sequences and
-        timing — burstiness, mechanical cadence.{" "}
-        <a href={LEARN_BDSM_ACTION_HREF} rel="noreferrer">
-          Graduated actioning
-        </a>{" "}
-        is challenge vs suspend. That is not a published "50 a day" For You
-        weight. This snapshot does not give a safe daily count.
+        is a sequence-of-actions transformer that scores accounts from
+        behavioral event streams. It is not a For You weight. The eight heads
+        are FollowBot, LikeBot, EngagementAmplifier, ReplySpamBot, TweetSpamBot,
+        RTBot, MultiActionBot, and LegitimateUser. Scoring is account-level,
+        over a recent action sequence — not a daily reply quota, and not{" "}
+        <code>weight × P(action)</code> for one post.
       </p>
+
+      <h3>How the stack works</h3>
+      <p>
+        The backbone is a bidirectional transformer over recent actions.{" "}
+        <a href={LEARN_BDSM_ROPE_HREF} rel="noreferrer">
+          Time-aware RoPE
+        </a>{" "}
+        uses normalized action timestamps, not token index, so the model sees
+        inter-action timing: burstiness, mechanical cadence.{" "}
+        <a href={LEARN_BDSM_FEATURES_HREF} rel="noreferrer">
+          Per-action features
+        </a>{" "}
+        include action type, product surface, dwell time, device/client, and
+        engagement-target hashes.         The shipped config is{" "}
+        <a href={LEARN_BDSM_SEQ_HREF} rel="noreferrer">
+          256 action types, eight heads, sequence length 512, embedding width
+          1024
+        </a>
+        . The runtime publishes an 8-wide score row, then{" "}
+        <a href={LEARN_BDSM_ACTION_HREF} rel="noreferrer">
+          graduated actioning
+        </a>{" "}
+        — challenge vs suspend.
+      </p>
+
+      <h3>ReplySpamBot</h3>
+      <p>
+        Head index 3. The flywheel labels in{" "}
+        <a href={LEARN_BDSM_REPLY_HEAD_HREF} rel="noreferrer">
+          heads.py
+        </a>{" "}
+        are REPLY_SPAM_NO_CONSUMPTION, REPLY_SPAM_BOT, and CONVERSATION_SPAMMER.
+        Those names are the training labels for this head. They are not a
+        published replies-per-day constant.
+      </p>
+      <LearnCode
+        file="bdsm/runtime/heads.py"
+        href={LEARN_BDSM_REPLY_HEAD_HREF}
+      >
+        {LEARN_BDSM_REPLY_HEAD_SNIPPET}
+      </LearnCode>
+      <p>
+        The integer after the index is <code>selection_weight</code> in the
+        training registry. This snapshot does not say it is a score on your
+        account. REPLY_SPAM_NO_CONSUMPTION sits next to dwell time as a
+        feature: the stack can see a reply stream that never consumes the
+        parent. CONVERSATION_SPAMMER is the conversation-flood label. The
+        snapshot does not define those labels further than their names.
+      </p>
+
+      <h3>TweetSpamBot</h3>
+      <p>
+        Head index 4. Flywheel labels: TWEET_CREATE_BURST, QUOTE_TWEET_SPAMMER,
+        CONTENT_AMPLIFIER.
+      </p>
+      <LearnCode
+        file="bdsm/runtime/heads.py"
+        href={LEARN_BDSM_TWEET_HEAD_HREF}
+      >
+        {LEARN_BDSM_TWEET_HEAD_SNIPPET}
+      </LearnCode>
+      <p>
+        TWEET_CREATE_BURST is a create-side burst, not Thunder's take(50)
+        originals fetch. QUOTE_TWEET_SPAMMER is the quote-spam label. Same
+        rule: we do not invent a count that stays under the head.
+      </p>
+
+      <h3>What this snapshot withholds</h3>
+      <p>
+        <a href={LEARN_BDSM_REDACT_HREF} rel="noreferrer">
+          Operating points
+        </a>{" "}
+        ship as a 9.99 sentinel — out of range for a probability in [0, 1], so
+        they never fire in this tree. The min-actions gate is 999999.
+        Appeal-note templates are redacted. Publishing the real numbers would
+        hand over the detector's evasion boundary. We do not invent a fire
+        threshold or a safe daily count.
+      </p>
+      <LearnTip title="What the labels tell you to avoid">
+        <p>
+          Avoid replies with no consumption — no dwell on the parent. Avoid
+          conversation spam. Avoid tweet-create bursts and quote-tweet spam.
+          Time-aware RoPE is built to see mechanical cadence. This is not
+          diversity 0.5 / 0.25, and it is not Thunder's 30. Those multiply or
+          cap this viewer's For You slate. These heads score the account's
+          action sequence.
+        </p>
+      </LearnTip>
 
       <h2>Do not start at 50 because a thread said so</h2>
       <p>
@@ -195,7 +311,8 @@ export function LearnVolumePage(props: {
         <a href={LEARN_OON_HREF} rel="noreferrer">
           ×0.75
         </a>{" "}
-        when that switch is on. A mechanical flood is what ReplySpamBot is for.
+        when that switch is on. A mechanical reply flood is what ReplySpamBot
+        is for. A create burst is what TweetSpamBot is for.
       </p>
       <p>
         Craft still matters —{" "}

@@ -1,5 +1,14 @@
 /* 20-learn.css: public /learn handbook */
 
+.learn-page h3 {
+  margin: 8px 0 0;
+  font-family: var(--font-head);
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
 .learn-page.legal-page {
   max-width: 72rem;
   width: min(72rem, 100%);
