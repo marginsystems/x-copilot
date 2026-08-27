@@ -1,31 +1,194 @@
-/* 21-play.css: /play perch shell. Creature and props land later. */
+/* 21-play.css: /play perch scene — copilot creature, lamp, speech. */
 
 .play-lede {
   max-width: 36rem;
 }
 
-.play-facts {
-  display: grid;
-  gap: 8px;
-  margin: 16px 0 0;
+.play-scene {
+  margin-top: 16px;
   max-width: 36rem;
 }
 
-.play-facts > div {
-  display: grid;
-  grid-template-columns: 5.5rem 1fr;
-  gap: 12px;
-  align-items: baseline;
+.play-stage {
+  display: block;
+  width: min(264px, 100%);
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
-.play-facts dt {
-  margin: 0;
+/* Fills: tokens only, so both themes render for free. */
+.play-bg {
+  fill: var(--panel);
+}
+
+.play-perch {
+  fill: var(--border-strong);
+}
+
+.play-body,
+.play-head-block,
+.play-eye-lid {
+  fill: var(--accent);
+}
+
+.play-body,
+.play-head-block {
+  stroke: var(--accent-dim);
+  stroke-width: 0.85;
+  stroke-linejoin: miter;
+  stroke-linecap: square;
+}
+
+.play-tail,
+.play-shade,
+.play-wing {
+  fill: var(--accent-dim);
+}
+
+.play-eye,
+.play-beak,
+.play-feet,
+.play-eye-seam {
+  fill: var(--ink);
+}
+
+/* Lamp follows the is-lit modifier; playStateClass keeps it off in sleep. */
+.play-lamp-glow {
+  fill: var(--accent);
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+
+.play-lamp-bulb {
+  fill: var(--accent-dim);
+  opacity: 0.45;
+  transition: opacity 240ms ease, fill 240ms ease;
+}
+
+.is-lit .play-lamp-glow {
+  opacity: 0.16;
+}
+
+.is-lit .play-lamp-bulb {
+  fill: var(--accent);
+  opacity: 1;
+}
+
+/* Pose groups. Static transforms carry the reduced-motion still poses;
+   keyframes only add motion on top. */
+.play-bird {
+  transform-origin: 66px 72px;
+}
+
+.play-head {
+  transform-origin: 66px 52px;
+  transition: transform 240ms var(--ease-out);
+}
+
+.play-wing {
+  transform-box: fill-box;
+  transform-origin: 20% 20%;
+  transition: transform 240ms var(--ease-out);
+}
+
+.play-eye-shut {
+  opacity: 0;
+}
+
+.is-idle .play-bird {
+  animation: play-breathe 3.6s ease-in-out infinite;
+}
+
+.is-idle .play-eye-shut {
+  animation: play-blink 8s linear infinite;
+}
+
+.is-celebrate .play-bird {
+  animation: play-hop 600ms var(--ease-out) 2;
+}
+
+.is-celebrate .play-wing {
+  transform: rotate(-32deg);
+}
+
+.is-nudge .play-head {
+  transform: rotate(7deg);
+}
+
+.is-sleep .play-bird {
+  opacity: 0.6;
+}
+
+.is-sleep .play-eye-shut {
+  opacity: 1;
+}
+
+@keyframes play-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes play-blink {
+  0%,
+  93.9%,
+  98%,
+  100% {
+    opacity: 0;
+  }
+  94%,
+  97.9% {
+    opacity: 1;
+  }
+}
+
+@keyframes play-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-7px);
+  }
+}
+
+/* Text under the scene */
+.play-celebrate-line {
+  margin: 10px 0 0;
+  min-height: 1.2em;
+  max-width: 36rem;
+}
+
+.play-speech {
+  margin: 12px 0 0;
+  max-width: 36rem;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+
+.play-speech-kind {
+  display: block;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.play-facts dd {
-  margin: 0;
+.play-speech-text {
+  margin: 2px 0 0;
+}
+
+.play-caption {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .play-missions {

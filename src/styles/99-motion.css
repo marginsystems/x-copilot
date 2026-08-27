@@ -60,6 +60,23 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* /play: no breathe/blink/hop and no lamp/tilt transitions. Static
+     transforms and text still follow the state, so each pose keeps a
+     distinct still frame (closed eyes, raised wing, tilt). */
+  .play-scene,
+  .play-scene * {
+    animation: none;
+    transition: none;
+  }
+
+  .play-scene .is-idle .play-bird,
+  .play-scene .is-idle .play-eye-shut,
+  .play-scene .is-celebrate .play-bird {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
   .learn-page > * {
     animation: none;
   }
