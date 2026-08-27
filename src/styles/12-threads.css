@@ -104,6 +104,10 @@
 }
 
 .chip.daily-mission {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -111,6 +115,49 @@
 .chip.daily-mission.is-done {
   color: var(--text);
   border-color: var(--accent-dim);
+}
+
+.daily-mission-copy {
+  line-height: 1.3;
+}
+
+.desk-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 6.5rem;
+  flex: 1 1 8rem;
+}
+
+.chip.daily-mission .desk-meter {
+  flex: 0 0 auto;
+  min-width: 5.5rem;
+}
+
+.desk-meter-track {
+  flex: 1 1 4.5rem;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.desk-meter-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 320ms var(--ease-out);
+}
+
+.next-action-row.kind-reply .desk-meter-fill {
+  background: #d2b168;
+}
+
+.desk-meter-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .thread-row.for-you-row {
@@ -350,6 +397,10 @@
 [data-theme="light"] .bait.kind-reply {
   color: #6a4e12;
   border-color: #6a4e12;
+}
+
+[data-theme="light"] .next-action-row.kind-reply .desk-meter-fill {
+  background: #6a4e12;
 }
 
 [data-theme="light"] .landing-title em,

@@ -129,3 +129,39 @@ export function nextActionKindClass(kind: NextActionKind): string {
   if (kind === "reply" || kind === "streak") return "kind-reply";
   return "kind-post";
 }
+
+/** Next-action kinds that share a daily mission. Not LLM prose. */
+const NEXT_ACTION_PROGRESS_MISSION: Partial<Record<NextActionKind, string>> = {
+  reply: "mark_2",
+  streak: "mark_2",
+  original: "original_1",
+  takeoff: "takeoff_1",
+};
+
+export function missionFillPct(progress: number, target: number): number {
+  if (target <= 0) return 0;
+  return Math.round((Math.min(progress, target) / target) * 100);
+}
+
+export type NextActionProgress = {
+  current: number;
+  target: number;
+  label: string;
+};
+
+export function nextActionProgress(
+  action: NextActionCard | null,
+  missions: readonly DailyMission[],
+): NextActionProgress | null {
+  if (!action) return null;
+  const missionId = NEXT_ACTION_PROGRESS_MISSION[action.kind];
+  if (!missionId) return null;
+  const mission = missions.find((row) => row.id === missionId);
+  if (!mission || mission.target <= 0) return null;
+  const current = Math.min(mission.progress, mission.target);
+  return {
+    current,
+    target: mission.target,
+    label: `${current}/${mission.target}`,
+  };
+}

@@ -86,7 +86,8 @@
   .learn-card,
   .learn-page tbody tr,
   .desk-top-body,
-  .desk-top-body-inner {
+  .desk-top-body-inner,
+  .desk-meter-fill {
     transition: none;
   }
 }

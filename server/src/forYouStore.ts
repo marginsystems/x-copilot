@@ -226,6 +226,21 @@ export function listActiveSuggestions(
   return rows.map(mapRow).filter((row): row is ForYouSuggestion => Boolean(row));
 }
 
+/** Confirmed For You cards of one kind since `sinceIso` (UTC-day missions). */
+export function countDoneSuggestionsSince(opts: {
+  userId: string;
+  kind: ForYouKind;
+  sinceIso: string;
+}): number {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT COUNT(*) AS n FROM for_you_suggestions
+        WHERE user_id = ? AND kind = ? AND status = 'done' AND acted_at >= ?`,
+    )
+    .get(opts.userId, opts.kind, opts.sinceIso) as { n: number };
+  return Number(row.n) || 0;
+}
+
 export function markSuggestion(opts: {
   id: string;
   userId: string;
