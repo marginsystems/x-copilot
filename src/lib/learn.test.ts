@@ -28,6 +28,7 @@ import {
   LEARN_BDSM_SEQ_HREF,
   LEARN_BDSM_TWEET_HEAD_HREF,
   LEARN_BDSM_TWEET_HEAD_SNIPPET,
+  learnAdjacentLessons,
   learnDiversityMultiplier,
   LEARN_WEIGHTS_PATH,
   LEARN_OON_SNIPPET,
@@ -102,6 +103,25 @@ describe("learn citations", () => {
     assert.match(LEARN_DRAWER_OON, /0\.75/);
     assert.match(LEARN_DRAWER_SOURCE, /d011592/);
     assert.match(LEARN_DRAWER_SOURCE, /not affiliated/i);
+  });
+
+  it("walks catalog lessons in published order", () => {
+    assert.deepEqual(learnAdjacentLessons("learnWeights"), {
+      prev: null,
+      next: LEARN_LESSONS[1],
+    });
+    assert.deepEqual(learnAdjacentLessons("learnReply"), {
+      prev: LEARN_LESSONS[0],
+      next: LEARN_LESSONS[2],
+    });
+    assert.deepEqual(learnAdjacentLessons("learnVolume"), {
+      prev: LEARN_LESSONS[1],
+      next: null,
+    });
+    assert.deepEqual(learnAdjacentLessons("learnFollow"), {
+      prev: null,
+      next: null,
+    });
   });
 
   it("publishes three catalog lessons", () => {

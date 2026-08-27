@@ -39,6 +39,7 @@ import {
   LEARN_VOLUME_META,
   LEARN_WEIGHTS_PATH,
   learnDiversityMultiplier,
+  type LearnLessonView,
 } from "./lib/learn";
 import { PRODUCT_NAME } from "./lib/legal";
 
@@ -47,6 +48,7 @@ const SECOND_IN_SLATE = learnDiversityMultiplier(1);
 export function LearnVolumePage(props: {
   onHome: () => void;
   onCatalog: () => void;
+  onOpenLesson: (view: LearnLessonView) => void;
   onWeights: () => void;
   onReply: () => void;
 }) {
@@ -56,6 +58,8 @@ export function LearnVolumePage(props: {
       meta={LEARN_VOLUME_META}
       onHome={props.onHome}
       onCatalog={props.onCatalog}
+      current="learnVolume"
+      onOpenLesson={props.onOpenLesson}
       rail={
         <>
           <p className="learn-rail-kicker">Whose list</p>

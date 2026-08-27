@@ -148,6 +148,8 @@ export type LearnLesson = {
   lede: string;
 };
 
+export type LearnNavView = LearnLessonView | "learnFollow";
+
 /** Published catalog cards. Follow stays a related note, not a catalog lesson. */
 export const LEARN_LESSONS: readonly LearnLesson[] = [
   {
@@ -334,6 +336,18 @@ export const LEARN_DIVERSITY_FLOOR = 0.25;
 
 export function learnDiversityMultiplier(k: number): number {
   return (1 - LEARN_DIVERSITY_FLOOR) * LEARN_DIVERSITY_DECAY ** k + LEARN_DIVERSITY_FLOOR;
+}
+
+export function learnAdjacentLessons(view: string): {
+  prev: LearnLesson | null;
+  next: LearnLesson | null;
+} {
+  const index = LEARN_LESSONS.findIndex((lesson) => lesson.view === view);
+  if (index < 0) return { prev: null, next: null };
+  return {
+    prev: LEARN_LESSONS[index - 1] ?? null,
+    next: LEARN_LESSONS[index + 1] ?? null,
+  };
 }
 
 export function formatLearnWeight(weight: number): string {
