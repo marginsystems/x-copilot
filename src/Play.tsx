@@ -1,12 +1,18 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { PLAY_TO_DESK_LABEL } from "./lib/play";
-import { playToastFromMissions, type PlayVec2 } from "./lib/playWorld";
+import {
+  defaultOrbit,
+  dragOrbit,
+  pinchOrbit,
+  playToastFromMissions,
+  type PlayOrbit,
+} from "./lib/playWorld";
+import type { CoachingState } from "./lib/coaching";
+import type { GamificationStats } from "./lib/gamification";
 
 const PlayWorld = lazy(() =>
   import("./PlayWorld").then((m) => ({ default: m.PlayWorld })),
 );
-import type { CoachingState } from "./lib/coaching";
-import type { GamificationStats } from "./lib/gamification";
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(() =>
@@ -30,9 +36,10 @@ export function PlayPage(props: {
   gamification: GamificationStats;
 }) {
   const reducedMotion = useReducedMotion();
-  const inputRef = useRef<PlayVec2>({ x: 0, z: 0 });
-  const orbitRef = useRef(0.35);
-  const keysRef = useRef(new Set<string>());
+  const orbitRef = useRef<PlayOrbit>(defaultOrbit());
+  const orbitingRef = useRef(false);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch0 = useRef(0);
   const [toast, setToast] = useState<string | null>(null);
   const prevMissions = useRef(props.coaching?.missions ?? null);
 
@@ -50,74 +57,33 @@ export function PlayPage(props: {
     return () => window.clearTimeout(id);
   }, [props.coaching]);
 
-  useEffect(() => {
-    const sync = () => {
-      const keys = keysRef.current;
-      let x = 0;
-      let z = 0;
-      if (keys.has("a") || keys.has("arrowleft")) x -= 1;
-      if (keys.has("d") || keys.has("arrowright")) x += 1;
-      if (keys.has("w") || keys.has("arrowup")) z += 1;
-      if (keys.has("s") || keys.has("arrowdown")) z -= 1;
-      if (!stickActive.current) inputRef.current = { x, z };
-    };
-    const down = (e: KeyboardEvent) => {
-      keysRef.current.add(e.key.toLowerCase());
-      sync();
-    };
-    const up = (e: KeyboardEvent) => {
-      keysRef.current.delete(e.key.toLowerCase());
-      sync();
-    };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, []);
-
-  const stickActive = useRef(false);
-  const stickOrigin = useRef({ x: 0, y: 0 });
-
-  function onStickStart(e: React.PointerEvent<HTMLDivElement>) {
-    stickActive.current = true;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const box = e.currentTarget.getBoundingClientRect();
-    stickOrigin.current = {
-      x: box.left + box.width / 2,
-      y: box.top + box.height / 2,
-    };
-    onStickMove(e);
-  }
-  function onStickMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!stickActive.current) return;
-    const dx = (e.clientX - stickOrigin.current.x) / 42;
-    const dy = (e.clientY - stickOrigin.current.y) / 42;
-    inputRef.current = {
-      x: Math.max(-1, Math.min(1, dx)),
-      z: Math.max(-1, Math.min(1, -dy)),
-    };
-  }
-  function onStickEnd() {
-    stickActive.current = false;
-    inputRef.current = { x: 0, z: 0 };
-  }
-
-  const lookActive = useRef(false);
-  const lookLast = useRef(0);
   function onLookStart(e: React.PointerEvent<HTMLDivElement>) {
-    lookActive.current = true;
-    lookLast.current = e.clientX;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    orbitingRef.current = true;
     e.currentTarget.setPointerCapture(e.pointerId);
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      pinch0.current = Math.hypot(a.x - b.x, a.y - b.y);
+    }
   }
   function onLookMove(e: React.PointerEvent<HTMLDivElement>) {
-    if (!lookActive.current) return;
-    orbitRef.current += (e.clientX - lookLast.current) * 0.008;
-    lookLast.current = e.clientX;
+    const prev = pointers.current.get(e.pointerId);
+    if (!prev) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch0.current > 8 && dist > 8) {
+        orbitRef.current = pinchOrbit(orbitRef.current, dist / pinch0.current);
+        pinch0.current = dist;
+      }
+      return;
+    }
+    orbitRef.current = dragOrbit(orbitRef.current, e.clientX - prev.x, e.clientY - prev.y);
   }
-  function onLookEnd() {
-    lookActive.current = false;
+  function onLookEnd(e: React.PointerEvent<HTMLDivElement>) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size === 0) orbitingRef.current = false;
   }
 
   const missions = props.coaching?.missions ?? [];
@@ -128,8 +94,8 @@ export function PlayPage(props: {
         <PlayWorld
           lit={lit}
           reducedMotion={reducedMotion}
-          inputRef={inputRef}
           orbitRef={orbitRef}
+          orbitingRef={orbitingRef}
         />
       </Suspense>
       <div
@@ -141,7 +107,7 @@ export function PlayPage(props: {
       />
       <header className="play-hud-top">
         <p className="play-hud-name">
-          Hangar · LV {props.gamification.level} · Streak {props.gamification.currentStreak}
+          Apron · LV {props.gamification.level} · Streak {props.gamification.currentStreak}
         </p>
         <button type="button" className="ghost play-hud-back" onClick={props.onBack}>
           Desk
@@ -159,19 +125,13 @@ export function PlayPage(props: {
           </span>
         ))}
       </div>
-      <div
-        className="play-stick"
-        onPointerDown={onStickStart}
-        onPointerMove={onStickMove}
-        onPointerUp={onStickEnd}
-        onPointerCancel={onStickEnd}
-      >
-        <span>Move</span>
-      </div>
+      <p className="play-hold" aria-disabled="true">
+        Hold to take off
+      </p>
       <button type="button" className="play-desk-fab" onClick={props.onBack}>
         {PLAY_TO_DESK_LABEL}
       </button>
-      <p className="play-credit">Yard models: Kenney Platformer Kit (CC0)</p>
+      <p className="play-credit">Cesium Air sample · Apache 2.0</p>
     </section>
   );
 }
