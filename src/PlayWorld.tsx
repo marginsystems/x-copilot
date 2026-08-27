@@ -63,12 +63,12 @@ export function PlayWorld(props: Props) {
 
     const loader = new GLTFLoader();
     const load = (file: string) =>
-      new Promise<THREE.Group>((resolve, reject) => {
+      new Promise<THREE.Group | null>((resolve) => {
         loader.load(
           ASSET(file),
           (gltf) => resolve(gltf.scene),
           undefined,
-          reject,
+          () => resolve(null),
         );
       });
 
@@ -100,97 +100,105 @@ export function PlayWorld(props: Props) {
     resize();
 
     void (async () => {
-      try {
-        const [
-          grass,
-          grassLarge,
-          fence,
-          fenceCorner,
-          tree,
-          pine,
-          tuft,
-          flowers,
-          chest,
-          crate,
-          flag,
-          hero,
-          buddy,
-        ] = await Promise.all([
-          load("block-grass.glb"),
-          load("block-grass-large.glb"),
-          load("fence-straight.glb"),
-          load("fence-corner.glb"),
-          load("tree.glb"),
-          load("tree-pine.glb"),
-          load("grass.glb"),
-          load("flowers.glb"),
-          load("chest.glb"),
-          load("crate.glb"),
-          load("flag.glb"),
-          load("character-ooli.glb"),
-          load("character-oobi.glb"),
-        ]);
-        if (!alive) return;
+      const [
+        grass,
+        grassLarge,
+        fence,
+        fenceCorner,
+        tree,
+        pine,
+        tuft,
+        flowers,
+        chest,
+        crate,
+        flag,
+        hero,
+        buddy,
+      ] = await Promise.all([
+        load("block-grass.glb"),
+        load("block-grass-large.glb"),
+        load("fence-straight.glb"),
+        load("fence-corner.glb"),
+        load("tree.glb"),
+        load("tree-pine.glb"),
+        load("grass.glb"),
+        load("flowers.glb"),
+        load("chest.glb"),
+        load("crate.glb"),
+        load("flag.glb"),
+        load("character-ooli.glb"),
+        load("character-oobi.glb"),
+      ]);
+      if (!alive) return;
 
-        const tile = 1.05;
-        for (let ix = -7; ix <= 7; ix += 1) {
-          for (let iz = -7; iz <= 7; iz += 1) {
-            const g = (Math.abs(ix) + Math.abs(iz)) % 3 === 0 ? grassLarge.clone() : grass.clone();
-            g.position.set(ix * tile, 0, iz * tile);
-            scene.add(g);
-          }
-        }
-
-        const placeFence = (x: number, z: number, rot: number, corner = false) => {
-          const f = (corner ? fenceCorner : fence).clone();
-          f.position.set(x, 0, z);
-          f.rotation.y = rot;
-          scene.add(f);
-        };
-        const edge = 7.4;
-        for (let i = -6; i <= 6; i += 1) {
-          placeFence(i * tile, -edge, 0);
-          placeFence(i * tile, edge, Math.PI);
-          placeFence(-edge, i * tile, Math.PI / 2);
-          placeFence(edge, i * tile, -Math.PI / 2);
-        }
-        placeFence(-edge, -edge, 0, true);
-        placeFence(edge, -edge, -Math.PI / 2, true);
-        placeFence(-edge, edge, Math.PI / 2, true);
-        placeFence(edge, edge, Math.PI, true);
-
-        const deco = [
-          { m: tree, x: -9.2, z: -8.4 },
-          { m: pine, x: 9.4, z: -7.8 },
-          { m: tree, x: -8.8, z: 9.1 },
-          { m: pine, x: 9.6, z: 8.6 },
-          { m: tuft, x: -2.2, z: 3.1 },
-          { m: flowers, x: 2.8, z: 2.4 },
-          { m: tuft, x: -3.4, z: -2.6 },
-          { m: flowers, x: 3.6, z: -3.2 },
-        ];
-        for (const row of deco) {
-          const n = row.m.clone();
-          n.position.set(row.x, 0, row.z);
+      const tile = 1.05;
+      for (let ix = -7; ix <= 7; ix += 1) {
+        for (let iz = -7; iz <= 7; iz += 1) {
+          const g = (Math.abs(ix) + Math.abs(iz)) % 3 === 0 ? grassLarge : grass;
+          if (!g) continue;
+          const n = g.clone();
+          n.position.set(ix * tile, 0, iz * tile);
           scene.add(n);
         }
+      }
 
+      const placeFence = (x: number, z: number, rot: number, corner = false) => {
+        const f = corner ? fenceCorner : fence;
+        if (!f) return;
+        const n = f.clone();
+        n.position.set(x, 0, z);
+        n.rotation.y = rot;
+        scene.add(n);
+      };
+      const edge = 7.4;
+      for (let i = -6; i <= 6; i += 1) {
+        placeFence(i * tile, -edge, 0);
+        placeFence(i * tile, edge, Math.PI);
+        placeFence(-edge, i * tile, Math.PI / 2);
+        placeFence(edge, i * tile, -Math.PI / 2);
+      }
+      placeFence(-edge, -edge, 0, true);
+      placeFence(edge, -edge, -Math.PI / 2, true);
+      placeFence(-edge, edge, Math.PI / 2, true);
+      placeFence(edge, edge, Math.PI, true);
+
+      const deco = [
+        { m: tree, x: -9.2, z: -8.4 },
+        { m: pine, x: 9.4, z: -7.8 },
+        { m: tree, x: -8.8, z: 9.1 },
+        { m: pine, x: 9.6, z: 8.6 },
+        { m: tuft, x: -2.2, z: 3.1 },
+        { m: flowers, x: 2.8, z: 2.4 },
+        { m: tuft, x: -3.4, z: -2.6 },
+        { m: flowers, x: 3.6, z: -3.2 },
+      ];
+      for (const row of deco) {
+        if (!row.m) continue;
+        const n = row.m.clone();
+        n.position.set(row.x, 0, row.z);
+        scene.add(n);
+      }
+
+      if (chest) {
         chest.position.set(0, 0, -1.4);
+        scene.add(chest);
+      }
+      if (crate) {
         crate.position.set(-2.1, 0, -1.1);
+        scene.add(crate);
+      }
+      if (flag) {
         flag.position.set(2.2, 0, -1.6);
-        scene.add(chest, crate, flag);
+        scene.add(flag);
+      }
 
+      if (hero) {
         hero.rotation.y = Math.PI;
         player.add(hero);
+      }
+      if (buddy) {
         buddy.rotation.y = Math.PI * 0.2;
         pet.add(buddy);
-      } catch {
-        const fallback = new THREE.Mesh(
-          new THREE.BoxGeometry(0.7, 1.2, 0.5),
-          new THREE.MeshStandardMaterial({ color: 0x7eb8dc }),
-        );
-        fallback.position.y = 0.6;
-        player.add(fallback);
       }
       if (props.reducedMotion) renderFrame();
     })();
