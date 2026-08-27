@@ -7,7 +7,10 @@ import { getPlatformDb } from "./db.js";
 import { getGamification } from "./gamification.js";
 import { utcDayKey } from "./gamificationXp.js";
 import { listInteractionHistory } from "./interactionStore.js";
-import { listActiveSuggestions } from "./forYouStore.js";
+import {
+  countDoneSuggestionsSince,
+  listActiveSuggestions,
+} from "./forYouStore.js";
 import { startOfUtcDayIso } from "./ownPostStore.js";
 import { countDeliveredSortiesToday } from "./scoutSorties.js";
 import {
@@ -35,6 +38,14 @@ export type CoachingSnapshot = {
   level: number;
   lifetimeXp: number;
 };
+
+export function originalsTodayCount(
+  ownPosts: number,
+  deskOriginals: number,
+  doneForYouPosts: number,
+): number {
+  return Math.max(ownPosts, deskOriginals, doneForYouPosts);
+}
 
 export function hashCoachingSnapshot(snapshot: CoachingSnapshot): string {
   return createHash("sha256")
@@ -74,13 +85,24 @@ export async function buildCoachingSnapshot(opts: {
   userId: string;
   tenantId: string;
   nowMs?: number;
+  interactionStorePath?: string;
+  gamificationPath?: string;
 }): Promise<CoachingSnapshot> {
   const nowMs = opts.nowMs ?? Date.now();
   const dayUtc = utcDayKey(nowMs);
   const sinceIso = startOfUtcDayIso(new Date(nowMs));
   const [history, gamification] = await Promise.all([
-    listInteractionHistory({ userId: opts.userId, limit: 400 }),
-    getGamification({ userId: opts.userId, nowMs }),
+    listInteractionHistory({
+      userId: opts.userId,
+      limit: 400,
+      storePath: opts.interactionStorePath,
+    }),
+    getGamification({
+      userId: opts.userId,
+      nowMs,
+      gamificationPath: opts.gamificationPath,
+      interactionStorePath: opts.interactionStorePath,
+    }),
   ]);
   let marksToday = 0;
   for (const row of history) {
@@ -90,6 +112,11 @@ export async function buildCoachingSnapshot(opts: {
   }
   const kinds = countOwnKindsToday(opts.userId, sinceIso);
   const deskOriginals = countDeskOriginalsSince(opts.userId, sinceIso);
+  const doneForYouPosts = countDoneSuggestionsSince({
+    userId: opts.userId,
+    kind: "post",
+    sinceIso,
+  });
   const suggestions = listActiveSuggestions(opts.userId, nowMs);
   const counts = { post: 0, quote: 0, repost: 0, reply: 0 };
   for (const row of suggestions) {
@@ -98,7 +125,11 @@ export async function buildCoachingSnapshot(opts: {
   return {
     dayUtc,
     marksToday,
-    originalsToday: Math.max(kinds.originals, deskOriginals),
+    originalsToday: originalsTodayCount(
+      kinds.originals,
+      deskOriginals,
+      doneForYouPosts,
+    ),
     repliesPostedToday: kinds.replies,
     quotesToday: kinds.quotes,
     deskPostsToday: listDeskPostsSince(opts.userId, sinceIso).length,

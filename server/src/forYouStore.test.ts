@@ -10,6 +10,7 @@ import {
 } from "./db.ts";
 import {
   SUGGESTION_TTL_MS,
+  countDoneSuggestionsSince,
   expireOpenSuggestions,
   getSuggestion,
   hasForYouRunToday,
@@ -128,6 +129,52 @@ describe("forYouStore", () => {
     assert.equal(active.length, 1);
     assert.equal(active[0]?.origin, "extra");
     assert.equal(active[0]?.draft, "Paid original.");
+  });
+
+  it("counts done OG cards today and ignores quotes, skips, and yesterday", () => {
+    const day = Date.parse("2026-08-27T12:00:00.000Z");
+    const since = "2026-08-27T00:00:00.000Z";
+    const [og] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: day,
+      drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
+    });
+    const [quote] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: day,
+      drafts: [
+        {
+          kind: "quote",
+          why: "quote that rant",
+          targetId: "99",
+          targetUrl: "https://x.com/a/status/99",
+        },
+      ],
+    });
+    const [skip] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: day,
+      drafts: [{ kind: "post", why: "skip me", draft: "Nope." }],
+    });
+    assert.ok(og && quote && skip);
+    markSuggestion({ id: og.id, userId: "u1", status: "done", nowMs: day });
+    markSuggestion({ id: quote.id, userId: "u1", status: "done", nowMs: day });
+    markSuggestion({ id: skip.id, userId: "u1", status: "skip", nowMs: day });
+    assert.equal(
+      countDoneSuggestionsSince({ userId: "u1", kind: "post", sinceIso: since }),
+      1,
+    );
+    assert.equal(
+      countDoneSuggestionsSince({
+        userId: "u1",
+        kind: "post",
+        sinceIso: "2026-08-28T00:00:00.000Z",
+      }),
+      0,
+    );
   });
 
   it("getSuggestion is scoped to the owner", () => {

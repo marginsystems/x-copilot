@@ -10,8 +10,11 @@ import {
 } from "./db.ts";
 import type { CoachingSnapshot } from "./coachingSnapshot.ts";
 import {
+  NEXT_ACTION_PROMPT_REV,
+  NEXT_ACTION_SYSTEM,
   fallbackNextAction,
   getOrRefreshNextAction,
+  nextActionCacheHash,
   parseNextActionJson,
 } from "./nextActionLlm.ts";
 
@@ -53,6 +56,13 @@ describe("nextActionLlm", () => {
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("grounds reply counts on marksToday and the mark_2 target", () => {
+    assert.equal(nextActionCacheHash("abc"), `${NEXT_ACTION_PROMPT_REV}:abc`);
+    assert.match(NEXT_ACTION_SYSTEM, /replyTarget/);
+    assert.match(NEXT_ACTION_SYSTEM, /Never say hit 5 replies/);
+    assert.doesNotMatch(NEXT_ACTION_SYSTEM, /hit 5 replies today/);
   });
 
   it("parses a grounded next-action payload", () => {
@@ -158,5 +168,41 @@ describe("nextActionLlm", () => {
     });
     assert.equal(calls, 2);
     assert.equal(next.kind, "original");
+  });
+
+  it("refreshes instead of serving a stale rev-1 cache row", async () => {
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO next_action_cache
+           (user_id, kind, text, inputs_hash, model, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "u1",
+        "reply",
+        "stale hit-5-replies-era copy",
+        "abc",
+        "old-model",
+        "2026-08-25T00:00:00.000Z",
+      );
+    let calls = 0;
+    const action = await getOrRefreshNextAction({
+      userId: "u1",
+      snapshot: snapshot(),
+      inputsHash: "abc",
+      nowMs: NOW_MS,
+      chat: async () => {
+        calls += 1;
+        return {
+          ok: true as const,
+          content: '{"kind":"takeoff","text":"Take off once to refill Approach."}',
+          model: "test-model",
+          provider: "deepseek" as const,
+        };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(action.kind, "takeoff");
+    assert.equal(action.text, "Take off once to refill Approach.");
   });
 });

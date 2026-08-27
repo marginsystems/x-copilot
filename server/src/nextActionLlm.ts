@@ -9,7 +9,19 @@ import {
 } from "./deepseek.js";
 import { getPlatformDb } from "./db.js";
 import type { CoachingSnapshot } from "./coachingSnapshot.js";
+import { DAILY_MISSION_DEFS } from "./dailyMissions.js";
 import { extractJsonObject, type ChatFn } from "./voiceLlm.js";
+
+/** Bump when the grounded next-action prompt changes so stale copy refreshes. */
+export const NEXT_ACTION_PROMPT_REV = 2;
+
+function missionTarget(id: string): number {
+  return DAILY_MISSION_DEFS.find((row) => row.id === id)?.target ?? 0;
+}
+
+export function nextActionCacheHash(inputsHash: string): string {
+  return `${NEXT_ACTION_PROMPT_REV}:${inputsHash}`;
+}
 
 export const NEXT_ACTION_KINDS = [
   "reply",
@@ -30,12 +42,13 @@ export type NextAction = {
   model: string;
 };
 
-const SYSTEM = `You pick ONE next action for an X operator on their Flightpad desk.
+export const NEXT_ACTION_SYSTEM = `You pick ONE next action for an X operator on their Flightpad desk.
 Return ONLY JSON:
 {"kind":"reply"|"original"|"takeoff"|"quote"|"repost"|"for_you"|"streak","text":"one imperative sentence, second person"}
 Rules:
 - kind must match the verb: reply (mark/reply to threads), original (write an OG post), takeoff (run Scout), quote, for_you (work a Suggested card), streak (mark today to keep the streak).
 - Cite a number that appears in the input. No invented metrics, no follower counts.
+- Do not invent a daily quota. The reply mission target is replyTarget (2). Cite marksToday against that. Never say hit 5 replies.
 - Prefer the gap that most helps the account today. Empty marks → reply or streak. No originals after replies → original. No takeoff and no Suggested queue → takeoff. Suggested quotes waiting → quote or for_you.
 - Max 140 characters. No markdown.`;
 
@@ -164,8 +177,9 @@ export async function getOrRefreshNextAction(opts: {
   chat?: ChatFn;
 }): Promise<NextAction> {
   const nowMs = opts.nowMs ?? Date.now();
+  const cacheHash = nextActionCacheHash(opts.inputsHash);
   const cached = readNextActionCache(opts.userId);
-  if (cached && cached.inputsHash === opts.inputsHash) return cached;
+  if (cached && cached.inputsHash === cacheHash) return cached;
 
   const fallback = fallbackNextAction(opts.snapshot);
   const write = (
@@ -176,7 +190,7 @@ export async function getOrRefreshNextAction(opts: {
     const action: NextAction = {
       kind,
       text,
-      inputsHash: opts.inputsHash,
+      inputsHash: cacheHash,
       updatedAt: new Date(nowMs).toISOString(),
       model,
     };
@@ -194,8 +208,16 @@ export async function getOrRefreshNextAction(opts: {
     model: resolveFlashModel(),
     temperature: 0.2,
     messages: [
-      { role: "system", content: SYSTEM },
-      { role: "user", content: JSON.stringify(opts.snapshot) },
+      { role: "system", content: NEXT_ACTION_SYSTEM },
+      {
+        role: "user",
+        content: JSON.stringify({
+          ...opts.snapshot,
+          replyTarget: missionTarget("mark_2"),
+          originalTarget: missionTarget("original_1"),
+          takeoffTarget: missionTarget("takeoff_1"),
+        }),
+      },
     ],
   });
   if (!result.ok) {
