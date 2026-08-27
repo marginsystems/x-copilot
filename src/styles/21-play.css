@@ -157,6 +157,80 @@
   }
 }
 
+/* Layer 2 room + props (PlayPerch). Tokens only; every fill pairs with
+   the surface it sits on so both themes contrast for free. Fade-in is
+   the only motion — 99-motion.css already zeroes all animation and
+   transitions under .play-scene, and base opacity is 1, so props stay
+   visible in the reduced-motion still frame. */
+.play-stage-wide {
+  width: min(336px, 100%);
+}
+
+.play-prop,
+.play-wear {
+  animation: play-prop-in 360ms ease;
+}
+
+.play-prop-frame {
+  fill: var(--border-strong);
+}
+
+.play-prop-body {
+  fill: var(--accent);
+}
+
+.play-prop-dim {
+  fill: var(--accent-dim);
+}
+
+.play-prop-paper {
+  fill: var(--muted);
+}
+
+.play-prop-cloth {
+  fill: var(--raised);
+}
+
+.play-prop-ink {
+  fill: var(--ink);
+}
+
+.play-prop-bg {
+  fill: var(--panel);
+}
+
+.play-prop-behind {
+  opacity: 0.7;
+}
+
+.play-goggles-frame {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linejoin: miter;
+  stroke-linecap: square;
+}
+
+/* The patch pivots exactly like .play-wing (fill-box 20% 20% of the
+   wing's 54,52.5 13.5×13.5 box) so it rides the raised celebrate wing. */
+.play-wing-patch {
+  fill: var(--raised);
+  stroke: var(--border-strong);
+  stroke-width: 0.85;
+  transform-origin: 56.7px 55.2px;
+  transition: transform 240ms var(--ease-out);
+}
+
+.is-celebrate .play-wing-patch {
+  transform: rotate(-32deg);
+}
+
+@keyframes play-prop-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* Text under the scene */
 .play-celebrate-line {
   margin: 10px 0 0;
