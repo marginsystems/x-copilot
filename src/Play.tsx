@@ -127,7 +127,6 @@ export function PlayPage(props: {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
-
   function onLookStart(e: React.PointerEvent<HTMLDivElement>) {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     orbitingRef.current = true;

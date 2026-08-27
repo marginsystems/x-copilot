@@ -137,7 +137,6 @@ function addGates(scene: THREE.Scene): THREE.Mesh[] {
   }
   return rings;
 }
-
 function fitPlane(model: THREE.Object3D): void {
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
