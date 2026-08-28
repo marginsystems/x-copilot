@@ -5,6 +5,8 @@ import {
   type ActivityBucket,
   type ActivityStats,
 } from "../lib/activityStats";
+import type { DeskBootDesk } from "../lib/deskBoot";
+import { peekDeskBootCache } from "../lib/deskBoot";
 import { readDeskTopOpen, writeDeskTopOpen } from "../lib/deskLayout";
 import {
   emptyGamificationStats,
@@ -18,15 +20,18 @@ export function useActivityStrip() {
     readSessionFlag("x-copilot-flight-path-open", 700),
   );
   const [deskTopOpen, setDeskTopOpen] = useState(() => readDeskTopOpen());
-  const [activityStats, setActivityStats] = useState<ActivityStats>(() =>
-    emptyActivityStats("day"),
+  const seed = peekDeskBootCache()?.desk ?? null;
+  const [activityStats, setActivityStats] = useState<ActivityStats>(
+    () => seed?.activityStats ?? emptyActivityStats("day"),
   );
-  const [gamification, setGamification] = useState<GamificationStats>(() =>
-    emptyGamificationStats(),
+  const [gamification, setGamification] = useState<GamificationStats>(
+    () => seed?.gamification ?? emptyGamificationStats(),
   );
   const activityBucketRef = useRef<ActivityBucket>("day");
   /** In-flight toggle target; may diverge from applied `activityBucketRef`. */
   const activityRequestBucketRef = useRef<ActivityBucket>("day");
+  /** Set once a user toggles the bucket; boot's snapshot bucket is then stale. */
+  const stripStaleRef = useRef(false);
   /** Monotonic token so out-of-order gamification responses don't regress the chip. */
   const gamificationRequestSeqRef = useRef(0);
 
@@ -44,6 +49,17 @@ export function useActivityStrip() {
     setActivityStats(next);
   }
 
+  function applyStripFromBoot(desk: DeskBootDesk) {
+    if (gamificationRequestSeqRef.current === 0) {
+      setGamification(desk.gamification);
+    }
+    if (stripStaleRef.current) return;
+    setActivityStats(desk.activityStats);
+    activityBucketRef.current = desk.activityStats.bucket;
+    activityRequestBucketRef.current = desk.activityStats.bucket;
+    setActivityBucket(desk.activityStats.bucket);
+  }
+
   async function hydrateGamification() {
     const seq = ++gamificationRequestSeqRef.current;
     const next = await fetchGamification();
@@ -54,6 +70,7 @@ export function useActivityStrip() {
 
   function onActivityBucket(next: ActivityBucket) {
     activityRequestBucketRef.current = next;
+    stripStaleRef.current = true;
     void hydrateActivityStats(next);
   }
 
@@ -71,6 +88,7 @@ export function useActivityStrip() {
     deskTopOpen,
     activityStats,
     gamification,
+    applyStripFromBoot,
     hydrateActivityStats,
     hydrateGamification,
     onActivityBucket,

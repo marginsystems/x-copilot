@@ -38,6 +38,7 @@ type UseMarkDetectDeps = {
   setInteractedHistory: Dispatch<SetStateAction<InteractionHistoryEntry[]>>;
   interactedIdsRef: MutableRefObject<Set<string>>;
   blockedConversationsRef: MutableRefObject<Set<string>>;
+  historyStaleRef: MutableRefObject<boolean>;
   onInteractionCommitted: () => void;
 };
 
@@ -49,6 +50,7 @@ export function useMarkDetect({
   setInteractedHistory,
   interactedIdsRef,
   blockedConversationsRef,
+  historyStaleRef,
   onInteractionCommitted,
 }: UseMarkDetectDeps) {
   const [markThread, setMarkThread] = useState<ThreadCard | null>(null);
@@ -88,6 +90,7 @@ export function useMarkDetect({
       thread.conversationId?.trim() ||
       thread.inReplyToId?.trim() ||
       thread.id;
+    historyStaleRef.current = true;
     interactedIdsRef.current = new Set(interactedIdsRef.current).add(thread.id);
     setInteractedIds((prev) => new Set(prev).add(thread.id));
     blockedConversationsRef.current = new Set(

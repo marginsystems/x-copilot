@@ -7,6 +7,8 @@ import {
 } from "react";
 import type { AuthSessionUser } from "../auth/types";
 import type { BillingMe } from "../BillingPanel";
+import type { LastScoutPayload } from "../lib/deskBoot";
+import { peekDeskBootCache } from "../lib/deskBoot";
 import { apiFetch } from "../lib/apiBase";
 import { deskNeedsXLink } from "../lib/deskGate";
 import {
@@ -69,7 +71,9 @@ export function useScoutRun({
   onScoutFinished,
 }: ScoutRunDeps) {
   const [searching, setSearching] = useState(false);
-  const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
+  const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>(
+    () => peekDeskBootCache()?.desk?.scoutLog ?? [],
+  );
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
@@ -202,9 +206,7 @@ export function useScoutRun({
               typeof e.at === "string",
           )
         : [];
-      setScoutLog((prev) =>
-        prev.length > 0 ? prev : entries.slice(-1000),
-      );
+      setScoutLog(entries.slice(-1000));
     } catch {
       /* ignore */
     }
@@ -214,56 +216,47 @@ export function useScoutRun({
     abortRef.current?.abort();
   }
 
+  function applyLastScoutFromBoot(data: LastScoutPayload) {
+    if (staleHydration.current) return;
+    if (!data.ok) return;
+    if (data.empty || !data.snapshot) {
+      return;
+    }
+    const list = Array.isArray(data.snapshot.threads)
+      ? data.snapshot.threads
+      : [];
+    const filtered = list.filter((t) => keepInCurated(t));
+    setThreads(filtered);
+    watchDeskThreads(filtered);
+    const when =
+      formatAbsoluteTime(data.snapshot.savedAt) ||
+      formatTimeAgo(data.snapshot.savedAt) ||
+      "earlier";
+    const pc = data.snapshot.pipelineCounts;
+    const funnel = pc
+      ? ` (${[
+          pc.raw,
+          pc.afterDedupe,
+          pc.afterCooldown,
+          ...(typeof pc.afterSelfReply === "number" ? [pc.afterSelfReply] : []),
+          ...(typeof pc.afterLinks === "number" ? [pc.afterLinks] : []),
+          pc.afterLength,
+          pc.afterTriage,
+        ].join(" → ")})`
+      : "";
+    setStatus(`Restored ${filtered.length} threads${funnel} from ${when}.`);
+  }
+
+  function applyScoutLogFromBoot(entries: ScoutLogEntry[]) {
+    if (staleHydration.current) return;
+    setScoutLog(entries.slice(-1000));
+  }
+
   async function hydrateLastScout() {
     try {
       const res = await apiFetch(`/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`);
       if (!res.ok) return;
-      const data = (await res.json()) as {
-        ok?: boolean;
-        empty?: boolean;
-        snapshot?: {
-          savedAt: string;
-          queries?: string[];
-          threads?: ThreadCard[];
-          message?: string;
-          pipelineCounts?: {
-            raw: number;
-            afterDedupe: number;
-            afterCooldown: number;
-            afterSelfReply?: number;
-            afterLinks?: number;
-            afterLength: number;
-            afterTriage: number;
-          };
-        };
-      };
-      if (!data.ok || data.empty || !data.snapshot) return;
-      if (staleHydration.current) return;
-      const list = Array.isArray(data.snapshot.threads)
-        ? data.snapshot.threads
-        : [];
-      const filtered = list.filter((t) => keepInCurated(t));
-      setThreads(filtered);
-      watchDeskThreads(filtered);
-      const when =
-        formatAbsoluteTime(data.snapshot.savedAt) ||
-        formatTimeAgo(data.snapshot.savedAt) ||
-        "earlier";
-      const pc = data.snapshot.pipelineCounts;
-      const funnel = pc
-        ? ` (${[
-            pc.raw,
-            pc.afterDedupe,
-            pc.afterCooldown,
-            ...(typeof pc.afterSelfReply === "number" ? [pc.afterSelfReply] : []),
-            ...(typeof pc.afterLinks === "number" ? [pc.afterLinks] : []),
-            pc.afterLength,
-            pc.afterTriage,
-          ].join(" → ")})`
-        : "";
-      setStatus(
-        `Restored ${filtered.length} threads${funnel} from ${when}.`,
-      );
+      applyLastScoutFromBoot((await res.json()) as LastScoutPayload);
     } catch {
       // Sidecar may be offline on first paint — ignore.
     }
@@ -562,13 +555,13 @@ export function useScoutRun({
     return () => window.clearInterval(id);
   }, [searching]);
 
-  // Keep scout-log / cooldown "time ago" labels fresh (1s while live or logged).
+  // Keep scout-log / cooldown "time ago" labels fresh (1s while live or in cooldown).
   useEffect(() => {
-    if (!searching && scoutLog.length === 0) return;
+    if (!searching && searchCooldownRemaining <= 0) return;
     setNowMs(Date.now());
     const id = window.setInterval(() => setNowMs(Date.now()), 1_000);
     return () => window.clearInterval(id);
-  }, [searching, scoutLog.length > 0]);
+  }, [searching, searchCooldownRemaining > 0]);
 
   return {
     searching,
@@ -582,6 +575,8 @@ export function useScoutRun({
     staleHydration,
     onSearch,
     onStopScout,
+    applyLastScoutFromBoot,
+    applyScoutLogFromBoot,
     hydrateLastScout,
     hydrateScoutLog,
     pushScoutLine,

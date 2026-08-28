@@ -32,6 +32,7 @@ import { tryHandleUsage } from "./usageHttp.js";
 import { tryHandleHistory } from "./historyHttp.js";
 import { tryHandleInteracted } from "./interactedHttp.js";
 import { tryHandleScout } from "./scoutHttp.js";
+import { tryHandleBoot } from "./bootHttp.js";
 import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
 import { send } from "./httpJson.js";
 
@@ -120,6 +121,9 @@ const server = http.createServer(async (req, res) => {
       { tenantId, userId: sessionUser?.id },
       async () => {
 
+      if (await tryHandleBoot(req, res, url)) {
+        return;
+      }
       if (await tryHandleBilling(req, res, url)) {
         return;
       }

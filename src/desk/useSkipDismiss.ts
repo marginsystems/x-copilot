@@ -17,6 +17,7 @@ type UseSkipDismissDeps = {
   skippedIdsRef: MutableRefObject<Set<string>>;
   dismissedIdsRef: MutableRefObject<Set<string>>;
   blockedConversationsRef: MutableRefObject<Set<string>>;
+  historyStaleRef: MutableRefObject<boolean>;
 };
 
 export function useSkipDismiss({
@@ -29,6 +30,7 @@ export function useSkipDismiss({
   skippedIdsRef,
   dismissedIdsRef,
   blockedConversationsRef,
+  historyStaleRef,
 }: UseSkipDismissDeps) {
   const [dismissThread, setDismissThread] = useState<ThreadCard | null>(null);
   const [dismissReason, setDismissReason] = useState("");
@@ -74,6 +76,7 @@ export function useSkipDismiss({
         text: thread.text,
       };
       skippedIdsRef.current = new Set(skippedIdsRef.current).add(thread.id);
+      historyStaleRef.current = true;
       setSkippedHistory((prev) => [
         entry,
         ...prev.filter((item) => item.threadId !== thread.id),
@@ -133,6 +136,7 @@ export function useSkipDismiss({
         ...(reason.trim() ? { reason: reason.trim() } : {}),
       };
       dismissedIdsRef.current = new Set(dismissedIdsRef.current).add(thread.id);
+      historyStaleRef.current = true;
       const blocked = new Set(blockedConversationsRef.current);
       blocked.add(conversationRoot);
       if (thread.id.trim()) blocked.add(thread.id.trim());

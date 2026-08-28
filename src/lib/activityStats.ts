@@ -29,47 +29,55 @@ export function emptyActivityStats(bucket: ActivityBucket): ActivityStats {
   };
 }
 
+export function parseActivityStats(
+  raw: unknown,
+  expectedBucket?: ActivityBucket,
+): ActivityStats | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Partial<ActivityStats>;
+  if (!data || (data.bucket !== "day" && data.bucket !== "week")) return null;
+  if (expectedBucket && data.bucket !== expectedBucket) return null;
+  if (!Array.isArray(data.series) || !data.totals) return null;
+  return {
+    bucket: data.bucket,
+    series: data.series.map((p) => ({
+      period: String(p.period ?? ""),
+      interactions:
+        typeof p.interactions === "number" && Number.isFinite(p.interactions)
+          ? p.interactions
+          : 0,
+      views: typeof p.views === "number" && Number.isFinite(p.views) ? p.views : 0,
+      withStats:
+        typeof p.withStats === "number" && Number.isFinite(p.withStats)
+          ? p.withStats
+          : 0,
+    })),
+    totals: {
+      interactions:
+        typeof data.totals.interactions === "number" &&
+        Number.isFinite(data.totals.interactions)
+          ? data.totals.interactions
+          : 0,
+      views:
+        typeof data.totals.views === "number" && Number.isFinite(data.totals.views)
+          ? data.totals.views
+          : 0,
+      withStats:
+        typeof data.totals.withStats === "number" &&
+        Number.isFinite(data.totals.withStats)
+          ? data.totals.withStats
+          : 0,
+    },
+  };
+}
+
 export async function fetchActivityStats(
   bucket: ActivityBucket,
 ): Promise<ActivityStats | null> {
   try {
     const res = await apiFetch(`/api/interacted/stats?bucket=${bucket}`);
     if (!res.ok) return null;
-    const data = (await res.json()) as Partial<ActivityStats>;
-    if (!data || (data.bucket !== "day" && data.bucket !== "week")) return null;
-    if (data.bucket !== bucket) return null;
-    if (!Array.isArray(data.series) || !data.totals) return null;
-    return {
-      bucket: data.bucket,
-      series: data.series.map((p) => ({
-        period: String(p.period ?? ""),
-        interactions:
-          typeof p.interactions === "number" && Number.isFinite(p.interactions)
-            ? p.interactions
-            : 0,
-        views: typeof p.views === "number" && Number.isFinite(p.views) ? p.views : 0,
-        withStats:
-          typeof p.withStats === "number" && Number.isFinite(p.withStats)
-            ? p.withStats
-            : 0,
-      })),
-      totals: {
-        interactions:
-          typeof data.totals.interactions === "number" &&
-          Number.isFinite(data.totals.interactions)
-            ? data.totals.interactions
-            : 0,
-        views:
-          typeof data.totals.views === "number" && Number.isFinite(data.totals.views)
-            ? data.totals.views
-            : 0,
-        withStats:
-          typeof data.totals.withStats === "number" &&
-          Number.isFinite(data.totals.withStats)
-            ? data.totals.withStats
-            : 0,
-      },
-    };
+    return parseActivityStats(await res.json(), bucket);
   } catch {
     return null;
   }

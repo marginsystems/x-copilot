@@ -97,6 +97,63 @@ export type ScoutHttpDeps = {
   ensureMemoryIndex?: typeof ensureMemoryIndex;
 };
 
+export async function readLastScoutPayload(opts?: {
+  dedupeAccounts?: boolean | null;
+}): Promise<{
+  ok: true;
+  empty: boolean;
+  snapshot?: {
+    savedAt: string;
+    agenda?: string;
+    queries?: string[];
+    threads: unknown[];
+    message?: string;
+    pipelineCounts?: unknown;
+  };
+}> {
+  try {
+    await runExpirePass();
+  } catch (err) {
+    console.error("lazy expire on scout/last failed:", err);
+  }
+  const snapshot = await getLastScout();
+  if (!snapshot) return { ok: true, empty: true };
+  const cooled = await getAuthorKeysForScoutFilter(
+    opts?.dedupeAccounts === null || opts?.dedupeAccounts === undefined
+      ? undefined
+      : { dedupeAccounts: opts.dedupeAccounts },
+  );
+  const blockedConversations = await getBlockedConversationIds();
+  const filtered = filterThreadsByCooldown(
+    snapshot.threads,
+    cooled,
+    blockedConversations,
+  );
+  const [expiredIds, dismissedIds, skippedIds] = await Promise.all([
+    getExpiredThreadIds(),
+    getDismissedThreadIds(),
+    getSkippedThreadIds(),
+  ]);
+  const threads = filtered.threads.filter(
+    (t) =>
+      !expiredIds.has(t.id) &&
+      !dismissedIds.has(t.id) &&
+      !skippedIds.has(t.id),
+  );
+  return {
+    ok: true,
+    empty: false,
+    snapshot: {
+      savedAt: snapshot.savedAt,
+      agenda: snapshot.agenda,
+      queries: snapshot.queries,
+      threads,
+      message: snapshot.message,
+      pipelineCounts: snapshot.pipelineCounts,
+    },
+  };
+}
+
 export async function tryHandleScout(
   req: IncomingMessage,
   res: ServerResponse,
@@ -397,49 +454,16 @@ export async function tryHandleScout(
   }
 
   if (req.method === "GET" && url.pathname === "/api/scout/last") {
-    try {
-      await runExpirePass();
-    } catch (err) {
-      console.error("lazy expire on scout/last failed:", err);
-    }
-    const snapshot = await getLastScout();
-    if (!snapshot) {
-      send(req, res, 200, { ok: true, empty: true });
-      return true;
-    }
     const dedupeParam = url.searchParams.get("dedupeAccounts");
-    const cooled = await getAuthorKeysForScoutFilter(
-      dedupeParam !== null ? { dedupeAccounts: dedupeParam !== "false" } : undefined,
+    send(
+      req,
+      res,
+      200,
+      await readLastScoutPayload({
+        dedupeAccounts:
+          dedupeParam === null ? null : dedupeParam !== "false",
+      }),
     );
-    const blockedConversations = await getBlockedConversationIds();
-    const filtered = filterThreadsByCooldown(
-      snapshot.threads,
-      cooled,
-      blockedConversations,
-    );
-    const [expiredIds, dismissedIds, skippedIds] = await Promise.all([
-      getExpiredThreadIds(),
-      getDismissedThreadIds(),
-      getSkippedThreadIds(),
-    ]);
-    const threads = filtered.threads.filter(
-      (t) =>
-        !expiredIds.has(t.id) &&
-        !dismissedIds.has(t.id) &&
-        !skippedIds.has(t.id),
-    );
-    send(req, res, 200, {
-      ok: true,
-      empty: false,
-      snapshot: {
-        savedAt: snapshot.savedAt,
-        agenda: snapshot.agenda,
-        queries: snapshot.queries,
-        threads,
-        message: snapshot.message,
-        pipelineCounts: snapshot.pipelineCounts,
-      },
-    });
     return true;
   }
 
