@@ -220,7 +220,6 @@ export function useScoutRun({
     if (staleHydration.current) return;
     if (!data.ok) return;
     if (data.empty || !data.snapshot) {
-      setThreads([]);
       return;
     }
     const list = Array.isArray(data.snapshot.threads)
@@ -249,6 +248,7 @@ export function useScoutRun({
   }
 
   function applyScoutLogFromBoot(entries: ScoutLogEntry[]) {
+    if (staleHydration.current) return;
     setScoutLog(entries.slice(-1000));
   }
 
@@ -555,13 +555,13 @@ export function useScoutRun({
     return () => window.clearInterval(id);
   }, [searching]);
 
-  // Keep scout-log / cooldown "time ago" labels fresh (1s while live or logged).
+  // Keep scout-log / cooldown "time ago" labels fresh (1s while live or in cooldown).
   useEffect(() => {
-    if (!searching && scoutLog.length === 0) return;
+    if (!searching && searchCooldownRemaining <= 0) return;
     setNowMs(Date.now());
     const id = window.setInterval(() => setNowMs(Date.now()), 1_000);
     return () => window.clearInterval(id);
-  }, [searching, scoutLog.length > 0]);
+  }, [searching, searchCooldownRemaining > 0]);
 
   return {
     searching,
