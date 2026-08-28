@@ -102,7 +102,11 @@ export function ThreadsTabs({
     for (const row of forYouSuggestions) live.add(row.id);
     clearGone(live);
   }, [curatedThreads, forYouSuggestions, clearGone]);
-  function exitRow(id: string, expandedKey: string, then: () => void) {
+  function exitRow(
+    id: string,
+    expandedKey: string,
+    then: () => void | Promise<void>,
+  ) {
     setExpandedId((cur) => (cur === expandedKey ? null : cur));
     beginExit(id, then);
   }
@@ -261,17 +265,17 @@ export function ThreadsTabs({
                         }
                         onPosted={() =>
                           exitRow(row.id, key, () =>
-                            void actForYou(row.id, "done"),
+                            actForYou(row.id, "done"),
                           )
                         }
                         onSkip={() =>
                           exitRow(row.id, key, () =>
-                            void actForYou(row.id, "skip"),
+                            actForYou(row.id, "skip"),
                           )
                         }
                         onDismiss={() =>
                           exitRow(row.id, key, () =>
-                            void actForYou(row.id, "dismiss"),
+                            actForYou(row.id, "dismiss"),
                           )
                         }
                         onOpenSettings={onOpenVoice}
@@ -303,7 +307,7 @@ export function ThreadsTabs({
                   }}
                   onWatch={() => watchDeskThreads([t])}
                   onMark={() => exitRow(t.id, t.id, () => onMark(t))}
-                  onSkip={() => exitRow(t.id, t.id, () => void onSkip(t))}
+                  onSkip={() => exitRow(t.id, t.id, () => onSkip(t))}
                   onDismiss={() => exitRow(t.id, t.id, () => onDismiss(t))}
                   suggest={
                     voice?.status === "ready" && voice.unlocked ? (
