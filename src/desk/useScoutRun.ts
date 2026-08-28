@@ -219,8 +219,12 @@ export function useScoutRun({
   }
 
   function applyLastScoutFromBoot(data: LastScoutPayload) {
-    if (!data.ok || data.empty || !data.snapshot) return;
     if (staleHydration.current) return;
+    if (!data.ok) return;
+    if (data.empty || !data.snapshot) {
+      setThreads([]);
+      return;
+    }
     const list = Array.isArray(data.snapshot.threads)
       ? data.snapshot.threads
       : [];
@@ -247,7 +251,7 @@ export function useScoutRun({
   }
 
   function applyScoutLogFromBoot(entries: ScoutLogEntry[]) {
-    setScoutLog((prev) => (prev.length > 0 ? prev : entries.slice(-1000)));
+    setScoutLog(entries.slice(-1000));
   }
 
   async function hydrateLastScout() {

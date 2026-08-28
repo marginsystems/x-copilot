@@ -9,7 +9,6 @@ export function useCoaching() {
   const requestSeqRef = useRef(0);
 
   function applyCoaching(next: CoachingState | null) {
-    if (!next) return;
     setCoaching(next);
   }
 

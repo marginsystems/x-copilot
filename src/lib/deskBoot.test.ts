@@ -49,7 +49,9 @@ const desk = {
     extra: null,
   },
   lastScout: { ok: true, empty: true },
-  scoutLog: { entries: [] },
+  scoutLog: {
+    entries: [{ message: "1 cool thread", at: "2026-08-28T00:00:00.000Z" }],
+  },
   gamification: {
     currentStreak: 2,
     longestStreak: 4,
@@ -131,6 +133,8 @@ describe("desk boot cache", () => {
     const read = readDeskBootCache(store);
     assert.equal(read?.user?.id, "u1");
     assert.equal(read?.desk?.gamification.lifetimeXp, 10);
+    assert.equal(read?.desk?.scoutLog?.[0]?.message, "1 cool thread");
+    assert.equal(read?.desk?.forYou.progress?.tracked, 3);
     writeDeskBootCache({ ...payload, user: null }, store);
     assert.equal(store.getItem(DESK_BOOT_KEY), null);
     clearDeskBootCache(store);

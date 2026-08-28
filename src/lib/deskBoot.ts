@@ -181,7 +181,12 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
   const skipped = isRecord(desk.skipped) ? desk.skipped : {};
   const expired = isRecord(desk.expired) ? desk.expired : {};
   const forYouRaw = isRecord(desk.forYou) ? desk.forYou : {};
-  const scoutLog = isRecord(desk.scoutLog) ? desk.scoutLog : {};
+  const scoutLogRaw = desk.scoutLog;
+  const scoutLogEntries = Array.isArray(scoutLogRaw)
+    ? scoutLogRaw
+    : isRecord(scoutLogRaw) && Array.isArray(scoutLogRaw.entries)
+      ? (scoutLogRaw.entries as unknown[])
+      : [];
   const interactions = (Array.isArray(interacted.interactions)
     ? interacted.interactions
     : []
@@ -202,7 +207,7 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
   )
     .map(parseForYouSuggestion)
     .filter((row): row is ForYouSuggestion => Boolean(row));
-  const entries = (Array.isArray(scoutLog.entries) ? scoutLog.entries : []).filter(
+  const entries = scoutLogEntries.filter(
     (e): e is ScoutLogEntry =>
       Boolean(e) &&
       typeof (e as ScoutLogEntry).message === "string" &&
@@ -244,7 +249,11 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
       },
       forYou: {
         suggestions,
-        progress: parseForYouProgress(forYouRaw),
+        progress:
+          parseForYouProgress(forYouRaw) ??
+          (isRecord(forYouRaw.progress)
+            ? parseForYouProgress(forYouRaw.progress)
+            : null),
         extra: parseForYouExtra(forYouRaw),
       },
       lastScout: parseLastScout(desk.lastScout),

@@ -409,6 +409,7 @@ export default function App() {
         return;
       }
 
+      clearDeskBootCache();
       const user = await hydrateAuth();
       if (err && !user) setSignInOpen(true);
       const onboarded = applyUser(user);
