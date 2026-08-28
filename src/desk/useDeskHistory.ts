@@ -1,5 +1,7 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { apiFetch } from "../lib/apiBase";
+import type { DeskBootDesk } from "../lib/deskBoot";
+import { peekDeskBootCache } from "../lib/deskBoot";
 import {
   parseForYouExtra,
   parseForYouProgress,
@@ -18,6 +20,24 @@ import type {
   ThreadCard,
 } from "./types";
 
+function blockedFromHistory(
+  rows: ReadonlyArray<{
+    threadId: string;
+    conversationId?: string;
+    inReplyToId?: string;
+  }>,
+): Set<string> {
+  const blocked = new Set<string>();
+  for (const i of rows) {
+    const root =
+      i.conversationId?.trim() || i.inReplyToId?.trim() || i.threadId.trim();
+    if (root) blocked.add(root);
+    if (i.threadId.trim()) blocked.add(i.threadId.trim());
+    if (i.inReplyToId?.trim()) blocked.add(i.inReplyToId.trim());
+  }
+  return blocked;
+}
+
 export type DeskHistoryDeps = {
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
   setStatus: (s: string) => void;
@@ -30,32 +50,71 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   const { setThreads, setStatus, setActionBusy, excludedTags, excludedAccounts } =
     deps;
 
+  const seed = peekDeskBootCache()?.desk ?? null;
   const [interactedIds, setInteractedIds] = useState<Set<string>>(
-    () => new Set(),
+    () => new Set(seed?.interacted.activeIds ?? []),
   );
   const [interactedHistory, setInteractedHistory] = useState<
     InteractionHistoryEntry[]
-  >([]);
+  >(() => seed?.interacted.interactions ?? []);
   const [dismissedHistory, setDismissedHistory] = useState<
     DismissalHistoryEntry[]
-  >([]);
-  const [skippedHistory, setSkippedHistory] = useState<SkipHistoryEntry[]>([]);
+  >(() => seed?.dismissed.dismissals ?? []);
+  const [skippedHistory, setSkippedHistory] = useState<SkipHistoryEntry[]>(
+    () => seed?.skipped.skipped ?? [],
+  );
   const [expiredHistory, setExpiredHistory] = useState<ExpiredHistoryEntry[]>(
-    [],
+    () => seed?.expired.expired ?? [],
   );
   const [forYouSuggestions, setForYouSuggestions] = useState<
     ForYouSuggestion[]
-  >([]);
+  >(() => seed?.forYou.suggestions ?? []);
   const [forYouProgress, setForYouProgress] = useState<ForYouProgress | null>(
-    null,
+    () => seed?.forYou.progress ?? null,
   );
-  const [forYouExtra, setForYouExtra] = useState<ForYouExtraUsage | null>(null);
+  const [forYouExtra, setForYouExtra] = useState<ForYouExtraUsage | null>(
+    () => seed?.forYou.extra ?? null,
+  );
 
-  const dismissedIdsRef = useRef<Set<string>>(new Set());
-  const skippedIdsRef = useRef<Set<string>>(new Set());
-  const expiredIdsRef = useRef<Set<string>>(new Set());
-  const interactedIdsRef = useRef<Set<string>>(new Set());
-  const blockedConversationsRef = useRef<Set<string>>(new Set());
+  const dismissedIdsRef = useRef<Set<string>>(
+    new Set(seed?.dismissed.dismissedIds ?? []),
+  );
+  const skippedIdsRef = useRef<Set<string>>(
+    new Set(seed?.skipped.skippedIds ?? []),
+  );
+  const expiredIdsRef = useRef<Set<string>>(
+    new Set(seed?.expired.expiredIds ?? []),
+  );
+  const interactedIdsRef = useRef<Set<string>>(
+    new Set(seed?.interacted.activeIds ?? []),
+  );
+  const blockedConversationsRef = useRef<Set<string>>(
+    new Set([
+      ...blockedFromHistory(seed?.interacted.interactions ?? []),
+      ...blockedFromHistory(seed?.dismissed.dismissals ?? []),
+    ]),
+  );
+
+  function applyHistoryFromBoot(desk: DeskBootDesk) {
+    setInteractedHistory(desk.interacted.interactions);
+    const ids = new Set(desk.interacted.activeIds);
+    interactedIdsRef.current = ids;
+    setInteractedIds(ids);
+    setDismissedHistory(desk.dismissed.dismissals);
+    dismissedIdsRef.current = new Set(desk.dismissed.dismissedIds);
+    setSkippedHistory(desk.skipped.skipped);
+    skippedIdsRef.current = new Set(desk.skipped.skippedIds);
+    setExpiredHistory(desk.expired.expired);
+    expiredIdsRef.current = new Set(desk.expired.expiredIds);
+    blockedConversationsRef.current = new Set([
+      ...blockedFromHistory(desk.interacted.interactions),
+      ...blockedFromHistory(desk.dismissed.dismissals),
+    ]);
+    setForYouSuggestions(desk.forYou.suggestions);
+    setForYouProgress(desk.forYou.progress);
+    setForYouExtra(desk.forYou.extra);
+    setThreads((prev) => prev.filter((t) => keepInCurated(t)));
+  }
 
   async function hydrateInteracted() {
     try {
@@ -320,6 +379,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     expiredIdsRef,
     interactedIdsRef,
     blockedConversationsRef,
+    applyHistoryFromBoot,
     hydrateInteracted,
     hydrateSkipped,
     hydrateDismissed,

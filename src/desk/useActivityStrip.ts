@@ -5,6 +5,8 @@ import {
   type ActivityBucket,
   type ActivityStats,
 } from "../lib/activityStats";
+import type { DeskBootDesk } from "../lib/deskBoot";
+import { peekDeskBootCache } from "../lib/deskBoot";
 import { readDeskTopOpen, writeDeskTopOpen } from "../lib/deskLayout";
 import {
   emptyGamificationStats,
@@ -18,11 +20,12 @@ export function useActivityStrip() {
     readSessionFlag("x-copilot-flight-path-open", 700),
   );
   const [deskTopOpen, setDeskTopOpen] = useState(() => readDeskTopOpen());
-  const [activityStats, setActivityStats] = useState<ActivityStats>(() =>
-    emptyActivityStats("day"),
+  const seed = peekDeskBootCache()?.desk ?? null;
+  const [activityStats, setActivityStats] = useState<ActivityStats>(
+    () => seed?.activityStats ?? emptyActivityStats("day"),
   );
-  const [gamification, setGamification] = useState<GamificationStats>(() =>
-    emptyGamificationStats(),
+  const [gamification, setGamification] = useState<GamificationStats>(
+    () => seed?.gamification ?? emptyGamificationStats(),
   );
   const activityBucketRef = useRef<ActivityBucket>("day");
   /** In-flight toggle target; may diverge from applied `activityBucketRef`. */
@@ -42,6 +45,14 @@ export function useActivityStrip() {
     activityBucketRef.current = bucket;
     setActivityBucket(bucket);
     setActivityStats(next);
+  }
+
+  function applyStripFromBoot(desk: DeskBootDesk) {
+    setActivityStats(desk.activityStats);
+    setGamification(desk.gamification);
+    activityBucketRef.current = desk.activityStats.bucket;
+    activityRequestBucketRef.current = desk.activityStats.bucket;
+    setActivityBucket(desk.activityStats.bucket);
   }
 
   async function hydrateGamification() {
@@ -71,6 +82,7 @@ export function useActivityStrip() {
     deskTopOpen,
     activityStats,
     gamification,
+    applyStripFromBoot,
     hydrateActivityStats,
     hydrateGamification,
     onActivityBucket,

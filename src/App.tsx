@@ -65,19 +65,31 @@ import { DeskTop } from "./desk/DeskTop";
 import { ThreadsTabs } from "./desk/ThreadsTabs";
 import { useActivityStrip } from "./desk/useActivityStrip";
 import { useCoaching } from "./desk/useCoaching";
+import {
+  clearDeskBootCache,
+  fetchDeskBoot,
+  peekDeskBootCache,
+  writeDeskBootCache,
+  type DeskBootDesk,
+} from "./lib/deskBoot";
 
 export default function App() {
   const [agendaReady, setAgendaReady] = useState(false);
   const [onboardingSeedAgenda, setOnboardingSeedAgenda] = useState<
     string | null
   >(null);
+  const cachedBoot = peekDeskBootCache();
   const [agenda, setAgenda] = useState(
-    "Find builders sharing opinions, tradeoffs, or concrete takes on shipping AI / software tools in public. Prefer posts with a clear point of view or a specific technical claim I can agree/disagree with.\nSkip open-ended engagement questions (“what are you shipping?”, “drop your stack”, “who should I follow?”, generic peer polls) even when they mention AI/build-in-public. A lone question with little substance is not interesting.",
+    () =>
+      cachedBoot?.user?.agenda ??
+      "Find builders sharing opinions, tradeoffs, or concrete takes on shipping AI / software tools in public. Prefer posts with a clear point of view or a specific technical claim I can agree/disagree with.\nSkip open-ended engagement questions (“what are you shipping?”, “drop your stack”, “who should I follow?”, generic peer polls) even when they mention AI/build-in-public. A lone question with little substance is not interesting.",
   );
   const [status, setStatus] = useState(
     "On the ground — set an agenda and take off.",
   );
-  const [threads, setThreads] = useState<ThreadCard[]>([]);
+  const [threads, setThreads] = useState<ThreadCard[]>(
+    () => cachedBoot?.desk?.lastScout.snapshot?.threads ?? [],
+  );
   const [expandedId, setExpandedId] = useState<string | null>(null);
   /** Short mutex for mark/skip/dismiss/settings — not Scout-in-flight. */
   const [actionBusy, setActionBusy] = useState(false);
@@ -99,6 +111,7 @@ export default function App() {
     skippedIdsRef,
     interactedIdsRef,
     blockedConversationsRef,
+    applyHistoryFromBoot,
     hydrateInteracted,
     hydrateSkipped,
     hydrateDismissed,
@@ -121,13 +134,14 @@ export default function App() {
     deskTopOpen,
     activityStats,
     gamification,
+    applyStripFromBoot,
     hydrateActivityStats,
     hydrateGamification,
     onActivityBucket,
     onToggleFlightPath,
     onToggleDeskTop,
   } = useActivityStrip();
-  const { coaching, hydrateCoaching } = useCoaching();
+  const { coaching, applyCoaching, hydrateCoaching } = useCoaching();
   const {
     view,
     setView,
@@ -176,6 +190,7 @@ export default function App() {
     authRequired,
     authNotice,
     setAuthNotice,
+    applyAuthUser,
     hydrateAuth,
     startGoogleLogin,
     startXLogin,
@@ -214,6 +229,8 @@ export default function App() {
     sortiesLimit,
     onSearch,
     onStopScout,
+    applyLastScoutFromBoot,
+    applyScoutLogFromBoot,
     hydrateLastScout,
     hydrateScoutLog,
   } = useScoutRun({
@@ -323,47 +340,92 @@ export default function App() {
       window.history.replaceState({}, "", next);
     }
     void (async () => {
+      const applyUser = (user: typeof authUser) => {
+        const onboarded = user
+          ? user.onboardingCompleted
+          : readOnboardingComplete();
+        if (user?.agenda) {
+          setAgenda(user.agenda);
+          setOnboardingSeedAgenda(null);
+          readOnboardingAgenda(user.id);
+        } else {
+          const storedAgenda = readOnboardingAgenda(user?.id);
+          if (storedAgenda) {
+            setAgenda(storedAgenda);
+            if (!onboarded) setOnboardingSeedAgenda(storedAgenda);
+          }
+        }
+        setAgendaReady(true);
+        return onboarded;
+      };
+
+      const applyDesk = (desk: DeskBootDesk) => {
+        applyHistoryFromBoot(desk);
+        applyStripFromBoot(desk);
+        applyCoaching(desk.coaching);
+        applyLastScoutFromBoot(desk.lastScout);
+        applyScoutLogFromBoot(desk.scoutLog);
+      };
+
+      const refreshAfterPaint = (user: typeof authUser) => {
+        void hydrateCoaching();
+        void hydrateActivityStats();
+        void loadBilling();
+        if (user) {
+          ensureActivitySubscribe();
+          void hydrateVoice();
+        }
+        if (viewFromPath(window.location.pathname) === "usage" || checkout) {
+          void loadUsage();
+        }
+        if (viewFromPath(window.location.pathname) === "admin" && user?.isAdmin) {
+          void loadAdmin();
+        }
+      };
+
+      const boot = await fetchDeskBoot(settings.dedupeAccounts);
+      if (boot.status === "ok") {
+        const user = applyAuthUser(boot.payload.user, boot.payload.authRequired);
+        if (err && !user) setSignInOpen(true);
+        applyUser(user);
+        if (boot.payload.desk) {
+          applyDesk(boot.payload.desk);
+          writeDeskBootCache(boot.payload);
+        } else {
+          clearDeskBootCache();
+        }
+        if (checkout === "success" && sessionId) {
+          await confirmCheckout(sessionId);
+        }
+        refreshAfterPaint(user);
+        return;
+      }
+
+      if (boot.status === "unauthenticated") {
+        applyAuthUser(null, boot.authRequired);
+        clearDeskBootCache();
+        if (err) setSignInOpen(true);
+        applyUser(null);
+        return;
+      }
+
       const user = await hydrateAuth();
       if (err && !user) setSignInOpen(true);
-      const onboarded = user
-        ? user.onboardingCompleted
-        : readOnboardingComplete();
-      if (user?.agenda) {
-        setAgenda(user.agenda);
-        setOnboardingSeedAgenda(null);
-        readOnboardingAgenda(user.id);
-      } else {
-        const storedAgenda = readOnboardingAgenda(user?.id);
-        if (storedAgenda) {
-          setAgenda(storedAgenda);
-          if (!onboarded) setOnboardingSeedAgenda(storedAgenda);
-        }
-      }
-      setAgendaReady(true);
-      await hydrateDismissed();
-      await hydrateSkipped();
-      await hydrateInteracted();
-      await hydrateActivityStats();
-      await hydrateGamification();
-      await hydrateCoaching();
-      await hydrateExpired();
-      await hydrateForYou();
-      if (onboarded) await hydrateLastScout();
-      await hydrateScoutLog();
+      const onboarded = applyUser(user);
+      await Promise.all([
+        hydrateDismissed(),
+        hydrateSkipped(),
+        hydrateInteracted(),
+        hydrateExpired(),
+        hydrateForYou(),
+        hydrateGamification(),
+        onboarded ? hydrateLastScout() : Promise.resolve(),
+        hydrateScoutLog(),
+      ]);
       if (checkout === "success" && sessionId) {
         await confirmCheckout(sessionId);
       }
-      void loadBilling();
-      if (user) {
-        ensureActivitySubscribe();
-        void hydrateVoice();
-      }
-      if (viewFromPath(window.location.pathname) === "usage" || checkout) {
-        void loadUsage();
-      }
-      if (viewFromPath(window.location.pathname) === "admin" && user?.isAdmin) {
-        void loadAdmin();
-      }
+      refreshAfterPaint(user);
     })();
   }, []);
 

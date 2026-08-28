@@ -4,6 +4,11 @@ import {
   type SetStateAction,
 } from "react";
 import { apiFetch, apiUrl } from "../lib/apiBase";
+import {
+  clearDeskBootCache,
+  parseAuthSessionUser,
+  peekDeskBootCache,
+} from "../lib/deskBoot";
 import type { AuthSessionUser } from "./types";
 
 type UseAuthSessionOptions = {
@@ -17,11 +22,26 @@ export function useAuthSession({
   onLoggedOut,
   onOnboardingFinished,
 }: UseAuthSessionOptions) {
-  const [authUser, setAuthUser] = useState<AuthSessionUser | null>(null);
+  const cached = peekDeskBootCache();
+  const [authUser, setAuthUser] = useState<AuthSessionUser | null>(
+    () => cached?.user ?? null,
+  );
   const [onboardingDoneLocal, setOnboardingDoneLocal] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [authRequired, setAuthRequired] = useState(true);
+  const [authChecked, setAuthChecked] = useState(() => Boolean(cached?.user));
+  const [authRequired, setAuthRequired] = useState(
+    () => cached?.authRequired ?? true,
+  );
   const [authNotice, setAuthNotice] = useState("");
+
+  function applyAuthUser(
+    user: AuthSessionUser | null,
+    required = true,
+  ): AuthSessionUser | null {
+    setAuthRequired(required);
+    setAuthUser(user);
+    setAuthChecked(true);
+    return user;
+  }
 
   async function hydrateAuth(): Promise<AuthSessionUser | null> {
     try {
@@ -31,49 +51,13 @@ export function useAuthSession({
       const data = (await res.json()) as {
         ok?: boolean;
         authRequired?: boolean;
-        user?: {
-          id: string;
-          email: string | null;
-          displayName: string | null;
-          avatarUrl: string | null;
-          onboardingCompleted?: boolean;
-          agenda?: string | null;
-          xUsername?: string | null;
-          xLinked?: boolean;
-          xCanPost?: boolean;
-          isAdmin?: boolean;
-        };
+        user?: unknown;
       };
-      setAuthRequired(data.authRequired ?? true);
-      if (res.ok && data.ok && data.user?.id) {
-        const user: AuthSessionUser = {
-          id: data.user.id,
-          email: data.user.email,
-          displayName: data.user.displayName,
-          avatarUrl: data.user.avatarUrl,
-          onboardingCompleted: data.user.onboardingCompleted !== false,
-          agenda:
-            typeof data.user.agenda === "string" && data.user.agenda.trim()
-              ? data.user.agenda
-              : null,
-          xUsername:
-            typeof data.user.xUsername === "string" && data.user.xUsername.trim()
-              ? data.user.xUsername.replace(/^@+/, "")
-              : null,
-          xLinked: Boolean(data.user.xLinked),
-          xCanPost: Boolean(data.user.xCanPost),
-          isAdmin: Boolean(data.user.isAdmin),
-        };
-        setAuthUser(user);
-        return user;
-      }
-      setAuthUser(null);
-      return null;
+      const user =
+        res.ok && data.ok ? parseAuthSessionUser(data.user) : null;
+      return applyAuthUser(user, data.authRequired ?? true);
     } catch {
-      setAuthUser(null);
-      return null;
-    } finally {
-      setAuthChecked(true);
+      return applyAuthUser(null);
     }
   }
 
@@ -92,6 +76,7 @@ export function useAuthSession({
       /* still clear local */
     }
     setAuthUser(null);
+    clearDeskBootCache();
     setAuthNotice("Signed out.");
     onLoggedOut();
   }
@@ -119,6 +104,7 @@ export function useAuthSession({
     authRequired,
     authNotice,
     setAuthNotice,
+    applyAuthUser,
     hydrateAuth,
     startGoogleLogin,
     startXLogin,
