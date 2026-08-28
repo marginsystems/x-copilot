@@ -94,8 +94,11 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       ...blockedFromHistory(seed?.dismissed.dismissals ?? []),
     ]),
   );
+  /** Set once a user action mutates history locally; boot's server snapshot is then stale. */
+  const historyStaleRef = useRef(false);
 
   function applyHistoryFromBoot(desk: DeskBootDesk) {
+    if (historyStaleRef.current) return;
     setInteractedHistory(desk.interacted.interactions);
     const ids = new Set(desk.interacted.activeIds);
     interactedIdsRef.current = ids;
@@ -316,6 +319,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       if (!res.ok) {
         if (res.status === 404) {
           setForYouSuggestions((prev) => prev.filter((row) => row.id !== id));
+          historyStaleRef.current = true;
           return;
         }
         const data = (await res.json().catch(() => ({}))) as {
@@ -325,6 +329,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
         return;
       }
       setForYouSuggestions((prev) => prev.filter((row) => row.id !== id));
+      historyStaleRef.current = true;
     } catch {
       setStatus("For You fail — desk offline.");
     } finally {
@@ -353,6 +358,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
         const seen = new Set(prev.map((row) => row.id));
         return [...rows.filter((row) => !seen.has(row.id)), ...prev];
       });
+      historyStaleRef.current = true;
     } catch {
       setStatus("Approach extras fail — desk offline.");
     } finally {
@@ -379,6 +385,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     expiredIdsRef,
     interactedIdsRef,
     blockedConversationsRef,
+    historyStaleRef,
     applyHistoryFromBoot,
     hydrateInteracted,
     hydrateSkipped,

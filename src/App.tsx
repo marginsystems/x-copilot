@@ -111,6 +111,7 @@ export default function App() {
     skippedIdsRef,
     interactedIdsRef,
     blockedConversationsRef,
+    historyStaleRef,
     applyHistoryFromBoot,
     hydrateInteracted,
     hydrateSkipped,
@@ -276,6 +277,7 @@ export default function App() {
     setInteractedHistory,
     interactedIdsRef,
     blockedConversationsRef,
+    historyStaleRef,
     onInteractionCommitted: () => {
       void hydrateActivityStats();
       void hydrateGamification();
@@ -300,6 +302,7 @@ export default function App() {
     skippedIdsRef,
     dismissedIdsRef,
     blockedConversationsRef,
+    historyStaleRef,
   });
   const curatedThreads = threads.filter((t) => keepInCurated(t));
 
