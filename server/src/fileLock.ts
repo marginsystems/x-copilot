@@ -1,10 +1,12 @@
 import { mkdir, rmdir, stat } from "node:fs/promises";
+import { dirname } from "node:path";
 
 export async function withFileLock<T>(
   filePath: string,
   fn: () => Promise<T>,
 ): Promise<T> {
   const lockPath = filePath + ".lock";
+  await mkdir(dirname(lockPath), { recursive: true });
   for (let retries = 0; ; retries++) {
     try {
       await mkdir(lockPath);

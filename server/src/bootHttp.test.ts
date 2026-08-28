@@ -50,18 +50,22 @@ async function get(
 describe("GET /api/boot", () => {
   const prevAuth = process.env.AUTH_REQUIRED;
   let dir: string;
+  let cwd: string;
 
   beforeEach(() => {
     resetPlatformDbForTests();
     dir = mkdtempSync(join(tmpdir(), "x-boot-http-"));
+    cwd = process.cwd();
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
     process.env.AUTH_REQUIRED = "1";
+    process.chdir(dir);
     getPlatformDb();
   });
 
   afterEach(() => {
     resetPlatformDbForTests();
+    process.chdir(cwd);
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
     if (prevAuth === undefined) delete process.env.AUTH_REQUIRED;
@@ -116,7 +120,7 @@ describe("GET /api/boot", () => {
     assert.ok(desk.coaching && typeof desk.coaching === "object");
     const lastScout = desk.lastScout as { ok?: boolean; empty?: boolean };
     assert.equal(lastScout.ok, true);
-    assert.equal(typeof lastScout.empty, "boolean");
+    assert.equal(lastScout.empty, true);
     const coaching = desk.coaching as { nextAction?: unknown; missions?: unknown[] };
     assert.equal(coaching.nextAction, null);
     assert.ok(Array.isArray(coaching.missions));
