@@ -16,6 +16,7 @@ export function useCoaching() {
     const seq = ++requestSeqRef.current;
     const next = await fetchCoaching();
     if (seq !== requestSeqRef.current) return;
+    if (!next) return;
     applyCoaching(next);
   }
 

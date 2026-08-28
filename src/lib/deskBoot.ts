@@ -290,6 +290,13 @@ export function readDeskBootCache(
 
 export function peekDeskBootCache(): DeskBootPayload | null {
   if (peekMemo !== undefined) return peekMemo;
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("auth") || params.has("auth_error")) {
+      peekMemo = null;
+      return null;
+    }
+  }
   peekMemo = readDeskBootCache();
   return peekMemo;
 }

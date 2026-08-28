@@ -206,9 +206,7 @@ export function useScoutRun({
               typeof e.at === "string",
           )
         : [];
-      setScoutLog((prev) =>
-        prev.length > 0 ? prev : entries.slice(-1000),
-      );
+      setScoutLog(entries.slice(-1000));
     } catch {
       /* ignore */
     }
