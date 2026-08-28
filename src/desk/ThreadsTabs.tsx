@@ -97,7 +97,10 @@ export function ThreadsTabs({
   return (
     <>
       <div className="threads-pane-head">
-        <h2 className="section-label">Threads</h2>
+        <div className="threads-pane-title">
+          <h2 className="section-label">Threads</h2>
+          {threadsTab === "curated" ? <RankingDrawer /> : null}
+        </div>
         <div className="threads-tabs" role="tablist" aria-label="Thread feeds">
           <button
             type="button"
@@ -173,7 +176,6 @@ export function ThreadsTabs({
           </button>
         </div>
       </div>
-      {threadsTab === "curated" ? <RankingDrawer /> : null}
       <div className="threads-scroll">
         {threadsTab === "curated" ? (
           curatedThreads.length === 0 &&
@@ -204,6 +206,7 @@ export function ThreadsTabs({
               {coaching &&
               (coaching.nextAction || coaching.missions.length > 0) ? (
                 <div className="for-you-suggested">
+                  <h3 className="section-label">Missions</h3>
                   {coaching.nextAction ? (
                     <NextActionRow coaching={coaching} />
                   ) : null}
@@ -255,6 +258,9 @@ export function ThreadsTabs({
                   })}
                 </div>
               ) : null}
+              {curatedThreads.length > 0 ? (
+                <div className="for-you-scouted">
+                  <h3 className="section-label">Scouted</h3>
               {sortThreadsByCreatedAtNewest(curatedThreads).map((t) => (
                 <ThreadRow
                   key={t.id}
@@ -302,6 +308,8 @@ export function ThreadsTabs({
                   }
                 />
               ))}
+                </div>
+              ) : null}
             </div>
           )
         ) : threadsTab === "interacted" ? (

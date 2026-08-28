@@ -12,16 +12,18 @@ import {
 export function RankingDrawer() {
   return (
     <details className="ranking-drawer">
-      <summary>{LEARN_DRAWER_HEADING}</summary>
-      <p>{LEARN_DRAWER_LEAD}</p>
-      <p>{LEARN_DRAWER_OON}</p>
-      <p>{LEARN_DRAWER_SOURCE}</p>
-      <p className="ranking-drawer-links">
-        <a href="/learn/what-a-like-is-worth">{LEARN_HEADING}</a>
-        <a href="/learn/posts-that-get-a-reply">{LEARN_REPLY_HEADING}</a>
-        <a href="/learn/how-many-replies">{LEARN_VOLUME_HEADING}</a>
-        <a href="/learn/follow">{LEARN_FOLLOW_HEADING}</a>
-      </p>
+      <summary aria-label={LEARN_DRAWER_HEADING}>?</summary>
+      <div className="ranking-drawer-panel">
+        <p>{LEARN_DRAWER_LEAD}</p>
+        <p>{LEARN_DRAWER_OON}</p>
+        <p>{LEARN_DRAWER_SOURCE}</p>
+        <p className="ranking-drawer-links">
+          <a href="/learn/what-a-like-is-worth">{LEARN_HEADING}</a>
+          <a href="/learn/posts-that-get-a-reply">{LEARN_REPLY_HEADING}</a>
+          <a href="/learn/how-many-replies">{LEARN_VOLUME_HEADING}</a>
+          <a href="/learn/follow">{LEARN_FOLLOW_HEADING}</a>
+        </p>
+      </div>
     </details>
   );
 }

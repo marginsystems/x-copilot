@@ -88,7 +88,6 @@ export function DailyMissionsRow({ coaching }: { coaching: CoachingState }) {
           XP
         </span>
         <span className="row-main">
-          <span className="row-summary">Daily missions</span>
           <span className="row-meta daily-missions-meta">
             {coaching.missions.map((m) => (
               <span
