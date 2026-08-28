@@ -79,6 +79,14 @@ describe("nextActionLlm", () => {
       suggestions: { total: 1, post: 0, quote: 1, repost: 0, reply: 0 },
     });
     assert.equal(nextActionAllowed("quote", withQuote), true);
+    const withRepost = snapshot({
+      suggestions: { total: 1, post: 0, quote: 0, repost: 1, reply: 0 },
+    });
+    assert.equal(nextActionAllowed("repost", withRepost), true);
+    const empty = snapshot({
+      suggestions: { total: 0, post: 0, quote: 0, repost: 0, reply: 0 },
+    });
+    assert.equal(nextActionAllowed("for_you", empty), false);
   });
 
   it("parses a grounded next-action payload", () => {
