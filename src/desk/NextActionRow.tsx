@@ -8,6 +8,7 @@ import {
   type DailyMission,
   type NextActionKind,
 } from "../lib/coaching";
+import { DeskRow } from "./DeskRow";
 
 function progressNoun(kind: NextActionKind): string {
   if (kind === "original") return "originals today";
@@ -54,63 +55,61 @@ export function NextActionRow({ coaching }: { coaching: CoachingState }) {
   const kindClass = nextActionKindClass(action.kind);
   const progress = nextActionProgress(action, coaching.missions);
   return (
-    <article className={`thread-row for-you-row next-action-row ${kindClass}`}>
-      <div className="row-head next-action-head">
-        <span className={`bait ${kindClass}`} title={nextActionKindLabel(action.kind)}>
-          {nextActionKindShort(action.kind)}
-        </span>
-        <span className="row-main">
-          <span className="row-summary">{action.text}</span>
-          <span className="row-meta">
-            <span className="chip">Next</span>
-            <span>{nextActionKindLabel(action.kind)}</span>
-            {progress ? (
-              <DeskMeter
-                current={progress.current}
-                target={progress.target}
-                label={progress.label}
-                noun={progressNoun(action.kind)}
-              />
-            ) : null}
-          </span>
-        </span>
-      </div>
-    </article>
+    <DeskRow
+      className={`for-you-row next-action-row ${kindClass}`}
+      lead={nextActionKindShort(action.kind)}
+      leadTitle={nextActionKindLabel(action.kind)}
+      leadClassName={`bait ${kindClass}`}
+      summary={action.text}
+      meta={
+        <>
+          <span className="chip">Next</span>
+          <span>{nextActionKindLabel(action.kind)}</span>
+          {progress ? (
+            <DeskMeter
+              current={progress.current}
+              target={progress.target}
+              label={progress.label}
+              noun={progressNoun(action.kind)}
+            />
+          ) : null}
+        </>
+      }
+    />
   );
 }
 
 export function DailyMissionsRow({ coaching }: { coaching: CoachingState }) {
   if (coaching.missions.length === 0) return null;
   return (
-    <article className="thread-row for-you-row daily-missions-row">
-      <div className="row-head next-action-head">
-        <span className="bait kind-post" title="Daily missions">
-          XP
-        </span>
-        <span className="row-main">
-          <span className="row-meta daily-missions-meta">
-            {coaching.missions.map((m) => (
-              <span
-                key={m.id}
-                className={
-                  m.completed ? "chip daily-mission is-done" : "chip daily-mission"
-                }
-              >
-                <span className="daily-mission-copy">
-                  {m.label}
-                  {m.claimed ? ` · +${m.xpReward} XP` : ` · ${m.xpReward} XP`}
-                </span>
-                <DeskMeter
-                  current={m.progress}
-                  target={m.target}
-                  label={`${m.progress}/${m.target}`}
-                  noun={missionNoun(m)}
-                />
+    <DeskRow
+      className="for-you-row daily-missions-row"
+      lead="XP"
+      leadTitle="Daily missions"
+      leadClassName="bait kind-post"
+      meta={
+        <>
+          {coaching.missions.map((m) => (
+            <span
+              key={m.id}
+              className={
+                m.completed ? "chip daily-mission is-done" : "chip daily-mission"
+              }
+            >
+              <span className="daily-mission-copy">
+                {m.label}
+                {m.claimed ? ` · +${m.xpReward} XP` : ` · ${m.xpReward} XP`}
               </span>
-            ))}
-          </span>
-        </span>
-      </div>
-    </article>
+              <DeskMeter
+                current={m.progress}
+                target={m.target}
+                label={`${m.progress}/${m.target}`}
+                noun={missionNoun(m)}
+              />
+            </span>
+          ))}
+        </>
+      }
+    />
   );
 }

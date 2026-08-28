@@ -70,8 +70,15 @@
   .learn-page tbody tr,
   .desk-top-body,
   .desk-top-body-inner,
-  .desk-meter-fill {
+  .desk-meter-fill,
+  .row-detail-slot,
+  .row-detail-inner {
     transition: none;
+  }
+
+  .threads .thread-row,
+  .threads .thread-row.is-exiting {
+    animation: none;
   }
 }
 
