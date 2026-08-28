@@ -351,7 +351,7 @@
   overflow-wrap: anywhere;
 }
 
-.thread-row:not(.next-action-row):not(.daily-missions-row) .row-summary {
+.thread-row:not(.open):not(.next-action-row):not(.daily-missions-row) .row-summary {
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
