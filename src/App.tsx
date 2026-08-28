@@ -34,7 +34,6 @@ import { OnboardingPreviewBar } from "./OnboardingPreview";
 import { AdminPanel } from "./AdminPanel";
 import { Analytics } from "./Analytics";
 import { Account } from "./Account";
-import { PlayPage } from "./Play";
 import { VoiceCardPanel, VoiceUnlockToast } from "./VoiceCard";
 import { useDeskHistory } from "./desk/useDeskHistory";
 import {
@@ -412,17 +411,6 @@ export default function App() {
     closeMenu();
   }
 
-  function openPlay() {
-    goToView("play");
-    closeMenu();
-  }
-
-  useEffect(() => {
-    if (view !== "play") return;
-    void hydrateCoaching();
-    void hydrateGamification();
-  }, [view]);
-
   useEffect(() => {
     if (!authUser?.isAdmin) return;
     const { open, nextSearch } = consumeOnboardingPreviewQuery(
@@ -546,7 +534,6 @@ export default function App() {
             onX={startXLogin}
             onAnalytics={openAnalytics}
             onVoice={openVoice}
-            onPlay={openPlay}
             needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xLinked) : false}
             onUsage={openUsage}
             onAccount={openAccount}
@@ -684,11 +671,9 @@ export default function App() {
       !showOnboardingPreview ? (
         <main
           className={
-            view === "play"
-              ? "app-main app-main-play"
-              : view === "dashboard"
-                ? "app-main"
-                : "app-main app-main-scroll"
+            view === "dashboard"
+              ? "app-main"
+              : "app-main app-main-scroll"
           }
         >
       {authNotice ? (
@@ -744,15 +729,6 @@ export default function App() {
         />
       ) : null}
 
-      {view === "play" ? (
-        <PlayPage
-          onBack={() => goToView("dashboard")}
-          userId={authUser?.id ?? null}
-          coaching={coaching}
-          gamification={gamification}
-        />
-      ) : null}
-
       {view === "voice" ? (
         <section className="panel settings-pane">
           <div className="settings-head">
@@ -805,8 +781,7 @@ export default function App() {
       view === "admin" ||
       view === "analytics" ||
       view === "account" ||
-      view === "voice" ||
-      view === "play" ? null : view === "settings" ? (
+      view === "voice" ? null : view === "settings" ? (
         <SettingsForm
           authUser={authUser}
           draft={settingsDraft}
