@@ -247,13 +247,19 @@
 }
 
 @keyframes desk-row-out {
-  from {
+  0% {
     opacity: 1;
     transform: none;
+    visibility: visible;
   }
-  to {
+  99.9% {
     opacity: 0;
     transform: translateY(-6px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+    visibility: hidden;
   }
 }
 
