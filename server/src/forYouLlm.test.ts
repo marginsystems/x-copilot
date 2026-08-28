@@ -4,6 +4,7 @@ import {
   draftForYouActions,
   draftForYouExtraPosts,
   FOR_YOU_DIGEST_SYSTEM,
+  FOR_YOU_EXTRA_SYSTEM,
 } from "./forYouLlm.ts";
 import type { ForYouDigest } from "./forYouDigest.ts";
 import type { ChatFn } from "./voiceLlm.ts";
@@ -305,6 +306,11 @@ describe("draftForYouActions", () => {
 });
 
 describe("draftForYouExtraPosts", () => {
+  it("keeps the why clause short in the extra system prompt", () => {
+    assert.match(FOR_YOU_EXTRA_SYSTEM, /max 90 characters/);
+    assert.match(FOR_YOU_EXTRA_SYSTEM, /No second sentence/);
+  });
+
   it("keeps three unique originals", async () => {
     const capture = { purposes: [] as string[] };
     const result = await draftForYouExtraPosts({

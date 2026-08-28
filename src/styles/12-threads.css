@@ -307,7 +307,7 @@
   overflow-wrap: anywhere;
 }
 
-.thread-row:not(.open) .row-summary {
+.thread-row:not(.open):not(.next-action-row) .row-summary {
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
