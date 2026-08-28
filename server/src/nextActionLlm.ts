@@ -13,7 +13,7 @@ import { DAILY_MISSION_DEFS } from "./dailyMissions.js";
 import { extractJsonObject, type ChatFn } from "./voiceLlm.js";
 
 /** Bump when the grounded next-action prompt changes so stale copy refreshes. */
-export const NEXT_ACTION_PROMPT_REV = 2;
+export const NEXT_ACTION_PROMPT_REV = 3;
 
 function missionTarget(id: string): number {
   return DAILY_MISSION_DEFS.find((row) => row.id === id)?.target ?? 0;
@@ -50,6 +50,7 @@ Rules:
 - Cite a number that appears in the input. No invented metrics, no follower counts.
 - Do not invent a daily quota. The reply mission target is replyTarget (2). Cite marksToday against that. Never say hit 5 replies.
 - Prefer the gap that most helps the account today. Empty marks → reply or streak. No originals after replies → original. No takeoff and no Suggested queue → takeoff. Suggested quotes waiting → quote or for_you.
+- kind=quote only when suggestions.quote > 0. kind=repost only when suggestions.repost > 0. kind=for_you only when suggestions.total > 0. Do not tell them to quote OG cards.
 - Max 140 characters. No markdown.`;
 
 function isKind(value: unknown): value is NextActionKind {
@@ -68,6 +69,17 @@ export function parseNextActionJson(raw: string): {
   const text = typeof data.text === "string" ? data.text.trim() : "";
   if (!text || text.length > 180) return null;
   return { kind: data.kind, text };
+}
+
+/** Quote / repost / for_you only when those Suggested cards are still in the tray. */
+export function nextActionAllowed(
+  kind: NextActionKind,
+  snapshot: Pick<CoachingSnapshot, "suggestions">,
+): boolean {
+  if (kind === "quote") return snapshot.suggestions.quote > 0;
+  if (kind === "repost") return snapshot.suggestions.repost > 0;
+  if (kind === "for_you") return snapshot.suggestions.total > 0;
+  return true;
 }
 
 /** Deterministic card when DeepSeek is off, thin, or the parse fails. */
@@ -224,7 +236,7 @@ export async function getOrRefreshNextAction(opts: {
     return write(fallback.kind, fallback.text, "fallback");
   }
   const parsed = parseNextActionJson(result.content);
-  if (!parsed) {
+  if (!parsed || !nextActionAllowed(parsed.kind, opts.snapshot)) {
     return write(fallback.kind, fallback.text, result.model);
   }
   return write(parsed.kind, parsed.text, result.model);

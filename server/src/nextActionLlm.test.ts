@@ -14,6 +14,7 @@ import {
   NEXT_ACTION_SYSTEM,
   fallbackNextAction,
   getOrRefreshNextAction,
+  nextActionAllowed,
   nextActionCacheHash,
   parseNextActionJson,
 } from "./nextActionLlm.ts";
@@ -63,6 +64,29 @@ describe("nextActionLlm", () => {
     assert.match(NEXT_ACTION_SYSTEM, /replyTarget/);
     assert.match(NEXT_ACTION_SYSTEM, /Never say hit 5 replies/);
     assert.doesNotMatch(NEXT_ACTION_SYSTEM, /hit 5 replies today/);
+    assert.match(NEXT_ACTION_SYSTEM, /kind=quote only when suggestions.quote > 0/);
+  });
+
+  it("rejects quote and repost unless those Suggested cards are waiting", () => {
+    const ogOnly = snapshot({
+      suggestions: { total: 2, post: 2, quote: 0, repost: 0, reply: 0 },
+    });
+    assert.equal(nextActionAllowed("quote", ogOnly), false);
+    assert.equal(nextActionAllowed("repost", ogOnly), false);
+    assert.equal(nextActionAllowed("for_you", ogOnly), true);
+    assert.equal(nextActionAllowed("original", ogOnly), true);
+    const withQuote = snapshot({
+      suggestions: { total: 1, post: 0, quote: 1, repost: 0, reply: 0 },
+    });
+    assert.equal(nextActionAllowed("quote", withQuote), true);
+    const withRepost = snapshot({
+      suggestions: { total: 1, post: 0, quote: 0, repost: 1, reply: 0 },
+    });
+    assert.equal(nextActionAllowed("repost", withRepost), true);
+    const empty = snapshot({
+      suggestions: { total: 0, post: 0, quote: 0, repost: 0, reply: 0 },
+    });
+    assert.equal(nextActionAllowed("for_you", empty), false);
   });
 
   it("parses a grounded next-action payload", () => {
@@ -204,5 +228,99 @@ describe("nextActionLlm", () => {
     assert.equal(calls, 1);
     assert.equal(action.kind, "takeoff");
     assert.equal(action.text, "Take off once to refill Approach.");
+  });
+
+  it("drops an LLM quote when the tray is only OG posts", async () => {
+    const snap = snapshot({
+      marksToday: 2,
+      originalsToday: 1,
+      takeoffsToday: 1,
+      lastMarkUtcDay: "2026-08-26",
+      suggestions: { total: 2, post: 2, quote: 0, repost: 0, reply: 0 },
+    });
+    const action = await getOrRefreshNextAction({
+      userId: "u1",
+      snapshot: snap,
+      inputsHash: "og-only",
+      nowMs: NOW_MS,
+      chat: async () => ({
+        ok: true as const,
+        content:
+          '{"kind":"quote","text":"Quote one of the 2 suggested posts to turn your 0 quotes today into a win."}',
+        model: "test-model",
+        provider: "deepseek" as const,
+      }),
+    });
+    assert.equal(action.kind, "for_you");
+    assert.match(action.text, /2 left/);
+  });
+
+  it("refreshes a cached rev-2 quote instead of serving it for an OG-only tray", async () => {
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO next_action_cache
+           (user_id, kind, text, inputs_hash, model, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "u1",
+        "quote",
+        "Quote one of the 2 suggested posts to turn your 0 quotes today into a win.",
+        "2:og-only",
+        "old-model",
+        "2026-08-25T00:00:00.000Z",
+      );
+    const snap = snapshot({
+      marksToday: 2,
+      originalsToday: 1,
+      takeoffsToday: 1,
+      lastMarkUtcDay: "2026-08-26",
+      suggestions: { total: 2, post: 2, quote: 0, repost: 0, reply: 0 },
+    });
+    let calls = 0;
+    const action = await getOrRefreshNextAction({
+      userId: "u1",
+      snapshot: snap,
+      inputsHash: "og-only",
+      nowMs: NOW_MS,
+      chat: async () => {
+        calls += 1;
+        return {
+          ok: true as const,
+          content:
+            '{"kind":"quote","text":"Quote one of the 2 suggested posts to turn your 0 quotes today into a win."}',
+          model: "test-model",
+          provider: "deepseek" as const,
+        };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(action.kind, "for_you");
+    assert.match(action.text, /2 left/);
+  });
+
+  it("keeps an LLM quote when a Suggested quote is waiting", async () => {
+    const snap = snapshot({
+      marksToday: 2,
+      originalsToday: 1,
+      takeoffsToday: 1,
+      lastMarkUtcDay: "2026-08-26",
+      suggestions: { total: 1, post: 0, quote: 1, repost: 0, reply: 0 },
+    });
+    const action = await getOrRefreshNextAction({
+      userId: "u1",
+      snapshot: snap,
+      inputsHash: "quote-waiting",
+      nowMs: NOW_MS,
+      chat: async () => ({
+        ok: true as const,
+        content:
+          '{"kind":"quote","text":"Work the Suggested quote while it is still in the tray."}',
+        model: "test-model",
+        provider: "deepseek" as const,
+      }),
+    });
+    assert.equal(action.kind, "quote");
+    assert.match(action.text, /Work the Suggested quote while/);
   });
 });
