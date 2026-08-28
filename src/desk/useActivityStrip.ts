@@ -30,6 +30,8 @@ export function useActivityStrip() {
   const activityBucketRef = useRef<ActivityBucket>("day");
   /** In-flight toggle target; may diverge from applied `activityBucketRef`. */
   const activityRequestBucketRef = useRef<ActivityBucket>("day");
+  /** Set once a user toggles the bucket; boot's snapshot bucket is then stale. */
+  const stripStaleRef = useRef(false);
   /** Monotonic token so out-of-order gamification responses don't regress the chip. */
   const gamificationRequestSeqRef = useRef(0);
 
@@ -48,8 +50,9 @@ export function useActivityStrip() {
   }
 
   function applyStripFromBoot(desk: DeskBootDesk) {
-    setActivityStats(desk.activityStats);
     setGamification(desk.gamification);
+    if (stripStaleRef.current) return;
+    setActivityStats(desk.activityStats);
     activityBucketRef.current = desk.activityStats.bucket;
     activityRequestBucketRef.current = desk.activityStats.bucket;
     setActivityBucket(desk.activityStats.bucket);
@@ -65,6 +68,7 @@ export function useActivityStrip() {
 
   function onActivityBucket(next: ActivityBucket) {
     activityRequestBucketRef.current = next;
+    stripStaleRef.current = true;
     void hydrateActivityStats(next);
   }
 
