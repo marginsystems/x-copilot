@@ -306,9 +306,9 @@ export function ThreadsTabs({
                     if (next) watchDeskThreads([t]);
                   }}
                   onWatch={() => watchDeskThreads([t])}
-                  onMark={() => exitRow(t.id, t.id, () => onMark(t))}
+                  onMark={() => onMark(t)}
                   onSkip={() => exitRow(t.id, t.id, () => onSkip(t))}
-                  onDismiss={() => exitRow(t.id, t.id, () => onDismiss(t))}
+                  onDismiss={() => onDismiss(t)}
                   suggest={
                     voice?.status === "ready" && voice.unlocked ? (
                       <SuggestPane
