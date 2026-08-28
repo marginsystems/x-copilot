@@ -12,7 +12,7 @@ import {
 export function RankingDrawer() {
   return (
     <details className="ranking-drawer">
-      <summary>{LEARN_DRAWER_HEADING}</summary>
+      <summary aria-label={LEARN_DRAWER_HEADING}>?</summary>
       <p>{LEARN_DRAWER_LEAD}</p>
       <p>{LEARN_DRAWER_OON}</p>
       <p>{LEARN_DRAWER_SOURCE}</p>

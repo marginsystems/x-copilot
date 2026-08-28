@@ -5,6 +5,7 @@ import {
   type ActivityBucket,
   type ActivityStats,
 } from "../lib/activityStats";
+import { readDeskTopOpen, writeDeskTopOpen } from "../lib/deskLayout";
 import {
   emptyGamificationStats,
   fetchGamification,
@@ -16,9 +17,7 @@ export function useActivityStrip() {
   const [flightPathOpen, setFlightPathOpen] = useState(() =>
     readSessionFlag("x-copilot-flight-path-open", 700),
   );
-  const [deskTopOpen, setDeskTopOpen] = useState(() =>
-    readSessionFlag("x-copilot-desk-top-open", 1100),
-  );
+  const [deskTopOpen, setDeskTopOpen] = useState(() => readDeskTopOpen());
   const [activityStats, setActivityStats] = useState<ActivityStats>(() =>
     emptyActivityStats("day"),
   );
@@ -63,7 +62,7 @@ export function useActivityStrip() {
   }
 
   function onToggleDeskTop() {
-    setDeskTopOpen((prev) => writeSessionFlag("x-copilot-desk-top-open", !prev));
+    setDeskTopOpen((prev) => writeDeskTopOpen(!prev));
   }
 
   return {

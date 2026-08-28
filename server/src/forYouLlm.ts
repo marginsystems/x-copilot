@@ -16,7 +16,7 @@ import type { ForYouDraft } from "./forYouStore.js";
 
 export const FOR_YOU_DIGEST_SYSTEM = `You pick the operator's next X moves from a ranked digest of THEIR posts, marked memories, voice card, agenda, and leftover Scout threads.
 Return ONLY JSON:
-{"actions":[{"kind":"post"|"quote"|"repost"|"reply","why":"one sentence grounded in a metric or habit","draft":"text when kind is post or quote","targetId":"id from the digest when kind is quote, repost, or reply","targetUrl":"url from the digest when you have one","targetAuthor":"@handle when you have one"}]}
+{"actions":[{"kind":"post"|"quote"|"repost"|"reply","why":"one short clause, max 90 characters, grounded in a metric or habit","draft":"text when kind is post or quote","targetId":"id from the digest when kind is quote, repost, or reply","targetUrl":"url from the digest when you have one","targetAuthor":"@handle when you have one"}]}
 Rules:
 - 2 to 4 actions. Mix kinds when the digest supports it. At least one kind=post.
 - BEST_24H is what worked. Double down: write the next original in that shape, or quote/repost those ids.
@@ -26,7 +26,7 @@ Rules:
 - kind=repost: targetId/targetUrl MUST be copied from the digest. no invented posts. Prefer BEST.
 - kind=reply: leftover Scout, or a memory that already earned attention. Not a flopped own post.
 - why talks to the operator in second person ("Your originals…", "You got 900 views…"). Never first person ("My posts…", "I got…") — the copilot is not the user. draft stays in their voice.
-- why must cite a number or habit from the digest (views, likes, reply rate, tone) — prefer winners.
+- why is one short clause, max 90 characters. Cite one number or habit. No second sentence. Prefer winners.
 - RECENT_* omits posts younger than 1 hour. Do not treat 0 views as a flop unless the post is in AVOID_24H.
 - Do not invent ids or urls. Do not auto-post. Plain language. No markdown fences.`;
 
@@ -120,13 +120,13 @@ export async function draftForYouActions(opts: {
 
 export const FOR_YOU_EXTRA_SYSTEM = `You write 3 original X posts for this operator from a ranked digest of THEIR posts, voice, and agenda.
 Return ONLY JSON:
-{"actions":[{"kind":"post","why":"one sentence grounded in a metric or habit","draft":"the original post"}]}
+{"actions":[{"kind":"post","why":"one short clause, max 90 characters, grounded in a metric or habit","draft":"the original post"}]}
 Rules:
 - Exactly 3 kind=post items. draft required. no targetId.
 - Each draft invites a reply — a real question, a stake they can cut, or a named other side. Not a slogan. Not "thoughts?".
 - Echo BEST_24H shape and their voice. Do not revive AVOID_24H.
 - why talks to the operator in second person. Never first person. draft stays in their voice.
-- why must cite a number or habit from the digest.
+- why is one short clause, max 90 characters. Cite one number or habit. No second sentence.
 - Do not invent ids or urls. Do not auto-post. Plain language. No markdown fences.`;
 
 export async function draftForYouExtraPosts(opts: {
