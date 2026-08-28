@@ -26,7 +26,6 @@ describe("showDeskXGate", () => {
     assert.equal(showDeskXGate(base), true);
     assert.equal(showDeskXGate({ ...base, view: "settings" }), true);
     assert.equal(showDeskXGate({ ...base, view: "voice" }), true);
-    assert.equal(showDeskXGate({ ...base, view: "play" }), true);
     assert.equal(showDeskXGate({ ...base, view: "analytics" }), true);
   });
 

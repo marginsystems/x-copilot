@@ -13,7 +13,6 @@ type MenuView =
   | "home"
   | "dashboard"
   | "voice"
-  | "play"
   | "settings"
   | "account"
   | "usage"
@@ -165,7 +164,6 @@ export function UserMenu(props: {
   onDesk: () => void;
   onAnalytics: () => void;
   onVoice: () => void;
-  onPlay: () => void;
   needsXLink?: boolean;
   onUsage: () => void;
   onAccount: () => void;
@@ -283,16 +281,6 @@ export function UserMenu(props: {
                 Voice
               </button>
             )}
-            <button
-              type="button"
-              className={
-                props.view === "play" ? "menu-item is-current" : "menu-item"
-              }
-              onClick={props.onPlay}
-            >
-              <MenuIcon d="M3 19h18M8 19V9h8v3" />
-              Perch
-            </button>
             <button
               type="button"
               className={

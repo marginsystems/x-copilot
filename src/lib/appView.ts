@@ -5,7 +5,6 @@ export type AppView =
   | "home"
   | "dashboard"
   | "voice"
-  | "play"
   | "settings"
   | "account"
   | "usage"
@@ -68,7 +67,7 @@ export function viewFromPath(pathname: string): AppView {
   if (pathname === "/usage" || pathname === "/billing") return "usage";
   if (pathname === "/analytics") return "analytics";
   if (pathname === "/voice") return "voice";
-  if (pathname === "/play" || pathname.startsWith("/play/")) return "play";
+  if (pathname === "/play" || pathname.startsWith("/play/")) return "dashboard";
   if (pathname === "/account") return "account";
   if (pathname === "/settings") return "settings";
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
@@ -91,7 +90,6 @@ export function pathFromView(view: AppView): string {
   if (view === "usage") return "/usage";
   if (view === "analytics") return "/analytics";
   if (view === "voice") return "/voice";
-  if (view === "play") return "/play";
   if (view === "account") return "/account";
   if (view === "settings") return "/settings";
   if (view === "dashboard") return "/dashboard";
