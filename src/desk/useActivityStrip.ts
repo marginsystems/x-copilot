@@ -50,7 +50,9 @@ export function useActivityStrip() {
   }
 
   function applyStripFromBoot(desk: DeskBootDesk) {
-    setGamification(desk.gamification);
+    if (gamificationRequestSeqRef.current === 0) {
+      setGamification(desk.gamification);
+    }
     if (stripStaleRef.current) return;
     setActivityStats(desk.activityStats);
     activityBucketRef.current = desk.activityStats.bucket;
