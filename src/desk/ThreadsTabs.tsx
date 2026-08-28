@@ -24,6 +24,7 @@ import { DailyMissionsRow, NextActionRow } from "./NextActionRow";
 import { SuggestedRow } from "./SuggestedRow";
 import type { CoachingState } from "../lib/coaching";
 import { ThreadRow } from "./ThreadRow";
+import { useDeskRowExit } from "./useDeskRowExit";
 import { ThreadsTabCount } from "./ThreadsTabCount";
 import type {
   DismissalHistoryEntry,
@@ -94,6 +95,11 @@ export function ThreadsTabs({
   onSkip,
   onDismiss,
 }: ThreadsTabsProps) {
+  const { exitingIds, beginExit } = useDeskRowExit();
+  function exitRow(id: string, expandedKey: string, then: () => void) {
+    setExpandedId((cur) => (cur === expandedKey ? null : cur));
+    beginExit(id, then);
+  }
   return (
     <>
       <div className="threads-pane-head">
@@ -230,13 +236,15 @@ export function ThreadsTabs({
               {forYouSuggestions.length > 0 ? (
                 <div className="for-you-suggested">
                   <h3 className="section-label">Suggested</h3>
-                  {forYouSuggestions.map((row) => {
+                  {forYouSuggestions.map((row, i) => {
                     const key = `suggest:${row.id}`;
                     return (
                       <SuggestedRow
                         key={row.id}
                         row={row}
+                        index={i}
                         open={expandedId === key}
+                        exiting={exitingIds.has(row.id)}
                         busy={actionBusy}
                         voice={voice}
                         agenda={agenda}
@@ -245,9 +253,21 @@ export function ThreadsTabs({
                         onToggle={() =>
                           setExpandedId((id) => (id === key ? null : key))
                         }
-                        onPosted={() => void actForYou(row.id, "done")}
-                        onSkip={() => void actForYou(row.id, "skip")}
-                        onDismiss={() => void actForYou(row.id, "dismiss")}
+                        onPosted={() =>
+                          exitRow(row.id, key, () =>
+                            void actForYou(row.id, "done"),
+                          )
+                        }
+                        onSkip={() =>
+                          exitRow(row.id, key, () =>
+                            void actForYou(row.id, "skip"),
+                          )
+                        }
+                        onDismiss={() =>
+                          exitRow(row.id, key, () =>
+                            void actForYou(row.id, "dismiss"),
+                          )
+                        }
                         onOpenSettings={onOpenVoice}
                         onLinkX={onLinkX}
                         onUsage={(u) =>
@@ -261,11 +281,13 @@ export function ThreadsTabs({
               {curatedThreads.length > 0 ? (
                 <div className="for-you-scouted">
                   <h3 className="section-label">Scouted</h3>
-              {sortThreadsByCreatedAtNewest(curatedThreads).map((t) => (
+              {sortThreadsByCreatedAtNewest(curatedThreads).map((t, i) => (
                 <ThreadRow
                   key={t.id}
                   thread={t}
+                  index={i}
                   open={expandedId === t.id}
+                  exiting={exitingIds.has(t.id)}
                   busy={actionBusy}
                   interacted={interactedIds.has(t.id)}
                   onToggle={() => {
@@ -274,9 +296,9 @@ export function ThreadsTabs({
                     if (next) watchDeskThreads([t]);
                   }}
                   onWatch={() => watchDeskThreads([t])}
-                  onMark={() => onMark(t)}
-                  onSkip={() => void onSkip(t)}
-                  onDismiss={() => onDismiss(t)}
+                  onMark={() => exitRow(t.id, t.id, () => onMark(t))}
+                  onSkip={() => exitRow(t.id, t.id, () => void onSkip(t))}
+                  onDismiss={() => exitRow(t.id, t.id, () => onDismiss(t))}
                   suggest={
                     voice?.status === "ready" && voice.unlocked ? (
                       <SuggestPane

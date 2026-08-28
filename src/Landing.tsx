@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DeskRow } from "./desk/DeskRow";
 import { LegalLinks } from "./Legal";
 import { Onboarding } from "./Onboarding";
 import { writeOnboardingAgenda } from "./lib/onboarding";
@@ -99,64 +100,50 @@ function MockThreadRow({
   onCta: () => void;
 }) {
   return (
-    <article className={open ? "thread-row open" : "thread-row"}>
-      <button
-        type="button"
-        className="row-head"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        <span
-          className={`bait ${card.baitClass}`}
-          title="Engagement-bait risk — higher is worse"
-        >
-          {card.bait}
-        </span>
-        <span className="row-main">
-          <span className="row-summary">{card.summary}</span>
-          <span className="row-meta">
-            <span>{card.author}</span>
-            <span>{card.ago}</span>
-            {card.engage ? (
-              <span className={`chip chip-${card.engage}`}>{card.engage}</span>
-            ) : null}
+    <DeskRow
+      open={open}
+      expandable
+      lead={card.bait}
+      leadTitle="Engagement-bait risk — higher is worse"
+      leadClassName={`bait ${card.baitClass}`}
+      summary={card.summary}
+      meta={
+        <>
+          <span>{card.author}</span>
+          <span>{card.ago}</span>
+          {card.engage ? (
+            <span className={`chip chip-${card.engage}`}>{card.engage}</span>
+          ) : null}
+        </>
+      }
+      onToggle={onToggle}
+    >
+      <p className="original">{card.text}</p>
+      <p className="reason">{card.reason}</p>
+      <div className="tags">
+        {card.tags.map((tag) => (
+          <span className="tag" key={tag}>
+            {tag}
           </span>
+        ))}
+      </div>
+      <div className="row">
+        <button className="primary" type="button" onClick={onCta}>
+          Mark interacted
+        </button>
+        <button className="ghost" type="button" onClick={onCta}>
+          Skip
+        </button>
+        <button className="ghost" type="button" onClick={onCta}>
+          Not interested
+        </button>
+        <span className="landing-demo-hint">
+          {signedIn
+            ? "demo — open the desk to use this"
+            : "demo — sign in to use the desk"}
         </span>
-        <span className="caret" aria-hidden="true">
-          {open ? "–" : "+"}
-        </span>
-      </button>
-
-      {open ? (
-        <div className="row-detail">
-          <p className="original">{card.text}</p>
-          <p className="reason">{card.reason}</p>
-          <div className="tags">
-            {card.tags.map((tag) => (
-              <span className="tag" key={tag}>
-                {tag}
-              </span>
-            ))}
-          </div>
-          <div className="row">
-            <button className="primary" type="button" onClick={onCta}>
-              Mark interacted
-            </button>
-            <button className="ghost" type="button" onClick={onCta}>
-              Skip
-            </button>
-            <button className="ghost" type="button" onClick={onCta}>
-              Not interested
-            </button>
-            <span className="landing-demo-hint">
-              {signedIn
-                ? "demo — open the desk to use this"
-                : "demo — sign in to use the desk"}
-            </span>
-          </div>
-        </div>
-      ) : null}
-    </article>
+      </div>
+    </DeskRow>
   );
 }
 

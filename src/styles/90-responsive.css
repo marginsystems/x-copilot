@@ -64,8 +64,17 @@
   }
 
   .row-head {
-    grid-template-columns: 38px 1fr 16px;
     gap: 10px;
+  }
+
+  .row-lead {
+    flex-basis: 38px;
+    width: 38px;
+  }
+
+  .caret {
+    flex-basis: 16px;
+    width: 16px;
   }
 
   .history-row,

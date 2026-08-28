@@ -95,7 +95,6 @@
 }
 
 .next-action-head {
-  grid-template-columns: 44px 1fr;
   cursor: default;
 }
 
@@ -103,7 +102,8 @@
   background: transparent;
 }
 
-.daily-missions-meta {
+.daily-missions-meta,
+.daily-missions-row .row-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -224,19 +224,46 @@
   white-space: pre-wrap;
 }
 
+@keyframes desk-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .thread-row {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
 }
 
-.thread-row:not(.open) {
-  min-height: 68px;
+.threads .thread-row {
+  animation: desk-row-in 380ms var(--ease-out) both;
+  animation-delay: calc(min(var(--i, 0), 8) * 28ms);
 }
 
-.thread-row:not(.open) .row-head {
+@keyframes desk-row-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.threads .thread-row.is-exiting {
+  animation: desk-row-out 380ms var(--ease-out) both;
+  pointer-events: none;
+}
+
+.thread-row:not(.open) {
   min-height: 68px;
-  align-items: center;
 }
 
 .thread-row.open {
@@ -253,16 +280,27 @@
 
 .row-head {
   width: 100%;
-  display: grid;
-  grid-template-columns: 44px 1fr 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   gap: 12px;
-  align-items: start;
+  min-height: 68px;
   background: transparent;
   border: none;
   color: inherit;
   text-align: left;
   padding: 12px 14px;
   cursor: pointer;
+}
+
+.row-lead {
+  flex: 0 0 44px;
+  width: 44px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
 }
 
 .row-head:hover {
@@ -296,8 +334,10 @@
 }
 
 .row-main {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 5px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -307,7 +347,7 @@
   overflow-wrap: anywhere;
 }
 
-.thread-row:not(.open):not(.next-action-row) .row-summary {
+.thread-row:not(.next-action-row):not(.daily-missions-row) .row-summary {
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
@@ -335,6 +375,12 @@
 }
 
 .caret {
+  flex: 0 0 20px;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
   font-family: var(--font-mono);
   color: var(--text);
   font-size: 1.25rem;
@@ -431,16 +477,42 @@
 
 /* Expanded detail */
 
+.row-detail-slot {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 380ms var(--ease-out);
+}
+
+.thread-row.open .row-detail-slot {
+  grid-template-rows: 1fr;
+}
+
+.row-detail-inner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity 280ms var(--ease-out),
+    transform 380ms var(--ease-out);
+}
+
+.thread-row.open .row-detail-inner {
+  opacity: 1;
+  transform: none;
+}
+
+.thread-row:not(.open) .row-detail-slot {
+  pointer-events: none;
+}
+
 .row-detail {
   border-top: 1px solid var(--border);
   padding: 14px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   min-width: 0;
-}
-
-.thread-row:not(.open) .row-detail {
-  display: none;
 }
 
 .row-detail .original {
