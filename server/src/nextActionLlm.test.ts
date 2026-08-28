@@ -321,6 +321,6 @@ describe("nextActionLlm", () => {
       }),
     });
     assert.equal(action.kind, "quote");
-    assert.match(action.text, /Suggested quote/);
+    assert.match(action.text, /Work the Suggested quote while/);
   });
 });
