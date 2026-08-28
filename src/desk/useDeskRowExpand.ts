@@ -37,11 +37,15 @@ export function useDeskRowExpand(open: boolean): {
       };
     }
     if (phase === "leaving") {
-      const timer = setTimeout(
-        () => setPhase(deskRowPhaseAfterLeave),
-        DESK_ROW_EXPAND_MS,
-      );
-      return () => clearTimeout(timer);
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+        setPhase(deskRowPhaseAfterLeave);
+      } else {
+        const timer = setTimeout(
+          () => setPhase(deskRowPhaseAfterLeave),
+          DESK_ROW_EXPAND_MS,
+        );
+        return () => clearTimeout(timer);
+      }
     }
     return undefined;
   }, [phase]);

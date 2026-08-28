@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, type Dispatch, type SetStateAction } from "react";
 import { SuggestPane } from "../SuggestPane";
 import { SuggestLocked } from "../VoiceCard";
 import type { AuthSessionUser } from "../auth/types";
@@ -95,7 +95,13 @@ export function ThreadsTabs({
   onSkip,
   onDismiss,
 }: ThreadsTabsProps) {
-  const { exitingIds, beginExit } = useDeskRowExit();
+  const { exitingIds, beginExit, clearGone } = useDeskRowExit();
+  useEffect(() => {
+    const live = new Set<string>();
+    for (const t of curatedThreads) live.add(t.id);
+    for (const row of forYouSuggestions) live.add(row.id);
+    clearGone(live);
+  }, [curatedThreads, forYouSuggestions, clearGone]);
   function exitRow(id: string, expandedKey: string, then: () => void) {
     setExpandedId((cur) => (cur === expandedKey ? null : cur));
     beginExit(id, then);
