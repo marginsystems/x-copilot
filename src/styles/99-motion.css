@@ -76,7 +76,8 @@
     transition: none;
   }
 
-  .threads .thread-row {
+  .threads .thread-row,
+  .threads .thread-row.is-exiting {
     animation: none;
   }
 }
