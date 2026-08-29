@@ -3,9 +3,9 @@ export const FADE_SWAP_MS = 380;
 
 const HOLD_SHORT = /^Hold short \d+s\.?$/;
 
-/** Same sentence with only a trailing 4 or 4/20 count. */
+/** Same sentence with only a trailing 4, 4/20 count, or hold-short seconds. */
 export function flightBase(text: string): string {
-  return text.replace(/\s+\d+(?:\/\d+)?\s*$/, "");
+  return text.replace(/\s+\d+(?:\/\d+)?s?\.?\s*$/, "");
 }
 
 /** Animate stage copy. Leave hold-short and live counts instant. */
