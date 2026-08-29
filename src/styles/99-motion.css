@@ -77,8 +77,14 @@
   }
 
   .threads .thread-row,
-  .threads .thread-row.is-exiting {
+  .threads .thread-row.is-exiting,
+  .fade-swap-in,
+  .fade-swap-out {
     animation: none;
+  }
+
+  .fade-swap-out {
+    opacity: 0;
   }
 }
 

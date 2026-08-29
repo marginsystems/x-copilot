@@ -4,6 +4,7 @@ import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import type { GamificationStats } from "../lib/gamification";
 import { ScoutPixelField } from "../ScoutPixelField";
 import { ActivityStrip } from "./ActivityStrip";
+import { FadeSwap } from "./FadeSwap";
 
 type DeskTopProps = {
   open: boolean;
@@ -106,7 +107,7 @@ export function DeskTop({
             )}
             <div className="desk-top-bar-copy" aria-live="polite">
               <p className={searching ? "status scout-flight-line" : "status status-main"}>
-                {statusLine}
+                <FadeSwap text={statusLine} />
               </p>
               {showUsageCta ? (
                 <p className="status status-hint">
@@ -186,7 +187,7 @@ export function DeskTop({
                       searching ? "status scout-flight-line" : "status status-main"
                     }
                   >
-                    {statusLine}
+                    <FadeSwap text={statusLine} />
                   </p>
                   {showUsageCta ? (
                     <p className="status status-hint">
