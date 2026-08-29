@@ -66,6 +66,8 @@ describe("draftForYouActions", () => {
     assert.match(FOR_YOU_DIGEST_SYSTEM, /named other side/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /younger than 1 hour/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /AVOID_24H/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /100\+ views only/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /Under 100 views is a miss/);
     assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /reply farm/i);
   });
 
@@ -309,6 +311,8 @@ describe("draftForYouExtraPosts", () => {
   it("keeps the why clause short in the extra system prompt", () => {
     assert.match(FOR_YOU_EXTRA_SYSTEM, /max 90 characters/);
     assert.match(FOR_YOU_EXTRA_SYSTEM, /No second sentence/);
+    assert.match(FOR_YOU_EXTRA_SYSTEM, /100\+ views/);
+    assert.match(FOR_YOU_EXTRA_SYSTEM, /sub-100/);
   });
 
   it("keeps three unique originals", async () => {
