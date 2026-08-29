@@ -2,11 +2,22 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { tweetResultToCard } from "./xGraphqlParse.ts";
 import {
+  hasCardUri,
   isNativeMediaUrl,
   isOutboundLinkUrl,
   isXArticleUrl,
   textHasOutboundLink,
 } from "./xLinks.ts";
+
+describe("hasCardUri", () => {
+  it("treats any official v2 card_uri as a card", () => {
+    assert.equal(hasCardUri("card://2087820143858499584"), true);
+    assert.equal(hasCardUri("  card://1  "), true);
+    assert.equal(hasCardUri(""), false);
+    assert.equal(hasCardUri(undefined), false);
+    assert.equal(hasCardUri(null), false);
+  });
+});
 
 describe("isXArticleUrl", () => {
   it("matches native X Article permalinks", () => {

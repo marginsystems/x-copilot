@@ -96,7 +96,7 @@ export type AppSettings = {
   maxThreadChars: number;
   /** Hard-drop X Articles and replies under those conversations. */
   dropArticles: boolean;
-  /** Hard-drop candidates with an off-platform link, pre-triage. */
+  /** Hard-drop candidates with an off-platform link or website card, pre-triage. */
   dropOutboundLinks: boolean;
   /** Hard-drop candidates whose text contains an em dash (U+2014), pre-triage. */
   dropEmDashes: boolean;

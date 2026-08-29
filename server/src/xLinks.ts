@@ -81,6 +81,14 @@ export function isXSiteUrl(url: string): boolean {
   }
 }
 
+/**
+ * Official v2 `tweet.fields=card_uri`. X does not return the card landing
+ * URL (daventys.com etc.) — only `card://…`. Any present URI is a card.
+ */
+export function hasCardUri(cardUri: unknown): boolean {
+  return typeof cardUri === "string" && cardUri.trim().length > 0;
+}
+
 /** True when a URL string is an off-platform (non-X, non-media) link. */
 export function isOutboundLinkUrl(url: string): boolean {
   const raw = url.trim();
