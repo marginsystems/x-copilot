@@ -65,6 +65,7 @@ describe("nextActionLlm", () => {
     assert.match(NEXT_ACTION_SYSTEM, /Never say hit 5 replies/);
     assert.doesNotMatch(NEXT_ACTION_SYSTEM, /hit 5 replies today/);
     assert.match(NEXT_ACTION_SYSTEM, /kind=quote only when suggestions.quote > 0/);
+    assert.match(NEXT_ACTION_SYSTEM, /kind=original only when originalsToday < originalTarget/);
   });
 
   it("rejects quote and repost unless those Suggested cards are waiting", () => {
@@ -87,6 +88,19 @@ describe("nextActionLlm", () => {
       suggestions: { total: 0, post: 0, quote: 0, repost: 0, reply: 0 },
     });
     assert.equal(nextActionAllowed("for_you", empty), false);
+  });
+
+  it("rejects original once today's original mission is in", () => {
+    const done = snapshot({
+      originalsToday: 1,
+      suggestions: { total: 2, post: 1, quote: 1, repost: 0, reply: 0 },
+    });
+    assert.equal(nextActionAllowed("original", done), false);
+    assert.equal(nextActionAllowed("quote", done), true);
+    assert.equal(
+      nextActionAllowed("original", snapshot({ originalsToday: 0 })),
+      true,
+    );
   });
 
   it("parses a grounded next-action payload", () => {
@@ -115,6 +129,30 @@ describe("nextActionLlm", () => {
         snapshot({ marksToday: 2, originalsToday: 0, takeoffsToday: 1 }),
       ).kind,
       "original",
+    );
+    assert.equal(
+      fallbackNextAction(
+        snapshot({
+          marksToday: 13,
+          originalsToday: 1,
+          takeoffsToday: 1,
+          lastMarkUtcDay: "2026-08-26",
+          suggestions: { total: 3, post: 2, quote: 1, repost: 0, reply: 0 },
+        }),
+      ).kind,
+      "quote",
+    );
+    assert.equal(
+      fallbackNextAction(
+        snapshot({
+          marksToday: 2,
+          originalsToday: 1,
+          takeoffsToday: 1,
+          lastMarkUtcDay: "2026-08-26",
+          suggestions: { total: 0, post: 0, quote: 0, repost: 0, reply: 0 },
+        }),
+      ).kind,
+      "takeoff",
     );
   });
 
@@ -297,6 +335,31 @@ describe("nextActionLlm", () => {
     assert.equal(calls, 1);
     assert.equal(action.kind, "for_you");
     assert.match(action.text, /2 left/);
+  });
+
+  it("drops an LLM original when today's original mission is already in", async () => {
+    const snap = snapshot({
+      marksToday: 13,
+      originalsToday: 1,
+      takeoffsToday: 1,
+      lastMarkUtcDay: "2026-08-26",
+      suggestions: { total: 3, post: 2, quote: 1, repost: 0, reply: 0 },
+    });
+    const action = await getOrRefreshNextAction({
+      userId: "u1",
+      snapshot: snap,
+      inputsHash: "og-done",
+      nowMs: NOW_MS,
+      chat: async () => ({
+        ok: true as const,
+        content:
+          '{"kind":"original","text":"You posted 13 replies today; shift gears and write one original post."}',
+        model: "test-model",
+        provider: "deepseek" as const,
+      }),
+    });
+    assert.equal(action.kind, "quote");
+    assert.match(action.text, /Suggested quote/);
   });
 
   it("keeps an LLM quote when a Suggested quote is waiting", async () => {
