@@ -138,7 +138,7 @@ export function SettingsForm({
                 }))
               }
             />
-            <span>Drop posts with off-platform links</span>
+            <span>Drop posts with off-platform links or website cards</span>
           </label>
           <label className="settings-check">
             <input
