@@ -339,10 +339,7 @@ export function loadSettings(): AppSettings {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!raw) return { ...DEFAULT_SETTINGS };
     const settings = normalizeSettings(JSON.parse(raw) as unknown);
-    if (
-      localStorage.getItem(SETTINGS_EXCLUDED_TAGS_MIGRATED_KEY) === null ||
-      sameTagList(settings.excludedTags, LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT)
-    ) {
+    if (localStorage.getItem(SETTINGS_EXCLUDED_TAGS_MIGRATED_KEY) === null) {
       settings.excludedTags = upgradeLegacyExcludedTags(settings.excludedTags);
     }
     if (localStorage.getItem(SETTINGS_EXCLUDED_ACCOUNTS_MIGRATED_KEY) === null) {

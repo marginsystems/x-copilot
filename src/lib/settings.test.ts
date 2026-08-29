@@ -285,12 +285,14 @@ describe("loadSettings / saveSettings", () => {
     ]);
   });
 
-  it("adds interpersonal_conflict when stored tags are still the previous default pair", () => {
+  it("keeps a deliberate save that removed only the conflict chip", () => {
     saveSettings({
       ...DEFAULT_SETTINGS,
       excludedTags: [...LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT],
     });
-    assert.deepEqual(loadSettings().excludedTags, [...DEFAULT_EXCLUDED_TAGS]);
+    assert.deepEqual(loadSettings().excludedTags, [
+      ...LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT,
+    ]);
   });
 
   it("adds boardyai when stored accounts are still the previous default", () => {
