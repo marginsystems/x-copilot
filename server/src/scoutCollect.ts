@@ -766,7 +766,7 @@ export async function runScoutCollect(opts: {
               : `Scout finished — ${cool.length} cool thread${cool.length === 1 ? "" : "s"} (supply exhausted).`;
 
   const linkWarning = linkFilteredTotal
-    ? `Dropped ${linkFilteredTotal} website cards.`
+    ? `Dropped ${linkFilteredTotal} posts with outbound links.`
     : undefined;
   const emDashWarning = emDashFilteredTotal
     ? `Dropped ${emDashFilteredTotal} posts with em dashes.`

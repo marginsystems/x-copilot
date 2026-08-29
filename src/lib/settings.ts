@@ -122,8 +122,8 @@ export type AppSettings = {
   excludedAccounts: string[];
 };
 
-/** Settings checkbox — v2 only gives `card://…`, not daventys.com. */
-export const DROP_OUTBOUND_LINKS_LABEL = "Drop website cards";
+/** Settings checkbox — the filter drops card_uri cards and any outbound link. */
+export const DROP_OUTBOUND_LINKS_LABEL = "Drop posts with outbound links";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   maxThreadChars: DEFAULT_MAX_THREAD_CHARS,

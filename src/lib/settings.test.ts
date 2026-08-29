@@ -184,10 +184,10 @@ describe("normalizeSettings", () => {
     assert.equal(normalizeSettings(stored).dropOutboundLinks, true);
   });
 
-  it("settings copy says we drop website cards, not resolved landing URLs", () => {
-    assert.equal(DROP_OUTBOUND_LINKS_LABEL, "Drop website cards");
-    assert.match(DROP_OUTBOUND_LINKS_LABEL, /website cards/i);
-    assert.doesNotMatch(DROP_OUTBOUND_LINKS_LABEL, /off-platform/);
+  it("settings copy says we drop posts with outbound links, not just website cards", () => {
+    assert.equal(DROP_OUTBOUND_LINKS_LABEL, "Drop posts with outbound links");
+    assert.match(DROP_OUTBOUND_LINKS_LABEL, /outbound links/i);
+    assert.doesNotMatch(DROP_OUTBOUND_LINKS_LABEL, /website cards/i);
   });
 });
 
