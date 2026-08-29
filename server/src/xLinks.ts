@@ -83,10 +83,15 @@ export function isXSiteUrl(url: string): boolean {
 
 /**
  * Official v2 `tweet.fields=card_uri`. X does not return the card landing
- * URL (daventys.com etc.) — only `card://…`. Any present URI is a card.
+ * URL (daventys.com etc.) — only `card://…`. Native cards (polls
+ * `poll://…`, Spaces `audiospace://…`, live `broadcast://…`) and X
+ * Articles stay on-platform, so only the website/summary `card://` scheme
+ * counts as outbound.
  */
 export function hasCardUri(cardUri: unknown): boolean {
-  return typeof cardUri === "string" && cardUri.trim().length > 0;
+  return (
+    typeof cardUri === "string" && /^card:\/\//i.test(cardUri.trim())
+  );
 }
 
 /** True when a URL string is an off-platform (non-X, non-media) link. */

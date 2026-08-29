@@ -10,9 +10,19 @@ import {
 } from "./xLinks.ts";
 
 describe("hasCardUri", () => {
-  it("treats any official v2 card_uri as a card", () => {
+  it("flags website/summary card:// URIs", () => {
     assert.equal(hasCardUri("card://2087820143858499584"), true);
     assert.equal(hasCardUri("  card://1  "), true);
+    assert.equal(hasCardUri("CARD://1"), true);
+  });
+
+  it("does not flag native X card schemes as outbound", () => {
+    assert.equal(hasCardUri("poll://2087820143858499584"), false);
+    assert.equal(hasCardUri("audiospace://2087820143858499584"), false);
+    assert.equal(hasCardUri("broadcast://2087820143858499584"), false);
+  });
+
+  it("treats missing card_uri as no card", () => {
     assert.equal(hasCardUri(""), false);
     assert.equal(hasCardUri(undefined), false);
     assert.equal(hasCardUri(null), false);
