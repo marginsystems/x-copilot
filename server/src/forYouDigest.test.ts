@@ -11,6 +11,7 @@ import {
 import { patchOwnPostSnapshot, upsertOwnPost } from "./ownPostStore.ts";
 import type { ParsedPostCreate } from "./xActivity.ts";
 import {
+  FOR_YOU_MIN_ENGAGE_VIEWS,
   FOR_YOU_MIN_POST_AGE_MS,
   MIN_T24H_SNAPSHOTS,
   countT24hSnapshots,
@@ -103,6 +104,37 @@ describe("forYouDigest", () => {
       ranked.worst.every((w) => !ranked.best.some((b) => b.id === w.id)),
     );
     assert.ok(ranked.recentOriginals.length >= 1);
+  });
+
+  it("does not put sub-100 view posts in BEST even when they beat other misses", () => {
+    for (const [id, views] of [
+      ["5", 5],
+      ["25", 25],
+      ["43", 43],
+      ["900", 900],
+    ] as const) {
+      upsertOwnPost({
+        parsed: post({ postId: id }),
+        userId: "u1",
+        tenantId: "local",
+      });
+      patchOwnPostSnapshot(id, "t24h", {
+        views,
+        likes: 0,
+        replies: 0,
+        retweets: 0,
+        bookmarks: 0,
+      });
+    }
+    const ranked = rankOwnPosts("u1");
+    assert.deepEqual(
+      ranked.best.map((p) => p.id),
+      ["900"],
+    );
+    assert.equal(FOR_YOU_MIN_ENGAGE_VIEWS, 100);
+    assert.ok(ranked.best.every((p) => p.views >= FOR_YOU_MIN_ENGAGE_VIEWS));
+    assert.ok(ranked.worst.some((p) => p.id === "5"));
+    assert.ok(ranked.worst.some((p) => p.id === "25"));
   });
 
   it("omits own posts younger than 1 hour from recent lists", () => {
@@ -281,6 +313,12 @@ describe("forYouDigest", () => {
           url: "https://x.com/ok/status/4",
           views: 40,
         },
+        {
+          threadId: "mem-hit",
+          author: "@hit",
+          url: "https://x.com/hit/status/6",
+          views: 140,
+        },
       ],
     });
     const kept = filterDigestActions(
@@ -307,9 +345,15 @@ describe("forYouDigest", () => {
           },
           {
             kind: "reply",
-            why: "40 views on a memory worth another take",
+            why: "40 views is still a miss",
             targetId: "mem-ok",
             targetUrl: "https://x.com/ok/status/4",
+          },
+          {
+            kind: "reply",
+            why: "140 views on a memory worth another take",
+            targetId: "mem-hit",
+            targetUrl: "https://x.com/hit/status/6",
           },
           {
             kind: "quote",
@@ -324,7 +368,7 @@ describe("forYouDigest", () => {
     );
     assert.deepEqual(
       kept.map((a) => a.targetId ?? a.kind),
-      ["mem-ok", "10"],
+      ["mem-hit", "10"],
     );
   });
 
@@ -427,7 +471,7 @@ describe("forYouDigest", () => {
           kind: "original",
           text: "strong recent",
           url: "https://x.com/desk/status/4",
-          views: 40,
+          views: 140,
           likes: 5,
           replies: 1,
           retweets: 0,
@@ -454,7 +498,7 @@ describe("forYouDigest", () => {
           },
           {
             kind: "repost",
-            why: "40-view strong recent",
+            why: "140-view strong recent",
             targetId: "4",
             targetUrl: "https://x.com/desk/status/4",
           },

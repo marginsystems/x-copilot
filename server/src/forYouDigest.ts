@@ -17,8 +17,12 @@ import {
 import type { OwnPostKind } from "./xActivity.js";
 
 export const MIN_T24H_SNAPSHOTS = 5;
-/** Memories / own-posts below this are avoid-list, not reply/quote/repost targets. */
-export const FOR_YOU_MIN_ENGAGE_VIEWS = 10;
+/**
+ * Under this is a miss — not a winner. Do not put 25-view posts in BEST
+ * just because they beat a 5-view post. Same floor for quote/repost/reply
+ * targets.
+ */
+export const FOR_YOU_MIN_ENGAGE_VIEWS = 100;
 /** Recent lists omit posts younger than this — t0 views are not a real outcome. */
 export const FOR_YOU_MIN_POST_AGE_MS = 60 * 60 * 1000;
 const CLIP = 200;
@@ -130,7 +134,9 @@ export function rankOwnPosts(userId: string, nowMs = Date.now()): {
     )
     .all(userId) as Array<Record<string, unknown>>;
   const mapped = scored.map(mapPost);
-  const best = mapped.slice(0, 5);
+  const best = mapped
+    .filter((p) => p.views >= FOR_YOU_MIN_ENGAGE_VIEWS)
+    .slice(0, 5);
   const bestIds = new Set(best.map((p) => p.id));
   const worst = mapped
     .filter((p) => !bestIds.has(p.id))

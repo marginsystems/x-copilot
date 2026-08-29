@@ -19,7 +19,8 @@ Return ONLY JSON:
 {"actions":[{"kind":"post"|"quote"|"repost"|"reply","why":"one short clause, max 90 characters, grounded in a metric or habit","draft":"text when kind is post or quote","targetId":"id from the digest when kind is quote, repost, or reply","targetUrl":"url from the digest when you have one","targetAuthor":"@handle when you have one"}]}
 Rules:
 - 2 to 4 actions. Mix kinds when the digest supports it. At least one kind=post.
-- BEST_24H is what worked. Double down: write the next original in that shape, or quote/repost those ids.
+- BEST_24H is what worked (100+ views only). Double down on those shapes, or quote/repost those ids. If BEST_24H is empty, there is no winner — do not invent one from RECENT_* or by ranking 25 views over 5.
+- Under 100 views is a miss for anyone. Never call a 25-view post "better", "best", or worth doubling down on versus a 5-view post. Both failed.
 - AVOID_24H and thin memories are what not to repeat. Never reply, quote, or repost to "boost" a low-view item. Never pitch a move because something "only got N views."
 - kind=post: original in their voice, echoing BEST_24H. draft required. no targetId. The draft must invite a reply — a real question, a stake they can cut, or a named other side. Not a slogan. Not "thoughts?".
 - kind=quote: draft required. targetId/targetUrl MUST be copied from BEST_24H or a strong recent, not AVOID.
@@ -45,7 +46,7 @@ function buildUserPrompt(digest: ForYouDigest): string {
         })
       : "(none)",
     "",
-    "BEST_24H (double down — write like these, or quote/repost them)",
+    "BEST_24H (100+ views only — double down on these, or quote/repost them. Empty = no winner)",
     JSON.stringify(digest.best),
     "",
     "AVOID_24H (do not revive — do not reply/quote/repost these)",
@@ -124,7 +125,7 @@ Return ONLY JSON:
 Rules:
 - Exactly 3 kind=post items. draft required. no targetId.
 - Each draft invites a reply — a real question, a stake they can cut, or a named other side. Not a slogan. Not "thoughts?".
-- Echo BEST_24H shape and their voice. Do not revive AVOID_24H.
+- Echo BEST_24H shape and their voice when BEST is non-empty (100+ views). If BEST is empty, write from agenda/voice — do not treat a sub-100 RECENT post as a winner. Do not revive AVOID_24H.
 - why talks to the operator in second person. Never first person. draft stays in their voice.
 - why is one short clause, max 90 characters. Cite one number or habit. No second sentence.
 - Do not invent ids or urls. Do not auto-post. Plain language. No markdown fences.`;
