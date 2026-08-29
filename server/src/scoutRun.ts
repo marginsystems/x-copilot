@@ -282,7 +282,7 @@ export async function runScoutSearch(opts: {
   const linkFiltered =
     afterLinks.linkFilteredCount + afterHydrateLinks.linkFilteredCount;
   const linkWarning = linkFiltered
-    ? `Dropped ${linkFiltered} posts with outbound links.`
+    ? `Dropped ${linkFiltered} website cards.`
     : undefined;
   const emDashWarning = afterEmDash.emDashFilteredCount
     ? `Dropped ${afterEmDash.emDashFilteredCount} posts with em dashes.`
