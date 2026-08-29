@@ -178,6 +178,7 @@ type V2LookupJson = {
     author_id?: string;
     note_tweet?: { text?: string };
     article?: unknown;
+    card_uri?: string;
     entities?: {
       urls?: Array<{
         url?: string;
