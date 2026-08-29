@@ -4,6 +4,7 @@ import {
   DEFAULT_EXCLUDED_ACCOUNTS,
   DEFAULT_EXCLUDED_TAGS,
   DEFAULT_SETTINGS,
+  DROP_OUTBOUND_LINKS_LABEL,
   LEGACY_DEFAULT_EXCLUDED_ACCOUNTS,
   clampMaxThreadChars,
   clampTargetCoolThreads,
@@ -181,6 +182,12 @@ describe("normalizeSettings", () => {
     const stored = { ...DEFAULT_SETTINGS } as Record<string, unknown>;
     delete stored.dropOutboundLinks;
     assert.equal(normalizeSettings(stored).dropOutboundLinks, true);
+  });
+
+  it("settings copy says we drop website cards, not resolved landing URLs", () => {
+    assert.equal(DROP_OUTBOUND_LINKS_LABEL, "Drop website cards");
+    assert.match(DROP_OUTBOUND_LINKS_LABEL, /website cards/i);
+    assert.doesNotMatch(DROP_OUTBOUND_LINKS_LABEL, /off-platform/);
   });
 });
 
