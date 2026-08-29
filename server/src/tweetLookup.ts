@@ -178,6 +178,7 @@ type V2LookupJson = {
     author_id?: string;
     note_tweet?: { text?: string };
     article?: unknown;
+    card_uri?: string;
     entities?: {
       urls?: Array<{
         url?: string;
@@ -229,7 +230,7 @@ export async function fetchParentTweet(opts: {
   const res = await xApiGet({
     path: `/tweets/${encodeURIComponent(tweetId)}`,
     query: {
-      "tweet.fields": "created_at,author_id,note_tweet,entities,article",
+      "tweet.fields": "created_at,author_id,note_tweet,entities,article,card_uri",
       expansions: "author_id",
       "user.fields": "username,name",
     },

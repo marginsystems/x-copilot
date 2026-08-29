@@ -96,7 +96,10 @@ export type AppSettings = {
   maxThreadChars: number;
   /** Hard-drop X Articles and replies under those conversations. */
   dropArticles: boolean;
-  /** Hard-drop candidates with an off-platform link, pre-triage. */
+  /**
+   * Hard-drop official website cards (`card_uri`) and URL-entity outbound
+   * links. v2 does not return the card landing URL.
+   */
   dropOutboundLinks: boolean;
   /** Hard-drop candidates whose text contains an em dash (U+2014), pre-triage. */
   dropEmDashes: boolean;
@@ -118,6 +121,9 @@ export type AppSettings = {
    */
   excludedAccounts: string[];
 };
+
+/** Settings checkbox — the filter drops card_uri cards and any outbound link. */
+export const DROP_OUTBOUND_LINKS_LABEL = "Drop posts with outbound links";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   maxThreadChars: DEFAULT_MAX_THREAD_CHARS,

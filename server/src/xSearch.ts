@@ -137,7 +137,7 @@ export async function searchTimeline(opts: {
       start_time: startTime,
       sort_order: product === "Top" ? "relevancy" : "recency",
       "tweet.fields":
-        "created_at,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,entities,public_metrics,note_tweet,article",
+        "created_at,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,entities,public_metrics,note_tweet,article,card_uri",
       expansions: searchExpansions(opts.expandReferenced !== false),
       "user.fields": "username,name,protected",
       ...(opts.cursor?.trim() ? { next_token: opts.cursor.trim() } : {}),

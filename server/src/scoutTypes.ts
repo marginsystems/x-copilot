@@ -24,7 +24,7 @@ export type ScoutPipelineCounts = {
 export type ScoutFilters = {
   maxThreadChars?: number;
   dropArticles?: boolean;
-  /** When true (default), hard-drop posts with an off-platform link. */
+  /** When true (default), hard-drop website cards and URL-entity outbound links. */
   dropOutboundLinks?: boolean;
   /** When true (default), hard-drop posts containing an em dash (U+2014). */
   dropEmDashes?: boolean;

@@ -5,7 +5,7 @@
 import { MAX_OP_TEXT_CHARS, type ThreadCard } from "./threadCard.js";
 import {
   entityUrlsHaveOutbound,
-  isOutboundLinkUrl,
+  hasCardUri,
   isXArticleUrl,
   mediaShortlinkKeys,
   textHasOutboundLink,
@@ -47,6 +47,8 @@ export type V2Tweet = {
   };
   /** X Article metadata when `tweet.fields=article` is requested. */
   article?: unknown;
+  /** Website / ads card. Landing URL is not in the v2 payload. */
+  card_uri?: string;
   public_metrics?: {
     like_count?: number;
     reply_count?: number;
@@ -67,6 +69,7 @@ function includedTweetBody(tw: V2Tweet): string {
 }
 
 function v2TweetHasOutboundLink(tweet: V2Tweet): boolean {
+  if (hasCardUri(tweet.card_uri)) return true;
   if (entityUrlsHaveOutbound(tweet.entities?.urls)) return true;
   if (entityUrlsHaveOutbound(tweet.note_tweet?.entity_set?.urls)) return true;
   return textHasOutboundLink(includedTweetBody(tweet));
@@ -228,20 +231,7 @@ export function v2TweetToCard(
   // Prefer already-billed includes.tweets for reply OP so hydrate can skip.
   applyIncludedReplyOp(card, tweet, usersById, tweetsById);
 
-  const urls = tweet.entities?.urls ?? [];
-  for (const u of urls) {
-    const expanded = (u.expanded_url || u.url || "").trim();
-    if (expanded && isOutboundLinkUrl(expanded)) {
-      card.hasOutboundLink = true;
-      break;
-    }
-  }
-  if (entityUrlsHaveOutbound(tweet.note_tweet?.entity_set?.urls)) {
-    card.hasOutboundLink = true;
-  }
-  if (!card.hasOutboundLink && textHasOutboundLink(text)) {
-    card.hasOutboundLink = true;
-  }
+  if (v2TweetHasOutboundLink(tweet)) card.hasOutboundLink = true;
 
   const mediaShortlinks = [...mediaShortlinkKeys(tweet.entities)];
   if (mediaShortlinks.length) card.mediaShortlinks = mediaShortlinks;
