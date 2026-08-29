@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { fadeSwapShouldAnimate } from "./fadeSwap.ts";
+import { fadeSwapShouldAnimate, flightBase } from "./fadeSwap.ts";
 
 describe("fadeSwapShouldAnimate", () => {
   it("animates takeoff stage copy", () => {
@@ -29,5 +29,15 @@ describe("fadeSwapShouldAnimate", () => {
       false,
     );
     assert.equal(fadeSwapShouldAnimate("In the air…", "In the air…"), false);
+  });
+
+  it("strips only the trailing count so the swap key stays stable across ticks", () => {
+    assert.equal(flightBase("Hold short 15s."), flightBase("Hold short 14s."));
+    assert.equal(
+      flightBase("In the air… 1/20"),
+      flightBase("In the air… 2/20"),
+    );
+    assert.equal(flightBase("Plotting the route… 4/20"), "Plotting the route…");
+    assert.notEqual(flightBase("In the air… 1/20"), flightBase("Hold short 15s."));
   });
 });

@@ -4,7 +4,7 @@ export const FADE_SWAP_MS = 380;
 const HOLD_SHORT = /^Hold short \d+s\.?$/;
 
 /** Same sentence with only a trailing 4 or 4/20 count. */
-function flightBase(text: string): string {
+export function flightBase(text: string): string {
   return text.replace(/\s+\d+(?:\/\d+)?\s*$/, "");
 }
 

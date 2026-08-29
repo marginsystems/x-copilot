@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FADE_SWAP_MS, fadeSwapShouldAnimate } from "../lib/fadeSwap";
+import { FADE_SWAP_MS, fadeSwapShouldAnimate, flightBase } from "../lib/fadeSwap";
 
 export function FadeSwap({ text }: { text: string }) {
   const [shown, setShown] = useState(text);
@@ -42,7 +42,7 @@ export function FadeSwap({ text }: { text: string }) {
           {leaving}
         </span>
       ) : null}
-      <span className={playIn ? "fade-swap-item fade-swap-in" : "fade-swap-item"} key={shown}>
+      <span className={playIn ? "fade-swap-item fade-swap-in" : "fade-swap-item"} key={flightBase(shown)}>
         {shown}
       </span>
     </span>
