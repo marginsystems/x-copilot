@@ -82,5 +82,9 @@
   .fade-swap-out {
     animation: none;
   }
+
+  .fade-swap-out {
+    opacity: 0;
+  }
 }
 
