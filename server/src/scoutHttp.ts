@@ -40,6 +40,7 @@ import {
 } from "./scoutPolicy.js";
 import { runScoutSearch } from "./scoutRun.js";
 import type { ScoutFilters } from "./scoutTypes.js";
+import { normalizeAvoidPrompt } from "./threadFilters.js";
 import {
   markSortieDelivered,
   recordSortie,
@@ -65,6 +66,9 @@ export function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (typeof obj.dropEmDashes === "boolean") {
     filters.dropEmDashes = obj.dropEmDashes;
   }
+  if (typeof obj.dropProfanity === "boolean") {
+    filters.dropProfanity = obj.dropProfanity;
+  }
   if (typeof obj.dropAutomatedAccounts === "boolean") {
     filters.dropAutomatedAccounts = obj.dropAutomatedAccounts;
   }
@@ -86,6 +90,10 @@ export function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
       .filter((t): t is string => typeof t === "string")
       .map((t) => t.trim())
       .filter(Boolean);
+  }
+  if (typeof obj.avoidPrompt === "string") {
+    const avoidPrompt = normalizeAvoidPrompt(obj.avoidPrompt);
+    if (avoidPrompt) filters.avoidPrompt = avoidPrompt;
   }
   return Object.keys(filters).length ? filters : undefined;
 }

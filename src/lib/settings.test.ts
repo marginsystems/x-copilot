@@ -5,6 +5,9 @@ import {
   DEFAULT_EXCLUDED_TAGS,
   DEFAULT_SETTINGS,
   LEGACY_DEFAULT_EXCLUDED_ACCOUNTS,
+  LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT,
+  MAX_AVOID_CHARS,
+  normalizeAvoidPrompt,
   clampMaxThreadChars,
   clampTargetCoolThreads,
   formatExcludedTagsText,
@@ -154,30 +157,42 @@ describe("normalizeSettings", () => {
         dropArticles: false,
         dropOutboundLinks: false,
         dropEmDashes: false,
+        dropProfanity: false,
         dropAutomatedAccounts: false,
         targetCoolThreads: 3,
         dedupeAccounts: false,
         preferredLanguage: "es",
         excludedTags: ["promo"],
+        avoidPrompt: "  skip dunking  ",
       }),
       {
         maxThreadChars: 320,
         dropArticles: false,
         dropOutboundLinks: false,
         dropEmDashes: false,
+        dropProfanity: false,
         dropAutomatedAccounts: false,
         targetCoolThreads: 3,
         dedupeAccounts: false,
         preferredLanguage: "es",
         excludedTags: ["promo"],
         excludedAccounts: [...DEFAULT_EXCLUDED_ACCOUNTS],
+        avoidPrompt: "skip dunking",
       },
     );
     assert.equal(normalizeSettings({}).dedupeAccounts, true);
     assert.equal(normalizeSettings({}).preferredLanguage, "en");
     assert.equal(normalizeSettings({}).dropEmDashes, true);
     assert.equal(normalizeSettings({}).dropOutboundLinks, true);
+    assert.equal(normalizeSettings({}).dropProfanity, true);
     assert.equal(normalizeSettings({}).dropAutomatedAccounts, true);
+    assert.equal(normalizeSettings({}).avoidPrompt, "");
+    assert.deepEqual(DEFAULT_EXCLUDED_TAGS, [
+      "supportive_encouragement",
+      "political",
+      "interpersonal_conflict",
+    ]);
+    assert.equal(normalizeAvoidPrompt("x".repeat(MAX_AVOID_CHARS + 20)).length, MAX_AVOID_CHARS);
     const stored = { ...DEFAULT_SETTINGS } as Record<string, unknown>;
     delete stored.dropOutboundLinks;
     assert.equal(normalizeSettings(stored).dropOutboundLinks, true);
@@ -195,24 +210,28 @@ describe("loadSettings / saveSettings", () => {
       dropArticles: false,
       dropOutboundLinks: false,
       dropEmDashes: false,
+      dropProfanity: false,
       dropAutomatedAccounts: false,
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",
       excludedTags: ["supportive_encouragement", "political", "promo"],
       excludedAccounts: [...DEFAULT_EXCLUDED_ACCOUNTS],
+      avoidPrompt: "skip beginner dunking",
     });
     assert.deepEqual(saved, {
       maxThreadChars: 320,
       dropArticles: false,
       dropOutboundLinks: false,
       dropEmDashes: false,
+      dropProfanity: false,
       dropAutomatedAccounts: false,
       targetCoolThreads: 5,
       dedupeAccounts: false,
       preferredLanguage: "fr",
       excludedTags: ["supportive_encouragement", "political", "promo"],
       excludedAccounts: [...DEFAULT_EXCLUDED_ACCOUNTS],
+      avoidPrompt: "skip beginner dunking",
     });
     assert.deepEqual(loadSettings(), saved);
     assert.ok(localStorage.getItem(SETTINGS_STORAGE_KEY));
@@ -233,6 +252,17 @@ describe("loadSettings / saveSettings", () => {
     assert.deepEqual(loadSettings().excludedTags, [...DEFAULT_EXCLUDED_TAGS]);
   });
 
+  it("upgrades the pre-conflict default pair on load", () => {
+    store.set(
+      SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        ...DEFAULT_SETTINGS,
+        excludedTags: [...LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT],
+      }),
+    );
+    assert.deepEqual(loadSettings().excludedTags, [...DEFAULT_EXCLUDED_TAGS]);
+  });
+
   it("does not re-expand a legacy-shaped list when saving", () => {
     const saved = saveSettings({
       ...DEFAULT_SETTINGS,
@@ -245,13 +275,20 @@ describe("loadSettings / saveSettings", () => {
     );
   });
 
-  it("does not re-add political on reload after an explicit save", () => {
+  it("does not re-add interpersonal_conflict on reload after an explicit save", () => {
     saveSettings({
       ...DEFAULT_SETTINGS,
       excludedTags: ["supportive_encouragement"],
     });
     assert.deepEqual(loadSettings().excludedTags, [
       "supportive_encouragement",
+    ]);
+    saveSettings({
+      ...DEFAULT_SETTINGS,
+      excludedTags: [...LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT],
+    });
+    assert.deepEqual(loadSettings().excludedTags, [
+      ...LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT,
     ]);
   });
 

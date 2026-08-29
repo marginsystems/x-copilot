@@ -320,11 +320,13 @@ export function useScoutRun({
             dropArticles: settings.dropArticles,
             dropOutboundLinks: settings.dropOutboundLinks,
             dropEmDashes: settings.dropEmDashes,
+            dropProfanity: settings.dropProfanity,
             dropAutomatedAccounts: settings.dropAutomatedAccounts,
             dedupeAccounts: settings.dedupeAccounts,
             preferredLanguage: settings.preferredLanguage,
             excludedTags: settings.excludedTags,
             excludedAccounts: settings.excludedAccounts,
+            avoidPrompt: settings.avoidPrompt,
           },
         }),
         signal: ac.signal,
@@ -429,6 +431,7 @@ export function useScoutRun({
           (doneEvent.cooldownWarning ? ` · ${doneEvent.cooldownWarning}` : "") +
           (doneEvent.linkWarning ? ` · ${doneEvent.linkWarning}` : "") +
           (doneEvent.emDashWarning ? ` · ${doneEvent.emDashWarning}` : "") +
+          (doneEvent.profanityWarning ? ` · ${doneEvent.profanityWarning}` : "") +
           (doneEvent.automatedWarning ? ` · ${doneEvent.automatedWarning}` : "") +
           (doneEvent.excludedAccountWarning
             ? ` · ${doneEvent.excludedAccountWarning}`

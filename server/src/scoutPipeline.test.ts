@@ -78,4 +78,28 @@ describe("filterPostHydrateThreads", () => {
     );
     assert.equal(result.afterLinks.linkFilteredCount, 1);
   });
+
+  it("drops replies whose hydrated OP has profanity", () => {
+    const result = filterPostHydrateThreads({
+      threads: [
+        card({
+          id: "swear-reply",
+          text: "Agree, ship weekly.",
+          isReply: true,
+          inReplyToId: "swear-root",
+          opAuthor: "@writer",
+          opText: "this deploy is shit",
+          opParentDerived: true,
+        }),
+        card({ id: "kept", text: "Useful question about shipping loops." }),
+      ],
+      preferredLanguage: "en",
+      maxChars: 480,
+    });
+    assert.deepEqual(
+      result.afterProfanity.threads.map((thread) => thread.id),
+      ["kept"],
+    );
+    assert.equal(result.afterProfanity.profanityFilteredCount, 1);
+  });
 });

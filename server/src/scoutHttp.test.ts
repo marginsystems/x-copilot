@@ -144,15 +144,19 @@ describe("parseScoutFilters", () => {
         dropArticles: true,
         dropOutboundLinks: false,
         dropEmDashes: false,
+        dropProfanity: false,
         dropAutomatedAccounts: true,
         dedupeAccounts: false,
+        avoidPrompt: "  skip dunking  ",
       }),
       {
         dropArticles: true,
         dropOutboundLinks: false,
         dropEmDashes: false,
+        dropProfanity: false,
         dropAutomatedAccounts: true,
         dedupeAccounts: false,
+        avoidPrompt: "skip dunking",
       },
     );
   });

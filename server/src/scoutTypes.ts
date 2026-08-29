@@ -28,6 +28,8 @@ export type ScoutFilters = {
   dropOutboundLinks?: boolean;
   /** When true (default), hard-drop posts containing an em dash (U+2014). */
   dropEmDashes?: boolean;
+  /** When true (default), hard-drop posts whose candidate or OP text has swears. */
+  dropProfanity?: boolean;
   /** When true (default), hard-drop authors with X's Automated badge. */
   dropAutomatedAccounts?: boolean;
   /** When true (default), never curate authors from interaction history. */
@@ -36,7 +38,8 @@ export type ScoutFilters = {
   preferredLanguage?: string;
   /**
    * Post-triage Curated excludes (flags + normalized intent).
-   * Omit → server default (`supportive_encouragement`, `political`); `[]` → no tag excludes.
+   * Omit → server default (`supportive_encouragement`, `political`,
+   * `interpersonal_conflict`); `[]` → no tag excludes.
    */
   excludedTags?: string[];
   /**
@@ -44,6 +47,8 @@ export type ScoutFilters = {
    * Omit → default chatbot list; `[]` → no handle excludes.
    */
   excludedAccounts?: string[];
+  /** Standing never-show rules for triage. Empty/omit = unused. Capped at 300. */
+  avoidPrompt?: string;
 };
 
 export type ScoutStopReason =
@@ -82,6 +87,8 @@ export type ScoutCollectEvent = {
   linkWarning?: string;
   emDashFiltered?: number;
   emDashWarning?: string;
+  profanityFiltered?: number;
+  profanityWarning?: string;
   automatedFiltered?: number;
   automatedWarning?: string;
   excludedAccountFiltered?: number;

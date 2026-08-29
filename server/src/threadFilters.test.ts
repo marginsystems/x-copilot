@@ -9,6 +9,7 @@ import {
   filterByLanguage,
   filterEmDashes,
   filterOutboundLinks,
+  filterProfanity,
   filterSelfReplies,
   filterThreadsByLength,
   isNonPreferredLanguage,
@@ -363,6 +364,29 @@ describe("filterEmDashes", () => {
   });
 });
 
+describe("filterProfanity", () => {
+  it("drops candidate or OP swears by default and keeps clean ones", () => {
+    const dirty = thread("1", "what the fuck happened to this deploy");
+    const dirtyOp = thread("2", "Agree.", undefined, {
+      opText: "this is shit",
+    });
+    const clean = thread("3", "Ship weekly. Concrete take.");
+    const result = filterProfanity([dirty, dirtyOp, clean]);
+    assert.deepEqual(
+      result.threads.map((t) => t.id),
+      ["3"],
+    );
+    assert.equal(result.profanityFilteredCount, 2);
+  });
+
+  it("keeps profane posts when dropProfanity is false", () => {
+    const dirty = thread("1", "what the fuck happened");
+    const result = filterProfanity([dirty], { dropProfanity: false });
+    assert.equal(result.threads.length, 1);
+    assert.equal(result.profanityFilteredCount, 0);
+  });
+});
+
 describe("filterAutomatedAccounts", () => {
   it("drops isAutomated authors by default and keeps humans", () => {
     const bot: ThreadCard = {
@@ -660,6 +684,11 @@ describe("excluded triage tags", () => {
   });
 
   it("defaults missing exclude lists and preserves explicit empty", () => {
+    assert.deepEqual(DEFAULT_EXCLUDED_TAGS, [
+      "supportive_encouragement",
+      "political",
+      "interpersonal_conflict",
+    ]);
     assert.deepEqual(normalizeExcludedTags(undefined), [...DEFAULT_EXCLUDED_TAGS]);
     assert.deepEqual(resolveExcludedTags(undefined), [...DEFAULT_EXCLUDED_TAGS]);
     assert.deepEqual(resolveExcludedTags([]), []);
