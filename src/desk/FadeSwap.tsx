@@ -6,26 +6,34 @@ export function FadeSwap({ text }: { text: string }) {
   const [leaving, setLeaving] = useState<string | null>(null);
   const [playIn, setPlayIn] = useState(false);
   const shownRef = useRef(text);
+  const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const prev = shownRef.current;
     if (prev === text) return;
     shownRef.current = text;
-    if (!fadeSwapShouldAnimate(prev, text)) {
-      setShown(text);
-      setLeaving(null);
-      setPlayIn(false);
-      return;
+    setShown(text);
+    if (!fadeSwapShouldAnimate(prev, text)) return;
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
     }
     setLeaving(prev);
-    setShown(text);
     setPlayIn(true);
-    const timer = window.setTimeout(() => {
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
       setLeaving(null);
       setPlayIn(false);
     }, FADE_SWAP_MS);
-    return () => window.clearTimeout(timer);
   }, [text]);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+      }
+    },
+    [],
+  );
 
   return (
     <span className="fade-swap">
