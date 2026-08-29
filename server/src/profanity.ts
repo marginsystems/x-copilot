@@ -3,7 +3,7 @@
  * Keep this list short — Settings dropProfanity is the control, not a slur encyclopedia.
  */
 const PROFANITY_RE =
-  /\b(?:fuck(?:ing|ed|er|s)?|motherfuck(?:er|ing|ers)?|shit(?:ty|s)?|bullshit|asshole(?:s)?|bitch(?:es|y)?|cunt(?:s)?|whore(?:s)?|slut(?:s)?|wanker(?:s)?|twat(?:s)?)\b/i;
+  /\b(?:fuck(?:ing|ed|er|s|ers)?|motherfuck(?:er|ing|ers)?|shit(?:ty|s|ters?|tiest)?|bullshit|asshole(?:s)?|bitch(?:es|y)?|cunt(?:s)?|whore(?:s)?|slut(?:s)?|wanker(?:s)?|twat(?:s)?)\b/i;
 
 export function textHasProfanity(text: string): boolean {
   return PROFANITY_RE.test(text);

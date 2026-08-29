@@ -275,7 +275,7 @@ describe("loadSettings / saveSettings", () => {
     );
   });
 
-  it("does not re-add interpersonal_conflict on reload after an explicit save", () => {
+  it("does not re-add interpersonal_conflict on reload after an explicit save that removed it", () => {
     saveSettings({
       ...DEFAULT_SETTINGS,
       excludedTags: ["supportive_encouragement"],
@@ -283,13 +283,14 @@ describe("loadSettings / saveSettings", () => {
     assert.deepEqual(loadSettings().excludedTags, [
       "supportive_encouragement",
     ]);
+  });
+
+  it("adds interpersonal_conflict when stored tags are still the previous default pair", () => {
     saveSettings({
       ...DEFAULT_SETTINGS,
       excludedTags: [...LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT],
     });
-    assert.deepEqual(loadSettings().excludedTags, [
-      ...LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT,
-    ]);
+    assert.deepEqual(loadSettings().excludedTags, [...DEFAULT_EXCLUDED_TAGS]);
   });
 
   it("adds boardyai when stored accounts are still the previous default", () => {

@@ -10,6 +10,14 @@ describe("textHasProfanity", () => {
     assert.equal(textHasProfanity("Ship the feature this week."), false);
     assert.equal(textHasProfanity("I like Shakespeare"), false);
   });
+
+  it("flags plural and comparative forms on word boundaries", () => {
+    assert.equal(textHasProfanity("those fuckers over there"), true);
+    assert.equal(textHasProfanity("the shitter is clogged"), true);
+    assert.equal(textHasProfanity("shitters"), true);
+    assert.equal(textHasProfanity("the shittiest code I've seen"), true);
+    assert.equal(textHasProfanity("ship faster"), false);
+  });
 });
 
 describe("threadHasProfanity", () => {
