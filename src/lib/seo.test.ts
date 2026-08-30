@@ -385,4 +385,18 @@ describe("public crawl files", () => {
       assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
     }
   });
+
+  it("keeps inline lesson figures at 1200x800", () => {
+    for (const name of [
+      "learn/weights-formula.png",
+      "learn/weights-apply.png",
+      "learn/reply-five.png",
+      "learn/reply-mutual.png",
+      "learn/volume-slate.png",
+      "learn/volume-thunder.png",
+    ]) {
+      const size = pngSize(join(publicDir, name));
+      assert.deepEqual(size, { width: 1200, height: 800 });
+    }
+  });
 });
