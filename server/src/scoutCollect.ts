@@ -49,6 +49,8 @@ import {
   filterByLanguage,
   filterEmDashes,
   filterOutboundLinks,
+  filterProfanity,
+  normalizeAvoidPrompt,
   filterSelfReplies,
   filterThreadsByLength,
   normalizePreferredLanguageCode,
@@ -229,6 +231,8 @@ export async function runScoutCollect(opts: {
   const dropArticles = opts.filters?.dropArticles !== false;
   const dropOutboundLinks = opts.filters?.dropOutboundLinks !== false;
   const dropEmDashes = opts.filters?.dropEmDashes !== false;
+  const dropProfanity = opts.filters?.dropProfanity !== false;
+  const avoidPrompt = normalizeAvoidPrompt(opts.filters?.avoidPrompt);
   const dropAutomatedAccounts = opts.filters?.dropAutomatedAccounts !== false;
   const preferredLanguage = normalizePreferredLanguageCode(
     opts.filters?.preferredLanguage,
@@ -276,6 +280,7 @@ export async function runScoutCollect(opts: {
   let consecutiveZeroAdds = 0;
   let linkFilteredTotal = 0;
   let emDashFilteredTotal = 0;
+  let profanityFilteredTotal = 0;
   let automatedFilteredTotal = 0;
   let excludedAccountFilteredTotal = 0;
   let languageFilteredTotal = 0;
@@ -449,7 +454,10 @@ export async function runScoutCollect(opts: {
         });
         const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
         const afterEmDash = filterEmDashes(afterLang.threads, { dropEmDashes });
-        const afterAutomated = filterAutomatedAccounts(afterEmDash.threads, {
+        const afterProfanity = filterProfanity(afterEmDash.threads, {
+          dropProfanity,
+        });
+        const afterAutomated = filterAutomatedAccounts(afterProfanity.threads, {
           dropAutomatedAccounts,
         });
         const afterExcludedAccounts = filterExcludedAccounts(
@@ -475,6 +483,7 @@ export async function runScoutCollect(opts: {
         funnelCounts.afterLength += afterLen.threads.length;
         linkFilteredTotal += afterLinks.linkFilteredCount;
         emDashFilteredTotal += afterEmDash.emDashFilteredCount;
+        profanityFilteredTotal += afterProfanity.profanityFilteredCount;
         automatedFilteredTotal += afterAutomated.automatedFilteredCount;
         excludedAccountFilteredTotal +=
           afterExcludedAccounts.excludedAccountFilteredCount;
@@ -511,6 +520,7 @@ export async function runScoutCollect(opts: {
                 afterLinks: afterLinks.threads.length,
                 linkFiltered: afterLinks.linkFilteredCount,
                 emDashFiltered: afterEmDash.emDashFilteredCount,
+                profanityFiltered: afterProfanity.profanityFilteredCount,
                 automatedFiltered: afterAutomated.automatedFilteredCount,
                 languageFiltered: afterLang.languageFilteredCount,
                 afterLength: afterLen.threads.length,
@@ -560,6 +570,7 @@ export async function runScoutCollect(opts: {
       const {
         afterSelfReply: afterHydrateSelf,
         afterLinks: afterHydrateLinks,
+        afterProfanity: afterHydrateProfanity,
         afterLanguage: afterHydrateLang,
         afterLength: afterHydrateLen,
       } = filterPostHydrateThreads({
@@ -571,24 +582,27 @@ export async function runScoutCollect(opts: {
           articleIds: articleConversationIds,
         },
         dropOutboundLinks,
+        dropProfanity,
       });
       funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
       linkFilteredTotal += afterHydrateLinks.linkFilteredCount;
+      profanityFilteredTotal += afterHydrateProfanity.profanityFilteredCount;
       const forTriage = afterHydrateLen.threads;
       languageFilteredTotal += afterHydrateLang.languageFilteredCount;
 
       if (forTriage.length === 0) {
-        const emptiedByOpLinks =
+        const emptiedByRefillableFilter =
           afterHydrateSelf.selfReplyFilteredCount === 0 &&
-          afterHydrateLinks.linkFilteredCount > 0;
-        if (!emptiedByOpLinks) {
+          (afterHydrateLinks.linkFilteredCount > 0 ||
+            afterHydrateProfanity.profanityFilteredCount > 0);
+        if (!emptiedByRefillableFilter) {
           bucket = [];
           stopReason = "exhausted";
           break;
         }
         track(
           "filtering",
-          "0 candidates after post-hydrate self-reply + link + language + length filter — discarding bucket…",
+          "0 candidates after post-hydrate self-reply + link + profanity + language + length filter — discarding bucket…",
           {
             candidates: 0,
             coolCount: cool.length,
@@ -597,6 +611,8 @@ export async function runScoutCollect(opts: {
               selfReplyFilteredPostHydrate:
                 afterHydrateSelf.selfReplyFilteredCount,
               linkFilteredPostHydrate: afterHydrateLinks.linkFilteredCount,
+              profanityFilteredPostHydrate:
+                afterHydrateProfanity.profanityFilteredCount,
               languageFilteredPostHydrate:
                 afterHydrateLang.languageFilteredCount,
               lengthFilteredPostHydrate: afterHydrateLen.filteredCount,
@@ -631,6 +647,7 @@ export async function runScoutCollect(opts: {
 
       const triaged = await doTriage({
         agenda,
+        avoid: avoidPrompt,
         threads: forTriage,
       });
       if (triaged.warning) triageWarning = triaged.warning;
@@ -771,6 +788,9 @@ export async function runScoutCollect(opts: {
   const emDashWarning = emDashFilteredTotal
     ? `Dropped ${emDashFilteredTotal} posts with em dashes.`
     : undefined;
+  const profanityWarning = profanityFilteredTotal
+    ? `Dropped ${profanityFilteredTotal} posts with profanity.`
+    : undefined;
   const automatedWarning = automatedFilteredTotal
     ? `Dropped ${automatedFilteredTotal} automated accounts.`
     : undefined;
@@ -791,6 +811,8 @@ export async function runScoutCollect(opts: {
     linkWarning,
     emDashFiltered: emDashFilteredTotal,
     emDashWarning,
+    profanityFiltered: profanityFilteredTotal,
+    profanityWarning,
     automatedFiltered: automatedFilteredTotal,
     automatedWarning,
     excludedAccountFiltered: excludedAccountFilteredTotal,

@@ -32,9 +32,16 @@ export const DEFAULT_PREFERRED_LANGUAGE: PreferredLanguage = "en";
 export const DEFAULT_EXCLUDED_TAGS = [
   "supportive_encouragement",
   "political",
+  "interpersonal_conflict",
 ] as const;
 /** Pre-political default — upgrade on load when storage still matches this. */
 export const LEGACY_DEFAULT_EXCLUDED_TAGS = ["supportive_encouragement"] as const;
+/** Pre-conflict default pair — upgrade on load when storage still matches this. */
+export const LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT = [
+  "supportive_encouragement",
+  "political",
+] as const;
+export const MAX_AVOID_CHARS = 300;
 export const MAX_EXCLUDED_TAGS = 20;
 export const MAX_TAG_TOKEN_LEN = 40;
 
@@ -103,6 +110,8 @@ export type AppSettings = {
   dropOutboundLinks: boolean;
   /** Hard-drop candidates whose text contains an em dash (U+2014), pre-triage. */
   dropEmDashes: boolean;
+  /** Hard-drop candidates or OPs whose text matches the profanity word list. */
+  dropProfanity: boolean;
   /** Hard-drop authors with X's Automated badge, pre-triage. */
   dropAutomatedAccounts: boolean;
   targetCoolThreads: number;
@@ -112,7 +121,8 @@ export type AppSettings = {
   preferredLanguage: PreferredLanguage;
   /**
    * Drop cool/curated threads whose flags or intent match these tokens.
-   * Empty = no tag excludes. Default includes supportive_encouragement + political.
+   * Empty = no tag excludes. Default includes supportive_encouragement,
+   * political, and interpersonal_conflict.
    */
   excludedTags: string[];
   /**
@@ -120,6 +130,11 @@ export type AppSettings = {
    * Default is a small chatbot list.
    */
   excludedAccounts: string[];
+  /**
+   * Standing never-show rules for triage (not the flight agenda).
+   * Empty = unused. Capped at MAX_AVOID_CHARS.
+   */
+  avoidPrompt: string;
 };
 
 /** Settings checkbox — the filter drops card_uri cards and any outbound link. */
@@ -130,12 +145,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dropArticles: true,
   dropOutboundLinks: true,
   dropEmDashes: true,
+  dropProfanity: true,
   dropAutomatedAccounts: true,
   targetCoolThreads: DEFAULT_TARGET_COOL_THREADS,
   dedupeAccounts: true,
   preferredLanguage: DEFAULT_PREFERRED_LANGUAGE,
   excludedTags: [...DEFAULT_EXCLUDED_TAGS],
   excludedAccounts: [...DEFAULT_EXCLUDED_ACCOUNTS],
+  avoidPrompt: "",
 };
 
 export function clampMaxThreadChars(value: unknown): number {
@@ -196,12 +213,25 @@ function sameTagList(a: readonly string[], b: readonly string[]): boolean {
   return a.every((tag, i) => tag === b[i]);
 }
 
-/** Upgrade pre-political default storage to the current default pair. */
+/** Upgrade older default storage to the current default chips. */
 export function upgradeLegacyExcludedTags(tags: string[]): string[] {
-  if (sameTagList(tags, LEGACY_DEFAULT_EXCLUDED_TAGS)) {
+  if (
+    sameTagList(tags, LEGACY_DEFAULT_EXCLUDED_TAGS) ||
+    sameTagList(tags, LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT)
+  ) {
     return [...DEFAULT_EXCLUDED_TAGS];
   }
   return tags;
+}
+
+/** Trim and cap the Settings Avoid box. */
+export function normalizeAvoidPrompt(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.length > MAX_AVOID_CHARS
+    ? trimmed.slice(0, MAX_AVOID_CHARS)
+    : trimmed;
 }
 
 function sameAccountSet(a: readonly string[], b: readonly string[]): boolean {
@@ -290,6 +320,10 @@ export function normalizeSettings(raw: unknown): AppSettings {
       typeof obj.dropEmDashes === "boolean"
         ? obj.dropEmDashes
         : DEFAULT_SETTINGS.dropEmDashes,
+    dropProfanity:
+      typeof obj.dropProfanity === "boolean"
+        ? obj.dropProfanity
+        : DEFAULT_SETTINGS.dropProfanity,
     dropAutomatedAccounts:
       typeof obj.dropAutomatedAccounts === "boolean"
         ? obj.dropAutomatedAccounts
@@ -302,6 +336,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
     preferredLanguage: normalizePreferredLanguage(obj.preferredLanguage),
     excludedTags,
     excludedAccounts,
+    avoidPrompt: normalizeAvoidPrompt(obj.avoidPrompt),
   };
 }
 

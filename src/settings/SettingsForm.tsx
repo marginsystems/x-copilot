@@ -6,6 +6,8 @@ import {
   clampMaxThreadChars,
   DEFAULT_SETTINGS,
   DROP_OUTBOUND_LINKS_LABEL,
+  MAX_AVOID_CHARS,
+  normalizeAvoidPrompt,
   normalizePreferredLanguage,
   PREFERRED_LANGUAGES,
   type AppSettings,
@@ -157,6 +159,19 @@ export function SettingsForm({
           <label className="settings-check">
             <input
               type="checkbox"
+              checked={draft.dropProfanity}
+              onChange={(e) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  dropProfanity: e.target.checked,
+                }))
+              }
+            />
+            <span>Drop posts with profanity</span>
+          </label>
+          <label className="settings-check">
+            <input
+              type="checkbox"
               checked={draft.dropAutomatedAccounts}
               onChange={(e) =>
                 setDraft((prev) => ({
@@ -187,6 +202,32 @@ export function SettingsForm({
             setDraft((prev) => ({ ...prev, excludedTags }))
           }
         />
+        <label className="settings-field settings-field-wide">
+          <span>Avoid</span>
+          <textarea
+            className="settings-textarea"
+            value={draft.avoidPrompt}
+            maxLength={MAX_AVOID_CHARS}
+            rows={3}
+            placeholder="Skip threads about fundraising. Skip dunking on beginners."
+            onChange={(e) =>
+              setDraft((prev) => ({
+                ...prev,
+                avoidPrompt: e.target.value.slice(0, MAX_AVOID_CHARS),
+              }))
+            }
+            onBlur={() =>
+              setDraft((prev) => ({
+                ...prev,
+                avoidPrompt: normalizeAvoidPrompt(prev.avoidPrompt),
+              }))
+            }
+          />
+          <span className="settings-help">
+            Standing never-show rules for triage — not the agenda.{" "}
+            {draft.avoidPrompt.length}/{MAX_AVOID_CHARS}. Empty disables.
+          </span>
+        </label>
         <ExcludedAccountsField
           accounts={draft.excludedAccounts}
           onChange={(excludedAccounts) =>

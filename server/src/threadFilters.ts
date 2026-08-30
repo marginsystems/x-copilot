@@ -6,6 +6,7 @@ import { franc } from "franc-min";
 import { normalizeAuthorKey } from "./interactionCooldown.js";
 import { parseXHandle } from "./xHandle.js";
 import type { ThreadCard } from "./threadCard.js";
+import { threadHasProfanity } from "./profanity.js";
 import { textHasOutboundLink } from "./xLinks.js";
 
 export const DEFAULT_MAX_THREAD_CHARS = 480;
@@ -22,11 +23,23 @@ export const DEFAULT_PREFERRED_LANGUAGE: PreferredLanguageCode = "en";
 export const DEFAULT_EXCLUDED_TAGS = [
   "supportive_encouragement",
   "political",
+  "interpersonal_conflict",
 ] as const;
 /** Pre-political default — upgrade on load when storage still matches this. */
 export const LEGACY_DEFAULT_EXCLUDED_TAGS = ["supportive_encouragement"] as const;
 export const MAX_EXCLUDED_TAGS = 20;
 export const MAX_TAG_TOKEN_LEN = 40;
+export const MAX_AVOID_CHARS = 300;
+
+/** Trim and cap the Settings Avoid box. Keep in sync with src/lib/settings.ts. */
+export function normalizeAvoidPrompt(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.length > MAX_AVOID_CHARS
+    ? trimmed.slice(0, MAX_AVOID_CHARS)
+    : trimmed;
+}
 
 /**
  * Pre-triage author excludes. Chatbot product accounts — not company news
@@ -283,6 +296,35 @@ export function filterEmDashes(
     kept.push(thread);
   }
   return { threads: kept, emDashFilteredCount };
+}
+
+export type ProfanityFilterOptions = {
+  /** When true (default), hard-drop posts whose candidate or OP text has swears. */
+  dropProfanity?: boolean;
+};
+
+/** Hard-drop profane posts before length/triage (Settings default on). */
+export function filterProfanity(
+  threads: ThreadCard[],
+  opts: ProfanityFilterOptions = {},
+): {
+  threads: ThreadCard[];
+  profanityFilteredCount: number;
+} {
+  const drop = opts.dropProfanity !== false;
+  if (!drop) {
+    return { threads: [...threads], profanityFilteredCount: 0 };
+  }
+  const kept: ThreadCard[] = [];
+  let profanityFilteredCount = 0;
+  for (const thread of threads) {
+    if (threadHasProfanity(thread)) {
+      profanityFilteredCount += 1;
+      continue;
+    }
+    kept.push(thread);
+  }
+  return { threads: kept, profanityFilteredCount };
 }
 
 export type AutomatedFilterOptions = {

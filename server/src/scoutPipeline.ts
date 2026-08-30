@@ -4,6 +4,7 @@
 import {
   filterByLanguage,
   filterOutboundLinks,
+  filterProfanity,
   filterSelfReplies,
   filterThreadsByLength,
   type LengthFilterOptions,
@@ -17,6 +18,7 @@ export function filterPostHydrateThreads(opts: {
   maxChars: number;
   lengthOptions?: LengthFilterOptions;
   dropOutboundLinks?: boolean;
+  dropProfanity?: boolean;
 }) {
   // Hydration can reveal same-author replies that lacked an early author hint.
   const afterSelfReply = filterSelfReplies(opts.threads);
@@ -24,9 +26,12 @@ export function filterPostHydrateThreads(opts: {
   const afterLinks = filterOutboundLinks(afterSelfReply.threads, {
     dropOutboundLinks: opts.dropOutboundLinks,
   });
+  const afterProfanity = filterProfanity(afterLinks.threads, {
+    dropProfanity: opts.dropProfanity,
+  });
   // Re-check language now that reply-parent OP context is available (#121).
   const afterLanguage = filterByLanguage(
-    afterLinks.threads,
+    afterProfanity.threads,
     opts.preferredLanguage,
   );
   const afterLength = filterThreadsByLength(
@@ -35,5 +40,11 @@ export function filterPostHydrateThreads(opts: {
     opts.lengthOptions,
   );
 
-  return { afterSelfReply, afterLinks, afterLanguage, afterLength };
+  return {
+    afterSelfReply,
+    afterLinks,
+    afterProfanity,
+    afterLanguage,
+    afterLength,
+  };
 }

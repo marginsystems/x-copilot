@@ -409,6 +409,17 @@ describe("memory triage context", () => {
   it("buildUserMessage omits Memory when search is empty", () => {
     const msg = buildUserMessage("Find builders", [thread("1")], []);
     assert.doesNotMatch(msg, /Memory \(advisory/);
+    assert.doesNotMatch(msg, /Avoid:/);
+  });
+
+  it("buildUserMessage injects a standing Avoid line", () => {
+    const msg = buildUserMessage(
+      "Find builders",
+      [thread("1")],
+      [],
+      "skip beginner dunking",
+    );
+    assert.match(msg, /Avoid: "skip beginner dunking"/);
   });
 
   it("gatherTriageMemories soft-fails to [] when search returns empty", async () => {
@@ -469,15 +480,15 @@ describe("TRIAGE_SYSTEM_PROMPT", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /flag political/);
   });
 
-  it("skips interpersonal fight threads as closed_thread", () => {
+  it("flags interpersonal fights without forcing closed_thread", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /flag interpersonal_conflict/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /you keep making this about me or you/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /just brainless take/);
-    assert.match(TRIAGE_SYSTEM_PROMPT, /do not enter negative-energy fights/);
-    assert.match(
-      TRIAGE_SYSTEM_PROMPT,
-      /personal conflict is closed_thread/,
-    );
+    assert.match(TRIAGE_SYSTEM_PROMPT, /Do not force closed_thread just because people are fighting/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /operators may exclude this tag/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /Avoid \(when present\)/);
+    assert.doesNotMatch(TRIAGE_SYSTEM_PROMPT, /do not enter negative-energy fights/);
+    assert.doesNotMatch(TRIAGE_SYSTEM_PROMPT, /personal conflict is closed_thread/);
   });
 
   it("skips genuine questions under hiring / quote-promo OPs", () => {

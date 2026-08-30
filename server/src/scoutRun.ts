@@ -22,6 +22,8 @@ import {
   filterByLanguage,
   filterEmDashes,
   filterOutboundLinks,
+  filterProfanity,
+  normalizeAvoidPrompt,
   filterSelfReplies,
   filterThreadsByLength,
   normalizePreferredLanguageCode,
@@ -58,6 +60,8 @@ export type ScoutEvent = ScoutStageEvent & {
   linkWarning?: string;
   emDashFiltered?: number;
   emDashWarning?: string;
+  profanityFiltered?: number;
+  profanityWarning?: string;
   automatedFiltered?: number;
   automatedWarning?: string;
   excludedAccountFiltered?: number;
@@ -217,8 +221,11 @@ export async function runScoutSearch(opts: {
   const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
   const dropEmDashes = opts.filters?.dropEmDashes !== false;
   const afterEmDash = filterEmDashes(afterLang.threads, { dropEmDashes });
+  const dropProfanity = opts.filters?.dropProfanity !== false;
+  const afterProfanity = filterProfanity(afterEmDash.threads, { dropProfanity });
+  const avoidPrompt = normalizeAvoidPrompt(opts.filters?.avoidPrompt);
   const dropAutomatedAccounts = opts.filters?.dropAutomatedAccounts !== false;
-  const afterAutomated = filterAutomatedAccounts(afterEmDash.threads, {
+  const afterAutomated = filterAutomatedAccounts(afterProfanity.threads, {
     dropAutomatedAccounts,
   });
   const afterExcludedAccounts = filterExcludedAccounts(
@@ -242,6 +249,7 @@ export async function runScoutSearch(opts: {
   const {
     afterSelfReply: afterHydrateSelf,
     afterLinks: afterHydrateLinks,
+    afterProfanity: afterHydrateProfanity,
     afterLanguage: afterHydrateLang,
     afterLength: afterHydrateLen,
   } = filterPostHydrateThreads({
@@ -250,6 +258,7 @@ export async function runScoutSearch(opts: {
     maxChars,
     lengthOptions: { dropArticles },
     dropOutboundLinks,
+    dropProfanity,
   });
   const selfReplyFiltered =
     afterSelf.selfReplyFilteredCount +
@@ -260,6 +269,7 @@ export async function runScoutSearch(opts: {
   });
   const triaged = await doTriage({
     agenda,
+    avoid: avoidPrompt,
     threads: afterHydrateLen.threads,
   });
   llmUsage = addTokenUsage(llmUsage, triaged.usage);
@@ -286,6 +296,12 @@ export async function runScoutSearch(opts: {
     : undefined;
   const emDashWarning = afterEmDash.emDashFilteredCount
     ? `Dropped ${afterEmDash.emDashFilteredCount} posts with em dashes.`
+    : undefined;
+  const profanityFiltered =
+    afterProfanity.profanityFilteredCount +
+    afterHydrateProfanity.profanityFilteredCount;
+  const profanityWarning = profanityFiltered
+    ? `Dropped ${profanityFiltered} posts with profanity.`
     : undefined;
   const automatedWarning = afterAutomated.automatedFilteredCount
     ? `Dropped ${afterAutomated.automatedFilteredCount} automated accounts.`
@@ -325,6 +341,8 @@ export async function runScoutSearch(opts: {
     linkWarning,
     emDashFiltered: afterEmDash.emDashFilteredCount,
     emDashWarning,
+    profanityFiltered,
+    profanityWarning,
     automatedFiltered: afterAutomated.automatedFilteredCount,
     automatedWarning,
     excludedAccountFiltered: afterExcludedAccounts.excludedAccountFilteredCount,

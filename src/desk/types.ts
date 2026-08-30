@@ -57,6 +57,8 @@ export type ScoutStreamEvent = {
   linkFiltered?: number;
   emDashWarning?: string;
   emDashFiltered?: number;
+  profanityWarning?: string;
+  profanityFiltered?: number;
   automatedWarning?: string;
   excludedAccountWarning?: string;
   lengthWarning?: string;
