@@ -269,6 +269,26 @@
   }
 }
 
+.learn-figure {
+  margin: 0;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.learn-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.learn-figure figcaption {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 .learn-code {
   margin: 0;
   border: 1px solid var(--border);
