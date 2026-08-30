@@ -316,9 +316,9 @@ export function ThreadsTabs({
                   ) : null}
                   <div
                     className="for-you-scouted-rows"
-                    {...({
-                      inert: pace.locked,
-                    } as HTMLAttributes<HTMLDivElement>)}
+                    {...(pace.locked
+                      ? ({ inert: "" } as HTMLAttributes<HTMLDivElement>)
+                      : {})}
                   >
                     {sortThreadsByCreatedAtNewest(curatedThreads).map((t, i) => (
                       <ThreadRow

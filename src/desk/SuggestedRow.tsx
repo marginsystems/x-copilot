@@ -85,7 +85,11 @@ export function SuggestedRow({
               Hold. Bypass the one-minute gate if you need to post.
             </p>
           ) : null}
-          <div {...({ inert: paced } as HTMLAttributes<HTMLDivElement>)}>
+          <div
+            {...(paced
+              ? ({ inert: "" } as HTMLAttributes<HTMLDivElement>)
+              : {})}
+          >
             <SuggestPane
               variant="compose"
               composeKind={row.kind === "quote" ? "quote" : "post"}
