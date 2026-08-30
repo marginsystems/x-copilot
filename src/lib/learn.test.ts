@@ -25,6 +25,9 @@ import {
   LEARN_GIVE_IMAGE,
   LEARN_GIVE_PATH,
   LEARN_PHOENIX_FAV_HREF,
+  LEARN_BDSM_COOLDOWN_HREF,
+  LEARN_RANKING_VISIBILITY_HREF,
+  LEARN_UTH_HREF,
   LEARN_THUNDER_FOLLOW_TAKE_HREF,
   LEARN_THUNDER_FOLLOW_TAKE_SNIPPET,
   LEARN_DIVERSITY_FN_HREF,
@@ -185,7 +188,7 @@ describe("learn citations", () => {
     assert.match(LEARN_GIVE_DESCRIPTION, /not subtracted/);
     assert.equal(
       LEARN_LESSONS[3]!.lede,
-      "Do not like or auto-follow who you reply to. Fire lines stay redacted. A like you give is not a For You debit.",
+      "Eight spam heads, not For You. Reply-only is ReplySpamBot. Ramp and decay stay theory. Do not like or auto-follow who you reply to. Fire lines stay redacted. A like you give is not a For You debit.",
     );
     assert.equal(LEARN_LESSONS[3]!.href, LEARN_GIVE_PATH);
   });
@@ -266,6 +269,18 @@ describe("learn citations", () => {
     assert.match(
       LEARN_PHOENIX_FAV_HREF,
       /\/blob\/d011592\/phoenix\/README\.md#L274-L275/,
+    );
+    assert.match(
+      LEARN_BDSM_COOLDOWN_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/score_results_sink_focal\.py#L344-L357/,
+    );
+    assert.match(
+      LEARN_UTH_HREF,
+      /\/blob\/d011592\/README\.md#L438-L442/,
+    );
+    assert.match(
+      LEARN_RANKING_VISIBILITY_HREF,
+      /\/blob\/d011592\/README\.md#L464-L466/,
     );
     assert.equal(learnDiversityMultiplier(0), 1);
     assert.equal(learnDiversityMultiplier(1), 0.625);
