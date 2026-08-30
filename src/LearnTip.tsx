@@ -18,6 +18,9 @@ export function LearnTip(props: LearnTipProps) {
         aria-controls={panelId}
         onClick={() => setOpen((next) => !next)}
       >
+        <span className="learn-tip-mark" aria-hidden="true">
+          {open ? "−" : "+"}
+        </span>
         <span>Tip</span>
         {props.title}
       </button>

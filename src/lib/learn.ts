@@ -31,6 +31,11 @@ export const LEARN_DESCRIPTION =
   "X For You ranking weights multiply P(action) for this viewer, not raw likes or reports. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
 export const LEARN_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_WEIGHTS_PATH = "/learn/what-a-like-is-worth";
+export const LEARN_WEIGHTS_IMAGE = "/og-learn-weights.png";
+export const LEARN_WEIGHTS_IMAGE_ALT =
+  "x-copilot Learn — a like mark and 0.5 × P(like)";
+export const LEARN_WEIGHTS_FIGURE_FORMULA = "/learn/weights-formula.png";
+export const LEARN_WEIGHTS_FIGURE_APPLY = "/learn/weights-apply.png";
 
 export const LEARN_FOLLOW_TITLE = "Follow and out-of-network — x-copilot";
 export const LEARN_FOLLOW_HEADING = "Follow and out-of-network";
@@ -176,6 +181,11 @@ export const LEARN_REPLY_DESCRIPTION =
   "X For You reply weight is +5.0. Mutual-follow originals add +15.0. Both multiply P(reply), not raw replies. Craft that invites a reply. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
 export const LEARN_REPLY_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_REPLY_PATH = "/learn/posts-that-get-a-reply";
+export const LEARN_REPLY_IMAGE = "/og-learn-reply.png";
+export const LEARN_REPLY_IMAGE_ALT =
+  "x-copilot Learn — reply +5.0 on a dark field";
+export const LEARN_REPLY_FIGURE_FIVE = "/learn/reply-five.png";
+export const LEARN_REPLY_FIGURE_MUTUAL = "/learn/reply-mutual.png";
 
 export const LEARN_FOLLOW_PATH = "/learn/follow";
 
@@ -185,6 +195,11 @@ export const LEARN_VOLUME_DESCRIPTION =
   "X For You has no daily reply or post quota in this snapshot. Decay 0.5 and floor 0.25 multiply extras in one viewer's slate. Thunder takes at most 30 replies per author into that viewer's in-network pool. ReplySpamBot and TweetSpamBot score action sequences; fire thresholds are redacted. A quiet reply adds ~0; it does not subtract. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
 export const LEARN_VOLUME_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_VOLUME_PATH = "/learn/how-many-replies";
+export const LEARN_VOLUME_IMAGE = "/og-learn-volume.png";
+export const LEARN_VOLUME_IMAGE_ALT =
+  "x-copilot Learn — slate decay 1.0 then 0.5 then 0.25";
+export const LEARN_VOLUME_FIGURE_SLATE = "/learn/volume-slate.png";
+export const LEARN_VOLUME_FIGURE_THUNDER = "/learn/volume-thunder.png";
 
 export const LEARN_GIVE_TITLE = "Likes and follows you give — x-copilot";
 export const LEARN_GIVE_HEADING = "Likes and follows you give";

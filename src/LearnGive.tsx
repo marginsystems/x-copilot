@@ -137,7 +137,7 @@ export function LearnGivePage(props: {
           </thead>
           <tbody>
             {LEARN_BDSM_REPLY_ONLY.map((row) => (
-              <tr key={row.label}>
+              <tr key={row.label} className="is-scout-yes">
                 <td>{row.weight.toLocaleString("en-US")}</td>
                 <td>
                   <code>{row.label}</code>
@@ -170,7 +170,10 @@ export function LearnGivePage(props: {
           </thead>
           <tbody>
             {LEARN_BDSM_FILTERS.map((row) => (
-              <tr key={row.label}>
+              <tr
+                key={row.label}
+                className={row.scout === "Yes" ? "is-scout-yes" : undefined}
+              >
                 <td>{row.head}</td>
                 <td>{row.weight.toLocaleString("en-US")}</td>
                 <td>
@@ -187,8 +190,10 @@ export function LearnGivePage(props: {
       <h2>The rule</h2>
       <p>
         When you reply, do not like the parent. Do not auto-follow them.
-        That is the operator habit. It is not a published likes-per-day or
-        follows-per-day number.
+        That is a safety rule, not a published likes-per-day or
+        follows-per-day number. It cuts the exposure surface. Reply-only,
+        the three ReplySpamBot labels are what can still apply. Keep
+        those in mind.
       </p>
       <p>
         <a href={LEARN_BDSM_REDACT_HREF} rel="noreferrer">
@@ -281,7 +286,7 @@ export function LearnGivePage(props: {
         the habit.
       </p>
 
-      <h2>Do not follow who you reply to</h2>
+      <h2>Do not auto-follow who you reply to</h2>
       <p>
         Follow author +4.0 multiplies{" "}
         <em>P(this viewer follows this author)</em> on a candidate. You
