@@ -7,7 +7,11 @@ import {
   LEARN_HEADING,
   LEARN_MUTUAL_REPLY_APPLY_HREF,
   LEARN_MUTUAL_REPLY_HREF,
+  LEARN_REPLY_FIGURE_FIVE,
+  LEARN_REPLY_FIGURE_MUTUAL,
   LEARN_REPLY_HEADING,
+  LEARN_REPLY_IMAGE,
+  LEARN_REPLY_IMAGE_ALT,
   LEARN_REPLY_META,
   LEARN_REPLY_WEIGHT_HREF,
   LEARN_REPLY_WEIGHT_SNIPPET,
@@ -57,6 +61,18 @@ export function LearnReplyPage(props: {
         </>
       }
     >
+      <figure className="learn-figure">
+        <img
+          src={LEARN_REPLY_IMAGE}
+          width={1200}
+          height={630}
+          alt={LEARN_REPLY_IMAGE_ALT}
+        />
+        <figcaption>
+          Reply +5.0 multiplies P(reply) for this viewer. Mutual originals add
+          +15.0.
+        </figcaption>
+      </figure>
       <h2>Reply is +5.0</h2>
       <p>
         The default reply weight is{" "}
@@ -66,6 +82,17 @@ export function LearnReplyPage(props: {
         . Like is 0.5. Those numbers multiply P(action) for this viewer — not
         raw replies, and not “a reply is worth 10 likes.”
       </p>
+      <figure className="learn-figure">
+        <img
+          src={LEARN_REPLY_FIGURE_FIVE}
+          width={1200}
+          height={800}
+          alt="Reply +5.0 beside like 0.5, both times P(action)"
+        />
+        <figcaption>
+          Reply 5.0 and like 0.5 are relative weights on predicted actions.
+        </figcaption>
+      </figure>
       <LearnTip title="Do not read a reply = 10 likes">
         <p>
           Same rule as{" "}
@@ -96,6 +123,17 @@ export function LearnReplyPage(props: {
       >
         {LEARN_REPLY_WEIGHT_SNIPPET}
       </LearnCode>
+      <figure className="learn-figure">
+        <img
+          src={LEARN_REPLY_FIGURE_MUTUAL}
+          width={1200}
+          height={800}
+          alt="Mutual-follow originals add +15.0 on P(reply)"
+        />
+        <figcaption>
+          +15.0 is on their original in your feed, if you mutually follow.
+        </figcaption>
+      </figure>
       <LearnTip title="The boost is on their original">
         <p>
           The +15.0 is for originals from a mutual-follow author. It does not

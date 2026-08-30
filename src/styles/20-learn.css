@@ -1,5 +1,15 @@
 /* 20-learn.css: public /learn handbook */
 
+.learn-page.legal-page h2 {
+  margin: 18px 0 0;
+  font-family: var(--font-head);
+  font-size: 1.28rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  text-transform: none;
+  color: var(--text);
+}
+
 .learn-page h3 {
   margin: 8px 0 0;
   font-family: var(--font-head);
@@ -340,7 +350,16 @@
   cursor: pointer;
 }
 
-.learn-tip-toggle span {
+.learn-tip-mark {
+  flex: 0 0 1.1rem;
+  font-family: var(--font-head);
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.learn-tip-toggle span:not(.learn-tip-mark) {
   font-family: var(--font-head);
   font-size: 0.68rem;
   font-weight: 700;
@@ -416,6 +435,15 @@
 
 .learn-bdsm-table tbody tr {
   cursor: default;
+}
+
+.learn-bdsm-table tbody tr.is-scout-yes {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.learn-bdsm-table tbody tr.is-scout-yes:hover,
+.learn-bdsm-table tbody tr.is-scout-yes.is-selected {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
 }
 
 .learn-page tbody tr:hover,

@@ -35,7 +35,11 @@ import {
   LEARN_THUNDER_CAP_HREF,
   LEARN_THUNDER_CAP_SNIPPET,
   LEARN_THUNDER_FETCH_HREF,
+  LEARN_VOLUME_FIGURE_SLATE,
+  LEARN_VOLUME_FIGURE_THUNDER,
   LEARN_VOLUME_HEADING,
+  LEARN_VOLUME_IMAGE,
+  LEARN_VOLUME_IMAGE_ALT,
   LEARN_VOLUME_META,
   LEARN_WEIGHTS_PATH,
   learnDiversityMultiplier,
@@ -82,6 +86,18 @@ export function LearnVolumePage(props: {
         </>
       }
     >
+      <figure className="learn-figure">
+        <img
+          src={LEARN_VOLUME_IMAGE}
+          width={1200}
+          height={630}
+          alt={LEARN_VOLUME_IMAGE_ALT}
+        />
+        <figcaption>
+          Extras in one viewer’s slate decay. There is no daily reply quota in
+          this snapshot.
+        </figcaption>
+      </figure>
       <h2>There is no replies-per-day number</h2>
       <p>
         This snapshot has no ranking constant for how many replies or originals
@@ -132,6 +148,18 @@ export function LearnVolumePage(props: {
         {LEARN_DIVERSITY_FLOOR} = {SECOND_IN_SLATE}. Then 0.4375, 0.34375…
         never below ×{LEARN_DIVERSITY_FLOOR}.
       </p>
+      <figure className="learn-figure">
+        <img
+          src={LEARN_VOLUME_FIGURE_SLATE}
+          width={1200}
+          height={800}
+          alt="One viewer's slate: first post full, later posts decay to a 0.25 floor"
+        />
+        <figcaption>
+          First of yours in their list is ×1.0. Later posts in that same slate
+          decay toward ×{LEARN_DIVERSITY_FLOOR}.
+        </figcaption>
+      </figure>
       <LearnTip title="This is not an account debit">
         <p>
           Diversity runs inside one viewer's ranked list. Posting fifty times
@@ -159,6 +187,18 @@ export function LearnVolumePage(props: {
       <LearnCode file="thunder/config.rs" href={LEARN_THUNDER_CAP_HREF}>
         {LEARN_THUNDER_CAP_SNIPPET}
       </LearnCode>
+      <figure className="learn-figure">
+        <img
+          src={LEARN_VOLUME_FIGURE_THUNDER}
+          width={1200}
+          height={800}
+          alt="Thunder fetch cap: 30 replies and 50 originals per author"
+        />
+        <figcaption>
+          Thunder takes at most 30 replies and 50 originals per author into
+          this viewer’s in-network fetch. Not a daily allowance.
+        </figcaption>
+      </figure>
       <p>
         If more than 30 of your replies sit in that recent store, extras may
         not enter this viewer's thunder fetch. Each follower builds their own

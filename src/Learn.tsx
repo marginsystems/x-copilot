@@ -27,6 +27,10 @@ import {
   LEARN_SOURCE_REPO,
   LEARN_SOURCE_SHA,
   LEARN_WEIGHTS,
+  LEARN_WEIGHTS_FIGURE_APPLY,
+  LEARN_WEIGHTS_FIGURE_FORMULA,
+  LEARN_WEIGHTS_IMAGE,
+  LEARN_WEIGHTS_IMAGE_ALT,
   formatLearnWeight,
   weightPermalink,
   type LearnLessonView,
@@ -67,6 +71,18 @@ export function LearnPage(props: {
         </>
       }
     >
+      <figure className="learn-figure">
+        <img
+          src={LEARN_WEIGHTS_IMAGE}
+          width={1200}
+          height={630}
+          alt={LEARN_WEIGHTS_IMAGE_ALT}
+        />
+        <figcaption>
+          Favorite 0.5 multiplies P(this viewer likes this post). Not a raw
+          like count.
+        </figcaption>
+      </figure>
       <h2>Weights multiply P(action)</h2>
       <p>
         X ranks each post by how likely you are to take each action, then
@@ -80,6 +96,17 @@ export function LearnPage(props: {
       <LearnCode file="home-mixer/params/param.rs" href={LEARN_PARAM_COMMENT_HREF}>
         {LEARN_PARAM_COMMENT_SNIPPET}
       </LearnCode>
+      <figure className="learn-figure">
+        <img
+          src={LEARN_WEIGHTS_FIGURE_FORMULA}
+          width={1200}
+          height={800}
+          alt="Final Score equals the sum of each weight times P(action)"
+        />
+        <figcaption>
+          Final Score = Σ (weight × P). Weights do not multiply raw likes.
+        </figcaption>
+      </figure>
       <LearnTip title="Do not read 1 report = 468 likes" defaultOpen>
         <p>
           Report is rare, so it is weighted hard so the prediction can move
@@ -102,6 +129,17 @@ export function LearnPage(props: {
       >
         {LEARN_APPLY_SNIPPET}
       </LearnCode>
+      <figure className="learn-figure">
+        <img
+          src={LEARN_WEIGHTS_FIGURE_APPLY}
+          width={1200}
+          height={800}
+          alt="P(action) times weight becomes the score term"
+        />
+        <figcaption>
+          apply is score.unwrap_or(0.0) * weight. Then other adjustments.
+        </figcaption>
+      </figure>
       <p>
         Then{" "}
         <a href={LEARN_DIVERSITY_HREF} rel="noreferrer">

@@ -16,13 +16,19 @@ import {
   LEARN_PARAM_FILE_HREF,
   LEARN_REPLY_DESCRIPTION,
   LEARN_REPLY_HEADING,
+  LEARN_REPLY_IMAGE,
+  LEARN_REPLY_IMAGE_ALT,
   LEARN_REPLY_PATH,
   LEARN_REPLY_TITLE,
   LEARN_REPLY_WEIGHT_HREF,
   LEARN_VOLUME_DESCRIPTION,
   LEARN_VOLUME_HEADING,
+  LEARN_VOLUME_IMAGE,
+  LEARN_VOLUME_IMAGE_ALT,
   LEARN_VOLUME_PATH,
   LEARN_VOLUME_TITLE,
+  LEARN_WEIGHTS_IMAGE,
+  LEARN_WEIGHTS_IMAGE_ALT,
   LEARN_BDSM_LIKE_HEAD_HREF,
   LEARN_GIVE_DESCRIPTION,
   LEARN_GIVE_HEADING,
@@ -160,8 +166,8 @@ export function seoForView(view: AppView): SeoMeta {
       title: LEARN_TITLE,
       description: LEARN_DESCRIPTION,
       robots,
-      image: LEARN_IMAGE,
-      imageAlt: LEARN_IMAGE_ALT,
+      image: LEARN_WEIGHTS_IMAGE,
+      imageAlt: LEARN_WEIGHTS_IMAGE_ALT,
     };
   }
   if (view === "learnReply") {
@@ -169,8 +175,8 @@ export function seoForView(view: AppView): SeoMeta {
       title: LEARN_REPLY_TITLE,
       description: LEARN_REPLY_DESCRIPTION,
       robots,
-      image: LEARN_IMAGE,
-      imageAlt: LEARN_IMAGE_ALT,
+      image: LEARN_REPLY_IMAGE,
+      imageAlt: LEARN_REPLY_IMAGE_ALT,
     };
   }
   if (view === "learnVolume") {
@@ -178,8 +184,8 @@ export function seoForView(view: AppView): SeoMeta {
       title: LEARN_VOLUME_TITLE,
       description: LEARN_VOLUME_DESCRIPTION,
       robots,
-      image: LEARN_IMAGE,
-      imageAlt: LEARN_IMAGE_ALT,
+      image: LEARN_VOLUME_IMAGE,
+      imageAlt: LEARN_VOLUME_IMAGE_ALT,
     };
   }
   if (view === "learnGive") {
@@ -469,7 +475,7 @@ export function learnWeightsJsonLd(): Record<string, unknown> {
         description: LEARN_DESCRIPTION,
         isPartOf: { "@id": siteId },
         about: { "@id": appId },
-        image: absoluteSeoUrl(LEARN_IMAGE),
+        image: absoluteSeoUrl(LEARN_WEIGHTS_IMAGE),
         inLanguage: "en-US",
         dateModified: LEARN_SOURCE_DATE,
         citation: LEARN_PARAM_FILE_HREF,
@@ -629,7 +635,7 @@ export function learnReplyJsonLd(): Record<string, unknown> {
         description: LEARN_REPLY_DESCRIPTION,
         isPartOf: { "@id": siteId },
         about: { "@id": appId },
-        image: absoluteSeoUrl(LEARN_IMAGE),
+        image: absoluteSeoUrl(LEARN_REPLY_IMAGE),
         inLanguage: "en-US",
         dateModified: LEARN_SOURCE_DATE,
         citation: LEARN_REPLY_WEIGHT_HREF,
@@ -709,7 +715,7 @@ export function learnVolumeJsonLd(): Record<string, unknown> {
         description: LEARN_VOLUME_DESCRIPTION,
         isPartOf: { "@id": siteId },
         about: { "@id": appId },
-        image: absoluteSeoUrl(LEARN_IMAGE),
+        image: absoluteSeoUrl(LEARN_VOLUME_IMAGE),
         inLanguage: "en-US",
         dateModified: LEARN_SOURCE_DATE,
         citation: LEARN_DIVERSITY_FN_HREF,

@@ -24,6 +24,9 @@ import {
   LEARN_GIVE_DESCRIPTION,
   LEARN_GIVE_IMAGE,
   LEARN_GIVE_PATH,
+  LEARN_REPLY_IMAGE,
+  LEARN_VOLUME_IMAGE,
+  LEARN_WEIGHTS_IMAGE,
   LEARN_PHOENIX_FAV_HREF,
   LEARN_BDSM_COOLDOWN_HREF,
   LEARN_RANKING_VISIBILITY_HREF,
@@ -158,6 +161,9 @@ describe("learn citations", () => {
     assert.equal(LEARN_GIVE_PATH, "/learn/likes-and-follows-you-give");
     assert.equal(LEARN_IMAGE, "/og-learn.png");
     assert.equal(LEARN_GIVE_IMAGE, "/og-learn-give.png");
+    assert.equal(LEARN_WEIGHTS_IMAGE, "/og-learn-weights.png");
+    assert.equal(LEARN_REPLY_IMAGE, "/og-learn-reply.png");
+    assert.equal(LEARN_VOLUME_IMAGE, "/og-learn-volume.png");
     assert.match(LEARN_HUB_TITLE, /Learn the X algorithm/);
     assert.match(LEARN_HUB_DESCRIPTION, /P\(action\)/);
     assert.match(LEARN_HUB_DESCRIPTION, /not affiliated/i);

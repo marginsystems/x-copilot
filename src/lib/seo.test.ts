@@ -12,10 +12,13 @@ import {
   LEARN_HUB_TITLE,
   LEARN_IMAGE,
   LEARN_REPLY_DESCRIPTION,
+  LEARN_REPLY_IMAGE,
   LEARN_REPLY_TITLE,
   LEARN_TITLE,
   LEARN_VOLUME_DESCRIPTION,
+  LEARN_VOLUME_IMAGE,
   LEARN_VOLUME_TITLE,
+  LEARN_WEIGHTS_IMAGE,
   LEARN_GIVE_DESCRIPTION,
   LEARN_GIVE_IMAGE,
   LEARN_GIVE_TITLE,
@@ -74,16 +77,16 @@ describe("seoForView", () => {
     assert.equal(seoForView("learn").image, LEARN_IMAGE);
     assert.equal(seoForView("learnWeights").title, LEARN_TITLE);
     assert.equal(seoForView("learnWeights").description, LEARN_DESCRIPTION);
-    assert.equal(seoForView("learnWeights").image, LEARN_IMAGE);
+    assert.equal(seoForView("learnWeights").image, LEARN_WEIGHTS_IMAGE);
     assert.equal(seoForView("learnReply").title, LEARN_REPLY_TITLE);
     assert.equal(seoForView("learnReply").description, LEARN_REPLY_DESCRIPTION);
     assert.match(seoForView("learnReply").description, /P\(reply\)/);
-    assert.equal(seoForView("learnReply").image, LEARN_IMAGE);
+    assert.equal(seoForView("learnReply").image, LEARN_REPLY_IMAGE);
     assert.equal(seoForView("learnVolume").title, LEARN_VOLUME_TITLE);
     assert.equal(seoForView("learnVolume").description, LEARN_VOLUME_DESCRIPTION);
     assert.match(seoForView("learnVolume").description, /no daily/);
     assert.match(seoForView("learnVolume").description, /not affiliated/i);
-    assert.equal(seoForView("learnVolume").image, LEARN_IMAGE);
+    assert.equal(seoForView("learnVolume").image, LEARN_VOLUME_IMAGE);
     assert.equal(seoForView("learnGive").title, LEARN_GIVE_TITLE);
     assert.equal(seoForView("learnGive").description, LEARN_GIVE_DESCRIPTION);
     assert.match(seoForView("learnGive").description, /not subtracted/);
@@ -174,7 +177,7 @@ describe("learn schema", () => {
     assert.equal(page.name, LEARN_TITLE);
     assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs/);
     assert.equal(page.sameAs, "https://github.com/xai-org/x-algorithm/tree/d011592");
-    assert.equal(page.image, "https://xcopilot.dev/og-learn.png");
+    assert.equal(page.image, "https://xcopilot.dev/og-learn-weights.png");
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
     assert.equal(
       crumbs.itemListElement[2]?.item,
@@ -190,6 +193,7 @@ describe("learn schema", () => {
     assert.ok(page && crumbs);
     assert.equal(page.name, LEARN_REPLY_TITLE);
     assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs#L315/);
+    assert.equal(page.image, "https://xcopilot.dev/og-learn-reply.png");
     assert.equal(
       crumbs.itemListElement[2]?.item,
       "https://xcopilot.dev/learn/posts-that-get-a-reply",
@@ -207,6 +211,7 @@ describe("learn schema", () => {
       String(page.citation),
       /\/blob\/d011592\/home-mixer\/scorers\/ranking_scorer\.rs#L643-L645/,
     );
+    assert.equal(page.image, "https://xcopilot.dev/og-learn-volume.png");
     assert.equal(
       crumbs.itemListElement[2]?.item,
       "https://xcopilot.dev/learn/how-many-replies",
@@ -275,7 +280,7 @@ describe("htmlWithSeo", () => {
     const html = htmlWithSeo(source, "learnWeights");
     assert.match(html, /<title>What a like is worth — x-copilot<\/title>/);
     assert.match(html, /content="https:\/\/xcopilot\.dev\/learn\/what-a-like-is-worth"/);
-    assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn\.png"/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn-weights\.png"/);
     assert.match(html, /P\(action\)/);
     assert.match(html, /"@type":"Article"/);
     assert.match(html, /d011592/);
@@ -287,7 +292,7 @@ describe("htmlWithSeo", () => {
     const html = htmlWithSeo(source, "learnReply");
     assert.match(html, /<title>Posts that get a reply — x-copilot<\/title>/);
     assert.match(html, /content="https:\/\/xcopilot\.dev\/learn\/posts-that-get-a-reply"/);
-    assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn\.png"/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn-reply\.png"/);
     assert.match(html, /P\(reply\)/);
     assert.match(html, /"@type":"Article"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
@@ -298,7 +303,7 @@ describe("htmlWithSeo", () => {
     const html = htmlWithSeo(source, "learnVolume");
     assert.match(html, /<title>How many replies a day — x-copilot<\/title>/);
     assert.match(html, /content="https:\/\/xcopilot\.dev\/learn\/how-many-replies"/);
-    assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn\.png"/);
+    assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn-volume\.png"/);
     assert.match(html, /no daily/);
     assert.match(html, /"@type":"Article"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
@@ -370,5 +375,30 @@ describe("public crawl files", () => {
   it("keeps the give lesson featured image at the OG size", () => {
     const size = pngSize(join(publicDir, "og-learn-give.png"));
     assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
+  });
+
+  it("keeps per-lesson featured images at the OG size", () => {
+    for (const name of [
+      "og-learn-weights.png",
+      "og-learn-reply.png",
+      "og-learn-volume.png",
+    ]) {
+      const size = pngSize(join(publicDir, name));
+      assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
+    }
+  });
+
+  it("keeps inline lesson figures at 1200x800", () => {
+    for (const name of [
+      "learn/weights-formula.png",
+      "learn/weights-apply.png",
+      "learn/reply-five.png",
+      "learn/reply-mutual.png",
+      "learn/volume-slate.png",
+      "learn/volume-thunder.png",
+    ]) {
+      const size = pngSize(join(publicDir, name));
+      assert.deepEqual(size, { width: 1200, height: 800 });
+    }
   });
 });
