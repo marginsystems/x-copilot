@@ -3,6 +3,7 @@ import { LearnChrome } from "./LearnChrome";
 import { LearnCode } from "./LearnCode";
 import { LearnTip } from "./LearnTip";
 import {
+  LEARN_BDSM_FILTERS,
   LEARN_APPLY_SNIPPET,
   LEARN_BDSM_AMPLIFIER_HEAD_HREF,
   LEARN_BDSM_AMPLIFIER_HEAD_SNIPPET,
@@ -105,6 +106,53 @@ export function LearnGivePage(props: {
         An unknown line is not permission to like or follow every account
         you reply to.
       </p>
+      <h2>The eight spam heads</h2>
+      <p>
+        These are bot filters, not For You weights. Eight heads. One integer
+        per head in{" "}
+        <a href={LEARN_BDSM_LIKE_HEAD_HREF} rel="noreferrer">
+          heads.py
+        </a>
+        . That integer is not multiplied into P(head) in this snapshot. It
+        is not “LikeBot hits twice as hard as FollowBot.” Reply farming is
+        ReplySpamBot (8 922), not LikeBot (60 320). If you do not like,
+        LikeBot does not see like sequences.
+      </p>
+      <p>
+        Lines under “points at” are inferred from the names. The repo does
+        not define them. Fire line is still 9.99.
+      </p>
+      <div className="learn-table-wrap">
+        <table className="learn-bdsm-table">
+          <caption>
+            Flywheel labels at <code>{LEARN_SOURCE_SHA}</code>. Scout column
+            assumes reply-only: no like, no follow, no repost.
+          </caption>
+          <thead>
+            <tr>
+              <th>Head</th>
+              <th>n</th>
+              <th>Label</th>
+              <th>Points at</th>
+              <th>If you only reply</th>
+            </tr>
+          </thead>
+          <tbody>
+            {LEARN_BDSM_FILTERS.map((row) => (
+              <tr key={row.label}>
+                <td>{row.head}</td>
+                <td>{row.weight.toLocaleString("en-US")}</td>
+                <td>
+                  <code>{row.label}</code>
+                </td>
+                <td>{row.infer}</td>
+                <td>{row.scout}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <LearnTip title="Does that cut your For You score">
         <p>
           No. A like or follow you give is not subtracted from your next
