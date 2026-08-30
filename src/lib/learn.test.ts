@@ -21,6 +21,7 @@ import {
   LEARN_BDSM_LIKE_HEAD_HREF,
   LEARN_BDSM_LIKE_HEAD_SNIPPET,
   LEARN_BDSM_MULTI_HEAD_HREF,
+  LEARN_GIVE_DESCRIPTION,
   LEARN_GIVE_IMAGE,
   LEARN_GIVE_PATH,
   LEARN_PHOENIX_FAV_HREF,
@@ -38,6 +39,8 @@ import {
   LEARN_BDSM_REPLY_HEAD_SNIPPET,
   LEARN_BDSM_ROPE_HREF,
   LEARN_BDSM_SEQ_HREF,
+  LEARN_BDSM_SINK_ENFORCE_HREF,
+  LEARN_BDSM_SINK_LIVENESS_HREF,
   LEARN_BDSM_TWEET_HEAD_HREF,
   LEARN_BDSM_TWEET_HEAD_SNIPPET,
   learnAdjacentLessons,
@@ -177,6 +180,13 @@ describe("learn citations", () => {
       LEARN_LESSONS[2]!.lede,
       "0.5 and 0.25 are this viewer's slate. Thunder's 30 is a fetch cap. ReplySpamBot scores sequences.",
     );
+    assert.match(LEARN_GIVE_DESCRIPTION, /do not like the parent/);
+    assert.match(LEARN_GIVE_DESCRIPTION, /redacted/);
+    assert.match(LEARN_GIVE_DESCRIPTION, /not subtracted/);
+    assert.equal(
+      LEARN_LESSONS[3]!.lede,
+      "Do not like or auto-follow who you reply to. Fire lines are redacted. Your like is not a For You debit.",
+    );
     assert.equal(LEARN_LESSONS[3]!.href, LEARN_GIVE_PATH);
   });
 
@@ -240,6 +250,14 @@ describe("learn citations", () => {
     assert.match(
       LEARN_BDSM_MULTI_HEAD_HREF,
       /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L83-L98/,
+    );
+    assert.match(
+      LEARN_BDSM_SINK_ENFORCE_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/sink_policy\.yaml#L16-L20/,
+    );
+    assert.match(
+      LEARN_BDSM_SINK_LIVENESS_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/sink_policy\.yaml#L26-L28/,
     );
     assert.match(
       LEARN_THUNDER_FOLLOW_TAKE_HREF,
