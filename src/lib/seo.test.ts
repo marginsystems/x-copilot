@@ -193,6 +193,7 @@ describe("learn schema", () => {
     assert.ok(page && crumbs);
     assert.equal(page.name, LEARN_REPLY_TITLE);
     assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs#L315/);
+    assert.equal(page.image, "https://xcopilot.dev/og-learn-reply.png");
     assert.equal(
       crumbs.itemListElement[2]?.item,
       "https://xcopilot.dev/learn/posts-that-get-a-reply",
@@ -210,6 +211,7 @@ describe("learn schema", () => {
       String(page.citation),
       /\/blob\/d011592\/home-mixer\/scorers\/ranking_scorer\.rs#L643-L645/,
     );
+    assert.equal(page.image, "https://xcopilot.dev/og-learn-volume.png");
     assert.equal(
       crumbs.itemListElement[2]?.item,
       "https://xcopilot.dev/learn/how-many-replies",
