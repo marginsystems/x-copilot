@@ -77,35 +77,42 @@ export function SuggestedRow({
       {!compose && row.draft ? (
         <p className="for-you-draft">{row.draft}</p>
       ) : null}
-      {paced ? (
+      {compose && voice?.status === "ready" && voice.unlocked && seed ? (
+        <>
+          {paced ? (
+            <p className="reply-pace-hold">
+              Hold. Bypass the one-minute gate if you need to post.
+            </p>
+          ) : null}
+          <div inert={paced}>
+            <SuggestPane
+              variant="compose"
+              composeKind={row.kind === "quote" ? "quote" : "post"}
+              suggestionId={row.id}
+              quoteTweetId={row.targetId}
+              threadId={row.id}
+              author={row.targetAuthor || handle}
+              text={seed}
+              agenda={agenda}
+              usage={voice.suggests}
+              onUsage={onUsage}
+              onDeskPosted={onPosted}
+            />
+          </div>
+        </>
+      ) : paced ? (
         <p className="reply-pace-hold">
           Hold. Bypass the one-minute gate if you need to post.
         </p>
       ) : compose ? (
-        voice?.status === "ready" && voice.unlocked && seed ? (
-          <SuggestPane
-            variant="compose"
-            composeKind={row.kind === "quote" ? "quote" : "post"}
-            suggestionId={row.id}
-            quoteTweetId={row.targetId}
-            threadId={row.id}
-            author={row.targetAuthor || handle}
-            text={seed}
-            agenda={agenda}
-            usage={voice.suggests}
-            onUsage={onUsage}
-            onDeskPosted={onPosted}
-          />
-        ) : (
-          <SuggestLocked
-            voice={voice}
-            xLinked={xLinked}
-            hasSession={hasSession}
-            lockNoun="post"
-            onOpenSettings={onOpenSettings}
-            onLinkX={onLinkX}
-          />
-        )
+        <SuggestLocked
+          voice={voice}
+          xLinked={xLinked}
+          hasSession={hasSession}
+          lockNoun="post"
+          onOpenSettings={onOpenSettings}
+          onLinkX={onLinkX}
+        />
       ) : (
         <div className="row">
           {openUrl ? (

@@ -92,6 +92,11 @@
   gap: 6px;
 }
 
+.for-you-scouted-rows {
+  display: grid;
+  gap: 6px;
+}
+
 .next-action-head {
   cursor: default;
 }

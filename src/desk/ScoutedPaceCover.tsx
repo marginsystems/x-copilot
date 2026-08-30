@@ -5,7 +5,7 @@ export function ScoutedPaceCover(props: {
   onBypass: () => void;
 }) {
   return (
-    <div className="scouted-pace-cover" role="status">
+    <div className="scouted-pace-cover">
       <p className="reply-pace-clock">{props.clock}</p>
       <p>{REPLY_PACE_LEAD} Scouted waits so you do not stack replies.</p>
       <button type="button" className="primary" onClick={props.onBypass}>

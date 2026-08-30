@@ -309,57 +309,59 @@ export function ThreadsTabs({
                       onBypass={pace.bypass}
                     />
                   ) : null}
-              {sortThreadsByCreatedAtNewest(curatedThreads).map((t, i) => (
-                <ThreadRow
-                  key={t.id}
-                  thread={t}
-                  index={i}
-                  open={expandedId === t.id}
-                  exiting={exitingIds.has(t.id)}
-                  busy={actionBusy}
-                  interacted={interactedIds.has(t.id)}
-                  onToggle={() => {
-                    const next = expandedId === t.id ? null : t.id;
-                    setExpandedId(next);
-                    if (next) watchDeskThreads([t]);
-                  }}
-                  onWatch={() => watchDeskThreads([t])}
-                  onMark={() => {
-                    if (!pace.locked) onMark(t);
-                  }}
-                  onSkip={() => exitRow(t.id, t.id, () => onSkip(t))}
-                  onDismiss={() => onDismiss(t)}
-                  suggest={
-                    voice?.status === "ready" && voice.unlocked ? (
-                      <SuggestPane
-                        threadId={t.id}
-                        author={t.author}
-                        text={t.text}
-                        opAuthor={t.opAuthor}
-                        opText={t.opText}
-                        threadKind={t.threadKind}
-                        flags={t.flags}
-                        agenda={agenda}
-                        usage={voice.suggests}
-                        onUsage={(u) =>
-                          setVoice((v) =>
-                            v ? { ...v, suggests: u } : v,
+                  <div className="for-you-scouted-rows" inert={pace.locked}>
+                    {sortThreadsByCreatedAtNewest(curatedThreads).map((t, i) => (
+                      <ThreadRow
+                        key={t.id}
+                        thread={t}
+                        index={i}
+                        open={expandedId === t.id}
+                        exiting={exitingIds.has(t.id)}
+                        busy={actionBusy}
+                        interacted={interactedIds.has(t.id)}
+                        onToggle={() => {
+                          const next = expandedId === t.id ? null : t.id;
+                          setExpandedId(next);
+                          if (next) watchDeskThreads([t]);
+                        }}
+                        onWatch={() => watchDeskThreads([t])}
+                        onMark={() => {
+                          if (!pace.locked) onMark(t);
+                        }}
+                        onSkip={() => exitRow(t.id, t.id, () => onSkip(t))}
+                        onDismiss={() => onDismiss(t)}
+                        suggest={
+                          voice?.status === "ready" && voice.unlocked ? (
+                            <SuggestPane
+                              threadId={t.id}
+                              author={t.author}
+                              text={t.text}
+                              opAuthor={t.opAuthor}
+                              opText={t.opText}
+                              threadKind={t.threadKind}
+                              flags={t.flags}
+                              agenda={agenda}
+                              usage={voice.suggests}
+                              onUsage={(u) =>
+                                setVoice((v) =>
+                                  v ? { ...v, suggests: u } : v,
+                                )
+                              }
+                              onOpenIntent={() => watchDeskThreads([t])}
+                            />
+                          ) : (
+                            <SuggestLocked
+                              voice={voice}
+                              xLinked={authUser?.xLinked}
+                              hasSession={Boolean(authUser)}
+                              onOpenSettings={onOpenVoice}
+                              onLinkX={onLinkX}
+                            />
                           )
                         }
-                        onOpenIntent={() => watchDeskThreads([t])}
                       />
-                    ) : (
-                      <SuggestLocked
-                        voice={voice}
-                        xLinked={authUser?.xLinked}
-                        hasSession={Boolean(authUser)}
-                        onOpenSettings={onOpenVoice}
-                        onLinkX={onLinkX}
-                      />
-                    )
-                  }
-                />
-              ))}
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </div>
