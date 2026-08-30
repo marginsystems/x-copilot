@@ -14,6 +14,19 @@ import {
   LEARN_REPLY_WEIGHT_SNIPPET,
   LEARN_VOLUME_DESCRIPTION,
   LEARN_VOLUME_PATH,
+  LEARN_BDSM_AMPLIFIER_HEAD_HREF,
+  LEARN_BDSM_AMPLIFIER_HEAD_SNIPPET,
+  LEARN_BDSM_FOLLOW_HEAD_HREF,
+  LEARN_BDSM_FOLLOW_HEAD_SNIPPET,
+  LEARN_BDSM_LIKE_HEAD_HREF,
+  LEARN_BDSM_LIKE_HEAD_SNIPPET,
+  LEARN_BDSM_MULTI_HEAD_HREF,
+  LEARN_GIVE_DESCRIPTION,
+  LEARN_GIVE_IMAGE,
+  LEARN_GIVE_PATH,
+  LEARN_PHOENIX_FAV_HREF,
+  LEARN_THUNDER_FOLLOW_TAKE_HREF,
+  LEARN_THUNDER_FOLLOW_TAKE_SNIPPET,
   LEARN_DIVERSITY_FN_HREF,
   LEARN_DIVERSITY_SNIPPET,
   LEARN_THUNDER_CAP_HREF,
@@ -116,6 +129,10 @@ describe("learn citations", () => {
     });
     assert.deepEqual(learnAdjacentLessons("learnVolume"), {
       prev: LEARN_LESSONS[1],
+      next: LEARN_LESSONS[3],
+    });
+    assert.deepEqual(learnAdjacentLessons("learnGive"), {
+      prev: LEARN_LESSONS[2],
       next: null,
     });
     assert.deepEqual(learnAdjacentLessons("learnFollow"), {
@@ -124,15 +141,18 @@ describe("learn citations", () => {
     });
   });
 
-  it("publishes three catalog lessons", () => {
-    assert.equal(LEARN_LESSONS.length, 3);
+  it("publishes four catalog lessons", () => {
+    assert.equal(LEARN_LESSONS.length, 4);
     assert.equal(LEARN_LESSONS[0]!.href, LEARN_WEIGHTS_PATH);
     assert.equal(LEARN_LESSONS[1]!.href, LEARN_REPLY_PATH);
     assert.equal(LEARN_LESSONS[2]!.href, LEARN_VOLUME_PATH);
+    assert.equal(LEARN_LESSONS[3]!.href, LEARN_GIVE_PATH);
     assert.equal(LEARN_WEIGHTS_PATH, "/learn/what-a-like-is-worth");
     assert.equal(LEARN_REPLY_PATH, "/learn/posts-that-get-a-reply");
     assert.equal(LEARN_VOLUME_PATH, "/learn/how-many-replies");
+    assert.equal(LEARN_GIVE_PATH, "/learn/likes-and-follows-you-give");
     assert.equal(LEARN_IMAGE, "/og-learn.png");
+    assert.equal(LEARN_GIVE_IMAGE, "/og-learn-give.png");
     assert.match(LEARN_HUB_TITLE, /Learn the X algorithm/);
     assert.match(LEARN_HUB_DESCRIPTION, /P\(action\)/);
     assert.match(LEARN_HUB_DESCRIPTION, /not affiliated/i);
@@ -158,6 +178,21 @@ describe("learn citations", () => {
       LEARN_LESSONS[2]!.lede,
       "0.5 and 0.25 are this viewer's slate. Thunder's 30 is a fetch cap. ReplySpamBot scores sequences.",
     );
+    assert.match(LEARN_GIVE_DESCRIPTION, /not subtracted/);
+    assert.match(LEARN_GIVE_DESCRIPTION, /LikeBot/);
+    assert.match(LEARN_GIVE_DESCRIPTION, /FollowBot/);
+    assert.match(LEARN_GIVE_DESCRIPTION, /EngagementAmplifier/);
+    assert.match(LEARN_GIVE_DESCRIPTION, /10000 followed ids/);
+    assert.match(LEARN_GIVE_DESCRIPTION, /redacted/);
+    assert.match(LEARN_GIVE_DESCRIPTION, /not affiliated/i);
+    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /like everything to grow/i);
+    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /daily like/i);
+    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /hurts your reach/i);
+    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /follow everyone/i);
+    assert.equal(
+      LEARN_LESSONS[3]!.lede,
+      "Your like is not a debit on your score. LikeBot and FollowBot score sequences. Thunder takes 10000 followed ids.",
+    );
   });
 
   it("keeps official snippets verbatim", () => {
@@ -175,6 +210,14 @@ describe("learn citations", () => {
     assert.match(LEARN_BDSM_TWEET_HEAD_SNIPPET, /QUOTE_TWEET_SPAMMER/);
     assert.doesNotMatch(LEARN_BDSM_REPLY_HEAD_SNIPPET, /FOLLOW_UNFOLLOW_CYCLE/);
     assert.doesNotMatch(LEARN_BDSM_TWEET_HEAD_SNIPPET, /REPLY_SPAM_BOT/);
+    assert.match(LEARN_BDSM_FOLLOW_HEAD_SNIPPET, /FOLLOW_UNFOLLOW_CYCLE/);
+    assert.match(LEARN_BDSM_FOLLOW_HEAD_SNIPPET, /FOLLOW_FARM_BOT/);
+    assert.match(LEARN_BDSM_LIKE_HEAD_SNIPPET, /STEADY_LIKE_DRIP/);
+    assert.match(LEARN_BDSM_LIKE_HEAD_SNIPPET, /LIKE_FARM_BOT/);
+    assert.match(LEARN_BDSM_AMPLIFIER_HEAD_SNIPPET, /REPLY_THEN_FOLLOW_PIPELINE/);
+    assert.match(LEARN_BDSM_AMPLIFIER_HEAD_SNIPPET, /FOLLOW_LIKE_AMPLIFIER/);
+    assert.match(LEARN_THUNDER_FOLLOW_TAKE_SNIPPET, /take\(MAX_INPUT_LIST_SIZE\)/);
+    assert.match(LEARN_THUNDER_FOLLOW_TAKE_SNIPPET, /Limiting following_user_ids/);
   });
 
   it("pins volume citations and does not invent a daily quota", () => {
@@ -196,6 +239,30 @@ describe("learn citations", () => {
     assert.match(
       LEARN_BDSM_TWEET_HEAD_HREF,
       /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L64-L73/,
+    );
+    assert.match(
+      LEARN_BDSM_FOLLOW_HEAD_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L17-L28/,
+    );
+    assert.match(
+      LEARN_BDSM_LIKE_HEAD_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L29-L39/,
+    );
+    assert.match(
+      LEARN_BDSM_AMPLIFIER_HEAD_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L40-L53/,
+    );
+    assert.match(
+      LEARN_BDSM_MULTI_HEAD_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L83-L98/,
+    );
+    assert.match(
+      LEARN_THUNDER_FOLLOW_TAKE_HREF,
+      /\/blob\/d011592\/thunder\/thunder_service\.rs#L232-L242/,
+    );
+    assert.match(
+      LEARN_PHOENIX_FAV_HREF,
+      /\/blob\/d011592\/phoenix\/README\.md#L274-L275/,
     );
     assert.equal(learnDiversityMultiplier(0), 1);
     assert.equal(learnDiversityMultiplier(1), 0.625);

@@ -109,6 +109,58 @@ export const LEARN_BDSM_TWEET_HEAD_SNIPPET = `    Head(
         ),
     ),`;
 
+export const LEARN_BDSM_FOLLOW_HEAD_SNIPPET = `    Head(
+        "FollowBot",
+        0,
+        27_576,
+        (
+            "FOLLOW_UNFOLLOW_CYCLE",
+            "PURE_FOLLOW_API_BURST",
+            "API_ONLY_BOT",
+            "GROWTH_SERVICE_BOT",
+            "FOLLOW_FARM_BOT",
+        ),
+    ),`;
+
+export const LEARN_BDSM_LIKE_HEAD_SNIPPET = `    Head(
+        "LikeBot",
+        1,
+        60_320,
+        (
+            "PURE_LIKE_API_BURST",
+            "LIKE_UNLIKE_CYCLE",
+            "STEADY_LIKE_DRIP",
+            "LIKE_FARM_BOT",
+        ),
+    ),`;
+
+export const LEARN_BDSM_AMPLIFIER_HEAD_SNIPPET = `    Head(
+        "EngagementAmplifier",
+        2,
+        5_496,
+        (
+            "LIKE_RETWEET_PAIR",
+            "FOLLOW_THEN_FAV_PIPELINE",
+            "FOLLOW_THEN_REPLY_PIPELINE",
+            "REPLY_THEN_FOLLOW_PIPELINE",
+            "ENGAGEMENT_AMPLIFIER",
+            "FOLLOW_LIKE_AMPLIFIER",
+            "OUTREACH_PIPELINE_BOT",
+        ),
+    ),`;
+
+export const LEARN_THUNDER_FOLLOW_TAKE_SNIPPET = `        let following_count = following_user_ids.len();
+        if following_count > MAX_INPUT_LIST_SIZE {
+            warn!(
+                "Limiting following_user_ids from {} to {} entries for user {}",
+                following_count, MAX_INPUT_LIST_SIZE, req.user_id
+            );
+        }
+        let following_user_ids: Vec<u64> = following_user_ids
+            .into_iter()
+            .take(MAX_INPUT_LIST_SIZE)
+            .collect();`;
+
 export const LEARN_OON_SNIPPET = `let oon_applies = |c: &PostCandidate| match c.in_network {
     Some(false) => true,
     Some(true) => {
@@ -134,11 +186,27 @@ export const LEARN_VOLUME_DESCRIPTION =
 export const LEARN_VOLUME_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_VOLUME_PATH = "/learn/how-many-replies";
 
+export const LEARN_GIVE_TITLE = "Likes and follows you give — x-copilot";
+export const LEARN_GIVE_HEADING = "Likes and follows you give";
+export const LEARN_GIVE_DESCRIPTION =
+  "A like you give is not subtracted from your post score. Favorite 0.5 and Follow author 4.0 multiply P(action) for this viewer. LikeBot, FollowBot, and EngagementAmplifier score sequences; fire thresholds are redacted. Thunder takes at most 10000 followed ids for your in-network fetch. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+export const LEARN_GIVE_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+export const LEARN_GIVE_PATH = "/learn/likes-and-follows-you-give";
+export const LEARN_GIVE_IMAGE = "/og-learn-give.png";
+export const LEARN_GIVE_IMAGE_ALT =
+  "x-copilot Learn — a like mark enters their post, not your score";
+export const LEARN_GIVE_FIGURE_LIKEBOT = "/learn/give-likebot.png";
+export const LEARN_GIVE_FIGURE_FOLLOW = "/learn/give-follow-cap.png";
+
 export const LEARN_IMAGE = "/og-learn.png";
 export const LEARN_IMAGE_ALT =
   "x-copilot Learn — ranking weights on a dark field";
 
-export type LearnLessonView = "learnWeights" | "learnReply" | "learnVolume";
+export type LearnLessonView =
+  | "learnWeights"
+  | "learnReply"
+  | "learnVolume"
+  | "learnGive";
 
 export type LearnLesson = {
   view: LearnLessonView;
@@ -172,6 +240,13 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     number: "03",
     heading: LEARN_VOLUME_HEADING,
     lede: "0.5 and 0.25 are this viewer's slate. Thunder's 30 is a fetch cap. ReplySpamBot scores sequences.",
+  },
+  {
+    view: "learnGive",
+    href: LEARN_GIVE_PATH,
+    number: "04",
+    heading: LEARN_GIVE_HEADING,
+    lede: "Your like is not a debit on your score. LikeBot and FollowBot score sequences. Thunder takes 10000 followed ids.",
   },
 ];
 
@@ -328,6 +403,36 @@ export const LEARN_BDSM_TWEET_HEAD_HREF = algorithmPermalink(
   "bdsm/runtime/heads.py",
   64,
   73,
+);
+export const LEARN_BDSM_FOLLOW_HEAD_HREF = algorithmPermalink(
+  "bdsm/runtime/heads.py",
+  17,
+  28,
+);
+export const LEARN_BDSM_LIKE_HEAD_HREF = algorithmPermalink(
+  "bdsm/runtime/heads.py",
+  29,
+  39,
+);
+export const LEARN_BDSM_AMPLIFIER_HEAD_HREF = algorithmPermalink(
+  "bdsm/runtime/heads.py",
+  40,
+  53,
+);
+export const LEARN_BDSM_MULTI_HEAD_HREF = algorithmPermalink(
+  "bdsm/runtime/heads.py",
+  83,
+  98,
+);
+export const LEARN_THUNDER_FOLLOW_TAKE_HREF = algorithmPermalink(
+  "thunder/thunder_service.rs",
+  232,
+  242,
+);
+export const LEARN_PHOENIX_FAV_HREF = algorithmPermalink(
+  "phoenix/README.md",
+  274,
+  275,
 );
 
 /** Defaults at LEARN_DIVERSITY_HREF. k is prior posts from this author in this slate. */

@@ -16,6 +16,7 @@ import { LearnPage } from "./Learn";
 import { LearnHubPage } from "./LearnHub";
 import { LearnReplyPage } from "./LearnReply";
 import { LearnVolumePage } from "./LearnVolume";
+import { LearnGivePage } from "./LearnGive";
 import { LearnFollowPage } from "./LearnFollow";
 import { CookieConsent } from "./CookieConsent";
 import { isLegalKind } from "./lib/legal";
@@ -681,6 +682,10 @@ export default function App() {
             onWeights={() => goToView("learnWeights")}
             onReply={() => goToView("learnReply")}
           />
+        </main>
+      ) : view === "learnGive" ? (
+        <main className="app-main app-main-scroll">
+          <LearnGivePage goToView={goToView} />
         </main>
       ) : learnFollowView ? (
         <main className="app-main app-main-scroll">

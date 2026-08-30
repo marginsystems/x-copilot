@@ -23,6 +23,13 @@ import {
   LEARN_VOLUME_HEADING,
   LEARN_VOLUME_PATH,
   LEARN_VOLUME_TITLE,
+  LEARN_BDSM_LIKE_HEAD_HREF,
+  LEARN_GIVE_DESCRIPTION,
+  LEARN_GIVE_HEADING,
+  LEARN_GIVE_IMAGE,
+  LEARN_GIVE_IMAGE_ALT,
+  LEARN_GIVE_PATH,
+  LEARN_GIVE_TITLE,
   LEARN_DIVERSITY_FN_HREF,
   LEARN_SOURCE_DATE,
   LEARN_SOURCE_REPO,
@@ -63,6 +70,8 @@ export {
   LEARN_TITLE,
   LEARN_VOLUME_DESCRIPTION,
   LEARN_VOLUME_TITLE,
+  LEARN_GIVE_DESCRIPTION,
+  LEARN_GIVE_TITLE,
 };
 
 export const PRIVACY_TITLE = "Privacy Policy — x-copilot";
@@ -171,6 +180,15 @@ export function seoForView(view: AppView): SeoMeta {
       robots,
       image: LEARN_IMAGE,
       imageAlt: LEARN_IMAGE_ALT,
+    };
+  }
+  if (view === "learnGive") {
+    return {
+      title: LEARN_GIVE_TITLE,
+      description: LEARN_GIVE_DESCRIPTION,
+      robots,
+      image: LEARN_GIVE_IMAGE,
+      imageAlt: LEARN_GIVE_IMAGE_ALT,
     };
   }
   if (view === "learnFollow") {
@@ -727,12 +745,93 @@ export function learnVolumeJsonLd(): Record<string, unknown> {
   };
 }
 
+export function learnGiveJsonLd(): Record<string, unknown> {
+  const pageUrl = `${SITE_ORIGIN}${LEARN_GIVE_PATH}`;
+  const learnUrl = `${SITE_ORIGIN}/learn`;
+  const orgId = `${SITE_ORIGIN}/#organization`;
+  const appId = `${SITE_ORIGIN}/#app`;
+  const siteId = `${SITE_ORIGIN}/#website`;
+  const pageId = `${pageUrl}#page`;
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": orgId,
+        name: LEGAL_ENTITY,
+        url: "https://mergestorm.ai/",
+        email: LEGAL_CONTACT_EMAIL,
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": appId,
+        name: PRODUCT_NAME,
+        url: `${SITE_ORIGIN}/`,
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        image: absoluteSeoUrl(LEARN_GIVE_IMAGE),
+        creator: { "@id": orgId },
+      },
+      {
+        "@type": "WebSite",
+        "@id": siteId,
+        url: `${SITE_ORIGIN}/`,
+        name: PRODUCT_NAME,
+        publisher: { "@id": orgId },
+        inLanguage: "en-US",
+      },
+      {
+        "@type": "Article",
+        "@id": pageId,
+        url: pageUrl,
+        name: LEARN_GIVE_TITLE,
+        headline: LEARN_GIVE_HEADING,
+        description: LEARN_GIVE_DESCRIPTION,
+        isPartOf: { "@id": siteId },
+        about: { "@id": appId },
+        image: absoluteSeoUrl(LEARN_GIVE_IMAGE),
+        inLanguage: "en-US",
+        dateModified: LEARN_SOURCE_DATE,
+        citation: LEARN_BDSM_LIKE_HEAD_HREF,
+        publisher: { "@id": orgId },
+        breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
+        sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${pageUrl}#breadcrumb`,
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: PRODUCT_NAME,
+            item: `${SITE_ORIGIN}/`,
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: LEARN_HUB_HEADING,
+            item: learnUrl,
+          },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: LEARN_GIVE_HEADING,
+            item: pageUrl,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export function jsonLdForView(view: AppView): Record<string, unknown> {
   if (view === "changelog") return changelogJsonLd();
   if (view === "learn") return learnJsonLd();
   if (view === "learnWeights") return learnWeightsJsonLd();
   if (view === "learnReply") return learnReplyJsonLd();
   if (view === "learnVolume") return learnVolumeJsonLd();
+  if (view === "learnGive") return learnGiveJsonLd();
   if (view === "learnFollow") return learnFollowJsonLd();
   return softwareApplicationJsonLd();
 }
