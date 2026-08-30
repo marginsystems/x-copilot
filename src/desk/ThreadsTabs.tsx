@@ -20,6 +20,9 @@ import {
   SkippedRow,
 } from "./HistoryRows";
 import { RankingDrawer } from "./RankingDrawer";
+import { ReplyPaceBar } from "./ReplyPaceBar";
+import { ScoutedPaceCover } from "./ScoutedPaceCover";
+import { useReplyPace } from "./useReplyPace";
 import { DailyMissionsRow, NextActionRow } from "./NextActionRow";
 import { SuggestedRow } from "./SuggestedRow";
 import type { CoachingState } from "../lib/coaching";
@@ -95,6 +98,7 @@ export function ThreadsTabs({
   onSkip,
   onDismiss,
 }: ThreadsTabsProps) {
+  const pace = useReplyPace();
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   useEffect(() => {
     const live = new Set<string>();
@@ -243,6 +247,9 @@ export function ThreadsTabs({
                   </button>
                 </div>
               ) : null}
+              {pace.locked ? (
+                <ReplyPaceBar clock={pace.clock} onBypass={pace.bypass} />
+              ) : null}
               {forYouSuggestions.length > 0 ? (
                 <div className="for-you-suggested">
                   <h3 className="section-label">Suggested</h3>
@@ -256,6 +263,7 @@ export function ThreadsTabs({
                         open={expandedId === key}
                         exiting={exitingIds.has(row.id)}
                         busy={actionBusy}
+                        paced={pace.locked}
                         voice={voice}
                         agenda={agenda}
                         xLinked={authUser?.xLinked}
@@ -289,8 +297,18 @@ export function ThreadsTabs({
                 </div>
               ) : null}
               {curatedThreads.length > 0 ? (
-                <div className="for-you-scouted">
+                <div
+                  className={
+                    pace.locked ? "for-you-scouted is-paced" : "for-you-scouted"
+                  }
+                >
                   <h3 className="section-label">Scouted</h3>
+                  {pace.locked ? (
+                    <ScoutedPaceCover
+                      clock={pace.clock}
+                      onBypass={pace.bypass}
+                    />
+                  ) : null}
               {sortThreadsByCreatedAtNewest(curatedThreads).map((t, i) => (
                 <ThreadRow
                   key={t.id}
@@ -306,7 +324,9 @@ export function ThreadsTabs({
                     if (next) watchDeskThreads([t]);
                   }}
                   onWatch={() => watchDeskThreads([t])}
-                  onMark={() => onMark(t)}
+                  onMark={() => {
+                    if (!pace.locked) onMark(t);
+                  }}
                   onSkip={() => exitRow(t.id, t.id, () => onSkip(t))}
                   onDismiss={() => onDismiss(t)}
                   suggest={

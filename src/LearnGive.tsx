@@ -217,6 +217,15 @@ export function LearnGivePage(props: {
         </p>
       </LearnTip>
 
+      <h2>The desk holds one minute</h2>
+      <p>
+        After you mark a reply as interacted, Approach holds scouted
+        posts for 60 seconds. That is our gate, not a published X number.
+        Burstiness is in the features. Five replies a minute is the shape
+        we do not want. Bypass if you must. The hold is there to keep you
+        on notice.
+      </p>
+
       <h2>Two different likes</h2>
       <p>
         Lesson 01 is what a like is worth on a candidate this viewer is

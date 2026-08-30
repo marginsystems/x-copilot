@@ -87,6 +87,7 @@
 }
 
 .for-you-scouted {
+  position: relative;
   display: grid;
   gap: 6px;
 }
@@ -694,5 +695,116 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px 14px;
+}
+
+.reply-pace-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+}
+
+.reply-pace-clock {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.reply-pace-copy,
+.reply-pace-hold {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.reply-pace-bar .ghost {
+  margin-left: auto;
+}
+
+.reply-pace-help {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.reply-pace-help summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text);
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.reply-pace-help summary::-webkit-details-marker {
+  display: none;
+}
+
+.reply-pace-help-panel {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: calc(100% + 6px);
+  width: min(22rem, 78vw);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.reply-pace-help-panel p {
+  margin: 0 0 6px;
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.reply-pace-help-panel p:last-child {
+  margin-bottom: 0;
+}
+
+.reply-pace-help-panel a {
+  color: var(--accent);
+}
+
+.for-you-scouted.is-paced {
+  isolation: isolate;
+}
+
+.scouted-pace-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  text-align: center;
+  background: color-mix(in srgb, var(--bg) 42%, transparent);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.scouted-pace-cover p {
+  margin: 0;
+  max-width: 22rem;
+  color: var(--text);
+  font-size: 0.82rem;
 }
 

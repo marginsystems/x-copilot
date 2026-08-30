@@ -16,6 +16,7 @@ export function SuggestedRow({
   row,
   open,
   busy,
+  paced,
   voice,
   agenda,
   xLinked,
@@ -33,6 +34,7 @@ export function SuggestedRow({
   row: ForYouSuggestion;
   open: boolean;
   busy: boolean;
+  paced?: boolean;
   voice: VoiceState | null;
   agenda: string;
   xLinked?: boolean;
@@ -75,7 +77,11 @@ export function SuggestedRow({
       {!compose && row.draft ? (
         <p className="for-you-draft">{row.draft}</p>
       ) : null}
-      {compose ? (
+      {paced ? (
+        <p className="reply-pace-hold">
+          Hold. Bypass the one-minute gate if you need to post.
+        </p>
+      ) : compose ? (
         voice?.status === "ready" && voice.unlocked && seed ? (
           <SuggestPane
             variant="compose"
@@ -131,7 +137,7 @@ export function SuggestedRow({
           <button
             type="button"
             className="ghost"
-            disabled={busy}
+            disabled={busy || paced}
             onClick={onPosted}
           >
             I posted on X
