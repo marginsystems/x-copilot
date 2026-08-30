@@ -448,6 +448,58 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
+  it("copies an OP website card_uri onto the reply with no URL entities", async () => {
+    await withSession(async () => {
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = async () =>
+        jsonResponse(
+          {
+            data: {
+              id: "2087820145578103161",
+              text: "I spent five years in corporate sales. Corporatish.",
+              author_id: "1898190900041265152",
+              card_uri: "card://2087820143858499584",
+              entities: { urls: [] },
+            },
+            includes: {
+              users: [
+                {
+                  id: "1898190900041265152",
+                  username: "RafaelDaVentys",
+                  name: "Rafael DaVentys",
+                },
+              ],
+            },
+          },
+          200,
+        );
+      try {
+        const parent = await fetchParentTweet({
+          tweetId: "2087820145578103161",
+        });
+        assert.equal(parent?.author, "@RafaelDaVentys");
+        assert.equal(parent?.hasOutboundLink, true);
+        const { threads } = await hydrateReplyParents({
+          threads: [
+            replyCard({
+              id: "2093404586795262199",
+              author: "@IssanCARefugee",
+              text: "I was in it 6 yrs, SV tech sales.",
+              url: "https://x.com/IssanCARefugee/status/2093404586795262199",
+              inReplyToId: "2087820145578103161",
+            }),
+          ],
+          delayMs: 0,
+          fetchParent: async () => parent,
+        });
+        assert.equal(threads[0]?.hasOutboundLink, true);
+        assert.match(threads[0]?.opText ?? "", /Corporatish/);
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
+  });
+
   it("flags a note_tweet parent with an off-platform note entity link", async () => {
     await withSession(async () => {
       const origFetch = globalThis.fetch;

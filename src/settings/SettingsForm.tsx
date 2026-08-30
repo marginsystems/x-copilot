@@ -5,6 +5,7 @@ import type { AuthSessionUser } from "../auth/types";
 import {
   clampMaxThreadChars,
   DEFAULT_SETTINGS,
+  DROP_OUTBOUND_LINKS_LABEL,
   MAX_AVOID_CHARS,
   normalizeAvoidPrompt,
   normalizePreferredLanguage,
@@ -140,7 +141,7 @@ export function SettingsForm({
                 }))
               }
             />
-            <span>Drop posts with off-platform links</span>
+            <span>{DROP_OUTBOUND_LINKS_LABEL}</span>
           </label>
           <label className="settings-check">
             <input

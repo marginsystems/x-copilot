@@ -234,7 +234,7 @@ export function threadHasOutboundLink(thread: ThreadCard): boolean {
 }
 
 export type OutboundLinkFilterOptions = {
-  /** When true (default), hard-drop posts with an off-platform link. */
+  /** When true (default), hard-drop website cards and URL-entity outbound links. */
   dropOutboundLinks?: boolean;
 };
 

@@ -4,6 +4,7 @@ import {
   DEFAULT_EXCLUDED_ACCOUNTS,
   DEFAULT_EXCLUDED_TAGS,
   DEFAULT_SETTINGS,
+  DROP_OUTBOUND_LINKS_LABEL,
   LEGACY_DEFAULT_EXCLUDED_ACCOUNTS,
   LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT,
   MAX_AVOID_CHARS,
@@ -196,6 +197,12 @@ describe("normalizeSettings", () => {
     const stored = { ...DEFAULT_SETTINGS } as Record<string, unknown>;
     delete stored.dropOutboundLinks;
     assert.equal(normalizeSettings(stored).dropOutboundLinks, true);
+  });
+
+  it("settings copy says we drop posts with outbound links, not just website cards", () => {
+    assert.equal(DROP_OUTBOUND_LINKS_LABEL, "Drop posts with outbound links");
+    assert.match(DROP_OUTBOUND_LINKS_LABEL, /outbound links/i);
+    assert.doesNotMatch(DROP_OUTBOUND_LINKS_LABEL, /website cards/i);
   });
 });
 

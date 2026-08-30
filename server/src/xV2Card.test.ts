@@ -443,3 +443,78 @@ describe("v2 outbound links from real t.co entities", () => {
     assert.equal(filtered.linkFilteredCount, 1);
   });
 });
+
+/**
+ * Real Take off miss: https://x.com/IssanCARefugee/status/2093404586795262199
+ * Reply text is clean. The OP (https://x.com/RafaelDaVentys/status/2087820145578103161)
+ * has no entities.urls — only tweet.fields=card_uri → card://2087820143858499584
+ * (website card “From daventys.com”). v2 never returns that landing URL.
+ */
+describe("v2 outbound links from official card_uri", () => {
+  const replyId = "2093404586795262199";
+  const opId = "2087820145578103161";
+  const cardUri = "card://2087820143858499584";
+  const users = [
+    {
+      id: "1675619540104019968",
+      username: "IssanCARefugee",
+      name: "IssanCali",
+    },
+    {
+      id: "1898190900041265152",
+      username: "RafaelDaVentys",
+      name: "Rafael DaVentys",
+    },
+  ];
+  const replyTweet = {
+    id: replyId,
+    text: "@RafaelDaVentys I was in it 6 yrs, '99-'04, SV tech sales. Biggest probs were:\n1. Startups, sketchy funding, unpaid invoices.\n2. Joker wannabes, like the \"record company CEO\" talking a big game trying for free gear.\n3. Running to shipping to pack/load stuff myself to get it out.\n4. Waste of time",
+    author_id: "1675619540104019968",
+    conversation_id: opId,
+    in_reply_to_user_id: "1898190900041265152",
+    referenced_tweets: [{ type: "replied_to" as const, id: opId }],
+    entities: { urls: [] as { expanded_url?: string }[] },
+  };
+  const opTweet = {
+    id: opId,
+    text: "I spent five years in corporate sales.\n\n(If you've worked under fluorescent lights, you know The Office isn't a comedy. It's a documentary)\n\nThose years taught me a new language: Corporatish.\n\nFor example, when someone tells you: \"As I told you in my previous email..\"\n\nIt means..",
+    author_id: "1898190900041265152",
+    card_uri: cardUri,
+    entities: { urls: [] as { expanded_url?: string }[] },
+  };
+
+  it("does not treat the clean reply as outbound on its own", () => {
+    const { threads } = parseV2SearchPayload({
+      data: [replyTweet],
+      includes: { users },
+    });
+    assert.equal(threads.length, 1);
+    assert.equal(threads[0]?.id, replyId);
+    assert.equal(threads[0]?.hasOutboundLink, undefined);
+    assert.equal(filterOutboundLinks(threads).linkFilteredCount, 0);
+  });
+
+  it("drops the reply when the OP has a card_uri and no URL entities", () => {
+    const { threads } = parseV2SearchPayload({
+      data: [replyTweet],
+      includes: { users, tweets: [opTweet] },
+    });
+    assert.equal(threads.length, 1);
+    assert.equal(threads[0]?.hasOutboundLink, true);
+    assert.match(threads[0]?.opText ?? "", /Corporatish/);
+    const filtered = filterOutboundLinks(threads);
+    assert.equal(filtered.threads.length, 0);
+    assert.equal(filtered.linkFilteredCount, 1);
+  });
+
+  it("keeps the card OP when dropOutboundLinks is off", () => {
+    const { threads } = parseV2SearchPayload({
+      data: [replyTweet],
+      includes: { users, tweets: [opTweet] },
+    });
+    const kept = filterOutboundLinks(threads, { dropOutboundLinks: false });
+    assert.equal(kept.threads.length, 1);
+    assert.equal(kept.linkFilteredCount, 0);
+    assert.equal(kept.threads[0]?.id, replyId);
+  });
+});
