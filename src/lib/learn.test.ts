@@ -185,7 +185,7 @@ describe("learn citations", () => {
     assert.match(LEARN_GIVE_DESCRIPTION, /not subtracted/);
     assert.equal(
       LEARN_LESSONS[3]!.lede,
-      "Do not like or auto-follow who you reply to. Fire lines are redacted. Your like is not a For You debit.",
+      "Do not like or auto-follow who you reply to. Fire lines stay redacted. A like you give is not a For You debit.",
     );
     assert.equal(LEARN_LESSONS[3]!.href, LEARN_GIVE_PATH);
   });

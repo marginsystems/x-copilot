@@ -246,7 +246,7 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     href: LEARN_GIVE_PATH,
     number: "04",
     heading: LEARN_GIVE_HEADING,
-    lede: "Do not like or auto-follow who you reply to. Fire lines are redacted. Your like is not a For You debit.",
+    lede: "Do not like or auto-follow who you reply to. Fire lines stay redacted. A like you give is not a For You debit.",
   },
 ];
 
