@@ -3,6 +3,7 @@ import { LearnChrome } from "./LearnChrome";
 import { LearnCode } from "./LearnCode";
 import { LearnTip } from "./LearnTip";
 import {
+  LEARN_BDSM_FILTERS,
   LEARN_APPLY_SNIPPET,
   LEARN_BDSM_AMPLIFIER_HEAD_HREF,
   LEARN_BDSM_AMPLIFIER_HEAD_SNIPPET,
@@ -12,6 +13,9 @@ import {
   LEARN_BDSM_LIKE_HEAD_SNIPPET,
   LEARN_BDSM_MULTI_HEAD_HREF,
   LEARN_BDSM_REDACT_HREF,
+  LEARN_BDSM_REPLY_HEAD_HREF,
+  LEARN_BDSM_SINK_ENFORCE_HREF,
+  LEARN_BDSM_SINK_LIVENESS_HREF,
   LEARN_FOLLOW_AUTHOR_HREF,
   LEARN_FOLLOW_HEADING,
   LEARN_FOLLOW_PATH,
@@ -24,7 +28,6 @@ import {
   LEARN_GIVE_META,
   LEARN_HEADING,
   LEARN_MUTUAL_REPLY_HREF,
-  LEARN_PHOENIX_FAV_HREF,
   LEARN_SCORER_HREF,
   LEARN_SOURCE_DATE,
   LEARN_SOURCE_REPO,
@@ -59,16 +62,16 @@ export function LearnGivePage(props: {
       onOpenLesson={onOpenLesson}
       rail={
         <>
-          <p className="learn-rail-kicker">Like you give</p>
-          <p className="learn-rail-weight">Not a debit</p>
-          <p className="learn-rail-kicker">Follow author</p>
-          <p className="learn-rail-weight">+4.0 × P</p>
-          <p className="learn-rail-kicker">Thunder take</p>
-          <p className="learn-rail-weight">10 000</p>
+          <p className="learn-rail-kicker">On a reply</p>
+          <p className="learn-rail-weight">No like</p>
+          <p className="learn-rail-kicker">On a reply</p>
+          <p className="learn-rail-weight">No follow</p>
+          <p className="learn-rail-kicker">Fire line</p>
+          <p className="learn-rail-weight">Redacted</p>
           <p className="learn-rail-formula">{LEARN_FORMULA}</p>
           <p>
-            Favorite 0.5 and Follow author 4.0 multiply P(action) for this
-            viewer of a candidate.{" "}
+            Favorite 0.5 and Follow author 4.0 still multiply P(action) for
+            this viewer of a candidate.{" "}
             <a href={LEARN_FOLLOW_AUTHOR_HREF} rel="noreferrer">
               FollowAuthorWeight
             </a>{" "}
@@ -89,6 +92,81 @@ export function LearnGivePage(props: {
         </figcaption>
       </figure>
 
+      <h2>The rule</h2>
+      <p>
+        When you reply, do not like the parent. Do not auto-follow them.
+        That is the operator habit. It is not a published likes-per-day or
+        follows-per-day number.
+      </p>
+      <p>
+        <a href={LEARN_BDSM_REDACT_HREF} rel="noreferrer">
+          Operating points
+        </a>{" "}
+        ship as a 9.99 sentinel. We do not know 10 a day from 10 a minute.
+        An unknown line is not permission to like or follow every account
+        you reply to.
+      </p>
+      <h2>The eight spam heads</h2>
+      <p>
+        These are bot filters, not For You weights. Eight heads. One integer
+        per head in{" "}
+        <a href={LEARN_BDSM_LIKE_HEAD_HREF} rel="noreferrer">
+          heads.py
+        </a>
+        . That integer is not multiplied into P(head) in this snapshot. It
+        is not “LikeBot hits twice as hard as FollowBot.” Reply farming is
+        ReplySpamBot (8 922), not LikeBot (60 320). If you do not like,
+        LikeBot does not see like sequences.
+      </p>
+      <p>
+        Lines under “points at” are inferred from the names. The repo does
+        not define them. Fire line is still 9.99.
+      </p>
+      <div className="learn-table-wrap">
+        <table className="learn-bdsm-table">
+          <caption>
+            Flywheel labels at <code>{LEARN_SOURCE_SHA}</code>. Scout column
+            assumes reply-only: no like, no follow, no repost.
+          </caption>
+          <thead>
+            <tr>
+              <th>Head</th>
+              <th>n</th>
+              <th>Label</th>
+              <th>Points at</th>
+              <th>If you only reply</th>
+            </tr>
+          </thead>
+          <tbody>
+            {LEARN_BDSM_FILTERS.map((row) => (
+              <tr key={row.label}>
+                <td>{row.head}</td>
+                <td>{row.weight.toLocaleString("en-US")}</td>
+                <td>
+                  <code>{row.label}</code>
+                </td>
+                <td>{row.infer}</td>
+                <td>{row.scout}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <LearnTip title="Does that cut your For You score">
+        <p>
+          No. A like or follow you give is not subtracted from your next
+          original.{" "}
+          <a href={LEARN_SCORER_HREF} rel="noreferrer">
+            apply
+          </a>{" "}
+          is still <code>score.unwrap_or(0.0) * weight</code>. There is no
+          ranking constant for “author liked the parent.” STEADY_LIKE_DRIP
+          is not a For You debit. It is also not a free pass. It is a
+          sequence label on a different stack, with a withheld fire line.
+        </p>
+      </LearnTip>
+
       <h2>Two different likes</h2>
       <p>
         Lesson 01 is what a like is worth on a candidate this viewer is
@@ -96,41 +174,30 @@ export function LearnGivePage(props: {
         <em>P(this viewer likes this post)</em>. This lesson is the like{" "}
         <em>you</em> tap. That tap is not a term on your next original.
       </p>
-      <p>
-        <a href={LEARN_SCORER_HREF} rel="noreferrer">
-          apply
-        </a>{" "}
-        is <code>score.unwrap_or(0.0) * weight</code>. There is no ranking
-        constant that says “author liked N posts today, subtract from their
-        originals.” If a debit is not in the code, we do not say one.
-      </p>
       <LearnCode
         file="home-mixer/scorers/ranking_scorer.rs"
         href={LEARN_SCORER_HREF}
       >
         {LEARN_APPLY_SNIPPET}
       </LearnCode>
-      <LearnTip title="Liking them is not paying a tax">
-        <p>
-          Your like can still help <em>their</em> post — other viewers may
-          then be predicted to favorite similar posts. See{" "}
-          <LegalLink href={LEARN_WEIGHTS_PATH} onNavigate={onWeights}>
-            {LEARN_HEADING}
-          </LegalLink>
-          . It is not subtracted from yours.
-        </p>
-      </LearnTip>
-
-      <h2>Why not like every post you see</h2>
       <p>
-        The cost is not a For You weight. It is a sequence detector.{" "}
+        Your like can still help <em>their</em> post. See{" "}
+        <LegalLink href={LEARN_WEIGHTS_PATH} onNavigate={onWeights}>
+          {LEARN_HEADING}
+        </LegalLink>
+        . Growth here is your account, not theirs. We do not like the
+        parent to be polite.
+      </p>
+
+      <h2>LikeBot is not a daily quota</h2>
+      <p>
         <a href={LEARN_BDSM_LIKE_HEAD_HREF} rel="noreferrer">
           LikeBot
         </a>{" "}
-        is head 1. The flywheel labels are PURE_LIKE_API_BURST,
-        LIKE_UNLIKE_CYCLE, STEADY_LIKE_DRIP, and LIKE_FARM_BOT. Those names
-        are the training labels. They are not a published likes-per-day
-        constant.
+        is head 1. Training labels: PURE_LIKE_API_BURST, LIKE_UNLIKE_CYCLE,
+        STEADY_LIKE_DRIP, LIKE_FARM_BOT. The model scores P(LikeBot) over
+        the last 512 actions. It does not print STEADY_LIKE_DRIP at serve
+        time.
       </p>
       <LearnCode
         file="bdsm/runtime/heads.py"
@@ -147,53 +214,39 @@ export function LearnGivePage(props: {
         />
         <figcaption>
           LikeBot labels from heads.py. Burst, unlike-cycle, steady drip,
-          farm. Not a daily quota.
+          farm. Not a daily quota. Not a For You weight.
         </figcaption>
       </figure>
       <p>
+        Liking every parent as you reply is the drip that label is named
+        for. We do not know the tau. So we do not do the drip.{" "}
         <a href={LEARN_BDSM_MULTI_HEAD_HREF} rel="noreferrer">
           MultiActionBot
         </a>{" "}
-        also carries SCROLL_AND_LIKE.{" "}
-        <a href={LEARN_PHOENIX_FAV_HREF} rel="noreferrer">
-          Phoenix retrieval
-        </a>{" "}
-        trains the two towers with favorites as the positive signal. That is
-        about what is retrieved <em>for you</em>. Liking everything makes
-        favorite a noisy positive. It is still not a subtraction from your
-        outgoing score.
+        also carries SCROLL_AND_LIKE.
       </p>
       <p>
-        <a href={LEARN_BDSM_REDACT_HREF} rel="noreferrer">
-          Operating points
-        </a>{" "}
-        ship as a 9.99 sentinel. We do not invent a fire threshold or a safe
-        like count.
+        In the public sink table, LikeBot and MultiActionBot sit on{" "}
+        <a href={LEARN_BDSM_SINK_LIVENESS_HREF} rel="noreferrer">
+          paused_liveness_thresholds
+        </a>
+        — a challenge lane, not the main enforcement table. Those taus are
+        also 9.99. We do not say a drip “does nothing.” We do not say it
+        subtracts from your originals. We say: unknown line, do not build
+        the habit.
       </p>
-      <LearnTip title="Should I like the post I reply to">
-        <p>
-          The snapshot does not say “like the parent when you reply” adds a
-          For You term on your reply. A single sincere like is not
-          STEADY_LIKE_DRIP by itself. Liking every parent as a habit is the
-          drip the head is named for.
-        </p>
-      </LearnTip>
 
-      <h2>Follow is not a free boost on your posts</h2>
+      <h2>Do not follow who you reply to</h2>
       <p>
         Follow author +4.0 multiplies{" "}
-        <em>P(this viewer follows this author)</em> when scoring a
-        candidate. You following them is you as viewer. It does not add +4.0
-        to your originals for other people.
-      </p>
-      <p>
-        Mutual-follow +15.0 is{" "}
+        <em>P(this viewer follows this author)</em> on a candidate. You
+        following them does not add +4.0 to your originals. Mutual-follow
+        +15.0 is{" "}
         <a href={LEARN_MUTUAL_REPLY_HREF} rel="noreferrer">
           BidirectionalFollowReplyWeightBoost
         </a>{" "}
-        on <em>their</em> originals in <em>your</em> feed when you both
-        follow. Following them does not mint that boost on your posts unless
-        they follow you. In-network vs out-of-network is{" "}
+        on <em>their</em> originals in <em>your</em> feed, and only if they
+        follow you. In-network vs out-of-network is{" "}
         <LegalLink href={LEARN_FOLLOW_PATH} onNavigate={onFollow}>
           {LEARN_FOLLOW_HEADING}
         </LegalLink>
@@ -203,8 +256,9 @@ export function LearnGivePage(props: {
         <a href={LEARN_BDSM_FOLLOW_HEAD_HREF} rel="noreferrer">
           FollowBot
         </a>{" "}
-        is head 0. Labels: FOLLOW_UNFOLLOW_CYCLE, PURE_FOLLOW_API_BURST,
-        API_ONLY_BOT, GROWTH_SERVICE_BOT, FOLLOW_FARM_BOT.
+        labels: FOLLOW_UNFOLLOW_CYCLE, PURE_FOLLOW_API_BURST, API_ONLY_BOT,
+        GROWTH_SERVICE_BOT, FOLLOW_FARM_BOT. Same withheld line. Do not
+        follow every reply to “be safe later.”
       </p>
       <LearnCode
         file="bdsm/runtime/heads.py"
@@ -217,9 +271,13 @@ export function LearnGivePage(props: {
           EngagementAmplifier
         </a>{" "}
         names the pipeline: FOLLOW_THEN_FAV, FOLLOW_THEN_REPLY,
-        REPLY_THEN_FOLLOW, FOLLOW_LIKE_AMPLIFIER. Following everyone you
-        reply to, then liking, is the pattern those labels describe. The
-        snapshot does not say one follow-after-reply fires the head.
+        REPLY_THEN_FOLLOW, FOLLOW_LIKE_AMPLIFIER. Reply then like then
+        follow is that pattern. FollowBot and Amplifier sit on the{" "}
+        <a href={LEARN_BDSM_SINK_ENFORCE_HREF} rel="noreferrer">
+          main enforcement table
+        </a>
+        . Taus are 9.99. We do not invent a fire. We do not run the
+        pipeline.
       </p>
       <LearnCode
         file="bdsm/runtime/heads.py"
@@ -227,14 +285,27 @@ export function LearnGivePage(props: {
       >
         {LEARN_BDSM_AMPLIFIER_HEAD_SNIPPET}
       </LearnCode>
-      <LearnTip title="Should I follow people I reply to">
+      <LearnTip title="Follow them later, on purpose">
         <p>
-          Follow them if you want their originals in your in-network pool.
-          Do not follow them to buy +4.0 or +15.0 on your own posts. A
-          mechanical reply-then-follow loop is what EngagementAmplifier is
-          named for.
+          Follow an account because you want their originals in your
+          in-network pool. Not as a step after the reply. Not to buy +4.0
+          or +15.0 on your posts.
         </p>
       </LearnTip>
+
+      <h2>Replies are a different head</h2>
+      <p>
+        Reply volume is not this lesson.{" "}
+        <a href={LEARN_BDSM_REPLY_HEAD_HREF} rel="noreferrer">
+          ReplySpamBot
+        </a>{" "}
+        is head 3. Its fire line is also redacted. There is no daily reply
+        quota in For You. Fetch caps and slate decay are{" "}
+        <LegalLink href={LEARN_VOLUME_PATH} onNavigate={onVolume}>
+          {LEARN_VOLUME_HEADING}
+        </LegalLink>
+        . Do not read “do not like the parent” as “replies are free.”
+      </p>
 
       <h2>A high following count is not a rank debit</h2>
       <p>
@@ -265,14 +336,9 @@ export function LearnGivePage(props: {
         </figcaption>
       </figure>
       <p>
-        If you follow more than 10 000, extras may not enter that fetch. That
-        changes what you are shown. It does not say your originals rank
-        worse. Volume caps on how many of <em>your</em> posts enter someone
-        else's pool are{" "}
-        <LegalLink href={LEARN_VOLUME_PATH} onNavigate={onVolume}>
-          {LEARN_VOLUME_HEADING}
-        </LegalLink>
-        .
+        If you follow more than 10 000, extras may not enter that fetch.
+        That changes what you are shown. It does not say your originals
+        rank worse.
       </p>
 
       <h2>Source</h2>
@@ -282,8 +348,8 @@ export function LearnGivePage(props: {
           xai-org/x-algorithm
         </a>{" "}
         at <code>{LEARN_SOURCE_SHA}</code> ({LEARN_SOURCE_DATE}). Feature
-        switches still exist. If a number is not in this snapshot, we do not
-        say it.
+        switches still exist. If a number is not in this snapshot, we do
+        not say it.
       </p>
       <p>
         {PRODUCT_NAME} is not affiliated with X Corp.

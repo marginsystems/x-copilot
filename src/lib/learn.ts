@@ -189,7 +189,7 @@ export const LEARN_VOLUME_PATH = "/learn/how-many-replies";
 export const LEARN_GIVE_TITLE = "Likes and follows you give — x-copilot";
 export const LEARN_GIVE_HEADING = "Likes and follows you give";
 export const LEARN_GIVE_DESCRIPTION =
-  "A like you give is not subtracted from your post score. Favorite 0.5 and Follow author 4.0 multiply P(action) for this viewer. LikeBot, FollowBot, and EngagementAmplifier score sequences; fire thresholds are redacted. Thunder takes at most 10000 followed ids for your in-network fetch. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+  "When you reply, do not like the parent and do not auto-follow them. LikeBot, FollowBot, and EngagementAmplifier score those sequences; fire thresholds are redacted, so we do not treat that habit as safe. A like you give is not subtracted from your post score. Favorite 0.5 and Follow author 4.0 multiply P(action) for this viewer. Thunder takes at most 10000 followed ids for your in-network fetch. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
 export const LEARN_GIVE_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_GIVE_PATH = "/learn/likes-and-follows-you-give";
 export const LEARN_GIVE_IMAGE = "/og-learn-give.png";
@@ -246,8 +246,59 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     href: LEARN_GIVE_PATH,
     number: "04",
     heading: LEARN_GIVE_HEADING,
-    lede: "Your like is not a debit on your score. LikeBot and FollowBot score sequences. Thunder takes 10000 followed ids.",
+    lede: "Do not like or auto-follow who you reply to. Fire lines are redacted. Your like is not a For You debit.",
   },
+];
+
+/** Flywheel labels from bdsm/runtime/heads.py. Infer lines are from the names, not official prose. */
+export type LearnBdsmFilter = {
+  head: string;
+  weight: number;
+  label: string;
+  infer: string;
+  scout: string;
+};
+
+export const LEARN_BDSM_FILTERS: readonly LearnBdsmFilter[] = [
+  { head: "FollowBot", weight: 27576, label: "FOLLOW_UNFOLLOW_CYCLE", infer: "Follow, then unfollow, as a loop.", scout: "No, if you do not follow" },
+  { head: "FollowBot", weight: 27576, label: "PURE_FOLLOW_API_BURST", infer: "Follow storm through the API, not a person tapping.", scout: "No, if you do not follow" },
+  { head: "FollowBot", weight: 27576, label: "API_ONLY_BOT", infer: "Server follows with no real client dwell.", scout: "No, if you do not follow" },
+  { head: "FollowBot", weight: 27576, label: "GROWTH_SERVICE_BOT", infer: "Third-party growth shop.", scout: "No, if you do not follow" },
+  { head: "FollowBot", weight: 27576, label: "FOLLOW_FARM_BOT", infer: "Coordinated follow farm.", scout: "No, if you do not follow" },
+  { head: "LikeBot", weight: 60320, label: "PURE_LIKE_API_BURST", infer: "Like storm through the API.", scout: "No, if you do not like" },
+  { head: "LikeBot", weight: 60320, label: "LIKE_UNLIKE_CYCLE", infer: "Like, then unlike, as a loop.", scout: "No, if you do not like" },
+  { head: "LikeBot", weight: 60320, label: "STEADY_LIKE_DRIP", infer: "Metronome likes, including like-every-parent.", scout: "No, if you do not like" },
+  { head: "LikeBot", weight: 60320, label: "LIKE_FARM_BOT", infer: "Coordinated like farm.", scout: "No, if you do not like" },
+  { head: "EngagementAmplifier", weight: 5496, label: "LIKE_RETWEET_PAIR", infer: "Like and retweet as a pair.", scout: "No, if you do not like or repost" },
+  { head: "EngagementAmplifier", weight: 5496, label: "FOLLOW_THEN_FAV_PIPELINE", infer: "Follow, then like.", scout: "No, if you skip both" },
+  { head: "EngagementAmplifier", weight: 5496, label: "FOLLOW_THEN_REPLY_PIPELINE", infer: "Follow, then reply.", scout: "No, if you do not follow" },
+  { head: "EngagementAmplifier", weight: 5496, label: "REPLY_THEN_FOLLOW_PIPELINE", infer: "Reply, then follow.", scout: "No, if you do not follow" },
+  { head: "EngagementAmplifier", weight: 5496, label: "ENGAGEMENT_AMPLIFIER", infer: "Catch-all outreach loop.", scout: "No, if reply is the only action" },
+  { head: "EngagementAmplifier", weight: 5496, label: "FOLLOW_LIKE_AMPLIFIER", infer: "Follow and like as a loop.", scout: "No, if you skip both" },
+  { head: "EngagementAmplifier", weight: 5496, label: "OUTREACH_PIPELINE_BOT", infer: "Scripted outreach sequence.", scout: "No, if reply is the only action" },
+  { head: "ReplySpamBot", weight: 8922, label: "REPLY_SPAM_NO_CONSUMPTION", infer: "Reply without reading the parent (no dwell / no render).", scout: "Yes" },
+  { head: "ReplySpamBot", weight: 8922, label: "REPLY_SPAM_BOT", infer: "Reply stream that looks like spam.", scout: "Yes" },
+  { head: "ReplySpamBot", weight: 8922, label: "CONVERSATION_SPAMMER", infer: "Flooding the same thread or conversation.", scout: "Yes" },
+  { head: "TweetSpamBot", weight: 23425, label: "TWEET_CREATE_BURST", infer: "Originals posted in a burst.", scout: "Only if you also original" },
+  { head: "TweetSpamBot", weight: 23425, label: "QUOTE_TWEET_SPAMMER", infer: "Quote spam.", scout: "Only if you also quote" },
+  { head: "TweetSpamBot", weight: 23425, label: "CONTENT_AMPLIFIER", infer: "Pumping the same content.", scout: "Only if you also original or quote" },
+  { head: "RTBot", weight: 5290, label: "PURE_RETWEET_API_BURST", infer: "Repost storm through the API.", scout: "No, if you do not repost" },
+  { head: "RTBot", weight: 5290, label: "RETWEET_UNRETWEET_CYCLE", infer: "Repost, then undo, as a loop.", scout: "No, if you do not repost" },
+  { head: "MultiActionBot", weight: 17474, label: "MULTI_ACTION_ENGAGEMENT_BOT", infer: "More than one action automated.", scout: "Only if the reply stream looks scripted" },
+  { head: "MultiActionBot", weight: 17474, label: "SCROLL_AND_LIKE", infer: "Scroll mixed with likes.", scout: "No, if you do not like" },
+  { head: "MultiActionBot", weight: 17474, label: "MIXED_AUTOMATION", infer: "Mixed automated actions.", scout: "Only if the reply stream looks scripted" },
+  { head: "MultiActionBot", weight: 17474, label: "SCROLL_BOT_NO_ENGAGEMENT", infer: "Scrolling with no real engage.", scout: "No" },
+  { head: "MultiActionBot", weight: 17474, label: "MIXED_ENGAGEMENT_AUTOMATION", infer: "Automated mix of engages.", scout: "Only if the reply stream looks scripted" },
+  { head: "MultiActionBot", weight: 17474, label: "SYNTHETIC_CONSUMER", infer: "Fake reader account.", scout: "No" },
+  { head: "MultiActionBot", weight: 17474, label: "AUTOMATED_ENGAGEMENT_BOT", infer: "Engagement run by a script.", scout: "Only if the reply stream looks scripted" },
+  { head: "MultiActionBot", weight: 17474, label: "PASSIVE_SURVEILLANCE_BOT", infer: "Watch without looking human.", scout: "No" },
+  { head: "MultiActionBot", weight: 17474, label: "COORDINATED_INAUTHENTIC_BOT", infer: "Several accounts moving together.", scout: "No" },
+  { head: "LegitimateUser", weight: 0, label: "LEGITIMATE_ORGANIC_USER", infer: "Looks like a person.", scout: "Counter-class, not a hit" },
+  { head: "LegitimateUser", weight: 0, label: "INFREQUENT_LEGITIMATE_USER", infer: "Quiet real account.", scout: "Counter-class, not a hit" },
+  { head: "LegitimateUser", weight: 0, label: "POWER_USER_API_CLIENT", infer: "Heavy API use that is still legit.", scout: "Counter-class, not a hit" },
+  { head: "LegitimateUser", weight: 0, label: "NEW_ACCOUNT_ONBOARDING", infer: "New account acting like onboarding.", scout: "Counter-class, not a hit" },
+  { head: "LegitimateUser", weight: 0, label: "DEVELOPER_TESTING", infer: "Dev / test traffic.", scout: "Counter-class, not a hit" },
+  { head: "LegitimateUser", weight: 0, label: "LEGITIMATE_USER", infer: "Generic organic label.", scout: "Counter-class, not a hit" },
 ];
 
 export type LearnWeight = {
@@ -423,6 +474,16 @@ export const LEARN_BDSM_MULTI_HEAD_HREF = algorithmPermalink(
   "bdsm/runtime/heads.py",
   83,
   98,
+);
+export const LEARN_BDSM_SINK_ENFORCE_HREF = algorithmPermalink(
+  "bdsm/runtime/sink_policy.yaml",
+  16,
+  20,
+);
+export const LEARN_BDSM_SINK_LIVENESS_HREF = algorithmPermalink(
+  "bdsm/runtime/sink_policy.yaml",
+  26,
+  28,
 );
 export const LEARN_THUNDER_FOLLOW_TAKE_HREF = algorithmPermalink(
   "thunder/thunder_service.rs",

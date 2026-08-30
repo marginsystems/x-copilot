@@ -414,6 +414,10 @@
   transition: background 220ms var(--ease-out);
 }
 
+.learn-bdsm-table tbody tr {
+  cursor: default;
+}
+
 .learn-page tbody tr:hover,
 .learn-page tbody tr.is-selected {
   background: color-mix(in srgb, var(--accent) 10%, transparent);

@@ -39,6 +39,8 @@ import {
   LEARN_BDSM_REPLY_HEAD_SNIPPET,
   LEARN_BDSM_ROPE_HREF,
   LEARN_BDSM_SEQ_HREF,
+  LEARN_BDSM_SINK_ENFORCE_HREF,
+  LEARN_BDSM_SINK_LIVENESS_HREF,
   LEARN_BDSM_TWEET_HEAD_HREF,
   LEARN_BDSM_TWEET_HEAD_SNIPPET,
   learnAdjacentLessons,
@@ -178,21 +180,14 @@ describe("learn citations", () => {
       LEARN_LESSONS[2]!.lede,
       "0.5 and 0.25 are this viewer's slate. Thunder's 30 is a fetch cap. ReplySpamBot scores sequences.",
     );
-    assert.match(LEARN_GIVE_DESCRIPTION, /not subtracted/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /LikeBot/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /FollowBot/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /EngagementAmplifier/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /10000 followed ids/);
+    assert.match(LEARN_GIVE_DESCRIPTION, /do not like the parent/);
     assert.match(LEARN_GIVE_DESCRIPTION, /redacted/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /not affiliated/i);
-    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /like everything to grow/i);
-    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /daily like/i);
-    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /hurts your reach/i);
-    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /follow everyone/i);
+    assert.match(LEARN_GIVE_DESCRIPTION, /not subtracted/);
     assert.equal(
       LEARN_LESSONS[3]!.lede,
-      "Your like is not a debit on your score. LikeBot and FollowBot score sequences. Thunder takes 10000 followed ids.",
+      "Do not like or auto-follow who you reply to. Fire lines are redacted. Your like is not a For You debit.",
     );
+    assert.equal(LEARN_LESSONS[3]!.href, LEARN_GIVE_PATH);
   });
 
   it("keeps official snippets verbatim", () => {
@@ -255,6 +250,14 @@ describe("learn citations", () => {
     assert.match(
       LEARN_BDSM_MULTI_HEAD_HREF,
       /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L83-L98/,
+    );
+    assert.match(
+      LEARN_BDSM_SINK_ENFORCE_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/sink_policy\.yaml#L16-L20/,
+    );
+    assert.match(
+      LEARN_BDSM_SINK_LIVENESS_HREF,
+      /\/blob\/d011592\/bdsm\/runtime\/sink_policy\.yaml#L26-L28/,
     );
     assert.match(
       LEARN_THUNDER_FOLLOW_TAKE_HREF,
