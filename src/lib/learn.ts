@@ -246,7 +246,7 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     href: LEARN_GIVE_PATH,
     number: "04",
     heading: LEARN_GIVE_HEADING,
-    lede: "Do not like or auto-follow who you reply to. Fire lines are redacted. Your like is not a For You debit.",
+    lede: "Eight spam heads, not For You. Reply-only is ReplySpamBot. Ramp and decay stay theory.",
   },
 ];
 
@@ -494,6 +494,17 @@ export const LEARN_PHOENIX_FAV_HREF = algorithmPermalink(
   "phoenix/README.md",
   274,
   275,
+);
+export const LEARN_BDSM_COOLDOWN_HREF = algorithmPermalink(
+  "bdsm/runtime/score_results_sink_focal.py",
+  344,
+  357,
+);
+export const LEARN_UTH_HREF = algorithmPermalink("README.md", 438, 442);
+export const LEARN_RANKING_VISIBILITY_HREF = algorithmPermalink(
+  "README.md",
+  464,
+  466,
 );
 
 /** Defaults at LEARN_DIVERSITY_HREF. k is prior posts from this author in this slate. */

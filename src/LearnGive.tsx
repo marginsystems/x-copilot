@@ -7,6 +7,7 @@ import {
   LEARN_APPLY_SNIPPET,
   LEARN_BDSM_AMPLIFIER_HEAD_HREF,
   LEARN_BDSM_AMPLIFIER_HEAD_SNIPPET,
+  LEARN_BDSM_COOLDOWN_HREF,
   LEARN_BDSM_FOLLOW_HEAD_HREF,
   LEARN_BDSM_FOLLOW_HEAD_SNIPPET,
   LEARN_BDSM_LIKE_HEAD_HREF,
@@ -14,6 +15,8 @@ import {
   LEARN_BDSM_MULTI_HEAD_HREF,
   LEARN_BDSM_REDACT_HREF,
   LEARN_BDSM_REPLY_HEAD_HREF,
+  LEARN_BDSM_ROPE_HREF,
+  LEARN_BDSM_SEQ_HREF,
   LEARN_BDSM_SINK_ENFORCE_HREF,
   LEARN_BDSM_SINK_LIVENESS_HREF,
   LEARN_FOLLOW_AUTHOR_HREF,
@@ -28,6 +31,8 @@ import {
   LEARN_GIVE_META,
   LEARN_HEADING,
   LEARN_MUTUAL_REPLY_HREF,
+  LEARN_PHOENIX_FAV_HREF,
+  LEARN_RANKING_VISIBILITY_HREF,
   LEARN_SCORER_HREF,
   LEARN_SOURCE_DATE,
   LEARN_SOURCE_REPO,
@@ -35,6 +40,7 @@ import {
   LEARN_THUNDER_CAP_HREF,
   LEARN_THUNDER_FOLLOW_TAKE_HREF,
   LEARN_THUNDER_FOLLOW_TAKE_SNIPPET,
+  LEARN_UTH_HREF,
   LEARN_VOLUME_HEADING,
   LEARN_VOLUME_PATH,
   LEARN_WEIGHTS_PATH,
@@ -42,6 +48,10 @@ import {
 } from "./lib/learn";
 import { PRODUCT_NAME } from "./lib/legal";
 import type { AppView } from "./lib/appView";
+
+const LEARN_BDSM_REPLY_ONLY = LEARN_BDSM_FILTERS.filter(
+  (row) => row.scout === "Yes",
+);
 
 export function LearnGivePage(props: {
   goToView: (view: AppView) => void;
@@ -92,41 +102,62 @@ export function LearnGivePage(props: {
         </figcaption>
       </figure>
 
-      <h2>The rule</h2>
+      <h2>Part 1 — The filters</h2>
       <p>
-        When you reply, do not like the parent. Do not auto-follow them.
-        That is the operator habit. It is not a published likes-per-day or
-        follows-per-day number.
+        Yes: spam / bot filters. Not For You ranking. Eight heads, not 40
+        separate weights.
       </p>
       <p>
-        <a href={LEARN_BDSM_REDACT_HREF} rel="noreferrer">
-          Operating points
-        </a>{" "}
-        ship as a 9.99 sentinel. We do not know 10 a day from 10 a minute.
-        An unknown line is not permission to like or follow every account
-        you reply to.
-      </p>
-      <h2>The eight spam heads</h2>
-      <p>
-        These are bot filters, not For You weights. Eight heads. One integer
-        per head in{" "}
+        The integer is on the head, once, in{" "}
         <a href={LEARN_BDSM_LIKE_HEAD_HREF} rel="noreferrer">
           heads.py
         </a>
-        . That integer is not multiplied into P(head) in this snapshot. It
-        is not “LikeBot hits twice as hard as FollowBot.” Reply farming is
-        ReplySpamBot (8 922), not LikeBot (60 320). If you do not like,
-        LikeBot does not see like sequences.
+        . All four LikeBot labels share 60 320. All three ReplySpamBot
+        labels share 8 922. In this snapshot that number is not multiplied
+        into your score. It is not “LikeBot hits twice as hard.” Reply
+        farming is ReplySpamBot, not LikeBot. If you do not like, LikeBot
+        does not see likes.
       </p>
       <p>
-        Lines under “points at” are inferred from the names. The repo does
-        not define them. Fire line is still 9.99.
+        If scout is reply-only (no like, no follow, no repost), the ones
+        that can apply:
       </p>
       <div className="learn-table-wrap">
         <table className="learn-bdsm-table">
           <caption>
-            Flywheel labels at <code>{LEARN_SOURCE_SHA}</code>. Scout column
-            assumes reply-only: no like, no follow, no repost.
+            ReplySpamBot labels at <code>{LEARN_SOURCE_SHA}</code>. Repo
+            does not define them. Inference only. Fire line still redacted.
+          </caption>
+          <thead>
+            <tr>
+              <th>n</th>
+              <th>Label</th>
+              <th>What the name points at</th>
+            </tr>
+          </thead>
+          <tbody>
+            {LEARN_BDSM_REPLY_ONLY.map((row) => (
+              <tr key={row.label}>
+                <td>{row.weight.toLocaleString("en-US")}</td>
+                <td>
+                  <code>{row.label}</code>
+                </td>
+                <td>{row.infer}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Like farm, follow farm, follow-then-fav, reply-then-follow: off if
+        you do not like or follow. Tweet / quote heads: only if you also
+        original or quote.
+      </p>
+      <div className="learn-table-wrap">
+        <table className="learn-bdsm-table">
+          <caption>
+            Every flywheel label at <code>{LEARN_SOURCE_SHA}</code>. Scout
+            column assumes reply-only: no like, no follow, no repost.
           </caption>
           <thead>
             <tr>
@@ -153,6 +184,20 @@ export function LearnGivePage(props: {
         </table>
       </div>
 
+      <h2>The rule</h2>
+      <p>
+        When you reply, do not like the parent. Do not auto-follow them.
+        That is the operator habit. It is not a published likes-per-day or
+        follows-per-day number.
+      </p>
+      <p>
+        <a href={LEARN_BDSM_REDACT_HREF} rel="noreferrer">
+          Operating points
+        </a>{" "}
+        ship as a 9.99 sentinel. We do not know 10 a day from 10 a minute.
+        An unknown line is not permission to like or follow every account
+        you reply to.
+      </p>
       <LearnTip title="Does that cut your For You score">
         <p>
           No. A like or follow you give is not subtracted from your next
@@ -339,6 +384,83 @@ export function LearnGivePage(props: {
         If you follow more than 10 000, extras may not enter that fetch.
         That changes what you are shown. It does not say your originals
         rank worse.
+      </p>
+
+      <h2>Part 2 — What we assume</h2>
+      <p>
+        We do not know the fire numbers.{" "}
+        <a href={LEARN_BDSM_REDACT_HREF} rel="noreferrer">
+          Operating points
+        </a>{" "}
+        stay 9.99. What follows is operator theory. The snapshot supports
+        the shape, not a replies-per-day constant.
+      </p>
+
+      <h3>Ramp looks like email spam, not a quota</h3>
+      <p>
+        Email ranks a sending domain against its usual volume. A domain
+        that usually sends 20–30 a day can walk to 40–50. A silent domain
+        that dumps 100 on day two looks like a hijack. That analog is
+        ours, not an X formula. Do not treat 20, 30, 40, 50, or 100 as
+        defaults in this snapshot.
+      </p>
+      <p>
+        What the snapshot does say: BDSM scores the last{" "}
+        <a href={LEARN_BDSM_SEQ_HREF} rel="noreferrer">
+          512 actions
+        </a>{" "}
+        with{" "}
+        <a href={LEARN_BDSM_ROPE_HREF} rel="noreferrer">
+          time-aware RoPE
+        </a>
+        , so burstiness and mechanical cadence are in the features. The
+        sink’s short{" "}
+        <a href={LEARN_BDSM_COOLDOWN_HREF} rel="noreferrer">
+          cooldown
+        </a>{" "}
+        exists “so we re-evaluate fast-ramping accounts soon” — 1 h vs 24
+        h defaults. That is a re-score window, not a published daily cap.
+      </p>
+
+      <h3>Zero inbound organic</h3>
+      <p>
+        A large reply or post stream with nobody engaging you feels like
+        a hit. This snapshot does not publish a “zero inbound = deboost”
+        filter. BDSM scores <em>your</em> action sequence.{" "}
+        <code>REPLY_SPAM_NO_CONSUMPTION</code> is you not reading the
+        parent, not others ignoring you.
+      </p>
+      <p>
+        Other viewers still score your posts with P(favorite) and the
+        rest.{" "}
+        <a href={LEARN_PHOENIX_FAV_HREF} rel="noreferrer">
+          Phoenix
+        </a>{" "}
+        uses favorites as a positive for <em>their</em> retrieval. That
+        is their feed. It is not a listed inbound-organic head on you.
+      </p>
+
+      <h3>Decay vs a lasting label</h3>
+      <p>
+        We expect a bad sequence score to fade unless you keep building
+        the sequence, or unless you take a visibility label that lasts.
+        The public sink cooldown is “do not score / challenge again soon”
+        (1 h / 24 h; spam-bounce default 7 d). It is not a half-life on
+        For You rank.
+      </p>
+      <p>
+        <a href={LEARN_RANKING_VISIBILITY_HREF} rel="noreferrer">
+          Ranking and visibility are separate
+        </a>
+        . Lasting visibility labels should show on{" "}
+        <a href={LEARN_UTH_HREF} rel="noreferrer">
+          Under the Hood
+        </a>
+        {" "}
+        (<a href="https://x.com/i/under_the_hood" rel="noreferrer">
+          x.com/i/under_the_hood
+        </a>
+        ). If X is not showing a lasting label there, do not invent one.
       </p>
 
       <h2>Source</h2>
