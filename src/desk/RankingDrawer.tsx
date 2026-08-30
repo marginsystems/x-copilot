@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import {
   LEARN_DRAWER_HEADING,
   LEARN_DRAWER_LEAD,
@@ -11,8 +12,32 @@ import {
 } from "../lib/learn";
 
 export function RankingDrawer() {
+  const rootRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    function close() {
+      const el = rootRef.current;
+      if (el?.open) el.open = false;
+    }
+    function onPointerDown(ev: PointerEvent) {
+      const el = rootRef.current;
+      const target = ev.target;
+      if (!el?.open || !(target instanceof Node) || el.contains(target)) return;
+      close();
+    }
+    function onKeyDown(ev: KeyboardEvent) {
+      if (ev.key === "Escape") close();
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
   return (
-    <details className="ranking-drawer">
+    <details ref={rootRef} className="ranking-drawer">
       <summary aria-label={LEARN_DRAWER_HEADING}>?</summary>
       <div className="ranking-drawer-panel">
         <p>{LEARN_DRAWER_LEAD}</p>

@@ -55,6 +55,14 @@
   .threads-pane-head .section-label {
     display: none;
   }
+
+  .threads-pane-head {
+    flex-wrap: nowrap;
+  }
+
+  .threads-pane-title {
+    flex: 0 0 auto;
+  }
 }
 
 @media (max-width: 560px) {

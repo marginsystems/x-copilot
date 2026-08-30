@@ -4,8 +4,8 @@
 
 .brand {
   flex-shrink: 0;
-  height: 48px;
-  padding: 0 16px;
+  height: 40px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -206,7 +206,7 @@
 /* One top-right slot — avatar (or Sign in) and close share the same spot */
 .menu-toggle {
   position: fixed;
-  top: 6px;
+  top: 4px;
   right: 8px;
   z-index: 50;
   width: 32px;
