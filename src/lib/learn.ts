@@ -246,7 +246,7 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     href: LEARN_GIVE_PATH,
     number: "04",
     heading: LEARN_GIVE_HEADING,
-    lede: "Eight spam heads, not For You. Reply-only is ReplySpamBot. Ramp and decay stay theory.",
+    lede: "Eight spam heads, not For You. Reply-only is ReplySpamBot. Ramp and decay stay theory. Do not like or auto-follow who you reply to. Fire lines stay redacted. A like you give is not a For You debit.",
   },
 ];
 
