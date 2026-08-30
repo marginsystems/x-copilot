@@ -1,4 +1,9 @@
-import { useEffect, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  type Dispatch,
+  type HTMLAttributes,
+  type SetStateAction,
+} from "react";
 import { SuggestPane } from "../SuggestPane";
 import { SuggestLocked } from "../VoiceCard";
 import type { AuthSessionUser } from "../auth/types";
@@ -309,7 +314,12 @@ export function ThreadsTabs({
                       onBypass={pace.bypass}
                     />
                   ) : null}
-                  <div className="for-you-scouted-rows" inert={pace.locked}>
+                  <div
+                    className="for-you-scouted-rows"
+                    {...({
+                      inert: pace.locked,
+                    } as HTMLAttributes<HTMLDivElement>)}
+                  >
                     {sortThreadsByCreatedAtNewest(curatedThreads).map((t, i) => (
                       <ThreadRow
                         key={t.id}
