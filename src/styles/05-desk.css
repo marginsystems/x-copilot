@@ -608,6 +608,7 @@ button.primary.scout-run.desk-top-takeoff {
     grid-column: 1 / -1;
     grid-row: 2;
     min-height: 0;
+    align-self: stretch;
   }
 }
 
