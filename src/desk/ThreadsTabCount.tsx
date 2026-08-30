@@ -1,4 +1,4 @@
-/** Always occupies a count slot so hydrate cannot grow the tab pills. */
+/** Hidden "(0)" keeps the slot when empty so a first count cannot jump the pill. */
 export function ThreadsTabCount({ n }: { n: number }) {
   return (
     <span

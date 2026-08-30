@@ -15,11 +15,11 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 10px 12px 8px;
 }
 
 .desk-top {
@@ -32,8 +32,8 @@
 .desk-top-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 40px;
+  gap: 8px;
+  min-height: 32px;
 }
 
 .desk-top-bar-title {
@@ -62,8 +62,8 @@
   color: var(--text);
   cursor: pointer;
   flex: 0 0 auto;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2rem;
+  height: 2rem;
 }
 
 .desk-top-body {
@@ -137,13 +137,13 @@ button.primary.scout-run.desk-top-takeoff {
 
 .threads-pane-head {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
+  justify-content: flex-start;
+  gap: 8px;
   flex: 0 0 auto;
-  padding-top: 4px;
-  border-top: 1px solid var(--border);
+  min-width: 0;
+  padding-top: 2px;
 }
 
 .threads-pane-title {
@@ -157,6 +157,7 @@ button.primary.scout-run.desk-top-takeoff {
   display: flex;
   gap: 4px;
   min-width: 0;
+  flex: 1 1 auto;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
@@ -171,7 +172,8 @@ button.primary.scout-run.desk-top-takeoff {
   appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 3px;
   flex-shrink: 0;
   border: 1px solid var(--border);
   background: transparent;
@@ -182,15 +184,14 @@ button.primary.scout-run.desk-top-takeoff {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
-  padding: 5px 10px;
+  padding: 4px 8px;
   border-radius: var(--radius);
   cursor: pointer;
 }
 
-/* Reserve "(200)" on first paint so hydrate cannot grow the pills. */
 .threads-tab-count {
-  display: inline-block;
-  min-width: 5ch;
+  display: inline;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
 }
@@ -218,7 +219,26 @@ button.primary.scout-run.desk-top-takeoff {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding-right: 2px;
+  padding-right: 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 28%, transparent) transparent;
+}
+
+.threads-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.threads-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.threads-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 28%, transparent);
+  border-radius: 99px;
+}
+
+.threads-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
 }
 
 .threads-activity {
@@ -534,6 +554,61 @@ button.primary.scout-run.desk-top-takeoff {
 
   .control-pane {
     max-height: 220px;
+  }
+}
+
+/* Minimized agenda: takeoff, tabs, and + share one row. */
+@media (min-width: 720px) {
+  .desk:has(.desk-top.is-collapsed) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 10rem) minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 8px;
+  }
+
+  .desk:has(.desk-top.is-collapsed) .desk-top,
+  .desk:has(.desk-top.is-collapsed) .desk-top-bar {
+    display: contents;
+  }
+
+  .desk:has(.desk-top.is-collapsed) .desk-top-body {
+    display: none;
+  }
+
+  .desk:has(.desk-top.is-collapsed) .desk-top-takeoff {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .desk:has(.desk-top.is-collapsed) .desk-top-bar-copy {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .desk:has(.desk-top.is-collapsed) .desk-top-toggle {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .desk:has(.desk-top.is-collapsed) .threads-pane-head {
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .desk:has(.desk-top.is-collapsed) .threads-pane-title .section-label {
+    display: none;
+  }
+
+  .desk:has(.desk-top.is-collapsed) .threads-scroll {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-height: 0;
+    align-self: stretch;
   }
 }
 

@@ -79,9 +79,6 @@
 .for-you-suggested {
   display: grid;
   gap: 6px;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
 }
 
 .for-you-suggested .section-label,
@@ -267,7 +264,7 @@
 }
 
 .thread-row:not(.open) {
-  min-height: 68px;
+  min-height: 56px;
 }
 
 .thread-row.open {
@@ -288,12 +285,12 @@
   flex-direction: row;
   align-items: center;
   gap: 12px;
-  min-height: 68px;
+  min-height: 56px;
   background: transparent;
   border: none;
   color: inherit;
   text-align: left;
-  padding: 12px 14px;
+  padding: 8px 10px;
   cursor: pointer;
 }
 
