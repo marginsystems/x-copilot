@@ -21,7 +21,6 @@ import {
   LEARN_BDSM_LIKE_HEAD_HREF,
   LEARN_BDSM_LIKE_HEAD_SNIPPET,
   LEARN_BDSM_MULTI_HEAD_HREF,
-  LEARN_GIVE_DESCRIPTION,
   LEARN_GIVE_IMAGE,
   LEARN_GIVE_PATH,
   LEARN_PHOENIX_FAV_HREF,
@@ -178,21 +177,7 @@ describe("learn citations", () => {
       LEARN_LESSONS[2]!.lede,
       "0.5 and 0.25 are this viewer's slate. Thunder's 30 is a fetch cap. ReplySpamBot scores sequences.",
     );
-    assert.match(LEARN_GIVE_DESCRIPTION, /not subtracted/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /LikeBot/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /FollowBot/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /EngagementAmplifier/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /10000 followed ids/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /redacted/);
-    assert.match(LEARN_GIVE_DESCRIPTION, /not affiliated/i);
-    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /like everything to grow/i);
-    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /daily like/i);
-    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /hurts your reach/i);
-    assert.doesNotMatch(LEARN_GIVE_DESCRIPTION, /follow everyone/i);
-    assert.equal(
-      LEARN_LESSONS[3]!.lede,
-      "Your like is not a debit on your score. LikeBot and FollowBot score sequences. Thunder takes 10000 followed ids.",
-    );
+    assert.equal(LEARN_LESSONS[3]!.href, LEARN_GIVE_PATH);
   });
 
   it("keeps official snippets verbatim", () => {

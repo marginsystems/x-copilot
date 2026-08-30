@@ -189,7 +189,7 @@ export const LEARN_VOLUME_PATH = "/learn/how-many-replies";
 export const LEARN_GIVE_TITLE = "Likes and follows you give — x-copilot";
 export const LEARN_GIVE_HEADING = "Likes and follows you give";
 export const LEARN_GIVE_DESCRIPTION =
-  "A like you give is not subtracted from your post score. Favorite 0.5 and Follow author 4.0 multiply P(action) for this viewer. LikeBot, FollowBot, and EngagementAmplifier score sequences; fire thresholds are redacted. Thunder takes at most 10000 followed ids for your in-network fetch. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+  "When you reply, do not like the parent and do not auto-follow them. LikeBot, FollowBot, and EngagementAmplifier score those sequences; fire thresholds are redacted, so we do not treat that habit as safe. A like you give is not subtracted from your post score. Favorite 0.5 and Follow author 4.0 multiply P(action) for this viewer. Thunder takes at most 10000 followed ids for your in-network fetch. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
 export const LEARN_GIVE_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_GIVE_PATH = "/learn/likes-and-follows-you-give";
 export const LEARN_GIVE_IMAGE = "/og-learn-give.png";
@@ -246,7 +246,7 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     href: LEARN_GIVE_PATH,
     number: "04",
     heading: LEARN_GIVE_HEADING,
-    lede: "Your like is not a debit on your score. LikeBot and FollowBot score sequences. Thunder takes 10000 followed ids.",
+    lede: "Do not like or auto-follow who you reply to. Fire lines are redacted. Your like is not a For You debit.",
   },
 ];
 
@@ -423,6 +423,16 @@ export const LEARN_BDSM_MULTI_HEAD_HREF = algorithmPermalink(
   "bdsm/runtime/heads.py",
   83,
   98,
+);
+export const LEARN_BDSM_SINK_ENFORCE_HREF = algorithmPermalink(
+  "bdsm/runtime/sink_policy.yaml",
+  16,
+  20,
+);
+export const LEARN_BDSM_SINK_LIVENESS_HREF = algorithmPermalink(
+  "bdsm/runtime/sink_policy.yaml",
+  26,
+  28,
 );
 export const LEARN_THUNDER_FOLLOW_TAKE_HREF = algorithmPermalink(
   "thunder/thunder_service.rs",
