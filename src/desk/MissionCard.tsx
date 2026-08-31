@@ -30,9 +30,21 @@ export function pickApproachScout(threads: ThreadCard[]): ThreadCard | null {
   return sortThreadsByCreatedAtNewest(threads)[0] ?? null;
 }
 
-function phaseVerb(phase: DeskPhase): string {
+function phaseVerb(
+  phase: DeskPhase,
+  suggestion?: ForYouSuggestion | null,
+): string {
   if (phase === "hold") return "Hold";
   if (phase === "scout_reply") return "Reply";
+  if (phase === "organic_reply" && suggestion?.kind === "post") {
+    return "Original";
+  }
+  if (phase === "organic_reply" && suggestion?.kind === "quote") {
+    return "Quote";
+  }
+  if (phase === "organic_reply" && suggestion?.kind === "repost") {
+    return "Repost";
+  }
   if (phase === "organic_reply") return "Organic reply";
   if (phase === "fork") return "Fork";
   if (phase === "original") return "Original";
@@ -41,7 +53,20 @@ function phaseVerb(phase: DeskPhase): string {
   return "Desk";
 }
 
-function phaseWhy(phase: DeskPhase, coaching?: CoachingState | null): string {
+function phaseWhy(
+  phase: DeskPhase,
+  coaching?: CoachingState | null,
+  suggestion?: ForYouSuggestion | null,
+): string {
+  if (phase === "organic_reply" && suggestion?.kind === "post") {
+    return "Compose an original. Mark it here.";
+  }
+  if (phase === "organic_reply" && suggestion?.kind === "quote") {
+    return "Quote something you actually read. Mark it here.";
+  }
+  if (phase === "organic_reply" && suggestion?.kind === "repost") {
+    return "Repost something you actually read. Mark it here.";
+  }
   const action = coaching?.nextAction;
   const line = action?.text?.trim();
   const takeoffOnReply =
@@ -197,12 +222,14 @@ export function MissionCard(props: {
   }
 
   if (props.phase === "organic_reply") {
-    const why = phaseWhy(props.phase, props.coaching);
     const row = props.suggestion;
+    const why = phaseWhy(props.phase, props.coaching, row);
     const key = row ? `suggest:${row.id}` : null;
     return (
       <div className="mission-card">
-        <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
+        <p className="mission-card-verb">
+          {phaseVerb(props.phase, row)}
+        </p>
         {why ? <p className="mission-card-why">{why}</p> : null}
         {row && key ? (
           <div className="threads">
