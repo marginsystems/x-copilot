@@ -7,6 +7,27 @@
   gap: 6px;
 }
 
+.mission-card {
+  display: grid;
+  gap: 10px;
+}
+
+.mission-card-verb {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.mission-card-why {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 .history-list {
   display: flex;
   flex-direction: column;
