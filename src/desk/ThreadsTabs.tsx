@@ -207,7 +207,9 @@ export function ThreadsTabs({
             onBypass={pace.bypass}
             searching={searching}
             forYouProgress={forYouProgress}
+            forYouExtra={forYouExtra}
             coaching={coaching}
+            requestExtra={requestExtra}
             scout={scout}
             suggestion={suggestion}
             actionBusy={actionBusy}

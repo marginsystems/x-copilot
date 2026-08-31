@@ -4,6 +4,9 @@ import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
 import {
   approachEmptyCopy,
+  extraButtonLabel,
+  extrasUnlocked,
+  type ForYouExtraUsage,
   type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
@@ -70,7 +73,9 @@ export function MissionCard(props: {
   onBypass: () => void;
   searching: boolean;
   forYouProgress?: ForYouProgress | null;
+  forYouExtra?: ForYouExtraUsage | null;
   coaching?: CoachingState | null;
+  requestExtra?: () => void | Promise<void>;
   scout: ThreadCard | null;
   suggestion: ForYouSuggestion | null;
   actionBusy: boolean;
@@ -92,25 +97,46 @@ export function MissionCard(props: {
 }) {
   if (props.phase === "needs_onboarding") return null;
 
+  const extra =
+    props.forYouExtra && extrasUnlocked(props.forYouProgress) ? (
+      <div className="for-you-extra">
+        <button
+          type="button"
+          className="for-you-extra-btn"
+          disabled={props.actionBusy || !props.forYouExtra.canExtra}
+          onClick={() => void props.requestExtra?.()}
+        >
+          {extraButtonLabel(props.forYouExtra)}
+        </button>
+      </div>
+    ) : null;
+
   if (props.hold || props.phase === "hold") {
     return (
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb("hold")}</p>
         <ReplyPaceBar clock={props.clock} onBypass={props.onBypass} />
+        {extra}
       </div>
     );
   }
 
   if (props.phase === "silent_refuel") {
+    const why = phaseWhy(props.phase, props.coaching);
     return (
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
-        <p className="empty">
-          {approachEmptyCopy({
-            searching: props.searching,
-            progress: props.forYouProgress,
-          })}
-        </p>
+        {why ? (
+          <p className="mission-card-why">{why}</p>
+        ) : (
+          <p className="empty">
+            {approachEmptyCopy({
+              searching: props.searching,
+              progress: props.forYouProgress,
+            })}
+          </p>
+        )}
+        {extra}
       </div>
     );
   }
@@ -164,6 +190,7 @@ export function MissionCard(props: {
             }
           />
         </div>
+        {extra}
       </div>
     );
   }
@@ -202,6 +229,7 @@ export function MissionCard(props: {
             />
           </div>
         ) : null}
+        {extra}
       </div>
     );
   }
@@ -211,6 +239,7 @@ export function MissionCard(props: {
     <div className="mission-card">
       <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
       {why ? <p className="mission-card-why">{why}</p> : null}
+      {extra}
     </div>
   );
 }
