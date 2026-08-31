@@ -12,6 +12,7 @@ import {
 } from "../lib/forYou";
 import type { CoachingState } from "../lib/coaching";
 import { deskNeedsXLink } from "../lib/deskGate";
+import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { DeskPhase } from "../lib/deskPhase";
 import { sortThreadsByCreatedAtNewest } from "../lib/threadSort";
 import type { VoiceState } from "../lib/voice";
@@ -156,7 +157,7 @@ export function MissionCard(props: {
 
   if (props.phase === "silent_refuel") {
     const needsX = deskNeedsXLink(props.authUser);
-    const hasAgenda = Boolean(props.agenda.trim());
+    const hasAgenda = props.agenda.trim().length >= AGENDA_MIN_CHARS;
     let why = "";
     let action: "link_x" | "settings" | "usage" | "land" | null = null;
     if (needsX) {

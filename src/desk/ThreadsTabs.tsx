@@ -14,6 +14,7 @@ import {
 import { deskNeedsXLink } from "../lib/deskGate";
 import { deskPhase, emptyDeskBeats } from "../lib/deskPhase";
 import { shouldBackgroundScout } from "../lib/deskRefuel";
+import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { VoiceState } from "../lib/voice";
 import {
   DismissedRow,
@@ -123,6 +124,7 @@ export function ThreadsTabs({
     beats: emptyDeskBeats(),
   });
   const autoTriedRef = useRef(false);
+  const autoTriedKeyRef = useRef("");
   useEffect(() => {
     const live = new Set<string>();
     for (const t of curatedThreads) live.add(t.id);
@@ -130,9 +132,22 @@ export function ThreadsTabs({
     clearGone(live);
   }, [curatedThreads, forYouSuggestions, clearGone]);
   useEffect(() => {
-    if (phase !== "silent_refuel") {
+    const autoTriedKey = `desk-scout-tried:${authUser?.id ?? "anonymous"}`;
+    if (autoTriedKeyRef.current !== autoTriedKey) {
+      autoTriedKeyRef.current = autoTriedKey;
       autoTriedRef.current = false;
+    }
+    if (phase !== "silent_refuel") {
       return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (!autoTriedRef.current) {
+      try {
+        autoTriedRef.current =
+          localStorage.getItem(autoTriedKey) === today;
+      } catch {
+        /* private mode */
+      }
     }
     if (
       !shouldBackgroundScout({
@@ -141,13 +156,18 @@ export function ThreadsTabs({
         grounded,
         cooldownRemainingSec: searchCooldownRemaining,
         needsXLink: deskNeedsXLink(authUser),
-        hasAgenda: Boolean(agenda.trim()),
+        hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
         alreadyTried: autoTriedRef.current,
       })
     ) {
       return;
     }
     autoTriedRef.current = true;
+    try {
+      localStorage.setItem(autoTriedKey, today);
+    } catch {
+      /* private mode */
+    }
     onSearch();
   }, [
     phase,
