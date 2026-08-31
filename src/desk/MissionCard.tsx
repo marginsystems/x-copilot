@@ -240,7 +240,7 @@ export function MissionCard(props: {
               key={row.id}
               row={row}
               index={0}
-              open
+              open={props.expandedId === key}
               exiting={props.exitingIds.has(row.id)}
               busy={props.actionBusy}
               voice={props.voice}
