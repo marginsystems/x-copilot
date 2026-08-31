@@ -126,6 +126,24 @@ describe("readDeskInstruments", () => {
     assert.equal(hot.hourBand, "hot");
   });
 
+  it("does not count the previous hour twice at a calendar-hour boundary", () => {
+    const got = read({
+      marks: [
+        ...marksAt("2026-08-19T08", 4),
+        ...marksAt("2026-08-19T09", 4),
+        ...marksAt("2026-08-19T10", 4),
+        ...Array.from({ length: 4 }, (_, index) => ({
+          atMs: Date.parse("2026-08-19T11:50:00.000Z") + index * 60_000,
+        })),
+        ...marksAt("2026-08-19T12", 4),
+      ],
+    });
+
+    assert.equal(got.repliesLastHour, 8);
+    assert.equal(got.hourMedian, 4);
+    assert.equal(got.hourBand, "cool");
+  });
+
   it("includes empty completed hours in an account's baseline", () => {
     const got = read({
       marks: [

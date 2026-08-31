@@ -220,6 +220,12 @@ export function readDeskInstruments(
     input.nowMs - HOUR_MS,
     input.nowMs,
   );
+  const currentHourStart = Math.floor(input.nowMs / HOUR_MS) * HOUR_MS;
+  const repliesCurrentHour = countInRange(
+    marks,
+    currentHourStart,
+    input.nowMs,
+  );
   const dayStart = utcDayStartMs(input.nowMs);
   const repliesUtcDay = marks.filter(
     (mark) => markTime(mark) >= dayStart && markTime(mark) <= input.nowMs,
@@ -242,7 +248,7 @@ export function readDeskInstruments(
     hourBand:
       baseline === null
         ? null
-        : hourBand(repliesLastHour, baseline.median),
+        : hourBand(repliesCurrentHour, baseline.median),
     hourMedian: baseline?.median ?? null,
     postsBand: postsBand(input.postsToday, input.dailyPostCap),
     inboundBand: inboundBand(marks),
