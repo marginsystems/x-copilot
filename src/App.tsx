@@ -86,7 +86,7 @@ export default function App() {
       "Find builders sharing opinions, tradeoffs, or concrete takes on shipping AI / software tools in public. Prefer posts with a clear point of view or a specific technical claim I can agree/disagree with.\nSkip open-ended engagement questions (“what are you shipping?”, “drop your stack”, “who should I follow?”, generic peer polls) even when they mention AI/build-in-public. A lone question with little substance is not interesting.",
   );
   const [status, setStatus] = useState(
-    "On the ground — set an agenda and take off.",
+    "Scout refuels when Approach is empty.",
   );
   const [threads, setThreads] = useState<ThreadCard[]>(
     () => cachedBoot?.desk?.lastScout.snapshot?.threads ?? [],
@@ -225,9 +225,7 @@ export default function App() {
   const {
     searching,
     searchCooldownRemaining,
-    searchBlocked,
     grounded,
-    sortiesLeft,
     sortiesLimit,
     onSearch,
     onStopScout,
@@ -258,7 +256,7 @@ export default function App() {
     authUser,
     localComplete: readOnboardingComplete(),
   });
-  const { flushAgenda, onAgendaBlur } = useAgendaPersist({
+  const { onAgendaBlur } = useAgendaPersist({
     agenda,
     enabled: agendaReady && Boolean(authUser) && !needsOnboarding,
     authUser,
@@ -867,6 +865,9 @@ export default function App() {
           authUser={authUser}
           draft={settingsDraft}
           setDraft={setSettingsDraft}
+          agenda={agenda}
+          onAgendaChange={setAgenda}
+          onAgendaBlur={onAgendaBlur}
           status={settingsStatus}
           onBack={() => goToView("dashboard")}
           onOpenAccount={() => goToView("account")}
@@ -887,35 +888,8 @@ export default function App() {
             <DeskTop
               open={deskTopOpen}
               onToggle={onToggleDeskTop}
-              agenda={agenda}
-              onAgendaChange={setAgenda}
-              onAgendaBlur={onAgendaBlur}
               searching={searching}
-              searchBlocked={searchBlocked}
-              grounded={grounded}
-              searchCooldownRemaining={searchCooldownRemaining}
               status={status}
-              groundedLine={
-                grounded && !searching
-                  ? groundedHint({
-                      limit: sortiesLimit ?? 0,
-                      planKey: billing?.plan_key,
-                      firstWeek: Boolean(billing?.first_week_pulse),
-                    })
-                  : null
-              }
-              takeoffsLeft={sortiesLeft ?? null}
-              showTakeoffsLeft={Boolean(
-                billing?.sorties && !grounded && !searching,
-              )}
-              showUsageCta={
-                !searching &&
-                (grounded || /Usage & Billing/.test(status))
-              }
-              onSearch={onSearch}
-              onStopScout={onStopScout}
-              onFlushAgenda={flushAgenda}
-              onOpenUsage={openUsage}
               flightPathOpen={flightPathOpen}
               activityBucket={activityBucket}
               activityStats={activityStats}
@@ -953,7 +927,22 @@ export default function App() {
                 void hydrateCoaching();
               }}
               onOpenVoice={openVoice}
+              onOpenSettings={openSettings}
+              onOpenUsage={openUsage}
               onLinkX={startXLogin}
+              grounded={grounded}
+              groundedLine={
+                grounded && !searching
+                  ? groundedHint({
+                      limit: sortiesLimit ?? 0,
+                      planKey: billing?.plan_key,
+                      firstWeek: Boolean(billing?.first_week_pulse),
+                    })
+                  : null
+              }
+              searchCooldownRemaining={searchCooldownRemaining}
+              onSearch={onSearch}
+              onStopScout={onStopScout}
               onMark={openMarkModal}
               onSkip={onSkip}
               onDismiss={openDismissModal}

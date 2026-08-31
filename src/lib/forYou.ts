@@ -117,17 +117,17 @@ export function approachEmptyCopy(opts: {
   if (opts.searching) return "Scout is working…";
   const progress = opts.progress;
   if (!progress) {
-    return "Nothing on Approach yet. Take off for reply targets. Daily suggestions land here once we have enough of your 24h post stats.";
+    return "Nothing on Approach yet. Scout refuels in the background. Daily suggestions land here once we have enough of your 24h post stats.";
   }
   if (progress.tracked >= progress.needed) {
-    return `Nothing on Approach yet. Take off for reply targets. ${progress.tracked} of ${progress.needed} posts tracked — first digest after the next UTC daily pass.`;
+    return `Nothing on Approach yet. Scout refuels in the background. ${progress.tracked} of ${progress.needed} posts tracked — first digest after the next UTC daily pass.`;
   }
   const day = firstDigestWeekday(
     progress.tracked,
     progress.needed,
     opts.now,
   );
-  return `Nothing on Approach yet. Take off for reply targets. ${progress.tracked} of ${progress.needed} posts tracked — first digest ~${day}.`;
+  return `Nothing on Approach yet. Scout refuels in the background. ${progress.tracked} of ${progress.needed} posts tracked — first digest ~${day}.`;
 }
 
 export type ForYouSuggestion = {

@@ -1,12 +1,13 @@
 /**
  * Deterministic UTC-day missions. Progress is read from the coaching
  * snapshot; XP is awarded once when a mission first hits its target.
+ * /play derives from mark_2 and original_1 — takeoff_1 is gone.
  */
 import { getPlatformDb } from "./db.js";
 import { applyMissionXp, withGamificationState } from "./gamification.js";
 import type { CoachingSnapshot } from "./coachingSnapshot.js";
 
-export type MissionMetric = "marks" | "originals" | "takeoffs";
+export type MissionMetric = "marks" | "originals";
 
 export type MissionDef = {
   id: string;
@@ -31,13 +32,6 @@ export const DAILY_MISSION_DEFS: readonly MissionDef[] = [
     xpReward: 3,
     metric: "originals",
   },
-  {
-    id: "takeoff_1",
-    label: "Take off once",
-    target: 1,
-    xpReward: 2,
-    metric: "takeoffs",
-  },
 ];
 
 export type DailyMissionPublic = {
@@ -55,8 +49,7 @@ export function progressForMetric(
   metric: MissionMetric,
 ): number {
   if (metric === "marks") return snapshot.marksToday;
-  if (metric === "originals") return snapshot.originalsToday;
-  return snapshot.takeoffsToday;
+  return snapshot.originalsToday;
 }
 
 export function ensureDailyMissions(opts: {

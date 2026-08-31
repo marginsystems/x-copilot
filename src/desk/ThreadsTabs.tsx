@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -10,7 +11,9 @@ import {
   type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
+import { deskNeedsXLink } from "../lib/deskGate";
 import { deskPhase, emptyDeskBeats } from "../lib/deskPhase";
+import { shouldBackgroundScout } from "../lib/deskRefuel";
 import type { VoiceState } from "../lib/voice";
 import {
   DismissedRow,
@@ -57,7 +60,14 @@ type ThreadsTabsProps = {
   setVoice: Dispatch<SetStateAction<VoiceState | null>>;
   actForYou: (id: string, action: "done" | "skip" | "dismiss") => void | Promise<void>;
   onOpenVoice: () => void;
+  onOpenSettings: () => void;
+  onOpenUsage: () => void;
   onLinkX: () => void;
+  grounded: boolean;
+  groundedLine: string | null;
+  searchCooldownRemaining: number;
+  onSearch: () => void;
+  onStopScout: () => void;
   onMark: (thread: ThreadCard) => void;
   onSkip: (thread: ThreadCard) => void;
   onDismiss: (thread: ThreadCard) => void;
@@ -87,7 +97,14 @@ export function ThreadsTabs({
   setVoice,
   actForYou,
   onOpenVoice,
+  onOpenSettings,
+  onOpenUsage,
   onLinkX,
+  grounded,
+  groundedLine,
+  searchCooldownRemaining,
+  onSearch,
+  onStopScout,
   onMark,
   onSkip,
   onDismiss,
@@ -105,12 +122,42 @@ export function ThreadsTabs({
     searching,
     beats: emptyDeskBeats(),
   });
+  const autoTriedRef = useRef(false);
   useEffect(() => {
     const live = new Set<string>();
     for (const t of curatedThreads) live.add(t.id);
     for (const row of forYouSuggestions) live.add(row.id);
     clearGone(live);
   }, [curatedThreads, forYouSuggestions, clearGone]);
+  useEffect(() => {
+    if (phase !== "silent_refuel") {
+      autoTriedRef.current = false;
+      return;
+    }
+    if (
+      !shouldBackgroundScout({
+        phase,
+        searching,
+        grounded,
+        cooldownRemainingSec: searchCooldownRemaining,
+        needsXLink: deskNeedsXLink(authUser),
+        hasAgenda: Boolean(agenda.trim()),
+        alreadyTried: autoTriedRef.current,
+      })
+    ) {
+      return;
+    }
+    autoTriedRef.current = true;
+    onSearch();
+  }, [
+    phase,
+    searching,
+    grounded,
+    searchCooldownRemaining,
+    authUser,
+    agenda,
+    onSearch,
+  ]);
   function exitRow(
     id: string,
     expandedKey: string,
@@ -209,6 +256,12 @@ export function ThreadsTabs({
             clock={pace.clock}
             onBypass={pace.bypass}
             searching={searching}
+            grounded={grounded}
+            groundedLine={groundedLine}
+            cooldownRemaining={searchCooldownRemaining}
+            onStopScout={onStopScout}
+            onOpenUsage={onOpenUsage}
+            onOpenSettings={onOpenSettings}
             forYouProgress={forYouProgress}
             forYouExtra={forYouExtra}
             coaching={coaching}

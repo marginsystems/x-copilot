@@ -135,7 +135,6 @@ const NEXT_ACTION_PROGRESS_MISSION: Partial<Record<NextActionKind, string>> = {
   reply: "mark_2",
   streak: "mark_2",
   original: "original_1",
-  takeoff: "takeoff_1",
 };
 
 export function missionFillPct(progress: number, target: number): number {
