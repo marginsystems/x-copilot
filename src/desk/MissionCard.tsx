@@ -150,6 +150,7 @@ export function MissionCard(props: {
         {why ? <p className="mission-card-why">{why}</p> : null}
         <div className="threads">
           <ThreadRow
+            key={thread.id}
             thread={thread}
             index={0}
             open
@@ -206,6 +207,7 @@ export function MissionCard(props: {
         {row && key ? (
           <div className="threads">
             <SuggestedRow
+              key={row.id}
               row={row}
               index={0}
               open
