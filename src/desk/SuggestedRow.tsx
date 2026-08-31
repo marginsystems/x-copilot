@@ -1,3 +1,4 @@
+import { type HTMLAttributes } from "react";
 import {
   forYouComposeSeed,
   forYouKindClass,
@@ -16,6 +17,7 @@ export function SuggestedRow({
   row,
   open,
   busy,
+  paced,
   voice,
   agenda,
   xLinked,
@@ -33,6 +35,7 @@ export function SuggestedRow({
   row: ForYouSuggestion;
   open: boolean;
   busy: boolean;
+  paced?: boolean;
   voice: VoiceState | null;
   agenda: string;
   xLinked?: boolean;
@@ -75,31 +78,46 @@ export function SuggestedRow({
       {!compose && row.draft ? (
         <p className="for-you-draft">{row.draft}</p>
       ) : null}
-      {compose ? (
-        voice?.status === "ready" && voice.unlocked && seed ? (
-          <SuggestPane
-            variant="compose"
-            composeKind={row.kind === "quote" ? "quote" : "post"}
-            suggestionId={row.id}
-            quoteTweetId={row.targetId}
-            threadId={row.id}
-            author={row.targetAuthor || handle}
-            text={seed}
-            agenda={agenda}
-            usage={voice.suggests}
-            onUsage={onUsage}
-            onDeskPosted={onPosted}
-          />
-        ) : (
-          <SuggestLocked
-            voice={voice}
-            xLinked={xLinked}
-            hasSession={hasSession}
-            lockNoun="post"
-            onOpenSettings={onOpenSettings}
-            onLinkX={onLinkX}
-          />
-        )
+      {compose && voice?.status === "ready" && voice.unlocked && seed ? (
+        <>
+          {paced ? (
+            <p className="reply-pace-hold">
+              Hold. Bypass the one-minute gate if you need to post.
+            </p>
+          ) : null}
+          <div
+            {...(paced
+              ? ({ inert: "" } as HTMLAttributes<HTMLDivElement>)
+              : {})}
+          >
+            <SuggestPane
+              variant="compose"
+              composeKind={row.kind === "quote" ? "quote" : "post"}
+              suggestionId={row.id}
+              quoteTweetId={row.targetId}
+              threadId={row.id}
+              author={row.targetAuthor || handle}
+              text={seed}
+              agenda={agenda}
+              usage={voice.suggests}
+              onUsage={onUsage}
+              onDeskPosted={onPosted}
+            />
+          </div>
+        </>
+      ) : paced ? (
+        <p className="reply-pace-hold">
+          Hold. Bypass the one-minute gate if you need to post.
+        </p>
+      ) : compose ? (
+        <SuggestLocked
+          voice={voice}
+          xLinked={xLinked}
+          hasSession={hasSession}
+          lockNoun="post"
+          onOpenSettings={onOpenSettings}
+          onLinkX={onLinkX}
+        />
       ) : (
         <div className="row">
           {openUrl ? (
@@ -131,7 +149,7 @@ export function SuggestedRow({
           <button
             type="button"
             className="ghost"
-            disabled={busy}
+            disabled={busy || paced}
             onClick={onPosted}
           >
             I posted on X

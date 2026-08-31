@@ -21,6 +21,7 @@ import {
   parseGamificationPayload,
   toastFromMarkProgress,
 } from "../lib/gamification";
+import { armReplyPace } from "./replyPaceStore";
 import { normalizeAuthorKey, parseStatusIdFromUrl } from "./threadHelpers";
 import type { InteractionHistoryEntry, ThreadCard } from "./types";
 
@@ -117,6 +118,7 @@ export function useMarkDetect({
       }),
     );
     setExpandedId((id) => (id === thread.id ? null : id));
+    armReplyPace();
     onInteractionCommitted();
   }
 

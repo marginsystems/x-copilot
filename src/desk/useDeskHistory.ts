@@ -11,6 +11,7 @@ import {
   type ForYouSuggestion,
 } from "../lib/forYou";
 import { threadHasExcludedTag } from "../lib/settings";
+import { armReplyPace } from "./replyPaceStore";
 import { threadHasExcludedAuthor } from "./threadHelpers";
 import type {
   DismissalHistoryEntry,
@@ -328,8 +329,10 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
         setStatus(`For You fail: ${data.message || res.status}`);
         return;
       }
-      setForYouSuggestions((prev) => prev.filter((row) => row.id !== id));
+      const row = forYouSuggestions.find((item) => item.id === id);
+      setForYouSuggestions((prev) => prev.filter((item) => item.id !== id));
       historyStaleRef.current = true;
+      if (path === "done" && row?.kind === "reply") armReplyPace();
     } catch {
       setStatus("For You fail — desk offline.");
     } finally {
