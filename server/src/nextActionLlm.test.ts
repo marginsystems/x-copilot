@@ -66,6 +66,7 @@ describe("nextActionLlm", () => {
     assert.doesNotMatch(NEXT_ACTION_SYSTEM, /hit 5 replies today/);
     assert.match(NEXT_ACTION_SYSTEM, /kind=quote only when suggestions.quote > 0/);
     assert.match(NEXT_ACTION_SYSTEM, /kind=original only when originalsToday < originalTarget/);
+    assert.match(NEXT_ACTION_SYSTEM, /Never offer takeoff/);
   });
 
   it("rejects quote and repost unless those Suggested cards are waiting", () => {
@@ -88,6 +89,8 @@ describe("nextActionLlm", () => {
       suggestions: { total: 0, post: 0, quote: 0, repost: 0, reply: 0 },
     });
     assert.equal(nextActionAllowed("for_you", empty), false);
+    assert.equal(nextActionAllowed("takeoff", empty), false);
+    assert.equal(nextActionAllowed("takeoff", withQuote), false);
   });
 
   it("rejects original once today's original mission is in", () => {
@@ -152,7 +155,7 @@ describe("nextActionLlm", () => {
           suggestions: { total: 0, post: 0, quote: 0, repost: 0, reply: 0 },
         }),
       ).kind,
-      "takeoff",
+      "reply",
     );
   });
 
@@ -264,8 +267,8 @@ describe("nextActionLlm", () => {
       },
     });
     assert.equal(calls, 1);
-    assert.equal(action.kind, "takeoff");
-    assert.equal(action.text, "Take off once to refill Approach.");
+    assert.equal(action.kind, "reply");
+    assert.match(action.text, /first reply today/);
   });
 
   it("drops an LLM quote when the tray is only OG posts", async () => {

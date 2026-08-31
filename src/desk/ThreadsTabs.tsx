@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -10,7 +11,10 @@ import {
   type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
+import { deskNeedsXLink } from "../lib/deskGate";
 import { deskPhase, emptyDeskBeats } from "../lib/deskPhase";
+import { shouldBackgroundScout } from "../lib/deskRefuel";
+import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { VoiceState } from "../lib/voice";
 import {
   DismissedRow,
@@ -53,11 +57,19 @@ type ThreadsTabsProps = {
   interactedIds: Set<string>;
   voice: VoiceState | null;
   agenda: string;
+  agendaReady: boolean;
   authUser: AuthSessionUser | null;
   setVoice: Dispatch<SetStateAction<VoiceState | null>>;
   actForYou: (id: string, action: "done" | "skip" | "dismiss") => void | Promise<void>;
   onOpenVoice: () => void;
+  onOpenSettings: () => void;
+  onOpenUsage: () => void;
   onLinkX: () => void;
+  grounded: boolean;
+  groundedLine: string | null;
+  searchCooldownRemaining: number;
+  onSearch: () => void;
+  onStopScout: () => void;
   onMark: (thread: ThreadCard) => void;
   onSkip: (thread: ThreadCard) => void;
   onDismiss: (thread: ThreadCard) => void;
@@ -83,11 +95,19 @@ export function ThreadsTabs({
   interactedIds,
   voice,
   agenda,
+  agendaReady,
   authUser,
   setVoice,
   actForYou,
   onOpenVoice,
+  onOpenSettings,
+  onOpenUsage,
   onLinkX,
+  grounded,
+  groundedLine,
+  searchCooldownRemaining,
+  onSearch,
+  onStopScout,
   onMark,
   onSkip,
   onDismiss,
@@ -105,12 +125,83 @@ export function ThreadsTabs({
     searching,
     beats: emptyDeskBeats(),
   });
+  const autoTriedRef = useRef(false);
+  const autoTriedKeyRef = useRef("");
+  const autoTriedDayRef = useRef("");
+  const previousPhaseRef = useRef(phase);
+  const wasSearchingRef = useRef(false);
   useEffect(() => {
     const live = new Set<string>();
     for (const t of curatedThreads) live.add(t.id);
     for (const row of forYouSuggestions) live.add(row.id);
     clearGone(live);
   }, [curatedThreads, forYouSuggestions, clearGone]);
+  useEffect(() => {
+    if (!agendaReady) return;
+    const autoTriedKey = `desk-scout-tried:${authUser?.id ?? "anonymous"}`;
+    if (autoTriedKeyRef.current !== autoTriedKey) {
+      autoTriedKeyRef.current = autoTriedKey;
+      autoTriedRef.current = false;
+    }
+    if (previousPhaseRef.current === "silent_refuel" && phase !== "silent_refuel") {
+      autoTriedRef.current = false;
+      try {
+        localStorage.removeItem(autoTriedKey);
+      } catch {
+        /* private mode */
+      }
+    }
+    previousPhaseRef.current = phase;
+    if (phase !== "silent_refuel") {
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (autoTriedDayRef.current !== today) {
+      autoTriedDayRef.current = today;
+      autoTriedRef.current = false;
+    }
+    try {
+      autoTriedRef.current = localStorage.getItem(autoTriedKey) === today;
+    } catch {
+      /* private mode */
+    }
+    if (searching) {
+      wasSearchingRef.current = true;
+      return;
+    }
+    if (wasSearchingRef.current) {
+      wasSearchingRef.current = false;
+    }
+    if (
+      !shouldBackgroundScout({
+        phase,
+        searching,
+        grounded,
+        cooldownRemainingSec: searchCooldownRemaining,
+        needsXLink: deskNeedsXLink(authUser),
+        hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
+        alreadyTried: autoTriedRef.current,
+      })
+    ) {
+      return;
+    }
+    autoTriedRef.current = true;
+    try {
+      localStorage.setItem(autoTriedKey, today);
+    } catch {
+      /* private mode */
+    }
+    onSearch();
+  }, [
+    phase,
+    searching,
+    grounded,
+    searchCooldownRemaining,
+    agendaReady,
+    authUser,
+    agenda,
+    onSearch,
+  ]);
   function exitRow(
     id: string,
     expandedKey: string,
@@ -209,6 +300,12 @@ export function ThreadsTabs({
             clock={pace.clock}
             onBypass={pace.bypass}
             searching={searching}
+            grounded={grounded}
+            groundedLine={groundedLine}
+            cooldownRemaining={searchCooldownRemaining}
+            onStopScout={onStopScout}
+            onOpenUsage={onOpenUsage}
+            onOpenSettings={onOpenSettings}
             forYouProgress={forYouProgress}
             forYouExtra={forYouExtra}
             coaching={coaching}

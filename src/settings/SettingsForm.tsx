@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { ExcludedAccountsField } from "../ExcludedAccountsField";
 import { ExcludedTagsField } from "../ExcludedTagsField";
 import type { AuthSessionUser } from "../auth/types";
+import { AGENDA_MAX_CHARS, AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import {
   clampMaxThreadChars,
   DEFAULT_SETTINGS,
@@ -18,6 +19,9 @@ type SettingsFormProps = {
   draft: AppSettings;
   setDraft: Dispatch<SetStateAction<AppSettings>>;
   status: string;
+  agenda: string;
+  onAgendaChange: (value: string) => void;
+  onAgendaBlur: () => void;
   onBack: () => void;
   onOpenAccount: () => void;
   onLinkX: () => void;
@@ -28,6 +32,9 @@ export function SettingsForm({
   authUser,
   draft,
   setDraft,
+  agenda,
+  onAgendaChange,
+  onAgendaBlur,
   status,
   onBack,
   onOpenAccount,
@@ -43,10 +50,27 @@ export function SettingsForm({
         </button>
       </div>
       <p className="status settings-lede">
-        Filter prefs apply on the next Scout search. X is linked on Account
-        through official X login — you cannot type a handle here.
+        Agenda and filter prefs apply on the next Scout search. X is linked
+        on Account through official X login — you cannot type a handle here.
       </p>
       <div className="settings-grid">
+        <label className="settings-field settings-field-wide">
+          <span>Agenda</span>
+          <textarea
+            className="settings-textarea"
+            value={agenda}
+            maxLength={AGENDA_MAX_CHARS}
+            rows={5}
+            placeholder="What should we look for and how should we sound?"
+            onChange={(e) => onAgendaChange(e.target.value)}
+            onBlur={onAgendaBlur}
+          />
+          <span className="settings-help">
+            Scout uses this when Approach is empty. Saves at {AGENDA_MIN_CHARS}
+            –{AGENDA_MAX_CHARS} characters. {agenda.trim().length}/
+            {AGENDA_MAX_CHARS}.
+          </span>
+        </label>
         <div className="settings-field settings-field-wide">
           <span>X account</span>
           <p className="settings-help">

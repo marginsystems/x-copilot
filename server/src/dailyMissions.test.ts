@@ -63,41 +63,41 @@ describe("dailyMissions", () => {
     });
     assert.equal(progressForMetric(snap, "marks"), 2);
     assert.equal(progressForMetric(snap, "originals"), 1);
-    assert.equal(progressForMetric(snap, "takeoffs"), 0);
   });
 
   it("seeds today and awards XP once when a mission completes", async () => {
     const gamificationPath = join(dir, "g.json");
     const first = await listMissionsWithProgress({
       userId: "u1",
-      snapshot: snapshot({ takeoffsToday: 1 }),
+      snapshot: snapshot({ marksToday: 2 }),
       nowMs: NOW_MS,
       gamificationPath,
     });
-    const takeoff = first.find((m) => m.id === "takeoff_1");
-    assert.ok(takeoff);
-    assert.equal(takeoff.completed, true);
-    assert.equal(takeoff.claimed, true);
+    const mark = first.find((m) => m.id === "mark_2");
+    assert.ok(mark);
+    assert.equal(mark.completed, true);
+    assert.equal(mark.claimed, true);
+    assert.equal(first.find((m) => m.id === "takeoff_1"), undefined);
     const after = await getGamification({
       userId: "u1",
       nowMs: NOW_MS,
       gamificationPath,
     });
-    assert.equal(after.lifetimeXp, 2);
+    assert.equal(after.lifetimeXp, 4);
 
     const second = await listMissionsWithProgress({
       userId: "u1",
-      snapshot: snapshot({ takeoffsToday: 1 }),
+      snapshot: snapshot({ marksToday: 2 }),
       nowMs: NOW_MS,
       gamificationPath,
     });
-    const again = second.find((m) => m.id === "takeoff_1");
+    const again = second.find((m) => m.id === "mark_2");
     assert.equal(again?.claimed, true);
     const afterAgain = await getGamification({
       userId: "u1",
       nowMs: NOW_MS,
       gamificationPath,
     });
-    assert.equal(afterAgain.lifetimeXp, 2);
+    assert.equal(afterAgain.lifetimeXp, 4);
   });
 });

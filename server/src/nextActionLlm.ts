@@ -13,7 +13,7 @@ import { DAILY_MISSION_DEFS } from "./dailyMissions.js";
 import { extractJsonObject, type ChatFn } from "./voiceLlm.js";
 
 /** Bump when the grounded next-action prompt changes so stale copy refreshes. */
-export const NEXT_ACTION_PROMPT_REV = 4;
+export const NEXT_ACTION_PROMPT_REV = 5;
 
 function missionTarget(id: string): number {
   return DAILY_MISSION_DEFS.find((row) => row.id === id)?.target ?? 0;
@@ -44,12 +44,13 @@ export type NextAction = {
 
 export const NEXT_ACTION_SYSTEM = `You pick ONE next action for an X operator on their Flightpad desk.
 Return ONLY JSON:
-{"kind":"reply"|"original"|"takeoff"|"quote"|"repost"|"for_you"|"streak","text":"one imperative sentence, second person"}
+{"kind":"reply"|"original"|"quote"|"repost"|"for_you"|"streak","text":"one imperative sentence, second person"}
 Rules:
-- kind must match the verb: reply (mark/reply to threads), original (write an OG post), takeoff (run Scout), quote, for_you (work a Suggested card), streak (mark today to keep the streak).
+- kind must match the verb: reply (mark/reply to threads), original (write an OG post), quote, for_you (work a Suggested card), streak (mark today to keep the streak).
+- Never offer takeoff. Scout refuels Approach in the background.
 - Cite a number that appears in the input. No invented metrics, no follower counts.
 - Do not invent a daily quota. The reply mission target is replyTarget (2). Cite marksToday against that. Never say hit 5 replies.
-- Prefer the gap that most helps the account today. Empty marks → reply or streak. No originals after replies → original. No takeoff and no Suggested queue → takeoff. Suggested quotes waiting → quote or for_you.
+- Prefer the gap that most helps the account today. Empty marks → reply or streak. No originals after replies → original. Suggested quotes waiting → quote or for_you. Empty Approach is not a takeoff.
 - kind=original only when originalsToday < originalTarget. Do not tell them to write an original after that mission is in.
 - kind=quote only when suggestions.quote > 0. kind=repost only when suggestions.repost > 0. kind=for_you only when suggestions.total > 0. Do not tell them to quote OG cards.
 - Max 140 characters. No markdown.`;
@@ -77,6 +78,7 @@ export function nextActionAllowed(
   kind: NextActionKind,
   snapshot: Pick<CoachingSnapshot, "suggestions" | "originalsToday">,
 ): boolean {
+  if (kind === "takeoff") return false;
   if (kind === "original") {
     return snapshot.originalsToday < missionTarget("original_1");
   }
@@ -102,12 +104,6 @@ export function fallbackNextAction(snapshot: CoachingSnapshot): {
     return {
       kind: "reply",
       text: "Mark your first reply today — conversation is how the account grows.",
-    };
-  }
-  if (snapshot.takeoffsToday === 0 && snapshot.suggestions.total === 0) {
-    return {
-      kind: "takeoff",
-      text: "Take off once to refill Approach — you have no Suggested cards waiting.",
     };
   }
   if (snapshot.originalsToday === 0 && snapshot.marksToday >= 1) {
@@ -141,8 +137,8 @@ export function fallbackNextAction(snapshot: CoachingSnapshot): {
     };
   }
   return {
-    kind: "takeoff",
-    text: "Daily missions are in — take off if you want more Approach.",
+    kind: "reply",
+    text: "Daily missions are in. Scout refuels Approach in the background.",
   };
 }
 
@@ -237,7 +233,6 @@ export async function getOrRefreshNextAction(opts: {
           ...opts.snapshot,
           replyTarget: missionTarget("mark_2"),
           originalTarget: missionTarget("original_1"),
-          takeoffTarget: missionTarget("takeoff_1"),
         }),
       },
     ],

@@ -11,6 +11,8 @@ import {
   type ForYouSuggestion,
 } from "../lib/forYou";
 import type { CoachingState } from "../lib/coaching";
+import { deskNeedsXLink } from "../lib/deskGate";
+import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { DeskPhase } from "../lib/deskPhase";
 import { sortThreadsByCreatedAtNewest } from "../lib/threadSort";
 import type { VoiceState } from "../lib/voice";
@@ -97,6 +99,12 @@ export function MissionCard(props: {
   clock: string;
   onBypass: () => void;
   searching: boolean;
+  grounded?: boolean;
+  groundedLine?: string | null;
+  cooldownRemaining?: number;
+  onStopScout?: () => void;
+  onOpenUsage?: () => void;
+  onOpenSettings?: () => void;
   forYouProgress?: ForYouProgress | null;
   forYouExtra?: ForYouExtraUsage | null;
   coaching?: CoachingState | null;
@@ -148,21 +156,78 @@ export function MissionCard(props: {
   }
 
   if (props.phase === "silent_refuel") {
-    const why = phaseWhy(props.phase, props.coaching);
+    const needsX = deskNeedsXLink(props.authUser);
+    const hasAgenda = props.agenda.trim().length >= AGENDA_MIN_CHARS;
+    let why = "";
+    let action: "link_x" | "settings" | "usage" | "land" | null = null;
+    if (needsX) {
+      why = "Link X so Scout can refuel Approach.";
+      action = "link_x";
+    } else if (!hasAgenda) {
+      why = "Set an agenda in Settings so Scout knows what to look for.";
+      action = "settings";
+    } else if (props.grounded) {
+      why =
+        props.groundedLine ||
+        "Grounded. Scout waits until 00:00 UTC. Open Usage for the next plan.";
+      action = "usage";
+    } else if (props.searching) {
+      why = "Scout is working…";
+      action = "land";
+    } else if ((props.cooldownRemaining ?? 0) > 0) {
+      why = `Hold short ${props.cooldownRemaining}s. Scout retries after the gate.`;
+    } else {
+      why =
+        phaseWhy(props.phase, props.coaching) ||
+        approachEmptyCopy({
+          searching: false,
+          progress: props.forYouProgress,
+        });
+    }
     return (
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
-        {why ? (
-          <p className="mission-card-why">{why}</p>
-        ) : (
-          <p className="empty">
-            {approachEmptyCopy({
-              searching: props.searching,
-              progress: props.forYouProgress,
-            })}
-          </p>
-        )}
-        {extra}
+        {why ? <p className="mission-card-why">{why}</p> : null}
+        {action === "link_x" ? (
+          <div className="row">
+            <button type="button" className="primary" onClick={props.onLinkX}>
+              Link X
+            </button>
+          </div>
+        ) : null}
+        {action === "settings" ? (
+          <div className="row">
+            <button
+              type="button"
+              className="primary"
+              onClick={props.onOpenSettings}
+            >
+              Settings
+            </button>
+          </div>
+        ) : null}
+        {action === "usage" ? (
+          <div className="row">
+            <button
+              type="button"
+              className="primary"
+              onClick={props.onOpenUsage}
+            >
+              Usage & Billing
+            </button>
+          </div>
+        ) : null}
+        {action === "land" ? (
+          <div className="row">
+            <button
+              type="button"
+              className="primary"
+              onClick={props.onStopScout}
+            >
+              Land
+            </button>
+          </div>
+        ) : null}
       </div>
     );
   }

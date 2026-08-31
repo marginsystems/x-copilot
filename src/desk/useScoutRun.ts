@@ -265,7 +265,7 @@ export function useScoutRun({
   async function onSearch() {
     if (deskNeedsXLink(authUser)) {
       const line = formatScoutFailure(
-        "Link X with the official login before Take off.",
+        "Link X with the official login before Scout can refuel.",
         { soft: true },
       );
       setStatus(line);
@@ -299,7 +299,7 @@ export function useScoutRun({
     setSearching(true);
     // Keep existing thread rows; partials + done append by id across runs.
     setExpandedId(null);
-    pushScoutLine("── Take off ──", "planning");
+    pushScoutLine("── Scout ──", "planning");
     applyScoutEvent({
       stage: "planning",
       message: scoutStageMessage("planning"),
