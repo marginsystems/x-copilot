@@ -61,9 +61,13 @@ export function ActivityStrip({
               type="button"
               className="threads-activity-toggle-path"
               aria-expanded={flightPathOpen}
+              aria-label={
+                flightPathOpen
+                  ? "Collapse flight path"
+                  : "Expand flight path"
+              }
               onClick={onToggleFlightPath}
             >
-              <span className="threads-activity-title">Flight path</span>
               <span className="threads-activity-caret" aria-hidden="true">
                 {flightPathOpen ? "–" : "+"}
               </span>
@@ -120,17 +124,10 @@ export function ActivityStrip({
         </div>
       </div>
       <div className="threads-activity-meta">
-        <span className="chip">
-          {activityStats.totals.interactions} marked
-        </span>
-        <span className="chip">
+        <span className="chip chip-muted">
+          {activityStats.totals.interactions} marked ·{" "}
           {activityStats.totals.views} views
         </span>
-        {activityStats.totals.withStats > 0 ? (
-          <span className="chip chip-muted">
-            {activityStats.totals.withStats} sampled
-          </span>
-        ) : null}
         <span
           className="chip"
           title="UTC daily streak — mark ≥1 interacted each UTC day"

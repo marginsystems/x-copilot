@@ -126,6 +126,24 @@ describe("readDeskInstruments", () => {
     assert.equal(hot.hourBand, "hot");
   });
 
+  it("bands the same trailing hour shown by the gauge", () => {
+    const nowMs = Date.parse("2026-08-19T12:20:00.000Z");
+    const got = read({
+      nowMs,
+      marks: [
+        ...marksAt("2026-08-19T08", 4),
+        ...marksAt("2026-08-19T09", 4),
+        ...marksAt("2026-08-19T10", 4),
+        ...Array.from({ length: 7 }, (_, index) => ({
+          atMs: Date.parse("2026-08-19T11:35:00.000Z") + index * 60_000,
+        })),
+      ],
+    });
+
+    assert.equal(got.repliesLastHour, 7);
+    assert.equal(got.hourBand, "warm");
+  });
+
   it("does not count the previous hour twice at a calendar-hour boundary", () => {
     const got = read({
       marks: [

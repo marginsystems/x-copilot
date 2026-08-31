@@ -86,10 +86,17 @@
 
 .desk-top-body-content {
   display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   padding-top: 12px;
+}
+
+.desk-top-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .desk-top.is-collapsed .desk-top-body-inner {
@@ -280,8 +287,8 @@ button.primary.scout-run.desk-top-takeoff {
   text-align: left;
 }
 
-.threads-activity-toggle-path:hover .threads-activity-title {
-  color: var(--text);
+.threads-activity-toggle-path:hover .threads-activity-caret {
+  color: var(--accent);
 }
 
 .threads-activity-caret {
@@ -311,15 +318,6 @@ button.primary.scout-run.desk-top-takeoff {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.threads-activity-title {
-  font-family: var(--font-head);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
 }
 
 .threads-activity-share {
@@ -536,6 +534,115 @@ button.primary.scout-run.desk-top-takeoff {
   fill: var(--muted);
   font-family: var(--font-mono);
   font-size: 8px;
+}
+
+.desk-instruments {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  padding: 10px 12px;
+}
+
+.desk-instruments.is-collapsed {
+  min-height: 72px;
+  max-height: 72px;
+  overflow: hidden;
+  align-self: start;
+  justify-content: center;
+}
+
+.desk-instruments-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.desk-instruments-kicker {
+  font-family: var(--font-head);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.desk-gauges {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.desk-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+
+.desk-gauge.is-warm {
+  border-color: var(--accent-dim);
+  background: color-mix(in srgb, var(--accent) 8%, var(--raised));
+}
+
+/* Same tint as the Learn 04 scout-yes rows. */
+.desk-gauge.is-hot {
+  border-color: var(--danger-dim);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.desk-gauge-label {
+  font-family: var(--font-head);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desk-gauge-value {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-gauge-note {
+  font-size: 0.7rem;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+/* Collapsed strip: one thin row of gauges, no captions. */
+.desk-instruments.is-collapsed .desk-gauge-note,
+.desk-instruments.is-collapsed .desk-instruments-head .threads-activity-sub {
+  display: none;
+}
+
+.desk-instruments.is-collapsed .desk-gauges {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.desk-instruments.is-collapsed .desk-gauge {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 8px;
 }
 
 .row-head.static {
