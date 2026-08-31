@@ -1,0 +1,216 @@
+import type { Dispatch, SetStateAction } from "react";
+import { SuggestLocked } from "../VoiceCard";
+import { SuggestPane } from "../SuggestPane";
+import type { AuthSessionUser } from "../auth/types";
+import {
+  approachEmptyCopy,
+  type ForYouProgress,
+  type ForYouSuggestion,
+} from "../lib/forYou";
+import type { CoachingState } from "../lib/coaching";
+import type { DeskPhase } from "../lib/deskPhase";
+import { sortThreadsByCreatedAtNewest } from "../lib/threadSort";
+import type { VoiceState } from "../lib/voice";
+import { ReplyPaceBar } from "./ReplyPaceBar";
+import { SuggestedRow } from "./SuggestedRow";
+import { ThreadRow } from "./ThreadRow";
+import type { ThreadCard } from "./types";
+import { watchDeskThreads } from "./watch";
+
+export function pickApproachSuggestion(
+  rows: ForYouSuggestion[],
+): ForYouSuggestion | null {
+  return rows.find((row) => row.kind === "reply") ?? rows[0] ?? null;
+}
+
+export function pickApproachScout(threads: ThreadCard[]): ThreadCard | null {
+  return sortThreadsByCreatedAtNewest(threads)[0] ?? null;
+}
+
+function phaseVerb(phase: DeskPhase): string {
+  if (phase === "hold") return "Hold";
+  if (phase === "scout_reply") return "Reply";
+  if (phase === "organic_reply") return "Organic reply";
+  if (phase === "fork") return "Fork";
+  if (phase === "original") return "Original";
+  if (phase === "silent_refuel") return "Refuel";
+  if (phase === "done_for_now") return "Done";
+  return "Desk";
+}
+
+function phaseWhy(phase: DeskPhase, coaching?: CoachingState | null): string {
+  const action = coaching?.nextAction;
+  const line = action?.text?.trim();
+  const takeoffOnReply =
+    action?.kind === "takeoff" &&
+    (phase === "scout_reply" || phase === "organic_reply");
+  if (line && !takeoffOnReply) return line;
+  if (phase === "scout_reply") {
+    return "Reply to this thread. Then mark it.";
+  }
+  if (phase === "organic_reply") {
+    return "Open X. Reply to something you actually read. Mark it here.";
+  }
+  if (phase === "fork") {
+    return "Write an original, or one more reply.";
+  }
+  if (phase === "original") {
+    return "Compose one original.";
+  }
+  if (phase === "done_for_now") {
+    return "You're clean. History is a log.";
+  }
+  return "";
+}
+
+export function MissionCard(props: {
+  phase: DeskPhase;
+  hold: boolean;
+  clock: string;
+  onBypass: () => void;
+  searching: boolean;
+  forYouProgress?: ForYouProgress | null;
+  coaching?: CoachingState | null;
+  scout: ThreadCard | null;
+  suggestion: ForYouSuggestion | null;
+  actionBusy: boolean;
+  setExpandedId: Dispatch<SetStateAction<string | null>>;
+  interactedIds: Set<string>;
+  voice: VoiceState | null;
+  agenda: string;
+  authUser: AuthSessionUser | null;
+  setVoice: Dispatch<SetStateAction<VoiceState | null>>;
+  exitingIds: Set<string>;
+  onScoutMark: (thread: ThreadCard) => void;
+  onScoutSkip: (thread: ThreadCard) => void;
+  onScoutDismiss: (thread: ThreadCard) => void;
+  onSuggestionPosted: (id: string) => void;
+  onSuggestionSkip: (id: string) => void;
+  onSuggestionDismiss: (id: string) => void;
+  onOpenVoice: () => void;
+  onLinkX: () => void;
+}) {
+  if (props.phase === "needs_onboarding") return null;
+
+  if (props.hold || props.phase === "hold") {
+    return (
+      <div className="mission-card">
+        <p className="mission-card-verb">{phaseVerb("hold")}</p>
+        <ReplyPaceBar clock={props.clock} onBypass={props.onBypass} />
+      </div>
+    );
+  }
+
+  if (props.phase === "silent_refuel") {
+    return (
+      <div className="mission-card">
+        <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
+        <p className="empty">
+          {approachEmptyCopy({
+            searching: props.searching,
+            progress: props.forYouProgress,
+          })}
+        </p>
+      </div>
+    );
+  }
+
+  if (props.phase === "scout_reply" && props.scout) {
+    const thread = props.scout;
+    const why = phaseWhy(props.phase, props.coaching);
+    return (
+      <div className="mission-card">
+        <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
+        {why ? <p className="mission-card-why">{why}</p> : null}
+        <div className="threads">
+          <ThreadRow
+            thread={thread}
+            index={0}
+            open
+            exiting={props.exitingIds.has(thread.id)}
+            busy={props.actionBusy}
+            interacted={props.interactedIds.has(thread.id)}
+            onToggle={() => watchDeskThreads([thread])}
+            onWatch={() => watchDeskThreads([thread])}
+            onMark={() => props.onScoutMark(thread)}
+            onSkip={() => props.onScoutSkip(thread)}
+            onDismiss={() => props.onScoutDismiss(thread)}
+            suggest={
+              props.voice?.status === "ready" && props.voice.unlocked ? (
+                <SuggestPane
+                  threadId={thread.id}
+                  author={thread.author}
+                  text={thread.text}
+                  opAuthor={thread.opAuthor}
+                  opText={thread.opText}
+                  threadKind={thread.threadKind}
+                  flags={thread.flags}
+                  agenda={props.agenda}
+                  usage={props.voice.suggests}
+                  onUsage={(u) =>
+                    props.setVoice((v) => (v ? { ...v, suggests: u } : v))
+                  }
+                  onOpenIntent={() => watchDeskThreads([thread])}
+                />
+              ) : (
+                <SuggestLocked
+                  voice={props.voice}
+                  xLinked={props.authUser?.xLinked}
+                  hasSession={Boolean(props.authUser)}
+                  onOpenSettings={props.onOpenVoice}
+                  onLinkX={props.onLinkX}
+                />
+              )
+            }
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (props.phase === "organic_reply") {
+    const why = phaseWhy(props.phase, props.coaching);
+    const row = props.suggestion;
+    const key = row ? `suggest:${row.id}` : null;
+    return (
+      <div className="mission-card">
+        <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
+        {why ? <p className="mission-card-why">{why}</p> : null}
+        {row && key ? (
+          <div className="threads">
+            <SuggestedRow
+              row={row}
+              index={0}
+              open
+              exiting={props.exitingIds.has(row.id)}
+              busy={props.actionBusy}
+              voice={props.voice}
+              agenda={props.agenda}
+              xLinked={props.authUser?.xLinked}
+              hasSession={Boolean(props.authUser)}
+              onToggle={() =>
+                props.setExpandedId((id) => (id === key ? null : key))
+              }
+              onPosted={() => props.onSuggestionPosted(row.id)}
+              onSkip={() => props.onSuggestionSkip(row.id)}
+              onDismiss={() => props.onSuggestionDismiss(row.id)}
+              onOpenSettings={props.onOpenVoice}
+              onLinkX={props.onLinkX}
+              onUsage={(u) =>
+                props.setVoice((v) => (v ? { ...v, suggests: u } : v))
+              }
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  const why = phaseWhy(props.phase, props.coaching);
+  return (
+    <div className="mission-card">
+      <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
+      {why ? <p className="mission-card-why">{why}</p> : null}
+    </div>
+  );
+}
