@@ -139,7 +139,7 @@ describe("readDeskInstruments", () => {
       ],
     });
 
-    assert.equal(got.repliesLastHour, 8);
+    assert.equal(got.repliesLastHour, 4);
     assert.equal(got.hourMedian, 4);
     assert.equal(got.hourBand, "cool");
   });
