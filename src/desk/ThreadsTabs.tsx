@@ -215,6 +215,7 @@ export function ThreadsTabs({
             scout={scout}
             suggestion={suggestion}
             actionBusy={actionBusy}
+            expandedId={expandedId}
             setExpandedId={setExpandedId}
             interactedIds={interactedIds}
             voice={voice}

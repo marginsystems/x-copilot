@@ -104,6 +104,7 @@ export function MissionCard(props: {
   scout: ThreadCard | null;
   suggestion: ForYouSuggestion | null;
   actionBusy: boolean;
+  expandedId: string | null;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
   interactedIds: Set<string>;
   voice: VoiceState | null;
@@ -178,11 +179,13 @@ export function MissionCard(props: {
             key={thread.id}
             thread={thread}
             index={0}
-            open
+            open={props.expandedId === thread.id}
             exiting={props.exitingIds.has(thread.id)}
             busy={props.actionBusy}
             interacted={props.interactedIds.has(thread.id)}
-            onToggle={() => watchDeskThreads([thread])}
+            onToggle={() =>
+              props.setExpandedId((id) => (id === thread.id ? null : thread.id))
+            }
             onWatch={() => watchDeskThreads([thread])}
             onMark={() => props.onScoutMark(thread)}
             onSkip={() => props.onScoutSkip(thread)}
