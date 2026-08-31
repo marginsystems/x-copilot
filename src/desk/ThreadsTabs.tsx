@@ -171,12 +171,6 @@ export function ThreadsTabs({
     }
     if (wasSearchingRef.current) {
       wasSearchingRef.current = false;
-      autoTriedRef.current = false;
-      try {
-        localStorage.removeItem(autoTriedKey);
-      } catch {
-        /* private mode */
-      }
     }
     if (
       !shouldBackgroundScout({
