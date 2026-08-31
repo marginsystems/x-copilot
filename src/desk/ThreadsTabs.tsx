@@ -78,6 +78,7 @@ export function ThreadsTabs({
   expiredHistory,
   searching,
   actionBusy,
+  expandedId,
   setExpandedId,
   interactedIds,
   voice,
