@@ -57,6 +57,7 @@ type ThreadsTabsProps = {
   interactedIds: Set<string>;
   voice: VoiceState | null;
   agenda: string;
+  agendaReady: boolean;
   authUser: AuthSessionUser | null;
   setVoice: Dispatch<SetStateAction<VoiceState | null>>;
   actForYou: (id: string, action: "done" | "skip" | "dismiss") => void | Promise<void>;
@@ -94,6 +95,7 @@ export function ThreadsTabs({
   interactedIds,
   voice,
   agenda,
+  agendaReady,
   authUser,
   setVoice,
   actForYou,
@@ -125,6 +127,9 @@ export function ThreadsTabs({
   });
   const autoTriedRef = useRef(false);
   const autoTriedKeyRef = useRef("");
+  const autoTriedDayRef = useRef("");
+  const previousPhaseRef = useRef(phase);
+  const wasSearchingRef = useRef(false);
   useEffect(() => {
     const live = new Set<string>();
     for (const t of curatedThreads) live.add(t.id);
@@ -132,19 +137,43 @@ export function ThreadsTabs({
     clearGone(live);
   }, [curatedThreads, forYouSuggestions, clearGone]);
   useEffect(() => {
+    if (!agendaReady) return;
     const autoTriedKey = `desk-scout-tried:${authUser?.id ?? "anonymous"}`;
     if (autoTriedKeyRef.current !== autoTriedKey) {
       autoTriedKeyRef.current = autoTriedKey;
       autoTriedRef.current = false;
     }
+    if (previousPhaseRef.current === "silent_refuel" && phase !== "silent_refuel") {
+      autoTriedRef.current = false;
+      try {
+        localStorage.removeItem(autoTriedKey);
+      } catch {
+        /* private mode */
+      }
+    }
+    previousPhaseRef.current = phase;
     if (phase !== "silent_refuel") {
       return;
     }
     const today = new Date().toISOString().slice(0, 10);
-    if (!autoTriedRef.current) {
+    if (autoTriedDayRef.current !== today) {
+      autoTriedDayRef.current = today;
+      autoTriedRef.current = false;
+    }
+    try {
+      autoTriedRef.current = localStorage.getItem(autoTriedKey) === today;
+    } catch {
+      /* private mode */
+    }
+    if (searching) {
+      wasSearchingRef.current = true;
+      return;
+    }
+    if (wasSearchingRef.current) {
+      wasSearchingRef.current = false;
+      autoTriedRef.current = false;
       try {
-        autoTriedRef.current =
-          localStorage.getItem(autoTriedKey) === today;
+        localStorage.removeItem(autoTriedKey);
       } catch {
         /* private mode */
       }
@@ -174,6 +203,7 @@ export function ThreadsTabs({
     searching,
     grounded,
     searchCooldownRemaining,
+    agendaReady,
     authUser,
     agenda,
     onSearch,

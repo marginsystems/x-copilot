@@ -920,6 +920,7 @@ export default function App() {
               interactedIds={interactedIds}
               voice={voice}
               agenda={agenda}
+              agendaReady={agendaReady}
               authUser={authUser}
               setVoice={setVoice}
               actForYou={async (id, action) => {
