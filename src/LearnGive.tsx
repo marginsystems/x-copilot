@@ -223,7 +223,8 @@ export function LearnGivePage(props: {
         posts for 60 seconds. That is our gate, not a published X number.
         Burstiness is in the features. Five replies a minute is the shape
         we do not want. Bypass if you must. The hold is there to keep you
-        on notice.
+        on notice. Hour and day gauges on Instruments are the same family
+        — see Part 2.
       </p>
 
       <h2>Two different likes</h2>
@@ -417,6 +418,12 @@ export function LearnGivePage(props: {
         that dumps 100 on day two looks like a hijack. That analog is
         ours, not an X formula. Do not treat 20, 30, 40, 50, or 100 as
         defaults in this snapshot.
+      </p>
+      <p>
+        The one-minute hold after you mark, and the hour and day gauges on
+        Instruments, are that analog on our mark ledger. They are desk
+        gauges, not a published X number. Operating points stay 9.99. A
+        hot band is not a fire line.
       </p>
       <p>
         What the snapshot does say: BDSM scores the last{" "}
