@@ -894,6 +894,7 @@ export default function App() {
               activityBucket={activityBucket}
               activityStats={activityStats}
               gamification={gamification}
+              interactedHistory={interactedHistory}
               onToggleFlightPath={onToggleFlightPath}
               onActivityBucket={onActivityBucket}
             />
