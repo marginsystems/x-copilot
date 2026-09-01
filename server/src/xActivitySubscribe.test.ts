@@ -82,10 +82,17 @@ describe("registerActivityWebhook", () => {
         if (opts.method === "GET") {
           return { ok: true, status: 200, json: { data: [] } };
         }
+        if (opts.method === "POST") {
+          return {
+            ok: true,
+            status: 200,
+            json: { data: { id: "wh-new", url, valid: false } },
+          };
+        }
         return {
           ok: true,
-          status: 200,
-          json: { data: { id: "wh-new", url, valid: true } },
+          status: 204,
+          json: null,
         };
       },
     });
@@ -93,6 +100,30 @@ describe("registerActivityWebhook", () => {
     assert.deepEqual(calls, [
       { method: "GET", path: "/webhooks", body: undefined },
       { method: "POST", path: "/webhooks", body: { url } },
+      { method: "PUT", path: "/webhooks/wh-new", body: undefined },
+    ]);
+  });
+
+  it("registers a listed webhook that is invalid", async () => {
+    const calls: Array<{ method: string; path: string }> = [];
+    const id = await registerActivityWebhook({
+      url,
+      request: async (opts) => {
+        calls.push({ method: opts.method, path: opts.path });
+        if (opts.method === "GET") {
+          return {
+            ok: true,
+            status: 200,
+            json: { data: [{ id: "wh-invalid", url, valid: false }] },
+          };
+        }
+        return { ok: true, status: 204, json: null };
+      },
+    });
+    assert.equal(id, "wh-invalid");
+    assert.deepEqual(calls, [
+      { method: "GET", path: "/webhooks" },
+      { method: "PUT", path: "/webhooks/wh-invalid" },
     ]);
   });
 

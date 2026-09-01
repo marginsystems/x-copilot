@@ -101,8 +101,30 @@ export async function registerActivityWebhook(opts: {
   request: XJsonFn;
 }): Promise<string | null> {
   const listed = await opts.request({ method: "GET", path: X_WEBHOOKS_PATH });
-  const existing = findListedWebhookId(listed.json, opts.url);
-  if (existing) return existing;
+  const listedData = (listed.json as {
+    data?: Array<{ id?: string; url?: string; valid?: boolean }>;
+  })?.data;
+  const existingWebhook = Array.isArray(listedData)
+    ? listedData.find((w) => w.url === opts.url && w.id)
+    : undefined;
+  if (existingWebhook?.id && existingWebhook.valid !== false) {
+    return String(existingWebhook.id);
+  }
+  if (existingWebhook?.id) {
+    const registered = await opts.request({
+      method: "PUT",
+      path: `${X_WEBHOOKS_PATH}/${encodeURIComponent(String(existingWebhook.id))}`,
+    });
+    if (!registered.ok) {
+      console.warn(
+        "[xaa] webhook registration failed",
+        registered.status,
+        registered.json,
+      );
+      return null;
+    }
+    return String(existingWebhook.id);
+  }
   const created = await opts.request({
     method: "POST",
     path: X_WEBHOOKS_PATH,
@@ -111,6 +133,18 @@ export async function registerActivityWebhook(opts: {
   const id = webhookIdFromCreate(created.json);
   if (!created.ok || !id) {
     console.warn("[xaa] webhook register failed", created.status, created.json);
+    return null;
+  }
+  const registered = await opts.request({
+    method: "PUT",
+    path: `${X_WEBHOOKS_PATH}/${encodeURIComponent(id)}`,
+  });
+  if (!registered.ok) {
+    console.warn(
+      "[xaa] webhook registration failed",
+      registered.status,
+      registered.json,
+    );
     return null;
   }
   return id;
