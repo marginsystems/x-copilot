@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import {
   X_ACTIVITY_SUBSCRIPTIONS_PATH,
   X_WEBHOOKS_PATH,
+  findListedSubscriptionId,
   findListedWebhookId,
   registerActivityWebhook,
+  subscriptionIdFromCreate,
   webhookIdFromCreate,
 } from "./xActivitySubscribe.ts";
 
@@ -50,6 +52,86 @@ describe("webhookIdFromCreate", () => {
       "wh-9",
     );
     assert.equal(webhookIdFromCreate({ data: {} }), null);
+  });
+});
+
+describe("subscriptionIdFromCreate", () => {
+  it("reads the official object shape and the list-shaped array", () => {
+    assert.equal(
+      subscriptionIdFromCreate({
+        data: { subscription_id: "sub-obj", event_type: "post.create" },
+      }),
+      "sub-obj",
+    );
+    assert.equal(
+      subscriptionIdFromCreate({
+        data: [{ subscription_id: "sub-arr", event_type: "post.create" }],
+      }),
+      "sub-arr",
+    );
+    assert.equal(subscriptionIdFromCreate({ data: {} }), null);
+  });
+});
+
+describe("findListedSubscriptionId", () => {
+  it("matches post.create for that x user and webhook", () => {
+    assert.equal(
+      findListedSubscriptionId(
+        {
+          data: [
+            {
+              subscription_id: "other",
+              event_type: "profile.update.bio",
+              filter: { user_id: "99" },
+              webhook_id: "wh-1",
+            },
+            {
+              subscription_id: "mine",
+              event_type: "post.create",
+              filter: { user_id: "99" },
+              webhook_id: "wh-1",
+            },
+          ],
+        },
+        "99",
+        "wh-1",
+      ),
+      "mine",
+    );
+    assert.equal(
+      findListedSubscriptionId(
+        {
+          data: [
+            {
+              subscription_id: "mine",
+              event_type: "post.create",
+              filter: { user_id: "1" },
+              webhook_id: "wh-1",
+            },
+          ],
+        },
+        "99",
+        "wh-1",
+      ),
+      null,
+    );
+    assert.equal(
+      findListedSubscriptionId(
+        {
+          data: [
+            {
+              subscription_id: "old-webhook",
+              event_type: "post.create",
+              filter: { user_id: "99" },
+              webhook_id: "wh-old",
+            },
+          ],
+        },
+        "99",
+        "wh-current",
+      ),
+      null,
+    );
   });
 });
 

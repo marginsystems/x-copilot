@@ -95,6 +95,40 @@ export function webhookIdFromCreate(json: unknown): string | null {
   return id ? String(id) : null;
 }
 
+type ActivitySubscriptionRow = {
+  subscription_id?: string;
+  event_type?: string;
+  filter?: { user_id?: string };
+  webhook_id?: string;
+};
+
+/** Official create returns `data` as an object or a one-item array. */
+export function subscriptionIdFromCreate(json: unknown): string | null {
+  const data = (json as { data?: ActivitySubscriptionRow | ActivitySubscriptionRow[] })
+    ?.data;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row?.subscription_id ? String(row.subscription_id) : null;
+}
+
+export function findListedSubscriptionId(
+  json: unknown,
+  xUserId: string,
+  webhookId: string,
+  eventType = "post.create",
+): string | null {
+  const data = (json as { data?: ActivitySubscriptionRow | ActivitySubscriptionRow[] })
+    ?.data;
+  const rows = Array.isArray(data) ? data : data ? [data] : [];
+  const hit = rows.find(
+    (row) =>
+      row.event_type === eventType &&
+      row.filter?.user_id === xUserId &&
+      row.webhook_id === webhookId &&
+      row.subscription_id,
+  );
+  return hit?.subscription_id ? String(hit.subscription_id) : null;
+}
+
 /** List then create against /2/webhooks. Used by boot; injectable for tests. */
 export async function registerActivityWebhook(opts: {
   url: string;
@@ -290,10 +324,20 @@ export async function subscribeUserToPostCreate(
       webhook_id: webhookId,
     },
   });
-  const subscriptionId = (
-    created.json as { data?: { subscription_id?: string } }
-  )?.data?.subscription_id;
-  if (!created.ok || !subscriptionId) {
+  let subscriptionId = subscriptionIdFromCreate(created.json);
+  if (!subscriptionId) {
+    const listed = await xJson({
+      method: "GET",
+      path: X_ACTIVITY_SUBSCRIPTIONS_PATH,
+    });
+    if (listed.ok) {
+      subscriptionId = findListedSubscriptionId(listed.json, xUserId, webhookId);
+    } else {
+      console.warn("[xaa] subscription list failed", listed.status, listed.json);
+    }
+  }
+  if (!subscriptionId) {
+    console.warn("[xaa] subscribe failed", created.status, created.json);
     getPlatformDb()
       .prepare(
         `UPDATE activity_subscriptions
