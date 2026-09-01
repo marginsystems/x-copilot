@@ -494,4 +494,30 @@ describe("POST /api/for-you/done", () => {
     assert.equal(beats.forkDone, false);
     assert.equal(beats.organicReplyDone, true);
   });
+
+  it("completes a reply fork on reply I posted", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-reply-reply-fork",
+      email: "reply-reply-fork@example.com",
+      emailVerified: true,
+    });
+    const [card] = insertSuggestions({
+      userId: user.id,
+      tenantId: "local",
+      drafts: [{ kind: "reply", why: "reply to the win", draft: "sharper" }],
+    });
+    assert.ok(card);
+    recordDeskReplyMarked({ userId: user.id, source: "organic" });
+    chooseDeskFork({ userId: user.id, forkChoice: "reply" });
+    const { token } = createSession(user.id);
+    const out = await invokeForYou({
+      method: "POST",
+      path: "/api/for-you/done",
+      token,
+      body: { id: card.id },
+    });
+    assert.equal(out.status, 200);
+    assert.equal(getDeskBeats({ userId: user.id }).forkDone, true);
+  });
 });

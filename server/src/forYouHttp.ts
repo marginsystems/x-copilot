@@ -123,7 +123,10 @@ export async function tryHandleForYou(
         suggestion.kind === "quote" ||
         suggestion.kind === "repost"
       ) {
-        if (getDeskBeats({ userId: user.id, nowMs }).forkChoice !== "reply") {
+        if (
+          suggestion.kind === "reply" ||
+          getDeskBeats({ userId: user.id, nowMs }).forkChoice !== "reply"
+        ) {
           try {
             recordDeskReplyMarked({
               userId: user.id,
