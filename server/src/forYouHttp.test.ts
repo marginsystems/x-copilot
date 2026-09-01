@@ -17,7 +17,11 @@ import { countPostsReadThisUtcMonth } from "./billingQuotas.ts";
 import { ensureUserTenant } from "./billingStore.ts";
 import { MIN_T24H_SNAPSHOTS } from "./forYouDigest.ts";
 import { countExtraBatchesToday, reserveExtraSlot } from "./forYouExtra.ts";
-import { getDeskBeats } from "./deskBeats.ts";
+import {
+  chooseDeskFork,
+  getDeskBeats,
+  recordDeskReplyMarked,
+} from "./deskBeats.ts";
 import { tryHandleForYou } from "./forYouHttp.ts";
 import { insertSuggestions, listActiveSuggestions } from "./forYouStore.ts";
 import { patchOwnPostSnapshot, upsertOwnPost } from "./ownPostStore.ts";
@@ -461,5 +465,33 @@ describe("POST /api/for-you/done", () => {
     });
     assert.equal(out.status, 200);
     assert.equal(getDeskBeats({ userId: user.id }).organicReplyDone, true);
+  });
+
+  it("does not complete a reply fork on quote I posted", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-quote-reply-fork",
+      email: "quote-reply-fork@example.com",
+      emailVerified: true,
+    });
+    const [card] = insertSuggestions({
+      userId: user.id,
+      tenantId: "local",
+      drafts: [{ kind: "quote", why: "quote the win", draft: "sharper" }],
+    });
+    assert.ok(card);
+    recordDeskReplyMarked({ userId: user.id, source: "organic" });
+    chooseDeskFork({ userId: user.id, forkChoice: "reply" });
+    const { token } = createSession(user.id);
+    const out = await invokeForYou({
+      method: "POST",
+      path: "/api/for-you/done",
+      token,
+      body: { id: card.id },
+    });
+    assert.equal(out.status, 200);
+    const beats = getDeskBeats({ userId: user.id });
+    assert.equal(beats.forkDone, false);
+    assert.equal(beats.organicReplyDone, true);
   });
 });

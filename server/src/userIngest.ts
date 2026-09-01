@@ -257,6 +257,7 @@ const confirmOwnPostsInFlight = new Map<
   string,
   Promise<{ ok: boolean; ingested: number }>
 >();
+const CONFIRM_OWN_POSTS_RATE = { max: 1, windowMs: 60_000 };
 
 async function confirmRecentOwnPostsRun(opts: {
   userId: string;
@@ -271,6 +272,17 @@ async function confirmRecentOwnPostsRun(opts: {
   if (!user) return { ok: false, ingested: 0 };
   const handle = getXOauthUsername(opts.userId);
   if (!handle) return { ok: false, ingested: 0 };
+  const activity = dailyActivityUsage(opts.userId, user.email);
+  if (!activity.can_watch) return { ok: true, ingested: 0 };
+  if (
+    !allowRate(
+      `own-post-confirm:${opts.userId}`,
+      CONFIRM_OWN_POSTS_RATE.max,
+      CONFIRM_OWN_POSTS_RATE.windowMs,
+    )
+  ) {
+    return { ok: true, ingested: 0 };
+  }
   const resolveUser = opts.deps?.resolveUser ?? resolveXUser;
   const pullReplies = opts.deps?.pullReplies ?? pullOwnReplies;
   const get = opts.deps?.get ?? ingestGet;

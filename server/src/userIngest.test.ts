@@ -1343,4 +1343,26 @@ describe("confirmRecentOwnPosts", () => {
     await first;
     assert.equal(resolves, 1);
   });
+
+  it("skips a fresh sequential confirmation", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    let resolves = 0;
+    const opts = {
+      userId: user.id,
+      deps: {
+        resolveUser: async () => {
+          resolves += 1;
+          return { ok: false as const, status: 503, error: "upstream", message: "upstream" };
+        },
+      },
+    };
+    await confirmRecentOwnPosts(opts);
+    await confirmRecentOwnPosts(opts);
+    assert.equal(resolves, 1);
+  });
 });

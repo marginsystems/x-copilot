@@ -123,14 +123,16 @@ export async function tryHandleForYou(
         suggestion.kind === "quote" ||
         suggestion.kind === "repost"
       ) {
-        try {
-          recordDeskReplyMarked({
-            userId: user.id,
-            source: "organic",
-            nowMs,
-          });
-        } catch (err) {
-          console.warn("desk beats For You reply soft-fail:", err);
+        if (getDeskBeats({ userId: user.id, nowMs }).forkChoice !== "reply") {
+          try {
+            recordDeskReplyMarked({
+              userId: user.id,
+              source: "organic",
+              nowMs,
+            });
+          } catch (err) {
+            console.warn("desk beats For You reply soft-fail:", err);
+          }
         }
       }
       if (suggestion.kind === "post") {
