@@ -67,6 +67,7 @@ export async function tryHandleCoaching(
       },
       missions,
       beats,
+      postsToday: snapshot.postsToday,
     });
   } catch (err) {
     console.error("coaching read failed:", err);

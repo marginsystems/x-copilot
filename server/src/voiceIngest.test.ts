@@ -62,6 +62,26 @@ describe("parseUserTweetsPage", () => {
     assert.equal(page.replies[3]?.conversationId, "conv-x");
     assert.equal(page.nextToken, "tok");
     assert.equal(page.newestId, "5");
+    assert.equal(page.replies[1]?.kind, "original");
+    assert.equal(page.replies[0]?.kind, "reply");
+  });
+
+  it("labels a quote as quote, not original", () => {
+    const page = parseUserTweetsPage(
+      {
+        data: [
+          {
+            id: "q1",
+            text: "sharper take",
+            created_at: "2026-08-10T12:00:00.000Z",
+            referenced_tweets: [{ type: "quoted", id: "p9" }],
+          },
+        ],
+      },
+      OWN_ID,
+    );
+    assert.equal(page.replies[0]?.kind, "quote");
+    assert.equal(page.replies[0]?.inReplyToId, null);
   });
 
   it("tolerates an empty timeline", () => {
@@ -99,6 +119,26 @@ describe("pullOwnReplies", () => {
     }
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.since_id, "555");
+    assert.equal(calls[0]?.max_results, "100");
+  });
+
+  it("asks X for five tweets when the confirm target is five", async () => {
+    const calls: Array<Record<string, string | undefined>> = [];
+    const get: XApiGetFn = async (opts) => {
+      calls.push(opts.query ?? {});
+      return {
+        ok: true,
+        status: 200,
+        json: { data: [tweet("1")], meta: { newest_id: "1" } },
+      };
+    };
+    const result = await pullOwnReplies({
+      xUserId: OWN_ID,
+      targetReplies: 5,
+      deps: { get },
+    });
+    assert.ok(result.ok);
+    assert.equal(calls[0]?.max_results, "5");
   });
 
   it("does not walk a second page even when the first is short", async () => {

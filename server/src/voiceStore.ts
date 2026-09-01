@@ -23,6 +23,7 @@ export type VoiceReplyInput = {
   inReplyToId?: string | null;
   postedAt?: string | null;
   source?: "api" | "desk" | "memory";
+  kind?: "original" | "reply" | "quote" | "repost";
 };
 
 export type VoiceReplyRow = {

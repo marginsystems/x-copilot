@@ -144,7 +144,7 @@ describe("parsePostCreateEvent", () => {
 });
 
 describe("classifyPostKind", () => {
-  it("prefers repost then reply then quote", () => {
+  it("prefers repost then quote then reply", () => {
     assert.equal(
       classifyPostKind({ referenced_tweets: [{ type: "retweeted" }] }),
       "repost",
@@ -152,6 +152,12 @@ describe("classifyPostKind", () => {
     assert.equal(classifyPostKind({ in_reply_to_tweet_id: "1" }), "reply");
     assert.equal(
       classifyPostKind({ referenced_tweets: [{ type: "quoted" }] }),
+      "quote",
+    );
+    assert.equal(
+      classifyPostKind({
+        referenced_tweets: [{ type: "replied_to" }, { type: "quoted" }],
+      }),
       "quote",
     );
     assert.equal(classifyPostKind({}), "original");

@@ -14,6 +14,7 @@ type InstrumentsPanelProps = {
   expanded: boolean;
   interactedHistory: InteractionHistoryEntry[];
   gamification: GamificationStats;
+  postsToday?: number;
   onToggleExpand: () => void;
 };
 
@@ -33,6 +34,7 @@ export function InstrumentsPanel({
   expanded,
   interactedHistory,
   gamification,
+  postsToday = 0,
   onToggleExpand,
 }: InstrumentsPanelProps) {
   const marks = useMemo(
@@ -49,7 +51,7 @@ export function InstrumentsPanel({
   const gauges = readDeskInstruments({
     nowMs,
     marks,
-    postsToday: 0,
+    postsToday,
     dailyPostCap: dailyPostCap({
       level: gamification.level,
       currentStreak: gamification.currentStreak,
@@ -116,7 +118,7 @@ export function InstrumentsPanel({
           label="Posts / day"
           value={`${gauges.postsToday} / ${gauges.dailyPostCap}`}
           band={gauges.postsBand}
-          note="Cap comes from level and streak. Desk originals are not on the mark ledger."
+          note="Cap comes from level and streak. Originals and quotes on the own-post ledger — not replies, not I posted alone."
         />
         {gauges.inboundBand !== null ? (
           <Gauge

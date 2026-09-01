@@ -35,6 +35,8 @@ export type CoachingState = {
   nextAction: NextActionCard | null;
   missions: DailyMission[];
   beats: DeskBeats;
+  /** own_posts originals + quotes today. Missing on older boot caches. */
+  postsToday?: number;
 };
 
 const KINDS = new Set<string>(NEXT_ACTION_KINDS);
@@ -118,6 +120,7 @@ export function parseCoachingPayload(raw: unknown): CoachingState | null {
     nextAction: parseNextAction(row.nextAction),
     missions,
     beats: parseDeskBeats(row.beats),
+    postsToday: finiteNonNeg(row.postsToday) ?? 0,
   };
 }
 

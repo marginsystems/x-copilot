@@ -18,6 +18,7 @@ type DeskTopProps = {
   activityStats: ActivityStats;
   gamification: GamificationStats;
   interactedHistory: InteractionHistoryEntry[];
+  postsToday?: number;
   onToggleFlightPath: () => void;
   onActivityBucket: (bucket: ActivityBucket) => void;
 };
@@ -32,6 +33,7 @@ export function DeskTop({
   activityStats,
   gamification,
   interactedHistory,
+  postsToday,
   onToggleFlightPath,
   onActivityBucket,
 }: DeskTopProps) {
@@ -117,6 +119,7 @@ export function DeskTop({
                 expanded={flightPathOpen}
                 interactedHistory={interactedHistory}
                 gamification={gamification}
+                postsToday={postsToday}
                 onToggleExpand={onToggleFlightPath}
               />
             )}

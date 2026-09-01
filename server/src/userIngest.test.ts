@@ -29,7 +29,7 @@ import {
   upsertVoiceReplies,
 } from "./voiceStore.ts";
 import { VOICE_TARGET_REPLIES } from "./voiceIngest.ts";
-import { beginVoiceCorpus, runUserIngest } from "./userIngest.ts";
+import { beginVoiceCorpus, confirmRecentOwnPosts, runUserIngest } from "./userIngest.ts";
 
 describe("runUserIngest", () => {
   let dir: string;
@@ -1240,5 +1240,129 @@ describe("beginVoiceCorpus", () => {
     });
     assert.equal(result, null);
     assert.equal(ingestCalls, 0);
+  });
+});
+
+describe("confirmRecentOwnPosts", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    dir = mkdtempSync(join(tmpdir(), "x-confirm-"));
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("folds a quote and leaves the hourly since_id alone", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const result = await confirmRecentOwnPosts({
+      userId: user.id,
+      deps: {
+        resolveUser: async () => ({
+          ok: true,
+          id: "99",
+          username: "me",
+          protected: false,
+        }),
+        pullReplies: async (opts) => {
+          assert.equal(opts.targetReplies, 5);
+          assert.equal(opts.sinceId ?? null, null);
+          return {
+            ok: true,
+            replies: [
+              {
+                id: "q1",
+                text: "sharper",
+                kind: "quote",
+                postedAt: new Date().toISOString(),
+                source: "api",
+              },
+            ],
+            newestId: "q1",
+            pages: 1,
+            completed: true,
+          };
+        },
+      },
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.ingested, 1);
+    assert.equal(getVoiceProfile(user.id)?.sinceId ?? null, null);
+    const row = getPlatformDb()
+      .prepare(
+        `SELECT kind FROM own_posts WHERE user_id = ? AND id = ?`,
+      )
+      .get(user.id, "q1") as { kind?: string } | undefined;
+    assert.equal(row?.kind, "quote");
+  });
+
+  it("coalesces concurrent confirmations for a user", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    let resolves = 0;
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const opts = {
+      userId: user.id,
+      deps: {
+        resolveUser: async () => {
+          resolves += 1;
+          await blocked;
+          return {
+            ok: false as const,
+            status: 503,
+            error: "blocked",
+            message: "blocked",
+          };
+        },
+      },
+    };
+    const first = confirmRecentOwnPosts(opts);
+    const second = confirmRecentOwnPosts(opts);
+    assert.strictEqual(first, second);
+    release();
+    await first;
+    assert.equal(resolves, 1);
+  });
+
+  it("skips a fresh sequential confirmation", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    let resolves = 0;
+    const opts = {
+      userId: user.id,
+      deps: {
+        resolveUser: async () => {
+          resolves += 1;
+          return { ok: false as const, status: 503, error: "upstream", message: "upstream" };
+        },
+      },
+    };
+    await confirmRecentOwnPosts(opts);
+    await confirmRecentOwnPosts(opts);
+    assert.equal(resolves, 1);
   });
 });
