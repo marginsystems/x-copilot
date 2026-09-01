@@ -1,11 +1,52 @@
-import {
-  onOriginalPosted,
-  onReplyMarked,
-  setForkChoice,
-  type DeskReplySource,
-} from "../../src/lib/deskBeats.ts";
 import { getPlatformDb } from "./db.js";
 import { utcDayKey } from "./gamificationXp.js";
+
+type DeskReplySource = "scout" | "organic";
+
+type DeskBeats = {
+  scoutReplyDone: boolean;
+  organicReplyDone: boolean;
+  forkChoice: "original" | "reply" | null;
+  forkDone: boolean;
+};
+
+function onReplyMarked(beats: DeskBeats, source: DeskReplySource): DeskBeats {
+  if (beats.forkChoice === "reply" && !beats.forkDone) {
+    return { ...beats, forkDone: true };
+  }
+  if (source === "scout" && !beats.scoutReplyDone) {
+    return { ...beats, scoutReplyDone: true };
+  }
+  if (
+    source === "organic" &&
+    beats.scoutReplyDone &&
+    !beats.organicReplyDone
+  ) {
+    return { ...beats, organicReplyDone: true };
+  }
+  return beats;
+}
+
+function onOriginalPosted(beats: DeskBeats): DeskBeats {
+  if (beats.forkChoice === "original" && !beats.forkDone) {
+    return { ...beats, forkDone: true };
+  }
+  return beats;
+}
+
+function setForkChoice(
+  beats: DeskBeats,
+  choice: "original" | "reply",
+): DeskBeats {
+  if (
+    beats.organicReplyDone &&
+    beats.forkChoice === null &&
+    !beats.forkDone
+  ) {
+    return { ...beats, forkChoice: choice };
+  }
+  return beats;
+}
 
 type StoredDeskBeats = ReturnType<typeof onReplyMarked>;
 
