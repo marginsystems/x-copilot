@@ -141,6 +141,7 @@ describe("buildCoachingSnapshot", () => {
       interactionStorePath,
     });
     assert.equal(ownPostsOnly.originalsToday, 1);
+    assert.equal(ownPostsOnly.postsToday, 1);
 
     const [card] = insertSuggestions({
       userId: "u1",
@@ -178,5 +179,70 @@ describe("buildCoachingSnapshot", () => {
     });
     assert.equal(snapshot.deskPostsToday, 1);
     assert.equal(snapshot.originalsToday, 1);
+  });
+
+  it("counts own_posts originals and quotes on postsToday, not replies", async () => {
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-og",
+        xUserId: "99",
+        postId: "og1",
+        kind: "original",
+        text: "og",
+        postedAt: new Date(NOW_MS).toISOString(),
+        inReplyToId: null,
+        inReplyToUserId: null,
+        conversationId: null,
+        authorUsername: "desk",
+        metrics: {},
+      },
+      userId: "u1",
+      tenantId: "local",
+    });
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-qt",
+        xUserId: "99",
+        postId: "qt1",
+        kind: "quote",
+        text: "qt",
+        postedAt: new Date(NOW_MS).toISOString(),
+        inReplyToId: null,
+        inReplyToUserId: null,
+        conversationId: null,
+        authorUsername: "desk",
+        metrics: {},
+      },
+      userId: "u1",
+      tenantId: "local",
+    });
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-re",
+        xUserId: "99",
+        postId: "re1",
+        kind: "reply",
+        text: "re",
+        postedAt: new Date(NOW_MS).toISOString(),
+        inReplyToId: "p1",
+        inReplyToUserId: null,
+        conversationId: null,
+        authorUsername: "desk",
+        metrics: {},
+      },
+      userId: "u1",
+      tenantId: "local",
+    });
+
+    const snapshot = await buildCoachingSnapshot({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: NOW_MS,
+      gamificationPath,
+      interactionStorePath,
+    });
+    assert.equal(snapshot.quotesToday, 1);
+    assert.equal(snapshot.repliesPostedToday, 1);
+    assert.equal(snapshot.postsToday, 2);
   });
 });

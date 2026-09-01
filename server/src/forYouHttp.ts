@@ -12,6 +12,7 @@ import { ensureUserBillingRow, ensureUserTenant } from "./billingStore.js";
 import { deepseekConfigured } from "./deepseek.js";
 import { getPlatformDb } from "./db.js";
 import { recordDeskOriginalPosted, recordDeskReplyMarked } from "./deskBeats.js";
+import { confirmRecentOwnPosts } from "./userIngest.js";
 import {
   buildForYouDigest,
   countT24hSnapshots,
@@ -113,7 +114,11 @@ export async function tryHandleForYou(
       const nowMs = suggestion.actedAt
         ? Date.parse(suggestion.actedAt) || Date.now()
         : Date.now();
-      if (suggestion.kind === "reply") {
+      if (
+        suggestion.kind === "reply" ||
+        suggestion.kind === "quote" ||
+        suggestion.kind === "repost"
+      ) {
         try {
           recordDeskReplyMarked({
             userId: user.id,
@@ -130,6 +135,20 @@ export async function tryHandleForYou(
         } catch (err) {
           console.warn("desk beats For You original soft-fail:", err);
         }
+        try {
+          recordDeskReplyMarked({
+            userId: user.id,
+            source: "organic",
+            nowMs,
+          });
+        } catch (err) {
+          console.warn("desk beats For You original organic soft-fail:", err);
+        }
+      }
+      try {
+        await confirmRecentOwnPosts({ userId: user.id });
+      } catch (err) {
+        console.warn("own-post confirm after I posted soft-fail:", err);
       }
     }
     send(req, res, 200, { ok: true, suggestion });

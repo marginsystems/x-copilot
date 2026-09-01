@@ -175,7 +175,7 @@ function replyToOwnPost(
     eventUuid: `ingest:${reply.id}`,
     xUserId: opts.xUserId,
     postId: reply.id,
-    kind: reply.inReplyToId ? "reply" : "original",
+    kind: reply.kind ?? (reply.inReplyToId ? "reply" : "original"),
     text: reply.text,
     postedAt: reply.postedAt ?? nowIso(),
     postedAtFallback: !reply.postedAt,
@@ -222,6 +222,44 @@ function foldRepliesIntoOwnPosts(opts: {
     if (isNew) n += 1;
   }
   return n;
+}
+
+/** One cheap page after I posted. Does not move the hourly since_id. */
+export async function confirmRecentOwnPosts(opts: {
+  userId: string;
+  target?: number;
+  deps?: {
+    get?: XApiGetFn;
+    resolveUser?: typeof resolveXUser;
+    pullReplies?: typeof pullOwnReplies;
+  };
+}): Promise<{ ok: boolean; ingested: number }> {
+  const user = getUserById(opts.userId);
+  if (!user) return { ok: false, ingested: 0 };
+  const handle = getXOauthUsername(opts.userId);
+  if (!handle) return { ok: false, ingested: 0 };
+  const resolveUser = opts.deps?.resolveUser ?? resolveXUser;
+  const pullReplies = opts.deps?.pullReplies ?? pullOwnReplies;
+  const get = opts.deps?.get ?? ingestGet;
+  const resolved = await resolveUser(handle, { get });
+  if (!resolved.ok || resolved.protected) {
+    return { ok: false, ingested: 0 };
+  }
+  const pull = await pullReplies({
+    xUserId: resolved.id,
+    targetReplies: opts.target ?? 5,
+    deps: { get },
+  });
+  if (!pull.ok) return { ok: false, ingested: 0 };
+  return {
+    ok: true,
+    ingested: foldRepliesIntoOwnPosts({
+      userId: opts.userId,
+      replies: pull.replies,
+      xUserId: resolved.id,
+      handle: resolved.username,
+    }),
+  };
 }
 
 /**

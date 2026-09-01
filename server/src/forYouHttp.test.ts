@@ -17,6 +17,7 @@ import { countPostsReadThisUtcMonth } from "./billingQuotas.ts";
 import { ensureUserTenant } from "./billingStore.ts";
 import { MIN_T24H_SNAPSHOTS } from "./forYouDigest.ts";
 import { countExtraBatchesToday, reserveExtraSlot } from "./forYouExtra.ts";
+import { getDeskBeats } from "./deskBeats.ts";
 import { tryHandleForYou } from "./forYouHttp.ts";
 import { insertSuggestions, listActiveSuggestions } from "./forYouStore.ts";
 import { patchOwnPostSnapshot, upsertOwnPost } from "./ownPostStore.ts";
@@ -157,6 +158,7 @@ async function invokeForYou(opts: {
   path: string;
   token?: string;
   chat?: ChatFn;
+  body?: unknown;
 }): Promise<{ handled: boolean; status: number; json: Record<string, unknown> }> {
   const req = new EventEmitter() as unknown as IncomingMessage;
   Object.assign(req, {
@@ -176,12 +178,19 @@ async function invokeForYou(opts: {
       raw = chunk;
     },
   } as unknown as ServerResponse;
-  const handled = await tryHandleForYou(
+  const handledP = tryHandleForYou(
     req,
     res,
     new URL(`http://localhost${opts.path}`),
     opts.chat ? { chat: opts.chat } : undefined,
   );
+  if (opts.body !== undefined) {
+    queueMicrotask(() => {
+      req.emit("data", Buffer.from(JSON.stringify(opts.body)));
+      req.emit("end");
+    });
+  }
+  const handled = await handledP;
   return {
     handled,
     status,
@@ -409,5 +418,48 @@ describe("POST /api/for-you/extra", () => {
     assert.equal(listActiveSuggestions(user.id).length, 0);
     assert.equal(countPostsReadThisUtcMonth(tenantId), 0);
     assert.equal(countExtraBatchesToday(user.id), 0);
+  });
+});
+
+describe("POST /api/for-you/done", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    dir = mkdtempSync(join(tmpdir(), "x-fydone-"));
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("advances the organic beat on quote I posted", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-quote-done",
+      email: "quote-done@example.com",
+      emailVerified: true,
+    });
+    const [card] = insertSuggestions({
+      userId: user.id,
+      tenantId: "local",
+      drafts: [{ kind: "quote", why: "quote the win", draft: "sharper" }],
+    });
+    assert.ok(card);
+    const { token } = createSession(user.id);
+    const out = await invokeForYou({
+      method: "POST",
+      path: "/api/for-you/done",
+      token,
+      body: { id: card.id },
+    });
+    assert.equal(out.status, 200);
+    assert.equal(getDeskBeats({ userId: user.id }).organicReplyDone, true);
   });
 });

@@ -24,6 +24,8 @@ export type CoachingSnapshot = {
   originalsToday: number;
   repliesPostedToday: number;
   quotesToday: number;
+  /** own_posts originals + quotes this UTC day. Not honor-system I posted. */
+  postsToday: number;
   deskPostsToday: number;
   takeoffsToday: number;
   suggestions: {
@@ -132,6 +134,7 @@ export async function buildCoachingSnapshot(opts: {
     ),
     repliesPostedToday: kinds.replies,
     quotesToday: kinds.quotes,
+    postsToday: kinds.originals + kinds.quotes,
     deskPostsToday: listDeskPostsSince(opts.userId, sinceIso).length,
     takeoffsToday: countDeliveredSortiesToday(opts.tenantId, new Date(nowMs)),
     suggestions: { total: suggestions.length, ...counts },

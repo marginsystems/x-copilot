@@ -116,6 +116,7 @@ export async function tryHandleBoot(
       nextAction: null;
       missions: Awaited<ReturnType<typeof listMissionsWithProgress>>;
       beats: ReturnType<typeof getDeskBeats>;
+      postsToday: number;
     } | null = null;
 
     if (user) {
@@ -143,6 +144,7 @@ export async function tryHandleBoot(
           nowMs,
         }),
         beats: getDeskBeats({ userId: user.id, nowMs }),
+        postsToday: snapshot.postsToday,
       };
     }
 

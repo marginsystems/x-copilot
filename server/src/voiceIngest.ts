@@ -8,6 +8,7 @@
  * quotes all count. Retweets do not — those are someone else's words.
  * Initial onboarding is one page of 100. That is the spend cap.
  */
+import { classifyPostKind } from "./xActivity.js";
 import { xApiGet, type XApiGetResult } from "./xApi.js";
 import type { VoiceReplyInput } from "./voiceStore.js";
 
@@ -110,6 +111,7 @@ export function parseUserTweetsPage(
       if (isRetweet(tweet)) continue;
       const createdMs =
         typeof tweet.created_at === "string" ? Date.parse(tweet.created_at) : NaN;
+      const inReplyToId = repliedToId(tweet);
       replies.push({
         id: tweet.id,
         text: tweet.text,
@@ -117,11 +119,15 @@ export function parseUserTweetsPage(
           typeof tweet.conversation_id === "string"
             ? tweet.conversation_id
             : null,
-        inReplyToId: repliedToId(tweet),
+        inReplyToId,
         postedAt: Number.isFinite(createdMs)
           ? new Date(createdMs).toISOString()
           : null,
         source: "api",
+        kind: classifyPostKind({
+          referenced_tweets: tweet.referenced_tweets,
+          in_reply_to_tweet_id: inReplyToId,
+        }),
       });
     }
   }
@@ -160,6 +166,7 @@ export async function pullOwnReplies(opts: {
 }): Promise<PullRepliesResult> {
   const get = opts.deps?.get ?? xApiGet;
   const target = opts.targetReplies ?? VOICE_TARGET_POSTS;
+  const maxResults = String(Math.min(100, Math.max(5, target)));
   const replies: VoiceReplyInput[] = [];
   let paginationToken: string | undefined;
   let newestId: string | null = null;
@@ -170,7 +177,7 @@ export async function pullOwnReplies(opts: {
     const result: XApiGetResult = await get({
       path: `/users/${encodeURIComponent(opts.xUserId)}/tweets`,
       query: {
-        max_results: "100",
+        max_results: maxResults,
         exclude: "retweets",
         "tweet.fields":
           "conversation_id,created_at,in_reply_to_user_id,referenced_tweets",

@@ -30,6 +30,7 @@ function snapshot(
     originalsToday: 0,
     repliesPostedToday: 0,
     quotesToday: 0,
+    postsToday: 0,
     deskPostsToday: 0,
     takeoffsToday: 0,
     suggestions: { total: 0, post: 0, quote: 0, repost: 0, reply: 0 },
