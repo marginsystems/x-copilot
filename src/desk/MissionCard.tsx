@@ -5,7 +5,7 @@ import type { AuthSessionUser } from "../auth/types";
 import {
   approachEmptyCopy,
   extraButtonLabel,
-  extrasUnlocked,
+  showApproachExtra,
   type ForYouExtraUsage,
   type ForYouProgress,
   type ForYouSuggestion,
@@ -139,26 +139,31 @@ export function MissionCard(props: {
 }) {
   if (props.phase === "needs_onboarding") return null;
 
-  const extra =
-    props.forYouExtra && extrasUnlocked(props.forYouProgress) ? (
-      <div className="for-you-extra">
+  const extra = showApproachExtra({
+    extra: props.forYouExtra,
+    progress: props.forYouProgress,
+    phase: props.phase,
+    hasLiveCard: Boolean(props.scout || props.suggestion),
+  })
+    ? (
+      <div className="row">
         <button
           type="button"
-          className="for-you-extra-btn"
-          disabled={props.actionBusy || !props.forYouExtra.canExtra}
+          className="primary"
+          disabled={props.actionBusy}
           onClick={() => void props.requestExtra?.()}
         >
-          {extraButtonLabel(props.forYouExtra)}
+          {extraButtonLabel(props.forYouExtra!)}
         </button>
       </div>
-    ) : null;
+    )
+    : null;
 
   if (props.hold || props.phase === "hold") {
     return (
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb("hold")}</p>
         <ReplyPaceBar clock={props.clock} onBypass={props.onBypass} />
-        {extra}
       </div>
     );
   }
@@ -236,6 +241,7 @@ export function MissionCard(props: {
             </button>
           </div>
         ) : null}
+        {action === null ? extra : null}
       </div>
     );
   }
@@ -292,7 +298,6 @@ export function MissionCard(props: {
             }
           />
         </div>
-        {extra}
       </div>
     );
   }
@@ -365,7 +370,6 @@ export function MissionCard(props: {
             />
           </div>
         ) : null}
-        {extra}
       </div>
     );
   }
@@ -395,7 +399,6 @@ export function MissionCard(props: {
           </button>
         </div>
       ) : null}
-      {extra}
     </div>
   );
 }

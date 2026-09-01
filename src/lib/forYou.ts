@@ -69,11 +69,27 @@ export function parseForYouExtra(raw: unknown): ForYouExtraUsage | null {
 }
 
 export function extraButtonLabel(extra: ForYouExtraUsage): string {
-  return `${extra.batchSize} more originals · ${extra.cost} credits · ${extra.remaining} left today`;
+  return `${extra.batchSize} more originals · ${extra.cost} credits`;
 }
 
 export function extrasUnlocked(progress?: ForYouProgress | null): boolean {
   return Boolean(progress && progress.tracked >= progress.needed);
+}
+
+/**
+ * Paid Approach refill. Hide on a live card (Flight Path / hold / fork).
+ * Only when Approach is dry, extras are unlocked, and they can still buy.
+ */
+export function showApproachExtra(opts: {
+  extra?: ForYouExtraUsage | null;
+  progress?: ForYouProgress | null;
+  phase: string;
+  hasLiveCard: boolean;
+}): boolean {
+  if (!opts.extra?.canExtra) return false;
+  if (!extrasUnlocked(opts.progress)) return false;
+  if (opts.hasLiveCard) return false;
+  return opts.phase === "silent_refuel";
 }
 
 export function parseForYouProgress(raw: unknown): ForYouProgress | null {
