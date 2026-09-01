@@ -66,6 +66,9 @@ function phaseWhy(
   coaching?: CoachingState | null,
   suggestion?: ForYouSuggestion | null,
 ): string {
+  if (phase === "done_for_now") {
+    return "You're clean. History is a log.";
+  }
   if (phase === "organic_reply" && suggestion?.kind === "post") {
     return "Compose an original. Mark it here.";
   }
@@ -92,9 +95,6 @@ function phaseWhy(
   }
   if (phase === "original") {
     return "Compose one original.";
-  }
-  if (phase === "done_for_now") {
-    return "You're clean. History is a log.";
   }
   return "";
 }

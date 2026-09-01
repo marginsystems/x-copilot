@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   DESK_PHASES,
+  approachTabLiveCount,
   deskPhase,
   emptyDeskBeats,
   type DeskPhase,
@@ -186,5 +187,42 @@ describe("deskPhase", () => {
       assert.equal(result.phase, expected);
       assert.equal(result.hold, false);
     }
+  });
+});
+
+describe("approachTabLiveCount", () => {
+  it("counts the card on the desk, not parked inventory", () => {
+    assert.equal(
+      approachTabLiveCount({
+        phase: "scout_reply",
+        hasScoutCard: true,
+        hasSuggestion: true,
+      }),
+      1,
+    );
+    assert.equal(
+      approachTabLiveCount({
+        phase: "organic_reply",
+        hasScoutCard: false,
+        hasSuggestion: true,
+      }),
+      1,
+    );
+    assert.equal(
+      approachTabLiveCount({
+        phase: "done_for_now",
+        hasScoutCard: true,
+        hasSuggestion: true,
+      }),
+      0,
+    );
+    assert.equal(
+      approachTabLiveCount({
+        phase: "silent_refuel",
+        hasScoutCard: false,
+        hasSuggestion: false,
+      }),
+      0,
+    );
   });
 });

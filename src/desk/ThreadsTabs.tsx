@@ -12,7 +12,11 @@ import {
   type ForYouSuggestion,
 } from "../lib/forYou";
 import { deskNeedsXLink } from "../lib/deskGate";
-import { deskPhase, emptyDeskBeats } from "../lib/deskPhase";
+import {
+  approachTabLiveCount,
+  deskPhase,
+  emptyDeskBeats,
+} from "../lib/deskPhase";
 import { shouldBackgroundScout } from "../lib/deskRefuel";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { VoiceState } from "../lib/voice";
@@ -252,7 +256,11 @@ export function ThreadsTabs({
           >
             {APPROACH_TAB_LABEL}
             <ThreadsTabCount
-              n={curatedThreads.length + forYouSuggestions.length}
+              n={approachTabLiveCount({
+                phase,
+                hasScoutCard: curatedThreads.length > 0,
+                hasSuggestion: forYouSuggestions.length > 0,
+              })}
             />
           </button>
           <button

@@ -85,3 +85,19 @@ export function deskPhase(input: DeskPhaseInput): DeskPhaseResult {
     hold: phase === "hold",
   };
 }
+
+/** Approach tab badge: cards on the desk, not parked inventory. */
+export function approachTabLiveCount(opts: {
+  phase: DeskPhase;
+  hasScoutCard: boolean;
+  hasSuggestion: boolean;
+}): number {
+  if (opts.phase === "scout_reply" && opts.hasScoutCard) return 1;
+  if (
+    (opts.phase === "organic_reply" || opts.phase === "original") &&
+    opts.hasSuggestion
+  ) {
+    return 1;
+  }
+  return 0;
+}
