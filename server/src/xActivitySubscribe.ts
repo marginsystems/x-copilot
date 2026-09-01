@@ -330,7 +330,11 @@ export async function subscribeUserToPostCreate(
       method: "GET",
       path: X_ACTIVITY_SUBSCRIPTIONS_PATH,
     });
-    subscriptionId = findListedSubscriptionId(listed.json, xUserId, webhookId);
+    if (listed.ok) {
+      subscriptionId = findListedSubscriptionId(listed.json, xUserId, webhookId);
+    } else {
+      console.warn("[xaa] subscription list failed", listed.status, listed.json);
+    }
   }
   if (!subscriptionId) {
     console.warn("[xaa] subscribe failed", created.status, created.json);
