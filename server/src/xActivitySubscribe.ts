@@ -1,5 +1,9 @@
 /**
  * Register the XAA webhook once and subscribe each desk user to post.create.
+ *
+ * Official V2: list/create webhooks at /2/webhooks. Activity subscriptions
+ * stay at /2/activity/subscriptions. /2/activity/webhooks does not exist
+ * (prod logged 404 on every boot).
  */
 import { getPlatformDb } from "./db.js";
 import { X_API_BASE, getXApiCredsFromEnv } from "./xApi.js";
@@ -10,6 +14,17 @@ import { parseXHandle } from "./xHandle.js";
 // flight. Expires harmlessly: a crashed process leaves a future paused_until
 // that the next boot/hourly resume pass retries.
 const SUBSCRIBE_CLAIM_MS = 120_000;
+
+/** GET/POST `${X_API_BASE}` + this. Not `/activity/webhooks`. */
+export const X_WEBHOOKS_PATH = "/webhooks";
+/** POST/DELETE `${X_API_BASE}` + this. */
+export const X_ACTIVITY_SUBSCRIPTIONS_PATH = "/activity/subscriptions";
+
+type XJsonFn = (opts: {
+  method: string;
+  path: string;
+  body?: unknown;
+}) => Promise<{ ok: boolean; status: number; json: unknown }>;
 
 function activityNetworkEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.NODE_TEST_CONTEXT) return false;
@@ -65,6 +80,42 @@ export function getStoredWebhookId(): string | null {
   return row?.webhook_id?.trim() || null;
 }
 
+export function findListedWebhookId(
+  json: unknown,
+  url: string,
+): string | null {
+  const data = (json as { data?: Array<{ id?: string; url?: string }> })?.data;
+  if (!Array.isArray(data)) return null;
+  const hit = data.find((w) => w.url === url && w.id);
+  return hit?.id ? String(hit.id) : null;
+}
+
+export function webhookIdFromCreate(json: unknown): string | null {
+  const id = (json as { data?: { id?: string } })?.data?.id;
+  return id ? String(id) : null;
+}
+
+/** List then create against /2/webhooks. Used by boot; injectable for tests. */
+export async function registerActivityWebhook(opts: {
+  url: string;
+  request: XJsonFn;
+}): Promise<string | null> {
+  const listed = await opts.request({ method: "GET", path: X_WEBHOOKS_PATH });
+  const existing = findListedWebhookId(listed.json, opts.url);
+  if (existing) return existing;
+  const created = await opts.request({
+    method: "POST",
+    path: X_WEBHOOKS_PATH,
+    body: { url: opts.url },
+  });
+  const id = webhookIdFromCreate(created.json);
+  if (!created.ok || !id) {
+    console.warn("[xaa] webhook register failed", created.status, created.json);
+    return null;
+  }
+  return id;
+}
+
 export async function ensureActivityWebhook(): Promise<string | null> {
   if (!activityNetworkEnabled()) return getStoredWebhookId();
   const existing = getStoredWebhookId();
@@ -74,24 +125,7 @@ export async function ensureActivityWebhook(): Promise<string | null> {
     console.warn("[xaa] skip webhook register on loopback URL");
     return null;
   }
-  const listed = await xJson({ method: "GET", path: "/activity/webhooks" });
-  const data = (listed.json as { data?: Array<{ id?: string; url?: string }> })
-    ?.data;
-  if (Array.isArray(data)) {
-    const hit = data.find((w) => w.url === url && w.id);
-    if (hit?.id) return String(hit.id);
-  }
-  const created = await xJson({
-    method: "POST",
-    path: "/activity/webhooks",
-    body: { url },
-  });
-  const id = (created.json as { data?: { id?: string } })?.data?.id;
-  if (!created.ok || !id) {
-    console.warn("[xaa] webhook register failed", created.status, created.json);
-    return null;
-  }
-  return String(id);
+  return registerActivityWebhook({ url, request: xJson });
 }
 
 export async function lookupXUserId(username: string): Promise<string | null> {
@@ -214,7 +248,7 @@ export async function subscribeUserToPostCreate(
 
   const created = await xJson({
     method: "POST",
-    path: "/activity/subscriptions",
+    path: X_ACTIVITY_SUBSCRIPTIONS_PATH,
     body: {
       event_type: "post.create",
       filter: { user_id: xUserId },
@@ -281,7 +315,7 @@ export async function removeUserPostCreateSubscription(
   if (row?.subscription_id) {
     const res = await xJson({
       method: "DELETE",
-      path: `/activity/subscriptions/${encodeURIComponent(row.subscription_id)}`,
+      path: `${X_ACTIVITY_SUBSCRIPTIONS_PATH}/${encodeURIComponent(row.subscription_id)}`,
     });
     deleteOk = res.ok || res.status === 404;
   }
@@ -308,7 +342,7 @@ export async function pauseUserSubscription(userId: string, untilIso: string): P
   if (row?.subscription_id) {
     const res = await xJson({
       method: "DELETE",
-      path: `/activity/subscriptions/${encodeURIComponent(row.subscription_id)}`,
+      path: `${X_ACTIVITY_SUBSCRIPTIONS_PATH}/${encodeURIComponent(row.subscription_id)}`,
     });
     // A 404 means the X-side subscription is already gone, so NULL the stored
     // id and let the claim path re-create it on resume. Only keep the id for
