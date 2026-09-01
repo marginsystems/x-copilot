@@ -91,6 +91,22 @@ describe("deskBeats", () => {
     assert.equal(beats.organicReplyDone, true);
   });
 
+  it("persists the source of the reply fork completion", () => {
+    recordDeskReplyMarked({ userId: "u1", source: "organic", nowMs: DAY_ONE });
+    chooseDeskFork({ userId: "u1", forkChoice: "reply", nowMs: DAY_ONE });
+
+    const beats = recordDeskReplyMarked({
+      userId: "u1",
+      source: "scout",
+      nowMs: DAY_ONE,
+    });
+
+    assert.equal(beats.scoutReplyDone, true);
+    assert.equal(beats.organicReplyDone, true);
+    assert.equal(beats.forkDone, true);
+    assert.equal(getDeskBeats({ userId: "u1", nowMs: DAY_ONE }).scoutReplyDone, true);
+  });
+
   it("rejects an early fork and ignores an early original", () => {
     assert.equal(
       chooseDeskFork({

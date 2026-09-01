@@ -9,7 +9,12 @@ export function onReplyMarked(
   source: DeskReplySource,
 ): DeskBeats {
   if (beats.forkChoice === "reply" && !beats.forkDone) {
-    return { ...beats, forkDone: true };
+    return {
+      ...beats,
+      scoutReplyDone: source === "scout" ? true : beats.scoutReplyDone,
+      organicReplyDone: source === "organic" ? true : beats.organicReplyDone,
+      forkDone: true,
+    };
   }
   if (source === "scout" && !beats.scoutReplyDone) {
     return { ...beats, scoutReplyDone: true };

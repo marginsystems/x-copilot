@@ -33,6 +33,16 @@ describe("desk beat transitions", () => {
     assert.strictEqual(onReplyMarked(beats, "organic"), beats);
   });
 
+  it("records the source of the reply fork completion", () => {
+    let beats = onReplyMarked(emptyDeskBeats(), "organic");
+    beats = setForkChoice(beats, "reply");
+    beats = onReplyMarked(beats, "scout");
+
+    assert.equal(beats.scoutReplyDone, true);
+    assert.equal(beats.organicReplyDone, true);
+    assert.equal(beats.forkDone, true);
+  });
+
   it("completes an original fork without letting early originals skip beats", () => {
     const empty = emptyDeskBeats();
     assert.strictEqual(onOriginalPosted(empty), empty);
