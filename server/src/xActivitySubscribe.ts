@@ -99,6 +99,7 @@ type ActivitySubscriptionRow = {
   subscription_id?: string;
   event_type?: string;
   filter?: { user_id?: string };
+  webhook_id?: string;
 };
 
 /** Official create returns `data` as an object or a one-item array. */
@@ -112,6 +113,7 @@ export function subscriptionIdFromCreate(json: unknown): string | null {
 export function findListedSubscriptionId(
   json: unknown,
   xUserId: string,
+  webhookId: string,
   eventType = "post.create",
 ): string | null {
   const data = (json as { data?: ActivitySubscriptionRow | ActivitySubscriptionRow[] })
@@ -121,6 +123,7 @@ export function findListedSubscriptionId(
     (row) =>
       row.event_type === eventType &&
       row.filter?.user_id === xUserId &&
+      row.webhook_id === webhookId &&
       row.subscription_id,
   );
   return hit?.subscription_id ? String(hit.subscription_id) : null;
@@ -327,7 +330,7 @@ export async function subscribeUserToPostCreate(
       method: "GET",
       path: X_ACTIVITY_SUBSCRIPTIONS_PATH,
     });
-    subscriptionId = findListedSubscriptionId(listed.json, xUserId);
+    subscriptionId = findListedSubscriptionId(listed.json, xUserId, webhookId);
   }
   if (!subscriptionId) {
     console.warn("[xaa] subscribe failed", created.status, created.json);

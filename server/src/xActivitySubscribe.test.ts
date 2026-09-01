@@ -74,7 +74,7 @@ describe("subscriptionIdFromCreate", () => {
 });
 
 describe("findListedSubscriptionId", () => {
-  it("matches post.create for that x user", () => {
+  it("matches post.create for that x user and webhook", () => {
     assert.equal(
       findListedSubscriptionId(
         {
@@ -83,22 +83,52 @@ describe("findListedSubscriptionId", () => {
               subscription_id: "other",
               event_type: "profile.update.bio",
               filter: { user_id: "99" },
+              webhook_id: "wh-1",
             },
             {
               subscription_id: "mine",
               event_type: "post.create",
               filter: { user_id: "99" },
+              webhook_id: "wh-1",
             },
           ],
         },
         "99",
+        "wh-1",
       ),
       "mine",
     );
     assert.equal(
       findListedSubscriptionId(
-        { data: [{ subscription_id: "mine", event_type: "post.create", filter: { user_id: "1" } }] },
+        {
+          data: [
+            {
+              subscription_id: "mine",
+              event_type: "post.create",
+              filter: { user_id: "1" },
+              webhook_id: "wh-1",
+            },
+          ],
+        },
         "99",
+        "wh-1",
+      ),
+      null,
+    );
+    assert.equal(
+      findListedSubscriptionId(
+        {
+          data: [
+            {
+              subscription_id: "old-webhook",
+              event_type: "post.create",
+              filter: { user_id: "99" },
+              webhook_id: "wh-old",
+            },
+          ],
+        },
+        "99",
+        "wh-current",
       ),
       null,
     );
