@@ -51,8 +51,16 @@ describe("desk beat transitions", () => {
     assert.strictEqual(setForkChoice(scout, "reply"), scout);
   });
 
-  it("does not let organic marks consume the scout beat", () => {
+  it("records organic marks before scout marks", () => {
     const empty = emptyDeskBeats();
-    assert.deepEqual(onReplyMarked(empty, "organic"), empty);
+    const organic = onReplyMarked(empty, "organic");
+    const scout = onReplyMarked(organic, "scout");
+
+    assert.deepEqual(organic, { ...empty, organicReplyDone: true });
+    assert.deepEqual(scout, {
+      ...empty,
+      scoutReplyDone: true,
+      organicReplyDone: true,
+    });
   });
 });

@@ -17,11 +17,7 @@ function onReplyMarked(beats: DeskBeats, source: DeskReplySource): DeskBeats {
   if (source === "scout" && !beats.scoutReplyDone) {
     return { ...beats, scoutReplyDone: true };
   }
-  if (
-    source === "organic" &&
-    beats.scoutReplyDone &&
-    !beats.organicReplyDone
-  ) {
+  if (source === "organic" && !beats.organicReplyDone) {
     return { ...beats, organicReplyDone: true };
   }
   return beats;

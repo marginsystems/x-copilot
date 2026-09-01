@@ -14,11 +14,7 @@ export function onReplyMarked(
   if (source === "scout" && !beats.scoutReplyDone) {
     return { ...beats, scoutReplyDone: true };
   }
-  if (
-    source === "organic" &&
-    beats.scoutReplyDone &&
-    !beats.organicReplyDone
-  ) {
+  if (source === "organic" && !beats.organicReplyDone) {
     return { ...beats, organicReplyDone: true };
   }
   return beats;

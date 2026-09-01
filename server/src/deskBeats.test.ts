@@ -79,6 +79,18 @@ describe("deskBeats", () => {
     );
   });
 
+  it("persists an organic mark made before the scout mark", () => {
+    recordDeskReplyMarked({ userId: "u1", source: "organic", nowMs: DAY_ONE });
+    const beats = recordDeskReplyMarked({
+      userId: "u1",
+      source: "scout",
+      nowMs: DAY_ONE,
+    });
+
+    assert.equal(beats.scoutReplyDone, true);
+    assert.equal(beats.organicReplyDone, true);
+  });
+
   it("rejects an early fork and ignores an early original", () => {
     assert.equal(
       chooseDeskFork({
