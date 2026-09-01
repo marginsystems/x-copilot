@@ -4,6 +4,7 @@ import {
   missionFillPct,
   nextActionProgress,
   parseCoachingPayload,
+  parseDeskBeats,
   parseNextAction,
 } from "./coaching.ts";
 
@@ -27,10 +28,42 @@ describe("coaching parsers", () => {
           claimed: false,
         },
       ],
+      beats: {
+        scoutReplyDone: true,
+        organicReplyDone: true,
+        forkChoice: "reply",
+        forkDone: false,
+      },
     });
     assert.equal(parsed?.nextAction?.kind, "original");
     assert.equal(parsed?.missions.length, 1);
     assert.equal(parsed?.missions[0]?.progress, 1);
+    assert.deepEqual(parsed?.beats, {
+      scoutReplyDone: true,
+      organicReplyDone: true,
+      forkChoice: "reply",
+      forkDone: false,
+    });
+  });
+
+  it("falls back to empty beats without rejecting coaching", () => {
+    const empty = {
+      scoutReplyDone: false,
+      organicReplyDone: false,
+      forkChoice: null,
+      forkDone: false,
+    };
+    assert.deepEqual(parseDeskBeats(undefined), empty);
+    assert.deepEqual(
+      parseDeskBeats({
+        scoutReplyDone: true,
+        organicReplyDone: "yes",
+        forkChoice: null,
+        forkDone: false,
+      }),
+      empty,
+    );
+    assert.deepEqual(parseCoachingPayload({ dayUtc: "2026-08-26" })?.beats, empty);
   });
 
   it("drops unknown next-action kinds", () => {

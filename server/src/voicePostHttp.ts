@@ -5,6 +5,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { trackAnalytics } from "./analyticsClient.js";
 import { allowRate } from "./authGuard.js";
 import type { AuthUser } from "./authStore.js";
+import {
+  recordDeskOriginalPosted,
+  recordDeskReplyMarked,
+} from "./deskBeats.js";
 import { getSuggestion, markSuggestion } from "./forYouStore.js";
 import { recordMarkGamification, getGamification } from "./gamification.js";
 import { BODY_CAP_256K, readJsonBody, send } from "./httpJson.js";
@@ -380,6 +384,7 @@ export async function handlePost(
   }
 
   if (mode === "compose") {
+    const isOriginal = getSuggestion(suggestionId, user.id)?.kind === "post";
     try {
       markSuggestion({
         id: suggestionId,
@@ -388,6 +393,13 @@ export async function handlePost(
       });
     } catch (err) {
       console.warn("mark For You after desk post soft-fail:", err);
+    }
+    if (isOriginal) {
+      try {
+        recordDeskOriginalPosted({ userId: user.id });
+      } catch (err) {
+        console.warn("desk beats original soft-fail:", err);
+      }
     }
     send(req, res, 200, {
       ok: true,
@@ -417,6 +429,16 @@ export async function handlePost(
     });
   } catch (err) {
     console.warn("mark after desk post soft-fail:", err);
+  }
+  if (interaction) {
+    try {
+      recordDeskReplyMarked({
+        userId: user.id,
+        nowMs: Date.parse(interaction.at) || Date.now(),
+      });
+    } catch (err) {
+      console.warn("desk beats mark after desk post soft-fail:", err);
+    }
   }
   let gamification;
   if (interaction) {

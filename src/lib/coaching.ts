@@ -1,6 +1,7 @@
 /** Client types + fetch for GET /api/coaching. */
 
 import { apiFetch } from "./apiBase";
+import { emptyDeskBeats, type DeskBeats } from "./deskPhase";
 
 export const NEXT_ACTION_KINDS = [
   "reply",
@@ -33,6 +34,7 @@ export type CoachingState = {
   dayUtc: string;
   nextAction: NextActionCard | null;
   missions: DailyMission[];
+  beats: DeskBeats;
 };
 
 const KINDS = new Set<string>(NEXT_ACTION_KINDS);
@@ -77,6 +79,31 @@ export function parseDailyMission(raw: unknown): DailyMission | null {
   };
 }
 
+export function parseDeskBeats(raw: unknown): DeskBeats {
+  if (!raw || typeof raw !== "object") return emptyDeskBeats();
+  const row = raw as Record<string, unknown>;
+  const forkChoice =
+    row.forkChoice === "original" || row.forkChoice === "reply"
+      ? row.forkChoice
+      : row.forkChoice === null
+        ? null
+        : undefined;
+  if (
+    typeof row.scoutReplyDone !== "boolean" ||
+    typeof row.organicReplyDone !== "boolean" ||
+    typeof row.forkDone !== "boolean" ||
+    forkChoice === undefined
+  ) {
+    return emptyDeskBeats();
+  }
+  return {
+    scoutReplyDone: row.scoutReplyDone,
+    organicReplyDone: row.organicReplyDone,
+    forkChoice,
+    forkDone: row.forkDone,
+  };
+}
+
 export function parseCoachingPayload(raw: unknown): CoachingState | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;
@@ -90,6 +117,7 @@ export function parseCoachingPayload(raw: unknown): CoachingState | null {
     dayUtc,
     nextAction: parseNextAction(row.nextAction),
     missions,
+    beats: parseDeskBeats(row.beats),
   };
 }
 

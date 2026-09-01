@@ -123,7 +123,7 @@ export function ThreadsTabs({
     hasScoutCard: curatedThreads.length > 0,
     hasSuggestion: forYouSuggestions.length > 0,
     searching,
-    beats: emptyDeskBeats(),
+    beats: coaching?.beats ?? emptyDeskBeats(),
   });
   const autoTriedRef = useRef(false);
   const autoTriedKeyRef = useRef("");

@@ -11,6 +11,7 @@ import {
 import { ensureUserBillingRow, ensureUserTenant } from "./billingStore.js";
 import { deepseekConfigured } from "./deepseek.js";
 import { getPlatformDb } from "./db.js";
+import { recordDeskReplyMarked } from "./deskBeats.js";
 import {
   buildForYouDigest,
   countT24hSnapshots,
@@ -107,6 +108,18 @@ export async function tryHandleForYou(
         message: "Suggestion is gone or already acted on.",
       });
       return true;
+    }
+    if (status === "done" && suggestion.kind === "reply") {
+      try {
+        recordDeskReplyMarked({
+          userId: user.id,
+          nowMs: suggestion.actedAt
+            ? Date.parse(suggestion.actedAt) || Date.now()
+            : Date.now(),
+        });
+      } catch (err) {
+        console.warn("desk beats For You reply soft-fail:", err);
+      }
     }
     send(req, res, 200, { ok: true, suggestion });
     return true;
