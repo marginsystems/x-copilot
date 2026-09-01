@@ -9,6 +9,7 @@ import {
   hashCoachingSnapshot,
 } from "./coachingSnapshot.js";
 import { listMissionsWithProgress } from "./dailyMissions.js";
+import { getDeskBeats } from "./deskBeats.js";
 import { send } from "./httpJson.js";
 import { getOrRefreshNextAction } from "./nextActionLlm.js";
 import { getSessionUser } from "./sessionCookie.js";
@@ -40,6 +41,7 @@ export async function tryHandleCoaching(
       tenantId,
       nowMs,
     });
+    const beats = getDeskBeats({ userId: user.id, nowMs });
     const inputsHash = hashCoachingSnapshot(snapshot);
     const [nextAction, missions] = await Promise.all([
       getOrRefreshNextAction({
@@ -64,6 +66,7 @@ export async function tryHandleCoaching(
         updatedAt: nextAction.updatedAt,
       },
       missions,
+      beats,
     });
   } catch (err) {
     console.error("coaching read failed:", err);

@@ -23,9 +23,19 @@ import {
   SkippedRow,
 } from "./HistoryRows";
 import { RankingDrawer } from "./RankingDrawer";
-import { MissionCard, pickApproachScout, pickApproachSuggestion } from "./MissionCard";
+import {
+  MissionCard,
+  pickApproachOriginal,
+  pickApproachScout,
+  pickApproachSuggestion,
+} from "./MissionCard";
 import { useReplyPace } from "./useReplyPace";
-import type { CoachingState } from "../lib/coaching";
+import {
+  postDeskForkChoice,
+  postDeskOriginalPosted,
+  type CoachingState,
+} from "../lib/coaching";
+import type { DeskBeats } from "../lib/deskPhase";
 import { useDeskRowExit } from "./useDeskRowExit";
 import { ThreadsTabCount } from "./ThreadsTabCount";
 import type {
@@ -73,6 +83,10 @@ type ThreadsTabsProps = {
   onMark: (thread: ThreadCard) => void;
   onSkip: (thread: ThreadCard) => void;
   onDismiss: (thread: ThreadCard) => void;
+  onRefreshCoaching: () => void | Promise<void>;
+  setActionBusy: (busy: boolean) => void;
+  setStatus: (status: string) => void;
+  onForkBeats: (beats: DeskBeats) => void;
 };
 
 export function ThreadsTabs({
@@ -111,11 +125,14 @@ export function ThreadsTabs({
   onMark,
   onSkip,
   onDismiss,
+  onRefreshCoaching,
+  setActionBusy,
+  setStatus,
+  onForkBeats,
 }: ThreadsTabsProps) {
   const pace = useReplyPace();
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   const scout = pickApproachScout(curatedThreads);
-  const suggestion = pickApproachSuggestion(forYouSuggestions);
   const { phase, hold } = deskPhase({
     needsOnboarding: false,
     paceLocked: pace.locked,
@@ -123,8 +140,12 @@ export function ThreadsTabs({
     hasScoutCard: curatedThreads.length > 0,
     hasSuggestion: forYouSuggestions.length > 0,
     searching,
-    beats: emptyDeskBeats(),
+    beats: coaching?.beats ?? emptyDeskBeats(),
   });
+  const suggestion =
+    phase === "original"
+      ? pickApproachOriginal(forYouSuggestions)
+      : pickApproachSuggestion(forYouSuggestions);
   const autoTriedRef = useRef(false);
   const autoTriedKeyRef = useRef("");
   const autoTriedDayRef = useRef("");
@@ -335,6 +356,38 @@ export function ThreadsTabs({
             onSuggestionDismiss={(id) =>
               exitRow(id, `suggest:${id}`, () => actForYou(id, "dismiss"))
             }
+            onChooseFork={(choice) => {
+              void (async () => {
+                setActionBusy(true);
+                try {
+                  const beats = await postDeskForkChoice(choice);
+                  if (!beats) {
+                    setStatus("Fork choice failed. Try again.");
+                    return;
+                  }
+                  onForkBeats(beats);
+                  await onRefreshCoaching();
+                } finally {
+                  setActionBusy(false);
+                }
+              })();
+            }}
+            onOriginalPosted={() => {
+              void (async () => {
+                setActionBusy(true);
+                try {
+                  const beats = await postDeskOriginalPosted();
+                  if (!beats) {
+                    setStatus("Could not record the original. Try again.");
+                    return;
+                  }
+                  onForkBeats(beats);
+                  await onRefreshCoaching();
+                } finally {
+                  setActionBusy(false);
+                }
+              })();
+            }}
             onOpenVoice={onOpenVoice}
             onLinkX={onLinkX}
           />

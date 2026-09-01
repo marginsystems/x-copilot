@@ -26,6 +26,7 @@ import {
 import { tryHandleVoice } from "./voiceHttp.js";
 import { tryHandleForYou } from "./forYouHttp.js";
 import { tryHandleCoaching } from "./coachingHttp.js";
+import { tryHandleDeskBeats } from "./deskBeatsHttp.js";
 import { tryHandleDigestEmail } from "./digestEmailHttp.js";
 import { tryHandleMemory } from "./memoryHttp.js";
 import { tryHandleUsage } from "./usageHttp.js";
@@ -150,6 +151,9 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       if (await tryHandleCoaching(req, res, url)) {
+        return;
+      }
+      if (await tryHandleDeskBeats(req, res, url)) {
         return;
       }
       if (await tryHandleMemory(req, res, url)) {

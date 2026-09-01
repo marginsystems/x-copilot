@@ -10,6 +10,7 @@ import {
   pendingReplyIds,
 } from "./activityStats.js";
 import { trackAnalytics } from "./analyticsClient.js";
+import { recordDeskReplyMarked } from "./deskBeats.js";
 import { getXOauthUsername } from "./xIdentityStore.js";
 import {
   detectOwnReplyToThread,
@@ -213,6 +214,17 @@ export async function tryHandleInteracted(
         conversationId,
         inReplyToId,
       });
+      if (sessionUser) {
+        try {
+          recordDeskReplyMarked({
+            userId: sessionUser.id,
+            source: "scout",
+            nowMs: Date.parse(interaction.at) || Date.now(),
+          });
+        } catch (err) {
+          console.warn("desk beats mark soft-fail:", err);
+        }
+      }
       trackAnalytics({
         name: "mark.interacted",
         userId: sessionUser?.id,
