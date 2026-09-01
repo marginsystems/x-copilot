@@ -90,8 +90,8 @@ function referencedTypes(payload: Record<string, unknown>): Set<string> {
 export function classifyPostKind(payload: Record<string, unknown>): OwnPostKind {
   const refs = referencedTypes(payload);
   if (refs.has("retweeted")) return "repost";
-  if (payload.in_reply_to_tweet_id || refs.has("replied_to")) return "reply";
   if (refs.has("quoted")) return "quote";
+  if (payload.in_reply_to_tweet_id || refs.has("replied_to")) return "reply";
   return "original";
 }
 

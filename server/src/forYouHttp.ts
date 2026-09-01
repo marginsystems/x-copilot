@@ -145,11 +145,9 @@ export async function tryHandleForYou(
           console.warn("desk beats For You original organic soft-fail:", err);
         }
       }
-      try {
-        await confirmRecentOwnPosts({ userId: user.id });
-      } catch (err) {
+      void confirmRecentOwnPosts({ userId: user.id }).catch((err) => {
         console.warn("own-post confirm after I posted soft-fail:", err);
-      }
+      });
     }
     send(req, res, 200, { ok: true, suggestion });
     return true;
