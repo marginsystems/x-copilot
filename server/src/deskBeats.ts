@@ -2,7 +2,7 @@ import {
   onOriginalPosted,
   onReplyMarked,
   setForkChoice,
-} from "../../src/lib/deskBeats.js";
+} from "../../src/lib/deskBeats.ts";
 import { getPlatformDb } from "./db.js";
 import { utcDayKey } from "./gamificationXp.js";
 

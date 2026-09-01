@@ -15,6 +15,7 @@ import {
   buildCoachingSnapshot,
 } from "./coachingSnapshot.js";
 import { listMissionsWithProgress } from "./dailyMissions.js";
+import { getDeskBeats } from "./deskBeats.js";
 import { listDismissalHistory } from "./dismissalStore.js";
 import { listExpiredHistory } from "./expiredStore.js";
 import { countT24hSnapshots, MIN_T24H_SNAPSHOTS } from "./forYouDigest.js";
@@ -114,6 +115,7 @@ export async function tryHandleBoot(
       dayUtc: string;
       nextAction: null;
       missions: Awaited<ReturnType<typeof listMissionsWithProgress>>;
+      beats: ReturnType<typeof getDeskBeats>;
     } | null = null;
 
     if (user) {
@@ -140,6 +142,7 @@ export async function tryHandleBoot(
           snapshot,
           nowMs,
         }),
+        beats: getDeskBeats({ userId: user.id, nowMs }),
       };
     }
 

@@ -5,7 +5,7 @@ import {
   onOriginalPosted,
   onReplyMarked,
   setForkChoice,
-} from "./deskBeats.js";
+} from "./deskBeats.ts";
 
 describe("desk beat transitions", () => {
   it("unlocks scout, organic, then the fork in order", () => {

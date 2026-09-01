@@ -121,3 +121,26 @@ describe("coaching parsers", () => {
     assert.equal(missionFillPct(2, 2), 100);
   });
 });
+
+describe("parseDeskBeats", () => {
+  it("keeps a valid fork choice and rejects a bad one", () => {
+    assert.equal(
+      parseDeskBeats({
+        scoutReplyDone: true,
+        organicReplyDone: true,
+        forkChoice: "original",
+        forkDone: false,
+      }).forkChoice,
+      "original",
+    );
+    assert.equal(
+      parseDeskBeats({
+        scoutReplyDone: true,
+        organicReplyDone: true,
+        forkChoice: "dance",
+        forkDone: false,
+      }).forkChoice,
+      null,
+    );
+  });
+});

@@ -131,6 +131,28 @@ export async function fetchCoaching(): Promise<CoachingState | null> {
   }
 }
 
+export async function postDeskForkChoice(
+  forkChoice: "original" | "reply",
+): Promise<DeskBeats | null> {
+  try {
+    const res = await apiFetch("/api/desk/beats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ forkChoice }),
+    });
+    if (!res.ok) return null;
+    const json: unknown = await res.json();
+    const beats =
+      json && typeof json === "object" && "beats" in json
+        ? (json as { beats: unknown }).beats
+        : null;
+    const parsed = parseDeskBeats(beats);
+    return parsed.forkChoice === forkChoice ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function nextActionKindLabel(kind: NextActionKind): string {
   if (kind === "reply") return "Reply";
   if (kind === "original") return "Original";

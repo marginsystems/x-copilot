@@ -1,6 +1,8 @@
 /** Pure UTC-day desk beat transitions. */
 
-export function onReplyMarked(beats) {
+import type { DeskBeats } from "./deskPhase";
+
+export function onReplyMarked(beats: DeskBeats): DeskBeats {
   if (beats.forkChoice === "reply" && !beats.forkDone) {
     return { ...beats, forkDone: true };
   }
@@ -13,14 +15,17 @@ export function onReplyMarked(beats) {
   return beats;
 }
 
-export function onOriginalPosted(beats) {
+export function onOriginalPosted(beats: DeskBeats): DeskBeats {
   if (beats.forkChoice === "original" && !beats.forkDone) {
     return { ...beats, forkDone: true };
   }
   return beats;
 }
 
-export function setForkChoice(beats, choice) {
+export function setForkChoice(
+  beats: DeskBeats,
+  choice: "original" | "reply",
+): DeskBeats {
   if (
     beats.organicReplyDone &&
     beats.forkChoice === null &&

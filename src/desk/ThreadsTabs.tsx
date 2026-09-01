@@ -23,9 +23,14 @@ import {
   SkippedRow,
 } from "./HistoryRows";
 import { RankingDrawer } from "./RankingDrawer";
-import { MissionCard, pickApproachScout, pickApproachSuggestion } from "./MissionCard";
+import {
+  MissionCard,
+  pickApproachOriginal,
+  pickApproachScout,
+  pickApproachSuggestion,
+} from "./MissionCard";
 import { useReplyPace } from "./useReplyPace";
-import type { CoachingState } from "../lib/coaching";
+import { postDeskForkChoice, type CoachingState } from "../lib/coaching";
 import { useDeskRowExit } from "./useDeskRowExit";
 import { ThreadsTabCount } from "./ThreadsTabCount";
 import type {
@@ -73,6 +78,7 @@ type ThreadsTabsProps = {
   onMark: (thread: ThreadCard) => void;
   onSkip: (thread: ThreadCard) => void;
   onDismiss: (thread: ThreadCard) => void;
+  onRefreshCoaching: () => void | Promise<void>;
 };
 
 export function ThreadsTabs({
@@ -111,11 +117,11 @@ export function ThreadsTabs({
   onMark,
   onSkip,
   onDismiss,
+  onRefreshCoaching,
 }: ThreadsTabsProps) {
   const pace = useReplyPace();
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   const scout = pickApproachScout(curatedThreads);
-  const suggestion = pickApproachSuggestion(forYouSuggestions);
   const { phase, hold } = deskPhase({
     needsOnboarding: false,
     paceLocked: pace.locked,
@@ -125,6 +131,10 @@ export function ThreadsTabs({
     searching,
     beats: coaching?.beats ?? emptyDeskBeats(),
   });
+  const suggestion =
+    phase === "original"
+      ? pickApproachOriginal(forYouSuggestions)
+      : pickApproachSuggestion(forYouSuggestions);
   const autoTriedRef = useRef(false);
   const autoTriedKeyRef = useRef("");
   const autoTriedDayRef = useRef("");
@@ -335,6 +345,12 @@ export function ThreadsTabs({
             onSuggestionDismiss={(id) =>
               exitRow(id, `suggest:${id}`, () => actForYou(id, "dismiss"))
             }
+            onChooseFork={(choice) => {
+              void (async () => {
+                await postDeskForkChoice(choice);
+                await onRefreshCoaching();
+              })();
+            }}
             onOpenVoice={onOpenVoice}
             onLinkX={onLinkX}
           />

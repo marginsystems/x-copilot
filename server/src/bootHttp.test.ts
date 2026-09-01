@@ -121,10 +121,15 @@ describe("GET /api/boot", () => {
     const lastScout = desk.lastScout as { ok?: boolean; empty?: boolean };
     assert.equal(lastScout.ok, true);
     assert.equal(lastScout.empty, true);
-    const coaching = desk.coaching as { nextAction?: unknown; missions?: unknown[] };
+    const coaching = desk.coaching as {
+      nextAction?: unknown;
+      missions?: unknown[];
+      beats?: { forkChoice?: unknown };
+    };
     assert.equal(coaching.nextAction, null);
     assert.ok(Array.isArray(coaching.missions));
     assert.ok(coaching.missions.length >= 1);
+    assert.equal(coaching.beats?.forkChoice, null);
     const stats = desk.activityStats as { bucket?: string };
     assert.equal(stats.bucket, "day");
   });

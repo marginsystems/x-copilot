@@ -948,6 +948,7 @@ export default function App() {
               onMark={openMarkModal}
               onSkip={onSkip}
               onDismiss={openDismissModal}
+              onRefreshCoaching={hydrateCoaching}
             />
           </section>
         </div>
