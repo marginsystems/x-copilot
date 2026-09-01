@@ -1,3 +1,5 @@
+import type { ForYouKind } from "./forYou";
+
 export const DESK_PHASES = [
   "needs_onboarding",
   "hold",
@@ -91,12 +93,13 @@ export function approachTabLiveCount(opts: {
   phase: DeskPhase;
   hasScoutCard: boolean;
   hasSuggestion: boolean;
+  suggestionKind?: ForYouKind;
 }): number {
   if (opts.phase === "scout_reply" && opts.hasScoutCard) return 1;
-  if (
-    (opts.phase === "organic_reply" || opts.phase === "original") &&
-    opts.hasSuggestion
-  ) {
+  if (opts.phase === "organic_reply" && opts.hasSuggestion) {
+    return 1;
+  }
+  if (opts.phase === "original" && opts.suggestionKind === "post") {
     return 1;
   }
   return 0;

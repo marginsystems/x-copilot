@@ -210,6 +210,24 @@ describe("approachTabLiveCount", () => {
     );
     assert.equal(
       approachTabLiveCount({
+        phase: "original",
+        hasScoutCard: false,
+        hasSuggestion: true,
+        suggestionKind: "post",
+      }),
+      1,
+    );
+    assert.equal(
+      approachTabLiveCount({
+        phase: "original",
+        hasScoutCard: false,
+        hasSuggestion: true,
+        suggestionKind: "reply",
+      }),
+      0,
+    );
+    assert.equal(
+      approachTabLiveCount({
         phase: "done_for_now",
         hasScoutCard: true,
         hasSuggestion: true,

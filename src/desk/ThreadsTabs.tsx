@@ -260,6 +260,7 @@ export function ThreadsTabs({
                 phase,
                 hasScoutCard: curatedThreads.length > 0,
                 hasSuggestion: forYouSuggestions.length > 0,
+                suggestionKind: suggestion?.kind,
               })}
             />
           </button>
