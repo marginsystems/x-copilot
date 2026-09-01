@@ -212,17 +212,15 @@ describe("approachTabLiveCount", () => {
       approachTabLiveCount({
         phase: "original",
         hasScoutCard: false,
-        hasSuggestion: true,
-        suggestionKind: "post",
+        hasSuggestion: false,
       }),
       1,
     );
     assert.equal(
       approachTabLiveCount({
-        phase: "original",
+        phase: "organic_reply",
         hasScoutCard: false,
-        hasSuggestion: true,
-        suggestionKind: "reply",
+        hasSuggestion: false,
       }),
       0,
     );
