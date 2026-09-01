@@ -949,6 +949,16 @@ export default function App() {
               onSkip={onSkip}
               onDismiss={openDismissModal}
               onRefreshCoaching={hydrateCoaching}
+              setActionBusy={setActionBusy}
+              setStatus={setStatus}
+              onForkBeats={(beats) => {
+                applyCoaching({
+                  dayUtc: coaching?.dayUtc ?? "",
+                  nextAction: coaching?.nextAction ?? null,
+                  missions: coaching?.missions ?? [],
+                  beats,
+                });
+              }}
             />
           </section>
         </div>

@@ -11,7 +11,7 @@ import {
 import { ensureUserBillingRow, ensureUserTenant } from "./billingStore.js";
 import { deepseekConfigured } from "./deepseek.js";
 import { getPlatformDb } from "./db.js";
-import { recordDeskReplyMarked } from "./deskBeats.js";
+import { recordDeskOriginalPosted, recordDeskReplyMarked } from "./deskBeats.js";
 import {
   buildForYouDigest,
   countT24hSnapshots,
@@ -109,16 +109,24 @@ export async function tryHandleForYou(
       });
       return true;
     }
-    if (status === "done" && suggestion.kind === "reply") {
+    if (status === "done") {
+      const nowMs = suggestion.actedAt
+        ? Date.parse(suggestion.actedAt) || Date.now()
+        : Date.now();
       try {
         recordDeskReplyMarked({
           userId: user.id,
-          nowMs: suggestion.actedAt
-            ? Date.parse(suggestion.actedAt) || Date.now()
-            : Date.now(),
+          nowMs,
         });
       } catch (err) {
-        console.warn("desk beats For You reply soft-fail:", err);
+        console.warn("desk beats For You mark soft-fail:", err);
+      }
+      if (suggestion.kind === "post") {
+        try {
+          recordDeskOriginalPosted({ userId: user.id, nowMs });
+        } catch (err) {
+          console.warn("desk beats For You original soft-fail:", err);
+        }
       }
     }
     send(req, res, 200, { ok: true, suggestion });

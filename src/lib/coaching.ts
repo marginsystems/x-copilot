@@ -153,6 +153,25 @@ export async function postDeskForkChoice(
   }
 }
 
+export async function postDeskOriginalPosted(): Promise<DeskBeats | null> {
+  try {
+    const res = await apiFetch("/api/desk/beats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ originalPosted: true }),
+    });
+    if (!res.ok) return null;
+    const json: unknown = await res.json();
+    return parseDeskBeats(
+      json && typeof json === "object" && "beats" in json
+        ? (json as { beats: unknown }).beats
+        : null,
+    );
+  } catch {
+    return null;
+  }
+}
+
 export function nextActionKindLabel(kind: NextActionKind): string {
   if (kind === "reply") return "Reply";
   if (kind === "original") return "Original";

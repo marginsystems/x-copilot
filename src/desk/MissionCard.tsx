@@ -133,6 +133,7 @@ export function MissionCard(props: {
   onSuggestionSkip: (id: string) => void;
   onSuggestionDismiss: (id: string) => void;
   onChooseFork: (choice: "original" | "reply") => void;
+  onOriginalPosted: () => void;
   onOpenVoice: () => void;
   onLinkX: () => void;
 }) {
@@ -384,6 +385,14 @@ export function MissionCard(props: {
           >
             Open X
           </a>
+          <button
+            type="button"
+            className="ghost"
+            disabled={props.actionBusy}
+            onClick={props.onOriginalPosted}
+          >
+            I posted on X
+          </button>
         </div>
       ) : null}
       {extra}

@@ -394,6 +394,11 @@ export async function handlePost(
     } catch (err) {
       console.warn("mark For You after desk post soft-fail:", err);
     }
+    try {
+      recordDeskReplyMarked({ userId: user.id });
+    } catch (err) {
+      console.warn("desk beats compose mark soft-fail:", err);
+    }
     if (isOriginal) {
       try {
         recordDeskOriginalPosted({ userId: user.id });
