@@ -153,7 +153,7 @@ async function handleActivityPost(
   if (usedToday >= activity.limit) {
     await pauseUserSubscription(userId, nextUtcDayIso());
   }
-  if (parsed.kind === "reply" && parsed.inReplyToId) {
+  if (parsed.inReplyToId) {
     const watched =
       getWatchedThread(userId, parsed.inReplyToId) ??
       (parsed.conversationId

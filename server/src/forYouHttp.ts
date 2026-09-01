@@ -11,7 +11,11 @@ import {
 import { ensureUserBillingRow, ensureUserTenant } from "./billingStore.js";
 import { deepseekConfigured } from "./deepseek.js";
 import { getPlatformDb } from "./db.js";
-import { recordDeskOriginalPosted, recordDeskReplyMarked } from "./deskBeats.js";
+import {
+  getDeskBeats,
+  recordDeskOriginalPosted,
+  recordDeskReplyMarked,
+} from "./deskBeats.js";
 import { confirmRecentOwnPosts } from "./userIngest.js";
 import {
   buildForYouDigest,
@@ -135,14 +139,16 @@ export async function tryHandleForYou(
         } catch (err) {
           console.warn("desk beats For You original soft-fail:", err);
         }
-        try {
-          recordDeskReplyMarked({
-            userId: user.id,
-            source: "organic",
-            nowMs,
-          });
-        } catch (err) {
-          console.warn("desk beats For You original organic soft-fail:", err);
+        if (getDeskBeats({ userId: user.id, nowMs }).forkChoice !== "reply") {
+          try {
+            recordDeskReplyMarked({
+              userId: user.id,
+              source: "organic",
+              nowMs,
+            });
+          } catch (err) {
+            console.warn("desk beats For You original organic soft-fail:", err);
+          }
         }
       }
       void confirmRecentOwnPosts({ userId: user.id }).catch((err) => {

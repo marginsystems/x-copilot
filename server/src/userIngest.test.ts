@@ -1308,4 +1308,39 @@ describe("confirmRecentOwnPosts", () => {
       .get(user.id, "q1") as { kind?: string } | undefined;
     assert.equal(row?.kind, "quote");
   });
+
+  it("coalesces concurrent confirmations for a user", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    let resolves = 0;
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const opts = {
+      userId: user.id,
+      deps: {
+        resolveUser: async () => {
+          resolves += 1;
+          await blocked;
+          return {
+            ok: false as const,
+            status: 503,
+            error: "blocked",
+            message: "blocked",
+          };
+        },
+      },
+    };
+    const first = confirmRecentOwnPosts(opts);
+    const second = confirmRecentOwnPosts(opts);
+    assert.strictEqual(first, second);
+    release();
+    await first;
+    assert.equal(resolves, 1);
+  });
 });

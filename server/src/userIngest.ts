@@ -225,7 +225,40 @@ function foldRepliesIntoOwnPosts(opts: {
 }
 
 /** One cheap page after I posted. Does not move the hourly since_id. */
-export async function confirmRecentOwnPosts(opts: {
+export function confirmRecentOwnPosts(opts: {
+  userId: string;
+  target?: number;
+  deps?: {
+    get?: XApiGetFn;
+    resolveUser?: typeof resolveXUser;
+    pullReplies?: typeof pullOwnReplies;
+  };
+}): Promise<{ ok: boolean; ingested: number }> {
+  const inFlight = confirmOwnPostsInFlight.get(opts.userId);
+  if (inFlight) return inFlight;
+  const promise = confirmRecentOwnPostsRun(opts);
+  confirmOwnPostsInFlight.set(opts.userId, promise);
+  void promise.then(
+    () => {
+      if (confirmOwnPostsInFlight.get(opts.userId) === promise) {
+        confirmOwnPostsInFlight.delete(opts.userId);
+      }
+    },
+    () => {
+      if (confirmOwnPostsInFlight.get(opts.userId) === promise) {
+        confirmOwnPostsInFlight.delete(opts.userId);
+      }
+    },
+  );
+  return promise;
+}
+
+const confirmOwnPostsInFlight = new Map<
+  string,
+  Promise<{ ok: boolean; ingested: number }>
+>();
+
+async function confirmRecentOwnPostsRun(opts: {
   userId: string;
   target?: number;
   deps?: {
