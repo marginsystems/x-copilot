@@ -2,6 +2,7 @@ import {
   onOriginalPosted,
   onReplyMarked,
   setForkChoice,
+  type DeskReplySource,
 } from "../../src/lib/deskBeats.ts";
 import { getPlatformDb } from "./db.js";
 import { utcDayKey } from "./gamificationXp.js";
@@ -85,9 +86,13 @@ function advanceDeskBeats(opts: {
 
 export function recordDeskReplyMarked(opts: {
   userId: string;
+  source: DeskReplySource;
   nowMs?: number;
 }): StoredDeskBeats {
-  return advanceDeskBeats({ ...opts, advance: onReplyMarked });
+  return advanceDeskBeats({
+    ...opts,
+    advance: (beats) => onReplyMarked(beats, opts.source),
+  });
 }
 
 export function recordDeskOriginalPosted(opts: {

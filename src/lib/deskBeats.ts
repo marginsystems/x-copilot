@@ -2,14 +2,23 @@
 
 import type { DeskBeats } from "./deskPhase";
 
-export function onReplyMarked(beats: DeskBeats): DeskBeats {
+export type DeskReplySource = "scout" | "organic";
+
+export function onReplyMarked(
+  beats: DeskBeats,
+  source: DeskReplySource,
+): DeskBeats {
   if (beats.forkChoice === "reply" && !beats.forkDone) {
     return { ...beats, forkDone: true };
   }
-  if (!beats.scoutReplyDone) {
+  if (source === "scout" && !beats.scoutReplyDone) {
     return { ...beats, scoutReplyDone: true };
   }
-  if (!beats.organicReplyDone) {
+  if (
+    source === "organic" &&
+    beats.scoutReplyDone &&
+    !beats.organicReplyDone
+  ) {
     return { ...beats, organicReplyDone: true };
   }
   return beats;

@@ -43,7 +43,7 @@ describe("deskBeats", () => {
   });
 
   it("isolates progress by UTC day and user", () => {
-    recordDeskReplyMarked({ userId: "u1", nowMs: DAY_ONE });
+    recordDeskReplyMarked({ userId: "u1", source: "scout", nowMs: DAY_ONE });
 
     assert.equal(getDeskBeats({ userId: "u1", nowMs: DAY_ONE }).scoutReplyDone, true);
     assert.equal(getDeskBeats({ userId: "u1", nowMs: DAY_TWO }).scoutReplyDone, false);
@@ -51,8 +51,8 @@ describe("deskBeats", () => {
   });
 
   it("persists reply and original forks through done", () => {
-    recordDeskReplyMarked({ userId: "reply", nowMs: DAY_ONE });
-    recordDeskReplyMarked({ userId: "reply", nowMs: DAY_ONE });
+    recordDeskReplyMarked({ userId: "reply", source: "scout", nowMs: DAY_ONE });
+    recordDeskReplyMarked({ userId: "reply", source: "organic", nowMs: DAY_ONE });
     assert.equal(
       chooseDeskFork({
         userId: "reply",
@@ -62,12 +62,12 @@ describe("deskBeats", () => {
       "reply",
     );
     assert.equal(
-      recordDeskReplyMarked({ userId: "reply", nowMs: DAY_ONE }).forkDone,
+      recordDeskReplyMarked({ userId: "reply", source: "organic", nowMs: DAY_ONE }).forkDone,
       true,
     );
 
-    recordDeskReplyMarked({ userId: "original", nowMs: DAY_ONE });
-    recordDeskReplyMarked({ userId: "original", nowMs: DAY_ONE });
+    recordDeskReplyMarked({ userId: "original", source: "scout", nowMs: DAY_ONE });
+    recordDeskReplyMarked({ userId: "original", source: "organic", nowMs: DAY_ONE });
     chooseDeskFork({
       userId: "original",
       forkChoice: "original",
@@ -101,8 +101,8 @@ describe("deskBeats", () => {
       email: "desk-beats@example.com",
       emailVerified: true,
     });
-    recordDeskReplyMarked({ userId: user.id });
-    recordDeskReplyMarked({ userId: user.id });
+    recordDeskReplyMarked({ userId: user.id, source: "scout" });
+    recordDeskReplyMarked({ userId: user.id, source: "organic" });
     const { token } = createSession(user.id);
     const req = new EventEmitter() as unknown as IncomingMessage;
     Object.assign(req, {

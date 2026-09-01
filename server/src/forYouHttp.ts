@@ -113,13 +113,16 @@ export async function tryHandleForYou(
       const nowMs = suggestion.actedAt
         ? Date.parse(suggestion.actedAt) || Date.now()
         : Date.now();
-      try {
-        recordDeskReplyMarked({
-          userId: user.id,
-          nowMs,
-        });
-      } catch (err) {
-        console.warn("desk beats For You mark soft-fail:", err);
+      if (suggestion.kind === "reply") {
+        try {
+          recordDeskReplyMarked({
+            userId: user.id,
+            source: "organic",
+            nowMs,
+          });
+        } catch (err) {
+          console.warn("desk beats For You reply soft-fail:", err);
+        }
       }
       if (suggestion.kind === "post") {
         try {

@@ -394,11 +394,6 @@ export async function handlePost(
     } catch (err) {
       console.warn("mark For You after desk post soft-fail:", err);
     }
-    try {
-      recordDeskReplyMarked({ userId: user.id });
-    } catch (err) {
-      console.warn("desk beats compose mark soft-fail:", err);
-    }
     if (isOriginal) {
       try {
         recordDeskOriginalPosted({ userId: user.id });
@@ -439,6 +434,7 @@ export async function handlePost(
     try {
       recordDeskReplyMarked({
         userId: user.id,
+        source: "scout",
         nowMs: Date.parse(interaction.at) || Date.now(),
       });
     } catch (err) {

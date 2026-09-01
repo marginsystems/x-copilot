@@ -218,6 +218,7 @@ export async function tryHandleInteracted(
         try {
           recordDeskReplyMarked({
             userId: sessionUser.id,
+            source: "scout",
             nowMs: Date.parse(interaction.at) || Date.now(),
           });
         } catch (err) {
