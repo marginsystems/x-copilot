@@ -28,6 +28,8 @@ export type DeskPhaseInput = {
   /** Suggested OG / quote / reply. Served when Scout is empty. */
   hasSuggestion: boolean;
   searching: boolean;
+  /** Operator is on the For You task. Scout may refill; the card stays. */
+  holdForYouTask?: boolean;
   beats: DeskBeats;
 };
 
@@ -56,6 +58,8 @@ export function deskPhase(input: DeskPhaseInput): DeskPhaseResult {
     phase = "needs_onboarding";
   } else if (input.paceLocked || input.overheat) {
     phase = "hold";
+  } else if (input.holdForYouTask) {
+    phase = "silent_refuel";
   } else if (input.hasScoutCard) {
     phase = "scout_reply";
   } else if (input.hasSuggestion) {
@@ -75,7 +79,14 @@ export function approachTabLiveCount(opts: {
   phase: DeskPhase;
   hasScoutCard: boolean;
   hasSuggestion: boolean;
+  holdForYouTask?: boolean;
 }): number {
+  if (
+    opts.holdForYouTask &&
+    (opts.phase === "silent_refuel" || opts.phase === "hold")
+  ) {
+    return 1;
+  }
   if (opts.phase === "scout_reply" && opts.hasScoutCard) return 1;
   if (opts.phase === "organic_reply" && opts.hasSuggestion) {
     return 1;

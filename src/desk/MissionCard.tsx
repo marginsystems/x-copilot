@@ -4,9 +4,7 @@ import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
 import {
   extraButtonLabel,
-  FYP_WAIT_COPY,
   showApproachExtra,
-  X_FOR_YOU_URL,
   type ForYouExtraUsage,
   type ForYouProgress,
   type ForYouSuggestion,
@@ -17,6 +15,7 @@ import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { DeskPhase } from "../lib/deskPhase";
 import { preferRootTargets } from "../lib/scoutTarget";
 import type { VoiceState } from "../lib/voice";
+import { ForYouFeedRow } from "./ForYouFeedRow";
 import { ReplyPaceBar } from "./ReplyPaceBar";
 import { SuggestedRow } from "./SuggestedRow";
 import { ThreadRow } from "./ThreadRow";
@@ -153,6 +152,7 @@ export function MissionCard(props: {
   onSuggestionDismiss: (id: string) => void;
   onChooseFork: (choice: "original" | "reply") => void;
   onOriginalPosted: () => void;
+  onForYouNext?: () => void;
   onOpenVoice: () => void;
   onLinkX: () => void;
 }) {
@@ -182,18 +182,10 @@ export function MissionCard(props: {
     return (
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb("hold")}</p>
-        <p className="mission-card-why">{FYP_WAIT_COPY}</p>
-        <ReplyPaceBar clock={props.clock} onBypass={props.onBypass} />
-        <div className="row">
-          <a
-            className="primary"
-            href={X_FOR_YOU_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open For You
-          </a>
+        <div className="threads">
+          <ForYouFeedRow />
         </div>
+        <ReplyPaceBar clock={props.clock} onBypass={props.onBypass} />
       </div>
     );
   }
@@ -217,7 +209,6 @@ export function MissionCard(props: {
     } else if ((props.cooldownRemaining ?? 0) > 0) {
       why = `Hold short ${props.cooldownRemaining}s. Scout retries after the gate.`;
     } else {
-      why = FYP_WAIT_COPY;
       action = "fyp";
     }
     return (
@@ -254,24 +245,12 @@ export function MissionCard(props: {
           </div>
         ) : null}
         {action === "fyp" ? (
-          <div className="row">
-            <a
-              className="primary"
-              href={X_FOR_YOU_URL}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open For You
-            </a>
-            {props.searching ? (
-              <button
-                type="button"
-                className="ghost"
-                onClick={props.onStopScout}
-              >
-                Land
-              </button>
-            ) : null}
+          <div className="threads">
+            <ForYouFeedRow
+              searching={props.searching}
+              onNext={props.onForYouNext}
+              onStopScout={props.onStopScout}
+            />
           </div>
         ) : null}
         {action === null ? extra : null}
