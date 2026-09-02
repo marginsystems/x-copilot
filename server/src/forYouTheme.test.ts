@@ -48,6 +48,14 @@ describe("forYouTheme", () => {
     assert.equal(
       sameSuggestionTheme(skipped, {
         kind: "quote",
+        why: "quote the winner",
+        targetUrl: "https://x.com/a/status/99",
+      }),
+      true,
+    );
+    assert.equal(
+      sameSuggestionTheme(skipped, {
+        kind: "quote",
         why: "weird requote",
         targetId: "100",
       }),
@@ -102,6 +110,24 @@ describe("forYouTheme", () => {
         skipped,
       ),
       true,
+    );
+  });
+
+  it("does not bury a post sharing only generic cross-field tokens", () => {
+    assert.equal(
+      sameSuggestionTheme(
+        {
+          kind: "post",
+          why: "Your Claude reply on product launches failed.",
+          draft: "Launch notes are a feature.",
+        },
+        {
+          kind: "post",
+          why: "Your 8.7k Claude refusal reply is your best shape.",
+          draft: "Refusal is a feature, not a bug.",
+        },
+      ),
+      false,
     );
   });
 });

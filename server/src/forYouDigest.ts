@@ -347,9 +347,8 @@ export function filterDigestActions(
         targetAuthor: targetAuthor || null,
       });
     }
-    if (out.length >= 4) break;
   }
-  return withoutSkippedThemes(out, digest.skipped);
+  return withoutSkippedThemes(out, digest.skipped).slice(0, 4);
 }
 
 /** Extra batches are originals only — three unique drafts that invite a reply. */
@@ -376,7 +375,6 @@ export function filterExtraPosts(
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({ kind: "post", why, draft });
-    if (out.length >= 3) break;
   }
-  return withoutSkippedThemes(out, skipped);
+  return withoutSkippedThemes(out, skipped).slice(0, 3);
 }

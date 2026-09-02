@@ -275,6 +275,9 @@ async function handleForYouExtra(
           drafts: result.drafts.slice(0, 3),
           origin: "extra",
         });
+        if (rows.length < 3) {
+          throw new Error("extra batch was suppressed");
+        }
         if (
           !recordUsageEvent({
             tenantId: opts.tenantId,

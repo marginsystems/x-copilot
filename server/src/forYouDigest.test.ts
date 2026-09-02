@@ -594,4 +594,18 @@ describe("forYouDigest", () => {
       ["What did you ship?"],
     );
   });
+
+  it("refills digest and extra caps after skipped drafts are removed", () => {
+    const skipped = [
+      { kind: "post", why: "Your Claude refusal leads", draft: "Refusal is a feature." },
+    ];
+    const digest = emptyDigest({ skipped });
+    const actions = Array.from({ length: 5 }, (_, i) => ({
+      kind: "post",
+      why: i === 0 ? "Your Claude refusal leads" : `Your builder habit ${i}`,
+      draft: i === 0 ? "Another refusal feature." : `Question for builder ${i}?`,
+    }));
+    assert.equal(filterDigestActions({ actions }, digest).length, 4);
+    assert.equal(filterExtraPosts({ actions }, skipped).length, 3);
+  });
 });

@@ -48,22 +48,41 @@ export function themeTokens(text: string): Set<string> {
   return out;
 }
 
-function targetKey(row: ForYouThemeCard): string {
+function targetKeys(row: ForYouThemeCard): Set<string> {
+  const keys = new Set<string>();
   const id = row.targetId?.trim();
-  if (id) return id;
-  return row.targetUrl?.trim() ?? "";
+  const url = row.targetUrl?.trim();
+  if (id) keys.add(id);
+  if (url) {
+    keys.add(url);
+    const statusId = url.match(/\/status\/([^/?#]+)/)?.[1];
+    if (statusId) keys.add(statusId);
+  }
+  return keys;
 }
 
 function postThemeOverlap(a: ForYouThemeCard, b: ForYouThemeCard): boolean {
-  const left = themeTokens(`${a.why} ${a.draft ?? ""}`);
-  const right = themeTokens(`${b.why} ${b.draft ?? ""}`);
-  if (left.size === 0 || right.size === 0) return false;
+  const leftWhy = themeTokens(a.why);
+  const rightWhy = themeTokens(b.why);
+  const leftDraft = themeTokens(a.draft ?? "");
+  const rightDraft = themeTokens(b.draft ?? "");
+  if (leftWhy.size === 0 || rightWhy.size === 0) return false;
+  let whyHit = 0;
+  for (const token of leftWhy) {
+    if (rightWhy.has(token)) whyHit += 1;
+  }
+  let draftHit = 0;
+  for (const token of leftDraft) {
+    if (rightDraft.has(token)) draftHit += 1;
+  }
+  const left = new Set([...leftWhy, ...leftDraft]);
+  const right = new Set([...rightWhy, ...rightDraft]);
   let hit = 0;
   for (const token of left) {
     if (right.has(token)) hit += 1;
   }
   const denom = Math.min(left.size, right.size);
-  return hit >= 2 && hit / denom >= 0.4;
+  return hit >= 2 && hit / denom >= 0.4 && (whyHit >= 2 || draftHit >= 2);
 }
 
 /** Same target, or the same original thesis. Skip one, bury the remixes. */
@@ -71,9 +90,11 @@ export function sameSuggestionTheme(
   a: ForYouThemeCard,
   b: ForYouThemeCard,
 ): boolean {
-  const aTarget = targetKey(a);
-  const bTarget = targetKey(b);
-  if (aTarget && bTarget) return a.kind === b.kind && aTarget === bTarget;
+  const aTargets = targetKeys(a);
+  const bTargets = targetKeys(b);
+  if (aTargets.size > 0 && bTargets.size > 0) {
+    return a.kind === b.kind && [...aTargets].some((key) => bTargets.has(key));
+  }
   if (a.kind !== "post" || b.kind !== "post") return false;
   return postThemeOverlap(a, b);
 }
