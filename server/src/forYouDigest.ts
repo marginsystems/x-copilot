@@ -5,6 +5,7 @@
 import { getUserById } from "./authStore.js";
 import { getPlatformDb } from "./db.js";
 import { getLastScout } from "./scoutCache.js";
+import { preferRootTargets } from "./scoutTarget.js";
 import { formatOutcomeSection } from "./knowledgeMemory.js";
 import { listInteractionHistory } from "./interactionStore.js";
 import { getVoiceProfile } from "./voiceStore.js";
@@ -220,7 +221,9 @@ export async function loadDigestScout(): Promise<{
 } | null> {
   const snap = await getLastScout();
   if (!snap?.threads.length) return null;
-  return { threads: snap.threads };
+  const threads = preferRootTargets(snap.threads);
+  if (!threads.length) return null;
+  return { threads };
 }
 
 export async function buildForYouDigest(opts: {
@@ -251,7 +254,7 @@ export async function buildForYouDigest(opts: {
   const scout = await (opts.getScout ?? loadDigestScout)();
   const leftoverScout: DigestScout[] = (scout?.threads ?? [])
     .filter((t) => t.id && t.url && t.author)
-    .slice(-8)
+    .slice(0, 8)
     .map((t) => ({
       id: t.id,
       author: t.author,
