@@ -187,9 +187,13 @@ export async function saveScoutCache(
       ...thread,
       scoutAgendaSet: Boolean(parsed.agenda),
     }));
+    const previousThreads = (prev?.threads ?? []).map((thread) => ({
+      ...thread,
+      scoutAgendaSet: thread.scoutAgendaSet ?? Boolean(prev?.agenda),
+    }));
     const merged: LastScoutSnapshot = {
       ...parsed,
-      threads: mergeThreadsById(prev?.threads ?? [], threads),
+      threads: mergeThreadsById(previousThreads, threads),
     };
     memory = merged;
     try {

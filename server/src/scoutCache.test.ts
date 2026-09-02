@@ -115,6 +115,13 @@ describe("saveScoutCache / getLastScout", () => {
 
   it("keeps agenda provenance when runs accumulate threads", async () => {
     await saveScoutCache(sample({ agenda: undefined }), { storePath });
+    clearScoutCacheMemory();
+    const fromDisk = await getLastScout({ storePath });
+    assert.equal(
+      fromDisk?.threads.find((t) => t.id === "1")?.scoutAgendaSet,
+      false,
+    );
+
     await saveScoutCache(
       sample({
         agenda: "Find builders",
@@ -134,7 +141,7 @@ describe("saveScoutCache / getLastScout", () => {
     assert.equal(last?.threads.find((t) => t.id === "2")?.scoutAgendaSet, true);
   });
 
-  it("preserves missing agenda provenance from a legacy disk cache", async () => {
+  it("backfills agenda provenance from a legacy disk cache", async () => {
     await writeFile(
       storePath,
       JSON.stringify({
@@ -162,7 +169,7 @@ describe("saveScoutCache / getLastScout", () => {
     );
 
     const last = await getLastScout({ storePath });
-    assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, undefined);
+    assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, true);
     assert.equal(last?.threads.find((t) => t.id === "2")?.scoutAgendaSet, true);
   });
 });
