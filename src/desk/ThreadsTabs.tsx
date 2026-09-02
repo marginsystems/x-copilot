@@ -160,8 +160,7 @@ export function ThreadsTabs({
   });
   useEffect(() => {
     if (holdForYouTask && !forYouHeld) setForYouHeld(true);
-    if (!canPresentForYou && forYouHeld) setForYouHeld(false);
-  }, [holdForYouTask, forYouHeld, canPresentForYou]);
+  }, [holdForYouTask, forYouHeld]);
   const { phase, hold } = deskPhase({
     needsOnboarding: false,
     paceLocked: pace.locked,

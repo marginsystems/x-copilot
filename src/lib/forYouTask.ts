@@ -19,7 +19,7 @@ export function shouldHoldForYouTask(opts: {
   tanksEmpty: boolean;
   canPresent: boolean;
 }): boolean {
-  if (!opts.canPresent) return false;
   if (opts.held) return true;
+  if (!opts.canPresent) return false;
   return opts.tanksEmpty;
 }

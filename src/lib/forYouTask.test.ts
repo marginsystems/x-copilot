@@ -62,10 +62,21 @@ describe("shouldHoldForYouTask", () => {
     );
   });
 
-  it("does not hold when For You cannot present", () => {
+  it("stays held while Scout cooldown prevents presenting", () => {
     assert.equal(
       shouldHoldForYouTask({
         held: true,
+        tanksEmpty: false,
+        canPresent: false,
+      }),
+      true,
+    );
+  });
+
+  it("does not arm when For You cannot present", () => {
+    assert.equal(
+      shouldHoldForYouTask({
+        held: false,
         tanksEmpty: true,
         canPresent: false,
       }),
