@@ -10,6 +10,7 @@ import {
 } from "./db.ts";
 import { patchOwnPostSnapshot, upsertOwnPost } from "./ownPostStore.ts";
 import { updateUserAgenda } from "./authStore.ts";
+import { upsertOauthUser } from "./oauthAccountStore.ts";
 import type { ParsedPostCreate } from "./xActivity.ts";
 import { MIN_T24H_SNAPSHOTS } from "./forYouDigest.ts";
 import {
@@ -42,6 +43,12 @@ function seedSnapshots(
   n: number,
   withAgenda = true,
 ): void {
+  upsertOauthUser({
+    provider: "google",
+    providerUserId: `test-${userId}`,
+    email: `${userId}@example.com`,
+    emailVerified: true,
+  });
   if (withAgenda) updateUserAgenda(userId, "Find builders shipping AI tools");
   for (let i = 1; i <= n; i++) {
     upsertOwnPost({
@@ -70,6 +77,13 @@ const chat: ChatFn = async () => ({
         draft: "still the move",
         targetId: "u1-5",
         targetUrl: "https://x.com/desk/status/u1-5",
+      },
+      {
+        kind: "quote",
+        why: "quote the winner",
+        draft: "still the move",
+        targetId: "u2-5",
+        targetUrl: "https://x.com/desk/status/u2-5",
       },
     ],
   }),
