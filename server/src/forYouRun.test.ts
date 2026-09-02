@@ -57,7 +57,7 @@ const chat: ChatFn = async () => ({
   ok: true,
   content: JSON.stringify({
     actions: [
-      { kind: "post", why: "top post did 400 views", draft: "Ship a recap." },
+      { kind: "post", why: "hiring thread is live", draft: "Who is hiring this week?" },
       {
         kind: "quote",
         why: "quote the winner",

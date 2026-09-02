@@ -5,6 +5,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { getPlatformDb } from "./db.js";
+import { isOwnPostRemixCopy } from "./forYouRemix.js";
 import { startOfUtcDayIso } from "./ownPostStore.js";
 
 export const FOR_YOU_KINDS = ["post", "quote", "repost", "reply"] as const;
@@ -147,8 +148,11 @@ export function insertSuggestions(opts: {
      ) VALUES (?, ?, ?, ?, 'suggested', ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
   );
   const out: ForYouSuggestion[] = [];
+  const drafts = opts.drafts.filter(
+    (draft) => draft.kind !== "post" || !isOwnPostRemixCopy(draft.why, draft.draft),
+  );
   const tx = db.transaction(() => {
-    for (const draft of opts.drafts) {
+    for (const draft of drafts) {
       const id = randomUUID();
       const why = secondPersonWhy(draft.why.trim());
       insert.run(
@@ -223,7 +227,12 @@ export function listActiveSuggestions(
        ORDER BY created_at DESC`,
     )
     .all(userId, new Date(nowMs).toISOString()) as Array<Record<string, unknown>>;
-  return rows.map(mapRow).filter((row): row is ForYouSuggestion => Boolean(row));
+  return rows
+    .map(mapRow)
+    .filter((row): row is ForYouSuggestion => Boolean(row))
+    .filter(
+      (row) => row.kind !== "post" || !isOwnPostRemixCopy(row.why, row.draft),
+    );
 }
 
 /** Confirmed For You cards of one kind since `sinceIso` (UTC-day missions). */

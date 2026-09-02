@@ -826,7 +826,7 @@ describe("POST /api/voice/post", () => {
     const [row] = insertSuggestions({
       userId: user.id,
       tenantId: ensureUserTenant(user.id),
-      drafts: [{ kind: "post", why: "900 views", draft: "Ship the recap." }],
+      drafts: [{ kind: "post", why: "hiring thread is live", draft: "Ship the recap." }],
     });
     assert.ok(row);
     let posted = "";
@@ -991,7 +991,7 @@ describe("POST /api/voice/post", () => {
     const [row] = insertSuggestions({
       userId: user.id,
       tenantId: ensureUserTenant(user.id),
-      drafts: [{ kind: "post", why: "900 views", draft: digestDraft }],
+      drafts: [{ kind: "post", why: "hiring thread is live", draft: digestDraft }],
     });
     assert.ok(row);
     let calls = 0;
@@ -1031,7 +1031,7 @@ describe("POST /api/voice/post", () => {
     const [row] = insertSuggestions({
       userId: user.id,
       tenantId: ensureUserTenant(user.id),
-      drafts: [{ kind: "post", why: "900 views", draft: "Ship the recap." }],
+      drafts: [{ kind: "post", why: "hiring thread is live", draft: "Ship the recap." }],
     });
     assert.ok(row);
     markSuggestion({ id: row.id, userId: user.id, status: "done" });

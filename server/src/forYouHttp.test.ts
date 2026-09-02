@@ -10,6 +10,7 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
+import { updateUserAgenda } from "./authStore.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { createSession } from "./sessionStore.ts";
@@ -36,6 +37,7 @@ describe("GET /api/for-you", () => {
     dir = mkdtempSync(join(tmpdir(), "x-fyhttp-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    process.env.FOR_YOU_REFILL_ON_GET = "0";
     getPlatformDb();
   });
 
@@ -43,6 +45,7 @@ describe("GET /api/for-you", () => {
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
+    delete process.env.FOR_YOU_REFILL_ON_GET;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -206,7 +209,7 @@ const extraChat: ChatFn = async () => ({
   ok: true,
   content: JSON.stringify({
     actions: [
-      { kind: "post", why: "900 views on the recap", draft: "What would you cut first?" },
+      { kind: "post", why: "hiring thread is live", draft: "What would you cut first?" },
       { kind: "post", why: "4 replies on the recap", draft: "Is the other side just slow?" },
       { kind: "post", why: "20 likes on the recap", draft: "I'll take the under — prove me wrong." },
     ],
@@ -223,6 +226,7 @@ describe("POST /api/for-you/extra", () => {
     dir = mkdtempSync(join(tmpdir(), "x-fyextra-http-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    process.env.FOR_YOU_REFILL_ON_GET = "0";
     delete process.env.ADMIN_EMAILS;
     getPlatformDb();
   });
@@ -231,6 +235,7 @@ describe("POST /api/for-you/extra", () => {
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
+    delete process.env.FOR_YOU_REFILL_ON_GET;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -433,6 +438,7 @@ describe("POST /api/for-you/done", () => {
     dir = mkdtempSync(join(tmpdir(), "x-fydone-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    process.env.FOR_YOU_REFILL_ON_GET = "0";
     getPlatformDb();
   });
 
@@ -440,6 +446,7 @@ describe("POST /api/for-you/done", () => {
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
+    delete process.env.FOR_YOU_REFILL_ON_GET;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -519,5 +526,63 @@ describe("POST /api/for-you/done", () => {
     });
     assert.equal(out.status, 200);
     assert.equal(getDeskBeats({ userId: user.id }).forkDone, true);
+  });
+});
+
+describe("POST /api/for-you/skip", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    dir = mkdtempSync(join(tmpdir(), "x-fyskip-"));
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    process.env.FOR_YOU_REFILL_ON_GET = "0";
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    delete process.env.FOR_YOU_REFILL_ON_GET;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("deletes the card and inserts a Scout-based original", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-skip-refill",
+      email: "skip-refill@example.com",
+      emailVerified: true,
+    });
+    updateUserAgenda(user.id, "Find builders shipping AI tools");
+    const [card] = insertSuggestions({
+      userId: user.id,
+      tenantId: "local",
+      drafts: [
+        {
+          kind: "post",
+          why: "Hiring thread is live. Take a side.",
+          draft: "Who is actually hiring this week?",
+        },
+      ],
+    });
+    assert.ok(card);
+    const { token } = createSession(user.id);
+    const out = await invokeForYou({
+      method: "POST",
+      path: "/api/for-you/skip",
+      token,
+      chat: extraChat,
+      body: { id: card.id },
+    });
+    assert.equal(out.status, 200);
+    const replacement = out.json.replacement as { why?: string; draft?: string } | null;
+    assert.ok(replacement?.draft);
+    assert.notEqual(replacement.draft, card.draft);
+    const live = listActiveSuggestions(user.id);
+    assert.equal(live.some((row) => row.id === card.id), false);
+    assert.equal(live.some((row) => row.kind === "post"), true);
   });
 });
