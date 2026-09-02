@@ -108,7 +108,7 @@ function postRewritesOwnText(
 ): boolean {
   if (isOwnPostRemixCopy(why, draft)) return true;
   const blob = new Set(
-    `${why} ${draft}`
+    why
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, " ")
       .split(/\s+/)

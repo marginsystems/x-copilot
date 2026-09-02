@@ -45,6 +45,10 @@ export async function runForYouDigestForUser(opts: {
     userId: opts.userId,
     getScout: opts.getScout,
   });
+  if (digest.leftoverScout.length === 0 && !digest.agenda) {
+    recordForYouRun(opts.userId, nowMs);
+    return { wrote: 0, reason: "empty" };
+  }
   const result = await draftForYouActions({
     digest,
     chat: opts.chat,

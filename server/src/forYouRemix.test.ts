@@ -28,4 +28,14 @@ describe("isOwnPostRemixCopy", () => {
       false,
     );
   });
+
+  it("does not flag remix phrases used in the draft", () => {
+    assert.equal(
+      isOwnPostRemixCopy(
+        "AI hiring thread is live",
+        "Should builders double down on reasoning models?",
+      ),
+      false,
+    );
+  });
 });

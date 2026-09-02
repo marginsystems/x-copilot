@@ -294,6 +294,13 @@ async function handleForYouExtra(
   let delivered = false;
   try {
     const digest = await buildForYouDigest({ userId: opts.userId });
+    if (digest.leftoverScout.length === 0 && !digest.agenda) {
+      send(req, res, 502, {
+        error: "empty",
+        message: "No live Scout thread or agenda is available for originals.",
+      });
+      return;
+    }
     const result = await draftForYouExtraPosts({
       digest,
       chat: opts.chat,

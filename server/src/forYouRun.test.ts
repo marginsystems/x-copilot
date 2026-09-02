@@ -9,6 +9,7 @@ import {
   resetPlatformDbForTests,
 } from "./db.ts";
 import { patchOwnPostSnapshot, upsertOwnPost } from "./ownPostStore.ts";
+import { updateUserAgenda } from "./authStore.ts";
 import type { ParsedPostCreate } from "./xActivity.ts";
 import { MIN_T24H_SNAPSHOTS } from "./forYouDigest.ts";
 import {
@@ -37,6 +38,7 @@ function post(
 }
 
 function seedSnapshots(userId: string, n: number): void {
+  updateUserAgenda(userId, "Find builders shipping AI tools");
   for (let i = 1; i <= n; i++) {
     upsertOwnPost({
       parsed: post({ postId: `${userId}-${i}` }),
