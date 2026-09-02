@@ -131,7 +131,7 @@ export function approachEmptyCopy(opts: {
   progress?: ForYouProgress | null;
   now?: Date;
 }): string {
-  if (opts.searching) return "Collecting scouted replies. Stay on this card.";
+  if (opts.searching) return "Scout is working…";
   const progress = opts.progress;
   if (!progress) {
     return "Nothing on Approach yet. Scout refuels in the background. Daily suggestions land here once we have enough of your 24h post stats.";

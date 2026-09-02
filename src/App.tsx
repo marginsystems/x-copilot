@@ -21,7 +21,6 @@ import { LearnFollowPage } from "./LearnFollow";
 import { CookieConsent } from "./CookieConsent";
 import { isLegalKind } from "./lib/legal";
 import { isPublicView, viewFromPath } from "./lib/appView";
-import { groundedHint } from "./lib/upgradeCta";
 import { Onboarding } from "./Onboarding";
 import { LinkXGate } from "./LinkXGate";
 import { deskNeedsXLink, showDeskXGate } from "./lib/deskGate";
@@ -226,9 +225,7 @@ export default function App() {
     searching,
     searchCooldownRemaining,
     grounded,
-    sortiesLimit,
     onSearch,
-    onStopScout,
     applyLastScoutFromBoot,
     applyScoutLogFromBoot,
     hydrateLastScout,
@@ -930,36 +927,13 @@ export default function App() {
                 void hydrateCoaching();
               }}
               onOpenVoice={openVoice}
-              onOpenSettings={openSettings}
-              onOpenUsage={openUsage}
               onLinkX={startXLogin}
               grounded={grounded}
-              groundedLine={
-                grounded && !searching
-                  ? groundedHint({
-                      limit: sortiesLimit ?? 0,
-                      planKey: billing?.plan_key,
-                      firstWeek: Boolean(billing?.first_week_pulse),
-                    })
-                  : null
-              }
               searchCooldownRemaining={searchCooldownRemaining}
               onSearch={onSearch}
-              onStopScout={onStopScout}
               onMark={openMarkModal}
               onSkip={onSkip}
               onDismiss={openDismissModal}
-              onRefreshCoaching={hydrateCoaching}
-              setActionBusy={setActionBusy}
-              setStatus={setStatus}
-              onForkBeats={(beats) => {
-                applyCoaching({
-                  dayUtc: coaching?.dayUtc ?? "",
-                  nextAction: coaching?.nextAction ?? null,
-                  missions: coaching?.missions ?? [],
-                  beats,
-                });
-              }}
             />
           </section>
         </div>

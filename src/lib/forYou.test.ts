@@ -145,7 +145,7 @@ describe("forYou helpers", () => {
     );
     assert.equal(
       approachEmptyCopy({ searching: true }),
-      "Collecting scouted replies. Stay on this card.",
+      "Scout is working…",
     );
   });
 

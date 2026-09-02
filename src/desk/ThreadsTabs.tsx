@@ -2,23 +2,25 @@ import {
   useEffect,
   useRef,
   type Dispatch,
+  type HTMLAttributes,
   type SetStateAction,
 } from "react";
+import { SuggestPane } from "../SuggestPane";
+import { SuggestLocked } from "../VoiceCard";
 import type { AuthSessionUser } from "../auth/types";
 import {
   APPROACH_TAB_LABEL,
+  approachEmptyCopy,
+  extraButtonLabel,
+  extrasUnlocked,
   type ForYouExtraUsage,
   type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
 import { deskNeedsXLink } from "../lib/deskGate";
-import {
-  approachTabLiveCount,
-  deskPhase,
-  emptyDeskBeats,
-} from "../lib/deskPhase";
-import { shouldBackgroundScout } from "../lib/deskRefuel";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
+import { shouldBackgroundScout } from "../lib/deskRefuel";
+import { sortThreadsByCreatedAtNewest } from "../lib/threadSort";
 import type { VoiceState } from "../lib/voice";
 import {
   DismissedRow,
@@ -27,19 +29,13 @@ import {
   SkippedRow,
 } from "./HistoryRows";
 import { RankingDrawer } from "./RankingDrawer";
-import {
-  MissionCard,
-  pickApproachOriginal,
-  pickApproachScout,
-  pickApproachSuggestion,
-} from "./MissionCard";
+import { ReplyPaceBar } from "./ReplyPaceBar";
+import { ScoutedPaceCover } from "./ScoutedPaceCover";
 import { useReplyPace } from "./useReplyPace";
-import {
-  postDeskForkChoice,
-  postDeskOriginalPosted,
-  type CoachingState,
-} from "../lib/coaching";
-import type { DeskBeats } from "../lib/deskPhase";
+import { DailyMissionsRow, NextActionRow } from "./NextActionRow";
+import { SuggestedRow } from "./SuggestedRow";
+import type { CoachingState } from "../lib/coaching";
+import { ThreadRow } from "./ThreadRow";
 import { useDeskRowExit } from "./useDeskRowExit";
 import { ThreadsTabCount } from "./ThreadsTabCount";
 import type {
@@ -50,6 +46,7 @@ import type {
   ThreadCard,
   ThreadsTab,
 } from "./types";
+import { watchDeskThreads } from "./watch";
 
 type ThreadsTabsProps = {
   threadsTab: ThreadsTab;
@@ -76,21 +73,13 @@ type ThreadsTabsProps = {
   setVoice: Dispatch<SetStateAction<VoiceState | null>>;
   actForYou: (id: string, action: "done" | "skip" | "dismiss") => void | Promise<void>;
   onOpenVoice: () => void;
-  onOpenSettings: () => void;
-  onOpenUsage: () => void;
   onLinkX: () => void;
   grounded: boolean;
-  groundedLine: string | null;
   searchCooldownRemaining: number;
   onSearch: () => void;
-  onStopScout: () => void;
   onMark: (thread: ThreadCard) => void;
   onSkip: (thread: ThreadCard) => void;
   onDismiss: (thread: ThreadCard) => void;
-  onRefreshCoaching: () => void | Promise<void>;
-  setActionBusy: (busy: boolean) => void;
-  setStatus: (status: string) => void;
-  onForkBeats: (beats: DeskBeats) => void;
 };
 
 export function ThreadsTabs({
@@ -118,40 +107,19 @@ export function ThreadsTabs({
   setVoice,
   actForYou,
   onOpenVoice,
-  onOpenSettings,
-  onOpenUsage,
   onLinkX,
   grounded,
-  groundedLine,
   searchCooldownRemaining,
   onSearch,
-  onStopScout,
   onMark,
   onSkip,
   onDismiss,
-  onRefreshCoaching,
-  setActionBusy,
-  setStatus,
-  onForkBeats,
 }: ThreadsTabsProps) {
   const pace = useReplyPace();
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
-  const scout = pickApproachScout(curatedThreads);
-  const { phase, hold } = deskPhase({
-    needsOnboarding: false,
-    paceLocked: pace.locked,
-    overheat: false,
-    hasScoutCard: curatedThreads.length > 0,
-    hasSuggestion: forYouSuggestions.length > 0,
-    searching,
-    beats: coaching?.beats ?? emptyDeskBeats(),
-  });
-  const suggestion =
-    phase === "original"
-      ? pickApproachOriginal(forYouSuggestions)
-      : pickApproachSuggestion(forYouSuggestions);
+  const tankEmpty = curatedThreads.length === 0;
   const autoTriedRef = useRef(false);
-  const previousPhaseRef = useRef(phase);
+  const wasEmptyRef = useRef(tankEmpty);
   const wasSearchingRef = useRef(false);
   useEffect(() => {
     const live = new Set<string>();
@@ -161,26 +129,22 @@ export function ThreadsTabs({
   }, [curatedThreads, forYouSuggestions, clearGone]);
   useEffect(() => {
     if (!agendaReady) return;
-    if (previousPhaseRef.current === "silent_refuel" && phase !== "silent_refuel") {
+    if (wasEmptyRef.current && !tankEmpty) {
       autoTriedRef.current = false;
     }
-    previousPhaseRef.current = phase;
-    if (phase !== "silent_refuel") {
-      return;
-    }
+    wasEmptyRef.current = tankEmpty;
+    if (!tankEmpty) return;
     if (searching) {
       wasSearchingRef.current = true;
       return;
     }
     if (wasSearchingRef.current) {
       wasSearchingRef.current = false;
-      if (phase === "silent_refuel") {
-        autoTriedRef.current = false;
-      }
+      autoTriedRef.current = false;
     }
     if (
       !shouldBackgroundScout({
-        phase,
+        phase: "silent_refuel",
         searching,
         grounded,
         cooldownRemainingSec: searchCooldownRemaining,
@@ -194,7 +158,7 @@ export function ThreadsTabs({
     autoTriedRef.current = true;
     onSearch();
   }, [
-    phase,
+    tankEmpty,
     searching,
     grounded,
     searchCooldownRemaining,
@@ -211,6 +175,12 @@ export function ThreadsTabs({
     setExpandedId((cur) => (cur === expandedKey ? null : cur));
     beginExit(id, then);
   }
+  const showEmpty =
+    curatedThreads.length === 0 &&
+    forYouSuggestions.length === 0 &&
+    !coaching?.nextAction &&
+    !(coaching && coaching.missions.length > 0) &&
+    !(forYouExtra && extrasUnlocked(forYouProgress));
   return (
     <>
       <div className="threads-pane-head">
@@ -232,11 +202,7 @@ export function ThreadsTabs({
           >
             {APPROACH_TAB_LABEL}
             <ThreadsTabCount
-              n={approachTabLiveCount({
-                phase,
-                hasScoutCard: curatedThreads.length > 0,
-                hasSuggestion: forYouSuggestions.length > 0,
-              })}
+              n={curatedThreads.length + forYouSuggestions.length}
             />
           </button>
           <button
@@ -299,82 +265,165 @@ export function ThreadsTabs({
       </div>
       <div className="threads-scroll">
         {threadsTab === "curated" ? (
-          <MissionCard
-            phase={phase}
-            hold={hold}
-            clock={pace.clock}
-            onBypass={pace.bypass}
-            searching={searching}
-            grounded={grounded}
-            groundedLine={groundedLine}
-            cooldownRemaining={searchCooldownRemaining}
-            onStopScout={onStopScout}
-            onOpenUsage={onOpenUsage}
-            onOpenSettings={onOpenSettings}
-            forYouProgress={forYouProgress}
-            forYouExtra={forYouExtra}
-            coaching={coaching}
-            requestExtra={requestExtra}
-            scout={scout}
-            suggestion={suggestion}
-            actionBusy={actionBusy}
-            expandedId={expandedId}
-            setExpandedId={setExpandedId}
-            interactedIds={interactedIds}
-            voice={voice}
-            agenda={agenda}
-            authUser={authUser}
-            setVoice={setVoice}
-            exitingIds={exitingIds}
-            onScoutMark={onMark}
-            onScoutSkip={(thread) =>
-              exitRow(thread.id, thread.id, () => onSkip(thread))
-            }
-            onScoutDismiss={onDismiss}
-            onSuggestionPosted={(id) =>
-              exitRow(id, `suggest:${id}`, () => actForYou(id, "done"))
-            }
-            onSuggestionSkip={(id) =>
-              exitRow(id, `suggest:${id}`, () => actForYou(id, "skip"))
-            }
-            onSuggestionDismiss={(id) =>
-              exitRow(id, `suggest:${id}`, () => actForYou(id, "dismiss"))
-            }
-            onChooseFork={(choice) => {
-              void (async () => {
-                setActionBusy(true);
-                try {
-                  const beats = await postDeskForkChoice(choice);
-                  if (!beats) {
-                    setStatus("Fork choice failed. Try again.");
-                    return;
-                  }
-                  onForkBeats(beats);
-                  await onRefreshCoaching();
-                } finally {
-                  setActionBusy(false);
-                }
-              })();
-            }}
-            onOriginalPosted={() => {
-              void (async () => {
-                setActionBusy(true);
-                try {
-                  const beats = await postDeskOriginalPosted();
-                  if (!beats) {
-                    setStatus("Could not record the original. Try again.");
-                    return;
-                  }
-                  onForkBeats(beats);
-                  await onRefreshCoaching();
-                } finally {
-                  setActionBusy(false);
-                }
-              })();
-            }}
-            onOpenVoice={onOpenVoice}
-            onLinkX={onLinkX}
-          />
+          <>
+            {pace.locked ? (
+              <ReplyPaceBar clock={pace.clock} onBypass={pace.bypass} />
+            ) : null}
+            {showEmpty ? (
+              <p className="empty">
+                {approachEmptyCopy({
+                  searching,
+                  progress: forYouProgress,
+                })}
+              </p>
+            ) : (
+              <div className="threads">
+                {coaching &&
+                (coaching.nextAction || coaching.missions.length > 0) ? (
+                  <div className="for-you-suggested">
+                    <h3 className="section-label">Missions</h3>
+                    {coaching.nextAction ? (
+                      <NextActionRow coaching={coaching} />
+                    ) : null}
+                    {coaching.missions.length > 0 ? (
+                      <DailyMissionsRow coaching={coaching} />
+                    ) : null}
+                  </div>
+                ) : null}
+                {forYouExtra && extrasUnlocked(forYouProgress) ? (
+                  <div className="for-you-extra">
+                    <button
+                      type="button"
+                      className="for-you-extra-btn"
+                      disabled={actionBusy || !forYouExtra.canExtra}
+                      onClick={() => void requestExtra?.()}
+                    >
+                      {extraButtonLabel(forYouExtra)}
+                    </button>
+                  </div>
+                ) : null}
+                {forYouSuggestions.length > 0 ? (
+                  <div className="for-you-suggested">
+                    <h3 className="section-label">Suggested</h3>
+                    {forYouSuggestions.map((row, i) => {
+                      const key = `suggest:${row.id}`;
+                      return (
+                        <SuggestedRow
+                          key={row.id}
+                          row={row}
+                          index={i}
+                          open={expandedId === key}
+                          exiting={exitingIds.has(row.id)}
+                          busy={actionBusy}
+                          paced={pace.locked}
+                          voice={voice}
+                          agenda={agenda}
+                          xLinked={authUser?.xLinked}
+                          hasSession={Boolean(authUser)}
+                          onToggle={() =>
+                            setExpandedId((id) => (id === key ? null : key))
+                          }
+                          onPosted={() =>
+                            exitRow(row.id, key, () =>
+                              actForYou(row.id, "done"),
+                            )
+                          }
+                          onSkip={() =>
+                            exitRow(row.id, key, () =>
+                              actForYou(row.id, "skip"),
+                            )
+                          }
+                          onDismiss={() =>
+                            exitRow(row.id, key, () =>
+                              actForYou(row.id, "dismiss"),
+                            )
+                          }
+                          onOpenSettings={onOpenVoice}
+                          onLinkX={onLinkX}
+                          onUsage={(u) =>
+                            setVoice((v) => (v ? { ...v, suggests: u } : v))
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {curatedThreads.length > 0 ? (
+                  <div
+                    className={
+                      pace.locked ? "for-you-scouted is-paced" : "for-you-scouted"
+                    }
+                  >
+                    <h3 className="section-label">Scouted</h3>
+                    {pace.locked ? (
+                      <ScoutedPaceCover
+                        clock={pace.clock}
+                        onBypass={pace.bypass}
+                      />
+                    ) : null}
+                    <div
+                      className="for-you-scouted-rows"
+                      {...(pace.locked
+                        ? ({ inert: "" } as HTMLAttributes<HTMLDivElement>)
+                        : {})}
+                    >
+                      {sortThreadsByCreatedAtNewest(curatedThreads).map((t, i) => (
+                        <ThreadRow
+                          key={t.id}
+                          thread={t}
+                          index={i}
+                          open={expandedId === t.id}
+                          exiting={exitingIds.has(t.id)}
+                          busy={actionBusy}
+                          interacted={interactedIds.has(t.id)}
+                          onToggle={() => {
+                            const next = expandedId === t.id ? null : t.id;
+                            setExpandedId(next);
+                            if (next) watchDeskThreads([t]);
+                          }}
+                          onWatch={() => watchDeskThreads([t])}
+                          onMark={() => {
+                            if (!pace.locked) onMark(t);
+                          }}
+                          onSkip={() => exitRow(t.id, t.id, () => onSkip(t))}
+                          onDismiss={() => onDismiss(t)}
+                          suggest={
+                            voice?.status === "ready" && voice.unlocked ? (
+                              <SuggestPane
+                                threadId={t.id}
+                                author={t.author}
+                                text={t.text}
+                                opAuthor={t.opAuthor}
+                                opText={t.opText}
+                                threadKind={t.threadKind}
+                                flags={t.flags}
+                                agenda={agenda}
+                                usage={voice.suggests}
+                                onUsage={(u) =>
+                                  setVoice((v) =>
+                                    v ? { ...v, suggests: u } : v,
+                                  )
+                                }
+                                onOpenIntent={() => watchDeskThreads([t])}
+                              />
+                            ) : (
+                              <SuggestLocked
+                                voice={voice}
+                                xLinked={authUser?.xLinked}
+                                hasSession={Boolean(authUser)}
+                                onOpenSettings={onOpenVoice}
+                                onLinkX={onLinkX}
+                              />
+                            )
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </>
         ) : threadsTab === "interacted" ? (
           interactedHistory.length === 0 ? (
             <p className="empty">

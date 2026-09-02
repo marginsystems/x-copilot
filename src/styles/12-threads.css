@@ -71,6 +71,32 @@
   gap: 8px;
 }
 
+.for-you-extra {
+  display: flex;
+  align-items: center;
+}
+
+.for-you-extra-btn {
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  cursor: pointer;
+}
+
+.for-you-extra-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.for-you-extra-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .for-you-suggested {
   display: grid;
   gap: 6px;
