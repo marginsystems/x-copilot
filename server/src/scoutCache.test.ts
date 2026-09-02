@@ -73,12 +73,16 @@ describe("saveScoutCache / getLastScout", () => {
 
   it("round-trips memory and disk", async () => {
     const snap = sample();
+    const saved = {
+      ...snap,
+      threads: snap.threads.map((thread) => ({ ...thread, scoutAgendaSet: true })),
+    };
     await saveScoutCache(snap, { storePath });
-    assert.deepEqual(await getLastScout({ storePath }), snap);
+    assert.deepEqual(await getLastScout({ storePath }), saved);
 
     clearScoutCacheMemory();
     const fromDisk = await getLastScout({ storePath });
-    assert.deepEqual(fromDisk, snap);
+    assert.deepEqual(fromDisk, saved);
 
     const raw = await readFile(storePath, "utf8");
     assert.ok(raw.includes('"id": "1"'));
@@ -107,6 +111,27 @@ describe("saveScoutCache / getLastScout", () => {
       last?.threads.map((t) => t.id),
       ["1", "2"],
     );
+  });
+
+  it("keeps agenda provenance when runs accumulate threads", async () => {
+    await saveScoutCache(sample({ agenda: undefined }), { storePath });
+    await saveScoutCache(
+      sample({
+        agenda: "Find builders",
+        threads: [
+          {
+            id: "2",
+            author: "@b",
+            text: "next",
+            url: "https://x.com/b/status/2",
+          },
+        ],
+      }),
+      { storePath },
+    );
+    const last = await getLastScout({ storePath });
+    assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, false);
+    assert.equal(last?.threads.find((t) => t.id === "2")?.scoutAgendaSet, true);
   });
 });
 
