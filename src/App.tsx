@@ -392,17 +392,7 @@ export default function App() {
         applyUser(user);
         if (boot.payload.desk) {
           applyDesk(boot.payload.desk);
-          const lastScout = boot.payload.desk.lastScout;
-          writeDeskBootCache({
-            ...boot.payload,
-            desk: {
-              ...boot.payload.desk,
-              lastScout:
-                lastScout.snapshot && !lastScout.empty
-                  ? lastScout
-                  : cachedBoot?.desk?.lastScout ?? lastScout,
-            },
-          });
+          writeDeskBootCache(boot.payload);
         } else {
           clearDeskBootCache();
         }

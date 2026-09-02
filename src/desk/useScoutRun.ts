@@ -220,6 +220,7 @@ export function useScoutRun({
     if (staleHydration.current) return;
     if (!data.ok) return;
     if (data.empty || !data.snapshot) {
+      setThreads([]);
       return;
     }
     const list = Array.isArray(data.snapshot.threads)

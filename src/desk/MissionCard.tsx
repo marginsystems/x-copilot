@@ -15,7 +15,7 @@ import type { CoachingState } from "../lib/coaching";
 import { deskNeedsXLink } from "../lib/deskGate";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { DeskPhase } from "../lib/deskPhase";
-import { sortThreadsByAudience } from "../lib/threadSort";
+import { preferRootTargets } from "../lib/scoutTarget";
 import type { VoiceState } from "../lib/voice";
 import { ReplyPaceBar } from "./ReplyPaceBar";
 import { SuggestedRow } from "./SuggestedRow";
@@ -30,7 +30,25 @@ export function pickApproachSuggestion(
 }
 
 export function pickApproachScout(threads: ThreadCard[]): ThreadCard | null {
-  return sortThreadsByAudience(threads)[0] ?? null;
+  return preferRootTargets(threads)[0] ?? null;
+}
+
+export function ApproachLoadingCard() {
+  return (
+    <div
+      className="mission-card mission-card-is-loading"
+      aria-busy="true"
+      role="status"
+    >
+      <p className="mission-card-verb">Approach</p>
+      <p className="mission-card-why">Loading the next action.</p>
+      <div className="mission-card-skel" aria-hidden="true">
+        <span className="mission-skel mission-skel-why" />
+        <span className="mission-skel mission-skel-row" />
+        <span className="mission-skel mission-skel-row mission-skel-short" />
+      </div>
+    </div>
+  );
 }
 
 export function pickApproachOriginal(

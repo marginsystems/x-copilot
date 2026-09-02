@@ -30,6 +30,7 @@ import {
   getRequestTenantId,
 } from "./requestContext.js";
 import { getLastScout } from "./scoutCache.js";
+import { preferRootTargets } from "./scoutTarget.js";
 import { runScoutCollect } from "./scoutCollect.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
 import { appendScoutLog, getScoutLog } from "./scoutLog.js";
@@ -142,12 +143,15 @@ export async function readLastScoutPayload(opts?: {
     getDismissedThreadIds(),
     getSkippedThreadIds(),
   ]);
-  const threads = filtered.threads.filter(
-    (t) =>
-      !expiredIds.has(t.id) &&
-      !dismissedIds.has(t.id) &&
-      !skippedIds.has(t.id),
+  const threads = preferRootTargets(
+    filtered.threads.filter(
+      (t) =>
+        !expiredIds.has(t.id) &&
+        !dismissedIds.has(t.id) &&
+        !skippedIds.has(t.id),
+    ),
   );
+  if (threads.length === 0) return { ok: true, empty: true };
   return {
     ok: true,
     empty: false,

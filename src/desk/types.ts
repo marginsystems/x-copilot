@@ -40,6 +40,8 @@ export type ThreadCard = {
   score?: number;
   /** Impression count when Scout had it. Used to pick the highest-view OP. */
   views?: number;
+  /** Conversation-root impression count when the card is still a leftover leaf. */
+  opViews?: number;
 };
 
 export type ScoutStreamEvent = {

@@ -28,6 +28,47 @@
   line-height: 1.45;
 }
 
+.mission-card-is-loading {
+  min-height: 14.5rem;
+}
+
+.mission-card-skel {
+  display: grid;
+  gap: 10px;
+}
+
+.mission-skel {
+  display: block;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--muted) 18%, var(--raised));
+  animation: mission-skel-pulse 1.4s ease-in-out infinite;
+}
+
+.mission-skel-why {
+  width: 72%;
+  height: 0.9rem;
+}
+
+.mission-skel-row {
+  width: 100%;
+  height: 4.4rem;
+}
+
+.mission-skel-short {
+  width: 42%;
+  height: 2.2rem;
+}
+
+@keyframes mission-skel-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .history-list {
   display: flex;
   flex-direction: column;

@@ -28,10 +28,12 @@ import {
 } from "./HistoryRows";
 import { RankingDrawer } from "./RankingDrawer";
 import {
+  ApproachLoadingCard,
   MissionCard,
   pickApproachScout,
   pickApproachSuggestion,
 } from "./MissionCard";
+import { preferRootTargets } from "../lib/scoutTarget";
 import { useReplyPace } from "./useReplyPace";
 import {
   postDeskForkChoice,
@@ -135,12 +137,13 @@ export function ThreadsTabs({
 }: ThreadsTabsProps) {
   const pace = useReplyPace();
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
-  const scout = pickApproachScout(curatedThreads);
+  const scouted = preferRootTargets(curatedThreads);
+  const scout = pickApproachScout(scouted);
   const { phase, hold } = deskPhase({
     needsOnboarding: false,
     paceLocked: pace.locked,
     overheat: false,
-    hasScoutCard: curatedThreads.length > 0,
+    hasScoutCard: scouted.length > 0,
     hasSuggestion: forYouSuggestions.length > 0,
     searching,
     beats: coaching?.beats ?? emptyDeskBeats(),
@@ -188,7 +191,7 @@ export function ThreadsTabs({
         cooldownRemainingSec: searchCooldownRemaining,
         needsXLink: deskNeedsXLink(authUser),
         hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
-        hasScoutCard: curatedThreads.length > 0,
+        hasScoutCard: scouted.length > 0,
         alreadyTried: autoTriedRef.current,
       })
     ) {
@@ -236,11 +239,15 @@ export function ThreadsTabs({
           >
             {APPROACH_TAB_LABEL}
             <ThreadsTabCount
-              n={approachTabLiveCount({
-                phase,
-                hasScoutCard: curatedThreads.length > 0,
-                hasSuggestion: forYouSuggestions.length > 0,
-              })}
+              n={
+                agendaReady
+                  ? approachTabLiveCount({
+                      phase,
+                      hasScoutCard: scouted.length > 0,
+                      hasSuggestion: forYouSuggestions.length > 0,
+                    })
+                  : 0
+              }
             />
           </button>
           <button
@@ -303,6 +310,9 @@ export function ThreadsTabs({
       </div>
       <div className="threads-scroll">
         {threadsTab === "curated" ? (
+          !agendaReady ? (
+            <ApproachLoadingCard />
+          ) : (
           <MissionCard
             phase={phase}
             hold={hold}
@@ -379,6 +389,7 @@ export function ThreadsTabs({
             onOpenVoice={onOpenVoice}
             onLinkX={onLinkX}
           />
+          )
         ) : threadsTab === "interacted" ? (
           interactedHistory.length === 0 ? (
             <p className="empty">
