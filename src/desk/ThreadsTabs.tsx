@@ -151,8 +151,6 @@ export function ThreadsTabs({
       ? pickApproachOriginal(forYouSuggestions)
       : pickApproachSuggestion(forYouSuggestions);
   const autoTriedRef = useRef(false);
-  const autoTriedKeyRef = useRef("");
-  const autoTriedDayRef = useRef("");
   const previousPhaseRef = useRef(phase);
   const wasSearchingRef = useRef(false);
   useEffect(() => {
@@ -163,32 +161,12 @@ export function ThreadsTabs({
   }, [curatedThreads, forYouSuggestions, clearGone]);
   useEffect(() => {
     if (!agendaReady) return;
-    const autoTriedKey = `desk-scout-tried:${authUser?.id ?? "anonymous"}`;
-    if (autoTriedKeyRef.current !== autoTriedKey) {
-      autoTriedKeyRef.current = autoTriedKey;
-      autoTriedRef.current = false;
-    }
     if (previousPhaseRef.current === "silent_refuel" && phase !== "silent_refuel") {
       autoTriedRef.current = false;
-      try {
-        localStorage.removeItem(autoTriedKey);
-      } catch {
-        /* private mode */
-      }
     }
     previousPhaseRef.current = phase;
     if (phase !== "silent_refuel") {
       return;
-    }
-    const today = new Date().toISOString().slice(0, 10);
-    if (autoTriedDayRef.current !== today) {
-      autoTriedDayRef.current = today;
-      autoTriedRef.current = false;
-    }
-    try {
-      autoTriedRef.current = localStorage.getItem(autoTriedKey) === today;
-    } catch {
-      /* private mode */
     }
     if (searching) {
       wasSearchingRef.current = true;
@@ -196,6 +174,9 @@ export function ThreadsTabs({
     }
     if (wasSearchingRef.current) {
       wasSearchingRef.current = false;
+      if (phase === "silent_refuel") {
+        autoTriedRef.current = false;
+      }
     }
     if (
       !shouldBackgroundScout({
@@ -211,11 +192,6 @@ export function ThreadsTabs({
       return;
     }
     autoTriedRef.current = true;
-    try {
-      localStorage.setItem(autoTriedKey, today);
-    } catch {
-      /* private mode */
-    }
     onSearch();
   }, [
     phase,

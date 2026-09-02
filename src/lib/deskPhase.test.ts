@@ -75,8 +75,8 @@ describe("deskPhase", () => {
     });
   });
 
-  it("uses suggestion inventory when no scout card exists", () => {
-    phase("organic_reply", { hasSuggestion: true });
+  it("refuels instead of serving digest when Scout is empty", () => {
+    phase("silent_refuel", { hasSuggestion: true });
   });
 
   it("silently refuels an empty tank regardless of searching", () => {
@@ -87,6 +87,13 @@ describe("deskPhase", () => {
   it("moves a completed scout reply to organic reply", () => {
     phase("organic_reply", {
       hasScoutCard: true,
+      beats: {
+        ...emptyDeskBeats(),
+        scoutReplyDone: true,
+      },
+    });
+    phase("organic_reply", {
+      hasSuggestion: true,
       beats: {
         ...emptyDeskBeats(),
         scoutReplyDone: true,
@@ -122,13 +129,13 @@ describe("deskPhase", () => {
     });
   });
 
-  it("falls back through organic inventory and silent refuel for reply", () => {
+  it("refuels the reply fork when Scout is empty, even with digest cards", () => {
     const beats = {
       ...emptyDeskBeats(),
       forkChoice: "reply" as const,
     };
 
-    phase("organic_reply", { hasSuggestion: true, beats });
+    phase("silent_refuel", { hasSuggestion: true, beats });
     phase("silent_refuel", { beats });
   });
 
@@ -160,7 +167,13 @@ describe("deskPhase", () => {
           : expected === "scout_reply"
             ? read({ hasScoutCard: true })
             : expected === "organic_reply"
-              ? read({ hasSuggestion: true })
+              ? read({
+                  hasSuggestion: true,
+                  beats: {
+                    ...emptyDeskBeats(),
+                    scoutReplyDone: true,
+                  },
+                })
               : expected === "fork"
                 ? read({
                     beats: {
@@ -237,6 +250,14 @@ describe("approachTabLiveCount", () => {
         phase: "silent_refuel",
         hasScoutCard: false,
         hasSuggestion: false,
+      }),
+      0,
+    );
+    assert.equal(
+      approachTabLiveCount({
+        phase: "silent_refuel",
+        hasScoutCard: false,
+        hasSuggestion: true,
       }),
       0,
     );

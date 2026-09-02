@@ -1,6 +1,6 @@
 import type { DeskPhase } from "./deskPhase";
 
-/** Fire Scout once per empty-tank stretch. Credit-safe. */
+/** Fire Scout while Approach is empty. Cooldown is the credit gate. */
 export function shouldBackgroundScout(opts: {
   phase: DeskPhase;
   searching: boolean;
