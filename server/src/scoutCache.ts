@@ -189,8 +189,22 @@ export async function saveScoutCache(
     }));
     const previousThreads = (prev?.threads ?? []).map((thread) => ({
       ...thread,
-      scoutAgendaSet: thread.scoutAgendaSet ?? Boolean(prev?.agenda),
+      scoutAgendaSet:
+        thread.scoutAgendaSet ??
+        (thread.onAgenda === true && Boolean(prev?.agenda)),
     }));
+    const previousById = new Map(
+      previousThreads.map((thread, index) => [thread.id, index]),
+    );
+    for (const thread of threads) {
+      const index = previousById.get(thread.id);
+      if (index !== undefined) {
+        previousThreads[index] = {
+          ...previousThreads[index],
+          scoutAgendaSet: thread.scoutAgendaSet,
+        };
+      }
+    }
     const merged: LastScoutSnapshot = {
       ...parsed,
       threads: mergeThreadsById(previousThreads, threads),

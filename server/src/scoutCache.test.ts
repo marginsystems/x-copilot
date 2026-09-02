@@ -169,8 +169,33 @@ describe("saveScoutCache / getLastScout", () => {
     );
 
     const last = await getLastScout({ storePath });
-    assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, true);
+    assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, false);
     assert.equal(last?.threads.find((t) => t.id === "2")?.scoutAgendaSet, true);
+  });
+
+  it("backfills false provenance from an agenda-less legacy disk cache", async () => {
+    await writeFile(
+      storePath,
+      JSON.stringify({
+        savedAt: "2026-07-27T02:00:00.000Z",
+        queries: ["old query"],
+        threads: sample().threads,
+      }),
+      "utf8",
+    );
+
+    await saveScoutCache(sample({ agenda: undefined }), { storePath });
+
+    const last = await getLastScout({ storePath });
+    assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, false);
+  });
+
+  it("refreshes agenda provenance for an existing thread", async () => {
+    await saveScoutCache(sample({ agenda: "Agenda run" }), { storePath });
+    await saveScoutCache(sample({ agenda: undefined }), { storePath });
+
+    const last = await getLastScout({ storePath });
+    assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, false);
   });
 });
 
