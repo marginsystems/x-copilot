@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -131,6 +131,38 @@ describe("saveScoutCache / getLastScout", () => {
     );
     const last = await getLastScout({ storePath });
     assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, false);
+    assert.equal(last?.threads.find((t) => t.id === "2")?.scoutAgendaSet, true);
+  });
+
+  it("preserves missing agenda provenance from a legacy disk cache", async () => {
+    await writeFile(
+      storePath,
+      JSON.stringify({
+        savedAt: "2026-07-27T02:00:00.000Z",
+        agenda: "Legacy agenda",
+        queries: ["old query"],
+        threads: sample().threads,
+      }),
+      "utf8",
+    );
+
+    await saveScoutCache(
+      sample({
+        agenda: "New agenda",
+        threads: [
+          {
+            id: "2",
+            author: "@b",
+            text: "next",
+            url: "https://x.com/b/status/2",
+          },
+        ],
+      }),
+      { storePath },
+    );
+
+    const last = await getLastScout({ storePath });
+    assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, undefined);
     assert.equal(last?.threads.find((t) => t.id === "2")?.scoutAgendaSet, true);
   });
 });

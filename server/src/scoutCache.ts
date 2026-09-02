@@ -183,18 +183,13 @@ export async function saveScoutCache(
   const path = opts?.storePath ?? defaultScoutCachePath();
   return serialized(async () => {
     const prev = memory ?? (await readDisk(path));
-    const previousThreads = (prev?.threads ?? []).map((thread) =>
-      thread.scoutAgendaSet === undefined
-        ? { ...thread, scoutAgendaSet: false }
-        : thread,
-    );
     const threads = parsed.threads.map((thread) => ({
       ...thread,
       scoutAgendaSet: Boolean(parsed.agenda),
     }));
     const merged: LastScoutSnapshot = {
       ...parsed,
-      threads: mergeThreadsById(previousThreads, threads),
+      threads: mergeThreadsById(prev?.threads ?? [], threads),
     };
     memory = merged;
     try {
