@@ -424,6 +424,7 @@ describe("POST /api/for-you/extra", () => {
     });
     const tenantId = ensureUserTenant(user.id);
     seedSnapshots(user.id, MIN_T24H_SNAPSHOTS);
+    updateUserAgenda(user.id, "Find builders shipping AI tools");
     const { token } = createSession(user.id);
     const chat: ChatFn = async () => ({
       ok: false,
