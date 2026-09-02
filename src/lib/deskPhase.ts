@@ -25,7 +25,7 @@ export type DeskPhaseInput = {
   /** Reserved. PR 2 UI passes false so Bypass stays the pace clock. */
   overheat: boolean;
   hasScoutCard: boolean;
-  /** Approach digest inventory. Never substitutes for a missing Scout card. */
+  /** Suggested OG / quote / reply. Served when Scout is empty. */
   hasSuggestion: boolean;
   searching: boolean;
   beats: DeskBeats;
@@ -45,6 +45,10 @@ export function emptyDeskBeats(): DeskBeats {
   };
 }
 
+/**
+ * One-card wrap over the existing tank.
+ * Beats do not hide Scout or Suggested. Done does not empty Approach.
+ */
 export function deskPhase(input: DeskPhaseInput): DeskPhaseResult {
   let phase: DeskPhase;
 
@@ -52,24 +56,10 @@ export function deskPhase(input: DeskPhaseInput): DeskPhaseResult {
     phase = "needs_onboarding";
   } else if (input.paceLocked || input.overheat) {
     phase = "hold";
-  } else if (input.beats.forkDone) {
-    phase = "done_for_now";
-  } else if (
-    input.beats.organicReplyDone &&
-    input.beats.forkChoice === null
-  ) {
-    phase = "fork";
-  } else if (input.beats.forkChoice === "original") {
-    phase = "original";
-  } else if (input.beats.forkChoice === "reply") {
-    phase = input.hasScoutCard ? "scout_reply" : "silent_refuel";
-  } else if (
-    input.beats.scoutReplyDone &&
-    !input.beats.organicReplyDone
-  ) {
-    phase = "organic_reply";
   } else if (input.hasScoutCard) {
     phase = "scout_reply";
+  } else if (input.hasSuggestion) {
+    phase = "organic_reply";
   } else {
     phase = "silent_refuel";
   }
@@ -80,7 +70,7 @@ export function deskPhase(input: DeskPhaseInput): DeskPhaseResult {
   };
 }
 
-/** Approach tab badge: cards on the desk, not parked inventory. */
+/** Approach tab badge: the card on the desk (0 or 1). */
 export function approachTabLiveCount(opts: {
   phase: DeskPhase;
   hasScoutCard: boolean;
@@ -90,6 +80,6 @@ export function approachTabLiveCount(opts: {
   if (opts.phase === "organic_reply" && opts.hasSuggestion) {
     return 1;
   }
-  if (opts.phase === "original") return 1;
+  if (opts.phase === "original" && opts.hasSuggestion) return 1;
   return 0;
 }
