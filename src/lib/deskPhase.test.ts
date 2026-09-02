@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  DESK_PHASES,
   approachTabLiveCount,
   deskPhase,
   emptyDeskBeats,
@@ -53,7 +52,7 @@ describe("deskPhase", () => {
     });
   });
 
-  it("lets a pace lock win over scout and organic inventory", () => {
+  it("lets a pace lock win over scout and suggested inventory", () => {
     phase("hold", {
       paceLocked: true,
       hasScoutCard: true,
@@ -68,86 +67,47 @@ describe("deskPhase", () => {
     });
   });
 
-  it("uses scout inventory first with empty beats", () => {
+  it("serves Scout first when both tanks have cards", () => {
     phase("scout_reply", {
       hasScoutCard: true,
       hasSuggestion: true,
     });
   });
 
-  it("refuels instead of serving digest when Scout is empty", () => {
-    phase("silent_refuel", { hasSuggestion: true });
+  it("serves Suggested when Scout is empty", () => {
+    phase("organic_reply", { hasSuggestion: true });
   });
 
-  it("silently refuels an empty tank regardless of searching", () => {
+  it("refuels only when both tanks are empty", () => {
     phase("silent_refuel", { searching: false });
     phase("silent_refuel", { searching: true });
   });
 
-  it("moves a completed scout reply to organic reply", () => {
-    phase("organic_reply", {
-      hasScoutCard: true,
-      beats: {
-        ...emptyDeskBeats(),
-        scoutReplyDone: true,
-      },
-    });
-    phase("organic_reply", {
-      hasSuggestion: true,
-      beats: {
-        ...emptyDeskBeats(),
-        scoutReplyDone: true,
-      },
-    });
+  it("keeps serving the tank after beats say the day is done", () => {
+    const done = {
+      scoutReplyDone: true,
+      organicReplyDone: true,
+      forkChoice: "reply" as const,
+      forkDone: true,
+    };
+    phase("scout_reply", { hasScoutCard: true, hasSuggestion: true, beats: done });
+    phase("organic_reply", { hasSuggestion: true, beats: done });
+    phase("silent_refuel", { beats: done });
   });
 
-  it("moves a completed organic reply to the fork", () => {
-    phase("fork", {
-      beats: {
-        ...emptyDeskBeats(),
-        organicReplyDone: true,
-      },
-    });
-  });
-
-  it("uses the original fork choice", () => {
-    phase("original", {
-      beats: {
-        ...emptyDeskBeats(),
-        forkChoice: "original",
-      },
-    });
-  });
-
-  it("uses scout inventory for the reply fork choice", () => {
+  it("does not swap a live Scout card for a fork or original beat", () => {
     phase("scout_reply", {
       hasScoutCard: true,
       beats: {
         ...emptyDeskBeats(),
-        forkChoice: "reply",
+        organicReplyDone: true,
       },
     });
-  });
-
-  it("refuels the reply fork when Scout is empty, even with digest cards", () => {
-    const beats = {
-      ...emptyDeskBeats(),
-      forkChoice: "reply" as const,
-    };
-
-    phase("silent_refuel", { hasSuggestion: true, beats });
-    phase("silent_refuel", { beats });
-  });
-
-  it("lets fork completion win over leftover inventory", () => {
-    phase("done_for_now", {
+    phase("scout_reply", {
       hasScoutCard: true,
-      hasSuggestion: true,
       beats: {
-        scoutReplyDone: true,
-        organicReplyDone: true,
-        forkChoice: "reply",
-        forkDone: true,
+        ...emptyDeskBeats(),
+        forkChoice: "original",
       },
     });
   });
@@ -157,54 +117,14 @@ describe("deskPhase", () => {
       phase: "hold",
       hold: true,
     });
-
-    for (const expected of DESK_PHASES) {
-      if (expected === "hold") continue;
-
-      const result =
-        expected === "needs_onboarding"
-          ? read({ needsOnboarding: true })
-          : expected === "scout_reply"
-            ? read({ hasScoutCard: true })
-            : expected === "organic_reply"
-              ? read({
-                  hasSuggestion: true,
-                  beats: {
-                    ...emptyDeskBeats(),
-                    scoutReplyDone: true,
-                  },
-                })
-              : expected === "fork"
-                ? read({
-                    beats: {
-                      ...emptyDeskBeats(),
-                      organicReplyDone: true,
-                    },
-                  })
-                : expected === "original"
-                  ? read({
-                      beats: {
-                        ...emptyDeskBeats(),
-                        forkChoice: "original",
-                      },
-                    })
-                  : expected === "done_for_now"
-                    ? read({
-                        beats: {
-                          ...emptyDeskBeats(),
-                          forkDone: true,
-                        },
-                      })
-                    : read();
-
-      assert.equal(result.phase, expected);
-      assert.equal(result.hold, false);
-    }
+    assert.equal(read({ hasScoutCard: true }).hold, false);
+    assert.equal(read({ hasSuggestion: true }).hold, false);
+    assert.equal(read().hold, false);
   });
 });
 
 describe("approachTabLiveCount", () => {
-  it("counts the card on the desk, not parked inventory", () => {
+  it("counts the card on the desk", () => {
     assert.equal(
       approachTabLiveCount({
         phase: "scout_reply",
@@ -223,41 +143,9 @@ describe("approachTabLiveCount", () => {
     );
     assert.equal(
       approachTabLiveCount({
-        phase: "original",
-        hasScoutCard: false,
-        hasSuggestion: false,
-      }),
-      1,
-    );
-    assert.equal(
-      approachTabLiveCount({
-        phase: "organic_reply",
-        hasScoutCard: false,
-        hasSuggestion: false,
-      }),
-      0,
-    );
-    assert.equal(
-      approachTabLiveCount({
-        phase: "done_for_now",
-        hasScoutCard: true,
-        hasSuggestion: true,
-      }),
-      0,
-    );
-    assert.equal(
-      approachTabLiveCount({
         phase: "silent_refuel",
         hasScoutCard: false,
         hasSuggestion: false,
-      }),
-      0,
-    );
-    assert.equal(
-      approachTabLiveCount({
-        phase: "silent_refuel",
-        hasScoutCard: false,
-        hasSuggestion: true,
       }),
       0,
     );
