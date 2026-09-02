@@ -261,10 +261,15 @@ async function handleForYouExtra(
       return;
     }
 
-    const debit = getPlatformDb().transaction(
-      ():
-        | { ok: true; suggestions: ForYouSuggestion[] }
-        | { ok: false; used: number; limit: number } => {
+    const suppression = new Error("extra batch was suppressed");
+    let debit:
+      | { ok: true; suggestions: ForYouSuggestion[] }
+      | { ok: false; used: number; limit: number };
+    try {
+      debit = getPlatformDb().transaction(
+        ():
+          | { ok: true; suggestions: ForYouSuggestion[] }
+          | { ok: false; used: number; limit: number } => {
         const usage = getCreditUsage(opts.tenantId, opts.planKey);
         if (usage.remaining < FOR_YOU_EXTRA_CREDIT_COST) {
           return { ok: false, used: usage.used, limit: usage.limit };
@@ -276,7 +281,7 @@ async function handleForYouExtra(
           origin: "extra",
         });
         if (rows.length < 3) {
-          throw new Error("extra batch was suppressed");
+          throw suppression;
         }
         if (
           !recordUsageEvent({
@@ -293,7 +298,15 @@ async function handleForYouExtra(
         confirmExtraBatch(reservationId);
         return { ok: true, suggestions: rows };
       },
-    )();
+      )();
+    } catch (err) {
+      if (err !== suppression) throw err;
+      send(req, res, 502, {
+        error: "empty",
+        message: "Could not draft three originals. Try again in a moment.",
+      });
+      return;
+    }
 
     if (!debit.ok) {
       removeExtraRecord(reservationId);
