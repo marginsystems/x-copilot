@@ -43,6 +43,12 @@ function seedSnapshots(
   n: number,
   withAgenda = true,
 ): void {
+  getPlatformDb()
+    .prepare(
+      `INSERT OR IGNORE INTO users (id, email, created_at, last_login_at)
+       VALUES (?, ?, ?, ?)`,
+    )
+    .run(userId, `${userId}@example.com`, new Date().toISOString(), new Date().toISOString());
   upsertOauthUser({
     provider: "google",
     providerUserId: `test-${userId}`,
