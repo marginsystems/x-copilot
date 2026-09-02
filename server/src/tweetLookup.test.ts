@@ -225,7 +225,7 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.opParentDerived, true);
   });
 
-  it("keeps the immediate parent when the root is the card author's own thread", async () => {
+  it("drops nested replies when the conversation root is the card author's own thread", async () => {
     const fetched: string[] = [];
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [
@@ -246,9 +246,9 @@ describe("hydrateReplyParents", () => {
       },
     });
     assert.deepEqual(fetched, ["850", "800"]);
-    assert.equal(unhydratedReplyCount, 0);
-    assert.equal(threads[0]?.opAuthor, "@bob");
-    assert.equal(threads[0]?.opParentDerived, true);
+    assert.equal(unhydratedReplyCount, 1);
+    assert.equal(threads[0]?.opAuthor, undefined);
+    assert.equal(threads[0]?.opParentDerived, undefined);
   });
 });
 
