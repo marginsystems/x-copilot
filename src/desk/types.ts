@@ -27,6 +27,8 @@ export type ThreadCard = {
   conversationId?: string;
   /** Immediate parent status id when this card is a reply. */
   inReplyToId?: string;
+  /** Screen name of the status being replied to, when known. */
+  inReplyToScreenName?: string;
   isQuote?: boolean;
   /** Native media t.co keys (lowercased); hide from card text display. */
   mediaShortlinks?: string[];
@@ -42,6 +44,8 @@ export type ThreadCard = {
   views?: number;
   /** Conversation-root impression count when the card is still a leftover leaf. */
   opViews?: number;
+  /** True when OP context was derived while hydrating a reply. */
+  opParentDerived?: boolean;
 };
 
 export type ScoutStreamEvent = {

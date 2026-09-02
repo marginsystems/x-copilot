@@ -33,10 +33,14 @@ export function retargetLeafToRoot(thread: ThreadCard): ThreadCard | null {
     url: `https://x.com/${handle}/status/${rootId}`,
     isReply: false,
     inReplyToId: undefined,
+    inReplyToScreenName: undefined,
     conversationId: rootId,
-    views: thread.opViews ?? thread.views,
+    views: thread.opParentDerived
+      ? thread.opViews
+      : thread.opViews ?? thread.views,
     opAuthor: undefined,
     opText: undefined,
+    opParentDerived: undefined,
     opViews: undefined,
   };
 }

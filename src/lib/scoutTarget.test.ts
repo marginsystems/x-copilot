@@ -59,6 +59,25 @@ describe("retargetLeafToRoot", () => {
       null,
     );
   });
+
+  it("does not carry leaf views onto a derived root without OP views", () => {
+    const next = retargetLeafToRoot(
+      card({
+        id: "leaf",
+        text: "reply",
+        isReply: true,
+        conversationId: "root",
+        inReplyToScreenName: "@op",
+        opAuthor: "@op",
+        opText: "root",
+        opParentDerived: true,
+        views: 5,
+      }),
+    );
+    assert.ok(next);
+    assert.equal(next.views, undefined);
+    assert.equal(next.inReplyToScreenName, undefined);
+  });
 });
 
 describe("preferRootTargets", () => {

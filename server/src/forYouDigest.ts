@@ -254,7 +254,7 @@ export async function buildForYouDigest(opts: {
   const scout = await (opts.getScout ?? loadDigestScout)();
   const leftoverScout: DigestScout[] = (scout?.threads ?? [])
     .filter((t) => t.id && t.url && t.author)
-    .slice(-8)
+    .slice(0, 8)
     .map((t) => ({
       id: t.id,
       author: t.author,
