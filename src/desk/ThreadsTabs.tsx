@@ -29,7 +29,6 @@ import {
 import { RankingDrawer } from "./RankingDrawer";
 import {
   MissionCard,
-  pickApproachOriginal,
   pickApproachScout,
   pickApproachSuggestion,
 } from "./MissionCard";
@@ -146,10 +145,7 @@ export function ThreadsTabs({
     searching,
     beats: coaching?.beats ?? emptyDeskBeats(),
   });
-  const suggestion =
-    phase === "original"
-      ? pickApproachOriginal(forYouSuggestions)
-      : pickApproachSuggestion(forYouSuggestions);
+  const suggestion = pickApproachSuggestion(forYouSuggestions);
   const autoTriedRef = useRef(false);
   const previousPhaseRef = useRef(phase);
   const wasSearchingRef = useRef(false);
