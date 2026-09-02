@@ -3,7 +3,6 @@ import { SuggestLocked } from "../VoiceCard";
 import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
 import {
-  approachEmptyCopy,
   extraButtonLabel,
   showApproachExtra,
   type ForYouExtraUsage,
@@ -56,7 +55,7 @@ function phaseVerb(
   if (phase === "organic_reply") return "Organic reply";
   if (phase === "fork") return "Fork";
   if (phase === "original") return "Original";
-  if (phase === "silent_refuel") return "Refuel";
+  if (phase === "silent_refuel") return "Collecting";
   if (phase === "done_for_now") return "Done";
   return "Desk";
 }
@@ -185,17 +184,12 @@ export function MissionCard(props: {
         "Grounded. Scout waits until 00:00 UTC. Open Usage for the next plan.";
       action = "usage";
     } else if (props.searching) {
-      why = "Scout is working…";
+      why = "Collecting scouted replies. Stay on this card.";
       action = "land";
     } else if ((props.cooldownRemaining ?? 0) > 0) {
       why = `Hold short ${props.cooldownRemaining}s. Scout retries after the gate.`;
     } else {
-      why =
-        phaseWhy(props.phase, props.coaching) ||
-        approachEmptyCopy({
-          searching: false,
-          progress: props.forYouProgress,
-        });
+      why = "Collecting scouted replies. Stay on this card.";
     }
     return (
       <div className="mission-card">

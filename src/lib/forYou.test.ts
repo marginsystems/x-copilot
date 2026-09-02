@@ -143,7 +143,10 @@ describe("forYou helpers", () => {
       }),
       /5 of 5 posts tracked — first digest after the next UTC daily pass/,
     );
-    assert.equal(approachEmptyCopy({ searching: true }), "Scout is working…");
+    assert.equal(
+      approachEmptyCopy({ searching: true }),
+      "Collecting scouted replies. Stay on this card.",
+    );
   });
 
   it("parses extra usage from GET /api/for-you", () => {
@@ -188,7 +191,7 @@ describe("forYou helpers", () => {
         phase: "silent_refuel",
         hasLiveCard: false,
       }),
-      true,
+      false,
     );
     assert.equal(
       showApproachExtra({

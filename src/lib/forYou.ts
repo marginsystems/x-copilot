@@ -89,7 +89,8 @@ export function showApproachExtra(opts: {
   if (!opts.extra?.canExtra) return false;
   if (!extrasUnlocked(opts.progress)) return false;
   if (opts.hasLiveCard) return false;
-  return opts.phase === "silent_refuel";
+  // silent_refuel is Scout collecting. Extra originals wait until that card is live.
+  return false;
 }
 
 export function parseForYouProgress(raw: unknown): ForYouProgress | null {
@@ -130,7 +131,7 @@ export function approachEmptyCopy(opts: {
   progress?: ForYouProgress | null;
   now?: Date;
 }): string {
-  if (opts.searching) return "Scout is working…";
+  if (opts.searching) return "Collecting scouted replies. Stay on this card.";
   const progress = opts.progress;
   if (!progress) {
     return "Nothing on Approach yet. Scout refuels in the background. Daily suggestions land here once we have enough of your 24h post stats.";
