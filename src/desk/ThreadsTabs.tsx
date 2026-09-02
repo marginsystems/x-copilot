@@ -174,6 +174,9 @@ export function ThreadsTabs({
     }
     if (wasSearchingRef.current) {
       wasSearchingRef.current = false;
+      if (phase === "silent_refuel") {
+        autoTriedRef.current = false;
+      }
     }
     if (
       !shouldBackgroundScout({
