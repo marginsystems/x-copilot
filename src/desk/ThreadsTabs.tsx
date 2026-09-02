@@ -174,7 +174,6 @@ export function ThreadsTabs({
     }
     if (wasSearchingRef.current) {
       wasSearchingRef.current = false;
-      autoTriedRef.current = false;
     }
     if (
       !shouldBackgroundScout({
