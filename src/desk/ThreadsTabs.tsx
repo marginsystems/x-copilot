@@ -188,6 +188,7 @@ export function ThreadsTabs({
         cooldownRemainingSec: searchCooldownRemaining,
         needsXLink: deskNeedsXLink(authUser),
         hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
+        hasScoutCard: curatedThreads.length > 0,
         alreadyTried: autoTriedRef.current,
       })
     ) {
@@ -203,6 +204,7 @@ export function ThreadsTabs({
     agendaReady,
     authUser,
     agenda,
+    curatedThreads,
     onSearch,
   ]);
   function exitRow(

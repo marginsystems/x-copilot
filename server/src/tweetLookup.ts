@@ -48,7 +48,7 @@ function applyHydratedParent(
     ...(parent.hasOutboundLink || card.hasOutboundLink
       ? { hasOutboundLink: true }
       : {}),
-    ...(typeof parent.views === "number" ? { opViews: parent.views } : {}),
+    opViews: parent.views,
   };
 }
 
@@ -435,12 +435,10 @@ export async function hydrateReplyParents(opts: {
         session: opts.session,
         signal: opts.signal,
       });
-      if (
-        root &&
-        normalizeAuthorKey(root.author) !== normalizeAuthorKey(t.author)
-      ) {
-        source = root;
-      }
+      source =
+        root && normalizeAuthorKey(root.author) !== normalizeAuthorKey(t.author)
+          ? root
+          : null;
     }
     if (!source) {
       unhydratedReplyCount += 1;

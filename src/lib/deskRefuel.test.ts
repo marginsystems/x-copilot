@@ -9,6 +9,7 @@ const ready = {
   cooldownRemainingSec: 0,
   needsXLink: false,
   hasAgenda: true,
+  hasScoutCard: false,
   alreadyTried: false,
 };
 
@@ -34,6 +35,7 @@ describe("shouldBackgroundScout", () => {
   });
 
   it("does not scout a live card", () => {
+    assert.equal(shouldBackgroundScout({ ...ready, hasScoutCard: true }), false);
     assert.equal(
       shouldBackgroundScout({ ...ready, phase: "scout_reply" }),
       false,

@@ -35,7 +35,10 @@ export function retargetLeafToRoot(thread: ThreadCard): ThreadCard | null {
     inReplyToId: undefined,
     inReplyToScreenName: undefined,
     conversationId: rootId,
-    views: thread.opViews ?? thread.views,
+    // A hydrated reply's own views are not views for the conversation root.
+    views: thread.opParentDerived
+      ? thread.opViews
+      : thread.opViews ?? thread.views,
     opAuthor: undefined,
     opText: undefined,
     opParentDerived: undefined,

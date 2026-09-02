@@ -8,6 +8,7 @@ export function shouldBackgroundScout(opts: {
   cooldownRemainingSec: number;
   needsXLink: boolean;
   hasAgenda: boolean;
+  hasScoutCard: boolean;
   alreadyTried: boolean;
 }): boolean {
   return (
@@ -17,6 +18,7 @@ export function shouldBackgroundScout(opts: {
     opts.cooldownRemainingSec <= 0 &&
     !opts.needsXLink &&
     opts.hasAgenda &&
+    !opts.hasScoutCard &&
     !opts.alreadyTried
   );
 }
