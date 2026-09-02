@@ -51,6 +51,7 @@ function emptyDigest(overrides: Partial<ForYouDigest> = {}): ForYouDigest {
     recentQuotes: [],
     memories: [],
     leftoverScout: [],
+    skipped: [],
     ...overrides,
   };
 }
@@ -538,5 +539,73 @@ describe("forYouDigest", () => {
         "I'll take the under.",
       ],
     );
+  });
+
+  it("drops digest and extra drafts that match a skipped theme", () => {
+    const digest = emptyDigest({
+      skipped: [
+        {
+          kind: "post",
+          why: "Your 8.7k-view Claude refusal reply is your best shape.",
+          draft: "Refusal is a feature, not a bug.",
+        },
+      ],
+    });
+    const kept = filterDigestActions(
+      {
+        actions: [
+          {
+            kind: "post",
+            why: "Your 8.7k Claude refusal still leads.",
+            draft: "Your prompts are the real problem.",
+          },
+          {
+            kind: "post",
+            why: "Your 2k shipping recap landed.",
+            draft: "What did you ship this week?",
+          },
+        ],
+      },
+      digest,
+    );
+    assert.deepEqual(
+      kept.map((a) => a.draft),
+      ["What did you ship this week?"],
+    );
+    const extras = filterExtraPosts(
+      {
+        actions: [
+          {
+            kind: "post",
+            why: "Your 8.7k Claude refusal still leads.",
+            draft: "Limits are your creativity.",
+          },
+          {
+            kind: "post",
+            why: "Builder week.",
+            draft: "What did you ship?",
+          },
+        ],
+      },
+      digest.skipped,
+    );
+    assert.deepEqual(
+      extras.map((a) => a.draft),
+      ["What did you ship?"],
+    );
+  });
+
+  it("refills digest and extra caps after skipped drafts are removed", () => {
+    const skipped = [
+      { kind: "post", why: "Your Claude refusal leads", draft: "Refusal is a feature." },
+    ];
+    const digest = emptyDigest({ skipped });
+    const actions = Array.from({ length: 5 }, (_, i) => ({
+      kind: "post",
+      why: i === 0 ? "Your Claude refusal leads" : `Your builder habit ${i}`,
+      draft: i === 0 ? "Another refusal feature." : `Question for builder ${i}?`,
+    }));
+    assert.equal(filterDigestActions({ actions }, digest).length, 4);
+    assert.equal(filterExtraPosts({ actions }, skipped).length, 3);
   });
 });
