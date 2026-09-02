@@ -157,11 +157,17 @@ export function ThreadsTabs({
   }, [curatedThreads, forYouSuggestions, clearGone]);
   useEffect(() => {
     if (!agendaReady) return;
-    if (previousPhaseRef.current === "silent_refuel" && phase !== "silent_refuel") {
+    const waiting =
+      phase === "silent_refuel" || phase === "hold";
+    if (
+      (previousPhaseRef.current === "silent_refuel" ||
+        previousPhaseRef.current === "hold") &&
+      !waiting
+    ) {
       autoTriedRef.current = false;
     }
     previousPhaseRef.current = phase;
-    if (phase !== "silent_refuel") {
+    if (!waiting) {
       return;
     }
     if (searching) {
@@ -170,7 +176,7 @@ export function ThreadsTabs({
     }
     if (wasSearchingRef.current) {
       wasSearchingRef.current = false;
-      if (phase === "silent_refuel") {
+      if (waiting) {
         autoTriedRef.current = false;
       }
     }
@@ -182,6 +188,7 @@ export function ThreadsTabs({
         cooldownRemainingSec: searchCooldownRemaining,
         needsXLink: deskNeedsXLink(authUser),
         hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
+        hasScoutCard: curatedThreads.length > 0,
         alreadyTried: autoTriedRef.current,
       })
     ) {
@@ -197,6 +204,7 @@ export function ThreadsTabs({
     agendaReady,
     authUser,
     agenda,
+    curatedThreads,
     onSearch,
   ]);
   function exitRow(

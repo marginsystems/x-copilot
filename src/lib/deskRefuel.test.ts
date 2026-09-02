@@ -9,12 +9,14 @@ const ready = {
   cooldownRemainingSec: 0,
   needsXLink: false,
   hasAgenda: true,
+  hasScoutCard: false,
   alreadyTried: false,
 };
 
 describe("shouldBackgroundScout", () => {
-  it("fires only on an idle silent_refuel with agenda and credits", () => {
+  it("fires on idle silent_refuel or hold with agenda and credits", () => {
     assert.equal(shouldBackgroundScout(ready), true);
+    assert.equal(shouldBackgroundScout({ ...ready, phase: "hold" }), true);
   });
 
   it("waits while searching, cooling down, or already tried", () => {
@@ -32,11 +34,15 @@ describe("shouldBackgroundScout", () => {
     assert.equal(shouldBackgroundScout({ ...ready, hasAgenda: false }), false);
   });
 
-  it("does not scout other phases", () => {
+  it("does not scout a live card", () => {
+    assert.equal(shouldBackgroundScout({ ...ready, hasScoutCard: true }), false);
     assert.equal(
       shouldBackgroundScout({ ...ready, phase: "scout_reply" }),
       false,
     );
-    assert.equal(shouldBackgroundScout({ ...ready, phase: "hold" }), false);
+    assert.equal(
+      shouldBackgroundScout({ ...ready, phase: "organic_reply" }),
+      false,
+    );
   });
 });

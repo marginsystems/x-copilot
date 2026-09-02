@@ -148,15 +148,18 @@ describe("clampTargetCool / clampBucketSize", () => {
 });
 
 describe("withScoutSearchExclusions", () => {
-  it("appends -is:retweet once", () => {
-    assert.equal(withScoutSearchExclusions("shipping AI"), "shipping AI -is:retweet");
+  it("appends -is:retweet and -is:reply once", () => {
     assert.equal(
-      withScoutSearchExclusions("shipping AI -is:retweet"),
-      "shipping AI -is:retweet",
+      withScoutSearchExclusions("shipping AI"),
+      "shipping AI -is:retweet -is:reply",
     );
     assert.equal(
-      withScoutSearchExclusions("is:retweet AI"),
-      "is:retweet AI -is:retweet",
+      withScoutSearchExclusions("shipping AI -is:retweet"),
+      "shipping AI -is:retweet -is:reply",
+    );
+    assert.equal(
+      withScoutSearchExclusions("is:reply AI"),
+      "AI -is:retweet -is:reply",
     );
   });
 });

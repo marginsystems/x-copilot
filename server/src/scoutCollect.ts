@@ -36,6 +36,7 @@ import {
   isCoolThread,
   withScoutSearchExclusions,
 } from "./scoutPolicy.js";
+import { preferRootTargets } from "./scoutTarget.js";
 import type {
   ScoutCollectEvent,
   ScoutCollectStageId,
@@ -661,7 +662,10 @@ export async function runScoutCollect(opts: {
         let purged = false;
         const kept: ThreadCard[] = [];
         for (const t of cool) {
-          if (replyUnderBaitConversation(t, baitConversationIds)) {
+          if (
+            (t.id && baitConversationIds.has(t.id)) ||
+            replyUnderBaitConversation(t, baitConversationIds)
+          ) {
             purged = true;
             if (t.id) coolIds.delete(t.id);
             const key = normalizeAuthorKey(t.author);
@@ -673,14 +677,25 @@ export async function runScoutCollect(opts: {
         if (purged) cool = kept;
       }
 
-      const newlyCool = triaged.threads.filter(
-        (t) =>
-          isCoolThread(t) &&
-          t.id &&
+      const newlyCool = preferRootTargets(
+        triaged.threads.filter(
+          (t) =>
+            isCoolThread(t) &&
+            !threadHasExcludedTag(t, excludedTags) &&
+            !replyUnderBaitConversation(t, baitConversationIds),
+        ),
+      ).filter((t) => {
+        const key = normalizeAuthorKey(t.author);
+        return (
+          Boolean(t.id) &&
           !coolIds.has(t.id) &&
-          !threadHasExcludedTag(t, excludedTags) &&
-          !replyUnderBaitConversation(t, baitConversationIds),
-      );
+          !coolAuthors.has(key) &&
+          !cooled.has(key) &&
+          !blockedConversations.has(t.id) &&
+          !(t.conversationId && blockedConversations.has(t.conversationId)) &&
+          !baitConversationIds.has(t.id)
+        );
+      });
       if (newlyCool.length === 0) {
         if (isPartial) {
           bucket = [];
@@ -704,7 +719,7 @@ export async function runScoutCollect(opts: {
       for (const t of newlyCool) {
         if (cool.length >= targetCool) break;
         const key = normalizeAuthorKey(t.author);
-        if (!key || coolAuthors.has(key)) continue;
+        if (!key || coolAuthors.has(key) || coolIds.has(t.id)) continue;
         cool.push(t);
         coolIds.add(t.id);
         coolAuthors.add(key);

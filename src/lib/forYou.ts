@@ -4,6 +4,9 @@ export type ForYouKind = (typeof FOR_YOU_KINDS)[number];
 /** Desk tab for Scout leads + daily digest. Aviation register; not the X feed. */
 export const APPROACH_TAB_LABEL = "Approach";
 export const APPROACH_MIN_TRACKED = 5;
+export const X_FOR_YOU_URL = "https://x.com/home";
+export const FYP_WAIT_COPY =
+  "Open For You. Like or reply to one thing you actually read. Scout fills the next reply in the background.";
 
 const UTC_WEEKDAYS = [
   "Sunday",
@@ -131,7 +134,7 @@ export function approachEmptyCopy(opts: {
   progress?: ForYouProgress | null;
   now?: Date;
 }): string {
-  if (opts.searching) return "Collecting scouted replies. Stay on this card.";
+  if (opts.searching) return FYP_WAIT_COPY;
   const progress = opts.progress;
   if (!progress) {
     return "Nothing on Approach yet. Scout refuels in the background. Daily suggestions land here once we have enough of your 24h post stats.";

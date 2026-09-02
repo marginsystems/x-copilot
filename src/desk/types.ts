@@ -38,6 +38,8 @@ export type ThreadCard = {
   engage?: "skip" | "consider" | "priority";
   reason?: string;
   score?: number;
+  /** Impression count when Scout had it. Used to pick the highest-view OP. */
+  views?: number;
 };
 
 export type ScoutStreamEvent = {

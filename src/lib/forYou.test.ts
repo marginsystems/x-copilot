@@ -143,9 +143,9 @@ describe("forYou helpers", () => {
       }),
       /5 of 5 posts tracked — first digest after the next UTC daily pass/,
     );
-    assert.equal(
+    assert.match(
       approachEmptyCopy({ searching: true }),
-      "Collecting scouted replies. Stay on this card.",
+      /Open For You/,
     );
   });
 

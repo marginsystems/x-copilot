@@ -4,7 +4,9 @@ import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
 import {
   extraButtonLabel,
+  FYP_WAIT_COPY,
   showApproachExtra,
+  X_FOR_YOU_URL,
   type ForYouExtraUsage,
   type ForYouProgress,
   type ForYouSuggestion,
@@ -13,7 +15,7 @@ import type { CoachingState } from "../lib/coaching";
 import { deskNeedsXLink } from "../lib/deskGate";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { DeskPhase } from "../lib/deskPhase";
-import { sortThreadsByCreatedAtNewest } from "../lib/threadSort";
+import { sortThreadsByAudience } from "../lib/threadSort";
 import type { VoiceState } from "../lib/voice";
 import { ReplyPaceBar } from "./ReplyPaceBar";
 import { SuggestedRow } from "./SuggestedRow";
@@ -28,7 +30,7 @@ export function pickApproachSuggestion(
 }
 
 export function pickApproachScout(threads: ThreadCard[]): ThreadCard | null {
-  return sortThreadsByCreatedAtNewest(threads)[0] ?? null;
+  return sortThreadsByAudience(threads)[0] ?? null;
 }
 
 export function pickApproachOriginal(
@@ -55,7 +57,7 @@ function phaseVerb(
   if (phase === "organic_reply") return "Organic reply";
   if (phase === "fork") return "Fork";
   if (phase === "original") return "Original";
-  if (phase === "silent_refuel") return "Collecting";
+  if (phase === "silent_refuel") return "For You";
   if (phase === "done_for_now") return "Done";
   return "Desk";
 }
@@ -162,7 +164,18 @@ export function MissionCard(props: {
     return (
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb("hold")}</p>
+        <p className="mission-card-why">{FYP_WAIT_COPY}</p>
         <ReplyPaceBar clock={props.clock} onBypass={props.onBypass} />
+        <div className="row">
+          <a
+            className="primary"
+            href={X_FOR_YOU_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open For You
+          </a>
+        </div>
       </div>
     );
   }
@@ -171,7 +184,7 @@ export function MissionCard(props: {
     const needsX = deskNeedsXLink(props.authUser);
     const hasAgenda = props.agenda.trim().length >= AGENDA_MIN_CHARS;
     let why = "";
-    let action: "link_x" | "settings" | "usage" | "land" | null = null;
+    let action: "link_x" | "settings" | "usage" | "fyp" | null = null;
     if (needsX) {
       why = "Link X so Scout can refuel Approach.";
       action = "link_x";
@@ -183,13 +196,11 @@ export function MissionCard(props: {
         props.groundedLine ||
         "Grounded. Scout waits until 00:00 UTC. Open Usage for the next plan.";
       action = "usage";
-    } else if (props.searching) {
-      why = "Collecting scouted replies. Stay on this card.";
-      action = "land";
     } else if ((props.cooldownRemaining ?? 0) > 0) {
       why = `Hold short ${props.cooldownRemaining}s. Scout retries after the gate.`;
     } else {
-      why = "Collecting scouted replies. Stay on this card.";
+      why = FYP_WAIT_COPY;
+      action = "fyp";
     }
     return (
       <div className="mission-card">
@@ -224,15 +235,25 @@ export function MissionCard(props: {
             </button>
           </div>
         ) : null}
-        {action === "land" ? (
+        {action === "fyp" ? (
           <div className="row">
-            <button
-              type="button"
+            <a
               className="primary"
-              onClick={props.onStopScout}
+              href={X_FOR_YOU_URL}
+              target="_blank"
+              rel="noreferrer"
             >
-              Land
-            </button>
+              Open For You
+            </a>
+            {props.searching ? (
+              <button
+                type="button"
+                className="ghost"
+                onClick={props.onStopScout}
+              >
+                Land
+              </button>
+            ) : null}
           </div>
         ) : null}
         {action === null ? extra : null}

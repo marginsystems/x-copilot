@@ -15,6 +15,7 @@ export type ParentTweet = {
   text: string;
   longform?: "note_tweet" | "article";
   hasOutboundLink?: boolean;
+  views?: number;
 };
 
 function parentFromCard(card: {
@@ -22,12 +23,14 @@ function parentFromCard(card: {
   text: string;
   longform?: "note_tweet" | "article";
   hasOutboundLink?: boolean;
+  views?: number;
 }): ParentTweet {
   return {
     author: card.author,
     text: card.text,
     ...(card.longform ? { longform: card.longform } : {}),
     ...(card.hasOutboundLink ? { hasOutboundLink: true } : {}),
+    ...(typeof card.views === "number" ? { views: card.views } : {}),
   };
 }
 
@@ -45,6 +48,7 @@ function applyHydratedParent(
     ...(parent.hasOutboundLink || card.hasOutboundLink
       ? { hasOutboundLink: true }
       : {}),
+    opViews: parent.views,
   };
 }
 
@@ -230,7 +234,8 @@ export async function fetchParentTweet(opts: {
   const res = await xApiGet({
     path: `/tweets/${encodeURIComponent(tweetId)}`,
     query: {
-      "tweet.fields": "created_at,author_id,note_tweet,entities,article,card_uri",
+      "tweet.fields":
+        "created_at,author_id,note_tweet,entities,article,card_uri,public_metrics",
       expansions: "author_id",
       "user.fields": "username,name",
     },
@@ -430,12 +435,10 @@ export async function hydrateReplyParents(opts: {
         session: opts.session,
         signal: opts.signal,
       });
-      if (
-        root &&
-        normalizeAuthorKey(root.author) !== normalizeAuthorKey(t.author)
-      ) {
-        source = root;
-      }
+      source =
+        root && normalizeAuthorKey(root.author) !== normalizeAuthorKey(t.author)
+          ? root
+          : null;
     }
     if (!source) {
       unhydratedReplyCount += 1;

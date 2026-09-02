@@ -170,6 +170,10 @@ function applyIncludedReplyOp(
   if (opLongform) card.opLongform = opLongform;
   if (canSkipHydrate) card.opParentDerived = true;
   if (opTw && v2TweetHasOutboundLink(opTw)) card.hasOutboundLink = true;
+  const opViews = opTw?.public_metrics?.impression_count;
+  if (typeof opViews === "number" && Number.isFinite(opViews) && opViews >= 0) {
+    card.opViews = opViews;
+  }
 }
 
 /** Map a v2 tweet (+ includes) into our ThreadCard. */
@@ -194,6 +198,10 @@ export function v2TweetToCard(
     url: `https://x.com/${handle.replace(/^@/, "")}/status/${id}`,
     createdAt: tweet.created_at,
   };
+  const views = tweet.public_metrics?.impression_count;
+  if (typeof views === "number" && Number.isFinite(views) && views >= 0) {
+    card.views = views;
+  }
   const longform = v2TweetLongform(tweet);
   if (longform) card.longform = longform;
 

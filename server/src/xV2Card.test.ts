@@ -40,6 +40,35 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.opParentDerived, true);
   });
 
+  it("copies impression counts onto the leaf and the OP", () => {
+    const tweetsById = new Map([
+      [
+        "800",
+        {
+          id: "800",
+          text: "the real post",
+          author_id: "u-op",
+          public_metrics: { impression_count: 655 },
+        },
+      ],
+    ]);
+    const card = v2TweetToCard(
+      {
+        id: "900",
+        text: "yeah keep 80%",
+        author_id: "u-reply",
+        conversation_id: "800",
+        referenced_tweets: [{ type: "replied_to", id: "800" }],
+        public_metrics: { impression_count: 5 },
+      },
+      usersById,
+      tweetsById,
+    );
+    assert.ok(card);
+    assert.equal(card.views, 5);
+    assert.equal(card.opViews, 655);
+  });
+
   it("flags a clean reply when the included OP has an off-platform link", () => {
     const tweetsById = new Map([
       [

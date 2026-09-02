@@ -204,8 +204,9 @@ describe("runScoutCollect hydrate", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       assert.equal(triageCalls, 1);
-      assert.equal(result.event.stopReason, "target");
+      assert.equal(result.event.stopReason, "exhausted");
       assert.equal(result.event.unhydratedReplyCount, 5);
+      assert.equal((result.event.threads ?? []).length, 0);
     } finally {
       globalThis.fetch = origFetch;
     }

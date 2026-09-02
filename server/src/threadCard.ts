@@ -47,6 +47,10 @@ export type ThreadCard = {
   opCharCount?: number;
   /** True when opAuthor/opText were filled from the reply parent by hydrateReplyParents. */
   opParentDerived?: boolean;
+  /** Impression count on this card when search/lookup exposed it. */
+  views?: number;
+  /** Impression count on the hydrated / included OP. */
+  opViews?: number;
   /** Triage fields (filled by threadTriage after search). */
   summary?: string;
   /** 0–100, higher = more engagement bait / less worth replying to. */
