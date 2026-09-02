@@ -36,6 +36,7 @@ import {
   isCoolThread,
   withScoutSearchExclusions,
 } from "./scoutPolicy.js";
+import { preferRootTargets } from "./scoutTarget.js";
 import type {
   ScoutCollectEvent,
   ScoutCollectStageId,
@@ -673,13 +674,15 @@ export async function runScoutCollect(opts: {
         if (purged) cool = kept;
       }
 
-      const newlyCool = triaged.threads.filter(
-        (t) =>
-          isCoolThread(t) &&
-          t.id &&
-          !coolIds.has(t.id) &&
-          !threadHasExcludedTag(t, excludedTags) &&
-          !replyUnderBaitConversation(t, baitConversationIds),
+      const newlyCool = preferRootTargets(
+        triaged.threads.filter(
+          (t) =>
+            isCoolThread(t) &&
+            t.id &&
+            !coolIds.has(t.id) &&
+            !threadHasExcludedTag(t, excludedTags) &&
+            !replyUnderBaitConversation(t, baitConversationIds),
+        ),
       );
       if (newlyCool.length === 0) {
         if (isPartial) {

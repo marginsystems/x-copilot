@@ -1,6 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { sortThreadsByCreatedAtNewest } from "./threadSort.ts";
+import {
+  sortThreadsByAudience,
+  sortThreadsByCreatedAtNewest,
+} from "./threadSort.ts";
 
 describe("sortThreadsByCreatedAtNewest", () => {
   it("orders newest first", () => {
@@ -24,5 +27,19 @@ describe("sortThreadsByCreatedAtNewest", () => {
     assert.equal(sorted[0]?.id, "new");
     assert.ok(["nope", "bad"].includes(sorted[1]?.id ?? ""));
     assert.ok(["nope", "bad"].includes(sorted[2]?.id ?? ""));
+  });
+});
+
+describe("sortThreadsByAudience", () => {
+  it("orders highest views first", () => {
+    const sorted = sortThreadsByAudience([
+      { id: "quiet", views: 3 },
+      { id: "loud", views: 655 },
+      { id: "none" },
+    ]);
+    assert.deepEqual(
+      sorted.map((t) => t.id),
+      ["loud", "quiet", "none"],
+    );
   });
 });

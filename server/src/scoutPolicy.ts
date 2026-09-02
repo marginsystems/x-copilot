@@ -7,12 +7,15 @@ export const DEFAULT_BUCKET_SIZE = 20;
 export const COLLECT_COUNT_PER_QUERY = 20;
 export const COLLECT_QUERY_DELAY_MS = 500;
 
-/** Avoid billing retweets Scout would drop anyway. */
+/** Avoid billing retweets and reply leaves. Scout aims at original posts. */
 export function withScoutSearchExclusions(query: string): string {
-  const q = query.trim();
+  let q = query.trim();
   if (!q) return q;
-  if (/(?:^|\s)-is:retweet\b/i.test(q)) return q;
-  return `${q} -is:retweet`;
+  q = q.replace(/(?:^|\s)is:reply\b/gi, " ").replace(/\s+/g, " ").trim();
+  if (!q) q = "-is:retweet -is:reply";
+  if (!/(?:^|\s)-is:retweet\b/i.test(q)) q = `${q} -is:retweet`;
+  if (!/(?:^|\s)-is:reply\b/i.test(q)) q = `${q} -is:reply`;
+  return q;
 }
 export const MAX_SEARCH_CALLS = 48;
 export const MAX_BUCKET_ATTEMPTS = 8;

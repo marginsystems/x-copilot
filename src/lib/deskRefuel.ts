@@ -1,6 +1,6 @@
 import type { DeskPhase } from "./deskPhase";
 
-/** Fire Scout while Approach is empty. Cooldown is the credit gate. */
+/** Fire Scout while Approach is empty or on the one-minute hold. */
 export function shouldBackgroundScout(opts: {
   phase: DeskPhase;
   searching: boolean;
@@ -11,7 +11,7 @@ export function shouldBackgroundScout(opts: {
   alreadyTried: boolean;
 }): boolean {
   return (
-    opts.phase === "silent_refuel" &&
+    (opts.phase === "silent_refuel" || opts.phase === "hold") &&
     !opts.searching &&
     !opts.grounded &&
     opts.cooldownRemainingSec <= 0 &&

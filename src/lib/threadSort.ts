@@ -1,6 +1,17 @@
 import { parseCreatedAt } from "./timeAgo";
 
 type HasCreatedAt = { createdAt?: string };
+type HasAudience = { views?: number };
+
+export function audienceViews(thread: HasAudience): number {
+  const n = thread.views;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Highest impression count first. Missing views sink. */
+export function sortThreadsByAudience<T extends HasAudience>(threads: T[]): T[] {
+  return [...threads].sort((a, b) => audienceViews(b) - audienceViews(a));
+}
 
 /** Newest tweet first; missing/unparseable createdAt sinks to the bottom. */
 export function sortThreadsByCreatedAtNewest<T extends HasCreatedAt>(
