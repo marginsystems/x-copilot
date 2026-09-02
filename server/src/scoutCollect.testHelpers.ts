@@ -7,6 +7,7 @@ export function card(
     author: "user",
     text: "hello short candidate",
     url: `https://x.com/i/status/${partial.id}`,
+    onAgenda: true,
     ...partial,
   };
 }

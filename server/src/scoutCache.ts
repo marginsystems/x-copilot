@@ -71,6 +71,12 @@ export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
   const threads = Array.isArray(obj.threads)
     ? obj.threads.filter(isThreadCard)
     : [];
+  for (const thread of threads) {
+    const rawThread = thread as ThreadCard & { scoutAgendaSet?: unknown };
+    if (typeof rawThread.scoutAgendaSet === "boolean") {
+      thread.scoutAgendaSet = rawThread.scoutAgendaSet;
+    }
+  }
   const snapshot: LastScoutSnapshot = {
     savedAt,
     queries,
@@ -177,9 +183,31 @@ export async function saveScoutCache(
   const path = opts?.storePath ?? defaultScoutCachePath();
   return serialized(async () => {
     const prev = memory ?? (await readDisk(path));
+    const threads = parsed.threads.map((thread) => ({
+      ...thread,
+      scoutAgendaSet: Boolean(parsed.agenda),
+    }));
+    const previousThreads = (prev?.threads ?? []).map((thread) => ({
+      ...thread,
+      scoutAgendaSet:
+        thread.scoutAgendaSet ??
+        (thread.onAgenda === true && Boolean(prev?.agenda)),
+    }));
+    const previousById = new Map(
+      previousThreads.map((thread, index) => [thread.id, index]),
+    );
+    for (const thread of threads) {
+      const index = previousById.get(thread.id);
+      if (index !== undefined) {
+        previousThreads[index] = {
+          ...previousThreads[index],
+          scoutAgendaSet: thread.scoutAgendaSet,
+        };
+      }
+    }
     const merged: LastScoutSnapshot = {
       ...parsed,
-      threads: mergeThreadsById(prev?.threads ?? [], parsed.threads),
+      threads: mergeThreadsById(previousThreads, threads),
     };
     memory = merged;
     try {

@@ -19,7 +19,7 @@ export function withScoutSearchExclusions(query: string): string {
 }
 export const MAX_SEARCH_CALLS = 48;
 export const MAX_BUCKET_ATTEMPTS = 8;
-/** Cool = engageable + bait not high. */
+/** Cool = on-agenda + engageable + bait not high. */
 export const COOL_MAX_BAIT = 45;
 
 export function clampTargetCool(value: unknown): number {
@@ -38,7 +38,10 @@ export function clampBucketSize(value: unknown): number {
   return DEFAULT_BUCKET_SIZE;
 }
 
-export function isCoolThread(thread: ThreadCard): boolean {
+export function isCoolThread(
+  thread: ThreadCard,
+  opts?: { agendaSet?: boolean },
+): boolean {
   if (thread.engage !== "priority" && thread.engage !== "consider") {
     return false;
   }
@@ -46,6 +49,9 @@ export function isCoolThread(thread: ThreadCard): boolean {
     return false;
   }
   if (threadHasCoolSkipPromoFlag(thread)) {
+    return false;
+  }
+  if ((opts?.agendaSet ?? true) && thread.onAgenda !== true) {
     return false;
   }
   const bait = thread.baitScore ?? thread.score;

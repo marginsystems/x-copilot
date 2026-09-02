@@ -150,6 +150,10 @@ export async function readLastScoutPayload(opts?: {
         !dismissedIds.has(t.id) &&
         !skippedIds.has(t.id),
     ),
+  ).filter((t) =>
+    isCoolThread(t, {
+      agendaSet: t.scoutAgendaSet ?? Boolean(snapshot.agenda),
+    }),
   );
   if (threads.length === 0) return { ok: true, empty: true };
   return {
@@ -224,7 +228,9 @@ export async function tryHandleScout(
       const result = await doScoutSearch({ agenda, queries, filters });
       coolCount = result.ok
         ? Array.isArray(result.event.threads)
-          ? result.event.threads.filter(isCoolThread).length
+          ? result.event.threads.filter((t) =>
+              isCoolThread(t, { agendaSet: Boolean(agenda) }),
+            ).length
           : 0
         : 0;
       if (sortieWasWasted({ ok: result.ok, coolCount })) {

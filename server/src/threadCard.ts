@@ -60,6 +60,10 @@ export type ThreadCard = {
   /** Closed preference category from triage (see THREAD_KINDS). */
   threadKind?: ThreadKind;
   engage?: "skip" | "consider" | "priority";
+  /** True when triage said the conversation is on the operator agenda. */
+  onAgenda?: boolean;
+  /** Whether this card was cooled during a run that supplied an agenda. */
+  scoutAgendaSet?: boolean;
   reason?: string;
   /** Mirrors baitScore for the existing card meta line. */
   score?: number;

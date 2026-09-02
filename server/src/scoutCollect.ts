@@ -680,7 +680,7 @@ export async function runScoutCollect(opts: {
       const newlyCool = preferRootTargets(
         triaged.threads.filter(
           (t) =>
-            isCoolThread(t) &&
+            isCoolThread(t, { agendaSet: Boolean(agenda) }) &&
             !threadHasExcludedTag(t, excludedTags) &&
             !replyUnderBaitConversation(t, baitConversationIds),
         ),
