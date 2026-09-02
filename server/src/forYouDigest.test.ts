@@ -51,6 +51,7 @@ function emptyDigest(overrides: Partial<ForYouDigest> = {}): ForYouDigest {
     recentQuotes: [],
     memories: [],
     leftoverScout: [],
+    skipped: [],
     ...overrides,
   };
 }
@@ -537,6 +538,60 @@ describe("forYouDigest", () => {
         "Is the other side wrong?",
         "I'll take the under.",
       ],
+    );
+  });
+
+  it("drops digest and extra drafts that match a skipped theme", () => {
+    const digest = emptyDigest({
+      skipped: [
+        {
+          kind: "post",
+          why: "Your 8.7k-view Claude refusal reply is your best shape.",
+          draft: "Refusal is a feature, not a bug.",
+        },
+      ],
+    });
+    const kept = filterDigestActions(
+      {
+        actions: [
+          {
+            kind: "post",
+            why: "Your 8.7k Claude refusal still leads.",
+            draft: "Your prompts are the real problem.",
+          },
+          {
+            kind: "post",
+            why: "Your 2k shipping recap landed.",
+            draft: "What did you ship this week?",
+          },
+        ],
+      },
+      digest,
+    );
+    assert.deepEqual(
+      kept.map((a) => a.draft),
+      ["What did you ship this week?"],
+    );
+    const extras = filterExtraPosts(
+      {
+        actions: [
+          {
+            kind: "post",
+            why: "Your 8.7k Claude refusal still leads.",
+            draft: "Limits are your creativity.",
+          },
+          {
+            kind: "post",
+            why: "Builder week.",
+            draft: "What did you ship?",
+          },
+        ],
+      },
+      digest.skipped,
+    );
+    assert.deepEqual(
+      extras.map((a) => a.draft),
+      ["What did you ship?"],
     );
   });
 });

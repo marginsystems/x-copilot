@@ -44,6 +44,7 @@ const digest: ForYouDigest = {
       url: "https://x.com/a/status/77",
     },
   ],
+  skipped: [],
 };
 
 function fakeChat(content: string, capture?: { purposes: string[] }): ChatFn {
