@@ -12,10 +12,12 @@ import { parseVoiceCardJson, type VoiceCard } from "./voiceLlm.js";
 import { isOwnPostRemixCopy } from "./forYouRemix.js";
 import {
   FOR_YOU_KINDS,
+  listRecentSkippedSuggestions,
   secondPersonWhy,
   type ForYouDraft,
   type ForYouKind,
 } from "./forYouStore.js";
+import { withoutSkippedThemes } from "./forYouTheme.js";
 import type { OwnPostKind } from "./xActivity.js";
 
 export const MIN_T24H_SNAPSHOTS = 5;
@@ -68,6 +70,8 @@ export type ForYouDigest = {
   recentQuotes: DigestPost[];
   memories: DigestMemory[];
   leftoverScout: DigestScout[];
+  /** Operator veto from Skip / Not interested. Do not rewrite these. */
+  skipped: ForYouDraft[];
 };
 
 export function countT24hSnapshots(userId: string): number {
@@ -255,12 +259,22 @@ export async function buildForYouDigest(opts: {
       url: t.url,
       summary: clip(t.summary) ?? undefined,
     }));
+  const skippedRows = listRecentSkippedSuggestions(opts.userId);
+  const skipped: ForYouDraft[] = skippedRows.slice(0, 12).map((row) => ({
+    kind: row.kind,
+    why: row.why,
+    draft: clip(row.draft),
+    targetId: row.targetId,
+    targetUrl: row.targetUrl,
+    targetAuthor: row.targetAuthor,
+  }));
   return {
     agenda: user?.agenda?.trim() || null,
     voice,
     ...ranked,
     memories,
     leftoverScout,
+    skipped,
   };
 }
 
@@ -383,13 +397,15 @@ export function filterDigestActions(
         targetAuthor: targetAuthor || null,
       });
     }
-    if (out.length >= 4) break;
   }
-  return out;
+  return withoutSkippedThemes(out, digest.skipped).slice(0, 4);
 }
 
 /** Extra batches are originals only — three unique drafts that invite a reply. */
-export function filterExtraPosts(raw: unknown): ForYouDraft[] {
+export function filterExtraPosts(
+  raw: unknown,
+  skipped: ForYouDraft[] = [],
+): ForYouDraft[] {
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
   const list = Array.isArray(obj?.actions) ? obj.actions : [];
   const out: ForYouDraft[] = [];
@@ -410,7 +426,6 @@ export function filterExtraPosts(raw: unknown): ForYouDraft[] {
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({ kind: "post", why, draft });
-    if (out.length >= 3) break;
   }
-  return out;
+  return withoutSkippedThemes(out, skipped).slice(0, 3);
 }

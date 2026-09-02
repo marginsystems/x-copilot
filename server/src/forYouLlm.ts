@@ -30,6 +30,7 @@ Rules:
 - why talks to the operator in second person. Never first person. draft stays in their voice.
 - why is one short clause, max 90 characters. Cite the live thread or agenda, not a view count. No second sentence.
 - RECENT_* omits posts younger than 1 hour. Do not treat 0 views as a flop unless the post is in AVOID_24H.
+- SKIPPED_RECENT is an operator veto. Do not rewrite those targets, drafts, or the same why. If they skipped a BEST double-down, pick a different angle from agenda or voice — not another remix.
 - Do not invent ids or urls. Do not auto-post. Plain language. No markdown fences.`;
 
 function buildUserPrompt(digest: ForYouDigest): string {
@@ -67,6 +68,9 @@ function buildUserPrompt(digest: ForYouDigest): string {
     "",
     "LIVE_SCOUT (new original angles come from these threads)",
     JSON.stringify(digest.leftoverScout),
+    "",
+    "SKIPPED_RECENT (operator veto — do not rewrite these)",
+    JSON.stringify(digest.skipped),
   ].join("\n");
 }
 
@@ -127,7 +131,8 @@ Rules:
 - Exactly 3 kind=post items. draft required. no targetId.
 - Each draft is a NEW angle from LIVE_SCOUT or the agenda. Voice may echo BEST_24H. Do not name, rewrite, or "fix" an own post.
 - Each draft invites a reply — a real question, a stake they can cut, or a named other side. Not a slogan. Not "thoughts?".
-- Never cite a view count. Never "sharper hook." Never "double down" on a specific old topic. Do not revive AVOID_24H.
+- Echo BEST_24H shape and their voice when BEST is non-empty (100+ views). If BEST is empty, write from agenda/voice — do not treat a sub-100 RECENT post as a winner. Do not revive AVOID_24H or SKIPPED_RECENT.
+- Never cite a view count. Never "sharper hook." Never "double down" on a specific old topic.
 - why talks to the operator in second person. Never first person. draft stays in their voice.
 - why is one short clause, max 90 characters. No second sentence.
 - Do not invent ids or urls. Do not auto-post. Plain language. No markdown fences.`;
@@ -147,7 +152,7 @@ export async function draftForYouExtraPosts(opts: {
     ],
   });
   if (!first.ok) return { ok: false, error: first.message };
-  let parsed = filterExtraPosts(extractJsonObject(first.content));
+  let parsed = filterExtraPosts(extractJsonObject(first.content), opts.digest.skipped);
   if (parsed.length >= 3) return { ok: true, drafts: parsed.slice(0, 3) };
 
   const repair = await chat({
@@ -165,7 +170,10 @@ export async function draftForYouExtraPosts(opts: {
     ],
   });
   if (!repair.ok) return { ok: false, error: repair.message };
-  parsed = filterExtraPosts(extractJsonObject(repair.content));
+  parsed = filterExtraPosts(
+    extractJsonObject(repair.content),
+    opts.digest.skipped,
+  );
   if (parsed.length < 3) {
     return {
       ok: false,

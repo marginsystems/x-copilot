@@ -321,6 +321,9 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
         if (res.status === 404) {
           setForYouSuggestions((prev) => prev.filter((row) => row.id !== id));
           historyStaleRef.current = true;
+          if (path === "skip" || path === "dismiss") {
+            await hydrateForYou();
+          }
           return;
         }
         const data = (await res.json().catch(() => ({}))) as {
@@ -342,6 +345,9 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
           : forYouSuggestions.filter((item) => item.id !== id),
       );
       historyStaleRef.current = true;
+      if (path === "skip" || path === "dismiss") {
+        await hydrateForYou();
+      }
       if (path === "done" && row?.kind === "reply") armReplyPace();
     } catch {
       setStatus("For You fail — desk offline.");

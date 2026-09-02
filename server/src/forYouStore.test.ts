@@ -109,6 +109,58 @@ describe("forYouStore", () => {
     assert.equal(listActiveSuggestions("u1", now + 6000).length, 0);
   });
 
+  it("skip buries remixes of the same original and refuses a rewrite", () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    const [first] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [
+        {
+          kind: "post",
+          why: "Your 8.7k-view Claude refusal reply is your best shape.",
+          draft: "Refusal is a feature, not a bug.",
+        },
+        {
+          kind: "post",
+          why: "Your 8.7k Claude refusal still leads. Write the next original.",
+          draft: "Your prompts are the real problem.",
+        },
+        {
+          kind: "quote",
+          why: "quote a different win",
+          targetId: "10",
+          targetUrl: "https://x.com/desk/status/10",
+        },
+      ],
+    });
+    assert.ok(first);
+    markSuggestion({
+      id: first.id,
+      userId: "u1",
+      status: "skipped",
+      nowMs: now + 1000,
+    });
+    const active = listActiveSuggestions("u1", now + 2000);
+    assert.equal(active.length, 1);
+    assert.equal(active[0]?.kind, "quote");
+
+    const rewritten = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now + 3000,
+      drafts: [
+        {
+          kind: "post",
+          why: "Your 8.7k Claude refusal still leads.",
+          draft: "Limits are your creativity.",
+        },
+      ],
+    });
+    assert.equal(rewritten.length, 0);
+    assert.equal(listActiveSuggestions("u1", now + 4000).length, 1);
+  });
+
   it("keeps paid extra originals through the daily expiry pass", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     insertSuggestions({

@@ -25,7 +25,7 @@ export type DeskPhaseInput = {
   /** Reserved. PR 2 UI passes false so Bypass stays the pace clock. */
   overheat: boolean;
   hasScoutCard: boolean;
-  /** Any Approach suggestion counts as inventory (prefer reply in the UI). */
+  /** Approach digest inventory. Never substitutes for a missing Scout card. */
   hasSuggestion: boolean;
   searching: boolean;
   beats: DeskBeats;
@@ -62,11 +62,7 @@ export function deskPhase(input: DeskPhaseInput): DeskPhaseResult {
   } else if (input.beats.forkChoice === "original") {
     phase = "original";
   } else if (input.beats.forkChoice === "reply") {
-    phase = input.hasScoutCard
-      ? "scout_reply"
-      : input.hasSuggestion
-        ? "organic_reply"
-        : "silent_refuel";
+    phase = input.hasScoutCard ? "scout_reply" : "silent_refuel";
   } else if (
     input.beats.scoutReplyDone &&
     !input.beats.organicReplyDone
@@ -74,8 +70,6 @@ export function deskPhase(input: DeskPhaseInput): DeskPhaseResult {
     phase = "organic_reply";
   } else if (input.hasScoutCard) {
     phase = "scout_reply";
-  } else if (input.hasSuggestion) {
-    phase = "organic_reply";
   } else {
     phase = "silent_refuel";
   }

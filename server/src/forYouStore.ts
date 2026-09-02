@@ -4,6 +4,11 @@
  * daily run or after 48h. Not tweet-age.
  */
 import { randomUUID } from "node:crypto";
+import {
+  SKIPPED_THEME_WINDOW_MS,
+  matchesSkippedTheme,
+  withoutSkippedThemes,
+} from "./forYouTheme.js";
 import { getPlatformDb } from "./db.js";
 import { isOwnPostRemixCopy } from "./forYouRemix.js";
 import { startOfUtcDayIso } from "./ownPostStore.js";
@@ -129,6 +134,21 @@ export function expireOpenSuggestions(
   return info.changes;
 }
 
+export function listRecentSkippedSuggestions(
+  userId: string,
+  nowMs: number = Date.now(),
+): ForYouSuggestion[] {
+  const since = new Date(nowMs - SKIPPED_THEME_WINDOW_MS).toISOString();
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT * FROM for_you_suggestions
+       WHERE user_id = ? AND status = 'skipped' AND acted_at >= ?
+       ORDER BY acted_at DESC`,
+    )
+    .all(userId, since) as Array<Record<string, unknown>>;
+  return rows.map(mapRow).filter((row): row is ForYouSuggestion => Boolean(row));
+}
+
 export function insertSuggestions(opts: {
   userId: string;
   tenantId: string;
@@ -140,6 +160,12 @@ export function insertSuggestions(opts: {
   const createdAt = new Date(nowMs).toISOString();
   const expiresAt = new Date(nowMs + SUGGESTION_TTL_MS).toISOString();
   const origin = opts.origin ?? "daily";
+  const drafts = withoutSkippedThemes(
+    opts.drafts,
+    listRecentSkippedSuggestions(opts.userId, nowMs),
+  ).filter(
+    (draft) => draft.kind !== "post" || !isOwnPostRemixCopy(draft.why, draft.draft),
+  );
   const db = getPlatformDb();
   const insert = db.prepare(
     `INSERT INTO for_you_suggestions (
@@ -148,9 +174,6 @@ export function insertSuggestions(opts: {
      ) VALUES (?, ?, ?, ?, 'suggested', ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
   );
   const out: ForYouSuggestion[] = [];
-  const drafts = opts.drafts.filter(
-    (draft) => draft.kind !== "post" || !isOwnPostRemixCopy(draft.why, draft.draft),
-  );
   const tx = db.transaction(() => {
     for (const draft of drafts) {
       const id = randomUUID();
@@ -227,12 +250,16 @@ export function listActiveSuggestions(
        ORDER BY created_at DESC`,
     )
     .all(userId, new Date(nowMs).toISOString()) as Array<Record<string, unknown>>;
-  return rows
+  const active = rows
     .map(mapRow)
     .filter((row): row is ForYouSuggestion => Boolean(row))
     .filter(
       (row) => row.kind !== "post" || !isOwnPostRemixCopy(row.why, row.draft),
     );
+  return withoutSkippedThemes(
+    active,
+    listRecentSkippedSuggestions(userId, nowMs),
+  );
 }
 
 /** Confirmed For You cards of one kind since `sinceIso` (UTC-day missions). */
@@ -269,5 +296,41 @@ export function markSuggestion(opts: {
   const row = db
     .prepare(`SELECT * FROM for_you_suggestions WHERE id = ?`)
     .get(opts.id) as Record<string, unknown> | undefined;
-  return row ? mapRow(row) : null;
+  const mapped = row ? mapRow(row) : null;
+  if (mapped && opts.status === "skipped") {
+    suppressMatchingSuggestions({
+      userId: opts.userId,
+      seed: mapped,
+      nowMs: opts.nowMs ?? Date.now(),
+    });
+  }
+  return mapped;
+}
+
+/** Skip one card, bury live remixes of the same thesis or target. */
+export function suppressMatchingSuggestions(opts: {
+  userId: string;
+  seed: ForYouSuggestion;
+  nowMs?: number;
+}): number {
+  const nowMs = opts.nowMs ?? Date.now();
+  const now = new Date(nowMs).toISOString();
+  const live = getPlatformDb()
+    .prepare(
+      `SELECT * FROM for_you_suggestions
+       WHERE user_id = ? AND status = 'suggested' AND expires_at > ? AND id != ?`,
+    )
+    .all(opts.userId, now, opts.seed.id) as Array<Record<string, unknown>>;
+  let changed = 0;
+  const update = getPlatformDb().prepare(
+    `UPDATE for_you_suggestions
+     SET status = 'skipped', acted_at = ?
+     WHERE id = ? AND user_id = ? AND status = 'suggested'`,
+  );
+  for (const raw of live) {
+    const row = mapRow(raw);
+    if (!row || !matchesSkippedTheme(row, [opts.seed])) continue;
+    changed += update.run(now, row.id, opts.userId).changes;
+  }
+  return changed;
 }
