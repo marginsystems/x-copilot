@@ -209,9 +209,21 @@ const extraChat: ChatFn = async () => ({
   ok: true,
   content: JSON.stringify({
     actions: [
-      { kind: "post", why: "hiring thread is live", draft: "What would you cut first?" },
-      { kind: "post", why: "4 replies on the recap", draft: "Is the other side just slow?" },
-      { kind: "post", why: "20 likes on the recap", draft: "I'll take the under — prove me wrong." },
+      {
+        kind: "post",
+        why: "open weights just dropped",
+        draft: "Which agent shipped first?",
+      },
+      {
+        kind: "post",
+        why: "quiet launch window",
+        draft: "Is the other side just slow?",
+      },
+      {
+        kind: "post",
+        why: "builders are shipping tonight",
+        draft: "I'll take the under — prove me wrong.",
+      },
     ],
   }),
   model: "deepseek-v4-flash",
@@ -331,6 +343,7 @@ describe("POST /api/for-you/extra", () => {
     });
     const tenantId = ensureUserTenant(user.id);
     seedSnapshots(user.id, MIN_T24H_SNAPSHOTS);
+    updateUserAgenda(user.id, "Find builders shipping AI tools");
     insertSuggestions({
       userId: user.id,
       tenantId,
@@ -367,6 +380,7 @@ describe("POST /api/for-you/extra", () => {
     const tenantId = ensureUserTenant(user.id);
     ageUser(user.id, 8);
     seedSnapshots(user.id, MIN_T24H_SNAPSHOTS);
+    updateUserAgenda(user.id, "Find builders shipping AI tools");
     const { token } = createSession(user.id);
     const chat: ChatFn = async () => {
       recordUsageEvent({
