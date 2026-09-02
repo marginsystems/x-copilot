@@ -150,7 +150,7 @@ export async function readLastScoutPayload(opts?: {
         !dismissedIds.has(t.id) &&
         !skippedIds.has(t.id),
     ),
-  );
+  ).filter((t) => isCoolThread(t));
   if (threads.length === 0) return { ok: true, empty: true };
   return {
     ok: true,

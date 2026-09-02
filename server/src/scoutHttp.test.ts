@@ -446,8 +446,8 @@ describe("tryHandleScout", () => {
         event: {
           ...doneEvent,
           threads: [
-            { id: "1", engage: "consider", baitScore: 20 },
-            { id: "2", engage: "priority", baitScore: 10 },
+            { id: "1", engage: "consider", baitScore: 20, onAgenda: true },
+            { id: "2", engage: "priority", baitScore: 10, onAgenda: true },
           ],
           queries: ["q1"],
         },
@@ -512,8 +512,8 @@ describe("tryHandleScout", () => {
         event: {
           ...doneEvent,
           threads: [
-            { id: "1", engage: "consider", baitScore: 20 },
-            { id: "2", engage: "priority", baitScore: 10 },
+            { id: "1", engage: "consider", baitScore: 20, onAgenda: true },
+            { id: "2", engage: "priority", baitScore: 10, onAgenda: true },
           ],
           queries: ["q1"],
         },

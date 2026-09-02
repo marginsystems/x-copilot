@@ -128,6 +128,46 @@ describe("isCoolThread", () => {
       true,
     );
   });
+
+  it("rejects off-agenda sharp_opinion even when bait is low", () => {
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "off",
+          engage: "priority",
+          baitScore: 15,
+          threadKind: "sharp_opinion",
+          onAgenda: false,
+        }),
+      ),
+      false,
+    );
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "on",
+          engage: "priority",
+          baitScore: 15,
+          threadKind: "sharp_opinion",
+          onAgenda: true,
+        }),
+      ),
+      true,
+    );
+    assert.equal(
+      isCoolThread(
+        card({
+          id: "shape-only",
+          engage: "priority",
+          baitScore: 15,
+          threadKind: "sharp_opinion",
+          onAgenda: false,
+        }),
+        { agendaSet: false },
+      ),
+      true,
+    );
+  });
 });
 
 describe("clampTargetCool / clampBucketSize", () => {

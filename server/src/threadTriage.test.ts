@@ -38,6 +38,7 @@ function completeJson(
     intent?: string;
     threadKind?: string;
     engage?: string;
+    onAgenda?: boolean;
     reason?: string;
   }>,
 ): string {
@@ -145,6 +146,29 @@ describe("parseTriageJson", () => {
         reason: "Generic question, no context.",
       },
     ]);
+  });
+
+  it("parses onAgenda true and false", () => {
+    const items = parseTriageJson(
+      completeJson([
+        {
+          id: "1",
+          summary: "On-agenda ship report.",
+          baitScore: 15,
+          threadKind: "sharp_opinion",
+          onAgenda: true,
+        },
+        {
+          id: "2",
+          summary: "Freight rant.",
+          baitScore: 15,
+          threadKind: "sharp_opinion",
+          onAgenda: false,
+        },
+      ]),
+    );
+    assert.equal(items?.[0]?.onAgenda, true);
+    assert.equal(items?.[1]?.onAgenda, false);
   });
 
   it("normalizes threadKind and drops items with unknown kinds", () => {
@@ -330,6 +354,8 @@ describe("threadKind helpers", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /hollow_ask/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /GitHub Actions outage/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /shipping this week/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /onAgenda: boolean/);
+    assert.match(TRIAGE_SYSTEM_PROMPT, /merch, freight, geopolitics/);
   });
 });
 
@@ -352,9 +378,26 @@ describe("mergeTriage", () => {
     assert.equal(merged[0].score, 12);
     assert.equal(merged[0].engage, "priority");
     assert.equal(merged[0].threadKind, "lived_answer");
+    assert.equal(merged[0].onAgenda, undefined);
     assert.equal(merged[0].text, "post 1");
     assert.equal(merged[1].summary, undefined);
     assert.equal(merged[1].score, undefined);
+  });
+
+  it("copies onAgenda onto the card", () => {
+    const merged = mergeTriage(
+      [thread("1")],
+      [
+        {
+          id: "1",
+          summary: "Off-agenda geopolitics.",
+          baitScore: 15,
+          threadKind: "sharp_opinion",
+          onAgenda: false,
+        },
+      ],
+    );
+    assert.equal(merged[0].onAgenda, false);
   });
 
   it("ignores unknown ids", () => {
@@ -410,6 +453,7 @@ describe("memory triage context", () => {
     const msg = buildUserMessage("Find builders", [thread("1")], []);
     assert.doesNotMatch(msg, /Memory \(advisory/);
     assert.doesNotMatch(msg, /Avoid:/);
+    assert.match(msg, /onAgenda \(true or false\)/);
   });
 
   it("buildUserMessage injects a standing Avoid line", () => {

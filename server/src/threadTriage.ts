@@ -52,6 +52,7 @@ export type TriageItem = {
   intent?: string;
   threadKind?: ThreadKind;
   engage?: Engage;
+  onAgenda?: boolean;
   reason?: string;
 };
 
@@ -73,14 +74,15 @@ const MAX_FLAGS = 6;
 
 export const TRIAGE_SYSTEM_PROMPT = `You triage X (Twitter) posts for a human who replies manually. For each post return an intent read, a preference category (threadKind), and a bait risk.
 
-Return ONLY valid JSON: {"items":[{"id":"...","summary":"...","baitScore":0,"threadKind":"other","flags":["..."],"intent":"...","engage":"skip","reason":"..."}]}
+Return ONLY valid JSON: {"items":[{"id":"...","summary":"...","baitScore":0,"threadKind":"other","onAgenda":true,"flags":["..."],"intent":"...","engage":"skip","reason":"..."}]}
 One item per input post, same "id" values, no extra keys, no markdown fences.
-Every item MUST include id, summary, baitScore (integer 0-100), and threadKind.
+Every item MUST include id, summary, baitScore (integer 0-100), threadKind, and onAgenda (true or false).
 
 Fields:
 - summary: ONE sentence on what the post is about and why it was likely posted. Not a paraphrase of the whole text.
 - baitScore: integer 0-100. HIGHER = more engagement bait / less worth replying to.
 - threadKind: EXACTLY one of: timely_take, fact_add, sharp_opinion, lived_answer, hollow_ask, promo_context, bare_news, closed_thread, other.
+- onAgenda: boolean. Required. true only when the conversation is on the operator Agenda (topic, domain, or a reply that advances that work). false for merch, freight, geopolitics, culture-war, sports, or any other off-agenda subject — even if the take is sharp and bait is low. Add flag on_agenda only when onAgenda is true.
 - flags: short snake_case tags from: engagement_bait, generic_question, promo, promo_op, event_promo, bad_context, github_plug, low_substance, thread_farm, wall_of_text, giveaway, rage_bait, on_agenda, genuine_question, political, interpersonal_conflict.
 - intent: 2-4 words, e.g. "engagement farming", "genuine help request", "product promo".
 - engage: "skip" | "consider" | "priority".
@@ -124,7 +126,7 @@ Prefer punchy, concrete opinions and specific questions over long explanations. 
 
 Low bait (0-30): specific technical questions with real context, short concrete build reports (what changed), sharp opinions with a claim — and whose OP/quoted root (when provided) is not promo spam. Not process pledges.
 
-Agenda awareness: a question is NOT bait just because it is a question. If it is genuine, specific, and on-agenda, score it low and prefer engage "priority" or "consider" with lived_answer or sharp_opinion. Use "skip" when baitScore is high, threadKind is hollow_ask/promo_context/bare_news/closed_thread, the post is off-agenda noise, low_substance process announcement, or the OP context is promo/bad_context.
+Agenda awareness: a question is NOT bait just because it is a question. If it is genuine, specific, and on-agenda, set onAgenda true, score it low, and prefer engage "priority" or "consider" with lived_answer or sharp_opinion. Off-agenda noise (merch, freight, geopolitics, culture-war, unrelated news) is onAgenda false even when bait is low and the take is sharp — the cool gate will drop it. Use engage "skip" when baitScore is high, threadKind is hollow_ask/promo_context/bare_news/closed_thread, the post is off-agenda, low_substance process announcement, or the OP context is promo/bad_context.
 
 Avoid (when present): standing operator constraints for what not to surface. Prefer engage "skip" when the conversation matches Avoid. Avoid does not override promo, safety, event_promo, or structurally closed threads. Do not invent new threadKinds from Avoid.
 
@@ -175,6 +177,16 @@ function cleanEngage(value: unknown): Engage | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim().toLowerCase();
   return ENGAGE_VALUES.find((v) => v === normalized);
+}
+
+function cleanOnAgenda(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return undefined;
 }
 
 export function cleanThreadKind(value: unknown): ThreadKind | undefined {
@@ -283,6 +295,8 @@ export function parseTriageJson(raw: string): TriageItem[] | null {
     if (threadKind) item.threadKind = threadKind;
     const engage = cleanEngage(row.engage);
     if (engage) item.engage = engage;
+    const onAgenda = cleanOnAgenda(row.onAgenda);
+    if (onAgenda !== undefined) item.onAgenda = onAgenda;
     const reason = cleanText(row.reason);
     if (reason) item.reason = reason;
 
@@ -312,6 +326,7 @@ export function mergeTriage(
     if (item.intent) merged.intent = item.intent;
     if (item.threadKind) merged.threadKind = item.threadKind;
     if (item.engage) merged.engage = item.engage;
+    if (typeof item.onAgenda === "boolean") merged.onAgenda = item.onAgenda;
     if (item.reason) merged.reason = item.reason;
     return merged;
   });
@@ -469,7 +484,7 @@ export function buildUserMessage(
     : "";
   const memoryBlock = formatMemoryBlock(memories);
   const memorySection = memoryBlock ? `\n\n${memoryBlock}` : "";
-  return `${agendaLine}${avoidLine}\n\nPosts:\n${JSON.stringify(compact)}${memorySection}\n\nRespond with JSON only, one item per post. Every item needs id, summary, baitScore, and threadKind. When opText is set, judge the conversation (reply + OP), not the reply alone.`;
+  return `${agendaLine}${avoidLine}\n\nPosts:\n${JSON.stringify(compact)}${memorySection}\n\nRespond with JSON only, one item per post. Every item needs id, summary, baitScore, threadKind, and onAgenda (true or false). When opText is set, judge the conversation (reply + OP), not the reply alone.`;
 }
 
 function buildWarning(parts: string[]): string | undefined {
@@ -551,7 +566,7 @@ export async function triageThreads(opts: {
         {
           role: "user",
           content:
-            'Your previous reply was not valid JSON of the form {"items":[{"id":"...","summary":"...","baitScore":0,"threadKind":"other","flags":[],"intent":"...","engage":"consider","reason":"..."}]}. Reply again with ONLY that JSON. Every item MUST include id, summary, baitScore, and threadKind.',
+            'Your previous reply was not valid JSON of the form {"items":[{"id":"...","summary":"...","baitScore":0,"threadKind":"other","onAgenda":true,"flags":[],"intent":"...","engage":"consider","reason":"..."}]}. Reply again with ONLY that JSON. Every item MUST include id, summary, baitScore, threadKind, and onAgenda.',
         },
       ],
     });
@@ -590,7 +605,7 @@ export async function triageThreads(opts: {
         { role: "system", content: TRIAGE_SYSTEM_PROMPT },
         {
           role: "user",
-          content: `${buildUserMessage(opts.agenda ?? "", missingThreads, missingMemories, opts.avoid ?? "")}\n\nYou omitted these ids: ${JSON.stringify(missing)}. Return JSON items ONLY for those ids, each with id, summary, baitScore, and threadKind.`,
+          content: `${buildUserMessage(opts.agenda ?? "", missingThreads, missingMemories, opts.avoid ?? "")}\n\nYou omitted these ids: ${JSON.stringify(missing)}. Return JSON items ONLY for those ids, each with id, summary, baitScore, threadKind, and onAgenda.`,
         },
       ],
     });
