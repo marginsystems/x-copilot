@@ -37,8 +37,12 @@ function post(
   };
 }
 
-function seedSnapshots(userId: string, n: number): void {
-  updateUserAgenda(userId, "Find builders shipping AI tools");
+function seedSnapshots(
+  userId: string,
+  n: number,
+  withAgenda = true,
+): void {
+  if (withAgenda) updateUserAgenda(userId, "Find builders shipping AI tools");
   for (let i = 1; i <= n; i++) {
     upsertOwnPost({
       parsed: post({ postId: `${userId}-${i}` }),
@@ -123,15 +127,29 @@ describe("runForYouDigestForUser", () => {
     assert.equal(again.reason, "already_ran");
   });
 
-  it("treats a 1-action day as empty and records no rows but caps the daily run", async () => {
+  it("drops remix posts while keeping valid actions", async () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     seedSnapshots("u1", MIN_T24H_SNAPSHOTS);
+    let calls = 0;
     const singleChat: ChatFn = async () => ({
       ok: true,
       content: JSON.stringify({
-        actions: [
-          { kind: "post", why: "top post did 400 views", draft: "Ship a recap." },
-        ],
+        actions:
+          calls++ === 0
+            ? [
+                { kind: "post", why: "top post did 400 views", draft: "Ship a recap." },
+                { kind: "post", why: "hiring thread is live", draft: "Who is hiring this week?" },
+              ]
+            : [
+                { kind: "post", why: "hiring thread is live", draft: "Who is hiring this week?" },
+                {
+                  kind: "quote",
+                  why: "quote the winner",
+                  draft: "still the move",
+                  targetId: "u1-5",
+                  targetUrl: "https://x.com/desk/status/u1-5",
+                },
+              ],
       }),
       model: "deepseek-v4-flash",
       provider: "deepseek",
@@ -143,18 +161,45 @@ describe("runForYouDigestForUser", () => {
       chat: singleChat,
       getScout: async () => ({ threads: [] }),
     });
-    assert.equal(result.wrote, 0);
-    assert.equal(result.reason, "empty");
-    assert.equal(listActiveSuggestions("u1", now + 1000).length, 0);
+    assert.equal(result.reason, "ok");
+    const suggestions = listActiveSuggestions("u1", now + 1000);
+    assert.equal(result.wrote, 2);
+    assert.equal(suggestions.length, 2);
+    assert.ok(suggestions.every((suggestion) => !suggestion.why.includes("400 views")));
     assert.equal(hasForYouRunToday("u1", now), true);
+  });
 
-    const again = await runForYouDigestForUser({
-      userId: "u1",
+  it("does not record an empty Scout pass and retries when data arrives", async () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    seedSnapshots("u2", MIN_T24H_SNAPSHOTS, false);
+    const empty = await runForYouDigestForUser({
+      userId: "u2",
+      tenantId: "local",
+      nowMs: now,
+      chat,
+      getScout: async () => ({ threads: [] }),
+    });
+    assert.equal(empty.reason, "empty");
+    assert.equal(hasForYouRunToday("u2", now), false);
+
+    updateUserAgenda("u2", "Find builders shipping AI tools");
+    const retried = await runForYouDigestForUser({
+      userId: "u2",
       tenantId: "local",
       nowMs: now + 3600_000,
       chat,
+      getScout: async () => ({
+        threads: [
+          {
+            id: "thread-1",
+            author: "builder",
+            text: "AI tools are changing how teams ship",
+            url: "https://x.com/builder/status/thread-1",
+          },
+        ],
+      }),
     });
-    assert.equal(again.reason, "already_ran");
+    assert.equal(retried.reason, "ok");
   });
 
   it("does not burn the daily run on an LLM failure; retries next tick", async () => {
