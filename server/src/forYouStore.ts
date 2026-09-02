@@ -10,6 +10,7 @@ import {
   withoutSkippedThemes,
 } from "./forYouTheme.js";
 import { getPlatformDb } from "./db.js";
+import { isOwnPostRemixCopy } from "./forYouRemix.js";
 import { startOfUtcDayIso } from "./ownPostStore.js";
 
 export const FOR_YOU_KINDS = ["post", "quote", "repost", "reply"] as const;
@@ -162,6 +163,8 @@ export function insertSuggestions(opts: {
   const drafts = withoutSkippedThemes(
     opts.drafts,
     listRecentSkippedSuggestions(opts.userId, nowMs),
+  ).filter(
+    (draft) => draft.kind !== "post" || !isOwnPostRemixCopy(draft.why, draft.draft),
   );
   const db = getPlatformDb();
   const insert = db.prepare(
@@ -249,7 +252,10 @@ export function listActiveSuggestions(
     .all(userId, new Date(nowMs).toISOString()) as Array<Record<string, unknown>>;
   const active = rows
     .map(mapRow)
-    .filter((row): row is ForYouSuggestion => Boolean(row));
+    .filter((row): row is ForYouSuggestion => Boolean(row))
+    .filter(
+      (row) => row.kind !== "post" || !isOwnPostRemixCopy(row.why, row.draft),
+    );
   return withoutSkippedThemes(
     active,
     listRecentSkippedSuggestions(userId, nowMs),

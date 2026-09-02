@@ -192,7 +192,7 @@ describe("forYouDigest", () => {
     const kept = filterDigestActions(
       {
         actions: [
-          { kind: "post", why: "best post was 900 views", draft: "A recap." },
+          { kind: "post", why: "hiring thread is live", draft: "Who is hiring this week?" },
           {
             kind: "quote",
             why: "that 900-view post",
@@ -244,7 +244,7 @@ describe("forYouDigest", () => {
         actions: [
           {
             kind: "post",
-            why: "My recent originals got 18 views",
+            why: "My hiring thread is live",
             draft: "I shipped the recap.",
           },
           {
@@ -261,7 +261,7 @@ describe("forYouDigest", () => {
     assert.deepEqual(
       kept.map((a) => a.why),
       [
-        "Your recent originals got 18 views",
+        "Your hiring thread is live",
         "You got 900 views on this one",
       ],
     );
@@ -524,8 +524,8 @@ describe("forYouDigest", () => {
     const kept = filterExtraPosts({
       actions: [
         { kind: "reply", why: "scout", draft: "hey", targetId: "77" },
-        { kind: "post", why: "900 views", draft: "What would you cut?" },
-        { kind: "post", why: "900 views", draft: "What would you cut?" },
+        { kind: "post", why: "hiring thread is live", draft: "What would you cut?" },
+        { kind: "post", why: "hiring thread is live", draft: "What would you cut?" },
         { kind: "post", why: "4 replies", draft: "Is the other side wrong?" },
         { kind: "post", why: "20 likes", draft: "I'll take the under." },
         { kind: "post", why: "extra", draft: "Fourth should drop." },
@@ -541,58 +541,39 @@ describe("forYouDigest", () => {
     );
   });
 
-  it("drops digest and extra drafts that match a skipped theme", () => {
+  it("drops originals that rewrite an old own post", () => {
     const digest = emptyDigest({
-      skipped: [
-        {
-          kind: "post",
-          why: "Your 8.7k-view Claude refusal reply is your best shape.",
-          draft: "Refusal is a feature, not a bug.",
-        },
-      ],
+      leftoverScout: [{ id: "77", author: "@a", text: "who is hiring", url: "https://x.com/a/status/77" }],
+      best: [{
+        id: "10", kind: "original", text: "claude refusal is a feature",
+        url: "https://x.com/desk/status/10", views: 8700, likes: 40, replies: 8,
+        retweets: 3, postedAt: "2026-08-18T00:00:00.000Z",
+      }],
     });
-    const kept = filterDigestActions(
-      {
-        actions: [
-          {
-            kind: "post",
-            why: "Your 8.7k Claude refusal still leads.",
-            draft: "Your prompts are the real problem.",
-          },
-          {
-            kind: "post",
-            why: "Your 2k shipping recap landed.",
-            draft: "What did you ship this week?",
-          },
-        ],
-      },
-      digest,
-    );
-    assert.deepEqual(
-      kept.map((a) => a.draft),
-      ["What did you ship this week?"],
-    );
-    const extras = filterExtraPosts(
-      {
-        actions: [
-          {
-            kind: "post",
-            why: "Your 8.7k Claude refusal still leads.",
-            draft: "Limits are your creativity.",
-          },
-          {
-            kind: "post",
-            why: "Builder week.",
-            draft: "What did you ship?",
-          },
-        ],
-      },
-      digest.skipped,
-    );
-    assert.deepEqual(
-      extras.map((a) => a.draft),
-      ["What did you ship?"],
-    );
+    const kept = filterDigestActions({ actions: [
+      { kind: "post", why: "Your 4k contributions post got 12 views—sharper hook.", draft: "Count the agents again." },
+      { kind: "post", why: "Your 8.7k-view Claude refusal is your best shape—double down.", draft: "Refusal is a feature." },
+      { kind: "post", why: "Hiring thread is live. Take a side.", draft: "Who is actually hiring this week?" },
+    ] }, digest);
+    assert.deepEqual(kept.map((a) => a.draft), ["Who is actually hiring this week?"]);
+  });
+
+  it("drops digest and extra drafts that match a skipped theme", () => {
+    const digest = emptyDigest({ skipped: [{
+      kind: "post",
+      why: "Your 8.7k-view Claude refusal reply is your best shape.",
+      draft: "Refusal is a feature, not a bug.",
+    }] });
+    const kept = filterDigestActions({ actions: [
+      { kind: "post", why: "Your 8.7k Claude refusal still leads.", draft: "Your prompts are the real problem." },
+      { kind: "post", why: "Your 2k shipping recap landed.", draft: "What did you ship this week?" },
+    ] }, digest);
+    assert.deepEqual(kept.map((a) => a.draft), ["What did you ship this week?"]);
+    const extras = filterExtraPosts({ actions: [
+      { kind: "post", why: "Your 8.7k Claude refusal still leads.", draft: "Limits are your creativity." },
+      { kind: "post", why: "Builder week.", draft: "What did you ship?" },
+    ] }, digest.skipped);
+    assert.deepEqual(extras.map((a) => a.draft), ["What did you ship?"]);
   });
 
   it("refills digest and extra caps after skipped drafts are removed", () => {

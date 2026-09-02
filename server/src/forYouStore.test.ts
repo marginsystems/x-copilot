@@ -46,7 +46,7 @@ describe("forYouStore", () => {
       tenantId: "local",
       nowMs: now,
       drafts: [
-        { kind: "post", why: "best 24h was 2k views", draft: "Ship the recap." },
+        { kind: "post", why: "hiring thread is live", draft: "Ship the recap." },
       ],
     });
     assert.equal(listActiveSuggestions("u1", now + 1000).length, 1);
@@ -254,7 +254,7 @@ describe("forYouStore", () => {
         "u1",
         "local",
         "post",
-        "My recent originals about shipping got 18 views",
+        "My hiring thread is live",
         "I shipped it.",
         new Date(now).toISOString(),
         new Date(now + SUGGESTION_TTL_MS).toISOString(),
@@ -262,12 +262,12 @@ describe("forYouStore", () => {
     const [listed] = listActiveSuggestions("u1", now + 1000);
     assert.equal(
       listed?.why,
-      "Your recent originals about shipping got 18 views",
+      "Your hiring thread is live",
     );
     const read = getSuggestion("legacy-1", "u1");
     assert.equal(
       read?.why,
-      "Your recent originals about shipping got 18 views",
+      "Your hiring thread is live",
     );
     assert.equal(read?.draft, "I shipped it.");
   });
@@ -281,25 +281,22 @@ describe("forYouStore", () => {
       drafts: [
         {
           kind: "post",
-          why: "My recent originals about shipping got 18 views",
+          why: "My hiring thread is live",
           draft: "I shipped it.",
         },
       ],
     });
     assert.ok(inserted);
-    assert.equal(
-      inserted.why,
-      "Your recent originals about shipping got 18 views",
-    );
+    assert.equal(inserted.why, "Your hiring thread is live");
 
     const [replaced] = replaceDailySuggestions({
       userId: "u2",
       tenantId: "local",
       nowMs: now + 1000,
-      drafts: [{ kind: "post", why: "I got 900 views", draft: "Ship it." }],
+      drafts: [{ kind: "post", why: "I should take the hiring thread", draft: "Ship it." }],
     });
     assert.ok(replaced);
-    assert.equal(replaced.why, "You got 900 views");
+    assert.equal(replaced.why, "You should take the hiring thread");
   });
 });
 

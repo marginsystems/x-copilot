@@ -31,7 +31,7 @@ import {
   removeExtraRecord,
   reserveExtraSlot,
 } from "./forYouExtra.js";
-import { draftForYouExtraPosts } from "./forYouLlm.js";
+import { draftForYouExtraPosts, draftForYouScoutOriginal } from "./forYouLlm.js";
 import {
   insertSuggestions,
   listActiveSuggestions,
@@ -66,6 +66,13 @@ export async function tryHandleForYou(
   const planKey = resolvePlan(billing, user.email).planKey;
 
   if (req.method === "GET" && url.pathname === "/api/for-you") {
+    if (process.env.FOR_YOU_REFILL_ON_GET !== "0") {
+      await refillScoutOriginal({
+        userId: user.id,
+        tenantId,
+        chat: opts?.chat,
+      });
+    }
     const suggestions = listActiveSuggestions(user.id);
     send(req, res, 200, {
       ok: true,
@@ -160,12 +167,52 @@ export async function tryHandleForYou(
         console.warn("own-post confirm after I posted soft-fail:", err);
       });
     }
-    send(req, res, 200, { ok: true, suggestion });
+    let replacement: ForYouSuggestion | null = null;
+    if (status === "skipped") {
+      replacement = await refillScoutOriginal({
+        userId: user.id,
+        tenantId,
+        chat: opts?.chat,
+      });
+    }
+    send(req, res, 200, {
+      ok: true,
+      suggestion,
+      replacement,
+      suggestions: listActiveSuggestions(user.id),
+    });
     return true;
   }
 
   send(req, res, 404, { error: "not_found" });
   return true;
+}
+
+async function refillScoutOriginal(opts: {
+  userId: string;
+  tenantId: string;
+  chat?: ChatFn;
+}): Promise<ForYouSuggestion | null> {
+  if (listActiveSuggestions(opts.userId).some((row) => row.kind === "post")) {
+    return null;
+  }
+  if (!opts.chat && !deepseekConfigured()) return null;
+  if (!allowRate(`for-you-refill:${opts.userId}`, 8, 60 * 60 * 1000)) {
+    return null;
+  }
+  const digest = await buildForYouDigest({ userId: opts.userId });
+  if (digest.leftoverScout.length === 0 && !digest.agenda) return null;
+  const result = await draftForYouScoutOriginal({
+    digest,
+    chat: opts.chat,
+  });
+  if (!result.ok || !result.drafts[0]) return null;
+  const rows = insertSuggestions({
+    userId: opts.userId,
+    tenantId: opts.tenantId,
+    drafts: result.drafts.slice(0, 1),
+  });
+  return rows[0] ?? null;
 }
 
 async function handleForYouExtra(
@@ -247,6 +294,13 @@ async function handleForYouExtra(
   let delivered = false;
   try {
     const digest = await buildForYouDigest({ userId: opts.userId });
+    if (digest.leftoverScout.length === 0 && !digest.agenda) {
+      send(req, res, 502, {
+        error: "empty",
+        message: "No live Scout thread or agenda is available for originals.",
+      });
+      return;
+    }
     const result = await draftForYouExtraPosts({
       digest,
       chat: opts.chat,

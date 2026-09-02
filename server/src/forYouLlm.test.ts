@@ -69,7 +69,10 @@ describe("draftForYouActions", () => {
     assert.match(FOR_YOU_DIGEST_SYSTEM, /AVOID_24H/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /100\+ views only/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /Under 100 views is a miss/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /LIVE_SCOUT/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /Do not name, rewrite/);
     assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /reply farm/i);
+    assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /echoing BEST_24H/);
   });
 
   it("parses a valid first pass", async () => {
@@ -79,7 +82,7 @@ describe("draftForYouActions", () => {
       chat: fakeChat(
         JSON.stringify({
           actions: [
-            { kind: "post", why: "900 views on the recap", draft: "Another recap." },
+            { kind: "post", why: "hiring thread is live", draft: "Another recap." },
             {
               kind: "reply",
               why: "leftover scout",
@@ -114,7 +117,7 @@ describe("draftForYouActions", () => {
         ok: true,
         content: JSON.stringify({
           actions: [
-            { kind: "post", why: "900 views", draft: "Recap." },
+            { kind: "post", why: "hiring thread is live", draft: "Recap." },
             {
               kind: "quote",
               why: "quote the winner",
@@ -172,7 +175,7 @@ describe("draftForYouActions", () => {
         ok: true,
         content: JSON.stringify({
           actions: [
-            { kind: "post", why: "900 views on the recap", draft: "Another recap." },
+            { kind: "post", why: "hiring thread is live", draft: "Another recap." },
             {
               kind: "reply",
               why: "leftover scout",
@@ -251,7 +254,7 @@ describe("draftForYouActions", () => {
         ok: true,
         content: JSON.stringify({
           actions: [
-            { kind: "post", why: "900 views on the recap", draft: "Another recap." },
+            { kind: "post", why: "hiring thread is live", draft: "Another recap." },
           ],
         }),
         model: "deepseek-v4-flash",
@@ -312,8 +315,8 @@ describe("draftForYouExtraPosts", () => {
   it("keeps the why clause short in the extra system prompt", () => {
     assert.match(FOR_YOU_EXTRA_SYSTEM, /max 90 characters/);
     assert.match(FOR_YOU_EXTRA_SYSTEM, /No second sentence/);
-    assert.match(FOR_YOU_EXTRA_SYSTEM, /100\+ views/);
-    assert.match(FOR_YOU_EXTRA_SYSTEM, /sub-100/);
+    assert.match(FOR_YOU_EXTRA_SYSTEM, /LIVE_SCOUT/);
+    assert.match(FOR_YOU_EXTRA_SYSTEM, /Do not name, rewrite/);
   });
 
   it("keeps three unique originals", async () => {
@@ -323,7 +326,7 @@ describe("draftForYouExtraPosts", () => {
       chat: fakeChat(
         JSON.stringify({
           actions: [
-            { kind: "post", why: "900 views", draft: "What would you cut?" },
+            { kind: "post", why: "hiring thread is live", draft: "What would you cut?" },
             { kind: "reply", why: "scout", targetId: "77" },
             { kind: "post", why: "4 replies", draft: "Is the other side wrong?" },
             { kind: "post", why: "20 likes", draft: "I'll take the under." },
@@ -348,7 +351,7 @@ describe("draftForYouExtraPosts", () => {
         return {
           ok: true,
           content: JSON.stringify({
-            actions: [{ kind: "post", why: "900 views", draft: "One." }],
+            actions: [{ kind: "post", why: "hiring thread is live", draft: "One." }],
           }),
           model: "deepseek-v4-flash",
           provider: "deepseek",
@@ -358,7 +361,7 @@ describe("draftForYouExtraPosts", () => {
         ok: true,
         content: JSON.stringify({
           actions: [
-            { kind: "post", why: "900 views", draft: "What would you cut?" },
+            { kind: "post", why: "hiring thread is live", draft: "What would you cut?" },
             { kind: "post", why: "4 replies", draft: "Is the other side wrong?" },
             { kind: "post", why: "20 likes", draft: "I'll take the under." },
           ],
@@ -386,7 +389,7 @@ describe("draftForYouExtraPosts", () => {
         return {
           ok: true,
           content: JSON.stringify({
-            actions: [{ kind: "post", why: "900 views", draft: "One." }],
+            actions: [{ kind: "post", why: "hiring thread is live", draft: "One." }],
           }),
           model: "deepseek-v4-flash",
           provider: "deepseek",
@@ -395,7 +398,7 @@ describe("draftForYouExtraPosts", () => {
       return {
         ok: true,
         content: JSON.stringify({
-          actions: [{ kind: "post", why: "900 views", draft: "Two." }],
+          actions: [{ kind: "post", why: "hiring thread is live", draft: "Two." }],
         }),
         model: "deepseek-v4-flash",
         provider: "deepseek",

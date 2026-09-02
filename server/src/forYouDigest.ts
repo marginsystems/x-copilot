@@ -4,10 +4,12 @@
  */
 import { getUserById } from "./authStore.js";
 import { getPlatformDb } from "./db.js";
+import { getLastScout } from "./scoutCache.js";
 import { formatOutcomeSection } from "./knowledgeMemory.js";
 import { listInteractionHistory } from "./interactionStore.js";
 import { getVoiceProfile } from "./voiceStore.js";
 import { parseVoiceCardJson, type VoiceCard } from "./voiceLlm.js";
+import { isOwnPostRemixCopy } from "./forYouRemix.js";
 import {
   FOR_YOU_KINDS,
   listRecentSkippedSuggestions,
@@ -103,6 +105,44 @@ function clip(text: string | null | undefined): string | null {
   return t.length > CLIP ? `${t.slice(0, CLIP)}…` : t;
 }
 
+function postRewritesOwnText(
+  why: string,
+  draft: string,
+  digest: ForYouDigest,
+): boolean {
+  if (isOwnPostRemixCopy(why, draft)) return true;
+  const blob = new Set(
+    why
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 5),
+  );
+  if (blob.size === 0) return false;
+  const posts = [
+    ...digest.best,
+    ...digest.worst,
+    ...digest.recentOriginals,
+  ];
+  for (const post of posts) {
+    const tokens = (post.text ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 5);
+    if (tokens.length === 0) continue;
+    let hit = 0;
+    const seen = new Set<string>();
+    for (const token of tokens) {
+      if (seen.has(token) || !blob.has(token)) continue;
+      seen.add(token);
+      hit += 1;
+    }
+    if (hit >= 2) return true;
+  }
+  return false;
+}
+
 function mapPost(row: Record<string, unknown>): DigestPost {
   return {
     id: String(row.id),
@@ -174,6 +214,15 @@ export function rankOwnPosts(userId: string, nowMs = Date.now()): {
   };
 }
 
+/** Last Scout snapshot — live threads the original should riff on. */
+export async function loadDigestScout(): Promise<{
+  threads?: DigestScout[];
+} | null> {
+  const snap = await getLastScout();
+  if (!snap?.threads.length) return null;
+  return { threads: snap.threads };
+}
+
 export async function buildForYouDigest(opts: {
   userId: string;
   getScout?: () => Promise<{ threads?: DigestScout[] } | null>;
@@ -199,10 +248,10 @@ export async function buildForYouDigest(opts: {
       views: typeof views === "number" && Number.isFinite(views) ? views : undefined,
     };
   });
-  const scout = opts.getScout ? await opts.getScout() : null;
+  const scout = await (opts.getScout ?? loadDigestScout)();
   const leftoverScout: DigestScout[] = (scout?.threads ?? [])
     .filter((t) => t.id && t.url && t.author)
-    .slice(0, 8)
+    .slice(-8)
     .map((t) => ({
       id: t.id,
       author: t.author,
@@ -322,6 +371,7 @@ export function filterDigestActions(
           : "";
     if (kind === "post") {
       if (!draft) continue;
+      if (postRewritesOwnText(why, draft, digest)) continue;
       const key = `post:${draft}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -371,6 +421,7 @@ export function filterExtraPosts(
         ? row.draft.trim().slice(0, 560)
         : "";
     if (!why || !draft) continue;
+    if (isOwnPostRemixCopy(why, draft)) continue;
     const key = `post:${draft}`;
     if (seen.has(key)) continue;
     seen.add(key);

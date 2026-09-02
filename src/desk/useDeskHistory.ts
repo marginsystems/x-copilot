@@ -332,8 +332,18 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
         setStatus(`For You fail: ${data.message || res.status}`);
         return;
       }
+      const data = (await res.json().catch(() => ({}))) as {
+        suggestions?: unknown[];
+      };
       const row = forYouSuggestions.find((item) => item.id === id);
-      setForYouSuggestions((prev) => prev.filter((item) => item.id !== id));
+      const next = (Array.isArray(data.suggestions) ? data.suggestions : [])
+        .map(parseForYouSuggestion)
+        .filter((item): item is ForYouSuggestion => Boolean(item));
+      setForYouSuggestions(
+        next.length || path === "skip" || path === "dismiss"
+          ? next
+          : forYouSuggestions.filter((item) => item.id !== id),
+      );
       historyStaleRef.current = true;
       if (path === "skip" || path === "dismiss") {
         await hydrateForYou();
