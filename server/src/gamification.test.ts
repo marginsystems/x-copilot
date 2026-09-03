@@ -284,6 +284,23 @@ describe("seedGamificationFromHistory", () => {
     assert.equal(state.lifetimeXp, 3);
     assert.deepEqual(state.bonusAwardedThreadIds, ["a"]);
   });
+
+  it("does not seed discovered replies into XP or streak", () => {
+    const state = seedGamificationFromHistory(
+      [
+        {
+          threadId: "discovered",
+          author: "@a",
+          authorKey: "a",
+          at: "2026-08-06T10:00:00.000Z",
+          source: "discovered",
+        },
+      ],
+      Date.parse("2026-08-06T12:00:00.000Z"),
+    );
+    assert.equal(state.currentStreak, 0);
+    assert.equal(state.lifetimeXp, 0);
+  });
 });
 
 describe("pickNextGoal / achievements", () => {

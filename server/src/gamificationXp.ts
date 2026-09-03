@@ -274,6 +274,7 @@ export function seedGamificationFromHistory(
   );
   let state = emptyGamificationState(nowMs);
   for (const row of sorted) {
+    if (row.source === "discovered") continue;
     const markMs = Date.parse(row.at);
     if (!Number.isFinite(markMs)) continue;
     state = applyMarkToGamification(state, markMs, row.threadId).state;

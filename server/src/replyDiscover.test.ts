@@ -545,12 +545,8 @@ describe("discoverOwnReplies desk beats", () => {
     });
     assert.equal(result.discovered, 1);
     assert.equal(
-      getDeskBeats({ userId: "u1", nowMs: postedAt }).organicReplyDone,
-      true,
-    );
-    assert.equal(
       getDeskBeats({ userId: "u1", nowMs: discoveredAt }).organicReplyDone,
-      false,
+      true,
     );
   });
 });

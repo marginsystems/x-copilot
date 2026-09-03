@@ -114,9 +114,7 @@ export async function buildCoachingSnapshot(opts: {
     // Off-app replies (webhook / hourly `discovered`) are today's marks too.
     // XP and streak keep their own rules in gamification.
     if (row.source !== "manual" && row.source !== "discovered") continue;
-    const at = Date.parse(
-      row.source === "discovered" ? (row.postedAt ?? row.at) : row.at,
-    );
+    const at = Date.parse(row.at);
     if (Number.isFinite(at) && utcDayKey(at) === dayUtc) {
       marksToday += 1;
       if (row.source === "manual") manualMarksToday += 1;

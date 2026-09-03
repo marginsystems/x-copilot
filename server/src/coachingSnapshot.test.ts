@@ -197,6 +197,7 @@ describe("buildCoachingSnapshot", () => {
       source: "discovered",
       userId: "u1",
       replyId: "r-phone",
+      postedAt: new Date(NOW_MS - 24 * 60 * 60 * 1000).toISOString(),
       nowMs: NOW_MS - 60_000,
       storePath: interactionStorePath,
     });
