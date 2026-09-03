@@ -26,7 +26,8 @@ import { findUserIdByXUsername } from "./xIdentityStore.js";
 import { resolveIngestHandle } from "./userIngest.js";
 import { dailyActivityUsage } from "./billingQuotas.js";
 import { ensureUserTenant } from "./billingStore.js";
-import { upsertOwnPost } from "./ownPostStore.js";
+import { getWatchedThread, upsertOwnPost } from "./ownPostStore.js";
+import { recordDeskReplyMarked } from "./deskBeats.js";
 import {
   findUserIdByXUserId,
   lookupXUserId,
@@ -295,6 +296,8 @@ export async function discoverOwnReplies(opts?: {
   session?: XApiCreds;
   /** Desk user's handle. Required unless resolveScreenName is set. */
   screenName?: string;
+  /** Desk user who owns the handle — stamps discovered rows and desk beats. */
+  userId?: string;
   signal?: AbortSignal;
   searchTimelinePages?: SearchTimelinePagesFn;
   resolveScreenName?: () => Promise<string | null>;
@@ -460,6 +463,7 @@ export async function discoverOwnReplies(opts?: {
         threadId,
         author,
         source: "discovered",
+        userId: opts?.userId,
         url: parentStatusUrl(author, threadId),
         text: card.opText,
         replyId,
@@ -473,6 +477,26 @@ export async function discoverOwnReplies(opts?: {
       knownReplyIds.add(replyId);
       knownThreadIds.add(threadId);
       discovered += 1;
+
+      if (opts?.userId) {
+        try {
+          const watched =
+            getWatchedThread(opts.userId, threadId) ??
+            (card.conversationId
+              ? getWatchedThread(opts.userId, card.conversationId)
+              : null);
+          recordDeskReplyMarked({
+            userId: opts.userId,
+            source: watched ? "scout" : "organic",
+            nowMs,
+          });
+        } catch (err) {
+          console.warn(
+            `[reply-discover] desk beats soft-fail replyId=${replyId}:`,
+            err,
+          );
+        }
+      }
 
       await softWriteMemory({
         threadId,
@@ -532,6 +556,7 @@ export async function discoverOwnRepliesForIngestUsers(opts?: {
     ran += 1;
     const result = await discoverOwnReplies({
       screenName: handle,
+      userId: user.id,
       session: opts?.session,
       signal: opts?.signal,
     });
