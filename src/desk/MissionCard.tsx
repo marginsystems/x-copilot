@@ -13,6 +13,7 @@ import type { CoachingState } from "../lib/coaching";
 import { deskNeedsXLink } from "../lib/deskGate";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { DeskPhase } from "../lib/deskPhase";
+import { phaseWhy } from "../lib/phaseWhy";
 import { preferRootTargets } from "../lib/scoutTarget";
 import type { VoiceState } from "../lib/voice";
 import { ForYouFeedRow } from "./ForYouFeedRow";
@@ -77,44 +78,6 @@ function phaseVerb(
   if (phase === "silent_refuel") return "For You";
   if (phase === "done_for_now") return "Done";
   return "Desk";
-}
-
-function phaseWhy(
-  phase: DeskPhase,
-  coaching?: CoachingState | null,
-  suggestion?: ForYouSuggestion | null,
-): string {
-  if (phase === "done_for_now") {
-    return "You're clean. History is a log.";
-  }
-  if (phase === "organic_reply" && suggestion?.kind === "post") {
-    return "Compose an original. Mark it here.";
-  }
-  if (phase === "organic_reply" && suggestion?.kind === "quote") {
-    return "Quote something you actually read. Mark it here.";
-  }
-  if (phase === "organic_reply" && suggestion?.kind === "repost") {
-    return "Repost something you actually read. Mark it here.";
-  }
-  const action = coaching?.nextAction;
-  const line = action?.text?.trim();
-  const takeoffOnReply =
-    action?.kind === "takeoff" &&
-    (phase === "scout_reply" || phase === "organic_reply");
-  if (line && !takeoffOnReply) return line;
-  if (phase === "scout_reply") {
-    return "Reply to this thread. Then mark it.";
-  }
-  if (phase === "organic_reply") {
-    return "Open X. Reply to something you actually read. Mark it here.";
-  }
-  if (phase === "fork") {
-    return "Write an original, or one more reply.";
-  }
-  if (phase === "original") {
-    return "Compose one original.";
-  }
-  return "";
 }
 
 export function MissionCard(props: {
@@ -276,7 +239,7 @@ export function MissionCard(props: {
             key={thread.id}
             thread={thread}
             index={0}
-            open={props.expandedId === thread.id}
+            open
             exiting={props.exitingIds.has(thread.id)}
             busy={props.actionBusy}
             interacted={props.interactedIds.has(thread.id)}
@@ -367,7 +330,7 @@ export function MissionCard(props: {
               key={row.id}
               row={row}
               index={0}
-              open={props.expandedId === key}
+              open
               exiting={props.exitingIds.has(row.id)}
               busy={props.actionBusy}
               voice={props.voice}
