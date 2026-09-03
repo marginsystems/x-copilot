@@ -37,6 +37,7 @@ import { latestAnalyticsInsight } from "./analyticsInsight.js";
 import { ensureUserTenant } from "./billingStore.js";
 import { recordUsageEvent } from "./usageMeter.js";
 import { markInteracted } from "./interactionStore.js";
+import { recordDeskReplyMarked } from "./deskBeats.js";
 import { allowRate, clientIp } from "./authGuard.js";
 
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
@@ -161,7 +162,7 @@ async function handleActivityPost(
         : null);
     if (watched?.author) {
       try {
-        await markInteracted({
+        const interaction = await markInteracted({
           threadId: watched.threadId,
           author: watched.author,
           source: "discovered",
@@ -175,6 +176,16 @@ async function handleActivityPost(
             parsed.conversationId ?? watched.conversationId ?? undefined,
           inReplyToId: parsed.inReplyToId,
         });
+        try {
+          // Watched parent means Scout surfaced it.
+          recordDeskReplyMarked({
+            userId,
+            source: "scout",
+            nowMs: Date.parse(interaction.at) || Date.now(),
+          });
+        } catch (err) {
+          console.warn("[xaa] desk beats mark soft-fail", err);
+        }
       } catch (err) {
         console.warn("[xaa] auto-mark soft-fail", err);
       }

@@ -29,7 +29,9 @@ import {
   analyticsSummary,
   startOfUtcDayIso,
   upsertOwnPost,
+  watchThread,
 } from "./ownPostStore.ts";
+import { getDeskBeats } from "./deskBeats.ts";
 import type { ThreadCard } from "./threadCard.ts";
 import { runStatsTick } from "./statsWorker.ts";
 
@@ -444,6 +446,74 @@ describe("discoverOwnReplies", () => {
     assert.deepEqual(folded, ["orig-1", "r-fold"]);
     assert.equal(result.ownPostsIngested, 2);
     assert.equal(result.discovered, 1);
+  });
+});
+
+describe("discoverOwnReplies desk beats", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    dir = mkdtempSync(join(tmpdir(), "x-discover-beats-"));
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("stamps userId and records scout for a watched parent, organic otherwise", async () => {
+    const now = Date.parse("2026-08-02T12:00:00.000Z");
+    const storePath = join(dir, "interactions.json");
+    watchThread({ userId: "u1", threadId: "scouted-parent", author: "@lead" });
+
+    const search = async (opts: { query: string }) => ({
+      ok: true as const,
+      threads: /is:reply/.test(opts.query)
+        ? [
+            card({
+              id: "r-scout",
+              inReplyToId: "scouted-parent",
+              inReplyToScreenName: "@lead",
+              createdAt: "2026-08-02T11:30:00.000Z",
+            }),
+            card({
+              id: "r-organic",
+              inReplyToId: "organic-parent",
+              inReplyToScreenName: "@stranger",
+              createdAt: "2026-08-02T11:40:00.000Z",
+            }),
+          ]
+        : [],
+      queryId: "q",
+      bottomCursor: null,
+      pages: 1,
+    });
+
+    const result = await discoverOwnReplies({
+      nowMs: now,
+      storePath,
+      knowledgeRoot: join(dir, "knowledge"),
+      upsertMemory: false,
+      session: { configured: true, bearerToken: "t" },
+      screenName: "me",
+      userId: "u1",
+      searchTimelinePages: search,
+    });
+    assert.equal(result.discovered, 2);
+
+    const history = await listInteractionHistory({ storePath, userId: "u1" });
+    assert.equal(history.length, 2);
+    assert.ok(history.every((row) => row.source === "discovered"));
+
+    const beats = getDeskBeats({ userId: "u1", nowMs: now });
+    assert.equal(beats.scoutReplyDone, true);
+    assert.equal(beats.organicReplyDone, true);
   });
 });
 

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { fetchCoaching, type CoachingState } from "../lib/coaching";
 import { peekDeskBootCache } from "../lib/deskBoot";
+import { useRehydrateOnVisible } from "./useDeskHistory";
 
 export function useCoaching() {
   const [coaching, setCoaching] = useState<CoachingState | null>(
@@ -19,6 +20,8 @@ export function useCoaching() {
     if (!next) return;
     applyCoaching(next);
   }
+
+  useRehydrateOnVisible(hydrateCoaching);
 
   return { coaching, applyCoaching, hydrateCoaching };
 }

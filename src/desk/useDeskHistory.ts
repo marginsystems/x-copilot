@@ -1,4 +1,10 @@
-import { useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { apiFetch } from "../lib/apiBase";
 import type { DeskBootDesk } from "../lib/deskBoot";
 import { peekDeskBootCache } from "../lib/deskBoot";
@@ -37,6 +43,26 @@ function blockedFromHistory(
     if (i.inReplyToId?.trim()) blocked.add(i.inReplyToId.trim());
   }
   return blocked;
+}
+
+/**
+ * Run `refresh` when the tab returns to the foreground. A reply posted from
+ * the phone lands as `discovered` while the desk tab is hidden; one fetch on
+ * return is enough — no polling.
+ */
+export function useRehydrateOnVisible(refresh: () => void | Promise<void>) {
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshRef.current();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 }
 
 export type DeskHistoryDeps = {
@@ -179,6 +205,8 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       // Sidecar may be offline on first paint — ignore.
     }
   }
+
+  useRehydrateOnVisible(hydrateInteracted);
 
   function isHiddenFromCurated(id: string): boolean {
     return (

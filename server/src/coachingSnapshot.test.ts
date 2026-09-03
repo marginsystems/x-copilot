@@ -14,6 +14,7 @@ import {
 } from "./coachingSnapshot.ts";
 import { listMissionsWithProgress } from "./dailyMissions.ts";
 import { insertSuggestions, markSuggestion } from "./forYouStore.ts";
+import { markInteracted } from "./interactionStore.ts";
 import { upsertOwnPost } from "./ownPostStore.ts";
 import type { ParsedPostCreate } from "./xActivity.ts";
 import { recordDeskPost } from "./xPostLimits.ts";
@@ -179,6 +180,52 @@ describe("buildCoachingSnapshot", () => {
     });
     assert.equal(snapshot.deskPostsToday, 1);
     assert.equal(snapshot.originalsToday, 1);
+  });
+
+  it("counts a discovered reply dated today toward marksToday", async () => {
+    await markInteracted({
+      threadId: "p-manual",
+      author: "@a",
+      source: "manual",
+      userId: "u1",
+      nowMs: NOW_MS,
+      storePath: interactionStorePath,
+    });
+    await markInteracted({
+      threadId: "p-phone",
+      author: "@b",
+      source: "discovered",
+      userId: "u1",
+      replyId: "r-phone",
+      nowMs: NOW_MS - 60_000,
+      storePath: interactionStorePath,
+    });
+    await markInteracted({
+      threadId: "p-yesterday",
+      author: "@c",
+      source: "discovered",
+      userId: "u1",
+      replyId: "r-yesterday",
+      nowMs: NOW_MS - 24 * 60 * 60 * 1000,
+      storePath: interactionStorePath,
+    });
+    await markInteracted({
+      threadId: "p-copy",
+      author: "@d",
+      source: "copy",
+      userId: "u1",
+      nowMs: NOW_MS,
+      storePath: interactionStorePath,
+    });
+
+    const snapshot = await buildCoachingSnapshot({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: NOW_MS,
+      gamificationPath,
+      interactionStorePath,
+    });
+    assert.equal(snapshot.marksToday, 2);
   });
 
   it("counts own_posts originals and quotes on postsToday, not replies", async () => {
