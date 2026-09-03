@@ -19,6 +19,7 @@ export type ScoutPipelineCounts = {
   afterLength: number;
   afterHydrateSelfReply: number;
   afterTriage: number;
+  minViewsFiltered?: number;
 };
 
 export type ScoutFilters = {
@@ -32,6 +33,10 @@ export type ScoutFilters = {
   dropProfanity?: boolean;
   /** When true (default), hard-drop authors with X's Automated badge. */
   dropAutomatedAccounts?: boolean;
+  /** When true (default), drop posts under minViews. */
+  filterByMinViews?: boolean;
+  /** Inclusive view floor when filterByMinViews is on. Default 100. */
+  minViews?: number;
   /** When true (default), never curate authors from interaction history. */
   dedupeAccounts?: boolean;
   /** ISO 639-1; default English when omitted. */
@@ -94,6 +99,8 @@ export type ScoutCollectEvent = {
   excludedAccountFiltered?: number;
   excludedAccountWarning?: string;
   languageFiltered?: number;
+  minViewsFiltered?: number;
+  minViewsWarning?: string;
   pipelineCounts?: ScoutPipelineCounts;
   errors?: Array<{ query: string; message: string }>;
   plannedBy?: "client" | LlmProvider;

@@ -10,7 +10,7 @@ import {
   type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
-import { threadHasExcludedTag } from "../lib/settings";
+import { threadHasExcludedTag, type AppSettings } from "../lib/settings";
 import { armReplyPace } from "./replyPaceStore";
 import { threadHasExcludedAuthor } from "./threadHelpers";
 import type {
@@ -43,13 +43,31 @@ export type DeskHistoryDeps = {
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
   setStatus: (s: string) => void;
   setActionBusy: (b: boolean) => void;
-  excludedTags: readonly string[];
-  excludedAccounts: readonly string[];
+  settings: AppSettings;
 };
 
+export function keepByMinViews(
+  thread: Pick<
+    ThreadCard,
+    "isReply" | "inReplyToId" | "opViews" | "opParentDerived" | "views"
+  >,
+  settings: Pick<AppSettings, "filterByMinViews" | "minViews">,
+): boolean {
+  if (!settings.filterByMinViews) return true;
+  const unknownReplyViews =
+    (thread.isReply === true || Boolean(thread.inReplyToId)) &&
+    (typeof thread.opViews !== "number" ||
+      !Number.isFinite(thread.opViews) ||
+      !thread.opParentDerived);
+  if (unknownReplyViews) return true;
+  const n = thread.opViews ?? thread.views;
+  const views = typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+  return views >= settings.minViews;
+}
+
 export function useDeskHistory(deps: DeskHistoryDeps) {
-  const { setThreads, setStatus, setActionBusy, excludedTags, excludedAccounts } =
-    deps;
+  const { setThreads, setStatus, setActionBusy, settings } = deps;
+  const { excludedTags, excludedAccounts } = settings;
 
   const seed = peekDeskBootCache()?.desk ?? null;
   const [interactedIds, setInteractedIds] = useState<Set<string>>(
@@ -173,14 +191,17 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
 
   function keepInCurated(thread: ThreadCard): boolean {
     const blocked = blockedConversationsRef.current;
-    return (
-      !isHiddenFromCurated(thread.id) &&
-      !blocked.has(thread.id) &&
-      !(thread.conversationId && blocked.has(thread.conversationId)) &&
-      !(thread.inReplyToId && blocked.has(thread.inReplyToId)) &&
-      !threadHasExcludedTag(thread, excludedTags) &&
-      !threadHasExcludedAuthor(thread, excludedAccounts)
-    );
+    if (
+      isHiddenFromCurated(thread.id) ||
+      blocked.has(thread.id) ||
+      (thread.conversationId && blocked.has(thread.conversationId)) ||
+      (thread.inReplyToId && blocked.has(thread.inReplyToId)) ||
+      threadHasExcludedTag(thread, excludedTags) ||
+      threadHasExcludedAuthor(thread, excludedAccounts)
+    ) {
+      return false;
+    }
+    return keepByMinViews(thread, settings);
   }
 
   async function hydrateSkipped() {

@@ -21,6 +21,7 @@ import {
   filterExcludedAccounts,
   filterByLanguage,
   filterEmDashes,
+  filterMinViews,
   filterOutboundLinks,
   filterProfanity,
   normalizeAvoidPrompt,
@@ -67,6 +68,8 @@ export type ScoutEvent = ScoutStageEvent & {
   excludedAccountFiltered?: number;
   excludedAccountWarning?: string;
   languageFiltered?: number;
+  minViewsFiltered?: number;
+  minViewsWarning?: string;
   lengthFiltered?: number;
   lengthWarning?: string;
   unhydratedReplyCount?: number;
@@ -232,12 +235,17 @@ export async function runScoutSearch(opts: {
     afterAutomated.threads,
     resolveExcludedAccounts(opts.filters?.excludedAccounts),
   );
+  const afterMinViews = filterMinViews(afterExcludedAccounts.threads, {
+    filterByMinViews: opts.filters?.filterByMinViews,
+    minViews: opts.filters?.minViews,
+    allowUnknownReplyViews: true,
+  });
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
-  const byLength = filterThreadsByLength(afterExcludedAccounts.threads, maxChars, {
+  const byLength = filterThreadsByLength(afterMinViews.threads, maxChars, {
     dropArticles,
   });
 
@@ -248,6 +256,7 @@ export async function runScoutSearch(opts: {
   });
   const {
     afterSelfReply: afterHydrateSelf,
+    afterMinViews: afterHydrateMinViews,
     afterLinks: afterHydrateLinks,
     afterProfanity: afterHydrateProfanity,
     afterLanguage: afterHydrateLang,
@@ -259,6 +268,8 @@ export async function runScoutSearch(opts: {
     lengthOptions: { dropArticles },
     dropOutboundLinks,
     dropProfanity,
+    filterByMinViews: opts.filters?.filterByMinViews,
+    minViews: opts.filters?.minViews,
   });
   const selfReplyFiltered =
     afterSelf.selfReplyFilteredCount +
@@ -283,6 +294,9 @@ export async function runScoutSearch(opts: {
     afterLength: byLength.threads.length,
     afterHydrateSelfReply: afterHydrateSelf.threads.length,
     afterTriage: triaged.threads.length,
+    minViewsFiltered:
+      afterMinViews.minViewsFilteredCount +
+      afterHydrateMinViews.minViewsFilteredCount,
   };
   const funnel = formatPipelineFunnel(pipelineCounts);
 
@@ -308,6 +322,12 @@ export async function runScoutSearch(opts: {
     : undefined;
   const excludedAccountWarning = afterExcludedAccounts.excludedAccountFilteredCount
     ? `Dropped ${afterExcludedAccounts.excludedAccountFilteredCount} excluded accounts.`
+    : undefined;
+  const minViewsFiltered =
+    afterMinViews.minViewsFilteredCount +
+    afterHydrateMinViews.minViewsFilteredCount;
+  const minViewsWarning = minViewsFiltered
+    ? `Dropped ${minViewsFiltered} posts below the minimum view floor.`
     : undefined;
   const articleFiltered =
     byLength.articleFilteredCount + afterHydrateLen.articleFilteredCount;
@@ -349,6 +369,8 @@ export async function runScoutSearch(opts: {
     excludedAccountWarning,
     languageFiltered:
       afterLang.languageFilteredCount + afterHydrateLang.languageFilteredCount,
+    minViewsFiltered,
+    minViewsWarning,
     lengthFiltered: byLength.filteredCount,
     lengthWarning,
     unhydratedReplyCount: hydrated.unhydratedReplyCount,

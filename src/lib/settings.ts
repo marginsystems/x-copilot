@@ -20,6 +20,10 @@ export const DEFAULT_TARGET_COOL_THREADS = 5;
 export const MIN_TARGET_COOL_THREADS = 1;
 export const MAX_TARGET_COOL_THREADS = 20;
 
+export const DEFAULT_MIN_VIEWS = 100;
+export const MIN_MIN_VIEWS = 0;
+export const MAX_MIN_VIEWS = 1_000_000;
+
 /** ISO 639-1 codes supported in Settings / Scout language filter. Keep in sync with `PREFERRED_LANGUAGE_CODES` in server/src/threadFilters.ts. */
 export const PREFERRED_LANGUAGES = ["en", "es", "fr", "de", "pt"] as const;
 export type PreferredLanguage = (typeof PREFERRED_LANGUAGES)[number];
@@ -114,6 +118,10 @@ export type AppSettings = {
   dropProfanity: boolean;
   /** Hard-drop authors with X's Automated badge, pre-triage. */
   dropAutomatedAccounts: boolean;
+  /** When true, Scout drops posts whose OP views are under minViews. */
+  filterByMinViews: boolean;
+  /** Inclusive floor. Used only when filterByMinViews is on. */
+  minViews: number;
   targetCoolThreads: number;
   /** Never curate authors we've marked interacted (lifetime). */
   dedupeAccounts: boolean;
@@ -147,6 +155,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dropEmDashes: true,
   dropProfanity: true,
   dropAutomatedAccounts: true,
+  filterByMinViews: true,
+  minViews: DEFAULT_MIN_VIEWS,
   targetCoolThreads: DEFAULT_TARGET_COOL_THREADS,
   dedupeAccounts: true,
   preferredLanguage: DEFAULT_PREFERRED_LANGUAGE,
@@ -168,6 +178,14 @@ export function clampTargetCoolThreads(value: unknown): number {
   if (!Number.isInteger(n)) return DEFAULT_TARGET_COOL_THREADS;
   if (n < MIN_TARGET_COOL_THREADS) return MIN_TARGET_COOL_THREADS;
   if (n > MAX_TARGET_COOL_THREADS) return MAX_TARGET_COOL_THREADS;
+  return n;
+}
+
+export function clampMinViews(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n)) return DEFAULT_MIN_VIEWS;
+  if (n < MIN_MIN_VIEWS) return MIN_MIN_VIEWS;
+  if (n > MAX_MIN_VIEWS) return MAX_MIN_VIEWS;
   return n;
 }
 
@@ -328,6 +346,11 @@ export function normalizeSettings(raw: unknown): AppSettings {
       typeof obj.dropAutomatedAccounts === "boolean"
         ? obj.dropAutomatedAccounts
         : DEFAULT_SETTINGS.dropAutomatedAccounts,
+    filterByMinViews:
+      typeof obj.filterByMinViews === "boolean"
+        ? obj.filterByMinViews
+        : DEFAULT_SETTINGS.filterByMinViews,
+    minViews: clampMinViews(obj.minViews),
     targetCoolThreads: clampTargetCoolThreads(obj.targetCoolThreads),
     dedupeAccounts:
       typeof obj.dedupeAccounts === "boolean"

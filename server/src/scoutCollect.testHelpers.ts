@@ -8,6 +8,7 @@ export function card(
     text: "hello short candidate",
     url: `https://x.com/i/status/${partial.id}`,
     onAgenda: true,
+    views: 101,
     ...partial,
   };
 }

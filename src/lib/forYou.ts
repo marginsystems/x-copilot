@@ -6,7 +6,7 @@ export const APPROACH_TAB_LABEL = "Approach";
 export const APPROACH_MIN_TRACKED = 5;
 export const X_FOR_YOU_URL = "https://x.com/home";
 export const FYP_WAIT_COPY =
-  "Open For You. Like or reply to one thing you actually read. Scout fills the next reply in the background.";
+  "Open For You. Like or reply to one thing you actually read. Come back and tap Next.";
 
 const UTC_WEEKDAYS = [
   "Sunday",

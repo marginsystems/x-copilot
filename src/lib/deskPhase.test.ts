@@ -83,6 +83,22 @@ describe("deskPhase", () => {
     phase("silent_refuel", { searching: true });
   });
 
+  it("keeps For You on the desk after Scout fills the tank", () => {
+    phase("silent_refuel", {
+      holdForYouTask: true,
+      hasScoutCard: true,
+      hasSuggestion: true,
+    });
+  });
+
+  it("lets a pace lock win over a held For You task", () => {
+    phase("hold", {
+      paceLocked: true,
+      holdForYouTask: true,
+      hasScoutCard: true,
+    });
+  });
+
   it("keeps serving the tank after beats say the day is done", () => {
     const done = {
       scoutReplyDone: true,
@@ -148,6 +164,15 @@ describe("approachTabLiveCount", () => {
         hasSuggestion: false,
       }),
       0,
+    );
+    assert.equal(
+      approachTabLiveCount({
+        phase: "silent_refuel",
+        hasScoutCard: true,
+        hasSuggestion: false,
+        holdForYouTask: true,
+      }),
+      1,
     );
   });
 });

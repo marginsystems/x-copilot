@@ -4,6 +4,33 @@ import { filterPostHydrateThreads } from "./scoutPipeline.ts";
 import { card } from "./scoutCollect.testHelpers.ts";
 
 describe("filterPostHydrateThreads", () => {
+  it("keeps replies without a root view count for hydration", () => {
+    const unknown = card({
+      id: "unknown",
+      isReply: true,
+      inReplyToId: "root",
+      views: 1,
+    });
+    const provisional = card({
+      id: "provisional",
+      isReply: true,
+      inReplyToId: "root",
+      opViews: 1,
+    });
+    const lowRoot = card({ id: "low", views: 99 });
+    const result = filterPostHydrateThreads({
+      threads: [unknown, provisional, lowRoot],
+      preferredLanguage: "en",
+      maxChars: 480,
+    });
+
+    assert.deepEqual(
+      result.afterMinViews.threads.map((thread) => thread.id),
+      ["unknown", "provisional"],
+    );
+    assert.equal(result.afterMinViews.minViewsFilteredCount, 1);
+  });
+
   it("preserves the shared self-reply, language, and length order", () => {
     const spanish =
       "Ahora que todos están quejándose de build in public, dejé de hacerlo porque copiaban literalmente todo lo que publicábamos.";
