@@ -516,7 +516,7 @@ describe("discoverOwnReplies desk beats", () => {
     assert.equal(beats.organicReplyDone, true);
   });
 
-  it("dates an organic beat by the reply timestamp, not discovery time", async () => {
+  it("dates an organic beat by discovery time, not the reply timestamp", async () => {
     const postedAt = Date.parse("2026-08-02T23:50:00.000Z");
     const discoveredAt = Date.parse("2026-08-03T00:10:00.000Z");
     const storePath = join(dir, "interactions.json");
