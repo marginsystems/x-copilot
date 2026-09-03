@@ -52,7 +52,7 @@ Rules:
 - English unless the agenda clearly requires another language.
 
 Good for an agenda about a freight operating system (mostly 2-word, diverse, high recall):
-{"queries":["freight software","carrier operations","just shipped","shipping tech"]}
+{"queries":["freight software","operating software","just shipped","shipping tech"]}
 
 Bad (agenda echo / too narrow / too long — do NOT do this):
 {"queries":["shipping AI tool in public","building AI tool in public","AI tool launch question","shipping AI product help"]}`;
