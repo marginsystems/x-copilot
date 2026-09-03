@@ -1,4 +1,10 @@
-import { FYP_WAIT_COPY, X_FOR_YOU_URL } from "../lib/forYou";
+import {
+  FYP_LAND_TIP,
+  FYP_NEXT_TIP,
+  FYP_OPEN_TIP,
+  FYP_WAIT_COPY,
+  X_FOR_YOU_URL,
+} from "../lib/forYou";
 import { DeskRow } from "./DeskRow";
 
 export function ForYouFeedRow(props: {
@@ -24,23 +30,30 @@ export function ForYouFeedRow(props: {
     >
       <div className="row">
         <a
-          className="primary"
+          className="primary has-tip"
           href={X_FOR_YOU_URL}
           target="_blank"
           rel="noreferrer"
+          data-tip={FYP_OPEN_TIP}
         >
           Open For You
         </a>
         {props.onNext ? (
-          <button type="button" className="ghost" onClick={props.onNext}>
+          <button
+            type="button"
+            className="ghost has-tip"
+            onClick={props.onNext}
+            data-tip={FYP_NEXT_TIP}
+          >
             Next
           </button>
         ) : null}
         {props.searching ? (
           <button
             type="button"
-            className="ghost"
+            className="ghost has-tip"
             onClick={props.onStopScout}
+            data-tip={FYP_LAND_TIP}
           >
             Land
           </button>

@@ -28,10 +28,19 @@
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
-.has-tip:hover::after,
+.has-tip:hover::after {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.45s;
+}
+
 .has-tip:focus-visible::after {
   opacity: 1;
   transform: translateY(0);
+}
+
+.thread-row.open.for-you-row .row-detail-inner {
+  overflow: visible;
 }
 
 /* Small "?" affordance that carries a .has-tip tooltip. Default is centered
@@ -69,7 +78,11 @@
   transform: translate(-50%, -4px);
 }
 
-.tip-chip.has-tip:hover::after,
+.tip-chip.has-tip:hover::after {
+  transform: translate(-50%, 0);
+  transition-delay: 0.45s;
+}
+
 .tip-chip.has-tip:focus-visible::after {
   transform: translate(-50%, 0);
 }
@@ -92,4 +105,3 @@
 .tip-chip.is-tip-end.has-tip:focus-visible::after {
   transform: translate(0, 0);
 }
-

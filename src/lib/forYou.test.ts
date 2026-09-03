@@ -16,6 +16,9 @@ import {
   forYouUsesDeskCompose,
   parseForYouProgress,
   parseForYouSuggestion,
+  FYP_LAND_TIP,
+  FYP_NEXT_TIP,
+  FYP_OPEN_TIP,
   type ForYouSuggestion,
 } from "./forYou.ts";
 
@@ -147,6 +150,13 @@ describe("forYou helpers", () => {
       approachEmptyCopy({ searching: true }),
       /Open For You/,
     );
+  });
+
+  it("names the For You row buttons", () => {
+    assert.match(FYP_OPEN_TIP, /For You page/);
+    assert.match(FYP_NEXT_TIP, /next Approach card/);
+    assert.match(FYP_LAND_TIP, /Scout run/);
+    assert.match(FYP_LAND_TIP, /Nothing posts to X/);
   });
 
   it("parses extra usage from GET /api/for-you", () => {
