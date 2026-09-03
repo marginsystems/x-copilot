@@ -49,6 +49,7 @@ import {
   filterExcludedAccounts,
   filterByLanguage,
   filterEmDashes,
+  filterMinViews,
   filterOutboundLinks,
   filterProfanity,
   normalizeAvoidPrompt,
@@ -235,6 +236,8 @@ export async function runScoutCollect(opts: {
   const dropProfanity = opts.filters?.dropProfanity !== false;
   const avoidPrompt = normalizeAvoidPrompt(opts.filters?.avoidPrompt);
   const dropAutomatedAccounts = opts.filters?.dropAutomatedAccounts !== false;
+  const filterByMinViews = opts.filters?.filterByMinViews !== false;
+  const minViews = opts.filters?.minViews;
   const preferredLanguage = normalizePreferredLanguageCode(
     opts.filters?.preferredLanguage,
   );
@@ -471,7 +474,10 @@ export async function runScoutCollect(opts: {
           articleConversationIds.add(id);
         }
         const afterLen = filterThreadsByLength(
-          afterExcludedAccounts.threads,
+          filterMinViews(afterExcludedAccounts.threads, {
+            filterByMinViews,
+            minViews,
+          }),
           maxChars,
           { dropArticles, articleIds: articleConversationIds },
         );

@@ -21,6 +21,7 @@ import {
   filterExcludedAccounts,
   filterByLanguage,
   filterEmDashes,
+  filterMinViews,
   filterOutboundLinks,
   filterProfanity,
   normalizeAvoidPrompt,
@@ -232,12 +233,16 @@ export async function runScoutSearch(opts: {
     afterAutomated.threads,
     resolveExcludedAccounts(opts.filters?.excludedAccounts),
   );
+  const afterMinViews = filterMinViews(afterExcludedAccounts.threads, {
+    filterByMinViews: opts.filters?.filterByMinViews,
+    minViews: opts.filters?.minViews,
+  });
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,
     process.env.X_MAX_THREAD_CHARS,
   );
   const dropArticles = opts.filters?.dropArticles !== false;
-  const byLength = filterThreadsByLength(afterExcludedAccounts.threads, maxChars, {
+  const byLength = filterThreadsByLength(afterMinViews, maxChars, {
     dropArticles,
   });
 

@@ -10,7 +10,7 @@ import {
   type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
-import { threadHasExcludedTag } from "../lib/settings";
+import { threadHasExcludedTag, type AppSettings } from "../lib/settings";
 import { armReplyPace } from "./replyPaceStore";
 import { threadHasExcludedAuthor } from "./threadHelpers";
 import type {
@@ -43,13 +43,12 @@ export type DeskHistoryDeps = {
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
   setStatus: (s: string) => void;
   setActionBusy: (b: boolean) => void;
-  excludedTags: readonly string[];
-  excludedAccounts: readonly string[];
+  settings: AppSettings;
 };
 
 export function useDeskHistory(deps: DeskHistoryDeps) {
-  const { setThreads, setStatus, setActionBusy, excludedTags, excludedAccounts } =
-    deps;
+  const { setThreads, setStatus, setActionBusy, settings } = deps;
+  const { excludedTags, excludedAccounts } = settings;
 
   const seed = peekDeskBootCache()?.desk ?? null;
   const [interactedIds, setInteractedIds] = useState<Set<string>>(
@@ -173,14 +172,22 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
 
   function keepInCurated(thread: ThreadCard): boolean {
     const blocked = blockedConversationsRef.current;
-    return (
-      !isHiddenFromCurated(thread.id) &&
-      !blocked.has(thread.id) &&
-      !(thread.conversationId && blocked.has(thread.conversationId)) &&
-      !(thread.inReplyToId && blocked.has(thread.inReplyToId)) &&
-      !threadHasExcludedTag(thread, excludedTags) &&
-      !threadHasExcludedAuthor(thread, excludedAccounts)
-    );
+    if (
+      isHiddenFromCurated(thread.id) ||
+      blocked.has(thread.id) ||
+      (thread.conversationId && blocked.has(thread.conversationId)) ||
+      (thread.inReplyToId && blocked.has(thread.inReplyToId)) ||
+      threadHasExcludedTag(thread, excludedTags) ||
+      threadHasExcludedAuthor(thread, excludedAccounts)
+    ) {
+      return false;
+    }
+    if (settings.filterByMinViews) {
+      const n = thread.opViews ?? thread.views;
+      const views = typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+      if (views < settings.minViews) return false;
+    }
+    return true;
   }
 
   async function hydrateSkipped() {

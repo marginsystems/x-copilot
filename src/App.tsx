@@ -126,8 +126,7 @@ export default function App() {
     setThreads,
     setStatus,
     setActionBusy,
-    excludedTags: settings.excludedTags,
-    excludedAccounts: settings.excludedAccounts,
+    settings,
   });
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const {

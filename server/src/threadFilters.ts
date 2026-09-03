@@ -332,6 +332,31 @@ export type AutomatedFilterOptions = {
   dropAutomatedAccounts?: boolean;
 };
 
+export type MinViewsFilterOptions = {
+  filterByMinViews?: boolean;
+  minViews?: number;
+};
+
+function audienceViews(thread: ThreadCard): number {
+  const n = thread.opViews ?? thread.views;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Hard-drop posts under the view floor before triage (Settings default on, 100). */
+export function filterMinViews(
+  threads: ThreadCard[],
+  opts: MinViewsFilterOptions = {},
+): ThreadCard[] {
+  if (opts.filterByMinViews === false) return [...threads];
+  const floor =
+    typeof opts.minViews === "number" &&
+    Number.isInteger(opts.minViews) &&
+    opts.minViews >= 0
+      ? opts.minViews
+      : 100;
+  return threads.filter((thread) => audienceViews(thread) >= floor);
+}
+
 /** Hard-drop Automated (AI/bot) accounts before length/triage (Settings default on). */
 export function filterAutomatedAccounts(
   threads: ThreadCard[],
