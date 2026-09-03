@@ -126,6 +126,7 @@ export function MissionCard(props: {
   grounded?: boolean;
   groundedLine?: string | null;
   cooldownRemaining?: number;
+  holdForYouTask?: boolean;
   onStopScout?: () => void;
   onOpenUsage?: () => void;
   onOpenSettings?: () => void;
@@ -206,7 +207,7 @@ export function MissionCard(props: {
         props.groundedLine ||
         "Grounded. Scout waits until 00:00 UTC. Open Usage for the next plan.";
       action = "usage";
-    } else if ((props.cooldownRemaining ?? 0) > 0) {
+    } else if ((props.cooldownRemaining ?? 0) > 0 && !props.holdForYouTask) {
       why = `Hold short ${props.cooldownRemaining}s. Scout retries after the gate.`;
     } else {
       action = "fyp";

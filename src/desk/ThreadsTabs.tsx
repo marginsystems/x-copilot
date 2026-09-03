@@ -346,6 +346,7 @@ export function ThreadsTabs({
             grounded={grounded}
             groundedLine={groundedLine}
             cooldownRemaining={searchCooldownRemaining}
+            holdForYouTask={holdForYouTask}
             onStopScout={onStopScout}
             onOpenUsage={onOpenUsage}
             onOpenSettings={onOpenSettings}
