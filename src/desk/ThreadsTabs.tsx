@@ -154,13 +154,16 @@ export function ThreadsTabs({
   });
   const [forYouHeld, setForYouHeld] = useState(false);
   const holdForYouTask = shouldHoldForYouTask({
-    held: forYouHeld,
+    held: forYouHeld && !grounded,
     tanksEmpty,
     canPresent: canPresentForYou,
   });
   useEffect(() => {
     if (holdForYouTask && !forYouHeld) setForYouHeld(true);
   }, [holdForYouTask, forYouHeld]);
+  useEffect(() => {
+    if (grounded && forYouHeld) setForYouHeld(false);
+  }, [grounded, forYouHeld]);
   const { phase, hold } = deskPhase({
     needsOnboarding: false,
     paceLocked: pace.locked,
@@ -411,7 +414,10 @@ export function ThreadsTabs({
                 }
               })();
             }}
-            onForYouNext={() => setForYouHeld(false)}
+            onForYouNext={() => {
+              if (tanksEmpty && searchCooldownRemaining > 0) return;
+              setForYouHeld(false);
+            }}
             onOpenVoice={onOpenVoice}
             onLinkX={onLinkX}
           />
