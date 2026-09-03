@@ -43,6 +43,7 @@ Return ONLY valid JSON: {"queries":["..."]} with 2 to 4 queries.
 Rules:
 - Prefer 2-word queries (highest recall on Latest). 3 words only when needed. Avoid 4+ words.
 - Optional operators ok (-is:reply, min_faves, from:) — they do not count against the 2-word preference when the keyword part is short. Do not emit is:reply. Scout wants original posts, not nested leaves.
+- At least two queries must contain a content word from the agenda. Match the agenda topic with keywords; do not copy the agenda sentence.
 - Mix recall: include 1–2 broad high-recall queries AND 1–2 tighter ones. Do not emit four near-duplicates.
 - Do NOT copy the agenda sentence or long multi-word stacks that echo it.
 - Prefer Latest-friendly keywords that hit original posts people are already looking at.
@@ -50,8 +51,8 @@ Rules:
 - No essays, no numbering outside JSON, no markdown fences.
 - English unless the agenda clearly requires another language.
 
-Good (mostly 2-word, diverse, high recall):
-{"queries":["just shipped","AI launch","building AI","shipping soon"]}
+Good for an agenda about a freight operating system (mostly 2-word, diverse, high recall):
+{"queries":["freight software","operating software","just shipped","shipping tech"]}
 
 Bad (agenda echo / too narrow / too long — do NOT do this):
 {"queries":["shipping AI tool in public","building AI tool in public","AI tool launch question","shipping AI product help"]}`;
@@ -83,6 +84,90 @@ export function isPhraseyPlan(queries: string[]): boolean {
   const avg =
     queries.reduce((sum, q) => sum + queryWordCount(q), 0) / queries.length;
   return avg > PREFERRED_AVG_QUERY_WORDS;
+}
+
+const AGENDA_STOPWORDS = new Set([
+  "a",
+  "about",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "been",
+  "being",
+  "but",
+  "by",
+  "for",
+  "from",
+  "how",
+  "i",
+  "in",
+  "into",
+  "is",
+  "it",
+  "its",
+  "my",
+  "of",
+  "on",
+  "or",
+  "our",
+  "that",
+  "the",
+  "their",
+  "this",
+  "to",
+  "we",
+  "what",
+  "when",
+  "where",
+  "which",
+  "who",
+  "why",
+  "with",
+  "you",
+  "your",
+]);
+
+function normalizedWords(text: string): string[] {
+  return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+/** Content words that can ground a query in the operator's agenda. */
+export function agendaContentWords(agenda: string): Set<string> {
+  return new Set(
+    normalizedWords(agenda).filter(
+      (word) => word.length > 2 && !AGENDA_STOPWORDS.has(word),
+    ),
+  );
+}
+
+function queryKeywordWords(query: string): string[] {
+  return query
+    .trim()
+    .split(/\s+/)
+    .filter(
+      (token) =>
+        token &&
+        !token.includes(":") &&
+        token.replace(/^-/, "").toLowerCase() !== "min_faves",
+    )
+    .flatMap(normalizedWords);
+}
+
+/** True when at least two queries contain an agenda content word. */
+export function hasAgendaNounQueries(
+  queries: string[],
+  agenda: string,
+): boolean {
+  const agendaWords = agendaContentWords(agenda);
+  if (agendaWords.size === 0) return true;
+  return (
+    queries.filter((query) =>
+      queryKeywordWords(query).some((word) => agendaWords.has(word)),
+    ).length >= 2
+  );
 }
 
 /** Strip markdown fences and parse {"queries": string[]} (exported for tests). */
@@ -234,27 +319,58 @@ export async function planQueriesFromAgenda(
     }
   }
 
-  // One broaden repair if the plan is still too phrase-y (skip if already broadening).
-  if (isPhraseyPlan(queries) && !opts?.broaden) {
+  const phrasey = isPhraseyPlan(queries);
+  const missingAgendaNouns = !hasAgendaNounQueries(queries, trimmed);
+
+  // Repair once when the plan is too phrase-y or is not grounded in the agenda.
+  if (missingAgendaNouns || (phrasey && !opts?.broaden)) {
     const broaden = await requestPlan(
       trimmed,
       {
         broaden: true,
         priorQueries: queries,
-        yieldNote:
-          "First plan was too phrase-y / agenda-echoing. Broaden to shorter high-recall 2-word keywords.",
+        yieldNote: missingAgendaNouns
+          ? "First plan was not grounded in the agenda. Keep 2-word Latest keywords; do not copy the agenda sentence; at least two queries must contain an agenda content noun."
+          : "First plan was too phrase-y / agenda-echoing. Broaden to shorter high-recall 2-word keywords; at least two queries must contain an agenda content noun.",
       },
       model,
     );
+    if (!broaden.ok && missingAgendaNouns) {
+      return {
+        ok: false,
+        error: broaden.error,
+        message: broaden.message,
+      };
+    }
     if (broaden.ok) {
       const repaired = parseQueryPlanJson(broaden.content);
-      if (repaired) {
+      usage = addTokenUsage(usage, broaden.usage);
+      if (
+        missingAgendaNouns &&
+        (!repaired || !hasAgendaNounQueries(repaired, trimmed))
+      ) {
+        return {
+          ok: false,
+          error: "invalid_plan",
+          message:
+            "Model did not return a valid plan with two agenda-grounded queries.",
+        };
+      }
+      if (repaired && hasAgendaNounQueries(repaired, trimmed)) {
         queries = repaired;
         raw = broaden.content;
         usedModel = broaden.model;
-        usage = addTokenUsage(usage, broaden.usage);
       }
     }
+  }
+
+  if (!hasAgendaNounQueries(queries, trimmed)) {
+    return {
+      ok: false,
+      error: "invalid_plan",
+      message:
+        "Model did not return a valid plan with two agenda-grounded queries.",
+    };
   }
 
   return {

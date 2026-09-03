@@ -324,7 +324,7 @@ export async function runScoutCollect(opts: {
         (reason === "stalled"
           ? ` (${consecutiveZeroAdds} consecutive searches added 0).`
           : ".") +
-        " Stuck under candidate bucket — broaden; prefer shorter high-recall 2-word Latest keywords (3 ok when needed); mix broad + tighter; do not copy the agenda sentence.",
+        " Stuck under candidate bucket — broaden; prefer shorter high-recall 2-word Latest keywords (3 ok when needed); mix broad + tighter; do not copy the agenda sentence; at least two queries must contain an agenda noun.",
     };
     const plan = await doPlan(agenda, planOpts);
     if (!plan.ok) {

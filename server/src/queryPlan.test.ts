@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  agendaContentWords,
+  hasAgendaNounQueries,
   isPhraseyPlan,
   isPhraseyQuery,
   parseQueryPlanJson,
@@ -104,6 +106,68 @@ describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
         "building AI",
         "shipped my tool",
       ]),
+      false,
+    );
+  });
+});
+
+describe("hasAgendaNounQueries", () => {
+  const genericPlan = [
+    "just shipped",
+    "AI launch",
+    "building AI",
+    "shipping soon",
+  ];
+
+  it("rejects a generic plan against a specific agenda", () => {
+    assert.equal(
+      hasAgendaNounQueries(genericPlan, "B2B freight OS"),
+      false,
+    );
+    assert.equal(
+      hasAgendaNounQueries(
+        genericPlan,
+        "building a freight operating system for carriers",
+      ),
+      false,
+    );
+  });
+
+  it("accepts a 2-word plan with two agenda-noun queries", () => {
+    assert.equal(
+      hasAgendaNounQueries(
+        [
+          "Freight software",
+          "carriers hiring",
+          "just shipped",
+          "shipping soon",
+        ],
+        "building a freight operating system for carriers",
+      ),
+      true,
+    );
+  });
+
+  it("drops stopwords and tiny agenda words", () => {
+    assert.deepEqual(
+      [...agendaContentWords("Building a B2B freight OS for carriers")],
+      ["building", "b2b", "freight", "carriers"],
+    );
+  });
+
+  it("does not require grounding when the agenda has no content words", () => {
+    assert.equal(
+      hasAgendaNounQueries(["just shipped", "shipping soon"], "AI"),
+      true,
+    );
+  });
+
+  it("does not count search operators as agenda nouns", () => {
+    assert.equal(
+      hasAgendaNounQueries(
+        ["min_faves launch", "-is:reply shipped", "just freight"],
+        "min faves replies freight",
+      ),
       false,
     );
   });
