@@ -515,6 +515,44 @@ describe("discoverOwnReplies desk beats", () => {
     assert.equal(beats.scoutReplyDone, true);
     assert.equal(beats.organicReplyDone, true);
   });
+
+  it("dates an organic beat by the reply timestamp, not discovery time", async () => {
+    const postedAt = Date.parse("2026-08-02T23:50:00.000Z");
+    const discoveredAt = Date.parse("2026-08-03T00:10:00.000Z");
+    const storePath = join(dir, "interactions.json");
+    const result = await discoverOwnReplies({
+      nowMs: discoveredAt,
+      storePath,
+      knowledgeRoot: join(dir, "knowledge"),
+      upsertMemory: false,
+      session: { configured: true, bearerToken: "t" },
+      screenName: "me",
+      userId: "u1",
+      searchTimelinePages: async () => ({
+        ok: true as const,
+        threads: [
+          card({
+            id: "r-midnight",
+            inReplyToId: "organic-parent",
+            inReplyToScreenName: "@stranger",
+            createdAt: new Date(postedAt).toISOString(),
+          }),
+        ],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
+    });
+    assert.equal(result.discovered, 1);
+    assert.equal(
+      getDeskBeats({ userId: "u1", nowMs: postedAt }).organicReplyDone,
+      true,
+    );
+    assert.equal(
+      getDeskBeats({ userId: "u1", nowMs: discoveredAt }).organicReplyDone,
+      false,
+    );
+  });
 });
 
 describe("foldDiscoveredOwnPosts", () => {

@@ -21,6 +21,8 @@ import {
 export type CoachingSnapshot = {
   dayUtc: string;
   marksToday: number;
+  /** Desk/manual marks today; off-app discoveries are excluded from missions. */
+  manualMarksToday?: number;
   originalsToday: number;
   repliesPostedToday: number;
   quotesToday: number;
@@ -107,12 +109,18 @@ export async function buildCoachingSnapshot(opts: {
     }),
   ]);
   let marksToday = 0;
+  let manualMarksToday = 0;
   for (const row of history) {
     // Off-app replies (webhook / hourly `discovered`) are today's marks too.
     // XP and streak keep their own rules in gamification.
     if (row.source !== "manual" && row.source !== "discovered") continue;
-    const at = Date.parse(row.at);
-    if (Number.isFinite(at) && utcDayKey(at) === dayUtc) marksToday += 1;
+    const at = Date.parse(
+      row.source === "discovered" ? (row.postedAt ?? row.at) : row.at,
+    );
+    if (Number.isFinite(at) && utcDayKey(at) === dayUtc) {
+      marksToday += 1;
+      if (row.source === "manual") manualMarksToday += 1;
+    }
   }
   const kinds = countOwnKindsToday(opts.userId, sinceIso);
   const deskOriginals = countDeskOriginalsSince(opts.userId, sinceIso);
@@ -129,6 +137,7 @@ export async function buildCoachingSnapshot(opts: {
   return {
     dayUtc,
     marksToday,
+    manualMarksToday,
     originalsToday: originalsTodayCount(
       kinds.originals,
       deskOriginals,

@@ -181,7 +181,8 @@ async function handleActivityPost(
           recordDeskReplyMarked({
             userId,
             source: "scout",
-            nowMs: Date.parse(interaction.at) || Date.now(),
+            nowMs:
+              Date.parse(interaction.postedAt ?? interaction.at) || Date.now(),
           });
         } catch (err) {
           console.warn("[xaa] desk beats mark soft-fail", err);

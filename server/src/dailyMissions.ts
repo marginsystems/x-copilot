@@ -48,7 +48,9 @@ export function progressForMetric(
   snapshot: CoachingSnapshot,
   metric: MissionMetric,
 ): number {
-  if (metric === "marks") return snapshot.marksToday;
+  if (metric === "marks") {
+    return snapshot.manualMarksToday ?? snapshot.marksToday;
+  }
   return snapshot.originalsToday;
 }
 

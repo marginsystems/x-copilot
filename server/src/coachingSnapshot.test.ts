@@ -226,6 +226,15 @@ describe("buildCoachingSnapshot", () => {
       interactionStorePath,
     });
     assert.equal(snapshot.marksToday, 2);
+    assert.equal(snapshot.manualMarksToday, 1);
+
+    const missions = await listMissionsWithProgress({
+      userId: "u1",
+      snapshot,
+      nowMs: NOW_MS,
+      gamificationPath,
+    });
+    assert.equal(missions.find((m) => m.id === "mark_2")?.progress, 1);
   });
 
   it("counts own_posts originals and quotes on postsToday, not replies", async () => {

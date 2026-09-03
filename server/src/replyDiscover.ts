@@ -488,7 +488,7 @@ export async function discoverOwnReplies(opts?: {
           recordDeskReplyMarked({
             userId: opts.userId,
             source: watched ? "scout" : "organic",
-            nowMs: Date.parse(interaction.at) || nowMs,
+            nowMs: Date.parse(interaction.postedAt ?? interaction.at) || nowMs,
           });
         } catch (err) {
           console.warn(
