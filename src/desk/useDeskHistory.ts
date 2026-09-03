@@ -46,6 +46,25 @@ export type DeskHistoryDeps = {
   settings: AppSettings;
 };
 
+export function keepByMinViews(
+  thread: Pick<
+    ThreadCard,
+    "isReply" | "inReplyToId" | "opViews" | "opParentDerived" | "views"
+  >,
+  settings: Pick<AppSettings, "filterByMinViews" | "minViews">,
+): boolean {
+  if (!settings.filterByMinViews) return true;
+  const unknownReplyViews =
+    (thread.isReply === true || Boolean(thread.inReplyToId)) &&
+    (typeof thread.opViews !== "number" ||
+      !Number.isFinite(thread.opViews) ||
+      !thread.opParentDerived);
+  if (unknownReplyViews) return true;
+  const n = thread.opViews ?? thread.views;
+  const views = typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+  return views >= settings.minViews;
+}
+
 export function useDeskHistory(deps: DeskHistoryDeps) {
   const { setThreads, setStatus, setActionBusy, settings } = deps;
   const { excludedTags, excludedAccounts } = settings;
@@ -182,18 +201,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     ) {
       return false;
     }
-    if (settings.filterByMinViews) {
-      const unknownReplyViews =
-        (thread.isReply === true || Boolean(thread.inReplyToId)) &&
-        (typeof thread.opViews !== "number" ||
-          !Number.isFinite(thread.opViews) ||
-          !thread.opParentDerived);
-      if (unknownReplyViews) return true;
-      const n = thread.opViews ?? thread.views;
-      const views = typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
-      if (views < settings.minViews) return false;
-    }
-    return true;
+    return keepByMinViews(thread, settings);
   }
 
   async function hydrateSkipped() {
