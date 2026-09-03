@@ -39,6 +39,10 @@
   transform: translateY(0);
 }
 
+.thread-row.open.for-you-row .row-detail-inner {
+  overflow: visible;
+}
+
 /* Small "?" affordance that carries a .has-tip tooltip. Default is centered
    under the chip; JS adds is-tip-start / is-tip-end when that would clip. */
 .tip-chip {
@@ -101,4 +105,3 @@
 .tip-chip.is-tip-end.has-tip:focus-visible::after {
   transform: translate(0, 0);
 }
-
