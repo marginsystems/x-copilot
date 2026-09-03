@@ -147,9 +147,7 @@ export function ThreadsTabs({
   const scoutCountRef = useRef(scouted.length);
   const consumedScoutRef = useRef(false);
   const autoTriedRef = useRef(false);
-  if (scouted.length < scoutCountRef.current) {
-    consumedScoutRef.current = true;
-  } else if (scouted.length > scoutCountRef.current) {
+  if (scouted.length > scoutCountRef.current) {
     consumedScoutRef.current = false;
     autoTriedRef.current = false;
   }
@@ -203,7 +201,10 @@ export function ThreadsTabs({
   useEffect(() => {
     if (!agendaReady) return;
     const waiting =
-      phase === "silent_refuel" || phase === "hold";
+      phase === "silent_refuel" ||
+      phase === "hold" ||
+      phase === "scout_reply" ||
+      phase === "organic_reply";
     if (
       (previousPhaseRef.current === "silent_refuel" ||
         previousPhaseRef.current === "hold") &&
@@ -386,10 +387,14 @@ export function ThreadsTabs({
             setVoice={setVoice}
             exitingIds={exitingIds}
             onScoutMark={onMark}
-            onScoutSkip={(thread) =>
-              exitRow(thread.id, thread.id, () => onSkip(thread))
-            }
-            onScoutDismiss={onDismiss}
+            onScoutSkip={(thread) => {
+              consumedScoutRef.current = true;
+              exitRow(thread.id, thread.id, () => onSkip(thread));
+            }}
+            onScoutDismiss={(thread) => {
+              consumedScoutRef.current = true;
+              onDismiss(thread);
+            }}
             onSuggestionPosted={(id) =>
               exitRow(id, `suggest:${id}`, () => actForYou(id, "done"))
             }
