@@ -1,6 +1,7 @@
 import {
   useEffect,
   useRef,
+  useState,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -18,6 +19,10 @@ import {
   emptyDeskBeats,
 } from "../lib/deskPhase";
 import { shouldBackgroundScout } from "../lib/deskRefuel";
+import {
+  canPresentForYouTask,
+  shouldHoldForYouTask,
+} from "../lib/forYouTask";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { VoiceState } from "../lib/voice";
 import {
@@ -139,6 +144,32 @@ export function ThreadsTabs({
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   const scouted = preferRootTargets(curatedThreads);
   const scout = pickApproachScout(scouted);
+  const tanksEmpty =
+    scouted.length === 0 && forYouSuggestions.length === 0;
+  const canPresentForYou = canPresentForYouTask({
+    needsXLink: deskNeedsXLink(authUser),
+    hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
+    grounded,
+    cooldownRemaining: searchCooldownRemaining,
+  });
+  const [forYouHeld, setForYouHeld] = useState(false);
+  const [forYouReleased, setForYouReleased] = useState(false);
+  const holdForYouTask = shouldHoldForYouTask({
+    held: forYouHeld && !grounded,
+    tanksEmpty,
+    canPresent: canPresentForYou,
+  });
+  useEffect(() => {
+    if (holdForYouTask && !forYouHeld && !forYouReleased) {
+      setForYouHeld(true);
+    }
+  }, [holdForYouTask, forYouHeld, forYouReleased]);
+  useEffect(() => {
+    if (grounded && (forYouHeld || forYouReleased)) {
+      setForYouHeld(false);
+      setForYouReleased(false);
+    }
+  }, [grounded, forYouHeld, forYouReleased]);
   const { phase, hold } = deskPhase({
     needsOnboarding: false,
     paceLocked: pace.locked,
@@ -146,6 +177,7 @@ export function ThreadsTabs({
     hasScoutCard: scouted.length > 0,
     hasSuggestion: forYouSuggestions.length > 0,
     searching,
+    holdForYouTask,
     beats: coaching?.beats ?? emptyDeskBeats(),
   });
   const suggestion = pickApproachSuggestion(forYouSuggestions);
@@ -245,6 +277,7 @@ export function ThreadsTabs({
                       phase,
                       hasScoutCard: scouted.length > 0,
                       hasSuggestion: forYouSuggestions.length > 0,
+                      holdForYouTask,
                     })
                   : 0
               }
@@ -322,6 +355,7 @@ export function ThreadsTabs({
             grounded={grounded}
             groundedLine={groundedLine}
             cooldownRemaining={searchCooldownRemaining}
+            holdForYouTask={holdForYouTask}
             onStopScout={onStopScout}
             onOpenUsage={onOpenUsage}
             onOpenSettings={onOpenSettings}
@@ -385,6 +419,11 @@ export function ThreadsTabs({
                   setActionBusy(false);
                 }
               })();
+            }}
+            onForYouNext={() => {
+              if (tanksEmpty && searchCooldownRemaining > 0) return;
+              setForYouHeld(false);
+              setForYouReleased(true);
             }}
             onOpenVoice={onOpenVoice}
             onLinkX={onLinkX}
