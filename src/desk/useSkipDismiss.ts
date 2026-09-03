@@ -45,7 +45,7 @@ export function useSkipDismiss({
     setDismissReason("");
   }
 
-  async function onSkip(thread: ThreadCard) {
+  async function onSkip(thread: ThreadCard): Promise<boolean> {
     setActionBusy(true);
     try {
       const res = await apiFetch("/api/skipped", {
@@ -65,7 +65,7 @@ export function useSkipDismiss({
       };
       if (!res.ok) {
         setStatus(`Skip fail: ${data.message || res.status}`);
-        return;
+        return false;
       }
       const entry: SkipHistoryEntry = data.skip ?? {
         threadId: thread.id,
@@ -84,8 +84,10 @@ export function useSkipDismiss({
       setThreads((prev) => prev.filter((item) => item.id !== thread.id));
       setExpandedId((id) => (id === thread.id ? null : id));
       setStatus(`Skipped ${thread.author}`);
+      return true;
     } catch {
       setStatus("Sidecar offline — could not skip");
+      return false;
     } finally {
       setActionBusy(false);
     }

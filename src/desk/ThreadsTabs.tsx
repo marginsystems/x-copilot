@@ -91,7 +91,7 @@ type ThreadsTabsProps = {
   onSearch: () => void;
   onStopScout: () => void;
   onMark: (thread: ThreadCard) => void;
-  onSkip: (thread: ThreadCard) => void;
+  onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: () => void | Promise<void>;
   setActionBusy: (busy: boolean) => void;
@@ -154,6 +154,9 @@ export function ThreadsTabs({
   }
   if (
     pendingDismissIdRef.current &&
+    dismissedHistory.some(
+      (entry) => entry.threadId === pendingDismissIdRef.current,
+    ) &&
     !scouted.some((thread) => thread.id === pendingDismissIdRef.current)
   ) {
     consumedScoutRef.current = true;
@@ -396,8 +399,13 @@ export function ThreadsTabs({
             exitingIds={exitingIds}
             onScoutMark={onMark}
             onScoutSkip={(thread) => {
-              consumedScoutRef.current = true;
-              exitRow(thread.id, thread.id, () => onSkip(thread));
+              exitRow(thread.id, thread.id, async () => {
+                const skipped = await onSkip(thread);
+                if (skipped) {
+                  consumedScoutRef.current = true;
+                  autoTriedRef.current = false;
+                }
+              });
             }}
             onScoutDismiss={(thread) => {
               pendingDismissIdRef.current = thread.id;
