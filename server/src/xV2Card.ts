@@ -224,13 +224,17 @@ export function v2TweetToCard(
   if (quoted?.id) {
     card.isQuote = true;
     const qt = tweetsById.get(quoted.id);
-    if (qt?.text && qt.author_id) {
-      const qa = usersById.get(qt.author_id);
-      if (qa?.username) {
-        card.opAuthor = qa.username.startsWith("@")
-          ? qa.username
-          : `@${qa.username}`;
-        card.opText = qt.text.slice(0, MAX_OP_TEXT_CHARS);
+    if (qt) {
+      const qtLongform = v2TweetLongform(qt);
+      if (qtLongform) card.opLongform = qtLongform;
+      if (qt.text && qt.author_id) {
+        const qa = usersById.get(qt.author_id);
+        if (qa?.username) {
+          card.opAuthor = qa.username.startsWith("@")
+            ? qa.username
+            : `@${qa.username}`;
+          card.opText = qt.text.slice(0, MAX_OP_TEXT_CHARS);
+        }
       }
       if (v2TweetHasOutboundLink(qt)) card.hasOutboundLink = true;
     }

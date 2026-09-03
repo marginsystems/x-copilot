@@ -167,15 +167,17 @@ export function collectArticleConversationIds(
   return ids;
 }
 
-/** True for a reply under a known Article root/parent, or a hydrated Article OP. */
+/** True for a reply or quote under a known Article root/parent. */
 export function replyUnderArticle(
   thread: Pick<
     ThreadCard,
-    "isReply" | "inReplyToId" | "conversationId" | "opLongform"
+    "isReply" | "isQuote" | "inReplyToId" | "conversationId" | "opLongform"
   >,
   articleIds: ReadonlySet<string>,
 ): boolean {
-  if (thread.opLongform === "article") return isReplyCard(thread);
+  if (thread.opLongform === "article") {
+    return isReplyCard(thread) || thread.isQuote === true;
+  }
   if (!articleIds.size) return false;
   if (!isReplyCard(thread)) return false;
   if (thread.conversationId && articleIds.has(thread.conversationId)) {
