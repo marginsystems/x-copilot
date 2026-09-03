@@ -83,4 +83,28 @@ describe("shouldHoldForYouTask", () => {
       false,
     );
   });
+
+  it("does not arm after skip or not interested on a scouted card", () => {
+    assert.equal(
+      shouldHoldForYouTask({
+        held: false,
+        tanksEmpty: true,
+        canPresent: true,
+        arm: false,
+      }),
+      false,
+    );
+  });
+
+  it("stays held when the operator was already on the wait", () => {
+    assert.equal(
+      shouldHoldForYouTask({
+        held: true,
+        tanksEmpty: true,
+        canPresent: true,
+        arm: false,
+      }),
+      true,
+    );
+  });
 });

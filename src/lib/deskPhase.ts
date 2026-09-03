@@ -62,6 +62,8 @@ export function deskPhase(input: DeskPhaseInput): DeskPhaseResult {
     phase = "silent_refuel";
   } else if (input.hasScoutCard) {
     phase = "scout_reply";
+  } else if (input.searching) {
+    phase = "silent_refuel";
   } else if (input.hasSuggestion) {
     phase = "organic_reply";
   } else {

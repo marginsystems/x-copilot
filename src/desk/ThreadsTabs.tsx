@@ -91,7 +91,7 @@ type ThreadsTabsProps = {
   onSearch: () => void;
   onStopScout: () => void;
   onMark: (thread: ThreadCard) => void;
-  onSkip: (thread: ThreadCard) => void;
+  onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: () => void | Promise<void>;
   setActionBusy: (busy: boolean) => void;
@@ -144,6 +144,25 @@ export function ThreadsTabs({
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   const scouted = preferRootTargets(curatedThreads);
   const scout = pickApproachScout(scouted);
+  const scoutCountRef = useRef(scouted.length);
+  const consumedScoutRef = useRef(false);
+  const pendingDismissIdRef = useRef<string | null>(null);
+  const autoTriedRef = useRef(false);
+  if (scouted.length > scoutCountRef.current) {
+    consumedScoutRef.current = false;
+    autoTriedRef.current = false;
+  }
+  if (
+    pendingDismissIdRef.current &&
+    dismissedHistory.some(
+      (entry) => entry.threadId === pendingDismissIdRef.current,
+    ) &&
+    !scouted.some((thread) => thread.id === pendingDismissIdRef.current)
+  ) {
+    consumedScoutRef.current = true;
+    pendingDismissIdRef.current = null;
+  }
+  scoutCountRef.current = scouted.length;
   const tanksEmpty =
     scouted.length === 0 && forYouSuggestions.length === 0;
   const canPresentForYou = canPresentForYouTask({
@@ -158,6 +177,7 @@ export function ThreadsTabs({
     held: forYouHeld && !grounded,
     tanksEmpty,
     canPresent: canPresentForYou,
+    arm: !consumedScoutRef.current,
   });
   useEffect(() => {
     if (holdForYouTask && !forYouHeld && !forYouReleased) {
@@ -181,7 +201,6 @@ export function ThreadsTabs({
     beats: coaching?.beats ?? emptyDeskBeats(),
   });
   const suggestion = pickApproachSuggestion(forYouSuggestions);
-  const autoTriedRef = useRef(false);
   const previousPhaseRef = useRef(phase);
   const wasSearchingRef = useRef(false);
   useEffect(() => {
@@ -193,7 +212,10 @@ export function ThreadsTabs({
   useEffect(() => {
     if (!agendaReady) return;
     const waiting =
-      phase === "silent_refuel" || phase === "hold";
+      phase === "silent_refuel" ||
+      phase === "hold" ||
+      phase === "scout_reply" ||
+      phase === "organic_reply";
     if (
       (previousPhaseRef.current === "silent_refuel" ||
         previousPhaseRef.current === "hold") &&
@@ -211,7 +233,7 @@ export function ThreadsTabs({
     }
     if (wasSearchingRef.current) {
       wasSearchingRef.current = false;
-      if (waiting) {
+      if (phase === "silent_refuel" || phase === "hold") {
         autoTriedRef.current = false;
       }
     }
@@ -223,7 +245,7 @@ export function ThreadsTabs({
         cooldownRemainingSec: searchCooldownRemaining,
         needsXLink: deskNeedsXLink(authUser),
         hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
-        hasScoutCard: scouted.length > 0,
+        scoutCount: scouted.length,
         alreadyTried: autoTriedRef.current,
       })
     ) {
@@ -376,10 +398,19 @@ export function ThreadsTabs({
             setVoice={setVoice}
             exitingIds={exitingIds}
             onScoutMark={onMark}
-            onScoutSkip={(thread) =>
-              exitRow(thread.id, thread.id, () => onSkip(thread))
-            }
-            onScoutDismiss={onDismiss}
+            onScoutSkip={(thread) => {
+              exitRow(thread.id, thread.id, async () => {
+                const skipped = await onSkip(thread);
+                if (skipped) {
+                  consumedScoutRef.current = true;
+                  autoTriedRef.current = false;
+                }
+              });
+            }}
+            onScoutDismiss={(thread) => {
+              pendingDismissIdRef.current = thread.id;
+              onDismiss(thread);
+            }}
             onSuggestionPosted={(id) =>
               exitRow(id, `suggest:${id}`, () => actForYou(id, "done"))
             }

@@ -78,6 +78,10 @@ describe("deskPhase", () => {
     phase("organic_reply", { hasSuggestion: true });
   });
 
+  it("waits on a live takeoff instead of swapping in Suggested", () => {
+    phase("silent_refuel", { searching: true, hasSuggestion: true });
+  });
+
   it("refuels only when both tanks are empty", () => {
     phase("silent_refuel", { searching: false });
     phase("silent_refuel", { searching: true });
