@@ -5,6 +5,7 @@ import type { AuthSessionUser } from "../auth/types";
 import { AGENDA_MAX_CHARS, AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import {
   clampMaxThreadChars,
+  clampMinViews,
   DEFAULT_SETTINGS,
   DROP_OUTBOUND_LINKS_LABEL,
   MAX_AVOID_CHARS,
@@ -219,7 +220,44 @@ export function SettingsForm({
             />
             <span>Dedupe accounts I&apos;ve interacted with</span>
           </label>
+          <label className="settings-check">
+            <input
+              type="checkbox"
+              checked={draft.filterByMinViews}
+              onChange={(e) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  filterByMinViews: e.target.checked,
+                }))
+              }
+            />
+            <span>Drop posts under a view floor</span>
+          </label>
         </div>
+        <label className="settings-field">
+          <span>Minimum views</span>
+          <input
+            type="number"
+            min={0}
+            max={1000000}
+            step={1}
+            disabled={!draft.filterByMinViews}
+            value={draft.minViews}
+            onChange={(e) =>
+              setDraft((prev) => ({
+                ...prev,
+                minViews: clampMinViews(
+                  e.target.value === ""
+                    ? DEFAULT_SETTINGS.minViews
+                    : Number(e.target.value),
+                ),
+              }))
+            }
+          />
+          <span className="settings-help">
+            Scout skips an original post below this many views. Default 100.
+          </span>
+        </label>
         <ExcludedTagsField
           tags={draft.excludedTags}
           onChange={(excludedTags) =>

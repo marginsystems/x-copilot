@@ -73,6 +73,12 @@ export function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (typeof obj.dropAutomatedAccounts === "boolean") {
     filters.dropAutomatedAccounts = obj.dropAutomatedAccounts;
   }
+  if (typeof obj.filterByMinViews === "boolean") {
+    filters.filterByMinViews = obj.filterByMinViews;
+  }
+  if (typeof obj.minViews === "number" && Number.isInteger(obj.minViews)) {
+    filters.minViews = obj.minViews;
+  }
   if (typeof obj.dedupeAccounts === "boolean") {
     filters.dedupeAccounts = obj.dedupeAccounts;
   }
@@ -263,6 +269,8 @@ export async function tryHandleScout(
         cooldownFiltered: done.cooldownFiltered,
         cooldownAuthors: done.cooldownAuthors,
         cooldownWarning: done.cooldownWarning,
+        minViewsFiltered: done.minViewsFiltered,
+        minViewsWarning: done.minViewsWarning,
         linkFiltered: done.linkFiltered,
         linkWarning: done.linkWarning,
         lengthFiltered: done.lengthFiltered,

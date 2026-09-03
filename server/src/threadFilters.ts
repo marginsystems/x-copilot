@@ -332,6 +332,51 @@ export type AutomatedFilterOptions = {
   dropAutomatedAccounts?: boolean;
 };
 
+export type MinViewsFilterOptions = {
+  filterByMinViews?: boolean;
+  minViews?: number;
+  /** Keep replies whose OP views are not available until parent hydration. */
+  allowUnknownReplyViews?: boolean;
+};
+
+function audienceViews(thread: ThreadCard): number {
+  const n = thread.opViews ?? thread.views;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Hard-drop posts under the view floor before triage (Settings default on, 100). */
+export function filterMinViews(
+  threads: ThreadCard[],
+  opts: MinViewsFilterOptions = {},
+): { threads: ThreadCard[]; minViewsFilteredCount: number } {
+  if (opts.filterByMinViews === false) {
+    return { threads: [...threads], minViewsFilteredCount: 0 };
+  }
+  const floor =
+    typeof opts.minViews === "number" &&
+    Number.isInteger(opts.minViews) &&
+    opts.minViews >= 0
+      ? opts.minViews
+      : 100;
+  const kept: ThreadCard[] = [];
+  let minViewsFilteredCount = 0;
+  for (const thread of threads) {
+    if (
+      opts.allowUnknownReplyViews &&
+      (thread.isReply === true || Boolean(thread.inReplyToId)) &&
+      (typeof thread.opViews !== "number" ||
+        !Number.isFinite(thread.opViews) ||
+        !thread.opParentDerived)
+    ) {
+      kept.push(thread);
+      continue;
+    }
+    if (audienceViews(thread) >= floor) kept.push(thread);
+    else minViewsFilteredCount += 1;
+  }
+  return { threads: kept, minViewsFilteredCount };
+}
+
 /** Hard-drop Automated (AI/bot) accounts before length/triage (Settings default on). */
 export function filterAutomatedAccounts(
   threads: ThreadCard[],

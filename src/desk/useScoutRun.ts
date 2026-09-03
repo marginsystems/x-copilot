@@ -323,6 +323,8 @@ export function useScoutRun({
             dropEmDashes: settings.dropEmDashes,
             dropProfanity: settings.dropProfanity,
             dropAutomatedAccounts: settings.dropAutomatedAccounts,
+            filterByMinViews: settings.filterByMinViews,
+            minViews: settings.minViews,
             dedupeAccounts: settings.dedupeAccounts,
             preferredLanguage: settings.preferredLanguage,
             excludedTags: settings.excludedTags,
