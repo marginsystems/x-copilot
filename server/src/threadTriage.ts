@@ -90,12 +90,12 @@ Fields:
 - hasNativeMedia (input only): when true, the post has a native X image/video attachment; media shortlinks were stripped from text. Do NOT treat that as an outbound link, promo link, or "with a link" — it is an attached image/video, not a URL payload.
 
 threadKind meanings:
-- timely_take: recent news/release/outage + numbers or a non-obvious angle (prefer engage priority/consider, bait 0-30).
+- timely_take: a person's non-obvious angle on a live event they are in (outage, break, incident) — not a company being announced, funded, praised, hired for, or pitched. Company promotion is not this, even when it includes news and numbers. Prefer engage priority/consider, bait 0-30.
 - fact_add: adds concrete specifics the OP omitted — easy for a third voice to extend (prefer consider, bait 0-30).
 - sharp_opinion: one crisp technical/product claim peers can agree/disagree with (prefer consider/priority, bait 0-30).
 - lived_answer: specific how-I-do-it answer to a real question (prefer consider/priority, bait 0-30). NOT a build-in-public process pledge, "day N of building", or "I will post daily" ritual with no concrete answer.
 - hollow_ask: low-effort question anyone could ask; reader does the work ("what are you shipping this week?") — engage skip, bait 70-100.
-- promo_context: primary job is marketing — product URL, BIP vanity/signups, substance-free process announcements, yes-man under a pitch — engage skip, bait 70-100.
+- promo_context: primary job is talking up a company or product — funding, launch, hiring, revenue-flex, brand praise, product URL, BIP vanity, yes-man under a pitch. Engage skip, bait 70-100.
 - bare_news: ticker/wire headline with no original take — engage skip, bait 60-90.
 - closed_thread: no natural third-party entry — private Q to OP, event you must have attended — engage skip. Not every fight: flag interpersonal_conflict and leave threadKind/bait to whether a third voice can enter.
 - other: does not fit above; still apply bait/agenda rules.
@@ -112,7 +112,7 @@ Bait patterns (score high, 70-100):
 - Posts whose main payload is a GitHub/product link with hollow framing → promo_context.
 - Listicle/thread farming, rage bait, engagement pods.
 - Essay / wall-of-text posts and multi-part thread openers — prefer engage "skip" and flag wall_of_text or thread_farm even if under a hard length filter.
-- Promo / revenue-flex / hiring OP under an otherwise good reply: product launch flex ("just crossed $X revenue"), hollow SaaS plugs, "100% profit" dashboards, giveaway roots, "We are hiring!" / "Come join us" / company brand flex / quote-retweet praise of a product or team. Prefer engage "skip", baitScore 70-100, threadKind promo_context, flags promo_op and/or bad_context EVEN IF the reply is a genuine on-agenda technical question (stack, latency, how-do-you).
+- Company as the payload: funding, launch, hiring, revenue-flex, brand praise, product pitch, or a graphic that exists to name a company. Prefer engage "skip", baitScore 70-100, threadKind promo_context, flags promo and/or promo_op. Same under an otherwise good reply — "just crossed $X revenue", "We are hiring! Come join us", quote-retweet praise of a product or team — even if the reply is a genuine on-agenda technical question (stack, latency, how-do-you). Flag promo_op and/or bad_context on those roots.
 - Upcoming event, livestream, webinar, meetup, or conference announcements whose main ask is to register, RSVP, tune in, or join. Prefer engage "skip", threadKind promo_context or closed_thread, flag event_promo even when the topic is on-agenda.
 - Partisan politics, elections, culture-war dunking, or identity-horse-race framing as the main payload → flag political (still set threadKind/bait normally; operators may exclude this tag from Curated).
 - Interpersonal fight / negative-energy argument between people (insults, "you keep making this about me", "brainless take", defensive personal accusations) — even when the topic is on-agenda technical. Flag interpersonal_conflict and still set threadKind/bait normally; operators may exclude this tag. Do not force closed_thread just because people are fighting. A crisp technical disagreement without personal heat is not this flag. closed_thread is only for no natural third-party entry.
@@ -134,7 +134,7 @@ Few-shot examples (pattern only — do not copy ids):
 1) Prefer / priority — timely_take: "6 hours into the GitHub Actions outage… 6th incident this month… averaged 24 incidents/month" → baitScore ~20, engage priority, threadKind timely_take (news + stats + frustration hook).
 2) Prefer / consider — fact_add: reply listing concrete Flock camera capabilities under a surveillance complaint → baitScore ~25, engage consider, threadKind fact_add.
 3) Skip — hollow_ask: short BIP update ending "Solana builders — what's one thing you're shipping this week?" → baitScore ~85, engage skip, threadKind hollow_ask.
-4) Skip — promo_context / bare_news: BIP "hit 20 signups" vanity, product URL soft-pitch, or a pure NVDA partnership ticker with no take → engage skip, threadKind promo_context or bare_news.
+4) Skip — promo_context / bare_news: BIP "hit 20 signups" vanity, product URL soft-pitch, a company funding/launch/praise graphic, or a pure NVDA partnership ticker with no take → engage skip, threadKind promo_context or bare_news.
 5) Flag interpersonal_conflict: two people in a personal argument under an otherwise on-agenda AI/security topic — "you keep making this about me or you", "just brainless take", defensive "i mean its not a brainless take?" → flag interpersonal_conflict; set threadKind/bait from whether a third voice can usefully enter (closed_thread only if no natural entry). Operators may exclude this tag.
 6) Skip — low_substance BIP ritual: "day 1 of building Aurora in public. every day I post exactly what changed, and the current build is always live on the site. if it didn't ship, I don't post it." → baitScore ~80, engage skip, threadKind promo_context, flag low_substance (process pledge, no shipped delta / fact / claim — not lived_answer).
 7) Skip — promo_op under hiring/quote-promo: reply "What's the stack looking like for inference? … how y'all handle latency at scale" under OP "We are hiring! Come join us…" (quote-promoting a company/team) → baitScore ~85, engage skip, threadKind promo_context, flags promo_op and bad_context (do not cool genuine questions under hiring/promo roots).
