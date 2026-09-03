@@ -477,6 +477,7 @@ export async function runScoutCollect(opts: {
           filterMinViews(afterExcludedAccounts.threads, {
             filterByMinViews,
             minViews,
+            allowUnknownReplyViews: true,
           }),
           maxChars,
           { dropArticles, articleIds: articleConversationIds },
@@ -590,6 +591,8 @@ export async function runScoutCollect(opts: {
         },
         dropOutboundLinks,
         dropProfanity,
+        filterByMinViews,
+        minViews,
       });
       funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
       linkFilteredTotal += afterHydrateLinks.linkFilteredCount;

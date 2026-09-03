@@ -335,6 +335,8 @@ export type AutomatedFilterOptions = {
 export type MinViewsFilterOptions = {
   filterByMinViews?: boolean;
   minViews?: number;
+  /** Keep replies whose OP views are not available until parent hydration. */
+  allowUnknownReplyViews?: boolean;
 };
 
 function audienceViews(thread: ThreadCard): number {
@@ -354,7 +356,16 @@ export function filterMinViews(
     opts.minViews >= 0
       ? opts.minViews
       : 100;
-  return threads.filter((thread) => audienceViews(thread) >= floor);
+  return threads.filter((thread) => {
+    if (
+      opts.allowUnknownReplyViews &&
+      (thread.isReply === true || Boolean(thread.inReplyToId)) &&
+      (typeof thread.opViews !== "number" || !Number.isFinite(thread.opViews))
+    ) {
+      return true;
+    }
+    return audienceViews(thread) >= floor;
+  });
 }
 
 /** Hard-drop Automated (AI/bot) accounts before length/triage (Settings default on). */

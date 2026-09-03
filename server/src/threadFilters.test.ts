@@ -5,6 +5,7 @@ import {
   DEFAULT_MAX_THREAD_CHARS,
   EM_DASH,
   filterAutomatedAccounts,
+  filterMinViews,
   filterExcludedAccounts,
   filterByLanguage,
   filterEmDashes,
@@ -49,6 +50,33 @@ function thread(
     ...extra,
   };
 }
+
+describe("filterMinViews", () => {
+  it("keeps the inclusive floor and drops lower views", () => {
+    const result = filterMinViews([
+      thread("at", "at", undefined, { views: 100 }),
+      thread("below", "below", undefined, { views: 99 }),
+    ]);
+    assert.deepEqual(result.map((item) => item.id), ["at"]);
+  });
+
+  it("passes through when disabled", () => {
+    const items = [thread("missing", "missing")];
+    assert.deepEqual(filterMinViews(items, { filterByMinViews: false }), items);
+  });
+
+  it("keeps replies with unknown OP views for hydration", () => {
+    const reply = thread("reply", "reply", undefined, {
+      isReply: true,
+      views: 1,
+    });
+    assert.deepEqual(
+      filterMinViews([reply], { allowUnknownReplyViews: true }),
+      [reply],
+    );
+    assert.deepEqual(filterMinViews([reply]), []);
+  });
+});
 
 describe("isSelfReply / filterSelfReplies", () => {
   it("detects same-author reply-to", () => {

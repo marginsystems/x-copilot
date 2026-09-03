@@ -3,6 +3,7 @@
  */
 import {
   filterByLanguage,
+  filterMinViews,
   filterOutboundLinks,
   filterProfanity,
   filterSelfReplies,
@@ -19,11 +20,17 @@ export function filterPostHydrateThreads(opts: {
   lengthOptions?: LengthFilterOptions;
   dropOutboundLinks?: boolean;
   dropProfanity?: boolean;
+  filterByMinViews?: boolean;
+  minViews?: number;
 }) {
   // Hydration can reveal same-author replies that lacked an early author hint.
   const afterSelfReply = filterSelfReplies(opts.threads);
+  const afterMinViews = filterMinViews(afterSelfReply.threads, {
+    filterByMinViews: opts.filterByMinViews,
+    minViews: opts.minViews,
+  });
   // OP/quoted root links are usually only visible after hydrate.
-  const afterLinks = filterOutboundLinks(afterSelfReply.threads, {
+  const afterLinks = filterOutboundLinks(afterMinViews, {
     dropOutboundLinks: opts.dropOutboundLinks,
   });
   const afterProfanity = filterProfanity(afterLinks.threads, {
@@ -42,6 +49,7 @@ export function filterPostHydrateThreads(opts: {
 
   return {
     afterSelfReply,
+    afterMinViews: { threads: afterMinViews },
     afterLinks,
     afterProfanity,
     afterLanguage,

@@ -236,6 +236,7 @@ export async function runScoutSearch(opts: {
   const afterMinViews = filterMinViews(afterExcludedAccounts.threads, {
     filterByMinViews: opts.filters?.filterByMinViews,
     minViews: opts.filters?.minViews,
+    allowUnknownReplyViews: true,
   });
   const maxChars = resolveMaxThreadCharsFromFilters(
     opts.filters?.maxThreadChars,
@@ -264,6 +265,8 @@ export async function runScoutSearch(opts: {
     lengthOptions: { dropArticles },
     dropOutboundLinks,
     dropProfanity,
+    filterByMinViews: opts.filters?.filterByMinViews,
+    minViews: opts.filters?.minViews,
   });
   const selfReplyFiltered =
     afterSelf.selfReplyFilteredCount +
