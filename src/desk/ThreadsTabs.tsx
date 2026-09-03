@@ -146,10 +146,18 @@ export function ThreadsTabs({
   const scout = pickApproachScout(scouted);
   const scoutCountRef = useRef(scouted.length);
   const consumedScoutRef = useRef(false);
+  const pendingDismissIdRef = useRef<string | null>(null);
   const autoTriedRef = useRef(false);
   if (scouted.length > scoutCountRef.current) {
     consumedScoutRef.current = false;
     autoTriedRef.current = false;
+  }
+  if (
+    pendingDismissIdRef.current &&
+    !scouted.some((thread) => thread.id === pendingDismissIdRef.current)
+  ) {
+    consumedScoutRef.current = true;
+    pendingDismissIdRef.current = null;
   }
   scoutCountRef.current = scouted.length;
   const tanksEmpty =
@@ -222,7 +230,7 @@ export function ThreadsTabs({
     }
     if (wasSearchingRef.current) {
       wasSearchingRef.current = false;
-      if (waiting) {
+      if (phase === "silent_refuel" || phase === "hold") {
         autoTriedRef.current = false;
       }
     }
@@ -392,7 +400,7 @@ export function ThreadsTabs({
               exitRow(thread.id, thread.id, () => onSkip(thread));
             }}
             onScoutDismiss={(thread) => {
-              consumedScoutRef.current = true;
+              pendingDismissIdRef.current = thread.id;
               onDismiss(thread);
             }}
             onSuggestionPosted={(id) =>
