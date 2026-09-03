@@ -13,7 +13,7 @@ describe("runScoutCollect bucket loop", () => {
     configured: true,
   };
 
-  it("asks search for one page and no referenced-tweet expansions", async () => {
+  it("asks search for one page with referenced-tweet expansions", async () => {
     const seen: Array<{
       query?: string;
       maxPages?: number;
@@ -57,7 +57,7 @@ describe("runScoutCollect bucket loop", () => {
     });
     assert.ok(seen.length >= 1);
     assert.equal(seen[0]?.maxPages, 1);
-    assert.equal(seen[0]?.expandReferenced, false);
+    assert.equal(seen[0]?.expandReferenced, true);
     assert.match(seen[0]?.query ?? "", /-is:retweet/);
   });
 
