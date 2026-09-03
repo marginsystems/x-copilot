@@ -61,6 +61,53 @@ describe("runScoutCollect bucket loop", () => {
     assert.match(seen[0]?.query ?? "", /-is:retweet/);
   });
 
+  it("drops quote-of-Article candidates before triage", async () => {
+    let triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 1,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "article-quote",
+              author: "@quote-reader",
+              isQuote: true,
+              opLongform: "article",
+            }),
+            card({ id: "normal", author: "@normal" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t) => ({
+              ...t,
+              engage: "consider" as const,
+              baitScore: 20,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(triageIds, ["normal"]);
+  });
+
   it("fills bucket to K before any triage call", async () => {
     let triageCalls = 0;
     let searchCalls = 0;
