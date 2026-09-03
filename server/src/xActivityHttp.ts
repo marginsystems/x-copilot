@@ -161,8 +161,9 @@ async function handleActivityPost(
         ? getWatchedThread(userId, parsed.conversationId)
         : null);
     if (watched?.author) {
+      const discoveredAtMs = Date.now();
       try {
-        const interaction = await markInteracted({
+        await markInteracted({
           threadId: watched.threadId,
           author: watched.author,
           source: "discovered",
@@ -181,8 +182,7 @@ async function handleActivityPost(
           recordDeskReplyMarked({
             userId,
             source: "scout",
-            nowMs:
-              Date.parse(interaction.postedAt ?? interaction.at) || Date.now(),
+            nowMs: discoveredAtMs,
           });
         } catch (err) {
           console.warn("[xaa] desk beats mark soft-fail", err);
