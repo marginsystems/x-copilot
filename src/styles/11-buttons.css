@@ -2,7 +2,9 @@
 
 /* Buttons */
 
-button.primary {
+button.primary,
+a.primary,
+a.primary:visited {
   border-radius: var(--radius);
   padding: 7px 14px;
   font-family: var(--font-head);
@@ -14,6 +16,8 @@ button.primary {
   background: var(--accent);
   color: var(--on-accent);
   border: 1px solid var(--accent);
+  text-decoration: none;
+  display: inline-block;
 }
 
 button.ghost,
