@@ -144,6 +144,16 @@ export function ThreadsTabs({
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   const scouted = preferRootTargets(curatedThreads);
   const scout = pickApproachScout(scouted);
+  const scoutCountRef = useRef(scouted.length);
+  const consumedScoutRef = useRef(false);
+  const autoTriedRef = useRef(false);
+  if (scouted.length < scoutCountRef.current) {
+    consumedScoutRef.current = true;
+  } else if (scouted.length > scoutCountRef.current) {
+    consumedScoutRef.current = false;
+    autoTriedRef.current = false;
+  }
+  scoutCountRef.current = scouted.length;
   const tanksEmpty =
     scouted.length === 0 && forYouSuggestions.length === 0;
   const canPresentForYou = canPresentForYouTask({
@@ -158,6 +168,7 @@ export function ThreadsTabs({
     held: forYouHeld && !grounded,
     tanksEmpty,
     canPresent: canPresentForYou,
+    arm: !consumedScoutRef.current,
   });
   useEffect(() => {
     if (holdForYouTask && !forYouHeld && !forYouReleased) {
@@ -181,7 +192,6 @@ export function ThreadsTabs({
     beats: coaching?.beats ?? emptyDeskBeats(),
   });
   const suggestion = pickApproachSuggestion(forYouSuggestions);
-  const autoTriedRef = useRef(false);
   const previousPhaseRef = useRef(phase);
   const wasSearchingRef = useRef(false);
   useEffect(() => {
@@ -223,7 +233,7 @@ export function ThreadsTabs({
         cooldownRemainingSec: searchCooldownRemaining,
         needsXLink: deskNeedsXLink(authUser),
         hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
-        hasScoutCard: scouted.length > 0,
+        scoutCount: scouted.length,
         alreadyTried: autoTriedRef.current,
       })
     ) {
