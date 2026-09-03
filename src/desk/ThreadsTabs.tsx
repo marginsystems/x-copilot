@@ -350,6 +350,7 @@ export function ThreadsTabs({
             phase={phase}
             hold={hold}
             clock={pace.clock}
+            remainingMs={pace.remainingMs}
             onBypass={pace.bypass}
             searching={searching}
             grounded={grounded}
