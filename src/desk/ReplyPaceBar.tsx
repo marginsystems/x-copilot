@@ -3,6 +3,7 @@ import { REPLY_PACE_HELP, REPLY_PACE_LEAD } from "../lib/replyPace";
 
 export function ReplyPaceBar(props: {
   clock: string;
+  remainingMs: number;
   onBypass: () => void;
 }) {
   return (
@@ -10,7 +11,7 @@ export function ReplyPaceBar(props: {
       <p className="reply-pace-clock">{props.clock}</p>
       <p className="reply-pace-copy">{REPLY_PACE_LEAD}</p>
       <button type="button" className="ghost" onClick={props.onBypass}>
-        Bypass
+        {props.remainingMs > 0 ? "Bypass" : "Back on deck"}
       </button>
       <details className="reply-pace-help">
         <summary aria-label="Why the hold">?</summary>

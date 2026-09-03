@@ -71,7 +71,7 @@ function phaseVerb(
   if (phase === "organic_reply" && suggestion?.kind === "repost") {
     return "Repost";
   }
-  if (phase === "organic_reply") return "Organic reply";
+  if (phase === "organic_reply") return "Suggested reply";
   if (phase === "fork") return "Fork";
   if (phase === "original") return "Original";
   if (phase === "silent_refuel") return "For You";
@@ -121,6 +121,7 @@ export function MissionCard(props: {
   phase: DeskPhase;
   hold: boolean;
   clock: string;
+  remainingMs: number;
   onBypass: () => void;
   searching: boolean;
   grounded?: boolean;
@@ -186,7 +187,11 @@ export function MissionCard(props: {
         <div className="threads">
           <ForYouFeedRow />
         </div>
-        <ReplyPaceBar clock={props.clock} onBypass={props.onBypass} />
+        <ReplyPaceBar
+          clock={props.clock}
+          remainingMs={props.remainingMs}
+          onBypass={props.onBypass}
+        />
       </div>
     );
   }

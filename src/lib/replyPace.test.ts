@@ -5,6 +5,7 @@ import {
   nextReplyPaceUntil,
   parseReplyPaceUntil,
   REPLY_PACE_MS,
+  replyPaceHoldActive,
   replyPaceLocked,
   replyPaceRemainingMs,
 } from "./replyPace.ts";
@@ -31,6 +32,12 @@ describe("replyPace", () => {
     assert.equal(replyPaceLocked(1_060, 1_000), true);
     assert.equal(replyPaceLocked(1_000, 1_000), false);
     assert.equal(replyPaceLocked(null, 1_000), false);
+  });
+
+  it("keeps the hold active after the clock runs out", () => {
+    assert.equal(replyPaceHoldActive(1_000), true);
+    assert.equal(replyPaceHoldActive(900), true);
+    assert.equal(replyPaceHoldActive(null), false);
   });
 
   it("prints a m:ss clock", () => {

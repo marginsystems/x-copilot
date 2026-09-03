@@ -24,6 +24,10 @@ export function replyPaceRemainingMs(until: number | null, now: number): number 
   return Math.max(0, until - now);
 }
 
+export function replyPaceHoldActive(until: number | null): boolean {
+  return until != null;
+}
+
 export function replyPaceLocked(until: number | null, now: number): boolean {
   return replyPaceRemainingMs(until, now) > 0;
 }
