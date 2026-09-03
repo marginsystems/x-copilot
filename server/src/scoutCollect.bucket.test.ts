@@ -13,7 +13,7 @@ describe("runScoutCollect bucket loop", () => {
     configured: true,
   };
 
-  it("asks search for one page and no referenced-tweet expansions", async () => {
+  it("asks search for one page with referenced-tweet expansions", async () => {
     const seen: Array<{
       query?: string;
       maxPages?: number;
@@ -57,8 +57,55 @@ describe("runScoutCollect bucket loop", () => {
     });
     assert.ok(seen.length >= 1);
     assert.equal(seen[0]?.maxPages, 1);
-    assert.equal(seen[0]?.expandReferenced, false);
+    assert.equal(seen[0]?.expandReferenced, true);
     assert.match(seen[0]?.query ?? "", /-is:retweet/);
+  });
+
+  it("drops quote-of-Article candidates before triage", async () => {
+    let triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 1,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "article-quote",
+              author: "@quote-reader",
+              isQuote: true,
+              opLongform: "article",
+            }),
+            card({ id: "normal", author: "@normal" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t) => ({
+              ...t,
+              engage: "consider" as const,
+              baitScore: 20,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(triageIds, ["normal"]);
   });
 
   it("fills bucket to K before any triage call", async () => {

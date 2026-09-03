@@ -684,6 +684,23 @@ describe("filterThreadsByLength", () => {
     );
   });
 
+  it("drops a quote of an X Article", () => {
+    const quote = thread(
+      "2095418466593390838",
+      "The real value of AI lies not in drawing conclusions for us.",
+      "note_tweet",
+      {
+        isQuote: true,
+        opLongform: "article",
+        opAuthor: "@qtdevlop",
+        opText: "https://t.co/qaGqed1cGP",
+      },
+    );
+    const result = filterThreadsByLength([quote], 480);
+    assert.equal(result.threads.length, 0);
+    assert.equal(result.articleFilteredCount, 1);
+  });
+
   it("drops replies using article ids from an earlier page", () => {
     const reply = thread("9", "Nice writeup", undefined, {
       isReply: true,

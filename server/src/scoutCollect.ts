@@ -412,7 +412,7 @@ export async function runScoutCollect(opts: {
           query: withScoutSearchExclusions(query),
           count: COLLECT_COUNT_PER_QUERY,
           maxPages: 1,
-          expandReferenced: false,
+          expandReferenced: true,
           session,
           signal: opts.signal,
         });

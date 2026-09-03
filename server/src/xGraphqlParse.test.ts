@@ -159,6 +159,35 @@ describe("parseSearchTimelineResponse", () => {
     assert.match(quote.opText ?? "", /\$632/);
   });
 
+  it("marks a quote of an X Article with opLongform", () => {
+    const card = tweetResultToCard({
+      __typename: "Tweet",
+      rest_id: "901",
+      legacy: { full_text: "The real value of AI", id_str: "901" },
+      core: {
+        user_results: { result: { core: { screen_name: "AlmustyFX" } } },
+      },
+      quoted_status_result: {
+        result: {
+          __typename: "Tweet",
+          rest_id: "800",
+          article: { title: "Ling 3.0 Flash Fin" },
+          legacy: {
+            full_text: "https://t.co/qaGqed1cGP",
+            id_str: "800",
+          },
+          core: {
+            user_results: { result: { core: { screen_name: "qtdevlop" } } },
+          },
+        },
+      },
+    });
+    assert.ok(card);
+    assert.equal(card.isQuote, true);
+    assert.equal(card.opLongform, "article");
+    assert.equal(card.opAuthor, "@qtdevlop");
+  });
+
   it("flags a quote when the quoted tweet has an off-platform link", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",

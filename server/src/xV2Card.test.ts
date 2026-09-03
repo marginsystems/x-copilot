@@ -262,6 +262,45 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.longform, undefined);
   });
 
+  it("copies opLongform when the quoted tweet is an X Article", () => {
+    const tweetsById = new Map([
+      [
+        "2095331355039285605",
+        {
+          id: "2095331355039285605",
+          text: "https://t.co/qaGqed1cGP",
+          author_id: "u-op",
+          article: { title: "Ling 3.0 Flash Fin" },
+          entities: {
+            urls: [
+              { expanded_url: "https://x.com/i/article/2095325328105414656" },
+            ],
+          },
+        },
+      ],
+    ]);
+    const card = v2TweetToCard(
+      {
+        id: "2095418466593390838",
+        text: "The real value of AI lies not in drawing conclusions for us.",
+        author_id: "u-reply",
+        note_tweet: {
+          text: "The real value of AI lies not in drawing conclusions for us.",
+        },
+        referenced_tweets: [
+          { type: "quoted", id: "2095331355039285605" },
+        ],
+      },
+      usersById,
+      tweetsById,
+    );
+    assert.ok(card);
+    assert.equal(card.isQuote, true);
+    assert.equal(card.longform, "note_tweet");
+    assert.equal(card.opLongform, "article");
+    assert.equal(card.opAuthor, "@hustler");
+  });
+
   it("copies parent article longform and full char count from includes", () => {
     const tweetsById = new Map([
       [

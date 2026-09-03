@@ -287,5 +287,9 @@ export function tweetResultToCard(result: unknown): ThreadCard | null {
   if (inner.quoted_status_result) card.isQuote = true;
   if (op.opAuthor) card.opAuthor = op.opAuthor;
   if (op.opText) card.opText = op.opText;
+  if (quoted) {
+    if (hasArticlePayload(quoted)) card.opLongform = "article";
+    else if (noteTweetText(quoted)) card.opLongform = "note_tweet";
+  }
   return card;
 }
