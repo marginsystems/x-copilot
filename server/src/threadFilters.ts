@@ -348,24 +348,33 @@ function audienceViews(thread: ThreadCard): number {
 export function filterMinViews(
   threads: ThreadCard[],
   opts: MinViewsFilterOptions = {},
-): ThreadCard[] {
-  if (opts.filterByMinViews === false) return [...threads];
+): { threads: ThreadCard[]; minViewsFilteredCount: number } {
+  if (opts.filterByMinViews === false) {
+    return { threads: [...threads], minViewsFilteredCount: 0 };
+  }
   const floor =
     typeof opts.minViews === "number" &&
     Number.isInteger(opts.minViews) &&
     opts.minViews >= 0
       ? opts.minViews
       : 100;
-  return threads.filter((thread) => {
+  const kept: ThreadCard[] = [];
+  let minViewsFilteredCount = 0;
+  for (const thread of threads) {
     if (
       opts.allowUnknownReplyViews &&
       (thread.isReply === true || Boolean(thread.inReplyToId)) &&
-      (typeof thread.opViews !== "number" || !Number.isFinite(thread.opViews))
+      (typeof thread.opViews !== "number" ||
+        !Number.isFinite(thread.opViews) ||
+        !thread.opParentDerived)
     ) {
-      return true;
+      kept.push(thread);
+      continue;
     }
-    return audienceViews(thread) >= floor;
-  });
+    if (audienceViews(thread) >= floor) kept.push(thread);
+    else minViewsFilteredCount += 1;
+  }
+  return { threads: kept, minViewsFilteredCount };
 }
 
 /** Hard-drop Automated (AI/bot) accounts before length/triage (Settings default on). */

@@ -288,6 +288,7 @@ export async function runScoutCollect(opts: {
   let automatedFilteredTotal = 0;
   let excludedAccountFilteredTotal = 0;
   let languageFilteredTotal = 0;
+  let minViewsFilteredTotal = 0;
   // Collect funnel is per-search cumulative: the filter stages (raw → afterLength)
   // sum every search page across all buckets/refills, while afterTriage sums only
   // the threads actually scored (bucket-qualified). The afterLength → afterTriage
@@ -473,12 +474,13 @@ export async function runScoutCollect(opts: {
         )) {
           articleConversationIds.add(id);
         }
+        const afterMinViews = filterMinViews(afterExcludedAccounts.threads, {
+          filterByMinViews,
+          minViews,
+          allowUnknownReplyViews: true,
+        });
         const afterLen = filterThreadsByLength(
-          filterMinViews(afterExcludedAccounts.threads, {
-            filterByMinViews,
-            minViews,
-            allowUnknownReplyViews: true,
-          }),
+          afterMinViews.threads,
           maxChars,
           { dropArticles, articleIds: articleConversationIds },
         );
@@ -496,6 +498,8 @@ export async function runScoutCollect(opts: {
         excludedAccountFilteredTotal +=
           afterExcludedAccounts.excludedAccountFilteredCount;
         languageFilteredTotal += afterLang.languageFilteredCount;
+        minViewsFilteredTotal += afterMinViews.minViewsFilteredCount;
+        funnelCounts.minViewsFiltered = minViewsFilteredTotal;
 
         const beforeFill = bucket.length;
         let authorDedupeSkipped = 0;
@@ -577,6 +581,7 @@ export async function runScoutCollect(opts: {
 
       const {
         afterSelfReply: afterHydrateSelf,
+        afterMinViews: afterHydrateMinViews,
         afterLinks: afterHydrateLinks,
         afterProfanity: afterHydrateProfanity,
         afterLanguage: afterHydrateLang,
@@ -597,6 +602,8 @@ export async function runScoutCollect(opts: {
       funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
       linkFilteredTotal += afterHydrateLinks.linkFilteredCount;
       profanityFilteredTotal += afterHydrateProfanity.profanityFilteredCount;
+      minViewsFilteredTotal += afterHydrateMinViews.minViewsFilteredCount;
+      funnelCounts.minViewsFiltered = minViewsFilteredTotal;
       const forTriage = afterHydrateLen.threads;
       languageFilteredTotal += afterHydrateLang.languageFilteredCount;
 
@@ -604,7 +611,8 @@ export async function runScoutCollect(opts: {
         const emptiedByRefillableFilter =
           afterHydrateSelf.selfReplyFilteredCount === 0 &&
           (afterHydrateLinks.linkFilteredCount > 0 ||
-            afterHydrateProfanity.profanityFilteredCount > 0);
+            afterHydrateProfanity.profanityFilteredCount > 0 ||
+            afterHydrateMinViews.minViewsFilteredCount > 0);
         if (!emptiedByRefillableFilter) {
           bucket = [];
           stopReason = "exhausted";
@@ -612,7 +620,7 @@ export async function runScoutCollect(opts: {
         }
         track(
           "filtering",
-          "0 candidates after post-hydrate self-reply + link + profanity + language + length filter — discarding bucket…",
+          "0 candidates after post-hydrate filters — discarding bucket…",
           {
             candidates: 0,
             coolCount: cool.length,
@@ -623,6 +631,8 @@ export async function runScoutCollect(opts: {
               linkFilteredPostHydrate: afterHydrateLinks.linkFilteredCount,
               profanityFilteredPostHydrate:
                 afterHydrateProfanity.profanityFilteredCount,
+              minViewsFilteredPostHydrate:
+                afterHydrateMinViews.minViewsFilteredCount,
               languageFilteredPostHydrate:
                 afterHydrateLang.languageFilteredCount,
               lengthFilteredPostHydrate: afterHydrateLen.filteredCount,
@@ -821,6 +831,9 @@ export async function runScoutCollect(opts: {
   const excludedAccountWarning = excludedAccountFilteredTotal
     ? `Dropped ${excludedAccountFilteredTotal} excluded accounts.`
     : undefined;
+  const minViewsWarning = minViewsFilteredTotal
+    ? `Dropped ${minViewsFilteredTotal} posts below the minimum view floor.`
+    : undefined;
 
   const done = track("done", stopMessage, {
     threads: cool,
@@ -842,6 +855,8 @@ export async function runScoutCollect(opts: {
     excludedAccountFiltered: excludedAccountFilteredTotal,
     excludedAccountWarning,
     languageFiltered: languageFilteredTotal,
+    minViewsFiltered: minViewsFilteredTotal,
+    minViewsWarning,
     pipelineCounts: funnelCounts,
     errors: searchErrors.length ? searchErrors : undefined,
     plannedBy,

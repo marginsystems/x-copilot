@@ -28,9 +28,10 @@ export function filterPostHydrateThreads(opts: {
   const afterMinViews = filterMinViews(afterSelfReply.threads, {
     filterByMinViews: opts.filterByMinViews,
     minViews: opts.minViews,
+    allowUnknownReplyViews: true,
   });
   // OP/quoted root links are usually only visible after hydrate.
-  const afterLinks = filterOutboundLinks(afterMinViews, {
+  const afterLinks = filterOutboundLinks(afterMinViews.threads, {
     dropOutboundLinks: opts.dropOutboundLinks,
   });
   const afterProfanity = filterProfanity(afterLinks.threads, {
@@ -49,7 +50,7 @@ export function filterPostHydrateThreads(opts: {
 
   return {
     afterSelfReply,
-    afterMinViews: { threads: afterMinViews },
+    afterMinViews,
     afterLinks,
     afterProfanity,
     afterLanguage,

@@ -57,12 +57,16 @@ describe("filterMinViews", () => {
       thread("at", "at", undefined, { views: 100 }),
       thread("below", "below", undefined, { views: 99 }),
     ]);
-    assert.deepEqual(result.map((item) => item.id), ["at"]);
+    assert.deepEqual(result.threads.map((item) => item.id), ["at"]);
+    assert.equal(result.minViewsFilteredCount, 1);
   });
 
   it("passes through when disabled", () => {
     const items = [thread("missing", "missing")];
-    assert.deepEqual(filterMinViews(items, { filterByMinViews: false }), items);
+    assert.deepEqual(
+      filterMinViews(items, { filterByMinViews: false }),
+      { threads: items, minViewsFilteredCount: 0 },
+    );
   });
 
   it("keeps replies with unknown OP views for hydration", () => {
@@ -72,9 +76,12 @@ describe("filterMinViews", () => {
     });
     assert.deepEqual(
       filterMinViews([reply], { allowUnknownReplyViews: true }),
-      [reply],
+      { threads: [reply], minViewsFilteredCount: 0 },
     );
-    assert.deepEqual(filterMinViews([reply]), []);
+    assert.deepEqual(filterMinViews([reply]), {
+      threads: [],
+      minViewsFilteredCount: 1,
+    });
   });
 });
 

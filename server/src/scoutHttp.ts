@@ -269,6 +269,8 @@ export async function tryHandleScout(
         cooldownFiltered: done.cooldownFiltered,
         cooldownAuthors: done.cooldownAuthors,
         cooldownWarning: done.cooldownWarning,
+        minViewsFiltered: done.minViewsFiltered,
+        minViewsWarning: done.minViewsWarning,
         linkFiltered: done.linkFiltered,
         linkWarning: done.linkWarning,
         lengthFiltered: done.lengthFiltered,

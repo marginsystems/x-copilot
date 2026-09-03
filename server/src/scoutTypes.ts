@@ -19,6 +19,7 @@ export type ScoutPipelineCounts = {
   afterLength: number;
   afterHydrateSelfReply: number;
   afterTriage: number;
+  minViewsFiltered?: number;
 };
 
 export type ScoutFilters = {
@@ -98,6 +99,8 @@ export type ScoutCollectEvent = {
   excludedAccountFiltered?: number;
   excludedAccountWarning?: string;
   languageFiltered?: number;
+  minViewsFiltered?: number;
+  minViewsWarning?: string;
   pipelineCounts?: ScoutPipelineCounts;
   errors?: Array<{ query: string; message: string }>;
   plannedBy?: "client" | LlmProvider;

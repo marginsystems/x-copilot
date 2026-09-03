@@ -25,6 +25,7 @@ export type LastScoutSnapshot = {
     afterLinks?: number;
     afterLength: number;
     afterTriage: number;
+    minViewsFiltered?: number;
   };
 };
 
@@ -117,6 +118,9 @@ export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
       }
       if (typeof pc.afterLinks === "number") {
         snapshot.pipelineCounts.afterLinks = pc.afterLinks;
+      }
+      if (typeof pc.minViewsFiltered === "number") {
+        snapshot.pipelineCounts.minViewsFiltered = pc.minViewsFiltered;
       }
     }
   }
