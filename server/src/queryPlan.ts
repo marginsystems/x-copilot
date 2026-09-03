@@ -162,7 +162,7 @@ export function hasAgendaNounQueries(
   agenda: string,
 ): boolean {
   const agendaWords = agendaContentWords(agenda);
-  if (agendaWords.size === 0) return false;
+  if (agendaWords.size === 0) return true;
   return (
     queries.filter((query) =>
       queryKeywordWords(query).some((word) => agendaWords.has(word)),

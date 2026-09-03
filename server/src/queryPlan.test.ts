@@ -155,6 +155,13 @@ describe("hasAgendaNounQueries", () => {
     );
   });
 
+  it("does not require grounding when the agenda has no content words", () => {
+    assert.equal(
+      hasAgendaNounQueries(["just shipped", "shipping soon"], "AI"),
+      true,
+    );
+  });
+
   it("does not count search operators as agenda nouns", () => {
     assert.equal(
       hasAgendaNounQueries(
