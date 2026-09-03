@@ -472,6 +472,7 @@ export function threadHasExcludedTag(
  */
 export const BAIT_CONVERSATION_FLAGS = [
   "engagement_bait",
+  "promo",
   "promo_op",
   "bad_context",
   "giveaway",
@@ -480,9 +481,10 @@ export const BAIT_CONVERSATION_FLAGS = [
 
 /**
  * Promo / bad-OP flags — never cool even if engage is consider/priority.
- * Keep in sync with TRIAGE_SYSTEM_PROMPT promo_op / bad_context guidance.
+ * Keep in sync with TRIAGE_SYSTEM_PROMPT promo / promo_op / bad_context guidance.
  */
 export const COOL_SKIP_PROMO_FLAGS = [
+  "promo",
   "promo_op",
   "bad_context",
   "promo_context",

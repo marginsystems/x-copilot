@@ -90,7 +90,7 @@ Fields:
 - hasNativeMedia (input only): when true, the post has a native X image/video attachment; media shortlinks were stripped from text. Do NOT treat that as an outbound link, promo link, or "with a link" — it is an attached image/video, not a URL payload.
 
 threadKind meanings:
-- timely_take: a person's non-obvious angle on a live event they are in (outage, break, incident) — not a company being announced, funded, praised, hired for, or pitched. A company name + news + a number is not this. Prefer engage priority/consider, bait 0-30.
+- timely_take: a person's non-obvious angle on a live event they are in (outage, break, incident) — not a company being announced, funded, praised, hired for, or pitched. Company promotion is not this, even when it includes news and numbers. Prefer engage priority/consider, bait 0-30.
 - fact_add: adds concrete specifics the OP omitted — easy for a third voice to extend (prefer consider, bait 0-30).
 - sharp_opinion: one crisp technical/product claim peers can agree/disagree with (prefer consider/priority, bait 0-30).
 - lived_answer: specific how-I-do-it answer to a real question (prefer consider/priority, bait 0-30). NOT a build-in-public process pledge, "day N of building", or "I will post daily" ritual with no concrete answer.
