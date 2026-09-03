@@ -183,6 +183,12 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       return false;
     }
     if (settings.filterByMinViews) {
+      const unknownReplyViews =
+        (thread.isReply === true || Boolean(thread.inReplyToId)) &&
+        (typeof thread.opViews !== "number" ||
+          !Number.isFinite(thread.opViews) ||
+          !thread.opParentDerived);
+      if (unknownReplyViews) return true;
       const n = thread.opViews ?? thread.views;
       const views = typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
       if (views < settings.minViews) return false;
