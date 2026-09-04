@@ -505,9 +505,10 @@ export async function subscribeUserToPostCreate(
  * `x_user_id` matters because the claim path only overwrites it on a fresh
  * INSERT — if the re-subscribe POST fails, a stale `x_user_id` from the old
  * account would otherwise survive and be picked up by `resolveStoredXUserId`.
- * Returns `{ ok: true }` when the stored id was cleared (nothing blocks a fresh
- * re-subscribe) and `{ ok: false }` when the DELETE failed and the old id was
- * retained.
+ * Returns `{ ok: true }` when the old post.create id was cleared (nothing
+ * blocks a fresh re-subscribe) and `{ ok: false }` when that DELETE failed and
+ * the old id was retained. A failed post.delete cleanup is retained for later
+ * recovery but does not block repointing the post.create subscription.
  */
 export async function removeUserPostCreateSubscription(
   userId: string,
@@ -528,7 +529,6 @@ export async function removeUserPostCreateSubscription(
   const deleteDeleteOk = await deleteActivitySubscription(
     row?.delete_subscription_id,
   );
-  const deleteOk = createDeleteOk && deleteDeleteOk;
   getPlatformDb()
     .prepare(
       `UPDATE activity_subscriptions
@@ -539,11 +539,11 @@ export async function removeUserPostCreateSubscription(
     .run(
       createDeleteOk ? null : row?.subscription_id ?? null,
       deleteDeleteOk ? null : row?.delete_subscription_id ?? null,
-      deleteOk ? null : row?.x_user_id ?? null,
+      createDeleteOk ? null : row?.x_user_id ?? null,
       new Date().toISOString(),
       userId,
     );
-  return { ok: deleteOk };
+  return { ok: createDeleteOk };
 }
 
 export async function pauseUserSubscription(userId: string, untilIso: string): Promise<void> {
