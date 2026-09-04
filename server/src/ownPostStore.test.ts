@@ -16,6 +16,7 @@ import {
   getWatchedThread,
   lastUtcDays,
   listDueOwnPostSamples,
+  listOwnPostedAt,
   patchOwnPostSnapshot,
   rememberActivityEvent,
   seenActivityEvent,
@@ -108,6 +109,11 @@ describe("ownPostStore", () => {
     assert.equal(summary.totals.likes, 10);
     assert.equal(summary.totals.bookmarks, 8);
     assert.equal(summary.top[0]?.id, "1");
+    assert.deepEqual(listOwnPostedAt({ userId, kinds: ["original"] }), [
+      "2026-08-15T12:00:00.000Z",
+    ]);
+    assert.equal(listOwnPostedAt({ userId, kinds: ["original", "quote"] }).length, 1);
+    assert.equal(listOwnPostedAt({ userId, kinds: ["reply"] }).length, 1);
   });
 
   it("plots a continuous zero-filled 30-day UTC window, not just posting days", () => {

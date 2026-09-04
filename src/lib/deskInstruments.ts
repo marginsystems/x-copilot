@@ -4,19 +4,23 @@ import {
 } from "./replyPace";
 
 export const DESK_GAUGE_LABEL = "desk gauge";
-export const HOUR_WALK = 2;
 export const POST_DAILY_CAP_MIN = 5;
 export const POST_DAILY_CAP_MAX = 20;
+/** Same window size the public X ranking features use for recent actions. */
+export const RATE_WINDOW = 500;
 
-const MAX_WINDOW_SIZE = 512;
-const MIN_HOUR_MARKS = 8;
-const MIN_COMPLETED_HOURS_WITH_DATA = 3;
 const INBOUND_SAMPLE_SIZE = 5;
 const MIN_INBOUND_SAMPLES = 3;
 const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
 
 export type DeskGaugeBand = "cool" | "warm" | "hot";
+
+export type InstrumentDelta = {
+  pct24h: number | null;
+  pct7d: number | null;
+};
 
 export type DeskInstrumentMark = {
   /** Epoch milliseconds. Prefer postedAtMs when both times are present. */
@@ -29,7 +33,12 @@ export type DeskInstrumentMark = {
 export type DeskInstrumentInput = {
   nowMs: number;
   marks: DeskInstrumentMark[];
+  /** Last 500 reply times when the server sent them. Else `marks`. */
+  replyAtMs?: number[];
+  originalAtMs?: number[];
+  postAtMs?: number[];
   postsToday: number;
+  originalsToday: number;
   /** From dailyPostCap({ level, currentStreak }). */
   dailyPostCap: number;
   /** sessionStorage until from replyPace. */
@@ -38,16 +47,17 @@ export type DeskInstrumentInput = {
 
 export type DeskInstruments = {
   windowSize: number;
-  repliesLast60s: number;
-  repliesLastHour: number;
+  repliesPerHour: number;
+  repliesPerHourDelta: InstrumentDelta;
   repliesUtcDay: number;
+  repliesUtcDayDelta: InstrumentDelta;
+  originalsToday: number;
+  originalsTodayDelta: InstrumentDelta;
   postsToday: number;
+  postsTodayDelta: InstrumentDelta;
   dailyPostCap: number;
   paceRemainingMs: number;
   paceLocked: boolean;
-  minuteBand: DeskGaugeBand;
-  hourBand: DeskGaugeBand | null;
-  hourMedian: number | null;
   postsBand: DeskGaugeBand;
   inboundBand: DeskGaugeBand | null;
 };
@@ -62,6 +72,11 @@ export type DeskHistoryMarkSource = {
     };
   };
 };
+
+export function parseInstrumentTimes(rows: string[] | undefined): number[] {
+  if (!rows) return [];
+  return rows.map((row) => Date.parse(row)).filter((n) => Number.isFinite(n));
+}
 
 export function markFromHistory(
   entry: DeskHistoryMarkSource,
@@ -100,77 +115,55 @@ function markTime(mark: DeskInstrumentMark): number {
   return mark.postedAtMs ?? mark.atMs;
 }
 
+function finiteTimes(times: number[]): number[] {
+  return times.filter((time) => Number.isFinite(time));
+}
+
 function countInRange(
-  marks: DeskInstrumentMark[],
+  times: number[],
   afterMs: number,
   throughMs: number,
 ): number {
-  return marks.filter((mark) => {
-    const time = markTime(mark);
-    return time > afterMs && time <= throughMs;
-  }).length;
+  return times.filter((time) => time > afterMs && time <= throughMs).length;
 }
 
-function medianWithEmptyHours(
-  positiveCounts: number[],
-  totalHourCount: number,
-): number {
-  const sortedCounts = positiveCounts.sort((a, b) => a - b);
-  const emptyHourCount = Math.max(
-    0,
-    totalHourCount - sortedCounts.length,
-  );
-  const valueAt = (index: number): number =>
-    index < emptyHourCount ? 0 : sortedCounts[index - emptyHourCount];
-  const middle = Math.floor(totalHourCount / 2);
-  return totalHourCount % 2 === 0
-    ? (valueAt(middle - 1) + valueAt(middle)) / 2
-    : valueAt(middle);
-}
-
-function readHourBaseline(
-  marks: DeskInstrumentMark[],
+/**
+ * Trailing actions / hour over the last `window` times ending at `nowMs`.
+ * Span is now minus the oldest time in that window, floored at one minute
+ * so a burst at t=now does not become Infinity.
+ */
+export function trailingPerHour(
+  timesMs: number[],
   nowMs: number,
-): { median: number; completedHoursWithData: number } | null {
-  if (marks.length < MIN_HOUR_MARKS) return null;
-
-  const currentHourStart = Math.floor(nowMs / HOUR_MS) * HOUR_MS;
-  const completedHourCounts = new Map<number, number>();
-
-  for (const mark of marks) {
-    const time = markTime(mark);
-    const hourStart = Math.floor(time / HOUR_MS) * HOUR_MS;
-    if (hourStart >= currentHourStart) continue;
-    completedHourCounts.set(
-      hourStart,
-      (completedHourCounts.get(hourStart) ?? 0) + 1,
-    );
-  }
-
-  if (completedHourCounts.size < MIN_COMPLETED_HOURS_WITH_DATA) return null;
-
-  const oldestHour = Math.min(...completedHourCounts.keys());
-  const totalHourCount = Math.max(
-    1,
-    Math.floor((currentHourStart - oldestHour) / HOUR_MS),
-  );
-  return {
-    median: medianWithEmptyHours(
-      [...completedHourCounts.values()],
-      totalHourCount,
-    ),
-    completedHoursWithData: completedHourCounts.size,
-  };
+  window = RATE_WINDOW,
+): number {
+  const slice = finiteTimes(timesMs)
+    .filter((time) => time <= nowMs)
+    .sort((a, b) => b - a)
+    .slice(0, window);
+  if (slice.length === 0) return 0;
+  const oldest = slice[slice.length - 1];
+  const spanMs = Math.max(nowMs - oldest, MINUTE_MS);
+  return slice.length / (spanMs / HOUR_MS);
 }
 
-function hourBand(
-  lastHour: number,
-  median: number,
-): DeskGaugeBand {
-  const hotAt = Math.max(median * 2, median + 2 * HOUR_WALK);
-  if (lastHour <= median + HOUR_WALK) return "cool";
-  if (lastHour < hotAt) return "warm";
-  return "hot";
+/** Null when a percent is not defined (previous is 0 and current is not). */
+export function pctDelta(current: number, previous: number): number | null {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return null;
+  if (previous === 0) return current === 0 ? 0 : null;
+  return ((current - previous) / previous) * 100;
+}
+
+export function formatPerHour(rate: number): string {
+  if (!Number.isFinite(rate)) return "0.00";
+  return rate.toFixed(2);
+}
+
+export function formatPctDelta(pct: number | null): string | null {
+  if (pct === null || !Number.isFinite(pct)) return null;
+  const abs = Math.abs(pct);
+  const body = abs >= 10 ? String(Math.round(abs)) : abs.toFixed(1);
+  return `${body}%`;
 }
 
 function inboundBand(
@@ -203,47 +196,78 @@ function postsBand(postsToday: number, cap: number): DeskGaugeBand {
   return "hot";
 }
 
+function countDelta(
+  times: number[],
+  nowMs: number,
+): InstrumentDelta {
+  return {
+    pct24h: pctDelta(
+      countInRange(times, nowMs - DAY_MS, nowMs),
+      countInRange(times, nowMs - 2 * DAY_MS, nowMs - DAY_MS),
+    ),
+    pct7d: pctDelta(
+      countInRange(times, nowMs - 7 * DAY_MS, nowMs),
+      countInRange(times, nowMs - 14 * DAY_MS, nowMs - 7 * DAY_MS),
+    ),
+  };
+}
+
+function rateDelta(times: number[], nowMs: number): InstrumentDelta {
+  return {
+    pct24h: pctDelta(
+      trailingPerHour(times, nowMs),
+      trailingPerHour(times, nowMs - DAY_MS),
+    ),
+    pct7d: pctDelta(
+      trailingPerHour(times, nowMs),
+      trailingPerHour(times, nowMs - 7 * DAY_MS),
+    ),
+  };
+}
+
 export function readDeskInstruments(
   input: DeskInstrumentInput,
 ): DeskInstruments {
   const marks = input.marks
     .filter((mark) => Number.isFinite(markTime(mark)))
-    .sort((a, b) => markTime(b) - markTime(a))
-    .slice(0, MAX_WINDOW_SIZE);
-  const repliesLast60s = countInRange(
-    marks,
-    input.nowMs - MINUTE_MS,
-    input.nowMs,
+    .sort((a, b) => markTime(b) - markTime(a));
+  const replyTimes = finiteTimes(
+    input.replyAtMs && input.replyAtMs.length > 0
+      ? input.replyAtMs
+      : marks.map(markTime),
   );
-  const repliesLastHour = countInRange(
-    marks,
-    input.nowMs - HOUR_MS,
-    input.nowMs,
-  );
+  const originalTimes = finiteTimes(input.originalAtMs ?? []);
+  const postTimes = finiteTimes(input.postAtMs ?? []);
+  const window = replyTimes
+    .filter((time) => time <= input.nowMs)
+    .sort((a, b) => b - a)
+    .slice(0, RATE_WINDOW);
   const dayStart = utcDayStartMs(input.nowMs);
-  const repliesUtcDay = marks.filter(
-    (mark) => markTime(mark) >= dayStart && markTime(mark) <= input.nowMs,
-  ).length;
-  const baseline = readHourBaseline(marks, input.nowMs);
 
   return {
-    windowSize: marks.length,
-    repliesLast60s,
-    repliesLastHour,
-    repliesUtcDay,
+    windowSize: window.length,
+    repliesPerHour: trailingPerHour(replyTimes, input.nowMs),
+    repliesPerHourDelta: rateDelta(replyTimes, input.nowMs),
+    repliesUtcDay: replyTimes.filter(
+      (time) => time >= dayStart && time <= input.nowMs,
+    ).length,
+    repliesUtcDayDelta: countDelta(replyTimes, input.nowMs),
+    originalsToday: input.originalsToday,
+    originalsTodayDelta:
+      originalTimes.length > 0
+        ? countDelta(originalTimes, input.nowMs)
+        : { pct24h: input.originalsToday > 0 ? null : 0, pct7d: 0 },
     postsToday: input.postsToday,
+    postsTodayDelta:
+      postTimes.length > 0
+        ? countDelta(postTimes, input.nowMs)
+        : { pct24h: input.postsToday > 0 ? null : 0, pct7d: 0 },
     dailyPostCap: input.dailyPostCap,
     paceRemainingMs: replyPaceRemainingMs(
       input.replyPaceUntil,
       input.nowMs,
     ),
     paceLocked: replyPaceLocked(input.replyPaceUntil, input.nowMs),
-    minuteBand: repliesLast60s >= 2 ? "hot" : "cool",
-    hourBand:
-      baseline === null
-        ? null
-        : hourBand(repliesLastHour, baseline.median),
-    hourMedian: baseline?.median ?? null,
     postsBand: postsBand(input.postsToday, input.dailyPostCap),
     inboundBand: inboundBand(marks),
   };

@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
+import type { CoachingState } from "../lib/coaching";
 import type { GamificationStats } from "../lib/gamification";
 import { ActivityStrip } from "./ActivityStrip";
 import { FadeSwap } from "./FadeSwap";
@@ -18,7 +19,7 @@ type DeskTopProps = {
   activityStats: ActivityStats;
   gamification: GamificationStats;
   interactedHistory: InteractionHistoryEntry[];
-  postsToday?: number;
+  coaching?: CoachingState | null;
   onToggleFlightPath: () => void;
   onActivityBucket: (bucket: ActivityBucket) => void;
 };
@@ -33,7 +34,7 @@ export function DeskTop({
   activityStats,
   gamification,
   interactedHistory,
-  postsToday,
+  coaching,
   onToggleFlightPath,
   onActivityBucket,
 }: DeskTopProps) {
@@ -119,7 +120,7 @@ export function DeskTop({
                 expanded={flightPathOpen}
                 interactedHistory={interactedHistory}
                 gamification={gamification}
-                postsToday={postsToday}
+                coaching={coaching}
                 onToggleExpand={onToggleFlightPath}
               />
             )}

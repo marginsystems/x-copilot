@@ -277,10 +277,29 @@ export function countDoneSuggestionsSince(opts: {
   return Number(row.n) || 0;
 }
 
+export function listDonePostActedAtSince(
+  userId: string,
+  sinceIso: string,
+): Array<{ tweetId: string | null; actedAt: string }> {
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT target_id AS tweetId, acted_at AS actedAt FROM for_you_suggestions
+        WHERE user_id = ? AND kind = 'post' AND status = 'done'
+          AND acted_at >= ?
+        ORDER BY acted_at DESC LIMIT 2000`,
+    )
+    .all(userId, sinceIso) as Array<{
+    tweetId: string | null;
+    actedAt: string;
+  }>;
+  return rows;
+}
+
 export function markSuggestion(opts: {
   id: string;
   userId: string;
   status: Exclude<ForYouStatus, "suggested">;
+  postedTweetId?: string;
   nowMs?: number;
 }): ForYouSuggestion | null {
   const now = new Date(opts.nowMs ?? Date.now()).toISOString();
@@ -288,10 +307,10 @@ export function markSuggestion(opts: {
   const info = db
     .prepare(
       `UPDATE for_you_suggestions
-       SET status = ?, acted_at = ?
-       WHERE id = ? AND user_id = ? AND status = 'suggested'`,
+        SET status = ?, acted_at = ?, target_id = COALESCE(?, target_id)
+        WHERE id = ? AND user_id = ? AND status = 'suggested'`,
     )
-    .run(opts.status, now, opts.id, opts.userId);
+    .run(opts.status, now, opts.postedTweetId ?? null, opts.id, opts.userId);
   if (!info.changes) return null;
   const row = db
     .prepare(`SELECT * FROM for_you_suggestions WHERE id = ?`)

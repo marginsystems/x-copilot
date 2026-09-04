@@ -37,6 +37,14 @@ export type CoachingState = {
   beats: DeskBeats;
   /** own_posts originals + quotes today. Missing on older boot caches. */
   postsToday?: number;
+  /** own_posts originals today (not quotes). */
+  originalsToday?: number;
+  /** Last 500 reply times on the desk, newest first. */
+  replyAt?: string[];
+  /** Last 500 original posted_at values. */
+  originalAt?: string[];
+  /** Last 500 original + quote posted_at values. */
+  postAt?: string[];
 };
 
 const KINDS = new Set<string>(NEXT_ACTION_KINDS);
@@ -121,7 +129,18 @@ export function parseCoachingPayload(raw: unknown): CoachingState | null {
     missions,
     beats: parseDeskBeats(row.beats),
     postsToday: finiteNonNeg(row.postsToday) ?? 0,
+    originalsToday: finiteNonNeg(row.originalsToday) ?? 0,
+    replyAt: parseIsoList(row.replyAt),
+    originalAt: parseIsoList(row.originalAt),
+    postAt: parseIsoList(row.postAt),
   };
+}
+
+function parseIsoList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((row): row is string => typeof row === "string" && row.length > 0)
+    .slice(0, 2000);
 }
 
 export async function fetchCoaching(): Promise<CoachingState | null> {
