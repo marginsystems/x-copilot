@@ -11,7 +11,7 @@
   top: calc(100% + 8px);
   z-index: 3;
   width: max(16rem, 100%);
-  max-width: min(16rem, calc(100vw - 24px));
+  max-width: min(16rem, 76vw);
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
