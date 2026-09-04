@@ -236,7 +236,6 @@ export async function runStatsTick(opts?: {
     limit: tickCap,
   });
   for (const interaction of gamificationRetries) {
-    if (interaction.source === "discovered") continue;
     if (interaction.markGamificationSyncFailed) {
       try {
         // Replay every mark instance that actually failed: a re-mark of the

@@ -22,6 +22,7 @@ import {
   applyT24hBonus,
   levelFromXp,
   markXpForStreak,
+  overlayStreakFromHistory,
   seedGamificationFromHistory,
   type GamificationState,
   type MarkAward,
@@ -57,6 +58,7 @@ export {
   lifetimeMarksOf,
   markXpForStreak,
   prevUtcDayKey,
+  overlayStreakFromHistory,
   seedGamificationFromHistory,
   utcDayKey,
   xpProgress,
@@ -242,12 +244,14 @@ async function loadOrSeedState(opts: GamificationPaths): Promise<{
   const path = await resolveGamificationPath(opts);
   const nowMs = opts.nowMs ?? Date.now();
   const existing = await readGamificationFile(path);
-  if (existing) return { path, state: existing };
   const history = await listInteractionHistory({
     limit: MAX_INTERACTION_STORE,
     storePath: opts.interactionStorePath,
     userId: opts.userId,
   });
+  if (existing) {
+    return { path, state: overlayStreakFromHistory(existing, history, nowMs) };
+  }
   const state = seedGamificationFromHistory(history, nowMs);
   await writeGamificationFile(path, state);
   return { path, state };
@@ -285,31 +289,50 @@ export async function recordMarkGamification(
   return withFileLock(path, async () => {
     const existing = await readGamificationFile(path);
     if (existing) {
+      const history = await listInteractionHistory({
+        limit: MAX_INTERACTION_STORE,
+        storePath: opts?.interactionStorePath,
+        userId: opts?.userId,
+      });
+      // Do not reconstruct the streak from the row this mark is about to
+      // apply; re-marking a thread replaces its retained history row.
+      const current = overlayStreakFromHistory(
+        existing,
+        history.filter(
+          (row) =>
+            !(
+              threadId &&
+              row.threadId === threadId &&
+              row.at === new Date(nowMs).toISOString()
+            ),
+        ),
+        nowMs,
+      );
       // A mark retried after a soft-fail replays the same at, so it must not
       // credit XP/streak again; a re-mark with a new at is a new mark.
-      if (threadId && existing.markAwardedThreadIds.includes(markKey)) {
-        return toPublicGamification(existing, {
+      if (threadId && current.markAwardedThreadIds.includes(markKey)) {
+        return toPublicGamification(current, {
           progress: progressFromTransition(
-            existing,
+            current,
             {
               markXp: 0,
-              currentStreak: existing.currentStreak,
+              currentStreak: current.currentStreak,
               streakMultiplier: markXpForStreak(
-                Math.max(1, existing.currentStreak),
+                Math.max(1, current.currentStreak),
               ),
             },
-            existing,
+            current,
           ),
         });
       }
       const { state: next, awarded } = applyMarkToGamification(
-        existing,
+        current,
         nowMs,
         threadId,
       );
       await writeGamificationFile(path, next);
       return toPublicGamification(next, {
-        progress: progressFromTransition(existing, awarded, next),
+        progress: progressFromTransition(current, awarded, next),
       });
     }
     // First ledger write: seed from retained history (includes the mark that
@@ -414,12 +437,16 @@ export async function getGamification(
   const nowMs = opts?.nowMs ?? Date.now();
   return withFileLock(path, async () => {
     const existing = await readGamificationFile(path);
-    if (existing) return toPublicGamification(existing);
     const history = await listInteractionHistory({
       limit: MAX_INTERACTION_STORE,
       storePath: opts?.interactionStorePath,
       userId: opts?.userId,
     });
+    if (existing) {
+      return toPublicGamification(
+        overlayStreakFromHistory(existing, history, nowMs),
+      );
+    }
     return toPublicGamification(seedGamificationFromHistory(history, nowMs));
   });
 }

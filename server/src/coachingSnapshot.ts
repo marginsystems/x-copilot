@@ -200,7 +200,7 @@ export async function buildCoachingSnapshot(opts: {
   let manualMarksToday = 0;
   for (const row of history) {
     // Off-app replies (webhook / hourly `discovered`) are today's marks too.
-    // XP and streak keep their own rules in gamification.
+    // Streak is rebuilt from the same interacted history. XP is not backfilled.
     if (row.source !== "manual" && row.source !== "discovered") continue;
     const at = Date.parse(row.at);
     if (Number.isFinite(at) && utcDayKey(at) === dayUtc) {
