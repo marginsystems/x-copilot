@@ -1,8 +1,14 @@
 # Unit tests + typecheck + Vite build. No live X / Stripe / search probes.
+# Omit optional @xenova/transformers — CI never loads MiniLM. That package
+# was 6 of the 7 minutes on npm ci.
 name: CI
 
 on:
   pull_request:
+    # opened / synchronize / reopened only. Do not listen for `labeled`:
+    # mq-live is a flag, not a start button. The restack synchronize is
+    # the one CI run (same as MergeStorm).
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
 
@@ -11,14 +17,26 @@ permissions:
 
 jobs:
   test:
+    # Skip Cyclone review follow-ups on a PR (bill $0 — job never starts).
+    # github.triggering_actor, not actor: a human "Re-run all jobs" still runs.
+    # Never gate main-push CI on actor — that is the merge-safety backstop.
+    # mq-live: run even when Cyclone restacks. Unlabeled Cyclone pushes skip.
+    if: >
+      github.event_name == 'push' ||
+      github.triggering_actor != 'mergestorm-cyclone[bot]' ||
+      contains(github.event.pull_request.labels.*.name, 'mq-live')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-      - run: npm ci
+      # Omit MiniLM. esbuild postinstall fetches the matching binary per host
+      # (tsx 0.28, Vite 0.21) — do not pin one @esbuild/linux-x64 at the root.
+      # Vite still needs the Rollup linux binary that omit=optional drops.
+      - run: npm ci --omit=optional --no-audit --no-fund
+      - run: npm install --omit=optional --no-save --package-lock=false --ignore-scripts @rollup/rollup-linux-x64-gnu@4.62.2
       - run: npm test
       - run: npm run build
