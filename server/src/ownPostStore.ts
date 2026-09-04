@@ -64,6 +64,40 @@ export function pruneActivityEvents(beforeIso: string): number {
   return info.changes;
 }
 
+/** Newest `posted_at` values for the given kinds, newest first. */
+export function listOwnPostedAt(opts: {
+  userId: string;
+  kinds: OwnPostKind[];
+  limit?: number;
+}): string[] {
+  const kinds = opts.kinds.filter(Boolean);
+  if (kinds.length === 0) return [];
+  const limit = Math.min(Math.max(opts.limit ?? 500, 1), 2000);
+  const placeholders = kinds.map(() => "?").join(", ");
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT posted_at FROM own_posts
+        WHERE user_id = ? AND kind IN (${placeholders})
+        ORDER BY posted_at DESC LIMIT ?`,
+    )
+    .all(opts.userId, ...kinds, limit) as Array<{ posted_at: string }>;
+  return rows.map((row) => String(row.posted_at));
+}
+
+export function listOwnOriginalsSince(
+  userId: string,
+  sinceIso: string,
+): Array<{ tweetId: string; postedAt: string }> {
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT id AS tweetId, posted_at AS postedAt FROM own_posts
+         WHERE user_id = ? AND kind = 'original' AND posted_at >= ?
+         ORDER BY posted_at DESC LIMIT 2000`,
+    )
+    .all(userId, sinceIso) as Array<{ tweetId: string; postedAt: string }>;
+  return rows;
+}
+
 export function countOwnPostsSince(
   userId: string,
   sinceIso: string,

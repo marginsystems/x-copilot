@@ -6,6 +6,7 @@ import {
   X_FOR_YOU_URL,
 } from "../lib/forYou";
 import { DeskRow } from "./DeskRow";
+import { HasTipButton, HasTipLink } from "./HasTip";
 
 export function ForYouFeedRow(props: {
   searching?: boolean;
@@ -29,34 +30,28 @@ export function ForYouFeedRow(props: {
       }
     >
       <div className="row">
-        <a
-          className="primary has-tip"
+        <HasTipLink
+          className="primary"
           href={X_FOR_YOU_URL}
           target="_blank"
           rel="noreferrer"
-          data-tip={FYP_OPEN_TIP}
+          tip={FYP_OPEN_TIP}
         >
           Open For You
-        </a>
+        </HasTipLink>
         {props.onNext ? (
-          <button
-            type="button"
-            className="ghost has-tip"
-            onClick={props.onNext}
-            data-tip={FYP_NEXT_TIP}
-          >
+          <HasTipButton className="ghost" onClick={props.onNext} tip={FYP_NEXT_TIP}>
             Next
-          </button>
+          </HasTipButton>
         ) : null}
         {props.searching ? (
-          <button
-            type="button"
-            className="ghost has-tip"
+          <HasTipButton
+            className="ghost"
             onClick={props.onStopScout}
-            data-tip={FYP_LAND_TIP}
+            tip={FYP_LAND_TIP}
           >
             Land
-          </button>
+          </HasTipButton>
         ) : null}
       </div>
     </DeskRow>
