@@ -484,6 +484,11 @@ describe("updateInteractionMemoryOutcome", () => {
       }),
       "utf8",
     );
+    assert.match(body, /type: interaction/);
+    assert.match(body, /threadId: "100"/);
+    assert.match(body, /author: "@A"/);
+    assert.match(body, /authorKey: "a"/);
+    assert.match(body, /interactedAt: "2026-07-27T01:02:03\.000Z"/);
     assert.match(body, /userId: "user-1"/);
     assert.match(body, /Keep this summary/);
     assert.match(body, /Keep this agenda/);

@@ -413,12 +413,7 @@ function preserveInteractionOutcome(existing: string, next: string): string {
   const oldSource = /^source:\s*(\S+)/m.exec(oldFm)?.[1];
   const oldLines = oldFm.split("\n");
   const oldKeys = new Set<string>();
-  const nextKeys = new Set<string>();
   const managed = new Set<string>(MANAGED_OUTCOME_FRONTMATTER_KEYS);
-  for (const line of nextMatch[1].split("\n")) {
-    const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
-    if (key) nextKeys.add(key);
-  }
   const preserveCurated =
     oldSource !== "discovered" && nextSource === "discovered";
   const preserved = oldLines.filter((line) => {
@@ -426,7 +421,7 @@ function preserveInteractionOutcome(existing: string, next: string): string {
     if (!key) return true;
     oldKeys.add(key);
     if (key === "source") return nextSource === "discovered";
-    return !nextKeys.has(key) && (managed.has(key) || preserveCurated);
+    return managed.has(key) || preserveCurated;
   });
   const fresh = nextMatch[1].split("\n").filter((line) => {
     const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
