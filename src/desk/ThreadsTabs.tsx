@@ -14,6 +14,10 @@ import {
 } from "../lib/forYou";
 import { deskNeedsXLink } from "../lib/deskGate";
 import {
+  canServeApproachOriginal,
+  pickApproachSuggestion,
+} from "../lib/approachCard";
+import {
   approachTabLiveCount,
   deskPhase,
   emptyDeskBeats,
@@ -36,7 +40,6 @@ import {
   ApproachLoadingCard,
   MissionCard,
   pickApproachScout,
-  pickApproachSuggestion,
 } from "./MissionCard";
 import { preferRootTargets } from "../lib/scoutTarget";
 import { useReplyPace } from "./useReplyPace";
@@ -190,17 +193,27 @@ export function ThreadsTabs({
       setForYouReleased(false);
     }
   }, [grounded, forYouHeld, forYouReleased]);
+  const currentDayUtc = new Date().toISOString().slice(0, 10);
+  const suggestion = pickApproachSuggestion(forYouSuggestions, {
+    allowPost: canServeApproachOriginal({
+      scoutReplyDone:
+        coaching?.dayUtc === currentDayUtc &&
+        coaching?.beats.scoutReplyDone === true,
+      originalMission:
+        coaching?.missions.find((mission) => mission.id === "original_1") ??
+        null,
+    }),
+  });
   const { phase, hold } = deskPhase({
     needsOnboarding: false,
     paceLocked: pace.locked,
     overheat: false,
     hasScoutCard: scouted.length > 0,
-    hasSuggestion: forYouSuggestions.length > 0,
+    hasSuggestion: suggestion != null,
     searching,
     holdForYouTask,
     beats: coaching?.beats ?? emptyDeskBeats(),
   });
-  const suggestion = pickApproachSuggestion(forYouSuggestions);
   const previousPhaseRef = useRef(phase);
   const wasSearchingRef = useRef(false);
   useEffect(() => {
@@ -298,7 +311,7 @@ export function ThreadsTabs({
                   ? approachTabLiveCount({
                       phase,
                       hasScoutCard: scouted.length > 0,
-                      hasSuggestion: forYouSuggestions.length > 0,
+                      hasSuggestion: suggestion != null,
                       holdForYouTask,
                     })
                   : 0
