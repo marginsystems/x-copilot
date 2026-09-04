@@ -47,11 +47,18 @@ describe("parsePostCreateEvent", () => {
             bookmark_count: 3,
           },
         },
+        includes: {
+          users: [
+            { id: "99", username: "pilot" },
+            { id: "33", username: "target" },
+          ],
+        },
       },
     });
     assert.ok(parsed);
     assert.equal(parsed?.kind, "reply");
     assert.equal(parsed?.inReplyToId, "222");
+    assert.equal(parsed?.inReplyToUsername, "target");
     assert.equal(parsed?.metrics.bookmarks, 3);
     assert.equal(parsed?.metrics.views, 10);
   });

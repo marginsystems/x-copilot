@@ -23,6 +23,7 @@ export type ParsedPostCreate = {
   postedAtFallback?: boolean;
   inReplyToId: string | null;
   inReplyToUserId: string | null;
+  inReplyToUsername?: string | null;
   conversationId: string | null;
   authorUsername: string | null;
   metrics: ActivityMetrics;
@@ -149,6 +150,9 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
   const postedAt = Number.isFinite(createdMs)
     ? new Date(createdMs).toISOString()
     : new Date().toISOString();
+  const inReplyToUserId = post.in_reply_to_user_id
+    ? String(post.in_reply_to_user_id)
+    : null;
 
   return {
     eventUuid,
@@ -161,8 +165,9 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
     inReplyToId: post.in_reply_to_tweet_id
       ? String(post.in_reply_to_tweet_id)
       : null,
-    inReplyToUserId: post.in_reply_to_user_id
-      ? String(post.in_reply_to_user_id)
+    inReplyToUserId,
+    inReplyToUsername: inReplyToUserId
+      ? usernameFromIncludes(data, inReplyToUserId)
       : null,
     conversationId: post.conversation_id ? String(post.conversation_id) : null,
     authorUsername: usernameFromIncludes(data, xUserId),
