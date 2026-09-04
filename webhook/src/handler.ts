@@ -47,6 +47,7 @@ export async function markOwnReplyInteracted(
   opts?: { storePath?: string; nowMs?: number },
 ): Promise<"scout" | "organic" | "skipped"> {
   if (!parsed.inReplyToId) return "skipped";
+  if (parsed.inReplyToUserId === parsed.xUserId) return "skipped";
   const watched =
     getWatchedThread(userId, parsed.inReplyToId) ??
     (parsed.conversationId
@@ -82,7 +83,11 @@ export async function markOwnReplyInteracted(
     author,
     source: "discovered",
     userId,
-    url: watched?.url ?? undefined,
+    url:
+      watched?.url ??
+      (parsed.inReplyToUsername
+        ? postUrl(parsed.inReplyToUsername, parsed.inReplyToId)
+        : undefined),
     text: watched?.text ?? undefined,
     replyId: parsed.postId,
     replyUrl: postUrl(parsed.authorUsername, parsed.postId),

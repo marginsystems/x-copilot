@@ -442,6 +442,23 @@ export async function discoverOwnReplies(opts?: {
       knownThreadIds,
     });
     if (verdict !== "import") {
+      if (verdict === "known_reply") {
+        const known = history.find((row) => row.replyId === card.id.trim());
+        if (known) {
+          await softWriteMemory({
+            threadId: known.threadId,
+            author: known.author,
+            reply: card.text,
+            url: known.url ?? parentStatusUrl(known.author, known.threadId),
+            text: card.opText,
+            opAuthor: card.opAuthor,
+            opText: card.opText,
+            interactedAt: known.postedAt ?? known.at,
+            knowledgeRoot: opts?.knowledgeRoot,
+            upsertMemory: opts?.upsertMemory,
+          });
+        }
+      }
       skipped += 1;
       continue;
     }
