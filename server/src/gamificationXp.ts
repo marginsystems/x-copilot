@@ -292,18 +292,28 @@ export function overlayStreakFromHistory(
 ): GamificationState {
   if (history.length === 0) return state;
   const seeded = seedGamificationFromHistory(history, nowMs);
+  const currentStreak = Math.max(state.currentStreak, seeded.currentStreak);
+  const seededLastIsNewer =
+    seeded.lastMarkUtcDay !== null &&
+    (state.lastMarkUtcDay === null ||
+      seeded.lastMarkUtcDay > state.lastMarkUtcDay);
+  const lastMarkUtcDay =
+    seeded.currentStreak > state.currentStreak ||
+    (seeded.currentStreak === state.currentStreak && seededLastIsNewer)
+      ? seeded.lastMarkUtcDay
+      : state.lastMarkUtcDay;
   const longestStreak = Math.max(state.longestStreak, seeded.longestStreak);
   if (
-    seeded.currentStreak === state.currentStreak &&
-    seeded.lastMarkUtcDay === state.lastMarkUtcDay &&
+    currentStreak === state.currentStreak &&
+    lastMarkUtcDay === state.lastMarkUtcDay &&
     longestStreak === state.longestStreak
   ) {
     return state;
   }
   return {
     ...state,
-    currentStreak: seeded.currentStreak,
-    lastMarkUtcDay: seeded.lastMarkUtcDay,
+    currentStreak,
+    lastMarkUtcDay,
     longestStreak,
   };
 }

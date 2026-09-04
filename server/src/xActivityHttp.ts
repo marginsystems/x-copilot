@@ -39,6 +39,7 @@ import { recordUsageEvent } from "./usageMeter.js";
 import { markInteracted } from "./interactionStore.js";
 import { recordDeskReplyMarked } from "./deskBeats.js";
 import { recordMarkGamification } from "./gamification.js";
+import { setGamificationSyncFailed } from "./interactionSync.js";
 import { allowRate, clientIp } from "./authGuard.js";
 
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
@@ -162,9 +163,8 @@ async function handleActivityPost(
         ? getWatchedThread(userId, parsed.conversationId)
         : null);
     if (watched?.author) {
-      const discoveredAtMs = Date.now();
       try {
-        await markInteracted({
+        const interaction = await markInteracted({
           threadId: watched.threadId,
           author: watched.author,
           source: "discovered",
@@ -178,6 +178,7 @@ async function handleActivityPost(
             parsed.conversationId ?? watched.conversationId ?? undefined,
           inReplyToId: parsed.inReplyToId,
         });
+        const discoveredAtMs = Date.parse(interaction.at);
         try {
           // Watched parent means Scout surfaced it.
           recordDeskReplyMarked({
@@ -196,6 +197,12 @@ async function handleActivityPost(
           });
         } catch (err) {
           console.warn("[xaa] streak mark soft-fail", err);
+          await setGamificationSyncFailed({
+            threadId: watched.threadId,
+            checkpoint: "mark",
+            failed: true,
+            pendingAt: interaction.at,
+          }).catch(() => {});
         }
       } catch (err) {
         console.warn("[xaa] auto-mark soft-fail", err);

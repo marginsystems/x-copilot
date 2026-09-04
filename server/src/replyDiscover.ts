@@ -29,6 +29,7 @@ import { ensureUserTenant } from "./billingStore.js";
 import { getWatchedThread, upsertOwnPost } from "./ownPostStore.js";
 import { recordDeskReplyMarked } from "./deskBeats.js";
 import { recordMarkGamification } from "./gamification.js";
+import { setGamificationSyncFailed } from "./interactionSync.js";
 import {
   findUserIdByXUserId,
   lookupXUserId,
@@ -509,6 +510,13 @@ export async function discoverOwnReplies(opts?: {
             `[reply-discover] streak mark soft-fail replyId=${replyId}:`,
             err,
           );
+          await setGamificationSyncFailed({
+            threadId,
+            checkpoint: "mark",
+            failed: true,
+            pendingAt: interaction.at,
+            storePath: opts.storePath,
+          }).catch(() => {});
         }
       }
 

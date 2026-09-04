@@ -289,31 +289,37 @@ export async function recordMarkGamification(
   return withFileLock(path, async () => {
     const existing = await readGamificationFile(path);
     if (existing) {
+      const history = await listInteractionHistory({
+        limit: MAX_INTERACTION_STORE,
+        storePath: opts?.interactionStorePath,
+        userId: opts?.userId,
+      });
+      const current = overlayStreakFromHistory(existing, history, nowMs);
       // A mark retried after a soft-fail replays the same at, so it must not
       // credit XP/streak again; a re-mark with a new at is a new mark.
-      if (threadId && existing.markAwardedThreadIds.includes(markKey)) {
-        return toPublicGamification(existing, {
+      if (threadId && current.markAwardedThreadIds.includes(markKey)) {
+        return toPublicGamification(current, {
           progress: progressFromTransition(
-            existing,
+            current,
             {
               markXp: 0,
-              currentStreak: existing.currentStreak,
+              currentStreak: current.currentStreak,
               streakMultiplier: markXpForStreak(
-                Math.max(1, existing.currentStreak),
+                Math.max(1, current.currentStreak),
               ),
             },
-            existing,
+            current,
           ),
         });
       }
       const { state: next, awarded } = applyMarkToGamification(
-        existing,
+        current,
         nowMs,
         threadId,
       );
       await writeGamificationFile(path, next);
       return toPublicGamification(next, {
-        progress: progressFromTransition(existing, awarded, next),
+        progress: progressFromTransition(current, awarded, next),
       });
     }
     // First ledger write: seed from retained history (includes the mark that
