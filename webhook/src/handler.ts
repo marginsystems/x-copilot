@@ -182,12 +182,12 @@ async function handleActivityPost(
       send(req, res, 200, { ok: true, unmatched: true });
       return;
     }
-    rememberActivityEvent(deleted.eventUuid);
     removeOwnPost({
       postId: deleted.postId,
       userId,
       xUserId: deleted.xUserId,
     });
+    rememberActivityEvent(deleted.eventUuid);
     send(req, res, 200, { ok: true });
     return;
   }
