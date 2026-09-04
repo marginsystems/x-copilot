@@ -10,7 +10,7 @@
 // (with override), so a recycle picks up rotated keys and stale ones cannot
 // stick. Only NODE_ENV/PORT are pinned here; loadEnv never overrides them.
 //
-// Recycle one service with ./pm2-manager.sh restart api|stats|analytics.
+// Recycle one service with ./pm2-manager.sh restart api|stats|analytics|webhook.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -32,6 +32,10 @@ const stats = runner("server/dist/statsWorker.js", "server/src/statsWorker.ts");
 const analytics = runner(
   "analytics/dist/sidecar.js",
   "analytics/src/sidecar.ts",
+);
+const webhook = runner(
+  "webhook/dist/webhook/src/sidecar.js",
+  "webhook/src/sidecar.ts",
 );
 
 module.exports = {
@@ -81,6 +85,21 @@ module.exports = {
       },
       out_file: path.join(root, "logs", "x-copilot-analytics.out.log"),
       error_file: path.join(root, "logs", "x-copilot-analytics.err.log"),
+    },
+    {
+      name: "x-copilot-webhook",
+      script: webhook.script,
+      ...(webhook.interpreter ? { interpreter: webhook.interpreter } : {}),
+      cwd: root,
+      autorestart: true,
+      max_restarts: 10,
+      time: true,
+      env: {
+        NODE_ENV: "production",
+        WEBHOOK_PORT: "8789",
+      },
+      out_file: path.join(root, "logs", "x-copilot-webhook.out.log"),
+      error_file: path.join(root, "logs", "x-copilot-webhook.err.log"),
     },
   ],
 };

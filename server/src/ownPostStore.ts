@@ -165,6 +165,20 @@ export function upsertOwnPost(input: {
   return !existing;
 }
 
+export function removeOwnPost(input: {
+  postId: string;
+  userId: string;
+  xUserId: string;
+}): boolean {
+  const result = getPlatformDb()
+    .prepare(
+      `DELETE FROM own_posts
+       WHERE id = ? AND user_id = ? AND x_user_id = ?`,
+    )
+    .run(input.postId, input.userId, input.xUserId);
+  return result.changes > 0;
+}
+
 export function patchOwnPostSnapshot(
   postId: string,
   slot: "t1h" | "t24h",

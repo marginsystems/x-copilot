@@ -35,6 +35,21 @@ Restart after `.env` changes: `./pm2-manager.sh restart`.
 
 The analytics sidecar (`analytics/`, process `x-copilot-analytics`) binds **127.0.0.1:8788** only. It is not proxied and must never be reachable from the public internet. The API fire-and-forgets `POST /event` to `ANALYTICS_URL`; a down sidecar or missing Slack webhook does not affect signup, sign-in, or takeoff. Recycle the sidecar alone with `./pm2-manager.sh restart analytics`.
 
+The X Activity webhook process (`webhook/`, process `x-copilot-webhook`) binds
+**127.0.0.1:8789** only. Keep the public webhook URL unchanged and route only
+that path to the isolated process:
+
+```nginx
+location = /api/x/activity {
+    proxy_pass http://127.0.0.1:8789;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+}
+```
+
+Apply this nginx change only after the webhook process is healthy. Until then,
+the API keeps serving the same handler on port 8787, including CRC.
+
 ## Cloudflare DNS (zone `xcopilot.dev`)
 
 | Name | Type | Content | Proxy | When |

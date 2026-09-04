@@ -6,17 +6,18 @@
 #   x-copilot-api        TypeScript sidecar (session + drafts) on :8787
 #   x-copilot-stats      Hourly reply-stats sampler (1h / 24h snapshots)
 #   x-copilot-analytics  Loopback Slack sidecar on :8788 (code in analytics/)
+#   x-copilot-webhook    Loopback X Activity webhook on :8789 (code in webhook/)
 #
 # Profiles select which apps a command touches. Default is all.
 #
 # Usage:
-#   ./pm2-manager.sh start [all|api|stats|analytics]
-#   ./pm2-manager.sh restart [all|prod|api|stats|analytics]
+#   ./pm2-manager.sh start [all|api|stats|analytics|webhook]
+#   ./pm2-manager.sh restart [all|prod|api|stats|analytics|webhook]
 #   ./pm2-manager.sh restart analytics --skip-build
-#   ./pm2-manager.sh stop [all|api|stats|analytics]
-#   ./pm2-manager.sh delete [all|api|stats|analytics]
+#   ./pm2-manager.sh stop [all|api|stats|analytics|webhook]
+#   ./pm2-manager.sh delete [all|api|stats|analytics|webhook]
 #   ./pm2-manager.sh status
-#   ./pm2-manager.sh logs [api|stats|analytics|name]
+#   ./pm2-manager.sh logs [api|stats|analytics|webhook|name]
 #   ./pm2-manager.sh save
 #   ./pm2-manager.sh setup-logrotate
 #
@@ -31,6 +32,7 @@ ECOSYSTEM="ecosystem.config.cjs"
 CORE="x-copilot-api"
 STATS="x-copilot-stats"
 ANALYTICS="x-copilot-analytics"
+WEBHOOK="x-copilot-webhook"
 
 if ! command -v pm2 >/dev/null 2>&1; then
   echo "pm2 not found. Install it: npm i -g pm2" >&2
@@ -39,7 +41,7 @@ fi
 
 usage() {
   echo "Use: start | stop | restart | delete | status | logs | save | setup-logrotate" >&2
-  echo "Profiles: all | prod | api | stats | analytics" >&2
+  echo "Profiles: all | prod | api | stats | analytics | webhook" >&2
   echo "Flags: --skip-build" >&2
 }
 
@@ -64,6 +66,15 @@ require_analytics_app() {
   fi
 }
 
+require_webhook_app() {
+  if ! grep -q "webhook/dist/webhook/src/sidecar.js" "$ECOSYSTEM"; then
+    echo "$ECOSYSTEM predates the webhook sidecar move." >&2
+    echo "Re-sync with the tracked example, keeping machine-local tweaks:" >&2
+    echo "  cp ecosystem.config.example.cjs ecosystem.config.cjs" >&2
+    exit 1
+  fi
+}
+
 cmd="${1:-status}"
 shift || true
 PROFILE="all"
@@ -77,6 +88,7 @@ for arg in "$@"; do
     api|core|"$CORE") PROFILE="api" ;;
     stats|"$STATS") PROFILE="stats" ;;
     analytics|"$ANALYTICS") PROFILE="analytics" ;;
+    webhook|"$WEBHOOK") PROFILE="webhook" ;;
     *)
       if [ "$cmd" = "logs" ] && [ -z "$LOG_NAME" ]; then
         LOG_NAME="$arg"
@@ -90,10 +102,11 @@ for arg in "$@"; do
 done
 
 case "$PROFILE" in
-  all) APPS=("$CORE" "$STATS" "$ANALYTICS") ;;
+  all) APPS=("$CORE" "$STATS" "$ANALYTICS" "$WEBHOOK") ;;
   api) APPS=("$CORE") ;;
   stats) APPS=("$STATS") ;;
   analytics) APPS=("$ANALYTICS") ;;
+  webhook) APPS=("$WEBHOOK") ;;
 esac
 
 needs_server_build() {
@@ -104,10 +117,15 @@ needs_analytics_build() {
   [ "$PROFILE" = "all" ] || [ "$PROFILE" = "analytics" ]
 }
 
+needs_webhook_build() {
+  [ "$PROFILE" = "all" ] || [ "$PROFILE" = "api" ] || [ "$PROFILE" = "webhook" ]
+}
+
 ensure_build() {
-  local have_server=0 have_analytics=0
+  local have_server=0 have_analytics=0 have_webhook=0
   [ -f "server/dist/index.js" ] && have_server=1
   [ -f "analytics/dist/sidecar.js" ] && have_analytics=1
+  [ -f "webhook/dist/webhook/src/sidecar.js" ] && have_webhook=1
 
   if [ "${SKIP_BUILD:-}" = "1" ]; then
     if needs_server_build && [ "$have_server" != "1" ]; then
@@ -116,6 +134,10 @@ ensure_build() {
     fi
     if needs_analytics_build && [ "$have_analytics" != "1" ]; then
       echo "Cannot --skip-build: analytics/dist/sidecar.js is missing." >&2
+      exit 1
+    fi
+    if needs_webhook_build && [ "$have_webhook" != "1" ]; then
+      echo "Cannot --skip-build: webhook sidecar dist is missing." >&2
       exit 1
     fi
     echo "Skipping build (--skip-build, required dist present for profile=$PROFILE)."
@@ -129,6 +151,9 @@ ensure_build() {
   fi
   if needs_analytics_build; then
     npm run build:analytics
+  fi
+  if needs_webhook_build && ! needs_server_build; then
+    npm run build:webhook
   fi
 }
 
@@ -205,6 +230,9 @@ recycle_profile() {
   if needs_analytics_build; then
     require_analytics_app
   fi
+  if needs_webhook_build; then
+    require_webhook_app
+  fi
   ensure_build
   mkdir -p logs
   for name in "${APPS[@]}"; do
@@ -246,6 +274,7 @@ case "$cmd" in
       case "$PROFILE" in
         stats) pm2 logs "$STATS" ;;
         analytics) pm2 logs "$ANALYTICS" ;;
+        webhook) pm2 logs "$WEBHOOK" ;;
         *) pm2 logs "$CORE" ;;
       esac
     fi

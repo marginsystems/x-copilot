@@ -4,6 +4,7 @@ import {
   classifyPostKind,
   crcResponseToken,
   parsePostCreateEvent,
+  parsePostDeleteEvent,
   verifyWebhookSignature,
 } from "./xActivity.ts";
 
@@ -47,11 +48,18 @@ describe("parsePostCreateEvent", () => {
             bookmark_count: 3,
           },
         },
+        includes: {
+          users: [
+            { id: "99", username: "pilot" },
+            { id: "33", username: "target" },
+          ],
+        },
       },
     });
     assert.ok(parsed);
     assert.equal(parsed?.kind, "reply");
     assert.equal(parsed?.inReplyToId, "222");
+    assert.equal(parsed?.inReplyToUsername, "target");
     assert.equal(parsed?.metrics.bookmarks, 3);
     assert.equal(parsed?.metrics.views, 10);
   });
@@ -137,6 +145,26 @@ describe("parsePostCreateEvent", () => {
     assert.equal(
       parsePostCreateEvent({
         data: { event_type: "post.delete", payload: { id: "1" } },
+      }),
+      null,
+    );
+  });
+
+  it("reads post.delete and rejects unknown event types", () => {
+    assert.deepEqual(
+      parsePostDeleteEvent({
+        data: {
+          event_uuid: "evt-delete",
+          event_type: "post.delete",
+          filter: { user_id: "99" },
+          payload: { id: "111" },
+        },
+      }),
+      { eventUuid: "evt-delete", xUserId: "99", postId: "111" },
+    );
+    assert.equal(
+      parsePostDeleteEvent({
+        data: { event_type: "profile.update", payload: { id: "111" } },
       }),
       null,
     );

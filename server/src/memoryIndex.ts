@@ -2,6 +2,7 @@
  * Local embedding index over knowledge/{interactions,dismissals}.
  * Advisory retrieval for Scout triage — soft-fails when model/index unavailable.
  */
+/// <reference path="./xenova-transformers.d.ts" />
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, stat } from "node:fs/promises";
