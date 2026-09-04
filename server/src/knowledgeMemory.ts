@@ -292,12 +292,19 @@ export function renderInteractionMarkdown(
 export async function writeInteractionMemory(
   input: InteractionMemoryInput,
 ): Promise<{ path: string; markdown: string }> {
-  const markdown = renderInteractionMarkdown(input);
+  let markdown = renderInteractionMarkdown(input);
   const path = buildInteractionNotePath({
     threadId: input.threadId,
     interactedAt: input.interactedAt,
     knowledgeRoot: input.knowledgeRoot,
   });
+  try {
+    const existing = await readFile(path, "utf8");
+    markdown = preserveInteractionOutcome(existing, markdown);
+    if (existing === markdown) return { path, markdown };
+  } catch {
+    // The note does not exist yet.
+  }
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, markdown, "utf8");
   return { path, markdown };
@@ -396,6 +403,49 @@ export const MANAGED_OUTCOME_FRONTMATTER_KEYS = [
   "retweets24h",
   "sampledAt24h",
 ] as const;
+
+function preserveInteractionOutcome(existing: string, next: string): string {
+  const oldFm = /^---\n([\s\S]*?)\n---\n/.exec(existing)?.[1] ?? "";
+  const nextMatch = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(next);
+  if (!nextMatch) return next;
+
+  const nextSource = /^source:\s*(\S+)/m.exec(nextMatch[1])?.[1];
+  const oldSource = /^source:\s*(\S+)/m.exec(oldFm)?.[1];
+  const oldLines = oldFm.split("\n");
+  const oldKeys = new Set<string>();
+  const managed = new Set<string>(MANAGED_OUTCOME_FRONTMATTER_KEYS);
+  const preserveCurated =
+    oldSource !== "discovered" && nextSource === "discovered";
+  const preserved = oldLines.filter((line) => {
+    const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
+    if (!key) return true;
+    oldKeys.add(key);
+    if (key === "source") return nextSource === "discovered";
+    return managed.has(key) || preserveCurated;
+  });
+  const fresh = nextMatch[1].split("\n").filter((line) => {
+    const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
+    return (
+      !key ||
+      (key === "source"
+        ? nextSource !== "discovered"
+        : !oldKeys.has(key) || !preserveCurated)
+    );
+  });
+  const fm = [...preserved, ...fresh].filter(Boolean).join("\n");
+  let body = nextMatch[2];
+  const outcome = /^##\s+Outcome[^\S\n]*\n?[\s\S]*?(?=^##\s|(?![\s\S]))/m.exec(
+    existing,
+  )?.[0];
+  if (oldSource !== "discovered" && nextSource === "discovered") {
+    body = existing.replace(/^---\n[\s\S]*?\n---\n/, "");
+    body = body.replace(/^##\s+Outcome[^\S\n]*\n?[\s\S]*?(?=^##\s|(?![\s\S]))/m, "");
+  }
+  if (outcome && !/^##\s+Outcome[^\S\n]*$/m.test(body)) {
+    body = `${body.replace(/\s*$/, "")}\n\n${outcome.trim()}\n`;
+  }
+  return `---\n${fm}\n---\n${body.replace(/^\n/, "")}`;
+}
 
 export type UpdateInteractionMemoryOutcomeResult =
   | { ok: true; path: string; markdown: string }

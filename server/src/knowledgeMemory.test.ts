@@ -392,6 +392,7 @@ describe("updateInteractionMemoryOutcome", () => {
       threadId: "99",
       author: "@A",
       reply: "My reply",
+      source: "discovered",
       text: "Original post",
       knowledgeRoot: root,
       interactedAt: "2026-07-27T01:02:03.000Z",
@@ -418,6 +419,26 @@ describe("updateInteractionMemoryOutcome", () => {
       nowIso: "2026-07-28T01:02:03.000Z",
     });
     assert.equal(first.ok, true);
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "My reply",
+      source: "discovered",
+      text: "Updated original",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const intermediate = await readFile(
+      buildInteractionNotePath({
+        threadId: "99",
+        interactedAt: "2026-07-27T01:02:03.000Z",
+        knowledgeRoot: root,
+      }),
+      "utf8",
+    );
+    assert.match(intermediate, /## Outcome/);
+    assert.match(intermediate, /views1h: 100/);
+    assert.match(intermediate, /views24h: 420/);
     const second = await updateInteractionMemoryOutcome({
       interaction: baseInteraction({ stats }),
       knowledgeRoot: root,
@@ -429,7 +450,158 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.equal((body.match(/## Outcome/g) ?? []).length, 1);
     assert.equal((body.match(/views1h: 100/g) ?? []).length, 1);
     assert.equal((body.match(/views24h: 420/g) ?? []).length, 1);
+    assert.match(body, /Updated original/);
     assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
+  });
+
+  it("preserves manually curated fields during a discovered refresh", async () => {
+    await writeInteractionMemory({
+      threadId: "100",
+      author: "@A",
+      reply: "My reply",
+      userId: "user-1",
+      summary: "Keep this summary",
+      agenda: "Keep this agenda",
+      source: "manual",
+      text: "Curated post",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    await writeInteractionMemory({
+      threadId: "100",
+      author: "@A",
+      reply: "My reply",
+      source: "discovered",
+      text: "Fresh search result",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const body = await readFile(
+      buildInteractionNotePath({
+        threadId: "100",
+        interactedAt: "2026-07-27T01:02:03.000Z",
+        knowledgeRoot: root,
+      }),
+      "utf8",
+    );
+    assert.match(body, /type: interaction/);
+    assert.match(body, /threadId: "100"/);
+    assert.match(body, /author: "@A"/);
+    assert.match(body, /authorKey: "a"/);
+    assert.match(body, /interactedAt: "2026-07-27T01:02:03\.000Z"/);
+    assert.match(body, /userId: "user-1"/);
+    assert.match(body, /Keep this summary/);
+    assert.match(body, /Keep this agenda/);
+    assert.match(body, /Curated post/);
+    assert.doesNotMatch(body, /Fresh search result/);
+  });
+
+  it("updates a manually written note when it is written again manually", async () => {
+    await writeInteractionMemory({
+      threadId: "101",
+      author: "@A",
+      reply: "First reply",
+      source: "manual",
+      text: "First post",
+      agenda: "First agenda",
+      intent: "First intent",
+      url: "https://example.com/first",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    await writeInteractionMemory({
+      threadId: "101",
+      author: "@A",
+      reply: "Updated reply",
+      source: "manual",
+      text: "Updated post",
+      agenda: "Updated agenda",
+      intent: "Updated intent",
+      url: "https://example.com/updated",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const body = await readFile(
+      buildInteractionNotePath({
+        threadId: "101",
+        interactedAt: "2026-07-27T01:02:03.000Z",
+        knowledgeRoot: root,
+      }),
+      "utf8",
+    );
+    assert.match(body, /Updated reply/);
+    assert.match(body, /Updated post/);
+    assert.match(body, /Updated agenda/);
+    assert.match(body, /Updated intent/);
+    assert.match(body, /url: "https:\/\/example.com\/updated"/);
+    assert.doesNotMatch(body, /First agenda/);
+    assert.doesNotMatch(body, /First intent/);
+    assert.doesNotMatch(body, /First reply/);
+  });
+
+  it("removes omitted fields when a manual note is rewritten", async () => {
+    const input = {
+      threadId: "103",
+      author: "@A",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    } as const;
+    await writeInteractionMemory({
+      ...input,
+      reply: "First reply",
+      text: "First post",
+      agenda: "First agenda",
+      intent: "First intent",
+      url: "https://example.com/first",
+    });
+    await writeInteractionMemory({
+      ...input,
+      reply: "Updated reply",
+      text: "Updated post",
+    });
+    const body = await readFile(buildInteractionNotePath(input), "utf8");
+    assert.match(body, /Updated reply/);
+    assert.match(body, /Updated post/);
+    assert.doesNotMatch(body, /agenda:/);
+    assert.doesNotMatch(body, /intent:/);
+    assert.doesNotMatch(body, /url:/);
+  });
+
+  it("keeps manual content after replacing a discovered note", async () => {
+    const input = {
+      threadId: "102",
+      author: "@A",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    } as const;
+    await writeInteractionMemory({
+      ...input,
+      reply: "Discovered reply",
+      source: "discovered",
+      text: "Discovered post",
+    });
+    await writeInteractionMemory({
+      ...input,
+      reply: "Curated reply",
+      source: "manual",
+      text: "Curated post",
+      summary: "Curated summary",
+    });
+    await writeInteractionMemory({
+      ...input,
+      reply: "Refreshed reply",
+      source: "discovered",
+      text: "Refreshed post",
+    });
+    const body = await readFile(
+      buildInteractionNotePath(input),
+      "utf8",
+    );
+    assert.match(body, /source: manual/);
+    assert.match(body, /Curated reply/);
+    assert.match(body, /Curated post/);
+    assert.match(body, /Curated summary/);
+    assert.doesNotMatch(body, /Refreshed reply/);
   });
 
   it("keeps the earlier checkpoint when a later tick writes only the other", async () => {
