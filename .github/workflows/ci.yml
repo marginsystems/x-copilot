@@ -1,4 +1,6 @@
 # Unit tests + typecheck + Vite build. No live X / Stripe / search probes.
+# Omit optional @xenova/transformers — CI never loads MiniLM. That package
+# was 6 of the 7 minutes on npm ci.
 name: CI
 
 on:
@@ -12,13 +14,13 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-      - run: npm ci
+      - run: npm ci --omit=optional --no-audit --no-fund
       - run: npm test
       - run: npm run build
