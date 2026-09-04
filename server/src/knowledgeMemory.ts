@@ -409,19 +409,30 @@ function preserveInteractionOutcome(existing: string, next: string): string {
   const nextMatch = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(next);
   if (!nextMatch) return next;
 
-  const managed = oldFm
-    .split("\n")
-    .filter((line) => {
-      const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
-      return key !== undefined && MANAGED_OUTCOME_FRONTMATTER_KEYS.includes(
-        key as (typeof MANAGED_OUTCOME_FRONTMATTER_KEYS)[number],
-      );
-    });
-  const fm = [nextMatch[1], ...managed].filter(Boolean).join("\n");
+  const oldLines = oldFm.split("\n");
+  const oldKeys = new Set<string>();
+  const preserved = oldLines.filter((line) => {
+    const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
+    if (!key) return true;
+    oldKeys.add(key);
+    return !MANAGED_OUTCOME_FRONTMATTER_KEYS.includes(
+      key as (typeof MANAGED_OUTCOME_FRONTMATTER_KEYS)[number],
+    );
+  });
+  const fresh = nextMatch[1].split("\n").filter((line) => {
+    const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
+    return !key || !oldKeys.has(key);
+  });
+  const fm = [...preserved, ...fresh].filter(Boolean).join("\n");
   let body = nextMatch[2];
   const outcome = /^##\s+Outcome[^\S\n]*\n?[\s\S]*?(?=^##\s|(?![\s\S]))/m.exec(
     existing,
   )?.[0];
+  const oldSource = /^source:\s*(\S+)/m.exec(oldFm)?.[1];
+  if (oldSource !== "discovered") {
+    body = existing.replace(/^---\n[\s\S]*?\n---\n/, "");
+    body = body.replace(/^##\s+Outcome[^\S\n]*\n?[\s\S]*?(?=^##\s|(?![\s\S]))/m, "");
+  }
   if (outcome && !/^##\s+Outcome[^\S\n]*$/m.test(body)) {
     body = `${body.replace(/\s*$/, "")}\n\n${outcome.trim()}\n`;
   }
