@@ -409,19 +409,22 @@ function preserveInteractionOutcome(existing: string, next: string): string {
   const nextMatch = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(next);
   if (!nextMatch) return next;
 
+  const nextSource = /^source:\s*(\S+)/m.exec(nextMatch[1])?.[1];
   const oldLines = oldFm.split("\n");
   const oldKeys = new Set<string>();
   const preserved = oldLines.filter((line) => {
     const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
     if (!key) return true;
     oldKeys.add(key);
-    return !MANAGED_OUTCOME_FRONTMATTER_KEYS.includes(
-      key as (typeof MANAGED_OUTCOME_FRONTMATTER_KEYS)[number],
-    );
+    return !(key === "source" && nextSource !== "discovered");
   });
   const fresh = nextMatch[1].split("\n").filter((line) => {
     const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
-    return !key || !oldKeys.has(key);
+    return (
+      !key ||
+      !oldKeys.has(key) ||
+      (key === "source" && nextSource !== "discovered")
+    );
   });
   const fm = [...preserved, ...fresh].filter(Boolean).join("\n");
   let body = nextMatch[2];
@@ -429,7 +432,7 @@ function preserveInteractionOutcome(existing: string, next: string): string {
     existing,
   )?.[0];
   const oldSource = /^source:\s*(\S+)/m.exec(oldFm)?.[1];
-  if (oldSource !== "discovered") {
+  if (oldSource !== "discovered" && nextSource === "discovered") {
     body = existing.replace(/^---\n[\s\S]*?\n---\n/, "");
     body = body.replace(/^##\s+Outcome[^\S\n]*\n?[\s\S]*?(?=^##\s|(?![\s\S]))/m, "");
   }

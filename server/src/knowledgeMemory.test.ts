@@ -491,6 +491,75 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /Fresh search result/);
   });
 
+  it("updates a manually written note when it is written again manually", async () => {
+    await writeInteractionMemory({
+      threadId: "101",
+      author: "@A",
+      reply: "First reply",
+      source: "manual",
+      text: "First post",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    await writeInteractionMemory({
+      threadId: "101",
+      author: "@A",
+      reply: "Updated reply",
+      source: "manual",
+      text: "Updated post",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const body = await readFile(
+      buildInteractionNotePath({
+        threadId: "101",
+        interactedAt: "2026-07-27T01:02:03.000Z",
+        knowledgeRoot: root,
+      }),
+      "utf8",
+    );
+    assert.match(body, /Updated reply/);
+    assert.match(body, /Updated post/);
+    assert.doesNotMatch(body, /First reply/);
+  });
+
+  it("keeps manual content after replacing a discovered note", async () => {
+    const input = {
+      threadId: "102",
+      author: "@A",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    } as const;
+    await writeInteractionMemory({
+      ...input,
+      reply: "Discovered reply",
+      source: "discovered",
+      text: "Discovered post",
+    });
+    await writeInteractionMemory({
+      ...input,
+      reply: "Curated reply",
+      source: "manual",
+      text: "Curated post",
+      summary: "Curated summary",
+    });
+    await writeInteractionMemory({
+      ...input,
+      reply: "Refreshed reply",
+      source: "discovered",
+      text: "Refreshed post",
+    });
+    const body = await readFile(
+      buildInteractionNotePath(input),
+      "utf8",
+    );
+    assert.match(body, /source: manual/);
+    assert.match(body, /Curated reply/);
+    assert.match(body, /Curated post/);
+    assert.match(body, /Curated summary/);
+    assert.doesNotMatch(body, /Refreshed reply/);
+  });
+
   it("keeps the earlier checkpoint when a later tick writes only the other", async () => {
     await writeInteractionMemory({
       threadId: "99",
