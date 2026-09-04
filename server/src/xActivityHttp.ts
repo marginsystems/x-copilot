@@ -30,9 +30,15 @@ export async function tryHandleXActivityWebhook(
   const handlerPath = import.meta.url.endsWith(".ts")
     ? "../../webhook/src/handler.ts"
     : "../../webhook/dist/webhook/src/handler.js";
-  const { tryHandleXActivityWebhook: handleWebhook } = (await import(
-    handlerPath
-  )) as { tryHandleXActivityWebhook: XActivityWebhookHandler };
+  let handleWebhook: XActivityWebhookHandler;
+  try {
+    ({ tryHandleXActivityWebhook: handleWebhook } = (await import(
+      handlerPath
+    )) as { tryHandleXActivityWebhook: XActivityWebhookHandler });
+  } catch {
+    send(req, res, 503, { error: "webhook_unavailable" });
+    return true;
+  }
   return handleWebhook(req, res, url);
 }
 
