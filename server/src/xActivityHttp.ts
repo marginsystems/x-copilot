@@ -24,6 +24,9 @@ export async function tryHandleXActivityWebhook(
   res: ServerResponse,
   url: URL,
 ): Promise<boolean> {
+  if (url.pathname !== "/api/x/activity") {
+    return false;
+  }
   const handlerPath = import.meta.url.endsWith(".ts")
     ? "../../webhook/src/handler.ts"
     : "../../webhook/dist/webhook/src/handler.js";
