@@ -338,21 +338,30 @@ export async function subscribeUserToPostCreate(
 
   const existing = getPlatformDb()
     .prepare(
-      `SELECT subscription_id, delete_subscription_id, paused_until
+      `SELECT subscription_id, delete_subscription_id, x_user_id, paused_until
        FROM activity_subscriptions WHERE user_id = ?`,
     )
     .get(userId) as
     | {
         subscription_id: string | null;
         delete_subscription_id: string | null;
+        x_user_id: string | null;
         paused_until: string | null;
       }
     | undefined;
   const now = new Date().toISOString();
-  if (existing?.paused_until && existing.paused_until > now) {
+  if (
+    existing?.x_user_id === xUserId &&
+    existing.paused_until &&
+    existing.paused_until > now
+  ) {
     return { ok: false, paused: true, error: "paused_until_reset" };
   }
-  if (existing?.subscription_id && existing.delete_subscription_id) {
+  if (
+    existing?.x_user_id === xUserId &&
+    existing.subscription_id &&
+    existing.delete_subscription_id
+  ) {
     if (existing.paused_until && existing.paused_until <= now) {
       getPlatformDb()
         .prepare(
@@ -376,32 +385,40 @@ export async function subscribeUserToPostCreate(
          (user_id, x_user_id, subscription_id, webhook_id, paused_until, created_at, updated_at)
        VALUES (?, ?, NULL, NULL, ?, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET
-         paused_until = excluded.paused_until,
-         updated_at = excluded.updated_at
-       WHERE (subscription_id IS NULL OR delete_subscription_id IS NULL)
-         AND (paused_until IS NULL OR paused_until <= ?)`,
+          x_user_id = excluded.x_user_id,
+          paused_until = excluded.paused_until,
+          updated_at = excluded.updated_at
+        WHERE (subscription_id IS NULL OR delete_subscription_id IS NULL
+          OR x_user_id IS NOT excluded.x_user_id)
+          AND (paused_until IS NULL OR paused_until <= ?)`,
     )
     .run(userId, xUserId, claimUntil, now, now, now);
   if (claim.changes === 0) {
     const current = getPlatformDb()
       .prepare(
-        `SELECT subscription_id, delete_subscription_id
-         FROM activity_subscriptions WHERE user_id = ?`,
+        `SELECT subscription_id, delete_subscription_id, x_user_id
+          FROM activity_subscriptions WHERE user_id = ?`,
       )
       .get(userId) as
       | {
           subscription_id: string | null;
           delete_subscription_id: string | null;
+          x_user_id: string | null;
         }
       | undefined;
-    if (current?.subscription_id && current.delete_subscription_id) {
+    if (
+      current?.x_user_id === xUserId &&
+      current.subscription_id &&
+      current.delete_subscription_id
+    ) {
       return { ok: true, subscriptionId: current.subscription_id };
     }
     return { ok: false, error: "subscribe_in_flight" };
   }
 
+  const sameXAccount = existing?.x_user_id === xUserId;
   const subscriptionId =
-    existing?.subscription_id ??
+    (sameXAccount ? existing?.subscription_id : null) ??
     (await ensureActivityEventSubscription({
       eventType: "post.create",
       xUserId,
@@ -422,7 +439,7 @@ export async function subscribeUserToPostCreate(
   }
 
   const deleteSubscriptionId =
-    existing?.delete_subscription_id ??
+    (sameXAccount ? existing?.delete_subscription_id : null) ??
     (await ensureActivityEventSubscription({
       eventType: "post.delete",
       xUserId,
@@ -436,10 +453,17 @@ export async function subscribeUserToPostCreate(
       .prepare(
         `UPDATE activity_subscriptions
          SET x_user_id = ?, subscription_id = ?, webhook_id = ?,
-             paused_until = NULL, updated_at = ?
+             paused_until = ?, updated_at = ?
          WHERE user_id = ?`,
       )
-      .run(xUserId, subscriptionId, webhookId, at, userId);
+      .run(
+        xUserId,
+        subscriptionId,
+        webhookId,
+        existing?.paused_until ?? at,
+        at,
+        userId,
+      );
     console.warn("[xaa] post.delete subscribe failed");
     return { ok: false, error: "delete_subscribe_failed" };
   }
@@ -559,7 +583,8 @@ export async function resumeDueSubscriptions(): Promise<number> {
   const rows = getPlatformDb()
     .prepare(
       `SELECT user_id FROM activity_subscriptions
-       WHERE paused_until IS NOT NULL AND paused_until <= ?`,
+       WHERE delete_subscription_id IS NULL
+          OR (paused_until IS NOT NULL AND paused_until <= ?)`,
     )
     .all(now) as Array<{ user_id: string }>;
   let n = 0;
