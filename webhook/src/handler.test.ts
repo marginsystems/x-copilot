@@ -15,7 +15,11 @@ import {
   listInteractionHistory,
   markInteracted,
 } from "../../server/src/interactionStore.ts";
-import { watchThread } from "../../server/src/ownPostStore.ts";
+import {
+  countOwnPostsSince,
+  upsertOwnPost,
+  watchThread,
+} from "../../server/src/ownPostStore.ts";
 import type { ParsedPostCreate } from "../../server/src/xActivity.ts";
 import { crcResponseToken } from "../../server/src/xActivity.ts";
 import { markOwnReplyInteracted } from "./handler.ts";
@@ -187,6 +191,101 @@ describe("own reply interaction capture", () => {
       assert.deepEqual(await first.json(), { ok: true });
       const duplicate = await send();
       assert.deepEqual(await duplicate.json(), { ok: true, duplicate: true });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("removes an own post on signed delete and ignores unknown events", async () => {
+    upsertOwnPost({
+      parsed: post({ postId: "delete-me", kind: "original", inReplyToId: null }),
+      userId,
+      tenantId: "local",
+    });
+    const server = createWebhookServer();
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const port = (server.address() as AddressInfo).port;
+    const send = (body: string) =>
+      fetch(`http://127.0.0.1:${port}/api/x/activity`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-twitter-webhooks-signature": crcResponseToken(body, "secret"),
+        },
+        body,
+      });
+    const deleted = JSON.stringify({
+      data: {
+        event_uuid: "delete-event",
+        event_type: "post.delete",
+        filter: { user_id: "x-user" },
+        payload: { id: "delete-me" },
+      },
+    });
+    const unknown = JSON.stringify({
+      data: {
+        event_uuid: "unknown-event",
+        event_type: "profile.update",
+        filter: { user_id: "x-user" },
+        payload: { id: "delete-me" },
+      },
+    });
+
+    try {
+      assert.deepEqual(await (await send(deleted)).json(), { ok: true });
+      assert.equal(countOwnPostsSince(userId, "2000-01-01T00:00:00.000Z"), 0);
+      assert.deepEqual(await (await send(deleted)).json(), {
+        ok: true,
+        duplicate: true,
+      });
+      assert.deepEqual(await (await send(unknown)).json(), {
+        ok: true,
+        ignored: true,
+      });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("does not deduplicate a delete against a create without event_uuid", async () => {
+    upsertOwnPost({
+      parsed: post({ postId: "fallback-delete", kind: "original", inReplyToId: null }),
+      userId,
+      tenantId: "local",
+    });
+    const server = createWebhookServer();
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const port = (server.address() as AddressInfo).port;
+    const send = (body: string) =>
+      fetch(`http://127.0.0.1:${port}/api/x/activity`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-twitter-webhooks-signature": crcResponseToken(body, "secret"),
+        },
+        body,
+      });
+    const create = JSON.stringify({
+      data: {
+        event_type: "post.create",
+        filter: { user_id: "x-user" },
+        payload: { id: "fallback-delete", author_id: "x-user" },
+      },
+    });
+    const deleted = JSON.stringify({
+      data: {
+        event_type: "post.delete",
+        filter: { user_id: "x-user" },
+        payload: { id: "fallback-delete" },
+      },
+    });
+
+    try {
+      assert.deepEqual(await (await send(create)).json(), { ok: true });
+      assert.deepEqual(await (await send(deleted)).json(), { ok: true });
+      assert.equal(countOwnPostsSince(userId, "2000-01-01T00:00:00.000Z"), 0);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

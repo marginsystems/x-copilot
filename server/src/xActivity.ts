@@ -29,6 +29,12 @@ export type ParsedPostCreate = {
   metrics: ActivityMetrics;
 };
 
+export type ParsedPostDelete = {
+  eventUuid: string;
+  xUserId: string;
+  postId: string;
+};
+
 export function crcResponseToken(
   crcToken: string,
   consumerSecret: string,
@@ -172,6 +178,37 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
     conversationId: post.conversation_id ? String(post.conversation_id) : null,
     authorUsername: usernameFromIncludes(data, xUserId),
     metrics: metricsFromPublic(post.public_metrics),
+  };
+}
+
+/** Pull a post.delete event from an XAA webhook envelope. */
+export function parsePostDeleteEvent(json: unknown): ParsedPostDelete | null {
+  if (!json || typeof json !== "object") return null;
+  const root = json as Record<string, unknown>;
+  const data =
+    root.data && typeof root.data === "object"
+      ? (root.data as Record<string, unknown>)
+      : root;
+  if (String(data.event_type ?? root.event_type ?? "") !== "post.delete") {
+    return null;
+  }
+  const payload =
+    data.payload && typeof data.payload === "object"
+      ? (data.payload as Record<string, unknown>)
+      : data;
+  const postId = String(payload.id ?? payload.post_id ?? "").trim();
+  const filter =
+    data.filter && typeof data.filter === "object"
+      ? (data.filter as { user_id?: unknown })
+      : {};
+  const xUserId = String(
+    filter.user_id ?? payload.author_id ?? root.for_user_id ?? "",
+  ).trim();
+  if (!postId || !xUserId) return null;
+  return {
+    eventUuid: String(data.event_uuid ?? root.event_uuid ?? postId).trim(),
+    xUserId,
+    postId,
   };
 }
 

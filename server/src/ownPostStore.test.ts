@@ -17,6 +17,7 @@ import {
   lastUtcDays,
   listDueOwnPostSamples,
   patchOwnPostSnapshot,
+  removeOwnPost,
   rememberActivityEvent,
   seenActivityEvent,
   startOfUtcDayIso,
@@ -108,6 +109,31 @@ describe("ownPostStore", () => {
     assert.equal(summary.totals.likes, 10);
     assert.equal(summary.totals.bookmarks, 8);
     assert.equal(summary.top[0]?.id, "1");
+  });
+
+  it("removes an own post only for its mapped user and X account", () => {
+    upsertOwnPost({
+      parsed: post({ postId: "delete-me" }),
+      userId: "user-1",
+      tenantId: "tenant-1",
+    });
+    assert.equal(
+      removeOwnPost({
+        postId: "delete-me",
+        userId: "other",
+        xUserId: "99",
+      }),
+      false,
+    );
+    assert.equal(
+      removeOwnPost({
+        postId: "delete-me",
+        userId: "user-1",
+        xUserId: "99",
+      }),
+      true,
+    );
+    assert.equal(countOwnPostsSince("user-1", "2000-01-01T00:00:00.000Z"), 0);
   });
 
   it("plots a continuous zero-filled 30-day UTC window, not just posting days", () => {
