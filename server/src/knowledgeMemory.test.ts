@@ -498,6 +498,9 @@ describe("updateInteractionMemoryOutcome", () => {
       reply: "First reply",
       source: "manual",
       text: "First post",
+      agenda: "First agenda",
+      intent: "First intent",
+      url: "https://example.com/first",
       knowledgeRoot: root,
       interactedAt: "2026-07-27T01:02:03.000Z",
     });
@@ -507,6 +510,9 @@ describe("updateInteractionMemoryOutcome", () => {
       reply: "Updated reply",
       source: "manual",
       text: "Updated post",
+      agenda: "Updated agenda",
+      intent: "Updated intent",
+      url: "https://example.com/updated",
       knowledgeRoot: root,
       interactedAt: "2026-07-27T01:02:03.000Z",
     });
@@ -520,6 +526,11 @@ describe("updateInteractionMemoryOutcome", () => {
     );
     assert.match(body, /Updated reply/);
     assert.match(body, /Updated post/);
+    assert.match(body, /Updated agenda/);
+    assert.match(body, /Updated intent/);
+    assert.match(body, /url: "https:\/\/example.com\/updated"/);
+    assert.doesNotMatch(body, /First agenda/);
+    assert.doesNotMatch(body, /First intent/);
     assert.doesNotMatch(body, /First reply/);
   });
 
