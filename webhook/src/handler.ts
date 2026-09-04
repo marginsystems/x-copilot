@@ -9,6 +9,7 @@ import { getUserById } from "../../server/src/authStore.js";
 import {
   crcResponseToken,
   parsePostCreateEvent,
+  parsePostDeleteEvent,
   postUrl,
   verifyWebhookSignature,
 } from "../../server/src/xActivity.js";
@@ -18,6 +19,7 @@ import {
   nextUtcDayIso,
   nextUtcMonthIso,
   rememberActivityEvent,
+  removeOwnPost,
   seenActivityEvent,
   startOfUtcDayIso,
   upsertOwnPost,
@@ -167,6 +169,26 @@ async function handleActivityPost(
     json = raw.length ? JSON.parse(raw.toString("utf8")) : {};
   } catch {
     send(req, res, 400, { error: "invalid_json" });
+    return;
+  }
+  const deleted = parsePostDeleteEvent(json);
+  if (deleted) {
+    if (seenActivityEvent(deleted.eventUuid)) {
+      send(req, res, 200, { ok: true, duplicate: true });
+      return;
+    }
+    const userId = findUserIdByXUserId(deleted.xUserId);
+    if (!userId) {
+      send(req, res, 200, { ok: true, unmatched: true });
+      return;
+    }
+    rememberActivityEvent(deleted.eventUuid);
+    removeOwnPost({
+      postId: deleted.postId,
+      userId,
+      xUserId: deleted.xUserId,
+    });
+    send(req, res, 200, { ok: true });
     return;
   }
   const parsed = parsePostCreateEvent(json);
