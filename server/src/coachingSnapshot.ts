@@ -11,7 +11,7 @@ import {
   countDoneSuggestionsSince,
   listActiveSuggestions,
 } from "./forYouStore.js";
-import { startOfUtcDayIso } from "./ownPostStore.js";
+import { listOwnPostedAt, startOfUtcDayIso } from "./ownPostStore.js";
 import { countDeliveredSortiesToday } from "./scoutSorties.js";
 import {
   countDeskOriginalsSince,
@@ -42,6 +42,57 @@ export type CoachingSnapshot = {
   level: number;
   lifetimeXp: number;
 };
+
+export const INSTRUMENT_WINDOW = 500;
+
+export type InstrumentTimes = {
+  replyAt: string[];
+  originalAt: string[];
+  postAt: string[];
+};
+
+export async function loadInstrumentTimes(opts: {
+  userId: string;
+  interactionStorePath?: string;
+}): Promise<InstrumentTimes> {
+  const history = await listInteractionHistory({
+    userId: opts.userId,
+    limit: INSTRUMENT_WINDOW,
+    storePath: opts.interactionStorePath,
+  });
+  return {
+    replyAt: history.map((row) => row.postedAt ?? row.at),
+    originalAt: listOwnPostedAt({
+      userId: opts.userId,
+      kinds: ["original"],
+      limit: INSTRUMENT_WINDOW,
+    }),
+    postAt: listOwnPostedAt({
+      userId: opts.userId,
+      kinds: ["original", "quote"],
+      limit: INSTRUMENT_WINDOW,
+    }),
+  };
+}
+
+export function coachingInstrumentFields(
+  snapshot: Pick<CoachingSnapshot, "postsToday" | "originalsToday">,
+  times: InstrumentTimes,
+): {
+  postsToday: number;
+  originalsToday: number;
+  replyAt: string[];
+  originalAt: string[];
+  postAt: string[];
+} {
+  return {
+    postsToday: snapshot.postsToday,
+    originalsToday: snapshot.originalsToday,
+    replyAt: times.replyAt,
+    originalAt: times.originalAt,
+    postAt: times.postAt,
+  };
+}
 
 export function originalsTodayCount(
   ownPosts: number,

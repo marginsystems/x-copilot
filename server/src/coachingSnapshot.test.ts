@@ -10,6 +10,7 @@ import {
 } from "./db.ts";
 import {
   buildCoachingSnapshot,
+  loadInstrumentTimes,
   originalsTodayCount,
 } from "./coachingSnapshot.ts";
 import { listMissionsWithProgress } from "./dailyMissions.ts";
@@ -301,5 +302,11 @@ describe("buildCoachingSnapshot", () => {
     assert.equal(snapshot.quotesToday, 1);
     assert.equal(snapshot.repliesPostedToday, 1);
     assert.equal(snapshot.postsToday, 2);
+    const times = await loadInstrumentTimes({
+      userId: "u1",
+      interactionStorePath,
+    });
+    assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
+    assert.equal(times.postAt.length, 2);
   });
 });

@@ -883,7 +883,7 @@ export default function App() {
               activityStats={activityStats}
               gamification={gamification}
               interactedHistory={interactedHistory}
-              postsToday={coaching?.postsToday ?? 0}
+              coaching={coaching}
               onToggleFlightPath={onToggleFlightPath}
               onActivityBucket={onActivityBucket}
             />

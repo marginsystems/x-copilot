@@ -13,6 +13,8 @@ import {
 } from "./billingStore.js";
 import {
   buildCoachingSnapshot,
+  coachingInstrumentFields,
+  loadInstrumentTimes,
 } from "./coachingSnapshot.js";
 import { listMissionsWithProgress } from "./dailyMissions.js";
 import { getDeskBeats } from "./deskBeats.js";
@@ -117,6 +119,10 @@ export async function tryHandleBoot(
       missions: Awaited<ReturnType<typeof listMissionsWithProgress>>;
       beats: ReturnType<typeof getDeskBeats>;
       postsToday: number;
+      originalsToday: number;
+      replyAt: string[];
+      originalAt: string[];
+      postAt: string[];
     } | null = null;
 
     if (user) {
@@ -135,6 +141,7 @@ export async function tryHandleBoot(
         tenantId,
         nowMs,
       });
+      const times = await loadInstrumentTimes({ userId: user.id });
       coaching = {
         dayUtc: snapshot.dayUtc,
         nextAction: null,
@@ -144,7 +151,7 @@ export async function tryHandleBoot(
           nowMs,
         }),
         beats: getDeskBeats({ userId: user.id, nowMs }),
-        postsToday: snapshot.postsToday,
+        ...coachingInstrumentFields(snapshot, times),
       };
     }
 
