@@ -23,11 +23,7 @@ import { ThreadRow } from "./ThreadRow";
 import type { ThreadCard } from "./types";
 import { watchDeskThreads } from "./watch";
 
-export function pickApproachSuggestion(
-  rows: ForYouSuggestion[],
-): ForYouSuggestion | null {
-  return rows.find((row) => row.kind === "reply") ?? rows[0] ?? null;
-}
+export { pickApproachSuggestion } from "../lib/approachCard";
 
 export function pickApproachScout(threads: ThreadCard[]): ThreadCard | null {
   return preferRootTargets(threads)[0] ?? null;
