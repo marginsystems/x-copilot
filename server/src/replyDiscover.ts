@@ -28,6 +28,7 @@ import { dailyActivityUsage } from "./billingQuotas.js";
 import { ensureUserTenant } from "./billingStore.js";
 import { getWatchedThread, upsertOwnPost } from "./ownPostStore.js";
 import { recordDeskReplyMarked } from "./deskBeats.js";
+import { recordMarkGamification } from "./gamification.js";
 import {
   findUserIdByXUserId,
   lookupXUserId,
@@ -493,6 +494,19 @@ export async function discoverOwnReplies(opts?: {
         } catch (err) {
           console.warn(
             `[reply-discover] desk beats soft-fail replyId=${replyId}:`,
+            err,
+          );
+        }
+        try {
+          await recordMarkGamification({
+            threadId,
+            userId: opts.userId,
+            nowMs: Date.parse(interaction.at) || nowMs,
+            interactionStorePath: opts.storePath,
+          });
+        } catch (err) {
+          console.warn(
+            `[reply-discover] streak mark soft-fail replyId=${replyId}:`,
             err,
           );
         }

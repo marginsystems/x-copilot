@@ -38,6 +38,7 @@ import { ensureUserTenant } from "./billingStore.js";
 import { recordUsageEvent } from "./usageMeter.js";
 import { markInteracted } from "./interactionStore.js";
 import { recordDeskReplyMarked } from "./deskBeats.js";
+import { recordMarkGamification } from "./gamification.js";
 import { allowRate, clientIp } from "./authGuard.js";
 
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
@@ -186,6 +187,15 @@ async function handleActivityPost(
           });
         } catch (err) {
           console.warn("[xaa] desk beats mark soft-fail", err);
+        }
+        try {
+          await recordMarkGamification({
+            threadId: watched.threadId,
+            userId,
+            nowMs: discoveredAtMs,
+          });
+        } catch (err) {
+          console.warn("[xaa] streak mark soft-fail", err);
         }
       } catch (err) {
         console.warn("[xaa] auto-mark soft-fail", err);

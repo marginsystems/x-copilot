@@ -22,6 +22,7 @@ import {
   applyT24hBonus,
   levelFromXp,
   markXpForStreak,
+  overlayStreakFromHistory,
   seedGamificationFromHistory,
   type GamificationState,
   type MarkAward,
@@ -57,6 +58,7 @@ export {
   lifetimeMarksOf,
   markXpForStreak,
   prevUtcDayKey,
+  overlayStreakFromHistory,
   seedGamificationFromHistory,
   utcDayKey,
   xpProgress,
@@ -242,12 +244,14 @@ async function loadOrSeedState(opts: GamificationPaths): Promise<{
   const path = await resolveGamificationPath(opts);
   const nowMs = opts.nowMs ?? Date.now();
   const existing = await readGamificationFile(path);
-  if (existing) return { path, state: existing };
   const history = await listInteractionHistory({
     limit: MAX_INTERACTION_STORE,
     storePath: opts.interactionStorePath,
     userId: opts.userId,
   });
+  if (existing) {
+    return { path, state: overlayStreakFromHistory(existing, history, nowMs) };
+  }
   const state = seedGamificationFromHistory(history, nowMs);
   await writeGamificationFile(path, state);
   return { path, state };
@@ -414,12 +418,16 @@ export async function getGamification(
   const nowMs = opts?.nowMs ?? Date.now();
   return withFileLock(path, async () => {
     const existing = await readGamificationFile(path);
-    if (existing) return toPublicGamification(existing);
     const history = await listInteractionHistory({
       limit: MAX_INTERACTION_STORE,
       storePath: opts?.interactionStorePath,
       userId: opts?.userId,
     });
+    if (existing) {
+      return toPublicGamification(
+        overlayStreakFromHistory(existing, history, nowMs),
+      );
+    }
     return toPublicGamification(seedGamificationFromHistory(history, nowMs));
   });
 }

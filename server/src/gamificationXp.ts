@@ -274,7 +274,6 @@ export function seedGamificationFromHistory(
   );
   let state = emptyGamificationState(nowMs);
   for (const row of sorted) {
-    if (row.source === "discovered") continue;
     const markMs = Date.parse(row.at);
     if (!Number.isFinite(markMs)) continue;
     state = applyMarkToGamification(state, markMs, row.threadId).state;
@@ -283,4 +282,28 @@ export function seedGamificationFromHistory(
     }
   }
   return { ...state, updatedAt: new Date(nowMs).toISOString() };
+}
+
+/** Streak from interacted history. Does not change XP. */
+export function overlayStreakFromHistory(
+  state: GamificationState,
+  history: readonly Interaction[],
+  nowMs: number = Date.now(),
+): GamificationState {
+  if (history.length === 0) return state;
+  const seeded = seedGamificationFromHistory(history, nowMs);
+  const longestStreak = Math.max(state.longestStreak, seeded.longestStreak);
+  if (
+    seeded.currentStreak === state.currentStreak &&
+    seeded.lastMarkUtcDay === state.lastMarkUtcDay &&
+    longestStreak === state.longestStreak
+  ) {
+    return state;
+  }
+  return {
+    ...state,
+    currentStreak: seeded.currentStreak,
+    lastMarkUtcDay: seeded.lastMarkUtcDay,
+    longestStreak,
+  };
 }

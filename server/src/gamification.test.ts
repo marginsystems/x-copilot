@@ -18,6 +18,7 @@ import {
   recordMarkGamification,
   recordT24hBonusGamification,
   resolveGamificationPath,
+  overlayStreakFromHistory,
   seedGamificationFromHistory,
   toLeaderboardRow,
   unlockedAchievementIds,
@@ -285,11 +286,18 @@ describe("seedGamificationFromHistory", () => {
     assert.deepEqual(state.bonusAwardedThreadIds, ["a"]);
   });
 
-  it("does not seed discovered replies into XP or streak", () => {
+  it("seeds discovered replies into streak and XP", () => {
     const state = seedGamificationFromHistory(
       [
         {
-          threadId: "discovered",
+          threadId: "d1",
+          author: "@a",
+          authorKey: "a",
+          at: "2026-08-05T10:00:00.000Z",
+          source: "discovered",
+        },
+        {
+          threadId: "d2",
           author: "@a",
           authorKey: "a",
           at: "2026-08-06T10:00:00.000Z",
@@ -298,8 +306,48 @@ describe("seedGamificationFromHistory", () => {
       ],
       Date.parse("2026-08-06T12:00:00.000Z"),
     );
-    assert.equal(state.currentStreak, 0);
-    assert.equal(state.lifetimeXp, 0);
+    assert.equal(state.currentStreak, 2);
+    assert.equal(state.lifetimeXp, 2);
+  });
+
+  it("rebuilds streak from discovered history without backfilling XP", () => {
+    const broken = {
+      ...emptyGamificationState(Date.parse("2026-08-06T12:00:00.000Z")),
+      currentStreak: 1,
+      longestStreak: 17,
+      lastMarkUtcDay: "2026-08-06",
+      lifetimeXp: 40,
+    };
+    const next = overlayStreakFromHistory(
+      broken,
+      [
+        {
+          threadId: "d1",
+          author: "@a",
+          authorKey: "a",
+          at: "2026-08-04T10:00:00.000Z",
+          source: "discovered",
+        },
+        {
+          threadId: "d2",
+          author: "@a",
+          authorKey: "a",
+          at: "2026-08-05T10:00:00.000Z",
+          source: "manual",
+        },
+        {
+          threadId: "d3",
+          author: "@a",
+          authorKey: "a",
+          at: "2026-08-06T10:00:00.000Z",
+          source: "discovered",
+        },
+      ],
+      Date.parse("2026-08-06T12:00:00.000Z"),
+    );
+    assert.equal(next.currentStreak, 3);
+    assert.equal(next.longestStreak, 17);
+    assert.equal(next.lifetimeXp, 40);
   });
 });
 
@@ -421,6 +469,54 @@ describe("recordMarkGamification / getGamification", () => {
     assert.deepEqual(afterMark.progress?.unlockedAchievementIds, [
       "first_mark",
     ]);
+  });
+
+  it("GET rebuilds streak from discovered history and leaves XP", async () => {
+    const d1 = Date.parse("2026-08-04T12:00:00.000Z");
+    const d2 = Date.parse("2026-08-05T12:00:00.000Z");
+    const d3 = Date.parse("2026-08-06T12:00:00.000Z");
+    await markInteracted({
+      threadId: "a",
+      author: "@x",
+      source: "discovered",
+      nowMs: d1,
+      storePath: interactionStorePath,
+    });
+    await markInteracted({
+      threadId: "b",
+      author: "@x",
+      source: "discovered",
+      nowMs: d2,
+      storePath: interactionStorePath,
+    });
+    await markInteracted({
+      threadId: "c",
+      author: "@x",
+      source: "discovered",
+      nowMs: d3,
+      storePath: interactionStorePath,
+    });
+    await writeFile(
+      gamificationPath,
+      JSON.stringify({
+        currentStreak: 1,
+        longestStreak: 17,
+        lastMarkUtcDay: "2026-08-06",
+        lifetimeXp: 40,
+        bonusAwardedThreadIds: [],
+        markAwardedThreadIds: ["desk:1"],
+        updatedAt: "2026-08-06T12:00:00.000Z",
+      }) + "\n",
+      "utf8",
+    );
+    const snap = await getGamification({
+      gamificationPath,
+      interactionStorePath,
+      nowMs: d3,
+    });
+    assert.equal(snap.currentStreak, 3);
+    assert.equal(snap.longestStreak, 17);
+    assert.equal(snap.lifetimeXp, 40);
   });
 
   it("celebrates an older soft-failed mark replayed before newer retained rows", async () => {
