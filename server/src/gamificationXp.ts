@@ -277,7 +277,7 @@ export function seedGamificationFromHistory(
     const markMs = Date.parse(row.at);
     if (!Number.isFinite(markMs)) continue;
     state = applyMarkToGamification(state, markMs, row.threadId).state;
-    if (row.stats?.t24h) {
+    if (row.source !== "discovered" && row.stats?.t24h) {
       state = applyT24hBonus(state, row.threadId, row.stats.t24h, markMs).state;
     }
   }

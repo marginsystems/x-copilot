@@ -294,7 +294,20 @@ export async function recordMarkGamification(
         storePath: opts?.interactionStorePath,
         userId: opts?.userId,
       });
-      const current = overlayStreakFromHistory(existing, history, nowMs);
+      // Do not reconstruct the streak from the row this mark is about to
+      // apply; re-marking a thread replaces its retained history row.
+      const current = overlayStreakFromHistory(
+        existing,
+        history.filter(
+          (row) =>
+            !(
+              threadId &&
+              row.threadId === threadId &&
+              row.at === new Date(nowMs).toISOString()
+            ),
+        ),
+        nowMs,
+      );
       // A mark retried after a soft-fail replays the same at, so it must not
       // credit XP/streak again; a re-mark with a new at is a new mark.
       if (threadId && current.markAwardedThreadIds.includes(markKey)) {

@@ -310,6 +310,23 @@ describe("seedGamificationFromHistory", () => {
     assert.equal(state.lifetimeXp, 2);
   });
 
+  it("does not seed t24h bonus XP for discovered replies", () => {
+    const state = seedGamificationFromHistory([
+      {
+        threadId: "d1",
+        author: "@a",
+        authorKey: "a",
+        at: "2026-08-05T10:00:00.000Z",
+        source: "discovered",
+        stats: {
+          t24h: { views: 500, likes: 2, sampledAt: "2026-08-06T10:00:00.000Z" },
+        },
+      },
+    ]);
+    assert.equal(state.lifetimeXp, 1);
+    assert.deepEqual(state.bonusAwardedThreadIds, []);
+  });
+
   it("rebuilds streak from discovered history without backfilling XP", () => {
     const broken = {
       ...emptyGamificationState(Date.parse("2026-08-06T12:00:00.000Z")),
@@ -500,6 +517,37 @@ describe("recordMarkGamification / getGamification", () => {
     assert.deepEqual(afterMark.progress?.unlockedAchievementIds, [
       "first_mark",
     ]);
+  });
+
+  it("advances the streak when re-marking a retained thread on the next day", async () => {
+    const d1 = Date.parse("2026-08-01T12:00:00.000Z");
+    const d2 = Date.parse("2026-08-02T12:00:00.000Z");
+    await markInteracted({
+      threadId: "t1",
+      author: "@x",
+      nowMs: d1,
+      storePath: interactionStorePath,
+    });
+    await recordMarkGamification({
+      gamificationPath,
+      interactionStorePath,
+      nowMs: d1,
+      threadId: "t1",
+    });
+    await markInteracted({
+      threadId: "t1",
+      author: "@x",
+      nowMs: d2,
+      storePath: interactionStorePath,
+    });
+    const after = await recordMarkGamification({
+      gamificationPath,
+      interactionStorePath,
+      nowMs: d2,
+      threadId: "t1",
+    });
+    assert.equal(after.currentStreak, 2);
+    assert.equal(after.longestStreak, 2);
   });
 
   it("GET rebuilds streak from discovered history and leaves XP", async () => {
