@@ -47,6 +47,7 @@ export type CoachingSnapshot = {
 
 export const INSTRUMENT_WINDOW = 2000;
 const INSTRUMENT_HISTORY_MS = 14 * 24 * 60 * 60 * 1000;
+const ORIGINAL_DEDUPE_TOLERANCE_MS = 5_000;
 
 export type InstrumentTimes = {
   replyAt: string[];
@@ -73,18 +74,25 @@ export async function loadInstrumentTimes(opts: {
   ];
   // The same original can be represented by own_posts, the desk ledger, and
   // its completed For You card. Keep one canonical timestamp for instruments.
-  const originalAt = [
-    ...listOwnPostedAt({
-      userId: opts.userId,
-      kinds: ["original"],
-      limit: INSTRUMENT_WINDOW,
-    }),
-    ...deskOriginalAt,
-    ...donePostAt,
-  ];
+  const originalAt = listOwnPostedAt({
+    userId: opts.userId,
+    kinds: ["original"],
+    limit: INSTRUMENT_WINDOW,
+  });
+  for (const candidate of [...deskOriginalAt, ...donePostAt]) {
+    if (
+      !originalAt.some(
+        (existing) =>
+          Math.abs(Date.parse(existing) - Date.parse(candidate)) <=
+          ORIGINAL_DEDUPE_TOLERANCE_MS,
+      )
+    ) {
+      originalAt.push(candidate);
+    }
+  }
   return {
     replyAt: history.map((row) => row.postedAt ?? row.at),
-    originalAt: [...new Set(originalAt)]
+    originalAt
       .sort((a, b) => Date.parse(b) - Date.parse(a))
       .slice(0, INSTRUMENT_WINDOW),
     postAt: listOwnPostedAt({

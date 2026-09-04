@@ -71,7 +71,7 @@ describe("buildCoachingSnapshot", () => {
       interactionStorePath,
     });
     assert.equal(snapshot.originalsToday, 1);
-    const times = await loadInstrumentTimes({ userId: "u1" });
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
     assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
 
     const missions = await listMissionsWithProgress({
@@ -98,7 +98,7 @@ describe("buildCoachingSnapshot", () => {
       userId: "u1",
       tweetId: "1900000001",
       inReplyToId: "",
-      atIso: new Date(NOW_MS).toISOString(),
+      atIso: new Date(NOW_MS + 1_000).toISOString(),
     });
 
     const snapshot = await buildCoachingSnapshot({
@@ -109,6 +109,8 @@ describe("buildCoachingSnapshot", () => {
       interactionStorePath,
     });
     assert.equal(snapshot.originalsToday, 1);
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.originalAt, [new Date(NOW_MS + 1_000).toISOString()]);
 
     const missions = await listMissionsWithProgress({
       userId: "u1",
@@ -164,7 +166,7 @@ describe("buildCoachingSnapshot", () => {
       interactionStorePath,
     });
     assert.equal(withCard.originalsToday, 1);
-    const times = await loadInstrumentTimes({ userId: "u1" });
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
     assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
   });
 
@@ -185,7 +187,7 @@ describe("buildCoachingSnapshot", () => {
     });
     assert.equal(snapshot.deskPostsToday, 1);
     assert.equal(snapshot.originalsToday, 1);
-    const times = await loadInstrumentTimes({ userId: "u1" });
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
     assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
   });
 
@@ -311,6 +313,7 @@ describe("buildCoachingSnapshot", () => {
     const times = await loadInstrumentTimes({
       userId: "u1",
       interactionStorePath,
+      nowMs: NOW_MS,
     });
     assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
     assert.equal(times.postAt.length, 2);
