@@ -534,6 +534,34 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /First reply/);
   });
 
+  it("removes omitted fields when a manual note is rewritten", async () => {
+    const input = {
+      threadId: "103",
+      author: "@A",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    } as const;
+    await writeInteractionMemory({
+      ...input,
+      reply: "First reply",
+      text: "First post",
+      agenda: "First agenda",
+      intent: "First intent",
+      url: "https://example.com/first",
+    });
+    await writeInteractionMemory({
+      ...input,
+      reply: "Updated reply",
+      text: "Updated post",
+    });
+    const body = await readFile(buildInteractionNotePath(input), "utf8");
+    assert.match(body, /Updated reply/);
+    assert.match(body, /Updated post/);
+    assert.doesNotMatch(body, /agenda:/);
+    assert.doesNotMatch(body, /intent:/);
+    assert.doesNotMatch(body, /url:/);
+  });
+
   it("keeps manual content after replacing a discovered note", async () => {
     const input = {
       threadId: "102",
