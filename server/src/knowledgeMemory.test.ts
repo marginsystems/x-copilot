@@ -418,6 +418,14 @@ describe("updateInteractionMemoryOutcome", () => {
       nowIso: "2026-07-28T01:02:03.000Z",
     });
     assert.equal(first.ok, true);
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "My reply",
+      text: "Updated original",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
     const second = await updateInteractionMemoryOutcome({
       interaction: baseInteraction({ stats }),
       knowledgeRoot: root,
@@ -429,6 +437,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.equal((body.match(/## Outcome/g) ?? []).length, 1);
     assert.equal((body.match(/views1h: 100/g) ?? []).length, 1);
     assert.equal((body.match(/views24h: 420/g) ?? []).length, 1);
+    assert.match(body, /Updated original/);
     assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
   });
 
