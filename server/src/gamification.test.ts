@@ -349,6 +349,37 @@ describe("seedGamificationFromHistory", () => {
     assert.equal(next.longestStreak, 17);
     assert.equal(next.lifetimeXp, 40);
   });
+
+  it("adopts a newer history cursor when the retained streak is shorter", () => {
+    const state: GamificationState = {
+      ...emptyGamificationState(Date.parse("2026-08-02T12:00:00.000Z")),
+      currentStreak: 50,
+      longestStreak: 50,
+      lastMarkUtcDay: "2026-07-31",
+    };
+    const next = overlayStreakFromHistory(
+      state,
+      [
+        {
+          threadId: "d1",
+          author: "@a",
+          authorKey: "a",
+          at: "2026-08-01T10:00:00.000Z",
+          source: "discovered",
+        },
+        {
+          threadId: "d2",
+          author: "@a",
+          authorKey: "a",
+          at: "2026-08-02T10:00:00.000Z",
+          source: "discovered",
+        },
+      ],
+      Date.parse("2026-08-02T12:00:00.000Z"),
+    );
+    assert.equal(next.currentStreak, 50);
+    assert.equal(next.lastMarkUtcDay, "2026-08-02");
+  });
 });
 
 describe("pickNextGoal / achievements", () => {

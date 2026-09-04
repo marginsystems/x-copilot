@@ -300,6 +300,8 @@ export async function discoverOwnReplies(opts?: {
   screenName?: string;
   /** Desk user who owns the handle — stamps discovered rows and desk beats. */
   userId?: string;
+  /** Override the gamification ledger path (tests). */
+  gamificationPath?: string;
   signal?: AbortSignal;
   searchTimelinePages?: SearchTimelinePagesFn;
   resolveScreenName?: () => Promise<string | null>;
@@ -504,6 +506,7 @@ export async function discoverOwnReplies(opts?: {
             userId: opts.userId,
             nowMs: Date.parse(interaction.at) || nowMs,
             interactionStorePath: opts.storePath,
+            gamificationPath: opts.gamificationPath,
           });
         } catch (err) {
           console.warn(
