@@ -14,6 +14,8 @@
   --accent-dim: #3d5f73;
   --danger: #d4847a;
   --danger-dim: #5d3535;
+  --gain: #7dba8a;
+  --gain-dim: #2f4a36;
   --ink: #161310;
   --on-accent: #161310;
   --radius: 4px;
@@ -35,6 +37,8 @@
   --accent-dim: #7ea8c4;
   --danger: #b54d45;
   --danger-dim: #f0d4d0;
+  --gain: #2d6a3c;
+  --gain-dim: #cfe3d4;
   --ink: #fffaf4;
   --on-accent: #ffffff;
 }

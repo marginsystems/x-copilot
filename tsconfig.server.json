@@ -17,7 +17,7 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node"]
   },
-  "include": ["server/src/**/*.ts"],
+  "include": ["server/src/**/*.ts", "server/src/**/*.d.ts"],
   "exclude": [
     "server/src/**/*.test.ts",
     "server/src/**/*.test.fixtures.ts",

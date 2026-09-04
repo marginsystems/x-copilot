@@ -6,7 +6,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ensureUserTenant } from "./billingStore.js";
 import {
   buildCoachingSnapshot,
+  coachingInstrumentFields,
   hashCoachingSnapshot,
+  loadInstrumentTimes,
 } from "./coachingSnapshot.js";
 import { listMissionsWithProgress } from "./dailyMissions.js";
 import { getDeskBeats } from "./deskBeats.js";
@@ -43,7 +45,7 @@ export async function tryHandleCoaching(
     });
     const beats = getDeskBeats({ userId: user.id, nowMs });
     const inputsHash = hashCoachingSnapshot(snapshot);
-    const [nextAction, missions] = await Promise.all([
+    const [nextAction, missions, times] = await Promise.all([
       getOrRefreshNextAction({
         userId: user.id,
         snapshot,
@@ -56,6 +58,7 @@ export async function tryHandleCoaching(
         snapshot,
         nowMs,
       }),
+      loadInstrumentTimes({ userId: user.id }),
     ]);
     send(req, res, 200, {
       ok: true,
@@ -67,7 +70,7 @@ export async function tryHandleCoaching(
       },
       missions,
       beats,
-      postsToday: snapshot.postsToday,
+      ...coachingInstrumentFields(snapshot, times),
     });
   } catch (err) {
     console.error("coaching read failed:", err);
