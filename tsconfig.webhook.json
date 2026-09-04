@@ -17,6 +17,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node"]
   },
-  "include": ["webhook/src/**/*.ts"],
+  "include": ["webhook/src/**/*.ts", "server/src/xenova-transformers.d.ts"],
   "exclude": ["webhook/src/**/*.test.ts"]
 }
