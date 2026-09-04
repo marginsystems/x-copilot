@@ -239,7 +239,7 @@ export function MissionCard(props: {
             key={thread.id}
             thread={thread}
             index={0}
-            open
+            open={props.expandedId === thread.id}
             exiting={props.exitingIds.has(thread.id)}
             busy={props.actionBusy}
             interacted={props.interactedIds.has(thread.id)}
@@ -330,7 +330,7 @@ export function MissionCard(props: {
               key={row.id}
               row={row}
               index={0}
-              open
+              open={props.expandedId === key}
               exiting={props.exitingIds.has(row.id)}
               busy={props.actionBusy}
               voice={props.voice}

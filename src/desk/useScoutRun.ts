@@ -48,7 +48,6 @@ export type ScoutRunDeps = {
   billing: BillingMe | null;
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
   setStatus: Dispatch<SetStateAction<string>>;
-  setExpandedId: Dispatch<SetStateAction<string | null>>;
   keepInCurated: (thread: ThreadCard) => boolean;
   hydrateInteracted: () => Promise<void>;
   loadBilling: () => Promise<void>;
@@ -63,7 +62,6 @@ export function useScoutRun({
   billing,
   setThreads,
   setStatus,
-  setExpandedId,
   keepInCurated,
   hydrateInteracted,
   loadBilling,
@@ -299,7 +297,6 @@ export function useScoutRun({
 
     setSearching(true);
     // Keep existing thread rows; partials + done append by id across runs.
-    setExpandedId(null);
     pushScoutLine("── Scout ──", "planning");
     applyScoutEvent({
       stage: "planning",
@@ -417,7 +414,6 @@ export function useScoutRun({
         watchDeskThreads(incoming);
         // Append this run’s cool threads; do not wipe prior Scout loops.
         setThreads((prev) => appendThreadsById(prev, incoming));
-        setExpandedId(null);
         await hydrateInteracted();
         const progress = coolProgressLabel(
           doneEvent.coolCount ?? list.length,
