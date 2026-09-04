@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ActivityChart } from "../ActivityChart";
 import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import type { GamificationStats } from "../lib/gamification";
@@ -22,7 +22,10 @@ export function ActivityStrip({
   onToggleFlightPath,
   onActivityBucket,
 }: ActivityStripProps) {
-  const sharePayload = flightSharePayload(activityStats, gamification);
+  const sharePayload = useMemo(
+    () => flightSharePayload(activityStats, gamification),
+    [activityStats, gamification],
+  );
   const [shareOpen, setShareOpen] = useState(false);
 
   return (
