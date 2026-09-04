@@ -1,5 +1,6 @@
 /**
- * Register the XAA webhook once and subscribe each desk user to post.create.
+ * Register the XAA webhook once and subscribe each desk user to own-post
+ * create and delete events.
  *
  * Official V2: list/create webhooks at /2/webhooks. Activity subscriptions
  * stay at /2/activity/subscriptions. /2/activity/webhooks does not exist
@@ -67,6 +68,17 @@ async function xJson(opts: {
   return { ok: res.ok, status: res.status, json };
 }
 
+async function deleteActivitySubscription(
+  subscriptionId: string | null | undefined,
+): Promise<boolean> {
+  if (!subscriptionId) return true;
+  const res = await xJson({
+    method: "DELETE",
+    path: `${X_ACTIVITY_SUBSCRIPTIONS_PATH}/${encodeURIComponent(subscriptionId)}`,
+  });
+  return res.ok || res.status === 404;
+}
+
 export function getStoredWebhookId(): string | null {
   const fromEnv = process.env.X_ACTIVITY_WEBHOOK_ID?.trim();
   if (fromEnv) return fromEnv;
@@ -127,6 +139,65 @@ export function findListedSubscriptionId(
       row.subscription_id,
   );
   return hit?.subscription_id ? String(hit.subscription_id) : null;
+}
+
+export function activitySubscriptionBody(
+  eventType: "post.create" | "post.delete",
+  xUserId: string,
+  webhookId: string,
+  userId: string,
+): Record<string, unknown> {
+  return {
+    event_type: eventType,
+    filter: { user_id: xUserId },
+    tag: `xc:${userId}`,
+    webhook_id: webhookId,
+  };
+}
+
+export async function ensureActivityEventSubscription(opts: {
+  eventType: "post.create" | "post.delete";
+  xUserId: string;
+  webhookId: string;
+  userId: string;
+  request: XJsonFn;
+}): Promise<string | null> {
+  const listed = await opts.request({
+    method: "GET",
+    path: X_ACTIVITY_SUBSCRIPTIONS_PATH,
+  });
+  if (!listed.ok) return null;
+  const existing = findListedSubscriptionId(
+    listed.json,
+    opts.xUserId,
+    opts.webhookId,
+    opts.eventType,
+  );
+  if (existing) return existing;
+  const created = await opts.request({
+    method: "POST",
+    path: X_ACTIVITY_SUBSCRIPTIONS_PATH,
+    body: activitySubscriptionBody(
+      opts.eventType,
+      opts.xUserId,
+      opts.webhookId,
+      opts.userId,
+    ),
+  });
+  const createdId = subscriptionIdFromCreate(created.json);
+  if (created.ok && createdId) return createdId;
+  const relisted = await opts.request({
+    method: "GET",
+    path: X_ACTIVITY_SUBSCRIPTIONS_PATH,
+  });
+  return relisted.ok
+    ? findListedSubscriptionId(
+        relisted.json,
+        opts.xUserId,
+        opts.webhookId,
+        opts.eventType,
+      )
+    : null;
 }
 
 /** List then create against /2/webhooks. Used by boot; injectable for tests. */
@@ -266,15 +337,22 @@ export async function subscribeUserToPostCreate(
   if (!xUserId) return { ok: false, error: "x_user_id_unresolved" };
 
   const existing = getPlatformDb()
-    .prepare(`SELECT subscription_id, paused_until FROM activity_subscriptions WHERE user_id = ?`)
+    .prepare(
+      `SELECT subscription_id, delete_subscription_id, paused_until
+       FROM activity_subscriptions WHERE user_id = ?`,
+    )
     .get(userId) as
-    | { subscription_id: string | null; paused_until: string | null }
+    | {
+        subscription_id: string | null;
+        delete_subscription_id: string | null;
+        paused_until: string | null;
+      }
     | undefined;
   const now = new Date().toISOString();
   if (existing?.paused_until && existing.paused_until > now) {
     return { ok: false, paused: true, error: "paused_until_reset" };
   }
-  if (existing?.subscription_id) {
+  if (existing?.subscription_id && existing.delete_subscription_id) {
     if (existing.paused_until && existing.paused_until <= now) {
       getPlatformDb()
         .prepare(
@@ -300,44 +378,39 @@ export async function subscribeUserToPostCreate(
        ON CONFLICT(user_id) DO UPDATE SET
          paused_until = excluded.paused_until,
          updated_at = excluded.updated_at
-       WHERE subscription_id IS NULL
+       WHERE (subscription_id IS NULL OR delete_subscription_id IS NULL)
          AND (paused_until IS NULL OR paused_until <= ?)`,
     )
     .run(userId, xUserId, claimUntil, now, now, now);
   if (claim.changes === 0) {
     const current = getPlatformDb()
-      .prepare(`SELECT subscription_id FROM activity_subscriptions WHERE user_id = ?`)
-      .get(userId) as { subscription_id: string | null } | undefined;
-    if (current?.subscription_id) {
+      .prepare(
+        `SELECT subscription_id, delete_subscription_id
+         FROM activity_subscriptions WHERE user_id = ?`,
+      )
+      .get(userId) as
+      | {
+          subscription_id: string | null;
+          delete_subscription_id: string | null;
+        }
+      | undefined;
+    if (current?.subscription_id && current.delete_subscription_id) {
       return { ok: true, subscriptionId: current.subscription_id };
     }
     return { ok: false, error: "subscribe_in_flight" };
   }
 
-  const created = await xJson({
-    method: "POST",
-    path: X_ACTIVITY_SUBSCRIPTIONS_PATH,
-    body: {
-      event_type: "post.create",
-      filter: { user_id: xUserId },
-      tag: `xc:${userId}`,
-      webhook_id: webhookId,
-    },
-  });
-  let subscriptionId = subscriptionIdFromCreate(created.json);
+  const subscriptionId =
+    existing?.subscription_id ??
+    (await ensureActivityEventSubscription({
+      eventType: "post.create",
+      xUserId,
+      webhookId,
+      userId,
+      request: xJson,
+    }));
   if (!subscriptionId) {
-    const listed = await xJson({
-      method: "GET",
-      path: X_ACTIVITY_SUBSCRIPTIONS_PATH,
-    });
-    if (listed.ok) {
-      subscriptionId = findListedSubscriptionId(listed.json, xUserId, webhookId);
-    } else {
-      console.warn("[xaa] subscription list failed", listed.status, listed.json);
-    }
-  }
-  if (!subscriptionId) {
-    console.warn("[xaa] subscribe failed", created.status, created.json);
+    console.warn("[xaa] post.create subscribe failed");
     getPlatformDb()
       .prepare(
         `UPDATE activity_subscriptions
@@ -347,26 +420,59 @@ export async function subscribeUserToPostCreate(
       .run(existing?.paused_until ?? now, new Date().toISOString(), userId);
     return { ok: false, error: "subscribe_failed" };
   }
+
+  const deleteSubscriptionId =
+    existing?.delete_subscription_id ??
+    (await ensureActivityEventSubscription({
+      eventType: "post.delete",
+      xUserId,
+      webhookId,
+      userId,
+      request: xJson,
+    }));
+  if (!deleteSubscriptionId) {
+    const at = new Date().toISOString();
+    getPlatformDb()
+      .prepare(
+        `UPDATE activity_subscriptions
+         SET x_user_id = ?, subscription_id = ?, webhook_id = ?,
+             paused_until = NULL, updated_at = ?
+         WHERE user_id = ?`,
+      )
+      .run(xUserId, subscriptionId, webhookId, at, userId);
+    console.warn("[xaa] post.delete subscribe failed");
+    return { ok: false, error: "delete_subscribe_failed" };
+  }
   const at = new Date().toISOString();
   getPlatformDb()
     .prepare(
       `INSERT INTO activity_subscriptions
-         (user_id, x_user_id, subscription_id, webhook_id, paused_until, created_at, updated_at)
-       VALUES (?, ?, ?, ?, NULL, ?, ?)
+         (user_id, x_user_id, subscription_id, delete_subscription_id,
+          webhook_id, paused_until, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET
          x_user_id = excluded.x_user_id,
          subscription_id = excluded.subscription_id,
+         delete_subscription_id = excluded.delete_subscription_id,
          webhook_id = excluded.webhook_id,
          paused_until = NULL,
          updated_at = excluded.updated_at`,
     )
-    .run(userId, xUserId, subscriptionId, webhookId, at, at);
+    .run(
+      userId,
+      xUserId,
+      subscriptionId,
+      deleteSubscriptionId,
+      webhookId,
+      at,
+      at,
+    );
   return { ok: true, subscriptionId };
 }
 
 /**
- * Remove the user's live X-side post.create subscription so an account/handle
- * change can re-subscribe against the new account. Keeps the stored id when the
+ * Remove the user's live X-side own-post subscriptions so an account/handle
+ * change can re-subscribe against the new account. Keeps stored ids when the
  * X-side DELETE fails so a later attempt can retry it. On success the stored
  * `subscription_id` AND the stored `x_user_id` are cleared (the row is kept,
  * like `pauseUserSubscription`) so a concurrent claim reservation and the
@@ -384,27 +490,31 @@ export async function removeUserPostCreateSubscription(
 ): Promise<{ ok: boolean }> {
   const row = getPlatformDb()
     .prepare(
-      `SELECT subscription_id, x_user_id FROM activity_subscriptions WHERE user_id = ?`,
+      `SELECT subscription_id, delete_subscription_id, x_user_id
+       FROM activity_subscriptions WHERE user_id = ?`,
     )
     .get(userId) as
-    | { subscription_id: string | null; x_user_id: string | null }
+    | {
+        subscription_id: string | null;
+        delete_subscription_id: string | null;
+        x_user_id: string | null;
+      }
     | undefined;
-  let deleteOk = true;
-  if (row?.subscription_id) {
-    const res = await xJson({
-      method: "DELETE",
-      path: `${X_ACTIVITY_SUBSCRIPTIONS_PATH}/${encodeURIComponent(row.subscription_id)}`,
-    });
-    deleteOk = res.ok || res.status === 404;
-  }
+  const createDeleteOk = await deleteActivitySubscription(row?.subscription_id);
+  const deleteDeleteOk = await deleteActivitySubscription(
+    row?.delete_subscription_id,
+  );
+  const deleteOk = createDeleteOk && deleteDeleteOk;
   getPlatformDb()
     .prepare(
       `UPDATE activity_subscriptions
-       SET subscription_id = ?, x_user_id = ?, updated_at = ?
+       SET subscription_id = ?, delete_subscription_id = ?,
+           x_user_id = ?, updated_at = ?
        WHERE user_id = ?`,
     )
     .run(
-      deleteOk ? null : row?.subscription_id ?? null,
+      createDeleteOk ? null : row?.subscription_id ?? null,
+      deleteDeleteOk ? null : row?.delete_subscription_id ?? null,
       deleteOk ? null : row?.x_user_id ?? null,
       new Date().toISOString(),
       userId,
@@ -414,26 +524,34 @@ export async function removeUserPostCreateSubscription(
 
 export async function pauseUserSubscription(userId: string, untilIso: string): Promise<void> {
   const row = getPlatformDb()
-    .prepare(`SELECT subscription_id FROM activity_subscriptions WHERE user_id = ?`)
-    .get(userId) as { subscription_id: string | null } | undefined;
-  let deleteOk = true;
-  if (row?.subscription_id) {
-    const res = await xJson({
-      method: "DELETE",
-      path: `${X_ACTIVITY_SUBSCRIPTIONS_PATH}/${encodeURIComponent(row.subscription_id)}`,
-    });
-    // A 404 means the X-side subscription is already gone, so NULL the stored
-    // id and let the claim path re-create it on resume. Only keep the id for
-    // transient failures (429/5xx) where the DELETE is worth retrying.
-    deleteOk = res.ok || res.status === 404;
-  }
+    .prepare(
+      `SELECT subscription_id, delete_subscription_id
+       FROM activity_subscriptions WHERE user_id = ?`,
+    )
+    .get(userId) as
+    | {
+        subscription_id: string | null;
+        delete_subscription_id: string | null;
+      }
+    | undefined;
+  const createDeleteOk = await deleteActivitySubscription(row?.subscription_id);
+  const deleteDeleteOk = await deleteActivitySubscription(
+    row?.delete_subscription_id,
+  );
   getPlatformDb()
     .prepare(
       `UPDATE activity_subscriptions
-       SET subscription_id = ?, paused_until = ?, updated_at = ?
+       SET subscription_id = ?, delete_subscription_id = ?,
+           paused_until = ?, updated_at = ?
        WHERE user_id = ?`,
     )
-    .run(deleteOk ? null : row?.subscription_id, untilIso, new Date().toISOString(), userId);
+    .run(
+      createDeleteOk ? null : row?.subscription_id,
+      deleteDeleteOk ? null : row?.delete_subscription_id,
+      untilIso,
+      new Date().toISOString(),
+      userId,
+    );
 }
 
 export async function resumeDueSubscriptions(): Promise<number> {

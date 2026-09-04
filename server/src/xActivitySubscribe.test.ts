@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   X_ACTIVITY_SUBSCRIPTIONS_PATH,
   X_WEBHOOKS_PATH,
+  activitySubscriptionBody,
+  ensureActivityEventSubscription,
   findListedSubscriptionId,
   findListedWebhookId,
   registerActivityWebhook,
@@ -131,6 +133,94 @@ describe("findListedSubscriptionId", () => {
         "wh-current",
       ),
       null,
+    );
+  });
+});
+
+describe("activitySubscriptionBody", () => {
+  it("registers post.create and post.delete against the same user and webhook", () => {
+    assert.deepEqual(
+      [
+        activitySubscriptionBody("post.create", "99", "wh-1", "user-1"),
+        activitySubscriptionBody("post.delete", "99", "wh-1", "user-1"),
+      ],
+      [
+        {
+          event_type: "post.create",
+          filter: { user_id: "99" },
+          tag: "xc:user-1",
+          webhook_id: "wh-1",
+        },
+        {
+          event_type: "post.delete",
+          filter: { user_id: "99" },
+          tag: "xc:user-1",
+          webhook_id: "wh-1",
+        },
+      ],
+    );
+  });
+
+  it("reuses existing event subscriptions before creating a missing one", async () => {
+    const calls: Array<{ method: string; path: string; body?: unknown }> = [];
+    const request = async (opts: {
+      method: string;
+      path: string;
+      body?: unknown;
+    }) => {
+      calls.push(opts);
+      if (opts.method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: {
+            data: [
+              {
+                subscription_id: "create-sub",
+                event_type: "post.create",
+                filter: { user_id: "99" },
+                webhook_id: "wh-1",
+              },
+            ],
+          },
+        };
+      }
+      return {
+        ok: true,
+        status: 201,
+        json: {
+          data: {
+            subscription_id: "delete-sub",
+            event_type: "post.delete",
+          },
+        },
+      };
+    };
+
+    assert.equal(
+      await ensureActivityEventSubscription({
+        eventType: "post.create",
+        xUserId: "99",
+        webhookId: "wh-1",
+        userId: "user-1",
+        request,
+      }),
+      "create-sub",
+    );
+    assert.equal(
+      await ensureActivityEventSubscription({
+        eventType: "post.delete",
+        xUserId: "99",
+        webhookId: "wh-1",
+        userId: "user-1",
+        request,
+      }),
+      "delete-sub",
+    );
+    assert.equal(calls.filter((call) => call.method === "POST").length, 1);
+    assert.deepEqual(
+      calls.find((call) => call.method === "POST")?.body,
+      activitySubscriptionBody("post.delete", "99", "wh-1", "user-1"),
     );
   });
 });
