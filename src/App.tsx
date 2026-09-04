@@ -239,7 +239,6 @@ export default function App() {
     billing,
     setThreads,
     setStatus,
-    setExpandedId,
     keepInCurated,
     hydrateInteracted,
     loadBilling,
