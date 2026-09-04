@@ -97,6 +97,7 @@ export async function handlePost(
             id: suggestionId,
             userId: user.id,
             status: "done",
+            postedTweetId: prior.tweetId,
           });
         } catch (err) {
           console.warn("mark For You after desk post replay soft-fail:", err);
@@ -390,6 +391,7 @@ export async function handlePost(
         id: suggestionId,
         userId: user.id,
         status: "done",
+        postedTweetId: posted.tweetId,
       });
     } catch (err) {
       console.warn("mark For You after desk post soft-fail:", err);

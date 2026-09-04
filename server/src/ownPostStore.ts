@@ -84,6 +84,20 @@ export function listOwnPostedAt(opts: {
   return rows.map((row) => String(row.posted_at));
 }
 
+export function listOwnOriginalsSince(
+  userId: string,
+  sinceIso: string,
+): Array<{ tweetId: string; postedAt: string }> {
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT id AS tweetId, posted_at AS postedAt FROM own_posts
+         WHERE user_id = ? AND kind = 'original' AND posted_at >= ?
+         ORDER BY posted_at DESC LIMIT 2000`,
+    )
+    .all(userId, sinceIso) as Array<{ tweetId: string; postedAt: string }>;
+  return rows;
+}
+
 export function countOwnPostsSince(
   userId: string,
   sinceIso: string,

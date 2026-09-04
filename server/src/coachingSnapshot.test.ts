@@ -61,7 +61,13 @@ describe("buildCoachingSnapshot", () => {
       drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
     });
     assert.ok(card);
-    markSuggestion({ id: card.id, userId: "u1", status: "done", nowMs: NOW_MS });
+    markSuggestion({
+      id: card.id,
+      userId: "u1",
+      status: "done",
+      postedTweetId: "1900000001",
+      nowMs: NOW_MS,
+    });
 
     const snapshot = await buildCoachingSnapshot({
       userId: "u1",
@@ -93,7 +99,13 @@ describe("buildCoachingSnapshot", () => {
       drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
     });
     assert.ok(card);
-    markSuggestion({ id: card.id, userId: "u1", status: "done", nowMs: NOW_MS });
+    markSuggestion({
+      id: card.id,
+      userId: "u1",
+      status: "done",
+      postedTweetId: "1900000001",
+      nowMs: NOW_MS,
+    });
     recordDeskPost({
       userId: "u1",
       tweetId: "1900000001",
@@ -156,7 +168,13 @@ describe("buildCoachingSnapshot", () => {
       drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
     });
     assert.ok(card);
-    markSuggestion({ id: card.id, userId: "u1", status: "done", nowMs: NOW_MS });
+    markSuggestion({
+      id: card.id,
+      userId: "u1",
+      status: "done",
+      postedTweetId: "w1",
+      nowMs: NOW_MS,
+    });
 
     const withCard = await buildCoachingSnapshot({
       userId: "u1",
@@ -189,6 +207,27 @@ describe("buildCoachingSnapshot", () => {
     assert.equal(snapshot.originalsToday, 1);
     const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
     assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
+  });
+
+  it("keeps distinct desk originals posted within five seconds", async () => {
+    recordDeskPost({
+      userId: "u1",
+      tweetId: "1900000010",
+      inReplyToId: "",
+      atIso: new Date(NOW_MS).toISOString(),
+    });
+    recordDeskPost({
+      userId: "u1",
+      tweetId: "1900000011",
+      inReplyToId: "",
+      atIso: new Date(NOW_MS + 3_000).toISOString(),
+    });
+
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.originalAt, [
+      new Date(NOW_MS + 3_000).toISOString(),
+      new Date(NOW_MS).toISOString(),
+    ]);
   });
 
   it("counts a discovered reply dated today toward marksToday", async () => {

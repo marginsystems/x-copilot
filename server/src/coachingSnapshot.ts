@@ -12,7 +12,11 @@ import {
   listDonePostActedAtSince,
   listActiveSuggestions,
 } from "./forYouStore.js";
-import { listOwnPostedAt, startOfUtcDayIso } from "./ownPostStore.js";
+import {
+  listOwnOriginalsSince,
+  listOwnPostedAt,
+  startOfUtcDayIso,
+} from "./ownPostStore.js";
 import { countDeliveredSortiesToday } from "./scoutSorties.js";
 import {
   countDeskOriginalsSince,
@@ -47,7 +51,6 @@ export type CoachingSnapshot = {
 
 export const INSTRUMENT_WINDOW = 2000;
 const INSTRUMENT_HISTORY_MS = 14 * 24 * 60 * 60 * 1000;
-const ORIGINAL_DEDUPE_TOLERANCE_MS = 5_000;
 
 export type InstrumentTimes = {
   replyAt: string[];
@@ -72,27 +75,33 @@ export async function loadInstrumentTimes(opts: {
     listDeskOriginalsSince(opts.userId, sinceIso),
     listDonePostActedAtSince(opts.userId, sinceIso),
   ];
-  // The same original can be represented by own_posts, the desk ledger, and
-  // its completed For You card. Keep one canonical timestamp for instruments.
-  const originalAt = listOwnPostedAt({
-    userId: opts.userId,
-    kinds: ["original"],
-    limit: INSTRUMENT_WINDOW,
-  });
-  for (const candidate of [...deskOriginalAt, ...donePostAt]) {
-    if (
-      !originalAt.some(
-        (existing) =>
-          Math.abs(Date.parse(existing) - Date.parse(candidate)) <=
-          ORIGINAL_DEDUPE_TOLERANCE_MS,
-      )
-    ) {
-      originalAt.push(candidate);
+  // The same original can be represented by multiple stores. IDs are stable;
+  // timestamps are not, because ingestion and confirmation happen separately.
+  const originals: Array<{ id: string | null; at: string }> =
+    listOwnOriginalsSince(opts.userId, sinceIso).map((row) => ({
+      id: row.tweetId,
+      at: row.postedAt,
+    }));
+  for (const candidate of deskOriginalAt) {
+    if (candidate.tweetId && originals.some((row) => row.id === candidate.tweetId)) {
+      continue;
+    }
+    originals.push({ id: candidate.tweetId, at: candidate.createdAt });
+  }
+  for (const candidate of donePostAt) {
+    if (candidate.tweetId && originals.some((row) => row.id === candidate.tweetId)) {
+      continue;
+    }
+    if (candidate.tweetId) {
+      originals.push({ id: candidate.tweetId, at: candidate.actedAt });
+    } else {
+      originals.push({ id: null, at: candidate.actedAt });
     }
   }
   return {
     replyAt: history.map((row) => row.postedAt ?? row.at),
-    originalAt
+    originalAt: originals
+      .map((row) => row.at)
       .sort((a, b) => Date.parse(b) - Date.parse(a))
       .slice(0, INSTRUMENT_WINDOW),
     postAt: listOwnPostedAt({

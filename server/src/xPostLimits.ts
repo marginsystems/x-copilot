@@ -58,16 +58,19 @@ export function countDeskOriginalsSince(
 export function listDeskOriginalsSince(
   userId: string,
   sinceIso: string,
-): string[] {
+): Array<{ tweetId: string; createdAt: string }> {
   const rows = getPlatformDb()
     .prepare(
-      `SELECT created_at AS createdAt FROM x_desk_posts
+      `SELECT tweet_id AS tweetId, created_at AS createdAt FROM x_desk_posts
         WHERE user_id = ? AND created_at >= ?
           AND in_reply_to_id = ? AND tweet_id != ?
         ORDER BY created_at DESC LIMIT 2000`,
     )
-    .all(userId, sinceIso, "", "") as Array<{ createdAt: string }>;
-  return rows.map((row) => row.createdAt);
+    .all(userId, sinceIso, "", "") as Array<{
+    tweetId: string;
+    createdAt: string;
+  }>;
+  return rows;
 }
 
 export function recordDeskPost(opts: {
