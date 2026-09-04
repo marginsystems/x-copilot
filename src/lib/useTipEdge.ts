@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { estimateTipWidth, tipAlignClass, tipEdge, type TipEdge } from "./tipEdge";
 
 export function useTipEdge<T extends HTMLElement>(): {
-  ref: RefObject<T | null>;
+  ref: RefObject<T>;
   alignClass: string;
   place: () => void;
 } {
