@@ -3,6 +3,7 @@
  * and the API fallback route during proxy cutover.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { dirname, join } from "node:path";
 import { send } from "../../server/src/httpJson.js";
 import { xConsumerCreds } from "../../server/src/xAuth.js";
 import { getUserById } from "../../server/src/authStore.js";
@@ -40,6 +41,8 @@ import {
   MAX_INTERACTION_STORE,
 } from "../../server/src/interactionStore.js";
 import { recordDeskReplyMarked } from "../../server/src/deskBeats.js";
+import { recordMarkGamification } from "../../server/src/gamification.js";
+import { setGamificationSyncFailed } from "../../server/src/interactionSync.js";
 import { allowRate, clientIp } from "../../server/src/authGuard.js";
 import type { ParsedPostCreate } from "../../server/src/xActivity.js";
 
@@ -80,7 +83,7 @@ export async function markOwnReplyInteracted(
         ? `@${parsed.inReplyToUserId}`
         : "@unknown");
   const source = watched ? "scout" : "organic";
-  await markInteracted({
+  const interaction = await markInteracted({
     threadId,
     author,
     source: "discovered",
@@ -105,6 +108,33 @@ export async function markOwnReplyInteracted(
     source,
     nowMs: opts?.nowMs,
   });
+  // #656 landed on main against the old in-process handler. Keep that streak
+  // increment on the sidecar so a webhook-discovered reply still counts.
+  if (watched) {
+    const isolated = opts?.storePath
+      ? {
+          interactionStorePath: opts.storePath,
+          gamificationPath: join(dirname(opts.storePath), "gamification.json"),
+        }
+      : {};
+    try {
+      await recordMarkGamification({
+        threadId: watched.threadId,
+        userId,
+        nowMs: opts?.nowMs ?? Date.parse(interaction.at),
+        ...isolated,
+      });
+    } catch (err) {
+      console.warn("[xaa] streak mark soft-fail", err);
+      await setGamificationSyncFailed({
+        threadId: watched.threadId,
+        checkpoint: "mark",
+        failed: true,
+        pendingAt: interaction.at,
+        storePath: opts?.storePath,
+      }).catch(() => {});
+    }
+  }
   return source;
 }
 

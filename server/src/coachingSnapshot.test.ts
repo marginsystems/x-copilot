@@ -10,6 +10,7 @@ import {
 } from "./db.ts";
 import {
   buildCoachingSnapshot,
+  loadInstrumentTimes,
   originalsTodayCount,
 } from "./coachingSnapshot.ts";
 import { listMissionsWithProgress } from "./dailyMissions.ts";
@@ -60,7 +61,13 @@ describe("buildCoachingSnapshot", () => {
       drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
     });
     assert.ok(card);
-    markSuggestion({ id: card.id, userId: "u1", status: "done", nowMs: NOW_MS });
+    markSuggestion({
+      id: card.id,
+      userId: "u1",
+      status: "done",
+      postedTweetId: "1900000001",
+      nowMs: NOW_MS,
+    });
 
     const snapshot = await buildCoachingSnapshot({
       userId: "u1",
@@ -70,6 +77,8 @@ describe("buildCoachingSnapshot", () => {
       interactionStorePath,
     });
     assert.equal(snapshot.originalsToday, 1);
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
 
     const missions = await listMissionsWithProgress({
       userId: "u1",
@@ -90,12 +99,18 @@ describe("buildCoachingSnapshot", () => {
       drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
     });
     assert.ok(card);
-    markSuggestion({ id: card.id, userId: "u1", status: "done", nowMs: NOW_MS });
+    markSuggestion({
+      id: card.id,
+      userId: "u1",
+      status: "done",
+      postedTweetId: "1900000001",
+      nowMs: NOW_MS,
+    });
     recordDeskPost({
       userId: "u1",
       tweetId: "1900000001",
       inReplyToId: "",
-      atIso: new Date(NOW_MS).toISOString(),
+      atIso: new Date(NOW_MS + 1_000).toISOString(),
     });
 
     const snapshot = await buildCoachingSnapshot({
@@ -106,6 +121,8 @@ describe("buildCoachingSnapshot", () => {
       interactionStorePath,
     });
     assert.equal(snapshot.originalsToday, 1);
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.originalAt, [new Date(NOW_MS + 1_000).toISOString()]);
 
     const missions = await listMissionsWithProgress({
       userId: "u1",
@@ -151,7 +168,13 @@ describe("buildCoachingSnapshot", () => {
       drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
     });
     assert.ok(card);
-    markSuggestion({ id: card.id, userId: "u1", status: "done", nowMs: NOW_MS });
+    markSuggestion({
+      id: card.id,
+      userId: "u1",
+      status: "done",
+      postedTweetId: "w1",
+      nowMs: NOW_MS,
+    });
 
     const withCard = await buildCoachingSnapshot({
       userId: "u1",
@@ -161,6 +184,8 @@ describe("buildCoachingSnapshot", () => {
       interactionStorePath,
     });
     assert.equal(withCard.originalsToday, 1);
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
   });
 
   it("counts a desk-composed original on its own", async () => {
@@ -180,6 +205,29 @@ describe("buildCoachingSnapshot", () => {
     });
     assert.equal(snapshot.deskPostsToday, 1);
     assert.equal(snapshot.originalsToday, 1);
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
+  });
+
+  it("keeps distinct desk originals posted within five seconds", async () => {
+    recordDeskPost({
+      userId: "u1",
+      tweetId: "1900000010",
+      inReplyToId: "",
+      atIso: new Date(NOW_MS).toISOString(),
+    });
+    recordDeskPost({
+      userId: "u1",
+      tweetId: "1900000011",
+      inReplyToId: "",
+      atIso: new Date(NOW_MS + 3_000).toISOString(),
+    });
+
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.originalAt, [
+      new Date(NOW_MS + 3_000).toISOString(),
+      new Date(NOW_MS).toISOString(),
+    ]);
   });
 
   it("counts a discovered reply dated today toward marksToday", async () => {
@@ -301,5 +349,12 @@ describe("buildCoachingSnapshot", () => {
     assert.equal(snapshot.quotesToday, 1);
     assert.equal(snapshot.repliesPostedToday, 1);
     assert.equal(snapshot.postsToday, 2);
+    const times = await loadInstrumentTimes({
+      userId: "u1",
+      interactionStorePath,
+      nowMs: NOW_MS,
+    });
+    assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
+    assert.equal(times.postAt.length, 2);
   });
 });

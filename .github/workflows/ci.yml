@@ -33,10 +33,26 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      # Omit MiniLM. esbuild postinstall fetches the matching binary per host
-      # (tsx 0.28, Vite 0.21) — do not pin one @esbuild/linux-x64 at the root.
-      # Vite still needs the Rollup linux binary that omit=optional drops.
+      # Omit MiniLM. Do not `npm install --package-lock=false` at the root —
+      # that rewrites the tree and drops tsx's esbuild binary. Unpack each
+      # native package next to the host that needs it.
       - run: npm ci --omit=optional --no-audit --no-fund
-      - run: npm install --omit=optional --no-save --package-lock=false --ignore-scripts @rollup/rollup-linux-x64-gnu@4.62.2
+      - run: |
+          set -euo pipefail
+          unpack() {
+            local spec=$1 dest=$2
+            local tgz
+            tgz=$(npm pack "$spec" --pack-destination /tmp | tail -n1)
+            rm -rf "$dest"
+            mkdir -p "$dest"
+            tar -xzf "/tmp/$tgz" -C "$dest" --strip-components=1
+          }
+          unpack @rollup/rollup-linux-x64-gnu@4.62.2 node_modules/@rollup/rollup-linux-x64-gnu
+          unpack "@esbuild/linux-x64@$(node -p "require('./node_modules/esbuild/package.json').version")" \
+            node_modules/esbuild/node_modules/@esbuild/linux-x64
+          if [ -f node_modules/tsx/node_modules/esbuild/package.json ]; then
+            unpack "@esbuild/linux-x64@$(node -p "require('./node_modules/tsx/node_modules/esbuild/package.json').version")" \
+              node_modules/tsx/node_modules/@esbuild/linux-x64
+          fi
       - run: npm test
       - run: npm run build

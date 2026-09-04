@@ -556,12 +556,13 @@ describe("runStatsTick", () => {
       gamificationPath,
       interactionStorePath: storePath,
     });
-    // D1 mark credits XP only; the D2 cursor is untouched.
+    // D1 credits XP without moving the D2 cursor backward. Overlay then
+    // counts D1+D2 as a live 2-day run — that is an advance, not a reset.
     assert.equal(snap.lifetimeXp, 2);
-    assert.equal(snap.currentStreak, 1);
+    assert.equal(snap.currentStreak, 2);
     assert.equal(snap.lastMarkUtcDay, "2026-08-06");
 
-    // A D3 mark is still consecutive with the D2 cursor.
+    // A D3 mark continues that rebuilt run.
     await recordMarkGamification({
       threadId: "c",
       gamificationPath,
@@ -572,8 +573,8 @@ describe("runStatsTick", () => {
       gamificationPath,
       interactionStorePath: storePath,
     });
-    assert.equal(after.lifetimeXp, 3);
-    assert.equal(after.currentStreak, 2);
+    assert.equal(after.lifetimeXp, 4);
+    assert.equal(after.currentStreak, 3);
     assert.equal(after.lastMarkUtcDay, "2026-08-07");
   });
 

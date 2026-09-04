@@ -522,6 +522,7 @@ describe("discoverOwnReplies desk beats", () => {
   it("stamps userId and records scout for a watched parent, organic otherwise", async () => {
     const now = Date.parse("2026-08-02T12:00:00.000Z");
     const storePath = join(dir, "interactions.json");
+    const gamificationPath = join(dir, "gamification.json");
     watchThread({ userId: "u1", threadId: "scouted-parent", author: "@lead" });
 
     const search = async (opts: { query: string }) => ({
@@ -555,6 +556,7 @@ describe("discoverOwnReplies desk beats", () => {
       session: { configured: true, bearerToken: "t" },
       screenName: "me",
       userId: "u1",
+      gamificationPath,
       searchTimelinePages: search,
     });
     assert.equal(result.discovered, 2);
@@ -572,6 +574,7 @@ describe("discoverOwnReplies desk beats", () => {
     const postedAt = Date.parse("2026-08-02T23:50:00.000Z");
     const discoveredAt = Date.parse("2026-08-03T00:10:00.000Z");
     const storePath = join(dir, "interactions.json");
+    const gamificationPath = join(dir, "gamification.json");
     const result = await discoverOwnReplies({
       nowMs: discoveredAt,
       storePath,
@@ -580,6 +583,7 @@ describe("discoverOwnReplies desk beats", () => {
       session: { configured: true, bearerToken: "t" },
       screenName: "me",
       userId: "u1",
+      gamificationPath,
       searchTimelinePages: async () => ({
         ok: true as const,
         threads: [

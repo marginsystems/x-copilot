@@ -11,6 +11,7 @@ import {
   resetPlatformDbForTests,
 } from "../../server/src/db.ts";
 import { getDeskBeats } from "../../server/src/deskBeats.ts";
+import { getGamification } from "../../server/src/gamification.ts";
 import {
   listInteractionHistory,
   markInteracted,
@@ -100,6 +101,13 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.author, "@watched");
     assert.equal(row?.source, "discovered");
     assert.equal(getDeskBeats({ userId, nowMs }).scoutReplyDone, true);
+    const streak = await getGamification({
+      userId,
+      nowMs,
+      interactionStorePath: storePath,
+      gamificationPath: join(dir, "gamification.json"),
+    });
+    assert.equal(streak.currentStreak >= 1, true);
   });
 
   it("marks an unwatched reply and stamps the organic beat", async () => {

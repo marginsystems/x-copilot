@@ -28,6 +28,8 @@ import { dailyActivityUsage } from "./billingQuotas.js";
 import { ensureUserTenant } from "./billingStore.js";
 import { getWatchedThread, upsertOwnPost } from "./ownPostStore.js";
 import { recordDeskReplyMarked } from "./deskBeats.js";
+import { recordMarkGamification } from "./gamification.js";
+import { setGamificationSyncFailed } from "./interactionSync.js";
 import {
   findUserIdByXUserId,
   lookupXUserId,
@@ -298,6 +300,8 @@ export async function discoverOwnReplies(opts?: {
   screenName?: string;
   /** Desk user who owns the handle — stamps discovered rows and desk beats. */
   userId?: string;
+  /** Override the gamification ledger path (tests). */
+  gamificationPath?: string;
   signal?: AbortSignal;
   searchTimelinePages?: SearchTimelinePagesFn;
   resolveScreenName?: () => Promise<string | null>;
@@ -512,6 +516,27 @@ export async function discoverOwnReplies(opts?: {
             `[reply-discover] desk beats soft-fail replyId=${replyId}:`,
             err,
           );
+        }
+        try {
+          await recordMarkGamification({
+            threadId,
+            userId: opts.userId,
+            nowMs: Date.parse(interaction.at) || nowMs,
+            interactionStorePath: opts.storePath,
+            gamificationPath: opts.gamificationPath,
+          });
+        } catch (err) {
+          console.warn(
+            `[reply-discover] streak mark soft-fail replyId=${replyId}:`,
+            err,
+          );
+          await setGamificationSyncFailed({
+            threadId,
+            checkpoint: "mark",
+            failed: true,
+            pendingAt: interaction.at,
+            storePath: opts.storePath,
+          }).catch(() => {});
         }
       }
 

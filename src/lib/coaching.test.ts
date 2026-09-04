@@ -35,9 +35,13 @@ describe("coaching parsers", () => {
         forkDone: false,
       },
       postsToday: 2,
+      originalsToday: 1,
+      replyAt: ["2026-08-26T11:00:00.000Z"],
     });
     assert.equal(parsed?.nextAction?.kind, "original");
     assert.equal(parsed?.postsToday, 2);
+    assert.equal(parsed?.originalsToday, 1);
+    assert.deepEqual(parsed?.replyAt, ["2026-08-26T11:00:00.000Z"]);
     assert.equal(parsed?.missions.length, 1);
     assert.equal(parsed?.missions[0]?.progress, 1);
     assert.deepEqual(parsed?.beats, {
@@ -67,6 +71,8 @@ describe("coaching parsers", () => {
     );
     assert.deepEqual(parseCoachingPayload({ dayUtc: "2026-08-26" })?.beats, empty);
     assert.equal(parseCoachingPayload({ dayUtc: "2026-08-26" })?.postsToday, 0);
+    assert.equal(parseCoachingPayload({ dayUtc: "2026-08-26" })?.originalsToday, 0);
+    assert.deepEqual(parseCoachingPayload({ dayUtc: "2026-08-26" })?.replyAt, []);
   });
 
   it("drops unknown next-action kinds", () => {

@@ -9,12 +9,18 @@ import { utcDayKey } from "./gamificationXp.js";
 import { listInteractionHistory } from "./interactionStore.js";
 import {
   countDoneSuggestionsSince,
+  listDonePostActedAtSince,
   listActiveSuggestions,
 } from "./forYouStore.js";
-import { startOfUtcDayIso } from "./ownPostStore.js";
+import {
+  listOwnOriginalsSince,
+  listOwnPostedAt,
+  startOfUtcDayIso,
+} from "./ownPostStore.js";
 import { countDeliveredSortiesToday } from "./scoutSorties.js";
 import {
   countDeskOriginalsSince,
+  listDeskOriginalsSince,
   listDeskPostsSince,
 } from "./xPostLimits.js";
 
@@ -42,6 +48,88 @@ export type CoachingSnapshot = {
   level: number;
   lifetimeXp: number;
 };
+
+export const INSTRUMENT_WINDOW = 2000;
+const INSTRUMENT_HISTORY_MS = 14 * 24 * 60 * 60 * 1000;
+
+export type InstrumentTimes = {
+  replyAt: string[];
+  originalAt: string[];
+  postAt: string[];
+};
+
+export async function loadInstrumentTimes(opts: {
+  userId: string;
+  interactionStorePath?: string;
+  nowMs?: number;
+}): Promise<InstrumentTimes> {
+  const history = await listInteractionHistory({
+    userId: opts.userId,
+    limit: INSTRUMENT_WINDOW,
+    storePath: opts.interactionStorePath,
+  });
+  const sinceIso = new Date(
+    (opts.nowMs ?? Date.now()) - INSTRUMENT_HISTORY_MS,
+  ).toISOString();
+  const [deskOriginalAt, donePostAt] = [
+    listDeskOriginalsSince(opts.userId, sinceIso),
+    listDonePostActedAtSince(opts.userId, sinceIso),
+  ];
+  // The same original can be represented by multiple stores. IDs are stable;
+  // timestamps are not, because ingestion and confirmation happen separately.
+  const originals: Array<{ id: string | null; at: string }> =
+    listOwnOriginalsSince(opts.userId, sinceIso).map((row) => ({
+      id: row.tweetId,
+      at: row.postedAt,
+    }));
+  for (const candidate of deskOriginalAt) {
+    if (candidate.tweetId && originals.some((row) => row.id === candidate.tweetId)) {
+      continue;
+    }
+    originals.push({ id: candidate.tweetId, at: candidate.createdAt });
+  }
+  for (const candidate of donePostAt) {
+    if (candidate.tweetId && originals.some((row) => row.id === candidate.tweetId)) {
+      continue;
+    }
+    if (candidate.tweetId) {
+      originals.push({ id: candidate.tweetId, at: candidate.actedAt });
+    } else {
+      originals.push({ id: null, at: candidate.actedAt });
+    }
+  }
+  return {
+    replyAt: history.map((row) => row.postedAt ?? row.at),
+    originalAt: originals
+      .map((row) => row.at)
+      .sort((a, b) => Date.parse(b) - Date.parse(a))
+      .slice(0, INSTRUMENT_WINDOW),
+    postAt: listOwnPostedAt({
+      userId: opts.userId,
+      kinds: ["original", "quote"],
+      limit: INSTRUMENT_WINDOW,
+    }),
+  };
+}
+
+export function coachingInstrumentFields(
+  snapshot: Pick<CoachingSnapshot, "postsToday" | "originalsToday">,
+  times: InstrumentTimes,
+): {
+  postsToday: number;
+  originalsToday: number;
+  replyAt: string[];
+  originalAt: string[];
+  postAt: string[];
+} {
+  return {
+    postsToday: snapshot.postsToday,
+    originalsToday: snapshot.originalsToday,
+    replyAt: times.replyAt,
+    originalAt: times.originalAt,
+    postAt: times.postAt,
+  };
+}
 
 export function originalsTodayCount(
   ownPosts: number,
@@ -112,7 +200,7 @@ export async function buildCoachingSnapshot(opts: {
   let manualMarksToday = 0;
   for (const row of history) {
     // Off-app replies (webhook / hourly `discovered`) are today's marks too.
-    // XP and streak keep their own rules in gamification.
+    // Streak is rebuilt from the same interacted history. XP is not backfilled.
     if (row.source !== "manual" && row.source !== "discovered") continue;
     const at = Date.parse(row.at);
     if (Number.isFinite(at) && utcDayKey(at) === dayUtc) {
