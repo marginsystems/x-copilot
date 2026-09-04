@@ -1,4 +1,4 @@
-import { useState, type Dispatch, SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { SuggestLocked } from "../VoiceCard";
 import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
@@ -13,10 +13,6 @@ import type { CoachingState } from "../lib/coaching";
 import { deskNeedsXLink } from "../lib/deskGate";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { DeskPhase } from "../lib/deskPhase";
-import {
-  approachRowOpen,
-  nextApproachClosedId,
-} from "../lib/deskRow";
 import { phaseWhy } from "../lib/phaseWhy";
 import { preferRootTargets } from "../lib/scoutTarget";
 import type { VoiceState } from "../lib/voice";
@@ -125,7 +121,6 @@ export function MissionCard(props: {
   onOpenVoice: () => void;
   onLinkX: () => void;
 }) {
-  const [closedId, setClosedId] = useState<string | null>(null);
   if (props.phase === "needs_onboarding") return null;
 
   const extra = showApproachExtra({
@@ -244,16 +239,13 @@ export function MissionCard(props: {
             key={thread.id}
             thread={thread}
             index={0}
-            open={approachRowOpen(closedId, thread.id)}
+            open={props.expandedId === thread.id}
             exiting={props.exitingIds.has(thread.id)}
             busy={props.actionBusy}
             interacted={props.interactedIds.has(thread.id)}
-            onToggle={() => {
-              setClosedId((id) => nextApproachClosedId(id, thread.id));
-              props.setExpandedId((id) =>
-                id === thread.id ? null : thread.id,
-              );
-            }}
+            onToggle={() =>
+              props.setExpandedId((id) => (id === thread.id ? null : thread.id))
+            }
             onWatch={() => watchDeskThreads([thread])}
             onMark={() => props.onScoutMark(thread)}
             onSkip={() => props.onScoutSkip(thread)}
@@ -338,17 +330,16 @@ export function MissionCard(props: {
               key={row.id}
               row={row}
               index={0}
-              open={approachRowOpen(closedId, key)}
+              open={props.expandedId === key}
               exiting={props.exitingIds.has(row.id)}
               busy={props.actionBusy}
               voice={props.voice}
               agenda={props.agenda}
               xLinked={props.authUser?.xLinked}
               hasSession={Boolean(props.authUser)}
-              onToggle={() => {
-                setClosedId((id) => nextApproachClosedId(id, key));
-                props.setExpandedId((id) => (id === key ? null : key));
-              }}
+              onToggle={() =>
+                props.setExpandedId((id) => (id === key ? null : key))
+              }
               onPosted={() => props.onSuggestionPosted(row.id)}
               onSkip={() => props.onSuggestionSkip(row.id)}
               onDismiss={() => props.onSuggestionDismiss(row.id)}

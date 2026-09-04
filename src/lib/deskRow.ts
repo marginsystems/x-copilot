@@ -35,18 +35,3 @@ export function deskRowExpandOpen(phase: DeskRowExpandPhase): boolean {
 export function deskRowInitialPhase(open: boolean): DeskRowExpandPhase {
   return open ? "open" : "closed";
 }
-
-/** Approach starts open. Minus stores this row id so collapse sticks until + or a new card. */
-export function approachRowOpen(
-  closedId: string | null,
-  rowId: string,
-): boolean {
-  return closedId !== rowId;
-}
-
-export function nextApproachClosedId(
-  closedId: string | null,
-  rowId: string,
-): string | null {
-  return closedId === rowId ? null : rowId;
-}
