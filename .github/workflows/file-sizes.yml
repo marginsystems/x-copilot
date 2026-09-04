@@ -3,6 +3,7 @@ name: File sizes
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened]
     paths:
       - "src/**"
       - "scripts/check-file-sizes.ts"
@@ -19,6 +20,11 @@ permissions:
 
 jobs:
   check:
+    # Same Cyclone / mq-live gate as CI. See .github/workflows/ci.yml.
+    if: >
+      github.event_name == 'push' ||
+      github.triggering_actor != 'mergestorm-cyclone[bot]' ||
+      contains(github.event.pull_request.labels.*.name, 'mq-live')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
