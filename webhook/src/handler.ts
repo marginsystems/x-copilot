@@ -173,7 +173,8 @@ async function handleActivityPost(
   }
   const deleted = parsePostDeleteEvent(json);
   if (deleted) {
-    if (seenActivityEvent(deleted.eventUuid)) {
+    const deleteEventKey = `post.delete:${deleted.eventUuid}`;
+    if (seenActivityEvent(deleteEventKey)) {
       send(req, res, 200, { ok: true, duplicate: true });
       return;
     }
@@ -187,7 +188,7 @@ async function handleActivityPost(
       userId,
       xUserId: deleted.xUserId,
     });
-    rememberActivityEvent(deleted.eventUuid);
+    rememberActivityEvent(deleteEventKey);
     send(req, res, 200, { ok: true });
     return;
   }
