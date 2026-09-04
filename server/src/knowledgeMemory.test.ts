@@ -392,6 +392,7 @@ describe("updateInteractionMemoryOutcome", () => {
       threadId: "99",
       author: "@A",
       reply: "My reply",
+      source: "discovered",
       text: "Original post",
       knowledgeRoot: root,
       interactedAt: "2026-07-27T01:02:03.000Z",
@@ -422,10 +423,22 @@ describe("updateInteractionMemoryOutcome", () => {
       threadId: "99",
       author: "@A",
       reply: "My reply",
+      source: "discovered",
       text: "Updated original",
       knowledgeRoot: root,
       interactedAt: "2026-07-27T01:02:03.000Z",
     });
+    const intermediate = await readFile(
+      buildInteractionNotePath({
+        threadId: "99",
+        interactedAt: "2026-07-27T01:02:03.000Z",
+        knowledgeRoot: root,
+      }),
+      "utf8",
+    );
+    assert.match(intermediate, /## Outcome/);
+    assert.match(intermediate, /views1h: 100/);
+    assert.match(intermediate, /views24h: 420/);
     const second = await updateInteractionMemoryOutcome({
       interaction: baseInteraction({ stats }),
       knowledgeRoot: root,
@@ -439,6 +452,43 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.equal((body.match(/views24h: 420/g) ?? []).length, 1);
     assert.match(body, /Updated original/);
     assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
+  });
+
+  it("preserves manually curated fields during a discovered refresh", async () => {
+    await writeInteractionMemory({
+      threadId: "100",
+      author: "@A",
+      reply: "My reply",
+      userId: "user-1",
+      summary: "Keep this summary",
+      agenda: "Keep this agenda",
+      source: "manual",
+      text: "Curated post",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    await writeInteractionMemory({
+      threadId: "100",
+      author: "@A",
+      reply: "My reply",
+      source: "discovered",
+      text: "Fresh search result",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const body = await readFile(
+      buildInteractionNotePath({
+        threadId: "100",
+        interactedAt: "2026-07-27T01:02:03.000Z",
+        knowledgeRoot: root,
+      }),
+      "utf8",
+    );
+    assert.match(body, /userId: "user-1"/);
+    assert.match(body, /Keep this summary/);
+    assert.match(body, /Keep this agenda/);
+    assert.match(body, /Curated post/);
+    assert.doesNotMatch(body, /Fresh search result/);
   });
 
   it("keeps the earlier checkpoint when a later tick writes only the other", async () => {
