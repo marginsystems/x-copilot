@@ -359,13 +359,36 @@ export function SuggestLocked({
   onOpenSettings: () => void;
   onLinkX: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const needsX = hasSession && voiceNeedsXLink(voice, xLinked);
   const lockLabel = lockNoun === "post" ? "Suggest post" : "Suggest reply";
+  if (!open) {
+    return (
+      <div className="suggest-pane suggest-idle">
+        <button
+          type="button"
+          className="ghost suggest-trigger"
+          onClick={() => setOpen(true)}
+        >
+          {needsX ? `${lockLabel} — link X` : `${lockLabel} — locked`}
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="suggest-pane suggest-locked">
-      <p className="suggest-banner" role="note">
-        {needsX ? `${lockLabel} — link X` : `${lockLabel} — locked`}
-      </p>
+      <div className="suggest-pane-head">
+        <p className="suggest-banner" role="note">
+          {needsX ? `${lockLabel} — link X` : `${lockLabel} — locked`}
+        </p>
+        <button
+          type="button"
+          className="ghost suggest-close"
+          onClick={() => setOpen(false)}
+        >
+          Close
+        </button>
+      </div>
       <p className="voice-empty">
         {needsX ? VOICE_LINK_X_COPY : voiceUnlockCopy(voice)}
       </p>
