@@ -583,7 +583,7 @@ export async function resumeDueSubscriptions(): Promise<number> {
   const rows = getPlatformDb()
     .prepare(
       `SELECT user_id FROM activity_subscriptions
-       WHERE delete_subscription_id IS NULL
+       WHERE (delete_subscription_id IS NULL AND x_user_id IS NOT NULL)
           OR (paused_until IS NOT NULL AND paused_until <= ?)`,
     )
     .all(now) as Array<{ user_id: string }>;
