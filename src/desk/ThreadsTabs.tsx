@@ -193,9 +193,12 @@ export function ThreadsTabs({
       setForYouReleased(false);
     }
   }, [grounded, forYouHeld, forYouReleased]);
+  const currentDayUtc = new Date().toISOString().slice(0, 10);
   const suggestion = pickApproachSuggestion(forYouSuggestions, {
     allowPost: canServeApproachOriginal({
-      scoutReplyDone: coaching?.beats.scoutReplyDone === true,
+      scoutReplyDone:
+        coaching?.dayUtc === currentDayUtc &&
+        coaching?.beats.scoutReplyDone === true,
       originalMission:
         coaching?.missions.find((mission) => mission.id === "original_1") ??
         null,
