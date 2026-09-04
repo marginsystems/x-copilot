@@ -1,12 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  approachRowOpen,
   deskRowExpandMount,
   deskRowExpandOpen,
   deskRowInitialPhase,
   deskRowPhaseAfterEnter,
   deskRowPhaseAfterLeave,
   deskRowPhaseOnOpenChange,
+  nextApproachClosedId,
 } from "./deskRow.ts";
 
 describe("deskRow expand phase", () => {
@@ -31,6 +33,14 @@ describe("deskRow expand phase", () => {
     assert.equal(deskRowExpandOpen("leaving"), false);
     assert.equal(deskRowPhaseAfterLeave("leaving"), "closed");
     assert.equal(deskRowPhaseOnOpenChange("closed", false), "closed");
+  });
+
+  it("Approach minus collapses this card and leaves the next card open", () => {
+    assert.equal(approachRowOpen(null, "t1"), true);
+    assert.equal(approachRowOpen("t1", "t1"), false);
+    assert.equal(approachRowOpen("t1", "t2"), true);
+    assert.equal(nextApproachClosedId(null, "t1"), "t1");
+    assert.equal(nextApproachClosedId("t1", "t1"), null);
   });
 
   it("reverses mid-flight without getting stuck", () => {
