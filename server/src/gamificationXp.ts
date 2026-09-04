@@ -296,10 +296,14 @@ export function overlayStreakFromHistory(
     seeded.lastMarkUtcDay !== null &&
     (state.lastMarkUtcDay === null ||
       seeded.lastMarkUtcDay > state.lastMarkUtcDay);
-  const currentStreak = seededLastIsNewer
+  const shouldOverlayStreak =
+    seededLastIsNewer ||
+    (seeded.lastMarkUtcDay === state.lastMarkUtcDay &&
+      seeded.currentStreak > state.currentStreak);
+  const currentStreak = shouldOverlayStreak
     ? seeded.currentStreak
     : state.currentStreak;
-  const lastMarkUtcDay = seededLastIsNewer
+  const lastMarkUtcDay = shouldOverlayStreak
     ? seeded.lastMarkUtcDay
     : state.lastMarkUtcDay;
   const longestStreak = Math.max(state.longestStreak, seeded.longestStreak);
