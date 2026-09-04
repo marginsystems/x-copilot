@@ -72,7 +72,7 @@ export function listOwnPostedAt(opts: {
 }): string[] {
   const kinds = opts.kinds.filter(Boolean);
   if (kinds.length === 0) return [];
-  const limit = Math.min(Math.max(opts.limit ?? 500, 1), 500);
+  const limit = Math.min(Math.max(opts.limit ?? 500, 1), 2000);
   const placeholders = kinds.map(() => "?").join(", ");
   const rows = getPlatformDb()
     .prepare(

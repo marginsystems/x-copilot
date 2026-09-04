@@ -119,11 +119,6 @@ function finiteTimes(times: number[]): number[] {
   return times.filter((time) => Number.isFinite(time));
 }
 
-function countOnUtcDay(times: number[], dayStartMs: number): number {
-  const dayEnd = dayStartMs + DAY_MS;
-  return times.filter((time) => time >= dayStartMs && time < dayEnd).length;
-}
-
 function countInRange(
   times: number[],
   afterMs: number,
@@ -205,12 +200,10 @@ function countDelta(
   times: number[],
   nowMs: number,
 ): InstrumentDelta {
-  const today = utcDayStartMs(nowMs);
-  const yesterday = today - DAY_MS;
   return {
     pct24h: pctDelta(
-      countOnUtcDay(times, today),
-      countOnUtcDay(times, yesterday),
+      countInRange(times, nowMs - DAY_MS, nowMs),
+      countInRange(times, nowMs - 2 * DAY_MS, nowMs - DAY_MS),
     ),
     pct7d: pctDelta(
       countInRange(times, nowMs - 7 * DAY_MS, nowMs),

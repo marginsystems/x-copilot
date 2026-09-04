@@ -277,6 +277,21 @@ export function countDoneSuggestionsSince(opts: {
   return Number(row.n) || 0;
 }
 
+export function listDonePostActedAtSince(
+  userId: string,
+  sinceIso: string,
+): string[] {
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT acted_at AS actedAt FROM for_you_suggestions
+        WHERE user_id = ? AND kind = 'post' AND status = 'done'
+          AND acted_at >= ?
+        ORDER BY acted_at DESC LIMIT 2000`,
+    )
+    .all(userId, sinceIso) as Array<{ actedAt: string }>;
+  return rows.map((row) => row.actedAt);
+}
+
 export function markSuggestion(opts: {
   id: string;
   userId: string;

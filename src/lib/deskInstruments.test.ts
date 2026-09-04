@@ -173,6 +173,14 @@ describe("readDeskInstruments", () => {
     assert.equal(got.postsTodayDelta.pct24h, 100);
   });
 
+  it("compares count gauges at the same point in the previous day", () => {
+    const got = read({
+      originalsToday: 1,
+      originalAtMs: [NOW - 30 * 60_000, NOW - DAY_MS - 30 * 60_000],
+    });
+    assert.equal(got.originalsTodayDelta.pct24h, 0);
+  });
+
   it("classifies inbound samples as cool, warm, hot, or hidden", () => {
     const inbound = (
       samples: Array<Pick<DeskInstrumentMark, "t24hViews" | "t24hLikes">>,

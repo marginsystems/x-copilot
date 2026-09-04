@@ -140,7 +140,7 @@ function parseIsoList(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((row): row is string => typeof row === "string" && row.length > 0)
-    .slice(0, 500);
+    .slice(0, 2000);
 }
 
 export async function fetchCoaching(): Promise<CoachingState | null> {

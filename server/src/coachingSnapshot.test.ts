@@ -162,6 +162,8 @@ describe("buildCoachingSnapshot", () => {
       interactionStorePath,
     });
     assert.equal(withCard.originalsToday, 1);
+    const times = await loadInstrumentTimes({ userId: "u1" });
+    assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
   });
 
   it("counts a desk-composed original on its own", async () => {
@@ -181,6 +183,8 @@ describe("buildCoachingSnapshot", () => {
     });
     assert.equal(snapshot.deskPostsToday, 1);
     assert.equal(snapshot.originalsToday, 1);
+    const times = await loadInstrumentTimes({ userId: "u1" });
+    assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
   });
 
   it("counts a discovered reply dated today toward marksToday", async () => {

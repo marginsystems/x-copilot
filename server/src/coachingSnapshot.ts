@@ -9,12 +9,14 @@ import { utcDayKey } from "./gamificationXp.js";
 import { listInteractionHistory } from "./interactionStore.js";
 import {
   countDoneSuggestionsSince,
+  listDonePostActedAtSince,
   listActiveSuggestions,
 } from "./forYouStore.js";
 import { listOwnPostedAt, startOfUtcDayIso } from "./ownPostStore.js";
 import { countDeliveredSortiesToday } from "./scoutSorties.js";
 import {
   countDeskOriginalsSince,
+  listDeskOriginalsSince,
   listDeskPostsSince,
 } from "./xPostLimits.js";
 
@@ -43,7 +45,8 @@ export type CoachingSnapshot = {
   lifetimeXp: number;
 };
 
-export const INSTRUMENT_WINDOW = 500;
+export const INSTRUMENT_WINDOW = 2000;
+const INSTRUMENT_HISTORY_MS = 14 * 24 * 60 * 60 * 1000;
 
 export type InstrumentTimes = {
   replyAt: string[];
@@ -54,19 +57,33 @@ export type InstrumentTimes = {
 export async function loadInstrumentTimes(opts: {
   userId: string;
   interactionStorePath?: string;
+  nowMs?: number;
 }): Promise<InstrumentTimes> {
   const history = await listInteractionHistory({
     userId: opts.userId,
     limit: INSTRUMENT_WINDOW,
     storePath: opts.interactionStorePath,
   });
+  const sinceIso = new Date(
+    (opts.nowMs ?? Date.now()) - INSTRUMENT_HISTORY_MS,
+  ).toISOString();
+  const [deskOriginalAt, donePostAt] = [
+    listDeskOriginalsSince(opts.userId, sinceIso),
+    listDonePostActedAtSince(opts.userId, sinceIso),
+  ];
   return {
     replyAt: history.map((row) => row.postedAt ?? row.at),
-    originalAt: listOwnPostedAt({
-      userId: opts.userId,
-      kinds: ["original"],
-      limit: INSTRUMENT_WINDOW,
-    }),
+    originalAt: [
+      ...listOwnPostedAt({
+        userId: opts.userId,
+        kinds: ["original"],
+        limit: INSTRUMENT_WINDOW,
+      }),
+      ...deskOriginalAt,
+      ...donePostAt,
+    ]
+      .sort((a, b) => Date.parse(b) - Date.parse(a))
+      .slice(0, INSTRUMENT_WINDOW),
     postAt: listOwnPostedAt({
       userId: opts.userId,
       kinds: ["original", "quote"],
