@@ -3,6 +3,10 @@ name: CI
 
 on:
   pull_request:
+    # opened / synchronize / reopened only. Do not listen for `labeled`:
+    # mq-live is a flag, not a start button. The restack synchronize is
+    # the one CI run (same as MergeStorm).
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
 
@@ -11,6 +15,14 @@ permissions:
 
 jobs:
   test:
+    # Skip Cyclone review follow-ups on a PR (bill $0 — job never starts).
+    # github.triggering_actor, not actor: a human "Re-run all jobs" still runs.
+    # Never gate main-push CI on actor — that is the merge-safety backstop.
+    # mq-live: run even when Cyclone restacks. Unlabeled Cyclone pushes skip.
+    if: >
+      github.event_name == 'push' ||
+      github.triggering_actor != 'mergestorm-cyclone[bot]' ||
+      contains(github.event.pull_request.labels.*.name, 'mq-live')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
