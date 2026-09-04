@@ -1,7 +1,6 @@
 /**
- * User-triggered flight-path PNG. They download (or share) their own
- * marks, altitude, streak, and level. Not a public URL. Never a watermark
- * on replies they send.
+ * Flight-path share card. Preview in a modal. Post on X via intent.
+ * Download is optional. Never a watermark on replies they send.
  */
 import { LEGAL_ENTITY, PRODUCT_NAME } from "./legal";
 import {
@@ -105,6 +104,12 @@ export function flightShareCaption(payload: FlightSharePayload): string {
     payload.streak > 0 ? `, streak ${payload.streak}` : "";
   const head = `${window} — ${payload.marked} marked, Lv ${payload.level}${streak}.`;
   return [head, "", FLIGHT_SHARE_SITE, FLIGHT_SHARE_DISCLAIMER].join("\n");
+}
+
+/** Compose intent. X cannot attach the PNG; the caption is the post. */
+export function flightShareIntentUrl(payload: FlightSharePayload): string {
+  const params = new URLSearchParams({ text: flightShareCaption(payload) });
+  return `https://x.com/intent/tweet?${params.toString()}`;
 }
 
 type DrawCtx = {
@@ -388,38 +393,9 @@ export async function copyFlightShareCaption(
   }
 }
 
-export type FlightShareResult = {
-  method: "share" | "download";
-  copiedCaption: boolean;
-};
-
-export async function shareFlightPath(
+export async function downloadFlightSharePng(
   payload: FlightSharePayload,
-): Promise<FlightShareResult> {
+): Promise<void> {
   const blob = await renderFlightShareBlob(payload);
-  const filename = flightShareFilename(payload);
-  const file = new File([blob], filename, { type: "image/png" });
-  const caption = flightShareCaption(payload);
-
-  if (typeof navigator.share === "function") {
-    try {
-      const can = navigator.canShare?.({ files: [file] }) ?? false;
-      if (can) {
-        await navigator.share({
-          files: [file],
-          text: caption,
-          title: "Flight path",
-        });
-        return { method: "share", copiedCaption: false };
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") throw err;
-    }
-  }
-
-  triggerDownload(blob, filename);
-  return {
-    method: "download",
-    copiedCaption: await copyFlightShareCaption(payload),
-  };
+  triggerDownload(blob, flightShareFilename(payload));
 }

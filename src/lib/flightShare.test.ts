@@ -7,6 +7,7 @@ import {
   drawFlightShareImage,
   flightShareCaption,
   flightShareFilename,
+  flightShareIntentUrl,
   flightSharePayload,
   FLIGHT_SHARE_DISCLAIMER,
   FLIGHT_SHARE_SITE,
@@ -93,6 +94,10 @@ describe("flightShareFilename and caption", () => {
     assert.match(caption, new RegExp(FLIGHT_SHARE_SITE));
     assert.match(caption, /Not affiliated with X Corp/);
     assert.doesNotMatch(caption, /remaining/);
+    const intent = flightShareIntentUrl(payload);
+    assert.match(intent, /^https:\/\/x\.com\/intent\/tweet\?/);
+    assert.match(intent, /text=/);
+    assert.match(intent, /xcopilot/);
   });
 });
 

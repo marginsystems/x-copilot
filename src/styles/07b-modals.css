@@ -45,6 +45,39 @@
   justify-items: start;
 }
 
+.flight-share-sheet {
+  width: min(360px, 100%);
+}
+
+.flight-share-preview {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--raised);
+}
+
+.flight-share-caption {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+.flight-share-actions {
+  align-items: center;
+}
+
+.flight-share-icon-btn {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .mark-detect-anim {
   display: inline-flex;
   gap: 6px;
