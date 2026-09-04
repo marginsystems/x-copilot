@@ -71,17 +71,20 @@ export async function loadInstrumentTimes(opts: {
     listDeskOriginalsSince(opts.userId, sinceIso),
     listDonePostActedAtSince(opts.userId, sinceIso),
   ];
+  // The same original can be represented by own_posts, the desk ledger, and
+  // its completed For You card. Keep one canonical timestamp for instruments.
+  const originalAt = [
+    ...listOwnPostedAt({
+      userId: opts.userId,
+      kinds: ["original"],
+      limit: INSTRUMENT_WINDOW,
+    }),
+    ...deskOriginalAt,
+    ...donePostAt,
+  ];
   return {
     replyAt: history.map((row) => row.postedAt ?? row.at),
-    originalAt: [
-      ...listOwnPostedAt({
-        userId: opts.userId,
-        kinds: ["original"],
-        limit: INSTRUMENT_WINDOW,
-      }),
-      ...deskOriginalAt,
-      ...donePostAt,
-    ]
+    originalAt: [...new Set(originalAt)]
       .sort((a, b) => Date.parse(b) - Date.parse(a))
       .slice(0, INSTRUMENT_WINDOW),
     postAt: listOwnPostedAt({

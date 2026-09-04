@@ -71,6 +71,8 @@ describe("buildCoachingSnapshot", () => {
       interactionStorePath,
     });
     assert.equal(snapshot.originalsToday, 1);
+    const times = await loadInstrumentTimes({ userId: "u1" });
+    assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
 
     const missions = await listMissionsWithProgress({
       userId: "u1",
