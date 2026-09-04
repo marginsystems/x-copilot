@@ -33,7 +33,10 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+      # Omit MiniLM. esbuild postinstall fetches the matching binary per host
+      # (tsx 0.28, Vite 0.21) — do not pin one @esbuild/linux-x64 at the root.
+      # Vite still needs the Rollup linux binary that omit=optional drops.
       - run: npm ci --omit=optional --no-audit --no-fund
-      - run: npm install --no-save --package-lock=false --ignore-scripts --omit=optional @esbuild/linux-x64@0.21.5 @rollup/rollup-linux-x64-gnu@4.62.2
+      - run: npm install --no-save --package-lock=false --ignore-scripts @rollup/rollup-linux-x64-gnu@4.62.2
       - run: npm test
       - run: npm run build
