@@ -375,6 +375,58 @@ describe("discoverOwnReplies", () => {
     assert.equal(history.filter((h) => h.threadId === "p1").length, 1);
   });
 
+  it("refreshes memory for a known webhook reply without re-marking it", async () => {
+    const postedAt = "2026-08-02T11:30:00.000Z";
+    const now = Date.parse("2026-08-02T12:00:00.000Z");
+    await markInteracted({
+      threadId: "webhook-parent",
+      author: "@builder",
+      replyId: "webhook-reply",
+      replyUrl: "https://x.com/me/status/webhook-reply",
+      source: "discovered",
+      postedAt,
+      storePath,
+    });
+
+    const result = await discoverOwnReplies({
+      nowMs: now,
+      storePath,
+      knowledgeRoot,
+      upsertMemory: false,
+      session: { configured: true, bearerToken: "t" },
+      resolveScreenName: async () => "me",
+      searchTimelinePages: async (opts) => ({
+        ok: true as const,
+        threads: /is:reply/.test(opts.query)
+          ? [
+              card({
+                id: "webhook-reply",
+                text: "updated reply",
+                inReplyToId: "webhook-parent",
+                inReplyToScreenName: "@builder",
+                opText: "updated parent",
+              }),
+            ]
+          : [],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
+    });
+
+    assert.equal(result.discovered, 0);
+    assert.equal(result.skipped, 1);
+    const note = await readFile(
+      join(knowledgeRoot, "interactions", "2026-08-02-webhook-parent.md"),
+      "utf8",
+    );
+    assert.match(note, /updated parent/);
+    assert.match(note, /interactedAt: "2026-08-02T11:30:00\.000Z"/);
+    const history = await listInteractionHistory({ storePath });
+    assert.equal(history.length, 1);
+    assert.equal(history[0]?.replyId, "webhook-reply");
+  });
+
   it("soft-fails when no desk handle is provided", async () => {
     const result = await discoverOwnReplies({
       session: {
