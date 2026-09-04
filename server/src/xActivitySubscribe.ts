@@ -374,6 +374,13 @@ export async function subscribeUserToPostCreate(
     }
     return { ok: true, subscriptionId: existing.subscription_id };
   }
+  if (
+    existing?.subscription_id &&
+    existing.x_user_id &&
+    existing.x_user_id !== xUserId
+  ) {
+    return { ok: false, error: "old_subscription_cleanup_pending" };
+  }
 
   // Reserve the row before the network call so a concurrent process (sidecar
   // boot + stats-worker tick) cannot both POST and create a duplicate X-side
