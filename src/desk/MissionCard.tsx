@@ -35,18 +35,23 @@ export function pickApproachScout(threads: ThreadCard[]): ThreadCard | null {
 
 export function ApproachLoadingCard() {
   return (
-    <div
-      className="mission-card mission-card-is-loading"
-      aria-busy="true"
-      role="status"
-    >
-      <p className="mission-card-verb">Approach</p>
-      <p className="mission-card-why">Loading the next action.</p>
-      <div className="mission-card-skel" aria-hidden="true">
-        <span className="mission-skel mission-skel-why" />
-        <span className="mission-skel mission-skel-row" />
-        <span className="mission-skel mission-skel-row mission-skel-short" />
-      </div>
+    <div className="mission-card" aria-busy="true" role="status">
+      <p className="mission-card-verb">Reply</p>
+      <p className="mission-card-why">
+        <span className="mission-skel mission-skel-summary" />
+      </p>
+      <article className="thread-row mission-skel-card" aria-hidden="true">
+        <div className="row-head next-action-head">
+          <div className="row-lead bait">
+            <span className="mission-skel mission-skel-lead" />
+          </div>
+          <div className="row-main">
+            <span className="mission-skel mission-skel-summary" />
+            <span className="mission-skel mission-skel-meta" />
+          </div>
+          <div className="caret">+</div>
+        </div>
+      </article>
     </div>
   );
 }
@@ -183,7 +188,7 @@ export function MissionCard(props: {
     return (
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
-        {why ? <p className="mission-card-why">{why}</p> : null}
+        <p className="mission-card-why">{why}</p>
         {action === "link_x" ? (
           <div className="row">
             <button type="button" className="primary" onClick={props.onLinkX}>
@@ -233,7 +238,7 @@ export function MissionCard(props: {
     return (
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
-        {why ? <p className="mission-card-why">{why}</p> : null}
+        <p className="mission-card-why">{why}</p>
         <div className="threads">
           <ThreadRow
             key={thread.id}
@@ -288,7 +293,7 @@ export function MissionCard(props: {
     return (
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
-        {why ? <p className="mission-card-why">{why}</p> : null}
+        <p className="mission-card-why">{why}</p>
         <div className="row">
           <button
             type="button"
@@ -323,7 +328,7 @@ export function MissionCard(props: {
         <p className="mission-card-verb">
           {phaseVerb(props.phase, row)}
         </p>
-        {why ? <p className="mission-card-why">{why}</p> : null}
+        <p className="mission-card-why">{why}</p>
         {row && key ? (
           <div className="threads">
             <SuggestedRow
@@ -359,7 +364,7 @@ export function MissionCard(props: {
   return (
     <div className="mission-card">
       <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
-      {why ? <p className="mission-card-why">{why}</p> : null}
+      <p className="mission-card-why">{why}</p>
       {props.phase === "original" ? (
         <div className="row">
           <a
