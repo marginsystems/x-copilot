@@ -17,19 +17,19 @@ export function tipEdge(
   tipWidth: number,
   viewportWidth: number,
   pad = 12,
+  triggerHalf = 8,
 ): TipEdge {
   const left = triggerCenterX - tipWidth / 2;
   const right = triggerCenterX + tipWidth / 2;
   const overflowLeft = left < pad;
   const overflowRight = right > viewportWidth - pad;
-  const chipHalf = 8;
   if (overflowLeft && !overflowRight) {
-    return triggerCenterX - chipHalf + tipWidth <= viewportWidth - pad
+    return triggerCenterX - triggerHalf + tipWidth <= viewportWidth - pad
       ? "start"
       : "center";
   }
   if (overflowRight && !overflowLeft) {
-    return triggerCenterX + chipHalf - tipWidth >= pad ? "end" : "center";
+    return triggerCenterX + triggerHalf - tipWidth >= pad ? "end" : "center";
   }
   if (overflowLeft && overflowRight) {
     return triggerCenterX < viewportWidth / 2 ? "start" : "end";

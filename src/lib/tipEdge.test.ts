@@ -21,6 +21,10 @@ describe("tipEdge", () => {
     assert.equal(tipEdge(90, 240, 1100), "start");
   });
 
+  it("uses the measured trigger width when anchoring near the left edge", () => {
+    assert.equal(tipEdge(90, 240, 320, 12, 45), "start");
+  });
+
   it("aligns end when a centered panel would clip the right edge", () => {
     assert.equal(tipEdge(760, 256, 800), "end");
   });

@@ -18,6 +18,8 @@ export function useTipEdge<T extends HTMLElement>(): {
         box.left + box.width / 2,
         estimateTipWidth(window.innerWidth),
         window.innerWidth,
+        12,
+        box.width / 2,
       ),
     );
   }
