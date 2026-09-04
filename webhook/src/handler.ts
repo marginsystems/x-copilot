@@ -32,9 +32,74 @@ import {
 } from "../../server/src/billingQuotas.js";
 import { ensureUserTenant } from "../../server/src/billingStore.js";
 import { recordUsageEvent } from "../../server/src/usageMeter.js";
-import { markInteracted } from "../../server/src/interactionStore.js";
+import {
+  listInteractionHistory,
+  markInteracted,
+  MAX_INTERACTION_STORE,
+} from "../../server/src/interactionStore.js";
 import { recordDeskReplyMarked } from "../../server/src/deskBeats.js";
 import { allowRate, clientIp } from "../../server/src/authGuard.js";
+import type { ParsedPostCreate } from "../../server/src/xActivity.js";
+
+export async function markOwnReplyInteracted(
+  parsed: ParsedPostCreate,
+  userId: string,
+  opts?: { storePath?: string; nowMs?: number },
+): Promise<"scout" | "organic" | "skipped"> {
+  if (!parsed.inReplyToId) return "skipped";
+  const watched =
+    getWatchedThread(userId, parsed.inReplyToId) ??
+    (parsed.conversationId
+      ? getWatchedThread(userId, parsed.conversationId)
+      : null);
+  const threadId =
+    watched?.threadId ??
+    parsed.inReplyToId ??
+    parsed.conversationId ??
+    parsed.postId;
+  const history = await listInteractionHistory({
+    storePath: opts?.storePath,
+    limit: MAX_INTERACTION_STORE,
+    userId,
+  });
+  if (
+    history.some(
+      (row) => row.replyId === parsed.postId || row.threadId === threadId,
+    )
+  ) {
+    return "skipped";
+  }
+  const author =
+    watched?.author ??
+    (parsed.inReplyToUsername
+      ? `@${parsed.inReplyToUsername.replace(/^@+/, "")}`
+      : parsed.inReplyToUserId
+        ? `@${parsed.inReplyToUserId}`
+        : "@unknown");
+  const source = watched ? "scout" : "organic";
+  await markInteracted({
+    threadId,
+    author,
+    source: "discovered",
+    userId,
+    url: watched?.url ?? undefined,
+    text: watched?.text ?? undefined,
+    replyId: parsed.postId,
+    replyUrl: postUrl(parsed.authorUsername, parsed.postId),
+    postedAt: parsed.postedAt,
+    conversationId:
+      parsed.conversationId ?? watched?.conversationId ?? undefined,
+    inReplyToId: parsed.inReplyToId,
+    storePath: opts?.storePath,
+    nowMs: opts?.nowMs,
+  });
+  recordDeskReplyMarked({
+    userId,
+    source,
+    nowMs: opts?.nowMs,
+  });
+  return source;
+}
 
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -146,42 +211,10 @@ async function handleActivityPost(
   if (usedToday >= activity.limit) {
     await pauseUserSubscription(userId, nextUtcDayIso());
   }
-  if (parsed.inReplyToId) {
-    const watched =
-      getWatchedThread(userId, parsed.inReplyToId) ??
-      (parsed.conversationId
-        ? getWatchedThread(userId, parsed.conversationId)
-        : null);
-    if (watched?.author) {
-      const discoveredAtMs = Date.now();
-      try {
-        await markInteracted({
-          threadId: watched.threadId,
-          author: watched.author,
-          source: "discovered",
-          userId,
-          url: watched.url ?? undefined,
-          text: watched.text ?? undefined,
-          replyId: parsed.postId,
-          replyUrl: postUrl(parsed.authorUsername, parsed.postId),
-          postedAt: parsed.postedAt,
-          conversationId:
-            parsed.conversationId ?? watched.conversationId ?? undefined,
-          inReplyToId: parsed.inReplyToId,
-        });
-        try {
-          recordDeskReplyMarked({
-            userId,
-            source: "scout",
-            nowMs: discoveredAtMs,
-          });
-        } catch (err) {
-          console.warn("[xaa] desk beats mark soft-fail", err);
-        }
-      } catch (err) {
-        console.warn("[xaa] auto-mark soft-fail", err);
-      }
-    }
+  try {
+    await markOwnReplyInteracted(parsed, userId);
+  } catch (err) {
+    console.warn("[xaa] auto-mark soft-fail", err);
   }
   send(req, res, 200, { ok: true });
 }
