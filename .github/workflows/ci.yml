@@ -1,4 +1,6 @@
 # Unit tests + typecheck + Vite build. No live X / Stripe / search probes.
+# Omit optional @xenova/transformers — CI never loads MiniLM. That package
+# was 6 of the 7 minutes on npm ci.
 name: CI
 
 on:
@@ -24,13 +26,17 @@ jobs:
       github.triggering_actor != 'mergestorm-cyclone[bot]' ||
       contains(github.event.pull_request.labels.*.name, 'mq-live')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-      - run: npm ci
+      # Omit MiniLM. esbuild postinstall fetches the matching binary per host
+      # (tsx 0.28, Vite 0.21) — do not pin one @esbuild/linux-x64 at the root.
+      # Vite still needs the Rollup linux binary that omit=optional drops.
+      - run: npm ci --omit=optional --no-audit --no-fund
+      - run: npm install --omit=optional --no-save --package-lock=false --ignore-scripts @rollup/rollup-linux-x64-gnu@4.62.2
       - run: npm test
       - run: npm run build
