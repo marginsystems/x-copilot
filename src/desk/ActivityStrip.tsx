@@ -2,7 +2,8 @@ import { useState } from "react";
 import { ActivityChart } from "../ActivityChart";
 import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import type { GamificationStats } from "../lib/gamification";
-import { flightSharePayload, shareFlightPath } from "../lib/flightShare";
+import { flightSharePayload } from "../lib/flightShare";
+import { FlightShareModal } from "./FlightShareModal";
 
 type ActivityStripProps = {
   flightPathOpen: boolean;
@@ -22,28 +23,7 @@ export function ActivityStrip({
   onActivityBucket,
 }: ActivityStripProps) {
   const sharePayload = flightSharePayload(activityStats, gamification);
-  const [sharing, setSharing] = useState(false);
-  const [shareNote, setShareNote] = useState<string | null>(null);
-
-  async function onSharePath() {
-    if (!sharePayload || sharing) return;
-    setSharing(true);
-    try {
-      const result = await shareFlightPath(sharePayload);
-      setShareNote(
-        result.method === "share"
-          ? "Share sheet opened."
-          : result.copiedCaption
-            ? "PNG saved. Caption copied."
-            : "PNG saved.",
-      );
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      setShareNote("Could not save the path.");
-    } finally {
-      setSharing(false);
-    }
-  }
+  const [shareOpen, setShareOpen] = useState(false);
 
   return (
     <div
@@ -76,12 +56,11 @@ export function ActivityStrip({
               <button
                 type="button"
                 className="threads-activity-share"
-                disabled={sharing}
-                onClick={() => void onSharePath()}
+                onClick={() => setShareOpen(true)}
                 title="Share this path"
                 aria-label="Share this path"
               >
-                <FlightShareIcon />
+                <ShareIcon />
               </button>
             ) : null}
           </div>
@@ -177,27 +156,32 @@ export function ActivityStrip({
           />
         )}
       </div>
-      <p className="threads-activity-share-status" aria-live="polite">
-        {shareNote ?? ""}
-      </p>
+      {shareOpen && sharePayload ? (
+        <FlightShareModal
+          payload={sharePayload}
+          onClose={() => setShareOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
 
-function FlightShareIcon() {
+function ShareIcon() {
   return (
     <svg
-      viewBox="0 0 16 16"
+      viewBox="0 0 24 24"
       width="14"
       height="14"
       aria-hidden="true"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.4"
+      strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M2 12.5 5.2 8.2 8 10l3.6-6.2L14 5.2" />
+      <path d="M12 3v12" />
+      <path d="M8 7l4-4 4 4" />
+      <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
     </svg>
   );
 }
