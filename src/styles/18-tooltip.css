@@ -29,15 +29,28 @@
   transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
-.has-tip:hover::after {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 0.45s;
+/* Phones treat :hover as sticky. First tap shows this panel and eats
+   the click (Next, Open For You, Land). No popover on coarse pointers. */
+@media (pointer: coarse) {
+  .has-tip::after {
+    content: none;
+    display: none;
+  }
 }
 
-.has-tip:focus-visible::after {
-  opacity: 1;
-  transform: translateY(0);
+@media (hover: hover) and (pointer: fine) {
+  .has-tip:hover::after {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.45s;
+  }
+}
+
+@media (pointer: fine) {
+  .has-tip:focus-visible::after {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* JS (useTipEdge) sets is-tip-start / center / end so a left button
@@ -49,9 +62,16 @@
   transform: translate(-50%, -4px);
 }
 
-.has-tip.is-tip-center:hover::after,
-.has-tip.is-tip-center:focus-visible::after {
-  transform: translate(-50%, 0);
+@media (hover: hover) and (pointer: fine) {
+  .has-tip.is-tip-center:hover::after {
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (pointer: fine) {
+  .has-tip.is-tip-center:focus-visible::after {
+    transform: translate(-50%, 0);
+  }
 }
 
 .has-tip.is-tip-start::after {
@@ -105,13 +125,17 @@
   transform: translate(-50%, -4px);
 }
 
-.tip-chip.has-tip:hover::after {
-  transform: translate(-50%, 0);
-  transition-delay: 0.45s;
+@media (hover: hover) and (pointer: fine) {
+  .tip-chip.has-tip:hover::after {
+    transform: translate(-50%, 0);
+    transition-delay: 0.45s;
+  }
 }
 
-.tip-chip.has-tip:focus-visible::after {
-  transform: translate(-50%, 0);
+@media (pointer: fine) {
+  .tip-chip.has-tip:focus-visible::after {
+    transform: translate(-50%, 0);
+  }
 }
 
 .tip-chip.is-tip-start.has-tip::after {
@@ -126,9 +150,16 @@
   transform: translate(0, -4px);
 }
 
-.tip-chip.is-tip-start.has-tip:hover::after,
-.tip-chip.is-tip-start.has-tip:focus-visible::after,
-.tip-chip.is-tip-end.has-tip:hover::after,
-.tip-chip.is-tip-end.has-tip:focus-visible::after {
-  transform: translate(0, 0);
+@media (hover: hover) and (pointer: fine) {
+  .tip-chip.is-tip-start.has-tip:hover::after,
+  .tip-chip.is-tip-end.has-tip:hover::after {
+    transform: translate(0, 0);
+  }
+}
+
+@media (pointer: fine) {
+  .tip-chip.is-tip-start.has-tip:focus-visible::after,
+  .tip-chip.is-tip-end.has-tip:focus-visible::after {
+    transform: translate(0, 0);
+  }
 }
