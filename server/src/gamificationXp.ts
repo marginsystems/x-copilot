@@ -292,11 +292,13 @@ export function overlayStreakFromHistory(
 ): GamificationState {
   if (history.length === 0) return state;
   const seeded = seedGamificationFromHistory(history, nowMs);
-  const currentStreak = Math.max(state.currentStreak, seeded.currentStreak);
   const seededLastIsNewer =
     seeded.lastMarkUtcDay !== null &&
     (state.lastMarkUtcDay === null ||
       seeded.lastMarkUtcDay > state.lastMarkUtcDay);
+  const currentStreak = seededLastIsNewer
+    ? seeded.currentStreak
+    : state.currentStreak;
   const lastMarkUtcDay = seededLastIsNewer
     ? seeded.lastMarkUtcDay
     : state.lastMarkUtcDay;

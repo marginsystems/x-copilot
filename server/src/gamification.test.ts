@@ -350,7 +350,7 @@ describe("seedGamificationFromHistory", () => {
     assert.equal(next.lifetimeXp, 40);
   });
 
-  it("adopts a newer history cursor when the retained streak is shorter", () => {
+  it("adopts a newer, shorter retained streak and cursor", () => {
     const state: GamificationState = {
       ...emptyGamificationState(Date.parse("2026-08-02T12:00:00.000Z")),
       currentStreak: 50,
@@ -377,7 +377,7 @@ describe("seedGamificationFromHistory", () => {
       ],
       Date.parse("2026-08-02T12:00:00.000Z"),
     );
-    assert.equal(next.currentStreak, 50);
+    assert.equal(next.currentStreak, 2);
     assert.equal(next.lastMarkUtcDay, "2026-08-02");
   });
 });
