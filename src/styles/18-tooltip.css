@@ -11,6 +11,7 @@
   top: calc(100% + 8px);
   z-index: 3;
   width: max(16rem, 100%);
+  max-width: min(16rem, calc(100vw - 24px));
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -37,6 +38,32 @@
 .has-tip:focus-visible::after {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* JS (useTipEdge) sets is-tip-start / center / end so a left button
+   does not grow a 16rem panel off the viewport. */
+.has-tip.is-tip-center::after {
+  left: 50%;
+  right: auto;
+  width: 16rem;
+  transform: translate(-50%, -4px);
+}
+
+.has-tip.is-tip-center:hover::after,
+.has-tip.is-tip-center:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
+.has-tip.is-tip-start::after {
+  left: 0;
+  right: auto;
+  width: 16rem;
+}
+
+.has-tip.is-tip-end::after {
+  left: auto;
+  right: 0;
+  width: 16rem;
 }
 
 .thread-row.open.for-you-row .row-detail-inner {

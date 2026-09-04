@@ -1,6 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { estimateTipWidth, tipAnchor, tipEdge, tipFlipBelow } from "./tipEdge.ts";
+import {
+  estimateTipWidth,
+  tipAlignClass,
+  tipAnchor,
+  tipEdge,
+  tipFlipBelow,
+} from "./tipEdge.ts";
 
 describe("tipEdge", () => {
   it("stays centered when the panel fits", () => {
@@ -9,6 +15,10 @@ describe("tipEdge", () => {
 
   it("aligns start when a centered panel would clip the left edge", () => {
     assert.equal(tipEdge(40, 256, 800), "start");
+  });
+
+  it("aligns start for a left Approach action (Open For You)", () => {
+    assert.equal(tipEdge(90, 240, 1100), "start");
   });
 
   it("aligns end when a centered panel would clip the right edge", () => {
@@ -28,6 +38,14 @@ describe("tipEdge", () => {
   it("anchors when the anchored panel fits the far edge", () => {
     assert.equal(tipEdge(60, 243.2, 320), "start");
     assert.equal(tipEdge(260, 243.2, 320), "end");
+  });
+});
+
+describe("tipAlignClass", () => {
+  it("names the CSS class for each edge", () => {
+    assert.equal(tipAlignClass("start"), "is-tip-start");
+    assert.equal(tipAlignClass("center"), "is-tip-center");
+    assert.equal(tipAlignClass("end"), "is-tip-end");
   });
 });
 

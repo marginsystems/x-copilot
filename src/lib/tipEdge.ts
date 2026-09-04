@@ -2,6 +2,11 @@
 
 export type TipEdge = "start" | "center" | "end";
 
+/** Class for `.has-tip` / `.tip-chip` so the panel stays on screen. */
+export function tipAlignClass(edge: TipEdge): string {
+  return edge === "center" ? "is-tip-center" : `is-tip-${edge}`;
+}
+
 /** Matches .tip-chip.has-tip::after — 16rem @ 15px root font-size, capped at 76vw. */
 export function estimateTipWidth(viewportWidth: number): number {
   return Math.min(16 * 15, viewportWidth * 0.76);
