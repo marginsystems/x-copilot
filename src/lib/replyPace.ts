@@ -20,7 +20,9 @@ export function seedReplyPaceUntil(opts: {
   replyAtIso?: string | null;
   nowMs: number;
 }): number | null {
-  if (opts.storedUntil != null) return opts.storedUntil;
+  if (opts.storedUntil != null && opts.storedUntil > opts.nowMs) {
+    return opts.storedUntil;
+  }
   if (opts.cleared) return null;
   const at = opts.replyAtIso ? Date.parse(opts.replyAtIso) : NaN;
   if (!Number.isFinite(at)) return null;

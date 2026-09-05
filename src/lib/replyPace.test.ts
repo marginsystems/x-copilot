@@ -63,6 +63,18 @@ describe("replyPace", () => {
     );
   });
 
+  it("re-seeds from a recent replyAt when the stored until has expired", () => {
+    assert.equal(
+      seedReplyPaceUntil({
+        storedUntil: Date.parse("2026-09-05T12:00:30.000Z"),
+        cleared: false,
+        replyAtIso: "2026-09-05T12:01:00.000Z",
+        nowMs: Date.parse("2026-09-05T12:01:20.000Z"),
+      }),
+      Date.parse("2026-09-05T12:02:00.000Z"),
+    );
+  });
+
   it("does not seed after Bypass or when the minute has elapsed", () => {
     assert.equal(
       seedReplyPaceUntil({
