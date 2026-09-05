@@ -92,6 +92,14 @@ describe("Approach lock", () => {
       ),
       { phase: "scout_reply", cardId: "scout-2", surface: null },
     );
+    assert.deepEqual(
+      advanceApproach(
+        { phase: "hold", cardId: null, surface: "for_you" },
+        { type: "next" },
+        inventory,
+      ),
+      { phase: "scout_reply", cardId: "scout-2", surface: null },
+    );
   });
 
   it("routes posted Suggested through Fork and Original", () => {

@@ -100,7 +100,10 @@ export function advanceApproach(
   event: ApproachEvent,
   inventory: ApproachInventory,
 ): ApproachLock {
-  if (locked.phase === "silent_refuel" && event.type === "next") {
+  if (
+    (locked.phase === "silent_refuel" || locked.phase === "hold") &&
+    event.type === "next"
+  ) {
     return nextInventoryCard(inventory, null, false);
   }
   if (locked.phase === "hold" && event.type === "bypass") {

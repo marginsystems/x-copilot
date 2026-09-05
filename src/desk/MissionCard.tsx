@@ -160,7 +160,7 @@ export function MissionCard(props: {
 
   if (props.phase === "silent_refuel") {
     const action = props.silentCard ?? "wait";
-    let why = phaseWhy(props.phase, props.coaching);
+    let why = "";
     if (action === "link_x") {
       why = "Link X so Scout can refuel Approach.";
     } else if (action === "settings") {
