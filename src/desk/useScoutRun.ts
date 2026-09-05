@@ -17,7 +17,6 @@ import {
   SCOUT_STAGE_TICK_MS,
   formatScoutFailure,
   isScoutGateError,
-  scoutFlightLine,
   scoutStageMessage,
   type ScoutStageId,
 } from "../lib/scoutStages";
@@ -84,10 +83,6 @@ export function useScoutRun({
   });
   const flightStageRef = useRef<ScoutStageId>("planning");
   const serverStageRef = useRef<ScoutStageId | null>(null);
-  const lastFlightCountsRef = useRef<{
-    candidates?: number;
-    bucketSize?: number;
-  }>({});
   const staleHydration = useRef(false);
 
   const searchCooldownRemaining = Math.max(
@@ -163,18 +158,6 @@ export function useScoutRun({
         message = `${prefix} · ${message}`;
       }
     }
-    const counts = {
-      cool: coolProgressRef.current.cool,
-      target: coolProgressRef.current.target,
-      candidates: ev.candidates ?? lastFlightCountsRef.current.candidates,
-      bucketSize: ev.bucketSize ?? lastFlightCountsRef.current.bucketSize,
-    };
-    if (typeof ev.candidates === "number") {
-      lastFlightCountsRef.current.candidates = ev.candidates;
-    }
-    if (typeof ev.bucketSize === "number") {
-      lastFlightCountsRef.current.bucketSize = ev.bucketSize;
-    }
     serverStageRef.current = stage;
     const incomingRank = SCOUT_STAGE_RANK[stage];
     const shownRank = SCOUT_STAGE_RANK[flightStageRef.current];
@@ -185,11 +168,7 @@ export function useScoutRun({
         ? stage
         : flightStageRef.current;
     flightStageRef.current = shownStage;
-    setStatus(
-      shownStage === "error"
-        ? message
-        : scoutFlightLine(shownStage, counts),
-    );
+    if (shownStage === "error") setStatus(message);
     pushScoutLine(message, stage);
   }
 
@@ -243,7 +222,7 @@ export function useScoutRun({
           pc.afterTriage,
         ].join(" → ")})`
       : "";
-    setStatus(`Restored ${filtered.length} threads${funnel} from ${when}.`);
+    pushScoutLine(`Restored ${filtered.length} threads${funnel} from ${when}.`);
   }
 
   function applyScoutLogFromBoot(entries: ScoutLogEntry[]) {
@@ -293,7 +272,6 @@ export function useScoutRun({
     coolProgressRef.current = { cool: 0, target: targetCool };
     flightStageRef.current = "planning";
     serverStageRef.current = null;
-    lastFlightCountsRef.current = {};
 
     setSearching(true);
     // Keep existing thread rows; partials + done append by id across runs.
@@ -558,13 +536,6 @@ export function useScoutRun({
         return;
       }
       flightStageRef.current = next;
-      setStatus(
-        scoutFlightLine(next, {
-          cool: coolProgressRef.current.cool,
-          target: coolProgressRef.current.target,
-          ...lastFlightCountsRef.current,
-        }),
-      );
     }, SCOUT_STAGE_TICK_MS);
     return () => window.clearInterval(id);
   }, [searching]);
