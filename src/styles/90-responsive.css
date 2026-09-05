@@ -57,11 +57,17 @@
   }
 
   .threads-pane-head {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
 
   .threads-pane-title {
     flex: 0 0 auto;
+  }
+
+  .threads-tabs {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
 }
 

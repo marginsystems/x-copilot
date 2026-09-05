@@ -149,7 +149,11 @@ export function MissionCard(props: {
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb("hold")}</p>
         <div className="threads">
-          <ForYouFeedRow />
+          <ForYouFeedRow
+            searching={props.searching}
+            onNext={props.onForYouNext}
+            onStopScout={props.onStopScout}
+          />
         </div>
         <ReplyPaceBar
           clock={props.clock}

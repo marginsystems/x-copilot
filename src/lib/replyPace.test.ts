@@ -34,10 +34,11 @@ describe("replyPace", () => {
     assert.equal(replyPaceLocked(null, 1_000), false);
   });
 
-  it("keeps the hold active after the clock runs out", () => {
-    assert.equal(replyPaceHoldActive(1_000), true);
-    assert.equal(replyPaceHoldActive(900), true);
-    assert.equal(replyPaceHoldActive(null), false);
+  it("does not hold after the clock runs out", () => {
+    assert.equal(replyPaceHoldActive(1_100, 1_000), true);
+    assert.equal(replyPaceHoldActive(1_000, 1_000), false);
+    assert.equal(replyPaceHoldActive(900, 1_000), false);
+    assert.equal(replyPaceHoldActive(null, 1_000), false);
   });
 
   it("prints a m:ss clock", () => {
