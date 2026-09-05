@@ -164,6 +164,25 @@ describe("Approach lock", () => {
     );
   });
 
+  it("bypasses a hold into the next card or For You", () => {
+    assert.deepEqual(
+      advanceApproach(
+        { phase: "hold", cardId: null, surface: "for_you" },
+        { type: "bypass" },
+        { scoutId: "scout-2", suggestionId: null, canPresentForYou: false },
+      ),
+      { phase: "scout_reply", cardId: "scout-2", surface: null },
+    );
+    assert.deepEqual(
+      advanceApproach(
+        { phase: "hold", cardId: null, surface: "for_you" },
+        { type: "bypass" },
+        { scoutId: null, suggestionId: null, canPresentForYou: true },
+      ),
+      { phase: "silent_refuel", cardId: null, surface: "for_you" },
+    );
+  });
+
   it("reopens a completed lock when new inventory lands", () => {
     assert.deepEqual(
       advanceApproach(

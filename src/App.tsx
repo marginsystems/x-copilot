@@ -76,6 +76,7 @@ import {
 
 export default function App() {
   const [agendaReady, setAgendaReady] = useState(false);
+  const [deskBootReady, setDeskBootReady] = useState(false);
   const [onboardingSeedAgenda, setOnboardingSeedAgenda] = useState<
     string | null
   >(null);
@@ -395,6 +396,7 @@ export default function App() {
           await confirmCheckout(sessionId);
         }
         refreshAfterPaint(user);
+        setDeskBootReady(true);
         return;
       }
 
@@ -403,6 +405,7 @@ export default function App() {
         clearDeskBootCache();
         if (err) setSignInOpen(true);
         applyUser(null);
+        setDeskBootReady(true);
         return;
       }
 
@@ -424,6 +427,7 @@ export default function App() {
         await confirmCheckout(sessionId);
       }
       refreshAfterPaint(user);
+      setDeskBootReady(true);
     })();
   }, []);
 
@@ -907,7 +911,10 @@ export default function App() {
               voice={voice}
               agenda={agenda}
               agendaReady={agendaReady}
+              deskBootReady={deskBootReady}
               authUser={authUser}
+              markThread={markThread}
+              dismissThread={dismissThread}
               setVoice={setVoice}
               actForYou={async (id, action) => {
                 await actForYou(id, action);

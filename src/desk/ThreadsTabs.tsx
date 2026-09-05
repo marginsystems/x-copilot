@@ -95,7 +95,10 @@ type ThreadsTabsProps = {
   voice: VoiceState | null;
   agenda: string;
   agendaReady: boolean;
+  deskBootReady: boolean;
   authUser: AuthSessionUser | null;
+  markThread: ThreadCard | null;
+  dismissThread: ThreadCard | null;
   setVoice: Dispatch<SetStateAction<VoiceState | null>>;
   actForYou: (id: string, action: "done" | "skip" | "dismiss") => void | Promise<void>;
   onOpenVoice: () => void;
@@ -136,7 +139,10 @@ export function ThreadsTabs({
   voice,
   agenda,
   agendaReady,
+  deskBootReady,
   authUser,
+  markThread,
+  dismissThread,
   setVoice,
   actForYou,
   onOpenVoice,
@@ -179,7 +185,7 @@ export function ThreadsTabs({
   const [forYouWait, setForYouWait] = useState<ForYouWait | null>(() => {
     const existing = readForYouWait();
     if (existing) return existing;
-    if (scout || !canPresentForYou) return null;
+    if (scout || !deskBootReady || !canPresentForYou) return null;
     const wait: ForYouWait = {
       held: true,
       snapshot: snapshotForYouWait(coaching),
@@ -291,7 +297,7 @@ export function ThreadsTabs({
   }
 
   useEffect(() => {
-    if (phase !== "silent_refuel" || locked.surface === silentFallback) return;
+    if (!deskBootReady || phase !== "silent_refuel") return;
     const next = initialApproachLock({
       forYouHeld,
       paceLocked: pace.locked,
@@ -300,7 +306,15 @@ export function ThreadsTabs({
     });
     lockedRef.current = next;
     setLocked(next);
-  }, [forYouHeld, locked.surface, pace.locked, phase, scout?.id, silentFallback]);
+  }, [
+    deskBootReady,
+    forYouHeld,
+    locked.surface,
+    pace.locked,
+    phase,
+    scout?.id,
+    silentFallback,
+  ]);
 
   useEffect(() => {
     if (phase !== "done_for_now" || (!scout && !suggestion)) return;
@@ -351,6 +365,26 @@ export function ThreadsTabs({
     curatedThreads,
     onSearch,
   ]);
+  useEffect(() => {
+    if (
+      !markThread &&
+      pendingMarkIdRef.current &&
+      !interactedIds.has(pendingMarkIdRef.current)
+    ) {
+      pendingMarkIdRef.current = null;
+    }
+  }, [interactedIds, markThread]);
+  useEffect(() => {
+    if (
+      !dismissThread &&
+      pendingDismissIdRef.current &&
+      !dismissedHistory.some(
+        (entry) => entry.threadId === pendingDismissIdRef.current,
+      )
+    ) {
+      pendingDismissIdRef.current = null;
+    }
+  }, [dismissedHistory, dismissThread]);
   useEffect(() => {
     const id = pendingDismissIdRef.current;
     if (!id || !dismissedHistory.some((entry) => entry.threadId === id)) return;
@@ -476,6 +510,7 @@ export function ThreadsTabs({
             onBypass={() => {
               pace.bypass();
               advanceCard({ type: "bypass" });
+              armRefuel();
             }}
             groundedLine={groundedLine}
             silentCard={locked.surface}
@@ -505,6 +540,8 @@ export function ThreadsTabs({
               exitRow(thread.id, thread.id, async () => {
                 const skipped = await onSkip(thread);
                 if (skipped) {
+                  pendingMarkIdRef.current = null;
+                  pendingDismissIdRef.current = null;
                   advanceCard({ type: "skip" });
                   armRefuel();
                 }
@@ -518,6 +555,7 @@ export function ThreadsTabs({
               exitRow(id, `suggest:${id}`, async () => {
                 await actForYou(id, "done");
                 advanceCard({ type: "posted" });
+                armRefuel();
               });
             }}
             onSuggestionSkip={(id) => {
@@ -545,6 +583,7 @@ export function ThreadsTabs({
                   }
                   onForkBeats(beats);
                   advanceCard({ type: "fork", choice });
+                  armRefuel();
                   await onRefreshCoaching();
                 } finally {
                   setActionBusy(false);
@@ -562,6 +601,7 @@ export function ThreadsTabs({
                   }
                   onForkBeats(beats);
                   advanceCard({ type: "posted" });
+                  armRefuel();
                   await onRefreshCoaching();
                 } finally {
                   setActionBusy(false);
