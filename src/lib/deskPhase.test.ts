@@ -123,6 +123,24 @@ describe("Approach lock", () => {
     );
   });
 
+  it("does not re-open For You after Next clears its wait", () => {
+    const inventoryWithoutCards = {
+      scoutId: null,
+      suggestionId: null,
+      canPresentForYou: true,
+    };
+    for (const phase of ["silent_refuel", "hold"] as const) {
+      assert.deepEqual(
+        advanceApproach(
+          { phase, cardId: null, surface: "for_you" },
+          { type: "next" },
+          inventoryWithoutCards,
+        ),
+        { phase: "done_for_now", cardId: null, surface: null },
+      );
+    }
+  });
+
   it("routes posted Suggested through Fork and Original", () => {
     const fork = advanceApproach(
       { phase: "organic_reply", cardId: "suggested-1", surface: null },

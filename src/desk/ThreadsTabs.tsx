@@ -321,6 +321,16 @@ export function ThreadsTabs({
     advanceCard({ type: "next" });
   }, [phase, scout, suggestion]);
 
+  useEffect(() => {
+    if (!deskBootReady || !locked.cardId) return;
+    const cardIsLive =
+      (phase === "scout_reply" &&
+        scouted.some((row) => row.id === locked.cardId)) ||
+      (phase === "organic_reply" &&
+        forYouSuggestions.some((row) => row.id === locked.cardId));
+    if (!cardIsLive) advanceCard({ type: "skip" });
+  }, [deskBootReady, forYouSuggestions, locked.cardId, phase, scouted]);
+
   function armRefuel() {
     clearScoutTakeoffTried();
     autoTriedRef.current = false;
