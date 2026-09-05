@@ -917,8 +917,9 @@ export default function App() {
               dismissThread={dismissThread}
               setVoice={setVoice}
               actForYou={async (id, action) => {
-                await actForYou(id, action);
+                const succeeded = await actForYou(id, action);
                 void hydrateCoaching();
+                return succeeded;
               }}
               onOpenVoice={openVoice}
               onOpenSettings={openSettings}

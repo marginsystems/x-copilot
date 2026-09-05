@@ -358,7 +358,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   async function actForYou(
     id: string,
     path: "done" | "skip" | "dismiss",
-  ) {
+  ): Promise<boolean> {
     setActionBusy(true);
     try {
       const res = await apiFetch(`/api/for-you/${path}`, {
@@ -373,10 +373,10 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
           if (path === "skip" || path === "dismiss") {
             await hydrateForYou();
           }
-          return;
+          return false;
         }
         setStatus("Could not update For You. Try again.");
-        return;
+        return false;
       }
       const data = (await res.json().catch(() => ({}))) as {
         suggestions?: unknown[];
@@ -395,8 +395,10 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
         await hydrateForYou();
       }
       if (path === "done" && row?.kind === "reply") armReplyPace();
+      return true;
     } catch {
       setStatus("Could not update For You. Try again.");
+      return false;
     } finally {
       setActionBusy(false);
     }

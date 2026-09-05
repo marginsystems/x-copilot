@@ -100,7 +100,10 @@ type ThreadsTabsProps = {
   markThread: ThreadCard | null;
   dismissThread: ThreadCard | null;
   setVoice: Dispatch<SetStateAction<VoiceState | null>>;
-  actForYou: (id: string, action: "done" | "skip" | "dismiss") => void | Promise<void>;
+  actForYou: (
+    id: string,
+    action: "done" | "skip" | "dismiss",
+  ) => Promise<boolean>;
   onOpenVoice: () => void;
   onOpenSettings: () => void;
   onOpenUsage: () => void;
@@ -347,7 +350,10 @@ export function ThreadsTabs({
         scouted.some((row) => row.id === locked.cardId)) ||
       (phase === "organic_reply" &&
         forYouSuggestions.some((row) => row.id === locked.cardId));
-    if (!cardIsLive) advanceCard({ type: "skip" });
+    if (!cardIsLive) {
+      advanceCard({ type: "skip" });
+      armRefuel();
+    }
   }, [deskBootReady, forYouSuggestions, locked.cardId, phase, scouted]);
 
   function armRefuel() {
@@ -582,23 +588,26 @@ export function ThreadsTabs({
             }}
             onSuggestionPosted={(id) => {
               exitRow(id, `suggest:${id}`, async () => {
-                await actForYou(id, "done");
-                advanceCard({ type: "posted" });
-                armRefuel();
+                if (await actForYou(id, "done")) {
+                  advanceCard({ type: "posted" });
+                  armRefuel();
+                }
               });
             }}
             onSuggestionSkip={(id) => {
               exitRow(id, `suggest:${id}`, async () => {
-                await actForYou(id, "skip");
-                advanceCard({ type: "skip" });
-                armRefuel();
+                if (await actForYou(id, "skip")) {
+                  advanceCard({ type: "skip" });
+                  armRefuel();
+                }
               });
             }}
             onSuggestionDismiss={(id) => {
               exitRow(id, `suggest:${id}`, async () => {
-                await actForYou(id, "dismiss");
-                advanceCard({ type: "dismiss" });
-                armRefuel();
+                if (await actForYou(id, "dismiss")) {
+                  advanceCard({ type: "dismiss" });
+                  armRefuel();
+                }
               });
             }}
             onChooseFork={(choice) => {
