@@ -54,12 +54,12 @@ describe("replyPace", () => {
     );
     assert.equal(
       seedReplyPaceUntil({
-        storedUntil: 99,
+        storedUntil: Date.parse("2026-09-05T12:00:40.000Z"),
         cleared: false,
         replyAtIso: "2026-09-05T12:00:00.000Z",
         nowMs: Date.parse("2026-09-05T12:00:20.000Z"),
       }),
-      99,
+      Date.parse("2026-09-05T12:00:40.000Z"),
     );
   });
 
