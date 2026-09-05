@@ -1,6 +1,16 @@
 import type { CoachingState, NextActionKind } from "./coaching";
 import type { DeskPhase } from "./deskPhase";
 import type { ForYouKind, ForYouSuggestion } from "./forYou";
+import { scoutStageMessage } from "./scoutStages";
+
+export const APPROACH_COLLECTING_IDLE =
+  "Scout is looking for the next reply.";
+
+export function approachCollectingCopy(opts: { searching?: boolean }): string {
+  return opts.searching
+    ? scoutStageMessage("searching")
+    : APPROACH_COLLECTING_IDLE;
+}
 
 export function coachingMatchesCard(
   phase: DeskPhase,
@@ -27,7 +37,7 @@ export function phaseWhy(
   suggestion?: ForYouSuggestion | null,
 ): string {
   if (phase === "done_for_now") {
-    return "You're clean. History is a log.";
+    return APPROACH_COLLECTING_IDLE;
   }
   if (phase === "organic_reply" && suggestion?.kind === "post") {
     return "Compose an original. Mark it here.";
