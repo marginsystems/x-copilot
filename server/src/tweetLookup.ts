@@ -15,6 +15,7 @@ export type ParentTweet = {
   text: string;
   longform?: "note_tweet" | "article";
   hasOutboundLink?: boolean;
+  hasNativeMedia?: boolean;
   views?: number;
 };
 
@@ -23,6 +24,9 @@ function parentFromCard(card: {
   text: string;
   longform?: "note_tweet" | "article";
   hasOutboundLink?: boolean;
+  mediaShortlinks?: string[];
+  hasNativeMedia?: boolean;
+  opHasNativeMedia?: boolean;
   views?: number;
 }): ParentTweet {
   return {
@@ -30,6 +34,9 @@ function parentFromCard(card: {
     text: card.text,
     ...(card.longform ? { longform: card.longform } : {}),
     ...(card.hasOutboundLink ? { hasOutboundLink: true } : {}),
+    ...(card.mediaShortlinks?.length || card.hasNativeMedia || card.opHasNativeMedia
+      ? { hasNativeMedia: true }
+      : {}),
     ...(typeof card.views === "number" ? { views: card.views } : {}),
   };
 }
@@ -48,6 +55,7 @@ function applyHydratedParent(
     ...(parent.hasOutboundLink || card.hasOutboundLink
       ? { hasOutboundLink: true }
       : {}),
+    ...(parent.hasNativeMedia ? { opHasNativeMedia: true } : {}),
     opViews: parent.views,
   };
 }
@@ -189,11 +197,18 @@ type V2LookupJson = {
         expanded_url?: string;
         display_url?: string;
       }>;
+      media?: Array<{
+        url?: string;
+        expanded_url?: string;
+        display_url?: string;
+      }>;
     };
+    attachments?: { media_keys?: string[] };
     public_metrics?: Record<string, unknown>;
   };
   includes?: {
     users?: Array<{ id?: string; username?: string; name?: string }>;
+    media?: Array<{ media_key?: string }>;
   };
 };
 
@@ -206,7 +221,12 @@ function parentFromV2(json: unknown): ParentTweet | null {
       .filter((u) => u.id)
       .map((u) => [u.id!, u] as const),
   );
-  const card = v2TweetToCard(tw, usersById);
+  const mediaKeys = new Set(
+    (root.includes?.media ?? [])
+      .map((m) => m.media_key)
+      .filter((key): key is string => typeof key === "string"),
+  );
+  const card = v2TweetToCard(tw, usersById, new Map(), mediaKeys);
   if (!card?.author || !card.text) return null;
   return parentFromCard(card);
 }
@@ -235,8 +255,9 @@ export async function fetchParentTweet(opts: {
     path: `/tweets/${encodeURIComponent(tweetId)}`,
     query: {
       "tweet.fields":
-        "created_at,author_id,note_tweet,entities,article,card_uri,public_metrics",
-      expansions: "author_id",
+        "created_at,author_id,note_tweet,entities,attachments,article,card_uri,public_metrics",
+      expansions: "author_id,attachments.media_keys",
+      "media.fields": "media_key,type,url,preview_image_url",
       "user.fields": "username,name",
     },
     creds: session,

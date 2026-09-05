@@ -53,6 +53,7 @@ export type ScoutRunDeps = {
   loadBilling: () => Promise<void>;
   hydrateAuth: () => Promise<AuthSessionUser | null>;
   onScoutFinished?: () => void;
+  sourceThreadsRef?: import("react").MutableRefObject<ThreadCard[] | null>;
 };
 
 export function useScoutRun({
@@ -67,6 +68,7 @@ export function useScoutRun({
   loadBilling,
   hydrateAuth,
   onScoutFinished,
+  sourceThreadsRef,
 }: ScoutRunDeps) {
   const [searching, setSearching] = useState(false);
   const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>(
@@ -214,12 +216,14 @@ export function useScoutRun({
     if (staleHydration.current) return;
     if (!data.ok) return;
     if (data.empty || !data.snapshot) {
+      if (sourceThreadsRef) sourceThreadsRef.current = [];
       setThreads([]);
       return;
     }
     const list = Array.isArray(data.snapshot.threads)
       ? data.snapshot.threads
       : [];
+    if (sourceThreadsRef) sourceThreadsRef.current = list;
     const filtered = list.filter((t) => keepInCurated(t));
     setThreads(filtered);
     watchDeskThreads(filtered);
@@ -371,6 +375,12 @@ export function useScoutRun({
         }
         applyScoutEvent(ev);
         if (ev.stage === "partial" && ev.threads?.length) {
+          if (sourceThreadsRef) {
+            sourceThreadsRef.current = appendThreadsById(
+              sourceThreadsRef.current ?? [],
+              ev.threads,
+            );
+          }
           const incoming = (ev.threads ?? []).filter((t) => keepInCurated(t));
           watchDeskThreads(incoming);
           setThreads((prev) => appendThreadsById(prev, incoming));
@@ -408,6 +418,12 @@ export function useScoutRun({
         const doneEvent = stream.doneEvent;
         const qs = doneEvent.queries ?? [];
         const list = doneEvent.threads ?? [];
+        if (sourceThreadsRef) {
+          sourceThreadsRef.current = appendThreadsById(
+            sourceThreadsRef.current ?? [],
+            list,
+          );
+        }
         const incoming = list.filter((t) => keepInCurated(t));
         watchDeskThreads(incoming);
         // Append this run’s cool threads; do not wipe prior Scout loops.

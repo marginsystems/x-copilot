@@ -32,6 +32,7 @@ export type ThreadCard = {
   isQuote?: boolean;
   /** Native media t.co keys (lowercased); hide from card text display. */
   mediaShortlinks?: string[];
+  hasNativeMedia?: boolean;
   /** 0–100, higher = more engagement bait. */
   baitScore?: number;
   flags?: string[];

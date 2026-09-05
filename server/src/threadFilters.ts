@@ -264,13 +264,15 @@ export function filterOutboundLinks(
   return { threads: kept, linkFilteredCount };
 }
 
-/** X hashtag: # then a letter or underscore. Not #123. */
-const HASHTAG_RE = /(^|[^\w&])#([A-Za-z_][\w]{0,49})\b/;
+/** X hashtag: allow digit-led tokens, but not all-digit issue references. */
+const HASHTAG_RE = /(^|[^\w&])#(?!\d+\b)[A-Za-z0-9_]{1,50}\b/;
 const NATIVE_MEDIA_TEXT_RE =
   /(?:pic\.(?:twitter|x)\.com|pbs\.twimg\.com|video\.twimg\.com)\//i;
 
 export function threadHasNativeMedia(thread: ThreadCard): boolean {
   if ((thread.mediaShortlinks?.length ?? 0) > 0) return true;
+  if (thread.hasNativeMedia === true) return true;
+  if (thread.opHasNativeMedia === true) return true;
   if (NATIVE_MEDIA_TEXT_RE.test(thread.text)) return true;
   if (thread.opText && NATIVE_MEDIA_TEXT_RE.test(thread.opText)) return true;
   return false;

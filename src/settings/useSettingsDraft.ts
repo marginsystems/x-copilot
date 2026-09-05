@@ -1,4 +1,9 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import {
   keepPlainTextThread,
   loadSettings,
@@ -12,11 +17,13 @@ import type { ThreadCard } from "../desk/types";
 type UseSettingsDraftOptions = {
   setSettings: Dispatch<SetStateAction<AppSettings>>;
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
+  sourceThreadsRef?: MutableRefObject<ThreadCard[] | null>;
 };
 
 export function useSettingsDraft({
   setSettings,
   setThreads,
+  sourceThreadsRef,
 }: UseSettingsDraftOptions) {
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
     loadSettings(),
@@ -33,7 +40,7 @@ export function useSettingsDraft({
     setSettings(next);
     setSettingsDraft(next);
     setThreads((prev) =>
-      prev.filter(
+      (sourceThreadsRef?.current ?? prev).filter(
         (thread) =>
           !threadHasExcludedTag(thread, next.excludedTags) &&
           !threadHasExcludedAuthor(thread, next.excludedAccounts) &&

@@ -105,6 +105,7 @@ function applyIncludedReplyOp(
   tweet: V2Tweet,
   usersById: Map<string, V2User>,
   tweetsById: Map<string, V2Tweet>,
+  includedMediaKeys: ReadonlySet<string>,
 ): void {
   const repliedToId = tweet.referenced_tweets?.find(
     (r) => r.type === "replied_to",
@@ -168,6 +169,15 @@ function applyIncludedReplyOp(
   card.opCharCount = opText.length;
   const opLongform = opTw ? v2TweetLongform(opTw) : undefined;
   if (opLongform) card.opLongform = opLongform;
+  if (
+    opTw &&
+    ([...mediaShortlinkKeys(opTw.entities)].length > 0 ||
+      (opTw.attachments?.media_keys ?? []).some((key) =>
+        includedMediaKeys.has(key),
+      ))
+  ) {
+    card.opHasNativeMedia = true;
+  }
   if (canSkipHydrate) card.opParentDerived = true;
   if (opTw && v2TweetHasOutboundLink(opTw)) card.hasOutboundLink = true;
   const opViews = opTw?.public_metrics?.impression_count;
@@ -181,6 +191,7 @@ export function v2TweetToCard(
   tweet: V2Tweet,
   usersById: Map<string, V2User>,
   tweetsById: Map<string, V2Tweet> = new Map(),
+  includedMediaKeys: ReadonlySet<string> = new Set(),
 ): ThreadCard | null {
   const id = tweet.id?.trim();
   const noteText = tweet.note_tweet?.text?.trim();
@@ -241,11 +252,18 @@ export function v2TweetToCard(
   }
 
   // Prefer already-billed includes.tweets for reply OP so hydrate can skip.
-  applyIncludedReplyOp(card, tweet, usersById, tweetsById);
+  applyIncludedReplyOp(card, tweet, usersById, tweetsById, includedMediaKeys);
 
   if (v2TweetHasOutboundLink(tweet)) card.hasOutboundLink = true;
 
   const mediaShortlinks = [...mediaShortlinkKeys(tweet.entities)];
+  if (
+    (tweet.attachments?.media_keys ?? []).some((key) =>
+      includedMediaKeys.has(key),
+    )
+  ) {
+    card.hasNativeMedia = true;
+  }
   if (mediaShortlinks.length) card.mediaShortlinks = mediaShortlinks;
 
   if (!v2AutomatedWarningLogged) {
@@ -264,7 +282,11 @@ export function parseV2SearchPayload(json: unknown): {
 } {
   const root = json as {
     data?: V2Tweet[];
-    includes?: { users?: V2User[]; tweets?: V2Tweet[] };
+    includes?: {
+      users?: V2User[];
+      tweets?: V2Tweet[];
+      media?: Array<{ media_key?: string }>;
+    };
     meta?: { next_token?: string };
   };
   const usersById = new Map<string, V2User>();
@@ -275,10 +297,15 @@ export function parseV2SearchPayload(json: unknown): {
   for (const t of root.includes?.tweets ?? []) {
     if (t.id) tweetsById.set(t.id, t);
   }
+  const includedMediaKeys = new Set(
+    (root.includes?.media ?? [])
+      .map((m) => m.media_key)
+      .filter((key): key is string => typeof key === "string"),
+  );
   const threads: ThreadCard[] = [];
   let dropped = 0;
   for (const tw of root.data ?? []) {
-    const card = v2TweetToCard(tw, usersById, tweetsById);
+    const card = v2TweetToCard(tw, usersById, tweetsById, includedMediaKeys);
     if (card) threads.push(card);
     else dropped += 1;
   }

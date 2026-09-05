@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   loadSettings,
   type AppSettings,
@@ -89,6 +89,9 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [threads, setThreads] = useState<ThreadCard[]>(
     () => cachedBoot?.desk?.lastScout.snapshot?.threads ?? [],
+  );
+  const sourceThreadsRef = useRef<ThreadCard[] | null>(
+    cachedBoot?.desk?.lastScout.snapshot?.threads ?? null,
   );
   const [expandedId, setExpandedId] = useState<string | null>(null);
   /** Short mutex for mark/skip/dismiss/settings — not Scout-in-flight. */
@@ -219,7 +222,7 @@ export default function App() {
     settingsStatus,
     resetSettingsDraft,
     onSaveSettings,
-  } = useSettingsDraft({ setSettings, setThreads });
+  } = useSettingsDraft({ setSettings, setThreads, sourceThreadsRef });
   const {
     searching,
     searchCooldownRemaining,
@@ -244,6 +247,7 @@ export default function App() {
     onScoutFinished: () => {
       void hydrateCoaching();
     },
+    sourceThreadsRef,
   });
   const needsLogin = authChecked && authRequired && !authUser && !localUi;
   const needsOnboarding = needsOnboardingWizard({
