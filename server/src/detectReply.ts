@@ -65,7 +65,7 @@ export function findRecentInteractionReply(opts: {
     return {
       replyId: row.replyId?.trim() || replyUrl.split("/").pop() || "",
       replyUrl,
-      replyText: "",
+      replyText: row.text ?? "",
       ...(row.postedAt ? { createdAt: row.postedAt } : {}),
     };
   }

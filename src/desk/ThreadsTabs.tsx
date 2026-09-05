@@ -364,14 +364,17 @@ export function ThreadsTabs({
       (phase === "organic_reply" &&
         forYouSuggestions.some((row) => row.id === locked.cardId));
     if (!cardIsLive) {
-      const event = vanishEvent({
-        cardId: locked.cardId,
-        conversationId:
-          lockedScout?.conversationId ?? lockedSuggestion?.targetId,
-        inReplyToId: lockedScout?.inReplyToId,
-        interactedIds,
-        history: interactedHistory,
-      });
+      const event =
+        phase === "scout_reply"
+          ? vanishEvent({
+              cardId: locked.cardId,
+              conversationId:
+                lockedScout?.conversationId ?? lockedSuggestion?.targetId,
+              inReplyToId: lockedScout?.inReplyToId,
+              interactedIds,
+              history: interactedHistory,
+            })
+          : "skip";
       advanceCard({ type: event });
       if (event === "skip") armRefuel();
     }
