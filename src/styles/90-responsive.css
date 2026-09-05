@@ -44,8 +44,18 @@
   }
 
   .threads-activity {
-    min-height: 120px;
-    max-height: 180px;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .threads-activity:not(.is-collapsed) .threads-activity-chart {
+    flex: 0 0 auto;
+    height: 176px;
+    min-height: 176px;
+  }
+
+  .threads-activity-sub {
+    display: none;
   }
 
   .threads-activity.is-collapsed {
