@@ -216,6 +216,33 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(filterOutboundLinks([card]).linkFilteredCount, 1);
   });
 
+  it("flags a quote when the quoted tweet has included native media", () => {
+    const tweetsById = new Map([
+      [
+        "800",
+        {
+          id: "800",
+          text: "Photo post",
+          author_id: "u-op",
+          attachments: { media_keys: ["media-1"] },
+        },
+      ],
+    ]);
+    const card = v2TweetToCard(
+      {
+        id: "900",
+        text: "Commentary on the photo",
+        author_id: "u-reply",
+        referenced_tweets: [{ type: "quoted", id: "800" }],
+      },
+      usersById,
+      tweetsById,
+      new Set(["media-1"]),
+    );
+    assert.ok(card);
+    assert.equal(card.opHasNativeMedia, true);
+  });
+
   it("marks v2 article payload as longform article", () => {
     const card = v2TweetToCard(
       {

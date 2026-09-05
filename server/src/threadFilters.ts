@@ -264,6 +264,88 @@ export function filterOutboundLinks(
   return { threads: kept, linkFilteredCount };
 }
 
+/** X hashtag: allow digit-led tokens, but not all-digit issue references. */
+const HASHTAG_RE = /(^|[^\w&])#(?!\d+\b)[A-Za-z0-9_]{1,50}\b/;
+const NATIVE_MEDIA_TEXT_RE =
+  /(?:pic\.(?:twitter|x)\.com|pbs\.twimg\.com|video\.twimg\.com)\//i;
+
+export function threadHasNativeMedia(thread: ThreadCard): boolean {
+  if ((thread.mediaShortlinks?.length ?? 0) > 0) return true;
+  if (thread.hasNativeMedia === true) return true;
+  if (thread.opHasNativeMedia === true) return true;
+  if (NATIVE_MEDIA_TEXT_RE.test(thread.text)) return true;
+  if (thread.opText && NATIVE_MEDIA_TEXT_RE.test(thread.opText)) return true;
+  return false;
+}
+
+export function textHasHashtag(text: string): boolean {
+  return HASHTAG_RE.test(text);
+}
+
+export function threadHasHashtag(thread: ThreadCard): boolean {
+  if (textHasHashtag(thread.text)) return true;
+  if (thread.opText && textHasHashtag(thread.opText)) return true;
+  return false;
+}
+
+export type NativeMediaFilterOptions = {
+  /** When true (default), hard-drop posts with a native photo, GIF, or video. */
+  dropNativeMedia?: boolean;
+};
+
+/** Hard-drop native-media posts before hydrate/triage (Settings default on). */
+export function filterNativeMedia(
+  threads: ThreadCard[],
+  opts: NativeMediaFilterOptions = {},
+): {
+  threads: ThreadCard[];
+  mediaFilteredCount: number;
+} {
+  const drop = opts.dropNativeMedia !== false;
+  if (!drop) {
+    return { threads: [...threads], mediaFilteredCount: 0 };
+  }
+  const kept: ThreadCard[] = [];
+  let mediaFilteredCount = 0;
+  for (const thread of threads) {
+    if (threadHasNativeMedia(thread)) {
+      mediaFilteredCount += 1;
+      continue;
+    }
+    kept.push(thread);
+  }
+  return { threads: kept, mediaFilteredCount };
+}
+
+export type HashtagFilterOptions = {
+  /** When true (default), hard-drop posts whose text or OP text has a hashtag. */
+  dropHashtags?: boolean;
+};
+
+/** Hard-drop hashtag posts before hydrate/triage (Settings default on). */
+export function filterHashtags(
+  threads: ThreadCard[],
+  opts: HashtagFilterOptions = {},
+): {
+  threads: ThreadCard[];
+  hashtagFilteredCount: number;
+} {
+  const drop = opts.dropHashtags !== false;
+  if (!drop) {
+    return { threads: [...threads], hashtagFilteredCount: 0 };
+  }
+  const kept: ThreadCard[] = [];
+  let hashtagFilteredCount = 0;
+  for (const thread of threads) {
+    if (threadHasHashtag(thread)) {
+      hashtagFilteredCount += 1;
+      continue;
+    }
+    kept.push(thread);
+  }
+  return { threads: kept, hashtagFilteredCount };
+}
+
 /** Typographic em dash (U+2014) — common AI-slop tell. */
 export const EM_DASH = "\u2014";
 

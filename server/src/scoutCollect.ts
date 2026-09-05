@@ -49,7 +49,9 @@ import {
   filterExcludedAccounts,
   filterByLanguage,
   filterEmDashes,
+  filterHashtags,
   filterMinViews,
+  filterNativeMedia,
   filterOutboundLinks,
   filterProfanity,
   normalizeAvoidPrompt,
@@ -232,6 +234,8 @@ export async function runScoutCollect(opts: {
   );
   const dropArticles = opts.filters?.dropArticles !== false;
   const dropOutboundLinks = opts.filters?.dropOutboundLinks !== false;
+  const dropNativeMedia = opts.filters?.dropNativeMedia !== false;
+  const dropHashtags = opts.filters?.dropHashtags !== false;
   const dropEmDashes = opts.filters?.dropEmDashes !== false;
   const dropProfanity = opts.filters?.dropProfanity !== false;
   const avoidPrompt = normalizeAvoidPrompt(opts.filters?.avoidPrompt);
@@ -457,7 +461,13 @@ export async function runScoutCollect(opts: {
         const afterLinks = filterOutboundLinks(afterSelf.threads, {
           dropOutboundLinks,
         });
-        const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
+        const afterMedia = filterNativeMedia(afterLinks.threads, {
+          dropNativeMedia,
+        });
+        const afterHashtags = filterHashtags(afterMedia.threads, {
+          dropHashtags,
+        });
+        const afterLang = filterByLanguage(afterHashtags.threads, preferredLanguage);
         const afterEmDash = filterEmDashes(afterLang.threads, { dropEmDashes });
         const afterProfanity = filterProfanity(afterEmDash.threads, {
           dropProfanity,
@@ -583,6 +593,8 @@ export async function runScoutCollect(opts: {
         afterSelfReply: afterHydrateSelf,
         afterMinViews: afterHydrateMinViews,
         afterLinks: afterHydrateLinks,
+        afterMedia: afterHydrateMedia,
+        afterHashtags: afterHydrateHashtags,
         afterProfanity: afterHydrateProfanity,
         afterLanguage: afterHydrateLang,
         afterLength: afterHydrateLen,
@@ -595,6 +607,8 @@ export async function runScoutCollect(opts: {
           articleIds: articleConversationIds,
         },
         dropOutboundLinks,
+        dropNativeMedia,
+        dropHashtags,
         dropProfanity,
         filterByMinViews,
         minViews,
@@ -611,6 +625,8 @@ export async function runScoutCollect(opts: {
         const emptiedByRefillableFilter =
           afterHydrateSelf.selfReplyFilteredCount === 0 &&
           (afterHydrateLinks.linkFilteredCount > 0 ||
+            afterHydrateMedia.mediaFilteredCount > 0 ||
+            afterHydrateHashtags.hashtagFilteredCount > 0 ||
             afterHydrateProfanity.profanityFilteredCount > 0 ||
             afterHydrateMinViews.minViewsFilteredCount > 0);
         if (!emptiedByRefillableFilter) {

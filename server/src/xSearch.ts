@@ -29,9 +29,9 @@ const PAGE_DELAY_MS = 400;
  * fallback). */
 export function searchExpansions(expandReferenced = true): string {
   if (expandReferenced) {
-    return "author_id,referenced_tweets.id,referenced_tweets.id.author_id,in_reply_to_user_id";
+    return "author_id,referenced_tweets.id,referenced_tweets.id.author_id,in_reply_to_user_id,attachments.media_keys";
   }
-  return "author_id,in_reply_to_user_id";
+  return "author_id,in_reply_to_user_id,attachments.media_keys";
 }
 
 /**
@@ -137,8 +137,9 @@ export async function searchTimeline(opts: {
       start_time: startTime,
       sort_order: product === "Top" ? "relevancy" : "recency",
       "tweet.fields":
-        "created_at,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,entities,public_metrics,note_tweet,article,card_uri",
+        "created_at,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,entities,attachments,public_metrics,note_tweet,article,card_uri",
       expansions: searchExpansions(opts.expandReferenced !== false),
+      "media.fields": "media_key,type,url,preview_image_url",
       "user.fields": "username,name,protected",
       ...(opts.cursor?.trim() ? { next_token: opts.cursor.trim() } : {}),
     },

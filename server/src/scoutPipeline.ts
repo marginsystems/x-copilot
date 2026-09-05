@@ -3,7 +3,9 @@
  */
 import {
   filterByLanguage,
+  filterHashtags,
   filterMinViews,
+  filterNativeMedia,
   filterOutboundLinks,
   filterProfanity,
   filterSelfReplies,
@@ -19,6 +21,8 @@ export function filterPostHydrateThreads(opts: {
   maxChars: number;
   lengthOptions?: LengthFilterOptions;
   dropOutboundLinks?: boolean;
+  dropNativeMedia?: boolean;
+  dropHashtags?: boolean;
   dropProfanity?: boolean;
   filterByMinViews?: boolean;
   minViews?: number;
@@ -34,7 +38,13 @@ export function filterPostHydrateThreads(opts: {
   const afterLinks = filterOutboundLinks(afterMinViews.threads, {
     dropOutboundLinks: opts.dropOutboundLinks,
   });
-  const afterProfanity = filterProfanity(afterLinks.threads, {
+  const afterMedia = filterNativeMedia(afterLinks.threads, {
+    dropNativeMedia: opts.dropNativeMedia,
+  });
+  const afterHashtags = filterHashtags(afterMedia.threads, {
+    dropHashtags: opts.dropHashtags,
+  });
+  const afterProfanity = filterProfanity(afterHashtags.threads, {
     dropProfanity: opts.dropProfanity,
   });
   // Re-check language now that reply-parent OP context is available (#121).
@@ -52,6 +62,8 @@ export function filterPostHydrateThreads(opts: {
     afterSelfReply,
     afterMinViews,
     afterLinks,
+    afterMedia,
+    afterHashtags,
     afterProfanity,
     afterLanguage,
     afterLength,

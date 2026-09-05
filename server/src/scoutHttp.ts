@@ -64,6 +64,12 @@ export function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (typeof obj.dropOutboundLinks === "boolean") {
     filters.dropOutboundLinks = obj.dropOutboundLinks;
   }
+  if (typeof obj.dropNativeMedia === "boolean") {
+    filters.dropNativeMedia = obj.dropNativeMedia;
+  }
+  if (typeof obj.dropHashtags === "boolean") {
+    filters.dropHashtags = obj.dropHashtags;
+  }
   if (typeof obj.dropEmDashes === "boolean") {
     filters.dropEmDashes = obj.dropEmDashes;
   }

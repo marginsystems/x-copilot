@@ -9,6 +9,8 @@ import {
   filterExcludedAccounts,
   filterByLanguage,
   filterEmDashes,
+  filterHashtags,
+  filterNativeMedia,
   filterOutboundLinks,
   filterProfanity,
   filterSelfReplies,
@@ -30,7 +32,10 @@ import {
   isBaitConversationTagged,
   replyUnderBaitConversation,
   textHasEmDash,
+  textHasHashtag,
   threadHasExcludedTag,
+  threadHasHashtag,
+  threadHasNativeMedia,
   threadHasOutboundLink,
 } from "./threadFilters.ts";
 import type { ThreadCard } from "./threadCard.ts";
@@ -370,6 +375,67 @@ describe("filterOutboundLinks", () => {
     const result = filterOutboundLinks([flagged], { dropOutboundLinks: false });
     assert.deepEqual(result.threads.map((t) => t.id), ["1"]);
     assert.equal(result.linkFilteredCount, 0);
+  });
+});
+
+describe("filterNativeMedia", () => {
+  it("drops cards with media shortlinks or pic hosts", () => {
+    const photo = thread("1", "interview notes", undefined, {
+      mediaShortlinks: ["t.co/zk5ziekdnn"],
+    });
+    const picHost = thread("2", "see pic.twitter.com/abc123");
+    const clean = thread("3", "Ship weekly. Concrete take.");
+    const result = filterNativeMedia([photo, picHost, clean]);
+    assert.deepEqual(result.threads.map((t) => t.id), ["3"]);
+    assert.equal(result.mediaFilteredCount, 2);
+    assert.equal(threadHasNativeMedia(photo), true);
+  });
+
+  it("drops a clean reply when the OP has native media", () => {
+    const reply = thread("r1", "Agree, ship the loop.", undefined, {
+      isReply: true,
+      opText: "Thread dump pic.x.com/longshot",
+    });
+    const result = filterNativeMedia([reply]);
+    assert.equal(result.mediaFilteredCount, 1);
+  });
+
+  it("keeps media posts when dropNativeMedia is false", () => {
+    const photo = thread("1", "photo", undefined, {
+      mediaShortlinks: ["t.co/abc"],
+    });
+    const result = filterNativeMedia([photo], { dropNativeMedia: false });
+    assert.deepEqual(result.threads.map((t) => t.id), ["1"]);
+    assert.equal(result.mediaFilteredCount, 0);
+  });
+});
+
+describe("filterHashtags", () => {
+  it("drops hashtags and keeps #123, mentions, and clean text", () => {
+    const tagged = thread("1", "Ship this #buildinpublic");
+    const issue = thread("2", "See issue #123 tomorrow");
+    const mention = thread("3", "Thanks @alice for the tip");
+    const clean = thread("4", "Ship weekly. Concrete take.");
+    const result = filterHashtags([tagged, issue, mention, clean]);
+    assert.deepEqual(result.threads.map((t) => t.id), ["2", "3", "4"]);
+    assert.equal(result.hashtagFilteredCount, 1);
+    assert.equal(textHasHashtag("Ship this #buildinpublic"), true);
+    assert.equal(threadHasHashtag(tagged), true);
+  });
+
+  it("drops a clean reply when the OP has a hashtag", () => {
+    const reply = thread("r1", "Agree, ship the loop.", undefined, {
+      opText: "Take on #AI hiring",
+    });
+    const result = filterHashtags([reply]);
+    assert.equal(result.hashtagFilteredCount, 1);
+  });
+
+  it("keeps hashtag posts when dropHashtags is false", () => {
+    const tagged = thread("1", "Ship this #buildinpublic");
+    const result = filterHashtags([tagged], { dropHashtags: false });
+    assert.deepEqual(result.threads.map((t) => t.id), ["1"]);
+    assert.equal(result.hashtagFilteredCount, 0);
   });
 });
 

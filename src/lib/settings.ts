@@ -112,6 +112,10 @@ export type AppSettings = {
    * links. v2 does not return the card landing URL.
    */
   dropOutboundLinks: boolean;
+  /** Hard-drop candidates with a native photo, GIF, or video. */
+  dropNativeMedia: boolean;
+  /** Hard-drop candidates whose text or OP text has a hashtag. */
+  dropHashtags: boolean;
   /** Hard-drop candidates whose text contains an em dash (U+2014), pre-triage. */
   dropEmDashes: boolean;
   /** Hard-drop candidates or OPs whose text matches the profanity word list. */
@@ -147,11 +151,61 @@ export type AppSettings = {
 
 /** Settings checkbox — the filter drops card_uri cards and any outbound link. */
 export const DROP_OUTBOUND_LINKS_LABEL = "Drop posts with outbound links";
+export const DROP_NATIVE_MEDIA_LABEL = "Drop posts with photos or video";
+export const DROP_HASHTAGS_LABEL = "Drop posts with hashtags";
+
+/** X hashtag: allow digit-led tokens, but not all-digit issue references. */
+const HASHTAG_RE = /(^|[^\w&])#(?!\d+\b)[A-Za-z0-9_]{1,50}\b/;
+const NATIVE_MEDIA_TEXT_RE =
+  /(?:pic\.(?:twitter|x)\.com|pbs\.twimg\.com|video\.twimg\.com)\//i;
+
+export function threadHasNativeMedia(thread: {
+  text?: string;
+  opText?: string;
+  mediaShortlinks?: readonly string[];
+  hasNativeMedia?: boolean;
+  opHasNativeMedia?: boolean;
+}): boolean {
+  if ((thread.mediaShortlinks?.length ?? 0) > 0) return true;
+  if (thread.hasNativeMedia === true) return true;
+  if (thread.opHasNativeMedia === true) return true;
+  if (thread.text && NATIVE_MEDIA_TEXT_RE.test(thread.text)) return true;
+  if (thread.opText && NATIVE_MEDIA_TEXT_RE.test(thread.opText)) return true;
+  return false;
+}
+
+export function textHasHashtag(text: string): boolean {
+  return HASHTAG_RE.test(text);
+}
+
+export function threadHasHashtag(thread: {
+  text?: string;
+  opText?: string;
+}): boolean {
+  if (thread.text && textHasHashtag(thread.text)) return true;
+  if (thread.opText && textHasHashtag(thread.opText)) return true;
+  return false;
+}
+
+export function keepPlainTextThread(
+  thread: {
+    text?: string;
+    opText?: string;
+    mediaShortlinks?: readonly string[];
+  },
+  settings: Pick<AppSettings, "dropNativeMedia" | "dropHashtags">,
+): boolean {
+  if (settings.dropNativeMedia && threadHasNativeMedia(thread)) return false;
+  if (settings.dropHashtags && threadHasHashtag(thread)) return false;
+  return true;
+}
 
 export const DEFAULT_SETTINGS: AppSettings = {
   maxThreadChars: DEFAULT_MAX_THREAD_CHARS,
   dropArticles: true,
   dropOutboundLinks: true,
+  dropNativeMedia: true,
+  dropHashtags: true,
   dropEmDashes: true,
   dropProfanity: true,
   dropAutomatedAccounts: true,
@@ -334,6 +388,14 @@ export function normalizeSettings(raw: unknown): AppSettings {
       typeof obj.dropOutboundLinks === "boolean"
         ? obj.dropOutboundLinks
         : DEFAULT_SETTINGS.dropOutboundLinks,
+    dropNativeMedia:
+      typeof obj.dropNativeMedia === "boolean"
+        ? obj.dropNativeMedia
+        : DEFAULT_SETTINGS.dropNativeMedia,
+    dropHashtags:
+      typeof obj.dropHashtags === "boolean"
+        ? obj.dropHashtags
+        : DEFAULT_SETTINGS.dropHashtags,
     dropEmDashes:
       typeof obj.dropEmDashes === "boolean"
         ? obj.dropEmDashes

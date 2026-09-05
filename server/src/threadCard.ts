@@ -30,6 +30,10 @@ export type ThreadCard = {
   isAutomated?: boolean;
   /** t.co shortlink keys (lowercased `t.co/<code>`) that resolve to native media. */
   mediaShortlinks?: string[];
+  /** Native media is present even when no media URL entity is exposed. */
+  hasNativeMedia?: boolean;
+  /** Native media was present on a hydrated parent tweet. */
+  opHasNativeMedia?: boolean;
   /** Reply / conversation context for triage (OP scoring). */
   inReplyToId?: string;
   /** Screen name of the tweet being replied to (SearchTimeline legacy). */
