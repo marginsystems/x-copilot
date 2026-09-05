@@ -298,8 +298,18 @@ export function ThreadsTabs({
 
   useEffect(() => {
     if (!deskBootReady || phase !== "silent_refuel") return;
+    let nextForYouHeld = forYouHeld;
+    if (!scout && canPresentForYou && !forYouWait) {
+      const wait: ForYouWait = {
+        held: true,
+        snapshot: snapshotForYouWait(coaching),
+      };
+      writeForYouWait(wait);
+      setForYouWait(wait);
+      nextForYouHeld = true;
+    }
     const next = initialApproachLock({
-      forYouHeld,
+      forYouHeld: nextForYouHeld,
       paceLocked: pace.locked,
       scoutId: scout?.id ?? null,
       fallback: silentFallback,
@@ -309,6 +319,9 @@ export function ThreadsTabs({
   }, [
     deskBootReady,
     forYouHeld,
+    forYouWait,
+    canPresentForYou,
+    coaching,
     locked.surface,
     pace.locked,
     phase,
@@ -323,6 +336,12 @@ export function ThreadsTabs({
 
   useEffect(() => {
     if (!deskBootReady || !locked.cardId) return;
+    if (
+      pendingDismissIdRef.current === locked.cardId ||
+      pendingMarkIdRef.current === locked.cardId
+    ) {
+      return;
+    }
     const cardIsLive =
       (phase === "scout_reply" &&
         scouted.some((row) => row.id === locked.cardId)) ||
