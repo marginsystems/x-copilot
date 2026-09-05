@@ -64,6 +64,64 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.metrics.views, 10);
   });
 
+  it("takes the reply parent from referenced_tweets when X omits in_reply_to_tweet_id", () => {
+    const parsed = parsePostCreateEvent({
+      data: {
+        event_uuid: "evt-ref",
+        event_type: "post.create",
+        filter: { user_id: "99" },
+        payload: {
+          id: "112",
+          author_id: "99",
+          text: "haha. low impressions is the usual",
+          created_at: "2026-09-05T12:52:15.000Z",
+          in_reply_to_user_id: "33",
+          conversation_id: "200",
+          referenced_tweets: [{ type: "replied_to", id: "222" }],
+        },
+      },
+    });
+    assert.ok(parsed);
+    assert.equal(parsed?.kind, "reply");
+    assert.equal(parsed?.inReplyToId, "222");
+  });
+
+  it("prefers in_reply_to_tweet_id over referenced_tweets when both exist", () => {
+    const parsed = parsePostCreateEvent({
+      data: {
+        event_uuid: "evt-both",
+        event_type: "post.create",
+        filter: { user_id: "99" },
+        payload: {
+          id: "113",
+          author_id: "99",
+          text: "both",
+          in_reply_to_tweet_id: "222",
+          referenced_tweets: [{ type: "replied_to", id: "999" }],
+        },
+      },
+    });
+    assert.equal(parsed?.inReplyToId, "222");
+  });
+
+  it("ignores a replied_to reference with no id", () => {
+    const parsed = parsePostCreateEvent({
+      data: {
+        event_uuid: "evt-noid",
+        event_type: "post.create",
+        filter: { user_id: "99" },
+        payload: {
+          id: "114",
+          author_id: "99",
+          text: "no id",
+          referenced_tweets: [{ type: "replied_to" }],
+        },
+      },
+    });
+    assert.equal(parsed?.kind, "reply");
+    assert.equal(parsed?.inReplyToId, null);
+  });
+
   it("reads an original post", () => {
     const parsed = parsePostCreateEvent({
       data: {

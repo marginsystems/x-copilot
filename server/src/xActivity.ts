@@ -94,6 +94,24 @@ function referencedTypes(payload: Record<string, unknown>): Set<string> {
   return out;
 }
 
+/**
+ * Parent post id for a reply. X often omits `in_reply_to_tweet_id` and carries
+ * the parent only in `referenced_tweets` as `{ type: "replied_to", id }`.
+ */
+function replyParentId(payload: Record<string, unknown>): string | null {
+  if (payload.in_reply_to_tweet_id) return String(payload.in_reply_to_tweet_id);
+  const refs = payload.referenced_tweets;
+  if (!Array.isArray(refs)) return null;
+  for (const ref of refs) {
+    if (!ref || typeof ref !== "object") continue;
+    const row = ref as { type?: unknown; id?: unknown };
+    if (String(row.type ?? "").trim() !== "replied_to") continue;
+    const id = String(row.id ?? "").trim();
+    if (id) return id;
+  }
+  return null;
+}
+
 export function classifyPostKind(payload: Record<string, unknown>): OwnPostKind {
   const refs = referencedTypes(payload);
   if (refs.has("retweeted")) return "repost";
@@ -168,9 +186,7 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
     text: typeof post.text === "string" ? post.text : "",
     postedAt,
     postedAtFallback: !Number.isFinite(createdMs),
-    inReplyToId: post.in_reply_to_tweet_id
-      ? String(post.in_reply_to_tweet_id)
-      : null,
+    inReplyToId: replyParentId(post),
     inReplyToUserId,
     inReplyToUsername: inReplyToUserId
       ? usernameFromIncludes(data, inReplyToUserId)
