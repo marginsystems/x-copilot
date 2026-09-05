@@ -456,10 +456,8 @@ button.primary.scout-run.desk-top-takeoff {
   fill: var(--accent);
 }
 
-.activity-chart-dot.is-active,
-.activity-chart-dot-held.is-active {
-  stroke: color-mix(in srgb, var(--accent) 28%, transparent);
-  stroke-width: 10px;
+.activity-chart-dot-halo {
+  fill: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .activity-chart-dot-held {

@@ -1,4 +1,10 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   activityChartTipDetail,
@@ -72,13 +78,40 @@ function buildPoints(
   });
 }
 
+function useCssBox(
+  ref: RefObject<HTMLDivElement>,
+  fallback: { w: number; h: number },
+  compact: boolean,
+): { w: number; h: number } {
+  const [box, setBox] = useState(fallback);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const apply = (w: number, h: number) => {
+      if (w < 2 || h < 2) return;
+      setBox((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
+    apply(el.clientWidth, el.clientHeight);
+    const ro = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+      apply(rect.width, rect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [compact]);
+  return box;
+}
+
 /**
  * Lightweight dual-series SVG: interaction bars + views line.
- * Sized by the parent reserved box (viewBox scales).
+ * ViewBox matches the CSS box so 1 user unit is 1px — dots stay circles.
  */
 export function ActivityChart({ series, bucket, compact = false }: Props) {
-  const width = 600;
-  const height = compact ? 44 : 120;
+  const hostRef = useRef<HTMLDivElement>(null);
+  const box = useCssBox(hostRef, { w: 600, h: compact ? 44 : 120 }, compact);
+  const width = box.w;
+  const height = box.h;
   const padL = compact ? 6 : 28;
   const padR = 8;
   const padT = compact ? 4 : 10;
@@ -104,7 +137,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
     <svg
       className="activity-chart-svg"
       viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
+      preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label="Flight path of marked replies and sampled views"
     >
@@ -141,13 +174,20 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
       ) : null}
       {points.map((pt) =>
         pt.p.views > 0 || pt.p.interactions > 0 ? (
+          <g key={`c-${pt.p.period}`}>
+            {!compact && active === pt.p.period ? (
+              <circle
+                className="activity-chart-dot-halo"
+                cx={pt.x}
+                cy={pt.y}
+                r={7}
+              />
+            ) : null}
           <circle
-            key={`c-${pt.p.period}`}
             className={
               [
                 "activity-chart-dot",
                 pt.held ? "activity-chart-dot-held" : "",
-                !compact && active === pt.p.period ? "is-active" : "",
               ]
                 .filter(Boolean)
                 .join(" ")
@@ -162,6 +202,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
               </title>
             ) : null}
           </circle>
+          </g>
         ) : null,
       )}
       {!compact
@@ -206,9 +247,16 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
     </svg>
   );
 
-  if (compact) return svg;
+  if (compact) {
+    return (
+      <div ref={hostRef} className="activity-chart">
+        {svg}
+      </div>
+    );
+  }
   return (
     <ActivityChartTipHost
+      hostRef={hostRef}
       width={width}
       height={height}
       points={points}
@@ -222,6 +270,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
 }
 
 function ActivityChartTipHost({
+  hostRef,
   width,
   height,
   points,
@@ -230,6 +279,7 @@ function ActivityChartTipHost({
   onDismiss,
   children,
 }: {
+  hostRef: RefObject<HTMLDivElement>;
   width: number;
   height: number;
   points: BuiltPoint[];
@@ -238,7 +288,7 @@ function ActivityChartTipHost({
   onDismiss: () => void;
   children: ReactNode;
 }) {
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const wrapRef = hostRef;
   const tipRef = useRef<HTMLDivElement>(null);
   const [edge, setEdge] = useState<TipEdge>("center");
   const [below, setBelow] = useState(false);
