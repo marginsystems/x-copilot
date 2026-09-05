@@ -135,6 +135,20 @@ describe("For You wait detection", () => {
     );
   });
 
+  it("does not detect only a UTC day rollover", () => {
+    assert.equal(
+      hasDetectedForYouPost(
+        {
+          postsToday: 2,
+          postAt: "2026-09-04T23:00:00.000Z",
+          replyAt: null,
+        },
+        { postsToday: 0, postAt: ["2026-09-04T23:00:00.000Z"] },
+      ),
+      false,
+    );
+  });
+
   it("detects a newer reply without a new original", () => {
     assert.equal(
       hasDetectedForYouPost(

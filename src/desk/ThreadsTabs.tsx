@@ -194,7 +194,7 @@ export function ThreadsTabs({
     arm: !consumedScoutRef.current,
   });
   useEffect(() => {
-    if (holdForYouTask && !forYouHeld && !forYouReleased) {
+    if (holdForYouTask && !forYouHeld && !forYouReleased && coaching) {
       const wait: ForYouWait = {
         held: true,
         snapshot: snapshotForYouWait(coaching),
@@ -207,13 +207,14 @@ export function ThreadsTabs({
     if (!forYouWait || forYouWait.snapshot || !coaching) return;
     const wait: ForYouWait = {
       held: true,
-      // A late first response must not become the baseline for activity
-      // that happened while the wait was already held.
-      snapshot: { postsToday: 0, postAt: null, replyAt: null },
+      snapshot: snapshotForYouWait(coaching),
     };
     writeForYouWait(wait);
     setForYouWait(wait);
   }, [forYouWait, coaching]);
+  useEffect(() => {
+    if (grounded && forYouReleased) setForYouReleased(false);
+  }, [grounded, forYouReleased]);
   const refreshCoachingRef = useRef(onRefreshCoaching);
   refreshCoachingRef.current = onRefreshCoaching;
   useEffect(() => {
