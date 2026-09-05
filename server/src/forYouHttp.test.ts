@@ -24,7 +24,11 @@ import {
   recordDeskReplyMarked,
 } from "./deskBeats.ts";
 import { tryHandleForYou } from "./forYouHttp.ts";
-import { insertSuggestions, listActiveSuggestions } from "./forYouStore.ts";
+import {
+  getSuggestion,
+  insertSuggestions,
+  listActiveSuggestions,
+} from "./forYouStore.ts";
 import { patchOwnPostSnapshot, upsertOwnPost } from "./ownPostStore.ts";
 import { recordUsageEvent } from "./usageMeter.ts";
 import type { ChatFn } from "./voiceLlm.ts";
@@ -37,7 +41,6 @@ describe("GET /api/for-you", () => {
     dir = mkdtempSync(join(tmpdir(), "x-fyhttp-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
-    process.env.FOR_YOU_REFILL_ON_GET = "0";
     getPlatformDb();
   });
 
@@ -45,7 +48,6 @@ describe("GET /api/for-you", () => {
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
-    delete process.env.FOR_YOU_REFILL_ON_GET;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -82,6 +84,12 @@ describe("GET /api/for-you", () => {
         bookmarks: 0,
       });
     }
+    updateUserAgenda(user.id, "Find builders shipping AI tools");
+    let drafts = 0;
+    const chat: ChatFn = async () => {
+      drafts += 1;
+      return extraChat();
+    };
     const { token } = createSession(user.id);
     const req = new EventEmitter() as unknown as IncomingMessage;
     Object.assign(req, {
@@ -105,6 +113,7 @@ describe("GET /api/for-you", () => {
       req,
       res,
       new URL("http://localhost/api/for-you"),
+      { chat },
     );
     assert.equal(handled, true);
     assert.equal(status, 200);
@@ -121,6 +130,7 @@ describe("GET /api/for-you", () => {
     assert.equal(json.extra?.batchSize, 3);
     assert.equal(json.extra?.used, 0);
     assert.equal(json.extra?.limit, 10);
+    assert.equal(drafts, 0);
   });
 });
 
@@ -238,7 +248,6 @@ describe("POST /api/for-you/extra", () => {
     dir = mkdtempSync(join(tmpdir(), "x-fyextra-http-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
-    process.env.FOR_YOU_REFILL_ON_GET = "0";
     delete process.env.ADMIN_EMAILS;
     getPlatformDb();
   });
@@ -247,7 +256,6 @@ describe("POST /api/for-you/extra", () => {
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
-    delete process.env.FOR_YOU_REFILL_ON_GET;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -453,7 +461,6 @@ describe("POST /api/for-you/done", () => {
     dir = mkdtempSync(join(tmpdir(), "x-fydone-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
-    process.env.FOR_YOU_REFILL_ON_GET = "0";
     getPlatformDb();
   });
 
@@ -461,7 +468,6 @@ describe("POST /api/for-you/done", () => {
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
-    delete process.env.FOR_YOU_REFILL_ON_GET;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -552,7 +558,6 @@ describe("POST /api/for-you/skip", () => {
     dir = mkdtempSync(join(tmpdir(), "x-fyskip-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
-    process.env.FOR_YOU_REFILL_ON_GET = "0";
     getPlatformDb();
   });
 
@@ -560,11 +565,10 @@ describe("POST /api/for-you/skip", () => {
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
-    delete process.env.FOR_YOU_REFILL_ON_GET;
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("deletes the card and inserts a Scout-based original", async () => {
+  it("marks the card skipped and inserts a Scout-based original", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-skip-refill",
@@ -599,5 +603,70 @@ describe("POST /api/for-you/skip", () => {
     const live = listActiveSuggestions(user.id);
     assert.equal(live.some((row) => row.id === card.id), false);
     assert.equal(live.some((row) => row.kind === "post"), true);
+    assert.equal(getSuggestion(card.id, user.id)?.status, "skipped");
+  });
+
+  it("marks Not interested dismissed without refilling", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-dismiss",
+      email: "dismiss@example.com",
+      emailVerified: true,
+    });
+    updateUserAgenda(user.id, "Find builders shipping AI tools");
+    const [card] = insertSuggestions({
+      userId: user.id,
+      tenantId: "local",
+      drafts: [{ kind: "post", why: "A live launch", draft: "Take a side." }],
+    });
+    assert.ok(card);
+    let drafts = 0;
+    const chat: ChatFn = async () => {
+      drafts += 1;
+      return extraChat();
+    };
+    const { token } = createSession(user.id);
+    const out = await invokeForYou({
+      method: "POST",
+      path: "/api/for-you/dismiss",
+      token,
+      chat,
+      body: { id: card.id },
+    });
+    assert.equal(out.status, 200);
+    assert.equal(getSuggestion(card.id, user.id)?.status, "dismissed");
+    assert.deepEqual(out.json.suggestions, []);
+    assert.equal(out.json.replacement, null);
+    assert.equal(drafts, 0);
+  });
+
+  it("does not let another user act on a suggestion", async () => {
+    const owner = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-owner",
+      email: "owner@example.com",
+      emailVerified: true,
+    });
+    const other = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-other",
+      email: "other@example.com",
+      emailVerified: true,
+    });
+    const [card] = insertSuggestions({
+      userId: owner.id,
+      tenantId: "local",
+      drafts: [{ kind: "post", why: "Owner only", draft: "Private card." }],
+    });
+    assert.ok(card);
+    const { token } = createSession(other.id);
+    const out = await invokeForYou({
+      method: "POST",
+      path: "/api/for-you/skip",
+      token,
+      body: { id: card.id },
+    });
+    assert.equal(out.status, 404);
+    assert.equal(getSuggestion(card.id, owner.id)?.status, "suggested");
   });
 });

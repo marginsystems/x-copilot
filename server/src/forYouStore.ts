@@ -1,6 +1,6 @@
 /**
  * Durable For You suggestion inbox — SQL, per user.
- * Status: suggested | done | skipped. Unused cards expire on the next
+ * Status: suggested | done | skipped | dismissed. Unused cards expire on the next
  * daily run or after 48h. Not tweet-age.
  */
 import { randomUUID } from "node:crypto";
@@ -16,7 +16,12 @@ import { startOfUtcDayIso } from "./ownPostStore.js";
 export const FOR_YOU_KINDS = ["post", "quote", "repost", "reply"] as const;
 export type ForYouKind = (typeof FOR_YOU_KINDS)[number];
 
-export const FOR_YOU_STATUSES = ["suggested", "done", "skipped"] as const;
+export const FOR_YOU_STATUSES = [
+  "suggested",
+  "done",
+  "skipped",
+  "dismissed",
+] as const;
 export type ForYouStatus = (typeof FOR_YOU_STATUSES)[number];
 
 export const SUGGESTION_TTL_MS = 48 * 60 * 60 * 1000;
