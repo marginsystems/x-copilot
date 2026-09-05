@@ -392,7 +392,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       );
       historyStaleRef.current = true;
       if (path === "skip" || path === "dismiss") {
-        await hydrateForYou();
+        void hydrateForYou();
       }
       if (path === "done" && row?.kind === "reply") armReplyPace();
       return true;
