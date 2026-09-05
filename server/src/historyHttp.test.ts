@@ -190,7 +190,7 @@ describe("historyHttp", () => {
         threadId: "reply-1",
         author: "@x",
         conversationId: "root-1",
-        inReplyToId: "root-1",
+        inReplyToId: "parent-1",
       },
       a.cookie,
     );
@@ -199,7 +199,7 @@ describe("historyHttp", () => {
     const forA = await call("GET", "/api/skipped", undefined, a.cookie);
     const [row] = forA.json.skipped as Record<string, unknown>[];
     assert.equal(row?.conversationId, "root-1");
-    assert.equal(row?.inReplyToId, "root-1");
+    assert.equal(row?.inReplyToId, "parent-1");
 
     const forB = await call("GET", "/api/skipped", undefined, b.cookie);
     assert.deepEqual(forB.json.skipped, []);

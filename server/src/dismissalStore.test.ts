@@ -150,7 +150,7 @@ describe("markDismissed / listDismissalHistory", () => {
       author: "@a",
       userId,
       conversationId: "root-1",
-      inReplyToId: "root-1",
+      inReplyToId: "parent-1",
     });
 
     const sibling: ThreadCard = {

@@ -8,6 +8,7 @@ import {
 } from "./platformDb.testHelpers.ts";
 import {
   MAX_SKIP_HISTORY,
+  getSkippedConversationIds,
   getSkippedThreadIds,
   listSkipHistory,
   markSkipped,
@@ -77,7 +78,7 @@ describe("markSkipped / listSkipHistory", () => {
       author: "@x",
       userId,
       conversationId: "root-1",
-      inReplyToId: "root-1",
+      inReplyToId: "parent-1",
     });
     await markSkipped({
       threadId: "reply-1",
@@ -88,7 +89,11 @@ describe("markSkipped / listSkipHistory", () => {
 
     const [row] = await listSkipHistory({ userId });
     assert.equal(row?.conversationId, "root-1");
-    assert.equal(row?.inReplyToId, "root-1");
+    assert.equal(row?.inReplyToId, "parent-1");
+    const blocked = await getSkippedConversationIds({ userId });
+    assert.ok(blocked.has("root-1"));
+    assert.ok(blocked.has("parent-1"));
+    assert.ok(blocked.has("reply-1"));
   });
 
   it("requires a userId", async () => {

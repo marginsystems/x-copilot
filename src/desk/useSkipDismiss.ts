@@ -79,11 +79,31 @@ export function useSkipDismiss({
       };
       skippedIdsRef.current = new Set(skippedIdsRef.current).add(thread.id);
       historyStaleRef.current = true;
+      const conversationRoot =
+        thread.conversationId?.trim() ||
+        thread.inReplyToId?.trim() ||
+        thread.id;
+      const blocked = new Set(blockedConversationsRef.current);
+      blocked.add(conversationRoot);
+      if (thread.id.trim()) blocked.add(thread.id.trim());
+      if (thread.inReplyToId?.trim()) blocked.add(thread.inReplyToId.trim());
+      blockedConversationsRef.current = blocked;
       setSkippedHistory((prev) => [
         entry,
         ...prev.filter((item) => item.threadId !== thread.id),
       ]);
-      setThreads((prev) => prev.filter((item) => item.id !== thread.id));
+      setThreads((prev) =>
+        prev.filter((item) => {
+          if (item.id === thread.id || item.id === conversationRoot) return false;
+          if (item.conversationId && item.conversationId === conversationRoot) {
+            return false;
+          }
+          if (item.inReplyToId && item.inReplyToId === conversationRoot) {
+            return false;
+          }
+          return true;
+        }),
+      );
       setExpandedId((id) => (id === thread.id ? null : id));
       setStatus(`Skipped ${thread.author}`);
       return true;
