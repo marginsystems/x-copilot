@@ -11,6 +11,7 @@ import { HasTipButton, HasTipLink } from "./HasTip";
 
 export function ForYouFeedRow(props: {
   searching?: boolean;
+  status?: string;
   onNext?: () => void;
   onStopScout?: () => void;
 }) {
@@ -24,7 +25,7 @@ export function ForYouFeedRow(props: {
       lead="FY"
       leadTitle="Real X For You"
       leadClassName="bait kind-reply"
-      summary={FYP_WAIT_COPY}
+      summary={props.status ?? FYP_WAIT_COPY}
       meta={
         <>
           <span className="chip">For You</span>

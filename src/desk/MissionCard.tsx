@@ -92,6 +92,7 @@ export function MissionCard(props: {
   groundedLine?: string | null;
   cooldownRemaining?: number;
   holdForYouTask?: boolean;
+  forYouStatus?: string;
   onStopScout?: () => void;
   onOpenUsage?: () => void;
   onOpenSettings?: () => void;
@@ -151,6 +152,7 @@ export function MissionCard(props: {
         <div className="threads">
           <ForYouFeedRow
             searching={props.searching}
+            status={props.forYouStatus}
             onNext={props.onForYouNext}
             onStopScout={props.onStopScout}
           />
@@ -175,7 +177,7 @@ export function MissionCard(props: {
     } else if (!hasAgenda) {
       why = "Set an agenda in Settings so Scout knows what to look for.";
       action = "settings";
-    } else if (props.grounded) {
+    } else if (props.grounded && !props.holdForYouTask) {
       why =
         props.groundedLine ||
         "Grounded. Scout waits until 00:00 UTC. Open Usage for the next plan.";
@@ -222,6 +224,7 @@ export function MissionCard(props: {
           <div className="threads">
             <ForYouFeedRow
               searching={props.searching}
+              status={props.forYouStatus}
               onNext={props.onForYouNext}
               onStopScout={props.onStopScout}
             />

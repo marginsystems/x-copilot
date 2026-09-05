@@ -2,8 +2,19 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   canPresentForYouTask,
+  clearForYouWait,
+  hasDetectedForYouPost,
+  readForYouWait,
+  snapshotForYouWait,
   shouldHoldForYouTask,
+  writeForYouWait,
 } from "./forYouTask.ts";
+
+const coaching = {
+  postsToday: 2,
+  postAt: ["2026-09-05T12:00:00.000Z"],
+  replyAt: ["2026-09-05T11:00:00.000Z"],
+};
 
 describe("canPresentForYouTask", () => {
   const ready = {
@@ -106,5 +117,86 @@ describe("shouldHoldForYouTask", () => {
       }),
       true,
     );
+  });
+});
+
+describe("For You wait detection", () => {
+  it("detects a newer post after a UTC day rollover", () => {
+    assert.equal(
+      hasDetectedForYouPost(
+        {
+          postsToday: 2,
+          postAt: "2026-09-04T12:00:00.000Z",
+          replyAt: null,
+        },
+        { postsToday: 1, postAt: ["2026-09-05T08:00:00.000Z"] },
+      ),
+      true,
+    );
+  });
+
+  it("does not detect only a UTC day rollover", () => {
+    assert.equal(
+      hasDetectedForYouPost(
+        {
+          postsToday: 2,
+          postAt: "2026-09-04T23:00:00.000Z",
+          replyAt: null,
+        },
+        { postsToday: 0, postAt: ["2026-09-04T23:00:00.000Z"] },
+      ),
+      false,
+    );
+  });
+
+  it("detects a newer reply without a new original", () => {
+    assert.equal(
+      hasDetectedForYouPost(
+        {
+          postsToday: 2,
+          postAt: "2026-09-05T10:00:00.000Z",
+          replyAt: "2026-09-05T09:00:00.000Z",
+        },
+        {
+          postsToday: 2,
+          postAt: ["2026-09-05T10:00:00.000Z"],
+          replyAt: ["2026-09-05T11:00:00.000Z"],
+        },
+      ),
+      true,
+    );
+  });
+
+  it("does not detect an unchanged baseline and handles missing coaching", () => {
+    const snapshot = snapshotForYouWait(coaching)!;
+    assert.equal(hasDetectedForYouPost(snapshot, coaching), false);
+    assert.equal(hasDetectedForYouPost(snapshot, null), false);
+  });
+
+  it("detects activity against a conservative late-coaching baseline", () => {
+    assert.equal(
+      hasDetectedForYouPost(
+        { postsToday: 0, postAt: null, replyAt: null },
+        { postsToday: 1, postAt: ["2026-09-05T12:00:00.000Z"] },
+      ),
+      true,
+    );
+  });
+
+  it("round-trips a held wait through session storage", () => {
+    const values = new Map<string, string>();
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+        removeItem: (key: string) => values.delete(key),
+      },
+    });
+    const wait = { held: true as const, snapshot: snapshotForYouWait(coaching) };
+    writeForYouWait(wait);
+    assert.deepEqual(readForYouWait(), wait);
+    clearForYouWait();
+    assert.equal(readForYouWait(), null);
   });
 });
