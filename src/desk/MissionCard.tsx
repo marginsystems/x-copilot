@@ -59,6 +59,7 @@ export function pickApproachOriginal(
 function phaseVerb(
   phase: DeskPhase,
   suggestion?: ForYouSuggestion | null,
+  scouting = false,
 ): string {
   if (phase === "hold") return "Hold";
   if (phase === "scout_reply") return "Reply";
@@ -75,7 +76,7 @@ function phaseVerb(
   if (phase === "fork") return "Fork";
   if (phase === "original") return "Original";
   if (phase === "silent_refuel") return "For You";
-  if (phase === "done_for_now") return "Scouting";
+  if (phase === "done_for_now") return scouting ? "Scouting" : "Desk";
   return "Desk";
 }
 
@@ -97,6 +98,7 @@ export function MissionCard(props: {
   scout: ThreadCard | null;
   suggestion: ForYouSuggestion | null;
   searching?: boolean;
+  scouting?: boolean;
   actionBusy: boolean;
   expandedId: string | null;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
@@ -349,11 +351,15 @@ export function MissionCard(props: {
 
   const why =
     props.phase === "done_for_now"
-      ? approachCollectingCopy({ searching: props.searching })
+      ? props.scouting
+        ? approachCollectingCopy({ searching: props.searching })
+        : "You're clean. History is a log."
       : phaseWhy(props.phase, props.coaching);
   return (
     <div className="mission-card">
-      <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
+      <p className="mission-card-verb">
+        {phaseVerb(props.phase, null, props.scouting)}
+      </p>
       <p className="mission-card-why">{why}</p>
       {props.phase === "original" ? (
         <div className="row">
