@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   DESK_ROW_EXPAND_MS,
-  deskRowExpandMount,
+  deskRowKeepMount,
   deskRowExpandOpen,
   deskRowInitialPhase,
   deskRowPhaseAfterEnter,
@@ -17,9 +17,11 @@ export function useDeskRowExpand(open: boolean): {
   const [phase, setPhase] = useState<DeskRowExpandPhase>(() =>
     deskRowInitialPhase(open),
   );
+  const [everOpened, setEverOpened] = useState(open);
   const [seenOpen, setSeenOpen] = useState(open);
   if (open !== seenOpen) {
     setSeenOpen(open);
+    if (open) setEverOpened(true);
     setPhase((current) => deskRowPhaseOnOpenChange(current, open));
   }
 
@@ -51,7 +53,7 @@ export function useDeskRowExpand(open: boolean): {
   }, [phase]);
 
   return {
-    mount: deskRowExpandMount(phase),
+    mount: deskRowKeepMount(phase, everOpened),
     expanded: deskRowExpandOpen(phase),
   };
 }

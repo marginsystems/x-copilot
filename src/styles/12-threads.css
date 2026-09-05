@@ -263,6 +263,14 @@
   white-space: pre-wrap;
 }
 
+.for-you-source {
+  margin: 0;
+}
+
+.for-you-source a {
+  color: var(--accent);
+}
+
 @keyframes desk-row-in {
   from {
     transform: translateY(8px);

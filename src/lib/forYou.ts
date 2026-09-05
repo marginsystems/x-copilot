@@ -224,6 +224,19 @@ export function forYouComposeSeed(row: ForYouSuggestion): string {
   return [row.why, row.draft].filter(Boolean).join("\n\n");
 }
 
+/** The live X post a quote / repost / reply is about. */
+export function forYouSourceUrl(row: ForYouSuggestion): string | null {
+  if (row.targetUrl && /^https?:\/\//i.test(row.targetUrl)) {
+    return row.targetUrl;
+  }
+  if (row.targetId && /^\d+$/.test(row.targetId)) {
+    const handle = (row.targetAuthor ?? "").replace(/^@+/, "");
+    const path = /^[A-Za-z0-9_]{1,15}$/.test(handle) ? handle : "i";
+    return `https://x.com/${path}/status/${row.targetId}`;
+  }
+  return null;
+}
+
 /** Open on X — target post, reply intent, or a compose intent with the draft. */
 export function forYouOpenUrl(row: ForYouSuggestion): string | null {
   if (row.targetUrl && /^https?:\/\//i.test(row.targetUrl)) {
