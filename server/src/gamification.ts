@@ -1,16 +1,18 @@
 /**
- * Durable streak + XP ledger for marked replies.
- * Counters live in data/gamification.json so interaction retain caps cannot erase progress.
+ * Durable XP ledger for marked replies. Streak is consecutive UTC days
+ * with an original, reply, or quote on the account — desk or off-desk.
  */
 import { access, mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
   listInteractionHistory,
   MAX_INTERACTION_STORE,
+  type Interaction,
   type ReplyStatSnapshot,
 } from "./interactionStore.js";
 import { withFileLock } from "./fileLock.js";
 import { getSolePlatformUserId } from "./authStore.js";
+import { listOwnPostedAt } from "./ownPostStore.js";
 import {
   toPublicGamification,
   unlockedAchievementIds,
@@ -22,8 +24,11 @@ import {
   applyT24hBonus,
   levelFromXp,
   markXpForStreak,
+  overlayStreakFromDays,
   overlayStreakFromHistory,
   seedGamificationFromHistory,
+  utcDayKey,
+  utcDaysFromHistory,
   type GamificationState,
   type MarkAward,
 } from "./gamificationXp.js";
@@ -58,8 +63,11 @@ export {
   lifetimeMarksOf,
   markXpForStreak,
   prevUtcDayKey,
+  overlayStreakFromDays,
   overlayStreakFromHistory,
   seedGamificationFromHistory,
+  streakFromUtcDays,
+  utcDaysFromHistory,
   utcDayKey,
   xpProgress,
   type GamificationState,
@@ -237,6 +245,56 @@ function progressFromTransition(
   };
 }
 
+const STREAK_POST_KINDS = ["original", "reply", "quote"] as const;
+
+async function historyForStreak(opts: {
+  userId?: string;
+  storePath?: string;
+}): Promise<Interaction[]> {
+  const scoped = await listInteractionHistory({
+    limit: MAX_INTERACTION_STORE,
+    storePath: opts.storePath,
+    userId: opts.userId,
+  });
+  if (!opts.userId) return scoped;
+  const sole = getSolePlatformUserId();
+  if (!sole || opts.userId !== sole) return scoped;
+  const all = await listInteractionHistory({
+    limit: MAX_INTERACTION_STORE,
+    storePath: opts.storePath,
+  });
+  const extra = all.filter((row) => !row.userId);
+  return extra.length === 0 ? scoped : [...scoped, ...extra];
+}
+
+function activityDaysForStreak(opts: {
+  userId?: string;
+  history: readonly Interaction[];
+}): string[] {
+  const days = new Set(utcDaysFromHistory(opts.history));
+  if (!opts.userId) return [...days];
+  for (const at of listOwnPostedAt({
+    userId: opts.userId,
+    kinds: [...STREAK_POST_KINDS],
+    limit: 2000,
+  })) {
+    const ms = Date.parse(at);
+    if (Number.isFinite(ms)) days.add(utcDayKey(ms));
+  }
+  return [...days];
+}
+
+function overlayActivityStreak(
+  state: GamificationState,
+  opts: { userId?: string; history: readonly Interaction[]; nowMs: number },
+): GamificationState {
+  return overlayStreakFromDays(
+    state,
+    activityDaysForStreak(opts),
+    opts.nowMs,
+  );
+}
+
 async function loadOrSeedState(opts: GamificationPaths): Promise<{
   path: string;
   state: GamificationState;
@@ -244,15 +302,26 @@ async function loadOrSeedState(opts: GamificationPaths): Promise<{
   const path = await resolveGamificationPath(opts);
   const nowMs = opts.nowMs ?? Date.now();
   const existing = await readGamificationFile(path);
-  const history = await listInteractionHistory({
-    limit: MAX_INTERACTION_STORE,
+  const history = await historyForStreak({
     storePath: opts.interactionStorePath,
     userId: opts.userId,
   });
   if (existing) {
-    return { path, state: overlayStreakFromHistory(existing, history, nowMs) };
+    return {
+      path,
+      state: overlayActivityStreak(existing, {
+        userId: opts.userId,
+        history,
+        nowMs,
+      }),
+    };
   }
-  const state = seedGamificationFromHistory(history, nowMs);
+  const seeded = seedGamificationFromHistory(history, nowMs);
+  const state = overlayActivityStreak(seeded, {
+    userId: opts.userId,
+    history,
+    nowMs,
+  });
   await writeGamificationFile(path, state);
   return { path, state };
 }
@@ -437,16 +506,26 @@ export async function getGamification(
   const nowMs = opts?.nowMs ?? Date.now();
   return withFileLock(path, async () => {
     const existing = await readGamificationFile(path);
-    const history = await listInteractionHistory({
-      limit: MAX_INTERACTION_STORE,
+    const history = await historyForStreak({
       storePath: opts?.interactionStorePath,
       userId: opts?.userId,
     });
     if (existing) {
       return toPublicGamification(
-        overlayStreakFromHistory(existing, history, nowMs),
+        overlayActivityStreak(existing, {
+          userId: opts?.userId,
+          history,
+          nowMs,
+        }),
       );
     }
-    return toPublicGamification(seedGamificationFromHistory(history, nowMs));
+    const seeded = seedGamificationFromHistory(history, nowMs);
+    return toPublicGamification(
+      overlayActivityStreak(seeded, {
+        userId: opts?.userId,
+        history,
+        nowMs,
+      }),
+    );
   });
 }
