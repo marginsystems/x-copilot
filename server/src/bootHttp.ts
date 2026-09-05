@@ -85,8 +85,13 @@ export async function tryHandleBoot(
       listDismissalHistory(),
       listSkipHistory(),
       listExpiredHistory(),
-      listInteractionHistory({ limit: MAX_INTERACTION_STORE }),
-      listActiveInteractions(),
+      user
+        ? listInteractionHistory({
+            limit: MAX_INTERACTION_STORE,
+            userId: user.id,
+          })
+        : [],
+      user ? listActiveInteractions({ userId: user.id }) : [],
       readLastScoutPayload({
         dedupeAccounts:
           dedupeParam === null ? null : dedupeParam !== "false",

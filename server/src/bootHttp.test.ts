@@ -11,6 +11,7 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
+import { markInteracted } from "./interactionStore.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { createSession } from "./sessionStore.ts";
@@ -132,5 +133,48 @@ describe("GET /api/boot", () => {
     assert.equal(coaching.beats?.forkChoice, null);
     const stats = desk.activityStats as { bucket?: string };
     assert.equal(stats.bucket, "day");
+  });
+
+  it("does not expose another session user's interactions", async () => {
+    const userA = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-boot-a",
+      email: "boot-a@example.com",
+      emailVerified: true,
+    });
+    const userB = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-boot-b",
+      email: "boot-b@example.com",
+      emailVerified: true,
+    });
+    await markInteracted({
+      threadId: "thread-a",
+      author: "@a",
+      userId: userA.id,
+    });
+    await markInteracted({
+      threadId: "thread-b",
+      author: "@b",
+      userId: userB.id,
+    });
+    const { token } = createSession(userA.id);
+
+    const { status, body } = await get(
+      "/api/boot",
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
+    assert.equal(status, 200);
+    const desk = body.desk as {
+      interacted: {
+        interactions: Array<{ threadId: string }>;
+        activeIds: string[];
+      };
+    };
+    assert.deepEqual(
+      desk.interacted.interactions.map((row) => row.threadId),
+      ["thread-a"],
+    );
+    assert.deepEqual(desk.interacted.activeIds, ["thread-a"]);
   });
 });

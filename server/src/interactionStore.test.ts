@@ -7,6 +7,7 @@ import {
   getCooledAuthorKeys,
   getAuthorKeysForScoutFilter,
   getEverInteractedAuthorKeys,
+  listActiveInteractions,
   listInteractionHistory,
   MAX_INTERACTION_HISTORY,
   MAX_INTERACTION_STORE,
@@ -367,6 +368,33 @@ describe("listInteractionHistory", () => {
       history.map((i) => i.threadId),
       ["b", "a"],
     );
+  });
+
+  it("scopes history and active interactions to one user", async () => {
+    const now = Date.parse("2026-07-26T12:00:00.000Z");
+    await markInteracted({
+      threadId: "thread-a",
+      author: "@a",
+      userId: "a",
+      nowMs: now,
+      storePath,
+    });
+    await markInteracted({
+      threadId: "thread-b",
+      author: "@b",
+      userId: "b",
+      nowMs: now,
+      storePath,
+    });
+
+    const history = await listInteractionHistory({ storePath, userId: "a" });
+    const active = await listActiveInteractions({
+      storePath,
+      userId: "a",
+      nowMs: now,
+    });
+    assert.deepEqual(history.map((row) => row.threadId), ["thread-a"]);
+    assert.deepEqual(active.map((row) => row.threadId), ["thread-a"]);
   });
 });
 

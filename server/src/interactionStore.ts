@@ -10,6 +10,7 @@ import {
   rename,
 } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { getSolePlatformUserId } from "./authStore.js";
 import { withFileLock } from "./fileLock.js";
 import {
   conversationIdsFromHistory,
@@ -294,11 +295,30 @@ export async function markInteracted(opts: {
 export async function listActiveInteractions(opts?: {
   nowMs?: number;
   storePath?: string;
+  /** Only rows marked by this platform user (voice folds). */
+  userId?: string;
 }): Promise<Interaction[]> {
   const nowMs = opts?.nowMs ?? Date.now();
   const path = opts?.storePath ?? defaultStorePath();
   const store = await readStore(path);
-  return pruneExpired(store.interactions, nowMs);
+  const rows = interactionsForUser(store.interactions, opts?.userId);
+  return pruneExpired(rows, nowMs);
+}
+
+function interactionsForUser(
+  interactions: Interaction[],
+  userId?: string,
+): Interaction[] {
+  if (!userId) return interactions;
+  const scoped = interactions.filter(
+    (interaction) => interaction.userId === userId,
+  );
+  if (!interactions.some((interaction) => !interaction.userId)) return scoped;
+  const includeLegacy = getSolePlatformUserId() === userId;
+  if (!includeLegacy) return scoped;
+  return interactions.filter(
+    (interaction) => interaction.userId === userId || !interaction.userId,
+  );
 }
 
 /** Durable Interacted feed (newest first, capped). */
@@ -310,9 +330,7 @@ export async function listInteractionHistory(opts?: {
 }): Promise<Interaction[]> {
   const path = opts?.storePath ?? defaultStorePath();
   const store = await readStore(path);
-  const rows = opts?.userId
-    ? store.interactions.filter((i) => i.userId === opts.userId)
-    : store.interactions;
+  const rows = interactionsForUser(store.interactions, opts?.userId);
   return trimInteractionHistory(rows, opts?.limit ?? MAX_INTERACTION_HISTORY);
 }
 

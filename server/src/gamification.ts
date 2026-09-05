@@ -251,20 +251,11 @@ async function historyForStreak(opts: {
   userId?: string;
   storePath?: string;
 }): Promise<Interaction[]> {
-  const scoped = await listInteractionHistory({
+  return listInteractionHistory({
     limit: MAX_INTERACTION_STORE,
     storePath: opts.storePath,
     userId: opts.userId,
   });
-  if (!opts.userId) return scoped;
-  const sole = getSolePlatformUserId();
-  if (!sole || opts.userId !== sole) return scoped;
-  const all = await listInteractionHistory({
-    limit: MAX_INTERACTION_STORE,
-    storePath: opts.storePath,
-  });
-  const extra = all.filter((row) => !row.userId);
-  return extra.length === 0 ? scoped : [...scoped, ...extra];
 }
 
 function activityDaysForStreak(opts: {
