@@ -5,8 +5,9 @@ export type ForYouKind = (typeof FOR_YOU_KINDS)[number];
 export const APPROACH_TAB_LABEL = "Approach";
 export const APPROACH_MIN_TRACKED = 5;
 export const X_FOR_YOU_URL = "https://x.com/home";
-export const FYP_WAIT_COPY =
-  "Open For You. Like or reply to one thing you actually read. Come back and tap Next.";
+export const FYP_WAIT_COPY = "Open For You. Come back and tap Next.";
+export const FYP_ACTION_COPY =
+  "Reply, original, or quote something you actually read. Likes do not count.";
 export const FYP_DETECTING_COPY = "Detection in progress.";
 export const FYP_DETECTED_COPY = "Post detected. Tap Next.";
 export const FYP_OPEN_TIP = "Opens your real X For You page.";

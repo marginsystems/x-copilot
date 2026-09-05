@@ -555,6 +555,7 @@ describe("runStatsTick", () => {
     const snap = await getGamification({
       gamificationPath,
       interactionStorePath: storePath,
+      nowMs: d2,
     });
     // D1 credits XP without moving the D2 cursor backward. Overlay then
     // counts D1+D2 as a live 2-day run — that is an advance, not a reset.
@@ -572,6 +573,7 @@ describe("runStatsTick", () => {
     const after = await getGamification({
       gamificationPath,
       interactionStorePath: storePath,
+      nowMs: d3,
     });
     assert.equal(after.lifetimeXp, 4);
     assert.equal(after.currentStreak, 3);
