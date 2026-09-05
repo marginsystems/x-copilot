@@ -4,6 +4,7 @@ import {
   formatReplyPaceClock,
   nextReplyPaceUntil,
   parseReplyPaceUntil,
+  seedReplyPaceUntil,
   REPLY_PACE_MS,
   replyPaceHoldActive,
   replyPaceLocked,
@@ -39,6 +40,48 @@ describe("replyPace", () => {
     assert.equal(replyPaceHoldActive(1_000, 1_000), false);
     assert.equal(replyPaceHoldActive(900, 1_000), false);
     assert.equal(replyPaceHoldActive(null, 1_000), false);
+  });
+
+  it("seeds from a recent replyAt and keeps an existing until", () => {
+    assert.equal(
+      seedReplyPaceUntil({
+        storedUntil: null,
+        cleared: false,
+        replyAtIso: "2026-09-05T12:00:00.000Z",
+        nowMs: Date.parse("2026-09-05T12:00:20.000Z"),
+      }),
+      Date.parse("2026-09-05T12:01:00.000Z"),
+    );
+    assert.equal(
+      seedReplyPaceUntil({
+        storedUntil: 99,
+        cleared: false,
+        replyAtIso: "2026-09-05T12:00:00.000Z",
+        nowMs: Date.parse("2026-09-05T12:00:20.000Z"),
+      }),
+      99,
+    );
+  });
+
+  it("does not seed after Bypass or when the minute has elapsed", () => {
+    assert.equal(
+      seedReplyPaceUntil({
+        storedUntil: null,
+        cleared: true,
+        replyAtIso: "2026-09-05T12:00:00.000Z",
+        nowMs: Date.parse("2026-09-05T12:00:20.000Z"),
+      }),
+      null,
+    );
+    assert.equal(
+      seedReplyPaceUntil({
+        storedUntil: null,
+        cleared: false,
+        replyAtIso: "2026-09-05T12:00:00.000Z",
+        nowMs: Date.parse("2026-09-05T12:01:00.000Z"),
+      }),
+      null,
+    );
   });
 
   it("prints a m:ss clock", () => {

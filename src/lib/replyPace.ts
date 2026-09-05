@@ -2,6 +2,7 @@
 
 export const REPLY_PACE_MS = 60_000;
 export const REPLY_PACE_STORAGE_KEY = "x-copilot-reply-pace-until";
+export const REPLY_PACE_CLEARED_KEY = "x-copilot-reply-pace-cleared";
 export const REPLY_PACE_EVENT = "x-copilot-reply-pace";
 
 export const REPLY_PACE_LEAD = "One reply a minute.";
@@ -10,6 +11,22 @@ export const REPLY_PACE_HELP =
 
 export function nextReplyPaceUntil(now: number): number {
   return now + REPLY_PACE_MS;
+}
+
+/** Seed a hold from the last reply when this tab has no until and the operator did not Bypass. */
+export function seedReplyPaceUntil(opts: {
+  storedUntil: number | null;
+  cleared: boolean;
+  replyAtIso?: string | null;
+  nowMs: number;
+}): number | null {
+  if (opts.storedUntil != null) return opts.storedUntil;
+  if (opts.cleared) return null;
+  const at = opts.replyAtIso ? Date.parse(opts.replyAtIso) : NaN;
+  if (!Number.isFinite(at)) return null;
+  const until = at + REPLY_PACE_MS;
+  if (until <= opts.nowMs) return null;
+  return until;
 }
 
 export function parseReplyPaceUntil(raw: string | null): number | null {

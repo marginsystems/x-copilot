@@ -165,7 +165,7 @@ export function ThreadsTabs({
   setStatus,
   onForkBeats,
 }: ThreadsTabsProps) {
-  const pace = useReplyPace();
+  const pace = useReplyPace(coaching?.replyAt?.[0]);
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   const scouted = preferRootTargets(curatedThreads);
   const scout = pickApproachScout(scouted);
