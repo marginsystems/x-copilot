@@ -38,6 +38,9 @@ export type V2Tweet = {
       display_url?: string;
     }>;
   };
+  attachments?: {
+    media_keys?: string[];
+  };
   note_tweet?: {
     text?: string;
     entity_set?: {
