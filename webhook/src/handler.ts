@@ -128,6 +128,7 @@ export async function markOwnReplyInteracted(
       console.warn("[xaa] streak mark soft-fail", err);
       await setGamificationSyncFailed({
         threadId: watched.threadId,
+        userId,
         checkpoint: "mark",
         failed: true,
         pendingAt: interaction.at,

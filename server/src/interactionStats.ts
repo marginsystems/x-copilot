@@ -17,6 +17,7 @@ export type StatsCheckpoint = "t1h" | "t24h";
 export type DueStatSample = {
   threadId: string;
   replyId: string;
+  userId?: string;
   checkpoint: StatsCheckpoint;
   postedAt: string;
 };
@@ -48,6 +49,7 @@ export function selectDueStatSamples(
       due.push({
         threadId: row.threadId,
         replyId,
+        userId: row.userId,
         checkpoint: "t1h",
         postedAt: row.postedAt!,
       });
@@ -56,6 +58,7 @@ export function selectDueStatSamples(
       due.push({
         threadId: row.threadId,
         replyId,
+        userId: row.userId,
         checkpoint: "t24h",
         postedAt: row.postedAt!,
       });
@@ -80,9 +83,10 @@ export async function listDueStatSamples(opts?: {
   );
 }
 
-/** Merge a stats snapshot onto an interaction by threadId. */
+/** Merge a stats snapshot onto an interaction by user and threadId. */
 export async function patchInteractionStats(opts: {
   threadId: string;
+  userId?: string;
   checkpoint: StatsCheckpoint;
   snapshot: ReplyStatSnapshot;
   storePath?: string;
@@ -93,7 +97,9 @@ export async function patchInteractionStats(opts: {
 
   return withFileLock(path, async () => {
     const store = await readStore(path);
-    const idx = store.interactions.findIndex((i) => i.threadId === threadId);
+    const idx = store.interactions.findIndex(
+      (i) => i.threadId === threadId && i.userId === opts.userId,
+    );
     if (idx < 0) return null;
     const row = store.interactions[idx];
     const stats: InteractionStats = { ...(row.stats ?? {}) };

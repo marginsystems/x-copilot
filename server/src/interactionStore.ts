@@ -10,6 +10,7 @@ import {
   rename,
 } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { getSolePlatformUserId } from "./authStore.js";
 import { withFileLock } from "./fileLock.js";
 import {
   conversationIdsFromHistory,
@@ -205,7 +206,7 @@ export function trimInteractionHistory(
     .slice(0, max);
 }
 
-/** Upsert by threadId; keep durable history (cap); persist. */
+/** Upsert by user and threadId; keep durable history (cap); persist. */
 export async function markInteracted(opts: {
   threadId: string;
   author: string;
@@ -265,22 +266,37 @@ export async function markInteracted(opts: {
 
   return withFileLock(path, async () => {
     const store = await readStore(path);
-    const prior = store.interactions.find((i) => i.threadId === threadId);
+    const prior = store.interactions.find(
+      (i) => i.threadId === threadId && i.userId === userId,
+    );
+    const legacyPrior =
+      userId && getSolePlatformUserId() === userId
+        ? store.interactions.find(
+            (i) => i.threadId === threadId && !i.userId,
+          )
+        : undefined;
+    const preserved = prior ?? legacyPrior;
     // Preserve existing stats snapshots across re-marks of the same thread.
-    if (prior?.stats) next.stats = prior.stats;
-    if (prior?.memorySyncFailed) next.memorySyncFailed = true;
-    if (prior?.markGamificationSyncFailed) next.markGamificationSyncFailed = true;
-    if (prior?.bonusGamificationSyncFailed) {
+    if (preserved?.stats) next.stats = preserved.stats;
+    if (preserved?.memorySyncFailed) next.memorySyncFailed = true;
+    if (preserved?.markGamificationSyncFailed) next.markGamificationSyncFailed = true;
+    if (preserved?.bonusGamificationSyncFailed) {
       next.bonusGamificationSyncFailed = true;
     }
-    if (prior?.pendingMarkAts?.length) next.pendingMarkAts = prior.pendingMarkAts;
-    if (!next.conversationId && prior?.conversationId) {
-      next.conversationId = prior.conversationId;
+    if (preserved?.pendingMarkAts?.length) {
+      next.pendingMarkAts = preserved.pendingMarkAts;
     }
-    if (!next.inReplyToId && prior?.inReplyToId) {
-      next.inReplyToId = prior.inReplyToId;
+    if (!next.conversationId && preserved?.conversationId) {
+      next.conversationId = preserved.conversationId;
     }
-    const without = store.interactions.filter((i) => i.threadId !== threadId);
+    if (!next.inReplyToId && preserved?.inReplyToId) {
+      next.inReplyToId = preserved.inReplyToId;
+    }
+    const without = store.interactions.filter(
+      (i) =>
+        !(i.threadId === threadId && i.userId === userId) &&
+        !(legacyPrior && i === legacyPrior),
+    );
     without.push(next);
     // Retain enough history for the activity dashboard window; feed UI still
     // lists at MAX_INTERACTION_HISTORY via listInteractionHistory().
@@ -294,11 +310,30 @@ export async function markInteracted(opts: {
 export async function listActiveInteractions(opts?: {
   nowMs?: number;
   storePath?: string;
+  /** Only rows marked by this platform user (voice folds). */
+  userId?: string;
 }): Promise<Interaction[]> {
   const nowMs = opts?.nowMs ?? Date.now();
   const path = opts?.storePath ?? defaultStorePath();
   const store = await readStore(path);
-  return pruneExpired(store.interactions, nowMs);
+  const rows = interactionsForUser(store.interactions, opts?.userId);
+  return pruneExpired(rows, nowMs);
+}
+
+function interactionsForUser(
+  interactions: Interaction[],
+  userId?: string,
+): Interaction[] {
+  if (!userId) return interactions;
+  const scoped = interactions.filter(
+    (interaction) => interaction.userId === userId,
+  );
+  if (!interactions.some((interaction) => !interaction.userId)) return scoped;
+  const includeLegacy = getSolePlatformUserId() === userId;
+  if (!includeLegacy) return scoped;
+  return interactions.filter(
+    (interaction) => interaction.userId === userId || !interaction.userId,
+  );
 }
 
 /** Durable Interacted feed (newest first, capped). */
@@ -310,9 +345,7 @@ export async function listInteractionHistory(opts?: {
 }): Promise<Interaction[]> {
   const path = opts?.storePath ?? defaultStorePath();
   const store = await readStore(path);
-  const rows = opts?.userId
-    ? store.interactions.filter((i) => i.userId === opts.userId)
-    : store.interactions;
+  const rows = interactionsForUser(store.interactions, opts?.userId);
   return trimInteractionHistory(rows, opts?.limit ?? MAX_INTERACTION_HISTORY);
 }
 

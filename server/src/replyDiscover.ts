@@ -532,6 +532,7 @@ export async function discoverOwnReplies(opts?: {
           );
           await setGamificationSyncFailed({
             threadId,
+            userId: opts.userId,
             checkpoint: "mark",
             failed: true,
             pendingAt: interaction.at,

@@ -45,12 +45,16 @@ export async function tryHandleInteracted(
   url: URL,
 ): Promise<boolean> {
   if (req.method === "GET" && url.pathname === "/api/interacted/stats") {
+    const sessionUser = getSessionUser(req);
     const bucket = parseActivityBucket(url.searchParams.get("bucket"));
     // Read the durable retain (not the 200-row feed cap) so 28d/12w bucketing
     // sees in-window marks before any secondary trim.
-    const history = await listInteractionHistory({
-      limit: MAX_INTERACTION_STORE,
-    });
+    const history = sessionUser
+      ? await listInteractionHistory({
+          limit: MAX_INTERACTION_STORE,
+          userId: sessionUser.id,
+        })
+      : [];
     const pending = pendingReplyIds(history, LIVE_METRICS_ID_CAP);
     let rows = history;
     if (pending.length) {
@@ -62,10 +66,13 @@ export async function tryHandleInteracted(
   }
 
   if (req.method === "GET" && url.pathname === "/api/interacted") {
-    const [interactions, active] = await Promise.all([
-      listInteractionHistory(),
-      listActiveInteractions(),
-    ]);
+    const sessionUser = getSessionUser(req);
+    const [interactions, active] = sessionUser
+      ? await Promise.all([
+          listInteractionHistory({ userId: sessionUser.id }),
+          listActiveInteractions({ userId: sessionUser.id }),
+        ])
+      : [[], []];
     send(req, res, 200, {
       interactions,
       activeIds: active.map((i) => i.threadId),
@@ -246,6 +253,7 @@ export async function tryHandleInteracted(
         console.warn("gamification mark soft-fail:", err);
         await setGamificationSyncFailed({
           threadId,
+          userId: sessionUser?.id,
           checkpoint: "mark",
           failed: true,
           pendingAt: interaction.at,
