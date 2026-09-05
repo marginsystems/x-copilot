@@ -1,10 +1,11 @@
 /**
- * Last Scout snapshot — in-memory + data/last-scout.json (gitignored).
- * Threads accumulate across runs (merge by id); other fields track the latest run.
- * Soft-degrades on IO/parse errors.
+ * Scout tank — one LastScoutSnapshot per platform user in `scout_tanks`.
+ * Threads accumulate across runs (merge by id); other fields track the latest
+ * run. Nothing is read from the old data/last-scout.json.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { ensureUserTenant } from "./billingStore.js";
+import { getPlatformDb } from "./db.js";
+import { requireUserId } from "./interactionStore.js";
 import type { ThreadCard } from "./threadCard.js";
 
 export type LastScoutSnapshot = {
@@ -28,27 +29,6 @@ export type LastScoutSnapshot = {
     minViewsFiltered?: number;
   };
 };
-
-export function defaultScoutCachePath(): string {
-  return resolve(process.cwd(), "data", "last-scout.json");
-}
-
-let memory: LastScoutSnapshot | null = null;
-let writeLock: Promise<void> = Promise.resolve();
-
-async function serialized<T>(fn: () => Promise<T>): Promise<T> {
-  const prev = writeLock;
-  let release: () => void;
-  writeLock = new Promise<void>((resolveLock) => {
-    release = resolveLock;
-  });
-  await prev;
-  try {
-    return await fn();
-  } finally {
-    release!();
-  }
-}
 
 function isThreadCard(value: unknown): value is ThreadCard {
   if (!value || typeof value !== "object") return false;
@@ -127,32 +107,46 @@ export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
   return snapshot;
 }
 
-async function readDisk(path: string): Promise<LastScoutSnapshot | null> {
+function readTank(userId: string): LastScoutSnapshot | null {
+  const row = getPlatformDb()
+    .prepare(`SELECT snapshot_json FROM scout_tanks WHERE user_id = ?`)
+    .get(userId) as { snapshot_json: string } | undefined;
+  if (!row) return null;
   try {
-    const raw = await readFile(path, "utf8");
-    return parseScoutSnapshot(JSON.parse(raw) as unknown);
+    return parseScoutSnapshot(JSON.parse(row.snapshot_json) as unknown);
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException)?.code;
-    if (code === "ENOENT") return null;
-    console.error("scoutCache read failed:", err);
+    console.error("scoutCache parse failed:", err);
     return null;
   }
 }
 
-async function writeDisk(path: string, snapshot: LastScoutSnapshot): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+function writeTank(userId: string, snapshot: LastScoutSnapshot): void {
+  const tenantId = ensureUserTenant(userId);
+  getPlatformDb()
+    .prepare(
+      `INSERT INTO scout_tanks (user_id, tenant_id, saved_at, snapshot_json)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (user_id) DO UPDATE SET
+         tenant_id = excluded.tenant_id,
+         saved_at = excluded.saved_at,
+         snapshot_json = excluded.snapshot_json`,
+    )
+    .run(userId, tenantId, snapshot.savedAt, JSON.stringify(snapshot));
 }
 
-/** Load from memory, else disk into memory. */
-export async function getLastScout(opts?: {
-  storePath?: string;
+/** One user's tank, or null when they have never Scouted. */
+export async function getLastScout(opts: {
+  userId: string;
 }): Promise<LastScoutSnapshot | null> {
-  if (memory) return memory;
-  const path = opts?.storePath ?? defaultScoutCachePath();
-  const fromDisk = await readDisk(path);
-  if (fromDisk && !memory) memory = fromDisk;
-  return memory;
+  return readTank(requireUserId(opts.userId));
+}
+
+/** Every user with a tank (expire sweeps). */
+export function listScoutTankUserIds(): string[] {
+  const rows = getPlatformDb()
+    .prepare(`SELECT user_id FROM scout_tanks ORDER BY user_id`)
+    .all() as Array<{ user_id: string }>;
+  return rows.map((r) => r.user_id);
 }
 
 /** Append `next` threads not already present by id (stable order: prev then new). */
@@ -172,21 +166,22 @@ export function mergeThreadsById(
 }
 
 /**
- * Persist a successful Scout snapshot.
+ * Persist a successful Scout snapshot for one user.
  * Metadata (agenda/queries/message/…) is replaced; threads are merged by id
  * so successive Scout runs accumulate cool leads across reloads.
  */
 export async function saveScoutCache(
   snapshot: LastScoutSnapshot,
-  opts?: { storePath?: string },
+  opts: { userId: string },
 ): Promise<LastScoutSnapshot> {
   const parsed = parseScoutSnapshot(snapshot);
   if (!parsed) {
     throw new Error("invalid scout snapshot");
   }
-  const path = opts?.storePath ?? defaultScoutCachePath();
-  return serialized(async () => {
-    const prev = memory ?? (await readDisk(path));
+  const userId = requireUserId(opts.userId);
+  const db = getPlatformDb();
+  return db.transaction((): LastScoutSnapshot => {
+    const prev = readTank(userId);
     const threads = parsed.threads.map((thread) => ({
       ...thread,
       scoutAgendaSet: Boolean(parsed.agenda),
@@ -213,51 +208,33 @@ export async function saveScoutCache(
       ...parsed,
       threads: mergeThreadsById(previousThreads, threads),
     };
-    memory = merged;
-    try {
-      await writeDisk(path, merged);
-    } catch (err) {
-      console.error("scoutCache write failed:", err);
-    }
+    writeTank(userId, merged);
     return merged;
-  });
+  })();
 }
 
 /**
- * Remove threads by id from the last-scout snapshot (in-memory + disk).
- * Soft-no-op when cache empty.
+ * Remove threads by id from one user's tank. Soft-no-op when the tank is empty.
  */
 export async function pruneThreadsFromScoutCache(
   threadIds: Iterable<string>,
-  opts?: { storePath?: string },
+  opts: { userId: string },
 ): Promise<LastScoutSnapshot | null> {
+  const userId = requireUserId(opts.userId);
   const remove = new Set(
     [...threadIds].map((id) => id.trim()).filter(Boolean),
   );
   if (!remove.size) {
-    return getLastScout(opts);
+    return readTank(userId);
   }
-  const path = opts?.storePath ?? defaultScoutCachePath();
-  return serialized(async () => {
-    const prev = memory ?? (await readDisk(path));
+  const db = getPlatformDb();
+  return db.transaction((): LastScoutSnapshot | null => {
+    const prev = readTank(userId);
     if (!prev) return null;
     const threads = prev.threads.filter((t) => !remove.has(t.id));
-    if (threads.length === prev.threads.length) {
-      memory = prev;
-      return prev;
-    }
+    if (threads.length === prev.threads.length) return prev;
     const next: LastScoutSnapshot = { ...prev, threads };
-    try {
-      await writeDisk(path, next);
-      memory = next;
-    } catch (err) {
-      console.error("scoutCache prune failed:", err);
-    }
+    writeTank(userId, next);
     return next;
-  });
-}
-
-/** Test helper — clear in-memory cache. */
-export function clearScoutCacheMemory(): void {
-  memory = null;
+  })();
 }

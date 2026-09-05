@@ -11,6 +11,7 @@ import {
 } from "./db.ts";
 import { markInteracted } from "./interactionStore.ts";
 import { writeInteractionMemory } from "./knowledgeMemory.ts";
+import { seedUser } from "./platformDb.testHelpers.ts";
 import { foldLocalVoiceSources, memoryRepliesToVoiceInputs } from "./voiceLocal.ts";
 import { listVoiceReplies } from "./voiceStore.ts";
 
@@ -59,7 +60,6 @@ describe("memoryRepliesToVoiceInputs", () => {
 describe("foldLocalVoiceSources", () => {
   let dbDir: string;
   let root: string;
-  let storePath: string;
 
   beforeEach(async () => {
     resetPlatformDbForTests();
@@ -68,7 +68,6 @@ describe("foldLocalVoiceSources", () => {
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
     getPlatformDb();
     root = await mkdtemp(join(tmpdir(), "x-voice-local-knowledge-"));
-    storePath = join(dbDir, "interactions.json");
   });
 
   afterEach(() => {
@@ -80,6 +79,8 @@ describe("foldLocalVoiceSources", () => {
   });
 
   it("folds only the calling user's memory into their voice corpus", async () => {
+    seedUser("user-a");
+    seedUser("user-b");
     await writeInteractionMemory({
       threadId: "111",
       author: "@A",
@@ -93,14 +94,13 @@ describe("foldLocalVoiceSources", () => {
       author: "@A",
       userId: "user-a",
       replyId: "999",
-      storePath,
     });
 
-    const addedB = await foldLocalVoiceSources("user-b", { knowledgeRoot: root, storePath });
+    const addedB = await foldLocalVoiceSources("user-b", { knowledgeRoot: root });
     assert.equal(addedB, 0);
     assert.equal(listVoiceReplies("user-b").length, 0);
 
-    const addedA = await foldLocalVoiceSources("user-a", { knowledgeRoot: root, storePath });
+    const addedA = await foldLocalVoiceSources("user-a", { knowledgeRoot: root });
     assert.equal(addedA, 1);
     const rows = listVoiceReplies("user-a", 10);
     assert.equal(rows[0]?.text, "A's own reply");
@@ -128,7 +128,6 @@ describe("foldLocalVoiceSources", () => {
     });
     const added = await foldLocalVoiceSources("user-a", {
       knowledgeRoot: root,
-      storePath,
     });
     assert.equal(added, 1);
     const rows = listVoiceReplies("user-a", 10);

@@ -46,7 +46,7 @@ export function memoryRepliesToVoiceInputs(
  */
 export async function foldLocalVoiceSources(
   userId: string,
-  opts?: { knowledgeRoot?: string; storePath?: string },
+  opts?: { knowledgeRoot?: string },
 ): Promise<number> {
   const desk = foldDeskReplies(userId);
   const [notes, history] = await Promise.all([
@@ -59,7 +59,6 @@ export async function foldLocalVoiceSources(
       includeUnowned: countPlatformUsers() === 1,
     }),
     listInteractionHistory({
-      storePath: opts?.storePath,
       limit: MAX_INTERACTION_STORE,
       userId,
     }),

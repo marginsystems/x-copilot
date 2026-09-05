@@ -11,12 +11,18 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
+import { markDismissed } from "./dismissalStore.ts";
+import { upsertOauthUser } from "./oauthAccountStore.ts";
+import { saveScoutCache } from "./scoutCache.ts";
+import { SESSION_COOKIE } from "./sessionCookie.ts";
+import { createSession } from "./sessionStore.ts";
 import { getSortieUsage } from "./scoutSorties.ts";
 import type { runScoutCollect } from "./scoutCollect.ts";
 import type { runScoutSearch } from "./scoutRun.ts";
 import { resetScoutGateForTests, tryBeginScout } from "./scoutGate.ts";
 import {
   parseScoutFilters,
+  readLastScoutPayload,
   tryHandleScout,
   type ScoutHttpDeps,
 } from "./scoutHttp.ts";
@@ -27,7 +33,28 @@ type FakeState = {
   chunks: string[];
 };
 
-function makeReqRes(method: string): {
+/** X-linked platform user + session cookie (Scout requires both). */
+function signInXUser(tag: string): { userId: string; cookie: string } {
+  const user = upsertOauthUser({
+    provider: "x",
+    providerUserId: `xid-${tag}`,
+    username: `pilot_${tag}`,
+    emailVerified: false,
+  });
+  const { token } = createSession(user.id);
+  return {
+    userId: user.id,
+    cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+  };
+}
+
+/** Session cookie applied to every request in the current test. */
+let currentCookie: string | undefined;
+
+function makeReqRes(
+  method: string,
+  cookie: string | undefined = currentCookie,
+): {
   req: IncomingMessage;
   res: ServerResponse;
   state: FakeState;
@@ -35,7 +62,7 @@ function makeReqRes(method: string): {
   const req = new EventEmitter() as unknown as IncomingMessage;
   Object.assign(req, {
     method,
-    headers: {},
+    headers: cookie ? { cookie } : {},
     socket: { remoteAddress: "127.0.0.1" },
   });
   const state: FakeState = { status: 0, headers: {}, chunks: [] };
@@ -61,13 +88,18 @@ function makeReqRes(method: string): {
 async function call(
   method: string,
   path: string,
-  opts: { body?: unknown; rawBody?: string; deps?: ScoutHttpDeps } = {},
+  opts: {
+    body?: unknown;
+    rawBody?: string;
+    deps?: ScoutHttpDeps;
+    cookie?: string;
+  } = {},
 ): Promise<{
   handled: boolean;
   state: FakeState;
   res: ServerResponse;
 }> {
-  const { req, res, state } = makeReqRes(method);
+  const { req, res, state } = makeReqRes(method, opts.cookie);
   const handledPromise = tryHandleScout(
     req,
     res,
@@ -194,6 +226,7 @@ describe("parseScoutFilters", () => {
 
 describe("tryHandleScout", () => {
   let dir: string;
+  let pilot: { userId: string; cookie: string };
 
   beforeEach(() => {
     resetPlatformDbForTests();
@@ -202,9 +235,12 @@ describe("tryHandleScout", () => {
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
     getPlatformDb();
     resetScoutGateForTests();
+    pilot = signInXUser("a");
+    currentCookie = pilot.cookie;
   });
 
   afterEach(() => {
+    currentCookie = undefined;
     resetPlatformDbForTests();
     resetScoutGateForTests();
     delete process.env.PLATFORM_DB_PATH;
@@ -234,7 +270,107 @@ describe("tryHandleScout", () => {
     });
     // Cooldown is separate from the lock; reset it to prove `active` cleared.
     resetScoutGateForTests();
-    assert.equal(tryBeginScout().ok, true);
+    assert.equal(tryBeginScout(pilot.userId).ok, true);
+  });
+
+  it("returns 401 on POST /api/scout/run and /api/search without a session", async () => {
+    currentCookie = undefined;
+    for (const path of ["/api/scout/run", "/api/search"]) {
+      const { handled, state } = await call("POST", path, {
+        body: { queries: ["q1"] },
+        deps: stubDeps(),
+      });
+      assert.equal(handled, true, path);
+      assert.equal(state.status, 401, path);
+      const body = JSON.parse(state.chunks.join("")) as Record<string, unknown>;
+      assert.equal(body.error, "unauthenticated", path);
+    }
+  });
+
+  it("does not 429 user B while user A's Scout run is active", async () => {
+    resetScoutGateForTests({ userId: pilot.userId, active: true });
+    const busy = await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps: stubDeps(),
+    });
+    assert.equal(busy.state.status, 429);
+
+    const other = signInXUser("b");
+    const { handled, state } = await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps: stubDeps(),
+      cookie: other.cookie,
+    });
+    assert.equal(handled, true);
+    assert.equal(state.status, 200);
+    assert.equal(ndjsonLines(state.chunks).at(-1)?.stage, "done");
+  });
+
+  it("GET /api/scout/last returns only the session user's tank", async () => {
+    const other = signInXUser("b");
+    const thread = (id: string, author: string) => ({
+      id,
+      author,
+      text: `${author} shipped something`,
+      url: `https://x.com/${author.slice(1)}/status/${id}`,
+      createdAt: new Date().toISOString(),
+      engage: "consider" as const,
+      baitScore: 10,
+      onAgenda: true,
+    });
+    await saveScoutCache(
+      {
+        savedAt: new Date().toISOString(),
+        agenda: "builders",
+        queries: ["q"],
+        threads: [thread("a1", "@alpha"), thread("shared", "@both")],
+      },
+      { userId: pilot.userId },
+    );
+    await saveScoutCache(
+      {
+        savedAt: new Date().toISOString(),
+        agenda: "builders",
+        queries: ["q"],
+        threads: [thread("b1", "@bravo"), thread("shared", "@both")],
+      },
+      { userId: other.userId },
+    );
+    // A dismisses the shared thread; B must still see it.
+    await markDismissed({
+      threadId: "shared",
+      author: "@both",
+      userId: pilot.userId,
+    });
+
+    const a = await readLastScoutPayload({ userId: pilot.userId });
+    const b = await readLastScoutPayload({ userId: other.userId });
+    assert.equal(a.empty, false);
+    assert.equal(b.empty, false);
+    assert.deepEqual(
+      (a.snapshot?.threads as Array<{ id: string }>).map((t) => t.id),
+      ["a1"],
+    );
+    assert.deepEqual(
+      (b.snapshot?.threads as Array<{ id: string }>).map((t) => t.id).sort(),
+      ["b1", "shared"],
+    );
+    assert.deepEqual(await readLastScoutPayload({ userId: undefined }), {
+      ok: true,
+      empty: true,
+    });
+
+    const { state } = await call("GET", "/api/scout/last", {
+      cookie: other.cookie,
+    });
+    assert.equal(state.status, 200);
+    const body = JSON.parse(state.chunks.join("")) as {
+      snapshot?: { threads: Array<{ id: string }> };
+    };
+    assert.deepEqual(
+      body.snapshot?.threads.map((t) => t.id).sort(),
+      ["b1", "shared"],
+    );
   });
 
   it("writes an error line when the collect fails without a terminal event", async () => {
@@ -259,7 +395,7 @@ describe("tryHandleScout", () => {
   });
 
   it("returns JSON 429 scout_busy before any NDJSON writeHead when locked", async () => {
-    resetScoutGateForTests({ active: true });
+    resetScoutGateForTests({ userId: pilot.userId, active: true });
     const { handled, state } = await call("POST", "/api/scout/run", {
       body: { queries: ["q1"] },
       deps: stubDeps(),
@@ -272,7 +408,7 @@ describe("tryHandleScout", () => {
   });
 
   it("returns JSON 429 scout_busy on POST /api/search when locked", async () => {
-    resetScoutGateForTests({ active: true });
+    resetScoutGateForTests({ userId: pilot.userId, active: true });
     const { handled, state } = await call("POST", "/api/search", {
       body: { queries: ["q1"] },
     });
@@ -361,8 +497,10 @@ describe("tryHandleScout", () => {
   });
 
   it("rejects a missing message on POST /api/scout/log with 400", async () => {
+    const { cookie } = signInXUser("log-validation");
     const { handled, state } = await call("POST", "/api/scout/log", {
       body: {},
+      cookie,
     });
     assert.equal(handled, true);
     assert.equal(state.status, 400);
@@ -527,7 +665,7 @@ describe("tryHandleScout", () => {
     const req = new EventEmitter() as unknown as IncomingMessage;
     Object.assign(req, {
       method: "POST",
-      headers: {},
+      headers: { cookie: pilot.cookie },
       socket: { remoteAddress: "127.0.0.1" },
     });
     const state: FakeState = { status: 0, headers: {}, chunks: [] };

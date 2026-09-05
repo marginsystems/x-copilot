@@ -1,13 +1,18 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { getPlatformDb } from "./db.ts";
 import {
-  clearScoutCacheMemory,
+  closeTempPlatformDb,
+  openTempPlatformDb,
+  seedUser,
+  type TempPlatformDb,
+} from "./platformDb.testHelpers.ts";
+import {
   getLastScout,
+  listScoutTankUserIds,
   mergeThreadsById,
   parseScoutSnapshot,
+  pruneThreadsFromScoutCache,
   saveScoutCache,
   type LastScoutSnapshot,
 } from "./scoutCache.ts";
@@ -57,39 +62,84 @@ describe("parseScoutSnapshot", () => {
 });
 
 describe("saveScoutCache / getLastScout", () => {
-  let dir: string;
-  let storePath: string;
+  let temp: TempPlatformDb;
+  const userId = "user-a";
 
-  beforeEach(async () => {
-    clearScoutCacheMemory();
-    dir = await mkdtemp(join(tmpdir(), "x-copilot-scout-"));
-    storePath = join(dir, "last-scout.json");
+  beforeEach(() => {
+    temp = openTempPlatformDb("x-copilot-scout-");
+    seedUser(userId);
+    seedUser("user-b");
   });
 
-  afterEach(async () => {
-    clearScoutCacheMemory();
-    await rm(dir, { recursive: true, force: true });
+  afterEach(() => {
+    closeTempPlatformDb(temp);
   });
 
-  it("round-trips memory and disk", async () => {
+  it("round-trips through scout_tanks with user and tenant", async () => {
     const snap = sample();
     const saved = {
       ...snap,
       threads: snap.threads.map((thread) => ({ ...thread, scoutAgendaSet: true })),
     };
-    await saveScoutCache(snap, { storePath });
-    assert.deepEqual(await getLastScout({ storePath }), saved);
+    await saveScoutCache(snap, { userId });
+    assert.deepEqual(await getLastScout({ userId }), saved);
 
-    clearScoutCacheMemory();
-    const fromDisk = await getLastScout({ storePath });
-    assert.deepEqual(fromDisk, saved);
+    const row = getPlatformDb()
+      .prepare(
+        `SELECT user_id, tenant_id, saved_at FROM scout_tanks WHERE user_id = ?`,
+      )
+      .get(userId) as { user_id: string; tenant_id: string; saved_at: string };
+    assert.equal(row.user_id, userId);
+    assert.ok(row.tenant_id);
+    assert.equal(row.saved_at, snap.savedAt);
+    assert.deepEqual(listScoutTankUserIds(), [userId]);
+  });
 
-    const raw = await readFile(storePath, "utf8");
-    assert.ok(raw.includes('"id": "1"'));
+  it("returns null for a user who never Scouted", async () => {
+    assert.equal(await getLastScout({ userId }), null);
+  });
+
+  it("requires a userId", async () => {
+    await assert.rejects(
+      () => saveScoutCache(sample(), { userId: "" }),
+      /userId is required/,
+    );
+    await assert.rejects(() => getLastScout({ userId: "" }), /userId is required/);
+  });
+
+  it("keeps each user's tank separate", async () => {
+    await saveScoutCache(sample({ message: "a's run" }), { userId });
+    await saveScoutCache(
+      sample({
+        message: "b's run",
+        threads: [
+          {
+            id: "2",
+            author: "@b",
+            text: "next",
+            url: "https://x.com/b/status/2",
+          },
+        ],
+      }),
+      { userId: "user-b" },
+    );
+    const a = await getLastScout({ userId });
+    const b = await getLastScout({ userId: "user-b" });
+    assert.equal(a?.message, "a's run");
+    assert.deepEqual(a?.threads.map((t) => t.id), ["1"]);
+    assert.equal(b?.message, "b's run");
+    assert.deepEqual(b?.threads.map((t) => t.id), ["2"]);
+
+    await pruneThreadsFromScoutCache(["1", "2"], { userId });
+    assert.deepEqual((await getLastScout({ userId }))?.threads, []);
+    assert.deepEqual(
+      (await getLastScout({ userId: "user-b" }))?.threads.map((t) => t.id),
+      ["2"],
+    );
   });
 
   it("replaces metadata but merges threads by id", async () => {
-    await saveScoutCache(sample({ message: "first" }), { storePath });
+    await saveScoutCache(sample({ message: "first" }), { userId });
     await saveScoutCache(
       sample({
         message: "second",
@@ -102,10 +152,9 @@ describe("saveScoutCache / getLastScout", () => {
           },
         ],
       }),
-      { storePath },
+      { userId },
     );
-    clearScoutCacheMemory();
-    const last = await getLastScout({ storePath });
+    const last = await getLastScout({ userId });
     assert.equal(last?.message, "second");
     assert.deepEqual(
       last?.threads.map((t) => t.id),
@@ -114,11 +163,10 @@ describe("saveScoutCache / getLastScout", () => {
   });
 
   it("keeps agenda provenance when runs accumulate threads", async () => {
-    await saveScoutCache(sample({ agenda: undefined }), { storePath });
-    clearScoutCacheMemory();
-    const fromDisk = await getLastScout({ storePath });
+    await saveScoutCache(sample({ agenda: undefined }), { userId });
+    const first = await getLastScout({ userId });
     assert.equal(
-      fromDisk?.threads.find((t) => t.id === "1")?.scoutAgendaSet,
+      first?.threads.find((t) => t.id === "1")?.scoutAgendaSet,
       false,
     );
 
@@ -134,24 +182,29 @@ describe("saveScoutCache / getLastScout", () => {
           },
         ],
       }),
-      { storePath },
+      { userId },
     );
-    const last = await getLastScout({ storePath });
+    const last = await getLastScout({ userId });
     assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, false);
     assert.equal(last?.threads.find((t) => t.id === "2")?.scoutAgendaSet, true);
   });
 
-  it("backfills agenda provenance from a legacy disk cache", async () => {
-    await writeFile(
-      storePath,
-      JSON.stringify({
-        savedAt: "2026-07-27T02:00:00.000Z",
-        agenda: "Legacy agenda",
-        queries: ["old query"],
-        threads: sample().threads,
-      }),
-      "utf8",
-    );
+  it("backfills agenda provenance from a tank saved without it", async () => {
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO scout_tanks (user_id, tenant_id, saved_at, snapshot_json)
+         VALUES (?, 'local', ?, ?)`,
+      )
+      .run(
+        userId,
+        "2026-07-27T02:00:00.000Z",
+        JSON.stringify({
+          savedAt: "2026-07-27T02:00:00.000Z",
+          agenda: "Legacy agenda",
+          queries: ["old query"],
+          threads: sample().threads,
+        }),
+      );
 
     await saveScoutCache(
       sample({
@@ -165,36 +218,19 @@ describe("saveScoutCache / getLastScout", () => {
           },
         ],
       }),
-      { storePath },
+      { userId },
     );
 
-    const last = await getLastScout({ storePath });
+    const last = await getLastScout({ userId });
     assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, false);
     assert.equal(last?.threads.find((t) => t.id === "2")?.scoutAgendaSet, true);
   });
 
-  it("backfills false provenance from an agenda-less legacy disk cache", async () => {
-    await writeFile(
-      storePath,
-      JSON.stringify({
-        savedAt: "2026-07-27T02:00:00.000Z",
-        queries: ["old query"],
-        threads: sample().threads,
-      }),
-      "utf8",
-    );
-
-    await saveScoutCache(sample({ agenda: undefined }), { storePath });
-
-    const last = await getLastScout({ storePath });
-    assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, false);
-  });
-
   it("refreshes agenda provenance for an existing thread", async () => {
-    await saveScoutCache(sample({ agenda: "Agenda run" }), { storePath });
-    await saveScoutCache(sample({ agenda: undefined }), { storePath });
+    await saveScoutCache(sample({ agenda: "Agenda run" }), { userId });
+    await saveScoutCache(sample({ agenda: undefined }), { userId });
 
-    const last = await getLastScout({ storePath });
+    const last = await getLastScout({ userId });
     assert.equal(last?.threads.find((t) => t.id === "1")?.scoutAgendaSet, false);
   });
 });

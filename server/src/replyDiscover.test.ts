@@ -32,6 +32,12 @@ import {
   watchThread,
 } from "./ownPostStore.ts";
 import { getDeskBeats } from "./deskBeats.ts";
+import {
+  closeTempPlatformDb,
+  openTempPlatformDb,
+  seedUser,
+  type TempPlatformDb,
+} from "./platformDb.testHelpers.ts";
 import type { ThreadCard } from "./threadCard.ts";
 import { runStatsTick } from "./statsWorker.ts";
 
@@ -197,16 +203,21 @@ describe("shouldImportDiscoveredReply", () => {
 
 describe("discoverOwnReplies", () => {
   let dir: string;
-  let storePath: string;
+  let temp: TempPlatformDb;
+  let gamificationPath: string;
   let knowledgeRoot: string;
+  const userId = "u1";
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), "x-copilot-discover-"));
-    storePath = join(dir, "interactions.json");
+    temp = openTempPlatformDb("x-copilot-discover-db-");
+    seedUser(userId);
+    gamificationPath = join(dir, "gamification.json");
     knowledgeRoot = join(dir, "knowledge");
   });
 
   afterEach(async () => {
+    closeTempPlatformDb(temp);
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -218,13 +229,14 @@ describe("discoverOwnReplies", () => {
       replyUrl: "https://x.com/me/status/already-reply",
       source: "manual",
       nowMs: Date.parse("2026-08-02T10:00:00.000Z"),
-      storePath,
+      userId,
     });
 
     const now = Date.parse("2026-08-02T12:00:00.000Z");
     const result = await discoverOwnReplies({
       nowMs: now,
-      storePath,
+      userId,
+      gamificationPath,
       knowledgeRoot,
       upsertMemory: false,
       session: {
@@ -286,7 +298,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(result.skipped, 3);
     assert.equal(result.searched, 4);
 
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId });
     const row = history.find((h) => h.threadId === "new-parent");
     assert.ok(row);
     assert.equal(row.source, "discovered");
@@ -308,7 +320,8 @@ describe("discoverOwnReplies", () => {
   it("normalizes X's real created_at format to ISO postedAt", async () => {
     const result = await discoverOwnReplies({
       nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
-      storePath,
+      userId,
+      gamificationPath,
       knowledgeRoot,
       upsertMemory: false,
       session: {
@@ -334,7 +347,7 @@ describe("discoverOwnReplies", () => {
     });
 
     assert.equal(result.discovered, 1);
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId });
     const row = history.find((h) => h.threadId === "p-legacy");
     assert.ok(row);
     assert.equal(row.postedAt, "2026-07-25T00:00:00.000Z");
@@ -356,7 +369,8 @@ describe("discoverOwnReplies", () => {
       pages: 1,
     });
     const opts = {
-      storePath,
+      userId,
+      gamificationPath,
       knowledgeRoot,
       upsertMemory: false as const,
       session: {
@@ -371,7 +385,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(first.discovered, 1);
     assert.equal(second.discovered, 0);
     assert.equal(second.skipped, 1);
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId });
     assert.equal(history.filter((h) => h.threadId === "p1").length, 1);
   });
 
@@ -385,12 +399,13 @@ describe("discoverOwnReplies", () => {
       replyUrl: "https://x.com/me/status/webhook-reply",
       source: "discovered",
       postedAt,
-      storePath,
+      userId,
     });
 
     const result = await discoverOwnReplies({
       nowMs: now,
-      storePath,
+      userId,
+      gamificationPath,
       knowledgeRoot,
       upsertMemory: false,
       session: { configured: true, bearerToken: "t" },
@@ -422,7 +437,7 @@ describe("discoverOwnReplies", () => {
     );
     assert.match(note, /updated parent/);
     assert.match(note, /interactedAt: "2026-08-02T11:30:00\.000Z"/);
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId });
     assert.equal(history.length, 1);
     assert.equal(history[0]?.replyId, "webhook-reply");
   });
@@ -433,7 +448,8 @@ describe("discoverOwnReplies", () => {
         configured: true,
         bearerToken: "t",
       },
-      storePath,
+      userId,
+      gamificationPath,
     });
     assert.equal(result.ok, false);
     assert.equal(result.error, "screen_name_unresolved");
@@ -446,7 +462,8 @@ describe("discoverOwnReplies", () => {
         configured: false,
         bearerToken: "",
       },
-      storePath,
+      userId,
+      gamificationPath,
     });
     assert.equal(result.ok, false);
     assert.equal(result.error, "missing_credentials");
@@ -456,7 +473,8 @@ describe("discoverOwnReplies", () => {
   it("folds the own-posts page and the is:reply page into own_posts", async () => {
     const folded: string[] = [];
     const result = await discoverOwnReplies({
-      storePath,
+      userId,
+      gamificationPath,
       knowledgeRoot,
       upsertMemory: false,
       session: {
@@ -510,6 +528,7 @@ describe("discoverOwnReplies desk beats", () => {
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
     getPlatformDb();
+    seedUser("u1");
   });
 
   afterEach(() => {
@@ -521,7 +540,6 @@ describe("discoverOwnReplies desk beats", () => {
 
   it("stamps userId and records scout for a watched parent, organic otherwise", async () => {
     const now = Date.parse("2026-08-02T12:00:00.000Z");
-    const storePath = join(dir, "interactions.json");
     const gamificationPath = join(dir, "gamification.json");
     watchThread({ userId: "u1", threadId: "scouted-parent", author: "@lead" });
 
@@ -550,7 +568,6 @@ describe("discoverOwnReplies desk beats", () => {
 
     const result = await discoverOwnReplies({
       nowMs: now,
-      storePath,
       knowledgeRoot: join(dir, "knowledge"),
       upsertMemory: false,
       session: { configured: true, bearerToken: "t" },
@@ -561,7 +578,7 @@ describe("discoverOwnReplies desk beats", () => {
     });
     assert.equal(result.discovered, 2);
 
-    const history = await listInteractionHistory({ storePath, userId: "u1" });
+    const history = await listInteractionHistory({ userId: "u1" });
     assert.equal(history.length, 2);
     assert.ok(history.every((row) => row.source === "discovered"));
 
@@ -573,11 +590,9 @@ describe("discoverOwnReplies desk beats", () => {
   it("dates an organic beat by discovery time, not the reply timestamp", async () => {
     const postedAt = Date.parse("2026-08-02T23:50:00.000Z");
     const discoveredAt = Date.parse("2026-08-03T00:10:00.000Z");
-    const storePath = join(dir, "interactions.json");
     const gamificationPath = join(dir, "gamification.json");
     const result = await discoverOwnReplies({
       nowMs: discoveredAt,
-      storePath,
       knowledgeRoot: join(dir, "knowledge"),
       upsertMemory: false,
       session: { configured: true, bearerToken: "t" },
@@ -935,22 +950,20 @@ describe("foldDiscoveredOwnPosts", () => {
 });
 
 describe("runStatsTick discovery wiring", () => {
-  let dir: string;
-  let storePath: string;
+  let temp: TempPlatformDb;
 
-  beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "x-copilot-discover-tick-"));
-    storePath = join(dir, "interactions.json");
+  beforeEach(() => {
+    temp = openTempPlatformDb("x-copilot-discover-tick-");
+    seedUser("u1");
   });
 
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+  afterEach(() => {
+    closeTempPlatformDb(temp);
   });
 
   it("runs discovery before metrics and reports counts", async () => {
     let discoverCalls = 0;
     const result = await runStatsTick({
-      storePath,
       delayMs: 0,
       syncOutcome: null,
       fetchMetrics: async () => null,
@@ -960,10 +973,10 @@ describe("runStatsTick discovery wiring", () => {
           threadId: "p-discovered",
           author: "@target",
           source: "discovered",
+          userId: "u1",
           replyId: "r-discovered",
           replyUrl: "https://x.com/me/status/r-discovered",
           nowMs: Date.parse("2026-08-02T10:00:00.000Z"),
-          storePath,
         });
         return {
           ok: true,
@@ -975,7 +988,7 @@ describe("runStatsTick discovery wiring", () => {
     });
     assert.equal(discoverCalls, 1);
     assert.equal(result.discovered, 1);
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId: "u1" });
     assert.equal(history[0]?.source, "discovered");
   });
 });

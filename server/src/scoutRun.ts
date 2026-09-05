@@ -119,6 +119,8 @@ export async function runScoutSearch(opts: {
   agenda?: string;
   queries?: string[];
   filters?: ScoutFilters;
+  /** Desk user whose cooldowns, blocked conversations, and tank this run uses. */
+  userId?: string;
   session?: XApiCreds;
   onEvent?: (event: ScoutEvent) => void;
   deps?: ScoutRunDeps;
@@ -132,6 +134,8 @@ export async function runScoutSearch(opts: {
   const doHydrate = deps.hydrateReplyParents ?? hydrateReplyParents;
   const doTriage = deps.triageThreads ?? triageThreads;
   const doSaveCache = deps.saveScoutCache ?? saveScoutCache;
+  // Store-backed deps require a user; stubs ignore it.
+  const userId = opts.userId?.trim() ?? "";
 
   const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.bearerToken) {
@@ -208,8 +212,9 @@ export async function runScoutSearch(opts: {
   track("filtering", "Scout is applying cooldown + length filters…");
   const cooled = await doGetFilterKeys({
     dedupeAccounts: opts.filters?.dedupeAccounts,
+    userId,
   });
-  const blockedConversations = await doGetConversationIds();
+  const blockedConversations = await doGetConversationIds({ userId });
   const filtered = filterThreadsByCooldown(
     result.threads,
     cooled,
@@ -397,18 +402,21 @@ export async function runScoutSearch(opts: {
   }
 
   try {
-    await doSaveCache({
-      savedAt: done.at ?? new Date().toISOString(),
-      agenda: agenda || undefined,
-      queries: result.queries,
-      threads: triaged.threads,
-      message: done.message,
-      triageWarning: triaged.warning,
-      cooldownWarning,
-      linkWarning,
-      lengthWarning,
-      pipelineCounts,
-    });
+    await doSaveCache(
+      {
+        savedAt: done.at ?? new Date().toISOString(),
+        agenda: agenda || undefined,
+        queries: result.queries,
+        threads: triaged.threads,
+        message: done.message,
+        triageWarning: triaged.warning,
+        cooldownWarning,
+        linkWarning,
+        lengthWarning,
+        pipelineCounts,
+      },
+      { userId },
+    );
   } catch (err) {
     console.error("Failed to persist last Scout run:", err);
   }

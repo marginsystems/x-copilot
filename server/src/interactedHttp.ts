@@ -173,6 +173,18 @@ export async function tryHandleInteracted(
   }
 
   if (req.method === "POST" && url.pathname === "/api/interacted") {
+    // A mark belongs to one desk; without a session there is nowhere to write.
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser) {
+      send(
+        req,
+        res,
+        401,
+        { error: "unauthenticated", message: "Sign in required" },
+        { "Cache-Control": "no-store" },
+      );
+      return true;
+    }
     let body: Record<string, unknown>;
     try {
       body = (await readBody(req)) as Record<string, unknown>;
@@ -198,7 +210,6 @@ export async function tryHandleInteracted(
       });
       return true;
     }
-    const sessionUser = getSessionUser(req);
     const source = "manual";
     const flags = Array.isArray(body.flags)
       ? body.flags.filter((f): f is string => typeof f === "string")
@@ -228,7 +239,7 @@ export async function tryHandleInteracted(
         threadId,
         author,
         source,
-        userId: sessionUser?.id,
+        userId: sessionUser.id,
         url,
         text,
         summary,
@@ -237,29 +248,27 @@ export async function tryHandleInteracted(
         conversationId,
         inReplyToId,
       });
-      if (sessionUser) {
-        try {
-          recordDeskReplyMarked({
-            userId: sessionUser.id,
-            source: "scout",
-            nowMs: Date.parse(interaction.at) || Date.now(),
-          });
-        } catch (err) {
-          console.warn("desk beats mark soft-fail:", err);
-        }
+      try {
+        recordDeskReplyMarked({
+          userId: sessionUser.id,
+          source: "scout",
+          nowMs: Date.parse(interaction.at) || Date.now(),
+        });
+      } catch (err) {
+        console.warn("desk beats mark soft-fail:", err);
       }
       trackAnalytics({
         name: "mark.interacted",
-        userId: sessionUser?.id,
-        email: sessionUser?.email,
-        handle: sessionUser?.xUsername,
+        userId: sessionUser.id,
+        email: sessionUser.email,
+        handle: sessionUser.xUsername,
         detail: author,
       });
       let gamification;
       try {
         gamification = await recordMarkGamification({
           threadId,
-          userId: sessionUser?.id,
+          userId: sessionUser.id,
           nowMs: Date.parse(interaction.at) || Date.now(),
         });
       } catch (err) {
@@ -269,7 +278,7 @@ export async function tryHandleInteracted(
         console.warn("gamification mark soft-fail:", err);
         await setGamificationSyncFailed({
           threadId,
-          userId: sessionUser?.id,
+          userId: sessionUser.id,
           checkpoint: "mark",
           failed: true,
           pendingAt: interaction.at,
@@ -282,7 +291,7 @@ export async function tryHandleInteracted(
           author,
           reply,
           source,
-          userId: sessionUser?.id,
+          userId: sessionUser.id,
           url,
           text,
           summary,

@@ -119,17 +119,6 @@ describe("interactedHttp", () => {
   });
 
   it("GET /api/interacted returns empty data without a session", async () => {
-    await markInteracted({
-      threadId: "unowned",
-      author: "@legacy",
-    });
-    const { status, json } = await call("GET", "/api/interacted");
-    assert.equal(status, 200);
-    assert.deepEqual(json.interactions, []);
-    assert.deepEqual(json.activeIds, []);
-  });
-
-  it("GET /api/interacted keeps legacy marks for the sole user", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-interacted-sole",
@@ -137,30 +126,34 @@ describe("interactedHttp", () => {
       emailVerified: true,
     });
     await markInteracted({
-      threadId: "legacy-thread",
-      author: "@legacy",
+      threadId: "owned",
+      author: "@owner",
+      userId: user.id,
     });
-    const { token } = createSession(user.id);
-    const { status, json } = await call(
-      "GET",
-      "/api/interacted",
-      undefined,
-      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
-    );
+    const { status, json } = await call("GET", "/api/interacted");
     assert.equal(status, 200);
-    assert.deepEqual(
-      (json.interactions as Array<{ threadId: string }>).map(
-        (row) => row.threadId,
-      ),
-      ["legacy-thread"],
+    assert.deepEqual(json.interactions, []);
+    assert.deepEqual(json.activeIds, []);
+  });
+
+  it("a mark without a userId is refused at the store", async () => {
+    await assert.rejects(
+      () => markInteracted({ threadId: "unowned", author: "@legacy" } as never),
+      /userId is required/,
     );
-    assert.deepEqual(json.activeIds, ["legacy-thread"]);
   });
 
   it("GET /api/interacted/stats returns empty stats without a session", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-interacted-stats",
+      email: "stats@example.com",
+      emailVerified: true,
+    });
     await markInteracted({
       threadId: "hidden",
       author: "@hidden",
+      userId: user.id,
     });
     const { status, json } = await call("GET", "/api/interacted/stats");
     assert.equal(status, 200);
@@ -238,11 +231,31 @@ describe("interactedHttp", () => {
     assert.equal(reply.replyText, "");
   });
 
-  it("POST /api/interacted rejects a missing reply URL", async () => {
+  it("POST /api/interacted without a session is 401", async () => {
     const { handled, status, json } = await call("POST", "/api/interacted", {
       threadId: "123",
       author: "@x",
+      reply: "https://x.com/me/status/1",
     });
+    assert.equal(handled, true);
+    assert.equal(status, 401);
+    assert.equal(json.error, "unauthenticated");
+  });
+
+  it("POST /api/interacted rejects a missing reply URL", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-interacted-post",
+      email: "post@example.com",
+      emailVerified: true,
+    });
+    const { token } = createSession(user.id);
+    const { handled, status, json } = await call(
+      "POST",
+      "/api/interacted",
+      { threadId: "123", author: "@x" },
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
     assert.equal(handled, true);
     assert.equal(status, 400);
     assert.equal(json.error, "bad_request");

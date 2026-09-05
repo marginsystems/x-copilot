@@ -1,8 +1,5 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import {
   getCooledAuthorKeys,
   getAuthorKeysForScoutFilter,
@@ -14,6 +11,7 @@ import {
   markInteracted,
   type Interaction,
 } from "./interactionStore.ts";
+import { patchInteractionStats } from "./interactionStats.ts";
 import {
   listGamificationSyncRetries,
   listMemorySyncRetries,
@@ -31,6 +29,12 @@ import {
   threadMatchesConversationIds,
 } from "./interactionCooldown.ts";
 import type { ThreadCard } from "./threadCard.ts";
+import {
+  closeTempPlatformDb,
+  openTempPlatformDb,
+  seedUser,
+  type TempPlatformDb,
+} from "./platformDb.testHelpers.ts";
 
 function thread(id: string, author: string): ThreadCard {
   return {
@@ -113,6 +117,7 @@ describe("pruneExpired", () => {
         authorKey: "a",
         at: new Date(now - 1000).toISOString(),
         source: "manual",
+        userId: "u1",
       },
       {
         threadId: "2",
@@ -120,6 +125,7 @@ describe("pruneExpired", () => {
         authorKey: "b",
         at: new Date(now - COOLDOWN_MS - 1).toISOString(),
         source: "copy",
+        userId: "u1",
       },
     ];
     const kept = pruneExpired(items, now);
@@ -181,6 +187,7 @@ describe("filterThreadsByCooldown", () => {
         authorKey: "hypedtaktix",
         at: "2026-08-05T21:25:22.077Z",
         source: "manual",
+        userId: "u1",
         conversationId: root,
         inReplyToId: root,
       },
@@ -202,16 +209,17 @@ describe("filterThreadsByCooldown", () => {
 });
 
 describe("markInteracted", () => {
-  let dir: string;
-  let storePath: string;
+  let temp: TempPlatformDb;
+  const userId = "user-a";
 
-  beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "x-copilot-interact-"));
-    storePath = join(dir, "interactions.json");
+  beforeEach(() => {
+    temp = openTempPlatformDb("x-copilot-interact-");
+    seedUser(userId);
+    seedUser("user-b");
   });
 
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+  afterEach(() => {
+    closeTempPlatformDb(temp);
   });
 
   it("upserts by user and threadId and refreshes at/source", async () => {
@@ -221,22 +229,52 @@ describe("markInteracted", () => {
       threadId: "99",
       author: "@Builder",
       source: "manual",
+      userId,
       nowMs: t1,
-      storePath,
     });
     const second = await markInteracted({
       threadId: "99",
       author: "@Builder",
       source: "copy",
+      userId,
       nowMs: t2,
-      storePath,
     });
     assert.equal(second.source, "copy");
     assert.equal(second.at, new Date(t2).toISOString());
     assert.equal(second.authorKey, "builder");
+    assert.equal(second.userId, userId);
 
-    const keys = await getCooledAuthorKeys({ nowMs: t2, storePath });
+    const keys = await getCooledAuthorKeys({ nowMs: t2, userId });
     assert.deepEqual([...keys], ["builder"]);
+    assert.equal((await listInteractionHistory({ userId })).length, 1);
+  });
+
+  it("rejects a mark without a userId", async () => {
+    await assert.rejects(
+      () =>
+        markInteracted({
+          threadId: "99",
+          author: "@Builder",
+          userId: "",
+        }),
+      /userId is required/,
+    );
+    await assert.rejects(
+      () => listInteractionHistory({ userId: "  " }),
+      /userId is required/,
+    );
+  });
+
+  it("rejects a mark for a user the platform does not know", async () => {
+    await assert.rejects(
+      () =>
+        markInteracted({
+          threadId: "99",
+          author: "@Builder",
+          userId: "ghost",
+        }),
+      /user_missing/,
+    );
   });
 
   it("keeps the same thread marked by different users", async () => {
@@ -246,26 +284,20 @@ describe("markInteracted", () => {
       author: "@a",
       userId: "user-a",
       nowMs: now,
-      storePath,
     });
     await markInteracted({
       threadId: "shared-thread",
       author: "@a",
       userId: "user-b",
       nowMs: now + 1000,
-      storePath,
     });
 
-    const userA = await listInteractionHistory({
-      storePath,
-      userId: "user-a",
-    });
-    const userB = await listInteractionHistory({
-      storePath,
-      userId: "user-b",
-    });
+    const userA = await listInteractionHistory({ userId: "user-a" });
+    const userB = await listInteractionHistory({ userId: "user-b" });
     assert.deepEqual(userA.map((row) => row.userId), ["user-a"]);
     assert.deepEqual(userB.map((row) => row.userId), ["user-b"]);
+    assert.equal(userA[0]?.at, new Date(now).toISOString());
+    assert.equal(userB[0]?.at, new Date(now + 1000).toISOString());
   });
 
   it("persists replyId / replyUrl / postedAt", async () => {
@@ -273,16 +305,17 @@ describe("markInteracted", () => {
     const row = await markInteracted({
       threadId: "parent1",
       author: "@target",
+      userId,
       replyId: "999",
       replyUrl: "https://x.com/me/status/999",
       nowMs: now,
-      storePath,
     });
     assert.equal(row.replyId, "999");
     assert.equal(row.replyUrl, "https://x.com/me/status/999");
     assert.equal(row.postedAt, new Date(now).toISOString());
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId });
     assert.equal(history[0]?.replyId, "999");
+    assert.equal(history[0]?.postedAt, new Date(now).toISOString());
   });
 
   it("persists discovered source", async () => {
@@ -290,13 +323,13 @@ describe("markInteracted", () => {
       threadId: "parent2",
       author: "@target",
       source: "discovered",
+      userId,
       replyId: "888",
       replyUrl: "https://x.com/me/status/888",
       nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
-      storePath,
     });
     assert.equal(row.source, "discovered");
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId });
     assert.equal(history[0]?.source, "discovered");
   });
 
@@ -305,15 +338,18 @@ describe("markInteracted", () => {
     const row = await markInteracted({
       threadId: "2085111070436602119",
       author: "@HypedTaktix",
+      userId,
       replyId: "2085114485963137476",
       replyUrl: "https://x.com/me/status/2085114485963137476",
       conversationId: "2084956842325635442",
       inReplyToId: "2084956842325635442",
       nowMs: now,
-      storePath,
     });
     assert.equal(row.conversationId, "2084956842325635442");
     assert.equal(row.inReplyToId, "2084956842325635442");
+    const [stored] = await listInteractionHistory({ userId });
+    assert.equal(stored?.conversationId, "2084956842325635442");
+    assert.equal(stored?.inReplyToId, "2084956842325635442");
   });
 
   it("keeps expired rows in history but not in cooldown keys", async () => {
@@ -321,20 +357,20 @@ describe("markInteracted", () => {
     await markInteracted({
       threadId: "old",
       author: "@old",
+      userId,
       url: "https://x.com/old/status/old",
       summary: "old lead",
       nowMs: now - COOLDOWN_MS - 1000,
-      storePath,
     });
     await markInteracted({
       threadId: "new",
       author: "@new",
+      userId,
       nowMs: now,
-      storePath,
     });
-    const keys = await getCooledAuthorKeys({ nowMs: now, storePath });
+    const keys = await getCooledAuthorKeys({ nowMs: now, userId });
     assert.deepEqual([...keys], ["new"]);
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId });
     assert.deepEqual(
       history.map((i) => i.threadId),
       ["new", "old"],
@@ -343,38 +379,67 @@ describe("markInteracted", () => {
     assert.equal(history[1]?.summary, "old lead");
   });
 
-  it("retains beyond the feed cap for activity windows", async () => {
+  it("retains beyond the feed cap for activity windows and trims per user", async () => {
     const base = Date.parse("2026-07-26T12:00:00.000Z");
     const n = MAX_INTERACTION_HISTORY + 50;
     for (let i = 0; i < n; i++) {
       await markInteracted({
         threadId: `t${i}`,
         author: `@u${i}`,
+        userId,
         nowMs: base + i * 1000,
-        storePath,
       });
     }
-    const feed = await listInteractionHistory({ storePath });
+    await markInteracted({
+      threadId: "b-only",
+      author: "@b",
+      userId: "user-b",
+      nowMs: base,
+    });
+    const feed = await listInteractionHistory({ userId });
     assert.equal(feed.length, MAX_INTERACTION_HISTORY);
     const retained = await listInteractionHistory({
-      storePath,
+      userId,
       limit: MAX_INTERACTION_STORE,
     });
     assert.equal(retained.length, n);
+    assert.equal(
+      (await listInteractionHistory({ userId: "user-b" })).length,
+      1,
+    );
+  });
+
+  it("drops the oldest rows past the durable retain", async () => {
+    const base = Date.parse("2026-07-26T12:00:00.000Z");
+    const n = MAX_INTERACTION_STORE + 5;
+    for (let i = 0; i < n; i++) {
+      await markInteracted({
+        threadId: `t${i}`,
+        author: `@u${i}`,
+        userId,
+        nowMs: base + i * 1000,
+      });
+    }
+    const retained = await listInteractionHistory({
+      userId,
+      limit: MAX_INTERACTION_STORE + 100,
+    });
+    assert.equal(retained.length, MAX_INTERACTION_STORE);
+    assert.equal(retained.at(-1)?.threadId, "t5");
   });
 });
 
 describe("listInteractionHistory", () => {
-  let dir: string;
-  let storePath: string;
+  let temp: TempPlatformDb;
 
-  beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "x-copilot-hist-"));
-    storePath = join(dir, "interactions.json");
+  beforeEach(() => {
+    temp = openTempPlatformDb("x-copilot-hist-");
+    seedUser("a");
+    seedUser("b");
   });
 
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+  afterEach(() => {
+    closeTempPlatformDb(temp);
   });
 
   it("returns newest first", async () => {
@@ -383,16 +448,16 @@ describe("listInteractionHistory", () => {
     await markInteracted({
       threadId: "a",
       author: "@a",
+      userId: "a",
       nowMs: t1,
-      storePath,
     });
     await markInteracted({
       threadId: "b",
       author: "@b",
+      userId: "a",
       nowMs: t2,
-      storePath,
     });
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId: "a" });
     assert.deepEqual(
       history.map((i) => i.threadId),
       ["b", "a"],
@@ -406,38 +471,63 @@ describe("listInteractionHistory", () => {
       author: "@a",
       userId: "a",
       nowMs: now,
-      storePath,
     });
     await markInteracted({
       threadId: "thread-b",
       author: "@b",
       userId: "b",
       nowMs: now,
-      storePath,
     });
 
-    const history = await listInteractionHistory({ storePath, userId: "a" });
+    const history = await listInteractionHistory({ userId: "a" });
     const active = await listActiveInteractions({
-      storePath,
       userId: "a",
       nowMs: now,
     });
     assert.deepEqual(history.map((row) => row.threadId), ["thread-a"]);
     assert.deepEqual(active.map((row) => row.threadId), ["thread-a"]);
+    const historyB = await listInteractionHistory({ userId: "b" });
+    assert.deepEqual(historyB.map((row) => row.threadId), ["thread-b"]);
+  });
+
+  it("does not leak cooldown or lifetime authors across users", async () => {
+    const now = Date.parse("2026-07-26T12:00:00.000Z");
+    await markInteracted({
+      threadId: "thread-a",
+      author: "@OnlyA",
+      userId: "a",
+      conversationId: "convo-a",
+      nowMs: now,
+    });
+    assert.deepEqual(
+      [...(await getCooledAuthorKeys({ userId: "b", nowMs: now }))],
+      [],
+    );
+    assert.deepEqual([...(await getEverInteractedAuthorKeys({ userId: "b" }))], []);
+    assert.deepEqual(
+      [...(await getAuthorKeysForScoutFilter({ userId: "b", nowMs: now }))],
+      [],
+    );
+    assert.ok(
+      (await getAuthorKeysForScoutFilter({ userId: "a", nowMs: now })).has(
+        "onlya",
+      ),
+    );
   });
 });
 
 describe("memory sync retry flag", () => {
-  let dir: string;
-  let storePath: string;
+  let temp: TempPlatformDb;
+  const userId = "user-a";
 
-  beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "x-copilot-retry-"));
-    storePath = join(dir, "interactions.json");
+  beforeEach(() => {
+    temp = openTempPlatformDb("x-copilot-retry-");
+    seedUser(userId);
+    seedUser("user-b");
   });
 
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+  afterEach(() => {
+    closeTempPlatformDb(temp);
   });
 
   it("persists the flag and clears it on success", async () => {
@@ -445,33 +535,42 @@ describe("memory sync retry flag", () => {
     await markInteracted({
       threadId: "parent",
       author: "@target",
+      userId,
       replyId: "reply1",
       replyUrl: "https://x.com/me/status/reply1",
       nowMs: now,
-      storePath,
     });
 
-    await setMemorySyncFailed({ threadId: "parent", failed: true, storePath });
-    const flagged = await listMemorySyncRetries({ storePath });
+    await setMemorySyncFailed({ threadId: "parent", userId, failed: true });
+    const flagged = await listMemorySyncRetries();
     assert.equal(flagged.length, 1);
     assert.equal(flagged[0]?.threadId, "parent");
+    assert.equal(flagged[0]?.userId, userId);
 
-    await setMemorySyncFailed({ threadId: "parent", failed: false, storePath });
-    assert.equal((await listMemorySyncRetries({ storePath })).length, 0);
+    // Another user's same threadId is untouched by the flag.
+    await setMemorySyncFailed({
+      threadId: "parent",
+      userId: "user-b",
+      failed: true,
+    });
+    assert.equal((await listMemorySyncRetries()).length, 1);
+
+    await setMemorySyncFailed({ threadId: "parent", userId, failed: false });
+    assert.equal((await listMemorySyncRetries()).length, 0);
   });
 });
 
 describe("gamification sync retry flag", () => {
-  let dir: string;
-  let storePath: string;
+  let temp: TempPlatformDb;
+  const userId = "user-a";
 
-  beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "x-copilot-gamification-retry-"));
-    storePath = join(dir, "interactions.json");
+  beforeEach(() => {
+    temp = openTempPlatformDb("x-copilot-gamification-retry-");
+    seedUser(userId);
   });
 
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+  afterEach(() => {
+    closeTempPlatformDb(temp);
   });
 
   it("persists mark/t24h flags and clears them on success", async () => {
@@ -479,49 +578,49 @@ describe("gamification sync retry flag", () => {
     await markInteracted({
       threadId: "parent",
       author: "@target",
+      userId,
       replyId: "reply1",
       replyUrl: "https://x.com/me/status/reply1",
       nowMs: now,
-      storePath,
     });
 
     await setGamificationSyncFailed({
       threadId: "parent",
+      userId,
       checkpoint: "mark",
       failed: true,
-      storePath,
     });
-    let flagged = await listGamificationSyncRetries({ storePath });
+    let flagged = await listGamificationSyncRetries();
     assert.equal(flagged.length, 1);
     assert.equal(flagged[0]?.markGamificationSyncFailed, true);
 
     await setGamificationSyncFailed({
       threadId: "parent",
+      userId,
       checkpoint: "t24h",
       failed: true,
-      storePath,
     });
-    flagged = await listGamificationSyncRetries({ storePath });
+    flagged = await listGamificationSyncRetries();
     assert.equal(flagged.length, 1);
     assert.equal(flagged[0]?.bonusGamificationSyncFailed, true);
 
     await setGamificationSyncFailed({
       threadId: "parent",
+      userId,
       checkpoint: "mark",
       failed: false,
-      storePath,
     });
-    flagged = await listGamificationSyncRetries({ storePath });
+    flagged = await listGamificationSyncRetries();
     assert.equal(flagged[0]?.markGamificationSyncFailed, undefined);
     assert.equal(flagged[0]?.bonusGamificationSyncFailed, true);
 
     await setGamificationSyncFailed({
       threadId: "parent",
+      userId,
       checkpoint: "t24h",
       failed: false,
-      storePath,
     });
-    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+    assert.equal((await listGamificationSyncRetries()).length, 0);
   });
 
   it("keeps pending ats appended by a concurrent soft-fail when clearing the mark flag", async () => {
@@ -531,34 +630,34 @@ describe("gamification sync retry flag", () => {
     await markInteracted({
       threadId: "parent",
       author: "@target",
+      userId,
       nowMs: now,
-      storePath,
     });
     await setGamificationSyncFailed({
       threadId: "parent",
+      userId,
       checkpoint: "mark",
       failed: true,
       pendingAt: d1,
-      storePath,
     });
     // A concurrent re-mark soft-fail appends a second pending at.
     await setGamificationSyncFailed({
       threadId: "parent",
+      userId,
       checkpoint: "mark",
       failed: true,
       pendingAt: d2,
-      storePath,
     });
 
     // Retry tick clears only the at it replayed; d2 must survive.
     await setGamificationSyncFailed({
       threadId: "parent",
+      userId,
       checkpoint: "mark",
       failed: false,
       clearedPendingAts: [d1],
-      storePath,
     });
-    let flagged = await listGamificationSyncRetries({ storePath });
+    let flagged = await listGamificationSyncRetries();
     assert.equal(flagged.length, 1);
     assert.equal(flagged[0]?.markGamificationSyncFailed, true);
     assert.deepEqual(flagged[0]?.pendingMarkAts, [d2]);
@@ -566,26 +665,63 @@ describe("gamification sync retry flag", () => {
     // Once the remaining at is replayed, the flag clears entirely.
     await setGamificationSyncFailed({
       threadId: "parent",
+      userId,
       checkpoint: "mark",
       failed: false,
       clearedPendingAts: [d2],
-      storePath,
     });
-    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+    assert.equal((await listGamificationSyncRetries()).length, 0);
+  });
+
+  it("re-marking a thread preserves stats and pending flags", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      userId,
+      replyId: "reply1",
+      replyUrl: "https://x.com/me/status/reply1",
+      nowMs: now,
+    });
+    await patchInteractionStats({
+      threadId: "parent",
+      userId,
+      checkpoint: "t1h",
+      snapshot: { views: 12, sampledAt: new Date(now).toISOString() },
+    });
+    await setGamificationSyncFailed({
+      threadId: "parent",
+      userId,
+      checkpoint: "mark",
+      failed: true,
+      pendingAt: new Date(now).toISOString(),
+    });
+    const remarked = await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      userId,
+      nowMs: now + 5000,
+    });
+    assert.equal(remarked.stats?.t1h?.views, 12);
+    assert.equal(remarked.markGamificationSyncFailed, true);
+    assert.deepEqual(remarked.pendingMarkAts, [new Date(now).toISOString()]);
+    const [stored] = await listInteractionHistory({ userId });
+    assert.equal(stored?.stats?.t1h?.views, 12);
+    assert.deepEqual(stored?.pendingMarkAts, [new Date(now).toISOString()]);
   });
 });
 
 describe("getAuthorKeysForScoutFilter", () => {
-  let dir: string;
-  let storePath: string;
+  let temp: TempPlatformDb;
+  const userId = "user-a";
 
-  beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "x-copilot-dedupe-"));
-    storePath = join(dir, "interactions.json");
+  beforeEach(() => {
+    temp = openTempPlatformDb("x-copilot-dedupe-");
+    seedUser(userId);
   });
 
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true });
+  afterEach(() => {
+    closeTempPlatformDb(temp);
   });
 
   it("lifetime dedupe scans beyond the 200-row feed cap", async () => {
@@ -595,11 +731,11 @@ describe("getAuthorKeysForScoutFilter", () => {
       await markInteracted({
         threadId: `t${i}`,
         author: `@Author${i}`,
+        userId,
         nowMs: base + i * 1000,
-        storePath,
       });
     }
-    const ever = await getEverInteractedAuthorKeys({ storePath });
+    const ever = await getEverInteractedAuthorKeys({ userId });
     assert.equal(ever.size, n);
     assert.ok(ever.has("author0"));
     assert.ok(ever.has(`author${n - 1}`));
@@ -610,21 +746,21 @@ describe("getAuthorKeysForScoutFilter", () => {
     await markInteracted({
       threadId: "old",
       author: "@OldAcct",
+      userId,
       nowMs: now - COOLDOWN_MS - 1000,
-      storePath,
     });
-    const ever = await getEverInteractedAuthorKeys({ storePath });
+    const ever = await getEverInteractedAuthorKeys({ userId });
     assert.ok(ever.has("oldacct"));
     const withDedupe = await getAuthorKeysForScoutFilter({
       dedupeAccounts: true,
       nowMs: now,
-      storePath,
+      userId,
     });
     assert.ok(withDedupe.has("oldacct"));
     const without = await getAuthorKeysForScoutFilter({
       dedupeAccounts: false,
       nowMs: now,
-      storePath,
+      userId,
     });
     assert.equal(without.has("oldacct"), false);
   });

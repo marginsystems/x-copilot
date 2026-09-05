@@ -1,9 +1,11 @@
-import { withFileLock } from "./fileLock.js";
+import { getPlatformDb } from "./db.js";
+import { ensureUserTenant } from "./billingStore.js";
 import { DEFAULT_STATS_TICK_CAP } from "./interactionStats.js";
 import {
-  defaultStorePath,
-  readStore,
-  writeStore,
+  listAllInteractionRows,
+  readInteractionRow,
+  requireUserId,
+  writeInteractionRow,
   type Interaction,
 } from "./interactionStore.js";
 
@@ -11,61 +13,50 @@ export type GamificationCheckpoint = "mark" | "t24h";
 
 /** Interactions whose stats → memory projection failed and should be retried. */
 export async function listMemorySyncRetries(opts?: {
-  storePath?: string;
   limit?: number;
 }): Promise<Interaction[]> {
-  const path = opts?.storePath ?? defaultStorePath();
-  const store = await readStore(path);
-  return store.interactions
-    .filter((i) => i.memorySyncFailed)
-    .slice(0, Math.max(0, opts?.limit ?? DEFAULT_STATS_TICK_CAP));
+  return listAllInteractionRows({
+    where: "memory_sync_failed = 1",
+    limit: Math.max(0, opts?.limit ?? DEFAULT_STATS_TICK_CAP),
+  });
 }
 
 /** Record whether a stats → memory projection failed, so the next tick retries. */
 export async function setMemorySyncFailed(opts: {
   threadId: string;
-  userId?: string;
+  userId: string;
   failed: boolean;
-  storePath?: string;
 }): Promise<void> {
   const threadId = opts.threadId.trim();
   if (!threadId) return;
-  const path = opts.storePath ?? defaultStorePath();
-  await withFileLock(path, async () => {
-    const store = await readStore(path);
-    const idx = store.interactions.findIndex(
-      (i) => i.threadId === threadId && i.userId === opts.userId,
-    );
-    if (idx < 0) return;
-    const row = store.interactions[idx]!;
+  const userId = requireUserId(opts.userId);
+  const db = getPlatformDb();
+  db.transaction(() => {
+    const row = readInteractionRow(userId, threadId);
+    if (!row) return;
     if (!!row.memorySyncFailed === opts.failed) return;
     const next: Interaction = { ...row };
     if (opts.failed) next.memorySyncFailed = true;
     else delete next.memorySyncFailed;
-    const interactions = [...store.interactions];
-    interactions[idx] = next;
-    await writeStore(path, { interactions });
-  });
+    writeInteractionRow(next, ensureUserTenant(userId));
+  })();
 }
 
 /** Interactions whose gamification ledger projection failed and should be retried. */
 export async function listGamificationSyncRetries(opts?: {
-  storePath?: string;
   limit?: number;
 }): Promise<Interaction[]> {
-  const path = opts?.storePath ?? defaultStorePath();
-  const store = await readStore(path);
-  return store.interactions
-    .filter(
-      (i) => i.markGamificationSyncFailed || i.bonusGamificationSyncFailed,
-    )
-    .slice(0, Math.max(0, opts?.limit ?? DEFAULT_STATS_TICK_CAP));
+  return listAllInteractionRows({
+    where:
+      "(mark_gamification_sync_failed = 1 OR bonus_gamification_sync_failed = 1)",
+    limit: Math.max(0, opts?.limit ?? DEFAULT_STATS_TICK_CAP),
+  });
 }
 
 /** Record whether a gamification ledger projection failed, so the next tick retries. */
 export async function setGamificationSyncFailed(opts: {
   threadId: string;
-  userId?: string;
+  userId: string;
   checkpoint: GamificationCheckpoint;
   failed: boolean;
   /** Original mark `at` to replay when a mark projection soft-fails; appended
@@ -76,18 +67,14 @@ export async function setGamificationSyncFailed(opts: {
    * flag, only these are dropped from the pending list; ats appended by a
    * concurrent soft-fail since the retry snapshot are kept for the next tick. */
   clearedPendingAts?: string[];
-  storePath?: string;
 }): Promise<void> {
   const threadId = opts.threadId.trim();
   if (!threadId) return;
-  const path = opts.storePath ?? defaultStorePath();
-  await withFileLock(path, async () => {
-    const store = await readStore(path);
-    const idx = store.interactions.findIndex(
-      (i) => i.threadId === threadId && i.userId === opts.userId,
-    );
-    if (idx < 0) return;
-    const row = store.interactions[idx]!;
+  const userId = requireUserId(opts.userId);
+  const db = getPlatformDb();
+  db.transaction(() => {
+    const row = readInteractionRow(userId, threadId);
+    if (!row) return;
     const field: "markGamificationSyncFailed" | "bonusGamificationSyncFailed" =
       opts.checkpoint === "mark"
         ? "markGamificationSyncFailed"
@@ -128,8 +115,6 @@ export async function setGamificationSyncFailed(opts: {
         delete next.pendingMarkAts;
       }
     }
-    const interactions = [...store.interactions];
-    interactions[idx] = next;
-    await writeStore(path, { interactions });
-  });
+    writeInteractionRow(next, ensureUserTenant(userId));
+  })();
 }

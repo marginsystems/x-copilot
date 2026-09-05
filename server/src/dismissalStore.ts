@@ -1,10 +1,13 @@
 /**
- * Local dismissals — "not interested" curated leads.
- * Persists to data/dismissals.json (gitignored). Soft-degrades on IO/parse errors.
+ * Dismissals — "not interested" curated leads.
+ * One row per (user, thread) in platform.sqlite `desk_dismissals`.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { getEverInteractedConversationIds } from "./interactionStore.js";
+import { ensureUserTenant } from "./billingStore.js";
+import { getPlatformDb } from "./db.js";
+import {
+  getEverInteractedConversationIds,
+  requireUserId,
+} from "./interactionStore.js";
 import {
   conversationIdsFromHistory,
   normalizeAuthorKey,
@@ -29,10 +32,6 @@ export const MAX_DISMISSAL_HISTORY = 200;
 const MAX_TEXT_CHARS = 280;
 const MAX_REASON_CHARS = 500;
 
-export function defaultDismissalStorePath(): string {
-  return resolve(process.cwd(), "data", "dismissals.json");
-}
-
 function optionalString(value: unknown, maxLen?: number): string | undefined {
   if (typeof value !== "string") return undefined;
   const t = value.trim();
@@ -43,87 +42,47 @@ function optionalString(value: unknown, maxLen?: number): string | undefined {
   return t;
 }
 
-type StoreFile = { dismissals: Dismissal[] };
+type DismissalRow = {
+  thread_id: string;
+  author: string;
+  author_key: string;
+  at: string;
+  url: string | null;
+  summary: string | null;
+  text: string | null;
+  reason: string | null;
+  conversation_id: string | null;
+  in_reply_to_id: string | null;
+};
 
-function emptyStore(): StoreFile {
-  return { dismissals: [] };
+function rowToDismissal(row: DismissalRow): Dismissal {
+  const item: Dismissal = {
+    threadId: row.thread_id,
+    author: row.author,
+    authorKey: row.author_key || normalizeAuthorKey(row.author),
+    at: row.at,
+  };
+  if (row.url) item.url = row.url;
+  if (row.summary) item.summary = row.summary;
+  if (row.text) item.text = row.text;
+  if (row.reason) item.reason = row.reason;
+  // Prefer explicit conversation root; fall back so ancestry still blocks.
+  const root = row.conversation_id || row.in_reply_to_id || null;
+  if (root) item.conversationId = root;
+  if (row.in_reply_to_id) item.inReplyToId = row.in_reply_to_id;
+  return item;
 }
 
-function parseStore(raw: string): StoreFile {
-  try {
-    const data = JSON.parse(raw) as { dismissals?: unknown };
-    if (!Array.isArray(data.dismissals)) return emptyStore();
-    const dismissals: Dismissal[] = [];
-    for (const entry of data.dismissals) {
-      if (!entry || typeof entry !== "object") continue;
-      const row = entry as Record<string, unknown>;
-      const threadId = typeof row.threadId === "string" ? row.threadId.trim() : "";
-      const author = typeof row.author === "string" ? row.author.trim() : "";
-      const at = typeof row.at === "string" ? row.at : "";
-      if (!threadId || !author || !at) continue;
-      const item: Dismissal = {
-        threadId,
-        author,
-        authorKey: normalizeAuthorKey(
-          typeof row.authorKey === "string" && row.authorKey
-            ? row.authorKey
-            : author,
-        ),
-        at,
-      };
-      const url = optionalString(row.url);
-      const summary = optionalString(row.summary);
-      const text = optionalString(row.text, MAX_TEXT_CHARS);
-      const reason = optionalString(row.reason, MAX_REASON_CHARS);
-      const conversationId = optionalString(row.conversationId);
-      const inReplyToId = optionalString(row.inReplyToId);
-      if (url) item.url = url;
-      if (summary) item.summary = summary;
-      if (text) item.text = text;
-      if (reason) item.reason = reason;
-      // Prefer explicit conversation root; fall back so ancestry still blocks.
-      const root = conversationId || inReplyToId || null;
-      if (root) item.conversationId = root;
-      if (inReplyToId) item.inReplyToId = inReplyToId;
-      dismissals.push(item);
-    }
-    return { dismissals };
-  } catch {
-    return emptyStore();
-  }
-}
-
-async function readStore(path: string): Promise<StoreFile> {
-  try {
-    const raw = await readFile(path, "utf8");
-    return parseStore(raw);
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException)?.code;
-    if (code === "ENOENT") return emptyStore();
-    console.error("dismissalStore read failed:", err);
-    return emptyStore();
-  }
-}
-
-async function writeStore(path: string, store: StoreFile): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(store, null, 2)}\n`, "utf8");
-}
-
-let writeLock: Promise<void> = Promise.resolve();
-
-async function serialized<T>(fn: () => Promise<T>): Promise<T> {
-  const prev = writeLock;
-  let release: () => void;
-  writeLock = new Promise<void>((resolveLock) => {
-    release = resolveLock;
-  });
-  await prev;
-  try {
-    return await fn();
-  } finally {
-    release!();
-  }
+function readDismissalRow(userId: string, threadId: string): Dismissal | null {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT thread_id, author, author_key, at, url, summary, text, reason,
+              conversation_id, in_reply_to_id
+         FROM desk_dismissals
+        WHERE user_id = ? AND thread_id = ?`,
+    )
+    .get(userId, threadId) as DismissalRow | undefined;
+  return row ? rowToDismissal(row) : null;
 }
 
 export function trimDismissalHistory(
@@ -138,6 +97,7 @@ export function trimDismissalHistory(
 export async function markDismissed(opts: {
   threadId: string;
   author: string;
+  userId: string;
   url?: string;
   summary?: string;
   text?: string;
@@ -145,7 +105,6 @@ export async function markDismissed(opts: {
   conversationId?: string;
   inReplyToId?: string;
   nowMs?: number;
-  storePath?: string;
 }): Promise<Dismissal> {
   const threadId = opts.threadId.trim();
   const author = opts.author.trim();
@@ -153,8 +112,9 @@ export async function markDismissed(opts: {
   if (!threadId || !author || !authorKey) {
     throw new Error("threadId and author are required");
   }
+  const userId = requireUserId(opts.userId);
+  const tenantId = ensureUserTenant(userId);
   const nowMs = opts.nowMs ?? Date.now();
-  const path = opts.storePath ?? defaultDismissalStorePath();
   const next: Dismissal = {
     threadId,
     author,
@@ -175,64 +135,108 @@ export async function markDismissed(opts: {
   if (root) next.conversationId = root;
   if (inReplyToId) next.inReplyToId = inReplyToId;
 
-  return serialized(async () => {
-    const store = await readStore(path);
-    const prior = store.dismissals.find((d) => d.threadId === threadId);
+  const db = getPlatformDb();
+  db.transaction(() => {
+    const prior = readDismissalRow(userId, threadId);
     if (!next.conversationId && prior?.conversationId) {
       next.conversationId = prior.conversationId;
     }
     if (!next.inReplyToId && prior?.inReplyToId) {
       next.inReplyToId = prior.inReplyToId;
     }
-    const without = store.dismissals.filter((d) => d.threadId !== threadId);
-    without.push(next);
-    const dismissals = trimDismissalHistory(without);
-    await writeStore(path, { dismissals });
-    return next;
-  });
+    db.prepare(
+      `INSERT INTO desk_dismissals (
+          user_id, tenant_id, thread_id, author, author_key, at,
+          url, summary, text, reason, conversation_id, in_reply_to_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (user_id, thread_id) DO UPDATE SET
+          tenant_id = excluded.tenant_id,
+          author = excluded.author,
+          author_key = excluded.author_key,
+          at = excluded.at,
+          url = excluded.url,
+          summary = excluded.summary,
+          text = excluded.text,
+          reason = excluded.reason,
+          conversation_id = excluded.conversation_id,
+          in_reply_to_id = excluded.in_reply_to_id`,
+    ).run(
+      userId,
+      tenantId,
+      threadId,
+      author,
+      authorKey,
+      next.at,
+      next.url ?? null,
+      next.summary ?? null,
+      next.text ?? null,
+      next.reason ?? null,
+      next.conversationId ?? null,
+      next.inReplyToId ?? null,
+    );
+    db.prepare(
+      `DELETE FROM desk_dismissals
+        WHERE user_id = ? AND thread_id IN (
+          SELECT thread_id FROM desk_dismissals
+           WHERE user_id = ?
+           ORDER BY at DESC, thread_id DESC
+           LIMIT -1 OFFSET ?
+        )`,
+    ).run(userId, userId, MAX_DISMISSAL_HISTORY);
+  })();
+  return next;
 }
 
-export async function listDismissalHistory(opts?: {
-  storePath?: string;
+export async function listDismissalHistory(opts: {
+  userId: string;
   limit?: number;
 }): Promise<Dismissal[]> {
-  const path = opts?.storePath ?? defaultDismissalStorePath();
-  const store = await readStore(path);
-  return trimDismissalHistory(
-    store.dismissals,
-    opts?.limit ?? MAX_DISMISSAL_HISTORY,
-  );
+  const userId = requireUserId(opts.userId);
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT thread_id, author, author_key, at, url, summary, text, reason,
+              conversation_id, in_reply_to_id
+         FROM desk_dismissals
+        WHERE user_id = ?
+        ORDER BY at DESC, thread_id DESC
+        LIMIT ?`,
+    )
+    .all(
+      userId,
+      Math.max(0, opts.limit ?? MAX_DISMISSAL_HISTORY),
+    ) as DismissalRow[];
+  return rows.map(rowToDismissal);
 }
 
 /** Conversation / ancestry ids from durable Not interested history. */
-export async function getDismissedConversationIds(opts?: {
-  storePath?: string;
+export async function getDismissedConversationIds(opts: {
+  userId: string;
 }): Promise<Set<string>> {
   const history = await listDismissalHistory({
-    storePath: opts?.storePath,
+    userId: opts.userId,
     limit: MAX_DISMISSAL_HISTORY,
   });
   return conversationIdsFromHistory(history);
 }
 
 /**
- * Union of Marked + Not interested conversation ancestry for Scout filters.
+ * Union of one user's Marked + Not interested conversation ancestry for
+ * Scout filters.
  */
-export async function getBlockedConversationIds(opts?: {
-  interactionStorePath?: string;
-  dismissalStorePath?: string;
+export async function getBlockedConversationIds(opts: {
+  userId: string;
 }): Promise<Set<string>> {
   const [interacted, dismissed] = await Promise.all([
-    getEverInteractedConversationIds({ storePath: opts?.interactionStorePath }),
-    getDismissedConversationIds({ storePath: opts?.dismissalStorePath }),
+    getEverInteractedConversationIds({ userId: opts.userId }),
+    getDismissedConversationIds({ userId: opts.userId }),
   ]);
   if (!dismissed.size) return interacted;
   if (!interacted.size) return dismissed;
   return new Set([...interacted, ...dismissed]);
 }
 
-export async function getDismissedThreadIds(opts?: {
-  storePath?: string;
+export async function getDismissedThreadIds(opts: {
+  userId: string;
 }): Promise<Set<string>> {
   const history = await listDismissalHistory(opts);
   return new Set(history.map((d) => d.threadId).filter(Boolean));

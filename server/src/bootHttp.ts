@@ -23,7 +23,11 @@ import { listExpiredHistory } from "./expiredStore.js";
 import { countT24hSnapshots, MIN_T24H_SNAPSHOTS } from "./forYouDigest.js";
 import { getExtraUsage } from "./forYouExtra.js";
 import { listActiveSuggestions } from "./forYouStore.js";
-import { getGamification } from "./gamification.js";
+import {
+  emptyGamificationState,
+  getGamification,
+  toPublicGamification,
+} from "./gamification.js";
 import { send } from "./httpJson.js";
 import {
   listActiveInteractions,
@@ -34,7 +38,6 @@ import {
 import { resolvePlan } from "./planResolution.js";
 import { getRequestTenantId } from "./requestContext.js";
 import { readLastScoutPayload } from "./scoutHttp.js";
-import { getScoutLog } from "./scoutLog.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { listSkipHistory } from "./skipStore.js";
 
@@ -72,6 +75,7 @@ export async function tryHandleBoot(
   const tenantId = user ? ensureUserTenant(user.id) : getRequestTenantId();
 
   try {
+    // Desk history is per user. No session reads as an empty desk.
     const [
       dismissals,
       skipped,
@@ -79,12 +83,11 @@ export async function tryHandleBoot(
       interactionHistory,
       active,
       lastScout,
-      scoutLog,
       gamification,
     ] = await Promise.all([
-      listDismissalHistory(),
-      listSkipHistory(),
-      listExpiredHistory(),
+      user ? listDismissalHistory({ userId: user.id }) : [],
+      user ? listSkipHistory({ userId: user.id }) : [],
+      user ? listExpiredHistory({ userId: user.id }) : [],
       user
         ? listInteractionHistory({
             limit: MAX_INTERACTION_STORE,
@@ -93,11 +96,13 @@ export async function tryHandleBoot(
         : [],
       user ? listActiveInteractions({ userId: user.id }) : [],
       readLastScoutPayload({
+        userId: user?.id,
         dedupeAccounts:
           dedupeParam === null ? null : dedupeParam !== "false",
       }),
-      getScoutLog(),
-      getGamification({ userId: user?.id }),
+      user
+        ? getGamification({ userId: user.id })
+        : Promise.resolve(toPublicGamification(emptyGamificationState())),
     ]);
 
     const interactions = interactionHistory.slice(0, MAX_INTERACTION_HISTORY);
@@ -187,7 +192,8 @@ export async function tryHandleBoot(
           },
           forYou,
           lastScout,
-          scoutLog: { entries: scoutLog },
+          // The Scout stage log is process-local; it is not desk state.
+          scoutLog: { entries: [] },
           gamification,
           activityStats,
           coaching,

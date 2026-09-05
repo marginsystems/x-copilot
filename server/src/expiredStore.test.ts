@@ -1,19 +1,22 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { markDismissed } from "./dismissalStore.ts";
 import {
   EXPIRED_MS,
+  getExpiredThreadIds,
   listExpiredHistory,
   markExpired,
   selectStaleThreads,
 } from "./expiredStore.ts";
-import { runExpirePass } from "./expirePass.ts";
+import { runExpirePass, runExpirePassForAllUsers } from "./expirePass.ts";
+import { markInteracted } from "./interactionStore.ts";
 import {
-  clearScoutCacheMemory,
-  saveScoutCache,
-} from "./scoutCache.ts";
+  closeTempPlatformDb,
+  openTempPlatformDb,
+  seedUser,
+  type TempPlatformDb,
+} from "./platformDb.testHelpers.ts";
+import { getLastScout, saveScoutCache } from "./scoutCache.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
 function card(
@@ -68,84 +71,155 @@ describe("selectStaleThreads", () => {
 });
 
 describe("runExpirePass", () => {
-  let dir: string;
-  let scoutPath: string;
-  let expiredPath: string;
-  let interactionPath: string;
-  let dismissalPath: string;
+  let temp: TempPlatformDb;
+  const userA = "user-a";
+  const userB = "user-b";
+  const now = Date.parse("2026-07-29T12:00:00.000Z");
 
-  beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "x-copilot-expire-"));
-    scoutPath = join(dir, "last-scout.json");
-    expiredPath = join(dir, "expired.json");
-    interactionPath = join(dir, "interactions.json");
-    dismissalPath = join(dir, "dismissals.json");
-    clearScoutCacheMemory();
+  beforeEach(() => {
+    temp = openTempPlatformDb("x-copilot-expire-");
+    seedUser(userA);
+    seedUser(userB);
   });
 
-  afterEach(async () => {
-    clearScoutCacheMemory();
-    await rm(dir, { recursive: true, force: true });
+  afterEach(() => {
+    closeTempPlatformDb(temp);
   });
 
-  it("marks stale threads and prunes last-scout", async () => {
-    const now = Date.parse("2026-07-29T12:00:00.000Z");
+  async function fillTank(userId: string, suffix = ""): Promise<void> {
     await saveScoutCache(
       {
         savedAt: new Date(now).toISOString(),
         queries: ["q"],
         threads: [
           card({
-            id: "old",
+            id: `old${suffix}`,
             author: "@old",
             createdAt: new Date(now - EXPIRED_MS - 5000).toISOString(),
             summary: "stale lead",
           }),
           card({
-            id: "fresh",
+            id: `fresh${suffix}`,
             author: "@fresh",
             createdAt: new Date(now - 3600_000).toISOString(),
           }),
         ],
       },
-      { storePath: scoutPath },
+      { userId },
     );
+  }
 
-    const result = await runExpirePass({
-      nowMs: now,
-      scoutStorePath: scoutPath,
-      expiredStorePath: expiredPath,
-      interactionStorePath: interactionPath,
-      dismissalStorePath: dismissalPath,
-    });
+  it("marks stale threads and prunes the user's tank", async () => {
+    await fillTank(userA);
+
+    const result = await runExpirePass({ userId: userA, nowMs: now });
     assert.equal(result.expired, 1);
     assert.deepEqual(result.ids, ["old"]);
 
-    const history = await listExpiredHistory({ storePath: expiredPath });
+    const history = await listExpiredHistory({ userId: userA });
     assert.equal(history[0]?.threadId, "old");
     assert.equal(history[0]?.summary, "stale lead");
 
-    // Re-load cache from disk path via another expire pass — fresh remains.
-    clearScoutCacheMemory();
-    const again = await runExpirePass({
-      nowMs: now,
-      scoutStorePath: scoutPath,
-      expiredStorePath: expiredPath,
-      interactionStorePath: interactionPath,
-      dismissalStorePath: dismissalPath,
-    });
+    const tank = await getLastScout({ userId: userA });
+    assert.deepEqual(tank?.threads.map((t) => t.id), ["fresh"]);
+
+    const again = await runExpirePass({ userId: userA, nowMs: now });
     assert.equal(again.expired, 0);
   });
 
-  it("markExpired upserts by threadId", async () => {
+  it("skips threads the user already marked or dismissed", async () => {
+    await saveScoutCache(
+      {
+        savedAt: new Date(now).toISOString(),
+        queries: ["q"],
+        threads: [
+          card({
+            id: "marked",
+            author: "@m",
+            createdAt: new Date(now - EXPIRED_MS - 5000).toISOString(),
+          }),
+          card({
+            id: "dismissed",
+            author: "@d",
+            createdAt: new Date(now - EXPIRED_MS - 5000).toISOString(),
+          }),
+          card({
+            id: "stale",
+            author: "@s",
+            createdAt: new Date(now - EXPIRED_MS - 5000).toISOString(),
+          }),
+        ],
+      },
+      { userId: userA },
+    );
+    await markInteracted({
+      threadId: "marked",
+      author: "@m",
+      userId: userA,
+      nowMs: now - 1000,
+    });
+    await markDismissed({ threadId: "dismissed", author: "@d", userId: userA });
+
+    const result = await runExpirePass({ userId: userA, nowMs: now });
+    assert.deepEqual(result.ids, ["stale"]);
+  });
+
+  it("expiring A does not write expired rows for B or prune B's tank", async () => {
+    await fillTank(userA);
+    await fillTank(userB, "-b");
+
+    const result = await runExpirePass({ userId: userA, nowMs: now });
+    assert.deepEqual(result.ids, ["old"]);
+
+    assert.deepEqual(await listExpiredHistory({ userId: userB }), []);
+    assert.equal((await getExpiredThreadIds({ userId: userB })).size, 0);
+    const tankB = await getLastScout({ userId: userB });
+    assert.deepEqual(
+      tankB?.threads.map((t) => t.id),
+      ["old-b", "fresh-b"],
+    );
+  });
+
+  it("runExpirePassForAllUsers sweeps every tank into its own history", async () => {
+    await fillTank(userA);
+    await fillTank(userB, "-b");
+
+    const result = await runExpirePassForAllUsers({ nowMs: now });
+    assert.equal(result.users, 2);
+    assert.equal(result.expired, 2);
+    assert.deepEqual(
+      (await listExpiredHistory({ userId: userA })).map((e) => e.threadId),
+      ["old"],
+    );
+    assert.deepEqual(
+      (await listExpiredHistory({ userId: userB })).map((e) => e.threadId),
+      ["old-b"],
+    );
+  });
+
+  it("markExpired upserts by user and threadId", async () => {
     const row = await markExpired({
       threadId: "1",
       author: "@x",
-      storePath: expiredPath,
+      userId: userA,
       nowMs: Date.parse("2026-07-29T10:00:00.000Z"),
     });
     assert.equal(row.threadId, "1");
-    const history = await listExpiredHistory({ storePath: expiredPath });
+    await markExpired({
+      threadId: "1",
+      author: "@x",
+      userId: userA,
+      nowMs: Date.parse("2026-07-29T11:00:00.000Z"),
+    });
+    const history = await listExpiredHistory({ userId: userA });
     assert.equal(history.length, 1);
+    assert.deepEqual(await listExpiredHistory({ userId: userB }), []);
+  });
+
+  it("requires a userId", async () => {
+    await assert.rejects(
+      () => markExpired({ threadId: "1", author: "@x", userId: "" }),
+      /userId is required/,
+    );
   });
 });
