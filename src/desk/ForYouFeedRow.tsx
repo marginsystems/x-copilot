@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   FYP_LAND_TIP,
   FYP_NEXT_TIP,
@@ -14,11 +15,13 @@ export function ForYouFeedRow(props: {
   onNext?: () => void;
   onStopScout?: () => void;
 }) {
+  const [open, setOpen] = useState(true);
   return (
     <DeskRow
       className="for-you-row next-action-row kind-reply"
-      open
+      open={open}
       expandable
+      onToggle={() => setOpen((current) => !current)}
       lead="FY"
       leadTitle="Real X For You"
       leadClassName="bait kind-reply"

@@ -150,7 +150,12 @@ export function MissionCard(props: {
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb("hold")}</p>
         <div className="threads">
-          <ForYouFeedRow status={props.forYouStatus} />
+          <ForYouFeedRow
+            searching={props.searching}
+            status={props.forYouStatus}
+            onNext={props.onForYouNext}
+            onStopScout={props.onStopScout}
+          />
         </div>
         <ReplyPaceBar
           clock={props.clock}

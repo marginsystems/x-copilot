@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   formatReplyPaceClock,
   REPLY_PACE_EVENT,
-  replyPaceHoldActive,
+  replyPaceLocked,
   replyPaceRemainingMs,
 } from "../lib/replyPace";
 import { clearReplyPace, readReplyPaceUntil } from "./replyPaceStore";
@@ -11,7 +11,7 @@ export function useReplyPace() {
   const [until, setUntil] = useState<number | null>(readReplyPaceUntil);
   const [now, setNow] = useState(() => Date.now());
   const remainingMs = replyPaceRemainingMs(until, now);
-  const locked = replyPaceHoldActive(until);
+  const locked = replyPaceLocked(until, now);
   const countingDown = remainingMs > 0;
 
   useEffect(() => {
@@ -28,6 +28,12 @@ export function useReplyPace() {
     const id = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(id);
   }, [countingDown]);
+
+  useEffect(() => {
+    if (until != null && remainingMs === 0) {
+      clearReplyPace();
+    }
+  }, [until, remainingMs]);
 
   return {
     locked,
