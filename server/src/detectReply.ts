@@ -2,6 +2,7 @@
  * Find the operator's reply in a curated conversation via official recent search.
  */
 import type { ThreadCard } from "./threadCard.js";
+import type { Interaction } from "./interactionStore.js";
 import {
   searchTimelinePages,
   withSearchRecency,
@@ -31,6 +32,45 @@ export type DetectReplyResult =
       rawCount: number;
       matchCount: number;
     };
+
+export function findRecentInteractionReply(opts: {
+  history: Interaction[];
+  threadId: string;
+  conversationId?: string;
+  nowMs?: number;
+}): DetectedReply | null {
+  const requestedIds = new Set(
+    [opts.threadId, opts.conversationId]
+      .map((id) => id?.trim())
+      .filter((id): id is string => Boolean(id)),
+  );
+  const nowMs = opts.nowMs ?? Date.now();
+  const cutoffMs = nowMs - 60 * 60 * 1000;
+
+  for (const row of opts.history) {
+    const matches = [row.threadId, row.inReplyToId, row.conversationId].some(
+      (id) => Boolean(id?.trim() && requestedIds.has(id.trim())),
+    );
+    const recent = [row.at, row.postedAt].some((value) => {
+      const atMs = value ? Date.parse(value) : NaN;
+      return Number.isFinite(atMs) && atMs >= cutoffMs && atMs <= nowMs;
+    });
+    if (!matches || !recent) continue;
+    const replyUrl =
+      row.replyUrl?.trim() ||
+      (row.replyId?.trim()
+        ? `https://x.com/i/status/${row.replyId.trim()}`
+        : "");
+    if (!replyUrl) continue;
+    return {
+      replyId: row.replyId?.trim() || replyUrl.split("/").pop() || "",
+      replyUrl,
+      replyText: "",
+      ...(row.postedAt ? { createdAt: row.postedAt } : {}),
+    };
+  }
+  return null;
+}
 
 export type SearchTimelinePagesFn = (opts: {
   query: string;

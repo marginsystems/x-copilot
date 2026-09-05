@@ -1,11 +1,19 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   detectOwnReplyToThread,
   detectOwnReplyToThreadWithRetry,
   buildDetectOwnReplyQuery,
+  findRecentInteractionReply,
   pickOwnReplyInConversation,
 } from "./detectReply.ts";
+import {
+  listInteractionHistory,
+  markInteracted,
+} from "./interactionStore.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
 function card(
@@ -43,6 +51,75 @@ describe("buildDetectOwnReplyQuery", () => {
 describe("pickOwnReplyInConversation", () => {
   it("returns null when there are no hits", () => {
     assert.equal(pickOwnReplyInConversation([], "card1"), null);
+  });
+});
+
+describe("findRecentInteractionReply", () => {
+  it("finds only the requested user's recent ledger reply", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "x-detect-ledger-"));
+    const storePath = join(dir, "interactions.json");
+    const nowMs = Date.parse("2026-09-05T12:00:00.000Z");
+    try {
+      await markInteracted({
+        threadId: "target",
+        author: "@other",
+        userId: "other-user",
+        replyId: "other-reply",
+        replyUrl: "https://x.com/other/status/other-reply",
+        nowMs,
+        storePath,
+      });
+      await markInteracted({
+        threadId: "card",
+        conversationId: "target",
+        author: "@me",
+        userId: "session-user",
+        replyId: "my-reply",
+        nowMs,
+        storePath,
+      });
+
+      const history = await listInteractionHistory({
+        userId: "session-user",
+        limit: 2000,
+        storePath,
+      });
+      assert.deepEqual(
+        findRecentInteractionReply({
+          history,
+          threadId: "target",
+          nowMs,
+        }),
+        {
+          replyId: "my-reply",
+          replyUrl: "https://x.com/i/status/my-reply",
+          replyText: "",
+          createdAt: "2026-09-05T12:00:00.000Z",
+        },
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("ignores replies older than one hour", () => {
+    assert.equal(
+      findRecentInteractionReply({
+        threadId: "target",
+        nowMs: Date.parse("2026-09-05T12:00:00.000Z"),
+        history: [
+          {
+            threadId: "target",
+            author: "@me",
+            authorKey: "me",
+            source: "discovered",
+            at: "2026-09-05T10:59:59.999Z",
+            replyId: "old",
+          },
+        ],
+      }),
+      null,
+    );
   });
 });
 
