@@ -206,7 +206,7 @@ export function trimInteractionHistory(
     .slice(0, max);
 }
 
-/** Upsert by threadId; keep durable history (cap); persist. */
+/** Upsert by user and threadId; keep durable history (cap); persist. */
 export async function markInteracted(opts: {
   threadId: string;
   author: string;
@@ -266,7 +266,9 @@ export async function markInteracted(opts: {
 
   return withFileLock(path, async () => {
     const store = await readStore(path);
-    const prior = store.interactions.find((i) => i.threadId === threadId);
+    const prior = store.interactions.find(
+      (i) => i.threadId === threadId && i.userId === userId,
+    );
     // Preserve existing stats snapshots across re-marks of the same thread.
     if (prior?.stats) next.stats = prior.stats;
     if (prior?.memorySyncFailed) next.memorySyncFailed = true;
@@ -281,7 +283,9 @@ export async function markInteracted(opts: {
     if (!next.inReplyToId && prior?.inReplyToId) {
       next.inReplyToId = prior.inReplyToId;
     }
-    const without = store.interactions.filter((i) => i.threadId !== threadId);
+    const without = store.interactions.filter(
+      (i) => !(i.threadId === threadId && i.userId === userId),
+    );
     without.push(next);
     // Retain enough history for the activity dashboard window; feed UI still
     // lists at MAX_INTERACTION_HISTORY via listInteractionHistory().

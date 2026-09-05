@@ -214,7 +214,7 @@ describe("markInteracted", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("upserts by threadId and refreshes at/source", async () => {
+  it("upserts by user and threadId and refreshes at/source", async () => {
     const t1 = Date.parse("2026-07-26T10:00:00.000Z");
     const t2 = Date.parse("2026-07-26T11:00:00.000Z");
     await markInteracted({
@@ -237,6 +237,35 @@ describe("markInteracted", () => {
 
     const keys = await getCooledAuthorKeys({ nowMs: t2, storePath });
     assert.deepEqual([...keys], ["builder"]);
+  });
+
+  it("keeps the same thread marked by different users", async () => {
+    const now = Date.parse("2026-07-26T12:00:00.000Z");
+    await markInteracted({
+      threadId: "shared-thread",
+      author: "@a",
+      userId: "user-a",
+      nowMs: now,
+      storePath,
+    });
+    await markInteracted({
+      threadId: "shared-thread",
+      author: "@a",
+      userId: "user-b",
+      nowMs: now + 1000,
+      storePath,
+    });
+
+    const userA = await listInteractionHistory({
+      storePath,
+      userId: "user-a",
+    });
+    const userB = await listInteractionHistory({
+      storePath,
+      userId: "user-b",
+    });
+    assert.deepEqual(userA.map((row) => row.userId), ["user-a"]);
+    assert.deepEqual(userB.map((row) => row.userId), ["user-b"]);
   });
 
   it("persists replyId / replyUrl / postedAt", async () => {
