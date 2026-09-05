@@ -11,7 +11,7 @@ import {
 } from "../lib/forYou";
 import type { CoachingState } from "../lib/coaching";
 import type { ApproachLock, DeskPhase } from "../lib/deskPhase";
-import { phaseWhy } from "../lib/phaseWhy";
+import { approachCollectingCopy, phaseWhy } from "../lib/phaseWhy";
 import { preferRootTargets } from "../lib/scoutTarget";
 import type { VoiceState } from "../lib/voice";
 import { ForYouFeedRow } from "./ForYouFeedRow";
@@ -75,7 +75,7 @@ function phaseVerb(
   if (phase === "fork") return "Fork";
   if (phase === "original") return "Original";
   if (phase === "silent_refuel") return "For You";
-  if (phase === "done_for_now") return "Done";
+  if (phase === "done_for_now") return "Scouting";
   return "Desk";
 }
 
@@ -96,6 +96,7 @@ export function MissionCard(props: {
   requestExtra?: () => void | Promise<void>;
   scout: ThreadCard | null;
   suggestion: ForYouSuggestion | null;
+  searching?: boolean;
   actionBusy: boolean;
   expandedId: string | null;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
@@ -346,7 +347,10 @@ export function MissionCard(props: {
     );
   }
 
-  const why = phaseWhy(props.phase, props.coaching);
+  const why =
+    props.phase === "done_for_now"
+      ? approachCollectingCopy({ searching: props.searching })
+      : phaseWhy(props.phase, props.coaching);
   return (
     <div className="mission-card">
       <p className="mission-card-verb">{phaseVerb(props.phase)}</p>

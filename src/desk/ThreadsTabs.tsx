@@ -558,6 +558,7 @@ export function ThreadsTabs({
             requestExtra={requestExtra}
             scout={lockedScout}
             suggestion={lockedSuggestion}
+            searching={searching}
             actionBusy={actionBusy}
             expandedId={expandedId}
             setExpandedId={setExpandedId}

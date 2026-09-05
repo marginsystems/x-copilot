@@ -248,5 +248,13 @@ describe("approachTabLiveCount", () => {
       }),
       1,
     );
+    assert.equal(
+      approachTabLiveCount({
+        phase: "done_for_now",
+        hasScoutCard: false,
+        hasSuggestion: false,
+      }),
+      1,
+    );
   });
 });

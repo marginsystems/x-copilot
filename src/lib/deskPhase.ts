@@ -157,5 +157,6 @@ export function approachTabLiveCount(opts: {
     return 1;
   }
   if (opts.phase === "original" && opts.hasSuggestion) return 1;
+  if (opts.phase === "done_for_now") return 1;
   return 0;
 }
