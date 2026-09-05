@@ -82,6 +82,38 @@ describe("filterPostHydrateThreads", () => {
     assert.equal(result.afterLength.articleFilteredCount, 1);
   });
 
+  it("drops replies whose hydrated OP has native media or a hashtag", () => {
+    const result = filterPostHydrateThreads({
+      threads: [
+        card({
+          id: "media-reply",
+          text: "Agree, ship weekly.",
+          isReply: true,
+          inReplyToId: "media-root",
+          opText: "Dump pic.twitter.com/zk5ziekdnn",
+          opParentDerived: true,
+        }),
+        card({
+          id: "tag-reply",
+          text: "Same.",
+          isReply: true,
+          inReplyToId: "tag-root",
+          opText: "Hiring notes #buildinpublic",
+          opParentDerived: true,
+        }),
+        card({ id: "kept", text: "Useful question about shipping loops." }),
+      ],
+      preferredLanguage: "en",
+      maxChars: 480,
+    });
+    assert.deepEqual(
+      result.afterHashtags.threads.map((thread) => thread.id),
+      ["kept"],
+    );
+    assert.equal(result.afterMedia.mediaFilteredCount, 1);
+    assert.equal(result.afterHashtags.hashtagFilteredCount, 1);
+  });
+
   it("drops replies whose hydrated OP has an off-platform link", () => {
     const result = filterPostHydrateThreads({
       threads: [

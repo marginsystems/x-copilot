@@ -313,6 +313,8 @@ export function useScoutRun({
             maxThreadChars: settings.maxThreadChars,
             dropArticles: settings.dropArticles,
             dropOutboundLinks: settings.dropOutboundLinks,
+            dropNativeMedia: settings.dropNativeMedia,
+            dropHashtags: settings.dropHashtags,
             dropEmDashes: settings.dropEmDashes,
             dropProfanity: settings.dropProfanity,
             dropAutomatedAccounts: settings.dropAutomatedAccounts,

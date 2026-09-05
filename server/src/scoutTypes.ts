@@ -27,6 +27,10 @@ export type ScoutFilters = {
   dropArticles?: boolean;
   /** When true (default), hard-drop website cards and URL-entity outbound links. */
   dropOutboundLinks?: boolean;
+  /** When true (default), hard-drop posts with a native photo, GIF, or video. */
+  dropNativeMedia?: boolean;
+  /** When true (default), hard-drop posts whose text or OP text has a hashtag. */
+  dropHashtags?: boolean;
   /** When true (default), hard-drop posts containing an em dash (U+2014). */
   dropEmDashes?: boolean;
   /** When true (default), hard-drop posts whose candidate or OP text has swears. */

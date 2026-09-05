@@ -21,7 +21,9 @@ import {
   filterExcludedAccounts,
   filterByLanguage,
   filterEmDashes,
+  filterHashtags,
   filterMinViews,
+  filterNativeMedia,
   filterOutboundLinks,
   filterProfanity,
   normalizeAvoidPrompt,
@@ -215,13 +217,21 @@ export async function runScoutSearch(opts: {
   );
   const afterSelf = filterSelfReplies(filtered.threads);
   const dropOutboundLinks = opts.filters?.dropOutboundLinks !== false;
+  const dropNativeMedia = opts.filters?.dropNativeMedia !== false;
+  const dropHashtags = opts.filters?.dropHashtags !== false;
   const afterLinks = filterOutboundLinks(afterSelf.threads, {
     dropOutboundLinks,
+  });
+  const afterMedia = filterNativeMedia(afterLinks.threads, {
+    dropNativeMedia,
+  });
+  const afterHashtags = filterHashtags(afterMedia.threads, {
+    dropHashtags,
   });
   const preferredLanguage = normalizePreferredLanguageCode(
     opts.filters?.preferredLanguage,
   );
-  const afterLang = filterByLanguage(afterLinks.threads, preferredLanguage);
+  const afterLang = filterByLanguage(afterHashtags.threads, preferredLanguage);
   const dropEmDashes = opts.filters?.dropEmDashes !== false;
   const afterEmDash = filterEmDashes(afterLang.threads, { dropEmDashes });
   const dropProfanity = opts.filters?.dropProfanity !== false;
@@ -267,6 +277,8 @@ export async function runScoutSearch(opts: {
     maxChars,
     lengthOptions: { dropArticles },
     dropOutboundLinks,
+    dropNativeMedia,
+    dropHashtags,
     dropProfanity,
     filterByMinViews: opts.filters?.filterByMinViews,
     minViews: opts.filters?.minViews,

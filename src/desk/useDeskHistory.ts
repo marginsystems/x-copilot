@@ -16,7 +16,11 @@ import {
   type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
-import { threadHasExcludedTag, type AppSettings } from "../lib/settings";
+import {
+  keepPlainTextThread,
+  threadHasExcludedTag,
+  type AppSettings,
+} from "../lib/settings";
 import { armReplyPace } from "./replyPaceStore";
 import { threadHasExcludedAuthor } from "./threadHelpers";
 import type {
@@ -229,7 +233,9 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     ) {
       return false;
     }
-    return keepByMinViews(thread, settings);
+    return (
+      keepPlainTextThread(thread, settings) && keepByMinViews(thread, settings)
+    );
   }
 
   async function hydrateSkipped() {

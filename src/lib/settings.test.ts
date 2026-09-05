@@ -4,7 +4,13 @@ import {
   DEFAULT_EXCLUDED_ACCOUNTS,
   DEFAULT_EXCLUDED_TAGS,
   DEFAULT_SETTINGS,
+  DROP_HASHTAGS_LABEL,
+  DROP_NATIVE_MEDIA_LABEL,
   DROP_OUTBOUND_LINKS_LABEL,
+  keepPlainTextThread,
+  textHasHashtag,
+  threadHasHashtag,
+  threadHasNativeMedia,
   LEGACY_DEFAULT_EXCLUDED_ACCOUNTS,
   LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT,
   MAX_AVOID_CHARS,
@@ -157,6 +163,8 @@ describe("normalizeSettings", () => {
         maxThreadChars: 320,
         dropArticles: false,
         dropOutboundLinks: false,
+        dropNativeMedia: false,
+        dropHashtags: false,
         dropEmDashes: false,
         dropProfanity: false,
         dropAutomatedAccounts: false,
@@ -170,6 +178,8 @@ describe("normalizeSettings", () => {
         maxThreadChars: 320,
         dropArticles: false,
         dropOutboundLinks: false,
+        dropNativeMedia: false,
+        dropHashtags: false,
         dropEmDashes: false,
         dropProfanity: false,
         dropAutomatedAccounts: false,
@@ -187,6 +197,8 @@ describe("normalizeSettings", () => {
     assert.equal(normalizeSettings({}).preferredLanguage, "en");
     assert.equal(normalizeSettings({}).dropEmDashes, true);
     assert.equal(normalizeSettings({}).dropOutboundLinks, true);
+    assert.equal(normalizeSettings({}).dropNativeMedia, true);
+    assert.equal(normalizeSettings({}).dropHashtags, true);
     assert.equal(normalizeSettings({}).dropProfanity, true);
     assert.equal(normalizeSettings({}).dropAutomatedAccounts, true);
     assert.equal(normalizeSettings({}).avoidPrompt, "");
@@ -205,6 +217,54 @@ describe("normalizeSettings", () => {
     assert.equal(DROP_OUTBOUND_LINKS_LABEL, "Drop posts with outbound links");
     assert.match(DROP_OUTBOUND_LINKS_LABEL, /outbound links/i);
     assert.doesNotMatch(DROP_OUTBOUND_LINKS_LABEL, /website cards/i);
+    assert.equal(DROP_NATIVE_MEDIA_LABEL, "Drop posts with photos or video");
+    assert.equal(DROP_HASHTAGS_LABEL, "Drop posts with hashtags");
+  });
+
+  it("defaults missing media and hashtag flags on so old storage stays text-only", () => {
+    const stored = { ...DEFAULT_SETTINGS } as Record<string, unknown>;
+    delete stored.dropNativeMedia;
+    delete stored.dropHashtags;
+    assert.equal(normalizeSettings(stored).dropNativeMedia, true);
+    assert.equal(normalizeSettings(stored).dropHashtags, true);
+  });
+});
+
+describe("plain-text filters", () => {
+  it("detects native media from shortlinks or pic hosts", () => {
+    assert.equal(
+      threadHasNativeMedia({ mediaShortlinks: ["t.co/abc"] }),
+      true,
+    );
+    assert.equal(
+      threadHasNativeMedia({ text: "see pic.twitter.com/zk5ziekdnn" }),
+      true,
+    );
+    assert.equal(threadHasNativeMedia({ text: "plain take" }), false);
+  });
+
+  it("detects hashtags and ignores #123", () => {
+    assert.equal(textHasHashtag("Ship weekly. #buildinpublic"), true);
+    assert.equal(textHasHashtag("See issue #123 tomorrow"), false);
+    assert.equal(textHasHashtag("Thanks @alice for the tip"), false);
+    assert.equal(
+      threadHasHashtag({ text: "Agree.", opText: "Thread on #AI" }),
+      true,
+    );
+  });
+
+  it("keepPlainTextThread honors each flag", () => {
+    const media = { text: "photo", mediaShortlinks: ["t.co/x"] };
+    const tagged = { text: "Take on #AI" };
+    const clean = { text: "Ship weekly. Concrete take." };
+    const on = { dropNativeMedia: true, dropHashtags: true };
+    assert.equal(keepPlainTextThread(media, on), false);
+    assert.equal(keepPlainTextThread(tagged, on), false);
+    assert.equal(keepPlainTextThread(clean, on), true);
+    assert.equal(
+      keepPlainTextThread(media, { dropNativeMedia: false, dropHashtags: true }),
+      true,
+    );
   });
 });
 
@@ -218,6 +278,8 @@ describe("loadSettings / saveSettings", () => {
       maxThreadChars: 320,
       dropArticles: false,
       dropOutboundLinks: false,
+      dropNativeMedia: false,
+      dropHashtags: false,
       dropEmDashes: false,
       dropProfanity: false,
       dropAutomatedAccounts: false,
@@ -234,6 +296,8 @@ describe("loadSettings / saveSettings", () => {
       maxThreadChars: 320,
       dropArticles: false,
       dropOutboundLinks: false,
+      dropNativeMedia: false,
+      dropHashtags: false,
       dropEmDashes: false,
       dropProfanity: false,
       dropAutomatedAccounts: false,

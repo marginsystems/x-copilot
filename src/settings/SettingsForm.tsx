@@ -7,6 +7,8 @@ import {
   clampMaxThreadChars,
   clampMinViews,
   DEFAULT_SETTINGS,
+  DROP_HASHTAGS_LABEL,
+  DROP_NATIVE_MEDIA_LABEL,
   DROP_OUTBOUND_LINKS_LABEL,
   MAX_AVOID_CHARS,
   normalizeAvoidPrompt,
@@ -167,6 +169,32 @@ export function SettingsForm({
               }
             />
             <span>{DROP_OUTBOUND_LINKS_LABEL}</span>
+          </label>
+          <label className="settings-check">
+            <input
+              type="checkbox"
+              checked={draft.dropNativeMedia}
+              onChange={(e) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  dropNativeMedia: e.target.checked,
+                }))
+              }
+            />
+            <span>{DROP_NATIVE_MEDIA_LABEL}</span>
+          </label>
+          <label className="settings-check">
+            <input
+              type="checkbox"
+              checked={draft.dropHashtags}
+              onChange={(e) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  dropHashtags: e.target.checked,
+                }))
+              }
+            />
+            <span>{DROP_HASHTAGS_LABEL}</span>
           </label>
           <label className="settings-check">
             <input

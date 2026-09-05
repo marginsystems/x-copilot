@@ -143,6 +143,8 @@ describe("parseScoutFilters", () => {
       parseScoutFilters({
         dropArticles: true,
         dropOutboundLinks: false,
+        dropNativeMedia: false,
+        dropHashtags: false,
         dropEmDashes: false,
         dropProfanity: false,
         dropAutomatedAccounts: true,
@@ -152,6 +154,8 @@ describe("parseScoutFilters", () => {
       {
         dropArticles: true,
         dropOutboundLinks: false,
+        dropNativeMedia: false,
+        dropHashtags: false,
         dropEmDashes: false,
         dropProfanity: false,
         dropAutomatedAccounts: true,

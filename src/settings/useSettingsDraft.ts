@@ -1,5 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import {
+  keepPlainTextThread,
   loadSettings,
   saveSettings,
   threadHasExcludedTag,
@@ -35,7 +36,8 @@ export function useSettingsDraft({
       prev.filter(
         (thread) =>
           !threadHasExcludedTag(thread, next.excludedTags) &&
-          !threadHasExcludedAuthor(thread, next.excludedAccounts),
+          !threadHasExcludedAuthor(thread, next.excludedAccounts) &&
+          keepPlainTextThread(thread, next),
       ),
     );
     setSettingsStatus(

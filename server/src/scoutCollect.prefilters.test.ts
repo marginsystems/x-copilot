@@ -126,6 +126,65 @@ describe("runScoutCollect prefilters", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
+  it("drops media and hashtag cards before triage", async () => {
+    let triageIds: string[] = [];
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => ({
+          ok: true as const,
+          queryId: "test",
+          threads: [
+            card({
+              id: "m1",
+              author: "@photos",
+              text: "interview dump",
+              mediaShortlinks: ["t.co/zk5ziekdnn"],
+            }),
+            card({
+              id: "h1",
+              author: "@tags",
+              text: "Ship this #buildinpublic",
+            }),
+            card({ id: "n1", author: "@alice" }),
+            card({ id: "n2", author: "@bob" }),
+            card({ id: "n3", author: "@carol" }),
+            card({ id: "n4", author: "@dave" }),
+            card({ id: "n5", author: "@erin" }),
+          ],
+          bottomCursor: null,
+        }),
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageIds = threads.map((t) => t.id);
+          return {
+            threads: threads.map((t, i) => ({
+              ...t,
+              engage: i === 0 ? ("consider" as const) : ("skip" as const),
+              baitScore: i === 0 ? 20 : 80,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(triageIds, ["n1", "n2", "n3", "n4", "n5"]);
+    assert.ok(!triageIds.includes("m1") && !triageIds.includes("h1"));
+    assert.equal(result.event.stopReason, "target");
+  });
+
   it("keeps outbound-link cards when the setting is off", async () => {
     let triageIds: string[] = [];
 
