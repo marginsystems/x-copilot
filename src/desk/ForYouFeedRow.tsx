@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  FYP_ACTION_COPY,
   FYP_NEXT_TIP,
   FYP_OPEN_TIP,
   FYP_WAIT_COPY,
@@ -46,6 +47,7 @@ export function ForYouFeedRow(props: {
           </HasTipButton>
         ) : null}
       </div>
+      <p className="reason">{FYP_ACTION_COPY}</p>
     </DeskRow>
   );
 }

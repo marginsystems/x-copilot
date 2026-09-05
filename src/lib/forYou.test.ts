@@ -16,8 +16,10 @@ import {
   forYouUsesDeskCompose,
   parseForYouProgress,
   parseForYouSuggestion,
+  FYP_ACTION_COPY,
   FYP_NEXT_TIP,
   FYP_OPEN_TIP,
+  FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "./forYou.ts";
 
@@ -154,6 +156,13 @@ describe("forYou helpers", () => {
   it("names the For You row buttons", () => {
     assert.match(FYP_OPEN_TIP, /For You page/);
     assert.match(FYP_NEXT_TIP, /next Approach card/);
+  });
+
+  it("keeps the collapsed wait short and names the expanded action", () => {
+    assert.equal(FYP_WAIT_COPY.includes("Like"), false);
+    assert.match(FYP_WAIT_COPY, /Open For You/);
+    assert.match(FYP_ACTION_COPY, /Reply, original, or quote/);
+    assert.match(FYP_ACTION_COPY, /Likes do not count/);
   });
 
   it("parses extra usage from GET /api/for-you", () => {
