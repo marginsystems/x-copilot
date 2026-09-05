@@ -20,17 +20,23 @@ import {
   pickApproachSuggestion,
 } from "../lib/approachCard";
 import {
+  advanceApproach,
   approachTabLiveCount,
-  deskPhase,
-  emptyDeskBeats,
+  initialApproachLock,
+  type ApproachEvent,
+  type ApproachLock,
 } from "../lib/deskPhase";
-import { shouldBackgroundScout } from "../lib/deskRefuel";
+import {
+  clearScoutTakeoffTried,
+  markScoutTakeoffTried,
+  readScoutTakeoffTried,
+  shouldBackgroundScout,
+} from "../lib/deskRefuel";
 import {
   canPresentForYouTask,
   clearForYouWait,
   hasDetectedForYouPost,
   readForYouWait,
-  shouldHoldForYouTask,
   snapshotForYouWait,
   writeForYouWait,
   type ForYouWait,
@@ -89,9 +95,15 @@ type ThreadsTabsProps = {
   voice: VoiceState | null;
   agenda: string;
   agendaReady: boolean;
+  deskBootReady: boolean;
   authUser: AuthSessionUser | null;
+  markThread: ThreadCard | null;
+  dismissThread: ThreadCard | null;
   setVoice: Dispatch<SetStateAction<VoiceState | null>>;
-  actForYou: (id: string, action: "done" | "skip" | "dismiss") => void | Promise<void>;
+  actForYou: (
+    id: string,
+    action: "done" | "skip" | "dismiss",
+  ) => Promise<boolean>;
   onOpenVoice: () => void;
   onOpenSettings: () => void;
   onOpenUsage: () => void;
@@ -100,7 +112,6 @@ type ThreadsTabsProps = {
   groundedLine: string | null;
   searchCooldownRemaining: number;
   onSearch: () => void;
-  onStopScout: () => void;
   onMark: (thread: ThreadCard) => void;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
@@ -131,7 +142,10 @@ export function ThreadsTabs({
   voice,
   agenda,
   agendaReady,
+  deskBootReady,
   authUser,
+  markThread,
+  dismissThread,
   setVoice,
   actForYou,
   onOpenVoice,
@@ -142,7 +156,6 @@ export function ThreadsTabs({
   groundedLine,
   searchCooldownRemaining,
   onSearch,
-  onStopScout,
   onMark,
   onSkip,
   onDismiss,
@@ -155,54 +168,35 @@ export function ThreadsTabs({
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   const scouted = preferRootTargets(curatedThreads);
   const scout = pickApproachScout(scouted);
-  const scoutCountRef = useRef(scouted.length);
-  const consumedScoutRef = useRef(false);
   const pendingDismissIdRef = useRef<string | null>(null);
-  const autoTriedRef = useRef(false);
-  if (scouted.length > scoutCountRef.current) {
-    consumedScoutRef.current = false;
-    autoTriedRef.current = false;
-  }
-  if (
-    pendingDismissIdRef.current &&
-    dismissedHistory.some(
-      (entry) => entry.threadId === pendingDismissIdRef.current,
-    ) &&
-    !scouted.some((thread) => thread.id === pendingDismissIdRef.current)
-  ) {
-    consumedScoutRef.current = true;
-    pendingDismissIdRef.current = null;
-  }
-  scoutCountRef.current = scouted.length;
-  const tanksEmpty =
-    scouted.length === 0 && forYouSuggestions.length === 0;
+  const pendingMarkIdRef = useRef<string | null>(null);
   const canPresentForYou = canPresentForYouTask({
     needsXLink: deskNeedsXLink(authUser),
     hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
     grounded,
     cooldownRemaining: searchCooldownRemaining,
   });
-  const [forYouWait, setForYouWait] = useState<ForYouWait | null>(
-    readForYouWait,
-  );
-  const [forYouReleased, setForYouReleased] = useState(false);
-  const forYouHeld = forYouWait?.held === true;
-  const holdForYouTask = shouldHoldForYouTask({
-    held: forYouHeld,
-    tanksEmpty,
-    canPresent: canPresentForYou,
-    arm: !consumedScoutRef.current,
+  const silentFallback = deskNeedsXLink(authUser)
+    ? "link_x"
+    : agenda.trim().length < AGENDA_MIN_CHARS
+      ? "settings"
+      : grounded
+        ? "usage"
+        : searchCooldownRemaining > 0
+          ? "wait"
+          : "for_you";
+  const [forYouWait, setForYouWait] = useState<ForYouWait | null>(() => {
+    const existing = readForYouWait();
+    if (existing) return existing;
+    if (scout || !deskBootReady || !canPresentForYou) return null;
+    const wait: ForYouWait = {
+      held: true,
+      snapshot: snapshotForYouWait(coaching),
+    };
+    writeForYouWait(wait);
+    return wait;
   });
-  useEffect(() => {
-    if (holdForYouTask && !forYouHeld && !forYouReleased && coaching) {
-      const wait: ForYouWait = {
-        held: true,
-        snapshot: snapshotForYouWait(coaching),
-      };
-      writeForYouWait(wait);
-      setForYouWait(wait);
-    }
-  }, [holdForYouTask, forYouHeld, forYouReleased, coaching]);
+  const forYouHeld = forYouWait?.held === true;
   useEffect(() => {
     if (!forYouWait || forYouWait.snapshot || !coaching) return;
     const wait: ForYouWait = {
@@ -212,9 +206,6 @@ export function ThreadsTabs({
     writeForYouWait(wait);
     setForYouWait(wait);
   }, [forYouWait, coaching]);
-  useEffect(() => {
-    if (grounded && forYouReleased) setForYouReleased(false);
-  }, [grounded, forYouReleased]);
   const refreshCoachingRef = useRef(onRefreshCoaching);
   refreshCoachingRef.current = onRefreshCoaching;
   useEffect(() => {
@@ -240,18 +231,137 @@ export function ThreadsTabs({
         null,
     }),
   });
-  const { phase, hold } = deskPhase({
-    needsOnboarding: false,
-    paceLocked: pace.locked,
-    overheat: false,
-    hasScoutCard: scouted.length > 0,
-    hasSuggestion: suggestion != null,
-    searching,
-    holdForYouTask,
-    beats: coaching?.beats ?? emptyDeskBeats(),
-  });
-  const previousPhaseRef = useRef(phase);
-  const wasSearchingRef = useRef(false);
+  const scoutCardsRef = useRef(new Map<string, ThreadCard>());
+  const suggestionCardsRef = useRef(new Map<string, ForYouSuggestion>());
+  for (const row of scouted) scoutCardsRef.current.set(row.id, row);
+  for (const row of forYouSuggestions) {
+    suggestionCardsRef.current.set(row.id, row);
+  }
+  const [locked, setLocked] = useState<ApproachLock>(() =>
+    initialApproachLock({
+      forYouHeld,
+      paceLocked: pace.locked,
+      scoutId: scout?.id ?? null,
+      fallback: silentFallback,
+    }),
+  );
+  const phase = locked.phase;
+  const hold = phase === "hold";
+  const holdForYouTask =
+    (phase === "silent_refuel" || phase === "hold") &&
+    locked.surface === "for_you";
+  const lockedScout = locked.cardId
+    ? scoutCardsRef.current.get(locked.cardId) ?? null
+    : null;
+  const lockedSuggestion = locked.cardId
+    ? suggestionCardsRef.current.get(locked.cardId) ?? null
+    : null;
+  const autoTriedRef = useRef(readScoutTakeoffTried());
+  const [refuelArmed, setRefuelArmed] = useState(false);
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
+
+  function advanceCard(event: ApproachEvent) {
+    const current = lockedRef.current;
+    const next = advanceApproach(current, event, {
+      scoutId:
+        scouted.find((row) => row.id !== current.cardId)?.id ?? null,
+      suggestionId:
+        (suggestion?.id !== current.cardId
+          ? suggestion
+          : pickApproachSuggestion(
+              forYouSuggestions.filter((row) => row.id !== current.cardId),
+              {
+                allowPost: canServeApproachOriginal({
+                  scoutReplyDone:
+                    coaching?.dayUtc === currentDayUtc &&
+                    coaching?.beats.scoutReplyDone === true,
+                  originalMission:
+                    coaching?.missions.find(
+                      (mission) => mission.id === "original_1",
+                    ) ?? null,
+                }),
+              },
+            )
+        )?.id ?? null,
+      canPresentForYou,
+    });
+    if (next === current) return;
+    lockedRef.current = next;
+    if (next.surface === "for_you" && !forYouWait) {
+      const wait: ForYouWait = {
+        held: true,
+        snapshot: snapshotForYouWait(coaching),
+      };
+      writeForYouWait(wait);
+      setForYouWait(wait);
+    }
+    setLocked(next);
+  }
+
+  useEffect(() => {
+    if (!deskBootReady || phase !== "silent_refuel") return;
+    let nextForYouHeld = forYouHeld;
+    if (!scout && canPresentForYou && !forYouWait) {
+      const wait: ForYouWait = {
+        held: true,
+        snapshot: snapshotForYouWait(coaching),
+      };
+      writeForYouWait(wait);
+      setForYouWait(wait);
+      nextForYouHeld = true;
+    }
+    const next = initialApproachLock({
+      forYouHeld: nextForYouHeld,
+      paceLocked: pace.locked,
+      scoutId: scout?.id ?? null,
+      fallback: silentFallback,
+    });
+    lockedRef.current = next;
+    setLocked(next);
+  }, [
+    deskBootReady,
+    forYouHeld,
+    forYouWait,
+    canPresentForYou,
+    coaching,
+    locked.surface,
+    pace.locked,
+    phase,
+    scout?.id,
+    silentFallback,
+  ]);
+
+  useEffect(() => {
+    if (phase !== "done_for_now" || (!scout && !suggestion)) return;
+    advanceCard({ type: "next" });
+  }, [phase, scout, suggestion]);
+
+  useEffect(() => {
+    if (!deskBootReady || !locked.cardId) return;
+    if (
+      pendingDismissIdRef.current === locked.cardId ||
+      pendingMarkIdRef.current === locked.cardId
+    ) {
+      return;
+    }
+    const cardIsLive =
+      (phase === "scout_reply" &&
+        scouted.some((row) => row.id === locked.cardId)) ||
+      (phase === "organic_reply" &&
+        forYouSuggestions.some((row) => row.id === locked.cardId));
+    if (!cardIsLive) {
+      advanceCard({ type: "skip" });
+      armRefuel();
+    }
+  }, [deskBootReady, forYouSuggestions, locked.cardId, phase, scouted]);
+
+  function armRefuel() {
+    clearScoutTakeoffTried();
+    autoTriedRef.current = false;
+    setRefuelArmed(true);
+  }
+
   useEffect(() => {
     const live = new Set<string>();
     for (const t of curatedThreads) live.add(t.id);
@@ -259,33 +369,7 @@ export function ThreadsTabs({
     clearGone(live);
   }, [curatedThreads, forYouSuggestions, clearGone]);
   useEffect(() => {
-    if (!agendaReady) return;
-    const waiting =
-      phase === "silent_refuel" ||
-      phase === "hold" ||
-      phase === "scout_reply" ||
-      phase === "organic_reply";
-    if (
-      (previousPhaseRef.current === "silent_refuel" ||
-        previousPhaseRef.current === "hold") &&
-      !waiting
-    ) {
-      autoTriedRef.current = false;
-    }
-    previousPhaseRef.current = phase;
-    if (!waiting) {
-      return;
-    }
-    if (searching) {
-      wasSearchingRef.current = true;
-      return;
-    }
-    if (wasSearchingRef.current) {
-      wasSearchingRef.current = false;
-      if (phase === "silent_refuel" || phase === "hold") {
-        autoTriedRef.current = false;
-      }
-    }
+    if (!refuelArmed || !agendaReady) return;
     if (
       !shouldBackgroundScout({
         phase,
@@ -301,8 +385,11 @@ export function ThreadsTabs({
       return;
     }
     autoTriedRef.current = true;
+    markScoutTakeoffTried();
+    setRefuelArmed(false);
     onSearch();
   }, [
+    refuelArmed,
     phase,
     searching,
     grounded,
@@ -313,6 +400,39 @@ export function ThreadsTabs({
     curatedThreads,
     onSearch,
   ]);
+  useEffect(() => {
+    if (
+      !markThread &&
+      pendingMarkIdRef.current &&
+      !interactedIds.has(pendingMarkIdRef.current)
+    ) {
+      pendingMarkIdRef.current = null;
+    }
+  }, [interactedIds, markThread]);
+  useEffect(() => {
+    if (
+      !dismissThread &&
+      pendingDismissIdRef.current &&
+      !dismissedHistory.some(
+        (entry) => entry.threadId === pendingDismissIdRef.current,
+      )
+    ) {
+      pendingDismissIdRef.current = null;
+    }
+  }, [dismissedHistory, dismissThread]);
+  useEffect(() => {
+    const id = pendingDismissIdRef.current;
+    if (!id || !dismissedHistory.some((entry) => entry.threadId === id)) return;
+    pendingDismissIdRef.current = null;
+    advanceCard({ type: "dismiss" });
+    armRefuel();
+  }, [dismissedHistory]);
+  useEffect(() => {
+    const id = pendingMarkIdRef.current;
+    if (!id || !interactedIds.has(id)) return;
+    pendingMarkIdRef.current = null;
+    advanceCard({ type: "mark" });
+  }, [interactedIds]);
   function exitRow(
     id: string,
     expandedKey: string,
@@ -346,8 +466,8 @@ export function ThreadsTabs({
                 agendaReady
                   ? approachTabLiveCount({
                       phase,
-                      hasScoutCard: scouted.length > 0,
-                      hasSuggestion: suggestion != null,
+                      hasScoutCard: lockedScout != null,
+                      hasSuggestion: lockedSuggestion != null,
                       holdForYouTask,
                     })
                   : 0
@@ -422,22 +542,22 @@ export function ThreadsTabs({
             hold={hold}
             clock={pace.clock}
             remainingMs={pace.remainingMs}
-            onBypass={pace.bypass}
-            searching={searching}
-            grounded={grounded}
+            onBypass={() => {
+              pace.bypass();
+              advanceCard({ type: "bypass" });
+              armRefuel();
+            }}
             groundedLine={groundedLine}
-            cooldownRemaining={searchCooldownRemaining}
-            holdForYouTask={holdForYouTask}
+            silentCard={locked.surface}
             forYouStatus={forYouStatus}
-            onStopScout={onStopScout}
             onOpenUsage={onOpenUsage}
             onOpenSettings={onOpenSettings}
             forYouProgress={forYouProgress}
             forYouExtra={forYouExtra}
             coaching={coaching}
             requestExtra={requestExtra}
-            scout={scout}
-            suggestion={suggestion}
+            scout={lockedScout}
+            suggestion={lockedSuggestion}
             actionBusy={actionBusy}
             expandedId={expandedId}
             setExpandedId={setExpandedId}
@@ -447,13 +567,18 @@ export function ThreadsTabs({
             authUser={authUser}
             setVoice={setVoice}
             exitingIds={exitingIds}
-            onScoutMark={onMark}
+            onScoutMark={(thread) => {
+              pendingMarkIdRef.current = thread.id;
+              onMark(thread);
+            }}
             onScoutSkip={(thread) => {
               exitRow(thread.id, thread.id, async () => {
                 const skipped = await onSkip(thread);
                 if (skipped) {
-                  consumedScoutRef.current = true;
-                  autoTriedRef.current = false;
+                  pendingMarkIdRef.current = null;
+                  pendingDismissIdRef.current = null;
+                  advanceCard({ type: "skip" });
+                  armRefuel();
                 }
               });
             }}
@@ -461,15 +586,30 @@ export function ThreadsTabs({
               pendingDismissIdRef.current = thread.id;
               onDismiss(thread);
             }}
-            onSuggestionPosted={(id) =>
-              exitRow(id, `suggest:${id}`, () => actForYou(id, "done"))
-            }
-            onSuggestionSkip={(id) =>
-              exitRow(id, `suggest:${id}`, () => actForYou(id, "skip"))
-            }
-            onSuggestionDismiss={(id) =>
-              exitRow(id, `suggest:${id}`, () => actForYou(id, "dismiss"))
-            }
+            onSuggestionPosted={(id) => {
+              exitRow(id, `suggest:${id}`, async () => {
+                if (await actForYou(id, "done")) {
+                  advanceCard({ type: "posted" });
+                  armRefuel();
+                }
+              });
+            }}
+            onSuggestionSkip={(id) => {
+              exitRow(id, `suggest:${id}`, async () => {
+                if (await actForYou(id, "skip")) {
+                  advanceCard({ type: "skip" });
+                  armRefuel();
+                }
+              });
+            }}
+            onSuggestionDismiss={(id) => {
+              exitRow(id, `suggest:${id}`, async () => {
+                if (await actForYou(id, "dismiss")) {
+                  advanceCard({ type: "dismiss" });
+                  armRefuel();
+                }
+              });
+            }}
             onChooseFork={(choice) => {
               void (async () => {
                 setActionBusy(true);
@@ -480,6 +620,8 @@ export function ThreadsTabs({
                     return;
                   }
                   onForkBeats(beats);
+                  advanceCard({ type: "fork", choice });
+                  armRefuel();
                   await onRefreshCoaching();
                 } finally {
                   setActionBusy(false);
@@ -496,6 +638,8 @@ export function ThreadsTabs({
                     return;
                   }
                   onForkBeats(beats);
+                  advanceCard({ type: "posted" });
+                  armRefuel();
                   await onRefreshCoaching();
                 } finally {
                   setActionBusy(false);
@@ -505,7 +649,8 @@ export function ThreadsTabs({
             onForYouNext={() => {
               clearForYouWait();
               setForYouWait(null);
-              setForYouReleased(true);
+              advanceCard({ type: "next" });
+              armRefuel();
             }}
             onOpenVoice={onOpenVoice}
             onLinkX={onLinkX}

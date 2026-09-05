@@ -358,7 +358,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   async function actForYou(
     id: string,
     path: "done" | "skip" | "dismiss",
-  ) {
+  ): Promise<boolean> {
     setActionBusy(true);
     try {
       const res = await apiFetch(`/api/for-you/${path}`, {
@@ -373,13 +373,10 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
           if (path === "skip" || path === "dismiss") {
             await hydrateForYou();
           }
-          return;
+          return false;
         }
-        const data = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        setStatus(`For You fail: ${data.message || res.status}`);
-        return;
+        setStatus("Could not update For You. Try again.");
+        return false;
       }
       const data = (await res.json().catch(() => ({}))) as {
         suggestions?: unknown[];
@@ -395,11 +392,13 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       );
       historyStaleRef.current = true;
       if (path === "skip" || path === "dismiss") {
-        await hydrateForYou();
+        void hydrateForYou();
       }
       if (path === "done" && row?.kind === "reply") armReplyPace();
+      return true;
     } catch {
-      setStatus("For You fail — desk offline.");
+      setStatus("Could not update For You. Try again.");
+      return false;
     } finally {
       setActionBusy(false);
     }
@@ -416,7 +415,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       const extra = parseForYouExtra(data);
       if (extra) setForYouExtra(extra);
       if (!res.ok) {
-        setStatus(data.message || `Approach extras fail: ${res.status}`);
+        setStatus("Could not update Approach. Try again.");
         return;
       }
       const rows = (Array.isArray(data.suggestions) ? data.suggestions : [])
@@ -428,7 +427,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       });
       historyStaleRef.current = true;
     } catch {
-      setStatus("Approach extras fail — desk offline.");
+      setStatus("Could not update Approach. Try again.");
     } finally {
       setActionBusy(false);
     }

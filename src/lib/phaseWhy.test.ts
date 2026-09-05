@@ -70,4 +70,15 @@ describe("phaseWhy", () => {
       "Compose an original. Mark it here.",
     );
   });
+
+  it("never puts reply coaching on For You or Hold", () => {
+    const reply = coaching("reply", "Reply coaching from another card.");
+    assert.equal(phaseWhy("silent_refuel", reply), "");
+    assert.equal(phaseWhy("hold", reply), "");
+    assert.equal(
+      coachingMatchesCard("silent_refuel", "reply"),
+      false,
+    );
+    assert.equal(coachingMatchesCard("hold", "reply"), false);
+  });
 });

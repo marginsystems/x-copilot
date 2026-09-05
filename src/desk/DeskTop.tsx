@@ -12,14 +12,13 @@ type DeskTab = "path" | "instruments";
 type DeskTopProps = {
   open: boolean;
   onToggle: () => void;
-  searching: boolean;
-  status: string;
   flightPathOpen: boolean;
   activityBucket: ActivityBucket;
   activityStats: ActivityStats;
   gamification: GamificationStats;
   interactedHistory: InteractionHistoryEntry[];
   coaching?: CoachingState | null;
+  status?: string;
   onToggleFlightPath: () => void;
   onActivityBucket: (bucket: ActivityBucket) => void;
 };
@@ -27,20 +26,18 @@ type DeskTopProps = {
 export function DeskTop({
   open,
   onToggle,
-  searching,
-  status,
   flightPathOpen,
   activityBucket,
   activityStats,
   gamification,
   interactedHistory,
   coaching,
+  status,
   onToggleFlightPath,
   onActivityBucket,
 }: DeskTopProps) {
   const bodyId = useId();
   const [tab, setTab] = useState<DeskTab>("path");
-  const statusLine = status || "Scout refuels when Approach is empty.";
 
   return (
     <div className={open ? "desk-top" : "desk-top is-collapsed"}>
@@ -74,13 +71,14 @@ export function DeskTop({
               Instruments
             </button>
           </div>
-        ) : (
-          <div className="desk-top-bar-copy" aria-live="polite">
-            <p className={searching ? "status scout-flight-line" : "status status-main"}>
-              <FadeSwap text={statusLine} />
+        ) : null}
+        {status ? (
+          <div className="desk-top-bar-copy">
+            <p className="status" role="status">
+              <FadeSwap text={status} />
             </p>
           </div>
-        )}
+        ) : null}
         <button
           type="button"
           className="desk-top-toggle"

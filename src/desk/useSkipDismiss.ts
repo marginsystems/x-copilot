@@ -64,7 +64,7 @@ export function useSkipDismiss({
         skip?: SkipHistoryEntry;
       };
       if (!res.ok) {
-        setStatus(`Skip fail: ${data.message || res.status}`);
+        setStatus("Could not skip. Try again.");
         return false;
       }
       const entry: SkipHistoryEntry = data.skip ?? {
@@ -86,7 +86,7 @@ export function useSkipDismiss({
       setStatus(`Skipped ${thread.author}`);
       return true;
     } catch {
-      setStatus("Sidecar offline — could not skip");
+      setStatus("Could not skip. Try again.");
       return false;
     } finally {
       setActionBusy(false);
@@ -119,7 +119,7 @@ export function useSkipDismiss({
         dismissal?: DismissalHistoryEntry;
       };
       if (!res.ok) {
-        setStatus(`Dismiss fail: ${data.message || res.status}`);
+        setStatus("Could not dismiss. Try again.");
         return false;
       }
       const conversationRoot =
@@ -166,7 +166,7 @@ export function useSkipDismiss({
       setExpandedId((id) => (id === thread.id ? null : id));
       return true;
     } catch {
-      setStatus("Sidecar offline — could not dismiss");
+      setStatus("Could not dismiss. Try again.");
       return false;
     }
   }

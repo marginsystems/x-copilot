@@ -10,9 +10,7 @@ import {
   type ForYouSuggestion,
 } from "../lib/forYou";
 import type { CoachingState } from "../lib/coaching";
-import { deskNeedsXLink } from "../lib/deskGate";
-import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
-import type { DeskPhase } from "../lib/deskPhase";
+import type { ApproachLock, DeskPhase } from "../lib/deskPhase";
 import { phaseWhy } from "../lib/phaseWhy";
 import { preferRootTargets } from "../lib/scoutTarget";
 import type { VoiceState } from "../lib/voice";
@@ -32,7 +30,7 @@ export function pickApproachScout(threads: ThreadCard[]): ThreadCard | null {
 export function ApproachLoadingCard() {
   return (
     <div className="mission-card" aria-busy="true" role="status">
-      <p className="mission-card-verb">Reply</p>
+      <p className="mission-card-verb">Approach</p>
       <p className="mission-card-why">
         <span className="mission-skel mission-skel-summary" />
       </p>
@@ -87,13 +85,9 @@ export function MissionCard(props: {
   clock: string;
   remainingMs: number;
   onBypass: () => void;
-  searching: boolean;
-  grounded?: boolean;
   groundedLine?: string | null;
-  cooldownRemaining?: number;
-  holdForYouTask?: boolean;
+  silentCard?: ApproachLock["surface"];
   forYouStatus?: string;
-  onStopScout?: () => void;
   onOpenUsage?: () => void;
   onOpenSettings?: () => void;
   forYouProgress?: ForYouProgress | null;
@@ -151,10 +145,8 @@ export function MissionCard(props: {
         <p className="mission-card-verb">{phaseVerb("hold")}</p>
         <div className="threads">
           <ForYouFeedRow
-            searching={props.searching}
             status={props.forYouStatus}
             onNext={props.onForYouNext}
-            onStopScout={props.onStopScout}
           />
         </div>
         <ReplyPaceBar
@@ -167,25 +159,18 @@ export function MissionCard(props: {
   }
 
   if (props.phase === "silent_refuel") {
-    const needsX = deskNeedsXLink(props.authUser);
-    const hasAgenda = props.agenda.trim().length >= AGENDA_MIN_CHARS;
+    const action = props.silentCard ?? "wait";
     let why = "";
-    let action: "link_x" | "settings" | "usage" | "fyp" | null = null;
-    if (needsX) {
+    if (action === "link_x") {
       why = "Link X so Scout can refuel Approach.";
-      action = "link_x";
-    } else if (!hasAgenda) {
+    } else if (action === "settings") {
       why = "Set an agenda in Settings so Scout knows what to look for.";
-      action = "settings";
-    } else if (props.grounded && !props.holdForYouTask) {
+    } else if (action === "usage") {
       why =
         props.groundedLine ||
         "Grounded. Scout waits until 00:00 UTC. Open Usage for the next plan.";
-      action = "usage";
-    } else if ((props.cooldownRemaining ?? 0) > 0 && !props.holdForYouTask) {
-      why = `Hold short ${props.cooldownRemaining}s. Scout retries after the gate.`;
-    } else {
-      action = "fyp";
+    } else if (action === "wait") {
+      why = "Approach is holding.";
     }
     return (
       <div className="mission-card">
@@ -220,17 +205,15 @@ export function MissionCard(props: {
             </button>
           </div>
         ) : null}
-        {action === "fyp" ? (
+        {action === "for_you" ? (
           <div className="threads">
             <ForYouFeedRow
-              searching={props.searching}
               status={props.forYouStatus}
               onNext={props.onForYouNext}
-              onStopScout={props.onStopScout}
             />
           </div>
         ) : null}
-        {action === null ? extra : null}
+        {action === "wait" ? extra : null}
       </div>
     );
   }

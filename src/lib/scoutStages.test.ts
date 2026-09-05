@@ -81,4 +81,15 @@ describe("scoutStages", () => {
       "Wait 12s before searching again.",
     );
   });
+
+  it("does not expose local operations instructions", () => {
+    for (const detail of [
+      "Sidecar offline — run ./pm2-manager.sh restart",
+      "Try npm run dev:server on localhost",
+    ]) {
+      const line = formatScoutFailure(detail);
+      assert.equal(line, "Scout is unavailable right now.");
+      assert.doesNotMatch(line, /sidecar|pm2|npm|localhost|\.\//i);
+    }
+  });
 });

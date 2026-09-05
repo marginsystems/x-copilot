@@ -76,6 +76,7 @@ import {
 
 export default function App() {
   const [agendaReady, setAgendaReady] = useState(false);
+  const [deskBootReady, setDeskBootReady] = useState(false);
   const [onboardingSeedAgenda, setOnboardingSeedAgenda] = useState<
     string | null
   >(null);
@@ -85,9 +86,7 @@ export default function App() {
       cachedBoot?.user?.agenda ??
       "Find builders sharing opinions, tradeoffs, or concrete takes on shipping AI / software tools in public. Prefer posts with a clear point of view or a specific technical claim I can agree/disagree with.\nSkip open-ended engagement questions (“what are you shipping?”, “drop your stack”, “who should I follow?”, generic peer polls) even when they mention AI/build-in-public. A lone question with little substance is not interesting.",
   );
-  const [status, setStatus] = useState(
-    "Scout refuels when Approach is empty.",
-  );
+  const [status, setStatus] = useState("");
   const [threads, setThreads] = useState<ThreadCard[]>(
     () => cachedBoot?.desk?.lastScout.snapshot?.threads ?? [],
   );
@@ -227,7 +226,6 @@ export default function App() {
     grounded,
     sortiesLimit,
     onSearch,
-    onStopScout,
     applyLastScoutFromBoot,
     applyScoutLogFromBoot,
     hydrateLastScout,
@@ -398,6 +396,7 @@ export default function App() {
           await confirmCheckout(sessionId);
         }
         refreshAfterPaint(user);
+        setDeskBootReady(true);
         return;
       }
 
@@ -406,6 +405,7 @@ export default function App() {
         clearDeskBootCache();
         if (err) setSignInOpen(true);
         applyUser(null);
+        setDeskBootReady(true);
         return;
       }
 
@@ -427,6 +427,7 @@ export default function App() {
         await confirmCheckout(sessionId);
       }
       refreshAfterPaint(user);
+      setDeskBootReady(true);
     })();
   }, []);
 
@@ -876,14 +877,13 @@ export default function App() {
             <DeskTop
               open={deskTopOpen}
               onToggle={onToggleDeskTop}
-              searching={searching}
-              status={status}
               flightPathOpen={flightPathOpen}
               activityBucket={activityBucket}
               activityStats={activityStats}
               gamification={gamification}
               interactedHistory={interactedHistory}
               coaching={coaching}
+              status={status}
               onToggleFlightPath={onToggleFlightPath}
               onActivityBucket={onActivityBucket}
             />
@@ -911,11 +911,15 @@ export default function App() {
               voice={voice}
               agenda={agenda}
               agendaReady={agendaReady}
+              deskBootReady={deskBootReady}
               authUser={authUser}
+              markThread={markThread}
+              dismissThread={dismissThread}
               setVoice={setVoice}
               actForYou={async (id, action) => {
-                await actForYou(id, action);
+                const succeeded = await actForYou(id, action);
                 void hydrateCoaching();
+                return succeeded;
               }}
               onOpenVoice={openVoice}
               onOpenSettings={openSettings}
@@ -933,7 +937,6 @@ export default function App() {
               }
               searchCooldownRemaining={searchCooldownRemaining}
               onSearch={onSearch}
-              onStopScout={onStopScout}
               onMark={openMarkModal}
               onSkip={onSkip}
               onDismiss={openDismissModal}
