@@ -428,6 +428,7 @@ export function useScoutRun({
             ? ` · ${doneEvent.excludedAccountWarning}`
             : "") +
           (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");
+        setStatus(scoutStageMessage("done"));
         pushScoutLine(summary);
       } else if (!stream.sawError) {
         const line = formatScoutFailure("stream ended without results");
@@ -462,6 +463,7 @@ export function useScoutRun({
         // Still cool down in finally so Stop / unmount cannot bypass the gate.
         const { cool, target } = coolProgressRef.current;
         const summary = `Cool ${cool}/${target} · stop: aborted`;
+        setStatus(scoutStageMessage("done"));
         pushScoutLine(summary);
         onScoutFinished?.();
       } else {
