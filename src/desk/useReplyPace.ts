@@ -5,9 +5,13 @@ import {
   replyPaceLocked,
   replyPaceRemainingMs,
 } from "../lib/replyPace";
-import { clearReplyPace, readReplyPaceUntil } from "./replyPaceStore";
+import {
+  clearReplyPace,
+  readReplyPaceUntil,
+  seedReplyPaceFromReplyAt,
+} from "./replyPaceStore";
 
-export function useReplyPace() {
+export function useReplyPace(replyAtIso?: string | null) {
   const [until, setUntil] = useState<number | null>(readReplyPaceUntil);
   const [now, setNow] = useState(() => Date.now());
   const remainingMs = replyPaceRemainingMs(until, now);
@@ -24,6 +28,11 @@ export function useReplyPace() {
   }, []);
 
   useEffect(() => {
+    const seeded = seedReplyPaceFromReplyAt(replyAtIso);
+    if (seeded != null) setUntil(seeded);
+  }, [replyAtIso]);
+
+  useEffect(() => {
     if (!countingDown) return;
     const id = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(id);
@@ -31,7 +40,7 @@ export function useReplyPace() {
 
   useEffect(() => {
     if (until != null && remainingMs === 0) {
-      clearReplyPace();
+      clearReplyPace(false);
     }
   }, [until, remainingMs]);
 
