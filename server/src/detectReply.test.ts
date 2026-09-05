@@ -1,8 +1,5 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import {
   detectOwnReplyToThread,
   detectOwnReplyToThreadWithRetry,
@@ -14,6 +11,11 @@ import {
   listInteractionHistory,
   markInteracted,
 } from "./interactionStore.ts";
+import {
+  closeTempPlatformDb,
+  openTempPlatformDb,
+  seedUser,
+} from "./platformDb.testHelpers.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
 function card(
@@ -56,8 +58,9 @@ describe("pickOwnReplyInConversation", () => {
 
 describe("findRecentInteractionReply", () => {
   it("finds only the requested user's recent ledger reply", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "x-detect-ledger-"));
-    const storePath = join(dir, "interactions.json");
+    const temp = openTempPlatformDb("x-detect-ledger-");
+    seedUser("other-user");
+    seedUser("session-user");
     const nowMs = Date.parse("2026-09-05T12:00:00.000Z");
     try {
       await markInteracted({
@@ -67,7 +70,6 @@ describe("findRecentInteractionReply", () => {
         replyId: "other-reply",
         replyUrl: "https://x.com/other/status/other-reply",
         nowMs,
-        storePath,
       });
       await markInteracted({
         threadId: "card",
@@ -77,13 +79,11 @@ describe("findRecentInteractionReply", () => {
         replyId: "my-reply",
         text: "the reply text",
         nowMs,
-        storePath,
       });
 
       const history = await listInteractionHistory({
         userId: "session-user",
         limit: 2000,
-        storePath,
       });
       assert.deepEqual(
         findRecentInteractionReply({
@@ -99,7 +99,7 @@ describe("findRecentInteractionReply", () => {
         },
       );
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      closeTempPlatformDb(temp);
     }
   });
 
@@ -110,6 +110,7 @@ describe("findRecentInteractionReply", () => {
         nowMs: Date.parse("2026-09-05T12:00:00.000Z"),
         history: [
           {
+            userId: "u1",
             threadId: "target",
             author: "@me",
             authorKey: "me",

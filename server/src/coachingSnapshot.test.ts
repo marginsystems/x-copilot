@@ -17,6 +17,7 @@ import { listMissionsWithProgress } from "./dailyMissions.ts";
 import { insertSuggestions, markSuggestion } from "./forYouStore.ts";
 import { markInteracted } from "./interactionStore.ts";
 import { upsertOwnPost } from "./ownPostStore.ts";
+import { seedUser } from "./platformDb.testHelpers.ts";
 import type { ParsedPostCreate } from "./xActivity.ts";
 import { recordDeskPost } from "./xPostLimits.ts";
 
@@ -34,7 +35,6 @@ describe("originalsTodayCount", () => {
 describe("buildCoachingSnapshot", () => {
   let dir: string;
   let gamificationPath: string;
-  let interactionStorePath: string;
 
   beforeEach(() => {
     resetPlatformDbForTests();
@@ -43,7 +43,7 @@ describe("buildCoachingSnapshot", () => {
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
     getPlatformDb();
     gamificationPath = join(dir, "g.json");
-    interactionStorePath = join(dir, "interactions.json");
+    seedUser("u1");
   });
 
   afterEach(() => {
@@ -74,7 +74,6 @@ describe("buildCoachingSnapshot", () => {
       tenantId: "local",
       nowMs: NOW_MS,
       gamificationPath,
-      interactionStorePath,
     });
     assert.equal(snapshot.originalsToday, 1);
     const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
@@ -118,7 +117,6 @@ describe("buildCoachingSnapshot", () => {
       tenantId: "local",
       nowMs: NOW_MS,
       gamificationPath,
-      interactionStorePath,
     });
     assert.equal(snapshot.originalsToday, 1);
     const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
@@ -156,7 +154,6 @@ describe("buildCoachingSnapshot", () => {
       tenantId: "local",
       nowMs: NOW_MS,
       gamificationPath,
-      interactionStorePath,
     });
     assert.equal(ownPostsOnly.originalsToday, 1);
     assert.equal(ownPostsOnly.postsToday, 1);
@@ -181,7 +178,6 @@ describe("buildCoachingSnapshot", () => {
       tenantId: "local",
       nowMs: NOW_MS,
       gamificationPath,
-      interactionStorePath,
     });
     assert.equal(withCard.originalsToday, 1);
     const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
@@ -201,7 +197,6 @@ describe("buildCoachingSnapshot", () => {
       tenantId: "local",
       nowMs: NOW_MS,
       gamificationPath,
-      interactionStorePath,
     });
     assert.equal(snapshot.deskPostsToday, 1);
     assert.equal(snapshot.originalsToday, 1);
@@ -237,7 +232,6 @@ describe("buildCoachingSnapshot", () => {
       source: "manual",
       userId: "u1",
       nowMs: NOW_MS,
-      storePath: interactionStorePath,
     });
     await markInteracted({
       threadId: "p-phone",
@@ -247,7 +241,6 @@ describe("buildCoachingSnapshot", () => {
       replyId: "r-phone",
       postedAt: new Date(NOW_MS - 24 * 60 * 60 * 1000).toISOString(),
       nowMs: NOW_MS - 60_000,
-      storePath: interactionStorePath,
     });
     await markInteracted({
       threadId: "p-yesterday",
@@ -256,7 +249,6 @@ describe("buildCoachingSnapshot", () => {
       userId: "u1",
       replyId: "r-yesterday",
       nowMs: NOW_MS - 24 * 60 * 60 * 1000,
-      storePath: interactionStorePath,
     });
     await markInteracted({
       threadId: "p-copy",
@@ -264,7 +256,6 @@ describe("buildCoachingSnapshot", () => {
       source: "copy",
       userId: "u1",
       nowMs: NOW_MS,
-      storePath: interactionStorePath,
     });
 
     const snapshot = await buildCoachingSnapshot({
@@ -272,7 +263,6 @@ describe("buildCoachingSnapshot", () => {
       tenantId: "local",
       nowMs: NOW_MS,
       gamificationPath,
-      interactionStorePath,
     });
     assert.equal(snapshot.marksToday, 2);
     assert.equal(snapshot.manualMarksToday, 1);
@@ -344,14 +334,12 @@ describe("buildCoachingSnapshot", () => {
       tenantId: "local",
       nowMs: NOW_MS,
       gamificationPath,
-      interactionStorePath,
     });
     assert.equal(snapshot.quotesToday, 1);
     assert.equal(snapshot.repliesPostedToday, 1);
     assert.equal(snapshot.postsToday, 2);
     const times = await loadInstrumentTimes({
       userId: "u1",
-      interactionStorePath,
       nowMs: NOW_MS,
     });
     assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);

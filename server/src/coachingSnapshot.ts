@@ -60,13 +60,11 @@ export type InstrumentTimes = {
 
 export async function loadInstrumentTimes(opts: {
   userId: string;
-  interactionStorePath?: string;
   nowMs?: number;
 }): Promise<InstrumentTimes> {
   const history = await listInteractionHistory({
     userId: opts.userId,
     limit: INSTRUMENT_WINDOW,
-    storePath: opts.interactionStorePath,
   });
   const sinceIso = new Date(
     (opts.nowMs ?? Date.now()) - INSTRUMENT_HISTORY_MS,
@@ -177,7 +175,6 @@ export async function buildCoachingSnapshot(opts: {
   userId: string;
   tenantId: string;
   nowMs?: number;
-  interactionStorePath?: string;
   gamificationPath?: string;
 }): Promise<CoachingSnapshot> {
   const nowMs = opts.nowMs ?? Date.now();
@@ -187,13 +184,11 @@ export async function buildCoachingSnapshot(opts: {
     listInteractionHistory({
       userId: opts.userId,
       limit: 400,
-      storePath: opts.interactionStorePath,
     }),
     getGamification({
       userId: opts.userId,
       nowMs,
       gamificationPath: opts.gamificationPath,
-      interactionStorePath: opts.interactionStorePath,
     }),
   ]);
   let marksToday = 0;

@@ -34,7 +34,6 @@ import {
 import { resolvePlan } from "./planResolution.js";
 import { getRequestTenantId } from "./requestContext.js";
 import { readLastScoutPayload } from "./scoutHttp.js";
-import { getScoutLog } from "./scoutLog.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { listSkipHistory } from "./skipStore.js";
 
@@ -72,6 +71,7 @@ export async function tryHandleBoot(
   const tenantId = user ? ensureUserTenant(user.id) : getRequestTenantId();
 
   try {
+    // Desk history is per user. No session reads as an empty desk.
     const [
       dismissals,
       skipped,
@@ -79,12 +79,11 @@ export async function tryHandleBoot(
       interactionHistory,
       active,
       lastScout,
-      scoutLog,
       gamification,
     ] = await Promise.all([
-      listDismissalHistory(),
-      listSkipHistory(),
-      listExpiredHistory(),
+      user ? listDismissalHistory({ userId: user.id }) : [],
+      user ? listSkipHistory({ userId: user.id }) : [],
+      user ? listExpiredHistory({ userId: user.id }) : [],
       user
         ? listInteractionHistory({
             limit: MAX_INTERACTION_STORE,
@@ -93,10 +92,10 @@ export async function tryHandleBoot(
         : [],
       user ? listActiveInteractions({ userId: user.id }) : [],
       readLastScoutPayload({
+        userId: user?.id,
         dedupeAccounts:
           dedupeParam === null ? null : dedupeParam !== "false",
       }),
-      getScoutLog(),
       getGamification({ userId: user?.id }),
     ]);
 
@@ -187,7 +186,8 @@ export async function tryHandleBoot(
           },
           forYou,
           lastScout,
-          scoutLog: { entries: scoutLog },
+          // The Scout stage log is process-local; it is not desk state.
+          scoutLog: { entries: [] },
           gamification,
           activityStats,
           coaching,

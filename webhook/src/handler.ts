@@ -3,7 +3,6 @@
  * and the API fallback route during proxy cutover.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { dirname, join } from "node:path";
 import { send } from "../../server/src/httpJson.js";
 import { xConsumerCreds } from "../../server/src/xAuth.js";
 import { getUserById } from "../../server/src/authStore.js";
@@ -49,7 +48,7 @@ import type { ParsedPostCreate } from "../../server/src/xActivity.js";
 export async function markOwnReplyInteracted(
   parsed: ParsedPostCreate,
   userId: string,
-  opts?: { storePath?: string; nowMs?: number },
+  opts?: { nowMs?: number },
 ): Promise<"scout" | "organic" | "skipped"> {
   if (!parsed.inReplyToId) return "skipped";
   if (parsed.inReplyToUserId === parsed.xUserId) return "skipped";
@@ -64,7 +63,6 @@ export async function markOwnReplyInteracted(
     parsed.conversationId ??
     parsed.postId;
   const history = await listInteractionHistory({
-    storePath: opts?.storePath,
     limit: MAX_INTERACTION_STORE,
     userId,
   });
@@ -100,7 +98,6 @@ export async function markOwnReplyInteracted(
     conversationId:
       parsed.conversationId ?? watched?.conversationId ?? undefined,
     inReplyToId: parsed.inReplyToId,
-    storePath: opts?.storePath,
     nowMs: opts?.nowMs,
   });
   recordDeskReplyMarked({
@@ -111,18 +108,11 @@ export async function markOwnReplyInteracted(
   // #656 landed on main against the old in-process handler. Keep that streak
   // increment on the sidecar so a webhook-discovered reply still counts.
   if (watched) {
-    const isolated = opts?.storePath
-      ? {
-          interactionStorePath: opts.storePath,
-          gamificationPath: join(dirname(opts.storePath), "gamification.json"),
-        }
-      : {};
     try {
       await recordMarkGamification({
         threadId: watched.threadId,
         userId,
         nowMs: opts?.nowMs ?? Date.parse(interaction.at),
-        ...isolated,
       });
     } catch (err) {
       console.warn("[xaa] streak mark soft-fail", err);
@@ -132,7 +122,6 @@ export async function markOwnReplyInteracted(
         checkpoint: "mark",
         failed: true,
         pendingAt: interaction.at,
-        storePath: opts?.storePath,
       }).catch(() => {});
     }
   }

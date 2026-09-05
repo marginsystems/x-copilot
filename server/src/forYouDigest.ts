@@ -215,11 +215,11 @@ export function rankOwnPosts(userId: string, nowMs = Date.now()): {
   };
 }
 
-/** Last Scout snapshot — live threads the original should riff on. */
-export async function loadDigestScout(): Promise<{
+/** One user's Scout tank — live threads the original should riff on. */
+export async function loadDigestScout(userId: string): Promise<{
   threads?: DigestScout[];
 } | null> {
-  const snap = await getLastScout();
+  const snap = await getLastScout({ userId });
   if (!snap?.threads.length) return null;
   const threads = preferRootTargets(snap.threads);
   if (!threads.length) return null;
@@ -251,7 +251,9 @@ export async function buildForYouDigest(opts: {
       views: typeof views === "number" && Number.isFinite(views) ? views : undefined,
     };
   });
-  const scout = await (opts.getScout ?? loadDigestScout)();
+  const scout = await (opts.getScout
+    ? opts.getScout()
+    : loadDigestScout(opts.userId));
   const leftoverScout: DigestScout[] = (scout?.threads ?? [])
     .filter((t) => t.id && t.url && t.author)
     .slice(0, 8)

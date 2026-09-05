@@ -35,6 +35,7 @@ import {
 } from "./db.ts";
 import { markInteracted } from "./interactionStore.ts";
 import { upsertOwnPost } from "./ownPostStore.ts";
+import { seedUser } from "./platformDb.testHelpers.ts";
 import type { Interaction } from "./interactionStore.ts";
 import type { ParsedPostCreate } from "./xActivity.ts";
 
@@ -81,6 +82,7 @@ describe("utcDaysFromHistory", () => {
   it("prefers postedAt so an off-desk reply counts on the day it was posted", () => {
     const days = utcDaysFromHistory([
       {
+        userId: "u1",
         threadId: "a",
         author: "@x",
         authorKey: "x",
@@ -311,6 +313,7 @@ describe("seedGamificationFromHistory", () => {
   it("replays marks and t24h bonuses oldest-first", () => {
     const rows: Interaction[] = [
       {
+        userId: "u1",
         threadId: "a",
         author: "@a",
         authorKey: "a",
@@ -325,6 +328,7 @@ describe("seedGamificationFromHistory", () => {
         },
       },
       {
+        userId: "u1",
         threadId: "b",
         author: "@b",
         authorKey: "b",
@@ -346,6 +350,7 @@ describe("seedGamificationFromHistory", () => {
     const state = seedGamificationFromHistory(
       [
         {
+          userId: "u1",
           threadId: "d1",
           author: "@a",
           authorKey: "a",
@@ -353,6 +358,7 @@ describe("seedGamificationFromHistory", () => {
           source: "discovered",
         },
         {
+          userId: "u1",
           threadId: "d2",
           author: "@a",
           authorKey: "a",
@@ -369,6 +375,7 @@ describe("seedGamificationFromHistory", () => {
   it("does not seed t24h bonus XP for discovered replies", () => {
     const state = seedGamificationFromHistory([
       {
+        userId: "u1",
         threadId: "d1",
         author: "@a",
         authorKey: "a",
@@ -395,6 +402,7 @@ describe("seedGamificationFromHistory", () => {
       broken,
       [
         {
+          userId: "u1",
           threadId: "d1",
           author: "@a",
           authorKey: "a",
@@ -402,6 +410,7 @@ describe("seedGamificationFromHistory", () => {
           source: "discovered",
         },
         {
+          userId: "u1",
           threadId: "d2",
           author: "@a",
           authorKey: "a",
@@ -409,6 +418,7 @@ describe("seedGamificationFromHistory", () => {
           source: "manual",
         },
         {
+          userId: "u1",
           threadId: "d3",
           author: "@a",
           authorKey: "a",
@@ -434,6 +444,7 @@ describe("seedGamificationFromHistory", () => {
       state,
       [
         {
+          userId: "u1",
           threadId: "d1",
           author: "@a",
           authorKey: "a",
@@ -441,6 +452,7 @@ describe("seedGamificationFromHistory", () => {
           source: "discovered",
         },
         {
+          userId: "u1",
           threadId: "d2",
           author: "@a",
           authorKey: "a",
@@ -527,16 +539,16 @@ describe("toLeaderboardRow", () => {
 describe("recordMarkGamification / getGamification", () => {
   let dir: string;
   let gamificationPath: string;
-  let interactionStorePath: string;
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), "x-copilot-game-"));
     gamificationPath = join(dir, "gamification.json");
-    interactionStorePath = join(dir, "interactions.json");
     resetPlatformDbForTests();
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
     getPlatformDb();
+    seedUser("u1");
+    seedUser("u2");
   });
 
   afterEach(async () => {
@@ -554,11 +566,11 @@ describe("recordMarkGamification / getGamification", () => {
       replyId: "r1",
       replyUrl: "https://x.com/me/status/r1",
       nowMs: now,
-      storePath: interactionStorePath,
+      userId: "u1",
     });
     const afterMark = await recordMarkGamification({
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: now,
       threadId: "t1",
     });
@@ -566,8 +578,8 @@ describe("recordMarkGamification / getGamification", () => {
     assert.equal(afterMark.currentStreak, 1);
 
     const snap = await getGamification({
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
     });
     assert.equal(snap.lifetimeXp, 1);
     assert.equal(snap.level, 2);
@@ -589,11 +601,11 @@ describe("recordMarkGamification / getGamification", () => {
       threadId: "t1",
       author: "@x",
       nowMs: d1,
-      storePath: interactionStorePath,
+      userId: "u1",
     });
     await recordMarkGamification({
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: d1,
       threadId: "t1",
     });
@@ -601,11 +613,11 @@ describe("recordMarkGamification / getGamification", () => {
       threadId: "t1",
       author: "@x",
       nowMs: d2,
-      storePath: interactionStorePath,
+      userId: "u1",
     });
     const after = await recordMarkGamification({
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: d2,
       threadId: "t1",
     });
@@ -622,21 +634,21 @@ describe("recordMarkGamification / getGamification", () => {
       author: "@x",
       source: "discovered",
       nowMs: d1,
-      storePath: interactionStorePath,
+      userId: "u1",
     });
     await markInteracted({
       threadId: "b",
       author: "@x",
       source: "discovered",
       nowMs: d2,
-      storePath: interactionStorePath,
+      userId: "u1",
     });
     await markInteracted({
       threadId: "c",
       author: "@x",
       source: "discovered",
       nowMs: d3,
-      storePath: interactionStorePath,
+      userId: "u1",
     });
     await writeFile(
       gamificationPath,
@@ -652,8 +664,8 @@ describe("recordMarkGamification / getGamification", () => {
       "utf8",
     );
     const snap = await getGamification({
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: d3,
     });
     assert.equal(snap.currentStreak, 3);
@@ -691,59 +703,38 @@ describe("recordMarkGamification / getGamification", () => {
     const snap = await getGamification({
       userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: Date.parse("2026-08-04T12:00:00.000Z"),
     });
     assert.equal(snap.currentStreak, 3);
     assert.equal(snap.longestStreak, 3);
   });
 
-  it("GET counts an unscoped reply for the sole platform user", async () => {
+  it("GET counts only the requested user's replies toward the streak", async () => {
     const day = "2026-08-05";
     await markInteracted({
-      threadId: "unscoped-reply",
+      threadId: "u2-reply",
       author: "@x",
-      replyId: "reply-1",
+      userId: "u2",
+      replyId: "reply-2",
       postedAt: `${day}T21:41:48.000Z`,
       nowMs: Date.parse(`${day}T22:00:00.000Z`),
-      storePath: interactionStorePath,
-    });
-    getPlatformDb()
-      .prepare(
-        `INSERT INTO users (id, email, created_at, last_login_at)
-         VALUES (?, ?, ?, ?)`,
-      )
-      .run("u1", "u1@example.com", new Date().toISOString(), new Date().toISOString());
-
-    const snap = await getGamification({
-      userId: "u1",
-      gamificationPath,
-      interactionStorePath,
-      nowMs: Date.parse(`${day}T23:00:00.000Z`),
-    });
-    assert.equal(snap.currentStreak, 1);
-    assert.equal(snap.longestStreak, 1);
-  });
-
-  it("GET excludes an unscoped reply without a sole platform user", async () => {
-    const day = "2026-08-05";
-    await markInteracted({
-      threadId: "unscoped-reply",
-      author: "@x",
-      replyId: "reply-1",
-      postedAt: `${day}T21:41:48.000Z`,
-      nowMs: Date.parse(`${day}T22:00:00.000Z`),
-      storePath: interactionStorePath,
     });
 
     const snap = await getGamification({
       userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: Date.parse(`${day}T23:00:00.000Z`),
     });
     assert.equal(snap.currentStreak, 0);
     assert.equal(snap.longestStreak, 0);
+
+    const other = await getGamification({
+      userId: "u2",
+      gamificationPath: join(dir, "u2.json"),
+      nowMs: Date.parse(`${day}T23:00:00.000Z`),
+    });
+    assert.equal(other.currentStreak, 1);
+    assert.equal(other.longestStreak, 1);
   });
 
   it("celebrates an older soft-failed mark replayed before newer retained rows", async () => {
@@ -755,7 +746,7 @@ describe("recordMarkGamification / getGamification", () => {
       replyId: "ra",
       replyUrl: "https://x.com/me/status/ra",
       nowMs: d1,
-      storePath: interactionStorePath,
+      userId: "u1",
     });
     await markInteracted({
       threadId: "b",
@@ -763,13 +754,13 @@ describe("recordMarkGamification / getGamification", () => {
       replyId: "rb",
       replyUrl: "https://x.com/me/status/rb",
       nowMs: d2,
-      storePath: interactionStorePath,
+      userId: "u1",
     });
     // No ledger yet: the stats-worker can replay the soft-failed D1 mark
     // before the newer D2 row lands, so the first write seeds both rows.
     const after = await recordMarkGamification({
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: d1,
       threadId: "a",
     });
@@ -796,7 +787,7 @@ describe("recordMarkGamification / getGamification", () => {
         replyId,
         replyUrl: `https://x.com/me/status/${replyId}`,
         nowMs,
-        storePath: interactionStorePath,
+        userId: "u1",
       });
     }
     // The D1 mark soft-failed; the first ledger write replays all three rows,
@@ -804,8 +795,8 @@ describe("recordMarkGamification / getGamification", () => {
     // replay position credited (markXp 1 / streakMultiplier 1), not the tier
     // of the seed's final streak (which would report 2 / 2).
     const after = await recordMarkGamification({
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: d1,
       threadId: "a",
     });
@@ -827,7 +818,7 @@ describe("recordMarkGamification / getGamification", () => {
         replyId: `rh${i}`,
         replyUrl: `https://x.com/me/status/rh${i}`,
         nowMs: d1 + i * 24 * 60 * 60 * 1000,
-        storePath: interactionStorePath,
+        userId: "u1",
       });
     }
     await markInteracted({
@@ -836,11 +827,11 @@ describe("recordMarkGamification / getGamification", () => {
       replyId: "rcurrent",
       replyUrl: "https://x.com/me/status/rcurrent",
       nowMs: now,
-      storePath: interactionStorePath,
+      userId: "u1",
     });
     const after = await recordMarkGamification({
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: now,
       threadId: "current",
     });
@@ -885,15 +876,15 @@ describe("recordMarkGamification / getGamification", () => {
   it("records idempotent t24h bonus", async () => {
     const now = Date.parse("2026-08-06T12:00:00.000Z");
     await recordMarkGamification({
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: now,
     });
     const first = await recordT24hBonusGamification({
       threadId: "t1",
       snapshot: { views: 500, likes: 2 },
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: now,
     });
     // mark 1 + min(5, 5+2)=5 → 6
@@ -901,8 +892,8 @@ describe("recordMarkGamification / getGamification", () => {
     const second = await recordT24hBonusGamification({
       threadId: "t1",
       snapshot: { views: 900, likes: 9 },
+      userId: "u1",
       gamificationPath,
-      interactionStorePath,
       nowMs: now,
     });
     assert.equal(second.lifetimeXp, 6);

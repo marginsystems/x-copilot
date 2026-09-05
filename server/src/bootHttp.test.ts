@@ -11,10 +11,15 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "./db.ts";
+import { markDismissed } from "./dismissalStore.ts";
+import { markExpired } from "./expiredStore.ts";
 import { markInteracted } from "./interactionStore.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
+import { saveScoutCache } from "./scoutCache.ts";
+import { appendScoutLog, clearScoutLogMemory } from "./scoutLog.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { createSession } from "./sessionStore.ts";
+import { markSkipped } from "./skipStore.ts";
 
 async function get(
   path: string,
@@ -176,5 +181,90 @@ describe("GET /api/boot", () => {
       ["thread-a"],
     );
     assert.deepEqual(desk.interacted.activeIds, ["thread-a"]);
+  });
+
+  it("does not expose another user's skip, dismiss, expired, or tank", async () => {
+    const userA = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-boot-desk-a",
+      email: "desk-a@example.com",
+      emailVerified: true,
+    });
+    const userB = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-boot-desk-b",
+      email: "desk-b@example.com",
+      emailVerified: true,
+    });
+    await markSkipped({ threadId: "skip-a", author: "@a", userId: userA.id });
+    await markSkipped({ threadId: "skip-b", author: "@b", userId: userB.id });
+    await markDismissed({
+      threadId: "dismiss-a",
+      author: "@a",
+      userId: userA.id,
+    });
+    await markDismissed({
+      threadId: "dismiss-b",
+      author: "@b",
+      userId: userB.id,
+    });
+    await markExpired({ threadId: "exp-a", author: "@a", userId: userA.id });
+    await markExpired({ threadId: "exp-b", author: "@b", userId: userB.id });
+    await saveScoutCache(
+      {
+        savedAt: new Date().toISOString(),
+        agenda: "builders",
+        queries: ["q"],
+        threads: [
+          {
+            id: "tank-b",
+            author: "@bravo",
+            text: "b's lead",
+            url: "https://x.com/bravo/status/tank-b",
+            createdAt: new Date().toISOString(),
+            engage: "consider",
+            baitScore: 10,
+            onAgenda: true,
+          },
+        ],
+      },
+      { userId: userB.id },
+    );
+    await appendScoutLog({ message: "B's Scout stage", stage: "planning" });
+    const { token } = createSession(userA.id);
+
+    const { status, body } = await get(
+      "/api/boot",
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
+    assert.equal(status, 200);
+    const desk = body.desk as {
+      skipped: { skippedIds: string[] };
+      dismissed: { dismissedIds: string[] };
+      expired: { expiredIds: string[] };
+      lastScout: { empty?: boolean };
+      scoutLog: { entries: unknown[] };
+    };
+    assert.deepEqual(desk.skipped.skippedIds, ["skip-a"]);
+    assert.deepEqual(desk.dismissed.dismissedIds, ["dismiss-a"]);
+    assert.deepEqual(desk.expired.expiredIds, ["exp-a"]);
+    assert.equal(desk.lastScout.empty, true);
+    assert.deepEqual(desk.scoutLog.entries, []);
+    clearScoutLogMemory();
+
+    const { body: bodyB } = await get(
+      "/api/boot",
+      `${SESSION_COOKIE}=${encodeURIComponent(createSession(userB.id).token)}`,
+    );
+    const deskB = bodyB.desk as {
+      skipped: { skippedIds: string[] };
+      lastScout: { empty?: boolean; snapshot?: { threads: Array<{ id: string }> } };
+    };
+    assert.deepEqual(deskB.skipped.skippedIds, ["skip-b"]);
+    assert.equal(deskB.lastScout.empty, false);
+    assert.deepEqual(
+      deskB.lastScout.snapshot?.threads.map((t) => t.id),
+      ["tank-b"],
+    );
   });
 });

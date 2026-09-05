@@ -119,6 +119,8 @@ export async function runScoutCollect(opts: {
   filters?: ScoutFilters;
   targetCool?: number;
   bucketSize?: number;
+  /** Desk user whose cooldowns, blocked conversations, and tank this run uses. */
+  userId?: string;
   session?: XApiCreds;
   signal?: AbortSignal;
   onEvent?: (event: ScoutCollectEvent) => void;
@@ -138,6 +140,8 @@ export async function runScoutCollect(opts: {
   const doSaveCache = deps.saveScoutCache ?? saveScoutCache;
   const doHydrate = deps.hydrateReplyParents ?? hydrateReplyParents;
   const doSleep = deps.sleep ?? sleep;
+  // Store-backed deps require a user; stubs ignore it.
+  const userId = opts.userId?.trim() ?? "";
 
   const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.bearerToken) {
@@ -250,9 +254,10 @@ export async function runScoutCollect(opts: {
   // Tests often stub getCooledAuthorKeys only; production uses lifetime+24h filter.
   const cooled =
     deps.getCooledAuthorKeys && !deps.getAuthorKeysForScoutFilter
-      ? await doGetCooled()
+      ? await doGetCooled({ userId })
       : await doGetFilterKeys({
           dedupeAccounts: opts.filters?.dedupeAccounts,
+          userId,
         });
   // Suppress conversations we've Marked or Not interested (OP + sibling replies).
   // Tests that stub only getCooledAuthorKeys stay isolated from the durable store.
@@ -262,7 +267,7 @@ export async function runScoutCollect(opts: {
     !deps.getBlockedConversationIds &&
     !deps.getEverInteractedConversationIds
       ? new Set<string>()
-      : await doGetConversationIds();
+      : await doGetConversationIds({ userId });
 
   let cool: ThreadCard[] = [];
   const seenIds = new Set<string>();
@@ -769,15 +774,18 @@ export async function runScoutCollect(opts: {
       // Persist as cools qualify so Stop/abort does not lose them.
       if (cool.length > coolBefore) {
         try {
-          await doSaveCache({
-            savedAt: new Date().toISOString(),
-            agenda: agenda || undefined,
-            queries,
-            threads: cool,
-            message: `Cool ${cool.length}/${targetCool}`,
-            triageWarning,
-            pipelineCounts: funnelCounts,
-          });
+          await doSaveCache(
+            {
+              savedAt: new Date().toISOString(),
+              agenda: agenda || undefined,
+              queries,
+              threads: cool,
+              message: `Cool ${cool.length}/${targetCool}`,
+              triageWarning,
+              pipelineCounts: funnelCounts,
+            },
+            { userId },
+          );
         } catch (err) {
           console.error("Failed to persist Scout cools mid-run:", err);
         }
@@ -889,16 +897,19 @@ export async function runScoutCollect(opts: {
   }
 
   try {
-    await doSaveCache({
-      savedAt: done.at,
-      agenda: agenda || undefined,
-      queries,
-      threads: cool,
-      message: done.message,
-      triageWarning,
-      linkWarning,
-      pipelineCounts: funnelCounts,
-    });
+    await doSaveCache(
+      {
+        savedAt: done.at,
+        agenda: agenda || undefined,
+        queries,
+        threads: cool,
+        message: done.message,
+        triageWarning,
+        linkWarning,
+        pipelineCounts: funnelCounts,
+      },
+      { userId },
+    );
   } catch (err) {
     console.error("Failed to persist last Scout collect:", err);
   }

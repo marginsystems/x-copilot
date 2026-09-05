@@ -2,7 +2,7 @@
  * PM2 worker — hourly due-queue for 1h / 24h reply engagement snapshots.
  */
 import { resolve } from "node:path";
-import { runExpirePass } from "./expirePass.js";
+import { runExpirePassForAllUsers } from "./expirePass.js";
 import {
   recordMarkGamification,
   recordT24hBonusGamification,
@@ -66,7 +66,6 @@ function sleep(ms: number): Promise<void> {
 async function runOutcomeSync(
   interaction: Interaction,
   checkpoint: DueStatSample["checkpoint"],
-  storePath: string | undefined,
   syncOutcome: SyncOutcomeFn,
 ): Promise<boolean> {
   try {
@@ -76,7 +75,6 @@ async function runOutcomeSync(
         threadId: interaction.threadId,
         userId: interaction.userId,
         failed: false,
-        storePath,
       });
       return true;
     }
@@ -84,7 +82,6 @@ async function runOutcomeSync(
       threadId: interaction.threadId,
       userId: interaction.userId,
       failed: true,
-      storePath,
     });
     console.warn(
       `[stats-worker] memory sync soft-fail threadId=${interaction.threadId}: ${sync.error}`,
@@ -95,7 +92,6 @@ async function runOutcomeSync(
       threadId: interaction.threadId,
       userId: interaction.userId,
       failed: true,
-      storePath,
     });
     console.warn(
       `[stats-worker] memory sync soft-fail threadId=${interaction.threadId}:`,
@@ -128,7 +124,6 @@ export async function runStatsTick(opts?: {
   nowMs?: number;
   limit?: number;
   delayMs?: number;
-  storePath?: string;
   gamificationPath?: string;
   fetchMetrics?: typeof fetchTweetMetrics;
   /** Injectable outcome sync (tests). Default: Markdown + MiniLM upsert. */
@@ -177,7 +172,6 @@ export async function runStatsTick(opts?: {
   // not consume the whole tick budget and starve newer replies.
   const allDue = await listDueStatSamples({
     nowMs: opts?.nowMs,
-    storePath: opts?.storePath,
     limit: Math.max(tickCap * 20, MAX_INTERACTION_STORE),
   });
 
@@ -210,16 +204,12 @@ export async function runStatsTick(opts?: {
   // the due loop so a fresh failure below waits for the next tick, and so the
   // 24h-final checkpoint (never due again) is not permanently lost.
   if (syncOutcome) {
-    const retries = await listMemorySyncRetries({
-      storePath: opts?.storePath,
-      limit: tickCap,
-    });
+    const retries = await listMemorySyncRetries({ limit: tickCap });
     for (const interaction of retries) {
       if (
         await runOutcomeSync(
           interaction,
           interaction.stats?.t24h ? "t24h" : "t1h",
-          opts?.storePath,
           syncOutcome,
         )
       ) {
@@ -231,11 +221,10 @@ export async function runStatsTick(opts?: {
   }
 
   // Retry soft-failed gamification projections (mark XP/streak or t24h bonus)
-  // so the durable ledger converges with interactions.json. Both projections
+  // so the durable ledger converges with desk_interactions. Both projections
   // are idempotent per (threadId, at), so re-applying a flagged mark never
   // credits XP/streak more than once.
   const gamificationRetries = await listGamificationSyncRetries({
-    storePath: opts?.storePath,
     limit: tickCap,
   });
   for (const interaction of gamificationRetries) {
@@ -254,7 +243,6 @@ export async function runStatsTick(opts?: {
           await recordMarkGamification({
             threadId: interaction.threadId,
             userId: interaction.userId,
-            interactionStorePath: opts?.storePath,
             gamificationPath: opts?.gamificationPath,
             nowMs: markMs,
           });
@@ -264,7 +252,6 @@ export async function runStatsTick(opts?: {
           userId: interaction.userId,
           checkpoint: "mark",
           failed: false,
-          storePath: opts?.storePath,
           clearedPendingAts: pendingAts,
         });
       } catch (err) {
@@ -281,7 +268,6 @@ export async function runStatsTick(opts?: {
           threadId: interaction.threadId,
           snapshot: t24h,
           userId: interaction.userId,
-          interactionStorePath: opts?.storePath,
           gamificationPath: opts?.gamificationPath,
           nowMs: opts?.nowMs,
         });
@@ -290,7 +276,6 @@ export async function runStatsTick(opts?: {
           userId: interaction.userId,
           checkpoint: "t24h",
           failed: false,
-          storePath: opts?.storePath,
         });
       } catch (err) {
         console.warn(
@@ -322,7 +307,6 @@ export async function runStatsTick(opts?: {
         ...metrics,
         sampledAt: new Date(opts?.nowMs ?? Date.now()).toISOString(),
       },
-      storePath: opts?.storePath,
     });
     sampled += 1;
 
@@ -333,7 +317,6 @@ export async function runStatsTick(opts?: {
           threadId: item.threadId,
           snapshot: metrics,
           userId: patched.userId,
-          interactionStorePath: opts?.storePath,
           nowMs: opts?.nowMs,
           gamificationPath: opts?.gamificationPath,
         });
@@ -342,7 +325,6 @@ export async function runStatsTick(opts?: {
           userId: item.userId,
           checkpoint: "t24h",
           failed: false,
-          storePath: opts?.storePath,
         });
       } catch (err) {
         console.warn(
@@ -354,7 +336,6 @@ export async function runStatsTick(opts?: {
           userId: item.userId,
           checkpoint: "t24h",
           failed: true,
-          storePath: opts?.storePath,
         }).catch(() => {});
       }
     }
@@ -364,7 +345,6 @@ export async function runStatsTick(opts?: {
         await runOutcomeSync(
           patched,
           item.checkpoint,
-          opts?.storePath,
           syncOutcome,
         )
       ) {
@@ -412,8 +392,10 @@ async function main(): Promise<void> {
       console.error("[stats-worker] tick failed:", err);
     }
     try {
-      const expired = await runExpirePass();
-      console.log(`[stats-worker] expire expired=${expired.expired}`);
+      const expired = await runExpirePassForAllUsers();
+      console.log(
+        `[stats-worker] expire users=${expired.users} expired=${expired.expired}`,
+      );
     } catch (err) {
       console.error("[stats-worker] expire failed:", err);
     }

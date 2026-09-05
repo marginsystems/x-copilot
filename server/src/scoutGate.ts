@@ -1,5 +1,7 @@
 /**
- * In-memory Scout concurrency + cooldown gate (one run at a time, 15s between finishes).
+ * In-memory Scout concurrency + cooldown gate, keyed by platform user:
+ * one run at a time per user, 15s between that user's finishes. Another
+ * user's run never blocks this one.
  */
 
 export const SCOUT_COOLDOWN_MS = 15_000;
@@ -13,19 +15,45 @@ type GateReject = {
 
 type GateAllow = { ok: true };
 
-let active = false;
-let lastFinishedAt = 0;
+type GateState = { active: boolean; lastFinishedAt: number };
+
+const gates = new Map<string, GateState>();
+
+function gateFor(userId: string): GateState {
+  let state = gates.get(userId);
+  if (!state) {
+    state = { active: false, lastFinishedAt: 0 };
+    gates.set(userId, state);
+  }
+  return state;
+}
+
+function gateKey(userId: string): string {
+  const key = userId.trim();
+  if (!key) throw new Error("userId is required");
+  return key;
+}
 
 export function resetScoutGateForTests(opts?: {
+  userId?: string;
   active?: boolean;
   lastFinishedAt?: number;
 }): void {
-  active = opts?.active ?? false;
-  lastFinishedAt = opts?.lastFinishedAt ?? 0;
+  gates.clear();
+  if (opts?.userId) {
+    gates.set(gateKey(opts.userId), {
+      active: opts.active ?? false,
+      lastFinishedAt: opts.lastFinishedAt ?? 0,
+    });
+  }
 }
 
-export function tryBeginScout(nowMs: number = Date.now()): GateAllow | GateReject {
-  if (active) {
+export function tryBeginScout(
+  userId: string,
+  nowMs: number = Date.now(),
+): GateAllow | GateReject {
+  const gate = gateFor(gateKey(userId));
+  if (gate.active) {
     return {
       ok: false,
       status: 429,
@@ -33,8 +61,8 @@ export function tryBeginScout(nowMs: number = Date.now()): GateAllow | GateRejec
       message: "A Scout run is already in progress. Wait for it to finish.",
     };
   }
-  const since = nowMs - lastFinishedAt;
-  if (lastFinishedAt > 0 && since < SCOUT_COOLDOWN_MS) {
+  const since = nowMs - gate.lastFinishedAt;
+  if (gate.lastFinishedAt > 0 && since < SCOUT_COOLDOWN_MS) {
     const waitSec = Math.ceil((SCOUT_COOLDOWN_MS - since) / 1000);
     return {
       ok: false,
@@ -43,11 +71,12 @@ export function tryBeginScout(nowMs: number = Date.now()): GateAllow | GateRejec
       message: `Wait ${waitSec}s before searching again.`,
     };
   }
-  active = true;
+  gate.active = true;
   return { ok: true };
 }
 
-export function endScout(nowMs: number = Date.now()): void {
-  active = false;
-  lastFinishedAt = nowMs;
+export function endScout(userId: string, nowMs: number = Date.now()): void {
+  const gate = gateFor(gateKey(userId));
+  gate.active = false;
+  gate.lastFinishedAt = nowMs;
 }

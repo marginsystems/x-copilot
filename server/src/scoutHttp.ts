@@ -111,6 +111,19 @@ export function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   return Object.keys(filters).length ? filters : undefined;
 }
 
+function sendScoutUnauthenticated(
+  req: IncomingMessage,
+  res: ServerResponse,
+): void {
+  send(
+    req,
+    res,
+    401,
+    { error: "unauthenticated", message: "Sign in required" },
+    { "Cache-Control": "no-store" },
+  );
+}
+
 /** Test seam: stub the collect loop / memory index without touching the network. */
 export type ScoutHttpDeps = {
   runScoutCollect?: typeof runScoutCollect;
@@ -118,7 +131,11 @@ export type ScoutHttpDeps = {
   ensureMemoryIndex?: typeof ensureMemoryIndex;
 };
 
-export async function readLastScoutPayload(opts?: {
+/**
+ * One user's filtered tank. No user → empty (the desk has no shared tank).
+ */
+export async function readLastScoutPayload(opts: {
+  userId: string | undefined;
   dedupeAccounts?: boolean | null;
 }): Promise<{
   ok: true;
@@ -132,28 +149,30 @@ export async function readLastScoutPayload(opts?: {
     pipelineCounts?: unknown;
   };
 }> {
+  const userId = opts.userId?.trim();
+  if (!userId) return { ok: true, empty: true };
   try {
-    await runExpirePass();
+    await runExpirePass({ userId });
   } catch (err) {
     console.error("lazy expire on scout/last failed:", err);
   }
-  const snapshot = await getLastScout();
+  const snapshot = await getLastScout({ userId });
   if (!snapshot) return { ok: true, empty: true };
   const cooled = await getAuthorKeysForScoutFilter(
-    opts?.dedupeAccounts === null || opts?.dedupeAccounts === undefined
-      ? undefined
-      : { dedupeAccounts: opts.dedupeAccounts },
+    opts.dedupeAccounts === null || opts.dedupeAccounts === undefined
+      ? { userId }
+      : { userId, dedupeAccounts: opts.dedupeAccounts },
   );
-  const blockedConversations = await getBlockedConversationIds();
+  const blockedConversations = await getBlockedConversationIds({ userId });
   const filtered = filterThreadsByCooldown(
     snapshot.threads,
     cooled,
     blockedConversations,
   );
   const [expiredIds, dismissedIds, skippedIds] = await Promise.all([
-    getExpiredThreadIds(),
-    getDismissedThreadIds(),
-    getSkippedThreadIds(),
+    getExpiredThreadIds({ userId }),
+    getDismissedThreadIds({ userId }),
+    getSkippedThreadIds({ userId }),
   ]);
   const threads = preferRootTargets(
     filtered.threads.filter(
@@ -213,10 +232,15 @@ export async function tryHandleScout(
       ? body.queries.filter((q): q is string => typeof q === "string")
       : [];
     const filters = parseScoutFilters(body.filters);
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser) {
+      sendScoutUnauthenticated(req, res);
+      return true;
+    }
     if (sendXLinkRequired(req, res)) return true;
     if (sendCreditsExhausted(req, res)) return true;
     if (sendSortiesExhausted(req, res)) return true;
-    const gate = tryBeginScout();
+    const gate = tryBeginScout(sessionUser.id);
     if (!gate.ok) {
       send(req, res, gate.status, {
         error: gate.error,
@@ -224,7 +248,6 @@ export async function tryHandleScout(
       });
       return true;
     }
-    const sessionUser = getSessionUser(req);
     let sortieId: string | undefined;
     let coolCount = 0;
     try {
@@ -232,12 +255,17 @@ export async function tryHandleScout(
       sortieId = recordSortie();
       trackAnalytics({
         name: "scout.takeoff",
-        userId: sessionUser?.id,
-        email: sessionUser?.email,
-        handle: sessionUser?.xUsername,
+        userId: sessionUser.id,
+        email: sessionUser.email,
+        handle: sessionUser.xUsername,
         detail: `${queries.length} queries`,
       });
-      const result = await doScoutSearch({ agenda, queries, filters });
+      const result = await doScoutSearch({
+        agenda,
+        queries,
+        filters,
+        userId: sessionUser.id,
+      });
       coolCount = result.ok
         ? Array.isArray(result.event.threads)
           ? result.event.threads.filter((t) =>
@@ -251,9 +279,9 @@ export async function tryHandleScout(
       if (!result.ok) {
         trackAnalytics({
           name: "scout.failed",
-          userId: sessionUser?.id,
-          email: sessionUser?.email,
-          handle: sessionUser?.xUsername,
+          userId: sessionUser.id,
+          email: sessionUser.email,
+          handle: sessionUser.xUsername,
           detail: result.message,
           ok: false,
         });
@@ -307,7 +335,7 @@ export async function tryHandleScout(
       }
       return true;
     } finally {
-      endScout();
+      endScout(sessionUser.id);
     }
   }
 
@@ -343,11 +371,16 @@ export async function tryHandleScout(
     const targetCool = clampTargetCool(body.targetCool);
     const bucketSize = clampBucketSize(body.bucketSize);
 
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser) {
+      sendScoutUnauthenticated(req, res);
+      return true;
+    }
     if (sendXLinkRequired(req, res)) return true;
     if (sendCreditsExhausted(req, res)) return true;
     if (sendSortiesExhausted(req, res)) return true;
 
-    const gate = tryBeginScout();
+    const gate = tryBeginScout(sessionUser.id);
     if (!gate.ok) {
       send(req, res, gate.status, {
         error: gate.error,
@@ -362,7 +395,6 @@ export async function tryHandleScout(
     };
     req.on("close", onClose);
 
-    const sessionUser = getSessionUser(req);
     let sortieId: string | undefined;
     let coolCount = 0;
     try {
@@ -398,9 +430,9 @@ export async function tryHandleScout(
       sortieId = recordSortie();
       trackAnalytics({
         name: "scout.takeoff",
-        userId: sessionUser?.id,
-        email: sessionUser?.email,
-        handle: sessionUser?.xUsername,
+        userId: sessionUser.id,
+        email: sessionUser.email,
+        handle: sessionUser.xUsername,
         detail: `${queries.length} queries`,
       });
       const requestCtx = getRequestContext();
@@ -410,6 +442,7 @@ export async function tryHandleScout(
         filters,
         targetCool,
         bucketSize,
+        userId: sessionUser.id,
         signal: abort.signal,
         onEvent: writeLine,
         deps: {
@@ -426,9 +459,9 @@ export async function tryHandleScout(
       if (!result.ok && !sawTerminal) {
         trackAnalytics({
           name: "scout.failed",
-          userId: sessionUser?.id,
-          email: sessionUser?.email,
-          handle: sessionUser?.xUsername,
+          userId: sessionUser.id,
+          email: sessionUser.email,
+          handle: sessionUser.xUsername,
           detail: result.message,
           ok: false,
         });
@@ -481,7 +514,7 @@ export async function tryHandleScout(
       return true;
     } finally {
       req.off("close", onClose);
-      endScout();
+      endScout(sessionUser.id);
     }
   }
 
@@ -492,6 +525,7 @@ export async function tryHandleScout(
       res,
       200,
       await readLastScoutPayload({
+        userId: getSessionUser(req)?.id,
         dedupeAccounts:
           dedupeParam === null ? null : dedupeParam !== "false",
       }),

@@ -50,14 +50,12 @@ function post(
 
 describe("own reply interaction capture", () => {
   let dir: string;
-  let storePath: string;
   const userId = "user-1";
   const nowMs = Date.parse("2026-09-04T03:00:00.000Z");
 
   beforeEach(() => {
     resetPlatformDbForTests();
     dir = mkdtempSync(join(tmpdir(), "x-webhook-interacted-"));
-    storePath = join(dir, "interactions.json");
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
     process.env.X_API_KEY = "key";
@@ -93,10 +91,10 @@ describe("own reply interaction capture", () => {
     });
 
     assert.equal(
-      await markOwnReplyInteracted(post(), userId, { storePath, nowMs }),
+      await markOwnReplyInteracted(post(), userId, { nowMs }),
       "scout",
     );
-    const [row] = await listInteractionHistory({ storePath, userId });
+    const [row] = await listInteractionHistory({ userId });
     assert.equal(row?.threadId, "parent-1");
     assert.equal(row?.author, "@watched");
     assert.equal(row?.source, "discovered");
@@ -104,7 +102,6 @@ describe("own reply interaction capture", () => {
     const streak = await getGamification({
       userId,
       nowMs,
-      interactionStorePath: storePath,
       gamificationPath: join(dir, "gamification.json"),
     });
     assert.equal(streak.currentStreak >= 1, true);
@@ -112,10 +109,10 @@ describe("own reply interaction capture", () => {
 
   it("marks an unwatched reply and stamps the organic beat", async () => {
     assert.equal(
-      await markOwnReplyInteracted(post(), userId, { storePath, nowMs }),
+      await markOwnReplyInteracted(post(), userId, { nowMs }),
       "organic",
     );
-    const [row] = await listInteractionHistory({ storePath, userId });
+    const [row] = await listInteractionHistory({ userId });
     assert.equal(row?.threadId, "parent-1");
     assert.equal(row?.author, "@target");
     assert.equal(row?.replyId, "reply-1");
@@ -127,11 +124,11 @@ describe("own reply interaction capture", () => {
       await markOwnReplyInteracted(
         post({ kind: "original", inReplyToId: null, conversationId: null }),
         userId,
-        { storePath, nowMs },
+        { nowMs },
       ),
       "skipped",
     );
-    assert.deepEqual(await listInteractionHistory({ storePath, userId }), []);
+    assert.deepEqual(await listInteractionHistory({ userId }), []);
   });
 
   it("skips a known reply or known thread", async () => {
@@ -140,7 +137,6 @@ describe("own reply interaction capture", () => {
       author: "@target",
       userId,
       replyId: "known-reply",
-      storePath,
       nowMs,
     });
 
@@ -148,7 +144,7 @@ describe("own reply interaction capture", () => {
       await markOwnReplyInteracted(
         post({ postId: "known-reply", inReplyToId: "other-parent" }),
         userId,
-        { storePath, nowMs: nowMs + 1 },
+        { nowMs: nowMs + 1 },
       ),
       "skipped",
     );
@@ -156,12 +152,12 @@ describe("own reply interaction capture", () => {
       await markOwnReplyInteracted(
         post({ postId: "new-reply" }),
         userId,
-        { storePath, nowMs: nowMs + 2 },
+        { nowMs: nowMs + 2 },
       ),
       "skipped",
     );
     assert.equal(
-      (await listInteractionHistory({ storePath, userId })).length,
+      (await listInteractionHistory({ userId })).length,
       1,
     );
   });

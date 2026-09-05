@@ -1,8 +1,11 @@
-import { withFileLock } from "./fileLock.js";
+import { ensureUserTenant } from "./billingStore.js";
+import { getPlatformDb } from "./db.js";
 import {
-  defaultStorePath,
-  readStore,
-  writeStore,
+  listAllInteractionRows,
+  MAX_INTERACTION_STORE,
+  readInteractionRow,
+  requireUserId,
+  writeInteractionRow,
   type Interaction,
   type InteractionStats,
   type ReplyStatSnapshot,
@@ -17,7 +20,7 @@ export type StatsCheckpoint = "t1h" | "t24h";
 export type DueStatSample = {
   threadId: string;
   replyId: string;
-  userId?: string;
+  userId: string;
   checkpoint: StatsCheckpoint;
   postedAt: string;
 };
@@ -69,15 +72,17 @@ export function selectDueStatSamples(
   return due.slice(0, Math.max(0, limit));
 }
 
+/** Worker sweep across every desk: rows with a reply id, all users. */
 export async function listDueStatSamples(opts?: {
   nowMs?: number;
-  storePath?: string;
   limit?: number;
 }): Promise<DueStatSample[]> {
-  const path = opts?.storePath ?? defaultStorePath();
-  const store = await readStore(path);
+  const rows = listAllInteractionRows({
+    where: "reply_id IS NOT NULL",
+    limit: MAX_INTERACTION_STORE,
+  });
   return selectDueStatSamples(
-    store.interactions,
+    rows,
     opts?.nowMs ?? Date.now(),
     opts?.limit ?? DEFAULT_STATS_TICK_CAP,
   );
@@ -86,28 +91,21 @@ export async function listDueStatSamples(opts?: {
 /** Merge a stats snapshot onto an interaction by user and threadId. */
 export async function patchInteractionStats(opts: {
   threadId: string;
-  userId?: string;
+  userId: string;
   checkpoint: StatsCheckpoint;
   snapshot: ReplyStatSnapshot;
-  storePath?: string;
 }): Promise<Interaction | null> {
   const threadId = opts.threadId.trim();
   if (!threadId) return null;
-  const path = opts.storePath ?? defaultStorePath();
-
-  return withFileLock(path, async () => {
-    const store = await readStore(path);
-    const idx = store.interactions.findIndex(
-      (i) => i.threadId === threadId && i.userId === opts.userId,
-    );
-    if (idx < 0) return null;
-    const row = store.interactions[idx];
+  const userId = requireUserId(opts.userId);
+  const db = getPlatformDb();
+  return db.transaction((): Interaction | null => {
+    const row = readInteractionRow(userId, threadId);
+    if (!row) return null;
     const stats: InteractionStats = { ...(row.stats ?? {}) };
     stats[opts.checkpoint] = opts.snapshot;
     const next: Interaction = { ...row, stats };
-    const interactions = [...store.interactions];
-    interactions[idx] = next;
-    await writeStore(path, { interactions });
+    writeInteractionRow(next, ensureUserTenant(userId));
     return next;
-  });
+  })();
 }

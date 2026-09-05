@@ -4,6 +4,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  closeTempPlatformDb,
+  openTempPlatformDb,
+  seedUser,
+  type TempPlatformDb,
+} from "./platformDb.testHelpers.ts";
+import {
   STATS_T1H_MS,
   STATS_T24H_MS,
   patchInteractionStats,
@@ -71,6 +77,7 @@ describe("selectDueStatSamples", () => {
   it("skips rows without replyId", () => {
     const rows: Interaction[] = [
       {
+        userId: "u1",
         threadId: "1",
         author: "@a",
         authorKey: "a",
@@ -85,6 +92,7 @@ describe("selectDueStatSamples", () => {
     const postedAt = new Date(now - STATS_T1H_MS - 1000).toISOString();
     const rows: Interaction[] = [
       {
+        userId: "u1",
         threadId: "1",
         author: "@a",
         authorKey: "a",
@@ -105,6 +113,7 @@ describe("selectDueStatSamples", () => {
     const postedAt = new Date(now - STATS_T24H_MS - 1000).toISOString();
     const rows: Interaction[] = [
       {
+        userId: "u1",
         threadId: "1",
         author: "@a",
         authorKey: "a",
@@ -125,6 +134,7 @@ describe("selectDueStatSamples", () => {
     const postedAt = new Date(now - STATS_T24H_MS - 1000).toISOString();
     const rows: Interaction[] = [
       {
+        userId: "u1",
         threadId: "1",
         author: "@a",
         authorKey: "a",
@@ -145,14 +155,17 @@ describe("selectDueStatSamples", () => {
 
 describe("runStatsTick", () => {
   let dir: string;
-  let storePath: string;
+  let temp: TempPlatformDb;
+  const userId = "u1";
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), "x-copilot-stats-"));
-    storePath = join(dir, "interactions.json");
+    temp = openTempPlatformDb("x-copilot-stats-db-");
+    seedUser(userId);
   });
 
   afterEach(async () => {
+    closeTempPlatformDb(temp);
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -164,12 +177,11 @@ describe("runStatsTick", () => {
       replyId: "reply1",
       replyUrl: "https://x.com/me/status/reply1",
       nowMs: now - STATS_T1H_MS - 5000,
-      storePath,
+      userId,
     });
 
     const result = await runStatsTick({
       nowMs: now,
-      storePath,
       delayMs: 0,
       syncOutcome: null,
       fetchMetrics: async ({ tweetId }) => {
@@ -181,7 +193,7 @@ describe("runStatsTick", () => {
     assert.equal(result.sampled, 1);
     assert.equal(result.failed, 0);
 
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId });
     assert.equal(history[0]?.stats?.t1h?.views, 100);
     assert.equal(history[0]?.stats?.t1h?.likes, 4);
   });
@@ -194,12 +206,11 @@ describe("runStatsTick", () => {
       replyId: "reply1",
       replyUrl: "https://x.com/me/status/reply1",
       nowMs: now - STATS_T1H_MS - 5000,
-      storePath,
+      userId,
     });
 
     const result = await runStatsTick({
       nowMs: now,
-      storePath,
       delayMs: 0,
       fetchMetrics: async () => null,
       syncOutcome: null,
@@ -208,7 +219,7 @@ describe("runStatsTick", () => {
     assert.equal(result.sampled, 0);
 
     const stillDue = selectDueStatSamples(
-      await listInteractionHistory({ storePath }),
+      await listInteractionHistory({ userId }),
       now,
     );
     assert.equal(stillDue.length, 1);
@@ -222,13 +233,12 @@ describe("runStatsTick", () => {
       replyId: "reply1",
       replyUrl: "https://x.com/me/status/reply1",
       nowMs: now - STATS_T1H_MS - 5000,
-      storePath,
+      userId,
     });
 
     const synced: Interaction[] = [];
     const result = await runStatsTick({
       nowMs: now,
-      storePath,
       delayMs: 0,
       fetchMetrics: async () => ({
         views: 100,
@@ -257,12 +267,11 @@ describe("runStatsTick", () => {
       replyId: "reply1",
       replyUrl: "https://x.com/me/status/reply1",
       nowMs: now - STATS_T1H_MS - 5000,
-      storePath,
+      userId,
     });
 
     const result = await runStatsTick({
       nowMs: now,
-      storePath,
       delayMs: 0,
       fetchMetrics: async () => ({
         views: 50,
@@ -279,7 +288,7 @@ describe("runStatsTick", () => {
     assert.equal(result.failed, 0);
     assert.equal(result.memorySyncFailed, 1);
 
-    const history = await listInteractionHistory({ storePath });
+    const history = await listInteractionHistory({ userId });
     assert.equal(history[0]?.stats?.t1h?.views, 50);
   });
 
@@ -293,7 +302,7 @@ describe("runStatsTick", () => {
         replyId: `rz${i}`,
         replyUrl: `https://x.com/me/status/rz${i}`,
         nowMs: now - STATS_T1H_MS - 60_000 - i * 1000,
-        storePath,
+        userId,
       });
     }
     await markInteracted({
@@ -302,13 +311,12 @@ describe("runStatsTick", () => {
       replyId: "rfresh",
       replyUrl: "https://x.com/me/status/rfresh",
       nowMs: now - STATS_T1H_MS - 5000,
-      storePath,
+      userId,
     });
 
     for (let t = 0; t < 3; t++) {
       await runStatsTick({
         nowMs: now,
-        storePath,
         delayMs: 0,
         syncOutcome: null,
         fetchMetrics: async () => null,
@@ -318,7 +326,6 @@ describe("runStatsTick", () => {
     const fetched: string[] = [];
     const result = await runStatsTick({
       nowMs: now,
-      storePath,
       delayMs: 0,
       syncOutcome: null,
       fetchMetrics: async ({ tweetId }) => {
@@ -339,13 +346,12 @@ describe("runStatsTick", () => {
       replyId: "reply1",
       replyUrl: "https://x.com/me/status/reply1",
       nowMs: now - STATS_T24H_MS - 5000,
-      storePath,
+      userId,
     });
 
     // Both checkpoints are due at once; every projection sync fails.
     const first = await runStatsTick({
       nowMs: now,
-      storePath,
       delayMs: 0,
       fetchMetrics: async () => ({
         views: 100,
@@ -362,19 +368,18 @@ describe("runStatsTick", () => {
     assert.equal(first.memorySyncFailed, 2);
 
     // Stats exist so no checkpoint is due again, but the projection is flagged.
-    assert.equal((await listMemorySyncRetries({ storePath })).length, 1);
+    assert.equal((await listMemorySyncRetries()).length, 1);
 
     // Next tick retries only the memory sync (no sampling) and succeeds.
     const second = await runStatsTick({
       nowMs: now,
-      storePath,
       delayMs: 0,
       syncOutcome: async () => ({ ok: true, path: "/tmp/note.md", upserted: true }),
     });
     assert.equal(second.sampled, 0);
     assert.equal(second.memorySynced, 1);
     assert.equal(second.memorySyncFailed, 0);
-    assert.equal((await listMemorySyncRetries({ storePath })).length, 0);
+    assert.equal((await listMemorySyncRetries()).length, 0);
   });
 
   it("retries a soft-failed t24h gamification bonus on the next tick", async () => {
@@ -386,34 +391,33 @@ describe("runStatsTick", () => {
       replyId: "reply1",
       replyUrl: "https://x.com/me/status/reply1",
       nowMs: now - 1000,
-      storePath,
+      userId,
     });
     await patchInteractionStats({
       threadId: "parent",
       checkpoint: "t24h",
       snapshot: { views: 500, likes: 2, sampledAt: new Date(now).toISOString() },
-      storePath,
+      userId,
     });
     await setGamificationSyncFailed({
       threadId: "parent",
       checkpoint: "t24h",
       failed: true,
-      storePath,
+      userId,
     });
 
     const result = await runStatsTick({
       nowMs: now,
-      storePath,
       gamificationPath,
       delayMs: 0,
       syncOutcome: null,
     });
     assert.equal(result.sampled, 0);
-    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+    assert.equal((await listGamificationSyncRetries()).length, 0);
 
     const snap = await getGamification({
       gamificationPath,
-      interactionStorePath: storePath,
+      userId,
     });
     // Seed replays the mark (1 XP) + bonus floor(500/100)+2 = 7 capped at 5.
     assert.equal(snap.lifetimeXp, 6);
@@ -427,28 +431,27 @@ describe("runStatsTick", () => {
       threadId: "parent",
       author: "@target",
       nowMs: now,
-      storePath,
+      userId,
     });
     await setGamificationSyncFailed({
       threadId: "parent",
       checkpoint: "mark",
       failed: true,
-      storePath,
+      userId,
     });
 
     const result = await runStatsTick({
       nowMs: now,
-      storePath,
       gamificationPath,
       delayMs: 0,
       syncOutcome: null,
     });
     assert.equal(result.sampled, 0);
-    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+    assert.equal((await listGamificationSyncRetries()).length, 0);
 
     const snap = await getGamification({
       gamificationPath,
-      interactionStorePath: storePath,
+      userId,
     });
     // Mark XP credited exactly once at the original mark time.
     assert.equal(snap.lifetimeXp, 1);
@@ -462,42 +465,41 @@ describe("runStatsTick", () => {
       threadId: "a",
       author: "@a",
       nowMs: now,
-      storePath,
+      userId,
     });
     await markInteracted({
       threadId: "b",
       author: "@b",
       nowMs: now,
-      storePath,
+      userId,
     });
     await setGamificationSyncFailed({
       threadId: "a",
       checkpoint: "mark",
       failed: true,
-      storePath,
+      userId,
     });
     await setGamificationSyncFailed({
       threadId: "b",
       checkpoint: "mark",
       failed: true,
-      storePath,
+      userId,
     });
 
     // First retry seeds both marks into a fresh ledger; the second flagged
     // mark must not be re-applied on top of the seed.
     const result = await runStatsTick({
       nowMs: now,
-      storePath,
       gamificationPath,
       delayMs: 0,
       syncOutcome: null,
     });
     assert.equal(result.sampled, 0);
-    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+    assert.equal((await listGamificationSyncRetries()).length, 0);
 
     const snap = await getGamification({
       gamificationPath,
-      interactionStorePath: storePath,
+      userId,
     });
     // Two marks, each credited exactly once.
     assert.equal(snap.lifetimeXp, 2);
@@ -513,20 +515,20 @@ describe("runStatsTick", () => {
       threadId: "a",
       author: "@a",
       nowMs: d1,
-      storePath,
+      userId,
     });
     await setGamificationSyncFailed({
       threadId: "a",
       checkpoint: "mark",
       failed: true,
-      storePath,
+      userId,
     });
     // A newer mark already advanced the ledger past the failed D1 mark.
     await markInteracted({
       threadId: "b",
       author: "@b",
       nowMs: d2,
-      storePath,
+      userId,
     });
     await writeFile(
       gamificationPath,
@@ -544,17 +546,16 @@ describe("runStatsTick", () => {
     // Tick replays the flagged D1 mark with its original day.
     const result = await runStatsTick({
       nowMs: d2,
-      storePath,
       gamificationPath,
       delayMs: 0,
       syncOutcome: null,
     });
     assert.equal(result.sampled, 0);
-    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+    assert.equal((await listGamificationSyncRetries()).length, 0);
 
     const snap = await getGamification({
       gamificationPath,
-      interactionStorePath: storePath,
+      userId,
       nowMs: d2,
     });
     // D1 credits XP without moving the D2 cursor backward. Overlay then
@@ -567,12 +568,12 @@ describe("runStatsTick", () => {
     await recordMarkGamification({
       threadId: "c",
       gamificationPath,
-      interactionStorePath: storePath,
+      userId,
       nowMs: d3,
     });
     const after = await getGamification({
       gamificationPath,
-      interactionStorePath: storePath,
+      userId,
       nowMs: d3,
     });
     assert.equal(after.lifetimeXp, 4);
@@ -588,14 +589,14 @@ describe("runStatsTick", () => {
       threadId: "a",
       author: "@a",
       nowMs: d1,
-      storePath,
+      userId,
     });
     await setGamificationSyncFailed({
       threadId: "a",
       checkpoint: "mark",
       failed: true,
       pendingAt: new Date(d1).toISOString(),
-      storePath,
+      userId,
     });
     // Re-mark the same thread at D2 before the retry tick. markInteracted
     // overwrites `at`, so the retry must replay the persisted pending at.
@@ -603,28 +604,27 @@ describe("runStatsTick", () => {
       threadId: "a",
       author: "@a",
       nowMs: d2,
-      storePath,
+      userId,
     });
     await recordMarkGamification({
       threadId: "a",
       gamificationPath,
-      interactionStorePath: storePath,
+      userId,
       nowMs: d2,
     });
 
     const result = await runStatsTick({
       nowMs: d2,
-      storePath,
       gamificationPath,
       delayMs: 0,
       syncOutcome: null,
     });
     assert.equal(result.sampled, 0);
-    assert.equal((await listGamificationSyncRetries({ storePath })).length, 0);
+    assert.equal((await listGamificationSyncRetries()).length, 0);
 
     const snap = await getGamification({
       gamificationPath,
-      interactionStorePath: storePath,
+      userId,
     });
     // D2 re-mark credited once; the retry must also credit the original D1 mark.
     assert.equal(snap.lifetimeXp, 2);

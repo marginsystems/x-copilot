@@ -1,9 +1,8 @@
 /**
- * Scout stage log — in-memory ring + data/scout-log.json (gitignored).
- * Soft-degrades on IO/parse errors.
+ * Scout stage log — process-local in-memory ring. Not persisted and not
+ * shipped on /api/boot; the shared data/scout-log.json is no longer read or
+ * written.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
 
 export const MAX_SCOUT_LOG_ENTRIES = 1000;
 
@@ -13,26 +12,7 @@ export type ScoutLogEntry = {
   stage?: string;
 };
 
-export function defaultScoutLogPath(): string {
-  return resolve(process.cwd(), "data", "scout-log.json");
-}
-
-let memory: { path: string; entries: ScoutLogEntry[] } | null = null;
-let writeLock: Promise<void> = Promise.resolve();
-
-async function serialized<T>(fn: () => Promise<T>): Promise<T> {
-  const prev = writeLock;
-  let release: () => void;
-  writeLock = new Promise<void>((resolveLock) => {
-    release = resolveLock;
-  });
-  await prev;
-  try {
-    return await fn();
-  } finally {
-    release!();
-  }
-}
+let entries: ScoutLogEntry[] = [];
 
 export function parseScoutLogEntry(raw: unknown): ScoutLogEntry | null {
   if (!raw || typeof raw !== "object") return null;
@@ -59,49 +39,16 @@ export function parseScoutLogFile(raw: unknown): ScoutLogEntry[] {
   return out.slice(-MAX_SCOUT_LOG_ENTRIES);
 }
 
-async function readDisk(path: string): Promise<ScoutLogEntry[]> {
-  try {
-    const raw = await readFile(path, "utf8");
-    return parseScoutLogFile(JSON.parse(raw) as unknown);
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException)?.code;
-    if (code === "ENOENT") return [];
-    console.error("scoutLog read failed:", err);
-    return [];
-  }
-}
-
-async function writeDisk(path: string, entries: ScoutLogEntry[]): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(
-    path,
-    `${JSON.stringify({ entries }, null, 2)}\n`,
-    "utf8",
-  );
-}
-
-async function ensureLoaded(storePath?: string): Promise<ScoutLogEntry[]> {
-  const path = storePath ?? defaultScoutLogPath();
-  if (memory?.path === path) return memory.entries;
-  const entries = await readDisk(path);
-  memory = { path, entries };
-  return entries;
-}
-
 /** Oldest → newest, max 1000. */
-export async function getScoutLog(opts?: {
-  storePath?: string;
-}): Promise<ScoutLogEntry[]> {
-  return serialized(async () => {
-    const entries = await ensureLoaded(opts?.storePath);
-    return [...entries];
-  });
+export async function getScoutLog(): Promise<ScoutLogEntry[]> {
+  return [...entries];
 }
 
-export async function appendScoutLog(
-  input: { message: string; stage?: string; at?: string },
-  opts?: { storePath?: string },
-): Promise<ScoutLogEntry> {
+export async function appendScoutLog(input: {
+  message: string;
+  stage?: string;
+  at?: string;
+}): Promise<ScoutLogEntry> {
   const message = input.message.trim();
   if (!message) {
     throw new Error("message is required");
@@ -115,34 +62,19 @@ export async function appendScoutLog(
     entry.stage = input.stage.trim();
   }
 
-  const path = opts?.storePath ?? defaultScoutLogPath();
-  return serialized(async () => {
-    const entries = await ensureLoaded(path);
-    const last = entries[entries.length - 1];
-    if (last && last.message === entry.message) {
-      // Coalesce: refresh timestamp on the existing row.
-      last.at = entry.at;
-      if (entry.stage) last.stage = entry.stage;
-      memory = { path, entries: entries.slice(-MAX_SCOUT_LOG_ENTRIES) };
-      try {
-        await writeDisk(path, memory.entries);
-      } catch (err) {
-        console.error("scoutLog write failed:", err);
-      }
-      return last;
-    }
-    entries.push(entry);
-    memory = { path, entries: entries.slice(-MAX_SCOUT_LOG_ENTRIES) };
-    try {
-      await writeDisk(path, memory.entries);
-    } catch (err) {
-      console.error("scoutLog write failed:", err);
-    }
-    return entry;
-  });
+  const last = entries[entries.length - 1];
+  if (last && last.message === entry.message) {
+    // Coalesce: refresh timestamp on the existing row.
+    last.at = entry.at;
+    if (entry.stage) last.stage = entry.stage;
+    return last;
+  }
+  entries.push(entry);
+  entries = entries.slice(-MAX_SCOUT_LOG_ENTRIES);
+  return entry;
 }
 
 /** Test helper. */
 export function clearScoutLogMemory(): void {
-  memory = null;
+  entries = [];
 }

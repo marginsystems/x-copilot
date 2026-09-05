@@ -11,15 +11,36 @@ import { BodyError, readBody, send } from "./httpJson.js";
 import { normalizeAuthorKey } from "./interactionCooldown.js";
 import { writeDismissalMemory } from "./knowledgeMemory.js";
 import { scheduleMemoryUpsert } from "./memoryReindex.js";
+import { getSessionUser } from "./sessionCookie.js";
 import { listSkipHistory, markSkipped } from "./skipStore.js";
 
+const NO_STORE = { "Cache-Control": "no-store" };
+
+function sendUnauthenticated(
+  req: IncomingMessage,
+  res: ServerResponse,
+): void {
+  send(
+    req,
+    res,
+    401,
+    { error: "unauthenticated", message: "Sign in required" },
+    NO_STORE,
+  );
+}
+
+/**
+ * Skip / Not interested / Expired history is per user. GET without a
+ * session is an empty desk; POST without a session is rejected.
+ */
 export async function tryHandleHistory(
   req: IncomingMessage,
   res: ServerResponse,
   url: URL,
 ): Promise<boolean> {
   if (req.method === "GET" && url.pathname === "/api/expired") {
-    const expired = await listExpiredHistory();
+    const user = getSessionUser(req);
+    const expired = user ? await listExpiredHistory({ userId: user.id }) : [];
     send(req, res, 200, {
       expired,
       expiredIds: expired.map((e) => e.threadId),
@@ -28,7 +49,10 @@ export async function tryHandleHistory(
   }
 
   if (req.method === "GET" && url.pathname === "/api/dismissed") {
-    const dismissals = await listDismissalHistory();
+    const user = getSessionUser(req);
+    const dismissals = user
+      ? await listDismissalHistory({ userId: user.id })
+      : [];
     send(req, res, 200, {
       dismissals: dismissals.map(({ authorKey, ...rest }) => rest),
       dismissedIds: dismissals.map((d) => d.threadId),
@@ -37,7 +61,8 @@ export async function tryHandleHistory(
   }
 
   if (req.method === "GET" && url.pathname === "/api/skipped") {
-    const skipped = await listSkipHistory();
+    const user = getSessionUser(req);
+    const skipped = user ? await listSkipHistory({ userId: user.id }) : [];
     send(req, res, 200, {
       skipped: skipped.map(({ authorKey, ...rest }) => rest),
       skippedIds: skipped.map((d) => d.threadId),
@@ -46,6 +71,11 @@ export async function tryHandleHistory(
   }
 
   if (req.method === "POST" && url.pathname === "/api/skipped") {
+    const user = getSessionUser(req);
+    if (!user) {
+      sendUnauthenticated(req, res);
+      return true;
+    }
     let body: Record<string, unknown>;
     try {
       body = (await readBody(req)) as Record<string, unknown>;
@@ -75,6 +105,7 @@ export async function tryHandleHistory(
       const skip = await markSkipped({
         threadId,
         author,
+        userId: user.id,
         url: urlField,
         text,
         summary,
@@ -96,6 +127,11 @@ export async function tryHandleHistory(
   }
 
   if (req.method === "POST" && url.pathname === "/api/dismissed") {
+    const user = getSessionUser(req);
+    if (!user) {
+      sendUnauthenticated(req, res);
+      return true;
+    }
     let body: Record<string, unknown>;
     try {
       body = (await readBody(req)) as Record<string, unknown>;
@@ -151,6 +187,7 @@ export async function tryHandleHistory(
       const dismissal = await markDismissed({
         threadId,
         author,
+        userId: user.id,
         url: urlField,
         text,
         summary,

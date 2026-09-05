@@ -1,11 +1,12 @@
 /**
- * Local expired cool leads — auto-moved when tweet age ≥ 24h without
- * interact/dismiss. Persists to data/expired.json (gitignored).
+ * Expired cool leads — auto-moved when tweet age ≥ 24h without
+ * interact/dismiss. One row per (user, thread) in platform.sqlite
+ * `desk_expired`.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { ensureUserTenant } from "./billingStore.js";
+import { getPlatformDb } from "./db.js";
 import { normalizeAuthorKey } from "./interactionCooldown.js";
-import { withFileLock } from "./fileLock.js";
+import { requireUserId } from "./interactionStore.js";
 import type { ThreadCard } from "./threadCard.js";
 
 export type ExpiredThread = {
@@ -23,10 +24,6 @@ export type ExpiredThread = {
 export const EXPIRED_MS = 24 * 60 * 60 * 1000;
 export const MAX_EXPIRED_HISTORY = 200;
 const MAX_TEXT_CHARS = 280;
-
-export function defaultExpiredStorePath(): string {
-  return resolve(process.cwd(), "data", "expired.json");
-}
 
 function optionalString(value: unknown, maxLen?: number): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -64,65 +61,29 @@ export function selectStaleThreads(
   return out;
 }
 
-type StoreFile = { expired: ExpiredThread[] };
+type ExpiredRow = {
+  thread_id: string;
+  author: string;
+  author_key: string;
+  at: string;
+  created_at: string | null;
+  url: string | null;
+  summary: string | null;
+  text: string | null;
+};
 
-function emptyStore(): StoreFile {
-  return { expired: [] };
-}
-
-function parseStore(raw: string): StoreFile {
-  try {
-    const data = JSON.parse(raw) as { expired?: unknown };
-    if (!Array.isArray(data.expired)) return emptyStore();
-    const expired: ExpiredThread[] = [];
-    for (const entry of data.expired) {
-      if (!entry || typeof entry !== "object") continue;
-      const row = entry as Record<string, unknown>;
-      const threadId = typeof row.threadId === "string" ? row.threadId.trim() : "";
-      const author = typeof row.author === "string" ? row.author.trim() : "";
-      const at = typeof row.at === "string" ? row.at : "";
-      if (!threadId || !author || !at) continue;
-      const item: ExpiredThread = {
-        threadId,
-        author,
-        authorKey: normalizeAuthorKey(
-          typeof row.authorKey === "string" && row.authorKey
-            ? row.authorKey
-            : author,
-        ),
-        at,
-      };
-      const createdAt = optionalString(row.createdAt);
-      const url = optionalString(row.url);
-      const summary = optionalString(row.summary);
-      const text = optionalString(row.text, MAX_TEXT_CHARS);
-      if (createdAt) item.createdAt = createdAt;
-      if (url) item.url = url;
-      if (summary) item.summary = summary;
-      if (text) item.text = text;
-      expired.push(item);
-    }
-    return { expired };
-  } catch {
-    return emptyStore();
-  }
-}
-
-async function readStore(path: string): Promise<StoreFile> {
-  try {
-    const raw = await readFile(path, "utf8");
-    return parseStore(raw);
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException)?.code;
-    if (code === "ENOENT") return emptyStore();
-    console.error("expiredStore read failed:", err);
-    return emptyStore();
-  }
-}
-
-async function writeStore(path: string, store: StoreFile): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+function rowToExpired(row: ExpiredRow): ExpiredThread {
+  const item: ExpiredThread = {
+    threadId: row.thread_id,
+    author: row.author,
+    authorKey: row.author_key || normalizeAuthorKey(row.author),
+    at: row.at,
+  };
+  if (row.created_at) item.createdAt = row.created_at;
+  if (row.url) item.url = row.url;
+  if (row.summary) item.summary = row.summary;
+  if (row.text) item.text = row.text;
+  return item;
 }
 
 export function trimExpiredHistory(
@@ -137,12 +98,12 @@ export function trimExpiredHistory(
 export async function markExpired(opts: {
   threadId: string;
   author: string;
+  userId: string;
   createdAt?: string;
   url?: string;
   summary?: string;
   text?: string;
   nowMs?: number;
-  storePath?: string;
 }): Promise<ExpiredThread> {
   const threadId = opts.threadId.trim();
   const author = opts.author.trim();
@@ -150,8 +111,9 @@ export async function markExpired(opts: {
   if (!threadId || !author || !authorKey) {
     throw new Error("threadId and author are required");
   }
+  const userId = requireUserId(opts.userId);
+  const tenantId = ensureUserTenant(userId);
   const nowMs = opts.nowMs ?? Date.now();
-  const path = opts.storePath ?? defaultExpiredStorePath();
   const next: ExpiredThread = {
     threadId,
     author,
@@ -167,30 +129,66 @@ export async function markExpired(opts: {
   if (summary) next.summary = summary;
   if (text) next.text = text;
 
-  return withFileLock(path, async () => {
-    const store = await readStore(path);
-    const without = store.expired.filter((d) => d.threadId !== threadId);
-    without.push(next);
-    const expired = trimExpiredHistory(without);
-    await writeStore(path, { expired });
-    return next;
-  });
+  const db = getPlatformDb();
+  db.transaction(() => {
+    db.prepare(
+      `INSERT INTO desk_expired (
+          user_id, tenant_id, thread_id, author, author_key, at,
+          created_at, url, summary, text
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (user_id, thread_id) DO UPDATE SET
+          tenant_id = excluded.tenant_id,
+          author = excluded.author,
+          author_key = excluded.author_key,
+          at = excluded.at,
+          created_at = excluded.created_at,
+          url = excluded.url,
+          summary = excluded.summary,
+          text = excluded.text`,
+    ).run(
+      userId,
+      tenantId,
+      threadId,
+      author,
+      authorKey,
+      next.at,
+      next.createdAt ?? null,
+      next.url ?? null,
+      next.summary ?? null,
+      next.text ?? null,
+    );
+    db.prepare(
+      `DELETE FROM desk_expired
+        WHERE user_id = ? AND thread_id IN (
+          SELECT thread_id FROM desk_expired
+           WHERE user_id = ?
+           ORDER BY at DESC, thread_id DESC
+           LIMIT -1 OFFSET ?
+        )`,
+    ).run(userId, userId, MAX_EXPIRED_HISTORY);
+  })();
+  return next;
 }
 
-export async function listExpiredHistory(opts?: {
-  storePath?: string;
+export async function listExpiredHistory(opts: {
+  userId: string;
   limit?: number;
 }): Promise<ExpiredThread[]> {
-  const path = opts?.storePath ?? defaultExpiredStorePath();
-  const store = await readStore(path);
-  return trimExpiredHistory(
-    store.expired,
-    opts?.limit ?? MAX_EXPIRED_HISTORY,
-  );
+  const userId = requireUserId(opts.userId);
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT thread_id, author, author_key, at, created_at, url, summary, text
+         FROM desk_expired
+        WHERE user_id = ?
+        ORDER BY at DESC, thread_id DESC
+        LIMIT ?`,
+    )
+    .all(userId, Math.max(0, opts.limit ?? MAX_EXPIRED_HISTORY)) as ExpiredRow[];
+  return rows.map(rowToExpired);
 }
 
-export async function getExpiredThreadIds(opts?: {
-  storePath?: string;
+export async function getExpiredThreadIds(opts: {
+  userId: string;
 }): Promise<Set<string>> {
   const history = await listExpiredHistory(opts);
   return new Set(history.map((d) => d.threadId).filter(Boolean));

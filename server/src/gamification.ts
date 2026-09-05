@@ -172,7 +172,6 @@ async function writeGamificationFile(
 
 export type GamificationPaths = {
   gamificationPath?: string;
-  interactionStorePath?: string;
   nowMs?: number;
   userId?: string;
 };
@@ -247,13 +246,13 @@ function progressFromTransition(
 
 const STREAK_POST_KINDS = ["original", "reply", "quote"] as const;
 
+/** Desk history is per user; an unowned ledger read has no rows to replay. */
 async function historyForStreak(opts: {
   userId?: string;
-  storePath?: string;
 }): Promise<Interaction[]> {
+  if (!opts.userId?.trim()) return [];
   return listInteractionHistory({
     limit: MAX_INTERACTION_STORE,
-    storePath: opts.storePath,
     userId: opts.userId,
   });
 }
@@ -293,10 +292,7 @@ async function loadOrSeedState(opts: GamificationPaths): Promise<{
   const path = await resolveGamificationPath(opts);
   const nowMs = opts.nowMs ?? Date.now();
   const existing = await readGamificationFile(path);
-  const history = await historyForStreak({
-    storePath: opts.interactionStorePath,
-    userId: opts.userId,
-  });
+  const history = await historyForStreak({ userId: opts.userId });
   if (existing) {
     return {
       path,
@@ -322,7 +318,6 @@ async function loadOrSeedState(opts: GamificationPaths): Promise<{
  */
 export async function withGamificationState<T>(opts: {
   gamificationPath?: string;
-  interactionStorePath?: string;
   nowMs?: number;
   userId?: string;
   fn: (state: GamificationState) => { state: GamificationState; result: T };
@@ -349,11 +344,7 @@ export async function recordMarkGamification(
   return withFileLock(path, async () => {
     const existing = await readGamificationFile(path);
     if (existing) {
-      const history = await listInteractionHistory({
-        limit: MAX_INTERACTION_STORE,
-        storePath: opts?.interactionStorePath,
-        userId: opts?.userId,
-      });
+      const history = await historyForStreak({ userId: opts?.userId });
       // Do not reconstruct the streak from the row this mark is about to
       // apply; re-marking a thread replaces its retained history row.
       const current = overlayStreakFromHistory(
@@ -397,11 +388,7 @@ export async function recordMarkGamification(
     }
     // First ledger write: seed from retained history (includes the mark that
     // just landed) so we do not double-apply XP/streak for that mark.
-    const history = await listInteractionHistory({
-      limit: MAX_INTERACTION_STORE,
-      storePath: opts?.interactionStorePath,
-      userId: opts?.userId,
-    });
+    const history = await historyForStreak({ userId: opts?.userId });
     let seeded = seedGamificationFromHistory(history, nowMs);
     let awarded: MarkAward = {
       markXp: 0,
@@ -462,14 +449,12 @@ export async function recordT24hBonusGamification(opts: {
   threadId: string;
   snapshot: Pick<ReplyStatSnapshot, "views" | "likes">;
   gamificationPath?: string;
-  interactionStorePath?: string;
   nowMs?: number;
   userId?: string;
 }): Promise<GamificationPublic> {
   const nowMs = opts.nowMs ?? Date.now();
   return withGamificationState({
     gamificationPath: opts.gamificationPath,
-    interactionStorePath: opts.interactionStorePath,
     userId: opts.userId,
     nowMs,
     fn: (state) => {
@@ -497,10 +482,7 @@ export async function getGamification(
   const nowMs = opts?.nowMs ?? Date.now();
   return withFileLock(path, async () => {
     const existing = await readGamificationFile(path);
-    const history = await historyForStreak({
-      storePath: opts?.interactionStorePath,
-      userId: opts?.userId,
-    });
+    const history = await historyForStreak({ userId: opts?.userId });
     if (existing) {
       return toPublicGamification(
         overlayActivityStreak(existing, {

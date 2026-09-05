@@ -286,20 +286,19 @@ async function softWriteMemory(opts: {
  * (~24h each). Writes replies into the interaction store and every own-post
  * card into own_posts (Analytics).
  */
-export async function discoverOwnReplies(opts?: {
+export async function discoverOwnReplies(opts: {
   withinTime?: string;
   count?: number;
   maxPages?: number;
   nowMs?: number;
-  storePath?: string;
   knowledgeRoot?: string;
   /** When false, skip MiniLM upsert after note write (tests). Default true. */
   upsertMemory?: boolean;
   session?: XApiCreds;
   /** Desk user's handle. Required unless resolveScreenName is set. */
   screenName?: string;
-  /** Desk user who owns the handle — stamps discovered rows and desk beats. */
-  userId?: string;
+  /** Desk user who owns the handle — every discovered row is theirs. */
+  userId: string;
   /** Override the gamification ledger path (tests). */
   gamificationPath?: string;
   signal?: AbortSignal;
@@ -431,7 +430,7 @@ export async function discoverOwnReplies(opts?: {
   // Dedupe against the full durable retain (not the 200-row feed cap) so an
   // older manual interaction cannot be silently overwritten by an upsert.
   const history = await listInteractionHistory({
-    storePath: opts?.storePath,
+    userId: opts.userId,
     limit: MAX_INTERACTION_STORE,
   });
   const { knownReplyIds, knownThreadIds } = indexKnownIds(history);
@@ -484,7 +483,7 @@ export async function discoverOwnReplies(opts?: {
         threadId,
         author,
         source: "discovered",
-        userId: opts?.userId,
+        userId: opts.userId,
         url: parentStatusUrl(author, threadId),
         text: card.opText,
         replyId,
@@ -493,13 +492,12 @@ export async function discoverOwnReplies(opts?: {
         conversationId: card.conversationId,
         inReplyToId: threadId,
         nowMs,
-        storePath: opts?.storePath,
       });
       knownReplyIds.add(replyId);
       knownThreadIds.add(threadId);
       discovered += 1;
 
-      if (opts?.userId) {
+      {
         try {
           const watched =
             getWatchedThread(opts.userId, threadId) ??
@@ -522,7 +520,6 @@ export async function discoverOwnReplies(opts?: {
             threadId,
             userId: opts.userId,
             nowMs: Date.parse(interaction.at) || nowMs,
-            interactionStorePath: opts.storePath,
             gamificationPath: opts.gamificationPath,
           });
         } catch (err) {
@@ -536,7 +533,6 @@ export async function discoverOwnReplies(opts?: {
             checkpoint: "mark",
             failed: true,
             pendingAt: interaction.at,
-            storePath: opts.storePath,
           }).catch(() => {});
         }
       }
