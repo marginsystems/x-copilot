@@ -28,8 +28,15 @@ import {
   xpProgress,
   type GamificationState,
 } from "./gamification.ts";
+import {
+  defaultMigrationsDir,
+  getPlatformDb,
+  resetPlatformDbForTests,
+} from "./db.ts";
 import { markInteracted } from "./interactionStore.ts";
+import { upsertOwnPost } from "./ownPostStore.ts";
 import type { Interaction } from "./interactionStore.ts";
+import type { ParsedPostCreate } from "./xActivity.ts";
 
 describe("utcDayKey / prevUtcDayKey", () => {
   it("formats UTC calendar days", () => {
@@ -526,9 +533,16 @@ describe("recordMarkGamification / getGamification", () => {
     dir = await mkdtemp(join(tmpdir(), "x-copilot-game-"));
     gamificationPath = join(dir, "gamification.json");
     interactionStorePath = join(dir, "interactions.json");
+    resetPlatformDbForTests();
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    getPlatformDb();
   });
 
   afterEach(async () => {
+    resetPlatformDbForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -645,6 +659,43 @@ describe("recordMarkGamification / getGamification", () => {
     assert.equal(snap.currentStreak, 3);
     assert.equal(snap.longestStreak, 17);
     assert.equal(snap.lifetimeXp, 40);
+  });
+
+  it("GET counts own original, reply, and quote posts but not reposts", async () => {
+    const posts: Array<{ day: string; kind: ParsedPostCreate["kind"] }> = [
+      { day: "2026-08-01", kind: "original" },
+      { day: "2026-08-02", kind: "reply" },
+      { day: "2026-08-03", kind: "quote" },
+      { day: "2026-08-04", kind: "repost" },
+    ];
+    for (const [index, post] of posts.entries()) {
+      upsertOwnPost({
+        userId: "u1",
+        tenantId: "local",
+        parsed: {
+          eventUuid: `evt-${index}`,
+          xUserId: "x1",
+          postId: `post-${index}`,
+          kind: post.kind,
+          text: post.kind,
+          postedAt: `${post.day}T12:00:00.000Z`,
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "desk",
+          metrics: {},
+        },
+      });
+    }
+
+    const snap = await getGamification({
+      userId: "u1",
+      gamificationPath,
+      interactionStorePath,
+      nowMs: Date.parse("2026-08-04T12:00:00.000Z"),
+    });
+    assert.equal(snap.currentStreak, 3);
+    assert.equal(snap.longestStreak, 3);
   });
 
   it("celebrates an older soft-failed mark replayed before newer retained rows", async () => {

@@ -345,8 +345,19 @@ export function overlayStreakFromDays(
 ): GamificationState {
   if (days.length === 0) return state;
   const computed = streakFromUtcDays(days, utcDayKey(nowMs));
-  const currentStreak = computed.currentStreak;
-  const lastMarkUtcDay = computed.lastDay;
+  const seededLastIsNewer =
+    computed.lastDay !== null &&
+    (state.lastMarkUtcDay === null || computed.lastDay > state.lastMarkUtcDay);
+  const shouldOverlayStreak =
+    seededLastIsNewer ||
+    (computed.lastDay === state.lastMarkUtcDay &&
+      computed.currentStreak > state.currentStreak);
+  const currentStreak = shouldOverlayStreak
+    ? computed.currentStreak
+    : state.currentStreak;
+  const lastMarkUtcDay = shouldOverlayStreak
+    ? computed.lastDay
+    : state.lastMarkUtcDay;
   const longestStreak = Math.max(state.longestStreak, computed.longestStreak);
   if (
     currentStreak === state.currentStreak &&
