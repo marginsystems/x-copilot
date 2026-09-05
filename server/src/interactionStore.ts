@@ -387,18 +387,22 @@ export async function listInteractionHistory(opts: {
  * Newest first, capped per call. Not for desk reads.
  */
 export function listAllInteractionRows(opts?: {
-  limit?: number;
+  limit?: number | null;
   where?: string;
 }): Interaction[] {
-  const limit = Math.max(0, opts?.limit ?? MAX_INTERACTION_STORE);
+  const limit =
+    opts?.limit === null
+      ? null
+      : Math.max(0, opts?.limit ?? MAX_INTERACTION_STORE);
   const where = opts?.where ? `WHERE ${opts.where}` : "";
+  const limitClause = limit === null ? "" : " LIMIT ?";
   const rows = getPlatformDb()
     .prepare(
       `SELECT * FROM desk_interactions ${where}
         ORDER BY at DESC, user_id, thread_id
-        LIMIT ?`,
+        ${limitClause}`,
     )
-    .all(limit) as InteractionRow[];
+    .all(...(limit === null ? [] : [limit])) as InteractionRow[];
   return rows.map(rowToInteraction);
 }
 

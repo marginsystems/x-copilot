@@ -230,7 +230,7 @@ describe("GET /api/boot", () => {
       },
       { userId: userB.id },
     );
-    await appendScoutLog({ message: "B's Scout stage", stage: "planning" });
+    await appendScoutLog({ userId: userB.id, message: "B's Scout stage", stage: "planning" });
     const { token } = createSession(userA.id);
 
     const { status, body } = await get(

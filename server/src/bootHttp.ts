@@ -23,7 +23,11 @@ import { listExpiredHistory } from "./expiredStore.js";
 import { countT24hSnapshots, MIN_T24H_SNAPSHOTS } from "./forYouDigest.js";
 import { getExtraUsage } from "./forYouExtra.js";
 import { listActiveSuggestions } from "./forYouStore.js";
-import { getGamification } from "./gamification.js";
+import {
+  emptyGamificationState,
+  getGamification,
+  toPublicGamification,
+} from "./gamification.js";
 import { send } from "./httpJson.js";
 import {
   listActiveInteractions,
@@ -96,7 +100,9 @@ export async function tryHandleBoot(
         dedupeAccounts:
           dedupeParam === null ? null : dedupeParam !== "false",
       }),
-      getGamification({ userId: user?.id }),
+      user
+        ? getGamification({ userId: user.id })
+        : Promise.resolve(toPublicGamification(emptyGamificationState())),
     ]);
 
     const interactions = interactionHistory.slice(0, MAX_INTERACTION_HISTORY);

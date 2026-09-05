@@ -497,8 +497,10 @@ describe("tryHandleScout", () => {
   });
 
   it("rejects a missing message on POST /api/scout/log with 400", async () => {
+    const { cookie } = signInXUser("log-validation");
     const { handled, state } = await call("POST", "/api/scout/log", {
       body: {},
+      cookie,
     });
     assert.equal(handled, true);
     assert.equal(state.status, 400);

@@ -534,12 +534,22 @@ export async function tryHandleScout(
   }
 
   if (req.method === "GET" && url.pathname === "/api/scout/log") {
-    const entries = await getScoutLog();
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser) {
+      sendScoutUnauthenticated(req, res);
+      return true;
+    }
+    const entries = await getScoutLog(sessionUser.id);
     send(req, res, 200, { ok: true, entries });
     return true;
   }
 
   if (req.method === "POST" && url.pathname === "/api/scout/log") {
+    const sessionUser = getSessionUser(req);
+    if (!sessionUser) {
+      sendScoutUnauthenticated(req, res);
+      return true;
+    }
     let body: { message?: unknown; stage?: unknown; at?: unknown };
     try {
       body = (await readBody(req)) as {
@@ -565,6 +575,7 @@ export async function tryHandleScout(
     }
     try {
       const entry = await appendScoutLog({
+        userId: sessionUser.id,
         message,
         stage: typeof body.stage === "string" ? body.stage : undefined,
         at: typeof body.at === "string" ? body.at : undefined,

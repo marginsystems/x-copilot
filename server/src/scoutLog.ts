@@ -12,7 +12,7 @@ export type ScoutLogEntry = {
   stage?: string;
 };
 
-let entries: ScoutLogEntry[] = [];
+const entriesByUser = new Map<string, ScoutLogEntry[]>();
 
 export function parseScoutLogEntry(raw: unknown): ScoutLogEntry | null {
   if (!raw || typeof raw !== "object") return null;
@@ -40,11 +40,12 @@ export function parseScoutLogFile(raw: unknown): ScoutLogEntry[] {
 }
 
 /** Oldest → newest, max 1000. */
-export async function getScoutLog(): Promise<ScoutLogEntry[]> {
-  return [...entries];
+export async function getScoutLog(userId: string): Promise<ScoutLogEntry[]> {
+  return [...(entriesByUser.get(userId) ?? [])];
 }
 
 export async function appendScoutLog(input: {
+  userId: string;
   message: string;
   stage?: string;
   at?: string;
@@ -62,6 +63,7 @@ export async function appendScoutLog(input: {
     entry.stage = input.stage.trim();
   }
 
+  const entries = entriesByUser.get(input.userId) ?? [];
   const last = entries[entries.length - 1];
   if (last && last.message === entry.message) {
     // Coalesce: refresh timestamp on the existing row.
@@ -70,11 +72,11 @@ export async function appendScoutLog(input: {
     return last;
   }
   entries.push(entry);
-  entries = entries.slice(-MAX_SCOUT_LOG_ENTRIES);
+  entriesByUser.set(input.userId, entries.slice(-MAX_SCOUT_LOG_ENTRIES));
   return entry;
 }
 
 /** Test helper. */
 export function clearScoutLogMemory(): void {
-  entries = [];
+  entriesByUser.clear();
 }

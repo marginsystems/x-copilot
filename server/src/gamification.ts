@@ -11,7 +11,6 @@ import {
   type ReplyStatSnapshot,
 } from "./interactionStore.js";
 import { withFileLock } from "./fileLock.js";
-import { getSolePlatformUserId } from "./authStore.js";
 import { listOwnPostedAt } from "./ownPostStore.js";
 import {
   toPublicGamification,
@@ -198,14 +197,6 @@ export async function resolveGamificationPath(
   if (opts?.gamificationPath) return opts.gamificationPath;
   const userId = opts?.userId?.trim();
   if (!userId) {
-    // Single-user sidecar: interaction rows written before userId scoping have
-    // no owner, so their awards fall back here. Route them to the sole platform
-    // user's ledger instead of the retired legacy file, which adoption already
-    // copied into that ledger and is never read again.
-    const soleUserId = getSolePlatformUserId();
-    if (soleUserId) {
-      return resolveGamificationPath({ ...opts, userId: soleUserId });
-    }
     return defaultGamificationPath();
   }
   const userPath = gamificationPathForUser(userId);

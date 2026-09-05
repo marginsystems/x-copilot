@@ -1,6 +1,5 @@
 import { getPlatformDb } from "./db.js";
 import { ensureUserTenant } from "./billingStore.js";
-import { DEFAULT_STATS_TICK_CAP } from "./interactionStats.js";
 import {
   listAllInteractionRows,
   readInteractionRow,
@@ -17,7 +16,7 @@ export async function listMemorySyncRetries(opts?: {
 }): Promise<Interaction[]> {
   return listAllInteractionRows({
     where: "memory_sync_failed = 1",
-    limit: Math.max(0, opts?.limit ?? DEFAULT_STATS_TICK_CAP),
+    limit: null,
   });
 }
 
@@ -49,7 +48,7 @@ export async function listGamificationSyncRetries(opts?: {
   return listAllInteractionRows({
     where:
       "(mark_gamification_sync_failed = 1 OR bonus_gamification_sync_failed = 1)",
-    limit: Math.max(0, opts?.limit ?? DEFAULT_STATS_TICK_CAP),
+    limit: null,
   });
 }
 

@@ -2,7 +2,6 @@ import { ensureUserTenant } from "./billingStore.js";
 import { getPlatformDb } from "./db.js";
 import {
   listAllInteractionRows,
-  MAX_INTERACTION_STORE,
   readInteractionRow,
   requireUserId,
   writeInteractionRow,
@@ -79,7 +78,7 @@ export async function listDueStatSamples(opts?: {
 }): Promise<DueStatSample[]> {
   const rows = listAllInteractionRows({
     where: "reply_id IS NOT NULL",
-    limit: MAX_INTERACTION_STORE,
+    limit: null,
   });
   return selectDueStatSamples(
     rows,
