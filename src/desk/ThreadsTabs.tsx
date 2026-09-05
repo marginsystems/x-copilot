@@ -290,6 +290,23 @@ export function ThreadsTabs({
     setLocked(next);
   }
 
+  useEffect(() => {
+    if (phase !== "silent_refuel" || locked.surface === silentFallback) return;
+    const next = initialApproachLock({
+      forYouHeld,
+      paceLocked: pace.locked,
+      scoutId: scout?.id ?? null,
+      fallback: silentFallback,
+    });
+    lockedRef.current = next;
+    setLocked(next);
+  }, [forYouHeld, locked.surface, pace.locked, phase, scout?.id, silentFallback]);
+
+  useEffect(() => {
+    if (phase !== "done_for_now" || (!scout && !suggestion)) return;
+    advanceCard({ type: "next" });
+  }, [phase, scout, suggestion]);
+
   function armRefuel() {
     clearScoutTakeoffTried();
     autoTriedRef.current = false;

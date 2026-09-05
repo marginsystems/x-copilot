@@ -3,6 +3,7 @@ import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import type { CoachingState } from "../lib/coaching";
 import type { GamificationStats } from "../lib/gamification";
 import { ActivityStrip } from "./ActivityStrip";
+import { FadeSwap } from "./FadeSwap";
 import { InstrumentsPanel } from "./InstrumentsPanel";
 import type { InteractionHistoryEntry } from "./types";
 
@@ -17,6 +18,7 @@ type DeskTopProps = {
   gamification: GamificationStats;
   interactedHistory: InteractionHistoryEntry[];
   coaching?: CoachingState | null;
+  status?: string;
   onToggleFlightPath: () => void;
   onActivityBucket: (bucket: ActivityBucket) => void;
 };
@@ -30,6 +32,7 @@ export function DeskTop({
   gamification,
   interactedHistory,
   coaching,
+  status,
   onToggleFlightPath,
   onActivityBucket,
 }: DeskTopProps) {
@@ -67,6 +70,13 @@ export function DeskTop({
             >
               Instruments
             </button>
+          </div>
+        ) : null}
+        {status ? (
+          <div className="desk-top-bar-copy">
+            <p className="status" role="status">
+              <FadeSwap text={status} />
+            </p>
           </div>
         ) : null}
         <button
