@@ -8,6 +8,7 @@ import {
 } from "./platformDb.testHelpers.ts";
 import {
   MAX_SKIP_HISTORY,
+  getSkippedConversationIds,
   getSkippedThreadIds,
   listSkipHistory,
   markSkipped,
@@ -69,6 +70,30 @@ describe("markSkipped / listSkipHistory", () => {
       userId,
     });
     assert.equal("reason" in row, false);
+  });
+
+  it("persists conversation ancestry across an upsert", async () => {
+    await markSkipped({
+      threadId: "reply-1",
+      author: "@x",
+      userId,
+      conversationId: "root-1",
+      inReplyToId: "parent-1",
+    });
+    await markSkipped({
+      threadId: "reply-1",
+      author: "@x",
+      userId,
+      text: "skipped again",
+    });
+
+    const [row] = await listSkipHistory({ userId });
+    assert.equal(row?.conversationId, "root-1");
+    assert.equal(row?.inReplyToId, "parent-1");
+    const blocked = await getSkippedConversationIds({ userId });
+    assert.ok(blocked.has("root-1"));
+    assert.ok(blocked.has("parent-1"));
+    assert.ok(blocked.has("reply-1"));
   });
 
   it("requires a userId", async () => {

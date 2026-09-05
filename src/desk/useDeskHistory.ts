@@ -141,6 +141,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     new Set([
       ...blockedFromHistory(seed?.interacted.interactions ?? []),
       ...blockedFromHistory(seed?.dismissed.dismissals ?? []),
+      ...blockedFromHistory(seed?.skipped.skipped ?? []),
     ]),
   );
   /** Set once a user action mutates history locally; boot's server snapshot is then stale. */
@@ -161,6 +162,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     blockedConversationsRef.current = new Set([
       ...blockedFromHistory(desk.interacted.interactions),
       ...blockedFromHistory(desk.dismissed.dismissals),
+      ...blockedFromHistory(desk.skipped.skipped),
     ]);
     setForYouSuggestions(desk.forYou.suggestions);
     setForYouProgress(desk.forYou.progress);
@@ -263,8 +265,19 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
         ),
       );
       skippedIdsRef.current = ids;
-      if (ids.size) {
-        setThreads((prev) => prev.filter((t) => !isHiddenFromCurated(t.id)));
+      const blocked = new Set(blockedConversationsRef.current);
+      for (const d of history) {
+        const root =
+          d.conversationId?.trim() ||
+          d.inReplyToId?.trim() ||
+          d.threadId.trim();
+        if (root) blocked.add(root);
+        if (d.threadId.trim()) blocked.add(d.threadId.trim());
+        if (d.inReplyToId?.trim()) blocked.add(d.inReplyToId.trim());
+      }
+      blockedConversationsRef.current = blocked;
+      if (ids.size || blocked.size) {
+        setThreads((prev) => prev.filter((t) => keepInCurated(t)));
       }
     } catch {
       // Sidecar may be offline on first paint — ignore.

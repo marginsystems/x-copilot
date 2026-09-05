@@ -4,7 +4,10 @@
  */
 import { ensureUserTenant } from "./billingStore.js";
 import { getPlatformDb } from "./db.js";
-import { normalizeAuthorKey } from "./interactionCooldown.js";
+import {
+  conversationIdsFromHistory,
+  normalizeAuthorKey,
+} from "./interactionCooldown.js";
 import { requireUserId } from "./interactionStore.js";
 
 export type Skip = {
@@ -15,6 +18,10 @@ export type Skip = {
   url?: string;
   summary?: string;
   text?: string;
+  /** X conversation root — blocks sibling replies on later Scouts. */
+  conversationId?: string;
+  /** Immediate parent status id when the skipped card was a reply. */
+  inReplyToId?: string;
 };
 
 export const MAX_SKIP_HISTORY = 200;
@@ -38,6 +45,8 @@ type SkipRow = {
   url: string | null;
   summary: string | null;
   text: string | null;
+  conversation_id: string | null;
+  in_reply_to_id: string | null;
 };
 
 function rowToSkip(row: SkipRow): Skip {
@@ -50,7 +59,22 @@ function rowToSkip(row: SkipRow): Skip {
   if (row.url) item.url = row.url;
   if (row.summary) item.summary = row.summary;
   if (row.text) item.text = row.text;
+  const root = row.conversation_id || row.in_reply_to_id || null;
+  if (root) item.conversationId = root;
+  if (row.in_reply_to_id) item.inReplyToId = row.in_reply_to_id;
   return item;
+}
+
+function readSkipRow(userId: string, threadId: string): Skip | null {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT thread_id, author, author_key, at, url, summary, text,
+              conversation_id, in_reply_to_id
+         FROM desk_skips
+        WHERE user_id = ? AND thread_id = ?`,
+    )
+    .get(userId, threadId) as SkipRow | undefined;
+  return row ? rowToSkip(row) : null;
 }
 
 export function trimSkipHistory(
@@ -69,6 +93,8 @@ export async function markSkipped(opts: {
   url?: string;
   summary?: string;
   text?: string;
+  conversationId?: string;
+  inReplyToId?: string;
   nowMs?: number;
 }): Promise<Skip> {
   const threadId = opts.threadId.trim();
@@ -89,16 +115,29 @@ export async function markSkipped(opts: {
   const url = optionalString(opts.url);
   const summary = optionalString(opts.summary);
   const text = optionalString(opts.text, MAX_TEXT_CHARS);
+  const conversationId = optionalString(opts.conversationId);
+  const inReplyToId = optionalString(opts.inReplyToId);
   if (url) next.url = url;
   if (summary) next.summary = summary;
   if (text) next.text = text;
+  const root = conversationId || inReplyToId || null;
+  if (root) next.conversationId = root;
+  if (inReplyToId) next.inReplyToId = inReplyToId;
 
   const db = getPlatformDb();
   db.transaction(() => {
+    const prior = readSkipRow(userId, threadId);
+    if (!next.conversationId && prior?.conversationId) {
+      next.conversationId = prior.conversationId;
+    }
+    if (!next.inReplyToId && prior?.inReplyToId) {
+      next.inReplyToId = prior.inReplyToId;
+    }
     db.prepare(
       `INSERT INTO desk_skips (
-          user_id, tenant_id, thread_id, author, author_key, at, url, summary, text
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          user_id, tenant_id, thread_id, author, author_key, at, url, summary,
+          text, conversation_id, in_reply_to_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (user_id, thread_id) DO UPDATE SET
           tenant_id = excluded.tenant_id,
           author = excluded.author,
@@ -106,7 +145,9 @@ export async function markSkipped(opts: {
           at = excluded.at,
           url = excluded.url,
           summary = excluded.summary,
-          text = excluded.text`,
+          text = excluded.text,
+          conversation_id = excluded.conversation_id,
+          in_reply_to_id = excluded.in_reply_to_id`,
     ).run(
       userId,
       tenantId,
@@ -117,6 +158,8 @@ export async function markSkipped(opts: {
       next.url ?? null,
       next.summary ?? null,
       next.text ?? null,
+      next.conversationId ?? null,
+      next.inReplyToId ?? null,
     );
     db.prepare(
       `DELETE FROM desk_skips
@@ -138,7 +181,8 @@ export async function listSkipHistory(opts: {
   const userId = requireUserId(opts.userId);
   const rows = getPlatformDb()
     .prepare(
-      `SELECT thread_id, author, author_key, at, url, summary, text
+      `SELECT thread_id, author, author_key, at, url, summary, text,
+              conversation_id, in_reply_to_id
          FROM desk_skips
         WHERE user_id = ?
         ORDER BY at DESC, thread_id DESC
@@ -146,6 +190,17 @@ export async function listSkipHistory(opts: {
     )
     .all(userId, Math.max(0, opts.limit ?? MAX_SKIP_HISTORY)) as SkipRow[];
   return rows.map(rowToSkip);
+}
+
+/** Conversation / ancestry ids from durable Skip history. */
+export async function getSkippedConversationIds(opts: {
+  userId: string;
+}): Promise<Set<string>> {
+  const history = await listSkipHistory({
+    userId: opts.userId,
+    limit: MAX_SKIP_HISTORY,
+  });
+  return conversationIdsFromHistory(history);
 }
 
 export async function getSkippedThreadIds(opts: {

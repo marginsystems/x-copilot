@@ -12,6 +12,7 @@ import {
   conversationIdsFromHistory,
   normalizeAuthorKey,
 } from "./interactionCooldown.js";
+import { getSkippedConversationIds } from "./skipStore.js";
 
 export type Dismissal = {
   threadId: string;
@@ -220,19 +221,18 @@ export async function getDismissedConversationIds(opts: {
 }
 
 /**
- * Union of one user's Marked + Not interested conversation ancestry for
- * Scout filters.
+ * Union of one user's Marked + Not interested + Skip conversation ancestry
+ * for Scout filters.
  */
 export async function getBlockedConversationIds(opts: {
   userId: string;
 }): Promise<Set<string>> {
-  const [interacted, dismissed] = await Promise.all([
+  const [interacted, dismissed, skipped] = await Promise.all([
     getEverInteractedConversationIds({ userId: opts.userId }),
     getDismissedConversationIds({ userId: opts.userId }),
+    getSkippedConversationIds({ userId: opts.userId }),
   ]);
-  if (!dismissed.size) return interacted;
-  if (!interacted.size) return dismissed;
-  return new Set([...interacted, ...dismissed]);
+  return new Set([...interacted, ...dismissed, ...skipped]);
 }
 
 export async function getDismissedThreadIds(opts: {

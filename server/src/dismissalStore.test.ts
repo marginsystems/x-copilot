@@ -9,6 +9,7 @@ import {
 } from "./dismissalStore.ts";
 import { markInteracted } from "./interactionStore.ts";
 import { threadMatchesConversationIds } from "./interactionCooldown.ts";
+import { markSkipped } from "./skipStore.ts";
 import {
   closeTempPlatformDb,
   openTempPlatformDb,
@@ -141,6 +142,31 @@ describe("markDismissed / listDismissalHistory", () => {
     const blockedB = await getBlockedConversationIds({ userId: "user-b" });
     assert.ok(blockedB.has("convo-b"));
     assert.equal(blockedB.has("convo-marked"), false);
+  });
+
+  it("blocks a skipped reply's conversation for that user only", async () => {
+    await markSkipped({
+      threadId: "reply-1",
+      author: "@a",
+      userId,
+      conversationId: "root-1",
+      inReplyToId: "parent-1",
+    });
+
+    const sibling: ThreadCard = {
+      id: "reply-2",
+      author: "@sibling",
+      text: "another reply in the same conversation",
+      url: "https://x.com/sibling/status/reply-2",
+      conversationId: "root-1",
+      inReplyToId: "root-1",
+      isReply: true,
+    };
+    const blockedA = await getBlockedConversationIds({ userId });
+    assert.equal(threadMatchesConversationIds(sibling, blockedA), true);
+
+    const blockedB = await getBlockedConversationIds({ userId: "user-b" });
+    assert.equal(threadMatchesConversationIds(sibling, blockedB), false);
   });
 
   it("does not hide a thread A dismissed from B", async () => {

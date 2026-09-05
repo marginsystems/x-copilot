@@ -182,6 +182,29 @@ describe("historyHttp", () => {
     assert.deepEqual(bDismissed.json.dismissedIds, []);
   });
 
+  it("POST /api/skipped stores conversation ancestry for the session user", async () => {
+    const response = await call(
+      "POST",
+      "/api/skipped",
+      {
+        threadId: "reply-1",
+        author: "@x",
+        conversationId: "root-1",
+        inReplyToId: "parent-1",
+      },
+      a.cookie,
+    );
+    assert.equal(response.status, 200);
+
+    const forA = await call("GET", "/api/skipped", undefined, a.cookie);
+    const [row] = forA.json.skipped as Record<string, unknown>[];
+    assert.equal(row?.conversationId, "root-1");
+    assert.equal(row?.inReplyToId, "parent-1");
+
+    const forB = await call("GET", "/api/skipped", undefined, b.cookie);
+    assert.deepEqual(forB.json.skipped, []);
+  });
+
   it("GET /api/expired returns only the session user's rows", async () => {
     await markExpired({ threadId: "ea", author: "@a", userId: a.userId });
     await markExpired({ threadId: "eb", author: "@b", userId: b.userId });
