@@ -12,8 +12,6 @@ export const FYP_DETECTED_COPY = "Post detected. Tap Next.";
 export const FYP_OPEN_TIP = "Opens your real X For You page.";
 export const FYP_NEXT_TIP =
   "Leave this wait. Take the next Approach card.";
-export const FYP_LAND_TIP =
-  "End the Scout run that is in the air. Threads already found stay. Nothing posts to X.";
 
 const UTC_WEEKDAYS = [
   "Sunday",

@@ -210,10 +210,6 @@ export function useScoutRun({
     }
   }
 
-  function onStopScout() {
-    abortRef.current?.abort();
-  }
-
   function applyLastScoutFromBoot(data: LastScoutPayload) {
     if (staleHydration.current) return;
     if (!data.ok) return;
@@ -475,9 +471,7 @@ export function useScoutRun({
         pushScoutLine(summary);
         onScoutFinished?.();
       } else {
-        const line = formatScoutFailure(
-          "Sidecar offline — run ./pm2-manager.sh restart or npm run dev:server",
-        );
+        const line = formatScoutFailure("Scout service unavailable");
         setStatus(line);
         pushScoutLine(line, "error");
         onScoutFinished?.();
@@ -499,7 +493,7 @@ export function useScoutRun({
           }
           if (
             prev.startsWith("Scout failed:") ||
-            prev.startsWith("Sidecar offline") ||
+            prev.startsWith("Scout is unavailable") ||
             prev.startsWith("Couldn't land") ||
             /^A Scout run is already in progress/.test(prev)
           ) {
@@ -576,7 +570,6 @@ export function useScoutRun({
     flightStageRef,
     staleHydration,
     onSearch,
-    onStopScout,
     applyLastScoutFromBoot,
     applyScoutLogFromBoot,
     hydrateLastScout,

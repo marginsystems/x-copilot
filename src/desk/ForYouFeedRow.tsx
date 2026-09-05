@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  FYP_LAND_TIP,
   FYP_NEXT_TIP,
   FYP_OPEN_TIP,
   FYP_WAIT_COPY,
@@ -10,10 +9,8 @@ import { DeskRow } from "./DeskRow";
 import { HasTipButton, HasTipLink } from "./HasTip";
 
 export function ForYouFeedRow(props: {
-  searching?: boolean;
   status?: string;
   onNext?: () => void;
-  onStopScout?: () => void;
 }) {
   const [open, setOpen] = useState(true);
   return (
@@ -46,15 +43,6 @@ export function ForYouFeedRow(props: {
         {props.onNext ? (
           <HasTipButton className="ghost" onClick={props.onNext} tip={FYP_NEXT_TIP}>
             Next
-          </HasTipButton>
-        ) : null}
-        {props.searching ? (
-          <HasTipButton
-            className="ghost"
-            onClick={props.onStopScout}
-            tip={FYP_LAND_TIP}
-          >
-            Land
           </HasTipButton>
         ) : null}
       </div>

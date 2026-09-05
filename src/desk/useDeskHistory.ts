@@ -375,10 +375,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
           }
           return;
         }
-        const data = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        setStatus(`For You fail: ${data.message || res.status}`);
+        setStatus("Could not update For You. Try again.");
         return;
       }
       const data = (await res.json().catch(() => ({}))) as {
@@ -399,7 +396,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       }
       if (path === "done" && row?.kind === "reply") armReplyPace();
     } catch {
-      setStatus("For You fail — desk offline.");
+      setStatus("Could not update For You. Try again.");
     } finally {
       setActionBusy(false);
     }
@@ -416,7 +413,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       const extra = parseForYouExtra(data);
       if (extra) setForYouExtra(extra);
       if (!res.ok) {
-        setStatus(data.message || `Approach extras fail: ${res.status}`);
+        setStatus("Could not update Approach. Try again.");
         return;
       }
       const rows = (Array.isArray(data.suggestions) ? data.suggestions : [])
@@ -428,7 +425,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       });
       historyStaleRef.current = true;
     } catch {
-      setStatus("Approach extras fail — desk offline.");
+      setStatus("Could not update Approach. Try again.");
     } finally {
       setActionBusy(false);
     }

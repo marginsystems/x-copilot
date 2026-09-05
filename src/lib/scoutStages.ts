@@ -100,10 +100,16 @@ export function formatScoutFailure(
   opts?: { soft?: boolean },
 ): string {
   const d = detail.trim();
+  if (
+    /\b(sidecar|pm2|npm|localhost)\b/i.test(d) ||
+    /(?:^|\s)\.?\/[\w.-]+/.test(d)
+  ) {
+    return "Scout is unavailable right now.";
+  }
   if (opts?.soft) {
     return d || "Wait before searching again.";
   }
   if (!d) return "Scout failed.";
-  if (/^Scout failed:/i.test(d) || /^Sidecar offline/i.test(d)) return d;
+  if (/^Scout failed:/i.test(d)) return d;
   return `Scout failed: ${d}`;
 }

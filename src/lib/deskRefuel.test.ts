@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { shouldBackgroundScout } from "./deskRefuel.ts";
+import {
+  clearScoutTakeoffTried,
+  markScoutTakeoffTried,
+  readScoutTakeoffTried,
+  shouldBackgroundScout,
+} from "./deskRefuel.ts";
 
 const ready = {
   phase: "silent_refuel" as const,
@@ -14,7 +19,7 @@ const ready = {
 };
 
 describe("shouldBackgroundScout", () => {
-  it("fires on idle silent_refuel or hold with agenda and credits", () => {
+  it("fires only after the caller arms an idle low tank", () => {
     assert.equal(shouldBackgroundScout(ready), true);
     assert.equal(shouldBackgroundScout({ ...ready, phase: "hold" }), true);
   });
@@ -30,6 +35,10 @@ describe("shouldBackgroundScout", () => {
     );
     assert.equal(
       shouldBackgroundScout({ ...ready, phase: "organic_reply" }),
+      true,
+    );
+    assert.equal(
+      shouldBackgroundScout({ ...ready, phase: "done_for_now" }),
       true,
     );
   });
@@ -58,5 +67,32 @@ describe("shouldBackgroundScout", () => {
       }),
       false,
     );
+  });
+});
+
+describe("Scout takeoff session gate", () => {
+  it("survives refresh until an operator consume path clears it", () => {
+    const values = new Map<string, string>();
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+        removeItem: (key: string) => values.delete(key),
+      },
+    });
+    try {
+      assert.equal(readScoutTakeoffTried(), false);
+      markScoutTakeoffTried();
+      assert.equal(readScoutTakeoffTried(), true);
+      assert.equal(
+        shouldBackgroundScout({ ...ready, alreadyTried: readScoutTakeoffTried() }),
+        false,
+      );
+      clearScoutTakeoffTried();
+      assert.equal(readScoutTakeoffTried(), false);
+    } finally {
+      Reflect.deleteProperty(globalThis, "sessionStorage");
+    }
   });
 });
