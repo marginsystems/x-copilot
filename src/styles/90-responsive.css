@@ -54,7 +54,7 @@
     min-height: 176px;
   }
 
-  .threads-activity-sub {
+  .threads-activity .threads-activity-sub {
     display: none;
   }
 
@@ -246,4 +246,3 @@
     max-height: 56px;
   }
 }
-

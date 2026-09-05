@@ -81,6 +81,7 @@ function buildPoints(
 function useCssBox(
   ref: RefObject<HTMLDivElement>,
   fallback: { w: number; h: number },
+  compact: boolean,
 ): { w: number; h: number } {
   const [box, setBox] = useState(fallback);
   useLayoutEffect(() => {
@@ -98,7 +99,7 @@ function useCssBox(
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [compact]);
   return box;
 }
 
@@ -108,7 +109,7 @@ function useCssBox(
  */
 export function ActivityChart({ series, bucket, compact = false }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const box = useCssBox(hostRef, { w: 600, h: compact ? 44 : 120 });
+  const box = useCssBox(hostRef, { w: 600, h: compact ? 44 : 120 }, compact);
   const width = box.w;
   const height = box.h;
   const padL = compact ? 6 : 28;
