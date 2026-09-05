@@ -698,6 +698,54 @@ describe("recordMarkGamification / getGamification", () => {
     assert.equal(snap.longestStreak, 3);
   });
 
+  it("GET counts an unscoped reply for the sole platform user", async () => {
+    const day = "2026-08-05";
+    await markInteracted({
+      threadId: "unscoped-reply",
+      author: "@x",
+      replyId: "reply-1",
+      postedAt: `${day}T21:41:48.000Z`,
+      nowMs: Date.parse(`${day}T22:00:00.000Z`),
+      storePath: interactionStorePath,
+    });
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO users (id, email, created_at, last_login_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run("u1", "u1@example.com", new Date().toISOString(), new Date().toISOString());
+
+    const snap = await getGamification({
+      userId: "u1",
+      gamificationPath,
+      interactionStorePath,
+      nowMs: Date.parse(`${day}T23:00:00.000Z`),
+    });
+    assert.equal(snap.currentStreak, 1);
+    assert.equal(snap.longestStreak, 1);
+  });
+
+  it("GET excludes an unscoped reply without a sole platform user", async () => {
+    const day = "2026-08-05";
+    await markInteracted({
+      threadId: "unscoped-reply",
+      author: "@x",
+      replyId: "reply-1",
+      postedAt: `${day}T21:41:48.000Z`,
+      nowMs: Date.parse(`${day}T22:00:00.000Z`),
+      storePath: interactionStorePath,
+    });
+
+    const snap = await getGamification({
+      userId: "u1",
+      gamificationPath,
+      interactionStorePath,
+      nowMs: Date.parse(`${day}T23:00:00.000Z`),
+    });
+    assert.equal(snap.currentStreak, 0);
+    assert.equal(snap.longestStreak, 0);
+  });
+
   it("celebrates an older soft-failed mark replayed before newer retained rows", async () => {
     const d1 = Date.parse("2026-08-05T12:00:00.000Z");
     const d2 = Date.parse("2026-08-06T12:00:00.000Z");
