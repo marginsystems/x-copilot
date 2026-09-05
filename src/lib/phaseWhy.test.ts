@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { emptyDeskBeats } from "./deskPhase.ts";
-import { coachingMatchesCard, phaseWhy } from "./phaseWhy.ts";
+import {
+  APPROACH_COLLECTING_IDLE,
+  approachCollectingCopy,
+  coachingMatchesCard,
+  phaseWhy,
+} from "./phaseWhy.ts";
 import type { CoachingState, NextActionKind } from "./coaching.ts";
 import type { ForYouSuggestion } from "./forYou.ts";
 
@@ -41,6 +46,15 @@ describe("coachingMatchesCard", () => {
 });
 
 describe("phaseWhy", () => {
+  it("keeps an empty Approach collecting for Scout", () => {
+    assert.equal(phaseWhy("done_for_now"), APPROACH_COLLECTING_IDLE);
+    assert.equal(
+      approachCollectingCopy({ searching: false }),
+      "Scout is looking for the next reply.",
+    );
+    assert.equal(approachCollectingCopy({ searching: true }), "In the air…");
+  });
+
   it("does not put original copy on a scouted reply", () => {
     assert.equal(
       phaseWhy(

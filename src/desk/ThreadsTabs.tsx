@@ -258,6 +258,18 @@ export function ThreadsTabs({
     : null;
   const autoTriedRef = useRef(readScoutTakeoffTried());
   const [refuelArmed, setRefuelArmed] = useState(false);
+  const backgroundScoutPending =
+    refuelArmed &&
+    shouldBackgroundScout({
+      phase,
+      searching,
+      grounded,
+      cooldownRemainingSec: searchCooldownRemaining,
+      needsXLink: deskNeedsXLink(authUser),
+      hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
+      scoutCount: scouted.length,
+      alreadyTried: autoTriedRef.current,
+    });
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
 
@@ -469,6 +481,7 @@ export function ThreadsTabs({
                       hasScoutCard: lockedScout != null,
                       hasSuggestion: lockedSuggestion != null,
                       holdForYouTask,
+                      scouting: searching || backgroundScoutPending,
                     })
                   : 0
               }
@@ -558,6 +571,8 @@ export function ThreadsTabs({
             requestExtra={requestExtra}
             scout={lockedScout}
             suggestion={lockedSuggestion}
+            searching={searching}
+            scouting={searching || backgroundScoutPending}
             actionBusy={actionBusy}
             expandedId={expandedId}
             setExpandedId={setExpandedId}
