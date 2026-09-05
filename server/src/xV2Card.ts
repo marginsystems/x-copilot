@@ -251,6 +251,13 @@ export function v2TweetToCard(
         }
       }
       if (v2TweetHasOutboundLink(qt)) card.hasOutboundLink = true;
+      if (
+        (qt.attachments?.media_keys ?? []).some((key) =>
+          includedMediaKeys.has(key),
+        )
+      ) {
+        card.opHasNativeMedia = true;
+      }
     }
   }
 
