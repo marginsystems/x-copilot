@@ -15,6 +15,7 @@ import { getXOauthUsername } from "./xIdentityStore.js";
 import {
   detectOwnReplyToThread,
   detectOwnReplyToThreadWithRetry,
+  findRecentInteractionReply,
   resolveDetectScreenName,
 } from "./detectReply.js";
 import { recordMarkGamification } from "./gamification.js";
@@ -106,6 +107,21 @@ export async function tryHandleInteracted(
         ? body.conversationId.trim()
         : undefined;
     const appUser = getSessionUser(req);
+    if (appUser) {
+      const history = await listInteractionHistory({
+        userId: appUser.id,
+        limit: MAX_INTERACTION_STORE,
+      });
+      const reply = findRecentInteractionReply({
+        history,
+        threadId,
+        conversationId,
+      });
+      if (reply) {
+        send(req, res, 200, { ok: true, found: true, reply });
+        return true;
+      }
+    }
     const screenName = resolveDetectScreenName(
       appUser ? getXOauthUsername(appUser.id) : null,
     );

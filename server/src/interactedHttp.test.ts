@@ -193,6 +193,51 @@ describe("interactedHttp", () => {
     assert.equal(json.error, "identity_unresolved");
   });
 
+  it("POST /api/interacted/detect resolves the session user's ledger first", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-detect-a",
+      email: "detect-a@example.com",
+      emailVerified: true,
+    });
+    const other = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-detect-b",
+      email: "detect-b@example.com",
+      emailVerified: true,
+    });
+    await markInteracted({
+      threadId: "target",
+      author: "@other",
+      userId: other.id,
+      replyId: "other-reply",
+      replyUrl: "https://x.com/other/status/other-reply",
+    });
+    await markInteracted({
+      threadId: "card",
+      conversationId: "target",
+      author: "@mine",
+      userId: user.id,
+      replyId: "mine-reply",
+      replyUrl: "https://x.com/mine/status/mine-reply",
+    });
+    const { token } = createSession(user.id);
+
+    const { status, json } = await call(
+      "POST",
+      "/api/interacted/detect",
+      { threadId: "target", once: true },
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
+
+    assert.equal(status, 200);
+    assert.equal(json.found, true);
+    const reply = json.reply as Record<string, unknown>;
+    assert.equal(reply.replyId, "mine-reply");
+    assert.equal(reply.replyUrl, "https://x.com/mine/status/mine-reply");
+    assert.equal(reply.replyText, "");
+  });
+
   it("POST /api/interacted rejects a missing reply URL", async () => {
     const { handled, status, json } = await call("POST", "/api/interacted", {
       threadId: "123",

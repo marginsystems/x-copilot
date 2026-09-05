@@ -42,6 +42,7 @@ import {
   type ForYouWait,
 } from "../lib/forYouTask";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
+import { vanishEvent } from "../lib/vanishEvent";
 import type { VoiceState } from "../lib/voice";
 import {
   DismissedRow,
@@ -363,10 +364,31 @@ export function ThreadsTabs({
       (phase === "organic_reply" &&
         forYouSuggestions.some((row) => row.id === locked.cardId));
     if (!cardIsLive) {
-      advanceCard({ type: "skip" });
-      armRefuel();
+      const event =
+        phase === "scout_reply"
+          ? vanishEvent({
+              cardId: locked.cardId,
+              conversationId:
+                lockedScout?.conversationId ?? lockedSuggestion?.targetId,
+              inReplyToId: lockedScout?.inReplyToId,
+              interactedIds,
+              history: interactedHistory,
+            })
+          : "skip";
+      advanceCard({ type: event });
+      if (event === "skip") armRefuel();
     }
-  }, [deskBootReady, forYouSuggestions, locked.cardId, phase, scouted]);
+  }, [
+    deskBootReady,
+    forYouSuggestions,
+    interactedHistory,
+    interactedIds,
+    locked.cardId,
+    lockedScout,
+    lockedSuggestion,
+    phase,
+    scouted,
+  ]);
 
   function armRefuel() {
     clearScoutTakeoffTried();
