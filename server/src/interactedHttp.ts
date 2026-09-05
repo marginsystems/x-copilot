@@ -253,6 +253,7 @@ export async function tryHandleInteracted(
         console.warn("gamification mark soft-fail:", err);
         await setGamificationSyncFailed({
           threadId,
+          userId: sessionUser?.id,
           checkpoint: "mark",
           failed: true,
           pendingAt: interaction.at,

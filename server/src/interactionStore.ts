@@ -269,22 +269,33 @@ export async function markInteracted(opts: {
     const prior = store.interactions.find(
       (i) => i.threadId === threadId && i.userId === userId,
     );
+    const legacyPrior =
+      userId && getSolePlatformUserId() === userId
+        ? store.interactions.find(
+            (i) => i.threadId === threadId && !i.userId,
+          )
+        : undefined;
+    const preserved = prior ?? legacyPrior;
     // Preserve existing stats snapshots across re-marks of the same thread.
-    if (prior?.stats) next.stats = prior.stats;
-    if (prior?.memorySyncFailed) next.memorySyncFailed = true;
-    if (prior?.markGamificationSyncFailed) next.markGamificationSyncFailed = true;
-    if (prior?.bonusGamificationSyncFailed) {
+    if (preserved?.stats) next.stats = preserved.stats;
+    if (preserved?.memorySyncFailed) next.memorySyncFailed = true;
+    if (preserved?.markGamificationSyncFailed) next.markGamificationSyncFailed = true;
+    if (preserved?.bonusGamificationSyncFailed) {
       next.bonusGamificationSyncFailed = true;
     }
-    if (prior?.pendingMarkAts?.length) next.pendingMarkAts = prior.pendingMarkAts;
-    if (!next.conversationId && prior?.conversationId) {
-      next.conversationId = prior.conversationId;
+    if (preserved?.pendingMarkAts?.length) {
+      next.pendingMarkAts = preserved.pendingMarkAts;
     }
-    if (!next.inReplyToId && prior?.inReplyToId) {
-      next.inReplyToId = prior.inReplyToId;
+    if (!next.conversationId && preserved?.conversationId) {
+      next.conversationId = preserved.conversationId;
+    }
+    if (!next.inReplyToId && preserved?.inReplyToId) {
+      next.inReplyToId = preserved.inReplyToId;
     }
     const without = store.interactions.filter(
-      (i) => !(i.threadId === threadId && i.userId === userId),
+      (i) =>
+        !(i.threadId === threadId && i.userId === userId) &&
+        !(legacyPrior && i === legacyPrior),
     );
     without.push(next);
     // Retain enough history for the activity dashboard window; feed UI still

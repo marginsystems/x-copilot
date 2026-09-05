@@ -24,6 +24,7 @@ export async function listMemorySyncRetries(opts?: {
 /** Record whether a stats → memory projection failed, so the next tick retries. */
 export async function setMemorySyncFailed(opts: {
   threadId: string;
+  userId?: string;
   failed: boolean;
   storePath?: string;
 }): Promise<void> {
@@ -32,7 +33,9 @@ export async function setMemorySyncFailed(opts: {
   const path = opts.storePath ?? defaultStorePath();
   await withFileLock(path, async () => {
     const store = await readStore(path);
-    const idx = store.interactions.findIndex((i) => i.threadId === threadId);
+    const idx = store.interactions.findIndex(
+      (i) => i.threadId === threadId && i.userId === opts.userId,
+    );
     if (idx < 0) return;
     const row = store.interactions[idx]!;
     if (!!row.memorySyncFailed === opts.failed) return;
@@ -62,6 +65,7 @@ export async function listGamificationSyncRetries(opts?: {
 /** Record whether a gamification ledger projection failed, so the next tick retries. */
 export async function setGamificationSyncFailed(opts: {
   threadId: string;
+  userId?: string;
   checkpoint: GamificationCheckpoint;
   failed: boolean;
   /** Original mark `at` to replay when a mark projection soft-fails; appended
@@ -79,7 +83,9 @@ export async function setGamificationSyncFailed(opts: {
   const path = opts.storePath ?? defaultStorePath();
   await withFileLock(path, async () => {
     const store = await readStore(path);
-    const idx = store.interactions.findIndex((i) => i.threadId === threadId);
+    const idx = store.interactions.findIndex(
+      (i) => i.threadId === threadId && i.userId === opts.userId,
+    );
     if (idx < 0) return;
     const row = store.interactions[idx]!;
     const field: "markGamificationSyncFailed" | "bonusGamificationSyncFailed" =

@@ -74,6 +74,7 @@ async function runOutcomeSync(
     if (sync.ok) {
       await setMemorySyncFailed({
         threadId: interaction.threadId,
+        userId: interaction.userId,
         failed: false,
         storePath,
       });
@@ -81,6 +82,7 @@ async function runOutcomeSync(
     }
     await setMemorySyncFailed({
       threadId: interaction.threadId,
+      userId: interaction.userId,
       failed: true,
       storePath,
     });
@@ -91,6 +93,7 @@ async function runOutcomeSync(
   } catch (err) {
     await setMemorySyncFailed({
       threadId: interaction.threadId,
+      userId: interaction.userId,
       failed: true,
       storePath,
     });
@@ -258,6 +261,7 @@ export async function runStatsTick(opts?: {
         }
         await setGamificationSyncFailed({
           threadId: interaction.threadId,
+          userId: interaction.userId,
           checkpoint: "mark",
           failed: false,
           storePath: opts?.storePath,
@@ -283,6 +287,7 @@ export async function runStatsTick(opts?: {
         });
         await setGamificationSyncFailed({
           threadId: interaction.threadId,
+          userId: interaction.userId,
           checkpoint: "t24h",
           failed: false,
           storePath: opts?.storePath,
@@ -311,6 +316,7 @@ export async function runStatsTick(opts?: {
     tweetFailures.delete(failKey);
     const patched = await patchInteractionStats({
       threadId: item.threadId,
+      userId: item.userId,
       checkpoint: item.checkpoint,
       snapshot: {
         ...metrics,
@@ -333,6 +339,7 @@ export async function runStatsTick(opts?: {
         });
         await setGamificationSyncFailed({
           threadId: item.threadId,
+          userId: item.userId,
           checkpoint: "t24h",
           failed: false,
           storePath: opts?.storePath,
@@ -344,6 +351,7 @@ export async function runStatsTick(opts?: {
         );
         await setGamificationSyncFailed({
           threadId: item.threadId,
+          userId: item.userId,
           checkpoint: "t24h",
           failed: true,
           storePath: opts?.storePath,
