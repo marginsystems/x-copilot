@@ -40,7 +40,7 @@ export function useReplyPace(replyAtIso?: string | null) {
 
   useEffect(() => {
     if (until != null && remainingMs === 0) {
-      clearReplyPace();
+      clearReplyPace(false);
     }
   }, [until, remainingMs]);
 

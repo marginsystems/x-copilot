@@ -313,7 +313,12 @@ export function ThreadsTabs({
   }
 
   useEffect(() => {
-    if (!deskBootReady || phase !== "silent_refuel") return;
+    if (
+      !deskBootReady ||
+      (phase !== "silent_refuel" && !(phase === "scout_reply" && pace.locked))
+    ) {
+      return;
+    }
     let nextForYouHeld = forYouHeld;
     if (!scout && canPresentForYou && !forYouWait) {
       const wait: ForYouWait = {

@@ -54,10 +54,10 @@ export function seedReplyPaceFromReplyAt(
   return until;
 }
 
-export function clearReplyPace(): void {
+export function clearReplyPace(markCleared = true): void {
   try {
     sessionStorage.removeItem(REPLY_PACE_STORAGE_KEY);
-    sessionStorage.setItem(REPLY_PACE_CLEARED_KEY, "1");
+    if (markCleared) sessionStorage.setItem(REPLY_PACE_CLEARED_KEY, "1");
   } catch {
     /* private mode */
   }
