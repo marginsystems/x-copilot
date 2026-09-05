@@ -92,6 +92,7 @@ export function MissionCard(props: {
   groundedLine?: string | null;
   cooldownRemaining?: number;
   holdForYouTask?: boolean;
+  forYouStatus?: string;
   onStopScout?: () => void;
   onOpenUsage?: () => void;
   onOpenSettings?: () => void;
@@ -149,7 +150,7 @@ export function MissionCard(props: {
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb("hold")}</p>
         <div className="threads">
-          <ForYouFeedRow />
+          <ForYouFeedRow status={props.forYouStatus} />
         </div>
         <ReplyPaceBar
           clock={props.clock}
@@ -218,6 +219,7 @@ export function MissionCard(props: {
           <div className="threads">
             <ForYouFeedRow
               searching={props.searching}
+              status={props.forYouStatus}
               onNext={props.onForYouNext}
               onStopScout={props.onStopScout}
             />

@@ -8,6 +8,8 @@ import {
 import type { AuthSessionUser } from "../auth/types";
 import {
   APPROACH_TAB_LABEL,
+  FYP_DETECTED_COPY,
+  FYP_DETECTING_COPY,
   type ForYouExtraUsage,
   type ForYouProgress,
   type ForYouSuggestion,
@@ -25,7 +27,13 @@ import {
 import { shouldBackgroundScout } from "../lib/deskRefuel";
 import {
   canPresentForYouTask,
+  clearForYouWait,
+  hasDetectedForYouPost,
+  readForYouWait,
   shouldHoldForYouTask,
+  snapshotForYouWait,
+  writeForYouWait,
+  type ForYouWait,
 } from "../lib/forYouTask";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import type { VoiceState } from "../lib/voice";
@@ -174,25 +182,50 @@ export function ThreadsTabs({
     grounded,
     cooldownRemaining: searchCooldownRemaining,
   });
-  const [forYouHeld, setForYouHeld] = useState(false);
+  const [forYouWait, setForYouWait] = useState<ForYouWait | null>(
+    readForYouWait,
+  );
   const [forYouReleased, setForYouReleased] = useState(false);
+  const forYouHeld = forYouWait?.held === true;
   const holdForYouTask = shouldHoldForYouTask({
-    held: forYouHeld && !grounded,
+    held: forYouHeld,
     tanksEmpty,
     canPresent: canPresentForYou,
     arm: !consumedScoutRef.current,
   });
   useEffect(() => {
     if (holdForYouTask && !forYouHeld && !forYouReleased) {
-      setForYouHeld(true);
+      const wait: ForYouWait = {
+        held: true,
+        snapshot: snapshotForYouWait(coaching),
+      };
+      writeForYouWait(wait);
+      setForYouWait(wait);
     }
-  }, [holdForYouTask, forYouHeld, forYouReleased]);
+  }, [holdForYouTask, forYouHeld, forYouReleased, coaching]);
   useEffect(() => {
-    if (grounded && (forYouHeld || forYouReleased)) {
-      setForYouHeld(false);
-      setForYouReleased(false);
-    }
-  }, [grounded, forYouHeld, forYouReleased]);
+    if (!forYouWait || forYouWait.snapshot || !coaching) return;
+    const wait: ForYouWait = {
+      held: true,
+      snapshot: snapshotForYouWait(coaching),
+    };
+    writeForYouWait(wait);
+    setForYouWait(wait);
+  }, [forYouWait, coaching]);
+  const refreshCoachingRef = useRef(onRefreshCoaching);
+  refreshCoachingRef.current = onRefreshCoaching;
+  useEffect(() => {
+    if (!forYouHeld) return;
+    const interval = window.setInterval(() => {
+      void refreshCoachingRef.current();
+    }, 12_000);
+    return () => window.clearInterval(interval);
+  }, [forYouHeld]);
+  const forYouStatus = forYouWait?.snapshot
+    ? hasDetectedForYouPost(forYouWait.snapshot, coaching)
+      ? FYP_DETECTED_COPY
+      : FYP_DETECTING_COPY
+    : undefined;
   const currentDayUtc = new Date().toISOString().slice(0, 10);
   const suggestion = pickApproachSuggestion(forYouSuggestions, {
     allowPost: canServeApproachOriginal({
@@ -392,6 +425,7 @@ export function ThreadsTabs({
             groundedLine={groundedLine}
             cooldownRemaining={searchCooldownRemaining}
             holdForYouTask={holdForYouTask}
+            forYouStatus={forYouStatus}
             onStopScout={onStopScout}
             onOpenUsage={onOpenUsage}
             onOpenSettings={onOpenSettings}
@@ -467,7 +501,8 @@ export function ThreadsTabs({
             }}
             onForYouNext={() => {
               if (tanksEmpty && searchCooldownRemaining > 0) return;
-              setForYouHeld(false);
+              clearForYouWait();
+              setForYouWait(null);
               setForYouReleased(true);
             }}
             onOpenVoice={onOpenVoice}
