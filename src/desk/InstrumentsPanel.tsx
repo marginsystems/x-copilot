@@ -121,7 +121,7 @@ export function InstrumentsPanel({
           value={`${gauges.postsToday} / ${gauges.dailyPostCap}`}
           delta={gauges.postsTodayDelta}
           band={gauges.postsBand}
-          note="Cap comes from level and streak. Originals and quotes on the own-post ledger — not replies, not I posted alone."
+          note="Cap comes from level and streak. Streak is a UTC day with an original, reply, or quote — on or off the desk. Likes and follows do not count."
         />
         {gauges.inboundBand !== null ? (
           <Gauge

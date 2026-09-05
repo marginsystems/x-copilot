@@ -284,29 +284,70 @@ export function seedGamificationFromHistory(
   return { ...state, updatedAt: new Date(nowMs).toISOString() };
 }
 
-/** Streak from interacted history. Does not change XP. */
-export function overlayStreakFromHistory(
-  state: GamificationState,
+/** UTC days that keep a streak: one original, reply, or quote. */
+export function utcDaysFromHistory(
   history: readonly Interaction[],
+): string[] {
+  const days = new Set<string>();
+  for (const row of history) {
+    const raw = row.postedAt ?? row.at;
+    const ms = Date.parse(raw);
+    if (!Number.isFinite(ms)) continue;
+    days.add(utcDayKey(ms));
+  }
+  return [...days];
+}
+
+export function streakFromUtcDays(
+  days: readonly string[],
+  today: string,
+): {
+  currentStreak: number;
+  lastDay: string | null;
+  longestStreak: number;
+} {
+  const unique = [...new Set(days.filter(Boolean))].sort();
+  if (unique.length === 0) {
+    return { currentStreak: 0, lastDay: null, longestStreak: 0 };
+  }
+  let longest = 1;
+  let run = 1;
+  for (let i = 1; i < unique.length; i++) {
+    const prev = unique[i - 1];
+    const cur = unique[i];
+    if (prev && cur && prevUtcDayKey(cur) === prev) {
+      run += 1;
+      if (run > longest) longest = run;
+    } else {
+      run = 1;
+    }
+  }
+  const lastDay = unique[unique.length - 1] ?? null;
+  const alive = lastDay === today || lastDay === prevUtcDayKey(today);
+  let currentStreak = 0;
+  if (alive && lastDay) {
+    currentStreak = 1;
+    for (let i = unique.length - 1; i > 0; i--) {
+      const prev = unique[i - 1];
+      const cur = unique[i];
+      if (prev && cur && prevUtcDayKey(cur) === prev) currentStreak += 1;
+      else break;
+    }
+  }
+  return { currentStreak, lastDay, longestStreak: longest };
+}
+
+/** Streak from activity UTC days. Does not change XP. */
+export function overlayStreakFromDays(
+  state: GamificationState,
+  days: readonly string[],
   nowMs: number = Date.now(),
 ): GamificationState {
-  if (history.length === 0) return state;
-  const seeded = seedGamificationFromHistory(history, nowMs);
-  const seededLastIsNewer =
-    seeded.lastMarkUtcDay !== null &&
-    (state.lastMarkUtcDay === null ||
-      seeded.lastMarkUtcDay > state.lastMarkUtcDay);
-  const shouldOverlayStreak =
-    seededLastIsNewer ||
-    (seeded.lastMarkUtcDay === state.lastMarkUtcDay &&
-      seeded.currentStreak > state.currentStreak);
-  const currentStreak = shouldOverlayStreak
-    ? seeded.currentStreak
-    : state.currentStreak;
-  const lastMarkUtcDay = shouldOverlayStreak
-    ? seeded.lastMarkUtcDay
-    : state.lastMarkUtcDay;
-  const longestStreak = Math.max(state.longestStreak, seeded.longestStreak);
+  if (days.length === 0) return state;
+  const computed = streakFromUtcDays(days, utcDayKey(nowMs));
+  const currentStreak = computed.currentStreak;
+  const lastMarkUtcDay = computed.lastDay;
+  const longestStreak = Math.max(state.longestStreak, computed.longestStreak);
   if (
     currentStreak === state.currentStreak &&
     lastMarkUtcDay === state.lastMarkUtcDay &&
@@ -320,4 +361,13 @@ export function overlayStreakFromHistory(
     lastMarkUtcDay,
     longestStreak,
   };
+}
+
+/** Streak from interacted history. Does not change XP. */
+export function overlayStreakFromHistory(
+  state: GamificationState,
+  history: readonly Interaction[],
+  nowMs: number = Date.now(),
+): GamificationState {
+  return overlayStreakFromDays(state, utcDaysFromHistory(history), nowMs);
 }

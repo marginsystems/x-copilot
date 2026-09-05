@@ -20,6 +20,8 @@ import {
   resolveGamificationPath,
   overlayStreakFromHistory,
   seedGamificationFromHistory,
+  streakFromUtcDays,
+  utcDaysFromHistory,
   toLeaderboardRow,
   unlockedAchievementIds,
   utcDayKey,
@@ -34,6 +36,53 @@ describe("utcDayKey / prevUtcDayKey", () => {
     assert.equal(utcDayKey(Date.parse("2026-08-05T23:30:00.000Z")), "2026-08-05");
     assert.equal(utcDayKey(Date.parse("2026-08-06T00:15:00.000Z")), "2026-08-06");
     assert.equal(prevUtcDayKey("2026-08-06"), "2026-08-05");
+  });
+});
+
+describe("streakFromUtcDays", () => {
+  it("counts consecutive UTC days ending today or yesterday", () => {
+    assert.deepEqual(
+      streakFromUtcDays(
+        ["2026-09-03", "2026-09-04", "2026-09-05"],
+        "2026-09-05",
+      ),
+      { currentStreak: 3, lastDay: "2026-09-05", longestStreak: 3 },
+    );
+    assert.equal(
+      streakFromUtcDays(["2026-09-03", "2026-09-04"], "2026-09-05")
+        .currentStreak,
+      2,
+    );
+    assert.equal(
+      streakFromUtcDays(["2026-09-01", "2026-09-03"], "2026-09-05")
+        .currentStreak,
+      0,
+    );
+  });
+
+  it("keeps the longest run when the current run is shorter", () => {
+    const got = streakFromUtcDays(
+      ["2026-08-01", "2026-08-02", "2026-08-03", "2026-09-04", "2026-09-05"],
+      "2026-09-05",
+    );
+    assert.equal(got.currentStreak, 2);
+    assert.equal(got.longestStreak, 3);
+  });
+});
+
+describe("utcDaysFromHistory", () => {
+  it("prefers postedAt so an off-desk reply counts on the day it was posted", () => {
+    const days = utcDaysFromHistory([
+      {
+        threadId: "a",
+        author: "@x",
+        authorKey: "x",
+        at: "2026-09-03T00:05:00.000Z",
+        postedAt: "2026-09-02T21:41:48.000Z",
+        source: "discovered",
+      },
+    ]);
+    assert.deepEqual(days, ["2026-09-02"]);
   });
 });
 
