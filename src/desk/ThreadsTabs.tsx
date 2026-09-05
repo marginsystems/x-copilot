@@ -503,7 +503,6 @@ export function ThreadsTabs({
               })();
             }}
             onForYouNext={() => {
-              if (tanksEmpty && searchCooldownRemaining > 0) return;
               clearForYouWait();
               setForYouWait(null);
               setForYouReleased(true);
