@@ -177,7 +177,7 @@ export function MissionCard(props: {
     } else if (!hasAgenda) {
       why = "Set an agenda in Settings so Scout knows what to look for.";
       action = "settings";
-    } else if (props.grounded) {
+    } else if (props.grounded && !props.holdForYouTask) {
       why =
         props.groundedLine ||
         "Grounded. Scout waits until 00:00 UTC. Open Usage for the next plan.";
