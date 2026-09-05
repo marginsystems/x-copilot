@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { useDeskRowExpand } from "./useDeskRowExpand";
 
 export function DeskRow({
@@ -77,6 +77,9 @@ export function DeskRow({
         <div
           className="row-detail-slot"
           aria-hidden={!presence.expanded}
+          {...(!presence.expanded
+            ? ({ inert: "" } as HTMLAttributes<HTMLDivElement>)
+            : {})}
         >
           <div className="row-detail-inner">
             <div className="row-detail">{children}</div>

@@ -28,6 +28,14 @@ export function deskRowExpandMount(phase: DeskRowExpandPhase): boolean {
   return phase !== "closed";
 }
 
+/** Once a row has opened, keep the pane mounted so Suggest state survives collapse. */
+export function deskRowKeepMount(
+  phase: DeskRowExpandPhase,
+  everOpened: boolean,
+): boolean {
+  return everOpened || deskRowExpandMount(phase);
+}
+
 export function deskRowExpandOpen(phase: DeskRowExpandPhase): boolean {
   return phase === "open";
 }

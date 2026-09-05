@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   deskRowExpandMount,
+  deskRowKeepMount,
   deskRowExpandOpen,
   deskRowInitialPhase,
   deskRowPhaseAfterEnter,
@@ -31,6 +32,9 @@ describe("deskRow expand phase", () => {
     assert.equal(deskRowExpandOpen("leaving"), false);
     assert.equal(deskRowPhaseAfterLeave("leaving"), "closed");
     assert.equal(deskRowPhaseOnOpenChange("closed", false), "closed");
+    assert.equal(deskRowKeepMount("closed", false), false);
+    assert.equal(deskRowKeepMount("closed", true), true);
+    assert.equal(deskRowKeepMount("leaving", false), true);
   });
 
   it("reverses mid-flight without getting stuck", () => {
