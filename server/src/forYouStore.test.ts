@@ -79,7 +79,7 @@ describe("forYouStore", () => {
     assert.equal(active[0]?.why, "second");
   });
 
-  it("markSuggestion I posted / skip and expireOpenSuggestions", () => {
+  it("markSuggestion records distinct done, skipped, and dismissed statuses", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     const [row] = insertSuggestions({
       userId: "u1",
@@ -99,14 +99,38 @@ describe("forYouStore", () => {
     assert.equal(done?.status, "done");
     assert.equal(listActiveSuggestions("u1", now + 2000).length, 0);
 
-    insertSuggestions({
+    const [skippedRow] = insertSuggestions({
       userId: "u1",
       tenantId: "local",
       nowMs: now,
       drafts: [{ kind: "post", why: "x", draft: "Y" }],
     });
-    assert.equal(expireOpenSuggestions("u1", now + 5000), 1);
-    assert.equal(listActiveSuggestions("u1", now + 6000).length, 0);
+    const [dismissedRow] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [{ kind: "quote", why: "z", targetId: "100" }],
+    });
+    assert.ok(skippedRow && dismissedRow);
+    assert.equal(
+      markSuggestion({
+        id: skippedRow.id,
+        userId: "u1",
+        status: "skipped",
+        nowMs: now + 2000,
+      })?.status,
+      "skipped",
+    );
+    assert.equal(
+      markSuggestion({
+        id: dismissedRow.id,
+        userId: "u1",
+        status: "dismissed",
+        nowMs: now + 3000,
+      })?.status,
+      "dismissed",
+    );
+    assert.equal(listActiveSuggestions("u1", now + 4000).length, 0);
   });
 
   it("skip buries remixes of the same original and refuses a rewrite", () => {
@@ -214,7 +238,7 @@ describe("forYouStore", () => {
     assert.ok(og && quote && skip);
     markSuggestion({ id: og.id, userId: "u1", status: "done", nowMs: day });
     markSuggestion({ id: quote.id, userId: "u1", status: "done", nowMs: day });
-    markSuggestion({ id: skip.id, userId: "u1", status: "skip", nowMs: day });
+    markSuggestion({ id: skip.id, userId: "u1", status: "skipped", nowMs: day });
     assert.equal(
       countDoneSuggestionsSince({ userId: "u1", kind: "post", sinceIso: since }),
       1,

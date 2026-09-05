@@ -397,9 +397,6 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
           : forYouSuggestions.filter((item) => item.id !== id),
       );
       historyStaleRef.current = true;
-      if (path === "skip" || path === "dismiss") {
-        void hydrateForYou();
-      }
       if (path === "done" && row?.kind === "reply") armReplyPace();
       return true;
     } catch {

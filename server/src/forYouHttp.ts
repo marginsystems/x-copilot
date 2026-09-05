@@ -66,13 +66,6 @@ export async function tryHandleForYou(
   const planKey = resolvePlan(billing, user.email).planKey;
 
   if (req.method === "GET" && url.pathname === "/api/for-you") {
-    if (process.env.FOR_YOU_REFILL_ON_GET !== "0") {
-      await refillScoutOriginal({
-        userId: user.id,
-        tenantId,
-        chat: opts?.chat,
-      });
-    }
     const suggestions = listActiveSuggestions(user.id);
     send(req, res, 200, {
       ok: true,
@@ -108,7 +101,11 @@ export async function tryHandleForYou(
       return true;
     }
     const status =
-      url.pathname === "/api/for-you/done" ? "done" : "skipped";
+      url.pathname === "/api/for-you/done"
+        ? "done"
+        : url.pathname === "/api/for-you/dismiss"
+          ? "dismissed"
+          : "skipped";
     const suggestion = markSuggestion({
       id,
       userId: user.id,
