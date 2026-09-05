@@ -57,6 +57,8 @@ export function useSkipDismiss({
           url: thread.url,
           text: thread.text,
           summary: thread.summary,
+          conversationId: thread.conversationId,
+          inReplyToId: thread.inReplyToId,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {

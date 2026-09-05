@@ -140,6 +140,8 @@ export type SkipHistoryEntry = {
   url?: string;
   summary?: string;
   text?: string;
+  conversationId?: string;
+  inReplyToId?: string;
 };
 
 export type ExpiredHistoryEntry = {

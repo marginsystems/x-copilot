@@ -71,6 +71,26 @@ describe("markSkipped / listSkipHistory", () => {
     assert.equal("reason" in row, false);
   });
 
+  it("persists conversation ancestry across an upsert", async () => {
+    await markSkipped({
+      threadId: "reply-1",
+      author: "@x",
+      userId,
+      conversationId: "root-1",
+      inReplyToId: "root-1",
+    });
+    await markSkipped({
+      threadId: "reply-1",
+      author: "@x",
+      userId,
+      text: "skipped again",
+    });
+
+    const [row] = await listSkipHistory({ userId });
+    assert.equal(row?.conversationId, "root-1");
+    assert.equal(row?.inReplyToId, "root-1");
+  });
+
   it("requires a userId", async () => {
     await assert.rejects(
       () => markSkipped({ threadId: "x", author: "@x", userId: "" }),

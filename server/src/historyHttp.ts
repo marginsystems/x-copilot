@@ -102,6 +102,12 @@ export async function tryHandleHistory(
       const text = typeof body.text === "string" ? body.text : undefined;
       const summary =
         typeof body.summary === "string" ? body.summary : undefined;
+      const conversationId =
+        typeof body.conversationId === "string"
+          ? body.conversationId
+          : undefined;
+      const inReplyToId =
+        typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
       const skip = await markSkipped({
         threadId,
         author,
@@ -109,6 +115,8 @@ export async function tryHandleHistory(
         url: urlField,
         text,
         summary,
+        conversationId,
+        inReplyToId,
       });
       const { authorKey: _authorKey, ...skipRest } = skip;
       send(req, res, 200, {
