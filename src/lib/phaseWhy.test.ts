@@ -8,7 +8,10 @@ import {
   phaseWhy,
 } from "./phaseWhy.ts";
 import type { CoachingState, NextActionKind } from "./coaching.ts";
-import type { ForYouSuggestion } from "./forYou.ts";
+import {
+  FYP_DETECTING_COPY,
+  type ForYouSuggestion,
+} from "./forYou.ts";
 
 function coaching(kind: NextActionKind, text: string): CoachingState {
   return {
@@ -64,17 +67,17 @@ describe("phaseWhy", () => {
           "Write one original post today to share your insight from those 7 replies you already gave.",
         ),
       ),
-      "Reply to this thread. Then mark it.",
+      FYP_DETECTING_COPY,
     );
   });
 
-  it("keeps a reply line on a scouted card", () => {
+  it("shows detecting while a scouted reply is locked", () => {
     assert.equal(
       phaseWhy(
         "scout_reply",
         coaching("reply", "Reply to this thread. Then mark it."),
       ),
-      "Reply to this thread. Then mark it.",
+      FYP_DETECTING_COPY,
     );
   });
 

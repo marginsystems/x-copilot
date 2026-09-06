@@ -2,7 +2,10 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { SuggestLocked } from "../VoiceCard";
 import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
-import type { ForYouSuggestion } from "../lib/forYou";
+import {
+  FYP_DETECTING_COPY,
+  type ForYouSuggestion,
+} from "../lib/forYou";
 import type { CoachingState } from "../lib/coaching";
 import type { ApproachLock, DeskPhase } from "../lib/deskPhase";
 import {
@@ -194,10 +197,7 @@ export function MissionCard(props: {
     );
   }
 
-  if (
-    (props.phase === "scout_reply" && props.scout) ||
-    props.phase === "done_for_now"
-  ) {
+  if (props.phase === "scout_reply" || props.phase === "done_for_now") {
     const thread =
       props.phase === "scout_reply" || props.phase === "done_for_now"
         ? props.scout
@@ -256,7 +256,11 @@ export function MissionCard(props: {
           />
         ) : (
           <ApproachFlightRow
-            line={approachRefillLine(props.refillState, props.flightLine)}
+            line={
+              props.phase === "scout_reply"
+                ? FYP_DETECTING_COPY
+                : approachRefillLine(props.refillState, props.flightLine)
+            }
             flying={refillPending}
           />
         )}
