@@ -11,6 +11,7 @@ import { BodyError, readBody, send } from "./httpJson.js";
 import { normalizeAuthorKey } from "./interactionCooldown.js";
 import { writeDismissalMemory } from "./knowledgeMemory.js";
 import { scheduleMemoryUpsert } from "./memoryReindex.js";
+import { pruneThreadsFromScoutCache } from "./scoutCache.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { listSkipHistory, markSkipped } from "./skipStore.js";
 
@@ -118,6 +119,10 @@ export async function tryHandleHistory(
         conversationId,
         inReplyToId,
       });
+      await pruneThreadsFromScoutCache(
+        [skip.threadId, skip.conversationId ?? "", skip.inReplyToId ?? ""],
+        { userId: user.id },
+      );
       const { authorKey: _authorKey, ...skipRest } = skip;
       send(req, res, 200, {
         ok: true,
@@ -204,6 +209,14 @@ export async function tryHandleHistory(
         inReplyToId,
         nowMs,
       });
+      await pruneThreadsFromScoutCache(
+        [
+          dismissal.threadId,
+          dismissal.conversationId ?? "",
+          dismissal.inReplyToId ?? "",
+        ],
+        { userId: user.id },
+      );
       send(req, res, 200, {
         ok: true,
         dismissal,
