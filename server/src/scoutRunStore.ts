@@ -18,6 +18,8 @@ export type ScoutRejectionCounts = {
   articles: number;
   length: number;
   authorDedupe: number;
+  authorless: number;
+  bucketFull: number;
 };
 
 export type ScoutRunRecordInput = {

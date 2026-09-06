@@ -156,6 +156,7 @@ export async function runScoutCollect(opts: {
   const startedAt = new Date().toISOString();
   const usedQueries = new Set<string>();
   const seenIds = new Set<string>();
+  const countedDuplicateIds = new Set<string>();
   let searchCalls = 0;
   let usableAdditions = 0;
   let coolAdditions = 0;
@@ -176,6 +177,8 @@ export async function runScoutCollect(opts: {
     articles: 0,
     length: 0,
     authorDedupe: 0,
+    authorless: 0,
+    bucketFull: 0,
   };
   const persistRun = async (
     stopReason: string,
@@ -519,8 +522,20 @@ export async function runScoutCollect(opts: {
           { candidates: bucket.length, coolCount: 0 },
         );
 
+        let missingIdCount = 0;
+        let duplicateIdCount = 0;
         const fresh = result.threads.filter((t) => {
-          if (!t.id || seenIds.has(t.id)) return false;
+          if (!t.id) {
+            missingIdCount += 1;
+            return false;
+          }
+          if (seenIds.has(t.id)) {
+            if (!countedDuplicateIds.has(t.id)) {
+              countedDuplicateIds.add(t.id);
+              duplicateIdCount += 1;
+            }
+            return false;
+          }
           seenIds.add(t.id);
           return true;
         });
@@ -568,7 +583,7 @@ export async function runScoutCollect(opts: {
         );
 
         rejectionCounts.duplicateOrMissingId +=
-          result.threads.length - fresh.length;
+          missingIdCount + duplicateIdCount;
         rejectionCounts.cooldown += afterCool.filteredCount;
         rejectionCounts.selfReply += afterSelf.selfReplyFilteredCount;
         rejectionCounts.links += afterLinks.linkFilteredCount;
@@ -603,17 +618,28 @@ export async function runScoutCollect(opts: {
 
         const beforeFill = bucket.length;
         let authorDedupeSkipped = 0;
+        let authorlessSkipped = 0;
+        let bucketFullSkipped = 0;
         for (const t of afterLen.threads) {
-          if (bucket.length >= bucketSize) break;
+          if (bucket.length >= bucketSize) {
+            bucketFullSkipped += 1;
+            continue;
+          }
           const key = normalizeAuthorKey(t.author);
-          if (!key || seenAuthors.has(key)) {
-            if (key) authorDedupeSkipped += 1;
+          if (!key) {
+            authorlessSkipped += 1;
+            continue;
+          }
+          if (seenAuthors.has(key)) {
+            authorDedupeSkipped += 1;
             continue;
           }
           seenAuthors.add(key);
           bucket.push(t);
         }
         rejectionCounts.authorDedupe += authorDedupeSkipped;
+        rejectionCounts.authorless += authorlessSkipped;
+        rejectionCounts.bucketFull += bucketFullSkipped;
         const added = bucket.length - beforeFill;
 
         if (added > 0) {
