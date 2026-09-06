@@ -180,13 +180,13 @@ setup_logrotate() {
 # A registration that predates the analytics sidecar move still points at
 # server/dist/analyticsService.js, so a restart would keep recycling the OLD
 # sidecar forever (crash-looping once server/dist is cleaned). Detect that by
-# comparing the stored script against the ecosystem entry and re-register
+# comparing the stored script and pinned role against the ecosystem entry and re-register
 # (delete+start) only when they differ; that keeps the one-time migration
 # while leaving steady-state recycling non-destructive.
 recycle_app() {
   local name="$1"
   if pm2 describe "$name" >/dev/null 2>&1; then
-    # Exit 0: stored script matches the ecosystem entry (restart in place).
+    # Exit 0: stored script and pinned role match the ecosystem entry (restart in place).
     # Exit 1: genuine mismatch (re-register, the one-time migration path).
     # Exit 2: comparison itself failed (pm2 jlist / config parse) or no
     # same-named process under this project root (foreign process from another
@@ -211,7 +211,8 @@ recycle_app() {
         process.exit(2);
       }
       const proc = stored.find((p) => p.name === name && p.pm2_env && p.pm2_env.pm_exec_path && p.pm2_env.pm_exec_path.startsWith(path.resolve(root) + path.sep));
-      process.exit(app && proc && proc.pm2_env.pm_exec_path === expected ? 0 : proc ? 1 : 2);
+      const roleMatches = app && proc && proc.pm2_env.env?.XCOPILOT_ROLE === app.env?.XCOPILOT_ROLE;
+      process.exit(app && proc && proc.pm2_env.pm_exec_path === expected && roleMatches ? 0 : proc ? 1 : 2);
     ' "$PWD" "$ECOSYSTEM" "$name" || rc=$?
     if [ "$rc" = "0" ] || [ "$rc" = "2" ]; then
       pm2 restart "$name" --update-env
