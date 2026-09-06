@@ -27,6 +27,10 @@ import {
   type ApproachLock,
 } from "../lib/deskPhase";
 import {
+  readApproachLock,
+  writeApproachLock,
+} from "../lib/approachLock";
+import {
   clearScoutTakeoffTried,
   markScoutTakeoffTried,
   readScoutTakeoffTried,
@@ -236,23 +240,18 @@ export function ThreadsTabs({
   for (const row of forYouSuggestions) {
     suggestionCardsRef.current.set(row.id, row);
   }
-  const [locked, setLocked] = useState<ApproachLock>(() =>
-    initialApproachLock({
-      forYouHeld,
-      paceLocked: pace.locked,
-      scoutId: scout?.id ?? null,
-      fallback: silentFallback,
-    }),
+  const [locked, setLocked] = useState<ApproachLock | null>(() =>
+    readApproachLock(authUser?.id),
   );
-  const phase = locked.phase;
+  const phase = locked?.phase ?? "done_for_now";
   const hold = phase === "hold";
   const holdForYouTask =
     (phase === "silent_refuel" || phase === "hold") &&
-    locked.surface === "for_you";
-  const lockedScout = locked.cardId
+    locked?.surface === "for_you";
+  const lockedScout = locked?.cardId
     ? scoutCardsRef.current.get(locked.cardId) ?? null
     : null;
-  const lockedSuggestion = locked.cardId
+  const lockedSuggestion = locked?.cardId
     ? suggestionCardsRef.current.get(locked.cardId) ?? null
     : null;
   const autoTriedRef = useRef(readScoutTakeoffTried());
@@ -274,6 +273,7 @@ export function ThreadsTabs({
 
   function advanceCard(event: ApproachEvent) {
     const current = lockedRef.current;
+    if (!current) return;
     const next = advanceApproach(current, event, {
       scoutId:
         curatedThreads.find((row) => row.id !== current.cardId)?.id ?? null,
@@ -299,6 +299,7 @@ export function ThreadsTabs({
     });
     if (next === current) return;
     lockedRef.current = next;
+    writeApproachLock(authUser?.id, next);
     if (next.surface === "for_you" && !forYouWait) {
       const wait: ForYouWait = {
         held: true,
@@ -311,10 +312,11 @@ export function ThreadsTabs({
   }
 
   useEffect(() => {
-    if (
-      !deskBootReady ||
-      (phase !== "silent_refuel" && !(phase === "scout_reply" && pace.locked))
-    ) {
+    if (!deskBootReady || locked || !authUser?.id) return;
+    const restored = readApproachLock(authUser.id);
+    if (restored) {
+      lockedRef.current = restored;
+      setLocked(restored);
       return;
     }
     let nextForYouHeld = forYouHeld;
@@ -333,28 +335,29 @@ export function ThreadsTabs({
       scoutId: scout?.id ?? null,
       fallback: silentFallback,
     });
+    writeApproachLock(authUser.id, next);
     lockedRef.current = next;
     setLocked(next);
   }, [
+    authUser?.id,
     deskBootReady,
     forYouHeld,
     forYouWait,
     canPresentForYou,
     coaching,
-    locked.surface,
+    locked,
     pace.locked,
-    phase,
     scout?.id,
     silentFallback,
   ]);
 
   useEffect(() => {
-    if (phase !== "done_for_now" || (!scout && !suggestion)) return;
+    if (!locked || phase !== "done_for_now" || (!scout && !suggestion)) return;
     advanceCard({ type: "next" });
-  }, [phase, scout, suggestion]);
+  }, [locked, phase, scout, suggestion]);
 
   useEffect(() => {
-    if (!deskBootReady || !locked.cardId) return;
+    if (!deskBootReady || !locked?.cardId) return;
     if (
       pendingDismissIdRef.current === locked.cardId ||
       pendingMarkIdRef.current === locked.cardId
@@ -386,7 +389,7 @@ export function ThreadsTabs({
     forYouSuggestions,
     interactedHistory,
     interactedIds,
-    locked.cardId,
+    locked?.cardId,
     lockedScout,
     lockedSuggestion,
     phase,
@@ -572,7 +575,7 @@ export function ThreadsTabs({
       </div>
       <div className="threads-scroll">
         {threadsTab === "curated" ? (
-          !agendaReady ? (
+          !agendaReady || !locked ? (
             <ApproachLoadingCard />
           ) : (
           <MissionCard
