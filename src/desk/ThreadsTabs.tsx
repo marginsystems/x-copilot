@@ -33,6 +33,7 @@ import {
   markScoutTakeoffTried,
   readScoutTakeoffTried,
   scoutRefillState,
+  shouldArmScoutOnBoot,
   shouldArmScoutRefill,
   shouldBackgroundScout,
 } from "../lib/deskRefuel";
@@ -250,6 +251,7 @@ export function ThreadsTabs({
     ? suggestionCardsRef.current.get(locked.cardId) ?? null
     : null;
   const autoTriedRef = useRef(readScoutTakeoffTried());
+  const bootRefuelCheckedRef = useRef(false);
   const [refuelArmed, setRefuelArmed] = useState(false);
   const refuelArmedRef = useRef(false);
   const refillState = scoutRefillState({
@@ -385,6 +387,22 @@ export function ThreadsTabs({
   ]);
 
   useEffect(() => {
+    if (!deskBootReady || !locked || bootRefuelCheckedRef.current) return;
+    bootRefuelCheckedRef.current = true;
+    if (
+      !shouldArmScoutOnBoot({
+        usableScoutCount: curatedThreads.length,
+        alreadyTried: autoTriedRef.current,
+        searching,
+      })
+    ) {
+      return;
+    }
+    refuelArmedRef.current = true;
+    setRefuelArmed(true);
+  }, [curatedThreads.length, deskBootReady, locked, searching]);
+
+  useEffect(() => {
     if (!restoredDoneForNowRef.current || !deskBootReady) return;
     const currentInventory = {
       scoutIds: new Set(curatedThreads.map((row) => row.id)),
@@ -393,7 +411,6 @@ export function ThreadsTabs({
     const restoredInventory = restoredInventoryRef.current;
     if (!restoredInventory) {
       restoredInventoryRef.current = currentInventory;
-      armRefuel();
       return;
     }
     const hasNewInventory =
