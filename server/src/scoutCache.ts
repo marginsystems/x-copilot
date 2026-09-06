@@ -165,6 +165,44 @@ export function mergeThreadsById(
   return out;
 }
 
+function threadIdentityIds(
+  thread: Pick<ThreadCard, "id" | "conversationId" | "inReplyToId">,
+): string[] {
+  return [thread.id, thread.conversationId, thread.inReplyToId]
+    .map((id) => id?.trim() ?? "")
+    .filter(Boolean);
+}
+
+function hasConsumedIdentity(thread: ThreadCard, consumed: Set<string>): boolean {
+  return threadIdentityIds(thread).some((id) => consumed.has(id));
+}
+
+function readConsumedIdentityIds(userId: string): Set<string> {
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT thread_id, conversation_id, in_reply_to_id
+         FROM desk_interactions WHERE user_id = ?
+       UNION ALL
+       SELECT thread_id, conversation_id, in_reply_to_id
+         FROM desk_dismissals WHERE user_id = ?
+       UNION ALL
+       SELECT thread_id, conversation_id, in_reply_to_id
+         FROM desk_skips WHERE user_id = ?`,
+    )
+    .all(userId, userId, userId) as Array<{
+    thread_id: string;
+    conversation_id: string | null;
+    in_reply_to_id: string | null;
+  }>;
+  return new Set(
+    rows.flatMap((row) =>
+      [row.thread_id, row.conversation_id, row.in_reply_to_id].filter(
+        (id): id is string => Boolean(id?.trim()),
+      ),
+    ),
+  );
+}
+
 /**
  * Persist a successful Scout snapshot for one user.
  * Metadata (agenda/queries/message/…) is replaced; threads are merged by id
@@ -182,16 +220,21 @@ export async function saveScoutCache(
   const db = getPlatformDb();
   return db.transaction((): LastScoutSnapshot => {
     const prev = readTank(userId);
-    const threads = parsed.threads.map((thread) => ({
-      ...thread,
-      scoutAgendaSet: Boolean(parsed.agenda),
-    }));
-    const previousThreads = (prev?.threads ?? []).map((thread) => ({
-      ...thread,
-      scoutAgendaSet:
-        thread.scoutAgendaSet ??
-        (thread.onAgenda === true && Boolean(prev?.agenda)),
-    }));
+    const consumed = readConsumedIdentityIds(userId);
+    const threads = parsed.threads
+      .filter((thread) => !hasConsumedIdentity(thread, consumed))
+      .map((thread) => ({
+        ...thread,
+        scoutAgendaSet: Boolean(parsed.agenda),
+      }));
+    const previousThreads = (prev?.threads ?? [])
+      .filter((thread) => !hasConsumedIdentity(thread, consumed))
+      .map((thread) => ({
+        ...thread,
+        scoutAgendaSet:
+          thread.scoutAgendaSet ??
+          (thread.onAgenda === true && Boolean(prev?.agenda)),
+      }));
     const previousById = new Map(
       previousThreads.map((thread, index) => [thread.id, index]),
     );
@@ -214,11 +257,13 @@ export async function saveScoutCache(
 }
 
 /**
- * Remove threads by id from one user's tank. Soft-no-op when the tank is empty.
+ * Remove a consumed conversation from one user's tank. A match on the card,
+ * conversation root, or immediate parent removes the card. Soft-no-op when the
+ * tank is empty.
  */
 export async function pruneThreadsFromScoutCache(
   threadIds: Iterable<string>,
-  opts: { userId: string },
+  opts: { userId: string; match?: "identity" | "id" },
 ): Promise<LastScoutSnapshot | null> {
   const userId = requireUserId(opts.userId);
   const remove = new Set(
@@ -231,7 +276,9 @@ export async function pruneThreadsFromScoutCache(
   return db.transaction((): LastScoutSnapshot | null => {
     const prev = readTank(userId);
     if (!prev) return null;
-    const threads = prev.threads.filter((t) => !remove.has(t.id));
+    const threads = prev.threads.filter((t) =>
+      opts.match === "id" ? !remove.has(t.id) : !hasConsumedIdentity(t, remove),
+    );
     if (threads.length === prev.threads.length) return prev;
     const next: LastScoutSnapshot = { ...prev, threads };
     writeTank(userId, next);

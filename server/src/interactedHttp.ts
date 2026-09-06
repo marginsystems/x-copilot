@@ -37,6 +37,7 @@ import {
   writeInteractionMemory,
 } from "./knowledgeMemory.js";
 import { scheduleMemoryUpsert } from "./memoryReindex.js";
+import { pruneThreadsFromScoutCache } from "./scoutCache.js";
 import { getSessionUser } from "./sessionCookie.js";
 import { fetchTweetMetricsMany } from "./tweetLookup.js";
 
@@ -248,6 +249,14 @@ export async function tryHandleInteracted(
         conversationId,
         inReplyToId,
       });
+      await pruneThreadsFromScoutCache(
+        [
+          interaction.threadId,
+          interaction.conversationId ?? "",
+          interaction.inReplyToId ?? "",
+        ],
+        { userId: sessionUser.id },
+      );
       try {
         recordDeskReplyMarked({
           userId: sessionUser.id,

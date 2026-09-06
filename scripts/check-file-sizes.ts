@@ -1,6 +1,7 @@
 /**
- * Fail if a frontend source file grows back over 1,000 lines.
- * Allowlist is empty and can only ratchet down.
+ * Fail if a source file grows back over 1,000 lines — frontend, server, and
+ * the webhook / analytics sidecars. Allowlist can only ratchet down: a file
+ * that drops under the limit must leave it.
  *
  *   npx tsx scripts/check-file-sizes.ts
  */
@@ -8,11 +9,15 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = join(import.meta.dirname, "..");
-const SCAN = join(ROOT, "src");
+const SCAN_DIRS = ["src", "server/src", "webhook/src", "analytics/src"];
 const FAIL_LINES = 1000;
 const EXTS = new Set([".ts", ".tsx", ".css"]);
 
-/** posix path → max lines. Empty: nothing over 1,000 is allowed. */
+/**
+ * posix path → max lines. Empty: nothing over 1,000 is allowed.
+ * server/src/scoutCollect.ts was measured at 918 when the server joined the
+ * scan, so it is already under the limit and never needed an entry.
+ */
 const ALLOWLIST: Record<string, number> = {};
 
 function isTestFile(name: string): boolean {
@@ -48,7 +53,7 @@ function walk(dir: string, out: string[]): void {
 }
 
 const files: string[] = [];
-walk(SCAN, files);
+for (const dir of SCAN_DIRS) walk(join(ROOT, dir), files);
 files.sort();
 
 const failures: string[] = [];
@@ -78,5 +83,5 @@ if (failures.length) {
 }
 
 console.log(
-  `file-size ratchet ok: ${files.length} frontend files, none over ${FAIL_LINES}`,
+  `file-size ratchet ok: ${files.length} source files, none over ${FAIL_LINES}`,
 );

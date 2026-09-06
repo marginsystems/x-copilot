@@ -64,7 +64,7 @@ export async function runExpirePass(opts: {
     ids.push(t.id);
   }
 
-  await pruneThreadsFromScoutCache(ids, { userId });
+  await pruneThreadsFromScoutCache(ids, { userId, match: "id" });
   return { expired: ids.length, ids };
 }
 

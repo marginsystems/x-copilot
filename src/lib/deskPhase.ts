@@ -1,3 +1,8 @@
+import {
+  scoutRefillPending,
+  type ScoutRefillState,
+} from "./deskRefuel";
+
 export const DESK_PHASES = [
   "needs_onboarding",
   "hold",
@@ -145,7 +150,7 @@ export function approachTabLiveCount(opts: {
   hasScoutCard: boolean;
   hasSuggestion: boolean;
   holdForYouTask?: boolean;
-  scouting?: boolean;
+  refillState?: ScoutRefillState;
 }): number {
   if (
     opts.holdForYouTask &&
@@ -158,6 +163,12 @@ export function approachTabLiveCount(opts: {
     return 1;
   }
   if (opts.phase === "original" && opts.hasSuggestion) return 1;
-  if (opts.phase === "done_for_now" && opts.scouting) return 1;
+  if (
+    opts.phase === "done_for_now" &&
+    opts.refillState &&
+    scoutRefillPending(opts.refillState)
+  ) {
+    return 1;
+  }
   return 0;
 }
