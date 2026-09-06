@@ -1,4 +1,4 @@
-/** Desk pace gate after a reply is marked interacted. Not an X quota. */
+/** Desk pace gate after Mark detects a reply. Not an X quota. */
 
 export const REPLY_PACE_MS = 60_000;
 export const REPLY_PACE_STORAGE_KEY = "x-copilot-reply-pace-until";
@@ -7,7 +7,7 @@ export const REPLY_PACE_EVENT = "x-copilot-reply-pace";
 
 export const REPLY_PACE_LEAD = "One reply a minute.";
 export const REPLY_PACE_HELP =
-  "After you mark interacted we hold scouted replies for 60 seconds. That is a desk gate, not a published X number. It keeps you from firing five replies a minute.";
+  "After Mark detects your reply, we hold scouted replies for 60 seconds. That is a desk gate, not a published X number. It keeps you from firing five replies a minute.";
 
 export function nextReplyPaceUntil(now: number): number {
   return now + REPLY_PACE_MS;
