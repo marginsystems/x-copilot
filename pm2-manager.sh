@@ -75,6 +75,17 @@ require_webhook_app() {
   fi
 }
 
+require_role_pins() {
+  for role in api stats analytics webhook; do
+    if ! grep -q "XCOPILOT_ROLE: \"$role\"" "$ECOSYSTEM"; then
+      echo "$ECOSYSTEM is missing the XCOPILOT_ROLE pin for $role." >&2
+      echo "Re-sync with the tracked example, keeping machine-local tweaks:" >&2
+      echo "  cp ecosystem.config.example.cjs ecosystem.config.cjs" >&2
+      exit 1
+    fi
+  done
+}
+
 cmd="${1:-status}"
 shift || true
 PROFILE="all"
@@ -230,6 +241,7 @@ recycle_app() {
 
 recycle_profile() {
   require_ecosystem
+  require_role_pins
   if needs_analytics_build; then
     require_analytics_app
   fi
