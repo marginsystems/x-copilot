@@ -84,6 +84,24 @@ describe("retargetLeafToRoot", () => {
     assert.ok(next);
     assert.equal(next.views, undefined);
   });
+
+  it("does not preserve the unknown-view marker when OP views are known", () => {
+    const next = retargetLeafToRoot(
+      card({
+        id: "leaf",
+        text: "reply",
+        isReply: true,
+        conversationId: "root",
+        opAuthor: "@op",
+        opText: "root",
+        opParentDerived: true,
+        opViews: 150,
+      }),
+    );
+    assert.ok(next);
+    assert.equal(next.views, 150);
+    assert.equal(next.opParentDerived, undefined);
+  });
 });
 
 describe("preferRootTargets", () => {

@@ -163,6 +163,30 @@ describe("saveScoutCache / getLastScout", () => {
     );
   });
 
+  it("keeps stored filters when a later snapshot omits them", async () => {
+    const filters = {
+      filterByMinViews: true,
+      minViews: 250,
+      excludedTags: [" Political ", "political"],
+      excludedAccounts: ["@ChatGPT", "chatgpt"],
+    };
+    await saveScoutCache(sample({ filters }), { userId });
+    await saveScoutCache(
+      sample({
+        filters: undefined,
+        message: "collect refresh",
+      }),
+      { userId },
+    );
+
+    assert.deepEqual((await getLastScout({ userId }))?.filters, {
+      filterByMinViews: true,
+      minViews: 250,
+      excludedTags: ["political"],
+      excludedAccounts: ["chatgpt"],
+    });
+  });
+
   it("does not revive consumed conversations during a later merge", async () => {
     await saveScoutCache(
       sample({

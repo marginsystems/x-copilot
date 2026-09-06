@@ -6,11 +6,22 @@
 import { ensureUserTenant } from "./billingStore.js";
 import { getPlatformDb } from "./db.js";
 import { requireUserId } from "./interactionStore.js";
+import {
+  normalizeExcludedAccounts,
+  normalizeExcludedTags,
+} from "./threadFilters.js";
+import type { ScoutFilters } from "./scoutTypes.js";
 import type { ThreadCard } from "./threadCard.js";
+
+export type ScoutSnapshotFilters = Pick<
+  ScoutFilters,
+  "filterByMinViews" | "minViews" | "excludedTags" | "excludedAccounts"
+>;
 
 export type LastScoutSnapshot = {
   savedAt: string;
   agenda?: string;
+  filters?: ScoutSnapshotFilters;
   queries: string[];
   threads: ThreadCard[];
   message?: string;
@@ -41,6 +52,31 @@ function isThreadCard(value: unknown): value is ThreadCard {
   );
 }
 
+function parseScoutSnapshotFilters(
+  raw: unknown,
+): ScoutSnapshotFilters | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const obj = raw as Record<string, unknown>;
+  const filters: ScoutSnapshotFilters = {};
+  if (typeof obj.filterByMinViews === "boolean") {
+    filters.filterByMinViews = obj.filterByMinViews;
+  }
+  if (
+    typeof obj.minViews === "number" &&
+    Number.isInteger(obj.minViews) &&
+    obj.minViews >= 0
+  ) {
+    filters.minViews = obj.minViews;
+  }
+  if (Array.isArray(obj.excludedTags)) {
+    filters.excludedTags = normalizeExcludedTags(obj.excludedTags);
+  }
+  if (Array.isArray(obj.excludedAccounts)) {
+    filters.excludedAccounts = normalizeExcludedAccounts(obj.excludedAccounts);
+  }
+  return Object.keys(filters).length ? filters : undefined;
+}
+
 export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;
@@ -64,6 +100,8 @@ export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
     threads,
   };
   if (typeof obj.agenda === "string") snapshot.agenda = obj.agenda;
+  const filters = parseScoutSnapshotFilters(obj.filters);
+  if (filters) snapshot.filters = filters;
   if (typeof obj.message === "string") snapshot.message = obj.message;
   if (typeof obj.triageWarning === "string") {
     snapshot.triageWarning = obj.triageWarning;
@@ -249,10 +287,28 @@ export async function saveScoutCache(
     }
     const merged: LastScoutSnapshot = {
       ...parsed,
+      filters: parsed.filters ?? prev?.filters,
       threads: mergeThreadsById(previousThreads, threads),
     };
     writeTank(userId, merged);
     return merged;
+  })();
+}
+
+/** Attach the request filters after collect has written the tank snapshot. */
+export async function attachScoutCacheFilters(
+  filters: ScoutFilters | undefined,
+  opts: { userId: string },
+): Promise<LastScoutSnapshot | null> {
+  const parsed = parseScoutSnapshotFilters(filters);
+  if (!parsed) return null;
+  const userId = requireUserId(opts.userId);
+  return getPlatformDb().transaction((): LastScoutSnapshot | null => {
+    const prev = readTank(userId);
+    if (!prev) return null;
+    const next = { ...prev, filters: parsed };
+    writeTank(userId, next);
+    return next;
   })();
 }
 
