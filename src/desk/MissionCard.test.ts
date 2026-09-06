@@ -101,13 +101,18 @@ describe("Approach flight frame", () => {
         missionProps({
           phase: "scout_reply",
           scout: lead,
+          expandedId: lead.id,
           refillState: "landed",
         }),
       ),
     );
     assert.match(html, /class="mission-card approach-frame"/);
-    assert.match(html, /class="thread-row"/);
+    assert.match(html, /class="thread-row open"/);
     assert.match(html, /A real landed summary/);
+    assert.match(html, /Open on X/);
+    assert.match(html, />Skip</);
+    assert.match(html, /Not interested/);
+    assert.doesNotMatch(html, /I posted on X/);
   });
 
   it("fills a landed scout thread while the desk is done for now", () => {

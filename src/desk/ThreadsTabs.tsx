@@ -47,6 +47,7 @@ import {
 } from "../lib/forYouTask";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import { vanishEvent } from "../lib/vanishEvent";
+import { apiFetch } from "../lib/apiBase";
 import type { VoiceState } from "../lib/voice";
 import {
   DismissedRow,
@@ -69,6 +70,7 @@ import {
 import type { DeskBeats } from "../lib/deskPhase";
 import { useDeskRowExit } from "./useDeskRowExit";
 import { ThreadsTabCount } from "./ThreadsTabCount";
+import { watchDeskThreads } from "./watch";
 import type {
   DismissalHistoryEntry,
   ExpiredHistoryEntry,
@@ -118,6 +120,7 @@ type ThreadsTabsProps = {
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
+  onHydrateInteracted: () => void | Promise<void>;
   setActionBusy: (busy: boolean) => void;
   setStatus: (status: string) => void;
   onForkBeats: (beats: DeskBeats) => void;
@@ -160,6 +163,7 @@ export function ThreadsTabs({
   onSkip,
   onDismiss,
   onRefreshCoaching,
+  onHydrateInteracted,
   setActionBusy,
   setStatus,
   onForkBeats,
@@ -270,6 +274,40 @@ export function ThreadsTabs({
       : lockedScout;
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
+  const hydrateInteractedRef = useRef(onHydrateInteracted);
+  hydrateInteractedRef.current = onHydrateInteracted;
+
+  useEffect(() => {
+    if (!authUser?.id) return;
+    if (phase === "scout_reply" && !lockedScout) return;
+    const card = phase === "scout_reply" ? lockedScout : null;
+    if (card) watchDeskThreads([card]);
+    void apiFetch("/api/scout-approach-lock", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        card: card
+          ? {
+              id: card.id,
+              conversationId: card.conversationId,
+              inReplyToId: card.inReplyToId,
+              author: card.author,
+              url: card.url,
+              text: card.text,
+            }
+          : null,
+      }),
+    }).catch(() => {});
+  }, [authUser?.id, lockedScout, phase]);
+
+  useEffect(() => {
+    if (phase !== "scout_reply") return;
+    void hydrateInteractedRef.current();
+    const interval = window.setInterval(() => {
+      void hydrateInteractedRef.current();
+    }, 5_000);
+    return () => window.clearInterval(interval);
+  }, [phase]);
 
   function advanceCard(event: ApproachEvent) {
     const current = lockedRef.current;
@@ -740,7 +778,8 @@ export function ThreadsTabs({
         ) : threadsTab === "interacted" ? (
           interactedHistory.length === 0 ? (
             <p className="empty">
-              No interacted threads yet. Open on X, then tap I posted on X after you reply.
+              No interacted threads yet. Scout replies appear here after you
+              post on X.
             </p>
           ) : (
             <div className="history-list">

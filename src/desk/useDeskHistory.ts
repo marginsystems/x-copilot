@@ -46,8 +46,8 @@ function blockedFromHistory(
 
 /**
  * Run `refresh` when the tab returns to the foreground. A reply posted from
- * the phone lands as `discovered` while the desk tab is hidden; one fetch on
- * return is enough — no polling.
+ * the phone lands as `discovered` while the desk tab is hidden. Scout Approach
+ * also refreshes this endpoint briefly while its locked card is active.
  */
 export function useRehydrateOnVisible(refresh: () => void | Promise<void>) {
   const refreshRef = useRef(refresh);

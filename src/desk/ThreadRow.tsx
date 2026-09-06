@@ -17,6 +17,7 @@ export function ThreadRow({
   onSkip,
   onDismiss,
   onWatch,
+  showMark = true,
   suggest,
   index,
   exiting,
@@ -30,6 +31,7 @@ export function ThreadRow({
   onSkip: () => void;
   onDismiss: () => void;
   onWatch?: () => void;
+  showMark?: boolean;
   suggest?: ReactNode;
   index?: number;
   exiting?: boolean;
@@ -117,13 +119,15 @@ export function ThreadRow({
         >
           Open on X
         </a>
-        <button
-          className="primary"
-          disabled={busy || interacted}
-          onClick={onMark}
-        >
-          {interacted ? "Interacted" : "I posted on X"}
-        </button>
+        {showMark ? (
+          <button
+            className="primary"
+            disabled={busy || interacted}
+            onClick={onMark}
+          >
+            {interacted ? "Interacted" : "I posted on X"}
+          </button>
+        ) : null}
         <button
           className="ghost"
           disabled={busy || interacted}

@@ -44,6 +44,8 @@ import { recordMarkGamification } from "../../server/src/gamification.js";
 import { setGamificationSyncFailed } from "../../server/src/interactionSync.js";
 import { allowRate, clientIp } from "../../server/src/authGuard.js";
 import type { ParsedPostCreate } from "../../server/src/xActivity.js";
+import { replyMatchesLockedScout } from "../../server/src/replyMatchScout.js";
+import { getScoutApproachLock } from "../../server/src/scoutApproachLock.js";
 
 export async function markOwnReplyInteracted(
   parsed: ParsedPostCreate,
@@ -57,8 +59,22 @@ export async function markOwnReplyInteracted(
     (parsed.conversationId
       ? getWatchedThread(userId, parsed.conversationId)
       : null);
+  const locked = watched ? null : getScoutApproachLock(userId);
+  const matchedLock =
+    locked &&
+    replyMatchesLockedScout(
+      {
+        inReplyToId: parsed.inReplyToId,
+        conversationId: parsed.conversationId,
+      },
+      locked,
+    )
+      ? locked
+      : null;
+  const scoutCard = watched ?? matchedLock;
   const threadId =
     watched?.threadId ??
+    matchedLock?.id ??
     parsed.inReplyToId ??
     parsed.conversationId ??
     parsed.postId;
@@ -74,29 +90,29 @@ export async function markOwnReplyInteracted(
     return "skipped";
   }
   const author =
-    watched?.author ??
+    scoutCard?.author ??
     (parsed.inReplyToUsername
       ? `@${parsed.inReplyToUsername.replace(/^@+/, "")}`
       : parsed.inReplyToUserId
         ? `@${parsed.inReplyToUserId}`
         : "@unknown");
-  const source = watched ? "scout" : "organic";
+  const source = scoutCard ? "scout" : "organic";
   const interaction = await markInteracted({
     threadId,
     author,
     source: "discovered",
     userId,
     url:
-      watched?.url ??
+      scoutCard?.url ??
       (parsed.inReplyToUsername
         ? postUrl(parsed.inReplyToUsername, parsed.inReplyToId)
         : undefined),
-    text: watched?.text ?? undefined,
+    text: scoutCard?.text ?? undefined,
     replyId: parsed.postId,
     replyUrl: postUrl(parsed.authorUsername, parsed.postId),
     postedAt: parsed.postedAt,
     conversationId:
-      parsed.conversationId ?? watched?.conversationId ?? undefined,
+      parsed.conversationId ?? scoutCard?.conversationId ?? undefined,
     inReplyToId: parsed.inReplyToId,
     nowMs: opts?.nowMs,
   });
@@ -107,17 +123,17 @@ export async function markOwnReplyInteracted(
   });
   // #656 landed on main against the old in-process handler. Keep that streak
   // increment on the sidecar so a webhook-discovered reply still counts.
-  if (watched) {
+  if (scoutCard) {
     try {
       await recordMarkGamification({
-        threadId: watched.threadId,
+        threadId,
         userId,
         nowMs: opts?.nowMs ?? Date.parse(interaction.at),
       });
     } catch (err) {
       console.warn("[xaa] streak mark soft-fail", err);
       await setGamificationSyncFailed({
-        threadId: watched.threadId,
+        threadId,
         userId,
         checkpoint: "mark",
         failed: true,

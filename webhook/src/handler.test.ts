@@ -23,6 +23,7 @@ import {
 } from "../../server/src/ownPostStore.ts";
 import type { ParsedPostCreate } from "../../server/src/xActivity.ts";
 import { crcResponseToken } from "../../server/src/xActivity.ts";
+import { setScoutApproachLock } from "../../server/src/scoutApproachLock.ts";
 import { markOwnReplyInteracted } from "./handler.ts";
 import { createWebhookServer } from "./sidecar.ts";
 
@@ -117,6 +118,82 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.author, "@target");
     assert.equal(row?.replyId, "reply-1");
     assert.equal(getDeskBeats({ userId, nowMs }).organicReplyDone, true);
+  });
+
+  it("attributes an OG reply to the locked Scout card", async () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "card-1",
+      inReplyToId: null,
+      author: "@scout",
+      url: "https://x.com/scout/status/card-1",
+      text: "Scout card",
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({ inReplyToId: "card-1", conversationId: "card-1" }),
+        userId,
+        { nowMs },
+      ),
+      "scout",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "card-1");
+    assert.equal(row?.author, "@scout");
+  });
+
+  it("attributes a child reply in the locked Scout conversation", async () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "root-1",
+      inReplyToId: "parent-1",
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "child-reply",
+          inReplyToId: "other-child",
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "scout",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "card-1");
+  });
+
+  it("does not steal a reply from a foreign conversation", async () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "root-1",
+      inReplyToId: "parent-1",
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "foreign-reply",
+          inReplyToId: "foreign-parent",
+          conversationId: "foreign-root",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "organic",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "foreign-parent");
+    assert.notEqual(row?.threadId, "card-1");
   });
 
   it("keeps originals out of Interacted", async () => {
