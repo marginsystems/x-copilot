@@ -62,8 +62,9 @@ export async function markOwnReplyInteracted(
     (parsed.conversationId
       ? getWatchedThread(userId, parsed.conversationId)
       : null);
-  const locked = watched ? null : getScoutApproachLock(userId);
+  const locked = getScoutApproachLock(userId);
   const matchedLock =
+    !watched &&
     locked &&
     replyMatchesLockedScout(
       {
@@ -119,7 +120,7 @@ export async function markOwnReplyInteracted(
     inReplyToId: parsed.inReplyToId,
     nowMs: opts?.nowMs,
   });
-  if (matchedLock) {
+  if (matchedLock || (watched && locked?.id === watched.threadId)) {
     setScoutApproachLock(userId, null);
   }
   recordDeskReplyMarked({

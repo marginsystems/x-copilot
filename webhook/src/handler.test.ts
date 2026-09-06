@@ -23,7 +23,10 @@ import {
 } from "../../server/src/ownPostStore.ts";
 import type { ParsedPostCreate } from "../../server/src/xActivity.ts";
 import { crcResponseToken } from "../../server/src/xActivity.ts";
-import { setScoutApproachLock } from "../../server/src/scoutApproachLock.ts";
+import {
+  getScoutApproachLock,
+  setScoutApproachLock,
+} from "../../server/src/scoutApproachLock.ts";
 import { markOwnReplyInteracted } from "./handler.ts";
 import { createWebhookServer } from "./sidecar.ts";
 
@@ -106,6 +109,28 @@ describe("own reply interaction capture", () => {
       gamificationPath: join(dir, "gamification.json"),
     });
     assert.equal(streak.currentStreak >= 1, true);
+  });
+
+  it("consumes a matching Scout lock when the thread is watched", async () => {
+    watchThread({
+      userId,
+      threadId: "parent-1",
+      author: "@watched",
+    });
+    setScoutApproachLock(userId, {
+      id: "parent-1",
+      conversationId: "parent-1",
+      inReplyToId: null,
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(post(), userId, { nowMs }),
+      "scout",
+    );
+    assert.equal(getScoutApproachLock(userId), null);
   });
 
   it("marks an unwatched reply and stamps the organic beat", async () => {
