@@ -6,6 +6,7 @@ import {
   readScoutTakeoffTried,
   scoutRefillPending,
   scoutRefillState,
+  shouldArmScoutOnBoot,
   shouldArmScoutRefill,
   shouldBackgroundScout,
 } from "./deskRefuel.ts";
@@ -115,6 +116,44 @@ describe("Scout refill state", () => {
     assert.equal(shouldArmScoutRefill(0), true);
     assert.equal(shouldArmScoutRefill(1), true);
     assert.equal(shouldArmScoutRefill(2), false);
+  });
+});
+
+describe("shouldArmScoutOnBoot", () => {
+  it("arms an empty or low tank when this tab has not tried", () => {
+    assert.equal(
+      shouldArmScoutOnBoot({
+        usableScoutCount: 0,
+        alreadyTried: false,
+        searching: false,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldArmScoutOnBoot({
+        usableScoutCount: 1,
+        alreadyTried: false,
+        searching: false,
+      }),
+      true,
+    );
+  });
+
+  it("does not arm after takeoff, with two cards, or while searching", () => {
+    const boot = {
+      usableScoutCount: 0,
+      alreadyTried: false,
+      searching: false,
+    };
+    assert.equal(
+      shouldArmScoutOnBoot({ ...boot, alreadyTried: true }),
+      false,
+    );
+    assert.equal(
+      shouldArmScoutOnBoot({ ...boot, usableScoutCount: 2 }),
+      false,
+    );
+    assert.equal(shouldArmScoutOnBoot({ ...boot, searching: true }), false);
   });
 });
 
