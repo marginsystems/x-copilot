@@ -16,6 +16,7 @@ import {
   saveScoutCache,
   type LastScoutSnapshot,
 } from "./scoutCache.ts";
+import { markSkipped } from "./skipStore.ts";
 
 function sample(overrides: Partial<LastScoutSnapshot> = {}): LastScoutSnapshot {
   return {
@@ -159,6 +160,58 @@ describe("saveScoutCache / getLastScout", () => {
     assert.deepEqual(
       last?.threads.map((t) => t.id),
       ["1", "2"],
+    );
+  });
+
+  it("does not revive consumed conversations during a later merge", async () => {
+    await saveScoutCache(
+      sample({
+        threads: [
+          {
+            id: "reply-1",
+            author: "@a",
+            text: "first reply",
+            url: "https://x.com/a/status/reply-1",
+            conversationId: "root-1",
+            inReplyToId: "parent-1",
+          },
+        ],
+      }),
+      { userId },
+    );
+    await markSkipped({
+      threadId: "reply-1",
+      author: "@a",
+      userId,
+      conversationId: "root-1",
+      inReplyToId: "parent-1",
+    });
+
+    await saveScoutCache(
+      sample({
+        threads: [
+          {
+            id: "reply-2",
+            author: "@b",
+            text: "stale sibling",
+            url: "https://x.com/b/status/reply-2",
+            conversationId: "root-1",
+          },
+          {
+            id: "2",
+            author: "@c",
+            text: "unrelated",
+            url: "https://x.com/c/status/2",
+            conversationId: "root-2",
+          },
+        ],
+      }),
+      { userId },
+    );
+
+    assert.deepEqual(
+      (await getLastScout({ userId }))?.threads.map((thread) => thread.id),
+      ["2"],
     );
   });
 

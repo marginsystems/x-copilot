@@ -11,6 +11,7 @@ import {
   openTempPlatformDb,
   type TempPlatformDb,
 } from "./platformDb.testHelpers.ts";
+import { getLastScout, saveScoutCache } from "./scoutCache.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { createSession } from "./sessionStore.ts";
 import { markSkipped } from "./skipStore.ts";
@@ -203,6 +204,67 @@ describe("historyHttp", () => {
 
     const forB = await call("GET", "/api/skipped", undefined, b.cookie);
     assert.deepEqual(forB.json.skipped, []);
+  });
+
+  it("POST /api/skipped prunes the consumed conversation from the tank", async () => {
+    await saveScoutCache(
+      {
+        savedAt: "2026-09-06T00:00:00.000Z",
+        queries: ["test"],
+        threads: [
+          {
+            id: "reply-1",
+            author: "@x",
+            text: "selected",
+            url: "https://x.com/x/status/reply-1",
+            conversationId: "root-1",
+            inReplyToId: "parent-1",
+          },
+          {
+            id: "reply-2",
+            author: "@y",
+            text: "sibling",
+            url: "https://x.com/y/status/reply-2",
+            conversationId: "root-1",
+          },
+          {
+            id: "reply-3",
+            author: "@z",
+            text: "same parent",
+            url: "https://x.com/z/status/reply-3",
+            inReplyToId: "parent-1",
+          },
+          {
+            id: "other",
+            author: "@keep",
+            text: "unrelated",
+            url: "https://x.com/keep/status/other",
+            conversationId: "root-2",
+          },
+        ],
+      },
+      { userId: a.userId },
+    );
+
+    const response = await call(
+      "POST",
+      "/api/skipped",
+      {
+        threadId: "reply-1",
+        author: "@x",
+        conversationId: "root-1",
+        inReplyToId: "parent-1",
+      },
+      a.cookie,
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(
+      (await getLastScout({ userId: a.userId }))?.threads.map(
+        (thread) => thread.id,
+      ),
+      ["other"],
+    );
   });
 
   it("GET /api/expired returns only the session user's rows", async () => {
