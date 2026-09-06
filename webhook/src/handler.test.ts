@@ -23,6 +23,10 @@ import {
 } from "../../server/src/ownPostStore.ts";
 import type { ParsedPostCreate } from "../../server/src/xActivity.ts";
 import { crcResponseToken } from "../../server/src/xActivity.ts";
+import {
+  getScoutApproachLock,
+  setScoutApproachLock,
+} from "../../server/src/scoutApproachLock.ts";
 import { markOwnReplyInteracted } from "./handler.ts";
 import { createWebhookServer } from "./sidecar.ts";
 
@@ -107,6 +111,28 @@ describe("own reply interaction capture", () => {
     assert.equal(streak.currentStreak >= 1, true);
   });
 
+  it("consumes a matching Scout lock when the thread is watched", async () => {
+    watchThread({
+      userId,
+      threadId: "parent-1",
+      author: "@watched",
+    });
+    setScoutApproachLock(userId, {
+      id: "parent-1",
+      conversationId: "parent-1",
+      inReplyToId: null,
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(post(), userId, { nowMs }),
+      "scout",
+    );
+    assert.equal(getScoutApproachLock(userId), null);
+  });
+
   it("marks an unwatched reply and stamps the organic beat", async () => {
     assert.equal(
       await markOwnReplyInteracted(post(), userId, { nowMs }),
@@ -117,6 +143,82 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.author, "@target");
     assert.equal(row?.replyId, "reply-1");
     assert.equal(getDeskBeats({ userId, nowMs }).organicReplyDone, true);
+  });
+
+  it("attributes an OG reply to the locked Scout card", async () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "card-1",
+      inReplyToId: null,
+      author: "@scout",
+      url: "https://x.com/scout/status/card-1",
+      text: "Scout card",
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({ inReplyToId: "card-1", conversationId: "card-1" }),
+        userId,
+        { nowMs },
+      ),
+      "scout",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "card-1");
+    assert.equal(row?.author, "@scout");
+  });
+
+  it("keeps an unrelated reply in the locked Scout conversation organic", async () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "root-1",
+      inReplyToId: "parent-1",
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "child-reply",
+          inReplyToId: "other-child",
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "organic",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "other-child");
+  });
+
+  it("does not steal a reply from a foreign conversation", async () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "root-1",
+      inReplyToId: "parent-1",
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "foreign-reply",
+          inReplyToId: "foreign-parent",
+          conversationId: "foreign-root",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "organic",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "foreign-parent");
+    assert.notEqual(row?.threadId, "card-1");
   });
 
   it("keeps originals out of Interacted", async () => {

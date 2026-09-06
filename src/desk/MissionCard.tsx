@@ -221,6 +221,7 @@ export function MissionCard(props: {
               props.setExpandedId((id) => (id === thread.id ? null : thread.id))
             }
             onWatch={() => watchDeskThreads([thread])}
+            showMark={false}
             onMark={() => props.onScoutMark(thread)}
             onSkip={() => props.onScoutSkip(thread)}
             onDismiss={() => props.onScoutDismiss(thread)}

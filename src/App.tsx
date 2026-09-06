@@ -758,6 +758,7 @@ export default function App() {
               onSkip={onSkip}
               onDismiss={openDismissModal}
               onRefreshCoaching={hydrateCoaching}
+              onHydrateInteracted={hydrateInteracted}
               setActionBusy={setActionBusy}
               setStatus={setStatus}
               onForkBeats={(beats) => {
