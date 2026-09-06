@@ -244,6 +244,10 @@ export function ThreadsTabs({
     readApproachLock(authUser?.id),
   );
   const restoredDoneForNowRef = useRef(locked?.phase === "done_for_now");
+  const restoredInventoryRef = useRef<{
+    scoutIds: Set<string>;
+    suggestionIds: Set<string>;
+  } | null>(null);
   const phase = locked?.phase ?? "done_for_now";
   const hold = phase === "hold";
   const holdForYouTask =
@@ -353,6 +357,29 @@ export function ThreadsTabs({
     scout?.id,
     silentFallback,
   ]);
+
+  useEffect(() => {
+    if (!restoredDoneForNowRef.current || !deskBootReady) return;
+    const currentInventory = {
+      scoutIds: new Set(curatedThreads.map((row) => row.id)),
+      suggestionIds: new Set(forYouSuggestions.map((row) => row.id)),
+    };
+    const restoredInventory = restoredInventoryRef.current;
+    if (!restoredInventory) {
+      restoredInventoryRef.current = currentInventory;
+      return;
+    }
+    const hasNewInventory =
+      [...currentInventory.scoutIds].some(
+        (id) => !restoredInventory.scoutIds.has(id),
+      ) ||
+      [...currentInventory.suggestionIds].some(
+        (id) => !restoredInventory.suggestionIds.has(id),
+      );
+    if (!hasNewInventory) return;
+    restoredDoneForNowRef.current = false;
+    advanceCard({ type: "next" });
+  }, [curatedThreads, deskBootReady, forYouSuggestions, locked]);
 
   useEffect(() => {
     if (restoredDoneForNowRef.current) return;
