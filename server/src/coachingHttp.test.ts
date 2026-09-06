@@ -114,6 +114,7 @@ describe("GET /api/coaching", () => {
   it("returns the newest in-window lite instruments", async () => {
     const nowMs = Date.now();
     const newestPost = new Date(nowMs - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const olderInWindowPost = new Date(nowMs - 5 * 24 * 60 * 60 * 1000).toISOString();
     const oldPost = new Date(nowMs - 16 * 24 * 60 * 60 * 1000).toISOString();
     await markInteracted({
       threadId: "old-reply",
@@ -130,6 +131,14 @@ describe("GET /api/coaching", () => {
       replyId: "new-reply",
       postedAt: newestPost,
       nowMs: nowMs - 2 * 24 * 60 * 60 * 1000,
+    });
+    await markInteracted({
+      threadId: "older-in-window-reply",
+      author: "@older",
+      userId,
+      replyId: "older-in-window-reply",
+      postedAt: olderInWindowPost,
+      nowMs: nowMs - 5 * 24 * 60 * 60 * 1000,
     });
     for (const [postId, postedAt] of [["old-post", oldPost], ["new-post", newestPost]] as const) {
       upsertOwnPost({
@@ -153,6 +162,7 @@ describe("GET /api/coaching", () => {
 
     const response = await getCoaching({ path: "/api/coaching?lite=1", cookie });
     assert.equal(response.status, 200);
+    assert.equal((response.body.replyAt as string[]).length, 1);
     assert.deepEqual(response.body.replyAt, [newestPost]);
     assert.deepEqual(response.body.postAt, [newestPost]);
   });
