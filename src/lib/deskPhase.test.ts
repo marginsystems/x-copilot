@@ -281,3 +281,105 @@ describe("approachTabLiveCount", () => {
     );
   });
 });
+
+describe("S10 skip-next", () => {
+  const firstScout = {
+    phase: "scout_reply",
+    cardId: "scout-1",
+    surface: null,
+  } as const;
+
+  it("Skip of the first scout locks the next tank root", () => {
+    assert.deepEqual(
+      advanceApproach(
+        firstScout,
+        { type: "skip" },
+        { scoutId: "scout-2", suggestionId: null, canPresentForYou: true },
+      ),
+      { phase: "scout_reply", cardId: "scout-2", surface: null },
+    );
+  });
+
+  it("last Skip with no other scout presents For You when canPresentForYou; otherwise done_for_now", () => {
+    assert.deepEqual(
+      advanceApproach(
+        firstScout,
+        { type: "skip" },
+        { scoutId: "scout-1", suggestionId: null, canPresentForYou: true },
+      ),
+      { phase: "silent_refuel", cardId: null, surface: "for_you" },
+    );
+    assert.deepEqual(
+      advanceApproach(
+        firstScout,
+        { type: "skip" },
+        { scoutId: "scout-1", suggestionId: null, canPresentForYou: false },
+      ),
+      { phase: "done_for_now", cardId: null, surface: null },
+    );
+  });
+
+  it("Next already refuses to re-open For You after its wait; last Skip still may", () => {
+    const emptyTank = {
+      scoutId: null,
+      suggestionId: null,
+      canPresentForYou: true,
+    };
+    assert.deepEqual(
+      advanceApproach(
+        { phase: "silent_refuel", cardId: null, surface: "for_you" },
+        { type: "next" },
+        emptyTank,
+      ),
+      { phase: "done_for_now", cardId: null, surface: null },
+    );
+    assert.deepEqual(
+      advanceApproach(firstScout, { type: "skip" }, emptyTank),
+      { phase: "silent_refuel", cardId: null, surface: "for_you" },
+    );
+  });
+
+  it("last Skip badge is 1 while refill is queued, waiting, or flying; terminal_empty is 0", () => {
+    const lastSkip = advanceApproach(
+      firstScout,
+      { type: "skip" },
+      { scoutId: "scout-1", suggestionId: null, canPresentForYou: false },
+    );
+    assert.deepEqual(lastSkip, {
+      phase: "done_for_now",
+      cardId: null,
+      surface: null,
+    });
+    for (const refillState of ["queued", "waiting", "flying"] as const) {
+      assert.equal(
+        approachTabLiveCount({
+          phase: lastSkip.phase,
+          hasScoutCard: false,
+          hasSuggestion: false,
+          refillState,
+        }),
+        1,
+      );
+    }
+    assert.equal(
+      approachTabLiveCount({
+        phase: lastSkip.phase,
+        hasScoutCard: false,
+        hasSuggestion: false,
+        refillState: "terminal_empty",
+      }),
+      0,
+    );
+  });
+
+  it("Mark on a scout lock holds For You", () => {
+    assert.deepEqual(
+      advanceApproach(
+        firstScout,
+        { type: "mark" },
+        { scoutId: "scout-2", suggestionId: null, canPresentForYou: true },
+      ),
+      { phase: "hold", cardId: null, surface: "for_you" },
+    );
+  });
+});
