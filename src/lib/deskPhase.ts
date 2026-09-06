@@ -8,8 +8,6 @@ export const DESK_PHASES = [
   "hold",
   "scout_reply",
   "organic_reply",
-  "fork",
-  "original",
   "silent_refuel",
   "done_for_now",
 ] as const;
@@ -52,7 +50,6 @@ export type ApproachEvent =
   | { type: "dismiss" }
   | { type: "mark" }
   | { type: "bypass" }
-  | { type: "fork"; choice: "original" | "reply" }
   | { type: "posted" };
 
 function nextInventoryCard(
@@ -126,20 +123,13 @@ export function advanceApproach(
     }
   }
   if (locked.phase === "organic_reply") {
-    if (event.type === "posted") {
-      return { phase: "fork", cardId: null, surface: null };
-    }
-    if (event.type === "skip" || event.type === "dismiss") {
+    if (
+      event.type === "posted" ||
+      event.type === "skip" ||
+      event.type === "dismiss"
+    ) {
       return nextInventoryCard(inventory, locked.cardId);
     }
-  }
-  if (locked.phase === "fork" && event.type === "fork") {
-    return event.choice === "original"
-      ? { phase: "original", cardId: null, surface: null }
-      : nextInventoryCard(inventory, null);
-  }
-  if (locked.phase === "original" && event.type === "posted") {
-    return nextInventoryCard(inventory, null);
   }
   return locked;
 }
@@ -162,7 +152,6 @@ export function approachTabLiveCount(opts: {
   if (opts.phase === "organic_reply" && opts.hasSuggestion) {
     return 1;
   }
-  if (opts.phase === "original" && opts.hasSuggestion) return 1;
   if (
     opts.phase === "done_for_now" &&
     opts.refillState &&

@@ -59,8 +59,6 @@ function missionProps(
     onSuggestionPosted() {},
     onSuggestionSkip() {},
     onSuggestionDismiss() {},
-    onChooseFork() {},
-    onOriginalPosted() {},
     onOpenVoice() {},
     onLinkX() {},
     ...overrides,
