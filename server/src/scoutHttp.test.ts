@@ -457,11 +457,20 @@ describe("tryHandleScout", () => {
       (payload.snapshot?.threads as Array<{ id: string }>).map(
         (item) => item.id,
       ),
-      ["keep"],
+      ["keep", "unknown-reply"],
     );
   });
 
   it("writes an error line when the collect fails without a terminal event", async () => {
+    await saveScoutCache(
+      {
+        savedAt: new Date().toISOString(),
+        queries: ["old"],
+        filters: { filterByMinViews: true, minViews: 100 },
+        threads: [],
+      },
+      { userId: pilot.userId },
+    );
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async () => ({
         ok: false,
@@ -480,6 +489,10 @@ describe("tryHandleScout", () => {
     const lines = ndjsonLines(state.chunks);
     assert.equal(lines.at(-1)?.stage, "error");
     assert.match(String(lines.at(-1)?.message), /boom/);
+    assert.deepEqual((await getLastScout({ userId: pilot.userId }))?.filters, {
+      filterByMinViews: true,
+      minViews: 100,
+    });
   });
 
   it("returns JSON 429 scout_busy before any NDJSON writeHead when locked", async () => {

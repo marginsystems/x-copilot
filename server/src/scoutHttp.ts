@@ -188,6 +188,7 @@ export async function readLastScoutPayload(opts: {
     tankThreads = filterMinViews(tankThreads, {
       filterByMinViews: snapshot.filters.filterByMinViews,
       minViews: snapshot.filters.minViews,
+      allowUnknownReplyViews: true,
     }).threads;
     const excludedTags = resolveExcludedTags(snapshot.filters.excludedTags);
     tankThreads = tankThreads.filter(
@@ -482,7 +483,9 @@ export async function tryHandleScout(
             }) === null,
         },
       });
-      await attachScoutCacheFilters(filters, { userId: sessionUser.id });
+      if (result.ok) {
+        await attachScoutCacheFilters(filters, { userId: sessionUser.id });
+      }
       if (!result.ok && !sawTerminal) {
         trackAnalytics({
           name: "scout.failed",
