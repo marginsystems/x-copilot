@@ -733,6 +733,10 @@ export async function runScoutCollect(opts: {
         filterByMinViews,
         minViews,
       });
+      const forTriageIds = new Set(afterHydrateLen.threads.map((t) => t.id));
+      for (const t of bucket) {
+        if (!forTriageIds.has(t.id)) acceptedIds.delete(t.id);
+      }
       funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
       rejectionCounts.selfReply +=
         afterHydrateSelf.selfReplyFilteredCount;
@@ -891,6 +895,7 @@ export async function runScoutCollect(opts: {
         cool.push(t);
         coolIds.add(t.id);
         coolAuthors.add(key);
+        acceptedIds.delete(t.id);
       }
       coolAdditions += cool.length - coolBefore;
       track("partial", `Cool ${cool.length}/${targetCool}`, {
