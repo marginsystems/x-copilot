@@ -443,6 +443,7 @@ export async function tryHandleScout(
         targetCool,
         bucketSize,
         userId: sessionUser.id,
+        sortieId,
         signal: abort.signal,
         onEvent: writeLine,
         deps: {

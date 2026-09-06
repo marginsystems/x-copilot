@@ -2,15 +2,14 @@
  * Streaming Scout collector — fill a hard-filtered bucket, then LLM-qualify.
  * Discard/refill on zero cool; keep cools and refill until cool target or exhausted.
  */
+import { randomUUID } from "node:crypto";
 import {
   getAuthorKeysForScoutFilter,
   getCooledAuthorKeys,
   getEverInteractedConversationIds,
 } from "./interactionStore.js";
-import {
-  filterThreadsByCooldown,
-  normalizeAuthorKey,
-} from "./interactionCooldown.js";
+import { normalizeAuthorKey } from "./interactionCooldown.js";
+import { applyScoutSearchHardFilters } from "./scoutCollectHardFilters.js";
 import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {
@@ -36,6 +35,13 @@ import {
   isCoolThread,
   withScoutSearchExclusions,
 } from "./scoutPolicy.js";
+import {
+  addScoutRejectionCounts,
+  emptyScoutRejectionCounts,
+  persistScoutRunRecordSafe,
+  saveScoutRunRecord,
+  type ScoutRunRecordInput,
+} from "./scoutRunStore.js";
 import { preferRootTargets } from "./scoutTarget.js";
 import type {
   ScoutCollectEvent,
@@ -45,20 +51,8 @@ import type {
   ScoutStopReason,
 } from "./scoutTypes.js";
 import {
-  filterAutomatedAccounts,
-  filterExcludedAccounts,
-  filterByLanguage,
-  filterEmDashes,
-  filterHashtags,
-  filterMinViews,
-  filterNativeMedia,
-  filterOutboundLinks,
-  filterProfanity,
   normalizeAvoidPrompt,
-  filterSelfReplies,
-  filterThreadsByLength,
   normalizePreferredLanguageCode,
-  collectArticleConversationIds,
   collectBaitConversationIds,
   replyUnderBaitConversation,
   resolveExcludedAccounts,
@@ -104,6 +98,7 @@ export type ScoutCollectDeps = {
   /** @deprecated use getBlockedConversationIds */
   getEverInteractedConversationIds?: typeof getEverInteractedConversationIds;
   saveScoutCache?: typeof saveScoutCache;
+  saveScoutRunRecord?: (record: ScoutRunRecordInput) => void | Promise<void>;
   hydrateReplyParents?: typeof hydrateReplyParents;
   sleep?: typeof sleep;
   /**
@@ -121,6 +116,8 @@ export async function runScoutCollect(opts: {
   bucketSize?: number;
   /** Desk user whose cooldowns, blocked conversations, and tank this run uses. */
   userId?: string;
+  /** Daily takeoff associated with this run, when one was claimed. */
+  sortieId?: string;
   session?: XApiCreds;
   signal?: AbortSignal;
   onEvent?: (event: ScoutCollectEvent) => void;
@@ -138,13 +135,47 @@ export async function runScoutCollect(opts: {
     deps.getEverInteractedConversationIds ??
     getBlockedConversationIds;
   const doSaveCache = deps.saveScoutCache ?? saveScoutCache;
+  const doSaveRun = deps.saveScoutRunRecord ?? saveScoutRunRecord;
   const doHydrate = deps.hydrateReplyParents ?? hydrateReplyParents;
   const doSleep = deps.sleep ?? sleep;
   // Store-backed deps require a user; stubs ignore it.
   const userId = opts.userId?.trim() ?? "";
+  const runId = randomUUID();
+  const startedAt = new Date().toISOString();
+  const usedQueries = new Set<string>();
+  const seenIds = new Set<string>();
+  const countedDuplicateIds = new Set<string>();
+  const acceptedIds = new Set<string>();
+  let searchCalls = 0;
+  let usableAdditions = 0;
+  let coolAdditions = 0;
+  let runPersisted = false;
+  const rejectionCounts = emptyScoutRejectionCounts();
+  const persistRun = async (
+    stopReason: string,
+    fallbackQueries: string[] = [],
+  ): Promise<void> => {
+    if (!userId || runPersisted) return;
+    runPersisted = true;
+    await persistScoutRunRecordSafe(doSaveRun, {
+      id: runId,
+      userId,
+      sortieId: opts.sortieId,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      queries: usedQueries.size ? [...usedQueries] : fallbackQueries,
+      uniqueCandidateIds: seenIds.size,
+      rejectionCounts,
+      usableAdditions,
+      coolAdditions,
+      searchCalls,
+      stopReason,
+    });
+  };
 
   const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.bearerToken) {
+    await persistRun("missing_credentials", opts.queries);
     return {
       ok: false,
       status: 401,
@@ -187,6 +218,7 @@ export async function runScoutCollect(opts: {
 
   if (queries.length === 0) {
     if (!agenda) {
+      await persistRun("missing_agenda");
       return {
         ok: false,
         status: 400,
@@ -195,6 +227,7 @@ export async function runScoutCollect(opts: {
       };
     }
     if (!deepseekConfigured()) {
+      await persistRun("missing_llm_key");
       return {
         ok: false,
         status: 503,
@@ -205,6 +238,7 @@ export async function runScoutCollect(opts: {
     track("planning", "Scout is planning search queries (deepseek)…");
     const plan = await doPlan(agenda);
     if (aborted()) {
+      await persistRun("aborted", queries);
       const done = track("done", "Scout stopped.", {
         threads: [],
         coolCount: 0,
@@ -215,6 +249,7 @@ export async function runScoutCollect(opts: {
     }
     if (!plan.ok) {
       track("error", `Scout failed: ${plan.message}`);
+      await persistRun(plan.error, queries);
       return {
         ok: false,
         status: 502,
@@ -270,7 +305,6 @@ export async function runScoutCollect(opts: {
       : await doGetConversationIds({ userId });
 
   let cool: ThreadCard[] = [];
-  const seenIds = new Set<string>();
   /** Per-run author dedupe (first kept wins across bucket refills). */
   const seenAuthors = new Set<string>();
   const coolAuthors = new Set<string>();
@@ -286,7 +320,6 @@ export async function runScoutCollect(opts: {
   let creditStopped = false;
   let terminalError: string | undefined;
   let unhydratedReplyCount = 0;
-  let searchCalls = 0;
   let queryIndex = 0;
   let replanned = false;
   let bucketAttempts = 0;
@@ -401,6 +434,7 @@ export async function runScoutCollect(opts: {
         const query = queries[queryIndex];
         queryIndex += 1;
         searchCalls += 1;
+        usedQueries.add(query);
 
         track(
           "searching",
@@ -452,82 +486,87 @@ export async function runScoutCollect(opts: {
           { candidates: bucket.length, coolCount: 0 },
         );
 
+        let missingIdCount = 0;
+        const duplicateIds = new Set<string>();
         const fresh = result.threads.filter((t) => {
-          if (!t.id || seenIds.has(t.id)) return false;
+          if (!t.id) {
+            missingIdCount += 1;
+            return false;
+          }
+          if (seenIds.has(t.id)) {
+            if (!countedDuplicateIds.has(t.id)) {
+              countedDuplicateIds.add(t.id);
+              duplicateIds.add(t.id);
+            }
+            return false;
+          }
           seenIds.add(t.id);
           return true;
         });
-        const afterCool = filterThreadsByCooldown(
-          fresh,
+        const page = applyScoutSearchHardFilters({
+          threads: fresh,
           cooled,
           blockedConversations,
-        );
-        const afterSelf = filterSelfReplies(afterCool.threads);
-        const afterLinks = filterOutboundLinks(afterSelf.threads, {
           dropOutboundLinks,
-        });
-        const afterMedia = filterNativeMedia(afterLinks.threads, {
           dropNativeMedia,
-        });
-        const afterHashtags = filterHashtags(afterMedia.threads, {
           dropHashtags,
-        });
-        const afterLang = filterByLanguage(afterHashtags.threads, preferredLanguage);
-        const afterEmDash = filterEmDashes(afterLang.threads, { dropEmDashes });
-        const afterProfanity = filterProfanity(afterEmDash.threads, {
+          preferredLanguage,
+          dropEmDashes,
           dropProfanity,
-        });
-        const afterAutomated = filterAutomatedAccounts(afterProfanity.threads, {
           dropAutomatedAccounts,
-        });
-        const afterExcludedAccounts = filterExcludedAccounts(
-          afterAutomated.threads,
           excludedAccounts,
-        );
-        for (const id of collectArticleConversationIds(
-          afterExcludedAccounts.threads,
-        )) {
-          articleConversationIds.add(id);
-        }
-        const afterMinViews = filterMinViews(afterExcludedAccounts.threads, {
+          articleConversationIds,
           filterByMinViews,
           minViews,
-          allowUnknownReplyViews: true,
-        });
-        const afterLen = filterThreadsByLength(
-          afterMinViews.threads,
           maxChars,
-          { dropArticles, articleIds: articleConversationIds },
-        );
-
+          dropArticles,
+        });
+        addScoutRejectionCounts(rejectionCounts, page.rejections);
         funnelCounts.raw += result.threads.length;
         funnelCounts.afterDedupe += fresh.length;
-        funnelCounts.afterCooldown += afterCool.threads.length;
-        funnelCounts.afterSelfReply += afterSelf.threads.length;
-        funnelCounts.afterLinks += afterLinks.threads.length;
-        funnelCounts.afterLength += afterLen.threads.length;
-        linkFilteredTotal += afterLinks.linkFilteredCount;
-        emDashFilteredTotal += afterEmDash.emDashFilteredCount;
-        profanityFilteredTotal += afterProfanity.profanityFilteredCount;
-        automatedFilteredTotal += afterAutomated.automatedFilteredCount;
-        excludedAccountFilteredTotal +=
-          afterExcludedAccounts.excludedAccountFilteredCount;
-        languageFilteredTotal += afterLang.languageFilteredCount;
-        minViewsFilteredTotal += afterMinViews.minViewsFilteredCount;
+        funnelCounts.afterCooldown += page.afterCooldown;
+        funnelCounts.afterSelfReply += page.afterSelfReply;
+        funnelCounts.afterLinks += page.afterLinks;
+        funnelCounts.afterLength += page.afterLength;
+        linkFilteredTotal += page.linkFilteredCount;
+        emDashFilteredTotal += page.emDashFilteredCount;
+        profanityFilteredTotal += page.profanityFilteredCount;
+        automatedFilteredTotal += page.automatedFilteredCount;
+        excludedAccountFilteredTotal += page.excludedAccountFilteredCount;
+        languageFilteredTotal += page.languageFilteredCount;
+        minViewsFilteredTotal += page.minViewsFilteredCount;
         funnelCounts.minViewsFiltered = minViewsFilteredTotal;
 
         const beforeFill = bucket.length;
         let authorDedupeSkipped = 0;
-        for (const t of afterLen.threads) {
-          if (bucket.length >= bucketSize) break;
+        let authorlessSkipped = 0;
+        let bucketFullSkipped = 0;
+        for (const t of page.threads) {
+          if (bucket.length >= bucketSize) {
+            bucketFullSkipped += 1;
+            continue;
+          }
           const key = normalizeAuthorKey(t.author);
-          if (!key || seenAuthors.has(key)) {
-            if (key) authorDedupeSkipped += 1;
+          if (!key) {
+            authorlessSkipped += 1;
+            continue;
+          }
+          if (seenAuthors.has(key)) {
+            authorDedupeSkipped += 1;
             continue;
           }
           seenAuthors.add(key);
+          acceptedIds.add(t.id);
           bucket.push(t);
         }
+        addScoutRejectionCounts(rejectionCounts, {
+          duplicateOrMissingId:
+            missingIdCount +
+            [...duplicateIds].filter((id) => acceptedIds.has(id)).length,
+          authorDedupe: authorDedupeSkipped,
+          authorless: authorlessSkipped,
+          bucketFull: bucketFullSkipped,
+        });
         const added = bucket.length - beforeFill;
 
         if (added > 0) {
@@ -541,16 +580,16 @@ export async function runScoutCollect(opts: {
               coolCount: 0,
               detail: {
                 raw: result.threads.length,
-                afterCooldown: afterCool.threads.length,
-                afterSelfReply: afterSelf.threads.length,
-                selfReplyFiltered: afterSelf.selfReplyFilteredCount,
-                afterLinks: afterLinks.threads.length,
-                linkFiltered: afterLinks.linkFilteredCount,
-                emDashFiltered: afterEmDash.emDashFilteredCount,
-                profanityFiltered: afterProfanity.profanityFilteredCount,
-                automatedFiltered: afterAutomated.automatedFilteredCount,
-                languageFiltered: afterLang.languageFilteredCount,
-                afterLength: afterLen.threads.length,
+                afterCooldown: page.afterCooldown,
+                afterSelfReply: page.afterSelfReply,
+                selfReplyFiltered: page.rejections.selfReply ?? 0,
+                afterLinks: page.afterLinks,
+                linkFiltered: page.linkFilteredCount,
+                emDashFiltered: page.emDashFilteredCount,
+                profanityFiltered: page.profanityFilteredCount,
+                automatedFiltered: page.automatedFilteredCount,
+                languageFiltered: page.languageFilteredCount,
+                afterLength: page.afterLength,
                 authorDedupeSkipped,
                 added,
               },
@@ -618,7 +657,23 @@ export async function runScoutCollect(opts: {
         filterByMinViews,
         minViews,
       });
+      const forTriageIds = new Set(afterHydrateLen.threads.map((t) => t.id));
+      for (const t of bucket) {
+        if (!forTriageIds.has(t.id)) acceptedIds.delete(t.id);
+      }
       funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
+      addScoutRejectionCounts(rejectionCounts, {
+        selfReply: afterHydrateSelf.selfReplyFilteredCount,
+        views: afterHydrateMinViews.minViewsFilteredCount,
+        links: afterHydrateLinks.linkFilteredCount,
+        media: afterHydrateMedia.mediaFilteredCount,
+        hashtags: afterHydrateHashtags.hashtagFilteredCount,
+        profanity: afterHydrateProfanity.profanityFilteredCount,
+        language: afterHydrateLang.languageFilteredCount,
+        articles: afterHydrateLen.articleFilteredCount,
+        length:
+          afterHydrateLen.filteredCount - afterHydrateLen.articleFilteredCount,
+      });
       linkFilteredTotal += afterHydrateLinks.linkFilteredCount;
       profanityFilteredTotal += afterHydrateProfanity.profanityFilteredCount;
       minViewsFilteredTotal += afterHydrateMinViews.minViewsFilteredCount;
@@ -685,6 +740,7 @@ export async function runScoutCollect(opts: {
           },
         },
       );
+      usableAdditions += forTriage.length;
 
       const triaged = await doTriage({
         agenda,
@@ -707,6 +763,7 @@ export async function runScoutCollect(opts: {
             replyUnderBaitConversation(t, baitConversationIds)
           ) {
             purged = true;
+            coolAdditions -= 1;
             if (t.id) coolIds.delete(t.id);
             const key = normalizeAuthorKey(t.author);
             if (key) coolAuthors.delete(key);
@@ -763,7 +820,9 @@ export async function runScoutCollect(opts: {
         cool.push(t);
         coolIds.add(t.id);
         coolAuthors.add(key);
+        acceptedIds.delete(t.id);
       }
+      coolAdditions += cool.length - coolBefore;
       track("partial", `Cool ${cool.length}/${targetCool}`, {
         threads: newlyCool,
         coolCount: cool.length,
@@ -816,6 +875,7 @@ export async function runScoutCollect(opts: {
     } else {
       const message = err instanceof Error ? err.message : String(err);
       track("error", `Scout failed: ${message}`);
+      await persistRun("collect_failed", queries);
       return {
         ok: false,
         status: 500,
@@ -840,6 +900,7 @@ export async function runScoutCollect(opts: {
               ? "Scout stopped — X API rate limit reached (quota window exhausted); retry after it resets."
               : `Scout finished — ${cool.length} cool thread${cool.length === 1 ? "" : "s"} (supply exhausted).`;
 
+  await persistRun(stopReason, queries);
   const linkWarning = linkFilteredTotal
     ? `Dropped ${linkFilteredTotal} posts with outbound links.`
     : undefined;
