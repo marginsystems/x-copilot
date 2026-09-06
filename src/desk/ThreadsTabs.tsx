@@ -243,6 +243,7 @@ export function ThreadsTabs({
   const [locked, setLocked] = useState<ApproachLock | null>(() =>
     readApproachLock(authUser?.id),
   );
+  const restoredDoneForNowRef = useRef(locked?.phase === "done_for_now");
   const phase = locked?.phase ?? "done_for_now";
   const hold = phase === "hold";
   const holdForYouTask =
@@ -274,6 +275,7 @@ export function ThreadsTabs({
   function advanceCard(event: ApproachEvent) {
     const current = lockedRef.current;
     if (!current) return;
+    restoredDoneForNowRef.current = false;
     const next = advanceApproach(current, event, {
       scoutId:
         curatedThreads.find((row) => row.id !== current.cardId)?.id ?? null,
@@ -315,6 +317,7 @@ export function ThreadsTabs({
     if (!deskBootReady || locked || !authUser?.id) return;
     const restored = readApproachLock(authUser.id);
     if (restored) {
+      restoredDoneForNowRef.current = restored.phase === "done_for_now";
       lockedRef.current = restored;
       setLocked(restored);
       return;
@@ -352,6 +355,7 @@ export function ThreadsTabs({
   ]);
 
   useEffect(() => {
+    if (restoredDoneForNowRef.current) return;
     if (!locked || phase !== "done_for_now" || (!scout && !suggestion)) return;
     advanceCard({ type: "next" });
   }, [locked, phase, scout, suggestion]);
