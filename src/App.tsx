@@ -108,8 +108,6 @@ export default function App() {
     setSkippedHistory,
     expiredHistory,
     forYouSuggestions,
-    forYouProgress,
-    forYouExtra,
     dismissedIdsRef,
     skippedIdsRef,
     interactedIdsRef,
@@ -123,7 +121,6 @@ export default function App() {
     hydrateForYou,
     keepInCurated,
     actForYou,
-    requestExtra,
   } = useDeskHistory({
     setThreads,
     setStatus,
@@ -892,13 +889,7 @@ export default function App() {
               setThreadsTab={setThreadsTab}
               curatedThreads={curatedThreads}
               forYouSuggestions={forYouSuggestions}
-              forYouProgress={forYouProgress}
-              forYouExtra={forYouExtra}
               coaching={coaching}
-              requestExtra={async () => {
-                await requestExtra();
-                void hydrateCoaching();
-              }}
               interactedHistory={interactedHistory}
               skippedHistory={skippedHistory}
               dismissedHistory={dismissedHistory}

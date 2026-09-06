@@ -1,4 +1,3 @@
-import { type HTMLAttributes } from "react";
 import {
   forYouComposeSeed,
   forYouKindClass,
@@ -18,7 +17,6 @@ export function SuggestedRow({
   row,
   open,
   busy,
-  paced,
   voice,
   agenda,
   xLinked,
@@ -36,7 +34,6 @@ export function SuggestedRow({
   row: ForYouSuggestion;
   open: boolean;
   busy: boolean;
-  paced?: boolean;
   voice: VoiceState | null;
   agenda: string;
   xLinked?: boolean;
@@ -90,36 +87,19 @@ export function SuggestedRow({
         <p className="for-you-draft">{row.draft}</p>
       ) : null}
       {compose && voice?.status === "ready" && voice.unlocked && seed ? (
-        <>
-          {paced ? (
-            <p className="reply-pace-hold">
-              Hold. Bypass the one-minute gate if you need to post.
-            </p>
-          ) : null}
-          <div
-            {...(paced
-              ? ({ inert: "" } as HTMLAttributes<HTMLDivElement>)
-              : {})}
-          >
-            <SuggestPane
-              variant="compose"
-              composeKind={row.kind === "quote" ? "quote" : "post"}
-              suggestionId={row.id}
-              quoteTweetId={row.targetId}
-              threadId={row.id}
-              author={row.targetAuthor || handle}
-              text={seed}
-              agenda={agenda}
-              usage={voice.suggests}
-              onUsage={onUsage}
-              onDeskPosted={onPosted}
-            />
-          </div>
-        </>
-      ) : paced ? (
-        <p className="reply-pace-hold">
-          Hold. Bypass the one-minute gate if you need to post.
-        </p>
+        <SuggestPane
+          variant="compose"
+          composeKind={row.kind === "quote" ? "quote" : "post"}
+          suggestionId={row.id}
+          quoteTweetId={row.targetId}
+          threadId={row.id}
+          author={row.targetAuthor || handle}
+          text={seed}
+          agenda={agenda}
+          usage={voice.suggests}
+          onUsage={onUsage}
+          onDeskPosted={onPosted}
+        />
       ) : compose ? (
         <SuggestLocked
           voice={voice}
@@ -160,7 +140,7 @@ export function SuggestedRow({
           <button
             type="button"
             className="ghost"
-            disabled={busy || paced}
+            disabled={busy}
             onClick={onPosted}
           >
             I posted on X

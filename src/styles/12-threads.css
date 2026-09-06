@@ -117,20 +117,8 @@
   gap: 6px;
 }
 
-.for-you-suggested .section-label,
-.for-you-scouted .section-label {
+.for-you-suggested .section-label {
   margin: 0 0 2px;
-}
-
-.for-you-scouted {
-  position: relative;
-  display: grid;
-  gap: 6px;
-}
-
-.for-you-scouted-rows {
-  display: grid;
-  gap: 6px;
 }
 
 .next-action-head {
@@ -828,32 +816,5 @@
 
 .reply-pace-help-panel a {
   color: var(--accent);
-}
-
-.for-you-scouted.is-paced {
-  isolation: isolate;
-}
-
-.scouted-pace-cover {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 16px;
-  text-align: center;
-  background: color-mix(in srgb, var(--bg) 42%, transparent);
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
-}
-
-.scouted-pace-cover p {
-  margin: 0;
-  max-width: 22rem;
-  color: var(--text);
-  font-size: 0.82rem;
 }
 
