@@ -174,17 +174,14 @@ export function shouldRunAnalyticsMain(
   ) {
     return true;
   }
-  if (env.pm_id != null && argv1?.includes("ProcessContainerFork")) {
-    return true;
-  }
-  return false;
+  return env.XCOPILOT_ROLE === "analytics";
 }
 
 function main(): void {
   if (
     !loadEnv(resolve(process.cwd(), ".env"), {
       override: true,
-      protected: ["NODE_ENV", "PORT"],
+      protected: ["NODE_ENV", "PORT", "XCOPILOT_ROLE"],
     })
   ) {
     console.warn("[analytics] .env not found — Slack webhook unset, events will only log");

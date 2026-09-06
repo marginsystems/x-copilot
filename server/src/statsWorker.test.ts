@@ -41,21 +41,28 @@ describe("shouldRunStatsMain", () => {
     );
   });
 
-  it("returns true under PM2 ProcessContainerFork when pm_id is set", () => {
+  it("returns true under PM2 when XCOPILOT_ROLE=stats", () => {
     assert.equal(
       shouldRunStatsMain(
         "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
-        { pm_id: "1" },
+        { XCOPILOT_ROLE: "stats", pm_id: "1" },
       ),
       true,
     );
   });
 
-  it("returns false for ProcessContainerFork without pm_id", () => {
+  it("returns false for ProcessContainerFork without the stats role", () => {
     assert.equal(
       shouldRunStatsMain(
         "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
-        {},
+        { pm_id: "1" },
+      ),
+      false,
+    );
+    assert.equal(
+      shouldRunStatsMain(
+        "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
+        { XCOPILOT_ROLE: "api", pm_id: "0" },
       ),
       false,
     );

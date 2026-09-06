@@ -58,7 +58,7 @@ type DeskBeatsRow = {
   forkDone: number;
 };
 
-function emptyStoredBeats(): StoredDeskBeats {
+export function emptyDeskBeats(): StoredDeskBeats {
   return {
     scoutReplyDone: false,
     organicReplyDone: false,
@@ -83,7 +83,7 @@ export function getDeskBeats(opts: {
        WHERE user_id = ? AND day_utc = ?`,
     )
     .get(opts.userId, dayUtc) as DeskBeatsRow | undefined;
-  if (!row) return emptyStoredBeats();
+  if (!row) return emptyDeskBeats();
   return {
     scoutReplyDone: row.scoutReplyDone === 1,
     organicReplyDone: row.organicReplyDone === 1,

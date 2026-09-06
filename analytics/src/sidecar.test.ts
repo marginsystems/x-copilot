@@ -34,13 +34,30 @@ describe("shouldRunAnalyticsMain", () => {
     );
   });
 
-  it("returns true under PM2 ProcessContainerFork when pm_id is set", () => {
+  it("returns true under PM2 when XCOPILOT_ROLE=analytics", () => {
+    assert.equal(
+      shouldRunAnalyticsMain(
+        "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
+        { XCOPILOT_ROLE: "analytics", pm_id: "2" },
+      ),
+      true,
+    );
+  });
+
+  it("returns false for ProcessContainerFork without the analytics role", () => {
     assert.equal(
       shouldRunAnalyticsMain(
         "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
         { pm_id: "2" },
       ),
-      true,
+      false,
+    );
+    assert.equal(
+      shouldRunAnalyticsMain(
+        "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
+        { XCOPILOT_ROLE: "api", pm_id: "0" },
+      ),
+      false,
     );
   });
 

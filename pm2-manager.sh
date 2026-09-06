@@ -75,6 +75,17 @@ require_webhook_app() {
   fi
 }
 
+require_role_pins() {
+  for role in api stats analytics webhook; do
+    if ! grep -q "XCOPILOT_ROLE: \"$role\"" "$ECOSYSTEM"; then
+      echo "$ECOSYSTEM is missing the XCOPILOT_ROLE pin for $role." >&2
+      echo "Re-sync with the tracked example, keeping machine-local tweaks:" >&2
+      echo "  cp ecosystem.config.example.cjs ecosystem.config.cjs" >&2
+      exit 1
+    fi
+  done
+}
+
 cmd="${1:-status}"
 shift || true
 PROFILE="all"
@@ -180,13 +191,13 @@ setup_logrotate() {
 # A registration that predates the analytics sidecar move still points at
 # server/dist/analyticsService.js, so a restart would keep recycling the OLD
 # sidecar forever (crash-looping once server/dist is cleaned). Detect that by
-# comparing the stored script against the ecosystem entry and re-register
+# comparing the stored script and pinned role against the ecosystem entry and re-register
 # (delete+start) only when they differ; that keeps the one-time migration
 # while leaving steady-state recycling non-destructive.
 recycle_app() {
   local name="$1"
   if pm2 describe "$name" >/dev/null 2>&1; then
-    # Exit 0: stored script matches the ecosystem entry (restart in place).
+    # Exit 0: stored script and pinned role match the ecosystem entry (restart in place).
     # Exit 1: genuine mismatch (re-register, the one-time migration path).
     # Exit 2: comparison itself failed (pm2 jlist / config parse) or no
     # same-named process under this project root (foreign process from another
@@ -211,7 +222,10 @@ recycle_app() {
         process.exit(2);
       }
       const proc = stored.find((p) => p.name === name && p.pm2_env && p.pm2_env.pm_exec_path && p.pm2_env.pm_exec_path.startsWith(path.resolve(root) + path.sep));
-      process.exit(app && proc && proc.pm2_env.pm_exec_path === expected ? 0 : proc ? 1 : 2);
+      const storedRole = proc?.pm2_env.env?.XCOPILOT_ROLE;
+      const expectedRole = app?.env?.XCOPILOT_ROLE;
+      const roleMatches = storedRole !== undefined && expectedRole !== undefined && storedRole === expectedRole;
+      process.exit(app && proc && proc.pm2_env.pm_exec_path === expected && roleMatches ? 0 : proc ? 1 : 2);
     ' "$PWD" "$ECOSYSTEM" "$name" || rc=$?
     if [ "$rc" = "0" ] || [ "$rc" = "2" ]; then
       pm2 restart "$name" --update-env
@@ -227,6 +241,7 @@ recycle_app() {
 
 recycle_profile() {
   require_ecosystem
+  require_role_pins
   if needs_analytics_build; then
     require_analytics_app
   fi

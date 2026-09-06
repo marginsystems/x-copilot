@@ -7,14 +7,17 @@
  */
 import type { AuthUser } from "./authStore.js";
 
-export type AnalyticsEventName =
-  | "user.signup"
-  | "user.signin"
-  | "scout.takeoff"
-  | "scout.failed"
-  | "mark.interacted"
-  | "voice.suggest"
-  | "desk.post";
+export const ANALYTICS_EVENT_NAMES = [
+  "user.signup",
+  "user.signin",
+  "scout.takeoff",
+  "scout.failed",
+  "mark.interacted",
+  "voice.suggest",
+  "desk.post",
+] as const;
+
+export type AnalyticsEventName = (typeof ANALYTICS_EVENT_NAMES)[number];
 
 const POST_TIMEOUT_MS = 800;
 

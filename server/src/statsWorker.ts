@@ -370,7 +370,7 @@ async function main(): Promise<void> {
   if (
     !loadEnv(resolve(process.cwd(), ".env"), {
       override: true,
-      protected: ["NODE_ENV", "PORT"],
+      protected: ["NODE_ENV", "PORT", "XCOPILOT_ROLE"],
     })
   ) {
     console.error(
@@ -504,8 +504,9 @@ async function main(): Promise<void> {
 
 /**
  * Whether this process should start the hourly tick loop.
- * Direct `node …/statsWorker.js` works via argv; PM2 wraps the script in
- * ProcessContainerFork.js and sets `pm_id` — the old endsWith check missed that.
+ * Direct `node …/statsWorker.js` / `tsx …/statsWorker.ts` work via argv.
+ * PM2 wraps every fork-mode app in ProcessContainerFork.js, so that path
+ * is not a role signal — only XCOPILOT_ROLE=stats starts the loop there.
  */
 export function shouldRunStatsMain(
   argv1: string | undefined,
@@ -517,10 +518,7 @@ export function shouldRunStatsMain(
   ) {
     return true;
   }
-  if (env.pm_id != null && argv1?.includes("ProcessContainerFork")) {
-    return true;
-  }
-  return false;
+  return env.XCOPILOT_ROLE === "stats";
 }
 
 if (shouldRunStatsMain(process.argv[1], process.env)) {
