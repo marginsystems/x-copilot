@@ -263,7 +263,7 @@ export async function saveScoutCache(
  */
 export async function pruneThreadsFromScoutCache(
   threadIds: Iterable<string>,
-  opts: { userId: string },
+  opts: { userId: string; match?: "identity" | "id" },
 ): Promise<LastScoutSnapshot | null> {
   const userId = requireUserId(opts.userId);
   const remove = new Set(
@@ -276,7 +276,9 @@ export async function pruneThreadsFromScoutCache(
   return db.transaction((): LastScoutSnapshot | null => {
     const prev = readTank(userId);
     if (!prev) return null;
-    const threads = prev.threads.filter((t) => !hasConsumedIdentity(t, remove));
+    const threads = prev.threads.filter((t) =>
+      opts.match === "id" ? !remove.has(t.id) : !hasConsumedIdentity(t, remove),
+    );
     if (threads.length === prev.threads.length) return prev;
     const next: LastScoutSnapshot = { ...prev, threads };
     writeTank(userId, next);
