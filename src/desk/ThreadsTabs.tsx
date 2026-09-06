@@ -318,8 +318,8 @@ export function ThreadsTabs({
   }
 
   useEffect(() => {
-    if (!deskBootReady || locked || !authUser?.id) return;
-    const restored = readApproachLock(authUser.id);
+    if (!deskBootReady || locked) return;
+    const restored = readApproachLock(authUser?.id);
     if (restored) {
       restoredDoneForNowRef.current = restored.phase === "done_for_now";
       lockedRef.current = restored;
@@ -342,7 +342,7 @@ export function ThreadsTabs({
       scoutId: scout?.id ?? null,
       fallback: silentFallback,
     });
-    writeApproachLock(authUser.id, next);
+    writeApproachLock(authUser?.id, next);
     lockedRef.current = next;
     setLocked(next);
   }, [
