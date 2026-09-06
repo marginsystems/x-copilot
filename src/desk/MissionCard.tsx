@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { SuggestLocked } from "../VoiceCard";
 import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
@@ -108,8 +108,21 @@ export function MissionCard(props: {
 }) {
   if (props.phase === "needs_onboarding") return null;
 
+  const withReplyPace = (card: ReactNode) => (
+    <>
+      {card}
+      {props.remainingMs > 0 ? (
+        <ReplyPaceBar
+          clock={props.clock}
+          remainingMs={props.remainingMs}
+          onBypass={props.onBypass}
+        />
+      ) : null}
+    </>
+  );
+
   if (props.hold || props.phase === "hold") {
-    return (
+    return withReplyPace(
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb("hold")}</p>
         <div className="threads">
@@ -118,13 +131,6 @@ export function MissionCard(props: {
             onNext={props.onForYouNext}
           />
         </div>
-        {props.remainingMs > 0 ? (
-          <ReplyPaceBar
-            clock={props.clock}
-            remainingMs={props.remainingMs}
-            onBypass={props.onBypass}
-          />
-        ) : null}
       </div>
     );
   }
@@ -143,7 +149,7 @@ export function MissionCard(props: {
     } else if (action === "wait") {
       why = "Approach is holding.";
     }
-    return (
+    return withReplyPace(
       <div className="mission-card">
         <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
         <p className="mission-card-why">{why}</p>
@@ -198,7 +204,7 @@ export function MissionCard(props: {
         : null;
     const refillPending = scoutRefillPending(props.refillState);
     const why = phaseWhy(props.phase, props.coaching);
-    return (
+    return withReplyPace(
       <ApproachFrame
         verb={phaseVerb(props.phase, null, refillPending)}
         why={why}
@@ -262,7 +268,7 @@ export function MissionCard(props: {
     const row = props.suggestion;
     const why = phaseWhy(props.phase, props.coaching, row);
     const key = row ? `suggest:${row.id}` : null;
-    return (
+    return withReplyPace(
       <div className="mission-card">
         <p className="mission-card-verb">
           {phaseVerb(props.phase, row)}
@@ -301,7 +307,7 @@ export function MissionCard(props: {
 
   const refillPending = scoutRefillPending(props.refillState);
   const why = phaseWhy(props.phase, props.coaching);
-  return (
+  return withReplyPace(
     <div className="mission-card">
       <p className="mission-card-verb">
         {phaseVerb(props.phase, null, refillPending)}
