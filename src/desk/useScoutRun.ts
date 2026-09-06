@@ -69,7 +69,7 @@ export function useScoutRun({
   sourceThreadsRef,
 }: ScoutRunDeps) {
   const [searching, setSearching] = useState(false);
-  const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
+  const scoutLogRef = useRef<ScoutLogEntry[]>([]);
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
@@ -106,19 +106,17 @@ export function useScoutRun({
       ...(stage ? { stage } : {}),
     };
     setNowMs(atMs);
-    setScoutLog((prev) => {
-      const last = prev[prev.length - 1];
-      if (last?.message === message) {
-        const bumped = [...prev];
-        bumped[bumped.length - 1] = {
-          ...last,
-          at: entry.at,
-          ...(stage ? { stage } : {}),
-        };
-        return bumped;
-      }
-      return [...prev, entry].slice(-1000);
-    });
+    const prev = scoutLogRef.current;
+    const last = prev[prev.length - 1];
+    if (last?.message === message) {
+      prev[prev.length - 1] = {
+        ...last,
+        at: entry.at,
+        ...(stage ? { stage } : {}),
+      };
+      return;
+    }
+    scoutLogRef.current = [...prev, entry].slice(-1000);
   }
 
   function applyScoutEvent(ev: ScoutStreamEvent) {
