@@ -3,6 +3,7 @@ import { stripMediaShortlinksFromText } from "../lib/mediaText";
 import { formatAbsoluteTime, formatTimeAgo } from "../lib/timeAgo";
 import { XThreadView } from "../XThreadView";
 import { DeskRow } from "./DeskRow";
+import { ScoutTankMark } from "./ScoutTankMark";
 import { baitClass, baitRisk } from "./threadHelpers";
 import type { ThreadCard } from "./types";
 
@@ -63,6 +64,7 @@ export function ThreadRow({
       summary={thread.summary ?? displayText}
       meta={
         <>
+          <ScoutTankMark />
           <span>{thread.author}</span>
           {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
           {interacted ? (

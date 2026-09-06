@@ -454,6 +454,19 @@
   border-color: #3a5244;
 }
 
+.chip-scout-tank {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.chip-scout-tank svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
 /* Cream needs darker ink than the dark-theme pastels */
 [data-theme="light"] .row-meta {
   color: var(--text);
@@ -476,6 +489,11 @@
 [data-theme="light"] .chip-interacted {
   color: #2e5c42;
   border-color: #2e5c42;
+}
+
+[data-theme="light"] .chip-scout-tank {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 [data-theme="light"] .thread-row.kind-quote {
