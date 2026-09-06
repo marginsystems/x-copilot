@@ -265,7 +265,7 @@ export function ThreadsTabs({
     ? scoutCardsRef.current.get(locked.cardId) ?? null
     : null;
   const displayedScout =
-    phase === "done_for_now" && refillState === "landed"
+    phase === "done_for_now" && scout
       ? scout
       : lockedScout;
   const lockedRef = useRef(locked);
