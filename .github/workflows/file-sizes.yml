@@ -1,4 +1,4 @@
-# Cheap frontend-only ratchet. Does not run on server-only PRs.
+# Cheap line-count ratchet over src, server, and the sidecars.
 name: File sizes
 
 on:
@@ -6,12 +6,18 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - "src/**"
+      - "server/src/**"
+      - "webhook/src/**"
+      - "analytics/src/**"
       - "scripts/check-file-sizes.ts"
       - ".github/workflows/file-sizes.yml"
   push:
     branches: [main]
     paths:
       - "src/**"
+      - "server/src/**"
+      - "webhook/src/**"
+      - "analytics/src/**"
       - "scripts/check-file-sizes.ts"
       - ".github/workflows/file-sizes.yml"
 
