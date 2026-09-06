@@ -65,7 +65,7 @@ function missionProps(
   };
 }
 
-describe("Hold reply pace", () => {
+describe("Reply pace", () => {
   it("hides the pace bar when the hold clock has expired", () => {
     const html = renderToStaticMarkup(
       MissionCard(
@@ -95,6 +95,38 @@ describe("Hold reply pace", () => {
     assert.match(html, /reply-pace/);
     assert.match(html, /0:42/);
     assert.match(html, />Bypass</);
+  });
+
+  it("keeps the live pace clock under a Scout row", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "scout_reply",
+          scout: thread("live-scout", 42),
+          clock: "0:42",
+          remainingMs: 42_000,
+        }),
+      ),
+    );
+    assert.match(html, /live-scout/);
+    assert.match(html, /reply-pace/);
+    assert.match(html, /0:42/);
+  });
+
+  it("hides the pace bar under a Scout row when the clock expires", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "scout_reply",
+          scout: thread("expired-scout", 42),
+          clock: "0:00",
+          remainingMs: 0,
+        }),
+      ),
+    );
+    assert.match(html, /expired-scout/);
+    assert.doesNotMatch(html, /reply-pace/);
+    assert.doesNotMatch(html, /0:00/);
   });
 });
 
