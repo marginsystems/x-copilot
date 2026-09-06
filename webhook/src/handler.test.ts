@@ -143,7 +143,7 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.author, "@scout");
   });
 
-  it("attributes a child reply in the locked Scout conversation", async () => {
+  it("keeps an unrelated reply in the locked Scout conversation organic", async () => {
     setScoutApproachLock(userId, {
       id: "card-1",
       conversationId: "root-1",
@@ -163,10 +163,10 @@ describe("own reply interaction capture", () => {
         userId,
         { nowMs },
       ),
-      "scout",
+      "organic",
     );
     const [row] = await listInteractionHistory({ userId });
-    assert.equal(row?.threadId, "card-1");
+    assert.equal(row?.threadId, "other-child");
   });
 
   it("does not steal a reply from a foreign conversation", async () => {

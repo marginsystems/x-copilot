@@ -45,7 +45,10 @@ import { setGamificationSyncFailed } from "../../server/src/interactionSync.js";
 import { allowRate, clientIp } from "../../server/src/authGuard.js";
 import type { ParsedPostCreate } from "../../server/src/xActivity.js";
 import { replyMatchesLockedScout } from "../../server/src/replyMatchScout.js";
-import { getScoutApproachLock } from "../../server/src/scoutApproachLock.js";
+import {
+  getScoutApproachLock,
+  setScoutApproachLock,
+} from "../../server/src/scoutApproachLock.js";
 
 export async function markOwnReplyInteracted(
   parsed: ParsedPostCreate,
@@ -116,6 +119,9 @@ export async function markOwnReplyInteracted(
     inReplyToId: parsed.inReplyToId,
     nowMs: opts?.nowMs,
   });
+  if (matchedLock) {
+    setScoutApproachLock(userId, null);
+  }
   recordDeskReplyMarked({
     userId,
     source,

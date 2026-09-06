@@ -37,10 +37,9 @@ export function replyMatchesLockedScout(
   }
 
   return Boolean(
-    (replyInReplyToId &&
+    replyInReplyToId &&
       [cardId, cardInReplyToId, cardConversationId].includes(
         replyInReplyToId,
-      )) ||
-      (replyConversationId && conversationIds.has(replyConversationId)),
+      ),
   );
 }

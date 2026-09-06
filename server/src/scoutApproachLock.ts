@@ -8,6 +8,8 @@ import {
 } from "./httpJson.js";
 import { getSessionUser } from "./sessionCookie.js";
 
+const SCOUT_APPROACH_LOCK_TTL_MS = 24 * 60 * 60 * 1000;
+
 export type ScoutApproachLock = {
   id: string;
   conversationId: string | null;
@@ -27,7 +29,7 @@ export function getScoutApproachLock(
 ): ScoutApproachLock | null {
   const row = getPlatformDb()
     .prepare(
-      `SELECT card_id, conversation_id, in_reply_to_id, author, url, text
+      `SELECT card_id, conversation_id, in_reply_to_id, author, url, text, updated_at
        FROM scout_approach_locks WHERE user_id = ?`,
     )
     .get(userId) as
@@ -38,9 +40,20 @@ export function getScoutApproachLock(
         author: string | null;
         url: string | null;
         text: string | null;
+        updated_at: string;
       }
     | undefined;
   if (!row) return null;
+  const updatedAt = Date.parse(row.updated_at);
+  if (
+    !Number.isFinite(updatedAt) ||
+    Date.now() - updatedAt > SCOUT_APPROACH_LOCK_TTL_MS
+  ) {
+    getPlatformDb()
+      .prepare(`DELETE FROM scout_approach_locks WHERE user_id = ?`)
+      .run(userId);
+    return null;
+  }
   return {
     id: row.card_id,
     conversationId: row.conversation_id,

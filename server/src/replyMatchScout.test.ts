@@ -19,13 +19,13 @@ describe("replyMatchesLockedScout", () => {
     );
   });
 
-  it("matches a child in the card conversation", () => {
+  it("rejects an unrelated reply in the card conversation", () => {
     assert.equal(
       replyMatchesLockedScout(
         { inReplyToId: "other-child", conversationId: "root-1" },
         card,
       ),
-      true,
+      false,
     );
   });
 
