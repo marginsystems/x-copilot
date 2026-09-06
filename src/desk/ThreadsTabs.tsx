@@ -359,6 +359,7 @@ export function ThreadsTabs({
     const restoredInventory = restoredInventoryRef.current;
     if (!restoredInventory) {
       restoredInventoryRef.current = currentInventory;
+      armRefuel();
       return;
     }
     const hasNewInventory =
