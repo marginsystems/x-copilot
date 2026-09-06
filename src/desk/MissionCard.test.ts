@@ -125,6 +125,21 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /Scout landed\. Loading Approach\./);
   });
 
+  it("keeps a done-for-now scout visible during refill flight", () => {
+    const lead = thread("flying-lead", 42);
+    lead.summary = "A flying refill lead";
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          scout: lead,
+          refillState: "flying",
+        }),
+      ),
+    );
+    assert.match(html, /A flying refill lead/);
+    assert.doesNotMatch(html, /Scout is queued for takeoff\./);
+  });
+
   it("uses the shared frame for boot", () => {
     const html = renderToStaticMarkup(ApproachLoadingCard());
     assert.match(html, /class="mission-card approach-frame"/);
