@@ -50,13 +50,46 @@ export type CoachingSnapshot = {
 };
 
 export const INSTRUMENT_WINDOW = 2000;
-const INSTRUMENT_HISTORY_MS = 14 * 24 * 60 * 60 * 1000;
+export const INSTRUMENT_HISTORY_MS = 14 * 24 * 60 * 60 * 1000;
 
 export type InstrumentTimes = {
   replyAt: string[];
   originalAt: string[];
   postAt: string[];
 };
+
+function instrumentSinceMs(nowMs = Date.now()): number {
+  return nowMs - INSTRUMENT_HISTORY_MS;
+}
+
+function withinInstrumentHistory(at: string, sinceMs: number): boolean {
+  const parsed = Date.parse(at);
+  return Number.isFinite(parsed) && parsed >= sinceMs;
+}
+
+export async function loadNewestInstrumentTimes(opts: {
+  userId: string;
+  nowMs?: number;
+}): Promise<Pick<InstrumentTimes, "replyAt" | "postAt">> {
+  const sinceMs = instrumentSinceMs(opts.nowMs);
+  const history = await listInteractionHistory({
+    userId: opts.userId,
+    limit: 1,
+  });
+  return {
+    replyAt: history
+      .map((row) => row.postedAt ?? row.at)
+      .filter((at) => withinInstrumentHistory(at, sinceMs))
+      .slice(0, 1),
+    postAt: listOwnPostedAt({
+      userId: opts.userId,
+      kinds: ["original", "quote"],
+      limit: 1,
+    })
+      .filter((at) => withinInstrumentHistory(at, sinceMs))
+      .slice(0, 1),
+  };
+}
 
 export async function loadInstrumentTimes(opts: {
   userId: string;
@@ -66,9 +99,8 @@ export async function loadInstrumentTimes(opts: {
     userId: opts.userId,
     limit: INSTRUMENT_WINDOW,
   });
-  const sinceIso = new Date(
-    (opts.nowMs ?? Date.now()) - INSTRUMENT_HISTORY_MS,
-  ).toISOString();
+  const sinceMs = instrumentSinceMs(opts.nowMs);
+  const sinceIso = new Date(sinceMs).toISOString();
   const [deskOriginalAt, donePostAt] = [
     listDeskOriginalsSince(opts.userId, sinceIso),
     listDonePostActedAtSince(opts.userId, sinceIso),
@@ -97,7 +129,9 @@ export async function loadInstrumentTimes(opts: {
     }
   }
   return {
-    replyAt: history.map((row) => row.postedAt ?? row.at),
+    replyAt: history
+      .map((row) => row.postedAt ?? row.at)
+      .filter((at) => withinInstrumentHistory(at, sinceMs)),
     originalAt: originals
       .map((row) => row.at)
       .sort((a, b) => Date.parse(b) - Date.parse(a))
@@ -106,7 +140,7 @@ export async function loadInstrumentTimes(opts: {
       userId: opts.userId,
       kinds: ["original", "quote"],
       limit: INSTRUMENT_WINDOW,
-    }),
+    }).filter((at) => withinInstrumentHistory(at, sinceMs)),
   };
 }
 

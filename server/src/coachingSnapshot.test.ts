@@ -345,4 +345,50 @@ describe("buildCoachingSnapshot", () => {
     assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
     assert.equal(times.postAt.length, 2);
   });
+
+  it("caps reply and post instruments to the 14-day history window", async () => {
+    const oldMs = NOW_MS - 15 * 24 * 60 * 60 * 1000;
+    await markInteracted({
+      threadId: "old-reply",
+      author: "@old",
+      source: "manual",
+      userId: "u1",
+      postedAt: new Date(oldMs).toISOString(),
+      nowMs: oldMs,
+    });
+    await markInteracted({
+      threadId: "new-reply",
+      author: "@new",
+      source: "manual",
+      userId: "u1",
+      postedAt: new Date(NOW_MS).toISOString(),
+      nowMs: NOW_MS,
+    });
+    for (const [postId, postedAt] of [
+      ["old-post", new Date(oldMs).toISOString()],
+      ["new-post", new Date(NOW_MS).toISOString()],
+    ] as const) {
+      upsertOwnPost({
+        parsed: {
+          eventUuid: `evt-${postId}`,
+          xUserId: "99",
+          postId,
+          kind: "original",
+          text: postId,
+          postedAt,
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "desk",
+          metrics: {},
+        },
+        userId: "u1",
+        tenantId: "local",
+      });
+    }
+
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.replyAt, [new Date(NOW_MS).toISOString()]);
+    assert.deepEqual(times.postAt, [new Date(NOW_MS).toISOString()]);
+  });
 });

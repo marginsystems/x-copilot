@@ -9,6 +9,7 @@ import {
   coachingInstrumentFields,
   hashCoachingSnapshot,
   loadInstrumentTimes,
+  loadNewestInstrumentTimes,
 } from "./coachingSnapshot.js";
 import { listMissionsWithProgress } from "./dailyMissions.js";
 import { getDeskBeats } from "./deskBeats.js";
@@ -44,6 +45,22 @@ export async function tryHandleCoaching(
       nowMs,
     });
     const beats = getDeskBeats({ userId: user.id, nowMs });
+    if (url.searchParams.get("lite") === "1") {
+      const times = await loadNewestInstrumentTimes({
+        userId: user.id,
+        nowMs,
+      });
+      send(req, res, 200, {
+        ok: true,
+        dayUtc: snapshot.dayUtc,
+        beats,
+        postsToday: snapshot.postsToday,
+        originalsToday: snapshot.originalsToday,
+        replyAt: times.replyAt,
+        postAt: times.postAt,
+      });
+      return true;
+    }
     const inputsHash = hashCoachingSnapshot(snapshot);
     const [nextAction, missions, times] = await Promise.all([
       getOrRefreshNextAction({
@@ -58,7 +75,7 @@ export async function tryHandleCoaching(
         snapshot,
         nowMs,
       }),
-      loadInstrumentTimes({ userId: user.id }),
+      loadInstrumentTimes({ userId: user.id, nowMs }),
     ]);
     send(req, res, 200, {
       ok: true,
