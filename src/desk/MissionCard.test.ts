@@ -67,6 +67,39 @@ function missionProps(
   };
 }
 
+describe("Hold reply pace", () => {
+  it("hides the pace bar when the hold clock has expired", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "hold",
+          hold: true,
+          clock: "0:00",
+          remainingMs: 0,
+        }),
+      ),
+    );
+    assert.doesNotMatch(html, /reply-pace/);
+    assert.doesNotMatch(html, /0:00/);
+  });
+
+  it("keeps the live pace clock under the For You row", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "hold",
+          hold: true,
+          clock: "0:42",
+          remainingMs: 42_000,
+        }),
+      ),
+    );
+    assert.match(html, /reply-pace/);
+    assert.match(html, /0:42/);
+    assert.match(html, />Bypass</);
+  });
+});
+
 describe("Approach flight frame", () => {
   it("renders a busy thread row with the live flight line", () => {
     const html = renderToStaticMarkup(MissionCard(missionProps()));
