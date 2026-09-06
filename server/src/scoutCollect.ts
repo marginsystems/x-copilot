@@ -157,6 +157,7 @@ export async function runScoutCollect(opts: {
   const usedQueries = new Set<string>();
   const seenIds = new Set<string>();
   const countedDuplicateIds = new Set<string>();
+  const acceptedIds = new Set<string>();
   let searchCalls = 0;
   let usableAdditions = 0;
   let coolAdditions = 0;
@@ -523,7 +524,7 @@ export async function runScoutCollect(opts: {
         );
 
         let missingIdCount = 0;
-        let duplicateIdCount = 0;
+        const duplicateIds = new Set<string>();
         const fresh = result.threads.filter((t) => {
           if (!t.id) {
             missingIdCount += 1;
@@ -532,7 +533,7 @@ export async function runScoutCollect(opts: {
           if (seenIds.has(t.id)) {
             if (!countedDuplicateIds.has(t.id)) {
               countedDuplicateIds.add(t.id);
-              duplicateIdCount += 1;
+              duplicateIds.add(t.id);
             }
             return false;
           }
@@ -582,8 +583,6 @@ export async function runScoutCollect(opts: {
           { dropArticles, articleIds: articleConversationIds },
         );
 
-        rejectionCounts.duplicateOrMissingId +=
-          missingIdCount + duplicateIdCount;
         rejectionCounts.cooldown += afterCool.filteredCount;
         rejectionCounts.selfReply += afterSelf.selfReplyFilteredCount;
         rejectionCounts.links += afterLinks.linkFilteredCount;
@@ -635,8 +634,12 @@ export async function runScoutCollect(opts: {
             continue;
           }
           seenAuthors.add(key);
+          acceptedIds.add(t.id);
           bucket.push(t);
         }
+        rejectionCounts.duplicateOrMissingId +=
+          missingIdCount +
+          [...duplicateIds].filter((id) => acceptedIds.has(id)).length;
         rejectionCounts.authorDedupe += authorDedupeSkipped;
         rejectionCounts.authorless += authorlessSkipped;
         rejectionCounts.bucketFull += bucketFullSkipped;
