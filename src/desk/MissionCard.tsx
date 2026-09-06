@@ -66,8 +66,6 @@ function phaseVerb(
     return "Repost";
   }
   if (phase === "organic_reply") return "Suggested reply";
-  if (phase === "fork") return "Fork";
-  if (phase === "original") return "Original";
   if (phase === "silent_refuel") return "For You";
   if (phase === "done_for_now") return scouting ? "Scouting" : "Desk";
   return "Desk";
@@ -103,8 +101,6 @@ export function MissionCard(props: {
   onSuggestionPosted: (id: string) => void;
   onSuggestionSkip: (id: string) => void;
   onSuggestionDismiss: (id: string) => void;
-  onChooseFork: (choice: "original" | "reply") => void;
-  onOriginalPosted: () => void;
   onForYouNext?: () => void;
   onOpenVoice: () => void;
   onLinkX: () => void;
@@ -262,38 +258,7 @@ export function MissionCard(props: {
     );
   }
 
-  if (props.phase === "fork") {
-    const why = phaseWhy(props.phase, props.coaching);
-    return (
-      <div className="mission-card">
-        <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
-        <p className="mission-card-why">{why}</p>
-        <div className="row">
-          <button
-            type="button"
-            className="primary"
-            disabled={props.actionBusy}
-            onClick={() => props.onChooseFork("original")}
-          >
-            Original
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            disabled={props.actionBusy}
-            onClick={() => props.onChooseFork("reply")}
-          >
-            Another reply
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (
-    props.phase === "organic_reply" ||
-    (props.phase === "original" && props.suggestion?.kind === "post")
-  ) {
+  if (props.phase === "organic_reply") {
     const row = props.suggestion;
     const why = phaseWhy(props.phase, props.coaching, row);
     const key = row ? `suggest:${row.id}` : null;
@@ -342,26 +307,6 @@ export function MissionCard(props: {
         {phaseVerb(props.phase, null, refillPending)}
       </p>
       <p className="mission-card-why">{why}</p>
-      {props.phase === "original" ? (
-        <div className="row">
-          <a
-            className="primary"
-            href="https://x.com/intent/tweet"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open X
-          </a>
-          <button
-            type="button"
-            className="ghost"
-            disabled={props.actionBusy}
-            onClick={props.onOriginalPosted}
-          >
-            I posted on X
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

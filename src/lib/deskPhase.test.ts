@@ -141,40 +141,43 @@ describe("Approach lock", () => {
     }
   });
 
-  it("routes posted Suggested through Fork and Original", () => {
-    const fork = advanceApproach(
-      { phase: "organic_reply", cardId: "suggested-1", surface: null },
-      { type: "posted" },
-      inventory,
-    );
-    assert.deepEqual(fork, { phase: "fork", cardId: null, surface: null });
+  it("routes posted Suggested to the next scout, For You, or done_for_now", () => {
+    const posted = {
+      phase: "organic_reply",
+      cardId: "suggested-1",
+      surface: null,
+    } as const;
     assert.deepEqual(
-      advanceApproach(
-        fork,
-        { type: "fork", choice: "original" },
-        inventory,
-      ),
-      { phase: "original", cardId: null, surface: null },
-    );
-    assert.deepEqual(
-      advanceApproach(
-        fork,
-        { type: "fork", choice: "reply" },
-        inventory,
-      ),
+      advanceApproach(posted, { type: "posted" }, inventory),
       { phase: "scout_reply", cardId: "scout-2", surface: null },
     );
     assert.deepEqual(
       advanceApproach(
-        { phase: "original", cardId: null, surface: null },
+        posted,
         { type: "posted" },
-        inventory,
+        { scoutId: null, suggestionId: "suggested-2", canPresentForYou: false },
       ),
-      { phase: "scout_reply", cardId: "scout-2", surface: null },
+      { phase: "organic_reply", cardId: "suggested-2", surface: null },
     );
     assert.deepEqual(
       advanceApproach(
-        { phase: "organic_reply", cardId: "suggested-1", surface: null },
+        posted,
+        { type: "posted" },
+        { scoutId: null, suggestionId: "suggested-1", canPresentForYou: true },
+      ),
+      { phase: "silent_refuel", cardId: null, surface: "for_you" },
+    );
+    assert.deepEqual(
+      advanceApproach(
+        posted,
+        { type: "posted" },
+        { scoutId: null, suggestionId: "suggested-1", canPresentForYou: false },
+      ),
+      { phase: "done_for_now", cardId: null, surface: null },
+    );
+    assert.deepEqual(
+      advanceApproach(
+        posted,
         { type: "skip" },
         { scoutId: null, suggestionId: "suggested-1", canPresentForYou: false },
       ),

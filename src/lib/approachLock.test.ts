@@ -28,6 +28,18 @@ describe("Approach lock persistence", () => {
       parseApproachLock(JSON.stringify({ cardId: "1", surface: null })),
       null,
     );
+    assert.equal(
+      parseApproachLock(
+        JSON.stringify({ phase: "fork", cardId: null, surface: null }),
+      ),
+      null,
+    );
+    assert.equal(
+      parseApproachLock(
+        JSON.stringify({ phase: "original", cardId: null, surface: null }),
+      ),
+      null,
+    );
   });
 
   it("round-trips scout and organic reply locks per user", () => {

@@ -26,8 +26,6 @@ export function coachingMatchesCard(
     if (suggestionKind === "repost") return kind === "repost";
     return kind === "reply" || kind === "for_you";
   }
-  if (phase === "original") return kind === "original";
-  if (phase === "fork") return kind === "original" || kind === "reply";
   return false;
 }
 
@@ -62,12 +60,6 @@ export function phaseWhy(
   }
   if (phase === "organic_reply") {
     return "Open X. Reply to something you actually read. Mark it here.";
-  }
-  if (phase === "fork") {
-    return "Write an original, or one more reply.";
-  }
-  if (phase === "original") {
-    return "Compose one original.";
   }
   return "";
 }

@@ -62,11 +62,7 @@ import {
   pickApproachScout,
 } from "./MissionCard";
 import { useReplyPace } from "./useReplyPace";
-import {
-  postDeskForkChoice,
-  postDeskOriginalPosted,
-  type CoachingState,
-} from "../lib/coaching";
+import type { CoachingState } from "../lib/coaching";
 import type { DeskBeats } from "../lib/deskPhase";
 import { useDeskRowExit } from "./useDeskRowExit";
 import { ThreadsTabCount } from "./ThreadsTabCount";
@@ -164,9 +160,6 @@ export function ThreadsTabs({
   onDismiss,
   onRefreshCoaching,
   onHydrateInteracted,
-  setActionBusy,
-  setStatus,
-  onForkBeats,
 }: ThreadsTabsProps) {
   const pace = useReplyPace(coaching?.replyAt?.[0]);
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
@@ -727,42 +720,6 @@ export function ThreadsTabs({
                   armRefuel();
                 }
               });
-            }}
-            onChooseFork={(choice) => {
-              void (async () => {
-                setActionBusy(true);
-                try {
-                  const beats = await postDeskForkChoice(choice);
-                  if (!beats) {
-                    setStatus("Fork choice failed. Try again.");
-                    return;
-                  }
-                  onForkBeats(beats);
-                  advanceCard({ type: "fork", choice });
-                  armRefuel();
-                  await onRefreshCoaching();
-                } finally {
-                  setActionBusy(false);
-                }
-              })();
-            }}
-            onOriginalPosted={() => {
-              void (async () => {
-                setActionBusy(true);
-                try {
-                  const beats = await postDeskOriginalPosted();
-                  if (!beats) {
-                    setStatus("Could not record the original. Try again.");
-                    return;
-                  }
-                  onForkBeats(beats);
-                  advanceCard({ type: "posted" });
-                  armRefuel();
-                  await onRefreshCoaching();
-                } finally {
-                  setActionBusy(false);
-                }
-              })();
             }}
             onForYouNext={() => {
               clearForYouWait();
