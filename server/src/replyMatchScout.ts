@@ -38,8 +38,6 @@ export function replyMatchesLockedScout(
 
   return Boolean(
     replyInReplyToId &&
-      [cardId, cardInReplyToId, cardConversationId].includes(
-        replyInReplyToId,
-      ),
+      [cardId, cardInReplyToId].includes(replyInReplyToId),
   );
 }

@@ -29,6 +29,16 @@ describe("replyMatchesLockedScout", () => {
     );
   });
 
+  it("rejects a reply to the conversation root for a non-root card", () => {
+    assert.equal(
+      replyMatchesLockedScout(
+        { inReplyToId: "root-1", conversationId: "root-1" },
+        card,
+      ),
+      false,
+    );
+  });
+
   it("matches the card parent when conversation is unavailable", () => {
     assert.equal(
       replyMatchesLockedScout(
