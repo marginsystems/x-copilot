@@ -155,6 +155,14 @@ describe("Approach lock", () => {
       advanceApproach(
         posted,
         { type: "posted" },
+        { scoutId: null, suggestionId: "suggested-2", canPresentForYou: false },
+      ),
+      { phase: "organic_reply", cardId: "suggested-2", surface: null },
+    );
+    assert.deepEqual(
+      advanceApproach(
+        posted,
+        { type: "posted" },
         { scoutId: null, suggestionId: "suggested-1", canPresentForYou: true },
       ),
       { phase: "silent_refuel", cardId: null, surface: "for_you" },
