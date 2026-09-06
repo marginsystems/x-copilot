@@ -62,14 +62,14 @@ export function shouldRunWebhookMain(
   ) {
     return true;
   }
-  return env.pm_id != null && argv1?.includes("ProcessContainerFork") === true;
+  return env.XCOPILOT_ROLE === "webhook";
 }
 
 function main(): void {
   if (
     !loadEnv(resolve(process.cwd(), ".env"), {
       override: true,
-      protected: ["NODE_ENV", "PORT", "WEBHOOK_PORT"],
+      protected: ["NODE_ENV", "PORT", "WEBHOOK_PORT", "XCOPILOT_ROLE"],
     })
   ) {
     console.warn("[webhook] .env not found — X webhook credentials unavailable");

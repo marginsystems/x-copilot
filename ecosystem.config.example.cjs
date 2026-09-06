@@ -8,7 +8,9 @@
 // ecosystem.config.cjs is gitignored — do not commit machine-local copies.
 // Secrets live in .env and are read by each process via loadEnv at startup
 // (with override), so a recycle picks up rotated keys and stale ones cannot
-// stick. Only NODE_ENV/PORT are pinned here; loadEnv never overrides them.
+// stick. Only NODE_ENV/PORT/XCOPILOT_ROLE are pinned here; loadEnv never
+// overrides them. XCOPILOT_ROLE is what each sidecar main() requires — the
+// old ProcessContainerFork + pm_id fallback was true for every fork-mode app.
 //
 // Recycle one service with ./pm2-manager.sh restart api|stats|analytics|webhook.
 
@@ -51,6 +53,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: "8787",
+        XCOPILOT_ROLE: "api",
         ANALYTICS_URL: "http://127.0.0.1:8788",
         // BIND_HOST: "0.0.0.0", // only behind Cloudflare TLS; see docs/PUBLIC_DEPLOY.md
       },
@@ -67,6 +70,7 @@ module.exports = {
       time: true,
       env: {
         NODE_ENV: "production",
+        XCOPILOT_ROLE: "stats",
       },
       out_file: path.join(root, "logs", "x-copilot-stats.out.log"),
       error_file: path.join(root, "logs", "x-copilot-stats.err.log"),
@@ -82,6 +86,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: "8788",
+        XCOPILOT_ROLE: "analytics",
       },
       out_file: path.join(root, "logs", "x-copilot-analytics.out.log"),
       error_file: path.join(root, "logs", "x-copilot-analytics.err.log"),
@@ -97,6 +102,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         WEBHOOK_PORT: "8789",
+        XCOPILOT_ROLE: "webhook",
       },
       out_file: path.join(root, "logs", "x-copilot-webhook.out.log"),
       error_file: path.join(root, "logs", "x-copilot-webhook.err.log"),

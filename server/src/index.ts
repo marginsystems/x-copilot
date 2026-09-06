@@ -40,7 +40,7 @@ import { send } from "./httpJson.js";
 if (
   !loadEnv(resolve(process.cwd(), ".env"), {
     override: true,
-    protected: ["NODE_ENV", "PORT"],
+    protected: ["NODE_ENV", "PORT", "XCOPILOT_ROLE"],
   })
 ) {
   console.error(
