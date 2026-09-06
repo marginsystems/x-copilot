@@ -439,12 +439,12 @@ describe("tryHandleScout", () => {
           thread("low", { views: 99 }),
           thread("tagged", { flags: ["political"] }),
           thread("account", { author: "@ChatGPT" }),
-          thread("unknown-reply", {
-            views: 500,
-            isReply: true,
-            inReplyToId: "root",
-            opViews: undefined,
-            opParentDerived: false,
+          thread("unknown-root", {
+            author: "@op",
+            text: "The root post",
+            views: undefined,
+            conversationId: "unknown-root",
+            opParentDerived: true,
           }),
         ],
       },
@@ -457,7 +457,7 @@ describe("tryHandleScout", () => {
       (payload.snapshot?.threads as Array<{ id: string }>).map(
         (item) => item.id,
       ),
-      ["keep", "unknown-reply"],
+      ["keep", "unknown-root"],
     );
   });
 

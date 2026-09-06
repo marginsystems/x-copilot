@@ -41,7 +41,9 @@ export function retargetLeafToRoot(thread: ThreadCard): ThreadCard | null {
       : thread.opViews ?? thread.views,
     opAuthor: undefined,
     opText: undefined,
-    opParentDerived: undefined,
+    // Keep this marker so serve-time filters can preserve roots whose parent
+    // views were still unknown when the reply was flattened.
+    opParentDerived: thread.opParentDerived,
     opCharCount: undefined,
     opLongform: undefined,
     opViews: undefined,
