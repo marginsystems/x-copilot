@@ -17,17 +17,17 @@ export function admitScoutPage(opts: {
   added: number;
   authorDedupe: number;
   authorless: number;
-  bucketFull: number;
+  reserved: number;
 } {
   const before = opts.bucket.length;
   let authorDedupe = 0;
   let authorless = 0;
-  let bucketFull = 0;
+  let reserved = 0;
   for (let index = 0; index < opts.candidates.length; index += 1) {
     const thread = opts.candidates[index];
     if (opts.bucket.length >= opts.bucketSize) {
       const overflow = opts.candidates.slice(index);
-      bucketFull = overflow.length;
+      reserved = overflow.length;
       reserveScoutCandidates(opts.reserve, overflow);
       break;
     }
@@ -48,7 +48,7 @@ export function admitScoutPage(opts: {
     added: opts.bucket.length - before,
     authorDedupe,
     authorless,
-    bucketFull,
+    reserved,
   };
 }
 

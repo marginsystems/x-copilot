@@ -408,6 +408,7 @@ export async function runScoutCollect(opts: {
         addScoutRejectionCounts(rejectionCounts, {
           authorDedupe: drained.authorDedupe,
           authorless: drained.authorless,
+          blocked: drained.blocked,
         });
         if (bucket.length >= bucketSize) break;
         if (searchCalls >= MAX_SEARCH_CALLS) break;
@@ -584,7 +585,7 @@ export async function runScoutCollect(opts: {
             [...duplicateIds].filter((id) => acceptedIds.has(id)).length,
           authorDedupe: admitted.authorDedupe,
           authorless: admitted.authorless,
-          bucketFull: admitted.bucketFull,
+          reserved: admitted.reserved,
         });
 
         if (admitted.added > 0) {
