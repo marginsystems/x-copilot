@@ -14,7 +14,6 @@ import type { VoiceState } from "../lib/voice";
 import {
   ApproachFlightRow,
   ApproachFrame,
-  ApproachSkeletonRow,
 } from "./ApproachFrame";
 import { ForYouFeedRow } from "./ForYouFeedRow";
 import { ReplyPaceBar } from "./ReplyPaceBar";
@@ -28,16 +27,14 @@ export { pickApproachScout } from "./approachScout";
 
 export function ApproachLoadingCard() {
   return (
-    <ApproachFrame
-      verb="Approach"
-      why={
-        <span className="mission-skel mission-skel-summary" />
-      }
-      busy
-      status
+    <div
+      className="approach-panel-loader"
+      role="status"
+      aria-busy="true"
+      aria-label="Loading Approach"
     >
-      <ApproachSkeletonRow />
-    </ApproachFrame>
+      <span className="approach-panel-loader-mark" aria-hidden="true" />
+    </div>
   );
 }
 

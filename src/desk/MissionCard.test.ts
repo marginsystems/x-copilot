@@ -145,10 +145,13 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /Scout is queued for takeoff\./);
   });
 
-  it("uses the shared frame for boot", () => {
+  it("renders a busy panel loader without skeleton rows for boot", () => {
     const html = renderToStaticMarkup(ApproachLoadingCard());
-    assert.match(html, /class="mission-card approach-frame"/);
-    assert.match(html, /mission-skel-card/);
+    assert.match(html, /class="approach-panel-loader"/);
+    assert.match(html, /role="status"/);
+    assert.match(html, /aria-busy="true"/);
+    assert.match(html, /aria-label="Loading Approach"/);
+    assert.doesNotMatch(html, /mission-skel|thread-row|mission-card/);
   });
 
   it("keeps queued and waiting copy in the row slot", () => {

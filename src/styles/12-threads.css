@@ -33,39 +33,26 @@
   min-height: 0;
 }
 
-.mission-skel-card {
-  animation: none;
+.approach-panel-loader {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.mission-skel {
-  display: block;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--muted) 18%, var(--raised));
-  animation: mission-skel-pulse 1.4s ease-in-out infinite;
+.approach-panel-loader-mark {
+  width: 6px;
+  height: 6px;
+  background: var(--muted);
+  animation: approach-panel-loader-step 1.2s var(--ease-out) infinite;
 }
 
-.mission-skel-lead {
-  width: 1.4rem;
-  height: 0.9rem;
-}
-
-.mission-skel-summary {
-  width: 78%;
-  height: 0.85rem;
-}
-
-.mission-skel-meta {
-  width: 36%;
-  height: 0.72rem;
-}
-
-@keyframes mission-skel-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
+@keyframes approach-panel-loader-step {
+  0%, 100% {
+    transform: translateX(-6px);
   }
-  50% {
-    opacity: 1;
+  50%, 75% {
+    transform: translateX(6px);
   }
 }
 

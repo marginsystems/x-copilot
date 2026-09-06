@@ -60,20 +60,3 @@ export function ApproachFlightRow({
     </article>
   );
 }
-
-export function ApproachSkeletonRow() {
-  return (
-    <article className="thread-row mission-skel-card" aria-hidden="true">
-      <div className="row-head next-action-head">
-        <div className="row-lead bait">
-          <span className="mission-skel mission-skel-lead" />
-        </div>
-        <div className="row-main">
-          <span className="mission-skel mission-skel-summary" />
-          <span className="mission-skel mission-skel-meta" />
-        </div>
-        <div className="caret">+</div>
-      </div>
-    </article>
-  );
-}
