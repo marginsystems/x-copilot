@@ -18,7 +18,7 @@ import { emptyDeskBeats as apiEmptyDeskBeats } from "./deskBeats.ts";
 
 const require = createRequire(import.meta.url);
 const ecosystem = require("../../ecosystem.config.example.cjs") as {
-  apps: Array<{ name: string; env?: { XCOPILOT_ROLE?: string }> };
+  apps: { name: string; env?: { XCOPILOT_ROLE?: string } }[];
 };
 
 describe("mirrored SPA/API constants", () => {
