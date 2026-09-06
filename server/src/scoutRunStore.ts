@@ -41,6 +41,54 @@ export type ScoutRunRecord = ScoutRunRecordInput & {
   tenantId: string;
 };
 
+export function emptyScoutRejectionCounts(): ScoutRejectionCounts {
+  return {
+    duplicateOrMissingId: 0,
+    cooldown: 0,
+    selfReply: 0,
+    links: 0,
+    media: 0,
+    hashtags: 0,
+    language: 0,
+    emDash: 0,
+    profanity: 0,
+    automatedAccount: 0,
+    excludedAccount: 0,
+    views: 0,
+    articles: 0,
+    length: 0,
+    authorDedupe: 0,
+    authorless: 0,
+    bucketFull: 0,
+  };
+}
+
+export function addScoutRejectionCounts(
+  dest: ScoutRejectionCounts,
+  add: Partial<ScoutRejectionCounts>,
+): void {
+  for (const [key, value] of Object.entries(add) as [
+    keyof ScoutRejectionCounts,
+    number | undefined,
+  ][]) {
+    if (typeof value === "number") dest[key] += value;
+  }
+}
+
+export async function persistScoutRunRecordSafe(
+  save: (input: ScoutRunRecordInput) => void | Promise<void>,
+  input: ScoutRunRecordInput,
+): Promise<void> {
+  try {
+    await save(input);
+  } catch (err) {
+    console.error(
+      "Failed to persist Scout run record:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
 function compactCount(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
 }

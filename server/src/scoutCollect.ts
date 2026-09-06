@@ -8,10 +8,8 @@ import {
   getCooledAuthorKeys,
   getEverInteractedConversationIds,
 } from "./interactionStore.js";
-import {
-  filterThreadsByCooldown,
-  normalizeAuthorKey,
-} from "./interactionCooldown.js";
+import { normalizeAuthorKey } from "./interactionCooldown.js";
+import { applyScoutSearchHardFilters } from "./scoutCollectHardFilters.js";
 import { getBlockedConversationIds } from "./dismissalStore.js";
 import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {
@@ -38,8 +36,10 @@ import {
   withScoutSearchExclusions,
 } from "./scoutPolicy.js";
 import {
+  addScoutRejectionCounts,
+  emptyScoutRejectionCounts,
+  persistScoutRunRecordSafe,
   saveScoutRunRecord,
-  type ScoutRejectionCounts,
   type ScoutRunRecordInput,
 } from "./scoutRunStore.js";
 import { preferRootTargets } from "./scoutTarget.js";
@@ -51,20 +51,8 @@ import type {
   ScoutStopReason,
 } from "./scoutTypes.js";
 import {
-  filterAutomatedAccounts,
-  filterExcludedAccounts,
-  filterByLanguage,
-  filterEmDashes,
-  filterHashtags,
-  filterMinViews,
-  filterNativeMedia,
-  filterOutboundLinks,
-  filterProfanity,
   normalizeAvoidPrompt,
-  filterSelfReplies,
-  filterThreadsByLength,
   normalizePreferredLanguageCode,
-  collectArticleConversationIds,
   collectBaitConversationIds,
   replyUnderBaitConversation,
   resolveExcludedAccounts,
@@ -162,52 +150,27 @@ export async function runScoutCollect(opts: {
   let usableAdditions = 0;
   let coolAdditions = 0;
   let runPersisted = false;
-  const rejectionCounts: ScoutRejectionCounts = {
-    duplicateOrMissingId: 0,
-    cooldown: 0,
-    selfReply: 0,
-    links: 0,
-    media: 0,
-    hashtags: 0,
-    language: 0,
-    emDash: 0,
-    profanity: 0,
-    automatedAccount: 0,
-    excludedAccount: 0,
-    views: 0,
-    articles: 0,
-    length: 0,
-    authorDedupe: 0,
-    authorless: 0,
-    bucketFull: 0,
-  };
+  const rejectionCounts = emptyScoutRejectionCounts();
   const persistRun = async (
     stopReason: string,
     fallbackQueries: string[] = [],
   ): Promise<void> => {
     if (!userId || runPersisted) return;
     runPersisted = true;
-    try {
-      await doSaveRun({
-        id: runId,
-        userId,
-        sortieId: opts.sortieId,
-        startedAt,
-        finishedAt: new Date().toISOString(),
-        queries: usedQueries.size ? [...usedQueries] : fallbackQueries,
-        uniqueCandidateIds: seenIds.size,
-        rejectionCounts,
-        usableAdditions,
-        coolAdditions,
-        searchCalls,
-        stopReason,
-      });
-    } catch (err) {
-      console.error(
-        "Failed to persist Scout run record:",
-        err instanceof Error ? err.message : String(err),
-      );
-    }
+    await persistScoutRunRecordSafe(doSaveRun, {
+      id: runId,
+      userId,
+      sortieId: opts.sortieId,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      queries: usedQueries.size ? [...usedQueries] : fallbackQueries,
+      uniqueCandidateIds: seenIds.size,
+      rejectionCounts,
+      usableAdditions,
+      coolAdditions,
+      searchCalls,
+      stopReason,
+    });
   };
 
   const session = opts.session ?? getXApiCredsFromEnv();
@@ -540,86 +503,45 @@ export async function runScoutCollect(opts: {
           seenIds.add(t.id);
           return true;
         });
-        const afterCool = filterThreadsByCooldown(
-          fresh,
+        const page = applyScoutSearchHardFilters({
+          threads: fresh,
           cooled,
           blockedConversations,
-        );
-        const afterSelf = filterSelfReplies(afterCool.threads);
-        const afterLinks = filterOutboundLinks(afterSelf.threads, {
           dropOutboundLinks,
-        });
-        const afterMedia = filterNativeMedia(afterLinks.threads, {
           dropNativeMedia,
-        });
-        const afterHashtags = filterHashtags(afterMedia.threads, {
           dropHashtags,
-        });
-        const afterLang = filterByLanguage(afterHashtags.threads, preferredLanguage);
-        const afterEmDash = filterEmDashes(afterLang.threads, { dropEmDashes });
-        const afterProfanity = filterProfanity(afterEmDash.threads, {
+          preferredLanguage,
+          dropEmDashes,
           dropProfanity,
-        });
-        const afterAutomated = filterAutomatedAccounts(afterProfanity.threads, {
           dropAutomatedAccounts,
-        });
-        const afterExcludedAccounts = filterExcludedAccounts(
-          afterAutomated.threads,
           excludedAccounts,
-        );
-        for (const id of collectArticleConversationIds(
-          afterExcludedAccounts.threads,
-        )) {
-          articleConversationIds.add(id);
-        }
-        const afterMinViews = filterMinViews(afterExcludedAccounts.threads, {
+          articleConversationIds,
           filterByMinViews,
           minViews,
-          allowUnknownReplyViews: true,
-        });
-        const afterLen = filterThreadsByLength(
-          afterMinViews.threads,
           maxChars,
-          { dropArticles, articleIds: articleConversationIds },
-        );
-
-        rejectionCounts.cooldown += afterCool.filteredCount;
-        rejectionCounts.selfReply += afterSelf.selfReplyFilteredCount;
-        rejectionCounts.links += afterLinks.linkFilteredCount;
-        rejectionCounts.media += afterMedia.mediaFilteredCount;
-        rejectionCounts.hashtags += afterHashtags.hashtagFilteredCount;
-        rejectionCounts.language += afterLang.languageFilteredCount;
-        rejectionCounts.emDash += afterEmDash.emDashFilteredCount;
-        rejectionCounts.profanity += afterProfanity.profanityFilteredCount;
-        rejectionCounts.automatedAccount +=
-          afterAutomated.automatedFilteredCount;
-        rejectionCounts.excludedAccount +=
-          afterExcludedAccounts.excludedAccountFilteredCount;
-        rejectionCounts.views += afterMinViews.minViewsFilteredCount;
-        rejectionCounts.articles += afterLen.articleFilteredCount;
-        rejectionCounts.length +=
-          afterLen.filteredCount - afterLen.articleFilteredCount;
+          dropArticles,
+        });
+        addScoutRejectionCounts(rejectionCounts, page.rejections);
         funnelCounts.raw += result.threads.length;
         funnelCounts.afterDedupe += fresh.length;
-        funnelCounts.afterCooldown += afterCool.threads.length;
-        funnelCounts.afterSelfReply += afterSelf.threads.length;
-        funnelCounts.afterLinks += afterLinks.threads.length;
-        funnelCounts.afterLength += afterLen.threads.length;
-        linkFilteredTotal += afterLinks.linkFilteredCount;
-        emDashFilteredTotal += afterEmDash.emDashFilteredCount;
-        profanityFilteredTotal += afterProfanity.profanityFilteredCount;
-        automatedFilteredTotal += afterAutomated.automatedFilteredCount;
-        excludedAccountFilteredTotal +=
-          afterExcludedAccounts.excludedAccountFilteredCount;
-        languageFilteredTotal += afterLang.languageFilteredCount;
-        minViewsFilteredTotal += afterMinViews.minViewsFilteredCount;
+        funnelCounts.afterCooldown += page.afterCooldown;
+        funnelCounts.afterSelfReply += page.afterSelfReply;
+        funnelCounts.afterLinks += page.afterLinks;
+        funnelCounts.afterLength += page.afterLength;
+        linkFilteredTotal += page.linkFilteredCount;
+        emDashFilteredTotal += page.emDashFilteredCount;
+        profanityFilteredTotal += page.profanityFilteredCount;
+        automatedFilteredTotal += page.automatedFilteredCount;
+        excludedAccountFilteredTotal += page.excludedAccountFilteredCount;
+        languageFilteredTotal += page.languageFilteredCount;
+        minViewsFilteredTotal += page.minViewsFilteredCount;
         funnelCounts.minViewsFiltered = minViewsFilteredTotal;
 
         const beforeFill = bucket.length;
         let authorDedupeSkipped = 0;
         let authorlessSkipped = 0;
         let bucketFullSkipped = 0;
-        for (const t of afterLen.threads) {
+        for (const t of page.threads) {
           if (bucket.length >= bucketSize) {
             bucketFullSkipped += 1;
             continue;
@@ -637,12 +559,14 @@ export async function runScoutCollect(opts: {
           acceptedIds.add(t.id);
           bucket.push(t);
         }
-        rejectionCounts.duplicateOrMissingId +=
-          missingIdCount +
-          [...duplicateIds].filter((id) => acceptedIds.has(id)).length;
-        rejectionCounts.authorDedupe += authorDedupeSkipped;
-        rejectionCounts.authorless += authorlessSkipped;
-        rejectionCounts.bucketFull += bucketFullSkipped;
+        addScoutRejectionCounts(rejectionCounts, {
+          duplicateOrMissingId:
+            missingIdCount +
+            [...duplicateIds].filter((id) => acceptedIds.has(id)).length,
+          authorDedupe: authorDedupeSkipped,
+          authorless: authorlessSkipped,
+          bucketFull: bucketFullSkipped,
+        });
         const added = bucket.length - beforeFill;
 
         if (added > 0) {
@@ -656,16 +580,16 @@ export async function runScoutCollect(opts: {
               coolCount: 0,
               detail: {
                 raw: result.threads.length,
-                afterCooldown: afterCool.threads.length,
-                afterSelfReply: afterSelf.threads.length,
-                selfReplyFiltered: afterSelf.selfReplyFilteredCount,
-                afterLinks: afterLinks.threads.length,
-                linkFiltered: afterLinks.linkFilteredCount,
-                emDashFiltered: afterEmDash.emDashFilteredCount,
-                profanityFiltered: afterProfanity.profanityFilteredCount,
-                automatedFiltered: afterAutomated.automatedFilteredCount,
-                languageFiltered: afterLang.languageFilteredCount,
-                afterLength: afterLen.threads.length,
+                afterCooldown: page.afterCooldown,
+                afterSelfReply: page.afterSelfReply,
+                selfReplyFiltered: page.rejections.selfReply ?? 0,
+                afterLinks: page.afterLinks,
+                linkFiltered: page.linkFilteredCount,
+                emDashFiltered: page.emDashFilteredCount,
+                profanityFiltered: page.profanityFilteredCount,
+                automatedFiltered: page.automatedFilteredCount,
+                languageFiltered: page.languageFilteredCount,
+                afterLength: page.afterLength,
                 authorDedupeSkipped,
                 added,
               },
@@ -738,18 +662,18 @@ export async function runScoutCollect(opts: {
         if (!forTriageIds.has(t.id)) acceptedIds.delete(t.id);
       }
       funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
-      rejectionCounts.selfReply +=
-        afterHydrateSelf.selfReplyFilteredCount;
-      rejectionCounts.views += afterHydrateMinViews.minViewsFilteredCount;
-      rejectionCounts.links += afterHydrateLinks.linkFilteredCount;
-      rejectionCounts.media += afterHydrateMedia.mediaFilteredCount;
-      rejectionCounts.hashtags += afterHydrateHashtags.hashtagFilteredCount;
-      rejectionCounts.profanity +=
-        afterHydrateProfanity.profanityFilteredCount;
-      rejectionCounts.language += afterHydrateLang.languageFilteredCount;
-      rejectionCounts.articles += afterHydrateLen.articleFilteredCount;
-      rejectionCounts.length +=
-        afterHydrateLen.filteredCount - afterHydrateLen.articleFilteredCount;
+      addScoutRejectionCounts(rejectionCounts, {
+        selfReply: afterHydrateSelf.selfReplyFilteredCount,
+        views: afterHydrateMinViews.minViewsFilteredCount,
+        links: afterHydrateLinks.linkFilteredCount,
+        media: afterHydrateMedia.mediaFilteredCount,
+        hashtags: afterHydrateHashtags.hashtagFilteredCount,
+        profanity: afterHydrateProfanity.profanityFilteredCount,
+        language: afterHydrateLang.languageFilteredCount,
+        articles: afterHydrateLen.articleFilteredCount,
+        length:
+          afterHydrateLen.filteredCount - afterHydrateLen.articleFilteredCount,
+      });
       linkFilteredTotal += afterHydrateLinks.linkFilteredCount;
       profanityFilteredTotal += afterHydrateProfanity.profanityFilteredCount;
       minViewsFilteredTotal += afterHydrateMinViews.minViewsFilteredCount;
