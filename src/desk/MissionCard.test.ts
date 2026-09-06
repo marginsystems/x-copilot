@@ -110,6 +110,21 @@ describe("Approach flight frame", () => {
     assert.match(html, /A real landed summary/);
   });
 
+  it("fills a landed scout thread while the desk is done for now", () => {
+    const lead = thread("restored-lead", 42);
+    lead.summary = "A restored landed summary";
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          scout: lead,
+          refillState: "landed",
+        }),
+      ),
+    );
+    assert.match(html, /A restored landed summary/);
+    assert.doesNotMatch(html, /Scout landed\. Loading Approach\./);
+  });
+
   it("uses the shared frame for boot", () => {
     const html = renderToStaticMarkup(ApproachLoadingCard());
     assert.match(html, /class="mission-card approach-frame"/);

@@ -197,7 +197,10 @@ export function MissionCard(props: {
     (props.phase === "scout_reply" && props.scout) ||
     props.phase === "done_for_now"
   ) {
-    const thread = props.phase === "scout_reply" ? props.scout : null;
+    const thread =
+      props.phase === "scout_reply" || props.refillState === "landed"
+        ? props.scout
+        : null;
     const refillPending = scoutRefillPending(props.refillState);
     const why = phaseWhy(props.phase, props.coaching);
     return (
