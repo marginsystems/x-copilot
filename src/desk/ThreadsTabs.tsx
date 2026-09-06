@@ -249,9 +249,6 @@ export function ThreadsTabs({
   const holdForYouTask =
     (phase === "silent_refuel" || phase === "hold") &&
     locked?.surface === "for_you";
-  const lockedScout = locked?.cardId
-    ? scoutCardsRef.current.get(locked.cardId) ?? null
-    : null;
   const lockedSuggestion = locked?.cardId
     ? suggestionCardsRef.current.get(locked.cardId) ?? null
     : null;
@@ -264,6 +261,13 @@ export function ThreadsTabs({
     cooldownRemainingSec: searchCooldownRemaining,
     scoutCount: curatedThreads.length,
   });
+  const lockedScout = locked?.cardId
+    ? scoutCardsRef.current.get(locked.cardId) ?? null
+    : null;
+  const displayedScout =
+    phase === "done_for_now" && refillState === "landed"
+      ? scout
+      : lockedScout;
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
 
@@ -627,7 +631,7 @@ export function ThreadsTabs({
             onOpenUsage={onOpenUsage}
             onOpenSettings={onOpenSettings}
             coaching={coaching}
-            scout={lockedScout}
+            scout={displayedScout}
             suggestion={lockedSuggestion}
             refillState={refillState}
             flightLine={flightLine}
