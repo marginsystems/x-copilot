@@ -7,7 +7,10 @@ import {
   MissionCard,
   approachRefillLine,
 } from "./MissionCard";
-import type { ForYouSuggestion } from "../lib/forYou";
+import {
+  FYP_DETECTING_COPY,
+  type ForYouSuggestion,
+} from "../lib/forYou";
 import type { ThreadCard } from "./types";
 
 function thread(id: string, views: number): ThreadCard {
@@ -218,6 +221,22 @@ describe("Approach flight frame", () => {
     assert.match(html, /Open on X/);
     assert.match(html, />Skip</);
     assert.match(html, /Not interested/);
+    assert.match(html, new RegExp(FYP_DETECTING_COPY.replace(".", "\\.")));
+    assert.doesNotMatch(html, /I posted on X/);
+  });
+
+  it("keeps detecting visible when the locked scout thread is pruned", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "scout_reply",
+          scout: null,
+          refillState: "terminal_empty",
+        }),
+      ),
+    );
+    assert.match(html, new RegExp(FYP_DETECTING_COPY.replace(".", "\\.")));
+    assert.doesNotMatch(html, /You&#x27;re clean/);
     assert.doesNotMatch(html, /I posted on X/);
   });
 
