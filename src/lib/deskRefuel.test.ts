@@ -4,6 +4,9 @@ import {
   clearScoutTakeoffTried,
   markScoutTakeoffTried,
   readScoutTakeoffTried,
+  scoutRefillPending,
+  scoutRefillState,
+  shouldArmScoutRefill,
   shouldBackgroundScout,
 } from "./deskRefuel.ts";
 
@@ -67,6 +70,51 @@ describe("shouldBackgroundScout", () => {
       }),
       false,
     );
+  });
+});
+
+describe("Scout refill state", () => {
+  it("keeps an armed refill visible while queued, waiting, or flying", () => {
+    const refill = {
+      armed: true,
+      searching: false,
+      cooldownRemainingSec: 0,
+      scoutCount: 0,
+    };
+    assert.equal(scoutRefillState(refill), "queued");
+    assert.equal(
+      scoutRefillState({ ...refill, cooldownRemainingSec: 4 }),
+      "waiting",
+    );
+    assert.equal(
+      scoutRefillState({ ...refill, searching: true }),
+      "flying",
+    );
+    assert.equal(scoutRefillPending("queued"), true);
+    assert.equal(scoutRefillPending("waiting"), true);
+    assert.equal(scoutRefillPending("flying"), true);
+  });
+
+  it("distinguishes landed inventory from a terminal empty tank", () => {
+    const idle = {
+      armed: false,
+      searching: false,
+      cooldownRemainingSec: 0,
+      scoutCount: 1,
+    };
+    assert.equal(scoutRefillState(idle), "landed");
+    assert.equal(
+      scoutRefillState({ ...idle, scoutCount: 0 }),
+      "terminal_empty",
+    );
+    assert.equal(scoutRefillPending("landed"), false);
+    assert.equal(scoutRefillPending("terminal_empty"), false);
+  });
+
+  it("arms after Mark consumes the last usable Scout card", () => {
+    assert.equal(shouldArmScoutRefill(0), true);
+    assert.equal(shouldArmScoutRefill(1), true);
+    assert.equal(shouldArmScoutRefill(2), false);
   });
 });
 
