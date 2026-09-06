@@ -1,22 +1,58 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { keepByMinViews } from "./useDeskHistory.ts";
+import { keepCuratedByHistory } from "./useDeskHistory.ts";
 
-const enabled = { filterByMinViews: true, minViews: 100 };
-
-describe("keepByMinViews", () => {
-  it("drops an OP below the floor and keeps the inclusive floor", () => {
-    assert.equal(keepByMinViews({ views: 99 }, enabled), false);
-    assert.equal(keepByMinViews({ views: 100 }, enabled), true);
+describe("keepCuratedByHistory", () => {
+  it("hides consumed ids", () => {
+    const hidden = new Set(["used"]);
+    assert.equal(
+      keepCuratedByHistory(
+        { id: "used" },
+        (id) => hidden.has(id),
+        new Set(),
+      ),
+      false,
+    );
+    assert.equal(
+      keepCuratedByHistory(
+        { id: "fresh" },
+        (id) => hidden.has(id),
+        new Set(),
+      ),
+      true,
+    );
   });
 
-  it("keeps replies when OP views are unknown", () => {
-    assert.equal(keepByMinViews({ inReplyToId: "op" }, enabled), true);
+  it("hides blocked conversations and parents", () => {
+    const blocked = new Set(["root", "parent"]);
+    assert.equal(
+      keepCuratedByHistory(
+        { id: "reply-1", conversationId: "root" },
+        () => false,
+        blocked,
+      ),
+      false,
+    );
+    assert.equal(
+      keepCuratedByHistory(
+        { id: "reply-2", inReplyToId: "parent" },
+        () => false,
+        blocked,
+      ),
+      false,
+    );
   });
 
-  it("keeps every thread when the filter is disabled", () => {
-    const disabled = { filterByMinViews: false, minViews: 100 };
-    assert.equal(keepByMinViews({ views: 0 }, disabled), true);
-    assert.equal(keepByMinViews({}, disabled), true);
+  it("does not inspect settings-shaped thread fields", () => {
+    const parked = {
+      id: "parked",
+      views: 1,
+      flags: ["political"],
+      author: "@excluded",
+    };
+    assert.equal(
+      keepCuratedByHistory(parked, () => false, new Set()),
+      true,
+    );
   });
 });
