@@ -35,6 +35,7 @@ import {
   isCoolThread,
   withScoutSearchExclusions,
 } from "./scoutPolicy.js";
+import { ScoutCollectCursors } from "./scoutCollectCursors.js";
 import {
   addScoutRejectionCounts,
   emptyScoutRejectionCounts,
@@ -322,6 +323,7 @@ export async function runScoutCollect(opts: {
   let unhydratedReplyCount = 0;
   let queryIndex = 0;
   let replanned = false;
+  const queryCursors = new ScoutCollectCursors();
   let bucketAttempts = 0;
   let consecutiveZeroAdds = 0;
   let linkFilteredTotal = 0;
@@ -399,12 +401,13 @@ export async function runScoutCollect(opts: {
           if (!ok) break;
         }
 
-        // Stuck under bucket with no new survivors → broaden once early.
+        // Stuck under bucket with no new survivors → broaden once, then score
+        // the partial bucket instead of cycling paid pages.
         if (
-          !replanned &&
           bucket.length < bucketSize &&
           consecutiveZeroAdds >= Math.max(queries.length, 3)
         ) {
+          if (replanned) break;
           const ok = await maybeReplan("stalled");
           if (ok) continue;
         }
@@ -415,12 +418,25 @@ export async function runScoutCollect(opts: {
             // fresh list from replan
           } else if (queries.length > 0) {
             queryIndex = 0; // cycle existing queries
+            if (
+              !queryCursors.hasAvailable(
+                queries.map((query) => withScoutSearchExclusions(query)),
+              )
+            ) {
+              break;
+            }
           } else {
             break;
           }
         }
 
         if (queryIndex >= queries.length) break;
+
+        const query = queries[queryIndex];
+        queryIndex += 1;
+        const searchQuery = withScoutSearchExclusions(query);
+        const resume = queryCursors.resume(searchQuery);
+        if (!resume) continue;
 
         if (searchCalls > 0) {
           await doSleep(COLLECT_QUERY_DELAY_MS, opts.signal);
@@ -431,8 +447,6 @@ export async function runScoutCollect(opts: {
           break;
         }
 
-        const query = queries[queryIndex];
-        queryIndex += 1;
         searchCalls += 1;
         usedQueries.add(query);
 
@@ -452,9 +466,11 @@ export async function runScoutCollect(opts: {
         );
 
         const result = await doSearch({
-          query: withScoutSearchExclusions(query),
+          query: searchQuery,
           count: COLLECT_COUNT_PER_QUERY,
           maxPages: 1,
+          cursor: resume.cursor,
+          startTime: resume.startTime,
           expandReferenced: true,
           session,
           signal: opts.signal,
@@ -480,6 +496,7 @@ export async function runScoutCollect(opts: {
           continue;
         }
 
+        queryCursors.update(searchQuery, result.bottomCursor);
         track(
           "filtering",
           `Cand. ${bucket.length}/${bucketSize} · filters…`,

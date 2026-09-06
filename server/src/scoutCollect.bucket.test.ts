@@ -160,6 +160,7 @@ describe("runScoutCollect bucket loop", () => {
 
   it("discards zero-cool bucket and refills before stopping", async () => {
     let triageCalls = 0;
+    let searchCalls = 0;
     const id = { n: 0 };
 
     const result = await runScoutCollect({
@@ -171,12 +172,15 @@ describe("runScoutCollect bucket loop", () => {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
         saveScoutCache: async () => {},
-        searchTimeline: async () => ({
-          ok: true as const,
-          queryId: "test",
-          threads: fillBucket(id, 5),
-          bottomCursor: null,
-        }),
+        searchTimeline: async () => {
+          searchCalls += 1;
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: fillBucket(id, 5),
+            bottomCursor: `next-${searchCalls}`,
+          };
+        },
         hydrateReplyParents: async ({ threads }) => ({
           threads,
           unhydratedReplyCount: 0,
@@ -212,6 +216,7 @@ describe("runScoutCollect bucket loop", () => {
 
   it("excludes default supportive encouragement from cool and refills", async () => {
     let triageCalls = 0;
+    let searchCalls = 0;
     const id = { n: 0 };
 
     const result = await runScoutCollect({
@@ -223,12 +228,15 @@ describe("runScoutCollect bucket loop", () => {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
         saveScoutCache: async () => {},
-        searchTimeline: async () => ({
-          ok: true as const,
-          queryId: "test",
-          threads: fillBucket(id, 5),
-          bottomCursor: null,
-        }),
+        searchTimeline: async () => {
+          searchCalls += 1;
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: fillBucket(id, 5),
+            bottomCursor: `next-${searchCalls}`,
+          };
+        },
         hydrateReplyParents: async ({ threads }) => ({
           threads,
           unhydratedReplyCount: 0,
