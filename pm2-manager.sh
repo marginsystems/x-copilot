@@ -211,7 +211,9 @@ recycle_app() {
         process.exit(2);
       }
       const proc = stored.find((p) => p.name === name && p.pm2_env && p.pm2_env.pm_exec_path && p.pm2_env.pm_exec_path.startsWith(path.resolve(root) + path.sep));
-      const roleMatches = app && proc && proc.pm2_env.env?.XCOPILOT_ROLE === app.env?.XCOPILOT_ROLE;
+      const storedRole = proc?.pm2_env.env?.XCOPILOT_ROLE;
+      const expectedRole = app?.env?.XCOPILOT_ROLE;
+      const roleMatches = storedRole !== undefined && expectedRole !== undefined && storedRole === expectedRole;
       process.exit(app && proc && proc.pm2_env.pm_exec_path === expected && roleMatches ? 0 : proc ? 1 : 2);
     ' "$PWD" "$ECOSYSTEM" "$name" || rc=$?
     if [ "$rc" = "0" ] || [ "$rc" = "2" ]; then
