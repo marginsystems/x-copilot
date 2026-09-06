@@ -631,6 +631,7 @@ export function ThreadsTabs({
             onSuggestionPosted={(id) => {
               exitRow(id, `suggest:${id}`, async () => {
                 if (await actForYou(id, "done")) {
+                  await onRefreshCoaching();
                   advanceCard({ type: "posted" });
                   armRefuel();
                 }
@@ -693,6 +694,7 @@ export function ThreadsTabs({
               setForYouWait(null);
               advanceCard({ type: "next" });
               armRefuel();
+              void onRefreshCoaching();
             }}
             onOpenVoice={onOpenVoice}
             onLinkX={onLinkX}

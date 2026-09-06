@@ -74,7 +74,7 @@ export async function loadNewestInstrumentTimes(opts: {
   const sinceMs = instrumentSinceMs(opts.nowMs);
   const history = await listInteractionHistory({
     userId: opts.userId,
-    limit: 1,
+    limit: INSTRUMENT_WINDOW,
   });
   return {
     replyAt: history

@@ -11,6 +11,7 @@ import {
 import {
   buildCoachingSnapshot,
   loadInstrumentTimes,
+  loadNewestInstrumentTimes,
   originalsTodayCount,
 } from "./coachingSnapshot.ts";
 import { listMissionsWithProgress } from "./dailyMissions.ts";
@@ -390,5 +391,35 @@ describe("buildCoachingSnapshot", () => {
     const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
     assert.deepEqual(times.replyAt, [new Date(NOW_MS).toISOString()]);
     assert.deepEqual(times.postAt, [new Date(NOW_MS).toISOString()]);
+  });
+
+  it("finds an in-window reply past a newer out-of-window mark", async () => {
+    const oldPostedAt = new Date(
+      NOW_MS - 16 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const inWindowPostedAt = new Date(
+      NOW_MS - 2 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    await markInteracted({
+      threadId: "old-mark",
+      author: "@old",
+      source: "manual",
+      userId: "u1",
+      replyId: "old-reply",
+      postedAt: oldPostedAt,
+      nowMs: NOW_MS - 60 * 60 * 1000,
+    });
+    await markInteracted({
+      threadId: "new-mark",
+      author: "@new",
+      source: "manual",
+      userId: "u1",
+      replyId: "new-reply",
+      postedAt: inWindowPostedAt,
+      nowMs: NOW_MS - 2 * 24 * 60 * 60 * 1000,
+    });
+
+    const times = await loadNewestInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.replyAt, [inWindowPostedAt]);
   });
 });

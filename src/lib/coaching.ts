@@ -151,12 +151,18 @@ export function mergeCoachingState(
   opts?: CoachingFetchOptions,
 ): CoachingState {
   if (!opts?.lite || !current) return next;
+  const foldNewest = (currentValues: string[] | undefined, nextValues: string[]) =>
+    [...nextValues, ...(currentValues ?? [])]
+      .filter((value, index, values) => values.indexOf(value) === index)
+      .slice(0, 2000);
   return {
     ...current,
     ...next,
     nextAction: current.nextAction,
     missions: current.missions,
     originalAt: current.originalAt,
+    replyAt: foldNewest(current.replyAt, next.replyAt ?? []),
+    postAt: foldNewest(current.postAt, next.postAt ?? []),
   };
 }
 

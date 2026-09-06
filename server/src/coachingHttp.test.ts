@@ -14,6 +14,8 @@ import {
 import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { createSession } from "./sessionStore.ts";
+import { markInteracted } from "./interactionStore.ts";
+import { upsertOwnPost } from "./ownPostStore.ts";
 import type { ChatFn } from "./voiceLlm.ts";
 
 async function getCoaching(opts: {
@@ -54,6 +56,7 @@ describe("GET /api/coaching", () => {
   let dir: string;
   let cwd: string;
   let cookie: string;
+  let userId: string;
 
   beforeEach(() => {
     resetPlatformDbForTests();
@@ -69,6 +72,7 @@ describe("GET /api/coaching", () => {
       email: "coaching@example.com",
       emailVerified: true,
     });
+    userId = user.id;
     const { token } = createSession(user.id);
     cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
   });
@@ -105,6 +109,50 @@ describe("GET /api/coaching", () => {
     assert.equal("nextAction" in response.body, false);
     assert.equal("missions" in response.body, false);
     assert.equal("originalAt" in response.body, false);
+  });
+
+  it("returns the newest in-window lite instruments", async () => {
+    const nowMs = Date.now();
+    const newestPost = new Date(nowMs - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const oldPost = new Date(nowMs - 16 * 24 * 60 * 60 * 1000).toISOString();
+    await markInteracted({
+      threadId: "old-reply",
+      author: "@old",
+      userId,
+      postedAt: oldPost,
+      nowMs: nowMs - 60 * 60 * 1000,
+    });
+    await markInteracted({
+      threadId: "new-reply",
+      author: "@new",
+      userId,
+      postedAt: newestPost,
+      nowMs: nowMs - 2 * 24 * 60 * 60 * 1000,
+    });
+    for (const [postId, postedAt] of [["old-post", oldPost], ["new-post", newestPost]] as const) {
+      upsertOwnPost({
+        parsed: {
+          eventUuid: `evt-${postId}`,
+          xUserId: "99",
+          postId,
+          kind: "original",
+          text: postId,
+          postedAt,
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "desk",
+          metrics: {},
+        },
+        userId,
+        tenantId: "local",
+      });
+    }
+
+    const response = await getCoaching({ path: "/api/coaching?lite=1", cookie });
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.replyAt, [newestPost]);
+    assert.deepEqual(response.body.postAt, [newestPost]);
   });
 
   it("keeps the full coaching response and next-action refresh", async () => {

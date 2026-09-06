@@ -8,6 +8,7 @@ import {
   parseDeskBeats,
   parseNextAction,
 } from "./coaching.ts";
+import { hasDetectedForYouPost } from "./forYouTask.ts";
 
 describe("coaching parsers", () => {
   it("accepts a next-action card and daily missions", () => {
@@ -119,6 +120,40 @@ describe("coaching parsers", () => {
     assert.deepEqual(merged.originalAt, full.originalAt);
     assert.equal(merged.postsToday, 2);
     assert.deepEqual(merged.postAt, lite.postAt);
+  });
+
+  it("folds lite timestamps into full histories and detects newer activity", () => {
+    const full = parseCoachingPayload({
+      dayUtc: "2026-08-26",
+      beats: {},
+      replyAt: ["2026-08-26T10:00:00.000Z", "2026-08-26T09:00:00.000Z"],
+      postAt: ["2026-08-26T10:30:00.000Z"],
+    });
+    const lite = parseCoachingPayload({
+      dayUtc: "2026-08-26",
+      beats: {},
+      replyAt: ["2026-08-26T11:00:00.000Z"],
+      postAt: ["2026-08-26T11:30:00.000Z"],
+    });
+    assert.ok(full);
+    assert.ok(lite);
+    const merged = mergeCoachingState(full, lite, { lite: true });
+    assert.deepEqual(merged.replyAt, [
+      "2026-08-26T11:00:00.000Z",
+      "2026-08-26T10:00:00.000Z",
+      "2026-08-26T09:00:00.000Z",
+    ]);
+    assert.deepEqual(merged.postAt, [
+      "2026-08-26T11:30:00.000Z",
+      "2026-08-26T10:30:00.000Z",
+    ]);
+    assert.equal(
+      hasDetectedForYouPost(
+        { postsToday: 0, postAt: "2026-08-26T10:45:00.000Z", replyAt: null },
+        merged,
+      ),
+      true,
+    );
   });
 
   it("reads reply progress from the mark_2 mission, not the sentence", () => {
