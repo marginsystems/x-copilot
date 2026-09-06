@@ -12,7 +12,6 @@ import {
 import type { CoachingState } from "../lib/coaching";
 import type { ApproachLock, DeskPhase } from "../lib/deskPhase";
 import { approachCollectingCopy, phaseWhy } from "../lib/phaseWhy";
-import { preferRootTargets } from "../lib/scoutTarget";
 import type { VoiceState } from "../lib/voice";
 import { ForYouFeedRow } from "./ForYouFeedRow";
 import { ReplyPaceBar } from "./ReplyPaceBar";
@@ -24,7 +23,7 @@ import { watchDeskThreads } from "./watch";
 export { pickApproachSuggestion } from "../lib/approachCard";
 
 export function pickApproachScout(threads: ThreadCard[]): ThreadCard | null {
-  return preferRootTargets(threads)[0] ?? null;
+  return threads[0] ?? null;
 }
 
 export function ApproachLoadingCard() {

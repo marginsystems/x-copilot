@@ -56,7 +56,6 @@ import {
   MissionCard,
   pickApproachScout,
 } from "./MissionCard";
-import { preferRootTargets } from "../lib/scoutTarget";
 import { useReplyPace } from "./useReplyPace";
 import {
   postDeskForkChoice,
@@ -167,8 +166,7 @@ export function ThreadsTabs({
 }: ThreadsTabsProps) {
   const pace = useReplyPace(coaching?.replyAt?.[0]);
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
-  const scouted = preferRootTargets(curatedThreads);
-  const scout = pickApproachScout(scouted);
+  const scout = pickApproachScout(curatedThreads);
   const pendingDismissIdRef = useRef<string | null>(null);
   const pendingMarkIdRef = useRef<string | null>(null);
   const canPresentForYou = canPresentForYouTask({
@@ -234,7 +232,7 @@ export function ThreadsTabs({
   });
   const scoutCardsRef = useRef(new Map<string, ThreadCard>());
   const suggestionCardsRef = useRef(new Map<string, ForYouSuggestion>());
-  for (const row of scouted) scoutCardsRef.current.set(row.id, row);
+  for (const row of curatedThreads) scoutCardsRef.current.set(row.id, row);
   for (const row of forYouSuggestions) {
     suggestionCardsRef.current.set(row.id, row);
   }
@@ -268,7 +266,7 @@ export function ThreadsTabs({
       cooldownRemainingSec: searchCooldownRemaining,
       needsXLink: deskNeedsXLink(authUser),
       hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
-      scoutCount: scouted.length,
+      scoutCount: curatedThreads.length,
       alreadyTried: autoTriedRef.current,
     });
   const lockedRef = useRef(locked);
@@ -278,7 +276,7 @@ export function ThreadsTabs({
     const current = lockedRef.current;
     const next = advanceApproach(current, event, {
       scoutId:
-        scouted.find((row) => row.id !== current.cardId)?.id ?? null,
+        curatedThreads.find((row) => row.id !== current.cardId)?.id ?? null,
       suggestionId:
         (suggestion?.id !== current.cardId
           ? suggestion
@@ -365,7 +363,7 @@ export function ThreadsTabs({
     }
     const cardIsLive =
       (phase === "scout_reply" &&
-        scouted.some((row) => row.id === locked.cardId)) ||
+        curatedThreads.some((row) => row.id === locked.cardId)) ||
       (phase === "organic_reply" &&
         forYouSuggestions.some((row) => row.id === locked.cardId));
     if (!cardIsLive) {
@@ -392,7 +390,7 @@ export function ThreadsTabs({
     lockedScout,
     lockedSuggestion,
     phase,
-    scouted,
+    curatedThreads,
   ]);
 
   function armRefuel() {
@@ -417,7 +415,7 @@ export function ThreadsTabs({
         cooldownRemainingSec: searchCooldownRemaining,
         needsXLink: deskNeedsXLink(authUser),
         hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
-        scoutCount: scouted.length,
+        scoutCount: curatedThreads.length,
         alreadyTried: autoTriedRef.current,
       })
     ) {
