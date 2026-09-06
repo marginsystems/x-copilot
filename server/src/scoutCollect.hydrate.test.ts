@@ -504,7 +504,7 @@ describe("runScoutCollect hydrate", () => {
                   isReply: true,
                 }),
               ),
-              bottomCursor: null,
+              bottomCursor: "more-q1",
             };
           }
           if (searchCalls === 2) {
@@ -519,7 +519,7 @@ describe("runScoutCollect hydrate", () => {
                   isReply: true,
                 }),
               ),
-              bottomCursor: null,
+              bottomCursor: "more-q2",
             };
           }
           return {
