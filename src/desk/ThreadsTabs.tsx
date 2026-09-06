@@ -10,8 +10,6 @@ import {
   APPROACH_TAB_LABEL,
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
-  type ForYouExtraUsage,
-  type ForYouProgress,
   type ForYouSuggestion,
 } from "../lib/forYou";
 import { deskNeedsXLink } from "../lib/deskGate";
@@ -79,10 +77,7 @@ type ThreadsTabsProps = {
   setThreadsTab: (tab: ThreadsTab) => void;
   curatedThreads: ThreadCard[];
   forYouSuggestions: ForYouSuggestion[];
-  forYouProgress?: ForYouProgress | null;
-  forYouExtra?: ForYouExtraUsage | null;
   coaching?: CoachingState | null;
-  requestExtra?: () => void | Promise<void>;
   interactedHistory: InteractionHistoryEntry[];
   skippedHistory: SkipHistoryEntry[];
   dismissedHistory: DismissalHistoryEntry[];
@@ -126,10 +121,7 @@ export function ThreadsTabs({
   setThreadsTab,
   curatedThreads,
   forYouSuggestions,
-  forYouProgress,
-  forYouExtra,
   coaching,
-  requestExtra,
   interactedHistory,
   skippedHistory,
   dismissedHistory,
@@ -590,10 +582,7 @@ export function ThreadsTabs({
             forYouStatus={forYouStatus}
             onOpenUsage={onOpenUsage}
             onOpenSettings={onOpenSettings}
-            forYouProgress={forYouProgress}
-            forYouExtra={forYouExtra}
             coaching={coaching}
-            requestExtra={requestExtra}
             scout={lockedScout}
             suggestion={lockedSuggestion}
             searching={searching}

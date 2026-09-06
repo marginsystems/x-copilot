@@ -2,13 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { SuggestLocked } from "../VoiceCard";
 import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
-import {
-  extraButtonLabel,
-  showApproachExtra,
-  type ForYouExtraUsage,
-  type ForYouProgress,
-  type ForYouSuggestion,
-} from "../lib/forYou";
+import type { ForYouSuggestion } from "../lib/forYou";
 import type { CoachingState } from "../lib/coaching";
 import type { ApproachLock, DeskPhase } from "../lib/deskPhase";
 import { approachCollectingCopy, phaseWhy } from "../lib/phaseWhy";
@@ -46,12 +40,6 @@ export function ApproachLoadingCard() {
   );
 }
 
-export function pickApproachOriginal(
-  rows: ForYouSuggestion[],
-): ForYouSuggestion | null {
-  return rows.find((row) => row.kind === "post") ?? null;
-}
-
 function phaseVerb(
   phase: DeskPhase,
   suggestion?: ForYouSuggestion | null,
@@ -87,10 +75,7 @@ export function MissionCard(props: {
   forYouStatus?: string;
   onOpenUsage?: () => void;
   onOpenSettings?: () => void;
-  forYouProgress?: ForYouProgress | null;
-  forYouExtra?: ForYouExtraUsage | null;
   coaching?: CoachingState | null;
-  requestExtra?: () => void | Promise<void>;
   scout: ThreadCard | null;
   suggestion: ForYouSuggestion | null;
   searching?: boolean;
@@ -117,26 +102,6 @@ export function MissionCard(props: {
   onLinkX: () => void;
 }) {
   if (props.phase === "needs_onboarding") return null;
-
-  const extra = showApproachExtra({
-    extra: props.forYouExtra,
-    progress: props.forYouProgress,
-    phase: props.phase,
-    hasLiveCard: Boolean(props.scout || props.suggestion),
-  })
-    ? (
-      <div className="row">
-        <button
-          type="button"
-          className="primary"
-          disabled={props.actionBusy}
-          onClick={() => void props.requestExtra?.()}
-        >
-          {extraButtonLabel(props.forYouExtra!)}
-        </button>
-      </div>
-    )
-    : null;
 
   if (props.hold || props.phase === "hold") {
     return (
@@ -212,7 +177,6 @@ export function MissionCard(props: {
             />
           </div>
         ) : null}
-        {action === "wait" ? extra : null}
       </div>
     );
   }

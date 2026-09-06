@@ -3,9 +3,6 @@ import assert from "node:assert/strict";
 import {
   APPROACH_TAB_LABEL,
   approachEmptyCopy,
-  extraButtonLabel,
-  extrasUnlocked,
-  showApproachExtra,
   firstDigestWeekday,
   parseForYouExtra,
   forYouComposeSeed,
@@ -214,35 +211,5 @@ describe("forYou helpers", () => {
       creditsRemaining: 80,
       canExtra: true,
     });
-    assert.equal(extraButtonLabel(extra!), "3 more originals · 15 credits");
-    assert.equal(extrasUnlocked({ tracked: 4, needed: 5 }), false);
-    assert.equal(extrasUnlocked({ tracked: 5, needed: 5 }), true);
-    assert.equal(
-      showApproachExtra({
-        extra,
-        progress: { tracked: 5, needed: 5 },
-        phase: "scout_reply",
-        hasLiveCard: true,
-      }),
-      false,
-    );
-    assert.equal(
-      showApproachExtra({
-        extra,
-        progress: { tracked: 5, needed: 5 },
-        phase: "silent_refuel",
-        hasLiveCard: false,
-      }),
-      false,
-    );
-    assert.equal(
-      showApproachExtra({
-        extra: { ...extra!, canExtra: false },
-        progress: { tracked: 5, needed: 5 },
-        phase: "silent_refuel",
-        hasLiveCard: false,
-      }),
-      false,
-    );
   });
 });

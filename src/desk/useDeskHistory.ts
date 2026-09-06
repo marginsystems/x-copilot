@@ -420,35 +420,6 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     }
   }
 
-  async function requestExtra() {
-    setActionBusy(true);
-    try {
-      const res = await apiFetch("/api/for-you/extra", { method: "POST" });
-      const data = (await res.json().catch(() => ({}))) as {
-        message?: string;
-        suggestions?: unknown[];
-      };
-      const extra = parseForYouExtra(data);
-      if (extra) setForYouExtra(extra);
-      if (!res.ok) {
-        setStatus("Could not update Approach. Try again.");
-        return;
-      }
-      const rows = (Array.isArray(data.suggestions) ? data.suggestions : [])
-        .map(parseForYouSuggestion)
-        .filter((row): row is ForYouSuggestion => Boolean(row));
-      setForYouSuggestions((prev) => {
-        const seen = new Set(prev.map((row) => row.id));
-        return [...rows.filter((row) => !seen.has(row.id)), ...prev];
-      });
-      historyStaleRef.current = true;
-    } catch {
-      setStatus("Could not update Approach. Try again.");
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
   return {
     interactedIds,
     setInteractedIds,
@@ -478,6 +449,5 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     isHiddenFromCurated,
     keepInCurated,
     actForYou,
-    requestExtra,
   };
 }

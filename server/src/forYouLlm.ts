@@ -124,66 +124,6 @@ export async function draftForYouActions(opts: {
   return { ok: true, drafts: parsed };
 }
 
-export const FOR_YOU_EXTRA_SYSTEM = `You write 3 original X posts for this operator from live Scout threads, agenda, and voice.
-Return ONLY JSON:
-{"actions":[{"kind":"post","why":"one short clause, max 90 characters, grounded in a live Scout thread or the agenda","draft":"the original post"}]}
-Rules:
-- Exactly 3 kind=post items. draft required. no targetId.
-- Each draft is a NEW angle from LIVE_SCOUT or the agenda. Voice may echo BEST_24H. Do not name, rewrite, or "fix" an own post.
-- Each draft invites a reply — a real question, a stake they can cut, or a named other side. Not a slogan. Not "thoughts?".
-- Echo BEST_24H shape and their voice when BEST is non-empty (100+ views). If BEST is empty, write from agenda/voice — do not treat a sub-100 RECENT post as a winner. Do not revive AVOID_24H or SKIPPED_RECENT.
-- Never cite a view count. Never "sharper hook." Never "double down" on a specific old topic.
-- why talks to the operator in second person. Never first person. draft stays in their voice.
-- why is one short clause, max 90 characters. No second sentence.
-- Do not invent ids or urls. Do not auto-post. Plain language. No markdown fences.`;
-
-export async function draftForYouExtraPosts(opts: {
-  digest: ForYouDigest;
-  chat?: ChatFn;
-}): Promise<ForYouDraftResult> {
-  const chat = opts.chat ?? chatCompletions;
-  const user = buildUserPrompt(opts.digest);
-  const first = await chat({
-    purpose: "for_you_extra",
-    temperature: 0.5,
-    messages: [
-      { role: "system", content: FOR_YOU_EXTRA_SYSTEM },
-      { role: "user", content: user },
-    ],
-  });
-  if (!first.ok) return { ok: false, error: first.message };
-  let parsed = filterExtraPosts(extractJsonObject(first.content), opts.digest.skipped);
-  if (parsed.length >= 3) return { ok: true, drafts: parsed.slice(0, 3) };
-
-  const repair = await chat({
-    purpose: "for_you_extra_repair",
-    temperature: 0.3,
-    messages: [
-      { role: "system", content: FOR_YOU_EXTRA_SYSTEM },
-      { role: "user", content: user },
-      { role: "assistant", content: first.content },
-      {
-        role: "user",
-        content:
-          'Reply again with ONLY {"actions":[...]} using exactly 3 kind=post items from LIVE_SCOUT or the agenda. Each draft invites a reply. Do not rewrite an own post.',
-      },
-    ],
-  });
-  if (!repair.ok) return { ok: false, error: repair.message };
-  parsed = filterExtraPosts(
-    extractJsonObject(repair.content),
-    opts.digest.skipped,
-  );
-  if (parsed.length < 3) {
-    return {
-      ok: false,
-      error: "repair did not return 3 originals",
-      exhausted: true,
-    };
-  }
-  return { ok: true, drafts: parsed.slice(0, 3) };
-}
-
 export const FOR_YOU_SCOUT_ORIGINAL_SYSTEM = `You write ONE original X post from live Scout threads and the agenda.
 Return ONLY JSON:
 {"actions":[{"kind":"post","why":"one short clause, max 90 characters, grounded in a live Scout thread or the agenda","draft":"the original post"}]}
