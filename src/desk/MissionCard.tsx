@@ -21,10 +21,7 @@ import type { ThreadCard } from "./types";
 import { watchDeskThreads } from "./watch";
 
 export { pickApproachSuggestion } from "../lib/approachCard";
-
-export function pickApproachScout(threads: ThreadCard[]): ThreadCard | null {
-  return threads[0] ?? null;
-}
+export { pickApproachScout } from "./approachScout";
 
 export function ApproachLoadingCard() {
   return (

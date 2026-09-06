@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { pickApproachScout } from "./MissionCard.tsx";
-import type { ThreadCard } from "./types.ts";
+import { pickApproachScout } from "./approachScout";
+import type { ThreadCard } from "./types";
 
 function thread(id: string, views: number): ThreadCard {
   return {
