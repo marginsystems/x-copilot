@@ -839,6 +839,7 @@ export async function runScoutCollect(opts: {
             replyUnderBaitConversation(t, baitConversationIds)
           ) {
             purged = true;
+            coolAdditions -= 1;
             if (t.id) coolIds.delete(t.id);
             const key = normalizeAuthorKey(t.author);
             if (key) coolAuthors.delete(key);
