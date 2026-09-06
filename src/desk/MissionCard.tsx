@@ -118,11 +118,13 @@ export function MissionCard(props: {
             onNext={props.onForYouNext}
           />
         </div>
-        <ReplyPaceBar
-          clock={props.clock}
-          remainingMs={props.remainingMs}
-          onBypass={props.onBypass}
-        />
+        {props.remainingMs > 0 ? (
+          <ReplyPaceBar
+            clock={props.clock}
+            remainingMs={props.remainingMs}
+            onBypass={props.onBypass}
+          />
+        ) : null}
       </div>
     );
   }
