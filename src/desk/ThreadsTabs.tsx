@@ -116,7 +116,7 @@ type ThreadsTabsProps = {
   onMark: (thread: ThreadCard) => void;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
-  onRefreshCoaching: () => void | Promise<void>;
+  onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
   setActionBusy: (busy: boolean) => void;
   setStatus: (status: string) => void;
   onForkBeats: (beats: DeskBeats) => void;
@@ -212,7 +212,7 @@ export function ThreadsTabs({
   useEffect(() => {
     if (!forYouHeld) return;
     const interval = window.setInterval(() => {
-      void refreshCoachingRef.current();
+      void refreshCoachingRef.current({ lite: true });
     }, 12_000);
     return () => window.clearInterval(interval);
   }, [forYouHeld]);
@@ -631,6 +631,7 @@ export function ThreadsTabs({
             onSuggestionPosted={(id) => {
               exitRow(id, `suggest:${id}`, async () => {
                 if (await actForYou(id, "done")) {
+                  await onRefreshCoaching();
                   advanceCard({ type: "posted" });
                   armRefuel();
                 }
@@ -693,6 +694,7 @@ export function ThreadsTabs({
               setForYouWait(null);
               advanceCard({ type: "next" });
               armRefuel();
+              void onRefreshCoaching();
             }}
             onOpenVoice={onOpenVoice}
             onLinkX={onLinkX}

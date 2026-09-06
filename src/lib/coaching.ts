@@ -47,6 +47,8 @@ export type CoachingState = {
   postAt?: string[];
 };
 
+export type CoachingFetchOptions = { lite?: boolean };
+
 const KINDS = new Set<string>(NEXT_ACTION_KINDS);
 
 function finiteNonNeg(n: unknown): number | null {
@@ -143,9 +145,32 @@ function parseIsoList(raw: unknown): string[] {
     .slice(0, 2000);
 }
 
-export async function fetchCoaching(): Promise<CoachingState | null> {
+export function mergeCoachingState(
+  current: CoachingState | null,
+  next: CoachingState,
+  opts?: CoachingFetchOptions,
+): CoachingState {
+  if (!opts?.lite || !current) return next;
+  const foldNewest = (currentValues: string[] | undefined, nextValues: string[]) =>
+    [...nextValues, ...(currentValues ?? [])]
+      .filter((value, index, values) => values.indexOf(value) === index)
+      .slice(0, 2000);
+  return {
+    ...current,
+    ...next,
+    nextAction: current.nextAction,
+    missions: current.missions,
+    originalAt: current.originalAt,
+    replyAt: foldNewest(current.replyAt, next.replyAt ?? []),
+    postAt: foldNewest(current.postAt, next.postAt ?? []),
+  };
+}
+
+export async function fetchCoaching(
+  opts?: CoachingFetchOptions,
+): Promise<CoachingState | null> {
   try {
-    const res = await apiFetch("/api/coaching");
+    const res = await apiFetch(`/api/coaching${opts?.lite ? "?lite=1" : ""}`);
     if (!res.ok) return null;
     return parseCoachingPayload(await res.json());
   } catch {

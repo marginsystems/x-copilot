@@ -1,5 +1,10 @@
 import { useRef, useState } from "react";
-import { fetchCoaching, type CoachingState } from "../lib/coaching";
+import {
+  fetchCoaching,
+  mergeCoachingState,
+  type CoachingFetchOptions,
+  type CoachingState,
+} from "../lib/coaching";
 import { peekDeskBootCache } from "../lib/deskBoot";
 import { useRehydrateOnVisible } from "./useDeskHistory";
 
@@ -13,12 +18,12 @@ export function useCoaching() {
     setCoaching(next);
   }
 
-  async function hydrateCoaching() {
+  async function hydrateCoaching(opts?: CoachingFetchOptions) {
     const seq = ++requestSeqRef.current;
-    const next = await fetchCoaching();
+    const next = await fetchCoaching(opts);
     if (seq !== requestSeqRef.current) return;
     if (!next) return;
-    applyCoaching(next);
+    setCoaching((current) => mergeCoachingState(current, next, opts));
   }
 
   useRehydrateOnVisible(hydrateCoaching);

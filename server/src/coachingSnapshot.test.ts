@@ -11,6 +11,7 @@ import {
 import {
   buildCoachingSnapshot,
   loadInstrumentTimes,
+  loadNewestInstrumentTimes,
   originalsTodayCount,
 } from "./coachingSnapshot.ts";
 import { listMissionsWithProgress } from "./dailyMissions.ts";
@@ -344,5 +345,81 @@ describe("buildCoachingSnapshot", () => {
     });
     assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
     assert.equal(times.postAt.length, 2);
+  });
+
+  it("caps reply and post instruments to the 14-day history window", async () => {
+    const oldMs = NOW_MS - 15 * 24 * 60 * 60 * 1000;
+    await markInteracted({
+      threadId: "old-reply",
+      author: "@old",
+      source: "manual",
+      userId: "u1",
+      postedAt: new Date(oldMs).toISOString(),
+      nowMs: oldMs,
+    });
+    await markInteracted({
+      threadId: "new-reply",
+      author: "@new",
+      source: "manual",
+      userId: "u1",
+      postedAt: new Date(NOW_MS).toISOString(),
+      nowMs: NOW_MS,
+    });
+    for (const [postId, postedAt] of [
+      ["old-post", new Date(oldMs).toISOString()],
+      ["new-post", new Date(NOW_MS).toISOString()],
+    ] as const) {
+      upsertOwnPost({
+        parsed: {
+          eventUuid: `evt-${postId}`,
+          xUserId: "99",
+          postId,
+          kind: "original",
+          text: postId,
+          postedAt,
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "desk",
+          metrics: {},
+        },
+        userId: "u1",
+        tenantId: "local",
+      });
+    }
+
+    const times = await loadInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.replyAt, [new Date(NOW_MS).toISOString()]);
+    assert.deepEqual(times.postAt, [new Date(NOW_MS).toISOString()]);
+  });
+
+  it("finds an in-window reply past a newer out-of-window mark", async () => {
+    const oldPostedAt = new Date(
+      NOW_MS - 16 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const inWindowPostedAt = new Date(
+      NOW_MS - 2 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    await markInteracted({
+      threadId: "old-mark",
+      author: "@old",
+      source: "manual",
+      userId: "u1",
+      replyId: "old-reply",
+      postedAt: oldPostedAt,
+      nowMs: NOW_MS - 60 * 60 * 1000,
+    });
+    await markInteracted({
+      threadId: "new-mark",
+      author: "@new",
+      source: "manual",
+      userId: "u1",
+      replyId: "new-reply",
+      postedAt: inWindowPostedAt,
+      nowMs: NOW_MS - 2 * 24 * 60 * 60 * 1000,
+    });
+
+    const times = await loadNewestInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
+    assert.deepEqual(times.replyAt, [inWindowPostedAt]);
   });
 });
