@@ -2,6 +2,7 @@
  * Streaming Scout collector — fill a hard-filtered bucket, then LLM-qualify.
  * Discard/refill on zero cool; keep cools and refill until cool target or exhausted.
  */
+import { randomUUID } from "node:crypto";
 import {
   getAuthorKeysForScoutFilter,
   getCooledAuthorKeys,
@@ -36,6 +37,11 @@ import {
   isCoolThread,
   withScoutSearchExclusions,
 } from "./scoutPolicy.js";
+import {
+  saveScoutRunRecord,
+  type ScoutRejectionCounts,
+  type ScoutRunRecordInput,
+} from "./scoutRunStore.js";
 import { preferRootTargets } from "./scoutTarget.js";
 import type {
   ScoutCollectEvent,
@@ -104,6 +110,7 @@ export type ScoutCollectDeps = {
   /** @deprecated use getBlockedConversationIds */
   getEverInteractedConversationIds?: typeof getEverInteractedConversationIds;
   saveScoutCache?: typeof saveScoutCache;
+  saveScoutRunRecord?: (record: ScoutRunRecordInput) => void | Promise<void>;
   hydrateReplyParents?: typeof hydrateReplyParents;
   sleep?: typeof sleep;
   /**
@@ -121,6 +128,8 @@ export async function runScoutCollect(opts: {
   bucketSize?: number;
   /** Desk user whose cooldowns, blocked conversations, and tank this run uses. */
   userId?: string;
+  /** Daily takeoff associated with this run, when one was claimed. */
+  sortieId?: string;
   session?: XApiCreds;
   signal?: AbortSignal;
   onEvent?: (event: ScoutCollectEvent) => void;
@@ -138,13 +147,68 @@ export async function runScoutCollect(opts: {
     deps.getEverInteractedConversationIds ??
     getBlockedConversationIds;
   const doSaveCache = deps.saveScoutCache ?? saveScoutCache;
+  const doSaveRun = deps.saveScoutRunRecord ?? saveScoutRunRecord;
   const doHydrate = deps.hydrateReplyParents ?? hydrateReplyParents;
   const doSleep = deps.sleep ?? sleep;
   // Store-backed deps require a user; stubs ignore it.
   const userId = opts.userId?.trim() ?? "";
+  const runId = randomUUID();
+  const startedAt = new Date().toISOString();
+  const usedQueries = new Set<string>();
+  const seenIds = new Set<string>();
+  let searchCalls = 0;
+  let usableAdditions = 0;
+  let coolAdditions = 0;
+  let runPersisted = false;
+  const rejectionCounts: ScoutRejectionCounts = {
+    duplicateOrMissingId: 0,
+    cooldown: 0,
+    selfReply: 0,
+    links: 0,
+    media: 0,
+    hashtags: 0,
+    language: 0,
+    emDash: 0,
+    profanity: 0,
+    automatedAccount: 0,
+    excludedAccount: 0,
+    views: 0,
+    articles: 0,
+    length: 0,
+    authorDedupe: 0,
+  };
+  const persistRun = async (
+    stopReason: string,
+    fallbackQueries: string[] = [],
+  ): Promise<void> => {
+    if (!userId || runPersisted) return;
+    runPersisted = true;
+    try {
+      await doSaveRun({
+        id: runId,
+        userId,
+        sortieId: opts.sortieId,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        queries: usedQueries.size ? [...usedQueries] : fallbackQueries,
+        uniqueCandidateIds: seenIds.size,
+        rejectionCounts,
+        usableAdditions,
+        coolAdditions,
+        searchCalls,
+        stopReason,
+      });
+    } catch (err) {
+      console.error(
+        "Failed to persist Scout run record:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  };
 
   const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.bearerToken) {
+    await persistRun("missing_credentials", opts.queries);
     return {
       ok: false,
       status: 401,
@@ -187,6 +251,7 @@ export async function runScoutCollect(opts: {
 
   if (queries.length === 0) {
     if (!agenda) {
+      await persistRun("missing_agenda");
       return {
         ok: false,
         status: 400,
@@ -195,6 +260,7 @@ export async function runScoutCollect(opts: {
       };
     }
     if (!deepseekConfigured()) {
+      await persistRun("missing_llm_key");
       return {
         ok: false,
         status: 503,
@@ -205,6 +271,7 @@ export async function runScoutCollect(opts: {
     track("planning", "Scout is planning search queries (deepseek)…");
     const plan = await doPlan(agenda);
     if (aborted()) {
+      await persistRun("aborted", queries);
       const done = track("done", "Scout stopped.", {
         threads: [],
         coolCount: 0,
@@ -215,6 +282,7 @@ export async function runScoutCollect(opts: {
     }
     if (!plan.ok) {
       track("error", `Scout failed: ${plan.message}`);
+      await persistRun(plan.error, queries);
       return {
         ok: false,
         status: 502,
@@ -270,7 +338,6 @@ export async function runScoutCollect(opts: {
       : await doGetConversationIds({ userId });
 
   let cool: ThreadCard[] = [];
-  const seenIds = new Set<string>();
   /** Per-run author dedupe (first kept wins across bucket refills). */
   const seenAuthors = new Set<string>();
   const coolAuthors = new Set<string>();
@@ -286,7 +353,6 @@ export async function runScoutCollect(opts: {
   let creditStopped = false;
   let terminalError: string | undefined;
   let unhydratedReplyCount = 0;
-  let searchCalls = 0;
   let queryIndex = 0;
   let replanned = false;
   let bucketAttempts = 0;
@@ -401,6 +467,7 @@ export async function runScoutCollect(opts: {
         const query = queries[queryIndex];
         queryIndex += 1;
         searchCalls += 1;
+        usedQueries.add(query);
 
         track(
           "searching",
@@ -500,6 +567,24 @@ export async function runScoutCollect(opts: {
           { dropArticles, articleIds: articleConversationIds },
         );
 
+        rejectionCounts.duplicateOrMissingId +=
+          result.threads.length - fresh.length;
+        rejectionCounts.cooldown += afterCool.filteredCount;
+        rejectionCounts.selfReply += afterSelf.selfReplyFilteredCount;
+        rejectionCounts.links += afterLinks.linkFilteredCount;
+        rejectionCounts.media += afterMedia.mediaFilteredCount;
+        rejectionCounts.hashtags += afterHashtags.hashtagFilteredCount;
+        rejectionCounts.language += afterLang.languageFilteredCount;
+        rejectionCounts.emDash += afterEmDash.emDashFilteredCount;
+        rejectionCounts.profanity += afterProfanity.profanityFilteredCount;
+        rejectionCounts.automatedAccount +=
+          afterAutomated.automatedFilteredCount;
+        rejectionCounts.excludedAccount +=
+          afterExcludedAccounts.excludedAccountFilteredCount;
+        rejectionCounts.views += afterMinViews.minViewsFilteredCount;
+        rejectionCounts.articles += afterLen.articleFilteredCount;
+        rejectionCounts.length +=
+          afterLen.filteredCount - afterLen.articleFilteredCount;
         funnelCounts.raw += result.threads.length;
         funnelCounts.afterDedupe += fresh.length;
         funnelCounts.afterCooldown += afterCool.threads.length;
@@ -528,6 +613,7 @@ export async function runScoutCollect(opts: {
           seenAuthors.add(key);
           bucket.push(t);
         }
+        rejectionCounts.authorDedupe += authorDedupeSkipped;
         const added = bucket.length - beforeFill;
 
         if (added > 0) {
@@ -619,6 +705,18 @@ export async function runScoutCollect(opts: {
         minViews,
       });
       funnelCounts.afterHydrateSelfReply += afterHydrateSelf.threads.length;
+      rejectionCounts.selfReply +=
+        afterHydrateSelf.selfReplyFilteredCount;
+      rejectionCounts.views += afterHydrateMinViews.minViewsFilteredCount;
+      rejectionCounts.links += afterHydrateLinks.linkFilteredCount;
+      rejectionCounts.media += afterHydrateMedia.mediaFilteredCount;
+      rejectionCounts.hashtags += afterHydrateHashtags.hashtagFilteredCount;
+      rejectionCounts.profanity +=
+        afterHydrateProfanity.profanityFilteredCount;
+      rejectionCounts.language += afterHydrateLang.languageFilteredCount;
+      rejectionCounts.articles += afterHydrateLen.articleFilteredCount;
+      rejectionCounts.length +=
+        afterHydrateLen.filteredCount - afterHydrateLen.articleFilteredCount;
       linkFilteredTotal += afterHydrateLinks.linkFilteredCount;
       profanityFilteredTotal += afterHydrateProfanity.profanityFilteredCount;
       minViewsFilteredTotal += afterHydrateMinViews.minViewsFilteredCount;
@@ -685,6 +783,7 @@ export async function runScoutCollect(opts: {
           },
         },
       );
+      usableAdditions += forTriage.length;
 
       const triaged = await doTriage({
         agenda,
@@ -764,6 +863,7 @@ export async function runScoutCollect(opts: {
         coolIds.add(t.id);
         coolAuthors.add(key);
       }
+      coolAdditions += cool.length - coolBefore;
       track("partial", `Cool ${cool.length}/${targetCool}`, {
         threads: newlyCool,
         coolCount: cool.length,
@@ -816,6 +916,7 @@ export async function runScoutCollect(opts: {
     } else {
       const message = err instanceof Error ? err.message : String(err);
       track("error", `Scout failed: ${message}`);
+      await persistRun("collect_failed", queries);
       return {
         ok: false,
         status: 500,
@@ -840,6 +941,7 @@ export async function runScoutCollect(opts: {
               ? "Scout stopped — X API rate limit reached (quota window exhausted); retry after it resets."
               : `Scout finished — ${cool.length} cool thread${cool.length === 1 ? "" : "s"} (supply exhausted).`;
 
+  await persistRun(stopReason, queries);
   const linkWarning = linkFilteredTotal
     ? `Dropped ${linkFilteredTotal} posts with outbound links.`
     : undefined;
