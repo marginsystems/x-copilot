@@ -119,6 +119,7 @@ describe("GET /api/coaching", () => {
       threadId: "old-reply",
       author: "@old",
       userId,
+      replyId: "old-reply",
       postedAt: oldPost,
       nowMs: nowMs - 60 * 60 * 1000,
     });
@@ -126,6 +127,7 @@ describe("GET /api/coaching", () => {
       threadId: "new-reply",
       author: "@new",
       userId,
+      replyId: "new-reply",
       postedAt: newestPost,
       nowMs: nowMs - 2 * 24 * 60 * 60 * 1000,
     });
