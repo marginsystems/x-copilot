@@ -7,6 +7,7 @@ import {
   MissionCard,
   approachRefillLine,
 } from "./MissionCard";
+import type { ForYouSuggestion } from "../lib/forYou";
 import type { ThreadCard } from "./types";
 
 function thread(id: string, views: number): ThreadCard {
@@ -64,6 +65,16 @@ function missionProps(
     ...overrides,
   };
 }
+
+const suggestedReply: ForYouSuggestion = {
+  id: "suggested-reply",
+  kind: "reply",
+  why: "A suggested reply",
+  draft: null,
+  targetId: null,
+  targetUrl: null,
+  targetAuthor: null,
+};
 
 describe("Reply pace", () => {
   it("hides the pace bar when the hold clock has expired", () => {
@@ -125,6 +136,38 @@ describe("Reply pace", () => {
       ),
     );
     assert.match(html, /expired-scout/);
+    assert.doesNotMatch(html, /reply-pace/);
+    assert.doesNotMatch(html, /0:00/);
+  });
+
+  it("keeps the live pace clock under a Suggested row", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: suggestedReply,
+          clock: "0:42",
+          remainingMs: 42_000,
+        }),
+      ),
+    );
+    assert.match(html, /suggested-reply/);
+    assert.match(html, /reply-pace/);
+    assert.match(html, /0:42/);
+  });
+
+  it("hides the pace bar under a Suggested row when the clock expires", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: suggestedReply,
+          clock: "0:00",
+          remainingMs: 0,
+        }),
+      ),
+    );
+    assert.match(html, /suggested-reply/);
     assert.doesNotMatch(html, /reply-pace/);
     assert.doesNotMatch(html, /0:00/);
   });
