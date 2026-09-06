@@ -151,7 +151,7 @@ describe("Reply pace", () => {
         }),
       ),
     );
-    assert.match(html, /suggested-reply/);
+    assert.match(html, /Suggested reply/);
     assert.match(html, /reply-pace/);
     assert.match(html, /0:42/);
   });
@@ -167,7 +167,7 @@ describe("Reply pace", () => {
         }),
       ),
     );
-    assert.match(html, /suggested-reply/);
+    assert.match(html, /Suggested reply/);
     assert.doesNotMatch(html, /reply-pace/);
     assert.doesNotMatch(html, /0:00/);
   });
