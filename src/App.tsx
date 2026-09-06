@@ -4,23 +4,12 @@ import {
   type AppSettings,
 } from "./lib/settings";
 import { apiFetch, isLocalHostname } from "./lib/apiBase";
-import { authErrorMessage } from "./lib/authErrors";
 import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
 import { UserMenu } from "./UserMenu";
 import { BootScreen, Landing } from "./Landing";
 import { SignInModal } from "./SignInModal";
-import { LegalPage } from "./Legal";
-import { PricingPage } from "./Pricing";
-import { ChangelogPage } from "./Changelog";
-import { LearnPage } from "./Learn";
-import { LearnHubPage } from "./LearnHub";
-import { LearnReplyPage } from "./LearnReply";
-import { LearnVolumePage } from "./LearnVolume";
-import { LearnGivePage } from "./LearnGive";
-import { LearnFollowPage } from "./LearnFollow";
 import { CookieConsent } from "./CookieConsent";
-import { isLegalKind } from "./lib/legal";
-import { isPublicView, viewFromPath } from "./lib/appView";
+import { isPublicView } from "./lib/appView";
 import { groundedHint } from "./lib/upgradeCta";
 import { Onboarding } from "./Onboarding";
 import { LinkXGate } from "./LinkXGate";
@@ -28,7 +17,6 @@ import { deskNeedsXLink, showDeskXGate } from "./lib/deskGate";
 import {
   consumeOnboardingPreviewQuery,
   needsOnboardingWizard,
-  readOnboardingAgenda,
   readOnboardingComplete,
 } from "./lib/onboarding";
 import { OnboardingPreviewBar } from "./OnboardingPreview";
@@ -49,6 +37,7 @@ import { MarkDetectModal } from "./desk/MarkDetectModal";
 import { Toast } from "./desk/Toast";
 import { useMarkDetect } from "./desk/useMarkDetect";
 import { useAgendaPersist } from "./desk/useAgendaPersist";
+import { useDeskBoot } from "./desk/useDeskBoot";
 import { useScoutRun } from "./desk/useScoutRun";
 import { useSkipDismiss } from "./desk/useSkipDismiss";
 import { SettingsForm } from "./settings/SettingsForm";
@@ -59,6 +48,7 @@ import { useAdmin } from "./admin/useAdmin";
 import { useAuthSession } from "./auth/useAuthSession";
 import { useBilling } from "./billing/useBilling";
 import { useViewRouting } from "./routing/useViewRouting";
+import { PublicPages } from "./routing/PublicPages";
 import { AppHeader } from "./chrome/AppHeader";
 import { MenuDrawer } from "./chrome/MenuDrawer";
 import { useMenu } from "./chrome/useMenu";
@@ -66,20 +56,9 @@ import { DeskTop } from "./desk/DeskTop";
 import { ThreadsTabs } from "./desk/ThreadsTabs";
 import { useActivityStrip } from "./desk/useActivityStrip";
 import { useCoaching } from "./desk/useCoaching";
-import {
-  clearDeskBootCache,
-  fetchDeskBoot,
-  peekDeskBootCache,
-  writeDeskBootCache,
-  type DeskBootDesk,
-} from "./lib/deskBoot";
+import { peekDeskBootCache } from "./lib/deskBoot";
 
 export default function App() {
-  const [agendaReady, setAgendaReady] = useState(false);
-  const [deskBootReady, setDeskBootReady] = useState(false);
-  const [onboardingSeedAgenda, setOnboardingSeedAgenda] = useState<
-    string | null
-  >(null);
   const cachedBoot = peekDeskBootCache();
   const [agenda, setAgenda] = useState(
     () =>
@@ -244,6 +223,40 @@ export default function App() {
     },
     sourceThreadsRef,
   });
+  const { agendaReady, deskBootReady, onboardingSeedAgenda } = useDeskBoot({
+    dedupeAccounts: settings.dedupeAccounts,
+    setAgenda,
+    setAuthNotice,
+    setBillingNotice,
+    setView,
+    setSignInOpen,
+    applyAuthUser,
+    hydrateAuth,
+    applyDesk: (desk) => {
+      applyHistoryFromBoot(desk);
+      applyStripFromBoot(desk);
+      applyCoaching(desk.coaching);
+      applyLastScoutFromBoot(desk.lastScout);
+    },
+    hydrateDeskWithoutBoot: async (onboarded) => {
+      await Promise.all([
+        hydrateDismissed(),
+        hydrateSkipped(),
+        hydrateInteracted(),
+        hydrateExpired(),
+        hydrateForYou(),
+        hydrateGamification(),
+        onboarded ? hydrateLastScout() : Promise.resolve(),
+      ]);
+    },
+    confirmCheckout,
+    hydrateCoaching,
+    hydrateActivityStats,
+    loadBilling,
+    hydrateVoice,
+    loadUsage,
+    loadAdmin,
+  });
   const needsLogin = authChecked && authRequired && !authUser && !localUi;
   const needsOnboarding = needsOnboardingWizard({
     needsLogin,
@@ -311,122 +324,6 @@ export default function App() {
       // Sidecar may be offline on first paint — voice stays hidden.
     }
   }
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const err = authErrorMessage(params.get("auth_error"));
-    if (err) {
-      setAuthNotice(err);
-    } else if (params.get("auth") === "ok") setAuthNotice("Signed in.");
-    const checkout = params.get("checkout");
-    const sessionId = params.get("session_id");
-    if (checkout === "success") {
-      setView("usage");
-      setBillingNotice("Checkout complete — confirming your plan…");
-    } else if (checkout === "cancel") {
-      setView("usage");
-      setBillingNotice("Checkout canceled.");
-    }
-    if (params.has("auth_error") || params.has("auth") || params.has("checkout") || params.has("session_id")) {
-      params.delete("auth_error");
-      params.delete("auth");
-      params.delete("checkout");
-      params.delete("session_id");
-      const path = checkout ? "/usage" : window.location.pathname;
-      const next = `${path}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
-      window.history.replaceState({}, "", next);
-    }
-    void (async () => {
-      const applyUser = (user: typeof authUser) => {
-        const onboarded = user
-          ? user.onboardingCompleted
-          : readOnboardingComplete();
-        if (user?.agenda) {
-          setAgenda(user.agenda);
-          setOnboardingSeedAgenda(null);
-          readOnboardingAgenda(user.id);
-        } else {
-          const storedAgenda = readOnboardingAgenda(user?.id);
-          if (storedAgenda) {
-            setAgenda(storedAgenda);
-            if (!onboarded) setOnboardingSeedAgenda(storedAgenda);
-          }
-        }
-        setAgendaReady(true);
-        return onboarded;
-      };
-
-      const applyDesk = (desk: DeskBootDesk) => {
-        applyHistoryFromBoot(desk);
-        applyStripFromBoot(desk);
-        applyCoaching(desk.coaching);
-        applyLastScoutFromBoot(desk.lastScout);
-      };
-
-      const refreshAfterPaint = (user: typeof authUser) => {
-        void hydrateCoaching();
-        void hydrateActivityStats();
-        void loadBilling();
-        if (user) {
-          ensureActivitySubscribe();
-          void hydrateVoice();
-        }
-        if (viewFromPath(window.location.pathname) === "usage" || checkout) {
-          void loadUsage();
-        }
-        if (viewFromPath(window.location.pathname) === "admin" && user?.isAdmin) {
-          void loadAdmin();
-        }
-      };
-
-      const boot = await fetchDeskBoot(settings.dedupeAccounts);
-      if (boot.status === "ok") {
-        const user = applyAuthUser(boot.payload.user, boot.payload.authRequired);
-        if (err && !user) setSignInOpen(true);
-        applyUser(user);
-        if (boot.payload.desk) {
-          applyDesk(boot.payload.desk);
-          writeDeskBootCache(boot.payload);
-        } else {
-          clearDeskBootCache();
-        }
-        if (checkout === "success" && sessionId) {
-          await confirmCheckout(sessionId);
-        }
-        refreshAfterPaint(user);
-        setDeskBootReady(true);
-        return;
-      }
-
-      if (boot.status === "unauthenticated") {
-        applyAuthUser(null, boot.authRequired);
-        clearDeskBootCache();
-        if (err) setSignInOpen(true);
-        applyUser(null);
-        setDeskBootReady(true);
-        return;
-      }
-
-      clearDeskBootCache();
-      const user = await hydrateAuth();
-      if (err && !user) setSignInOpen(true);
-      const onboarded = applyUser(user);
-      await Promise.all([
-        hydrateDismissed(),
-        hydrateSkipped(),
-        hydrateInteracted(),
-        hydrateExpired(),
-        hydrateForYou(),
-        hydrateGamification(),
-        onboarded ? hydrateLastScout() : Promise.resolve(),
-      ]);
-      if (checkout === "success" && sessionId) {
-        await confirmCheckout(sessionId);
-      }
-      refreshAfterPaint(user);
-      setDeskBootReady(true);
-    })();
-  }, []);
 
   useEffect(() => {
     applyTheme(theme);
@@ -521,14 +418,6 @@ export default function App() {
 
   const needsXLink = deskNeedsXLink(authUser);
   const booting = !localUi && !authChecked;
-  const legalView = isLegalKind(view);
-  const pricingView = view === "pricing";
-  const changelogView = view === "changelog";
-  const learnView = view === "learn";
-  const learnWeightsView = view === "learnWeights";
-  const learnReplyView = view === "learnReply";
-  const learnVolumeView = view === "learnVolume";
-  const learnFollowView = view === "learnFollow";
   const publicView = isPublicView(view);
   const showOnboardingPreview =
     onboardingPreview && Boolean(authUser?.isAdmin) && !publicView;
@@ -607,78 +496,13 @@ export default function App() {
         </MenuDrawer>
       ) : null}
 
-      {legalView ? (
-        <main className="app-main app-main-scroll">
-          <LegalPage
-            kind={view}
-            onHome={() => goToView("home")}
-            onOther={() => goToView(view === "privacy" ? "terms" : "privacy")}
-          />
-        </main>
-      ) : pricingView ? (
-        <main className="app-main app-main-scroll">
-          <PricingPage
-            signedIn={Boolean(authUser)}
-            onHome={() => goToView("home")}
-            onSignIn={() => setSignInOpen(true)}
-            onOpenDesk={() => goToView("dashboard")}
-            onUsage={() => goToView("usage")}
-          />
-        </main>
-      ) : changelogView ? (
-        <main className="app-main app-main-scroll">
-          <ChangelogPage onHome={() => goToView("home")} />
-        </main>
-      ) : learnView ? (
-        <main className="app-main app-main-scroll">
-          <LearnHubPage
-            onHome={() => goToView("home")}
-            onOpenLesson={(lesson) => goToView(lesson)}
-          />
-        </main>
-      ) : learnWeightsView ? (
-        <main className="app-main app-main-scroll">
-          <LearnPage
-            onHome={() => goToView("home")}
-            onCatalog={() => goToView("learn")}
-            onOpenLesson={(lesson) => goToView(lesson)}
-            onFollow={() => goToView("learnFollow")}
-            onReply={() => goToView("learnReply")}
-            onVolume={() => goToView("learnVolume")}
-          />
-        </main>
-      ) : learnReplyView ? (
-        <main className="app-main app-main-scroll">
-          <LearnReplyPage
-            onHome={() => goToView("home")}
-            onCatalog={() => goToView("learn")}
-            onOpenLesson={(lesson) => goToView(lesson)}
-            onWeights={() => goToView("learnWeights")}
-            onVolume={() => goToView("learnVolume")}
-          />
-        </main>
-      ) : learnVolumeView ? (
-        <main className="app-main app-main-scroll">
-          <LearnVolumePage
-            onHome={() => goToView("home")}
-            onCatalog={() => goToView("learn")}
-            onOpenLesson={(lesson) => goToView(lesson)}
-            onWeights={() => goToView("learnWeights")}
-            onReply={() => goToView("learnReply")}
-          />
-        </main>
-      ) : view === "learnGive" ? (
-        <main className="app-main app-main-scroll">
-          <LearnGivePage goToView={goToView} />
-        </main>
-      ) : learnFollowView ? (
-        <main className="app-main app-main-scroll">
-          <LearnFollowPage
-            onHome={() => goToView("home")}
-            onCatalog={() => goToView("learn")}
-            onOpenLesson={(lesson) => goToView(lesson)}
-          />
-        </main>
+      {publicView ? (
+        <PublicPages
+          view={view}
+          signedIn={Boolean(authUser)}
+          goToView={goToView}
+          onSignIn={() => setSignInOpen(true)}
+        />
       ) : showLanding ? (
         <Landing
           notice={authNotice}
