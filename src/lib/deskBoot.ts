@@ -181,12 +181,6 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
   const skipped = isRecord(desk.skipped) ? desk.skipped : {};
   const expired = isRecord(desk.expired) ? desk.expired : {};
   const forYouRaw = isRecord(desk.forYou) ? desk.forYou : {};
-  const scoutLogRaw = desk.scoutLog;
-  const scoutLogEntries = Array.isArray(scoutLogRaw)
-    ? scoutLogRaw
-    : isRecord(scoutLogRaw) && Array.isArray(scoutLogRaw.entries)
-      ? (scoutLogRaw.entries as unknown[])
-      : [];
   const interactions = (Array.isArray(interacted.interactions)
     ? interacted.interactions
     : []
@@ -207,12 +201,6 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
   )
     .map(parseForYouSuggestion)
     .filter((row): row is ForYouSuggestion => Boolean(row));
-  const entries = scoutLogEntries.filter(
-    (e): e is ScoutLogEntry =>
-      Boolean(e) &&
-      typeof (e as ScoutLogEntry).message === "string" &&
-      typeof (e as ScoutLogEntry).at === "string",
-  );
   const parsedGamification = parseGamificationPayload(desk.gamification);
   return {
     ok: true,
@@ -257,7 +245,7 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
         extra: parseForYouExtra(forYouRaw),
       },
       lastScout: parseLastScout(desk.lastScout),
-      scoutLog: entries.slice(-1000),
+      scoutLog: [],
       gamification: parsedGamification?.stats ?? emptyGamificationStats(),
       activityStats: parseActivityStats(desk.activityStats) ?? emptyActivityStats("day"),
       coaching: parseCoachingPayload(desk.coaching),
