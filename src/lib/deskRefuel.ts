@@ -5,6 +5,34 @@ export const SCOUT_TANK_LOW = 1;
 export const SCOUT_TAKEOFF_TRIED_STORAGE_KEY =
   "x-copilot-scout-takeoff-tried";
 
+export type ScoutRefillState =
+  | "queued"
+  | "waiting"
+  | "flying"
+  | "landed"
+  | "terminal_empty";
+
+export function scoutRefillState(opts: {
+  armed: boolean;
+  searching: boolean;
+  cooldownRemainingSec: number;
+  scoutCount: number;
+}): ScoutRefillState {
+  if (opts.searching) return "flying";
+  if (opts.armed) {
+    return opts.cooldownRemainingSec > 0 ? "waiting" : "queued";
+  }
+  return opts.scoutCount > 0 ? "landed" : "terminal_empty";
+}
+
+export function scoutRefillPending(state: ScoutRefillState): boolean {
+  return state === "queued" || state === "waiting" || state === "flying";
+}
+
+export function shouldArmScoutRefill(usableScoutCount: number): boolean {
+  return usableScoutCount <= SCOUT_TANK_LOW;
+}
+
 export function readScoutTakeoffTried(): boolean {
   try {
     return sessionStorage.getItem(SCOUT_TAKEOFF_TRIED_STORAGE_KEY) === "1";

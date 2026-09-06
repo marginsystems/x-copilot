@@ -32,6 +32,8 @@ import {
   clearScoutTakeoffTried,
   markScoutTakeoffTried,
   readScoutTakeoffTried,
+  scoutRefillState,
+  shouldArmScoutRefill,
   shouldBackgroundScout,
 } from "../lib/deskRefuel";
 import {
@@ -253,18 +255,13 @@ export function ThreadsTabs({
     : null;
   const autoTriedRef = useRef(readScoutTakeoffTried());
   const [refuelArmed, setRefuelArmed] = useState(false);
-  const backgroundScoutPending =
-    refuelArmed &&
-    shouldBackgroundScout({
-      phase,
-      searching,
-      grounded,
-      cooldownRemainingSec: searchCooldownRemaining,
-      needsXLink: deskNeedsXLink(authUser),
-      hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
-      scoutCount: curatedThreads.length,
-      alreadyTried: autoTriedRef.current,
-    });
+  const refuelArmedRef = useRef(false);
+  const refillState = scoutRefillState({
+    armed: refuelArmed,
+    searching,
+    cooldownRemainingSec: searchCooldownRemaining,
+    scoutCount: curatedThreads.length,
+  });
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
 
@@ -420,9 +417,17 @@ export function ThreadsTabs({
     curatedThreads,
   ]);
 
-  function armRefuel() {
+  function armRefuel(usableScoutCount = curatedThreads.length) {
+    if (
+      !shouldArmScoutRefill(usableScoutCount) ||
+      refuelArmedRef.current ||
+      searching
+    ) {
+      return;
+    }
     clearScoutTakeoffTried();
     autoTriedRef.current = false;
+    refuelArmedRef.current = true;
     setRefuelArmed(true);
   }
 
@@ -450,6 +455,7 @@ export function ThreadsTabs({
     }
     autoTriedRef.current = true;
     markScoutTakeoffTried();
+    refuelArmedRef.current = false;
     setRefuelArmed(false);
     onSearch();
   }, [
@@ -489,13 +495,14 @@ export function ThreadsTabs({
     if (!id || !dismissedHistory.some((entry) => entry.threadId === id)) return;
     pendingDismissIdRef.current = null;
     advanceCard({ type: "dismiss" });
-    armRefuel();
+    armRefuel(curatedThreads.filter((row) => row.id !== id).length);
   }, [dismissedHistory]);
   useEffect(() => {
     const id = pendingMarkIdRef.current;
     if (!id || !interactedIds.has(id)) return;
     pendingMarkIdRef.current = null;
     advanceCard({ type: "mark" });
+    armRefuel(curatedThreads.filter((row) => row.id !== id).length);
   }, [interactedIds]);
   function exitRow(
     id: string,
@@ -533,7 +540,7 @@ export function ThreadsTabs({
                       hasScoutCard: lockedScout != null,
                       hasSuggestion: lockedSuggestion != null,
                       holdForYouTask,
-                      scouting: searching || backgroundScoutPending,
+                      refillState,
                     })
                   : 0
               }
@@ -620,8 +627,7 @@ export function ThreadsTabs({
             coaching={coaching}
             scout={lockedScout}
             suggestion={lockedSuggestion}
-            searching={searching}
-            scouting={searching || backgroundScoutPending}
+            refillState={refillState}
             actionBusy={actionBusy}
             expandedId={expandedId}
             setExpandedId={setExpandedId}
@@ -642,7 +648,9 @@ export function ThreadsTabs({
                   pendingMarkIdRef.current = null;
                   pendingDismissIdRef.current = null;
                   advanceCard({ type: "skip" });
-                  armRefuel();
+                  armRefuel(
+                    curatedThreads.filter((row) => row.id !== thread.id).length,
+                  );
                 }
               });
             }}
