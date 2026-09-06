@@ -69,6 +69,38 @@
   }
 }
 
+.approach-flight-row .row-head {
+  cursor: default;
+}
+
+.approach-flight-row .row-head:hover {
+  background: transparent;
+}
+
+.approach-flight-pulse {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.approach-flight-row.is-flying .approach-flight-pulse {
+  background: var(--accent);
+  animation: approach-flight-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes approach-flight-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .history-list {
   display: flex;
   flex-direction: column;

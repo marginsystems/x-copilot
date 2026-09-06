@@ -9,8 +9,13 @@ import {
   scoutRefillPending,
   type ScoutRefillState,
 } from "../lib/deskRefuel";
-import { approachCollectingCopy, phaseWhy } from "../lib/phaseWhy";
+import { phaseWhy } from "../lib/phaseWhy";
 import type { VoiceState } from "../lib/voice";
+import {
+  ApproachFlightRow,
+  ApproachFrame,
+  ApproachSkeletonRow,
+} from "./ApproachFrame";
 import { ForYouFeedRow } from "./ForYouFeedRow";
 import { ReplyPaceBar } from "./ReplyPaceBar";
 import { SuggestedRow } from "./SuggestedRow";
@@ -23,25 +28,28 @@ export { pickApproachScout } from "./approachScout";
 
 export function ApproachLoadingCard() {
   return (
-    <div className="mission-card" aria-busy="true" role="status">
-      <p className="mission-card-verb">Approach</p>
-      <p className="mission-card-why">
+    <ApproachFrame
+      verb="Approach"
+      why={
         <span className="mission-skel mission-skel-summary" />
-      </p>
-      <article className="thread-row mission-skel-card" aria-hidden="true">
-        <div className="row-head next-action-head">
-          <div className="row-lead bait">
-            <span className="mission-skel mission-skel-lead" />
-          </div>
-          <div className="row-main">
-            <span className="mission-skel mission-skel-summary" />
-            <span className="mission-skel mission-skel-meta" />
-          </div>
-          <div className="caret">+</div>
-        </div>
-      </article>
-    </div>
+      }
+      busy
+      status
+    >
+      <ApproachSkeletonRow />
+    </ApproachFrame>
   );
+}
+
+export function approachRefillLine(
+  state: ScoutRefillState,
+  flightLine?: string | null,
+): string {
+  if (state === "queued") return "Scout is queued for takeoff.";
+  if (state === "waiting") return "Scout is waiting for the cooldown.";
+  if (state === "flying") return flightLine || "In the air…";
+  if (state === "landed") return "Scout landed. Loading Approach.";
+  return "You're clean. History is a log.";
 }
 
 function phaseVerb(
@@ -103,6 +111,7 @@ export function MissionCard(props: {
   onForYouNext?: () => void;
   onOpenVoice: () => void;
   onLinkX: () => void;
+  flightLine?: string | null;
 }) {
   if (props.phase === "needs_onboarding") return null;
 
@@ -184,16 +193,21 @@ export function MissionCard(props: {
     );
   }
 
-  if (props.phase === "scout_reply" && props.scout) {
-    const thread = props.scout;
+  if (
+    (props.phase === "scout_reply" && props.scout) ||
+    props.phase === "done_for_now"
+  ) {
+    const thread = props.phase === "scout_reply" ? props.scout : null;
+    const refillPending = scoutRefillPending(props.refillState);
     const why = phaseWhy(props.phase, props.coaching);
     return (
-      <div className="mission-card">
-        <p className="mission-card-verb">{phaseVerb(props.phase)}</p>
-        <p className="mission-card-why">{why}</p>
-        <div className="threads">
+      <ApproachFrame
+        verb={phaseVerb(props.phase, null, refillPending)}
+        why={why}
+        busy={!thread && props.refillState !== "terminal_empty"}
+      >
+        {thread ? (
           <ThreadRow
-            key={thread.id}
             thread={thread}
             index={0}
             open={props.expandedId === thread.id}
@@ -235,8 +249,13 @@ export function MissionCard(props: {
               )
             }
           />
-        </div>
-      </div>
+        ) : (
+          <ApproachFlightRow
+            line={approachRefillLine(props.refillState, props.flightLine)}
+            flying={refillPending}
+          />
+        )}
+      </ApproachFrame>
     );
   }
 
@@ -313,18 +332,7 @@ export function MissionCard(props: {
   }
 
   const refillPending = scoutRefillPending(props.refillState);
-  const why =
-    props.phase !== "done_for_now"
-      ? phaseWhy(props.phase, props.coaching)
-      : props.refillState === "queued"
-        ? "Scout is queued for takeoff."
-        : props.refillState === "waiting"
-          ? "Scout is waiting for the cooldown."
-          : props.refillState === "flying"
-            ? approachCollectingCopy({ searching: true })
-            : props.refillState === "landed"
-              ? "Scout landed. Loading Approach."
-              : "You're clean. History is a log.";
+  const why = phaseWhy(props.phase, props.coaching);
   return (
     <div className="mission-card">
       <p className="mission-card-verb">

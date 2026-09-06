@@ -89,6 +89,7 @@ type ThreadsTabsProps = {
   dismissedHistory: DismissalHistoryEntry[];
   expiredHistory: ExpiredHistoryEntry[];
   searching: boolean;
+  flightLine: string;
   actionBusy: boolean;
   expandedId: string | null;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
@@ -133,6 +134,7 @@ export function ThreadsTabs({
   dismissedHistory,
   expiredHistory,
   searching,
+  flightLine,
   actionBusy,
   expandedId,
   setExpandedId,
@@ -628,6 +630,7 @@ export function ThreadsTabs({
             scout={lockedScout}
             suggestion={lockedSuggestion}
             refillState={refillState}
+            flightLine={flightLine}
             actionBusy={actionBusy}
             expandedId={expandedId}
             setExpandedId={setExpandedId}
