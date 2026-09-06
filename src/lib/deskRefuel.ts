@@ -33,6 +33,18 @@ export function shouldArmScoutRefill(usableScoutCount: number): boolean {
   return usableScoutCount <= SCOUT_TANK_LOW;
 }
 
+export function shouldArmScoutOnBoot(opts: {
+  usableScoutCount: number;
+  alreadyTried: boolean;
+  searching: boolean;
+}): boolean {
+  return (
+    shouldArmScoutRefill(opts.usableScoutCount) &&
+    !opts.alreadyTried &&
+    !opts.searching
+  );
+}
+
 export function readScoutTakeoffTried(): boolean {
   try {
     return sessionStorage.getItem(SCOUT_TAKEOFF_TRIED_STORAGE_KEY) === "1";
