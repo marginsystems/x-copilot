@@ -1,5 +1,6 @@
 /**
- * Public XAA webhook + authenticated watch / analytics routes.
+ * Authenticated watch / analytics routes. The public XAA webhook lives on
+ * the isolated webhook process (127.0.0.1:8789), not this API.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { send } from "./httpJson.js";
@@ -12,35 +13,6 @@ import { subscribeUserToPostCreate } from "./xActivitySubscribe.js";
 import { dailyActivityUsage } from "./billingQuotas.js";
 import { latestAnalyticsInsight } from "./analyticsInsight.js";
 import { allowRate } from "./authGuard.js";
-
-type XActivityWebhookHandler = (
-  req: IncomingMessage,
-  res: ServerResponse,
-  url: URL,
-) => Promise<boolean>;
-
-export async function tryHandleXActivityWebhook(
-  req: IncomingMessage,
-  res: ServerResponse,
-  url: URL,
-): Promise<boolean> {
-  if (url.pathname !== "/api/x/activity") {
-    return false;
-  }
-  const handlerPath = import.meta.url.endsWith(".ts")
-    ? "../../webhook/src/handler.ts"
-    : "../../webhook/dist/webhook/src/handler.js";
-  let handleWebhook: XActivityWebhookHandler;
-  try {
-    ({ tryHandleXActivityWebhook: handleWebhook } = (await import(
-      handlerPath
-    )) as { tryHandleXActivityWebhook: XActivityWebhookHandler });
-  } catch {
-    send(req, res, 503, { error: "webhook_unavailable" });
-    return true;
-  }
-  return handleWebhook(req, res, url);
-}
 
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {

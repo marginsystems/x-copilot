@@ -47,8 +47,9 @@ location = /api/x/activity {
 }
 ```
 
-Apply this nginx change only after the webhook process is healthy. Until then,
-the API keeps serving the same handler on port 8787, including CRC.
+Live nginx already applies that location. The public URL stays
+`https://api.xcopilot.dev/api/x/activity`; only :8789 answers it. The API
+no longer serves this webhook.
 
 ## Cloudflare DNS (zone `xcopilot.dev`)
 
