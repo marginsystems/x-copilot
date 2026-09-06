@@ -5,26 +5,28 @@ import {
   type SetStateAction,
 } from "react";
 import {
-  keepPlainTextThread,
   loadSettings,
   saveSettings,
-  threadHasExcludedTag,
   type AppSettings,
 } from "../lib/settings";
-import { threadHasExcludedAuthor } from "../desk/threadHelpers";
 import type { ThreadCard } from "../desk/types";
 
-type UseSettingsDraftOptions = {
+export type UseSettingsDraftOptions = {
   setSettings: Dispatch<SetStateAction<AppSettings>>;
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
   sourceThreadsRef?: MutableRefObject<ThreadCard[] | null>;
 };
 
-export function useSettingsDraft({
-  setSettings,
-  setThreads,
-  sourceThreadsRef,
-}: UseSettingsDraftOptions) {
+export function commitSettingsDraft(
+  settingsDraft: AppSettings,
+  deps: UseSettingsDraftOptions,
+): AppSettings {
+  const next = saveSettings(settingsDraft);
+  deps.setSettings(next);
+  return next;
+}
+
+export function useSettingsDraft(options: UseSettingsDraftOptions) {
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(() =>
     loadSettings(),
   );
@@ -36,20 +38,9 @@ export function useSettingsDraft({
   }
 
   function onSaveSettings() {
-    const next = saveSettings(settingsDraft);
-    setSettings(next);
+    const next = commitSettingsDraft(settingsDraft, options);
     setSettingsDraft(next);
-    setThreads((prev) =>
-      (sourceThreadsRef?.current ?? prev).filter(
-        (thread) =>
-          !threadHasExcludedTag(thread, next.excludedTags) &&
-          !threadHasExcludedAuthor(thread, next.excludedAccounts) &&
-          keepPlainTextThread(thread, next),
-      ),
-    );
-    setSettingsStatus(
-      "Saved — filters apply to Approach now and the next Scout.",
-    );
+    setSettingsStatus("Saved — filters apply to the next Scout.");
   }
 
   return {

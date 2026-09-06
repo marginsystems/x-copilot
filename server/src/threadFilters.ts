@@ -447,7 +447,9 @@ export function filterMinViews(
   for (const thread of threads) {
     if (
       opts.allowUnknownReplyViews &&
-      (thread.isReply === true || Boolean(thread.inReplyToId)) &&
+      (thread.isReply === true ||
+        Boolean(thread.inReplyToId) ||
+        thread.opParentDerived === true) &&
       (typeof thread.opViews !== "number" ||
         !Number.isFinite(thread.opViews) ||
         !thread.opParentDerived)
