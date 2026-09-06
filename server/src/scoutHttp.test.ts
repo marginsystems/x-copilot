@@ -13,7 +13,7 @@ import {
 } from "./db.ts";
 import { markDismissed } from "./dismissalStore.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
-import { saveScoutCache } from "./scoutCache.ts";
+import { getLastScout, saveScoutCache } from "./scoutCache.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { createSession } from "./sessionStore.ts";
 import { getSortieUsage } from "./scoutSorties.ts";
@@ -263,6 +263,43 @@ describe("tryHandleScout", () => {
     assert.equal(res.writableEnded, true);
   });
 
+  it("attaches request filters to the snapshot written by collect", async () => {
+    const deps: ScoutHttpDeps = {
+      runScoutCollect: (async (opts) => {
+        await saveScoutCache(
+          {
+            savedAt: new Date().toISOString(),
+            queries: opts.queries,
+            threads: [],
+          },
+          { userId: opts.userId },
+        );
+        opts.onEvent?.({ ...doneEvent });
+        return { ok: true, event: { ...doneEvent } };
+      }) as typeof runScoutCollect,
+      ensureMemoryIndex: async () => {},
+    };
+    await call("POST", "/api/scout/run", {
+      body: {
+        queries: ["q1"],
+        filters: {
+          filterByMinViews: true,
+          minViews: 200,
+          excludedTags: ["political"],
+          excludedAccounts: ["@chatgpt"],
+        },
+      },
+      deps,
+    });
+
+    assert.deepEqual((await getLastScout({ userId: pilot.userId }))?.filters, {
+      filterByMinViews: true,
+      minViews: 200,
+      excludedTags: ["political"],
+      excludedAccounts: ["chatgpt"],
+    });
+  });
+
   it("releases the scout lock after a run ends", async () => {
     await call("POST", "/api/scout/run", {
       body: { queries: ["q1"] },
@@ -370,6 +407,57 @@ describe("tryHandleScout", () => {
     assert.deepEqual(
       body.snapshot?.threads.map((t) => t.id).sort(),
       ["b1", "shared"],
+    );
+  });
+
+  it("serves a tank through its stored view, tag, and account filters", async () => {
+    const thread = (
+      id: string,
+      overrides: Record<string, unknown> = {},
+    ) => ({
+      id,
+      author: "@human",
+      text: "A useful reply",
+      url: `https://x.com/human/status/${id}`,
+      engage: "consider" as const,
+      baitScore: 10,
+      views: 500,
+      ...overrides,
+    });
+    await saveScoutCache(
+      {
+        savedAt: new Date().toISOString(),
+        queries: ["q"],
+        filters: {
+          filterByMinViews: true,
+          minViews: 100,
+          excludedTags: ["political"],
+          excludedAccounts: ["chatgpt"],
+        },
+        threads: [
+          thread("keep"),
+          thread("low", { views: 99 }),
+          thread("tagged", { flags: ["political"] }),
+          thread("account", { author: "@ChatGPT" }),
+          thread("unknown-reply", {
+            views: 500,
+            isReply: true,
+            inReplyToId: "root",
+            opViews: undefined,
+            opParentDerived: false,
+          }),
+        ],
+      },
+      { userId: pilot.userId },
+    );
+
+    const payload = await readLastScoutPayload({ userId: pilot.userId });
+    assert.equal(payload.empty, false);
+    assert.deepEqual(
+      (payload.snapshot?.threads as Array<{ id: string }>).map(
+        (item) => item.id,
+      ),
+      ["keep"],
     );
   });
 

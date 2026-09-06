@@ -29,7 +29,10 @@ import {
   getRequestContext,
   getRequestTenantId,
 } from "./requestContext.js";
-import { getLastScout } from "./scoutCache.js";
+import {
+  attachScoutCacheFilters,
+  getLastScout,
+} from "./scoutCache.js";
 import { preferRootTargets } from "./scoutTarget.js";
 import { runScoutCollect } from "./scoutCollect.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
@@ -41,7 +44,14 @@ import {
 } from "./scoutPolicy.js";
 import { runScoutSearch } from "./scoutRun.js";
 import type { ScoutFilters } from "./scoutTypes.js";
-import { normalizeAvoidPrompt } from "./threadFilters.js";
+import {
+  filterExcludedAccounts,
+  filterMinViews,
+  normalizeAvoidPrompt,
+  resolveExcludedAccounts,
+  resolveExcludedTags,
+  threadHasExcludedTag,
+} from "./threadFilters.js";
 import {
   markSortieDelivered,
   recordSortie,
@@ -169,13 +179,28 @@ export async function readLastScoutPayload(opts: {
     cooled,
     blockedConversations,
   );
+  let tankThreads = filtered.threads;
+  if (snapshot.filters) {
+    tankThreads = filterExcludedAccounts(
+      tankThreads,
+      resolveExcludedAccounts(snapshot.filters.excludedAccounts),
+    ).threads;
+    tankThreads = filterMinViews(tankThreads, {
+      filterByMinViews: snapshot.filters.filterByMinViews,
+      minViews: snapshot.filters.minViews,
+    }).threads;
+    const excludedTags = resolveExcludedTags(snapshot.filters.excludedTags);
+    tankThreads = tankThreads.filter(
+      (thread) => !threadHasExcludedTag(thread, excludedTags),
+    );
+  }
   const [expiredIds, dismissedIds, skippedIds] = await Promise.all([
     getExpiredThreadIds({ userId }),
     getDismissedThreadIds({ userId }),
     getSkippedThreadIds({ userId }),
   ]);
   const threads = preferRootTargets(
-    filtered.threads.filter(
+    tankThreads.filter(
       (t) =>
         !expiredIds.has(t.id) &&
         !dismissedIds.has(t.id) &&
@@ -457,6 +482,7 @@ export async function tryHandleScout(
             }) === null,
         },
       });
+      await attachScoutCacheFilters(filters, { userId: sessionUser.id });
       if (!result.ok && !sawTerminal) {
         trackAnalytics({
           name: "scout.failed",
