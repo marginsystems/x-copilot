@@ -256,14 +256,25 @@ describe("approachTabLiveCount", () => {
       }),
       0,
     );
+    for (const refillState of ["queued", "waiting", "flying"] as const) {
+      assert.equal(
+        approachTabLiveCount({
+          phase: "done_for_now",
+          hasScoutCard: false,
+          hasSuggestion: false,
+          refillState,
+        }),
+        1,
+      );
+    }
     assert.equal(
       approachTabLiveCount({
         phase: "done_for_now",
         hasScoutCard: false,
         hasSuggestion: false,
-        scouting: true,
+        refillState: "terminal_empty",
       }),
-      1,
+      0,
     );
   });
 });

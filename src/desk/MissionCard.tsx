@@ -5,6 +5,10 @@ import type { AuthSessionUser } from "../auth/types";
 import type { ForYouSuggestion } from "../lib/forYou";
 import type { CoachingState } from "../lib/coaching";
 import type { ApproachLock, DeskPhase } from "../lib/deskPhase";
+import {
+  scoutRefillPending,
+  type ScoutRefillState,
+} from "../lib/deskRefuel";
 import { approachCollectingCopy, phaseWhy } from "../lib/phaseWhy";
 import type { VoiceState } from "../lib/voice";
 import { ForYouFeedRow } from "./ForYouFeedRow";
@@ -78,8 +82,7 @@ export function MissionCard(props: {
   coaching?: CoachingState | null;
   scout: ThreadCard | null;
   suggestion: ForYouSuggestion | null;
-  searching?: boolean;
-  scouting?: boolean;
+  refillState: ScoutRefillState;
   actionBusy: boolean;
   expandedId: string | null;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
@@ -309,16 +312,23 @@ export function MissionCard(props: {
     );
   }
 
+  const refillPending = scoutRefillPending(props.refillState);
   const why =
-    props.phase === "done_for_now"
-      ? props.scouting
-        ? approachCollectingCopy({ searching: props.searching })
-        : "You're clean. History is a log."
-      : phaseWhy(props.phase, props.coaching);
+    props.phase !== "done_for_now"
+      ? phaseWhy(props.phase, props.coaching)
+      : props.refillState === "queued"
+        ? "Scout is queued for takeoff."
+        : props.refillState === "waiting"
+          ? "Scout is waiting for the cooldown."
+          : props.refillState === "flying"
+            ? approachCollectingCopy({ searching: true })
+            : props.refillState === "landed"
+              ? "Scout landed. Loading Approach."
+              : "You're clean. History is a log.";
   return (
     <div className="mission-card">
       <p className="mission-card-verb">
-        {phaseVerb(props.phase, null, props.scouting)}
+        {phaseVerb(props.phase, null, refillPending)}
       </p>
       <p className="mission-card-why">{why}</p>
       {props.phase === "original" ? (
