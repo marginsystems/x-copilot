@@ -19,10 +19,7 @@ import {
   tryHandleBilling,
   tryHandleStripeWebhook,
 } from "./stripeHttp.js";
-import {
-  tryHandleXActivityAuthed,
-  tryHandleXActivityWebhook,
-} from "./xActivityHttp.js";
+import { tryHandleXActivityAuthed } from "./xActivityHttp.js";
 import { tryHandleVoice } from "./voiceHttp.js";
 import { tryHandleForYou } from "./forYouHttp.js";
 import { tryHandleCoaching } from "./coachingHttp.js";
@@ -73,10 +70,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (await tryHandleStripeWebhook(req, res, url)) {
-      return;
-    }
-
-    if (await tryHandleXActivityWebhook(req, res, url)) {
       return;
     }
 

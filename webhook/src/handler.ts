@@ -1,6 +1,6 @@
 /**
- * Public X Activity webhook handler shared by the isolated webhook process
- * and the API fallback route during proxy cutover.
+ * Public X Activity webhook handler for the isolated webhook process
+ * on 127.0.0.1:8789. nginx routes /api/x/activity there.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { send } from "../../server/src/httpJson.js";
