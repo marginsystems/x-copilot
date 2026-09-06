@@ -230,9 +230,7 @@ export default function App() {
     sortiesLimit,
     onSearch,
     applyLastScoutFromBoot,
-    applyScoutLogFromBoot,
     hydrateLastScout,
-    hydrateScoutLog,
   } = useScoutRun({
     agenda,
     settings,
@@ -366,7 +364,6 @@ export default function App() {
         applyStripFromBoot(desk);
         applyCoaching(desk.coaching);
         applyLastScoutFromBoot(desk.lastScout);
-        applyScoutLogFromBoot(desk.scoutLog);
       };
 
       const refreshAfterPaint = (user: typeof authUser) => {
@@ -425,7 +422,6 @@ export default function App() {
         hydrateForYou(),
         hydrateGamification(),
         onboarded ? hydrateLastScout() : Promise.resolve(),
-        hydrateScoutLog(),
       ]);
       if (checkout === "success" && sessionId) {
         await confirmCheckout(sessionId);

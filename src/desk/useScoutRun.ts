@@ -8,7 +8,6 @@ import {
 import type { AuthSessionUser } from "../auth/types";
 import type { BillingMe } from "../BillingPanel";
 import type { LastScoutPayload } from "../lib/deskBoot";
-import { peekDeskBootCache } from "../lib/deskBoot";
 import { apiFetch } from "../lib/apiBase";
 import { deskNeedsXLink } from "../lib/deskGate";
 import {
@@ -70,9 +69,7 @@ export function useScoutRun({
   sourceThreadsRef,
 }: ScoutRunDeps) {
   const [searching, setSearching] = useState(false);
-  const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>(
-    () => peekDeskBootCache()?.desk?.scoutLog ?? [],
-  );
+  const [scoutLog, setScoutLog] = useState<ScoutLogEntry[]>([]);
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
@@ -122,13 +119,6 @@ export function useScoutRun({
       }
       return [...prev, entry].slice(-1000);
     });
-    void apiFetch("/api/scout/log", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(entry),
-    }).catch(() => {
-      /* sidecar may be offline — keep in-memory */
-    });
   }
 
   function applyScoutEvent(ev: ScoutStreamEvent) {
@@ -172,25 +162,6 @@ export function useScoutRun({
     pushScoutLine(message, stage);
   }
 
-  async function hydrateScoutLog() {
-    try {
-      const res = await apiFetch("/api/scout/log");
-      if (!res.ok) return;
-      const data = (await res.json()) as { entries?: ScoutLogEntry[] };
-      const entries = Array.isArray(data.entries)
-        ? data.entries.filter(
-            (e) =>
-              e &&
-              typeof e.message === "string" &&
-              typeof e.at === "string",
-          )
-        : [];
-      setScoutLog(entries.slice(-1000));
-    } catch {
-      /* ignore */
-    }
-  }
-
   function applyLastScoutFromBoot(data: LastScoutPayload) {
     if (staleHydration.current) return;
     if (!data.ok) return;
@@ -223,11 +194,6 @@ export function useScoutRun({
         ].join(" → ")})`
       : "";
     pushScoutLine(`Restored ${filtered.length} threads${funnel} from ${when}.`);
-  }
-
-  function applyScoutLogFromBoot(entries: ScoutLogEntry[]) {
-    if (staleHydration.current) return;
-    setScoutLog(entries.slice(-1000));
   }
 
   async function hydrateLastScout() {
@@ -550,7 +516,6 @@ export function useScoutRun({
 
   return {
     searching,
-    scoutLog,
     searchCooldownRemaining,
     searchBlocked,
     grounded,
@@ -560,9 +525,6 @@ export function useScoutRun({
     staleHydration,
     onSearch,
     applyLastScoutFromBoot,
-    applyScoutLogFromBoot,
     hydrateLastScout,
-    hydrateScoutLog,
-    pushScoutLine,
   };
 }
