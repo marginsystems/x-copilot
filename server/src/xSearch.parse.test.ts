@@ -91,6 +91,34 @@ describe("searchTimelinePages", () => {
     if (result.ok) assert.equal(result.pages, 1);
   });
 
+  it("resumes from an incoming cursor in the same search window", async () => {
+    const seen: Array<{ cursor?: string; startTime?: string }> = [];
+    const result = await searchTimelinePages({
+      query: "q",
+      maxPages: 1,
+      cursor: "next-page",
+      startTime: "2026-09-06T10:00:00.000Z",
+      fetchPage: async (opts) => {
+        seen.push({ cursor: opts.cursor, startTime: opts.startTime });
+        return {
+          ok: true as const,
+          queryId: "qid",
+          threads: [card("two")],
+          bottomCursor: "page-three",
+        };
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(seen, [
+      {
+        cursor: "next-page",
+        startTime: "2026-09-06T10:00:00.000Z",
+      },
+    ]);
+    if (result.ok) assert.equal(result.bottomCursor, "page-three");
+  });
+
   it("reduced expansions drop referenced-tweet parent objects", () => {
     assert.match(searchExpansions(true), /referenced_tweets\.id/);
     assert.doesNotMatch(searchExpansions(false), /referenced_tweets/);

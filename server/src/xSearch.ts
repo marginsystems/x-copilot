@@ -174,6 +174,10 @@ export async function searchTimelinePages(opts: {
   count?: number;
   maxPages?: number;
   pageDelayMs?: number;
+  /** Resume token from a previous call using this exact query and startTime. */
+  cursor?: string;
+  /** Stable v2 recent-search window shared with the incoming cursor. */
+  startTime?: string;
   /** When false, do not bill includes.tweets parents. Default true. */
   expandReferenced?: boolean;
   session?: XApiCreds;
@@ -197,14 +201,16 @@ export async function searchTimelinePages(opts: {
 
   const fetchPage = opts.fetchPage ?? searchTimeline;
   const all: ThreadCard[] = [];
-  let cursor: string | undefined;
+  let cursor = opts.cursor?.trim() || undefined;
   let queryId = "";
   let pages = 0;
   // v2 recent search's next_token is bound to the exact query it was issued for,
   // so compute start_time once and reuse it on every page (identical params).
-  const startTime = startTimeFromWithin(
-    stripSessionTimeOps(query).within ?? resolveWithinTime(),
-  );
+  const startTime =
+    opts.startTime ??
+    startTimeFromWithin(
+      stripSessionTimeOps(query).within ?? resolveWithinTime(),
+    );
 
   for (let page = 0; page < maxPages; page++) {
     if (opts.signal?.aborted) {
