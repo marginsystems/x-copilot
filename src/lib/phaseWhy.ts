@@ -1,6 +1,10 @@
 import type { CoachingState, NextActionKind } from "./coaching";
 import type { DeskPhase } from "./deskPhase";
-import type { ForYouKind, ForYouSuggestion } from "./forYou";
+import {
+  FYP_DETECTING_COPY,
+  type ForYouKind,
+  type ForYouSuggestion,
+} from "./forYou";
 import { scoutStageMessage } from "./scoutStages";
 
 export const APPROACH_COLLECTING_IDLE =
@@ -34,6 +38,9 @@ export function phaseWhy(
   coaching?: CoachingState | null,
   suggestion?: ForYouSuggestion | null,
 ): string {
+  if (phase === "scout_reply") {
+    return FYP_DETECTING_COPY;
+  }
   if (phase === "done_for_now") {
     return APPROACH_COLLECTING_IDLE;
   }
@@ -54,9 +61,6 @@ export function phaseWhy(
     coachingMatchesCard(phase, action.kind, suggestion?.kind)
   ) {
     return line;
-  }
-  if (phase === "scout_reply") {
-    return "Reply to this thread. Then mark it.";
   }
   if (phase === "organic_reply") {
     return "Open X. Reply to something you actually read. Mark it here.";
