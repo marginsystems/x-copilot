@@ -16,6 +16,7 @@ import {
   SCOUT_STAGE_TICK_MS,
   formatScoutFailure,
   isScoutGateError,
+  scoutFlightLine,
   scoutStageMessage,
   type ScoutStageId,
 } from "../lib/scoutStages";
@@ -38,6 +39,18 @@ export const SCOUT_BUCKET_SIZE = 20;
 
 /** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
 export const SEARCH_COOLDOWN_MS = 15_000;
+
+export function publishedScoutFlightLine(
+  stage: ScoutStageId,
+  progress?: {
+    cool?: number;
+    target?: number;
+    candidates?: number;
+    bucketSize?: number;
+  },
+): string {
+  return scoutFlightLine(stage, progress);
+}
 
 export type ScoutRunDeps = {
   agenda: string;
@@ -69,6 +82,9 @@ export function useScoutRun({
   sourceThreadsRef,
 }: ScoutRunDeps) {
   const [searching, setSearching] = useState(false);
+  const [flightLine, setFlightLine] = useState(() =>
+    publishedScoutFlightLine("planning"),
+  );
   const scoutLogRef = useRef<ScoutLogEntry[]>([]);
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -156,6 +172,14 @@ export function useScoutRun({
         ? stage
         : flightStageRef.current;
     flightStageRef.current = shownStage;
+    setFlightLine(
+      publishedScoutFlightLine(shownStage, {
+        cool: ev.coolCount,
+        target: ev.targetCool,
+        candidates: ev.candidates,
+        bucketSize: ev.bucketSize,
+      }),
+    );
     if (shownStage === "error") setStatus(message);
     pushScoutLine(message, stage);
   }
@@ -236,6 +260,7 @@ export function useScoutRun({
     coolProgressRef.current = { cool: 0, target: targetCool };
     flightStageRef.current = "planning";
     serverStageRef.current = null;
+    setFlightLine(publishedScoutFlightLine("planning"));
 
     setSearching(true);
     // Keep existing thread rows; partials + done append by id across runs.
@@ -500,6 +525,12 @@ export function useScoutRun({
         return;
       }
       flightStageRef.current = next;
+      setFlightLine(
+        publishedScoutFlightLine(next, {
+          cool: coolProgressRef.current.cool,
+          target: coolProgressRef.current.target,
+        }),
+      );
     }, SCOUT_STAGE_TICK_MS);
     return () => window.clearInterval(id);
   }, [searching]);
@@ -514,6 +545,7 @@ export function useScoutRun({
 
   return {
     searching,
+    flightLine,
     searchCooldownRemaining,
     searchBlocked,
     grounded,

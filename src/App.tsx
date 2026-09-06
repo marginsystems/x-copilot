@@ -201,6 +201,7 @@ export default function App() {
   } = useSettingsDraft({ setSettings, setThreads, sourceThreadsRef });
   const {
     searching,
+    flightLine,
     searchCooldownRemaining,
     grounded,
     sortiesLimit,
@@ -719,6 +720,7 @@ export default function App() {
               dismissedHistory={dismissedHistory}
               expiredHistory={expiredHistory}
               searching={searching}
+              flightLine={flightLine}
               actionBusy={actionBusy}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
