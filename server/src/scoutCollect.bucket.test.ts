@@ -482,4 +482,55 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.event.coolCount, 0);
   });
 
+  it("refills from paid overflow before searching X again", async () => {
+    let searchCalls = 0;
+    let triageCalls = 0;
+    const id = { n: 0 };
+
+    const result = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async () => {},
+        searchTimeline: async () => {
+          searchCalls += 1;
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: fillBucket(id, 10),
+            bottomCursor: "more",
+          };
+        },
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => {
+          triageCalls += 1;
+          return {
+            threads: threads.map((thread, index) => ({
+              ...thread,
+              engage:
+                triageCalls === 2 && index === 0
+                  ? ("consider" as const)
+                  : ("skip" as const),
+              baitScore: triageCalls === 2 && index === 0 ? 15 : 90,
+            })),
+          };
+        },
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(searchCalls, 1);
+    assert.equal(triageCalls, 2);
+    assert.equal(result.event.stopReason, "target");
+    assert.equal(result.event.threads?.[0]?.id, "t6");
+  });
+
 });

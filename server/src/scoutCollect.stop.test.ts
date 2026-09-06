@@ -210,4 +210,55 @@ describe("runScoutCollect stop", () => {
     assert.equal(result.event.coolCount, 1);
   });
 
+  it("persists qualified extras while stopping search at the target", async () => {
+    const cacheSnaps: Array<{ threads: ThreadCard[] }> = [];
+    let searchCalls = 0;
+    const id = { n: 0 };
+
+    const result = await runScoutCollect({
+      queries: ["q1", "q2"],
+      bucketSize: 5,
+      targetCool: 2,
+      session,
+      deps: {
+        sleep: async () => {},
+        getCooledAuthorKeys: async () => new Set(),
+        saveScoutCache: async (snap) => {
+          cacheSnaps.push({ threads: [...snap.threads] });
+          return snap;
+        },
+        searchTimeline: async () => {
+          searchCalls += 1;
+          return {
+            ok: true as const,
+            queryId: "test",
+            threads: fillBucket(id, 5),
+            bottomCursor: "more",
+          };
+        },
+        hydrateReplyParents: async ({ threads }) => ({
+          threads,
+          unhydratedReplyCount: 0,
+        }),
+        triageThreads: async ({ threads }) => ({
+          threads: threads.map((thread) => ({
+            ...thread,
+            engage: "consider" as const,
+            baitScore: 15,
+          })),
+        }),
+      },
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(searchCalls, 1, "target must stop further paid searches");
+    assert.equal(result.event.stopReason, "target");
+    assert.equal(result.event.coolCount, 5);
+    assert.ok(
+      cacheSnaps.some((snapshot) => snapshot.threads.length === 5),
+      "mid-run cache must include cools beyond targetCool",
+    );
+  });
+
 });
