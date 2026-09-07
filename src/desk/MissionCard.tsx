@@ -4,6 +4,7 @@ import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
 import {
   FYP_DETECTING_COPY,
+  FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
 import type { CoachingState } from "../lib/coaching";
@@ -49,7 +50,7 @@ export function approachRefillLine(
   if (state === "waiting") return "Scout is waiting for the cooldown.";
   if (state === "flying") return flightLine || "In the air…";
   if (state === "landed") return "Scout landed. Loading Approach.";
-  return "You're clean. History is a log.";
+  return FYP_WAIT_COPY;
 }
 
 function phaseVerb(
@@ -211,10 +212,18 @@ export function MissionCard(props: {
         ? props.scout
         : null;
     const refillPending = scoutRefillPending(props.refillState);
-    const why = phaseWhy(props.phase, props.coaching);
+    const emptyForYou =
+      !thread && !refillPending && props.phase === "done_for_now";
+    const why = emptyForYou
+      ? FYP_WAIT_COPY
+      : phaseWhy(props.phase, props.coaching);
     return withReplyPace(
       <ApproachFrame
-        verb={phaseVerb(props.phase, null, refillPending, thread)}
+        verb={
+          emptyForYou
+            ? "For You"
+            : phaseVerb(props.phase, null, refillPending, thread)
+        }
         why={why}
         busy={!thread && props.refillState !== "terminal_empty"}
       >
@@ -266,6 +275,11 @@ export function MissionCard(props: {
                       />
                     )
             }
+          />
+        ) : emptyForYou ? (
+          <ForYouFeedRow
+            status={props.forYouStatus}
+            onNext={props.onForYouNext}
           />
         ) : (
           <ApproachFlightRow
