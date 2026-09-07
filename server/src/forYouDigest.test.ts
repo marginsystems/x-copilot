@@ -355,6 +355,13 @@ describe("forYouDigest", () => {
           },
           {
             kind: "quote",
+            why: "140 views on a memory worth another take",
+            draft: "Same shape.",
+            targetId: "mem-hit",
+            targetUrl: "https://x.com/hit/status/6",
+          },
+          {
+            kind: "quote",
             why: "900 views — write the next one like this",
             draft: "Same shape.",
             targetId: "10",
@@ -366,7 +373,7 @@ describe("forYouDigest", () => {
     );
     assert.deepEqual(
       kept.map((a) => a.targetId ?? a.kind),
-      ["mem-hit"],
+      ["mem-hit", "mem-hit"],
     );
   });
 

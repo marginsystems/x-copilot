@@ -305,9 +305,13 @@ export function digestAllowlist(digest: ForYouDigest): {
     if (typeof m.views !== "number" || m.views < FOR_YOU_MIN_ENGAGE_VIEWS) {
       continue;
     }
+    add(m.threadId, m.url);
     add(m.threadId, m.url, true);
   }
-  for (const t of digest.leftoverScout) add(t.id, t.url, true);
+  for (const t of digest.leftoverScout) {
+    add(t.id, t.url);
+    add(t.id, t.url, true);
+  }
   return { ids, urls, replyIds, replyUrls };
 }
 

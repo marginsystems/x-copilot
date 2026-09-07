@@ -252,10 +252,13 @@ export function listActiveSuggestions(
        WHERE user_id = ? AND status = 'suggested' AND expires_at > ?
          AND NOT (
            kind IN ('quote', 'repost') AND EXISTS (
-             SELECT 1 FROM own_posts
-             WHERE own_posts.user_id = for_you_suggestions.user_id
-               AND own_posts.id = for_you_suggestions.target_id
-           )
+              SELECT 1 FROM own_posts
+              WHERE own_posts.user_id = for_you_suggestions.user_id
+                AND (
+                  own_posts.id = for_you_suggestions.target_id
+                  OR own_posts.url = for_you_suggestions.target_url
+                )
+            )
          )
        ORDER BY created_at DESC`,
     )
