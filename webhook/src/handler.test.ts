@@ -42,6 +42,7 @@ function post(
     xUserId: partial.xUserId ?? "x-user",
     postId: partial.postId ?? "reply-1",
     kind: partial.kind ?? "reply",
+    repostTargetId: partial.repostTargetId ?? null,
     text: partial.text ?? "reply",
     postedAt: partial.postedAt ?? "2026-09-04T03:00:00.000Z",
     inReplyToId: partial.inReplyToId === undefined ? "parent-1" : partial.inReplyToId,
@@ -140,6 +141,7 @@ describe("own reply interaction capture", () => {
       id: "parent-1",
       conversationId: "parent-1",
       inReplyToId: null,
+      surface: "reply",
       author: "@scout",
       url: null,
       text: null,
@@ -151,6 +153,234 @@ describe("own reply interaction capture", () => {
     );
     assert.equal((await getLastScout({ userId }))?.threads.length, 0);
     assert.equal(getScoutApproachLock(userId)?.id, "parent-1");
+  });
+
+  it("marks and prunes a repost of the locked Scout card", async () => {
+    await saveScoutCache(
+      {
+        savedAt: new Date(nowMs).toISOString(),
+        queries: [],
+        threads: [
+          {
+            id: "card-1",
+            conversationId: "root-1",
+            author: "@scout",
+            text: "Scout repost card",
+            url: "https://x.com/scout/status/card-1",
+          },
+        ],
+      },
+      { userId },
+    );
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "root-1",
+      inReplyToId: "parent-1",
+      surface: "repost",
+      author: "@scout",
+      url: "https://x.com/scout/status/card-1",
+      text: "Scout repost card",
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "repost-1",
+          kind: "repost",
+          repostTargetId: "card-1",
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "scout",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "card-1");
+    assert.equal(row?.replyId, "repost-1");
+    assert.equal((await getLastScout({ userId }))?.threads.length, 0);
+    assert.equal(getScoutApproachLock(userId)?.id, "card-1");
+  });
+
+  it("does not complete a Repost lock for another action", async () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "root-1",
+      inReplyToId: null,
+      surface: "repost",
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    for (const candidate of [
+      post({
+        postId: "other-repost",
+        kind: "repost",
+        repostTargetId: "other-card",
+        inReplyToId: null,
+        conversationId: "root-1",
+      }),
+      post({
+        postId: "quote-1",
+        kind: "quote",
+        inReplyToId: null,
+        conversationId: "root-1",
+      }),
+      post({
+        postId: "original-1",
+        kind: "original",
+        inReplyToId: null,
+        conversationId: null,
+      }),
+    ]) {
+      assert.equal(
+        await markOwnReplyInteracted(candidate, userId, { nowMs }),
+        "skipped",
+      );
+    }
+    assert.deepEqual(await listInteractionHistory({ userId }), []);
+  });
+
+  it("does not complete a reply lock from a repost", async () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "root-1",
+      inReplyToId: "parent-1",
+      surface: "reply",
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "wrong-repost",
+          kind: "repost",
+          repostTargetId: "card-1",
+          inReplyToId: null,
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "skipped",
+    );
+    assert.deepEqual(await listInteractionHistory({ userId }), []);
+  });
+
+  it("does not complete or poison a repost lock from a reply", async () => {
+    watchThread({
+      userId,
+      threadId: "card-1",
+      author: "@scout",
+    });
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "root-1",
+      inReplyToId: null,
+      surface: "repost",
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "sibling-reply",
+          kind: "reply",
+          inReplyToId: "other-card-child",
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "skipped",
+    );
+    assert.deepEqual(await listInteractionHistory({ userId }), []);
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "wrong-reply",
+          kind: "reply",
+          inReplyToId: "card-1",
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "skipped",
+    );
+    assert.deepEqual(await listInteractionHistory({ userId }), []);
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "repost-after-reply",
+          kind: "repost",
+          repostTargetId: "card-1",
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "scout",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "card-1");
+    assert.equal(row?.replyId, "repost-after-reply");
+  });
+
+  it("defaults a surface-less lock to reply", () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "card-1",
+      inReplyToId: null,
+      surface: null,
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(getScoutApproachLock(userId)?.surface, "reply");
+  });
+
+  it("completes a legacy reply lock using the migration default", async () => {
+    const now = new Date(nowMs).toISOString();
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO scout_approach_locks
+           (user_id, card_id, conversation_id, in_reply_to_id, author, url, text, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        userId,
+        "card-1",
+        "card-1",
+        null,
+        "@scout",
+        null,
+        "Scout card",
+        now,
+      );
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({ inReplyToId: "card-1", conversationId: "card-1" }),
+        userId,
+        { nowMs },
+      ),
+      "scout",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "card-1");
   });
 
   it("marks an unwatched reply and stamps the organic beat", async () => {
@@ -170,6 +400,7 @@ describe("own reply interaction capture", () => {
       id: "card-1",
       conversationId: "card-1",
       inReplyToId: null,
+      surface: "reply",
       author: "@scout",
       url: "https://x.com/scout/status/card-1",
       text: "Scout card",
@@ -193,6 +424,7 @@ describe("own reply interaction capture", () => {
       id: "card-1",
       conversationId: "root-1",
       inReplyToId: "parent-1",
+      surface: "reply",
       author: "@scout",
       url: null,
       text: null,
@@ -219,6 +451,7 @@ describe("own reply interaction capture", () => {
       id: "card-1",
       conversationId: "root-1",
       inReplyToId: "parent-1",
+      surface: "reply",
       author: "@scout",
       url: null,
       text: null,

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { replyMatchesLockedScout } from "./replyMatchScout.ts";
+import {
+  replyMatchesLockedScout,
+  repostMatchesLockedScout,
+} from "./replyMatchScout.ts";
 
 describe("replyMatchesLockedScout", () => {
   const card = {
@@ -53,6 +56,51 @@ describe("replyMatchesLockedScout", () => {
     assert.equal(
       replyMatchesLockedScout(
         { inReplyToId: "card-1", conversationId: "foreign-root" },
+        card,
+      ),
+      false,
+    );
+  });
+});
+
+describe("repostMatchesLockedScout", () => {
+  const card = {
+    id: "card-1",
+    conversationId: "root-1",
+    inReplyToId: "parent-1",
+  };
+
+  it("matches the locked card target in its conversation", () => {
+    assert.equal(
+      repostMatchesLockedScout(
+        { repostTargetId: "card-1", conversationId: "root-1" },
+        card,
+      ),
+      true,
+    );
+  });
+
+  it("matches the locked card when conversation is unavailable", () => {
+    assert.equal(
+      repostMatchesLockedScout(
+        { repostTargetId: "card-1", conversationId: null },
+        card,
+      ),
+      true,
+    );
+  });
+
+  it("rejects another target or a foreign conversation", () => {
+    assert.equal(
+      repostMatchesLockedScout(
+        { repostTargetId: "other-card", conversationId: "root-1" },
+        card,
+      ),
+      false,
+    );
+    assert.equal(
+      repostMatchesLockedScout(
+        { repostTargetId: "card-1", conversationId: "foreign-root" },
         card,
       ),
       false,
