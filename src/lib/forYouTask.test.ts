@@ -6,6 +6,7 @@ import {
   hasDetectedForYouPost,
   readForYouWait,
   snapshotForYouWait,
+  shouldArmForYouWait,
   shouldHoldForYouTask,
   writeForYouWait,
 } from "./forYouTask.ts";
@@ -34,6 +35,46 @@ describe("canPresentForYouTask", () => {
     assert.equal(canPresentForYouTask({ ...ready, grounded: true }), false);
     assert.equal(
       canPresentForYouTask({ ...ready, cooldownRemaining: 12 }),
+      false,
+    );
+  });
+});
+
+describe("shouldArmForYouWait", () => {
+  it("arms when the For You wait is on the desk and nothing is held", () => {
+    assert.equal(
+      shouldArmForYouWait({
+        alreadyHeld: false,
+        canPresent: true,
+        showingForYouWait: true,
+      }),
+      true,
+    );
+  });
+
+  it("does not re-arm or arm a hidden card", () => {
+    assert.equal(
+      shouldArmForYouWait({
+        alreadyHeld: true,
+        canPresent: true,
+        showingForYouWait: true,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldArmForYouWait({
+        alreadyHeld: false,
+        canPresent: false,
+        showingForYouWait: true,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldArmForYouWait({
+        alreadyHeld: false,
+        canPresent: true,
+        showingForYouWait: false,
+      }),
       false,
     );
   });

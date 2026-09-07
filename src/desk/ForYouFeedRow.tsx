@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   FYP_ACTION_COPY,
+  FYP_DETECTED_COPY,
   FYP_NEXT_TIP,
   FYP_OPEN_TIP,
   FYP_WAIT_COPY,
@@ -16,6 +17,8 @@ export function ForYouFeedRow(props: {
 }) {
   const [open, setOpen] = useState(true);
   const expandable = props.expandable ?? true;
+  const detected = props.status === FYP_DETECTED_COPY;
+  const summary = props.status ?? FYP_WAIT_COPY;
   return (
     <DeskRow
       className="for-you-row next-action-row kind-reply"
@@ -25,7 +28,7 @@ export function ForYouFeedRow(props: {
       lead="FY"
       leadTitle="Real X For You"
       leadClassName="bait kind-reply"
-      summary={props.status ?? (expandable ? FYP_WAIT_COPY : undefined)}
+      summary={expandable ? summary : undefined}
       meta={
         <>
           <span className="chip">For You</span>
@@ -34,22 +37,28 @@ export function ForYouFeedRow(props: {
       }
     >
       <div className="row">
-        <HasTipLink
-          className="primary"
-          href={X_FOR_YOU_URL}
-          target="_blank"
-          rel="noreferrer"
-          tip={FYP_OPEN_TIP}
-        >
-          Open For You
-        </HasTipLink>
+        {detected ? null : (
+          <HasTipLink
+            className="primary"
+            href={X_FOR_YOU_URL}
+            target="_blank"
+            rel="noreferrer"
+            tip={FYP_OPEN_TIP}
+          >
+            Open For You
+          </HasTipLink>
+        )}
         {props.onNext ? (
-          <HasTipButton className="ghost" onClick={props.onNext} tip={FYP_NEXT_TIP}>
+          <HasTipButton
+            className={detected ? "primary" : "ghost"}
+            onClick={props.onNext}
+            tip={FYP_NEXT_TIP}
+          >
             Next
           </HasTipButton>
         ) : null}
       </div>
-      <p className="reason">{FYP_ACTION_COPY}</p>
+      {detected ? null : <p className="reason">{FYP_ACTION_COPY}</p>}
     </DeskRow>
   );
 }

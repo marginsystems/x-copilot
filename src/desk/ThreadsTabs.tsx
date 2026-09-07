@@ -32,6 +32,7 @@ import {
   clearScoutTakeoffTried,
   markScoutTakeoffTried,
   readScoutTakeoffTried,
+  scoutRefillPending,
   scoutRefillState,
   shouldArmScoutOnBoot,
   shouldArmScoutRefill,
@@ -40,6 +41,7 @@ import {
 import {
   canPresentForYouTask,
   clearForYouWait,
+  shouldArmForYouWait,
   hasDetectedForYouPost,
   readForYouWait,
   snapshotForYouWait,
@@ -212,11 +214,12 @@ export function ThreadsTabs({
     }, 12_000);
     return () => window.clearInterval(interval);
   }, [forYouHeld]);
-  const forYouStatus = forYouWait?.snapshot
-    ? hasDetectedForYouPost(forYouWait.snapshot, coaching)
+  const forYouStatus = !forYouWait
+    ? undefined
+    : forYouWait.snapshot &&
+        hasDetectedForYouPost(forYouWait.snapshot, coaching)
       ? FYP_DETECTED_COPY
-      : FYP_DETECTING_COPY
-    : undefined;
+      : FYP_DETECTING_COPY;
   const currentDayUtc = new Date().toISOString().slice(0, 10);
   const [locked, setLocked] = useState<ApproachLock | null>(() =>
     readApproachLock(authUser?.id),
@@ -271,6 +274,37 @@ export function ThreadsTabs({
     phase === "done_for_now" && scout
       ? scout
       : lockedScout;
+  useEffect(() => {
+    if (!deskBootReady) return;
+    if (
+      !shouldArmForYouWait({
+        alreadyHeld: Boolean(forYouWait),
+        canPresent: canPresentForYou,
+        showingForYouWait:
+          holdForYouTask ||
+          (phase === "done_for_now" &&
+            !displayedScout &&
+            !scoutRefillPending(refillState)),
+      })
+    ) {
+      return;
+    }
+    const wait: ForYouWait = {
+      held: true,
+      snapshot: snapshotForYouWait(coaching),
+    };
+    writeForYouWait(wait);
+    setForYouWait(wait);
+  }, [
+    canPresentForYou,
+    coaching,
+    deskBootReady,
+    displayedScout,
+    forYouWait,
+    holdForYouTask,
+    phase,
+    refillState,
+  ]);
   const lockedRef = useRef(locked);
   lockedRef.current = locked;
   const hydrateInteractedRef = useRef(onHydrateInteracted);

@@ -105,6 +105,15 @@ export function canPresentForYouTask(opts: {
   );
 }
 
+/** Arm the detect snapshot whenever the For You wait card is on the desk. */
+export function shouldArmForYouWait(opts: {
+  alreadyHeld: boolean;
+  canPresent: boolean;
+  showingForYouWait: boolean;
+}): boolean {
+  return !opts.alreadyHeld && opts.canPresent && opts.showingForYouWait;
+}
+
 export function shouldHoldForYouTask(opts: {
   held: boolean;
   tanksEmpty: boolean;
