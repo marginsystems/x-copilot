@@ -97,6 +97,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   const [interactedHistory, setInteractedHistory] = useState<
     InteractionHistoryEntry[]
   >(() => seed?.interacted.interactions ?? []);
+  const [interactedHydrated, setInteractedHydrated] = useState(false);
   const [dismissedHistory, setDismissedHistory] = useState<
     DismissalHistoryEntry[]
   >(() => seed?.dismissed.dismissals ?? []);
@@ -162,10 +163,17 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     setThreads((prev) => prev.filter((t) => keepInCurated(t)));
   }
 
+  /**
+   * Preservation belongs to the locked Scout card. Passing a new id transfers
+   * it synchronously, so a card released a moment ago leaves inventory before
+   * any later selection, not after the next network round trip.
+   */
   async function hydrateInteracted(preservedId?: string | null) {
+    setInteractedHydrated(false);
     if (preservedId !== undefined) {
+      const changed = preservedIdRef.current !== preservedId;
       preservedIdRef.current = preservedId;
-      if (preservedId === null) {
+      if (changed || preservedId === null) {
         setThreads((prev) => prev.filter((t) => keepInCurated(t)));
       }
     }
@@ -216,6 +224,8 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       }
     } catch {
       // Sidecar may be offline on first paint — ignore.
+    } finally {
+      setInteractedHydrated(true);
     }
   }
 
@@ -421,6 +431,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
 
   return {
     interactedIds,
+    interactedHydrated,
     setInteractedIds,
     interactedHistory,
     setInteractedHistory,

@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   advanceApproach,
+  approachGate,
   approachTabLiveCount,
   emptyDeskBeats,
   initialApproachLock,
+  isForYouTask,
+  normalizeApproachLock,
+  type ApproachLock,
 } from "./deskPhase.ts";
 
 describe("emptyDeskBeats", () => {
@@ -123,7 +127,7 @@ describe("Approach lock", () => {
     );
   });
 
-  it("does not re-open For You after Next clears its wait", () => {
+  it("Next with no stock keeps a coherent For You task; the caller opens a fresh wait", () => {
     const inventoryWithoutCards = {
       scoutId: null,
       suggestionId: null,
@@ -136,9 +140,49 @@ describe("Approach lock", () => {
           { type: "next" },
           inventoryWithoutCards,
         ),
-        { phase: "done_for_now", cardId: null, surface: null },
+        { phase: "silent_refuel", cardId: null, surface: "for_you" },
       );
     }
+  });
+
+  it("Next honors the reply minute on a For You task and on a detected Scout", () => {
+    const paced = { ...inventory, paceLocked: true };
+    const forYou = {
+      phase: "silent_refuel",
+      cardId: null,
+      surface: "for_you",
+    } as const;
+    const hold = { phase: "hold", cardId: null, surface: "for_you" } as const;
+    assert.equal(advanceApproach(forYou, { type: "next" }, paced), forYou);
+    assert.equal(advanceApproach(hold, { type: "next" }, paced), hold);
+    assert.deepEqual(
+      advanceApproach(
+        { phase: "scout_reply", cardId: "scout-1", surface: null },
+        { type: "next" },
+        paced,
+      ),
+      { phase: "hold", cardId: null, surface: "for_you" },
+    );
+    assert.deepEqual(
+      advanceApproach(forYou, { type: "bypass" }, paced),
+      { phase: "scout_reply", cardId: "scout-2", surface: null },
+    );
+  });
+
+  it("falls back to the gate card, never done_for_now, when the feed is closed", () => {
+    assert.deepEqual(
+      advanceApproach(
+        { phase: "scout_reply", cardId: "scout-1", surface: null },
+        { type: "skip" },
+        {
+          scoutId: null,
+          suggestionId: null,
+          canPresentForYou: false,
+          gate: "link_x",
+        },
+      ),
+      { phase: "silent_refuel", cardId: null, surface: "link_x" },
+    );
   });
 
   it("routes posted Suggested to the next scout, For You, or done_for_now", () => {
@@ -216,7 +260,167 @@ describe("Approach lock", () => {
   });
 });
 
+describe("normalizeApproachLock", () => {
+  const open = {
+    gate: null,
+    scoutId: "scout-1",
+    suggestionId: null,
+    canOpenForYou: true,
+  };
+  const empty = { ...open, scoutId: null };
+
+  it("keeps a valid active task by identity", () => {
+    const locks: ApproachLock[] = [
+      { phase: "scout_reply", cardId: "scout-9", surface: null },
+      { phase: "organic_reply", cardId: "suggested-9", surface: null },
+      { phase: "silent_refuel", cardId: null, surface: "for_you" },
+      { phase: "hold", cardId: null, surface: "for_you" },
+    ];
+    for (const lock of locks) {
+      assert.equal(normalizeApproachLock(lock, open), lock);
+      assert.equal(normalizeApproachLock(lock, empty), lock);
+    }
+  });
+
+  it("migrates done_for_now before first paint: stock locks a Scout card, else For You", () => {
+    const done = {
+      phase: "done_for_now",
+      cardId: null,
+      surface: null,
+    } as const;
+    assert.deepEqual(normalizeApproachLock(done, open), {
+      phase: "scout_reply",
+      cardId: "scout-1",
+      surface: null,
+    });
+    assert.deepEqual(normalizeApproachLock(done, empty), {
+      phase: "silent_refuel",
+      cardId: null,
+      surface: "for_you",
+    });
+  });
+
+  it("turns legacy usage and wait surfaces into the For You task", () => {
+    for (const surface of ["usage", "wait"] as const) {
+      assert.deepEqual(
+        normalizeApproachLock(
+          { phase: "silent_refuel", cardId: null, surface },
+          empty,
+        ),
+        { phase: "silent_refuel", cardId: null, surface: "for_you" },
+      );
+    }
+  });
+
+  it("resolves a cleared gate into the available task", () => {
+    const linkX = {
+      phase: "silent_refuel",
+      cardId: null,
+      surface: "link_x",
+    } as const;
+    assert.deepEqual(normalizeApproachLock(linkX, open), {
+      phase: "scout_reply",
+      cardId: "scout-1",
+      surface: null,
+    });
+    assert.deepEqual(normalizeApproachLock(linkX, empty), {
+      phase: "silent_refuel",
+      cardId: null,
+      surface: "for_you",
+    });
+  });
+
+  it("replaces a For You task with the gate when a prerequisite appears", () => {
+    const gated = { ...empty, gate: "link_x", canOpenForYou: false } as const;
+    assert.deepEqual(
+      normalizeApproachLock(
+        { phase: "silent_refuel", cardId: null, surface: "for_you" },
+        gated,
+      ),
+      { phase: "silent_refuel", cardId: null, surface: "link_x" },
+    );
+    const stale = { phase: "silent_refuel", cardId: null, surface: "settings" } as const;
+    assert.deepEqual(normalizeApproachLock(stale, gated), {
+      phase: "silent_refuel",
+      cardId: null,
+      surface: "link_x",
+    });
+    const active = {
+      phase: "scout_reply",
+      cardId: "scout-1",
+      surface: null,
+    } as const;
+    assert.equal(normalizeApproachLock(active, gated), active);
+  });
+
+  it("repairs legacy needs_onboarding and malformed combos", () => {
+    const malformed: ApproachLock[] = [
+      { phase: "needs_onboarding", cardId: null, surface: null },
+      { phase: "scout_reply", cardId: null, surface: null },
+      { phase: "organic_reply", cardId: null, surface: null },
+      { phase: "silent_refuel", cardId: null, surface: null },
+    ];
+    for (const lock of malformed) {
+      assert.deepEqual(normalizeApproachLock(lock, empty), {
+        phase: "silent_refuel",
+        cardId: null,
+        surface: "for_you",
+      });
+    }
+    assert.deepEqual(
+      normalizeApproachLock(
+        { phase: "hold", cardId: "stray", surface: null },
+        empty,
+      ),
+      { phase: "hold", cardId: null, surface: "for_you" },
+    );
+  });
+
+  it("names the gate from the prerequisites, never from Scout state", () => {
+    assert.equal(approachGate({ needsXLink: true, hasAgenda: false }), "link_x");
+    assert.equal(
+      approachGate({ needsXLink: false, hasAgenda: false }),
+      "settings",
+    );
+    assert.equal(approachGate({ needsXLink: false, hasAgenda: true }), null);
+  });
+
+  it("treats hold and silent_refuel/for_you as one For You task", () => {
+    assert.equal(
+      isForYouTask({ phase: "hold", cardId: null, surface: "for_you" }),
+      true,
+    );
+    assert.equal(
+      isForYouTask({ phase: "silent_refuel", cardId: null, surface: "for_you" }),
+      true,
+    );
+    assert.equal(
+      isForYouTask({ phase: "silent_refuel", cardId: null, surface: "link_x" }),
+      false,
+    );
+    assert.equal(
+      isForYouTask({ phase: "scout_reply", cardId: "s", surface: null }),
+      false,
+    );
+  });
+});
+
 describe("approachTabLiveCount", () => {
+  it("is 1 for a real For You task whatever phase carries it", () => {
+    for (const phase of ["silent_refuel", "hold", "done_for_now"] as const) {
+      assert.equal(
+        approachTabLiveCount({
+          phase,
+          hasScoutCard: false,
+          hasSuggestion: false,
+          holdForYouTask: true,
+          refillState: "terminal_empty",
+        }),
+        1,
+      );
+    }
+  });
+
   it("counts the card on the desk", () => {
     assert.equal(
       approachTabLiveCount({
@@ -319,7 +523,7 @@ describe("S10 skip-next", () => {
     );
   });
 
-  it("Next already refuses to re-open For You after its wait; last Skip still may", () => {
+  it("Next and last Skip on an empty tank both land on the For You task", () => {
     const emptyTank = {
       scoutId: null,
       suggestionId: null,
@@ -331,7 +535,7 @@ describe("S10 skip-next", () => {
         { type: "next" },
         emptyTank,
       ),
-      { phase: "done_for_now", cardId: null, surface: null },
+      { phase: "silent_refuel", cardId: null, surface: "for_you" },
     );
     assert.deepEqual(
       advanceApproach(firstScout, { type: "skip" }, emptyTank),

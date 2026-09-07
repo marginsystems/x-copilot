@@ -33,6 +33,18 @@ export function shouldArmScoutRefill(usableScoutCount: number): boolean {
   return usableScoutCount <= SCOUT_TANK_LOW;
 }
 
+/**
+ * Tank stock the selector may lock and the refill trigger may count. A card
+ * with a recorded reply, or one this desk already released, is retained for
+ * presentation only; it is not stock.
+ */
+export function eligibleScoutCards<T extends { id: string }>(
+  threads: readonly T[],
+  ...consumed: ReadonlySet<string>[]
+): T[] {
+  return threads.filter((row) => !consumed.some((set) => set.has(row.id)));
+}
+
 export function shouldArmScoutOnBoot(opts: {
   usableScoutCount: number;
   alreadyTried: boolean;

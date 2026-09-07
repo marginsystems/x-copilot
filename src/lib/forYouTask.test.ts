@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  canPresentForYouTask,
+  canOpenForYouTask,
   clearForYouWait,
+  forYouWaitDetected,
   hasDetectedForYouPost,
+  openForYouWait,
+  parseForYouWait,
   readForYouWait,
+  settleForYouWait,
   snapshotForYouWait,
-  shouldArmForYouWait,
-  shouldHoldForYouTask,
   writeForYouWait,
 } from "./forYouTask.ts";
 
@@ -17,147 +19,92 @@ const coaching = {
   replyAt: ["2026-09-05T11:00:00.000Z"],
 };
 
-describe("canPresentForYouTask", () => {
-  const ready = {
-    needsXLink: false,
-    hasAgenda: true,
-    grounded: false,
-    cooldownRemaining: 0,
-  };
+const ENTERED = Date.parse("2026-09-05T13:00:00.000Z");
 
-  it("presents when X is linked, agenda is set, and Scout is not gated", () => {
-    assert.equal(canPresentForYouTask(ready), true);
+describe("canOpenForYouTask", () => {
+  it("opens the feed when X is linked and an agenda exists", () => {
+    assert.equal(
+      canOpenForYouTask({ needsXLink: false, hasAgenda: true }),
+      true,
+    );
   });
 
-  it("hides when X is unlinked, agenda is missing, or Scout is gated", () => {
-    assert.equal(canPresentForYouTask({ ...ready, needsXLink: true }), false);
-    assert.equal(canPresentForYouTask({ ...ready, hasAgenda: false }), false);
-    assert.equal(canPresentForYouTask({ ...ready, grounded: true }), false);
+  it("is gated only by Link X and the agenda, never by Scout state", () => {
     assert.equal(
-      canPresentForYouTask({ ...ready, cooldownRemaining: 12 }),
+      canOpenForYouTask({ needsXLink: true, hasAgenda: true }),
+      false,
+    );
+    assert.equal(
+      canOpenForYouTask({ needsXLink: false, hasAgenda: false }),
       false,
     );
   });
 });
 
-describe("shouldArmForYouWait", () => {
-  it("arms when the For You wait is on the desk and nothing is held", () => {
+describe("For You wait identity", () => {
+  it("opens with an owner, entry time, baseline, and no completion", () => {
+    const wait = openForYouWait({ owner: "u1", coaching, now: ENTERED });
+    assert.deepEqual(wait, {
+      held: true,
+      kind: "for_you",
+      owner: "u1",
+      enteredAt: "2026-09-05T13:00:00.000Z",
+      snapshot: snapshotForYouWait(coaching),
+      detectedAt: null,
+    });
+  });
+
+  it("uses the entry time as the explicit baseline when coaching is late", () => {
+    const wait = openForYouWait({ owner: "u1", coaching: null, now: ENTERED });
+    assert.equal(wait.snapshot, null);
+    assert.equal(forYouWaitDetected(wait, null), false);
+    assert.equal(forYouWaitDetected(wait, coaching), false);
     assert.equal(
-      shouldArmForYouWait({
-        alreadyHeld: false,
-        canPresent: true,
-        showingForYouWait: true,
+      forYouWaitDetected(wait, {
+        ...coaching,
+        replyAt: ["2026-09-05T13:00:01.000Z"],
       }),
       true,
     );
   });
 
-  it("does not re-arm or arm a hidden card", () => {
-    assert.equal(
-      shouldArmForYouWait({
-        alreadyHeld: true,
-        canPresent: true,
-        showingForYouWait: true,
-      }),
-      false,
-    );
-    assert.equal(
-      shouldArmForYouWait({
-        alreadyHeld: false,
-        canPresent: false,
-        showingForYouWait: true,
-      }),
-      false,
-    );
-    assert.equal(
-      shouldArmForYouWait({
-        alreadyHeld: false,
-        canPresent: true,
-        showingForYouWait: false,
-      }),
-      false,
-    );
-  });
-});
-
-describe("shouldHoldForYouTask", () => {
-  it("arms when both tanks are empty and For You can present", () => {
-    assert.equal(
-      shouldHoldForYouTask({
-        held: false,
-        tanksEmpty: true,
-        canPresent: true,
-      }),
-      true,
-    );
+  it("late coaching becomes the baseline only when it post-dates nothing", () => {
+    const wait = openForYouWait({ owner: "u1", coaching: null, now: ENTERED });
+    const settled = settleForYouWait(wait, coaching, ENTERED + 12_000);
+    assert.deepEqual(settled.snapshot, snapshotForYouWait(coaching));
+    assert.equal(settled.detectedAt, null);
+    assert.equal(forYouWaitDetected(settled, coaching), false);
   });
 
-  it("stays held after Scout fills the tank", () => {
-    assert.equal(
-      shouldHoldForYouTask({
-        held: true,
-        tanksEmpty: false,
-        canPresent: true,
-      }),
-      true,
-    );
+  it("late coaching that carries a post after entry marks detection instead of absorbing it", () => {
+    const wait = openForYouWait({ owner: "u1", coaching: null, now: ENTERED });
+    const late = {
+      postsToday: 3,
+      postAt: ["2026-09-05T13:00:30.000Z"],
+      replyAt: coaching.replyAt,
+    };
+    const settled = settleForYouWait(wait, late, ENTERED + 40_000);
+    assert.equal(settled.detectedAt, "2026-09-05T13:00:40.000Z");
+    assert.equal(forYouWaitDetected(settled, late), true);
   });
 
-  it("clears after Next when a scouted card is ready", () => {
-    assert.equal(
-      shouldHoldForYouTask({
-        held: false,
-        tanksEmpty: false,
-        canPresent: true,
-      }),
-      false,
+  it("detection is monotonic once marked", () => {
+    const wait = openForYouWait({ owner: "u1", coaching, now: ENTERED });
+    const hit = settleForYouWait(
+      wait,
+      { ...coaching, replyAt: ["2026-09-05T13:05:00.000Z"] },
+      ENTERED + 300_000,
     );
+    assert.notEqual(hit.detectedAt, null);
+    const older = settleForYouWait(hit, coaching, ENTERED + 400_000);
+    assert.equal(older, hit);
+    assert.equal(forYouWaitDetected(older, coaching), true);
   });
 
-  it("stays held while Scout cooldown prevents presenting", () => {
-    assert.equal(
-      shouldHoldForYouTask({
-        held: true,
-        tanksEmpty: false,
-        canPresent: false,
-      }),
-      true,
-    );
-  });
-
-  it("does not arm when For You cannot present", () => {
-    assert.equal(
-      shouldHoldForYouTask({
-        held: false,
-        tanksEmpty: true,
-        canPresent: false,
-      }),
-      false,
-    );
-  });
-
-  it("does not arm after skip or not interested on a scouted card", () => {
-    assert.equal(
-      shouldHoldForYouTask({
-        held: false,
-        tanksEmpty: true,
-        canPresent: true,
-        arm: false,
-      }),
-      false,
-    );
-  });
-
-  it("stays held when the operator was already on the wait", () => {
-    assert.equal(
-      shouldHoldForYouTask({
-        held: true,
-        tanksEmpty: true,
-        canPresent: true,
-        arm: false,
-      }),
-      true,
-    );
+  it("returns the same object when a payload changes nothing", () => {
+    const wait = openForYouWait({ owner: "u1", coaching, now: ENTERED });
+    assert.equal(settleForYouWait(wait, coaching), wait);
+    assert.equal(settleForYouWait(wait, null), wait);
   });
 });
 
@@ -223,8 +170,10 @@ describe("For You wait detection", () => {
       true,
     );
   });
+});
 
-  it("round-trips a held wait through session storage", () => {
+describe("For You wait storage", () => {
+  function withSessionStorage(run: () => void) {
     const values = new Map<string, string>();
     Object.defineProperty(globalThis, "sessionStorage", {
       configurable: true,
@@ -234,10 +183,35 @@ describe("For You wait detection", () => {
         removeItem: (key: string) => values.delete(key),
       },
     });
-    const wait = { held: true as const, snapshot: snapshotForYouWait(coaching) };
-    writeForYouWait(wait);
-    assert.deepEqual(readForYouWait(), wait);
-    clearForYouWait();
-    assert.equal(readForYouWait(), null);
+    try {
+      run();
+    } finally {
+      Reflect.deleteProperty(globalThis, "sessionStorage");
+    }
+  }
+
+  it("round-trips a held wait scoped to its owner", () => {
+    withSessionStorage(() => {
+      const wait = openForYouWait({ owner: "u1", coaching, now: ENTERED });
+      writeForYouWait(wait);
+      assert.deepEqual(readForYouWait("u1"), wait);
+      assert.equal(readForYouWait("u2"), null);
+      clearForYouWait("u1");
+      assert.equal(readForYouWait("u1"), null);
+    });
+  });
+
+  it("ignores the legacy unscoped shape and foreign owners", () => {
+    assert.equal(
+      parseForYouWait(
+        JSON.stringify({ held: true, snapshot: snapshotForYouWait(coaching) }),
+        "u1",
+      ),
+      null,
+    );
+    const wait = openForYouWait({ owner: "u2", coaching, now: ENTERED });
+    assert.equal(parseForYouWait(JSON.stringify(wait), "u1"), null);
+    assert.deepEqual(parseForYouWait(JSON.stringify(wait), "u2"), wait);
+    assert.equal(parseForYouWait("not json", "u1"), null);
   });
 });

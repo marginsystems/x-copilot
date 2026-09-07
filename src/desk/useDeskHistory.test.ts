@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { keepCuratedByHistory } from "./useDeskHistory.ts";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import type { AppSettings } from "../lib/settings.ts";
+import type { ThreadCard } from "./types.ts";
+import { keepCuratedByHistory, useDeskHistory } from "./useDeskHistory.ts";
 
 describe("keepCuratedByHistory", () => {
   it("hides consumed ids", () => {
@@ -78,5 +82,43 @@ describe("keepCuratedByHistory", () => {
       keepCuratedByHistory(parked, () => false, new Set()),
       true,
     );
+  });
+
+  it("filters the released card synchronously when the lock moves", () => {
+    let threads = [
+      { id: "A" } as ThreadCard,
+      { id: "B" } as ThreadCard,
+    ];
+    const pending = new Promise<Response>(() => {});
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = (() => pending) as typeof fetch;
+
+    try {
+      let history!: ReturnType<typeof useDeskHistory>;
+      function Harness() {
+        history = useDeskHistory({
+          setThreads: (update) => {
+            threads =
+              typeof update === "function" ? update(threads) : update;
+          },
+          setStatus: () => {},
+          setActionBusy: () => {},
+          settings: {} as AppSettings,
+        });
+        return null;
+      }
+
+      renderToString(createElement(Harness));
+      history.interactedIdsRef.current.add("A");
+      void history.hydrateInteracted("A");
+      void history.hydrateInteracted("B");
+
+      assert.deepEqual(
+        threads.map((thread) => thread.id),
+        ["B"],
+      );
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
   });
 });

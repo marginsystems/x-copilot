@@ -1,18 +1,18 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { pickApproachScout } from "./approachScout";
-import {
-  ApproachLoadingCard,
-  MissionCard,
-  approachRefillLine,
-} from "./MissionCard";
+import { ApproachLoadingCard, MissionCard } from "./MissionCard";
+import { FYP_HOLD_ACTION_COPY } from "./approachPresenter";
+import { ForYouFeedRow } from "./ForYouFeedRow";
 import {
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
   FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
+import { SCOUT_DETECTED_COPY } from "../lib/phaseWhy";
 import type { ThreadCard } from "./types";
 
 function thread(id: string, views: number): ThreadCard {
@@ -23,6 +23,10 @@ function thread(id: string, views: number): ThreadCard {
     url: `https://x.com/${id}/status/${id}`,
     views,
   };
+}
+
+function escapeRe(copy: string): RegExp {
+  return new RegExp(copy.replace(/[.;]/g, (m) => `\\${m}`));
 }
 
 describe("pickApproachScout", () => {
@@ -42,14 +46,14 @@ function missionProps(
 ): Parameters<typeof MissionCard>[0] {
   return {
     phase: "done_for_now",
-    hold: false,
+    surface: null,
     clock: "",
     remainingMs: 0,
     onBypass() {},
     scout: null,
+    scoutDetected: false,
     suggestion: null,
-    refillState: "flying",
-    flightLine: "Plotting the route…",
+    forYou: null,
     actionBusy: false,
     expandedId: null,
     setExpandedId() {},
@@ -87,7 +91,7 @@ describe("Reply pace", () => {
       MissionCard(
         missionProps({
           phase: "hold",
-          hold: true,
+          surface: "for_you",
           clock: "0:00",
           remainingMs: 0,
         }),
@@ -102,7 +106,7 @@ describe("Reply pace", () => {
       MissionCard(
         missionProps({
           phase: "hold",
-          hold: true,
+          surface: "for_you",
           clock: "0:42",
           remainingMs: 42_000,
         }),
@@ -178,34 +182,93 @@ describe("Reply pace", () => {
   });
 });
 
+describe("Hold presentation", () => {
+  it("holds the same For You card while the minute runs: no Next, Bypass exits", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "hold",
+          surface: "for_you",
+          forYou: { detected: false },
+          clock: "0:42",
+          remainingMs: 42_000,
+        }),
+      ),
+    );
+    assert.match(html, />Hold</);
+    assert.match(html, escapeRe(FYP_DETECTING_COPY));
+    assert.match(html, />Open For You</);
+    assert.match(html, escapeRe(FYP_HOLD_ACTION_COPY));
+    assert.doesNotMatch(html, />Next</);
+    assert.match(html, />Bypass</);
+    assert.doesNotMatch(html, /Reply, original, or quote/);
+  });
+
+  it("becomes For You on the same card when the minute is over", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "hold",
+          surface: "for_you",
+          forYou: { detected: false },
+          clock: "0:00",
+          remainingMs: 0,
+          onForYouNext() {},
+        }),
+      ),
+    );
+    assert.match(html, />For You</);
+    assert.doesNotMatch(html, />Hold</);
+    assert.match(html, />Open For You</);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /reply-pace/);
+    assert.doesNotMatch(html, escapeRe(FYP_HOLD_ACTION_COPY));
+  });
+});
+
+describe("Gate cards", () => {
+  it("names the missing prerequisite instead of For You", () => {
+    const linkX = renderToStaticMarkup(
+      MissionCard(missionProps({ phase: "silent_refuel", surface: "link_x" })),
+    );
+    assert.match(linkX, />Link X</);
+    assert.doesNotMatch(linkX, />For You</);
+    assert.doesNotMatch(linkX, />Open For You</);
+    const settings = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "silent_refuel",
+          surface: "settings",
+          onOpenSettings() {},
+        }),
+      ),
+    );
+    assert.match(settings, />Set agenda</);
+    assert.match(settings, />Settings</);
+    assert.doesNotMatch(settings, />For You</);
+  });
+
+  it("no longer paints usage or wait gates: the feed is open", () => {
+    for (const surface of ["usage", "wait"] as const) {
+      const html = renderToStaticMarkup(
+        MissionCard(
+          missionProps({
+            phase: "silent_refuel",
+            surface,
+            onForYouNext() {},
+          }),
+        ),
+      );
+      assert.match(html, />For You</);
+      assert.match(html, />Open For You</);
+      assert.match(html, />Next</);
+      assert.doesNotMatch(html, /Approach is holding/);
+      assert.doesNotMatch(html, /Grounded/);
+    }
+  });
+});
+
 describe("Approach flight frame", () => {
-  it("renders a busy thread row with the live flight line", () => {
-    const html = renderToStaticMarkup(MissionCard(missionProps()));
-    assert.match(html, /class="mission-card approach-frame"/);
-    assert.match(html, /class="thread-row approach-flight-row is-flying"/);
-    assert.match(html, /role="status"/);
-    assert.match(html, /Plotting the route…/);
-    assert.doesNotMatch(html, />In the air…<\/p>/);
-    assert.doesNotMatch(html, /class="caret"/);
-    assert.doesNotMatch(html, />\+<\/div>/);
-  });
-
-  it("updates stage copy without replacing the card frame", () => {
-    const plotting = renderToStaticMarkup(MissionCard(missionProps()));
-    const airborne = renderToStaticMarkup(
-      MissionCard(missionProps({ flightLine: "In the air…" })),
-    );
-    assert.equal(
-      (plotting.match(/mission-card approach-frame/g) ?? []).length,
-      1,
-    );
-    assert.equal(
-      (airborne.match(/mission-card approach-frame/g) ?? []).length,
-      1,
-    );
-    assert.match(airborne, /In the air…/);
-  });
-
   it("fills the shared frame with the first locked scout thread", () => {
     const lead = thread("first-lead", 42);
     lead.summary = "A real landed summary";
@@ -215,7 +278,6 @@ describe("Approach flight frame", () => {
           phase: "scout_reply",
           scout: lead,
           expandedId: lead.id,
-          refillState: "landed",
         }),
       ),
     );
@@ -227,7 +289,28 @@ describe("Approach flight frame", () => {
     assert.match(html, />Skip</);
     assert.match(html, /Not interested/);
     assert.match(html, /Suggest reply — locked/);
-    assert.match(html, new RegExp(FYP_DETECTING_COPY.replace(".", "\\.")));
+    assert.match(html, escapeRe(FYP_DETECTING_COPY));
+    assert.doesNotMatch(html, /I posted on X/);
+  });
+
+  it("says the reply was detected and offers Next on a retained scout", () => {
+    const lead = thread("detected-lead", 42);
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "scout_reply",
+          scout: lead,
+          scoutDetected: true,
+          expandedId: lead.id,
+          onScoutNext() {},
+        }),
+      ),
+    );
+    assert.match(html, escapeRe(SCOUT_DETECTED_COPY));
+    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
+    assert.match(html, /chip-interacted/);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, />Skip</);
     assert.doesNotMatch(html, /I posted on X/);
   });
 
@@ -240,7 +323,6 @@ describe("Approach flight frame", () => {
           phase: "scout_reply",
           scout: lead,
           expandedId: lead.id,
-          refillState: "landed",
         }),
       ),
     );
@@ -258,11 +340,10 @@ describe("Approach flight frame", () => {
         missionProps({
           phase: "scout_reply",
           scout: null,
-          refillState: "terminal_empty",
         }),
       ),
     );
-    assert.match(html, new RegExp(FYP_DETECTING_COPY.replace(".", "\\.")));
+    assert.match(html, escapeRe(FYP_DETECTING_COPY));
     assert.doesNotMatch(html, /You&#x27;re clean/);
     assert.doesNotMatch(html, /I posted on X/);
   });
@@ -271,30 +352,10 @@ describe("Approach flight frame", () => {
     const lead = thread("restored-lead", 42);
     lead.summary = "A restored landed summary";
     const html = renderToStaticMarkup(
-      MissionCard(
-        missionProps({
-          scout: lead,
-          refillState: "landed",
-        }),
-      ),
+      MissionCard(missionProps({ scout: lead })),
     );
     assert.match(html, /A restored landed summary/);
     assert.doesNotMatch(html, /Scout landed\. Loading Approach\./);
-  });
-
-  it("keeps a done-for-now scout visible during refill flight", () => {
-    const lead = thread("flying-lead", 42);
-    lead.summary = "A flying refill lead";
-    const html = renderToStaticMarkup(
-      MissionCard(
-        missionProps({
-          scout: lead,
-          refillState: "flying",
-        }),
-      ),
-    );
-    assert.match(html, /A flying refill lead/);
-    assert.doesNotMatch(html, /Scout is queued for takeoff\./);
   });
 
   it("renders a busy panel loader without skeleton rows for boot", () => {
@@ -306,30 +367,12 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /mission-skel|thread-row|mission-card/);
   });
 
-  it("keeps queued and waiting copy in the row slot", () => {
-    assert.equal(
-      approachRefillLine("queued"),
-      "Scout is queued for takeoff.",
-    );
-    assert.equal(
-      approachRefillLine("waiting"),
-      "Scout is waiting for the cooldown.",
-    );
-    assert.equal(approachRefillLine("terminal_empty"), FYP_WAIT_COPY);
-  });
-
   it("turns an empty idle Approach into a real For You wait", () => {
     const html = renderToStaticMarkup(
-      MissionCard(
-        missionProps({
-          refillState: "terminal_empty",
-          flightLine: null,
-          onForYouNext() {},
-        }),
-      ),
+      MissionCard(missionProps({ onForYouNext() {} })),
     );
     assert.match(html, />For You</);
-    assert.match(html, new RegExp(FYP_WAIT_COPY.replace(".", "\\.")));
+    assert.match(html, escapeRe(FYP_WAIT_COPY));
     assert.match(html, />Open For You</);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /class="caret"/);
@@ -339,18 +382,37 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /approach-flight-row/);
   });
 
-  it("shows detecting copy on an empty For You wait", () => {
+  it("never leaks refill internals onto the For You wait", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
-          refillState: "terminal_empty",
-          flightLine: null,
-          forYouStatus: FYP_DETECTING_COPY,
+          phase: "silent_refuel",
+          surface: "for_you",
+          forYou: { detected: false },
           onForYouNext() {},
         }),
       ),
     );
-    assert.match(html, new RegExp(FYP_DETECTING_COPY.replace(".", "\\.")));
+    assert.match(html, />For You</);
+    assert.match(html, />Open For You</);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /queued for takeoff/);
+    assert.doesNotMatch(html, /waiting for the cooldown/);
+    assert.doesNotMatch(html, /In the air/);
+    assert.doesNotMatch(html, /approach-flight-row/);
+    assert.doesNotMatch(html, /Scouting/);
+  });
+
+  it("shows detecting copy on an empty For You wait", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          forYou: { detected: false },
+          onForYouNext() {},
+        }),
+      ),
+    );
+    assert.match(html, escapeRe(FYP_DETECTING_COPY));
     assert.equal(html.split(FYP_DETECTING_COPY).length - 1, 1);
     assert.match(html, />Open For You</);
     assert.match(html, />Next</);
@@ -361,17 +423,69 @@ describe("Approach flight frame", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
-          refillState: "terminal_empty",
-          flightLine: null,
-          forYouStatus: FYP_DETECTED_COPY,
+          forYou: { detected: true },
           onForYouNext() {},
         }),
       ),
     );
-    assert.match(html, new RegExp(FYP_DETECTED_COPY.replace(".", "\\.")));
+    assert.match(html, escapeRe(FYP_DETECTED_COPY));
     assert.equal(html.split(FYP_DETECTED_COPY).length - 1, 1);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, />Open For You</);
     assert.doesNotMatch(html, /Likes do not count/);
+  });
+
+  it("paints the same For You presenter for every entry phase", () => {
+    const entries = [
+      { phase: "silent_refuel", surface: "for_you" },
+      { phase: "hold", surface: "for_you" },
+      { phase: "done_for_now", surface: null },
+    ] as const;
+    const rendered = entries.map(({ phase, surface }) =>
+      renderToStaticMarkup(
+        MissionCard(
+          missionProps({
+            phase,
+            surface,
+            forYou: { detected: true },
+            onForYouNext() {},
+          }),
+        ),
+      ),
+    );
+    assert.equal(new Set(rendered).size, 1);
+    assert.match(rendered[0], />Next</);
+  });
+});
+
+describe("ForYouFeedRow", () => {
+  it("keeps Next on screen for a detected wait even when the row was collapsed", () => {
+    const html = renderToStaticMarkup(
+      createElement(ForYouFeedRow, {
+        status: FYP_DETECTED_COPY,
+        detected: true,
+        defaultOpen: false,
+        expandable: true,
+        onNext() {},
+      }),
+    );
+    assert.match(html, />Next</);
+    assert.match(html, /class="thread-row for-you-row next-action-row kind-reply open"/);
+    assert.doesNotMatch(html, /class="caret"/);
+    assert.doesNotMatch(html, /inert/);
+  });
+
+  it("lets an undetected wait collapse its details", () => {
+    const html = renderToStaticMarkup(
+      createElement(ForYouFeedRow, {
+        status: FYP_DETECTING_COPY,
+        detected: false,
+        defaultOpen: false,
+        expandable: true,
+        onNext() {},
+      }),
+    );
+    assert.match(html, /class="caret"/);
+    assert.doesNotMatch(html, /thread-row for-you-row next-action-row kind-reply open/);
   });
 });

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   FYP_ACTION_COPY,
-  FYP_DETECTED_COPY,
   FYP_NEXT_TIP,
   FYP_OPEN_TIP,
   FYP_WAIT_COPY,
@@ -10,14 +9,21 @@ import {
 import { DeskRow } from "./DeskRow";
 import { HasTipButton, HasTipLink } from "./HasTip";
 
+/**
+ * The real x.com/home task. Once the post is detected the row stops being
+ * collapsible: Next is the only way forward and stays on screen.
+ */
 export function ForYouFeedRow(props: {
   status?: string;
+  detected?: boolean;
+  actionCopy?: string;
   onNext?: () => void;
   expandable?: boolean;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(true);
-  const expandable = props.expandable ?? true;
-  const detected = props.status === FYP_DETECTED_COPY;
+  const [open, setOpen] = useState(props.defaultOpen ?? true);
+  const detected = props.detected === true;
+  const expandable = (props.expandable ?? true) && !detected;
   const summary = props.status ?? FYP_WAIT_COPY;
   return (
     <DeskRow
@@ -58,7 +64,9 @@ export function ForYouFeedRow(props: {
           </HasTipButton>
         ) : null}
       </div>
-      {detected ? null : <p className="reason">{FYP_ACTION_COPY}</p>}
+      {detected ? null : (
+        <p className="reason">{props.actionCopy ?? FYP_ACTION_COPY}</p>
+      )}
     </DeskRow>
   );
 }

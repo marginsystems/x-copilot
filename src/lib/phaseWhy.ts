@@ -9,6 +9,8 @@ import { scoutStageMessage } from "./scoutStages";
 
 export const APPROACH_COLLECTING_IDLE =
   "Scout is looking for the next reply.";
+/** The locked Scout target has a recorded reply. Only Next releases it. */
+export const SCOUT_DETECTED_COPY = "Reply detected. Tap Next.";
 
 export function approachCollectingCopy(opts: { searching?: boolean }): string {
   return opts.searching
@@ -37,9 +39,10 @@ export function phaseWhy(
   phase: DeskPhase,
   coaching?: CoachingState | null,
   suggestion?: ForYouSuggestion | null,
+  opts?: { detected?: boolean },
 ): string {
   if (phase === "scout_reply") {
-    return FYP_DETECTING_COPY;
+    return opts?.detected ? SCOUT_DETECTED_COPY : FYP_DETECTING_COPY;
   }
   if (phase === "done_for_now") {
     return APPROACH_COLLECTING_IDLE;
