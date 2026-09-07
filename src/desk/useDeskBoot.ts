@@ -111,9 +111,12 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         return onboarded;
       };
 
-      const refreshAfterPaint = (user: AuthSessionUser | null) => {
+      const refreshAfterPaint = (
+        user: AuthSessionUser | null,
+        refreshActivityStats = true,
+      ) => {
         void hydrateCoaching();
-        void hydrateActivityStats();
+        if (refreshActivityStats) void hydrateActivityStats();
         void loadBilling();
         if (user) {
           ensureActivitySubscribe();
@@ -141,7 +144,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         if (checkout === "success" && sessionId) {
           await confirmCheckout(sessionId);
         }
-        refreshAfterPaint(user);
+        refreshAfterPaint(user, false);
         setDeskBootReady(true);
         return;
       }
