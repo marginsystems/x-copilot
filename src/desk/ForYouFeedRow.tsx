@@ -12,18 +12,20 @@ import { HasTipButton, HasTipLink } from "./HasTip";
 export function ForYouFeedRow(props: {
   status?: string;
   onNext?: () => void;
+  expandable?: boolean;
 }) {
   const [open, setOpen] = useState(true);
+  const expandable = props.expandable ?? true;
   return (
     <DeskRow
       className="for-you-row next-action-row kind-reply"
       open={open}
-      expandable
-      onToggle={() => setOpen((current) => !current)}
+      expandable={expandable}
+      onToggle={expandable ? () => setOpen((current) => !current) : undefined}
       lead="FY"
       leadTitle="Real X For You"
       leadClassName="bait kind-reply"
-      summary={props.status ?? FYP_WAIT_COPY}
+      summary={props.status ?? (expandable ? FYP_WAIT_COPY : undefined)}
       meta={
         <>
           <span className="chip">For You</span>
