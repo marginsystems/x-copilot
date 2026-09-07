@@ -122,6 +122,43 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.inReplyToId, null);
   });
 
+  it("reads the authoritative target from a repost reference", () => {
+    const parsed = parsePostCreateEvent({
+      data: {
+        event_uuid: "evt-repost",
+        event_type: "post.create",
+        filter: { user_id: "99" },
+        payload: {
+          id: "115",
+          author_id: "99",
+          text: "RT",
+          conversation_id: "root-1",
+          referenced_tweets: [{ type: "retweeted", id: "target-1" }],
+        },
+      },
+    });
+    assert.equal(parsed?.kind, "repost");
+    assert.equal(parsed?.repostTargetId, "target-1");
+    assert.equal(parsed?.inReplyToId, null);
+  });
+
+  it("does not invent a target for a malformed repost reference", () => {
+    const parsed = parsePostCreateEvent({
+      data: {
+        event_uuid: "evt-repost-noid",
+        event_type: "post.create",
+        filter: { user_id: "99" },
+        payload: {
+          id: "116",
+          author_id: "99",
+          referenced_tweets: [{ type: "retweeted" }],
+        },
+      },
+    });
+    assert.equal(parsed?.kind, "repost");
+    assert.equal(parsed?.repostTargetId, null);
+  });
+
   it("reads an original post", () => {
     const parsed = parsePostCreateEvent({
       data: {
@@ -203,6 +240,12 @@ describe("parsePostCreateEvent", () => {
     assert.equal(
       parsePostCreateEvent({
         data: { event_type: "post.delete", payload: { id: "1" } },
+      }),
+      null,
+    );
+    assert.equal(
+      parsePostCreateEvent({
+        data: { event_type: "like.create", payload: { id: "1" } },
       }),
       null,
     );
