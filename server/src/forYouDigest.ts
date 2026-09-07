@@ -295,26 +295,12 @@ export function digestAllowlist(digest: ForYouDigest): {
   const replyUrls = new Set<string>();
   const add = (id?: string | null, url?: string | null, reply = false) => {
     if (id?.trim()) {
-      ids.add(id.trim());
-      if (reply) replyIds.add(id.trim());
+      (reply ? replyIds : ids).add(id.trim());
     }
     if (url?.trim()) {
-      urls.add(url.trim());
-      if (reply) replyUrls.add(url.trim());
+      (reply ? replyUrls : urls).add(url.trim());
     }
   };
-  for (const p of digest.best) {
-    if (p.views >= FOR_YOU_MIN_ENGAGE_VIEWS) add(p.id, p.url);
-  }
-  const worstIds = new Set(digest.worst.map((p) => p.id));
-  for (const p of [
-    ...digest.recentOriginals,
-    ...digest.recentReplies,
-    ...digest.recentQuotes,
-  ]) {
-    if (worstIds.has(p.id)) continue;
-    if (p.views >= FOR_YOU_MIN_ENGAGE_VIEWS) add(p.id, p.url);
-  }
   for (const m of digest.memories) {
     if (typeof m.views !== "number" || m.views < FOR_YOU_MIN_ENGAGE_VIEWS) {
       continue;
@@ -343,6 +329,17 @@ export function filterDigestActions(
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
   const list = Array.isArray(obj?.actions) ? obj.actions : [];
   const { ids, urls, replyIds, replyUrls } = digestAllowlist(digest);
+  const ownPosts = [
+    ...digest.best,
+    ...digest.worst,
+    ...digest.recentOriginals,
+    ...digest.recentReplies,
+    ...digest.recentQuotes,
+  ];
+  const ownIds = new Set(ownPosts.map((post) => post.id));
+  const ownUrls = new Set(
+    ownPosts.flatMap((post) => (post.url ? [post.url] : [])),
+  );
   const out: ForYouDraft[] = [];
   const seen = new Set<string>();
   for (const item of list) {
@@ -382,6 +379,12 @@ export function filterDigestActions(
       seen.add(key);
       out.push({ kind, why, draft });
     } else {
+      if (
+        (kind === "quote" || kind === "repost") &&
+        (ownIds.has(targetId) || ownUrls.has(targetUrl))
+      ) {
+        continue;
+      }
       const knownId =
         targetId &&
         (kind === "reply" ? replyIds.has(targetId) : ids.has(targetId));

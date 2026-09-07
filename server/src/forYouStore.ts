@@ -168,9 +168,7 @@ export function insertSuggestions(opts: {
   const drafts = withoutSkippedThemes(
     opts.drafts,
     listRecentSkippedSuggestions(opts.userId, nowMs),
-  ).filter(
-    (draft) => draft.kind !== "post" || !isOwnPostRemixCopy(draft.why, draft.draft),
-  );
+  ).filter((draft) => !isOwnPostRemixCopy(draft.why, draft.draft));
   const db = getPlatformDb();
   const insert = db.prepare(
     `INSERT INTO for_you_suggestions (
@@ -252,15 +250,20 @@ export function listActiveSuggestions(
     .prepare(
       `SELECT * FROM for_you_suggestions
        WHERE user_id = ? AND status = 'suggested' AND expires_at > ?
+         AND NOT (
+           kind IN ('quote', 'repost') AND EXISTS (
+             SELECT 1 FROM own_posts
+             WHERE own_posts.user_id = for_you_suggestions.user_id
+               AND own_posts.id = for_you_suggestions.target_id
+           )
+         )
        ORDER BY created_at DESC`,
     )
     .all(userId, new Date(nowMs).toISOString()) as Array<Record<string, unknown>>;
   const active = rows
     .map(mapRow)
     .filter((row): row is ForYouSuggestion => Boolean(row))
-    .filter(
-      (row) => row.kind !== "post" || !isOwnPostRemixCopy(row.why, row.draft),
-    );
+    .filter((row) => !isOwnPostRemixCopy(row.why, row.draft));
   return withoutSkippedThemes(
     active,
     listRecentSkippedSuggestions(userId, nowMs),
