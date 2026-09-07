@@ -75,7 +75,9 @@ export function keepCuratedByHistory(
   thread: Pick<ThreadCard, "id" | "conversationId" | "inReplyToId">,
   isHiddenById: (id: string) => boolean,
   blockedConversations: ReadonlySet<string>,
+  preservedId?: string | null,
 ): boolean {
+  if (preservedId && thread.id === preservedId) return true;
   return !(
     isHiddenById(thread.id) ||
     blockedConversations.has(thread.id) ||
@@ -135,6 +137,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   );
   /** Set once a user action mutates history locally; boot's server snapshot is then stale. */
   const historyStaleRef = useRef(false);
+  const preservedIdRef = useRef<string | null>(null);
 
   function applyHistoryFromBoot(desk: DeskBootDesk) {
     if (historyStaleRef.current) return;
@@ -159,7 +162,13 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     setThreads((prev) => prev.filter((t) => keepInCurated(t)));
   }
 
-  async function hydrateInteracted() {
+  async function hydrateInteracted(preservedId?: string | null) {
+    if (preservedId !== undefined) {
+      preservedIdRef.current = preservedId;
+      if (preservedId === null) {
+        setThreads((prev) => prev.filter((t) => keepInCurated(t)));
+      }
+    }
     try {
       const res = await apiFetch("/api/interacted");
       if (!res.ok) return;
@@ -194,7 +203,16 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       }
       blockedConversationsRef.current = blocked;
       if (ids.size || blocked.size) {
-        setThreads((prev) => prev.filter((t) => keepInCurated(t)));
+        setThreads((prev) =>
+          prev.filter((t) =>
+            keepCuratedByHistory(
+              t,
+              isHiddenFromCurated,
+              blockedConversationsRef.current,
+              preservedIdRef.current,
+            ),
+          ),
+        );
       }
     } catch {
       // Sidecar may be offline on first paint — ignore.
@@ -217,6 +235,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       thread,
       isHiddenFromCurated,
       blockedConversationsRef.current,
+      preservedIdRef.current,
     );
   }
 

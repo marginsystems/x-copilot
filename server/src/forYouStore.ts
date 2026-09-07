@@ -11,6 +11,7 @@ import {
 } from "./forYouTheme.js";
 import { getPlatformDb } from "./db.js";
 import { isOwnPostRemixCopy } from "./forYouRemix.js";
+import { parseStatusIdFromUrl } from "./interactionCooldown.js";
 import { startOfUtcDayIso } from "./ownPostStore.js";
 
 export const FOR_YOU_KINDS = ["post", "quote", "repost", "reply"] as const;
@@ -246,7 +247,8 @@ export function listActiveSuggestions(
   userId: string,
   nowMs: number = Date.now(),
 ): ForYouSuggestion[] {
-  const rows = getPlatformDb()
+  const db = getPlatformDb();
+  const rows = db
     .prepare(
       `SELECT * FROM for_you_suggestions
        WHERE user_id = ? AND status = 'suggested' AND expires_at > ?
@@ -263,10 +265,41 @@ export function listActiveSuggestions(
        ORDER BY created_at DESC`,
     )
     .all(userId, new Date(nowMs).toISOString()) as Array<Record<string, unknown>>;
+  const markedRows = db
+    .prepare(
+      `SELECT thread_id, conversation_id, in_reply_to_id, url
+       FROM desk_interactions WHERE user_id = ?`,
+    )
+    .all(userId) as Array<{
+    thread_id: string;
+    conversation_id: string | null;
+    in_reply_to_id: string | null;
+    url: string | null;
+  }>;
+  const markedIds = new Set(
+    markedRows.flatMap((row) =>
+      [row.thread_id, row.conversation_id, row.in_reply_to_id].filter(
+        (id): id is string => Boolean(id),
+      ),
+    ),
+  );
+  const markedUrls = new Set(
+    markedRows.map((row) => row.url).filter((url): url is string => Boolean(url)),
+  );
   const active = rows
     .map(mapRow)
     .filter((row): row is ForYouSuggestion => Boolean(row))
-    .filter((row) => !isOwnPostRemixCopy(row.why, row.draft));
+    .filter((row) => !isOwnPostRemixCopy(row.why, row.draft))
+    .filter(
+      (row) =>
+        row.kind === "post" ||
+        !(
+          (row.targetId && markedIds.has(row.targetId)) ||
+          (row.targetUrl &&
+            (markedUrls.has(row.targetUrl) ||
+              markedIds.has(parseStatusIdFromUrl(row.targetUrl) ?? "")))
+        ),
+    );
   return withoutSkippedThemes(
     active,
     listRecentSkippedSuggestions(userId, nowMs),

@@ -8,7 +8,7 @@ import type { ForYouSuggestion } from "./forYou.ts";
 
 function row(
   kind: ForYouSuggestion["kind"],
-  id = kind,
+  id: string = kind,
 ): ForYouSuggestion {
   return {
     id,
@@ -81,6 +81,24 @@ describe("pickApproachSuggestion", () => {
     assert.equal(
       pickApproachSuggestion([row("post")], { allowPost: true })?.kind,
       "post",
+    );
+  });
+
+  it("skips marked targets except the locked card", () => {
+    const marked = { ...row("reply", "marked"), targetId: "thread-1" };
+    const fresh = { ...row("quote", "fresh"), targetId: "thread-2" };
+    assert.equal(
+      pickApproachSuggestion([marked, fresh], {
+        interactedIds: new Set(["thread-1"]),
+      })?.id,
+      "fresh",
+    );
+    assert.equal(
+      pickApproachSuggestion([marked, fresh], {
+        interactedIds: new Set(["thread-1"]),
+        lockedId: "marked",
+      })?.id,
+      "marked",
     );
   });
 });

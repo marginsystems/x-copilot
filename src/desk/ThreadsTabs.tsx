@@ -117,7 +117,7 @@ type ThreadsTabsProps = {
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
-  onHydrateInteracted: () => void | Promise<void>;
+  onHydrateInteracted: (preservedId?: string | null) => void | Promise<void>;
   setActionBusy: (busy: boolean) => void;
   setStatus: (status: string) => void;
   onForkBeats: (beats: DeskBeats) => void;
@@ -218,6 +218,9 @@ export function ThreadsTabs({
       : FYP_DETECTING_COPY
     : undefined;
   const currentDayUtc = new Date().toISOString().slice(0, 10);
+  const [locked, setLocked] = useState<ApproachLock | null>(() =>
+    readApproachLock(authUser?.id),
+  );
   const suggestion = pickApproachSuggestion(forYouSuggestions, {
     allowPost: canServeApproachOriginal({
       scoutReplyDone:
@@ -227,6 +230,9 @@ export function ThreadsTabs({
         coaching?.missions.find((mission) => mission.id === "original_1") ??
         null,
     }),
+    interactedIds,
+    history: interactedHistory,
+    lockedId: locked?.cardId,
   });
   const scoutCardsRef = useRef(new Map<string, ThreadCard>());
   const suggestionCardsRef = useRef(new Map<string, ForYouSuggestion>());
@@ -234,9 +240,6 @@ export function ThreadsTabs({
   for (const row of forYouSuggestions) {
     suggestionCardsRef.current.set(row.id, row);
   }
-  const [locked, setLocked] = useState<ApproachLock | null>(() =>
-    readApproachLock(authUser?.id),
-  );
   const restoredDoneForNowRef = useRef(locked?.phase === "done_for_now");
   const restoredInventoryRef = useRef<{
     scoutIds: Set<string>;
@@ -297,12 +300,17 @@ export function ThreadsTabs({
   }, [authUser?.id, lockedScout, phase]);
 
   useEffect(() => {
-    if (phase !== "scout_reply") return;
-    void hydrateInteractedRef.current();
+    if (phase !== "scout_reply") {
+      void hydrateInteractedRef.current(null);
+      return;
+    }
+    void hydrateInteractedRef.current(lockedRef.current?.cardId);
     const interval = window.setInterval(() => {
-      void hydrateInteractedRef.current();
+      void hydrateInteractedRef.current(lockedRef.current?.cardId);
     }, 5_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearInterval(interval);
+    };
   }, [phase]);
 
   function advanceCard(event: ApproachEvent) {
@@ -327,6 +335,9 @@ export function ThreadsTabs({
                       (mission) => mission.id === "original_1",
                     ) ?? null,
                 }),
+                interactedIds,
+                history: interactedHistory,
+                lockedId: current.cardId,
               },
             )
         )?.id ?? null,
@@ -743,6 +754,7 @@ export function ThreadsTabs({
               pendingDismissIdRef.current = thread.id;
               onDismiss(thread);
             }}
+            onScoutNext={() => advanceCard({ type: "next" })}
             onSuggestionPosted={(id) => {
               exitRow(id, `suggest:${id}`, async () => {
                 if (await actForYou(id, "done")) {

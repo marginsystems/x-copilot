@@ -30,6 +30,7 @@ import { getWatchedThread, upsertOwnPost } from "./ownPostStore.js";
 import { recordDeskReplyMarked } from "./deskBeats.js";
 import { recordMarkGamification } from "./gamification.js";
 import { setGamificationSyncFailed } from "./interactionSync.js";
+import { pruneConsumedScoutThread } from "./scoutCache.js";
 import {
   findUserIdByXUserId,
   lookupXUserId,
@@ -493,6 +494,18 @@ export async function discoverOwnReplies(opts: {
         inReplyToId: threadId,
         nowMs,
       });
+      try {
+        await pruneConsumedScoutThread(opts.userId, [
+          interaction.threadId,
+          interaction.conversationId,
+          interaction.inReplyToId,
+        ]);
+      } catch (err) {
+        console.warn(
+          `[reply-discover] scout tank prune soft-fail replyId=${replyId}:`,
+          err,
+        );
+      }
       knownReplyIds.add(replyId);
       knownThreadIds.add(threadId);
       discovered += 1;

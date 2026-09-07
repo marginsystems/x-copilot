@@ -115,6 +115,9 @@ export function advanceApproach(
     return nextInventoryCard(inventory, null);
   }
   if (locked.phase === "scout_reply") {
+    if (event.type === "next") {
+      return nextInventoryCard(inventory, locked.cardId);
+    }
     if (event.type === "mark") {
       return { phase: "hold", cardId: null, surface: "for_you" };
     }

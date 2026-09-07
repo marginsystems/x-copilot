@@ -45,10 +45,8 @@ import { setGamificationSyncFailed } from "../../server/src/interactionSync.js";
 import { allowRate, clientIp } from "../../server/src/authGuard.js";
 import type { ParsedPostCreate } from "../../server/src/xActivity.js";
 import { replyMatchesLockedScout } from "../../server/src/replyMatchScout.js";
-import {
-  getScoutApproachLock,
-  setScoutApproachLock,
-} from "../../server/src/scoutApproachLock.js";
+import { getScoutApproachLock } from "../../server/src/scoutApproachLock.js";
+import { pruneConsumedScoutThread } from "../../server/src/scoutCache.js";
 
 export async function markOwnReplyInteracted(
   parsed: ParsedPostCreate,
@@ -120,8 +118,14 @@ export async function markOwnReplyInteracted(
     inReplyToId: parsed.inReplyToId,
     nowMs: opts?.nowMs,
   });
-  if (matchedLock || (watched && locked?.id === watched.threadId)) {
-    setScoutApproachLock(userId, null);
+  try {
+    await pruneConsumedScoutThread(userId, [
+      interaction.threadId,
+      interaction.conversationId,
+      interaction.inReplyToId,
+    ]);
+  } catch (err) {
+    console.warn("[xaa] scout tank prune soft-fail", err);
   }
   recordDeskReplyMarked({
     userId,

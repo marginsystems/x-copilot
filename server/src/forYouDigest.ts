@@ -11,6 +11,7 @@ import { listInteractionHistory } from "./interactionStore.js";
 import { getVoiceProfile } from "./voiceStore.js";
 import { parseVoiceCardJson, type VoiceCard } from "./voiceLlm.js";
 import { isOwnPostRemixCopy } from "./forYouRemix.js";
+import { getBlockedConversationIds } from "./dismissalStore.js";
 import {
   FOR_YOU_KINDS,
   listRecentSkippedSuggestions,
@@ -254,8 +255,17 @@ export async function buildForYouDigest(opts: {
   const scout = await (opts.getScout
     ? opts.getScout()
     : loadDigestScout(opts.userId));
+  const blockedConversationIds = await getBlockedConversationIds({
+    userId: opts.userId,
+  });
   const leftoverScout: DigestScout[] = (scout?.threads ?? [])
-    .filter((t) => t.id && t.url && t.author)
+    .filter(
+      (t) =>
+        t.id &&
+        t.url &&
+        t.author &&
+        !blockedConversationIds.has(t.id),
+    )
     .slice(0, 8)
     .map((t) => ({
       id: t.id,

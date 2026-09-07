@@ -85,9 +85,9 @@ describe("Approach lock", () => {
       cardId: "scout-1",
       surface: null,
     } as const;
-    assert.strictEqual(
+    assert.deepEqual(
       advanceApproach(scout, { type: "next" }, inventory),
-      scout,
+      { phase: "scout_reply", cardId: "scout-2", surface: null },
     );
     assert.deepEqual(
       advanceApproach(scout, { type: "skip" }, inventory),

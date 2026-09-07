@@ -16,6 +16,7 @@ export function ThreadRow({
   onMark,
   onSkip,
   onDismiss,
+  onNext,
   onWatch,
   showMark = true,
   suggest,
@@ -30,6 +31,7 @@ export function ThreadRow({
   onMark: () => void;
   onSkip: () => void;
   onDismiss: () => void;
+  onNext?: () => void;
   onWatch?: () => void;
   showMark?: boolean;
   suggest?: ReactNode;
@@ -128,20 +130,20 @@ export function ThreadRow({
             {interacted ? "Interacted" : "I posted on X"}
           </button>
         ) : null}
-        <button
-          className="ghost"
-          disabled={busy || interacted}
-          onClick={onSkip}
-        >
-          Skip
-        </button>
-        <button
-          className="ghost"
-          disabled={busy || interacted}
-          onClick={onDismiss}
-        >
-          Not interested
-        </button>
+        {interacted && onNext ? (
+          <button className="ghost" disabled={busy} onClick={onNext}>
+            Next
+          </button>
+        ) : (
+          <>
+            <button className="ghost" disabled={busy} onClick={onSkip}>
+              Skip
+            </button>
+            <button className="ghost" disabled={busy} onClick={onDismiss}>
+              Not interested
+            </button>
+          </>
+        )}
       </div>
       {!interacted ? suggest : null}
     </DeskRow>

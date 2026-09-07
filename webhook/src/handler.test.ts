@@ -27,6 +27,10 @@ import {
   getScoutApproachLock,
   setScoutApproachLock,
 } from "../../server/src/scoutApproachLock.ts";
+import {
+  getLastScout,
+  saveScoutCache,
+} from "../../server/src/scoutCache.ts";
 import { markOwnReplyInteracted } from "./handler.ts";
 import { createWebhookServer } from "./sidecar.ts";
 
@@ -111,12 +115,27 @@ describe("own reply interaction capture", () => {
     assert.equal(streak.currentStreak >= 1, true);
   });
 
-  it("consumes a matching Scout lock when the thread is watched", async () => {
+  it("prunes a matching Scout card but keeps the Approach lock", async () => {
     watchThread({
       userId,
       threadId: "parent-1",
       author: "@watched",
     });
+    await saveScoutCache(
+      {
+        savedAt: new Date(nowMs).toISOString(),
+        queries: [],
+        threads: [
+          {
+            id: "parent-1",
+            author: "@watched",
+            text: "Scout card",
+            url: "https://x.com/watched/status/parent-1",
+          },
+        ],
+      },
+      { userId },
+    );
     setScoutApproachLock(userId, {
       id: "parent-1",
       conversationId: "parent-1",
@@ -130,7 +149,8 @@ describe("own reply interaction capture", () => {
       await markOwnReplyInteracted(post(), userId, { nowMs }),
       "scout",
     );
-    assert.equal(getScoutApproachLock(userId), null);
+    assert.equal((await getLastScout({ userId }))?.threads.length, 0);
+    assert.equal(getScoutApproachLock(userId)?.id, "parent-1");
   });
 
   it("marks an unwatched reply and stamps the organic beat", async () => {

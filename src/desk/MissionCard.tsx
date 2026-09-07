@@ -108,6 +108,7 @@ export function MissionCard(props: {
   onScoutMark: (thread: ThreadCard) => void;
   onScoutSkip: (thread: ThreadCard) => void;
   onScoutDismiss: (thread: ThreadCard) => void;
+  onScoutNext?: () => void;
   onSuggestionPosted: (id: string) => void;
   onSuggestionSkip: (id: string) => void;
   onSuggestionDismiss: (id: string) => void;
@@ -233,6 +234,7 @@ export function MissionCard(props: {
             onMark={() => props.onScoutMark(thread)}
             onSkip={() => props.onScoutSkip(thread)}
             onDismiss={() => props.onScoutDismiss(thread)}
+            onNext={props.onScoutNext}
             suggest={
               thread.surface === "repost"
                 ? undefined

@@ -14,6 +14,7 @@ import {
   FOR_YOU_MIN_ENGAGE_VIEWS,
   FOR_YOU_MIN_POST_AGE_MS,
   MIN_T24H_SNAPSHOTS,
+  buildForYouDigest,
   countT24hSnapshots,
   filterDigestActions,
   filterExtraPosts,
@@ -21,6 +22,7 @@ import {
   rankOwnPosts,
   type ForYouDigest,
 } from "./forYouDigest.ts";
+import { markInteracted } from "./interactionStore.ts";
 
 function post(
   partial: Partial<ParsedPostCreate> & { postId: string },
@@ -265,7 +267,7 @@ describe("forYouDigest", () => {
     assert.equal(kept[0]?.draft, "I shipped the recap.");
   });
 
-  it("does not let worst or thin memories be engagement targets", () => {
+  it("does not let worst posts or memories be engagement targets", () => {
     const digest = emptyDigest({
       best: [
         {
@@ -375,6 +377,41 @@ describe("forYouDigest", () => {
       kept.map((a) => a.targetId ?? a.kind),
       ["mem-hit", "mem-hit"],
     );
+  });
+
+  it("drops marked conversations from leftover Scout", async () => {
+    const now = "2026-08-20T12:00:00.000Z";
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO users (id, email, created_at, last_login_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run("u1", "u1@example.com", now, now);
+    await markInteracted({
+      threadId: "77",
+      author: "@a",
+      userId: "u1",
+    });
+    const digest = await buildForYouDigest({
+      userId: "u1",
+      getScout: async () => ({
+        threads: [
+          {
+            id: "77",
+            author: "@a",
+            text: "already answered",
+            url: "https://x.com/a/status/77",
+          },
+          {
+            id: "88",
+            author: "@b",
+            text: "still open",
+            url: "https://x.com/b/status/88",
+          },
+        ],
+      }),
+    });
+    assert.deepEqual(digest.leftoverScout.map((row) => row.id), ["88"]);
   });
 
   it("does not let thin best posts be quote/repost targets", () => {

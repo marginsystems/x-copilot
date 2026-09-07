@@ -20,6 +20,7 @@ import {
   replaceDailySuggestions,
   secondPersonWhy,
 } from "./forYouStore.ts";
+import { markInteracted } from "./interactionStore.ts";
 
 describe("forYouStore", () => {
   let dir: string;
@@ -133,6 +134,40 @@ describe("forYouStore", () => {
     });
     assert.equal(inserted.length, 2);
     assert.equal(listActiveSuggestions("u1", now + 1000).length, 0);
+  });
+
+  it("hides marked engagement targets but keeps original posts", async () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    const iso = new Date(now).toISOString();
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO users (id, email, created_at, last_login_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run("u1", "u1@example.com", iso, iso);
+    insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [
+        {
+          kind: "reply",
+          why: "reply",
+          targetId: "99",
+          targetUrl: "https://x.com/a/status/99",
+        },
+        { kind: "post", why: "original", draft: "Ship it." },
+      ],
+    });
+    await markInteracted({
+      threadId: "99",
+      author: "@a",
+      userId: "u1",
+    });
+    assert.deepEqual(
+      listActiveSuggestions("u1", now + 1000).map((row) => row.kind),
+      ["post"],
+    );
   });
 
   it("replaceDailySuggestions expires leftovers and records the UTC day", () => {
