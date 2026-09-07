@@ -1,9 +1,9 @@
 /**
  * GET /api/boot — one first-paint payload for the desk.
- * Cheap store reads in parallel. No live X metrics, no DeepSeek.
+ * Store reads in parallel, then one batched live X metrics lookup. No DeepSeek.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { bucketInteractions } from "./activityStats.js";
+import { bucketInteractionsWithLive } from "./activityLive.js";
 import { isAdminEmail } from "./adminEmails.js";
 import { toPublicUser } from "./authStore.js";
 import { authRequired } from "./authGuard.js";
@@ -106,9 +106,10 @@ export async function tryHandleBoot(
     ]);
 
     const interactions = interactionHistory.slice(0, MAX_INTERACTION_HISTORY);
-    const activityStats = bucketInteractions(interactionHistory, {
-      bucket: "day",
-    });
+    const activityStats = await bucketInteractionsWithLive(
+      interactionHistory,
+      "day",
+    );
 
     let forYou: {
       ok: true;
