@@ -494,11 +494,18 @@ export async function discoverOwnReplies(opts: {
         inReplyToId: threadId,
         nowMs,
       });
-      await pruneConsumedScoutThread(opts.userId, [
-        interaction.threadId,
-        interaction.conversationId,
-        interaction.inReplyToId,
-      ]);
+      try {
+        await pruneConsumedScoutThread(opts.userId, [
+          interaction.threadId,
+          interaction.conversationId,
+          interaction.inReplyToId,
+        ]);
+      } catch (err) {
+        console.warn(
+          `[reply-discover] scout tank prune soft-fail replyId=${replyId}:`,
+          err,
+        );
+      }
       knownReplyIds.add(replyId);
       knownThreadIds.add(threadId);
       discovered += 1;

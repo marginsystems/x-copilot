@@ -118,11 +118,15 @@ export async function markOwnReplyInteracted(
     inReplyToId: parsed.inReplyToId,
     nowMs: opts?.nowMs,
   });
-  await pruneConsumedScoutThread(userId, [
-    interaction.threadId,
-    interaction.conversationId,
-    interaction.inReplyToId,
-  ]);
+  try {
+    await pruneConsumedScoutThread(userId, [
+      interaction.threadId,
+      interaction.conversationId,
+      interaction.inReplyToId,
+    ]);
+  } catch (err) {
+    console.warn("[xaa] scout tank prune soft-fail", err);
+  }
   recordDeskReplyMarked({
     userId,
     source,

@@ -462,7 +462,6 @@ export function ThreadsTabs({
               history: interactedHistory,
             })
           : "skip";
-      if (phase === "scout_reply" && event === "mark") return;
       advanceCard({ type: event });
       if (event === "skip") armRefuel();
     }
