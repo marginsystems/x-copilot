@@ -224,6 +224,44 @@
   background: color-mix(in srgb, var(--accent) 5%, var(--panel));
 }
 
+.for-you-status,
+.for-you-detected-summary {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.for-you-status .approach-panel-loader-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.for-you-detected-id {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
+
+.for-you-post-link {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.for-you-post-link:hover {
+  color: var(--text);
+}
+
+.for-you-post-link svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
 .for-you-row .suggest-pane {
   width: 100%;
 }

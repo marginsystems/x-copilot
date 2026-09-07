@@ -17,6 +17,7 @@ import {
   listOwnPostedAt,
   startOfUtcDayIso,
 } from "./ownPostStore.js";
+import { postUrl, type OwnPostKind } from "./xActivity.js";
 import { countDeliveredSortiesToday } from "./scoutSorties.js";
 import {
   countDeskOriginalsSince,
@@ -58,6 +59,14 @@ export type InstrumentTimes = {
   postAt: string[];
 };
 
+export type OwnActivity = {
+  id: string;
+  url: string;
+  text: string;
+  kind: Extract<OwnPostKind, "reply" | "original" | "quote">;
+  postedAt: string;
+};
+
 function instrumentSinceMs(nowMs = Date.now()): number {
   return nowMs - INSTRUMENT_HISTORY_MS;
 }
@@ -65,6 +74,34 @@ function instrumentSinceMs(nowMs = Date.now()): number {
 function withinInstrumentHistory(at: string, sinceMs: number): boolean {
   const parsed = Date.parse(at);
   return Number.isFinite(parsed) && parsed >= sinceMs;
+}
+
+export function loadNewestOwnActivity(userId: string): OwnActivity | null {
+  const row = getPlatformDb()
+    .prepare(
+      `SELECT id, url, text, kind, posted_at AS postedAt
+         FROM own_posts
+        WHERE user_id = ? AND kind IN ('reply', 'original', 'quote')
+        ORDER BY posted_at DESC
+        LIMIT 1`,
+    )
+    .get(userId) as
+    | {
+        id: string;
+        url: string | null;
+        text: string | null;
+        kind: OwnActivity["kind"];
+        postedAt: string;
+      }
+    | undefined;
+  if (!row) return null;
+  return {
+    id: row.id,
+    url: row.url?.trim() || postUrl(null, row.id),
+    text: row.text ?? "",
+    kind: row.kind,
+    postedAt: row.postedAt,
+  };
 }
 
 export async function loadNewestInstrumentTimes(opts: {

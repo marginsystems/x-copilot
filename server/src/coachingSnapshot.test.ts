@@ -12,6 +12,7 @@ import {
   buildCoachingSnapshot,
   loadInstrumentTimes,
   loadNewestInstrumentTimes,
+  loadNewestOwnActivity,
   originalsTodayCount,
 } from "./coachingSnapshot.ts";
 import { listMissionsWithProgress } from "./dailyMissions.ts";
@@ -421,5 +422,38 @@ describe("buildCoachingSnapshot", () => {
 
     const times = await loadNewestInstrumentTimes({ userId: "u1", nowMs: NOW_MS });
     assert.deepEqual(times.replyAt, [inWindowPostedAt]);
+  });
+
+  it("returns the newest own reply, original, or quote", () => {
+    for (const [id, kind, postedAt] of [
+      ["older-original", "original", "2026-08-27T10:00:00.000Z"],
+      ["newest-reply", "reply", "2026-08-27T11:00:00.000Z"],
+    ] as const) {
+      upsertOwnPost({
+        parsed: {
+          eventUuid: `evt-${id}`,
+          xUserId: "99",
+          postId: id,
+          kind,
+          text: id === "newest-reply" ? "Newest own text" : id,
+          postedAt,
+          inReplyToId: kind === "reply" ? "parent" : null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "desk",
+          metrics: {},
+        },
+        userId: "u1",
+        tenantId: "local",
+      });
+    }
+
+    assert.deepEqual(loadNewestOwnActivity("u1"), {
+      id: "newest-reply",
+      url: "https://x.com/desk/status/newest-reply",
+      text: "Newest own text",
+      kind: "reply",
+      postedAt: "2026-08-27T11:00:00.000Z",
+    });
   });
 });

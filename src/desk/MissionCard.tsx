@@ -207,9 +207,10 @@ export function MissionCard(props: MissionCardProps) {
         <ForYouFeedRow
           status={view.forYou.status}
           detected={view.forYou.detected}
+          activity={view.forYou.activity}
           actionCopy={view.forYou.actionCopy}
           onNext={view.forYou.showNext ? props.onForYouNext : undefined}
-          expandable={false}
+          expandable={view.forYou.detected}
         />
       </ApproachFrame>,
     );

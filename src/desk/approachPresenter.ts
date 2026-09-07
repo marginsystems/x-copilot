@@ -2,7 +2,7 @@
  * One presenter for the Approach card. Verb, why, buttons, badge, and detector
  * ownership all derive from the locked task; refill state never reaches it.
  */
-import type { CoachingState } from "../lib/coaching";
+import type { CoachingState, OwnActivity } from "../lib/coaching";
 import type { ApproachGate, ApproachLock, DeskPhase } from "../lib/deskPhase";
 import {
   FYP_ACTION_COPY,
@@ -17,10 +17,6 @@ import type { ThreadCard } from "./types";
 /** Reading, an original, or a quote count during the reply minute. */
 export const FYP_HOLD_ACTION_COPY =
   "One reply a minute. Read For You; an original or quote counts now. The next reply waits for the clock. Likes do not count.";
-/** Detected during the minute: the card is complete, Next waits for the clock. */
-export const FYP_DETECTED_HOLD_COPY =
-  "Post detected. Next opens when the clock ends.";
-
 export const GATE_LINK_X_WHY = "Link X so the desk can see what you post.";
 export const GATE_SETTINGS_WHY =
   "Set an agenda in Settings so Scout knows what to look for.";
@@ -53,6 +49,7 @@ export type ApproachPresentation = {
     detected: boolean;
     status: string;
     actionCopy: string;
+    activity: OwnActivity | null;
     /** The reply minute is running: no Next, Bypass is the exit. */
     holding: boolean;
     showNext: boolean;
@@ -76,23 +73,31 @@ function suggestionVerb(row: ForYouSuggestion | null): string {
 function forYouPresentation(input: ApproachCardInput): ApproachPresentation {
   const holding = input.remainingMs > 0;
   const detected = input.forYou?.detected === true;
+  const latestActivity = input.coaching?.ownActivity ?? null;
+  const activity =
+    detected &&
+    latestActivity &&
+    ((latestActivity.kind === "reply" && input.coaching?.replyAt?.length) ||
+      input.coaching?.replyAt?.[0] === latestActivity.postedAt ||
+      input.coaching?.postAt?.[0] === latestActivity.postedAt)
+      ? latestActivity
+      : null;
   const status = !input.forYou
     ? FYP_WAIT_COPY
     : detected
-      ? holding
-        ? FYP_DETECTED_HOLD_COPY
-        : FYP_DETECTED_COPY
+      ? FYP_DETECTED_COPY
       : FYP_DETECTING_COPY;
   return {
     kind: "for_you",
     verb: holding ? "Hold" : "For You",
-    why: status,
+    why: "",
     badge: 1,
     gate: null,
     forYou: {
       detected,
       status,
       actionCopy: holding ? FYP_HOLD_ACTION_COPY : FYP_ACTION_COPY,
+      activity,
       holding,
       showNext: !holding,
     },

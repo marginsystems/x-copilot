@@ -30,6 +30,14 @@ export type DailyMission = {
   claimed: boolean;
 };
 
+export type OwnActivity = {
+  id: string;
+  url: string;
+  text: string;
+  kind: "reply" | "original" | "quote";
+  postedAt: string;
+};
+
 export type CoachingState = {
   dayUtc: string;
   nextAction: NextActionCard | null;
@@ -45,6 +53,8 @@ export type CoachingState = {
   originalAt?: string[];
   /** Last 500 original + quote posted_at values. */
   postAt?: string[];
+  /** Newest reply, original, or quote from the existing own_posts watch. */
+  ownActivity?: OwnActivity | null;
 };
 
 export type CoachingFetchOptions = { lite?: boolean };
@@ -88,6 +98,27 @@ export function parseDailyMission(raw: unknown): DailyMission | null {
     xpReward,
     completed: row.completed === true,
     claimed: row.claimed === true,
+  };
+}
+
+function parseOwnActivity(raw: unknown): OwnActivity | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Record<string, unknown>;
+  if (
+    typeof row.id !== "string" ||
+    typeof row.url !== "string" ||
+    typeof row.text !== "string" ||
+    typeof row.postedAt !== "string" ||
+    (row.kind !== "reply" && row.kind !== "original" && row.kind !== "quote")
+  ) {
+    return null;
+  }
+  return {
+    id: row.id,
+    url: row.url,
+    text: row.text,
+    kind: row.kind,
+    postedAt: row.postedAt,
   };
 }
 
@@ -135,6 +166,7 @@ export function parseCoachingPayload(raw: unknown): CoachingState | null {
     replyAt: parseIsoList(row.replyAt),
     originalAt: parseIsoList(row.originalAt),
     postAt: parseIsoList(row.postAt),
+    ownActivity: parseOwnActivity(row.ownActivity),
   };
 }
 

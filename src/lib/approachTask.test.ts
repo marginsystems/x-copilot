@@ -205,7 +205,8 @@ describe("cooldown expiry", () => {
     assert.equal(view.verb, "For You");
     assert.equal(view.forYou?.showNext, true);
     assert.equal(view.forYou?.detected, false);
-    assert.equal(view.why, FYP_DETECTING_COPY);
+    assert.equal(view.why, "");
+    assert.equal(view.forYou?.status, FYP_DETECTING_COPY);
   });
 });
 
@@ -229,7 +230,8 @@ describe("late baseline", () => {
     const view = present({ lock: state.lock, wait: settled }, {
       forYou: { detected: forYouWaitDetected(settled, late) },
     });
-    assert.equal(view.why, FYP_DETECTED_COPY);
+    assert.equal(view.why, "");
+    assert.equal(view.forYou?.status, FYP_DETECTED_COPY);
     assert.equal(view.detector, null);
   });
 });

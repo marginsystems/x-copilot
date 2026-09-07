@@ -414,25 +414,57 @@ describe("Approach flight frame", () => {
     );
     assert.match(html, escapeRe(FYP_DETECTING_COPY));
     assert.equal(html.split(FYP_DETECTING_COPY).length - 1, 1);
+    assert.match(html, /mission-card-why"><\/p>/);
+    assert.match(html, /for-you-status/);
+    assert.match(html, /approach-panel-loader-mark/);
     assert.match(html, />Open For You</);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /You&#x27;re clean/);
   });
 
-  it("collapses a detected For You wait to Next only", () => {
+  it("keeps a detected hold visible with its post and no Next", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
+          phase: "hold",
+          surface: "for_you",
           forYou: { detected: true },
+          remainingMs: 42_000,
+          clock: "0:42",
+          coaching: {
+            dayUtc: "2026-09-08",
+            nextAction: null,
+            missions: [],
+            beats: {
+              scoutReplyDone: false,
+              organicReplyDone: false,
+              forkChoice: null,
+              forkDone: false,
+            },
+            replyAt: ["2026-09-08T04:00:01.000Z"],
+            ownActivity: {
+              id: "196504221778",
+              url: "https://x.com/desk/status/196504221778",
+              text: "The detected post text.",
+              kind: "reply",
+              postedAt: "2026-09-08T04:00:00.000Z",
+            },
+          },
           onForYouNext() {},
         }),
       ),
     );
     assert.match(html, escapeRe(FYP_DETECTED_COPY));
     assert.equal(html.split(FYP_DETECTED_COPY).length - 1, 1);
-    assert.match(html, />Next</);
+    assert.match(html, /196504221778/);
+    assert.match(html, /href="https:\/\/x\.com\/desk\/status\/196504221778"/);
+    assert.match(html, /The detected post text\./);
+    assert.match(html, /aria-label="Open detected post 196504221778 on X"/);
+    assert.match(html, /class="caret"/);
+    assert.doesNotMatch(html, />Next</);
     assert.doesNotMatch(html, />Open For You</);
     assert.doesNotMatch(html, /Likes do not count/);
+    assert.match(html, />Bypass</);
   });
 
   it("paints the same For You presenter for every entry phase", () => {
@@ -459,20 +491,34 @@ describe("Approach flight frame", () => {
 });
 
 describe("ForYouFeedRow", () => {
-  it("keeps Next on screen for a detected wait even when the row was collapsed", () => {
+  it("keeps detected status and fallback text without activity detail", () => {
+    const html = renderToStaticMarkup(
+      createElement(ForYouFeedRow, {
+        detected: true,
+        activity: null,
+        expandable: true,
+      }),
+    );
+    assert.match(html, escapeRe(FYP_DETECTED_COPY));
+    assert.match(html, /Post text unavailable\./);
+    assert.match(html, /class="caret"/);
+  });
+
+  it("lets a detected wait collapse while keeping its status visible", () => {
     const html = renderToStaticMarkup(
       createElement(ForYouFeedRow, {
         status: FYP_DETECTED_COPY,
         detected: true,
+        activity: null,
         defaultOpen: false,
         expandable: true,
         onNext() {},
       }),
     );
-    assert.match(html, />Next</);
-    assert.match(html, /class="thread-row for-you-row next-action-row kind-reply open"/);
-    assert.doesNotMatch(html, /class="caret"/);
-    assert.doesNotMatch(html, /inert/);
+    assert.match(html, escapeRe(FYP_DETECTED_COPY));
+    assert.match(html, /class="caret"/);
+    assert.doesNotMatch(html, />Next</);
+    assert.doesNotMatch(html, /thread-row for-you-row next-action-row kind-reply open/);
   });
 
   it("lets an undetected wait collapse its details", () => {
