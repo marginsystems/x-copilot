@@ -14,6 +14,7 @@ import {
   addTokenUsage,
 } from "./deepseek.js";
 import { planQueriesFromAgenda } from "./queryPlan.js";
+import { scoutPlanHistoryOpts } from "./queryPlanHistory.js";
 import { saveScoutCache } from "./scoutCache.js";
 import { filterPostHydrateThreads } from "./scoutPipeline.js";
 import {
@@ -179,7 +180,10 @@ export async function runScoutSearch(opts: {
       };
     }
     track("planning", "Scout is planning search queries (deepseek)…");
-    const plan = await planQueriesFromAgenda(agenda);
+    const plan = await planQueriesFromAgenda(
+      agenda,
+      scoutPlanHistoryOpts(userId),
+    );
     if (!plan.ok) {
       track("error", `Scout failed: ${plan.message}`);
       return {

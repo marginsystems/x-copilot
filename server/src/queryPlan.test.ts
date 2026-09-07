@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   agendaContentWords,
+  formatPlanUserPrompt,
   hasAgendaNounQueries,
   isPhraseyPlan,
   isPhraseyQuery,
@@ -170,6 +171,28 @@ describe("hasAgendaNounQueries", () => {
       ),
       false,
     );
+  });
+
+  it("keeps the agenda-noun gate when history is supplied", () => {
+    const agenda = "B2B freight OS";
+    const genericPlan = ["just shipped", "startup claims"];
+    const prompt = formatPlanUserPrompt(agenda, {
+      priorQueries: ["freight software"],
+      yieldNote: "unique=75 usable=0 cool=0 calls=8",
+    });
+    assert.match(prompt, /Already-flown queries \(do not repeat\)/);
+    assert.match(prompt, /Already-flown yield: unique=75 usable=0 cool=0/);
+    assert.equal(hasAgendaNounQueries(genericPlan, agenda), false);
+    assert.equal(isPhraseyPlan(["shipping AI tool in public", "freight"]), true);
+  });
+
+  it("scopes broaden guidance to the agenda topic family", () => {
+    const prompt = formatPlanUserPrompt("B2B freight OS", {
+      broaden: true,
+      yieldNote: "unique=0 cool=0",
+    });
+    assert.match(prompt, /within the agenda topic family/);
+    assert.match(prompt, /at least two queries must contain agenda content words/);
   });
 });
 
