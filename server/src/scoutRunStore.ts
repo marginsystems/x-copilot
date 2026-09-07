@@ -19,7 +19,8 @@ export type ScoutRejectionCounts = {
   length: number;
   authorDedupe: number;
   authorless: number;
-  bucketFull: number;
+  reserved: number;
+  blocked: number;
 };
 
 export type ScoutRunRecordInput = {
@@ -59,7 +60,8 @@ export function emptyScoutRejectionCounts(): ScoutRejectionCounts {
     length: 0,
     authorDedupe: 0,
     authorless: 0,
-    bucketFull: 0,
+    reserved: 0,
+    blocked: 0,
   };
 }
 

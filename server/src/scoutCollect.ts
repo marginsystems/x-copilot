@@ -1,7 +1,4 @@
-/**
- * Streaming Scout collector — fill a hard-filtered bucket, then LLM-qualify.
- * Discard/refill on zero cool; keep cools and refill until cool target or exhausted.
- */
+/** Streaming Scout collector — hard-filter into buckets, then LLM-qualify. */
 import { randomUUID } from "node:crypto";
 import {
   getAuthorKeysForScoutFilter,
@@ -36,6 +33,12 @@ import {
   withScoutSearchExclusions,
 } from "./scoutPolicy.js";
 import { ScoutCollectCursors } from "./scoutCollectCursors.js";
+import {
+  admitScoutPage,
+  appendScoutTank,
+  drainScoutReserve,
+  type ScoutReserve,
+} from "./scoutCollectReserve.js";
 import {
   addScoutRejectionCounts,
   emptyScoutRejectionCounts,
@@ -306,14 +309,13 @@ export async function runScoutCollect(opts: {
       : await doGetConversationIds({ userId });
 
   let cool: ThreadCard[] = [];
-  /** Per-run author dedupe (first kept wins across bucket refills). */
+  /** Per-run dedupe state (first kept wins across bucket refills). */
   const seenAuthors = new Set<string>();
   const coolAuthors = new Set<string>();
-  /** Bait roots/parents seen this Scout run — suppress sibling replies. */
   const baitConversationIds = new Set<string>();
-  /** Article roots seen this Scout run — suppress replies under them. */
   const articleConversationIds = new Set<string>();
   let bucket: ThreadCard[] = [];
+  const reserve: ScoutReserve = [];
   const searchErrors: Array<{ query: string; message: string }> = [];
   let triageWarning: string | undefined;
   let stopReason: ScoutStopReason = "exhausted";
@@ -394,6 +396,21 @@ export async function runScoutCollect(opts: {
     ) {
       // Fill hard-filter bucket (no LLM).
       while (!aborted() && bucket.length < bucketSize) {
+        const drained = drainScoutReserve({
+          reserve,
+          bucket,
+          bucketSize,
+          seenAuthors,
+          acceptedIds,
+          blockedConversations,
+        });
+        if (drained.added) consecutiveZeroAdds = 0;
+        addScoutRejectionCounts(rejectionCounts, {
+          authorDedupe: drained.authorDedupe,
+          authorless: drained.authorless,
+          blocked: drained.blocked,
+        });
+        if (bucket.length >= bucketSize) break;
         if (searchCalls >= MAX_SEARCH_CALLS) break;
 
         if (queries.length === 0) {
@@ -554,39 +571,24 @@ export async function runScoutCollect(opts: {
         minViewsFilteredTotal += page.minViewsFilteredCount;
         funnelCounts.minViewsFiltered = minViewsFilteredTotal;
 
-        const beforeFill = bucket.length;
-        let authorDedupeSkipped = 0;
-        let authorlessSkipped = 0;
-        let bucketFullSkipped = 0;
-        for (const t of page.threads) {
-          if (bucket.length >= bucketSize) {
-            bucketFullSkipped += 1;
-            continue;
-          }
-          const key = normalizeAuthorKey(t.author);
-          if (!key) {
-            authorlessSkipped += 1;
-            continue;
-          }
-          if (seenAuthors.has(key)) {
-            authorDedupeSkipped += 1;
-            continue;
-          }
-          seenAuthors.add(key);
-          acceptedIds.add(t.id);
-          bucket.push(t);
-        }
+        const admitted = admitScoutPage({
+          candidates: page.threads,
+          reserve,
+          bucket,
+          bucketSize,
+          seenAuthors,
+          acceptedIds,
+        });
         addScoutRejectionCounts(rejectionCounts, {
           duplicateOrMissingId:
             missingIdCount +
             [...duplicateIds].filter((id) => acceptedIds.has(id)).length,
-          authorDedupe: authorDedupeSkipped,
-          authorless: authorlessSkipped,
-          bucketFull: bucketFullSkipped,
+          authorDedupe: admitted.authorDedupe,
+          authorless: admitted.authorless,
+          reserved: admitted.reserved,
         });
-        const added = bucket.length - beforeFill;
 
-        if (added > 0) {
+        if (admitted.added > 0) {
           consecutiveZeroAdds = 0;
           // Skip bare progress when this page added nothing (stops Cand. 0/5 spam).
           track(
@@ -607,8 +609,8 @@ export async function runScoutCollect(opts: {
                 automatedFiltered: page.automatedFilteredCount,
                 languageFiltered: page.languageFilteredCount,
                 afterLength: page.afterLength,
-                authorDedupeSkipped,
-                added,
+                authorDedupeSkipped: admitted.authorDedupe,
+                added: admitted.added,
               },
             },
           );
@@ -830,16 +832,13 @@ export async function runScoutCollect(opts: {
       }
 
       const coolBefore = cool.length;
-      for (const t of newlyCool) {
-        if (cool.length >= targetCool) break;
-        const key = normalizeAuthorKey(t.author);
-        if (!key || coolAuthors.has(key) || coolIds.has(t.id)) continue;
-        cool.push(t);
-        coolIds.add(t.id);
-        coolAuthors.add(key);
-        acceptedIds.delete(t.id);
-      }
-      coolAdditions += cool.length - coolBefore;
+      coolAdditions += appendScoutTank({
+        tank: cool,
+        candidates: newlyCool,
+        tankIds: coolIds,
+        tankAuthors: coolAuthors,
+        acceptedIds,
+      });
       track("partial", `Cool ${cool.length}/${targetCool}`, {
         threads: newlyCool,
         coolCount: cool.length,
