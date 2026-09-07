@@ -204,7 +204,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
               t,
               isHiddenFromCurated,
               blockedConversationsRef.current,
-              preservedId,
+              preservedIdRef.current,
             ),
           ),
         );
