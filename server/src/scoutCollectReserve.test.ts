@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  admitScoutPage,
   appendScoutTank,
   drainScoutReserve,
   reserveScoutCandidates,
@@ -10,6 +11,31 @@ import {
 import { card } from "./scoutCollect.testHelpers.ts";
 
 describe("Scout survivor reserve", () => {
+  it("reserves overflow instead of counting it as a rejection", () => {
+    const reserve = [];
+    const bucket = [];
+    const acceptedIds = new Set<string>();
+    const result = admitScoutPage({
+      candidates: [
+        card({ id: "keep-1", author: "@a" }),
+        card({ id: "keep-2", author: "@b" }),
+        card({ id: "spare-1", author: "@c" }),
+        card({ id: "spare-2", author: "@d" }),
+      ],
+      reserve,
+      bucket,
+      bucketSize: 2,
+      seenAuthors: new Set(),
+      acceptedIds,
+    });
+
+    assert.deepEqual(bucket.map((thread) => thread.id), ["keep-1", "keep-2"]);
+    assert.deepEqual(reserve.map((thread) => thread.id), ["spare-1", "spare-2"]);
+    assert.equal(result.added, 2);
+    assert.equal(result.reserved, 2);
+    assert.equal(result.authorDedupe, 0);
+  });
+
   it("keeps a bounded FIFO and drops the oldest overflow", () => {
     const reserve = [];
     const candidates = Array.from(

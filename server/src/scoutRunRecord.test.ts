@@ -87,10 +87,12 @@ describe("Scout run records", () => {
     assert.equal(record.uniqueCandidateIds, 8);
     assert.equal(record.searchCalls, 1);
     assert.equal(record.usableAdditions, 5);
-    assert.equal(record.coolAdditions, 1);
+    assert.equal(record.coolAdditions, 5);
     assert.equal(record.rejectionCounts.links, 1);
     assert.equal(record.rejectionCounts.views, 1);
     assert.equal(record.rejectionCounts.length, 1);
     assert.equal(record.rejectionCounts.articles, 0);
+    assert.equal(record.rejectionCounts.reserved, 0);
+    assert.equal(record.rejectionCounts.blocked, 0);
   });
 });
