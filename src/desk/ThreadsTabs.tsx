@@ -304,7 +304,10 @@ export function ThreadsTabs({
     const interval = window.setInterval(() => {
       void hydrateInteractedRef.current(lockedRef.current?.cardId);
     }, 5_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearInterval(interval);
+      void hydrateInteractedRef.current(null);
+    };
   }, [phase]);
 
   function advanceCard(event: ApproachEvent) {

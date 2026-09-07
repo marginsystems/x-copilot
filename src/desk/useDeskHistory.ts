@@ -163,7 +163,12 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   }
 
   async function hydrateInteracted(preservedId?: string | null) {
-    if (preservedId !== undefined) preservedIdRef.current = preservedId;
+    if (preservedId !== undefined) {
+      preservedIdRef.current = preservedId;
+      if (preservedId === null) {
+        setThreads((prev) => prev.filter((t) => keepInCurated(t)));
+      }
+    }
     try {
       const res = await apiFetch("/api/interacted");
       if (!res.ok) return;
