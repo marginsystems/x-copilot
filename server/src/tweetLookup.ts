@@ -55,6 +55,7 @@ function applyHydratedParent(
     ...(parent.createdAt ? { opCreatedAt: parent.createdAt } : {}),
     opParentDerived: true,
     opCharCount: parent.text.length,
+    ...(parent.createdAt ? { opCreatedAt: parent.createdAt } : {}),
     ...(parent.longform ? { opLongform: parent.longform } : {}),
     ...(parent.hasOutboundLink || card.hasOutboundLink
       ? { hasOutboundLink: true }

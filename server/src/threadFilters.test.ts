@@ -57,6 +57,8 @@ function thread(
 }
 
 describe("filterMinViews", () => {
+  const nowMs = Date.parse("2026-09-07T12:00:00.000Z");
+
   it("keeps the inclusive floor and drops lower views", () => {
     const result = filterMinViews([
       thread("at", "at", undefined, { views: 100 }),
@@ -86,6 +88,65 @@ describe("filterMinViews", () => {
     assert.deepEqual(filterMinViews([reply]), {
       threads: [],
       minViewsFilteredCount: 1,
+    });
+  });
+
+  it("keeps posts with unknown views", () => {
+    const unknown = thread("unknown", "unknown");
+    assert.deepEqual(filterMinViews([unknown]), {
+      threads: [unknown],
+      minViewsFilteredCount: 0,
+    });
+  });
+
+  it("keeps low-view posts younger than 60 minutes", () => {
+    const fresh = thread("fresh", "fresh", undefined, {
+      views: 12,
+      createdAt: new Date(nowMs - 10 * 60 * 1000).toISOString(),
+    });
+    assert.deepEqual(filterMinViews([fresh], { nowMs }), {
+      threads: [fresh],
+      minViewsFilteredCount: 0,
+    });
+  });
+
+  it("drops low-view posts older than 60 minutes", () => {
+    const old = thread("old", "old", undefined, {
+      views: 12,
+      createdAt: new Date(nowMs - 2 * 60 * 60 * 1000).toISOString(),
+    });
+    assert.deepEqual(filterMinViews([old], { nowMs }), {
+      threads: [],
+      minViewsFilteredCount: 1,
+    });
+  });
+
+  it("does not grant fresh-card grace to low-view hydrated OPs", () => {
+    const reply = thread("reply", "reply", undefined, {
+      isReply: true,
+      opParentDerived: true,
+      opViews: 12,
+      views: 500,
+      createdAt: new Date(nowMs - 10 * 60 * 1000).toISOString(),
+    });
+    assert.deepEqual(filterMinViews([reply], { nowMs }), {
+      threads: [],
+      minViewsFilteredCount: 1,
+    });
+  });
+
+  it("grants grace when the low-view hydrated OP is fresh", () => {
+    const reply = thread("reply", "reply", undefined, {
+      isReply: true,
+      opParentDerived: true,
+      opViews: 12,
+      views: 500,
+      createdAt: new Date(nowMs - 5 * 60 * 1000).toISOString(),
+      opCreatedAt: new Date(nowMs - 20 * 60 * 1000).toISOString(),
+    });
+    assert.deepEqual(filterMinViews([reply], { nowMs }), {
+      threads: [reply],
+      minViewsFilteredCount: 0,
     });
   });
 });

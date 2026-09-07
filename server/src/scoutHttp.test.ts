@@ -410,7 +410,7 @@ describe("tryHandleScout", () => {
     );
   });
 
-  it("serves a tank through its stored view, tag, and account filters", async () => {
+  it("serves a tank through its stored tag and account filters", async () => {
     const thread = (
       id: string,
       overrides: Record<string, unknown> = {},
@@ -457,7 +457,7 @@ describe("tryHandleScout", () => {
       (payload.snapshot?.threads as Array<{ id: string }>).map(
         (item) => item.id,
       ),
-      ["keep", "unknown-root"],
+      ["keep", "low", "unknown-root"],
     );
   });
 
