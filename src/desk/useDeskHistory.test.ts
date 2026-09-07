@@ -35,6 +35,18 @@ describe("keepCuratedByHistory", () => {
     );
   });
 
+  it("does not let a preserved card bypass history blocking", () => {
+    assert.equal(
+      keepCuratedByHistory(
+        { id: "other", conversationId: "locked" },
+        () => false,
+        new Set(["locked"]),
+        "locked",
+      ),
+      false,
+    );
+  });
+
   it("hides blocked conversations and parents", () => {
     const blocked = new Set(["root", "parent"]);
     assert.equal(

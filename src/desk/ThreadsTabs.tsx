@@ -719,6 +719,7 @@ export function ThreadsTabs({
               pendingDismissIdRef.current = thread.id;
               onDismiss(thread);
             }}
+            onScoutNext={() => advanceCard({ type: "next" })}
             onSuggestionPosted={(id) => {
               exitRow(id, `suggest:${id}`, async () => {
                 if (await actForYou(id, "done")) {
