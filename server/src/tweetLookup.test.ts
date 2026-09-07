@@ -373,12 +373,14 @@ describe("fetchParentTweet cache semantics", () => {
         assert.deepEqual(first, {
           author: "@bait_op",
           text: "bait root text",
+          createdAt: "2026-01-01T00:00:00.000Z",
         });
         const afterFirst = calls;
         const second = await fetchParentTweet({ tweetId: "800" });
         assert.deepEqual(second, {
           author: "@bait_op",
           text: "bait root text",
+          createdAt: "2026-01-01T00:00:00.000Z",
         });
         assert.equal(calls, afterFirst, "success should be cached");
       } finally {
