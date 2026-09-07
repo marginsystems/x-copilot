@@ -57,6 +57,85 @@ describe("forYouStore", () => {
     );
   });
 
+  it("hides own-post quote/repost targets and remixes of every kind", () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO own_posts (
+           id, user_id, tenant_id, x_user_id, kind, posted_at, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "own-1",
+        "u1",
+        "local",
+        "99",
+        "original",
+        new Date(now - 3600_000).toISOString(),
+        new Date(now).toISOString(),
+      );
+    const inserted = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [
+        { kind: "quote", why: "quote your winner", draft: "Again.", targetId: "own-1" },
+        { kind: "repost", why: "repost your winner", targetId: "own-1" },
+        { kind: "reply", why: "reply to your thread", draft: "More.", targetId: "own-1" },
+        {
+          kind: "repost",
+          why: "Your 8.7k-view Claude refusal is your best shape—double down.",
+          targetId: "other-1",
+        },
+      ],
+    });
+    assert.equal(inserted.length, 3);
+    assert.deepEqual(
+      listActiveSuggestions("u1", now + 1000).map((row) => row.kind),
+      ["reply"],
+    );
+  });
+
+  it("hides URL-only own-post quote/repost targets", () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO own_posts (
+           id, user_id, tenant_id, x_user_id, kind, url, posted_at, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        "own-url-1",
+        "u1",
+        "local",
+        "99",
+        "original",
+        "https://x.com/desk/status/own-url-1",
+        new Date(now - 3600_000).toISOString(),
+        new Date(now).toISOString(),
+      );
+    const inserted = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [
+        {
+          kind: "quote",
+          why: "quote your winner",
+          draft: "Again.",
+          targetUrl: "https://x.com/desk/status/own-url-1",
+        },
+        {
+          kind: "repost",
+          why: "repost your winner",
+          targetUrl: "https://x.com/desk/status/own-url-1",
+        },
+      ],
+    });
+    assert.equal(inserted.length, 2);
+    assert.equal(listActiveSuggestions("u1", now + 1000).length, 0);
+  });
+
   it("hides marked engagement targets but keeps original posts", async () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     const iso = new Date(now).toISOString();

@@ -395,6 +395,8 @@ export function useScoutRun({
         watchDeskThreads(incoming);
         // Append this run’s cool threads; do not wipe prior Scout loops.
         setThreads((prev) => appendThreadsById(prev, incoming));
+        staleHydration.current = false;
+        await hydrateLastScout();
         await hydrateInteracted();
         const progress = coolProgressLabel(
           doneEvent.coolCount ?? list.length,

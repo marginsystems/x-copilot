@@ -56,8 +56,15 @@ function phaseVerb(
   phase: DeskPhase,
   suggestion?: ForYouSuggestion | null,
   scouting = false,
+  scout?: ThreadCard | null,
 ): string {
   if (phase === "hold") return "Hold";
+  if (
+    (phase === "scout_reply" || phase === "done_for_now") &&
+    scout?.surface === "repost"
+  ) {
+    return "Repost";
+  }
   if (phase === "scout_reply") return "Reply";
   if (phase === "organic_reply" && suggestion?.kind === "post") {
     return "Original";
@@ -207,7 +214,7 @@ export function MissionCard(props: {
     const why = phaseWhy(props.phase, props.coaching);
     return withReplyPace(
       <ApproachFrame
-        verb={phaseVerb(props.phase, null, refillPending)}
+        verb={phaseVerb(props.phase, null, refillPending, thread)}
         why={why}
         busy={!thread && props.refillState !== "terminal_empty"}
       >
@@ -229,31 +236,35 @@ export function MissionCard(props: {
             onDismiss={() => props.onScoutDismiss(thread)}
             onNext={props.onScoutNext}
             suggest={
-              props.voice?.status === "ready" && props.voice.unlocked ? (
-                <SuggestPane
-                  threadId={thread.id}
-                  author={thread.author}
-                  text={thread.text}
-                  opAuthor={thread.opAuthor}
-                  opText={thread.opText}
-                  threadKind={thread.threadKind}
-                  flags={thread.flags}
-                  agenda={props.agenda}
-                  usage={props.voice.suggests}
-                  onUsage={(u) =>
-                    props.setVoice((v) => (v ? { ...v, suggests: u } : v))
-                  }
-                  onOpenIntent={() => watchDeskThreads([thread])}
-                />
-              ) : (
-                <SuggestLocked
-                  voice={props.voice}
-                  xLinked={props.authUser?.xLinked}
-                  hasSession={Boolean(props.authUser)}
-                  onOpenSettings={props.onOpenVoice}
-                  onLinkX={props.onLinkX}
-                />
-              )
+              thread.surface === "repost"
+                ? undefined
+                : props.voice?.status === "ready" && props.voice.unlocked
+                  ? (
+                      <SuggestPane
+                        threadId={thread.id}
+                        author={thread.author}
+                        text={thread.text}
+                        opAuthor={thread.opAuthor}
+                        opText={thread.opText}
+                        threadKind={thread.threadKind}
+                        flags={thread.flags}
+                        agenda={props.agenda}
+                        usage={props.voice.suggests}
+                        onUsage={(u) =>
+                          props.setVoice((v) => (v ? { ...v, suggests: u } : v))
+                        }
+                        onOpenIntent={() => watchDeskThreads([thread])}
+                      />
+                    )
+                  : (
+                      <SuggestLocked
+                        voice={props.voice}
+                        xLinked={props.authUser?.xLinked}
+                        hasSession={Boolean(props.authUser)}
+                        onOpenSettings={props.onOpenVoice}
+                        onLinkX={props.onLinkX}
+                      />
+                    )
             }
           />
         ) : (

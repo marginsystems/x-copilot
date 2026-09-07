@@ -167,7 +167,7 @@ describe("forYouDigest", () => {
     );
   });
 
-  it("drops invented targets and keeps digest-grounded actions", () => {
+  it("drops invented and own targets while keeping reply-only Scout", () => {
     const digest = emptyDigest({
       best: [
         {
@@ -221,7 +221,7 @@ describe("forYouDigest", () => {
     );
     assert.deepEqual(
       kept.map((a) => a.kind),
-      ["post", "quote", "reply"],
+      ["post", "reply"],
     );
   });
 
@@ -262,10 +262,7 @@ describe("forYouDigest", () => {
     );
     assert.deepEqual(
       kept.map((a) => a.why),
-      [
-        "Your hiring thread is live",
-        "You got 900 views on this one",
-      ],
+      ["Your hiring thread is live"],
     );
     assert.equal(kept[0]?.draft, "I shipped the recap.");
   });
@@ -360,6 +357,13 @@ describe("forYouDigest", () => {
           },
           {
             kind: "quote",
+            why: "140 views on a memory worth another take",
+            draft: "Same shape.",
+            targetId: "mem-hit",
+            targetUrl: "https://x.com/hit/status/6",
+          },
+          {
+            kind: "quote",
             why: "900 views — write the next one like this",
             draft: "Same shape.",
             targetId: "10",
@@ -371,7 +375,7 @@ describe("forYouDigest", () => {
     );
     assert.deepEqual(
       kept.map((a) => a.targetId ?? a.kind),
-      ["10"],
+      ["mem-hit", "mem-hit"],
     );
   });
 
@@ -460,7 +464,7 @@ describe("forYouDigest", () => {
     );
     assert.deepEqual(
       kept.map((a) => a.targetId ?? a.kind),
-      ["11"],
+      [],
     );
   });
 
@@ -553,7 +557,7 @@ describe("forYouDigest", () => {
     );
     assert.deepEqual(
       kept.map((a) => a.targetId ?? a.kind),
-      ["4", "10"],
+      [],
     );
   });
 

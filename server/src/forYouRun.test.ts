@@ -78,18 +78,9 @@ const chat: ChatFn = async () => ({
     actions: [
       { kind: "post", why: "hiring thread is live", draft: "Who is hiring this week?" },
       {
-        kind: "quote",
-        why: "quote the winner",
-        draft: "still the move",
-        targetId: "u1-5",
-        targetUrl: "https://x.com/desk/status/u1-5",
-      },
-      {
-        kind: "quote",
-        why: "quote the winner",
-        draft: "still the move",
-        targetId: "u2-5",
-        targetUrl: "https://x.com/desk/status/u2-5",
+        kind: "post",
+        why: "shipping thread is live",
+        draft: "What breaks when you ship without a review loop?",
       },
     ],
   }),
@@ -163,11 +154,9 @@ describe("runForYouDigestForUser", () => {
             : [
                 { kind: "post", why: "hiring thread is live", draft: "Who is hiring this week?" },
                 {
-                  kind: "quote",
-                  why: "quote the winner",
-                  draft: "still the move",
-                  targetId: "u1-5",
-                  targetUrl: "https://x.com/desk/status/u1-5",
+                  kind: "post",
+                  why: "shipping thread is live",
+                  draft: "What breaks when you ship without a review loop?",
                 },
               ],
       }),
