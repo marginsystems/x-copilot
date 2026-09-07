@@ -441,7 +441,7 @@ describe("Approach flight frame", () => {
               forkChoice: null,
               forkDone: false,
             },
-            replyAt: ["2026-09-08T04:00:00.000Z"],
+            replyAt: ["2026-09-08T04:00:01.000Z"],
             ownActivity: {
               id: "196504221778",
               url: "https://x.com/desk/status/196504221778",

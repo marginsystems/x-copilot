@@ -80,6 +80,7 @@ export async function tryHandleCoaching(
       }),
       loadInstrumentTimes({ userId: user.id, nowMs }),
     ]);
+    const ownActivity = loadNewestOwnActivity(user.id);
     send(req, res, 200, {
       ok: true,
       dayUtc: snapshot.dayUtc,
@@ -90,6 +91,7 @@ export async function tryHandleCoaching(
       },
       missions,
       beats,
+      ownActivity,
       ...coachingInstrumentFields(snapshot, times),
     });
   } catch (err) {

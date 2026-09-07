@@ -77,7 +77,8 @@ function forYouPresentation(input: ApproachCardInput): ApproachPresentation {
   const activity =
     detected &&
     latestActivity &&
-    (input.coaching?.replyAt?.[0] === latestActivity.postedAt ||
+    ((latestActivity.kind === "reply" && input.coaching?.replyAt?.length) ||
+      input.coaching?.replyAt?.[0] === latestActivity.postedAt ||
       input.coaching?.postAt?.[0] === latestActivity.postedAt)
       ? latestActivity
       : null;

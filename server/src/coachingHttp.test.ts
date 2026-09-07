@@ -176,6 +176,24 @@ describe("GET /api/coaching", () => {
   });
 
   it("keeps the full coaching response and next-action refresh", async () => {
+    const postedAt = new Date().toISOString();
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-full-own-post",
+        xUserId: "99",
+        postId: "full-own-post",
+        kind: "original",
+        text: "full response activity",
+        postedAt,
+        inReplyToId: null,
+        inReplyToUserId: null,
+        conversationId: null,
+        authorUsername: "desk",
+        metrics: {},
+      },
+      userId,
+      tenantId: "local",
+    });
     let calls = 0;
     const response = await getCoaching({
       cookie,
@@ -194,5 +212,12 @@ describe("GET /api/coaching", () => {
     assert.ok(response.body.nextAction);
     assert.ok(Array.isArray(response.body.missions));
     assert.ok(Array.isArray(response.body.originalAt));
+    assert.deepEqual(response.body.ownActivity, {
+      id: "full-own-post",
+      url: "https://x.com/desk/status/full-own-post",
+      text: "full response activity",
+      kind: "original",
+      postedAt,
+    });
   });
 });
