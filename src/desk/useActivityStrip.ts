@@ -38,12 +38,12 @@ export function useActivityStrip() {
   async function hydrateActivityStats(
     bucket: ActivityBucket = activityBucketRef.current,
   ) {
-    // A refresh started after boot began must win over boot's older snapshot.
-    stripStaleRef.current = true;
     const next = await fetchActivityStats(bucket);
     if (!next) return;
     // Ignore stale responses if a newer toggle request is in flight.
     if (bucket !== activityRequestBucketRef.current) return;
+    // A successful refresh started after boot began must win over boot's older snapshot.
+    stripStaleRef.current = true;
     // Commit the applied bucket only after a successful fetch so a failed
     // toggle cannot silently flip the chart on a later mark refresh.
     activityBucketRef.current = bucket;
