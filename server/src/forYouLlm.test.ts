@@ -117,11 +117,10 @@ describe("draftForYouActions", () => {
           actions: [
             { kind: "post", why: "hiring thread is live", draft: "Recap." },
             {
-              kind: "quote",
-              why: "quote the winner",
-              draft: "still true",
-              targetId: "10",
-              targetUrl: "https://x.com/desk/status/10",
+              kind: "reply",
+              why: "leftover scout",
+              targetId: "77",
+              targetUrl: "https://x.com/a/status/77",
             },
           ],
         }),

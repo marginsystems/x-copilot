@@ -21,11 +21,11 @@ Rules:
 - 2 to 4 actions. Mix kinds when the digest supports it. At least one kind=post.
 - kind=post is a NEW angle from LIVE_SCOUT or the agenda. Voice and length may echo BEST_24H. Do not name, rewrite, or "fix" an own post. draft required. no targetId. The draft must invite a reply — a real question, a stake they can cut, or a named other side. Not a slogan. Not "thoughts?".
 - Never pitch a move because an old post "only got N views." Never "sharper hook." Never "double down" on a specific old topic.
-- BEST_24H is what worked (100+ views only). Quote/repost those ids if you use them. Voice only for originals. If BEST_24H is empty, there is no winner — do not invent one from RECENT_* or by ranking 25 views over 5.
+- BEST_24H (100+ views only) and RECENT_* are voice only. Never quote or repost an own post, and never emit an own-post targetId or targetUrl for those kinds. If BEST_24H is empty, there is no winner — do not invent one from RECENT_* or by ranking 25 views over 5.
 - Under 100 views is a miss for anyone. Never call a 25-view post "better", "best", or worth doubling down on versus a 5-view post. Both failed.
 - AVOID_24H and thin memories are what not to repeat. Never reply, quote, or repost to "boost" a low-view item.
-- kind=quote: draft required. targetId/targetUrl MUST be copied from BEST_24H or a strong recent, not AVOID.
-- kind=repost: targetId/targetUrl MUST be copied from the digest. no invented posts. Prefer BEST.
+- kind=quote: draft required. targetId/targetUrl MUST be copied from an allowed non-own target in the digest.
+- kind=repost: targetId/targetUrl MUST be copied from an allowed non-own target in the digest. no invented posts.
 - kind=reply: LIVE_SCOUT, or a memory that already earned attention. Not a flopped own post.
 - why talks to the operator in second person. Never first person. draft stays in their voice.
 - why is one short clause, max 90 characters. Cite the live thread or agenda, not a view count. No second sentence.
@@ -48,19 +48,19 @@ function buildUserPrompt(digest: ForYouDigest): string {
         })
       : "(none)",
     "",
-    "BEST_24H (100+ views only — voice/cadence, or quote/repost those ids. Empty = no winner. Do not rewrite these topics as a new original)",
+    "BEST_24H (100+ views only — voice/cadence only. Never quote/repost these own posts. Empty = no winner. Do not rewrite these topics as a new original)",
     JSON.stringify(digest.best),
     "",
     "AVOID_24H (do not revive — do not reply/quote/repost these)",
     JSON.stringify(digest.worst),
     "",
-    "RECENT_ORIGINALS",
+    "RECENT_ORIGINALS (voice only — never quote/repost these own posts)",
     JSON.stringify(digest.recentOriginals),
     "",
-    "RECENT_REPLIES",
+    "RECENT_REPLIES (voice only — never quote/repost these own posts)",
     JSON.stringify(digest.recentReplies),
     "",
-    "RECENT_QUOTES",
+    "RECENT_QUOTES (voice only — never quote/repost these own posts)",
     JSON.stringify(digest.recentQuotes),
     "",
     "MEMORIES",
