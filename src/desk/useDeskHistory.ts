@@ -137,6 +137,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   );
   /** Set once a user action mutates history locally; boot's server snapshot is then stale. */
   const historyStaleRef = useRef(false);
+  const preservedIdRef = useRef<string | null>(null);
 
   function applyHistoryFromBoot(desk: DeskBootDesk) {
     if (historyStaleRef.current) return;
@@ -162,6 +163,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   }
 
   async function hydrateInteracted(preservedId?: string | null) {
+    preservedIdRef.current = preservedId ?? null;
     try {
       const res = await apiFetch("/api/interacted");
       if (!res.ok) return;
@@ -228,6 +230,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       thread,
       isHiddenFromCurated,
       blockedConversationsRef.current,
+      preservedIdRef.current,
     );
   }
 
