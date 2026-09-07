@@ -106,6 +106,7 @@ describe("GET /api/coaching", () => {
     assert.ok(response.body.beats);
     assert.deepEqual(response.body.replyAt, []);
     assert.deepEqual(response.body.postAt, []);
+    assert.equal(response.body.ownActivity, null);
     assert.equal("nextAction" in response.body, false);
     assert.equal("missions" in response.body, false);
     assert.equal("originalAt" in response.body, false);
@@ -165,6 +166,13 @@ describe("GET /api/coaching", () => {
     assert.equal((response.body.replyAt as string[]).length, 1);
     assert.deepEqual(response.body.replyAt, [newestPost]);
     assert.deepEqual(response.body.postAt, [newestPost]);
+    assert.deepEqual(response.body.ownActivity, {
+      id: "new-post",
+      url: "https://x.com/desk/status/new-post",
+      text: "new-post",
+      kind: "original",
+      postedAt: newestPost,
+    });
   });
 
   it("keeps the full coaching response and next-action refresh", async () => {

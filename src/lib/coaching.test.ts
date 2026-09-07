@@ -37,11 +37,19 @@ describe("coaching parsers", () => {
       postsToday: 2,
       originalsToday: 1,
       replyAt: ["2026-08-26T11:00:00.000Z"],
+      ownActivity: {
+        id: "1899",
+        url: "https://x.com/desk/status/1899",
+        text: "A detected reply",
+        kind: "reply",
+        postedAt: "2026-08-26T11:00:00.000Z",
+      },
     });
     assert.equal(parsed?.nextAction?.kind, "original");
     assert.equal(parsed?.postsToday, 2);
     assert.equal(parsed?.originalsToday, 1);
     assert.deepEqual(parsed?.replyAt, ["2026-08-26T11:00:00.000Z"]);
+    assert.equal(parsed?.ownActivity?.id, "1899");
     assert.equal(parsed?.missions.length, 1);
     assert.equal(parsed?.missions[0]?.progress, 1);
     assert.deepEqual(parsed?.beats, {
@@ -109,6 +117,13 @@ describe("coaching parsers", () => {
       originalsToday: 1,
       postAt: ["2026-08-26T13:00:00.000Z"],
       replyAt: ["2026-08-26T12:30:00.000Z"],
+      ownActivity: {
+        id: "1900",
+        url: "https://x.com/i/status/1900",
+        text: "Latest post",
+        kind: "original",
+        postedAt: "2026-08-26T13:00:00.000Z",
+      },
     });
     assert.ok(full);
     assert.ok(lite);
@@ -118,6 +133,7 @@ describe("coaching parsers", () => {
     assert.deepEqual(merged.originalAt, full.originalAt);
     assert.equal(merged.postsToday, 2);
     assert.deepEqual(merged.postAt, lite.postAt);
+    assert.equal(merged.ownActivity?.id, "1900");
   });
 
   it("folds lite timestamps into full histories and detects newer activity", () => {

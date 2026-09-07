@@ -9,7 +9,7 @@ export const FYP_WAIT_COPY = "Open For You. Come back and tap Next.";
 export const FYP_ACTION_COPY =
   "Reply, original, or quote something you actually read. Likes do not count.";
 export const FYP_DETECTING_COPY = "Detection in progress.";
-export const FYP_DETECTED_COPY = "Post detected. Tap Next.";
+export const FYP_DETECTED_COPY = "Post detected";
 export const FYP_OPEN_TIP = "Opens your real X For You page.";
 export const FYP_NEXT_TIP =
   "Leave this wait. Take the next Approach card.";

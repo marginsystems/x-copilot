@@ -10,6 +10,7 @@ import {
   hashCoachingSnapshot,
   loadInstrumentTimes,
   loadNewestInstrumentTimes,
+  loadNewestOwnActivity,
 } from "./coachingSnapshot.js";
 import { listMissionsWithProgress } from "./dailyMissions.js";
 import { getDeskBeats } from "./deskBeats.js";
@@ -50,6 +51,7 @@ export async function tryHandleCoaching(
         userId: user.id,
         nowMs,
       });
+      const ownActivity = loadNewestOwnActivity(user.id);
       send(req, res, 200, {
         ok: true,
         dayUtc: snapshot.dayUtc,
@@ -58,6 +60,7 @@ export async function tryHandleCoaching(
         originalsToday: snapshot.originalsToday,
         replyAt: times.replyAt,
         postAt: times.postAt,
+        ownActivity,
       });
       return true;
     }
