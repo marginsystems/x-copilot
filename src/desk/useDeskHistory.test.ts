@@ -23,6 +23,18 @@ describe("keepCuratedByHistory", () => {
     );
   });
 
+  it("keeps the active locked card while history hydrates", () => {
+    assert.equal(
+      keepCuratedByHistory(
+        { id: "locked" },
+        (id) => id === "locked",
+        new Set(["locked"]),
+        "locked",
+      ),
+      true,
+    );
+  });
+
   it("hides blocked conversations and parents", () => {
     const blocked = new Set(["root", "parent"]);
     assert.equal(

@@ -75,7 +75,9 @@ export function keepCuratedByHistory(
   thread: Pick<ThreadCard, "id" | "conversationId" | "inReplyToId">,
   isHiddenById: (id: string) => boolean,
   blockedConversations: ReadonlySet<string>,
+  preservedId?: string | null,
 ): boolean {
+  if (preservedId && thread.id === preservedId) return true;
   return !(
     isHiddenById(thread.id) ||
     blockedConversations.has(thread.id) ||
@@ -159,7 +161,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     setThreads((prev) => prev.filter((t) => keepInCurated(t)));
   }
 
-  async function hydrateInteracted() {
+  async function hydrateInteracted(preservedId?: string | null) {
     try {
       const res = await apiFetch("/api/interacted");
       if (!res.ok) return;
@@ -194,7 +196,16 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       }
       blockedConversationsRef.current = blocked;
       if (ids.size || blocked.size) {
-        setThreads((prev) => prev.filter((t) => keepInCurated(t)));
+        setThreads((prev) =>
+          prev.filter((t) =>
+            keepCuratedByHistory(
+              t,
+              isHiddenFromCurated,
+              blockedConversationsRef.current,
+              preservedId,
+            ),
+          ),
+        );
       }
     } catch {
       // Sidecar may be offline on first paint — ignore.

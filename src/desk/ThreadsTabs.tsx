@@ -117,7 +117,7 @@ type ThreadsTabsProps = {
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
-  onHydrateInteracted: () => void | Promise<void>;
+  onHydrateInteracted: (preservedId?: string | null) => void | Promise<void>;
   setActionBusy: (busy: boolean) => void;
   setStatus: (status: string) => void;
   onForkBeats: (beats: DeskBeats) => void;
@@ -300,9 +300,9 @@ export function ThreadsTabs({
 
   useEffect(() => {
     if (phase !== "scout_reply") return;
-    void hydrateInteractedRef.current();
+    void hydrateInteractedRef.current(lockedRef.current?.cardId);
     const interval = window.setInterval(() => {
-      void hydrateInteractedRef.current();
+      void hydrateInteractedRef.current(lockedRef.current?.cardId);
     }, 5_000);
     return () => window.clearInterval(interval);
   }, [phase]);
