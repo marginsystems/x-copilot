@@ -207,12 +207,29 @@ export function listRecentScoutRuns(
     search_calls: number;
     stop_reason: string;
   }>;
-  return rows.map((row) => ({
-    queries: JSON.parse(row.queries_json) as string[],
-    uniqueCandidateIds: row.unique_candidate_ids,
-    usableAdditions: row.usable_additions,
-    coolAdditions: row.cool_additions,
-    searchCalls: row.search_calls,
-    stopReason: row.stop_reason,
-  }));
+  return rows.flatMap((row) => {
+    try {
+      const queries: unknown = JSON.parse(row.queries_json);
+      if (
+        !Array.isArray(queries) ||
+        !queries.every(
+          (query): query is string => typeof query === "string",
+        )
+      ) {
+        return [];
+      }
+      return [
+        {
+          queries,
+          uniqueCandidateIds: row.unique_candidate_ids,
+          usableAdditions: row.usable_additions,
+          coolAdditions: row.cool_additions,
+          searchCalls: row.search_calls,
+          stopReason: row.stop_reason,
+        },
+      ];
+    } catch {
+      return [];
+    }
+  });
 }

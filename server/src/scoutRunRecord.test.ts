@@ -50,6 +50,29 @@ describe("Scout run records", () => {
     );
   });
 
+  it("skips malformed query history rows", () => {
+    temp = openTempPlatformDb("x-scout-run-malformed-");
+    const userId = seedUser("scout-run-malformed-user");
+    saveScoutRunRecord({
+      id: "valid-run",
+      userId,
+      startedAt: "2026-01-01T00:00:00.000Z",
+      finishedAt: "2026-01-01T00:01:00.000Z",
+      queries: ["valid query"],
+      uniqueCandidateIds: 1,
+      rejectionCounts: emptyScoutRejectionCounts(),
+      usableAdditions: 1,
+      coolAdditions: 1,
+      searchCalls: 1,
+      stopReason: "exhausted",
+    });
+    getPlatformDb()
+      .prepare("UPDATE scout_runs SET queries_json = ? WHERE id = ?")
+      .run("not-json", "valid-run");
+
+    assert.deepEqual(listRecentScoutRuns(userId, 2), []);
+  });
+
   it("persists exclusive link, view-floor, and length drops", async () => {
     temp = openTempPlatformDb("x-scout-run-");
     const userId = seedUser("scout-run-user");

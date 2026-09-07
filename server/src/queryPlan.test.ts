@@ -185,6 +185,15 @@ describe("hasAgendaNounQueries", () => {
     assert.equal(hasAgendaNounQueries(genericPlan, agenda), false);
     assert.equal(isPhraseyPlan(["shipping AI tool in public", "freight"]), true);
   });
+
+  it("scopes broaden guidance to the agenda topic family", () => {
+    const prompt = formatPlanUserPrompt("B2B freight OS", {
+      broaden: true,
+      yieldNote: "unique=0 cool=0",
+    });
+    assert.match(prompt, /within the agenda topic family/);
+    assert.match(prompt, /at least two queries must contain agenda content words/);
+  });
 });
 
 describe("resolveFlashModel", () => {

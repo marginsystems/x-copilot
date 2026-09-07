@@ -45,7 +45,7 @@ Rules:
 - Optional operators ok (-is:reply, min_faves, from:) — they do not count against the 2-word preference when the keyword part is short. Do not emit is:reply. Scout wants original posts, not nested leaves.
 - At least two queries must contain a content word from the agenda. Match the agenda topic with keywords; do not copy the agenda sentence.
 - Infer related subjects, products, organizations, and claims from the agenda; do not rely only on words copied from it.
-- Do not repeat already-flown query strings. If unique/cool was 0, go broader or tangent. If unique was positive but cool was 0, stay in the topic family but change the keywords.
+- Do not repeat already-flown query strings. If unique/cool was 0, use different keywords within the agenda topic family while keeping at least two queries grounded in agenda content words. If unique was positive but cool was 0, stay in the topic family but change the keywords.
 - Mix recall: include 1–2 broad high-recall queries AND 1–2 tighter ones. Do not emit four near-duplicates.
 - Do NOT copy the agenda sentence or long multi-word stacks that echo it.
 - Prefer Latest-friendly keywords that hit original posts people are already looking at.
@@ -219,7 +219,7 @@ export function formatPlanUserPrompt(
   }
   if (opts?.broaden || opts?.yieldNote?.trim()) {
     parts.push(
-      "Broaden: prefer shorter high-recall 2-word Latest keywords (3 ok when needed); mix broad + tighter; do not copy the agenda sentence.",
+      "Broaden within the agenda topic family: prefer shorter high-recall 2-word Latest keywords (3 ok when needed); mix broad + tighter; do not copy the agenda sentence; at least two queries must contain agenda content words.",
     );
   }
   parts.push("Respond with JSON only.");
