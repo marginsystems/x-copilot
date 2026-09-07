@@ -74,6 +74,7 @@ export async function markOwnReplyInteracted(
   const matchedLock =
     !watched &&
     locked &&
+    locked.surface === (isRepost ? "repost" : "reply") &&
     (isRepost
       ? repostMatchesLockedScout(
           {

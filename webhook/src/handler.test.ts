@@ -141,6 +141,7 @@ describe("own reply interaction capture", () => {
       id: "parent-1",
       conversationId: "parent-1",
       inReplyToId: null,
+      surface: "reply",
       author: "@scout",
       url: null,
       text: null,
@@ -175,6 +176,7 @@ describe("own reply interaction capture", () => {
       id: "card-1",
       conversationId: "root-1",
       inReplyToId: "parent-1",
+      surface: "repost",
       author: "@scout",
       url: "https://x.com/scout/status/card-1",
       text: "Scout repost card",
@@ -207,6 +209,7 @@ describe("own reply interaction capture", () => {
       id: "card-1",
       conversationId: "root-1",
       inReplyToId: null,
+      surface: "repost",
       author: "@scout",
       url: null,
       text: null,
@@ -241,6 +244,63 @@ describe("own reply interaction capture", () => {
     assert.deepEqual(await listInteractionHistory({ userId }), []);
   });
 
+  it("does not complete a reply lock from a repost", async () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "root-1",
+      inReplyToId: "parent-1",
+      surface: "reply",
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "wrong-repost",
+          kind: "repost",
+          repostTargetId: "card-1",
+          inReplyToId: null,
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "skipped",
+    );
+    assert.deepEqual(await listInteractionHistory({ userId }), []);
+  });
+
+  it("does not complete a repost lock from a reply", async () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "root-1",
+      inReplyToId: null,
+      surface: "repost",
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "wrong-reply",
+          kind: "reply",
+          inReplyToId: "card-1",
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "organic",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "card-1");
+    assert.equal(row?.source, "discovered");
+  });
+
   it("marks an unwatched reply and stamps the organic beat", async () => {
     assert.equal(
       await markOwnReplyInteracted(post(), userId, { nowMs }),
@@ -258,6 +318,7 @@ describe("own reply interaction capture", () => {
       id: "card-1",
       conversationId: "card-1",
       inReplyToId: null,
+      surface: "reply",
       author: "@scout",
       url: "https://x.com/scout/status/card-1",
       text: "Scout card",
@@ -281,6 +342,7 @@ describe("own reply interaction capture", () => {
       id: "card-1",
       conversationId: "root-1",
       inReplyToId: "parent-1",
+      surface: "reply",
       author: "@scout",
       url: null,
       text: null,
@@ -307,6 +369,7 @@ describe("own reply interaction capture", () => {
       id: "card-1",
       conversationId: "root-1",
       inReplyToId: "parent-1",
+      surface: "reply",
       author: "@scout",
       url: null,
       text: null,
