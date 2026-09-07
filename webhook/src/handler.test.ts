@@ -273,6 +273,11 @@ describe("own reply interaction capture", () => {
   });
 
   it("does not complete a repost lock from a reply", async () => {
+    watchThread({
+      userId,
+      threadId: "card-1",
+      author: "@scout",
+    });
     setScoutApproachLock(userId, {
       id: "card-1",
       conversationId: "root-1",
@@ -299,6 +304,37 @@ describe("own reply interaction capture", () => {
     const [row] = await listInteractionHistory({ userId });
     assert.equal(row?.threadId, "card-1");
     assert.equal(row?.source, "discovered");
+  });
+
+  it("completes a legacy reply lock using the migration default", async () => {
+    const now = new Date(nowMs).toISOString();
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO scout_approach_locks
+           (user_id, card_id, conversation_id, in_reply_to_id, author, url, text, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        userId,
+        "card-1",
+        "card-1",
+        null,
+        "@scout",
+        null,
+        "Scout card",
+        now,
+      );
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({ inReplyToId: "card-1", conversationId: "card-1" }),
+        userId,
+        { nowMs },
+      ),
+      "scout",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "card-1");
   });
 
   it("marks an unwatched reply and stamps the organic beat", async () => {
