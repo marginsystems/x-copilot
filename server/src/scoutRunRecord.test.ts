@@ -9,7 +9,12 @@ import {
 import { getPlatformDb } from "./db.ts";
 import { runScoutCollect } from "./scoutCollect.ts";
 import { card } from "./scoutCollect.testHelpers.ts";
-import { getScoutRunRecord } from "./scoutRunStore.ts";
+import {
+  emptyScoutRejectionCounts,
+  getScoutRunRecord,
+  listRecentScoutRuns,
+  saveScoutRunRecord,
+} from "./scoutRunStore.ts";
 
 const session = { bearerToken: "test-token" };
 let temp: TempPlatformDb | undefined;
@@ -20,6 +25,31 @@ afterEach(() => {
 });
 
 describe("Scout run records", () => {
+  it("lists newest runs first and respects the limit", () => {
+    temp = openTempPlatformDb("x-scout-run-list-");
+    const userId = seedUser("scout-run-list-user");
+    for (const [index, query] of ["old", "middle", "new"].entries()) {
+      saveScoutRunRecord({
+        id: `run-${index}`,
+        userId,
+        startedAt: `2026-01-0${index + 1}T00:00:00.000Z`,
+        finishedAt: `2026-01-0${index + 1}T00:01:00.000Z`,
+        queries: [query],
+        uniqueCandidateIds: index,
+        rejectionCounts: emptyScoutRejectionCounts(),
+        usableAdditions: index,
+        coolAdditions: index,
+        searchCalls: 1,
+        stopReason: "exhausted",
+      });
+    }
+
+    assert.deepEqual(
+      listRecentScoutRuns(userId, 2).map((run) => run.queries),
+      [["new"], ["middle"]],
+    );
+  });
+
   it("persists exclusive link, view-floor, and length drops", async () => {
     temp = openTempPlatformDb("x-scout-run-");
     const userId = seedUser("scout-run-user");

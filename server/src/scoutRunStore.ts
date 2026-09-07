@@ -42,6 +42,16 @@ export type ScoutRunRecord = ScoutRunRecordInput & {
   tenantId: string;
 };
 
+export type RecentScoutRun = Pick<
+  ScoutRunRecord,
+  | "queries"
+  | "uniqueCandidateIds"
+  | "usableAdditions"
+  | "coolAdditions"
+  | "searchCalls"
+  | "stopReason"
+>;
+
 export function emptyScoutRejectionCounts(): ScoutRejectionCounts {
   return {
     duplicateOrMissingId: 0,
@@ -172,4 +182,37 @@ export function getScoutRunRecord(id: string): ScoutRunRecord | null {
     searchCalls: row.search_calls,
     stopReason: row.stop_reason,
   };
+}
+
+export function listRecentScoutRuns(
+  userId: string,
+  limit: number,
+): RecentScoutRun[] {
+  const safeLimit = Math.max(0, Math.floor(limit));
+  if (!userId.trim() || safeLimit === 0) return [];
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT queries_json, unique_candidate_ids, usable_additions,
+              cool_additions, search_calls, stop_reason
+         FROM scout_runs
+        WHERE user_id = ?
+        ORDER BY finished_at DESC, rowid DESC
+        LIMIT ?`,
+    )
+    .all(userId.trim(), safeLimit) as Array<{
+    queries_json: string;
+    unique_candidate_ids: number;
+    usable_additions: number;
+    cool_additions: number;
+    search_calls: number;
+    stop_reason: string;
+  }>;
+  return rows.map((row) => ({
+    queries: JSON.parse(row.queries_json) as string[],
+    uniqueCandidateIds: row.unique_candidate_ids,
+    usableAdditions: row.usable_additions,
+    coolAdditions: row.cool_additions,
+    searchCalls: row.search_calls,
+    stopReason: row.stop_reason,
+  }));
 }

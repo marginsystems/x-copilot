@@ -44,6 +44,8 @@ Rules:
 - Prefer 2-word queries (highest recall on Latest). 3 words only when needed. Avoid 4+ words.
 - Optional operators ok (-is:reply, min_faves, from:) — they do not count against the 2-word preference when the keyword part is short. Do not emit is:reply. Scout wants original posts, not nested leaves.
 - At least two queries must contain a content word from the agenda. Match the agenda topic with keywords; do not copy the agenda sentence.
+- Infer related subjects, products, organizations, and claims from the agenda; do not rely only on words copied from it.
+- Do not repeat already-flown query strings. If unique/cool was 0, go broader or tangent. If unique was positive but cool was 0, stay in the topic family but change the keywords.
 - Mix recall: include 1–2 broad high-recall queries AND 1–2 tighter ones. Do not emit four near-duplicates.
 - Do NOT copy the agenda sentence or long multi-word stacks that echo it.
 - Prefer Latest-friendly keywords that hit original posts people are already looking at.
@@ -202,13 +204,18 @@ export function validateQueries(queries: unknown): string[] | null {
   return cleaned;
 }
 
-function buildUserPrompt(agenda: string, opts?: PlanQueriesOpts): string {
+export function formatPlanUserPrompt(
+  agenda: string,
+  opts?: PlanQueriesOpts,
+): string {
   const parts = [`Agenda: ${JSON.stringify(agenda)}`];
   if (opts?.priorQueries?.length) {
-    parts.push(`Prior queries (low yield): ${JSON.stringify(opts.priorQueries)}`);
+    parts.push(
+      `Already-flown queries (do not repeat): ${JSON.stringify(opts.priorQueries)}`,
+    );
   }
   if (opts?.yieldNote?.trim()) {
-    parts.push(`Yield note: ${opts.yieldNote.trim()}`);
+    parts.push(`Already-flown yield: ${opts.yieldNote.trim()}`);
   }
   if (opts?.broaden || opts?.yieldNote?.trim()) {
     parts.push(
@@ -232,7 +239,7 @@ async function requestPlan(
     purpose: opts?.broaden ? "plan_replan" : "plan",
     messages: [
       { role: "system", content: SYSTEM },
-      { role: "user", content: buildUserPrompt(agenda, opts) },
+      { role: "user", content: formatPlanUserPrompt(agenda, opts) },
     ],
   });
   if (!res.ok) {
@@ -288,7 +295,7 @@ export async function planQueriesFromAgenda(
       purpose: "plan_repair",
       messages: [
         { role: "system", content: SYSTEM },
-        { role: "user", content: buildUserPrompt(trimmed, opts) },
+        { role: "user", content: formatPlanUserPrompt(trimmed, opts) },
         { role: "assistant", content: first.content },
         {
           role: "user",
@@ -328,10 +335,15 @@ export async function planQueriesFromAgenda(
       trimmed,
       {
         broaden: true,
-        priorQueries: queries,
-        yieldNote: missingAgendaNouns
-          ? "First plan was not grounded in the agenda. Keep 2-word Latest keywords; do not copy the agenda sentence; at least two queries must contain an agenda content noun."
-          : "First plan was too phrase-y / agenda-echoing. Broaden to shorter high-recall 2-word keywords; at least two queries must contain an agenda content noun.",
+        priorQueries: [...(opts?.priorQueries ?? []), ...queries],
+        yieldNote: [
+          opts?.yieldNote,
+          missingAgendaNouns
+            ? "First plan was not grounded in the agenda. Keep 2-word Latest keywords; do not copy the agenda sentence; at least two queries must contain an agenda content noun."
+            : "First plan was too phrase-y / agenda-echoing. Broaden to shorter high-recall 2-word keywords; at least two queries must contain an agenda content noun.",
+        ]
+          .filter(Boolean)
+          .join("; "),
       },
       model,
     );

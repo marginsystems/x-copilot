@@ -19,6 +19,7 @@ import {
   planQueriesFromAgenda,
   type PlanQueriesOpts,
 } from "./queryPlan.js";
+import { mergeScoutPlanHistoryOpts, scoutPlanHistoryOpts } from "./queryPlanHistory.js";
 import { saveScoutCache } from "./scoutCache.js";
 import { isAbortError, sleep } from "./scoutAbort.js";
 import { filterPostHydrateThreads } from "./scoutPipeline.js";
@@ -240,7 +241,7 @@ export async function runScoutCollect(opts: {
       };
     }
     track("planning", "Scout is planning search queries (deepseek)…");
-    const plan = await doPlan(agenda);
+    const plan = await doPlan(agenda, scoutPlanHistoryOpts(userId));
     if (aborted()) {
       await persistRun("aborted", queries);
       const done = track("done", "Scout stopped.", {
@@ -362,7 +363,7 @@ export async function runScoutCollect(opts: {
         ? "Scout is broadening search queries (low yield)…"
         : "Scout is broadening search queries…",
     );
-    const planOpts: PlanQueriesOpts = {
+    const planOpts: PlanQueriesOpts = mergeScoutPlanHistoryOpts(userId, {
       broaden: true,
       priorQueries: [...queries],
       yieldNote:
@@ -371,7 +372,7 @@ export async function runScoutCollect(opts: {
           ? ` (${consecutiveZeroAdds} consecutive searches added 0).`
           : ".") +
         " Stuck under candidate bucket — broaden; prefer shorter high-recall 2-word Latest keywords (3 ok when needed); mix broad + tighter; do not copy the agenda sentence; at least two queries must contain an agenda noun.",
-    };
+    });
     const plan = await doPlan(agenda, planOpts);
     if (!plan.ok) {
       searchErrors.push({ query: "(replan)", message: plan.message });
