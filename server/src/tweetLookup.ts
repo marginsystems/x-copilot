@@ -13,6 +13,7 @@ const parentCache = new Map<string, ParentTweet | null>();
 export type ParentTweet = {
   author: string;
   text: string;
+  createdAt?: string;
   longform?: "note_tweet" | "article";
   hasOutboundLink?: boolean;
   hasNativeMedia?: boolean;
@@ -22,6 +23,7 @@ export type ParentTweet = {
 function parentFromCard(card: {
   author: string;
   text: string;
+  createdAt?: string;
   longform?: "note_tweet" | "article";
   hasOutboundLink?: boolean;
   mediaShortlinks?: string[];
@@ -32,6 +34,7 @@ function parentFromCard(card: {
   return {
     author: card.author,
     text: card.text,
+    ...(card.createdAt ? { createdAt: card.createdAt } : {}),
     ...(card.longform ? { longform: card.longform } : {}),
     ...(card.hasOutboundLink ? { hasOutboundLink: true } : {}),
     ...(card.mediaShortlinks?.length || card.hasNativeMedia || card.opHasNativeMedia
@@ -51,6 +54,7 @@ function applyHydratedParent(
     opText: parent.text.slice(0, MAX_OP_TEXT_CHARS),
     opParentDerived: true,
     opCharCount: parent.text.length,
+    ...(parent.createdAt ? { opCreatedAt: parent.createdAt } : {}),
     ...(parent.longform ? { opLongform: parent.longform } : {}),
     ...(parent.hasOutboundLink || card.hasOutboundLink
       ? { hasOutboundLink: true }

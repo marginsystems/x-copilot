@@ -134,6 +134,21 @@ describe("filterMinViews", () => {
       minViewsFilteredCount: 1,
     });
   });
+
+  it("grants grace when the low-view hydrated OP is fresh", () => {
+    const reply = thread("reply", "reply", undefined, {
+      isReply: true,
+      opParentDerived: true,
+      opViews: 12,
+      views: 500,
+      createdAt: new Date(nowMs - 5 * 60 * 1000).toISOString(),
+      opCreatedAt: new Date(nowMs - 20 * 60 * 1000).toISOString(),
+    });
+    assert.deepEqual(filterMinViews([reply], { nowMs }), {
+      threads: [reply],
+      minViewsFilteredCount: 0,
+    });
+  });
 });
 
 describe("isSelfReply / filterSelfReplies", () => {
