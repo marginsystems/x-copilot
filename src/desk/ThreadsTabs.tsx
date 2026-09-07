@@ -299,14 +299,16 @@ export function ThreadsTabs({
   }, [authUser?.id, lockedScout, phase]);
 
   useEffect(() => {
-    if (phase !== "scout_reply") return;
+    if (phase !== "scout_reply") {
+      void hydrateInteractedRef.current(null);
+      return;
+    }
     void hydrateInteractedRef.current(lockedRef.current?.cardId);
     const interval = window.setInterval(() => {
       void hydrateInteractedRef.current(lockedRef.current?.cardId);
     }, 5_000);
     return () => {
       window.clearInterval(interval);
-      void hydrateInteractedRef.current(null);
     };
   }, [phase]);
 
