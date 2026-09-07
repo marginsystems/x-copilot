@@ -30,6 +30,7 @@ type ThreadsTabsProps = {
   forYouSuggestions: ForYouSuggestion[];
   coaching?: CoachingState | null;
   interactedHistory: InteractionHistoryEntry[];
+  interactedHydrated: boolean;
   skippedHistory: SkipHistoryEntry[];
   dismissedHistory: DismissalHistoryEntry[];
   expiredHistory: ExpiredHistoryEntry[];
@@ -98,6 +99,7 @@ export function ThreadsTabs({
   forYouSuggestions,
   coaching,
   interactedHistory,
+  interactedHydrated,
   skippedHistory,
   dismissedHistory,
   expiredHistory,
@@ -137,6 +139,7 @@ export function ThreadsTabs({
     coaching,
     interactedIds,
     interactedHistory,
+    interactedHydrated,
     dismissedHistory,
     markThread,
     dismissThread,

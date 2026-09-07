@@ -97,6 +97,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
   const [interactedHistory, setInteractedHistory] = useState<
     InteractionHistoryEntry[]
   >(() => seed?.interacted.interactions ?? []);
+  const [interactedHydrated, setInteractedHydrated] = useState(false);
   const [dismissedHistory, setDismissedHistory] = useState<
     DismissalHistoryEntry[]
   >(() => seed?.dismissed.dismissals ?? []);
@@ -168,6 +169,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
    * any later selection, not after the next network round trip.
    */
   async function hydrateInteracted(preservedId?: string | null) {
+    setInteractedHydrated(false);
     if (preservedId !== undefined) {
       const changed = preservedIdRef.current !== preservedId;
       preservedIdRef.current = preservedId;
@@ -222,6 +224,8 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
       }
     } catch {
       // Sidecar may be offline on first paint — ignore.
+    } finally {
+      setInteractedHydrated(true);
     }
   }
 
@@ -427,6 +431,7 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
 
   return {
     interactedIds,
+    interactedHydrated,
     setInteractedIds,
     interactedHistory,
     setInteractedHistory,

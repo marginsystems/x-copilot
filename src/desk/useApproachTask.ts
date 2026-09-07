@@ -78,6 +78,7 @@ export type UseApproachTaskOpts = {
   coaching?: CoachingState | null;
   interactedIds: Set<string>;
   interactedHistory: InteractionHistoryEntry[];
+  interactedHydrated: boolean;
   dismissedHistory: DismissalHistoryEntry[];
   markThread: ThreadCard | null;
   dismissThread: ThreadCard | null;
@@ -108,6 +109,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     coaching,
     interactedIds,
     interactedHistory,
+    interactedHydrated,
     dismissedHistory,
     markThread,
     dismissThread,
@@ -490,6 +492,12 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       (phase === "organic_reply" &&
         forYouSuggestions.some((row) => row.id === lock.cardId));
     if (cardIsLive) return;
+    const retainedScoutAwaitingHydration =
+      phase === "scout_reply" &&
+      lockedScout !== null &&
+      !curatedThreads.some((row) => row.id === lock.cardId) &&
+      !interactedHydrated;
+    if (retainedScoutAwaitingHydration) return;
     const event =
       phase === "scout_reply"
         ? vanishEvent({
@@ -507,6 +515,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     deskBootReady,
     forYouSuggestions,
     interactedHistory,
+    interactedHydrated,
     interactedIds,
     lock?.cardId,
     lockedScout,

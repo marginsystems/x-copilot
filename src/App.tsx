@@ -80,6 +80,7 @@ export default function App() {
     interactedIds,
     setInteractedIds,
     interactedHistory,
+    interactedHydrated,
     setInteractedHistory,
     dismissedHistory,
     setDismissedHistory,
@@ -716,6 +717,7 @@ export default function App() {
               forYouSuggestions={forYouSuggestions}
               coaching={coaching}
               interactedHistory={interactedHistory}
+              interactedHydrated={interactedHydrated}
               skippedHistory={skippedHistory}
               dismissedHistory={dismissedHistory}
               expiredHistory={expiredHistory}
