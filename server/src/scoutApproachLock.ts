@@ -96,7 +96,7 @@ export function setScoutApproachLock(
     id,
     card.conversationId,
     card.inReplyToId,
-    card.surface,
+    card.surface ?? "reply",
     card.author,
     card.url,
     card.text,

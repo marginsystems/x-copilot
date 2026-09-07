@@ -272,7 +272,7 @@ describe("own reply interaction capture", () => {
     assert.deepEqual(await listInteractionHistory({ userId }), []);
   });
 
-  it("does not complete a repost lock from a reply", async () => {
+  it("does not complete or poison a repost lock from a reply", async () => {
     watchThread({
       userId,
       threadId: "card-1",
@@ -299,11 +299,42 @@ describe("own reply interaction capture", () => {
         userId,
         { nowMs },
       ),
-      "organic",
+      "skipped",
+    );
+    assert.deepEqual(await listInteractionHistory({ userId }), []);
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
+          postId: "repost-after-reply",
+          kind: "repost",
+          repostTargetId: "card-1",
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "scout",
     );
     const [row] = await listInteractionHistory({ userId });
     assert.equal(row?.threadId, "card-1");
-    assert.equal(row?.source, "discovered");
+    assert.equal(row?.replyId, "repost-after-reply");
+  });
+
+  it("defaults a surface-less lock to reply", () => {
+    setScoutApproachLock(userId, {
+      id: "card-1",
+      conversationId: "card-1",
+      inReplyToId: null,
+      surface: null,
+      author: "@scout",
+      url: null,
+      text: null,
+    });
+
+    assert.equal(getScoutApproachLock(userId)?.surface, "reply");
   });
 
   it("completes a legacy reply lock using the migration default", async () => {
