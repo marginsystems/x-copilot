@@ -52,12 +52,14 @@ describe("hydrateReplyParents", () => {
         return {
           author: "@hustler",
           text: "mysaas just crossed $632 revenue 100% profit",
+          createdAt: "2026-01-01T00:00:00.000Z",
         };
       },
     });
     assert.equal(unhydratedReplyCount, 0);
     assert.equal(threads[0]?.opAuthor, "@hustler");
     assert.equal(threads[0]?.opParentDerived, true);
+    assert.equal(threads[0]?.opCreatedAt, "2026-01-01T00:00:00.000Z");
     assert.match(threads[0]?.opText ?? "", /\$632/);
     assert.equal(threads[0]?.hasOutboundLink, undefined);
     assert.equal(

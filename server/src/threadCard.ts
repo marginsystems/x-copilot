@@ -10,6 +10,7 @@ export type ThreadCard = {
   author: string;
   text: string;
   url: string;
+  surface?: "reply" | "repost";
   createdAt?: string;
   /**
    * Set when search/lookup exposed longform / Article payload.

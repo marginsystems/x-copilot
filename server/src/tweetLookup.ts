@@ -52,6 +52,7 @@ function applyHydratedParent(
     ...card,
     opAuthor: parent.author,
     opText: parent.text.slice(0, MAX_OP_TEXT_CHARS),
+    ...(parent.createdAt ? { opCreatedAt: parent.createdAt } : {}),
     opParentDerived: true,
     opCharCount: parent.text.length,
     ...(parent.createdAt ? { opCreatedAt: parent.createdAt } : {}),

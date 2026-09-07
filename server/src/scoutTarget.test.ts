@@ -102,6 +102,41 @@ describe("retargetLeafToRoot", () => {
     assert.equal(next.views, 150);
     assert.equal(next.opParentDerived, undefined);
   });
+
+  it("keeps the OP timestamp for routing without changing the lead freshness timestamp", () => {
+    const next = retargetLeafToRoot(
+      card({
+        id: "leaf",
+        text: "reply",
+        createdAt: "2026-01-02T00:00:00.000Z",
+        opCreatedAt: "2026-01-01T00:00:00.000Z",
+        isReply: true,
+        conversationId: "root",
+        opAuthor: "@op",
+        opText: "root",
+      }),
+    );
+    assert.ok(next);
+    assert.equal(next.createdAt, "2026-01-02T00:00:00.000Z");
+    assert.equal(next.opCreatedAt, "2026-01-01T00:00:00.000Z");
+  });
+
+  it("keeps a leaf timestamp when no OP timestamp is available", () => {
+    const next = retargetLeafToRoot(
+      card({
+        id: "leaf",
+        text: "reply",
+        createdAt: "2026-01-02T00:00:00.000Z",
+        isReply: true,
+        conversationId: "root",
+        opAuthor: "@op",
+        opText: "root",
+      }),
+    );
+    assert.ok(next);
+    assert.equal(next.createdAt, "2026-01-02T00:00:00.000Z");
+    assert.equal(next.opCreatedAt, undefined);
+  });
 });
 
 describe("preferRootTargets", () => {

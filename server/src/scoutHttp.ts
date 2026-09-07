@@ -42,6 +42,7 @@ import {
   clampTargetCool,
   isCoolThread,
 } from "./scoutPolicy.js";
+import { routeScoutSurface } from "./scoutRoute.js";
 import { runScoutSearch } from "./scoutRun.js";
 import type { ScoutFilters } from "./scoutTypes.js";
 import {
@@ -194,6 +195,7 @@ export async function readLastScoutPayload(opts: {
     getDismissedThreadIds({ userId }),
     getSkippedThreadIds({ userId }),
   ]);
+  const nowMs = Date.now();
   const threads = preferRootTargets(
     tankThreads.filter(
       (t) =>
@@ -205,7 +207,10 @@ export async function readLastScoutPayload(opts: {
     isCoolThread(t, {
       agendaSet: t.scoutAgendaSet ?? Boolean(snapshot.agenda),
     }),
-  );
+  ).map((thread) => ({
+    ...thread,
+    surface: routeScoutSurface(thread, nowMs),
+  }));
   if (threads.length === 0) return { ok: true, empty: true };
   return {
     ok: true,
