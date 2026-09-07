@@ -251,6 +251,7 @@ export function ThreadsTabs({
     ? suggestionCardsRef.current.get(locked.cardId) ?? null
     : null;
   const autoTriedRef = useRef(readScoutTakeoffTried());
+  const forYouRefuelKeyRef = useRef<string | null>(null);
   const bootRefuelCheckedRef = useRef(false);
   const [refuelArmed, setRefuelArmed] = useState(false);
   const refuelArmedRef = useRef(false);
@@ -471,19 +472,48 @@ export function ThreadsTabs({
     curatedThreads,
   ]);
 
-  function armRefuel(usableScoutCount = curatedThreads.length) {
+  function armRefuel(usableScoutCount = curatedThreads.length): boolean {
     if (
       !shouldArmScoutRefill(usableScoutCount) ||
       refuelArmedRef.current ||
       searching
     ) {
-      return;
+      return false;
     }
     clearScoutTakeoffTried();
     autoTriedRef.current = false;
     refuelArmedRef.current = true;
     setRefuelArmed(true);
+    return true;
   }
+
+  useEffect(() => {
+    const refuelKey =
+      phase === "organic_reply"
+        ? locked?.cardId
+        : phase === "silent_refuel" && locked?.surface === "for_you"
+          ? "wait"
+          : null;
+    if (
+      !refuelKey
+    ) {
+      forYouRefuelKeyRef.current = null;
+      return;
+    }
+    if (phase === "organic_reply" && forYouRefuelKeyRef.current === "wait") {
+      forYouRefuelKeyRef.current = null;
+    }
+    if (
+      forYouRefuelKeyRef.current === refuelKey ||
+      !shouldArmScoutRefill(curatedThreads.length)
+    ) return;
+    // A For You card gets one refill arm, not one arm per cooldown tick.
+    if (refuelArmedRef.current) {
+      forYouRefuelKeyRef.current = refuelKey;
+      return;
+    }
+    if (armRefuel()) forYouRefuelKeyRef.current = refuelKey;
+  }, [curatedThreads.length, locked?.cardId, locked?.surface, phase, searching]);
 
   useEffect(() => {
     const live = new Set<string>();

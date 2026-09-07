@@ -218,10 +218,33 @@ describe("Approach flight frame", () => {
     assert.match(html, /class="mission-card approach-frame"/);
     assert.match(html, /class="thread-row open"/);
     assert.match(html, /A real landed summary/);
+    assert.match(html, />Reply</);
     assert.match(html, /Open on X/);
     assert.match(html, />Skip</);
     assert.match(html, /Not interested/);
+    assert.match(html, /Suggest reply — locked/);
     assert.match(html, new RegExp(FYP_DETECTING_COPY.replace(".", "\\.")));
+    assert.doesNotMatch(html, /I posted on X/);
+  });
+
+  it("renders repost scout cards without a Suggest pane", () => {
+    const lead = thread("repost-lead", 420);
+    lead.surface = "repost";
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "scout_reply",
+          scout: lead,
+          expandedId: lead.id,
+          refillState: "landed",
+        }),
+      ),
+    );
+    assert.match(html, />Repost</);
+    assert.match(html, /Open on X/);
+    assert.match(html, />Skip</);
+    assert.match(html, /Not interested/);
+    assert.doesNotMatch(html, /Suggest reply/);
     assert.doesNotMatch(html, /I posted on X/);
   });
 

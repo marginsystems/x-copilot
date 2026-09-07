@@ -10,6 +10,7 @@ export type ThreadCard = {
   author: string;
   text: string;
   url: string;
+  surface?: "reply" | "repost";
   createdAt?: string;
   /**
    * Set when search/lookup exposed longform / Article payload.
@@ -55,6 +56,8 @@ export type ThreadCard = {
   views?: number;
   /** Impression count on the hydrated / included OP. */
   opViews?: number;
+  /** Creation time of the hydrated / included OP. */
+  opCreatedAt?: string;
   /** Triage fields (filled by threadTriage after search). */
   summary?: string;
   /** 0–100, higher = more engagement bait / less worth replying to. */

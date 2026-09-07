@@ -48,6 +48,7 @@ describe("v2TweetToCard replied_to includes", () => {
           id: "800",
           text: "the real post",
           author_id: "u-op",
+          created_at: "2026-09-05T05:00:00.000Z",
           public_metrics: { impression_count: 655 },
         },
       ],
@@ -67,6 +68,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.ok(card);
     assert.equal(card.views, 5);
     assert.equal(card.opViews, 655);
+    assert.equal(card.opCreatedAt, "2026-09-05T05:00:00.000Z");
   });
 
   it("flags a clean reply when the included OP has an off-platform link", () => {

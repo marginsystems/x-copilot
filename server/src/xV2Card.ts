@@ -169,6 +169,7 @@ function applyIncludedReplyOp(
 
   card.opAuthor = opHandle.startsWith("@") ? opHandle : `@${opHandle}`;
   card.opText = opText.slice(0, MAX_OP_TEXT_CHARS);
+  if (opTw?.created_at) card.opCreatedAt = opTw.created_at;
   card.opCharCount = opText.length;
   const opLongform = opTw ? v2TweetLongform(opTw) : undefined;
   if (opLongform) card.opLongform = opLongform;

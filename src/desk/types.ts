@@ -17,6 +17,7 @@ export type ThreadCard = {
   author: string;
   text: string;
   url: string;
+  surface?: "reply" | "repost";
   createdAt?: string;
   summary?: string;
   /** Parent tweet context when this card is a reply. */
