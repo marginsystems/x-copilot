@@ -65,7 +65,11 @@ export async function markOwnReplyInteracted(
     ? parsed.repostTargetId!
     : parsed.inReplyToId!;
   const locked = getScoutApproachLock(userId);
-  if (isReply && locked?.surface === "repost" && targetId === locked.id) {
+  if (
+    isReply &&
+    locked?.surface === "repost" &&
+    (targetId === locked.id || parsed.conversationId === locked.conversationId)
+  ) {
     return "skipped";
   }
   const watched = isReply

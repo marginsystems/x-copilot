@@ -291,6 +291,21 @@ describe("own reply interaction capture", () => {
     assert.equal(
       await markOwnReplyInteracted(
         post({
+          postId: "sibling-reply",
+          kind: "reply",
+          inReplyToId: "other-card-child",
+          conversationId: "root-1",
+        }),
+        userId,
+        { nowMs },
+      ),
+      "skipped",
+    );
+    assert.deepEqual(await listInteractionHistory({ userId }), []);
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({
           postId: "wrong-reply",
           kind: "reply",
           inReplyToId: "card-1",
