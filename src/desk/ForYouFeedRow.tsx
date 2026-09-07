@@ -28,7 +28,7 @@ export function ForYouFeedRow(props: {
       lead="FY"
       leadTitle="Real X For You"
       leadClassName="bait kind-reply"
-      summary={summary}
+      summary={expandable ? summary : undefined}
       meta={
         <>
           <span className="chip">For You</span>

@@ -351,6 +351,7 @@ describe("Approach flight frame", () => {
       ),
     );
     assert.match(html, new RegExp(FYP_DETECTING_COPY.replace(".", "\\.")));
+    assert.equal(html.split(FYP_DETECTING_COPY).length - 1, 1);
     assert.match(html, />Open For You</);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /You&#x27;re clean/);
@@ -368,6 +369,7 @@ describe("Approach flight frame", () => {
       ),
     );
     assert.match(html, new RegExp(FYP_DETECTED_COPY.replace(".", "\\.")));
+    assert.equal(html.split(FYP_DETECTED_COPY).length - 1, 1);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, />Open For You</);
     assert.doesNotMatch(html, /Likes do not count/);
