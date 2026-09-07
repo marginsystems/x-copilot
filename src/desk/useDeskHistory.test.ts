@@ -109,6 +109,7 @@ describe("keepCuratedByHistory", () => {
       }
 
       renderToString(createElement(Harness));
+      history.interactedIdsRef.current.add("A");
       void history.hydrateInteracted("A");
       void history.hydrateInteracted("B");
 
