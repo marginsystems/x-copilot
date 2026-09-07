@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   clearScoutTakeoffTried,
+  eligibleScoutCards,
   markScoutTakeoffTried,
   readScoutTakeoffTried,
   scoutRefillPending,
@@ -116,6 +117,18 @@ describe("Scout refill state", () => {
     assert.equal(shouldArmScoutRefill(0), true);
     assert.equal(shouldArmScoutRefill(1), true);
     assert.equal(shouldArmScoutRefill(2), false);
+  });
+
+  it("counts only eligible stock: a retained detected card is not tank", () => {
+    const tank = [{ id: "detected" }, { id: "fresh" }, { id: "released" }];
+    const eligible = eligibleScoutCards(
+      tank,
+      new Set(["detected"]),
+      new Set(["released"]),
+    );
+    assert.deepEqual(eligible.map((row) => row.id), ["fresh"]);
+    assert.equal(shouldArmScoutRefill(eligible.length), true);
+    assert.equal(shouldArmScoutRefill(tank.length), false);
   });
 });
 

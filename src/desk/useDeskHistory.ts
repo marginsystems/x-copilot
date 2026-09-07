@@ -162,10 +162,16 @@ export function useDeskHistory(deps: DeskHistoryDeps) {
     setThreads((prev) => prev.filter((t) => keepInCurated(t)));
   }
 
+  /**
+   * Preservation belongs to the locked Scout card. Passing a new id transfers
+   * it synchronously, so a card released a moment ago leaves inventory before
+   * any later selection, not after the next network round trip.
+   */
   async function hydrateInteracted(preservedId?: string | null) {
     if (preservedId !== undefined) {
+      const changed = preservedIdRef.current !== preservedId;
       preservedIdRef.current = preservedId;
-      if (preservedId === null) {
+      if (changed || preservedId === null) {
         setThreads((prev) => prev.filter((t) => keepInCurated(t)));
       }
     }

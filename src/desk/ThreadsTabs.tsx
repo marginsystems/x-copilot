@@ -1,56 +1,6 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import type { Dispatch, SetStateAction } from "react";
 import type { AuthSessionUser } from "../auth/types";
-import {
-  APPROACH_TAB_LABEL,
-  FYP_DETECTED_COPY,
-  FYP_DETECTING_COPY,
-  type ForYouSuggestion,
-} from "../lib/forYou";
-import { deskNeedsXLink } from "../lib/deskGate";
-import {
-  canServeApproachOriginal,
-  pickApproachSuggestion,
-} from "../lib/approachCard";
-import {
-  advanceApproach,
-  approachTabLiveCount,
-  initialApproachLock,
-  type ApproachEvent,
-  type ApproachLock,
-} from "../lib/deskPhase";
-import {
-  readApproachLock,
-  writeApproachLock,
-} from "../lib/approachLock";
-import {
-  clearScoutTakeoffTried,
-  markScoutTakeoffTried,
-  readScoutTakeoffTried,
-  scoutRefillPending,
-  scoutRefillState,
-  shouldArmScoutOnBoot,
-  shouldArmScoutRefill,
-  shouldBackgroundScout,
-} from "../lib/deskRefuel";
-import {
-  canPresentForYouTask,
-  clearForYouWait,
-  shouldArmForYouWait,
-  hasDetectedForYouPost,
-  readForYouWait,
-  snapshotForYouWait,
-  writeForYouWait,
-  type ForYouWait,
-} from "../lib/forYouTask";
-import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
-import { vanishEvent } from "../lib/vanishEvent";
-import { apiFetch } from "../lib/apiBase";
+import { APPROACH_TAB_LABEL, type ForYouSuggestion } from "../lib/forYou";
 import type { VoiceState } from "../lib/voice";
 import {
   DismissedRow,
@@ -59,17 +9,11 @@ import {
   SkippedRow,
 } from "./HistoryRows";
 import { RankingDrawer } from "./RankingDrawer";
-import {
-  ApproachLoadingCard,
-  MissionCard,
-  pickApproachScout,
-} from "./MissionCard";
-import { useReplyPace } from "./useReplyPace";
+import { ApproachLoadingCard, MissionCard } from "./MissionCard";
 import type { CoachingState } from "../lib/coaching";
 import type { DeskBeats } from "../lib/deskPhase";
-import { useDeskRowExit } from "./useDeskRowExit";
 import { ThreadsTabCount } from "./ThreadsTabCount";
-import { watchDeskThreads } from "./watch";
+import { useApproachTask } from "./useApproachTask";
 import type {
   DismissalHistoryEntry,
   ExpiredHistoryEntry,
@@ -125,6 +69,28 @@ type ThreadsTabsProps = {
   onForkBeats: (beats: DeskBeats) => void;
 };
 
+function ThreadsFeedTab(props: {
+  tab: ThreadsTab;
+  active: ThreadsTab;
+  label: string;
+  count: number;
+  onSelect: (tab: ThreadsTab) => void;
+}) {
+  const selected = props.active === props.tab;
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={selected}
+      className={selected ? "threads-tab active" : "threads-tab"}
+      onClick={() => props.onSelect(props.tab)}
+    >
+      {props.label}
+      <ThreadsTabCount n={props.count} />
+    </button>
+  );
+}
+
 export function ThreadsTabs({
   threadsTab,
   setThreadsTab,
@@ -136,7 +102,6 @@ export function ThreadsTabs({
   dismissedHistory,
   expiredHistory,
   searching,
-  flightLine,
   actionBusy,
   expandedId,
   setExpandedId,
@@ -152,10 +117,8 @@ export function ThreadsTabs({
   actForYou,
   onOpenVoice,
   onOpenSettings,
-  onOpenUsage,
   onLinkX,
   grounded,
-  groundedLine,
   searchCooldownRemaining,
   onSearch,
   onMark,
@@ -164,483 +127,31 @@ export function ThreadsTabs({
   onRefreshCoaching,
   onHydrateInteracted,
 }: ThreadsTabsProps) {
-  const pace = useReplyPace(coaching?.replyAt?.[0]);
-  const { exitingIds, beginExit, clearGone } = useDeskRowExit();
-  const scout = pickApproachScout(curatedThreads);
-  const pendingDismissIdRef = useRef<string | null>(null);
-  const pendingMarkIdRef = useRef<string | null>(null);
-  const canPresentForYou = canPresentForYouTask({
-    needsXLink: deskNeedsXLink(authUser),
-    hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
-    grounded,
-    cooldownRemaining: searchCooldownRemaining,
-  });
-  const silentFallback = deskNeedsXLink(authUser)
-    ? "link_x"
-    : agenda.trim().length < AGENDA_MIN_CHARS
-      ? "settings"
-      : grounded
-        ? "usage"
-        : searchCooldownRemaining > 0
-          ? "wait"
-          : "for_you";
-  const [forYouWait, setForYouWait] = useState<ForYouWait | null>(() => {
-    const existing = readForYouWait();
-    if (existing) return existing;
-    if (scout || !deskBootReady || !canPresentForYou) return null;
-    const wait: ForYouWait = {
-      held: true,
-      snapshot: snapshotForYouWait(coaching),
-    };
-    writeForYouWait(wait);
-    return wait;
-  });
-  const forYouHeld = forYouWait?.held === true;
-  useEffect(() => {
-    if (!forYouWait || forYouWait.snapshot || !coaching) return;
-    const wait: ForYouWait = {
-      held: true,
-      snapshot: snapshotForYouWait(coaching),
-    };
-    writeForYouWait(wait);
-    setForYouWait(wait);
-  }, [forYouWait, coaching]);
-  const refreshCoachingRef = useRef(onRefreshCoaching);
-  refreshCoachingRef.current = onRefreshCoaching;
-  useEffect(() => {
-    if (!forYouHeld) return;
-    const interval = window.setInterval(() => {
-      void refreshCoachingRef.current({ lite: true });
-    }, 12_000);
-    return () => window.clearInterval(interval);
-  }, [forYouHeld]);
-  const forYouStatus = !forYouWait
-    ? undefined
-    : forYouWait.snapshot &&
-        hasDetectedForYouPost(forYouWait.snapshot, coaching)
-      ? FYP_DETECTED_COPY
-      : FYP_DETECTING_COPY;
-  const currentDayUtc = new Date().toISOString().slice(0, 10);
-  const [locked, setLocked] = useState<ApproachLock | null>(() =>
-    readApproachLock(authUser?.id),
-  );
-  const suggestion = pickApproachSuggestion(forYouSuggestions, {
-    allowPost: canServeApproachOriginal({
-      scoutReplyDone:
-        coaching?.dayUtc === currentDayUtc &&
-        coaching?.beats.scoutReplyDone === true,
-      originalMission:
-        coaching?.missions.find((mission) => mission.id === "original_1") ??
-        null,
-    }),
-    interactedIds,
-    history: interactedHistory,
-    lockedId: locked?.cardId,
-  });
-  const scoutCardsRef = useRef(new Map<string, ThreadCard>());
-  const suggestionCardsRef = useRef(new Map<string, ForYouSuggestion>());
-  for (const row of curatedThreads) scoutCardsRef.current.set(row.id, row);
-  for (const row of forYouSuggestions) {
-    suggestionCardsRef.current.set(row.id, row);
-  }
-  const restoredDoneForNowRef = useRef(locked?.phase === "done_for_now");
-  const restoredInventoryRef = useRef<{
-    scoutIds: Set<string>;
-    suggestionIds: Set<string>;
-  } | null>(null);
-  const phase = locked?.phase ?? "done_for_now";
-  const hold = phase === "hold";
-  const holdForYouTask =
-    (phase === "silent_refuel" || phase === "hold") &&
-    locked?.surface === "for_you";
-  const lockedSuggestion = locked?.cardId
-    ? suggestionCardsRef.current.get(locked.cardId) ?? null
-    : null;
-  const autoTriedRef = useRef(readScoutTakeoffTried());
-  const forYouRefuelKeyRef = useRef<string | null>(null);
-  const bootRefuelCheckedRef = useRef(false);
-  const [refuelArmed, setRefuelArmed] = useState(false);
-  const refuelArmedRef = useRef(false);
-  const refillState = scoutRefillState({
-    armed: refuelArmed,
-    searching,
-    cooldownRemainingSec: searchCooldownRemaining,
-    scoutCount: curatedThreads.length,
-  });
-  const lockedScout = locked?.cardId
-    ? scoutCardsRef.current.get(locked.cardId) ?? null
-    : null;
-  const displayedScout =
-    phase === "done_for_now" && scout
-      ? scout
-      : lockedScout;
-  useEffect(() => {
-    if (!deskBootReady) return;
-    if (
-      !shouldArmForYouWait({
-        alreadyHeld: Boolean(forYouWait),
-        canPresent: canPresentForYou,
-        showingForYouWait:
-          holdForYouTask ||
-          (phase === "done_for_now" &&
-            !displayedScout &&
-            !scoutRefillPending(refillState)),
-      })
-    ) {
-      return;
-    }
-    const wait: ForYouWait = {
-      held: true,
-      snapshot: snapshotForYouWait(coaching),
-    };
-    writeForYouWait(wait);
-    setForYouWait(wait);
-  }, [
-    canPresentForYou,
-    coaching,
+  const task = useApproachTask({
+    authUser,
     deskBootReady,
-    displayedScout,
-    forYouWait,
-    holdForYouTask,
-    phase,
-    refillState,
-  ]);
-  const lockedRef = useRef(locked);
-  lockedRef.current = locked;
-  const hydrateInteractedRef = useRef(onHydrateInteracted);
-  hydrateInteractedRef.current = onHydrateInteracted;
-
-  useEffect(() => {
-    if (!authUser?.id) return;
-    if (phase === "scout_reply" && !lockedScout) return;
-    const card = phase === "scout_reply" ? lockedScout : null;
-    if (card) watchDeskThreads([card]);
-    void apiFetch("/api/scout-approach-lock", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        card: card
-          ? {
-              id: card.id,
-              conversationId: card.conversationId,
-              inReplyToId: card.inReplyToId,
-              author: card.author,
-              url: card.url,
-              text: card.text,
-            }
-          : null,
-      }),
-    }).catch(() => {});
-  }, [authUser?.id, lockedScout, phase]);
-
-  useEffect(() => {
-    if (phase !== "scout_reply") {
-      void hydrateInteractedRef.current(null);
-      return;
-    }
-    void hydrateInteractedRef.current(lockedRef.current?.cardId);
-    const interval = window.setInterval(() => {
-      void hydrateInteractedRef.current(lockedRef.current?.cardId);
-    }, 5_000);
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [phase]);
-
-  function advanceCard(event: ApproachEvent) {
-    const current = lockedRef.current;
-    if (!current) return;
-    restoredDoneForNowRef.current = false;
-    const next = advanceApproach(current, event, {
-      scoutId:
-        curatedThreads.find((row) => row.id !== current.cardId)?.id ?? null,
-      suggestionId:
-        (suggestion?.id !== current.cardId
-          ? suggestion
-          : pickApproachSuggestion(
-              forYouSuggestions.filter((row) => row.id !== current.cardId),
-              {
-                allowPost: canServeApproachOriginal({
-                  scoutReplyDone:
-                    coaching?.dayUtc === currentDayUtc &&
-                    coaching?.beats.scoutReplyDone === true,
-                  originalMission:
-                    coaching?.missions.find(
-                      (mission) => mission.id === "original_1",
-                    ) ?? null,
-                }),
-                interactedIds,
-                history: interactedHistory,
-                lockedId: current.cardId,
-              },
-            )
-        )?.id ?? null,
-      canPresentForYou,
-    });
-    if (next === current) return;
-    lockedRef.current = next;
-    writeApproachLock(authUser?.id, next);
-    if (next.surface === "for_you" && !forYouWait) {
-      const wait: ForYouWait = {
-        held: true,
-        snapshot: snapshotForYouWait(coaching),
-      };
-      writeForYouWait(wait);
-      setForYouWait(wait);
-    }
-    setLocked(next);
-  }
-
-  useEffect(() => {
-    if (!deskBootReady || locked) return;
-    const restored = readApproachLock(authUser?.id);
-    if (restored) {
-      restoredDoneForNowRef.current = restored.phase === "done_for_now";
-      lockedRef.current = restored;
-      setLocked(restored);
-      return;
-    }
-    let nextForYouHeld = forYouHeld;
-    if (!scout && canPresentForYou && !forYouWait) {
-      const wait: ForYouWait = {
-        held: true,
-        snapshot: snapshotForYouWait(coaching),
-      };
-      writeForYouWait(wait);
-      setForYouWait(wait);
-      nextForYouHeld = true;
-    }
-    const next = initialApproachLock({
-      forYouHeld: nextForYouHeld,
-      paceLocked: pace.locked,
-      scoutId: scout?.id ?? null,
-      fallback: silentFallback,
-    });
-    writeApproachLock(authUser?.id, next);
-    lockedRef.current = next;
-    setLocked(next);
-  }, [
-    authUser?.id,
-    deskBootReady,
-    forYouHeld,
-    forYouWait,
-    canPresentForYou,
-    coaching,
-    locked,
-    pace.locked,
-    scout?.id,
-    silentFallback,
-  ]);
-
-  useEffect(() => {
-    if (!deskBootReady || !locked || bootRefuelCheckedRef.current) return;
-    bootRefuelCheckedRef.current = true;
-    if (
-      !shouldArmScoutOnBoot({
-        usableScoutCount: curatedThreads.length,
-        alreadyTried: autoTriedRef.current,
-        searching,
-      })
-    ) {
-      return;
-    }
-    refuelArmedRef.current = true;
-    setRefuelArmed(true);
-  }, [curatedThreads.length, deskBootReady, locked, searching]);
-
-  useEffect(() => {
-    if (!restoredDoneForNowRef.current || !deskBootReady) return;
-    const currentInventory = {
-      scoutIds: new Set(curatedThreads.map((row) => row.id)),
-      suggestionIds: new Set(forYouSuggestions.map((row) => row.id)),
-    };
-    const restoredInventory = restoredInventoryRef.current;
-    if (!restoredInventory) {
-      restoredInventoryRef.current = currentInventory;
-      return;
-    }
-    const hasNewInventory =
-      [...currentInventory.scoutIds].some(
-        (id) => !restoredInventory.scoutIds.has(id),
-      ) ||
-      [...currentInventory.suggestionIds].some(
-        (id) => !restoredInventory.suggestionIds.has(id),
-      );
-    if (!hasNewInventory) return;
-    restoredDoneForNowRef.current = false;
-    advanceCard({ type: "next" });
-  }, [curatedThreads, deskBootReady, forYouSuggestions, locked]);
-
-  useEffect(() => {
-    if (restoredDoneForNowRef.current) return;
-    if (!locked || phase !== "done_for_now" || (!scout && !suggestion)) return;
-    advanceCard({ type: "next" });
-  }, [locked, phase, scout, suggestion]);
-
-  useEffect(() => {
-    if (!deskBootReady || !locked?.cardId) return;
-    if (
-      pendingDismissIdRef.current === locked.cardId ||
-      pendingMarkIdRef.current === locked.cardId
-    ) {
-      return;
-    }
-    const cardIsLive =
-      (phase === "scout_reply" &&
-        curatedThreads.some((row) => row.id === locked.cardId)) ||
-      (phase === "organic_reply" &&
-        forYouSuggestions.some((row) => row.id === locked.cardId));
-    if (!cardIsLive) {
-      const event =
-        phase === "scout_reply"
-          ? vanishEvent({
-              cardId: locked.cardId,
-              conversationId:
-                lockedScout?.conversationId ?? lockedSuggestion?.targetId,
-              inReplyToId: lockedScout?.inReplyToId,
-              interactedIds,
-              history: interactedHistory,
-            })
-          : "skip";
-      advanceCard({ type: event });
-      if (event === "skip") armRefuel();
-    }
-  }, [
-    deskBootReady,
-    forYouSuggestions,
-    interactedHistory,
-    interactedIds,
-    locked?.cardId,
-    lockedScout,
-    lockedSuggestion,
-    phase,
+    agendaReady,
+    agenda,
     curatedThreads,
-  ]);
-
-  function armRefuel(usableScoutCount = curatedThreads.length): boolean {
-    if (
-      !shouldArmScoutRefill(usableScoutCount) ||
-      refuelArmedRef.current ||
-      searching
-    ) {
-      return false;
-    }
-    clearScoutTakeoffTried();
-    autoTriedRef.current = false;
-    refuelArmedRef.current = true;
-    setRefuelArmed(true);
-    return true;
-  }
-
-  useEffect(() => {
-    const refuelKey =
-      phase === "organic_reply"
-        ? locked?.cardId
-        : phase === "silent_refuel" && locked?.surface === "for_you"
-          ? "wait"
-          : null;
-    if (
-      !refuelKey
-    ) {
-      forYouRefuelKeyRef.current = null;
-      return;
-    }
-    if (phase === "organic_reply" && forYouRefuelKeyRef.current === "wait") {
-      forYouRefuelKeyRef.current = null;
-    }
-    if (
-      forYouRefuelKeyRef.current === refuelKey ||
-      !shouldArmScoutRefill(curatedThreads.length)
-    ) return;
-    // A For You card gets one refill arm, not one arm per cooldown tick.
-    if (refuelArmedRef.current) {
-      forYouRefuelKeyRef.current = refuelKey;
-      return;
-    }
-    if (armRefuel()) forYouRefuelKeyRef.current = refuelKey;
-  }, [curatedThreads.length, locked?.cardId, locked?.surface, phase, searching]);
-
-  useEffect(() => {
-    const live = new Set<string>();
-    for (const t of curatedThreads) live.add(t.id);
-    for (const row of forYouSuggestions) live.add(row.id);
-    clearGone(live);
-  }, [curatedThreads, forYouSuggestions, clearGone]);
-  useEffect(() => {
-    if (!refuelArmed || !agendaReady) return;
-    if (
-      !shouldBackgroundScout({
-        phase,
-        searching,
-        grounded,
-        cooldownRemainingSec: searchCooldownRemaining,
-        needsXLink: deskNeedsXLink(authUser),
-        hasAgenda: agenda.trim().length >= AGENDA_MIN_CHARS,
-        scoutCount: curatedThreads.length,
-        alreadyTried: autoTriedRef.current,
-      })
-    ) {
-      return;
-    }
-    autoTriedRef.current = true;
-    markScoutTakeoffTried();
-    refuelArmedRef.current = false;
-    setRefuelArmed(false);
-    onSearch();
-  }, [
-    refuelArmed,
-    phase,
+    forYouSuggestions,
+    coaching,
+    interactedIds,
+    interactedHistory,
+    dismissedHistory,
+    markThread,
+    dismissThread,
     searching,
     grounded,
     searchCooldownRemaining,
-    agendaReady,
-    authUser,
-    agenda,
-    curatedThreads,
+    setExpandedId,
+    actForYou,
     onSearch,
-  ]);
-  useEffect(() => {
-    if (
-      !markThread &&
-      pendingMarkIdRef.current &&
-      !interactedIds.has(pendingMarkIdRef.current)
-    ) {
-      pendingMarkIdRef.current = null;
-    }
-  }, [interactedIds, markThread]);
-  useEffect(() => {
-    if (
-      !dismissThread &&
-      pendingDismissIdRef.current &&
-      !dismissedHistory.some(
-        (entry) => entry.threadId === pendingDismissIdRef.current,
-      )
-    ) {
-      pendingDismissIdRef.current = null;
-    }
-  }, [dismissedHistory, dismissThread]);
-  useEffect(() => {
-    const id = pendingDismissIdRef.current;
-    if (!id || !dismissedHistory.some((entry) => entry.threadId === id)) return;
-    pendingDismissIdRef.current = null;
-    advanceCard({ type: "dismiss" });
-    armRefuel(curatedThreads.filter((row) => row.id !== id).length);
-  }, [dismissedHistory]);
-  useEffect(() => {
-    const id = pendingMarkIdRef.current;
-    if (!id || !interactedIds.has(id)) return;
-    pendingMarkIdRef.current = null;
-    advanceCard({ type: "mark" });
-    armRefuel(curatedThreads.filter((row) => row.id !== id).length);
-  }, [interactedIds]);
-  function exitRow(
-    id: string,
-    expandedKey: string,
-    then: () => void | Promise<void>,
-  ) {
-    setExpandedId((cur) => (cur === expandedKey ? null : cur));
-    beginExit(id, then);
-  }
+    onMark,
+    onSkip,
+    onDismiss,
+    onRefreshCoaching,
+    onHydrateInteracted,
+  });
   return (
     <>
       <div className="threads-pane-head">
@@ -649,181 +160,73 @@ export function ThreadsTabs({
           {threadsTab === "curated" ? <RankingDrawer /> : null}
         </div>
         <div className="threads-tabs" role="tablist" aria-label="Thread feeds">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={threadsTab === "curated"}
-            className={
-              threadsTab === "curated"
-                ? "threads-tab active"
-                : "threads-tab"
-            }
-            onClick={() => setThreadsTab("curated")}
-          >
-            {APPROACH_TAB_LABEL}
-            <ThreadsTabCount
-              n={
-                agendaReady
-                  ? approachTabLiveCount({
-                      phase,
-                      hasScoutCard: lockedScout != null,
-                      hasSuggestion: lockedSuggestion != null,
-                      holdForYouTask,
-                      refillState,
-                    })
-                  : 0
-              }
-            />
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={threadsTab === "interacted"}
-            className={
-              threadsTab === "interacted"
-                ? "threads-tab active"
-                : "threads-tab"
-            }
-            onClick={() => setThreadsTab("interacted")}
-          >
-            Interacted
-            <ThreadsTabCount n={interactedHistory.length} />
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={threadsTab === "skipped"}
-            className={
-              threadsTab === "skipped"
-                ? "threads-tab active"
-                : "threads-tab"
-            }
-            onClick={() => setThreadsTab("skipped")}
-          >
-            Skipped
-            <ThreadsTabCount n={skippedHistory.length} />
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={threadsTab === "dismissed"}
-            className={
-              threadsTab === "dismissed"
-                ? "threads-tab active"
-                : "threads-tab"
-            }
-            onClick={() => setThreadsTab("dismissed")}
-          >
-            Not interested
-            <ThreadsTabCount n={dismissedHistory.length} />
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={threadsTab === "expired"}
-            className={
-              threadsTab === "expired"
-                ? "threads-tab active"
-                : "threads-tab"
-            }
-            onClick={() => setThreadsTab("expired")}
-          >
-            Expired
-            <ThreadsTabCount n={expiredHistory.length} />
-          </button>
+          <ThreadsFeedTab
+            tab="curated"
+            active={threadsTab}
+            label={APPROACH_TAB_LABEL}
+            count={task.badge}
+            onSelect={setThreadsTab}
+          />
+          <ThreadsFeedTab
+            tab="interacted"
+            active={threadsTab}
+            label="Interacted"
+            count={interactedHistory.length}
+            onSelect={setThreadsTab}
+          />
+          <ThreadsFeedTab
+            tab="skipped"
+            active={threadsTab}
+            label="Skipped"
+            count={skippedHistory.length}
+            onSelect={setThreadsTab}
+          />
+          <ThreadsFeedTab
+            tab="dismissed"
+            active={threadsTab}
+            label="Not interested"
+            count={dismissedHistory.length}
+            onSelect={setThreadsTab}
+          />
+          <ThreadsFeedTab
+            tab="expired"
+            active={threadsTab}
+            label="Expired"
+            count={expiredHistory.length}
+            onSelect={setThreadsTab}
+          />
         </div>
       </div>
       <div className="threads-scroll">
         {threadsTab === "curated" ? (
-          !agendaReady || !locked ? (
+          !agendaReady || !task.ready ? (
             <ApproachLoadingCard />
           ) : (
-          <MissionCard
-            phase={phase}
-            hold={hold}
-            clock={pace.clock}
-            remainingMs={pace.remainingMs}
-            onBypass={() => {
-              pace.bypass();
-              advanceCard({ type: "bypass" });
-              armRefuel();
-            }}
-            groundedLine={groundedLine}
-            silentCard={locked.surface}
-            forYouStatus={forYouStatus}
-            onOpenUsage={onOpenUsage}
-            onOpenSettings={onOpenSettings}
-            coaching={coaching}
-            scout={displayedScout}
-            suggestion={lockedSuggestion}
-            refillState={refillState}
-            flightLine={flightLine}
-            actionBusy={actionBusy}
-            expandedId={expandedId}
-            setExpandedId={setExpandedId}
-            interactedIds={interactedIds}
-            voice={voice}
-            agenda={agenda}
-            authUser={authUser}
-            setVoice={setVoice}
-            exitingIds={exitingIds}
-            onScoutMark={(thread) => {
-              pendingMarkIdRef.current = thread.id;
-              onMark(thread);
-            }}
-            onScoutSkip={(thread) => {
-              exitRow(thread.id, thread.id, async () => {
-                const skipped = await onSkip(thread);
-                if (skipped) {
-                  pendingMarkIdRef.current = null;
-                  pendingDismissIdRef.current = null;
-                  advanceCard({ type: "skip" });
-                  armRefuel(
-                    curatedThreads.filter((row) => row.id !== thread.id).length,
-                  );
-                }
-              });
-            }}
-            onScoutDismiss={(thread) => {
-              pendingDismissIdRef.current = thread.id;
-              onDismiss(thread);
-            }}
-            onScoutNext={() => advanceCard({ type: "next" })}
-            onSuggestionPosted={(id) => {
-              exitRow(id, `suggest:${id}`, async () => {
-                if (await actForYou(id, "done")) {
-                  await onRefreshCoaching();
-                  advanceCard({ type: "posted" });
-                  armRefuel();
-                }
-              });
-            }}
-            onSuggestionSkip={(id) => {
-              exitRow(id, `suggest:${id}`, async () => {
-                if (await actForYou(id, "skip")) {
-                  advanceCard({ type: "skip" });
-                  armRefuel();
-                }
-              });
-            }}
-            onSuggestionDismiss={(id) => {
-              exitRow(id, `suggest:${id}`, async () => {
-                if (await actForYou(id, "dismiss")) {
-                  advanceCard({ type: "dismiss" });
-                  armRefuel();
-                }
-              });
-            }}
-            onForYouNext={() => {
-              clearForYouWait();
-              setForYouWait(null);
-              advanceCard({ type: "next" });
-              armRefuel();
-              void onRefreshCoaching();
-            }}
-            onOpenVoice={onOpenVoice}
-            onLinkX={onLinkX}
-          />
+            <MissionCard
+              {...task.cardInput}
+              clock={task.clock}
+              onBypass={task.onBypass}
+              onOpenSettings={onOpenSettings}
+              actionBusy={actionBusy}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              interactedIds={interactedIds}
+              voice={voice}
+              agenda={agenda}
+              authUser={authUser}
+              setVoice={setVoice}
+              exitingIds={task.exitingIds}
+              onScoutMark={task.onScoutMark}
+              onScoutSkip={task.onScoutSkip}
+              onScoutDismiss={task.onScoutDismiss}
+              onScoutNext={task.onScoutNext}
+              onSuggestionPosted={task.onSuggestionPosted}
+              onSuggestionSkip={task.onSuggestionSkip}
+              onSuggestionDismiss={task.onSuggestionDismiss}
+              onForYouNext={task.onForYouNext}
+              onOpenVoice={onOpenVoice}
+              onLinkX={onLinkX}
+            />
           )
         ) : threadsTab === "interacted" ? (
           interactedHistory.length === 0 ? (
