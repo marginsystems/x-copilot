@@ -9,6 +9,7 @@ import {
 } from "./MissionCard";
 import {
   FYP_DETECTING_COPY,
+  FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
 import type { ThreadCard } from "./types";
@@ -184,6 +185,8 @@ describe("Approach flight frame", () => {
     assert.match(html, /role="status"/);
     assert.match(html, /Plotting the route…/);
     assert.doesNotMatch(html, />In the air…<\/p>/);
+    assert.doesNotMatch(html, /class="caret"/);
+    assert.doesNotMatch(html, />\+<\/div>/);
   });
 
   it("updates stage copy without replacing the card frame", () => {
@@ -311,5 +314,27 @@ describe("Approach flight frame", () => {
       approachRefillLine("waiting"),
       "Scout is waiting for the cooldown.",
     );
+    assert.equal(approachRefillLine("terminal_empty"), FYP_WAIT_COPY);
+  });
+
+  it("turns an empty idle Approach into a real For You wait", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          refillState: "terminal_empty",
+          flightLine: null,
+          onForYouNext() {},
+        }),
+      ),
+    );
+    assert.match(html, />For You</);
+    assert.match(html, new RegExp(FYP_WAIT_COPY.replace(".", "\\.")));
+    assert.match(html, />Open For You</);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /class="caret"/);
+    assert.doesNotMatch(html, /You&#x27;re clean/);
+    assert.doesNotMatch(html, /History is a log/);
+    assert.doesNotMatch(html, /Scout is looking for the next reply/);
+    assert.doesNotMatch(html, /approach-flight-row/);
   });
 });

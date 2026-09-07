@@ -53,9 +53,6 @@ export function ApproachFlightRow({
             <ScoutTankMark />
           </div>
         </div>
-        <div className="caret" aria-hidden="true">
-          +
-        </div>
       </div>
     </article>
   );

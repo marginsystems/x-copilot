@@ -29,9 +29,10 @@ export function DeskRow({
   children?: ReactNode;
 }) {
   const presence = useDeskRowExpand(Boolean(expandable && open));
+  const expanded = !expandable || presence.expanded;
   const classes = ["thread-row"];
   if (className) classes.push(className);
-  if (presence.expanded) classes.push("open");
+  if (expanded) classes.push("open");
   if (exiting) classes.push("is-exiting");
 
   const style =
@@ -65,7 +66,7 @@ export function DeskRow({
         <button
           type="button"
           className="row-head"
-          aria-expanded={presence.expanded}
+          aria-expanded={expanded}
           onClick={onToggle}
         >
           {head}
@@ -73,11 +74,11 @@ export function DeskRow({
       ) : (
         <div className="row-head next-action-head">{head}</div>
       )}
-      {presence.mount ? (
+      {presence.mount || (!expandable && children) ? (
         <div
           className="row-detail-slot"
-          aria-hidden={!presence.expanded}
-          {...(!presence.expanded
+          aria-hidden={!expanded}
+          {...(!expanded
             ? ({ inert: "" } as HTMLAttributes<HTMLDivElement>)
             : {})}
         >
