@@ -22,7 +22,7 @@ export function useActivityStrip() {
   const [deskTopOpen, setDeskTopOpen] = useState(() => readDeskTopOpen());
   const seed = peekDeskBootCache()?.desk ?? null;
   const [activityStats, setActivityStats] = useState<ActivityStats>(
-    () => seed?.activityStats ?? emptyActivityStats("day"),
+    () => emptyActivityStats("day"),
   );
   const [gamification, setGamification] = useState<GamificationStats>(
     () => seed?.gamification ?? emptyGamificationStats(),

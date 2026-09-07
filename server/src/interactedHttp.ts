@@ -2,13 +2,8 @@
  * Interacted list, stats, mark-detect, and mark.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import {
-  LIVE_METRICS_ID_CAP,
-  bucketInteractions,
-  mergeLiveMetrics,
-  parseActivityBucket,
-  pendingReplyIds,
-} from "./activityStats.js";
+import { bucketInteractionsWithLive } from "./activityLive.js";
+import { parseActivityBucket } from "./activityStats.js";
 import { trackAnalytics } from "./analyticsClient.js";
 import { recordDeskReplyMarked } from "./deskBeats.js";
 import { getXOauthUsername } from "./xIdentityStore.js";
@@ -39,7 +34,6 @@ import {
 import { scheduleMemoryUpsert } from "./memoryReindex.js";
 import { pruneThreadsFromScoutCache } from "./scoutCache.js";
 import { getSessionUser } from "./sessionCookie.js";
-import { fetchTweetMetricsMany } from "./tweetLookup.js";
 
 export async function tryHandleInteracted(
   req: IncomingMessage,
@@ -57,13 +51,7 @@ export async function tryHandleInteracted(
           userId: sessionUser.id,
         })
       : [];
-    const pending = pendingReplyIds(history, LIVE_METRICS_ID_CAP);
-    let rows = history;
-    if (pending.length) {
-      const live = await fetchTweetMetricsMany({ tweetIds: pending });
-      rows = mergeLiveMetrics(history, live);
-    }
-    send(req, res, 200, bucketInteractions(rows, { bucket }));
+    send(req, res, 200, await bucketInteractionsWithLive(history, bucket));
     return true;
   }
 
