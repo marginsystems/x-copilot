@@ -215,7 +215,7 @@ export function MissionCard(props: {
     const emptyForYou =
       !thread && !refillPending && props.phase === "done_for_now";
     const why = emptyForYou
-      ? FYP_WAIT_COPY
+      ? props.forYouStatus ?? FYP_WAIT_COPY
       : phaseWhy(props.phase, props.coaching);
     return withReplyPace(
       <ApproachFrame

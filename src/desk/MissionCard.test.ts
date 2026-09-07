@@ -8,6 +8,7 @@ import {
   approachRefillLine,
 } from "./MissionCard";
 import {
+  FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
   FYP_WAIT_COPY,
   type ForYouSuggestion,
@@ -336,5 +337,39 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /History is a log/);
     assert.doesNotMatch(html, /Scout is looking for the next reply/);
     assert.doesNotMatch(html, /approach-flight-row/);
+  });
+
+  it("shows detecting copy on an empty For You wait", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          refillState: "terminal_empty",
+          flightLine: null,
+          forYouStatus: FYP_DETECTING_COPY,
+          onForYouNext() {},
+        }),
+      ),
+    );
+    assert.match(html, new RegExp(FYP_DETECTING_COPY.replace(".", "\\.")));
+    assert.match(html, />Open For You</);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /You&#x27;re clean/);
+  });
+
+  it("collapses a detected For You wait to Next only", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          refillState: "terminal_empty",
+          flightLine: null,
+          forYouStatus: FYP_DETECTED_COPY,
+          onForYouNext() {},
+        }),
+      ),
+    );
+    assert.match(html, new RegExp(FYP_DETECTED_COPY.replace(".", "\\.")));
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, />Open For You</);
+    assert.doesNotMatch(html, /Likes do not count/);
   });
 });
