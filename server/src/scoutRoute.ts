@@ -16,8 +16,9 @@ export function routeScoutSurface(
   if (card.text.includes("?") || card.opText?.includes("?")) return "reply";
 
   const views = card.opViews ?? card.views;
+  const createdAt = card.opCreatedAt ?? card.createdAt;
   const createdAtMs =
-    typeof card.createdAt === "string" ? Date.parse(card.createdAt) : NaN;
+    typeof createdAt === "string" ? Date.parse(createdAt) : NaN;
   if (
     typeof views !== "number" ||
     !Number.isFinite(views) ||

@@ -508,6 +508,10 @@ export function ThreadsTabs({
       !shouldArmScoutRefill(curatedThreads.length)
     ) return;
     // A For You card gets one refill arm, not one arm per cooldown tick.
+    if (refuelArmedRef.current) {
+      forYouRefuelKeyRef.current = refuelKey;
+      return;
+    }
     if (armRefuel()) forYouRefuelKeyRef.current = refuelKey;
   }, [curatedThreads.length, locked?.cardId, locked?.surface, phase, searching]);
 

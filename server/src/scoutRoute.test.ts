@@ -67,6 +67,20 @@ describe("routeScoutSurface", () => {
     );
   });
 
+  it("uses the OP timestamp when routing a retargeted reply", () => {
+    assert.equal(
+      routeScoutSurface(
+        card({
+          createdAt: new Date(NOW - 60 * 60 * 1000).toISOString(),
+          opCreatedAt: new Date(NOW - 5 * 60 * 60 * 1000).toISOString(),
+          views: 200,
+        }),
+        NOW,
+      ),
+      "reply",
+    );
+  });
+
   it("keeps the named threshold boundaries inclusive", () => {
     const ageHours = REPOST_MIN_VIEWS / REPOST_MIN_VIEWS_PER_HOUR;
     assert.equal(
