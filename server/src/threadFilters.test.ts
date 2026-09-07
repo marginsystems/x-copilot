@@ -57,6 +57,8 @@ function thread(
 }
 
 describe("filterMinViews", () => {
+  const nowMs = Date.parse("2026-09-07T12:00:00.000Z");
+
   it("keeps the inclusive floor and drops lower views", () => {
     const result = filterMinViews([
       thread("at", "at", undefined, { views: 100 }),
@@ -84,6 +86,36 @@ describe("filterMinViews", () => {
       { threads: [reply], minViewsFilteredCount: 0 },
     );
     assert.deepEqual(filterMinViews([reply]), {
+      threads: [],
+      minViewsFilteredCount: 1,
+    });
+  });
+
+  it("keeps posts with unknown views", () => {
+    const unknown = thread("unknown", "unknown");
+    assert.deepEqual(filterMinViews([unknown]), {
+      threads: [unknown],
+      minViewsFilteredCount: 0,
+    });
+  });
+
+  it("keeps low-view posts younger than 60 minutes", () => {
+    const fresh = thread("fresh", "fresh", undefined, {
+      views: 12,
+      createdAt: new Date(nowMs - 10 * 60 * 1000).toISOString(),
+    });
+    assert.deepEqual(filterMinViews([fresh], { nowMs }), {
+      threads: [fresh],
+      minViewsFilteredCount: 0,
+    });
+  });
+
+  it("drops low-view posts older than 60 minutes", () => {
+    const old = thread("old", "old", undefined, {
+      views: 12,
+      createdAt: new Date(nowMs - 2 * 60 * 60 * 1000).toISOString(),
+    });
+    assert.deepEqual(filterMinViews([old], { nowMs }), {
       threads: [],
       minViewsFilteredCount: 1,
     });

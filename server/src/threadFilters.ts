@@ -421,14 +421,22 @@ export type MinViewsFilterOptions = {
   minViews?: number;
   /** Keep replies whose OP views are not available until parent hydration. */
   allowUnknownReplyViews?: boolean;
+  nowMs?: number;
 };
 
-function audienceViews(thread: ThreadCard): number {
-  const n = thread.opViews ?? thread.views;
-  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
+const VIEW_FLOOR_MIN_AGE_MS = 60 * 60 * 1000;
+
+function audienceViews(thread: ThreadCard): number | undefined {
+  if (typeof thread.opViews === "number" && Number.isFinite(thread.opViews)) {
+    return thread.opViews;
+  }
+  if (typeof thread.views === "number" && Number.isFinite(thread.views)) {
+    return thread.views;
+  }
+  return undefined;
 }
 
-/** Hard-drop posts under the view floor before triage (Settings default on, 100). */
+/** Apply the view floor to posts old enough to have accumulated views. */
 export function filterMinViews(
   threads: ThreadCard[],
   opts: MinViewsFilterOptions = {},
@@ -442,6 +450,7 @@ export function filterMinViews(
     opts.minViews >= 0
       ? opts.minViews
       : 100;
+  const nowMs = opts.nowMs ?? Date.now();
   const kept: ThreadCard[] = [];
   let minViewsFilteredCount = 0;
   for (const thread of threads) {
@@ -457,8 +466,23 @@ export function filterMinViews(
       kept.push(thread);
       continue;
     }
-    if (audienceViews(thread) >= floor) kept.push(thread);
-    else minViewsFilteredCount += 1;
+    const views = audienceViews(thread);
+    if (views === undefined || views >= floor) {
+      kept.push(thread);
+      continue;
+    }
+    const createdAtMs =
+      typeof thread.createdAt === "string"
+        ? Date.parse(thread.createdAt)
+        : Number.NaN;
+    if (
+      Number.isFinite(createdAtMs) &&
+      nowMs - createdAtMs < VIEW_FLOOR_MIN_AGE_MS
+    ) {
+      kept.push(thread);
+      continue;
+    }
+    minViewsFilteredCount += 1;
   }
   return { threads: kept, minViewsFilteredCount };
 }
