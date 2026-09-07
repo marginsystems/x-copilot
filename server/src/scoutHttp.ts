@@ -46,7 +46,6 @@ import { runScoutSearch } from "./scoutRun.js";
 import type { ScoutFilters } from "./scoutTypes.js";
 import {
   filterExcludedAccounts,
-  filterMinViews,
   normalizeAvoidPrompt,
   resolveExcludedAccounts,
   resolveExcludedTags,
@@ -185,11 +184,6 @@ export async function readLastScoutPayload(opts: {
       tankThreads,
       resolveExcludedAccounts(snapshot.filters.excludedAccounts),
     ).threads;
-    tankThreads = filterMinViews(tankThreads, {
-      filterByMinViews: snapshot.filters.filterByMinViews,
-      minViews: snapshot.filters.minViews,
-      allowUnknownReplyViews: true,
-    }).threads;
     const excludedTags = resolveExcludedTags(snapshot.filters.excludedTags);
     tankThreads = tankThreads.filter(
       (thread) => !threadHasExcludedTag(thread, excludedTags),

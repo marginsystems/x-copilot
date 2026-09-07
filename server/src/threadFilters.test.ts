@@ -120,6 +120,20 @@ describe("filterMinViews", () => {
       minViewsFilteredCount: 1,
     });
   });
+
+  it("does not grant fresh-card grace to low-view hydrated OPs", () => {
+    const reply = thread("reply", "reply", undefined, {
+      isReply: true,
+      opParentDerived: true,
+      opViews: 12,
+      views: 500,
+      createdAt: new Date(nowMs - 10 * 60 * 1000).toISOString(),
+    });
+    assert.deepEqual(filterMinViews([reply], { nowMs }), {
+      threads: [],
+      minViewsFilteredCount: 1,
+    });
+  });
 });
 
 describe("isSelfReply / filterSelfReplies", () => {

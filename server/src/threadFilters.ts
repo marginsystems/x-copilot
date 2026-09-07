@@ -471,11 +471,14 @@ export function filterMinViews(
       kept.push(thread);
       continue;
     }
+    const usesOpViews =
+      typeof thread.opViews === "number" && Number.isFinite(thread.opViews);
     const createdAtMs =
       typeof thread.createdAt === "string"
         ? Date.parse(thread.createdAt)
         : Number.NaN;
     if (
+      !usesOpViews &&
       Number.isFinite(createdAtMs) &&
       nowMs - createdAtMs < VIEW_FLOOR_MIN_AGE_MS
     ) {
