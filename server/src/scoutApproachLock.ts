@@ -14,6 +14,7 @@ export type ScoutApproachLock = {
   id: string;
   conversationId: string | null;
   inReplyToId: string | null;
+  surface: "reply" | "repost" | null;
   author: string | null;
   url: string | null;
   text: string | null;
@@ -29,7 +30,7 @@ export function getScoutApproachLock(
 ): ScoutApproachLock | null {
   const row = getPlatformDb()
     .prepare(
-      `SELECT card_id, conversation_id, in_reply_to_id, author, url, text, updated_at
+      `SELECT card_id, conversation_id, in_reply_to_id, surface, author, url, text, updated_at
        FROM scout_approach_locks WHERE user_id = ?`,
     )
     .get(userId) as
@@ -37,6 +38,7 @@ export function getScoutApproachLock(
         card_id: string;
         conversation_id: string | null;
         in_reply_to_id: string | null;
+        surface: "reply" | "repost" | null;
         author: string | null;
         url: string | null;
         text: string | null;
@@ -58,6 +60,7 @@ export function getScoutApproachLock(
     id: row.card_id,
     conversationId: row.conversation_id,
     inReplyToId: row.in_reply_to_id,
+    surface: row.surface,
     author: row.author,
     url: row.url,
     text: row.text,
@@ -77,12 +80,13 @@ export function setScoutApproachLock(
   if (!id) return;
   db.prepare(
     `INSERT INTO scout_approach_locks
-       (user_id, card_id, conversation_id, in_reply_to_id, author, url, text, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       (user_id, card_id, conversation_id, in_reply_to_id, surface, author, url, text, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET
        card_id = excluded.card_id,
        conversation_id = excluded.conversation_id,
        in_reply_to_id = excluded.in_reply_to_id,
+       surface = excluded.surface,
        author = excluded.author,
        url = excluded.url,
        text = excluded.text,
@@ -92,6 +96,7 @@ export function setScoutApproachLock(
     id,
     card.conversationId,
     card.inReplyToId,
+    card.surface ?? "reply",
     card.author,
     card.url,
     card.text,
@@ -148,6 +153,8 @@ export async function tryHandleScoutApproachLock(
     id,
     conversationId: optionalText(raw.conversationId),
     inReplyToId: optionalText(raw.inReplyToId),
+    surface:
+      raw.surface === "reply" || raw.surface === "repost" ? raw.surface : null,
     author: optionalText(raw.author),
     url: optionalText(raw.url),
     text: optionalText(raw.text),

@@ -324,6 +324,7 @@ export function ThreadsTabs({
               id: card.id,
               conversationId: card.conversationId,
               inReplyToId: card.inReplyToId,
+              surface: card.surface,
               author: card.author,
               url: card.url,
               text: card.text,
