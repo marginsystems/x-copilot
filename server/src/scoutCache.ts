@@ -341,3 +341,13 @@ export async function pruneThreadsFromScoutCache(
     return next;
   })();
 }
+
+export async function pruneConsumedScoutThread(
+  userId: string,
+  ids: Iterable<string | null | undefined>,
+): Promise<LastScoutSnapshot | null> {
+  return pruneThreadsFromScoutCache(
+    [...ids].filter((id): id is string => typeof id === "string"),
+    { userId },
+  );
+}

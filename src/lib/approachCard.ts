@@ -19,12 +19,44 @@ function isPacedSuggestion(row: ForYouSuggestion): boolean {
   return row.kind === "reply" || row.kind === "quote" || row.kind === "repost";
 }
 
+function targetUrlId(url: string | null): string | null {
+  return url?.match(/\/status\/(\d+)/)?.[1] ?? null;
+}
+
 /** Reply / quote / repost first. A post only when it is earned. */
 export function pickApproachSuggestion(
   rows: ForYouSuggestion[],
-  opts?: { allowPost?: boolean },
+  opts?: {
+    allowPost?: boolean;
+    interactedIds?: Iterable<string>;
+    history?: ReadonlyArray<{
+      threadId: string;
+      conversationId?: string;
+      inReplyToId?: string;
+      url?: string;
+    }>;
+    lockedId?: string | null;
+  },
 ): ForYouSuggestion | null {
-  const paced = rows.find(isPacedSuggestion);
+  const blockedIds = new Set(opts?.interactedIds ?? []);
+  const blockedUrls = new Set<string>();
+  for (const row of opts?.history ?? []) {
+    blockedIds.add(row.threadId);
+    if (row.conversationId) blockedIds.add(row.conversationId);
+    if (row.inReplyToId) blockedIds.add(row.inReplyToId);
+    if (row.url) blockedUrls.add(row.url);
+  }
+  const paced = rows.find(
+    (row) =>
+      isPacedSuggestion(row) &&
+      (row.id === opts?.lockedId ||
+        !(
+          (row.targetId && blockedIds.has(row.targetId)) ||
+          (row.targetUrl && blockedUrls.has(row.targetUrl)) ||
+          (targetUrlId(row.targetUrl) &&
+            blockedIds.has(targetUrlId(row.targetUrl)!))
+        )),
+  );
   if (paced) return paced;
   if (opts?.allowPost) {
     return rows.find((row) => row.kind === "post") ?? null;

@@ -218,6 +218,9 @@ export function ThreadsTabs({
       : FYP_DETECTING_COPY
     : undefined;
   const currentDayUtc = new Date().toISOString().slice(0, 10);
+  const [locked, setLocked] = useState<ApproachLock | null>(() =>
+    readApproachLock(authUser?.id),
+  );
   const suggestion = pickApproachSuggestion(forYouSuggestions, {
     allowPost: canServeApproachOriginal({
       scoutReplyDone:
@@ -227,6 +230,9 @@ export function ThreadsTabs({
         coaching?.missions.find((mission) => mission.id === "original_1") ??
         null,
     }),
+    interactedIds,
+    history: interactedHistory,
+    lockedId: locked?.cardId,
   });
   const scoutCardsRef = useRef(new Map<string, ThreadCard>());
   const suggestionCardsRef = useRef(new Map<string, ForYouSuggestion>());
@@ -234,9 +240,6 @@ export function ThreadsTabs({
   for (const row of forYouSuggestions) {
     suggestionCardsRef.current.set(row.id, row);
   }
-  const [locked, setLocked] = useState<ApproachLock | null>(() =>
-    readApproachLock(authUser?.id),
-  );
   const restoredDoneForNowRef = useRef(locked?.phase === "done_for_now");
   const restoredInventoryRef = useRef<{
     scoutIds: Set<string>;
@@ -326,6 +329,9 @@ export function ThreadsTabs({
                       (mission) => mission.id === "original_1",
                     ) ?? null,
                 }),
+                interactedIds,
+                history: interactedHistory,
+                lockedId: current.cardId,
               },
             )
         )?.id ?? null,
@@ -456,6 +462,7 @@ export function ThreadsTabs({
               history: interactedHistory,
             })
           : "skip";
+      if (phase === "scout_reply" && event === "mark") return;
       advanceCard({ type: event });
       if (event === "skip") armRefuel();
     }

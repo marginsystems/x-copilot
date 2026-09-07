@@ -17,6 +17,7 @@ import {
   parseStatusIdFromUrl,
 } from "./interactionCooldown.js";
 import { markInteracted } from "./interactionStore.js";
+import { pruneConsumedScoutThread } from "./scoutCache.js";
 import {
   MAX_REPLY_CHARS,
   checkTrivialEdit,
@@ -135,6 +136,11 @@ export async function handlePost(
               : undefined,
           inReplyToId,
         });
+        await pruneConsumedScoutThread(user.id, [
+          interaction.threadId,
+          interaction.conversationId,
+          interaction.inReplyToId,
+        ]);
       } catch (err) {
         console.warn("mark after desk post replay soft-fail:", err);
       }
@@ -429,6 +435,11 @@ export async function handlePost(
       conversationId,
       inReplyToId,
     });
+    await pruneConsumedScoutThread(user.id, [
+      interaction.threadId,
+      interaction.conversationId,
+      interaction.inReplyToId,
+    ]);
   } catch (err) {
     console.warn("mark after desk post soft-fail:", err);
   }
