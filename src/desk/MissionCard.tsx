@@ -280,6 +280,7 @@ export function MissionCard(props: {
           <ForYouFeedRow
             status={props.forYouStatus}
             onNext={props.onForYouNext}
+            expandable={false}
           />
         ) : (
           <ApproachFlightRow

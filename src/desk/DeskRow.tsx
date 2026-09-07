@@ -73,7 +73,7 @@ export function DeskRow({
       ) : (
         <div className="row-head next-action-head">{head}</div>
       )}
-      {presence.mount ? (
+      {presence.mount || (!expandable && children) ? (
         <div
           className="row-detail-slot"
           aria-hidden={!presence.expanded}

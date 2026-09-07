@@ -331,7 +331,7 @@ describe("Approach flight frame", () => {
     assert.match(html, new RegExp(FYP_WAIT_COPY.replace(".", "\\.")));
     assert.match(html, />Open For You</);
     assert.match(html, />Next</);
-    assert.match(html, /class="caret"/);
+    assert.doesNotMatch(html, /class="caret"/);
     assert.doesNotMatch(html, /You&#x27;re clean/);
     assert.doesNotMatch(html, /History is a log/);
     assert.doesNotMatch(html, /Scout is looking for the next reply/);
