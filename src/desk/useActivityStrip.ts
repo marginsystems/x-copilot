@@ -22,7 +22,7 @@ export function useActivityStrip() {
   const [deskTopOpen, setDeskTopOpen] = useState(() => readDeskTopOpen());
   const seed = peekDeskBootCache()?.desk ?? null;
   const [activityStats, setActivityStats] = useState<ActivityStats>(
-    () => seed?.activityStats ?? emptyActivityStats("day"),
+    () => emptyActivityStats("day"),
   );
   const [gamification, setGamification] = useState<GamificationStats>(
     () => seed?.gamification ?? emptyGamificationStats(),
@@ -42,6 +42,8 @@ export function useActivityStrip() {
     if (!next) return;
     // Ignore stale responses if a newer toggle request is in flight.
     if (bucket !== activityRequestBucketRef.current) return;
+    // A successful refresh started after boot began must win over boot's older snapshot.
+    stripStaleRef.current = true;
     // Commit the applied bucket only after a successful fetch so a failed
     // toggle cannot silently flip the chart on a later mark refresh.
     activityBucketRef.current = bucket;
