@@ -18,6 +18,7 @@ type DeskTopProps = {
   activityStats: ActivityStats;
   gamification: GamificationStats;
   interactedHistory: InteractionHistoryEntry[];
+  usableScoutCount: number;
   coaching?: CoachingState | null;
   status?: string;
   onToggleFlightPath: () => void;
@@ -32,6 +33,7 @@ export function DeskTop({
   activityStats,
   gamification,
   interactedHistory,
+  usableScoutCount,
   coaching,
   status,
   onToggleFlightPath,
@@ -122,6 +124,7 @@ export function DeskTop({
                 interactedHistory={interactedHistory}
                 gamification={gamification}
                 coaching={coaching}
+                usableScoutCount={usableScoutCount}
                 onToggleExpand={onToggleFlightPath}
               />
             )}

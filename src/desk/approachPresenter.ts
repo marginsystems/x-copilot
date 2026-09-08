@@ -1,6 +1,6 @@
 /**
  * One presenter for the Approach card. Verb, why, buttons, badge, and detector
- * ownership all derive from the locked task; refill state never reaches it.
+ * ownership derive from the locked task; searching updates the Collecting row.
  */
 import type { CoachingState, OwnActivity } from "../lib/coaching";
 import type { ApproachGate, ApproachLock, DeskPhase } from "../lib/deskPhase";
@@ -11,7 +11,7 @@ import {
   FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
-import { phaseWhy } from "../lib/phaseWhy";
+import { approachCollectingCopy, phaseWhy } from "../lib/phaseWhy";
 import type { ThreadCard } from "./types";
 
 /** Reading, an original, or a quote count during the reply minute. */
@@ -36,6 +36,7 @@ export type ApproachCardInput = {
   forYou: ForYouTaskView | null;
   /** Remaining reply minute. */
   remainingMs: number;
+  searching?: boolean;
   coaching?: CoachingState | null;
 };
 
@@ -150,7 +151,7 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
         ...blank,
         kind: "scout_missing",
         verb: "Collecting",
-        why: phaseWhy("done_for_now", input.coaching),
+        why: approachCollectingCopy({ searching: input.searching }),
       };
     }
     return {

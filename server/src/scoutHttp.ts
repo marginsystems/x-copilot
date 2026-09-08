@@ -2,7 +2,7 @@
  * Scout search / NDJSON run / last-snapshot / scout log routes.
  *
  * The NDJSON stream on POST /api/scout/run holds the scout lock and the
- * credit / sortie / X-link gates; keep the streaming contract intact.
+ * credit / takeoff / X-link gates; keep the streaming contract intact.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { trackAnalytics } from "./analyticsClient.js";
@@ -359,7 +359,7 @@ export async function tryHandleScout(
     } catch (err) {
       if (sortieId) {
         // The batch response never reached the client — the single 200 write
-        // threw on a torn socket — so refund the sortie rather than stranding
+        // threw on a torn socket — so refund the takeoff rather than stranding
         // it (neither delivered nor refunded).
         refundSortie(sortieId);
       }
@@ -453,7 +453,7 @@ export async function tryHandleScout(
         const flushable = res as typeof res & { flush?: () => void };
         flushable.flush?.();
         // Only count an event's cool threads once the write actually landed,
-        // so a torn-down socket does not mark a sortie as delivered.
+        // so a torn-down socket does not mark a takeoff as delivered.
         if (typeof event.coolCount === "number") {
           coolCount = Math.max(coolCount, event.coolCount);
         } else if (

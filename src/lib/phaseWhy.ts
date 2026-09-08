@@ -8,7 +8,7 @@ import {
 import { scoutStageMessage } from "./scoutStages";
 
 export const APPROACH_COLLECTING_IDLE =
-  "Scout is looking for the next reply.";
+  "Scout is getting the next reply.";
 /** The locked Scout target has a recorded reply. Only Next releases it. */
 export const SCOUT_DETECTED_COPY = "Reply detected. Tap Next.";
 

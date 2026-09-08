@@ -64,7 +64,7 @@ export async function markOwnReplyInteracted(
   const targetId = isRepost
     ? parsed.repostTargetId!
     : parsed.inReplyToId!;
-  const locked = getScoutApproachLock(userId);
+  const locked = getScoutApproachLock(userId, opts?.nowMs);
   if (
     isReply &&
     locked?.surface === "repost" &&

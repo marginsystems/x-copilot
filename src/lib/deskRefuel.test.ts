@@ -136,6 +136,8 @@ describe("shouldArmScoutOnBoot", () => {
   it("arms an empty or low tank when this tab has not tried", () => {
     assert.equal(
       shouldArmScoutOnBoot({
+        tankKnown: true,
+        handledThisOpen: false,
         usableScoutCount: 0,
         alreadyTried: false,
         searching: false,
@@ -144,6 +146,8 @@ describe("shouldArmScoutOnBoot", () => {
     );
     assert.equal(
       shouldArmScoutOnBoot({
+        tankKnown: true,
+        handledThisOpen: false,
         usableScoutCount: 1,
         alreadyTried: false,
         searching: false,
@@ -152,21 +156,26 @@ describe("shouldArmScoutOnBoot", () => {
     );
   });
 
-  it("does not arm after takeoff, with two cards, or while searching", () => {
+  it("ignores the old session flag, but waits for stock and debounces this open", () => {
     const boot = {
+      tankKnown: true,
+      handledThisOpen: false,
       usableScoutCount: 0,
       alreadyTried: false,
       searching: false,
     };
     assert.equal(
       shouldArmScoutOnBoot({ ...boot, alreadyTried: true }),
-      false,
+      true,
     );
     assert.equal(
       shouldArmScoutOnBoot({ ...boot, usableScoutCount: 2 }),
       false,
     );
     assert.equal(shouldArmScoutOnBoot({ ...boot, searching: true }), false);
+    assert.equal(shouldArmScoutOnBoot({ ...boot, tankKnown: false }), false);
+    assert.equal(shouldArmScoutOnBoot({ ...boot, handledThisOpen: true }), false);
+    assert.equal(shouldArmScoutOnBoot({ ...boot, usableScoutCount: 1, alreadyTried: true }), true);
   });
 });
 

@@ -53,7 +53,7 @@ describe("phaseWhy", () => {
     assert.equal(phaseWhy("done_for_now"), APPROACH_COLLECTING_IDLE);
     assert.equal(
       approachCollectingCopy({ searching: false }),
-      "Scout is looking for the next reply.",
+      "Scout is getting the next reply.",
     );
     assert.equal(approachCollectingCopy({ searching: true }), "In the air…");
   });

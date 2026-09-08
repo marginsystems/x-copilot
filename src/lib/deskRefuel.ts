@@ -49,10 +49,14 @@ export function shouldArmScoutOnBoot(opts: {
   usableScoutCount: number;
   alreadyTried: boolean;
   searching: boolean;
+  tankKnown: boolean;
+  handledThisOpen: boolean;
 }): boolean {
+  // A previous page's attempt does not spend this opening's low-tank refill.
   return (
+    opts.tankKnown &&
+    !opts.handledThisOpen &&
     shouldArmScoutRefill(opts.usableScoutCount) &&
-    !opts.alreadyTried &&
     !opts.searching
   );
 }

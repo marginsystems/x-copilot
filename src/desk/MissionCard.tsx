@@ -227,7 +227,7 @@ export function MissionCard(props: MissionCardProps) {
   if (view.kind === "scout_missing") {
     return withReplyPace(
       <ApproachFrame verb={view.verb} why={view.why} busy>
-        <ApproachFlightRow line={view.why} flying={false} />
+        <ApproachFlightRow line={view.why} flying={props.searching === true} />
       </ApproachFrame>,
     );
   }

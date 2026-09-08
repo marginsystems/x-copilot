@@ -609,7 +609,7 @@ describe("tryHandleScout", () => {
     assert.equal(body.error, "bad_request");
   });
 
-  it("refunds the sortie when collect fails", async () => {
+  it("refunds the takeoff when collect fails", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async () => ({
@@ -627,7 +627,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("keeps the sortie when a run lands cool threads", async () => {
+  it("keeps the takeoff when a run lands cool threads", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async (opts) => {
@@ -654,7 +654,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 1);
   });
 
-  it("refunds the sortie when a finished run finds no cool threads", async () => {
+  it("refunds the takeoff when a finished run finds no cool threads", async () => {
     const tenantId = getLocalTenantId();
     await call("POST", "/api/scout/run", {
       body: { queries: ["q1"] },
@@ -663,7 +663,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("refunds the sortie on POST /api/search when the batch fails", async () => {
+  it("refunds the takeoff on POST /api/search when the batch fails", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutSearch: (async () => ({
@@ -681,7 +681,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("keeps the sortie on POST /api/search when a batch lands cool threads", async () => {
+  it("keeps the takeoff on POST /api/search when a batch lands cool threads", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutSearch: (async () => ({
@@ -704,7 +704,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 1);
   });
 
-  it("refunds the sortie on POST /api/search when a batch lands only non-cool threads", async () => {
+  it("refunds the takeoff on POST /api/search when a batch lands only non-cool threads", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutSearch: (async () => ({
@@ -727,7 +727,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("refunds the sortie on POST /api/search when a batch lands zero threads", async () => {
+  it("refunds the takeoff on POST /api/search when a batch lands zero threads", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutSearch: (async () => ({
@@ -747,7 +747,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("refunds the sortie on POST /api/search when the 200 write throws", async () => {
+  it("refunds the takeoff on POST /api/search when the 200 write throws", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutSearch: (async () => ({
@@ -811,7 +811,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("refunds the sortie on POST /api/search when the batch rejects", async () => {
+  it("refunds the takeoff on POST /api/search when the batch rejects", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutSearch: (async () => {
@@ -828,7 +828,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("refunds the sortie when a run rejects", async () => {
+  it("refunds the takeoff when a run rejects", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async () => {
@@ -861,7 +861,7 @@ describe("tryHandleScout", () => {
     assert.equal(res.writableEnded, true);
   });
 
-  it("keeps the sortie when a run delivered cools before failing", async () => {
+  it("keeps the takeoff when a run delivered cools before failing", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async (opts) => {
