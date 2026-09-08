@@ -174,6 +174,14 @@ export function normalizeApproachLock(
       null,
     );
   if (isInventoryTask(lock)) return lock;
+  if (lock.phase === "done_for_now") {
+    if (!ctx.scoutId && !ctx.suggestionId) return lock;
+    return nextInventoryCard({
+      scoutId: ctx.scoutId,
+      suggestionId: ctx.suggestionId ?? null,
+      canPresentForYou: false,
+    }, null);
+  }
   if (ctx.gate) {
     if (lock.phase === "silent_refuel" && lock.surface === ctx.gate) {
       return lock;
@@ -202,7 +210,8 @@ export function advanceApproach(
   inventory: ApproachInventory,
 ): ApproachLock {
   if (locked.phase === "done_for_now") {
-    return nextInventoryCard(inventory, null);
+    if (!inventory.scoutId && !inventory.suggestionId) return locked;
+    return nextInventoryCard({ ...inventory, canPresentForYou: false }, null);
   }
   if (isForYouTask(locked)) {
     if (event.type === "next") {
