@@ -5,6 +5,7 @@ import {
   DESK_GAUGE_LABEL,
   formatPerHour,
   formatPctDelta,
+  formatTankGauge,
   markFromHistory,
   pctDelta,
   RATE_WINDOW,
@@ -29,6 +30,7 @@ function read(
     originalsToday: 0,
     dailyPostCap: 5,
     replyPaceUntil: null,
+    usableScoutCount: 0,
     ...overrides,
   });
 }
@@ -101,6 +103,11 @@ describe("pctDelta / format", () => {
     assert.equal(formatPctDelta(12.4), "12%");
     assert.equal(formatPctDelta(1.44), "1.4%");
     assert.equal(formatPctDelta(null), null);
+  });
+
+  it("formats an empty and three-card tank over a display full of 10", () => {
+    assert.equal(formatTankGauge(0), "0 / 10");
+    assert.equal(formatTankGauge(3), "3 / 10");
   });
 });
 
@@ -234,6 +241,16 @@ describe("readDeskInstruments", () => {
     assert.equal(read({ postsToday: 4 }).postsBand, "cool");
     assert.equal(read({ postsToday: 5 }).postsBand, "warm");
     assert.equal(read({ postsToday: 6 }).postsBand, "hot");
+  });
+
+  it("prints the real tank count while capping its fill", () => {
+    assert.deepEqual(
+      {
+        count: read({ usableScoutCount: 12 }).tankCount,
+        fill: read({ usableScoutCount: 12 }).tankFillPercent,
+      },
+      { count: 12, fill: 100 },
+    );
   });
 
   it("prefers postedAt over at for sorting and counts", () => {

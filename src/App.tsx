@@ -705,6 +705,10 @@ export default function App() {
               activityStats={activityStats}
               gamification={gamification}
               interactedHistory={interactedHistory}
+              usableScoutCount={
+                curatedThreads.filter((thread) => !interactedIds.has(thread.id))
+                  .length
+              }
               coaching={coaching}
               status={status}
               onToggleFlightPath={onToggleFlightPath}

@@ -22,7 +22,7 @@ import {
   sortieWasWasted,
 } from "./scoutSorties.ts";
 
-describe("scout sorties", () => {
+describe("scout takeoffs", () => {
   let dir: string;
 
   beforeEach(() => {
@@ -77,7 +77,7 @@ describe("scout sorties", () => {
     assert.equal(refundSortie("missing"), false);
   });
 
-  it("treats zero cools as wasted and keeps a sortie that found a thread", () => {
+  it("treats zero cools as wasted and keeps a takeoff that found a thread", () => {
     assert.equal(sortieWasWasted({ ok: false, coolCount: 0 }), true);
     assert.equal(sortieWasWasted({ ok: true, coolCount: 0 }), true);
     assert.equal(sortieWasWasted({ ok: true, coolCount: 2 }), false);

@@ -1,5 +1,5 @@
 /**
- * Daily Take off (sortie) cap — UTC day, per tenant.
+ * Daily takeoff cap — UTC day, per tenant.
  */
 import { randomUUID } from "node:crypto";
 import { getPlatformDb } from "./db.js";
@@ -83,7 +83,7 @@ export function countDeliveredSortiesToday(
 
 /**
  * Refund when the run delivered no cool threads — error, abort, or empty.
- * Keep the sortie if at least one cool landed, even on a later abort.
+ * Keep the takeoff if at least one cool landed, even on a later abort.
  */
 export function sortieWasWasted({
   coolCount,

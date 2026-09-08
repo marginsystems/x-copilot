@@ -22,9 +22,11 @@ function ScoutTankIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M5 10.5h12a3.5 3.5 0 0 1 0 7H5a3.5 3.5 0 0 1 0-7z" />
-      <path d="M9.5 10.5V8h5v2.5" />
-      <path d="M9 8h6" />
+      <rect x="4" y="8" width="16" height="11" rx="2.5" />
+      <polyline points="8,8 8,5 14,5 16,8" />
+      <line x1="10" y1="5" x2="10" y2="3.5" />
+      <line x1="10" y1="3.5" x2="15" y2="3.5" />
+      <line x1="15" y1="3.5" x2="15" y2="5.5" />
     </svg>
   );
 }

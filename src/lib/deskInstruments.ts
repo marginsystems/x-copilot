@@ -6,6 +6,7 @@ import {
 export const DESK_GAUGE_LABEL = "desk gauge";
 export const POST_DAILY_CAP_MIN = 5;
 export const POST_DAILY_CAP_MAX = 20;
+export const TANK_DISPLAY_FULL = 10;
 /** Same window size the public X ranking features use for recent actions. */
 export const RATE_WINDOW = 500;
 
@@ -43,6 +44,7 @@ export type DeskInstrumentInput = {
   dailyPostCap: number;
   /** sessionStorage until from replyPace. */
   replyPaceUntil: number | null;
+  usableScoutCount: number;
 };
 
 export type DeskInstruments = {
@@ -60,6 +62,8 @@ export type DeskInstruments = {
   paceLocked: boolean;
   postsBand: DeskGaugeBand;
   inboundBand: DeskGaugeBand | null;
+  tankCount: number;
+  tankFillPercent: number;
 };
 
 export type DeskHistoryMarkSource = {
@@ -166,6 +170,18 @@ export function formatPctDelta(pct: number | null): string | null {
   return `${body}%`;
 }
 
+export function formatTankGauge(count: number): string {
+  return `${normalizeTankCount(count)} / ${TANK_DISPLAY_FULL}`;
+}
+
+export function tankFillPercent(count: number): number {
+  return Math.min(100, (normalizeTankCount(count) / TANK_DISPLAY_FULL) * 100);
+}
+
+function normalizeTankCount(count: number): number {
+  return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+}
+
 function inboundBand(
   marks: DeskInstrumentMark[],
 ): DeskGaugeBand | null {
@@ -270,5 +286,7 @@ export function readDeskInstruments(
     paceLocked: replyPaceLocked(input.replyPaceUntil, input.nowMs),
     postsBand: postsBand(input.postsToday, input.dailyPostCap),
     inboundBand: inboundBand(marks),
+    tankCount: normalizeTankCount(input.usableScoutCount),
+    tankFillPercent: tankFillPercent(input.usableScoutCount),
   };
 }
