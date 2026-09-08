@@ -27,6 +27,7 @@ function optionalText(value: unknown): string | null {
 
 export function getScoutApproachLock(
   userId: string,
+  nowMs: number = Date.now(),
 ): ScoutApproachLock | null {
   const row = getPlatformDb()
     .prepare(
@@ -49,7 +50,7 @@ export function getScoutApproachLock(
   const updatedAt = Date.parse(row.updated_at);
   if (
     !Number.isFinite(updatedAt) ||
-    Date.now() - updatedAt > SCOUT_APPROACH_LOCK_TTL_MS
+    nowMs - updatedAt > SCOUT_APPROACH_LOCK_TTL_MS
   ) {
     getPlatformDb()
       .prepare(`DELETE FROM scout_approach_locks WHERE user_id = ?`)
