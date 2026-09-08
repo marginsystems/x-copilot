@@ -7,7 +7,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { trackAnalytics } from "./analyticsClient.js";
 import { creditsExhaustedResponse } from "./billingQuotas.js";
-import { corsHeaders } from "./cors.js";
+import { corsHeaders, isOriginAllowed, requestOrigin } from "./cors.js";
 import {
   getBlockedConversationIds,
   getDismissedThreadIds,
@@ -35,6 +35,7 @@ import {
 } from "./scoutCache.js";
 import { preferRootTargets } from "./scoutTarget.js";
 import { runScoutCollect } from "./scoutCollect.js";
+import { startEmptyTankScout, type ScoutEmptyTankDeps } from "./scoutEmptyTank.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
 import { appendScoutLog, getScoutLog } from "./scoutLog.js";
 import {
@@ -147,6 +148,8 @@ export type ScoutHttpDeps = {
 export async function readLastScoutPayload(opts: {
   userId: string | undefined;
   dedupeAccounts?: boolean | null;
+  allowAutoStart?: boolean;
+  deps?: ScoutEmptyTankDeps;
 }): Promise<{
   ok: true;
   empty: boolean;
@@ -167,7 +170,12 @@ export async function readLastScoutPayload(opts: {
     console.error("lazy expire on scout/last failed:", err);
   }
   const snapshot = await getLastScout({ userId });
-  if (!snapshot) return { ok: true, empty: true };
+  if (!snapshot) {
+    if (opts.allowAutoStart !== false) {
+      void startEmptyTankScout(userId, undefined, opts.deps);
+    }
+    return { ok: true, empty: true };
+  }
   const cooled = await getAuthorKeysForScoutFilter(
     opts.dedupeAccounts === null || opts.dedupeAccounts === undefined
       ? { userId }
@@ -211,7 +219,12 @@ export async function readLastScoutPayload(opts: {
     ...thread,
     surface: routeScoutSurface(thread, nowMs),
   }));
-  if (threads.length === 0) return { ok: true, empty: true };
+  if (threads.length === 0) {
+    if (opts.allowAutoStart !== false) {
+      void startEmptyTankScout(userId, snapshot.filters, opts.deps);
+    }
+    return { ok: true, empty: true };
+  }
   return {
     ok: true,
     empty: false,
@@ -555,6 +568,11 @@ export async function tryHandleScout(
       200,
       await readLastScoutPayload({
         userId: getSessionUser(req)?.id,
+        deps,
+        allowAutoStart: (() => {
+          const origin = requestOrigin(req);
+          return origin !== undefined && isOriginAllowed(origin);
+        })(),
         dedupeAccounts:
           dedupeParam === null ? null : dedupeParam !== "false",
       }),
