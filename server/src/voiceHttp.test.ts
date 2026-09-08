@@ -23,11 +23,7 @@ import type { AuthUser } from "./authStore.ts";
 import { createSession } from "./sessionStore.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { tryHandleVoice } from "./voiceHttp.ts";
-import {
-  deriveNeedsLearn,
-  deriveVoiceUiStatus,
-  shouldPullXApi,
-} from "./voiceStatus.ts";
+import { deriveVoiceUiStatus } from "./voiceStatus.ts";
 import {
   ensureUserBillingRow,
   ensureUserTenant,
@@ -59,29 +55,6 @@ function profile(
     ...overrides,
   };
 }
-
-describe("shouldPullXApi", () => {
-  it("skips the timeline when memories already unlock", () => {
-    assert.equal(
-      shouldPullXApi({ postCount: 107, handle: "margin" }),
-      false,
-    );
-  });
-
-  it("skips the timeline when there is no handle", () => {
-    assert.equal(
-      shouldPullXApi({ postCount: 40, handle: null }),
-      false,
-    );
-  });
-
-  it("pulls only to fill a short corpus", () => {
-    assert.equal(
-      shouldPullXApi({ postCount: 40, handle: "margin" }),
-      true,
-    );
-  });
-});
 
 describe("deriveVoiceUiStatus", () => {
   it("is unlinked only with no corpus and no handle", () => {
@@ -115,29 +88,6 @@ describe("deriveVoiceUiStatus", () => {
         null,
       ),
       "ready",
-    );
-  });
-});
-
-describe("deriveNeedsLearn", () => {
-  it("never arms a client learn — ingest is onboarding + hourly only", () => {
-    assert.equal(
-      deriveNeedsLearn({
-        status: "empty",
-        handle: "margin",
-        profile: profile(),
-        needsDailyUpdate: true,
-      }),
-      false,
-    );
-    assert.equal(
-      deriveNeedsLearn({
-        status: "insufficient",
-        handle: "margin",
-        profile: profile({ conversationCount: 40 }),
-        needsDailyUpdate: false,
-      }),
-      false,
     );
   });
 });

@@ -28,17 +28,6 @@ export function resolveVoiceHandle(user: AuthUser): string | null {
   return getXOauthUsername(user.id);
 }
 
-/**
- * API fill-in only: skip the timeline when memories already unlock, or
- * when there is no handle to pull as.
- */
-export function shouldPullXApi(opts: {
-  postCount: number;
-  handle: string | null;
-}): boolean {
-  return Boolean(opts.handle) && !voiceUnlocked(opts.postCount);
-}
-
 export function deriveVoiceUiStatus(
   profile: VoiceProfileRow | null,
   linkedHandle: string | null,
@@ -51,16 +40,6 @@ export function deriveVoiceUiStatus(
   if (hasCorpus) return "empty";
   if (!linkedHandle) return "unlinked";
   return "empty";
-}
-
-export function deriveNeedsLearn(_opts: {
-  status: VoiceUiStatus;
-  handle: string | null;
-  profile: VoiceProfileRow | null;
-  needsDailyUpdate: boolean;
-}): boolean {
-  // Ingest is onboarding + hourly only. The client must not POST learn.
-  return false;
 }
 
 function parseCard(cardJson: string | null): VoiceCard | null {
