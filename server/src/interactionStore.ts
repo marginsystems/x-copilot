@@ -257,16 +257,6 @@ function trimUserRows(userId: string, max: number = MAX_INTERACTION_STORE): void
     .run(userId, userId, max);
 }
 
-/** Newest-first, capped history (no 24h prune). */
-export function trimInteractionHistory(
-  interactions: Interaction[],
-  max: number = MAX_INTERACTION_HISTORY,
-): Interaction[] {
-  return [...interactions]
-    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
-    .slice(0, max);
-}
-
 /** Upsert by user and threadId; keep durable history (cap); persist. */
 export async function markInteracted(opts: {
   threadId: string;
