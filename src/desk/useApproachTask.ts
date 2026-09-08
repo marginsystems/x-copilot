@@ -315,6 +315,16 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }, [agendaReady, deskBootReady, gate, owner]);
 
   useEffect(() => {
+    if (
+      stateRef.current?.lock.phase !== "done_for_now" ||
+      eligibleCount === 0
+    ) {
+      return;
+    }
+    advanceCard({ type: "next" });
+  }, [eligibleCount, phase]);
+
+  useEffect(() => {
     const current = stateRef.current;
     if (!current?.wait || !coaching) return;
     const settled = settleForYouWait(current.wait, coaching);
