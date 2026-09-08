@@ -13,6 +13,7 @@ import {
   type ApproachGate,
   type ApproachInventory,
   type ApproachLock,
+  type DeskPhase,
 } from "./deskPhase";
 import { openForYouWait, type ForYouWait } from "./forYouTask";
 
@@ -20,6 +21,15 @@ export type ApproachTaskState = {
   lock: ApproachLock;
   wait: ForYouWait | null;
 };
+
+/** Whether newly available inventory can reopen the collecting idle. */
+export function shouldAutoAdvanceIdle(
+  phase: DeskPhase,
+  eligibleCount: number,
+  suggestionId: string | null,
+): boolean {
+  return phase === "done_for_now" && (eligibleCount > 0 || suggestionId !== null);
+}
 
 export type ApproachTaskContext = {
   owner: string;

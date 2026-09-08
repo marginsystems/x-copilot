@@ -97,16 +97,34 @@ function isInventoryTask(lock: ApproachLock): boolean {
 function nextInventoryCard(
   inventory: ApproachInventory,
   excludeId: string | null,
+  previousPhase: DeskPhase | null = null,
 ): ApproachLock {
-  if (inventory.scoutId && inventory.scoutId !== excludeId) {
-    return { phase: "scout_reply", cardId: inventory.scoutId, surface: null };
+  const scout =
+    inventory.scoutId && inventory.scoutId !== excludeId
+      ? { phase: "scout_reply", cardId: inventory.scoutId, surface: null } as const
+      : null;
+  const suggestion =
+    inventory.suggestionId && inventory.suggestionId !== excludeId
+      ? {
+          phase: "organic_reply",
+          cardId: inventory.suggestionId,
+          surface: null,
+        } as const
+      : null;
+  if (previousPhase === "scout_reply" && suggestion) return suggestion;
+  if (previousPhase === "organic_reply" && scout) return scout;
+  if (previousPhase === "scout_reply" && inventory.canPresentForYou) {
+    return { ...FOR_YOU_LOCK };
   }
-  if (inventory.suggestionId && inventory.suggestionId !== excludeId) {
-    return {
-      phase: "organic_reply",
-      cardId: inventory.suggestionId,
-      surface: null,
-    };
+  if (previousPhase === "organic_reply" && inventory.canPresentForYou) {
+    return { ...FOR_YOU_LOCK };
+  }
+  if (scout) {
+    return scout;
+  }
+  if (suggestion) return suggestion;
+  if (previousPhase === "hold" || previousPhase === "silent_refuel") {
+    return { phase: "done_for_now", cardId: null, surface: null };
   }
   if (inventory.canPresentForYou) return { ...FOR_YOU_LOCK };
   if (inventory.gate) {
@@ -189,18 +207,20 @@ export function advanceApproach(
   if (isForYouTask(locked)) {
     if (event.type === "next") {
       if (inventory.paceLocked) return locked;
-      return nextInventoryCard(inventory, null);
+      return nextInventoryCard(inventory, null, locked.phase);
     }
-    if (event.type === "bypass") return nextInventoryCard(inventory, null);
+    if (event.type === "bypass") {
+      return nextInventoryCard(inventory, null, locked.phase);
+    }
   }
   if (locked.phase === "scout_reply") {
     if (event.type === "next") {
       if (inventory.paceLocked) return { ...HOLD_LOCK };
-      return nextInventoryCard(inventory, locked.cardId);
+      return nextInventoryCard(inventory, locked.cardId, locked.phase);
     }
     if (event.type === "mark") return { ...HOLD_LOCK };
     if (event.type === "skip" || event.type === "dismiss") {
-      return nextInventoryCard(inventory, locked.cardId);
+      return nextInventoryCard(inventory, locked.cardId, locked.phase);
     }
   }
   if (locked.phase === "organic_reply") {
@@ -209,7 +229,7 @@ export function advanceApproach(
       event.type === "skip" ||
       event.type === "dismiss"
     ) {
-      return nextInventoryCard(inventory, locked.cardId);
+      return nextInventoryCard(inventory, locked.cardId, locked.phase);
     }
   }
   return locked;
