@@ -9,7 +9,6 @@ import { ForYouFeedRow } from "./ForYouFeedRow";
 import {
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
-  FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
 import { SCOUT_DETECTED_COPY } from "../lib/phaseWhy";
@@ -367,19 +366,16 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /mission-skel|thread-row|mission-card/);
   });
 
-  it("turns an empty idle Approach into a real For You wait", () => {
+  it("keeps an empty idle Approach collecting for Scout", () => {
     const html = renderToStaticMarkup(
       MissionCard(missionProps({ onForYouNext() {} })),
     );
-    assert.match(html, />For You</);
-    assert.match(html, escapeRe(FYP_WAIT_COPY));
-    assert.match(html, />Open For You</);
-    assert.match(html, />Next</);
-    assert.doesNotMatch(html, /class="caret"/);
-    assert.doesNotMatch(html, /You&#x27;re clean/);
-    assert.doesNotMatch(html, /History is a log/);
-    assert.doesNotMatch(html, /Scout is looking for the next reply/);
-    assert.doesNotMatch(html, /approach-flight-row/);
+    assert.match(html, />Collecting</);
+    assert.match(html, /Scout is looking for the next reply/);
+    assert.doesNotMatch(html, />For You</);
+    assert.doesNotMatch(html, />Open For You</);
+    assert.doesNotMatch(html, />Next</);
+    assert.match(html, /approach-flight-row/);
   });
 
   it("never leaks refill internals onto the For You wait", () => {
@@ -407,6 +403,8 @@ describe("Approach flight frame", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
+          phase: "silent_refuel",
+          surface: "for_you",
           forYou: { detected: false },
           onForYouNext() {},
         }),
@@ -467,11 +465,10 @@ describe("Approach flight frame", () => {
     assert.match(html, />Bypass</);
   });
 
-  it("paints the same For You presenter for every entry phase", () => {
+  it("paints the same For You presenter for both For You phases", () => {
     const entries = [
       { phase: "silent_refuel", surface: "for_you" },
       { phase: "hold", surface: "for_you" },
-      { phase: "done_for_now", surface: null },
     ] as const;
     const rendered = entries.map(({ phase, surface }) =>
       renderToStaticMarkup(

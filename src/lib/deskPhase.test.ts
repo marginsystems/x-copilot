@@ -91,11 +91,11 @@ describe("Approach lock", () => {
     } as const;
     assert.deepEqual(
       advanceApproach(scout, { type: "next" }, inventory),
-      { phase: "scout_reply", cardId: "scout-2", surface: null },
+      { phase: "organic_reply", cardId: "suggested-1", surface: null },
     );
     assert.deepEqual(
       advanceApproach(scout, { type: "skip" }, inventory),
-      { phase: "scout_reply", cardId: "scout-2", surface: null },
+      { phase: "organic_reply", cardId: "suggested-1", surface: null },
     );
     assert.deepEqual(
       advanceApproach(
@@ -127,7 +127,7 @@ describe("Approach lock", () => {
     );
   });
 
-  it("Next with no stock keeps a coherent For You task; the caller opens a fresh wait", () => {
+  it("For You Next with no stock collects instead of opening another wait", () => {
     const inventoryWithoutCards = {
       scoutId: null,
       suggestionId: null,
@@ -140,9 +140,24 @@ describe("Approach lock", () => {
           { type: "next" },
           inventoryWithoutCards,
         ),
-        { phase: "silent_refuel", cardId: null, surface: "for_you" },
+        { phase: "done_for_now", cardId: null, surface: null },
       );
     }
+  });
+
+  it("For You Next hands off to an unused suggestion when Scout is empty", () => {
+    assert.deepEqual(
+      advanceApproach(
+        { phase: "silent_refuel", cardId: null, surface: "for_you" },
+        { type: "next" },
+        {
+          scoutId: null,
+          suggestionId: "original-1",
+          canPresentForYou: true,
+        },
+      ),
+      { phase: "organic_reply", cardId: "original-1", surface: null },
+    );
   });
 
   it("Next honors the reply minute on a For You task and on a detected Scout", () => {
@@ -229,7 +244,7 @@ describe("Approach lock", () => {
     );
   });
 
-  it("bypasses a hold into the next card or For You", () => {
+  it("bypasses a hold into the next card or collecting idle", () => {
     assert.deepEqual(
       advanceApproach(
         { phase: "hold", cardId: null, surface: "for_you" },
@@ -244,7 +259,7 @@ describe("Approach lock", () => {
         { type: "bypass" },
         { scoutId: null, suggestionId: null, canPresentForYou: true },
       ),
-      { phase: "silent_refuel", cardId: null, surface: "for_you" },
+      { phase: "done_for_now", cardId: null, surface: null },
     );
   });
 
@@ -493,14 +508,14 @@ describe("S10 skip-next", () => {
     surface: null,
   } as const;
 
-  it("Skip of the first scout locks the next tank root", () => {
+  it("Skip of a scout alternates to For You when no suggestion exists", () => {
     assert.deepEqual(
       advanceApproach(
         firstScout,
         { type: "skip" },
         { scoutId: "scout-2", suggestionId: null, canPresentForYou: true },
       ),
-      { phase: "scout_reply", cardId: "scout-2", surface: null },
+      { phase: "silent_refuel", cardId: null, surface: "for_you" },
     );
   });
 
@@ -523,7 +538,7 @@ describe("S10 skip-next", () => {
     );
   });
 
-  it("Next and last Skip on an empty tank both land on the For You task", () => {
+  it("For You Next collects while last Scout Skip may land on For You", () => {
     const emptyTank = {
       scoutId: null,
       suggestionId: null,
@@ -535,7 +550,7 @@ describe("S10 skip-next", () => {
         { type: "next" },
         emptyTank,
       ),
-      { phase: "silent_refuel", cardId: null, surface: "for_you" },
+      { phase: "done_for_now", cardId: null, surface: null },
     );
     assert.deepEqual(
       advanceApproach(firstScout, { type: "skip" }, emptyTank),

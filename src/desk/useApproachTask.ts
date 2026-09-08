@@ -30,6 +30,7 @@ import { deskNeedsXLink } from "../lib/deskGate";
 import {
   approachGate,
   approachTabLiveCount,
+  isForYouTask,
   type ApproachEvent,
   type ApproachInventory,
 } from "../lib/deskPhase";
@@ -176,7 +177,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       : false;
 
   const currentDayUtc = new Date().toISOString().slice(0, 10);
-  function pickSuggestion(excludeId: string | null): ForYouSuggestion | null {
+  function pickSuggestion(
+    excludeId: string | null,
+    afterForYou = false,
+  ): ForYouSuggestion | null {
     return pickApproachSuggestion(
       excludeId
         ? forYouSuggestions.filter((row) => row.id !== excludeId)
@@ -186,6 +190,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           scoutReplyDone:
             coaching?.dayUtc === currentDayUtc &&
             coaching?.beats.scoutReplyDone === true,
+          afterForYou,
           originalMission:
             coaching?.missions.find(
               (mission) => mission.id === "original_1",
@@ -197,11 +202,14 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       },
     );
   }
-  function inventoryFor(excludeId: string | null): ApproachInventory {
+  function inventoryFor(
+    excludeId: string | null,
+    afterForYou = false,
+  ): ApproachInventory {
     return {
       scoutId:
         eligibleScouts.find((row) => row.id !== excludeId)?.id ?? null,
-      suggestionId: pickSuggestion(excludeId)?.id ?? null,
+      suggestionId: pickSuggestion(excludeId, afterForYou)?.id ?? null,
       canPresentForYou: canOpenForYou,
       gate,
       paceLocked: pace.locked,
@@ -254,10 +262,13 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   function advanceCard(event: ApproachEvent) {
     const current = stateRef.current;
     if (!current) return;
+    const afterForYou =
+      isForYouTask(current.lock) &&
+      (event.type === "next" || event.type === "bypass");
     const next = transitionApproachTask(
       current,
       event,
-      inventoryFor(current.lock.cardId),
+      inventoryFor(current.lock.cardId, afterForYou),
       { owner, coaching: coachingRef.current },
     );
     if (next === current) return;

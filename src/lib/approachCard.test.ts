@@ -42,6 +42,17 @@ describe("canServeApproachOriginal", () => {
     );
   });
 
+  it("is true after For You while original_1 is open", () => {
+    assert.equal(
+      canServeApproachOriginal({
+        scoutReplyDone: false,
+        afterForYou: true,
+        originalMission: { progress: 0, target: 1, completed: false },
+      }),
+      true,
+    );
+  });
+
   it("is false once original_1 is in", () => {
     assert.equal(
       canServeApproachOriginal({

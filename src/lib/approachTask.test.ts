@@ -274,7 +274,7 @@ describe("detection with a landing", () => {
 });
 
 describe("Next with an empty tank", () => {
-  it("keeps a coherent For You task with a fresh baseline and a new task key", () => {
+  it("leaves a completed For You wait for collecting idle", () => {
     const first = restoreApproachTask({
       stored: FOR_YOU,
       storedWait: null,
@@ -300,12 +300,15 @@ describe("Next with an empty tank", () => {
         now: T0 + 131_000,
       },
     );
-    assert.deepEqual(second.lock, FOR_YOU);
-    assert.equal(second.wait?.enteredAt, "2026-09-07T10:02:11.000Z");
-    assert.equal(second.wait?.detectedAt, null);
-    assert.equal(second.wait?.snapshot?.postsToday, 2);
-    assert.notEqual(approachTaskKey(second), approachTaskKey(detected));
-    assert.equal(present(second).forYou?.detected, false);
+    assert.deepEqual(second.lock, {
+      phase: "done_for_now",
+      cardId: null,
+      surface: null,
+    });
+    assert.equal(second.wait, null);
+    assert.equal(approachTaskKey(second), null);
+    assert.equal(present(second).kind, "scout_missing");
+    assert.equal(present(second).detector, null);
   });
 });
 
@@ -324,7 +327,7 @@ describe("same-phase Scout release", () => {
     const inventory = (excludeId: string | null) => ({
       scoutId: stock().find((row) => row.id !== excludeId)?.id ?? null,
       suggestionId: null,
-      canPresentForYou: true,
+      canPresentForYou: false,
     });
     state = transitionApproachTask(
       state,
@@ -342,7 +345,11 @@ describe("same-phase Scout release", () => {
       { owner: OWNER, coaching },
     );
     released.add("B");
-    assert.deepEqual(state.lock, FOR_YOU);
+    assert.deepEqual(state.lock, {
+      phase: "done_for_now",
+      cardId: null,
+      surface: null,
+    });
     assert.notEqual(state.lock.cardId, "A");
     assert.deepEqual(stock(), []);
   });
@@ -431,7 +438,7 @@ describe("Bypass", () => {
     assert.equal(view.forYou, null);
   });
 
-  it("bypass onto an empty tank opens a new wait, never the old one", () => {
+  it("bypass onto an empty tank clears the old wait and collects", () => {
     const held: ApproachTaskState = {
       lock: { phase: "hold", cardId: null, surface: "for_you" },
       wait: openForYouWait({ owner: OWNER, coaching, now: T0 }),
@@ -442,9 +449,12 @@ describe("Bypass", () => {
       { scoutId: null, suggestionId: null, canPresentForYou: true },
       { owner: OWNER, coaching, now: T0 + 10_000 },
     );
-    assert.deepEqual(next.lock, FOR_YOU);
-    assert.notEqual(next.wait, held.wait);
-    assert.equal(next.wait?.enteredAt, "2026-09-07T10:00:10.000Z");
+    assert.deepEqual(next.lock, {
+      phase: "done_for_now",
+      cardId: null,
+      surface: null,
+    });
+    assert.equal(next.wait, null);
   });
 });
 
@@ -494,7 +504,7 @@ describe("Scout detection ownership", () => {
         { type: "next" },
         { scoutId: "B", suggestionId: null, canPresentForYou: true },
       ),
-      { phase: "scout_reply", cardId: "B", surface: null },
+      { phase: "silent_refuel", cardId: null, surface: "for_you" },
     );
   });
 });

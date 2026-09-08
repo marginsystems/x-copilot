@@ -4,12 +4,14 @@ import type { ForYouSuggestion } from "./forYou";
 /** A post is earned after a scouted reply today, while original_1 is still open. */
 export function canServeApproachOriginal(opts: {
   scoutReplyDone: boolean;
+  /** A completed For You task may hand off directly to an open original. */
+  afterForYou?: boolean;
   originalMission?: Pick<
     DailyMission,
     "progress" | "target" | "completed"
   > | null;
 }): boolean {
-  if (!opts.scoutReplyDone) return false;
+  if (!opts.scoutReplyDone && !opts.afterForYou) return false;
   const mission = opts.originalMission;
   if (!mission || mission.completed) return false;
   return mission.progress < mission.target;

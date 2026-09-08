@@ -145,7 +145,14 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
         detector: input.scoutDetected ? null : "scout",
       };
     }
-    if (input.phase === "done_for_now") return forYouPresentation(input);
+    if (input.phase === "done_for_now") {
+      return {
+        ...blank,
+        kind: "scout_missing",
+        verb: "Collecting",
+        why: phaseWhy("done_for_now", input.coaching),
+      };
+    }
     return {
       ...blank,
       kind: "scout_missing",
