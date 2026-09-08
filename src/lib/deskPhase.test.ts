@@ -359,6 +359,14 @@ describe("normalizeApproachLock", () => {
       cardId: null,
       surface: "link_x",
     });
+    assert.deepEqual(normalizeApproachLock(
+      { phase: "done_for_now", cardId: null, surface: null },
+      gated,
+    ), {
+      phase: "silent_refuel",
+      cardId: null,
+      surface: "link_x",
+    });
     const active = {
       phase: "scout_reply",
       cardId: "scout-1",

@@ -174,6 +174,12 @@ export function normalizeApproachLock(
       null,
     );
   if (isInventoryTask(lock)) return lock;
+  if (ctx.gate) {
+    if (lock.phase === "silent_refuel" && lock.surface === ctx.gate) {
+      return lock;
+    }
+    return { phase: "silent_refuel", cardId: null, surface: ctx.gate };
+  }
   if (lock.phase === "done_for_now") {
     if (!ctx.scoutId && !ctx.suggestionId) return lock;
     return nextInventoryCard({
@@ -181,12 +187,6 @@ export function normalizeApproachLock(
       suggestionId: ctx.suggestionId ?? null,
       canPresentForYou: false,
     }, null);
-  }
-  if (ctx.gate) {
-    if (lock.phase === "silent_refuel" && lock.surface === ctx.gate) {
-      return lock;
-    }
-    return { phase: "silent_refuel", cardId: null, surface: ctx.gate };
   }
   if (lock.phase === "hold") {
     return lock.surface === "for_you" && lock.cardId === null
