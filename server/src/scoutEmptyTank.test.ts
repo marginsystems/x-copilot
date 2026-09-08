@@ -68,7 +68,7 @@ describe("empty-tank background Scout", () => {
     let status = 0;
     let raw = "";
     const req = Object.assign(new EventEmitter(), {
-      method: "GET", headers: { cookie }, socket: { remoteAddress: "127.0.0.1" },
+      method: "GET", headers: { cookie, origin: "http://localhost:5173" }, socket: { remoteAddress: "127.0.0.1" },
     }) as unknown as IncomingMessage;
     const res = {
       writeHead(code: number) { status = code; },
@@ -108,6 +108,25 @@ describe("empty-tank background Scout", () => {
     assert.deepEqual(await get(), empty);
     assert.equal(calls, 1);
     assert.equal(tryBeginScout(userId, Date.now() + SCOUT_COOLDOWN_MS + 1).ok, true);
+  });
+
+  it("does not start an empty-tank collect without an Origin", async () => {
+    let status = 0;
+    const req = Object.assign(new EventEmitter(), {
+      method: "GET", headers: { cookie }, socket: { remoteAddress: "127.0.0.1" },
+    }) as unknown as IncomingMessage;
+    const res = {
+      writeHead(code: number) { status = code; },
+      end() {},
+    } as unknown as ServerResponse;
+
+    assert.equal(
+      await tryHandleScout(req, res, new URL("http://localhost/api/scout/last"), deps),
+      true,
+    );
+    assert.equal(status, 200);
+    await setImmediate();
+    assert.equal(calls, 0);
   });
 
   it("starts from the shared reader after filtering, using the live agenda and snapshot filters", async () => {

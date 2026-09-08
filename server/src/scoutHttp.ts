@@ -7,7 +7,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { trackAnalytics } from "./analyticsClient.js";
 import { creditsExhaustedResponse } from "./billingQuotas.js";
-import { corsHeaders } from "./cors.js";
+import { corsHeaders, isOriginAllowed, requestOrigin } from "./cors.js";
 import {
   getBlockedConversationIds,
   getDismissedThreadIds,
@@ -148,6 +148,7 @@ export type ScoutHttpDeps = {
 export async function readLastScoutPayload(opts: {
   userId: string | undefined;
   dedupeAccounts?: boolean | null;
+  allowAutoStart?: boolean;
   deps?: ScoutEmptyTankDeps;
 }): Promise<{
   ok: true;
@@ -170,7 +171,9 @@ export async function readLastScoutPayload(opts: {
   }
   const snapshot = await getLastScout({ userId });
   if (!snapshot) {
-    void startEmptyTankScout(userId, undefined, opts.deps);
+    if (opts.allowAutoStart !== false) {
+      void startEmptyTankScout(userId, undefined, opts.deps);
+    }
     return { ok: true, empty: true };
   }
   const cooled = await getAuthorKeysForScoutFilter(
@@ -217,7 +220,9 @@ export async function readLastScoutPayload(opts: {
     surface: routeScoutSurface(thread, nowMs),
   }));
   if (threads.length === 0) {
-    void startEmptyTankScout(userId, snapshot.filters, opts.deps);
+    if (opts.allowAutoStart !== false) {
+      void startEmptyTankScout(userId, snapshot.filters, opts.deps);
+    }
     return { ok: true, empty: true };
   }
   return {
@@ -564,6 +569,10 @@ export async function tryHandleScout(
       await readLastScoutPayload({
         userId: getSessionUser(req)?.id,
         deps,
+        allowAutoStart: (() => {
+          const origin = requestOrigin(req);
+          return origin !== undefined && isOriginAllowed(origin);
+        })(),
         dedupeAccounts:
           dedupeParam === null ? null : dedupeParam !== "false",
       }),
