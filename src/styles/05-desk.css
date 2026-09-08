@@ -612,6 +612,20 @@ button.primary.scout-run.desk-top-takeoff {
   font-variant-numeric: tabular-nums;
 }
 
+.desk-gauge-track {
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--border);
+}
+
+.desk-gauge-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
 .desk-gauge-deltas {
   display: flex;
   flex-wrap: wrap;

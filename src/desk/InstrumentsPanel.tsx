@@ -5,6 +5,7 @@ import {
   DESK_GAUGE_LABEL,
   formatPerHour,
   formatPctDelta,
+  formatTankGauge,
   markFromHistory,
   parseInstrumentTimes,
   readDeskInstruments,
@@ -20,6 +21,7 @@ type InstrumentsPanelProps = {
   interactedHistory: InteractionHistoryEntry[];
   gamification: GamificationStats;
   coaching?: CoachingState | null;
+  usableScoutCount: number;
   onToggleExpand: () => void;
 };
 
@@ -36,6 +38,7 @@ export function InstrumentsPanel({
   interactedHistory,
   gamification,
   coaching,
+  usableScoutCount,
   onToggleExpand,
 }: InstrumentsPanelProps) {
   const marks = useMemo(
@@ -62,6 +65,7 @@ export function InstrumentsPanel({
       currentStreak: gamification.currentStreak,
     }),
     replyPaceUntil: readReplyPaceUntil(),
+    usableScoutCount,
   });
 
   return (
@@ -123,6 +127,13 @@ export function InstrumentsPanel({
           band={gauges.postsBand}
           note="Cap comes from level and streak. Streak is a UTC day with an original, reply, or quote — on or off the desk. Likes and follows do not count."
         />
+        <Gauge
+          label="Tank"
+          value={formatTankGauge(gauges.tankCount)}
+          band={null}
+          note="Usable scouted replies on this desk."
+          fillPercent={gauges.tankFillPercent}
+        />
         {gauges.inboundBand !== null ? (
           <Gauge
             label="Inbound quiet"
@@ -142,12 +153,14 @@ function Gauge({
   band,
   note,
   delta,
+  fillPercent,
 }: {
   label: string;
   value: string | number;
   band: DeskGaugeBand | null;
   note: string;
   delta?: InstrumentDelta;
+  fillPercent?: number;
 }) {
   const className =
     band === "hot"
@@ -162,6 +175,14 @@ function Gauge({
         <span className="desk-gauge-value">{value}</span>
         {delta ? <DeltaPair delta={delta} /> : null}
       </span>
+      {fillPercent !== undefined ? (
+        <span className="desk-gauge-track" aria-hidden="true">
+          <span
+            className="desk-gauge-fill"
+            style={{ width: `${fillPercent}%` }}
+          />
+        </span>
+      ) : null}
       <span className="desk-gauge-note">{note}</span>
     </div>
   );
