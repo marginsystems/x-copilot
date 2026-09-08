@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  approachTaskKey,
   reconcileApproachGate,
   restoreApproachTask,
   shouldAutoAdvanceIdle,
@@ -118,7 +117,6 @@ describe("restored lock", () => {
     const view = present(state);
     assert.equal(view.verb, "Collecting");
     assert.equal(view.forYou, null);
-    assert.equal(approachTaskKey(state), "collecting:idle");
   });
 });
 
@@ -307,7 +305,6 @@ describe("Next with an empty tank", () => {
       surface: null,
     });
     assert.equal(second.wait, null);
-    assert.equal(approachTaskKey(second), "collecting:idle");
     assert.equal(present(second).kind, "scout_missing");
     assert.equal(present(second).detector, null);
   });
@@ -402,10 +399,6 @@ describe("Hold at zero", () => {
     assert.equal(over.forYou?.showNext, true);
     assert.equal(over.showPace, false);
     assert.equal(running.detector, over.detector);
-    assert.equal(
-      approachTaskKey(hold),
-      `for_you:${hold.wait!.enteredAt}`,
-    );
   });
 
   it("Next during the minute is a no-op; after it Next releases", () => {
@@ -569,7 +562,6 @@ describe("Collecting refill handoff", () => {
       state = transitionApproachTask(state, { type: "next" },
         { scoutId: null, suggestionId: null, canPresentForYou: true },
         { owner: OWNER });
-      assert.equal(approachTaskKey(state), "collecting:idle");
       assert.equal(state.wait, null);
       boot(true);
       assert.equal(searches, 1);

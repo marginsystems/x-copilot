@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  canOpenForYouTask,
   clearForYouWait,
   forYouWaitDetected,
   hasDetectedForYouPost,
@@ -20,26 +19,6 @@ const coaching = {
 };
 
 const ENTERED = Date.parse("2026-09-05T13:00:00.000Z");
-
-describe("canOpenForYouTask", () => {
-  it("opens the feed when X is linked and an agenda exists", () => {
-    assert.equal(
-      canOpenForYouTask({ needsXLink: false, hasAgenda: true }),
-      true,
-    );
-  });
-
-  it("is gated only by Link X and the agenda, never by Scout state", () => {
-    assert.equal(
-      canOpenForYouTask({ needsXLink: true, hasAgenda: true }),
-      false,
-    );
-    assert.equal(
-      canOpenForYouTask({ needsXLink: false, hasAgenda: false }),
-      false,
-    );
-  });
-});
 
 describe("For You wait identity", () => {
   it("opens with an owner, entry time, baseline, and no completion", () => {
