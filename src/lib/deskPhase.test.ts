@@ -297,7 +297,7 @@ describe("normalizeApproachLock", () => {
     }
   });
 
-  it("migrates done_for_now before first paint: stock locks a Scout card, else For You", () => {
+  it("keeps Collecting on restore until Scout or a leftover lands", () => {
     const done = {
       phase: "done_for_now",
       cardId: null,
@@ -308,10 +308,9 @@ describe("normalizeApproachLock", () => {
       cardId: "scout-1",
       surface: null,
     });
-    assert.deepEqual(normalizeApproachLock(done, empty), {
-      phase: "silent_refuel",
-      cardId: null,
-      surface: "for_you",
+    assert.equal(normalizeApproachLock(done, empty), done);
+    assert.deepEqual(normalizeApproachLock(done, { ...empty, suggestionId: "leftover" }), {
+      phase: "organic_reply", cardId: "leftover", surface: null,
     });
   });
 
@@ -356,6 +355,14 @@ describe("normalizeApproachLock", () => {
     );
     const stale = { phase: "silent_refuel", cardId: null, surface: "settings" } as const;
     assert.deepEqual(normalizeApproachLock(stale, gated), {
+      phase: "silent_refuel",
+      cardId: null,
+      surface: "link_x",
+    });
+    assert.deepEqual(normalizeApproachLock(
+      { phase: "done_for_now", cardId: null, surface: null },
+      gated,
+    ), {
       phase: "silent_refuel",
       cardId: null,
       surface: "link_x",

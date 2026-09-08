@@ -11,7 +11,7 @@ import {
   FYP_DETECTING_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
-import { SCOUT_DETECTED_COPY } from "../lib/phaseWhy";
+import { approachCollectingCopy, SCOUT_DETECTED_COPY } from "../lib/phaseWhy";
 import type { ThreadCard } from "./types";
 
 function thread(id: string, views: number): ThreadCard {
@@ -371,11 +371,22 @@ describe("Approach flight frame", () => {
       MissionCard(missionProps({ onForYouNext() {} })),
     );
     assert.match(html, />Collecting</);
-    assert.match(html, /Scout is looking for the next reply/);
+    assert.match(html, /Scout is getting the next reply/);
     assert.doesNotMatch(html, />For You</);
     assert.doesNotMatch(html, />Open For You</);
     assert.doesNotMatch(html, />Next</);
     assert.match(html, /approach-flight-row/);
+    assert.match(html, /aria-busy="true"/);
+    assert.doesNotMatch(html, /is-flying/);
+  });
+
+  it("shows the in-air line and flying row while Collecting searches", () => {
+    const html = renderToStaticMarkup(MissionCard(missionProps({ searching: true })));
+    assert.match(html, />Collecting</);
+    assert.match(html, escapeRe(approachCollectingCopy({ searching: true })));
+    assert.match(html, /approach-flight-row is-flying/);
+    assert.match(html, /aria-busy="true"/);
+    assert.doesNotMatch(html, /Scout is getting the next reply/);
   });
 
   it("never leaks refill internals onto the For You wait", () => {
