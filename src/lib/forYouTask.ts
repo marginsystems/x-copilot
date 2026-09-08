@@ -196,15 +196,3 @@ export function clearForYouWait(owner: string): void {
     /* private mode */
   }
 }
-
-/**
- * The free external task: read x.com/home and post. It needs a linked account
- * so detection can read own posts, and an agenda so the desk is set up. Scout
- * cooldown, grounding, and credits gate Scout, not this task.
- */
-export function canOpenForYouTask(opts: {
-  needsXLink: boolean;
-  hasAgenda: boolean;
-}): boolean {
-  return !opts.needsXLink && opts.hasAgenda;
-}

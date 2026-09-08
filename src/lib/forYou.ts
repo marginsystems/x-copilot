@@ -14,16 +14,6 @@ export const FYP_OPEN_TIP = "Opens your real X For You page.";
 export const FYP_NEXT_TIP =
   "Leave this wait. Take the next Approach card.";
 
-const UTC_WEEKDAYS = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-] as const;
-
 export type ForYouProgress = {
   tracked: number;
   needed: number;
@@ -90,45 +80,6 @@ export function parseForYouProgress(raw: unknown): ForYouProgress | null {
       : APPROACH_MIN_TRACKED;
   if (tracked == null) return null;
   return { tracked, needed };
-}
-
-/** First digest weekday if they keep posting about one new own-post per UTC day. */
-export function firstDigestWeekday(
-  tracked: number,
-  needed: number,
-  now = new Date(),
-): string {
-  if (tracked >= needed) return "the next UTC daily pass";
-  const remaining = needed - tracked;
-  const when = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate() + remaining + 1,
-    ),
-  );
-  return UTC_WEEKDAYS[when.getUTCDay()] ?? "soon";
-}
-
-export function approachEmptyCopy(opts: {
-  searching: boolean;
-  progress?: ForYouProgress | null;
-  now?: Date;
-}): string {
-  if (opts.searching) return FYP_WAIT_COPY;
-  const progress = opts.progress;
-  if (!progress) {
-    return "Nothing on Approach yet. Scout refuels in the background. Daily suggestions land here once we have enough of your 24h post stats.";
-  }
-  if (progress.tracked >= progress.needed) {
-    return `Nothing on Approach yet. Scout refuels in the background. ${progress.tracked} of ${progress.needed} posts tracked — first digest after the next UTC daily pass.`;
-  }
-  const day = firstDigestWeekday(
-    progress.tracked,
-    progress.needed,
-    opts.now,
-  );
-  return `Nothing on Approach yet. Scout refuels in the background. ${progress.tracked} of ${progress.needed} posts tracked — first digest ~${day}.`;
 }
 
 export type ForYouSuggestion = {
