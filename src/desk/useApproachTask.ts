@@ -21,6 +21,7 @@ import {
   approachTaskKey,
   reconcileApproachGate,
   restoreApproachTask,
+  shouldAutoAdvanceIdle,
   transitionApproachTask,
   type ApproachNormalizeContext,
   type ApproachTaskState,
@@ -215,6 +216,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       paceLocked: pace.locked,
     };
   }
+  const availableSuggestionId = pickSuggestion(null)?.id ?? null;
   const normalizeRef = useRef<ApproachNormalizeContext>({
     gate,
     scoutId: null,
@@ -224,7 +226,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   normalizeRef.current = {
     gate,
     scoutId: scoutPick?.id ?? null,
-    suggestionId: pickSuggestion(null)?.id ?? null,
+    suggestionId: availableSuggestionId,
     canOpenForYou,
   };
   const coachingRef = useRef(coaching);
@@ -315,14 +317,9 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }, [agendaReady, deskBootReady, gate, owner]);
 
   useEffect(() => {
-    if (
-      stateRef.current?.lock.phase !== "done_for_now" ||
-      eligibleCount === 0
-    ) {
-      return;
-    }
+    if (!shouldAutoAdvanceIdle(phase, eligibleCount, availableSuggestionId)) return;
     advanceCard({ type: "next" });
-  }, [eligibleCount, phase]);
+  }, [availableSuggestionId, eligibleCount, phase]);
 
   useEffect(() => {
     const current = stateRef.current;

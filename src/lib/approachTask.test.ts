@@ -4,6 +4,7 @@ import {
   approachTaskKey,
   reconcileApproachGate,
   restoreApproachTask,
+  shouldAutoAdvanceIdle,
   transitionApproachTask,
   type ApproachTaskState,
 } from "./approachTask.ts";
@@ -309,6 +310,28 @@ describe("Next with an empty tank", () => {
     assert.equal(approachTaskKey(second), null);
     assert.equal(present(second).kind, "scout_missing");
     assert.equal(present(second).detector, null);
+  });
+
+  it("reopens collecting idle for either scout or suggestion inventory", () => {
+    assert.equal(shouldAutoAdvanceIdle("done_for_now", 1, null), true);
+    assert.equal(shouldAutoAdvanceIdle("done_for_now", 0, "original_1"), true);
+    assert.equal(shouldAutoAdvanceIdle("done_for_now", 0, null), false);
+    assert.equal(shouldAutoAdvanceIdle("scout_reply", 1, "original_1"), false);
+
+    const next = transitionApproachTask(
+      {
+        lock: { phase: "done_for_now", cardId: null, surface: null },
+        wait: null,
+      },
+      { type: "next" },
+      { scoutId: null, suggestionId: "original_1", canPresentForYou: true },
+      { owner: OWNER, coaching },
+    );
+    assert.deepEqual(next.lock, {
+      phase: "organic_reply",
+      cardId: "original_1",
+      surface: null,
+    });
   });
 });
 
