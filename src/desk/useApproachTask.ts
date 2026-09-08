@@ -317,7 +317,17 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }, [agendaReady, deskBootReady, gate, owner]);
 
   useEffect(() => {
-    if (!shouldAutoAdvanceIdle(phase, eligibleCount, availableSuggestionId)) return;
+    const current = stateRef.current;
+    if (
+      !current ||
+      !shouldAutoAdvanceIdle(
+        current.lock.phase,
+        eligibleCount,
+        availableSuggestionId,
+      )
+    ) {
+      return;
+    }
     advanceCard({ type: "next" });
   }, [availableSuggestionId, eligibleCount, phase]);
 
