@@ -8,7 +8,7 @@ import {
   transitionApproachTask,
   type ApproachTaskState,
 } from "./approachTask.ts";
-import { eligibleScoutCards } from "./deskRefuel.ts";
+import { eligibleScoutCards, shouldArmScoutOnBoot, shouldBackgroundScout } from "./deskRefuel.ts";
 import { advanceApproach, type ApproachLock } from "./deskPhase.ts";
 import {
   forYouWaitDetected,
@@ -105,7 +105,7 @@ describe("restored lock", () => {
     assert.equal(present(scout, { scout: null }).detector, "scout");
   });
 
-  it("normalizes a restored done_for_now into the same For You task law", () => {
+  it("restores Collecting without reopening For You when the tank is empty", () => {
     const state = restoreApproachTask({
       stored: { phase: "done_for_now", cardId: null, surface: null },
       storedWait: null,
@@ -113,12 +113,12 @@ describe("restored lock", () => {
       paceLocked: false,
       task: { owner: OWNER, coaching, now: T0 },
     });
-    assert.deepEqual(state.lock, FOR_YOU);
-    assert.notEqual(state.wait, null);
+    assert.deepEqual(state.lock, { phase: "done_for_now", cardId: null, surface: null });
+    assert.equal(state.wait, null);
     const view = present(state);
-    assert.equal(view.kind, "for_you");
-    assert.equal(view.badge, 1);
-    assert.equal(view.forYou?.showNext, true);
+    assert.equal(view.verb, "Collecting");
+    assert.equal(view.forYou, null);
+    assert.equal(approachTaskKey(state), "collecting:idle");
   });
 });
 
@@ -307,7 +307,7 @@ describe("Next with an empty tank", () => {
       surface: null,
     });
     assert.equal(second.wait, null);
-    assert.equal(approachTaskKey(second), null);
+    assert.equal(approachTaskKey(second), "collecting:idle");
     assert.equal(present(second).kind, "scout_missing");
     assert.equal(present(second).detector, null);
   });
@@ -529,5 +529,54 @@ describe("Scout detection ownership", () => {
       ),
       { phase: "silent_refuel", cardId: null, surface: "for_you" },
     );
+  });
+});
+
+
+describe("Collecting refill handoff", () => {
+  it("flies on hydrated empty boot before Next, then ignores extra Next and empty landings", () => {
+    let state: ApproachTaskState = {
+      lock: FOR_YOU,
+      wait: openForYouWait({ owner: OWNER, now: T0 }),
+    };
+    let handledThisOpen = false;
+    let alreadyTried = true;
+    let searches = 0;
+    const boot = (tankKnown: boolean, usableScoutCount = 0) => {
+      if (!shouldArmScoutOnBoot({
+        tankKnown, usableScoutCount, handledThisOpen, alreadyTried, searching: false,
+      })) return;
+      handledThisOpen = true;
+      alreadyTried = false;
+      if (shouldBackgroundScout({
+        phase: state.lock.phase, searching: false, grounded: false,
+        cooldownRemainingSec: 0, needsXLink: false, hasAgenda: true,
+        scoutCount: usableScoutCount, alreadyTried,
+      })) {
+        alreadyTried = true;
+        searches += 1;
+      }
+    };
+    boot(false);
+    assert.equal(searches, 0);
+    boot(true, 2);
+    assert.equal(searches, 0);
+    // Late history hydration reveals that retained cards were already used.
+    boot(true);
+    assert.equal(searches, 1);
+    assert.equal(state.lock, FOR_YOU);
+    for (let press = 0; press < 3; press += 1) {
+      state = transitionApproachTask(state, { type: "next" },
+        { scoutId: null, suggestionId: null, canPresentForYou: true },
+        { owner: OWNER });
+      assert.equal(approachTaskKey(state), "collecting:idle");
+      assert.equal(state.wait, null);
+      boot(true);
+      assert.equal(searches, 1);
+    }
+    // A new page may retry the dry tank even though the session flag is spent.
+    handledThisOpen = false;
+    boot(true);
+    assert.equal(searches, 2);
   });
 });

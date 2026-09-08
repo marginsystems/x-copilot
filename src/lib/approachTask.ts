@@ -108,6 +108,7 @@ export function reconcileApproachGate(
 /** Stable key for once-per-task work such as the low-stock refill arm. */
 export function approachTaskKey(state: ApproachTaskState): string | null {
   const { lock, wait } = state;
+  if (lock.phase === "done_for_now") return "collecting:idle";
   if (
     (lock.phase === "scout_reply" || lock.phase === "organic_reply") &&
     lock.cardId

@@ -18,7 +18,6 @@ import {
 } from "../lib/approachCard";
 import { readApproachLock, writeApproachLock } from "../lib/approachLock";
 import {
-  approachTaskKey,
   reconcileApproachGate,
   restoreApproachTask,
   shouldAutoAdvanceIdle,
@@ -183,9 +182,9 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     afterForYou = false,
   ): ForYouSuggestion | null {
     return pickApproachSuggestion(
-      excludeId
-        ? forYouSuggestions.filter((row) => row.id !== excludeId)
-        : forYouSuggestions,
+      forYouSuggestions.filter(
+        (row) => row.id !== excludeId && !releasedIdsRef.current.has(row.id),
+      ),
       {
         allowPost: canServeApproachOriginal({
           scoutReplyDone:
@@ -346,6 +345,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     suggestion: lockedSuggestion,
     forYou: wait ? { detected: forYouWaitDetected(wait, coaching) } : null,
     remainingMs: pace.remainingMs,
+    searching,
     coaching,
   };
   const presentation = presentApproach(cardInput);
@@ -397,7 +397,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const pendingMarkIdRef = useRef<string | null>(null);
   const autoTriedRef = useRef(readScoutTakeoffTried());
   const bootRefuelCheckedRef = useRef(false);
-  const taskRefuelKeyRef = useRef<string | null>(null);
   const [refuelArmed, setRefuelArmed] = useState(false);
   const refuelArmedRef = useRef(false);
 
@@ -421,55 +420,40 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       clearScoutTakeoffTried();
       autoTriedRef.current = false;
     }
+    bootRefuelCheckedRef.current = true;
     refuelArmedRef.current = true;
     setRefuelArmed(true);
     return true;
   }
 
   useEffect(() => {
-    if (!deskBootReady || !lock || bootRefuelCheckedRef.current) return;
-    bootRefuelCheckedRef.current = true;
-    if (
-      !shouldArmScoutOnBoot({
-        usableScoutCount: eligibleCount,
-        alreadyTried: autoTriedRef.current,
-        searching,
-      })
-    ) {
+    // deskBootReady follows the tank hydrate. Keep observing eligible stock
+    // until we arm: a late history hydrate can remove retained, used cards.
+    if (!deskBootReady || !agendaReady || needsXLink || !hasAgenda) return;
+    if (searching) {
+      // An existing flight already serves this opening, even if it lands empty.
+      bootRefuelCheckedRef.current = true;
+      autoTriedRef.current = true;
+      markScoutTakeoffTried();
+      if (refuelArmedRef.current) {
+        refuelArmedRef.current = false;
+        setRefuelArmed(false);
+      }
       return;
     }
+    if (!shouldArmScoutOnBoot({
+      usableScoutCount: eligibleCount,
+      alreadyTried: autoTriedRef.current,
+      searching,
+      tankKnown: deskBootReady,
+      handledThisOpen: bootRefuelCheckedRef.current,
+    })) return;
+    bootRefuelCheckedRef.current = true;
+    clearScoutTakeoffTried();
+    autoTriedRef.current = false;
     refuelArmedRef.current = true;
     setRefuelArmed(true);
-  }, [deskBootReady, eligibleCount, lock, searching]);
-
-  const taskKey = state ? approachTaskKey(state) : null;
-  const lastTaskKeyRef = useRef<string | null>(null);
-  const taskConsumeRef = useRef(false);
-  useEffect(() => {
-    if (lastTaskKeyRef.current !== taskKey) {
-      const previous = lastTaskKeyRef.current;
-      lastTaskKeyRef.current = taskKey;
-      // Leaving a card re-opens the takeoff gate. Next from one empty For You
-      // wait to the next does not: repeated Next is not a refill control.
-      taskConsumeRef.current =
-        previous !== null &&
-        taskKey !== null &&
-        !(previous.startsWith("for_you:") && taskKey.startsWith("for_you:"));
-    }
-    if (!taskKey || !deskBootReady) {
-      taskRefuelKeyRef.current = null;
-      return;
-    }
-    if (taskRefuelKeyRef.current === taskKey) return;
-    if (!shouldArmScoutRefill(eligibleCount)) return;
-    // One arm per task, not one per cooldown tick.
-    if (
-      refuelArmedRef.current ||
-      armRefuel(eligibleCount, taskConsumeRef.current)
-    ) {
-      taskRefuelKeyRef.current = taskKey;
-    }
-  }, [deskBootReady, eligibleCount, searching, taskKey]);
+  }, [agendaReady, deskBootReady, eligibleCount, hasAgenda, needsXLink, searching]);
 
   useEffect(() => {
     if (!refuelArmed || !agendaReady) return;
@@ -647,12 +631,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       onDismiss(thread);
     },
     onScoutNext() {
-      const current = stateRef.current;
       advanceCard({ type: "next" });
-      armRefuel(
-        eligibleScouts.filter((row) => row.id !== current?.lock.cardId).length,
-        true,
-      );
     },
     onSuggestionPosted(id: string) {
       exitRow(id, `suggest:${id}`, async () => {
