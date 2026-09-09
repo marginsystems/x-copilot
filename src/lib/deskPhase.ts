@@ -184,7 +184,7 @@ export function normalizeApproachLock(
   if (isInventoryTask(lock)) return lock;
   if (lock.phase === "scout_reply") {
     if (ctx.scoutId) return nextScoutCard(ctx.scoutId, null);
-    if (lock.cardId !== null) return lock;
+    if (lock.cardId !== null || !ctx.gate) return lock;
   }
   if (ctx.gate) {
     if (lock.phase === "silent_refuel" && lock.surface === ctx.gate) {
