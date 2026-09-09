@@ -1,6 +1,4 @@
-/**
- * Scout search stages — client timeline (PR1) and stream labels (PR2).
- */
+/** Scout stream stages and status labels. */
 
 export type ScoutStageId =
   | "planning"
@@ -13,14 +11,6 @@ export type ScoutStageId =
 
 export const SCOUT_AGENT = "scout";
 
-/** Stages advanced on a timer while waiting on POST /api/search. */
-export const SCOUT_SEARCH_TIMELINE: ScoutStageId[] = [
-  "planning",
-  "searching",
-  "filtering",
-  "triaging",
-];
-
 export const SCOUT_STAGE_COPY: Record<ScoutStageId, string> = {
   planning: "Plotting the route…",
   searching: "In the air…",
@@ -31,48 +21,8 @@ export const SCOUT_STAGE_COPY: Record<ScoutStageId, string> = {
   error: "Couldn't land.",
 };
 
-/** ms between client-side stage advances while search is in flight. */
-export const SCOUT_STAGE_TICK_MS = 2800;
-
-/** Later stages win; ticker must not rewind past a real stream stage. */
-export const SCOUT_STAGE_RANK: Record<ScoutStageId, number> = {
-  planning: 0,
-  searching: 1,
-  filtering: 2,
-  partial: 2,
-  triaging: 3,
-  done: 4,
-  error: 4,
-};
-
 export function scoutStageMessage(stage: ScoutStageId): string {
   return SCOUT_STAGE_COPY[stage];
-}
-
-/** One-line desk status: flight copy plus optional cool/candidate counts. */
-export function scoutFlightLine(
-  stage: ScoutStageId,
-  opts?: {
-    cool?: number;
-    target?: number;
-    candidates?: number;
-    bucketSize?: number;
-  },
-): string {
-  const base = scoutStageMessage(stage);
-  if (stage === "done" || stage === "error") return base;
-  if (typeof opts?.cool === "number" && opts.cool > 0) {
-    return typeof opts.target === "number"
-      ? `${base} ${opts.cool}/${opts.target}`
-      : `${base} ${opts.cool}`;
-  }
-  if (
-    typeof opts?.candidates === "number" &&
-    typeof opts.bucketSize === "number"
-  ) {
-    return `${base} ${opts.candidates}/${opts.bucketSize}`;
-  }
-  return base;
 }
 
 const HIDDEN_FLIGHT_STAGES: ScoutStageId[] = [

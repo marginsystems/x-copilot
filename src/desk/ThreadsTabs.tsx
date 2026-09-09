@@ -11,7 +11,6 @@ import {
 import { RankingDrawer } from "./RankingDrawer";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
 import type { CoachingState } from "../lib/coaching";
-import type { DeskBeats } from "../lib/deskPhase";
 import { ThreadsTabCount } from "./ThreadsTabCount";
 import { useApproachTask } from "./useApproachTask";
 import type {
@@ -35,7 +34,6 @@ type ThreadsTabsProps = {
   dismissedHistory: DismissalHistoryEntry[];
   expiredHistory: ExpiredHistoryEntry[];
   searching: boolean;
-  flightLine: string;
   actionBusy: boolean;
   expandedId: string | null;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
@@ -53,19 +51,14 @@ type ThreadsTabsProps = {
   ) => Promise<boolean>;
   onOpenVoice: () => void;
   onOpenSettings: () => void;
-  onOpenUsage: () => void;
   onLinkX: () => void;
   grounded: boolean;
-  groundedLine: string | null;
   searchCooldownRemaining: number;
   onSearch: () => void;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
   onHydrateInteracted: (preservedId?: string | null) => void | Promise<void>;
-  setActionBusy: (busy: boolean) => void;
-  setStatus: (status: string) => void;
-  onForkBeats: (beats: DeskBeats) => void;
 };
 
 function ThreadsFeedTab(props: {

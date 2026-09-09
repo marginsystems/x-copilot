@@ -3,8 +3,6 @@ import assert from "node:assert/strict";
 import {
   appendThreadsById,
   baitClass,
-  coolProgressLabel,
-  scoutProgressPrefix,
 } from "./threadHelpers.ts";
 import type { ThreadCard } from "./types.ts";
 
@@ -42,33 +40,5 @@ describe("baitClass", () => {
     assert.equal(baitClass(65), "bait high");
     assert.equal(baitClass(35), "bait mid");
     assert.equal(baitClass(34), "bait low");
-  });
-});
-
-describe("coolProgressLabel", () => {
-  it("uses explicit counts or the fallback target", () => {
-    assert.equal(coolProgressLabel(2, 5, 8), "Cool 2/5");
-    assert.equal(coolProgressLabel(undefined, undefined, 8), "Cool 0/8");
-  });
-});
-
-describe("scoutProgressPrefix", () => {
-  it("shows candidate fill before the first cool", () => {
-    assert.equal(
-      scoutProgressPrefix({ candidates: 4, bucketSize: 20, coolCount: 0 }),
-      "Cand. 4/20",
-    );
-  });
-
-  it("shows cool progress once cools exist", () => {
-    assert.equal(
-      scoutProgressPrefix({ coolCount: 3, targetCool: 8 }),
-      "Cool 3/8",
-    );
-    assert.equal(scoutProgressPrefix({ coolCount: 3 }), "Cool 3");
-  });
-
-  it("returns null when there is nothing to show", () => {
-    assert.equal(scoutProgressPrefix({}), null);
   });
 });

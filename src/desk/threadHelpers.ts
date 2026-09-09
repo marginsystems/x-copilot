@@ -41,36 +41,3 @@ export function appendThreadsById(
   }
   return out;
 }
-
-export function coolProgressLabel(
-  coolCount: number | undefined,
-  targetCool: number | undefined,
-  fallbackTarget: number,
-): string {
-  const cool = typeof coolCount === "number" ? coolCount : 0;
-  const target =
-    typeof targetCool === "number" ? targetCool : fallbackTarget;
-  return `Cool ${cool}/${target}`;
-}
-
-export function scoutProgressPrefix(ev: {
-  message?: string;
-  candidates?: number;
-  bucketSize?: number;
-  coolCount?: number;
-  targetCool?: number;
-}): string | null {
-  if (
-    typeof ev.candidates === "number" &&
-    typeof ev.bucketSize === "number" &&
-    (ev.coolCount ?? 0) === 0
-  ) {
-    return `Cand. ${ev.candidates}/${ev.bucketSize}`;
-  }
-  if (typeof ev.coolCount === "number" && ev.coolCount > 0) {
-    return typeof ev.targetCool === "number"
-      ? `Cool ${ev.coolCount}/${ev.targetCool}`
-      : `Cool ${ev.coolCount}`;
-  }
-  return null;
-}

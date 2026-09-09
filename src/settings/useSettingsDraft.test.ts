@@ -28,7 +28,6 @@ describe("commitSettingsDraft", () => {
     });
     const parked = [{ id: "parked", views: 1, flags: ["political"] }];
     let settingsUpdates = 0;
-    let threadUpdates = 0;
 
     const saved = commitSettingsDraft(
       {
@@ -40,15 +39,11 @@ describe("commitSettingsDraft", () => {
         setSettings: () => {
           settingsUpdates += 1;
         },
-        setThreads: () => {
-          threadUpdates += 1;
-        },
       },
     );
 
     assert.equal(saved.minViews, 10_000);
     assert.equal(settingsUpdates, 1);
-    assert.equal(threadUpdates, 0);
     assert.deepEqual(parked.map((thread) => thread.id), ["parked"]);
   });
 });

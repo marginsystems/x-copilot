@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   loadSettings,
   type AppSettings,
@@ -10,7 +10,6 @@ import { BootScreen, Landing } from "./Landing";
 import { SignInModal } from "./SignInModal";
 import { CookieConsent } from "./CookieConsent";
 import { isPublicView } from "./lib/appView";
-import { groundedHint } from "./lib/upgradeCta";
 import { Onboarding } from "./Onboarding";
 import { LinkXGate } from "./LinkXGate";
 import { deskNeedsXLink, showDeskXGate } from "./lib/deskGate";
@@ -65,9 +64,6 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [threads, setThreads] = useState<ThreadCard[]>(
     () => cachedBoot?.desk?.lastScout.snapshot?.threads ?? [],
-  );
-  const sourceThreadsRef = useRef<ThreadCard[] | null>(
-    cachedBoot?.desk?.lastScout.snapshot?.threads ?? null,
   );
   const [expandedId, setExpandedId] = useState<string | null>(null);
   /** Short mutex for skip/dismiss/settings — not Scout-in-flight. */
@@ -193,13 +189,11 @@ export default function App() {
     settingsStatus,
     resetSettingsDraft,
     onSaveSettings,
-  } = useSettingsDraft({ setSettings, setThreads, sourceThreadsRef });
+  } = useSettingsDraft({ setSettings });
   const {
     searching,
-    flightLine,
     searchCooldownRemaining,
     grounded,
-    sortiesLimit,
     onSearch,
     applyLastScoutFromBoot,
     hydrateLastScout,
@@ -217,7 +211,6 @@ export default function App() {
     onScoutFinished: () => {
       void hydrateCoaching();
     },
-    sourceThreadsRef,
   });
   const { agendaReady, deskBootReady, onboardingSeedAgenda } = useDeskBoot({
     dedupeAccounts: settings.dedupeAccounts,
@@ -698,7 +691,6 @@ export default function App() {
               dismissedHistory={dismissedHistory}
               expiredHistory={expiredHistory}
               searching={searching}
-              flightLine={flightLine}
               actionBusy={actionBusy}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
@@ -717,34 +709,14 @@ export default function App() {
               }}
               onOpenVoice={openVoice}
               onOpenSettings={openSettings}
-              onOpenUsage={openUsage}
               onLinkX={startXLogin}
               grounded={grounded}
-              groundedLine={
-                grounded && !searching
-                  ? groundedHint({
-                      limit: sortiesLimit ?? 0,
-                      planKey: billing?.plan_key,
-                      firstWeek: Boolean(billing?.first_week_pulse),
-                    })
-                  : null
-              }
               searchCooldownRemaining={searchCooldownRemaining}
               onSearch={onSearch}
               onSkip={onSkip}
               onDismiss={openDismissModal}
               onRefreshCoaching={hydrateCoaching}
               onHydrateInteracted={hydrateInteracted}
-              setActionBusy={setActionBusy}
-              setStatus={setStatus}
-              onForkBeats={(beats) => {
-                applyCoaching({
-                  dayUtc: coaching?.dayUtc ?? "",
-                  nextAction: coaching?.nextAction ?? null,
-                  missions: coaching?.missions ?? [],
-                  beats,
-                });
-              }}
             />
           </section>
         </div>
