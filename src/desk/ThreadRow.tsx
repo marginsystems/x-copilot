@@ -108,17 +108,19 @@ export function ThreadRow({
         </div>
       ) : null}
       <div className="row">
-        <a
-          className="ghost"
-          href={thread.url}
-          target="_blank"
-          rel="noreferrer"
-          onClick={() => onWatch?.()}
-        >
-          Open on X
-        </a>
+        {!interacted ? (
+          <a
+            className="ghost"
+            href={thread.url}
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => onWatch?.()}
+          >
+            Open on X
+          </a>
+        ) : null}
         {interacted && onNext ? (
-          <button className="ghost" disabled={busy} onClick={onNext}>
+          <button className="primary" disabled={busy} onClick={onNext}>
             Next
           </button>
         ) : (
