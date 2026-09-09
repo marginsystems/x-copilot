@@ -11,27 +11,17 @@ import type { LastScoutPayload } from "../lib/deskBoot";
 import { apiFetch } from "../lib/apiBase";
 import { deskNeedsXLink } from "../lib/deskGate";
 import {
-  SCOUT_SEARCH_TIMELINE,
-  SCOUT_STAGE_RANK,
-  SCOUT_STAGE_TICK_MS,
   formatScoutFailure,
   isScoutGateError,
-  scoutFlightLine,
   scoutStageMessage,
   type ScoutStageId,
 } from "../lib/scoutStages";
 import {
-  DEFAULT_SETTINGS,
   DEFAULT_TARGET_COOL_THREADS,
   type AppSettings,
 } from "../lib/settings";
-import { formatAbsoluteTime, formatTimeAgo } from "../lib/timeAgo";
-import {
-  appendThreadsById,
-  coolProgressLabel,
-  scoutProgressPrefix,
-} from "./threadHelpers";
-import type { ScoutLogEntry, ScoutStreamEvent, ThreadCard } from "./types";
+import { appendThreadsById } from "./threadHelpers";
+import type { ScoutStreamEvent, ThreadCard } from "./types";
 import { watchDeskThreads } from "./watch";
 
 /** Hard-filter candidate bucket size sent on each Scout run. */
@@ -39,18 +29,6 @@ export const SCOUT_BUCKET_SIZE = 20;
 
 /** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
 export const SEARCH_COOLDOWN_MS = 15_000;
-
-export function publishedScoutFlightLine(
-  stage: ScoutStageId,
-  progress?: {
-    cool?: number;
-    target?: number;
-    candidates?: number;
-    bucketSize?: number;
-  },
-): string {
-  return scoutFlightLine(stage, progress);
-}
 
 export type ScoutRunDeps = {
   agenda: string;
@@ -64,7 +42,6 @@ export type ScoutRunDeps = {
   loadBilling: () => Promise<void>;
   hydrateAuth: () => Promise<AuthSessionUser | null>;
   onScoutFinished?: () => void;
-  sourceThreadsRef?: import("react").MutableRefObject<ThreadCard[] | null>;
 };
 
 export function useScoutRun({
@@ -79,143 +56,41 @@ export function useScoutRun({
   loadBilling,
   hydrateAuth,
   onScoutFinished,
-  sourceThreadsRef,
 }: ScoutRunDeps) {
   const [searching, setSearching] = useState(false);
-  const [flightLine, setFlightLine] = useState(() =>
-    publishedScoutFlightLine("planning"),
-  );
-  const scoutLogRef = useRef<ScoutLogEntry[]>([]);
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
   const searchingRef = useRef(0);
-  const coolProgressRef = useRef({
-    cool: 0,
-    target: DEFAULT_SETTINGS.targetCoolThreads,
-  });
-  const flightStageRef = useRef<ScoutStageId>("planning");
-  const serverStageRef = useRef<ScoutStageId | null>(null);
   const staleHydration = useRef(false);
 
   const searchCooldownRemaining = Math.max(
     0,
     Math.ceil((searchCooldownUntil - nowMs) / 1000),
   );
-  const sortiesLeft = billing?.sorties?.remaining;
-  const sortiesLimit = billing?.sorties?.limit;
   const grounded =
     billing?.sorties != null && billing.sorties.can_fly === false;
-  const searchBlocked =
-    searching ||
-    searchCooldownRemaining > 0 ||
-    grounded ||
-    deskNeedsXLink(authUser);
-
-  function pushScoutLine(line: string, stage?: string) {
-    const message = line.trim();
-    if (!message) return;
-    const atMs = Date.now();
-    const entry: ScoutLogEntry = {
-      at: new Date(atMs).toISOString(),
-      message,
-      ...(stage ? { stage } : {}),
-    };
-    setNowMs(atMs);
-    const prev = scoutLogRef.current;
-    const last = prev[prev.length - 1];
-    if (last?.message === message) {
-      prev[prev.length - 1] = {
-        ...last,
-        at: entry.at,
-        ...(stage ? { stage } : {}),
-      };
-      return;
-    }
-    scoutLogRef.current = [...prev, entry].slice(-1000);
-  }
 
   function applyScoutEvent(ev: ScoutStreamEvent) {
     const stage = (ev.stage ?? "planning") as ScoutStageId;
-    if (typeof ev.coolCount === "number" && ev.coolCount > 0) {
-      coolProgressRef.current.cool = ev.coolCount;
+    if (stage === "error") {
+      setStatus(ev.message || scoutStageMessage(stage));
     }
-    if (typeof ev.targetCool === "number") {
-      coolProgressRef.current.target = ev.targetCool;
-    }
-    let message = ev.message || scoutStageMessage(stage);
-    // Prefer server bucket copy; avoid double-prefixing Cand./Cool lines.
-    if (
-      !/^Cand\.?\b/i.test(message) &&
-      !/^Candidates\b/i.test(message) &&
-      !/^Cool\b/i.test(message) &&
-      !/^0 cool/i.test(message)
-    ) {
-      const prefix = scoutProgressPrefix(ev);
-      if (
-        prefix &&
-        (stage === "searching" ||
-          stage === "filtering" ||
-          stage === "triaging" ||
-          stage === "partial")
-      ) {
-        message = `${prefix} · ${message}`;
-      }
-    }
-    serverStageRef.current = stage;
-    const incomingRank = SCOUT_STAGE_RANK[stage];
-    const shownRank = SCOUT_STAGE_RANK[flightStageRef.current];
-    const shownStage =
-      stage === "error" ||
-      stage === "done" ||
-      incomingRank >= shownRank
-        ? stage
-        : flightStageRef.current;
-    flightStageRef.current = shownStage;
-    setFlightLine(
-      publishedScoutFlightLine(shownStage, {
-        cool: ev.coolCount,
-        target: ev.targetCool,
-        candidates: ev.candidates,
-        bucketSize: ev.bucketSize,
-      }),
-    );
-    if (shownStage === "error") setStatus(message);
-    pushScoutLine(message, stage);
   }
 
   function applyLastScoutFromBoot(data: LastScoutPayload) {
     if (staleHydration.current) return;
     if (!data.ok) return;
     if (data.empty || !data.snapshot) {
-      if (sourceThreadsRef) sourceThreadsRef.current = [];
       setThreads([]);
       return;
     }
     const list = Array.isArray(data.snapshot.threads)
       ? data.snapshot.threads
       : [];
-    if (sourceThreadsRef) sourceThreadsRef.current = list;
     const filtered = list.filter((t) => keepInCurated(t));
     setThreads(filtered);
     watchDeskThreads(filtered);
-    const when =
-      formatAbsoluteTime(data.snapshot.savedAt) ||
-      formatTimeAgo(data.snapshot.savedAt) ||
-      "earlier";
-    const pc = data.snapshot.pipelineCounts;
-    const funnel = pc
-      ? ` (${[
-          pc.raw,
-          pc.afterDedupe,
-          pc.afterCooldown,
-          ...(typeof pc.afterSelfReply === "number" ? [pc.afterSelfReply] : []),
-          ...(typeof pc.afterLinks === "number" ? [pc.afterLinks] : []),
-          pc.afterLength,
-          pc.afterTriage,
-        ].join(" → ")})`
-      : "";
-    pushScoutLine(`Restored ${filtered.length} threads${funnel} from ${when}.`);
   }
 
   async function hydrateLastScout() {
@@ -235,7 +110,6 @@ export function useScoutRun({
         { soft: true },
       );
       setStatus(line);
-      pushScoutLine(line, "error");
       return;
     }
     if (Date.now() < searchingRef.current) {
@@ -246,7 +120,6 @@ export function useScoutRun({
           { soft: true },
         );
         setStatus(line);
-        pushScoutLine(line, "error");
       }
       return;
     }
@@ -257,20 +130,11 @@ export function useScoutRun({
     staleHydration.current = true;
 
     const targetCool = DEFAULT_TARGET_COOL_THREADS;
-    coolProgressRef.current = { cool: 0, target: targetCool };
-    flightStageRef.current = "planning";
-    serverStageRef.current = null;
-    setFlightLine(publishedScoutFlightLine("planning"));
 
     setSearching(true);
+    // Drop leftover wait / failure copy so a clean landing does not keep it.
+    setStatus("");
     // Keep existing thread rows; partials + done append by id across runs.
-    pushScoutLine("── Scout ──", "planning");
-    applyScoutEvent({
-      stage: "planning",
-      message: scoutStageMessage("planning"),
-      coolCount: 0,
-      targetCool,
-    });
 
     try {
       const res = await apiFetch("/api/scout/run", {
@@ -316,7 +180,6 @@ export function useScoutRun({
         const soft = isScoutGateError(res.status, fallback);
         const line = formatScoutFailure(detail, { soft });
         setStatus(line);
-        pushScoutLine(line, "error");
         return;
       }
 
@@ -342,12 +205,6 @@ export function useScoutRun({
         }
         applyScoutEvent(ev);
         if (ev.stage === "partial" && ev.threads?.length) {
-          if (sourceThreadsRef) {
-            sourceThreadsRef.current = appendThreadsById(
-              sourceThreadsRef.current ?? [],
-              ev.threads,
-            );
-          }
           const incoming = (ev.threads ?? []).filter((t) => keepInCurated(t));
           watchDeskThreads(incoming);
           setThreads((prev) => appendThreadsById(prev, incoming));
@@ -383,14 +240,7 @@ export function useScoutRun({
 
       if (stream.doneEvent) {
         const doneEvent = stream.doneEvent;
-        const qs = doneEvent.queries ?? [];
         const list = doneEvent.threads ?? [];
-        if (sourceThreadsRef) {
-          sourceThreadsRef.current = appendThreadsById(
-            sourceThreadsRef.current ?? [],
-            list,
-          );
-        }
         const incoming = list.filter((t) => keepInCurated(t));
         watchDeskThreads(incoming);
         // Append this run’s cool threads; do not wipe prior Scout loops.
@@ -398,33 +248,9 @@ export function useScoutRun({
         staleHydration.current = false;
         await hydrateLastScout();
         await hydrateInteracted();
-        const progress = coolProgressLabel(
-          doneEvent.coolCount ?? list.length,
-          doneEvent.targetCool ?? targetCool,
-          targetCool,
-        );
-        const reason = doneEvent.stopReason
-          ? ` · stop: ${doneEvent.stopReason}`
-          : "";
-        const qLabel = qs.length ? qs.map((q) => `"${q}"`).join(", ") : "(none)";
-        const summary =
-          `${progress}${reason} — ${qLabel}` +
-          (doneEvent.triageWarning ? ` · ${doneEvent.triageWarning}` : "") +
-          (doneEvent.cooldownWarning ? ` · ${doneEvent.cooldownWarning}` : "") +
-          (doneEvent.linkWarning ? ` · ${doneEvent.linkWarning}` : "") +
-          (doneEvent.emDashWarning ? ` · ${doneEvent.emDashWarning}` : "") +
-          (doneEvent.profanityWarning ? ` · ${doneEvent.profanityWarning}` : "") +
-          (doneEvent.automatedWarning ? ` · ${doneEvent.automatedWarning}` : "") +
-          (doneEvent.excludedAccountWarning
-            ? ` · ${doneEvent.excludedAccountWarning}`
-            : "") +
-          (doneEvent.lengthWarning ? ` · ${doneEvent.lengthWarning}` : "");
-        setStatus(scoutStageMessage("done"));
-        pushScoutLine(summary);
       } else if (!stream.sawError) {
         const line = formatScoutFailure("stream ended without results");
         setStatus(line);
-        pushScoutLine(line, "error");
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -452,15 +278,10 @@ export function useScoutRun({
           /* sidecar may be offline — keep in-memory cools */
         }
         // Still cool down in finally so Stop / unmount cannot bypass the gate.
-        const { cool, target } = coolProgressRef.current;
-        const summary = `Cool ${cool}/${target} · stop: aborted`;
-        setStatus(scoutStageMessage("done"));
-        pushScoutLine(summary);
         onScoutFinished?.();
       } else {
         const line = formatScoutFailure("Scout service unavailable");
         setStatus(line);
-        pushScoutLine(line, "error");
         onScoutFinished?.();
       }
     } finally {
@@ -511,50 +332,10 @@ export function useScoutRun({
     return () => window.clearInterval(id);
   }, [searchCooldownUntil]);
 
-  useEffect(() => {
-    if (!searching) return;
-    let tick = 0;
-    const id = window.setInterval(() => {
-      tick += 1;
-      const nextIdx = Math.min(tick, SCOUT_SEARCH_TIMELINE.length - 1);
-      const next = SCOUT_SEARCH_TIMELINE[nextIdx];
-      if (!next) return;
-      const server = serverStageRef.current;
-      if (server && SCOUT_STAGE_RANK[server] >= SCOUT_STAGE_RANK[next]) {
-        return;
-      }
-      if (SCOUT_STAGE_RANK[next] <= SCOUT_STAGE_RANK[flightStageRef.current]) {
-        return;
-      }
-      flightStageRef.current = next;
-      setFlightLine(
-        publishedScoutFlightLine(next, {
-          cool: coolProgressRef.current.cool,
-          target: coolProgressRef.current.target,
-        }),
-      );
-    }, SCOUT_STAGE_TICK_MS);
-    return () => window.clearInterval(id);
-  }, [searching]);
-
-  // Keep scout-log / cooldown "time ago" labels fresh (1s while live or in cooldown).
-  useEffect(() => {
-    if (!searching && searchCooldownRemaining <= 0) return;
-    setNowMs(Date.now());
-    const id = window.setInterval(() => setNowMs(Date.now()), 1_000);
-    return () => window.clearInterval(id);
-  }, [searching, searchCooldownRemaining > 0]);
-
   return {
     searching,
-    flightLine,
     searchCooldownRemaining,
-    searchBlocked,
     grounded,
-    sortiesLeft,
-    sortiesLimit,
-    flightStageRef,
-    staleHydration,
     onSearch,
     applyLastScoutFromBoot,
     hydrateLastScout,

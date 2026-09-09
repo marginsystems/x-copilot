@@ -1,74 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  SCOUT_SEARCH_TIMELINE,
-  SCOUT_STAGE_RANK,
   formatScoutFailure,
   isScoutGateError,
-  isScoutFlightStatus,
-  scoutFlightLine,
   scoutStageMessage,
 } from "./scoutStages.ts";
 
 describe("scoutStages", () => {
-  it("has a four-step search timeline before done", () => {
-    assert.deepEqual(SCOUT_SEARCH_TIMELINE, [
-      "planning",
-      "searching",
-      "filtering",
-      "triaging",
-    ]);
-  });
-
-  it("ranks stages so the one-line status never rewinds", () => {
-    for (let i = 1; i < SCOUT_SEARCH_TIMELINE.length; i += 1) {
-      assert.ok(
-        SCOUT_STAGE_RANK[SCOUT_SEARCH_TIMELINE[i]] >
-          SCOUT_STAGE_RANK[SCOUT_SEARCH_TIMELINE[i - 1]],
-      );
-    }
-    assert.ok(
-      SCOUT_STAGE_RANK.partial < SCOUT_STAGE_RANK.triaging,
-      "partial must rank below triaging so a refill never rewinds the flight line",
-    );
-    for (const terminal of ["done", "error"] as const) {
-      assert.ok(
-        SCOUT_STAGE_RANK[terminal] > SCOUT_STAGE_RANK.triaging,
-        `${terminal} must outrank triaging so the ticker never overwrites it`,
-      );
-    }
-  });
-
   it("returns flight-style stage copy", () => {
     assert.match(scoutStageMessage("planning"), /route/i);
     assert.match(scoutStageMessage("searching"), /air/i);
     assert.match(scoutStageMessage("done"), /Landed/);
-  });
-
-  it("appends cool or candidate counts on the one-line flight status", () => {
-    assert.equal(scoutFlightLine("planning"), "Plotting the route…");
-    assert.equal(
-      scoutFlightLine("searching", { candidates: 4, bucketSize: 20 }),
-      "In the air… 4/20",
-    );
-    assert.equal(
-      scoutFlightLine("triaging", { cool: 2, target: 5 }),
-      "Picking the approach… 2/5",
-    );
-    assert.equal(scoutFlightLine("done", { cool: 5, target: 5 }), "Landed.");
-  });
-
-  it("hides flight theater from the desk bar and keeps user lines", () => {
-    assert.equal(isScoutFlightStatus("Picking the approach… 1/20"), true);
-    assert.equal(isScoutFlightStatus("In the air… 4/20"), true);
-    assert.equal(isScoutFlightStatus("Landed."), true);
-    assert.equal(
-      isScoutFlightStatus("Restored 5 threads (80 → 12) from 16:02."),
-      true,
-    );
-    assert.equal(isScoutFlightStatus("Skipped @alice"), false);
-    assert.equal(isScoutFlightStatus("Scout failed: stream ended without results"), false);
-    assert.equal(isScoutFlightStatus("Couldn't land."), false);
   });
 
   it("treats 429 cooldown/busy as soft gate errors", () => {

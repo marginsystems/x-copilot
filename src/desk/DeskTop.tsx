@@ -3,7 +3,6 @@ import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import type { CoachingState } from "../lib/coaching";
 import type { GamificationStats } from "../lib/gamification";
 import { ActivityStrip } from "./ActivityStrip";
-import { isScoutFlightStatus } from "../lib/scoutStages";
 import { FadeSwap } from "./FadeSwap";
 import { InstrumentsPanel } from "./InstrumentsPanel";
 import type { InteractionHistoryEntry } from "./types";
@@ -41,8 +40,7 @@ export function DeskTop({
 }: DeskTopProps) {
   const bodyId = useId();
   const [tab, setTab] = useState<DeskTab>("path");
-  const barStatus =
-    status && !isScoutFlightStatus(status) ? status : undefined;
+  const barStatus = status || undefined;
 
   return (
     <div className={open ? "desk-top" : "desk-top is-collapsed"}>

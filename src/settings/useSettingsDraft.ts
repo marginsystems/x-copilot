@@ -1,7 +1,6 @@
 import {
   useState,
   type Dispatch,
-  type MutableRefObject,
   type SetStateAction,
 } from "react";
 import {
@@ -9,12 +8,9 @@ import {
   saveSettings,
   type AppSettings,
 } from "../lib/settings";
-import type { ThreadCard } from "../desk/types";
 
 export type UseSettingsDraftOptions = {
   setSettings: Dispatch<SetStateAction<AppSettings>>;
-  setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
-  sourceThreadsRef?: MutableRefObject<ThreadCard[] | null>;
 };
 
 export function commitSettingsDraft(
