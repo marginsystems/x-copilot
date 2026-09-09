@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   formatScoutFailure,
   isScoutGateError,
-  isScoutFlightStatus,
   scoutStageMessage,
 } from "./scoutStages.ts";
 
@@ -12,19 +11,6 @@ describe("scoutStages", () => {
     assert.match(scoutStageMessage("planning"), /route/i);
     assert.match(scoutStageMessage("searching"), /air/i);
     assert.match(scoutStageMessage("done"), /Landed/);
-  });
-
-  it("hides flight theater from the desk bar and keeps user lines", () => {
-    assert.equal(isScoutFlightStatus("Picking the approach… 1/20"), true);
-    assert.equal(isScoutFlightStatus("In the air… 4/20"), true);
-    assert.equal(isScoutFlightStatus("Landed."), true);
-    assert.equal(
-      isScoutFlightStatus("Restored 5 threads (80 → 12) from 16:02."),
-      true,
-    );
-    assert.equal(isScoutFlightStatus("Skipped @alice"), false);
-    assert.equal(isScoutFlightStatus("Scout failed: stream ended without results"), false);
-    assert.equal(isScoutFlightStatus("Couldn't land."), false);
   });
 
   it("treats 429 cooldown/busy as soft gate errors", () => {

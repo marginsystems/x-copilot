@@ -246,7 +246,6 @@ export function useScoutRun({
         staleHydration.current = false;
         await hydrateLastScout();
         await hydrateInteracted();
-        setStatus(scoutStageMessage("done"));
       } else if (!stream.sawError) {
         const line = formatScoutFailure("stream ended without results");
         setStatus(line);
@@ -277,7 +276,6 @@ export function useScoutRun({
           /* sidecar may be offline — keep in-memory cools */
         }
         // Still cool down in finally so Stop / unmount cannot bypass the gate.
-        setStatus(scoutStageMessage("done"));
         onScoutFinished?.();
       } else {
         const line = formatScoutFailure("Scout service unavailable");
