@@ -308,6 +308,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
     assert.match(html, /chip-interacted/);
     assert.match(html, />Next</);
+    assert.doesNotMatch(html, /Open on X/);
     assert.doesNotMatch(html, />Skip</);
     assert.doesNotMatch(html, /I posted on X/);
   });
