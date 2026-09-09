@@ -101,7 +101,7 @@ describe("restored lock", () => {
       task: { owner: OWNER, coaching, now: T0 },
     });
     assert.equal(scout.wait, null);
-    assert.equal(present(scout, { scout: null }).detector, "scout");
+    assert.equal(present(scout, { scout: null }).detector, null);
   });
 
   it("restores Collecting without reopening For You when the tank is empty", () => {
@@ -310,10 +310,10 @@ describe("Next with an empty tank", () => {
   });
 
   it("reopens collecting idle for either scout or suggestion inventory", () => {
-    assert.equal(shouldAutoAdvanceIdle("done_for_now", 1, null), true);
-    assert.equal(shouldAutoAdvanceIdle("done_for_now", 0, "original_1"), true);
-    assert.equal(shouldAutoAdvanceIdle("done_for_now", 0, null), false);
-    assert.equal(shouldAutoAdvanceIdle("scout_reply", 1, "original_1"), false);
+    assert.equal(shouldAutoAdvanceIdle("done_for_now", null, 1, null), true);
+    assert.equal(shouldAutoAdvanceIdle("done_for_now", null, 0, "original_1"), true);
+    assert.equal(shouldAutoAdvanceIdle("done_for_now", null, 0, null), false);
+    assert.equal(shouldAutoAdvanceIdle("scout_reply", "scout-1", 1, "original_1"), false);
 
     const next = transitionApproachTask(
       {
@@ -333,6 +333,27 @@ describe("Next with an empty tank", () => {
 });
 
 describe("same-phase Scout release", () => {
+  it("fills the empty Scout lock on eligible stock only and never opens a wait", () => {
+    let state: ApproachTaskState = {
+      lock: { phase: "scout_reply", cardId: "A", surface: null }, wait: null,
+    };
+    const inventory = { scoutId: null, suggestionId: "original-1", canPresentForYou: true };
+    state = transitionApproachTask(state, { type: "skip" }, inventory, { owner: OWNER });
+    assert.deepEqual(state.lock, { phase: "scout_reply", cardId: null, surface: null });
+    assert.equal(state.wait, null);
+    assert.equal(present(state).verb, "Collecting");
+    assert.equal(present(state).detector, null);
+    assert.equal(shouldAutoAdvanceIdle(state.lock.phase, state.lock.cardId, 0, "original-1"), false);
+    assert.equal(transitionApproachTask(state, { type: "next" }, inventory, { owner: OWNER }), state);
+    assert.equal(shouldAutoAdvanceIdle(state.lock.phase, state.lock.cardId, 1, "original-1"), true);
+    state = transitionApproachTask(state, { type: "next" }, {
+      ...inventory, scoutId: "B", paceLocked: true,
+    }, { owner: OWNER });
+    assert.deepEqual(state.lock, { phase: "scout_reply", cardId: "B", surface: null });
+    assert.equal(state.wait, null);
+    assert.equal(shouldAutoAdvanceIdle(state.lock.phase, state.lock.cardId, 2, "original-1"), false);
+  });
+
   it("A detected, Next to B, Skip B before hydrate never resurfaces A", () => {
     const tank = [{ id: "A" }, { id: "B" }];
     const interacted = new Set(["A"]);
@@ -366,7 +387,7 @@ describe("same-phase Scout release", () => {
     );
     released.add("B");
     assert.deepEqual(state.lock, {
-      phase: "done_for_now",
+      phase: "scout_reply",
       cardId: null,
       surface: null,
     });

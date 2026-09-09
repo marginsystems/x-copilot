@@ -25,10 +25,14 @@ export type ApproachTaskState = {
 /** Whether newly available inventory can reopen the collecting idle. */
 export function shouldAutoAdvanceIdle(
   phase: DeskPhase,
+  cardId: string | null,
   eligibleCount: number,
   suggestionId: string | null,
 ): boolean {
-  return phase === "done_for_now" && (eligibleCount > 0 || suggestionId !== null);
+  return (
+    (phase === "done_for_now" && (eligibleCount > 0 || suggestionId !== null)) ||
+    (phase === "scout_reply" && cardId === null && eligibleCount > 0)
+  );
 }
 
 export type ApproachTaskContext = {

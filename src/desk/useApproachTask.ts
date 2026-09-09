@@ -1,7 +1,7 @@
 /**
  * The Approach task machine. One locked card, its For You wait, the refill arm,
- * and the detector it owns. Inventory arrivals never release a task; only a
- * card button, a cleared gate, or pre-paint normalization changes the lock.
+ * and the detector it owns. Inventory can fill an empty collecting lock; active
+ * cards stay locked until a card button, gate change, or normalization.
  */
 import {
   useEffect,
@@ -317,6 +317,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       !current ||
       !shouldAutoAdvanceIdle(
         current.lock.phase,
+        current.lock.cardId,
         eligibleCount,
         availableSuggestionId,
       )
@@ -324,7 +325,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       return;
     }
     advanceCard({ type: "next" });
-  }, [availableSuggestionId, eligibleCount, phase]);
+  }, [availableSuggestionId, eligibleCount, phase, lock?.cardId]);
 
   useEffect(() => {
     const current = stateRef.current;

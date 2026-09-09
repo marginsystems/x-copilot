@@ -94,6 +94,14 @@ function isInventoryTask(lock: ApproachLock): boolean {
   );
 }
 
+function nextScoutCard(scoutId: string | null, excludeId: string | null): ApproachLock {
+  return {
+    phase: "scout_reply",
+    cardId: scoutId !== excludeId ? scoutId : null,
+    surface: null,
+  };
+}
+
 function nextInventoryCard(
   inventory: ApproachInventory,
   excludeId: string | null,
@@ -174,6 +182,9 @@ export function normalizeApproachLock(
       null,
     );
   if (isInventoryTask(lock)) return lock;
+  if (lock.phase === "scout_reply") {
+    return ctx.scoutId ? nextScoutCard(ctx.scoutId, null) : lock;
+  }
   if (ctx.gate) {
     if (lock.phase === "silent_refuel" && lock.surface === ctx.gate) {
       return lock;
@@ -200,7 +211,7 @@ export function normalizeApproachLock(
 }
 
 /**
- * The sole unlock point for Approach. Inventory and async state never call it.
+ * The unlock point for Approach, including stock filling an in-flight Scout lock.
  * The caller supplies one snapshot; the chosen result is locked until another
  * legal card button is pressed.
  */
@@ -224,12 +235,15 @@ export function advanceApproach(
   }
   if (locked.phase === "scout_reply") {
     if (event.type === "next") {
+      if (locked.cardId === null) {
+        return inventory.scoutId ? nextScoutCard(inventory.scoutId, null) : locked;
+      }
       if (inventory.paceLocked) return { ...HOLD_LOCK };
       return nextInventoryCard(inventory, locked.cardId, locked.phase);
     }
     if (event.type === "mark") return { ...HOLD_LOCK };
     if (event.type === "skip" || event.type === "dismiss") {
-      return nextInventoryCard(inventory, locked.cardId, locked.phase);
+      return nextScoutCard(inventory.scoutId, locked.cardId);
     }
   }
   if (locked.phase === "organic_reply") {
