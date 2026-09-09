@@ -62,7 +62,6 @@ function missionProps(
     authUser: null,
     setVoice() {},
     exitingIds: new Set(),
-    onScoutMark() {},
     onScoutSkip() {},
     onScoutDismiss() {},
     onSuggestionPosted() {},

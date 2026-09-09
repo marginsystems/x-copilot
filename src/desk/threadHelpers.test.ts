@@ -4,7 +4,6 @@ import {
   appendThreadsById,
   baitClass,
   coolProgressLabel,
-  parseStatusIdFromUrl,
   scoutProgressPrefix,
 } from "./threadHelpers.ts";
 import type { ThreadCard } from "./types.ts";
@@ -18,29 +17,6 @@ function card(id: string, extra: Partial<ThreadCard> = {}): ThreadCard {
     ...extra,
   };
 }
-
-describe("parseStatusIdFromUrl", () => {
-  it("parses x.com and twitter.com status URLs", () => {
-    assert.equal(
-      parseStatusIdFromUrl("https://x.com/me/status/1234567890"),
-      "1234567890",
-    );
-    assert.equal(
-      parseStatusIdFromUrl("https://twitter.com/me/status/99?s=20"),
-      "99",
-    );
-    assert.equal(
-      parseStatusIdFromUrl("x.com/foo/statuses/42"),
-      "42",
-    );
-  });
-
-  it("rejects non-status URLs", () => {
-    assert.equal(parseStatusIdFromUrl("https://x.com/home"), null);
-    assert.equal(parseStatusIdFromUrl("not a url"), null);
-    assert.equal(parseStatusIdFromUrl(""), null);
-  });
-});
 
 describe("appendThreadsById", () => {
   it("appends unseen ids and keeps first occurrence", () => {

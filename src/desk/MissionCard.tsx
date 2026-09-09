@@ -45,7 +45,6 @@ export type MissionCardProps = ApproachCardInput & {
   authUser: AuthSessionUser | null;
   setVoice: Dispatch<SetStateAction<VoiceState | null>>;
   exitingIds: Set<string>;
-  onScoutMark: (thread: ThreadCard) => void;
   onScoutSkip: (thread: ThreadCard) => void;
   onScoutDismiss: (thread: ThreadCard) => void;
   onScoutNext?: () => void;
@@ -71,8 +70,6 @@ function ScoutRow(props: MissionCardProps & { thread: ThreadCard }) {
         props.setExpandedId((id) => (id === thread.id ? null : thread.id))
       }
       onWatch={() => watchDeskThreads([thread])}
-      showMark={false}
-      onMark={() => props.onScoutMark(thread)}
       onSkip={() => props.onScoutSkip(thread)}
       onDismiss={() => props.onScoutDismiss(thread)}
       onNext={props.onScoutNext}
