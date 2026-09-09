@@ -373,6 +373,14 @@ describe("normalizeApproachLock", () => {
       surface: null,
     } as const;
     assert.equal(normalizeApproachLock(active, gated), active);
+    assert.deepEqual(normalizeApproachLock(
+      { phase: "scout_reply", cardId: null, surface: null },
+      gated,
+    ), {
+      phase: "silent_refuel",
+      cardId: null,
+      surface: "link_x",
+    });
   });
 
   it("repairs legacy needs_onboarding and malformed combos", () => {
