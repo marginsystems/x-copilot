@@ -1,26 +1,5 @@
 import type { ThreadCard } from "./types";
 
-/** Keep in sync with server/src/interactionStore.ts parseStatusIdFromUrl. */
-export function parseStatusIdFromUrl(url: string): string | null {
-  const raw = url.trim();
-  if (!raw) return null;
-  try {
-    const u = new URL(raw.includes("://") ? raw : `https://${raw}`);
-    const host = u.hostname.replace(/^www\./, "").toLowerCase();
-    if (
-      host !== "x.com" &&
-      host !== "twitter.com" &&
-      host !== "mobile.twitter.com"
-    ) {
-      return null;
-    }
-    const m = u.pathname.match(/\/status(?:es)?\/(\d+)/i);
-    return m?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function normalizeAuthorKey(author: string): string {
   return author.trim().replace(/^@+/, "").toLowerCase();
 }

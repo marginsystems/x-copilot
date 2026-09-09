@@ -33,9 +33,6 @@ import {
 import type { ThreadCard, ThreadsTab } from "./desk/types";
 import { ensureActivitySubscribe } from "./desk/watch";
 import { DismissModal } from "./desk/DismissModal";
-import { MarkDetectModal } from "./desk/MarkDetectModal";
-import { Toast } from "./desk/Toast";
-import { useMarkDetect } from "./desk/useMarkDetect";
 import { useAgendaPersist } from "./desk/useAgendaPersist";
 import { useDeskBoot } from "./desk/useDeskBoot";
 import { useScoutRun } from "./desk/useScoutRun";
@@ -73,15 +70,13 @@ export default function App() {
     cachedBoot?.desk?.lastScout.snapshot?.threads ?? null,
   );
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  /** Short mutex for mark/skip/dismiss/settings — not Scout-in-flight. */
+  /** Short mutex for skip/dismiss/settings — not Scout-in-flight. */
   const [actionBusy, setActionBusy] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const {
     interactedIds,
-    setInteractedIds,
     interactedHistory,
     interactedHydrated,
-    setInteractedHistory,
     dismissedHistory,
     setDismissedHistory,
     skippedHistory,
@@ -90,7 +85,6 @@ export default function App() {
     forYouSuggestions,
     dismissedIdsRef,
     skippedIdsRef,
-    interactedIdsRef,
     blockedConversationsRef,
     historyStaleRef,
     applyHistoryFromBoot,
@@ -273,27 +267,6 @@ export default function App() {
     setAuthUser,
   });
   const {
-    markThread,
-    markDetectNote,
-    toast,
-    openMarkModal,
-    closeMarkModal,
-  } = useMarkDetect({
-    agenda,
-    setThreads,
-    setExpandedId,
-    setInteractedIds,
-    setInteractedHistory,
-    interactedIdsRef,
-    blockedConversationsRef,
-    historyStaleRef,
-    onInteractionCommitted: () => {
-      void hydrateActivityStats();
-      void hydrateGamification();
-      void hydrateCoaching();
-    },
-  });
-  const {
     dismissThread,
     dismissReason,
     setDismissReason,
@@ -398,7 +371,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!markThread && !dismissThread && !signInOpen && !onboardingPreview) {
+    if (!dismissThread && !signInOpen && !onboardingPreview) {
       return;
     }
     function onKey(e: KeyboardEvent) {
@@ -407,7 +380,6 @@ export default function App() {
         exitOnboardingPreview();
         return;
       }
-      if (markThread) closeMarkModal();
       if (dismissThread) closeDismissModal();
       if (signInOpen) {
         setSignInOpen(false);
@@ -416,7 +388,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [markThread, dismissThread, signInOpen, onboardingPreview, actionBusy]);
+  }, [dismissThread, signInOpen, onboardingPreview, actionBusy]);
 
   const needsXLink = deskNeedsXLink(authUser);
   const booting = !localUi && !authChecked;
@@ -736,7 +708,6 @@ export default function App() {
               agendaReady={agendaReady}
               deskBootReady={deskBootReady}
               authUser={authUser}
-              markThread={markThread}
               dismissThread={dismissThread}
               setVoice={setVoice}
               actForYou={async (id, action) => {
@@ -760,7 +731,6 @@ export default function App() {
               }
               searchCooldownRemaining={searchCooldownRemaining}
               onSearch={onSearch}
-              onMark={openMarkModal}
               onSkip={onSkip}
               onDismiss={openDismissModal}
               onRefreshCoaching={hydrateCoaching}
@@ -783,12 +753,6 @@ export default function App() {
         </main>
       ) : null}
 
-      <MarkDetectModal
-        thread={markThread}
-        note={markDetectNote}
-        onClose={closeMarkModal}
-      />
-      <Toast toast={toast} />
       <DismissModal
         thread={dismissThread}
         reason={dismissReason}

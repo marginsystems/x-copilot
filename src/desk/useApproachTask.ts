@@ -81,7 +81,6 @@ export type UseApproachTaskOpts = {
   interactedHistory: InteractionHistoryEntry[];
   interactedHydrated: boolean;
   dismissedHistory: DismissalHistoryEntry[];
-  markThread: ThreadCard | null;
   dismissThread: ThreadCard | null;
   searching: boolean;
   grounded: boolean;
@@ -92,7 +91,6 @@ export type UseApproachTaskOpts = {
     action: "done" | "skip" | "dismiss",
   ) => Promise<boolean>;
   onSearch: () => void;
-  onMark: (thread: ThreadCard) => void;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
@@ -112,7 +110,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     interactedHistory,
     interactedHydrated,
     dismissedHistory,
-    markThread,
     dismissThread,
     searching,
     grounded,
@@ -120,7 +117,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     setExpandedId,
     actForYou,
     onSearch,
-    onMark,
     onSkip,
     onDismiss,
     onRefreshCoaching,
@@ -394,7 +390,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }, [authUser?.id, lockedScout, phase, ready]);
 
   const pendingDismissIdRef = useRef<string | null>(null);
-  const pendingMarkIdRef = useRef<string | null>(null);
   const autoTriedRef = useRef(readScoutTakeoffTried());
   const bootRefuelCheckedRef = useRef(false);
   const [refuelArmed, setRefuelArmed] = useState(false);
@@ -491,10 +486,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
 
   useEffect(() => {
     if (!deskBootReady || !lock?.cardId) return;
-    if (
-      pendingDismissIdRef.current === lock.cardId ||
-      pendingMarkIdRef.current === lock.cardId
-    ) {
+    if (pendingDismissIdRef.current === lock.cardId) {
       return;
     }
     const cardIsLive =
@@ -545,15 +537,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }, [curatedThreads, forYouSuggestions, clearGone]);
   useEffect(() => {
     if (
-      !markThread &&
-      pendingMarkIdRef.current &&
-      !interactedIds.has(pendingMarkIdRef.current)
-    ) {
-      pendingMarkIdRef.current = null;
-    }
-  }, [interactedIds, markThread]);
-  useEffect(() => {
-    if (
       !dismissThread &&
       pendingDismissIdRef.current &&
       !dismissedHistory.some(
@@ -570,14 +553,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     advanceCard({ type: "dismiss" });
     armRefuel(eligibleScouts.filter((row) => row.id !== id).length, true);
   }, [dismissedHistory]);
-  useEffect(() => {
-    const id = pendingMarkIdRef.current;
-    if (!id || !interactedIds.has(id)) return;
-    pendingMarkIdRef.current = null;
-    advanceCard({ type: "mark" });
-    armRefuel(eligibleScouts.filter((row) => row.id !== id).length, true);
-  }, [interactedIds]);
-
   function exitRow(
     id: string,
     expandedKey: string,
@@ -608,15 +583,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       pace.bypass();
       advanceCard({ type: "bypass" });
     },
-    onScoutMark(thread: ThreadCard) {
-      pendingMarkIdRef.current = thread.id;
-      onMark(thread);
-    },
     onScoutSkip(thread: ThreadCard) {
       exitRow(thread.id, thread.id, async () => {
         const skipped = await onSkip(thread);
         if (skipped) {
-          pendingMarkIdRef.current = null;
           pendingDismissIdRef.current = null;
           advanceCard({ type: "skip" });
           armRefuel(

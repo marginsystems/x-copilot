@@ -45,7 +45,6 @@ type ThreadsTabsProps = {
   agendaReady: boolean;
   deskBootReady: boolean;
   authUser: AuthSessionUser | null;
-  markThread: ThreadCard | null;
   dismissThread: ThreadCard | null;
   setVoice: Dispatch<SetStateAction<VoiceState | null>>;
   actForYou: (
@@ -60,7 +59,6 @@ type ThreadsTabsProps = {
   groundedLine: string | null;
   searchCooldownRemaining: number;
   onSearch: () => void;
-  onMark: (thread: ThreadCard) => void;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
@@ -113,7 +111,6 @@ export function ThreadsTabs({
   agendaReady,
   deskBootReady,
   authUser,
-  markThread,
   dismissThread,
   setVoice,
   actForYou,
@@ -123,7 +120,6 @@ export function ThreadsTabs({
   grounded,
   searchCooldownRemaining,
   onSearch,
-  onMark,
   onSkip,
   onDismiss,
   onRefreshCoaching,
@@ -141,7 +137,6 @@ export function ThreadsTabs({
     interactedHistory,
     interactedHydrated,
     dismissedHistory,
-    markThread,
     dismissThread,
     searching,
     grounded,
@@ -149,7 +144,6 @@ export function ThreadsTabs({
     setExpandedId,
     actForYou,
     onSearch,
-    onMark,
     onSkip,
     onDismiss,
     onRefreshCoaching,
@@ -219,7 +213,6 @@ export function ThreadsTabs({
               authUser={authUser}
               setVoice={setVoice}
               exitingIds={task.exitingIds}
-              onScoutMark={task.onScoutMark}
               onScoutSkip={task.onScoutSkip}
               onScoutDismiss={task.onScoutDismiss}
               onScoutNext={task.onScoutNext}

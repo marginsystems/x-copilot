@@ -1,6 +1,4 @@
-/* 07b-modals.css: .modal-* / .mark-detect-* / .app-toast */
-
-/* Mark interacted — reply capture modal */
+/* 07b-modals.css: shared modal sheets */
 
 .modal-root {
   position: fixed;
@@ -41,10 +39,6 @@
   font-weight: 600;
 }
 
-.mark-detect-sheet {
-  justify-items: start;
-}
-
 .flight-share-sheet {
   width: min(360px, 100%);
 }
@@ -78,62 +72,6 @@
   justify-content: center;
 }
 
-.mark-detect-anim {
-  display: inline-flex;
-  gap: 6px;
-}
-
-.mark-detect-anim span {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: voice-pulse 1.2s ease-in-out infinite;
-}
-
-.mark-detect-anim span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.mark-detect-anim span:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-.app-toast {
-  position: fixed;
-  left: 50%;
-  bottom: 20px;
-  z-index: 80;
-  width: min(28rem, calc(100% - 24px));
-  transform: translateX(-50%);
-  padding: 12px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--panel);
-  color: var(--text);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-  font-size: 0.82rem;
-  line-height: 1.4;
-}
-
-.app-toast.is-warn {
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--border-strong));
-}
-
-.mark-reply-url {
-  width: 100%;
-  min-height: 0;
-  background: var(--raised);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 12px;
-  font-family: var(--font-body);
-  /* 16px minimum — iOS Safari zooms focused inputs under 16px */
-  font-size: 16px;
-  line-height: 1.45;
-}
-
 .mark-reply-text {
   width: 100%;
   min-height: 120px;
@@ -148,7 +86,6 @@
   line-height: 1.45;
 }
 
-.mark-reply-url:focus-visible,
 .mark-reply-text:focus-visible {
   outline: 1px solid var(--accent-dim);
   border-color: var(--accent-dim);
