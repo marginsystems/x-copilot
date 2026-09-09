@@ -146,22 +146,11 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
         detector: input.scoutDetected ? null : "scout",
       };
     }
-    if (input.phase === "done_for_now") {
-      return {
-        ...blank,
-        kind: "scout_missing",
-        verb: "Collecting",
-        why: approachCollectingCopy({ searching: input.searching }),
-      };
-    }
     return {
       ...blank,
       kind: "scout_missing",
-      verb: "Reply",
-      why: phaseWhy("scout_reply", input.coaching, null, {
-        detected: input.scoutDetected,
-      }),
-      detector: input.scoutDetected ? null : "scout",
+      verb: "Collecting",
+      why: approachCollectingCopy({ searching: input.searching }),
     };
   }
   return {

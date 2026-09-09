@@ -95,7 +95,7 @@ describe("Approach lock", () => {
     );
     assert.deepEqual(
       advanceApproach(scout, { type: "skip" }, inventory),
-      { phase: "organic_reply", cardId: "suggested-1", surface: null },
+      { phase: "scout_reply", cardId: "scout-2", surface: null },
     );
     assert.deepEqual(
       advanceApproach(
@@ -103,7 +103,7 @@ describe("Approach lock", () => {
         { type: "skip" },
         { scoutId: "scout-1", suggestionId: null, canPresentForYou: false },
       ),
-      { phase: "done_for_now", cardId: null, surface: null },
+      { phase: "scout_reply", cardId: null, surface: null },
     );
     assert.deepEqual(
       advanceApproach(scout, { type: "mark" }, inventory),
@@ -184,7 +184,7 @@ describe("Approach lock", () => {
     );
   });
 
-  it("falls back to the gate card, never done_for_now, when the feed is closed", () => {
+  it("keeps last Skip in flight even when the feed is closed", () => {
     assert.deepEqual(
       advanceApproach(
         { phase: "scout_reply", cardId: "scout-1", surface: null },
@@ -196,7 +196,7 @@ describe("Approach lock", () => {
           gate: "link_x",
         },
       ),
-      { phase: "silent_refuel", cardId: null, surface: "link_x" },
+      { phase: "scout_reply", cardId: null, surface: null },
     );
   });
 
@@ -373,12 +373,19 @@ describe("normalizeApproachLock", () => {
       surface: null,
     } as const;
     assert.equal(normalizeApproachLock(active, gated), active);
+    assert.deepEqual(normalizeApproachLock(
+      { phase: "scout_reply", cardId: null, surface: null },
+      gated,
+    ), {
+      phase: "silent_refuel",
+      cardId: null,
+      surface: "link_x",
+    });
   });
 
   it("repairs legacy needs_onboarding and malformed combos", () => {
     const malformed: ApproachLock[] = [
       { phase: "needs_onboarding", cardId: null, surface: null },
-      { phase: "scout_reply", cardId: null, surface: null },
       { phase: "organic_reply", cardId: null, surface: null },
       { phase: "silent_refuel", cardId: null, surface: null },
     ];
@@ -515,87 +522,44 @@ describe("S10 skip-next", () => {
     surface: null,
   } as const;
 
-  it("Skip of a scout alternates to For You when no suggestion exists", () => {
-    assert.deepEqual(
-      advanceApproach(
-        firstScout,
-        { type: "skip" },
-        { scoutId: "scout-2", suggestionId: null, canPresentForYou: true },
-      ),
-      { phase: "silent_refuel", cardId: null, surface: "for_you" },
-    );
-  });
-
-  it("last Skip with no other scout presents For You when canPresentForYou; otherwise done_for_now", () => {
-    assert.deepEqual(
-      advanceApproach(
-        firstScout,
-        { type: "skip" },
-        { scoutId: "scout-1", suggestionId: null, canPresentForYou: true },
-      ),
-      { phase: "silent_refuel", cardId: null, surface: "for_you" },
-    );
-    assert.deepEqual(
-      advanceApproach(
-        firstScout,
-        { type: "skip" },
-        { scoutId: "scout-1", suggestionId: null, canPresentForYou: false },
-      ),
-      { phase: "done_for_now", cardId: null, surface: null },
-    );
-  });
-
-  it("For You Next collects while last Scout Skip may land on For You", () => {
-    const emptyTank = {
-      scoutId: null,
-      suggestionId: null,
-      canPresentForYou: true,
-    };
-    assert.deepEqual(
-      advanceApproach(
-        { phase: "silent_refuel", cardId: null, surface: "for_you" },
-        { type: "next" },
-        emptyTank,
-      ),
-      { phase: "done_for_now", cardId: null, surface: null },
-    );
-    assert.deepEqual(
-      advanceApproach(firstScout, { type: "skip" }, emptyTank),
-      { phase: "silent_refuel", cardId: null, surface: "for_you" },
-    );
-  });
-
-  it("last Skip badge is 1 while refill is queued, waiting, or flying; terminal_empty is 0", () => {
-    const lastSkip = advanceApproach(
-      firstScout,
-      { type: "skip" },
-      { scoutId: "scout-1", suggestionId: null, canPresentForYou: false },
-    );
-    assert.deepEqual(lastSkip, {
-      phase: "done_for_now",
-      cardId: null,
-      surface: null,
+  for (const type of ["skip", "dismiss"] as const) {
+    it(`${type} takes the next scout despite leftovers and a running minute`, () => {
+      for (const suggestionId of [null, "original-1"]) {
+        assert.deepEqual(
+          advanceApproach(firstScout, { type }, {
+            scoutId: "scout-2", suggestionId,
+            canPresentForYou: true, paceLocked: true,
+          }),
+          { phase: "scout_reply", cardId: "scout-2", surface: null },
+        );
+      }
     });
-    for (const refillState of ["queued", "waiting", "flying"] as const) {
-      assert.equal(
-        approachTabLiveCount({
-          phase: lastSkip.phase,
-          hasScoutCard: false,
-          hasSuggestion: false,
-          refillState,
-        }),
-        1,
-      );
+
+    it(`last ${type} stays in flight, excluding the current scout`, () => {
+      for (const scoutId of [null, "scout-1"]) {
+        for (const canPresentForYou of [false, true]) {
+          assert.deepEqual(
+            advanceApproach(firstScout, { type }, {
+              scoutId, suggestionId: "original-1", canPresentForYou,
+            }),
+            { phase: "scout_reply", cardId: null, surface: null },
+          );
+        }
+      }
+    });
+  }
+
+  it("in-flight Next and normalize accept only a new scout, even during the minute", () => {
+    const flying = { phase: "scout_reply", cardId: null, surface: null } as const;
+    for (const scoutId of [null, "scout-3"]) {
+      const expected = { ...flying, cardId: scoutId };
+      assert.deepEqual(advanceApproach(flying, { type: "next" }, {
+        scoutId, suggestionId: "original-1", canPresentForYou: true, paceLocked: true,
+      }), expected);
+      assert.deepEqual(normalizeApproachLock(flying, {
+        scoutId, suggestionId: "original-1", gate: null, canOpenForYou: true,
+      }), expected);
     }
-    assert.equal(
-      approachTabLiveCount({
-        phase: lastSkip.phase,
-        hasScoutCard: false,
-        hasSuggestion: false,
-        refillState: "terminal_empty",
-      }),
-      0,
-    );
   });
 
   it("Mark on a scout lock holds For You", () => {
