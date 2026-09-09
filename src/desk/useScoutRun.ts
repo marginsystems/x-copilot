@@ -132,6 +132,8 @@ export function useScoutRun({
     const targetCool = DEFAULT_TARGET_COOL_THREADS;
 
     setSearching(true);
+    // Drop leftover wait / failure copy so a clean landing does not keep it.
+    setStatus("");
     // Keep existing thread rows; partials + done append by id across runs.
 
     try {
