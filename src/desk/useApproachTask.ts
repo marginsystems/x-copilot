@@ -29,7 +29,6 @@ import type { CoachingState } from "../lib/coaching";
 import { deskNeedsXLink } from "../lib/deskGate";
 import {
   approachGate,
-  approachTabLiveCount,
   isForYouTask,
   type ApproachEvent,
   type ApproachInventory,
@@ -623,15 +622,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     await actForYou(id, "done");
   }
 
-  const badge =
-    agendaReady && ready
-      ? approachTabLiveCount({
-          phase,
-          hasScoutCard: lockedScout != null,
-          hasSuggestion: lockedSuggestion != null,
-          holdForYouTask: presentation.kind === "for_you",
-        })
-      : 0;
+  const badge = agendaReady && ready ? presentation.badge : 0;
 
   return {
     ready,
