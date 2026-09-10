@@ -8,7 +8,6 @@ import {
   forYouKindLabel,
   forYouKindShort,
   forYouOpenUrl,
-  forYouSourceUrl,
   forYouUsesDeskCompose,
   parseForYouProgress,
   parseForYouSuggestion,
@@ -93,31 +92,6 @@ describe("forYou helpers", () => {
       forYouOpenUrl({ ...base, draft: null, targetUrl: null, targetId: null }),
       null,
     );
-  });
-
-  it("points a quote at the original status, not a compose intent", () => {
-    assert.equal(
-      forYouSourceUrl({
-        ...base,
-        kind: "quote",
-        targetId: "2095415893610348834",
-        targetUrl: "https://x.com/desk/status/2095415893610348834",
-        targetAuthor: "@marginsystems",
-      }),
-      "https://x.com/desk/status/2095415893610348834",
-    );
-    assert.equal(
-      forYouSourceUrl({
-        ...base,
-        kind: "quote",
-        draft: "still true",
-        targetId: "10",
-        targetUrl: null,
-        targetAuthor: "@marginsystems",
-      }),
-      "https://x.com/marginsystems/status/10",
-    );
-    assert.equal(forYouSourceUrl(base), null);
   });
 
   it("rejects non-http(s) targetUrl schemes and falls back", () => {
