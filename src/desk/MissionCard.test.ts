@@ -347,7 +347,8 @@ describe("Approach flight frame", () => {
         }),
       ),
     );
-    assert.match(html, escapeRe(SCOUT_DETECTED_COPY));
+    assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
+    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
     assert.match(html, /chip-interacted/);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /Open on X|Open original/);

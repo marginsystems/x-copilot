@@ -10,6 +10,7 @@ import {
 import type { VoiceState } from "../lib/voice";
 import { SuggestPane } from "../SuggestPane";
 import { SuggestLocked } from "../VoiceCard";
+import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 
 export function SuggestedRow({
@@ -23,6 +24,7 @@ export function SuggestedRow({
   onToggle,
   onPosted,
   interacted,
+  detecting,
   onNext,
   onSkip,
   onDismiss,
@@ -42,6 +44,7 @@ export function SuggestedRow({
   onToggle: () => void;
   onPosted: () => void;
   interacted?: boolean;
+  detecting?: boolean;
   onNext?: () => void;
   onSkip: () => void;
   onDismiss: () => void;
@@ -74,6 +77,7 @@ export function SuggestedRow({
           <span className={interacted ? "chip chip-interacted" : "chip"}>
             {interacted ? "interacted" : forYouKindLabel(row.kind)}
           </span>
+          {!interacted && detecting ? <ApproachDetectingMark /> : null}
           {!interacted && row.targetAuthor ? (
             <span>{row.targetAuthor}</span>
           ) : null}

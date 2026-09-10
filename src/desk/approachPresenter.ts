@@ -11,7 +11,7 @@ import {
   FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
-import { approachCollectingCopy, phaseWhy } from "../lib/phaseWhy";
+import { approachCollectingCopy } from "../lib/phaseWhy";
 import type { ThreadCard } from "./types";
 
 /** Reading, an original, or a quote count during the reply minute. */
@@ -159,9 +159,7 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
     ...blank,
     kind: "suggested",
     verb: suggestionVerb(input.suggestion),
-    why: phaseWhy("organic_reply", input.coaching, input.suggestion, {
-      detected: input.suggestionDetected,
-    }),
+    why: "",
     badge: input.suggestion ? 1 : 0,
     detector:
       detectsReply && !input.suggestionDetected ? "scout" : null,

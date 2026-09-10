@@ -132,7 +132,9 @@ function GateCard(props: MissionCardProps & { view: ApproachPresentation }) {
   );
 }
 
-function SuggestedCard(props: MissionCardProps) {
+function SuggestedCard(
+  props: MissionCardProps & { view: ApproachPresentation },
+) {
   const row = props.suggestion;
   const key = row ? `suggest:${row.id}` : null;
   return (
@@ -147,6 +149,7 @@ function SuggestedCard(props: MissionCardProps) {
             exiting={props.exitingIds.has(row.id)}
             busy={props.actionBusy}
             interacted={props.suggestionDetected}
+            detecting={props.view.detector === "scout"}
             voice={props.voice}
             agenda={props.agenda}
             xLinked={props.authUser?.xLinked}
@@ -226,5 +229,5 @@ export function MissionCard(props: MissionCardProps) {
     );
   }
 
-  return withReplyPace(<SuggestedCard {...props} />);
+  return withReplyPace(<SuggestedCard {...props} view={view} />);
 }
