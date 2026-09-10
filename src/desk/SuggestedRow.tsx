@@ -81,9 +81,9 @@ export function SuggestedRow({
       }
       onToggle={onToggle}
     >
-      {!interacted && sourceUrl ? (
+      {!interacted && openUrl ? (
         <p className="for-you-source">
-          <a href={sourceUrl} target="_blank" rel="noreferrer">
+          <a href={openUrl} target="_blank" rel="noreferrer">
             {row.targetAuthor
               ? `Open original ${row.targetAuthor}`
               : "Open original on X"}
