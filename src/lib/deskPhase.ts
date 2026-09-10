@@ -262,28 +262,3 @@ export function advanceApproach(
   }
   return locked;
 }
-
-/** Approach tab badge: the card on the desk (0 or 1). */
-export function approachTabLiveCount(opts: {
-  phase: DeskPhase;
-  hasScoutCard: boolean;
-  hasSuggestion: boolean;
-  /** A real For You task is presented, whatever phase carries it. */
-  holdForYouTask?: boolean;
-  refillState?: "queued" | "waiting" | "flying" | "landed" | "terminal_empty";
-}): number {
-  if (opts.holdForYouTask) return 1;
-  if (opts.phase === "scout_reply" && opts.hasScoutCard) return 1;
-  if (opts.phase === "organic_reply" && opts.hasSuggestion) {
-    return 1;
-  }
-  if (
-    opts.phase === "done_for_now" &&
-    (opts.refillState === "queued" ||
-      opts.refillState === "waiting" ||
-      opts.refillState === "flying")
-  ) {
-    return 1;
-  }
-  return 0;
-}

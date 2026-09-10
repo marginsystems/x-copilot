@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import {
   advanceApproach,
   approachGate,
-  approachTabLiveCount,
   emptyDeskBeats,
   initialApproachLock,
   isForYouTask,
@@ -430,87 +429,6 @@ describe("normalizeApproachLock", () => {
     assert.equal(
       isForYouTask({ phase: "scout_reply", cardId: "s", surface: null }),
       false,
-    );
-  });
-});
-
-describe("approachTabLiveCount", () => {
-  it("is 1 for a real For You task whatever phase carries it", () => {
-    for (const phase of ["silent_refuel", "hold", "done_for_now"] as const) {
-      assert.equal(
-        approachTabLiveCount({
-          phase,
-          hasScoutCard: false,
-          hasSuggestion: false,
-          holdForYouTask: true,
-          refillState: "terminal_empty",
-        }),
-        1,
-      );
-    }
-  });
-
-  it("counts the card on the desk", () => {
-    assert.equal(
-      approachTabLiveCount({
-        phase: "scout_reply",
-        hasScoutCard: true,
-        hasSuggestion: true,
-      }),
-      1,
-    );
-    assert.equal(
-      approachTabLiveCount({
-        phase: "organic_reply",
-        hasScoutCard: false,
-        hasSuggestion: true,
-      }),
-      1,
-    );
-    assert.equal(
-      approachTabLiveCount({
-        phase: "silent_refuel",
-        hasScoutCard: false,
-        hasSuggestion: false,
-      }),
-      0,
-    );
-    assert.equal(
-      approachTabLiveCount({
-        phase: "silent_refuel",
-        hasScoutCard: true,
-        hasSuggestion: false,
-        holdForYouTask: true,
-      }),
-      1,
-    );
-    assert.equal(
-      approachTabLiveCount({
-        phase: "done_for_now",
-        hasScoutCard: false,
-        hasSuggestion: false,
-      }),
-      0,
-    );
-    for (const refillState of ["queued", "waiting", "flying"] as const) {
-      assert.equal(
-        approachTabLiveCount({
-          phase: "done_for_now",
-          hasScoutCard: false,
-          hasSuggestion: false,
-          refillState,
-        }),
-        1,
-      );
-    }
-    assert.equal(
-      approachTabLiveCount({
-        phase: "done_for_now",
-        hasScoutCard: false,
-        hasSuggestion: false,
-        refillState: "terminal_empty",
-      }),
-      0,
     );
   });
 });
