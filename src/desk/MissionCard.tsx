@@ -66,6 +66,7 @@ function ScoutRow(props: MissionCardProps & { thread: ThreadCard }) {
       exiting={props.exitingIds.has(thread.id)}
       busy={props.actionBusy}
       interacted={props.scoutDetected}
+      detecting={!props.scoutDetected}
       onToggle={() =>
         props.setExpandedId((id) => (id === thread.id ? null : thread.id))
       }
@@ -111,9 +112,7 @@ function ScoutRow(props: MissionCardProps & { thread: ThreadCard }) {
 function GateCard(props: MissionCardProps & { view: ApproachPresentation }) {
   const { view } = props;
   return (
-    <div className="mission-card">
-      <p className="mission-card-verb">{view.verb}</p>
-      <p className="mission-card-why">{view.why}</p>
+    <ApproachFrame verb={view.verb} why={view.why}>
       <div className="row">
         {view.gate === "link_x" ? (
           <button type="button" className="primary" onClick={props.onLinkX}>
@@ -129,7 +128,7 @@ function GateCard(props: MissionCardProps & { view: ApproachPresentation }) {
           </button>
         )}
       </div>
-    </div>
+    </ApproachFrame>
   );
 }
 
@@ -139,9 +138,7 @@ function SuggestedCard(
   const row = props.suggestion;
   const key = row ? `suggest:${row.id}` : null;
   return (
-    <div className="mission-card">
-      <p className="mission-card-verb">{props.view.verb}</p>
-      <p className="mission-card-why">{props.view.why}</p>
+    <ApproachFrame>
       {row && key ? (
         <div className="threads">
           <SuggestedRow
@@ -152,6 +149,7 @@ function SuggestedCard(
             exiting={props.exitingIds.has(row.id)}
             busy={props.actionBusy}
             interacted={props.suggestionDetected}
+            detecting={props.view.detector === "scout"}
             voice={props.voice}
             agenda={props.agenda}
             xLinked={props.authUser?.xLinked}
@@ -171,7 +169,7 @@ function SuggestedCard(
           />
         </div>
       ) : null}
-    </div>
+    </ApproachFrame>
   );
 }
 
@@ -202,7 +200,7 @@ export function MissionCard(props: MissionCardProps) {
 
   if (view.kind === "for_you" && view.forYou) {
     return withReplyPace(
-      <ApproachFrame verb={view.verb} why={view.why}>
+      <ApproachFrame>
         <ForYouFeedRow
           status={view.forYou.status}
           detected={view.forYou.detected}
@@ -217,7 +215,7 @@ export function MissionCard(props: MissionCardProps) {
 
   if (view.kind === "scout" && props.scout) {
     return withReplyPace(
-      <ApproachFrame verb={view.verb} why={view.why}>
+      <ApproachFrame>
         <ScoutRow {...props} thread={props.scout} />
       </ApproachFrame>,
     );
@@ -225,7 +223,7 @@ export function MissionCard(props: MissionCardProps) {
 
   if (view.kind === "scout_missing") {
     return withReplyPace(
-      <ApproachFrame verb={view.verb} why={view.why} busy>
+      <ApproachFrame verb={view.verb} busy>
         <ApproachFlightRow line={view.why} flying={props.searching === true} />
       </ApproachFrame>,
     );

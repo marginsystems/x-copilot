@@ -113,11 +113,14 @@ describe("Reply pace", () => {
         missionProps({
           phase: "hold",
           surface: "for_you",
+          forYou: { detected: false },
           clock: "0:42",
           remainingMs: 42_000,
         }),
       ),
     );
+    assert.match(html, escapeRe(FYP_DETECTING_COPY));
+    assert.match(html, /approach-panel-loader-mark/);
     assert.match(html, /reply-pace/);
     assert.match(html, /0:42/);
     assert.match(html, />Bypass</);
@@ -166,7 +169,9 @@ describe("Reply pace", () => {
         }),
       ),
     );
-    assert.match(html, /Suggested reply/);
+    assert.match(html, /A suggested reply/);
+    assert.match(html, /class="mission-card approach-frame"/);
+    assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
     assert.match(html, /reply-pace/);
     assert.match(html, /0:42/);
   });
@@ -182,7 +187,9 @@ describe("Reply pace", () => {
         }),
       ),
     );
-    assert.match(html, /Suggested reply/);
+    assert.match(html, /A suggested reply/);
+    assert.match(html, /class="mission-card approach-frame"/);
+    assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
     assert.doesNotMatch(html, /reply-pace/);
     assert.doesNotMatch(html, /0:00/);
   });
@@ -238,7 +245,7 @@ describe("Hold presentation", () => {
         }),
       ),
     );
-    assert.match(html, />Hold</);
+    assert.match(html, /for-you-status/);
     assert.match(html, escapeRe(FYP_DETECTING_COPY));
     assert.match(html, />Open For You</);
     assert.match(html, escapeRe(FYP_HOLD_ACTION_COPY));
@@ -261,7 +268,7 @@ describe("Hold presentation", () => {
       ),
     );
     assert.match(html, />For You</);
-    assert.doesNotMatch(html, />Hold</);
+    assert.doesNotMatch(html, /mission-card-verb/);
     assert.match(html, />Open For You</);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /reply-pace/);
@@ -340,7 +347,8 @@ describe("Approach flight frame", () => {
         }),
       ),
     );
-    assert.match(html, escapeRe(SCOUT_DETECTED_COPY));
+    assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
+    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
     assert.match(html, /chip-interacted/);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /Open on X|Open original/);
@@ -364,12 +372,14 @@ describe("Approach flight frame", () => {
     assert.match(html, /class="mission-card approach-frame"/);
     assert.match(html, /class="thread-row open"/);
     assert.match(html, /A real landed summary/);
-    assert.match(html, />Reply</);
+    assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
     assert.match(html, /Open on X/);
     assert.match(html, />Skip</);
     assert.match(html, /Not interested/);
     assert.match(html, /Suggest reply — locked/);
     assert.match(html, escapeRe(FYP_DETECTING_COPY));
+    assert.match(html, /for-you-status/);
+    assert.match(html, /approach-panel-loader-mark/);
     assert.doesNotMatch(html, /I posted on X/);
   });
 
@@ -386,8 +396,9 @@ describe("Approach flight frame", () => {
         }),
       ),
     );
-    assert.match(html, escapeRe(SCOUT_DETECTED_COPY));
+    assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
     assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
+    assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
     assert.match(html, /chip-interacted/);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /Open on X/);
@@ -407,7 +418,7 @@ describe("Approach flight frame", () => {
         }),
       ),
     );
-    assert.match(html, />Repost</);
+    assert.match(html, escapeRe(FYP_DETECTING_COPY));
     assert.match(html, /Open on X/);
     assert.match(html, />Skip</);
     assert.match(html, /Not interested/);
@@ -507,7 +518,7 @@ describe("Approach flight frame", () => {
     );
     assert.match(html, escapeRe(FYP_DETECTING_COPY));
     assert.equal(html.split(FYP_DETECTING_COPY).length - 1, 1);
-    assert.match(html, /mission-card-why"><\/p>/);
+    assert.doesNotMatch(html, /mission-card-why/);
     assert.match(html, /for-you-status/);
     assert.match(html, /approach-panel-loader-mark/);
     assert.match(html, />Open For You</);

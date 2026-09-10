@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { stripMediaShortlinksFromText } from "../lib/mediaText";
 import { formatAbsoluteTime, formatTimeAgo } from "../lib/timeAgo";
 import { XThreadView } from "../XThreadView";
+import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 import { ScoutTankMark } from "./ScoutTankMark";
 import { baitClass, baitRisk } from "./threadHelpers";
@@ -12,6 +13,7 @@ export function ThreadRow({
   open,
   busy,
   interacted,
+  detecting,
   onToggle,
   onSkip,
   onDismiss,
@@ -25,6 +27,7 @@ export function ThreadRow({
   open: boolean;
   busy: boolean;
   interacted: boolean;
+  detecting?: boolean;
   onToggle: () => void;
   onSkip: () => void;
   onDismiss: () => void;
@@ -69,6 +72,8 @@ export function ThreadRow({
           {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
           {interacted ? (
             <span className="chip chip-interacted">interacted</span>
+          ) : detecting ? (
+            <ApproachDetectingMark />
           ) : null}
           {bait !== null &&
           (thread.engage === "skip" || thread.engage === "priority") ? (

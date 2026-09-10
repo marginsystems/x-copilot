@@ -9,6 +9,7 @@ import {
   X_FOR_YOU_URL,
 } from "../lib/forYou";
 import type { OwnActivity } from "../lib/coaching";
+import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 import { HasTipButton, HasTipLink } from "./HasTip";
 
@@ -53,12 +54,13 @@ export function ForYouFeedRow(props: {
       ) : null}
     </span>
   ) : (
-    <span className="for-you-status">
-      <span>{props.status ?? FYP_WAIT_COPY}</span>
-      {detecting ? (
-        <span className="approach-panel-loader-mark" aria-hidden="true" />
-      ) : null}
-    </span>
+    detecting ? (
+      <ApproachDetectingMark />
+    ) : (
+      <span className="for-you-status">
+        <span>{props.status ?? FYP_WAIT_COPY}</span>
+      </span>
+    )
   );
   return (
     <DeskRow
