@@ -249,6 +249,7 @@ export function advanceApproach(
   }
   if (locked.phase === "organic_reply") {
     if (
+      event.type === "next" ||
       event.type === "posted" ||
       event.type === "skip" ||
       event.type === "dismiss"

@@ -56,8 +56,11 @@ import { apiFetch } from "../lib/apiBase";
 import { presentApproach, type ApproachCardInput } from "./approachPresenter";
 import {
   clearRetainedScout,
+  clearRetainedSuggestion,
   readRetainedScout,
+  readRetainedSuggestion,
   writeRetainedScout,
+  writeRetainedSuggestion,
 } from "./approachRetained";
 import { pickApproachScout } from "./approachScout";
 import type {
@@ -263,6 +266,14 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     } else {
       clearRetainedScout(userId);
     }
+    const nextSuggestion =
+      next.lock.phase === "organic_reply" ? next.lock.cardId : null;
+    if (nextSuggestion) {
+      const suggestion = suggestionCardsRef.current.get(nextSuggestion);
+      if (suggestion) writeRetainedSuggestion(userId, suggestion);
+    } else {
+      clearRetainedSuggestion(userId);
+    }
     if (prevScout !== nextScout) {
       void hydrateInteractedRef.current(nextScout);
     }
@@ -300,8 +311,12 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     if (!deskBootReady || !agendaReady || stateRef.current) return;
     const stored = readApproachLock(userId);
     const retained = readRetainedScout(userId);
+    const retainedSuggestion = readRetainedSuggestion(userId);
     if (retained && stored?.cardId === retained.id) {
       scoutCardsRef.current.set(retained.id, retained);
+    }
+    if (retainedSuggestion && stored?.cardId === retainedSuggestion.id) {
+      suggestionCardsRef.current.set(retainedSuggestion.id, retainedSuggestion);
     }
     commit(
       restoreApproachTask({
@@ -535,12 +550,13 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         (forYouSuggestions.some((row) => row.id === lock.cardId) ||
           (lockedSuggestion !== null && suggestionDetected)));
     if (cardIsLive) return;
-    const retainedScoutAwaitingHydration =
-      phase === "scout_reply" &&
-      lockedScout !== null &&
-      !curatedThreads.some((row) => row.id === lock.cardId) &&
+    const retainedCardAwaitingHydration =
+      ((phase === "scout_reply" && lockedScout !== null &&
+        !curatedThreads.some((row) => row.id === lock.cardId)) ||
+        (phase === "organic_reply" && lockedSuggestion !== null &&
+          !forYouSuggestions.some((row) => row.id === lock.cardId))) &&
       !interactedHydrated;
-    if (retainedScoutAwaitingHydration) return;
+    if (retainedCardAwaitingHydration) return;
     const event =
       phase === "scout_reply"
         ? vanishEvent({

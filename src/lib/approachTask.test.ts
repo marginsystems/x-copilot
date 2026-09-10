@@ -589,6 +589,22 @@ describe("Scout detection ownership", () => {
       { phase: "silent_refuel", cardId: null, surface: "for_you" },
     );
   });
+
+  it("Next on a detected Suggested card releases it to the next digest card", () => {
+    const state: ApproachTaskState = {
+      lock: { phase: "organic_reply", cardId: "digest-1", surface: null },
+      wait: null,
+    };
+    assert.deepEqual(
+      transitionApproachTask(
+        state,
+        { type: "next" },
+        { scoutId: null, suggestionId: "digest-2", canPresentForYou: true },
+        { owner: OWNER, coaching },
+      ).lock,
+      { phase: "organic_reply", cardId: "digest-2", surface: null },
+    );
+  });
 });
 
 
