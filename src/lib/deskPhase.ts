@@ -106,6 +106,7 @@ function nextInventoryCard(
   inventory: ApproachInventory,
   excludeId: string | null,
   previousPhase: DeskPhase | null = null,
+  preferSuggestion = false,
 ): ApproachLock {
   const scout =
     inventory.scoutId && inventory.scoutId !== excludeId
@@ -121,6 +122,9 @@ function nextInventoryCard(
       : null;
   if (previousPhase === "scout_reply" && suggestion) return suggestion;
   if (previousPhase === "organic_reply" && scout) return scout;
+  if (previousPhase === "organic_reply" && preferSuggestion && suggestion) {
+    return suggestion;
+  }
   if (previousPhase === "scout_reply" && inventory.canPresentForYou) {
     return { ...FOR_YOU_LOCK };
   }
@@ -248,11 +252,11 @@ export function advanceApproach(
     }
   }
   if (locked.phase === "organic_reply") {
-    if (
-      event.type === "posted" ||
-      event.type === "skip" ||
-      event.type === "dismiss"
-    ) {
+    if (event.type === "next") {
+      if (inventory.paceLocked) return { ...HOLD_LOCK };
+      return nextInventoryCard(inventory, locked.cardId, locked.phase, true);
+    }
+    if (event.type === "posted" || event.type === "skip" || event.type === "dismiss") {
       return nextInventoryCard(inventory, locked.cardId, locked.phase);
     }
   }

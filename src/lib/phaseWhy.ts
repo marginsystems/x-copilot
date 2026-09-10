@@ -47,6 +47,13 @@ export function phaseWhy(
   if (phase === "done_for_now") {
     return APPROACH_COLLECTING_IDLE;
   }
+  if (
+    phase === "organic_reply" &&
+    suggestion?.kind === "reply" &&
+    suggestion.targetId
+  ) {
+    return opts?.detected ? SCOUT_DETECTED_COPY : FYP_DETECTING_COPY;
+  }
   if (phase === "organic_reply" && suggestion?.kind === "post") {
     return "Compose an original. Mark it here.";
   }

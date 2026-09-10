@@ -138,29 +138,33 @@ function SuggestedCard(props: MissionCardProps) {
   return (
     <ApproachFrame>
       {row && key ? (
-        <SuggestedRow
-          key={row.id}
-          row={row}
-          index={0}
-          open={props.expandedId === key}
-          exiting={props.exitingIds.has(row.id)}
-          busy={props.actionBusy}
-          voice={props.voice}
-          agenda={props.agenda}
-          xLinked={props.authUser?.xLinked}
-          hasSession={Boolean(props.authUser)}
-          onToggle={() =>
-            props.setExpandedId((id) => (id === key ? null : key))
-          }
-          onPosted={() => props.onSuggestionPosted(row.id)}
-          onSkip={() => props.onSuggestionSkip(row.id)}
-          onDismiss={() => props.onSuggestionDismiss(row.id)}
-          onOpenSettings={props.onOpenVoice}
-          onLinkX={props.onLinkX}
-          onUsage={(u) =>
-            props.setVoice((v) => (v ? { ...v, suggests: u } : v))
-          }
-        />
+        <div className="threads">
+          <SuggestedRow
+            key={row.id}
+            row={row}
+            index={0}
+            open={props.expandedId === key}
+            exiting={props.exitingIds.has(row.id)}
+            busy={props.actionBusy}
+            interacted={props.suggestionDetected}
+            voice={props.voice}
+            agenda={props.agenda}
+            xLinked={props.authUser?.xLinked}
+            hasSession={Boolean(props.authUser)}
+            onToggle={() =>
+              props.setExpandedId((id) => (id === key ? null : key))
+            }
+            onPosted={() => props.onSuggestionPosted(row.id)}
+            onNext={() => props.onSuggestionPosted(row.id)}
+            onSkip={() => props.onSuggestionSkip(row.id)}
+            onDismiss={() => props.onSuggestionDismiss(row.id)}
+            onOpenSettings={props.onOpenVoice}
+            onLinkX={props.onLinkX}
+            onUsage={(u) =>
+              props.setVoice((v) => (v ? { ...v, suggests: u } : v))
+            }
+          />
+        </div>
       ) : null}
     </ApproachFrame>
   );

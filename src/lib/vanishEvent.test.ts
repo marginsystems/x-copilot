@@ -45,6 +45,29 @@ describe("vanishEvent", () => {
     );
   });
 
+  it("marks a digest card through its Suggested X target", () => {
+    assert.equal(
+      vanishEvent({
+        ...base,
+        cardId: "digest-id",
+        conversationId: "target-id",
+        inReplyToId: "target-id",
+        history: [{ threadId: "target-id" }],
+      }),
+      "mark",
+    );
+    assert.equal(
+      vanishEvent({
+        ...base,
+        cardId: "digest-id",
+        conversationId: "target-id",
+        inReplyToId: "target-id",
+        history: [{ threadId: "reply-id", inReplyToId: "target-id" }],
+      }),
+      "mark",
+    );
+  });
+
   it("skips an unrelated vanished card", () => {
     assert.equal(
       vanishEvent({

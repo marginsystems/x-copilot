@@ -52,6 +52,7 @@ function missionProps(
     scout: null,
     scoutDetected: false,
     suggestion: null,
+    suggestionDetected: false,
     forYou: null,
     actionBusy: false,
     expandedId: null,
@@ -81,6 +82,13 @@ const suggestedReply: ForYouSuggestion = {
   targetId: null,
   targetUrl: null,
   targetAuthor: null,
+};
+const detectedSuggestedReply: ForYouSuggestion = {
+  ...suggestedReply,
+  id: "target-backed-reply",
+  targetId: "123456",
+  targetUrl: "https://x.com/target/status/123456",
+  targetAuthor: "@target",
 };
 
 describe("Reply pace", () => {
@@ -185,6 +193,43 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /reply-pace/);
     assert.doesNotMatch(html, /0:00/);
   });
+
+  it("does not add an Open original link beside Open on X", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: {
+            ...suggestedReply,
+            targetId: "2097589069966721139",
+            targetUrl: "https://x.com/vijaychoudhary/status/2097589069966721139",
+            targetAuthor: "@vijaychoudhary",
+            draft: "Usage metrics evaporate overnight.",
+          },
+          expandedId: `suggest:${suggestedReply.id}`,
+        }),
+      ),
+    );
+    assert.match(html, /Open on X/);
+    assert.doesNotMatch(html, /Open original/);
+
+    const fallbackHtml = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: {
+            ...suggestedReply,
+            targetId: "2097589069966721139",
+            targetUrl: null,
+            draft: "Usage metrics evaporate overnight.",
+          },
+          expandedId: `suggest:${suggestedReply.id}`,
+        }),
+      ),
+    );
+    assert.match(fallbackHtml, /Open on X/);
+    assert.doesNotMatch(fallbackHtml, /Open original/);
+  });
 });
 
 describe("Hold presentation", () => {
@@ -274,6 +319,43 @@ describe("Gate cards", () => {
 });
 
 describe("Approach flight frame", () => {
+  it("listens for a target-backed Suggested reply without I posted", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: detectedSuggestedReply,
+          expandedId: `suggest:${detectedSuggestedReply.id}`,
+        }),
+      ),
+    );
+    assert.match(html, escapeRe(FYP_DETECTING_COPY));
+    assert.match(html, /Open on X/);
+    assert.match(html, />Skip</);
+    assert.match(html, />Not interested</);
+    assert.doesNotMatch(html, /I posted on X/);
+  });
+
+  it("offers only Next after a Suggested reply is detected", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: detectedSuggestedReply,
+          suggestionDetected: true,
+          expandedId: `suggest:${detectedSuggestedReply.id}`,
+        }),
+      ),
+    );
+    assert.match(html, escapeRe(SCOUT_DETECTED_COPY));
+    assert.match(html, /chip-interacted/);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /Open on X|Open original/);
+    assert.doesNotMatch(html, />Skip</);
+    assert.doesNotMatch(html, /I posted on X/);
+    assert.doesNotMatch(html, /Not interested/);
+  });
+
   it("fills the shared frame with the first locked scout thread", () => {
     const lead = thread("first-lead", 42);
     lead.summary = "A real landed summary";
