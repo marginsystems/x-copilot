@@ -623,6 +623,7 @@ describe("Suggested presentation", () => {
       surface: null,
       scout: null,
       scoutDetected: false,
+      suggestionDetected: false,
       suggestion: {
         id: "suggested-reply",
         kind: "reply",
