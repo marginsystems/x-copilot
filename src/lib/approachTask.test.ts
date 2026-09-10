@@ -509,7 +509,7 @@ describe("Scout detection ownership", () => {
       remainingMs: 0,
     });
     assert.equal(listening.detector, "scout");
-    assert.equal(listening.why, FYP_DETECTING_COPY);
+    assert.equal(listening.why, "");
     const detected = presentApproach({
       ...listening,
       phase: "scout_reply",
@@ -521,7 +521,7 @@ describe("Scout detection ownership", () => {
       remainingMs: 0,
     });
     assert.equal(detected.detector, null);
-    assert.equal(detected.why, "Reply detected. Tap Next.");
+    assert.equal(detected.why, "");
     assert.equal(detected.badge, 1);
   });
 
