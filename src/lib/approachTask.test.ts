@@ -546,6 +546,28 @@ describe("Scout detection ownership", () => {
   });
 });
 
+describe("Suggested presentation", () => {
+  it("does not add frame explanation copy", () => {
+    const view = presentApproach({
+      phase: "organic_reply",
+      surface: null,
+      scout: null,
+      scoutDetected: false,
+      suggestion: {
+        id: "suggested-reply",
+        kind: "reply",
+        why: "A suggested reply",
+        draft: null,
+        targetId: null,
+        targetUrl: null,
+        targetAuthor: null,
+      },
+      forYou: null,
+      remainingMs: 0,
+    });
+    assert.equal(view.why, "");
+  });
+});
 
 describe("Collecting refill handoff", () => {
   it("flies on hydrated empty boot before Next, then ignores extra Next and empty landings", () => {

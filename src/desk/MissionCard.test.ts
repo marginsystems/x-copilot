@@ -9,6 +9,7 @@ import { ForYouFeedRow } from "./ForYouFeedRow";
 import {
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
+  FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
 import { approachCollectingCopy, SCOUT_DETECTED_COPY } from "../lib/phaseWhy";
@@ -110,6 +111,8 @@ describe("Reply pace", () => {
         }),
       ),
     );
+    assert.match(html, escapeRe(FYP_WAIT_COPY));
+    assert.doesNotMatch(html, /approach-panel-loader-mark/);
     assert.match(html, /reply-pace/);
     assert.match(html, /0:42/);
     assert.match(html, />Bypass</);
@@ -160,6 +163,7 @@ describe("Reply pace", () => {
     );
     assert.match(html, /A suggested reply/);
     assert.match(html, /class="mission-card approach-frame"/);
+    assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
     assert.match(html, /reply-pace/);
     assert.match(html, /0:42/);
   });
@@ -177,6 +181,7 @@ describe("Reply pace", () => {
     );
     assert.match(html, /A suggested reply/);
     assert.match(html, /class="mission-card approach-frame"/);
+    assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
     assert.doesNotMatch(html, /reply-pace/);
     assert.doesNotMatch(html, /0:00/);
   });
