@@ -9,7 +9,6 @@ import { ForYouFeedRow } from "./ForYouFeedRow";
 import {
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
-  FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
 import { approachCollectingCopy, SCOUT_DETECTED_COPY } from "../lib/phaseWhy";
@@ -106,13 +105,14 @@ describe("Reply pace", () => {
         missionProps({
           phase: "hold",
           surface: "for_you",
+          forYou: { detected: false },
           clock: "0:42",
           remainingMs: 42_000,
         }),
       ),
     );
-    assert.match(html, escapeRe(FYP_WAIT_COPY));
-    assert.doesNotMatch(html, /approach-panel-loader-mark/);
+    assert.match(html, escapeRe(FYP_DETECTING_COPY));
+    assert.match(html, /approach-panel-loader-mark/);
     assert.match(html, /reply-pace/);
     assert.match(html, /0:42/);
     assert.match(html, />Bypass</);
