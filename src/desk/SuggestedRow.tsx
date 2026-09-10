@@ -81,15 +81,6 @@ export function SuggestedRow({
       }
       onToggle={onToggle}
     >
-      {!interacted && openUrl ? (
-        <p className="for-you-source">
-          <a href={openUrl} target="_blank" rel="noreferrer">
-            {row.targetAuthor
-              ? `Open original ${row.targetAuthor}`
-              : "Open original on X"}
-          </a>
-        </p>
-      ) : null}
       {!compose && row.draft ? (
         <p className="for-you-draft">{row.draft}</p>
       ) : null}
