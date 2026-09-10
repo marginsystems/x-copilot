@@ -186,6 +186,43 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /reply-pace/);
     assert.doesNotMatch(html, /0:00/);
   });
+
+  it("does not add an Open original link beside Open on X", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: {
+            ...suggestedReply,
+            targetId: "2097589069966721139",
+            targetUrl: "https://x.com/vijaychoudhary/status/2097589069966721139",
+            targetAuthor: "@vijaychoudhary",
+            draft: "Usage metrics evaporate overnight.",
+          },
+          expandedId: `suggest:${suggestedReply.id}`,
+        }),
+      ),
+    );
+    assert.match(html, /Open on X/);
+    assert.doesNotMatch(html, /Open original/);
+
+    const fallbackHtml = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: {
+            ...suggestedReply,
+            targetId: "2097589069966721139",
+            targetUrl: null,
+            draft: "Usage metrics evaporate overnight.",
+          },
+          expandedId: `suggest:${suggestedReply.id}`,
+        }),
+      ),
+    );
+    assert.match(fallbackHtml, /Open on X/);
+    assert.doesNotMatch(fallbackHtml, /Open original/);
+  });
 });
 
 describe("Hold presentation", () => {

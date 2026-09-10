@@ -4,7 +4,6 @@ import {
   forYouKindLabel,
   forYouKindShort,
   forYouOpenUrl,
-  forYouSourceUrl,
   forYouUsesDeskCompose,
   type ForYouSuggestion,
 } from "../lib/forYou";
@@ -53,7 +52,6 @@ export function SuggestedRow({
   exiting?: boolean;
 }) {
   const openUrl = forYouOpenUrl(row);
-  const sourceUrl = forYouSourceUrl(row);
   const compose = forYouUsesDeskCompose(row);
   const seed = forYouComposeSeed(row);
   const handle = voice?.handle ? `@${voice.handle}` : "@you";
@@ -92,7 +90,7 @@ export function SuggestedRow({
           </a>
         </p>
       ) : null}
-      {!interacted && !compose && row.draft ? (
+      {!compose && row.draft ? (
         <p className="for-you-draft">{row.draft}</p>
       ) : null}
       {interacted && detectsReply ? (
