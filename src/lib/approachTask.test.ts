@@ -590,11 +590,20 @@ describe("Scout detection ownership", () => {
     );
   });
 
-  it("Next on a detected Suggested card releases it to the next digest card", () => {
+  it("Next on a detected Suggested card honors the reply minute", () => {
     const state: ApproachTaskState = {
       lock: { phase: "organic_reply", cardId: "digest-1", surface: null },
       wait: null,
     };
+    assert.deepEqual(
+      transitionApproachTask(
+        state,
+        { type: "next" },
+        { scoutId: null, suggestionId: "digest-2", canPresentForYou: true, paceLocked: true },
+        { owner: OWNER, coaching },
+      ).lock,
+      { phase: "hold", cardId: null, surface: "for_you" },
+    );
     assert.deepEqual(
       transitionApproachTask(
         state,

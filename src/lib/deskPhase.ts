@@ -253,6 +253,7 @@ export function advanceApproach(
   }
   if (locked.phase === "organic_reply") {
     if (event.type === "next") {
+      if (inventory.paceLocked) return { ...HOLD_LOCK };
       return nextInventoryCard(inventory, locked.cardId, locked.phase, true);
     }
     if (event.type === "posted" || event.type === "skip" || event.type === "dismiss") {
