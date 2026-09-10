@@ -15,7 +15,11 @@ import {
   settleForYouWait,
 } from "./forYouTask.ts";
 import { presentApproach } from "../desk/approachPresenter.ts";
-import { FYP_DETECTED_COPY, FYP_DETECTING_COPY } from "./forYou.ts";
+import {
+  FYP_DETECTED_COPY,
+  FYP_DETECTING_COPY,
+  type ForYouSuggestion,
+} from "./forYou.ts";
 
 const OWNER = "operator-1";
 const T0 = Date.parse("2026-09-07T10:00:00.000Z");
@@ -46,6 +50,7 @@ function present(
     scout: null,
     scoutDetected: false,
     suggestion: null,
+    suggestionDetected: false,
     forYou: state.wait
       ? { detected: forYouWaitDetected(state.wait, coaching) }
       : null,
@@ -505,6 +510,7 @@ describe("Scout detection ownership", () => {
       scout,
       scoutDetected: false,
       suggestion: null,
+      suggestionDetected: false,
       forYou: null,
       remainingMs: 0,
     });
@@ -517,6 +523,45 @@ describe("Scout detection ownership", () => {
       scout,
       scoutDetected: true,
       suggestion: null,
+      suggestionDetected: false,
+      forYou: null,
+      remainingMs: 0,
+    });
+    assert.equal(detected.detector, null);
+    assert.equal(detected.why, "Reply detected. Tap Next.");
+    assert.equal(detected.badge, 1);
+  });
+
+  it("gives a target-backed Suggested reply the same detector ownership", () => {
+    const suggestion: ForYouSuggestion = {
+      id: "digest-1",
+      kind: "reply",
+      why: "Join this thread.",
+      draft: "A useful reply.",
+      targetId: "parent-1",
+      targetUrl: "https://x.com/target/status/parent-1",
+      targetAuthor: "@target",
+    };
+    const listening = presentApproach({
+      phase: "organic_reply",
+      surface: null,
+      scout: null,
+      scoutDetected: false,
+      suggestion,
+      suggestionDetected: false,
+      forYou: null,
+      remainingMs: 0,
+    });
+    assert.equal(listening.detector, "scout");
+    assert.equal(listening.why, FYP_DETECTING_COPY);
+
+    const detected = presentApproach({
+      phase: "organic_reply",
+      surface: null,
+      scout: null,
+      scoutDetected: false,
+      suggestion,
+      suggestionDetected: true,
       forYou: null,
       remainingMs: 0,
     });

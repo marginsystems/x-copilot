@@ -171,6 +171,19 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           history: interactedHistory,
         }) === "mark"
       : false;
+  const suggestionDetected =
+    lock?.phase === "organic_reply" &&
+    lock.cardId &&
+    lockedSuggestion?.kind === "reply" &&
+    lockedSuggestion.targetId
+      ? vanishEvent({
+          cardId: lock.cardId,
+          conversationId: lockedSuggestion.targetId,
+          inReplyToId: lockedSuggestion.targetId,
+          interactedIds,
+          history: interactedHistory,
+        }) === "mark"
+      : false;
 
   const currentDayUtc = new Date().toISOString().slice(0, 10);
   function pickSuggestion(
@@ -340,6 +353,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     scout: lockedScout,
     scoutDetected,
     suggestion: lockedSuggestion,
+    suggestionDetected,
     forYou: wait ? { detected: forYouWaitDetected(wait, coaching) } : null,
     remainingMs: pace.remainingMs,
     searching,
@@ -369,26 +383,49 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   useEffect(() => {
     if (!authUser?.id || !ready) return;
     if (phase === "scout_reply" && !lockedScout) return;
-    const card = phase === "scout_reply" ? lockedScout : null;
-    if (card) watchDeskThreads([card]);
+    const suggestedTarget =
+      phase === "organic_reply" &&
+      lockedSuggestion?.kind === "reply" &&
+      lockedSuggestion.targetId
+        ? {
+            id: lockedSuggestion.targetId,
+            conversationId: lockedSuggestion.targetId,
+            inReplyToId: lockedSuggestion.targetId,
+            surface: "reply" as const,
+            author: lockedSuggestion.targetAuthor,
+            url: lockedSuggestion.targetUrl,
+            text: lockedSuggestion.draft ?? lockedSuggestion.why ?? null,
+          }
+        : null;
+    const scoutLock = phase === "scout_reply" ? lockedScout : null;
+    if (scoutLock) {
+      watchDeskThreads([scoutLock]);
+    } else if (suggestedTarget) {
+      watchDeskThreads([{
+        ...suggestedTarget,
+        author: suggestedTarget.author ?? "",
+        url: suggestedTarget.url ?? "",
+        text: suggestedTarget.text ?? "",
+      }]);
+    }
     void apiFetch("/api/scout-approach-lock", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        card: card
+        card: scoutLock
           ? {
-              id: card.id,
-              conversationId: card.conversationId,
-              inReplyToId: card.inReplyToId,
-              surface: card.surface,
-              author: card.author,
-              url: card.url,
-              text: card.text,
+              id: scoutLock.id,
+              conversationId: scoutLock.conversationId,
+              inReplyToId: scoutLock.inReplyToId,
+              surface: scoutLock.surface,
+              author: scoutLock.author,
+              url: scoutLock.url,
+              text: scoutLock.text,
             }
-          : null,
+          : suggestedTarget,
       }),
     }).catch(() => {});
-  }, [authUser?.id, lockedScout, phase, ready]);
+  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready]);
 
   const pendingDismissIdRef = useRef<string | null>(null);
   const autoTriedRef = useRef(readScoutTakeoffTried());
@@ -495,7 +532,8 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         (curatedThreads.some((row) => row.id === lock.cardId) ||
           (lockedScout !== null && scoutDetected))) ||
       (phase === "organic_reply" &&
-        forYouSuggestions.some((row) => row.id === lock.cardId));
+        (forYouSuggestions.some((row) => row.id === lock.cardId) ||
+          (lockedSuggestion !== null && suggestionDetected)));
     if (cardIsLive) return;
     const retainedScoutAwaitingHydration =
       phase === "scout_reply" &&
@@ -528,6 +566,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     phase,
     curatedThreads,
     scoutDetected,
+    suggestionDetected,
   ]);
 
   useEffect(() => {
@@ -561,6 +600,11 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   ) {
     setExpandedId((cur) => (cur === expandedKey ? null : cur));
     beginExit(id, then);
+  }
+
+  async function onSuggestionNext(id: string) {
+    advanceCard({ type: "next" });
+    await actForYou(id, "done");
   }
 
   const badge =
@@ -605,6 +649,15 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       advanceCard({ type: "next" });
     },
     onSuggestionPosted(id: string) {
+      const row = suggestionCardsRef.current.get(id);
+      if (
+        suggestionDetected &&
+        row?.kind === "reply" &&
+        row.targetId
+      ) {
+        void onSuggestionNext(id);
+        return;
+      }
       exitRow(id, `suggest:${id}`, async () => {
         if (await actForYou(id, "done")) {
           await onRefreshCoaching();

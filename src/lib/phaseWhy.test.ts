@@ -6,6 +6,7 @@ import {
   approachCollectingCopy,
   coachingMatchesCard,
   phaseWhy,
+  SCOUT_DETECTED_COPY,
 } from "./phaseWhy.ts";
 import type { CoachingState, NextActionKind } from "./coaching.ts";
 import {
@@ -30,6 +31,15 @@ const post: ForYouSuggestion = {
   targetId: null,
   targetUrl: null,
   targetAuthor: null,
+};
+const reply: ForYouSuggestion = {
+  id: "s2",
+  kind: "reply",
+  why: "A useful thread",
+  draft: "A useful reply",
+  targetId: "123",
+  targetUrl: "https://x.com/target/status/123",
+  targetAuthor: "@target",
 };
 
 describe("coachingMatchesCard", () => {
@@ -85,6 +95,22 @@ describe("phaseWhy", () => {
     assert.equal(
       phaseWhy("organic_reply", coaching("reply", "Mark a reply."), post),
       "Compose an original. Mark it here.",
+    );
+  });
+
+  it("detects a target-backed Suggested reply", () => {
+    assert.equal(
+      phaseWhy("organic_reply", coaching("reply", "Mark a reply."), reply),
+      FYP_DETECTING_COPY,
+    );
+    assert.equal(
+      phaseWhy(
+        "organic_reply",
+        coaching("reply", "Mark a reply."),
+        reply,
+        { detected: true },
+      ),
+      SCOUT_DETECTED_COPY,
     );
   });
 
