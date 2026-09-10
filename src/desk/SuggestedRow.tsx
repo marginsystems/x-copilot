@@ -22,6 +22,8 @@ export function SuggestedRow({
   hasSession,
   onToggle,
   onPosted,
+  interacted,
+  onNext,
   onSkip,
   onDismiss,
   onOpenSettings,
@@ -39,6 +41,8 @@ export function SuggestedRow({
   hasSession: boolean;
   onToggle: () => void;
   onPosted: () => void;
+  interacted?: boolean;
+  onNext?: () => void;
   onSkip: () => void;
   onDismiss: () => void;
   onOpenSettings: () => void;
@@ -52,6 +56,7 @@ export function SuggestedRow({
   const seed = forYouComposeSeed(row);
   const handle = voice?.handle ? `@${voice.handle}` : "@you";
   const kindClass = forYouKindClass(row.kind);
+  const detectsReply = row.kind === "reply" && Boolean(row.targetId);
 
   return (
     <DeskRow
@@ -66,8 +71,12 @@ export function SuggestedRow({
       summary={row.why}
       meta={
         <>
-          <span className="chip">{forYouKindLabel(row.kind)}</span>
-          {row.targetAuthor ? <span>{row.targetAuthor}</span> : null}
+          <span className={interacted ? "chip chip-interacted" : "chip"}>
+            {interacted ? "interacted" : forYouKindLabel(row.kind)}
+          </span>
+          {!interacted && row.targetAuthor ? (
+            <span>{row.targetAuthor}</span>
+          ) : null}
         </>
       }
       onToggle={onToggle}
@@ -75,7 +84,18 @@ export function SuggestedRow({
       {!compose && row.draft ? (
         <p className="for-you-draft">{row.draft}</p>
       ) : null}
-      {compose && voice?.status === "ready" && voice.unlocked && seed ? (
+      {interacted && detectsReply ? (
+        <div className="row">
+          <button
+            type="button"
+            className="primary"
+            disabled={busy}
+            onClick={onNext}
+          >
+            Next
+          </button>
+        </div>
+      ) : compose && voice?.status === "ready" && voice.unlocked && seed ? (
         <SuggestPane
           variant="compose"
           composeKind={row.kind === "quote" ? "quote" : "post"}
@@ -98,6 +118,23 @@ export function SuggestedRow({
           onOpenSettings={onOpenSettings}
           onLinkX={onLinkX}
         />
+      ) : detectsReply ? (
+        <div className="row">
+          {openUrl ? (
+            <a
+              className="ghost"
+              href={openUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open on X
+            </a>
+          ) : (
+            <button type="button" className="ghost" disabled>
+              Open on X
+            </button>
+          )}
+        </div>
       ) : (
         <div className="row">
           {openUrl ? (
@@ -124,34 +161,36 @@ export function SuggestedRow({
           </button>
         </div>
       )}
-      <div className="row">
-        {compose ? (
+      {!interacted ? (
+        <div className="row">
+          {compose ? (
+            <button
+              type="button"
+              className="ghost"
+              disabled={busy}
+              onClick={onPosted}
+            >
+              I posted on X
+            </button>
+          ) : null}
           <button
             type="button"
             className="ghost"
             disabled={busy}
-            onClick={onPosted}
+            onClick={onSkip}
           >
-            I posted on X
+            Skip
           </button>
-        ) : null}
-        <button
-          type="button"
-          className="ghost"
-          disabled={busy}
-          onClick={onSkip}
-        >
-          Skip
-        </button>
-        <button
-          type="button"
-          className="ghost"
-          disabled={busy}
-          onClick={onDismiss}
-        >
-          Not interested
-        </button>
-      </div>
+          <button
+            type="button"
+            className="ghost"
+            disabled={busy}
+            onClick={onDismiss}
+          >
+            Not interested
+          </button>
+        </div>
+      ) : null}
     </DeskRow>
   );
 }

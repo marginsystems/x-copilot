@@ -116,6 +116,27 @@ describe("own reply interaction capture", () => {
     assert.equal(streak.currentStreak >= 1, true);
   });
 
+  it("marks a reply to a locked Suggested target as scout", async () => {
+    setScoutApproachLock(userId, {
+      id: "parent-1",
+      conversationId: "parent-1",
+      inReplyToId: "parent-1",
+      surface: "reply",
+      author: "@target",
+      url: "https://x.com/target/status/parent-1",
+      text: "Suggested reply draft",
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(post(), userId, { nowMs }),
+      "scout",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.threadId, "parent-1");
+    assert.equal(row?.inReplyToId, "parent-1");
+    assert.equal(row?.author, "@target");
+  });
+
   it("prunes a matching Scout card but keeps the Approach lock", async () => {
     watchThread({
       userId,

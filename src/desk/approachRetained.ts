@@ -4,11 +4,17 @@
  * lets the desk keep showing the same card with its detected mark until Next.
  */
 import type { ThreadCard } from "./types";
+import { parseForYouSuggestion, type ForYouSuggestion } from "../lib/forYou";
 
 export const APPROACH_RETAINED_STORAGE_KEY = "x-copilot-approach-card";
+const APPROACH_RETAINED_SUGGESTION_STORAGE_KEY = "x-copilot-approach-suggestion";
 
 function storageKey(userId: string): string {
   return `${APPROACH_RETAINED_STORAGE_KEY}:${userId}`;
+}
+
+function suggestionStorageKey(userId: string): string {
+  return `${APPROACH_RETAINED_SUGGESTION_STORAGE_KEY}:${userId}`;
 }
 
 export function parseRetainedScout(raw: string | null): ThreadCard | null {
@@ -58,6 +64,40 @@ export function clearRetainedScout(userId: string | null | undefined): void {
   if (!userId) return;
   try {
     localStorage.removeItem(storageKey(userId));
+  } catch {
+    /* private mode */
+  }
+}
+
+export function readRetainedSuggestion(
+  userId: string | null | undefined,
+): ForYouSuggestion | null {
+  if (!userId) return null;
+  try {
+    return parseForYouSuggestion(
+      JSON.parse(localStorage.getItem(suggestionStorageKey(userId)) ?? "null"),
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function writeRetainedSuggestion(
+  userId: string | null | undefined,
+  suggestion: ForYouSuggestion,
+): void {
+  if (!userId) return;
+  try {
+    localStorage.setItem(suggestionStorageKey(userId), JSON.stringify(suggestion));
+  } catch {
+    /* private mode */
+  }
+}
+
+export function clearRetainedSuggestion(userId: string | null | undefined): void {
+  if (!userId) return;
+  try {
+    localStorage.removeItem(suggestionStorageKey(userId));
   } catch {
     /* private mode */
   }

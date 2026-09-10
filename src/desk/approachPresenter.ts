@@ -32,6 +32,8 @@ export type ApproachCardInput = {
   /** The locked Scout target has a recorded reply. */
   scoutDetected: boolean;
   suggestion: ForYouSuggestion | null;
+  /** The locked Suggested reply target has a recorded reply. */
+  suggestionDetected: boolean;
   /** Null when no wait is armed for this task. */
   forYou: ForYouTaskView | null;
   /** Remaining reply minute. */
@@ -153,11 +155,17 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
       why: approachCollectingCopy({ searching: input.searching }),
     };
   }
+  const detectsReply =
+    input.suggestion?.kind === "reply" && Boolean(input.suggestion.targetId);
   return {
     ...blank,
     kind: "suggested",
     verb: suggestionVerb(input.suggestion),
-    why: phaseWhy("organic_reply", input.coaching, input.suggestion),
+    why: phaseWhy("organic_reply", input.coaching, input.suggestion, {
+      detected: input.suggestionDetected,
+    }),
     badge: input.suggestion ? 1 : 0,
+    detector:
+      detectsReply && !input.suggestionDetected ? "scout" : null,
   };
 }

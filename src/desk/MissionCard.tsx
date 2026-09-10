@@ -151,6 +151,7 @@ function SuggestedCard(
             open={props.expandedId === key}
             exiting={props.exitingIds.has(row.id)}
             busy={props.actionBusy}
+            interacted={props.suggestionDetected}
             voice={props.voice}
             agenda={props.agenda}
             xLinked={props.authUser?.xLinked}
@@ -159,6 +160,7 @@ function SuggestedCard(
               props.setExpandedId((id) => (id === key ? null : key))
             }
             onPosted={() => props.onSuggestionPosted(row.id)}
+            onNext={() => props.onSuggestionPosted(row.id)}
             onSkip={() => props.onSuggestionSkip(row.id)}
             onDismiss={() => props.onSuggestionDismiss(row.id)}
             onOpenSettings={props.onOpenVoice}
