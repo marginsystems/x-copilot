@@ -72,6 +72,16 @@ describe("replyPace", () => {
     const replyAtIso = "2026-09-05T12:00:00.000Z";
     assert.equal(
       replyPaceSeedIso({
+        replyAtIso: undefined,
+        ownActivity: {
+          kind: "reply",
+          postedAt: "2026-09-05T12:00:20.000Z",
+        },
+      }),
+      "2026-09-05T12:00:20.000Z",
+    );
+    assert.equal(
+      replyPaceSeedIso({
         replyAtIso,
         ownActivity: {
           kind: "reply",
