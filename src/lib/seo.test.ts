@@ -267,7 +267,9 @@ describe("learn schema", () => {
       {
         jsonLd: learnWeightsJsonLd,
         path: LEARN_WEIGHTS_PATH,
+        title: LEARN_TITLE,
         heading: LEARN_HEADING,
+        description: LEARN_DESCRIPTION,
         articleImage: LEARN_WEIGHTS_IMAGE,
         citation: LEARN_PARAM_FILE_HREF,
         appImage: LEARN_IMAGE,
@@ -275,7 +277,9 @@ describe("learn schema", () => {
       {
         jsonLd: learnFollowJsonLd,
         path: "/learn/follow",
+        title: LEARN_FOLLOW_TITLE,
         heading: LEARN_FOLLOW_HEADING,
+        description: LEARN_FOLLOW_DESCRIPTION,
         articleImage: LEARN_IMAGE,
         citation: LEARN_OON_HREF,
         appImage: LEARN_IMAGE,
@@ -283,7 +287,9 @@ describe("learn schema", () => {
       {
         jsonLd: learnReplyJsonLd,
         path: LEARN_REPLY_PATH,
+        title: LEARN_REPLY_TITLE,
         heading: LEARN_REPLY_HEADING,
+        description: LEARN_REPLY_DESCRIPTION,
         articleImage: LEARN_REPLY_IMAGE,
         citation: LEARN_REPLY_WEIGHT_HREF,
         appImage: LEARN_IMAGE,
@@ -291,7 +297,9 @@ describe("learn schema", () => {
       {
         jsonLd: learnVolumeJsonLd,
         path: LEARN_VOLUME_PATH,
+        title: LEARN_VOLUME_TITLE,
         heading: LEARN_VOLUME_HEADING,
+        description: LEARN_VOLUME_DESCRIPTION,
         articleImage: LEARN_VOLUME_IMAGE,
         citation: LEARN_DIVERSITY_FN_HREF,
         appImage: LEARN_IMAGE,
@@ -299,7 +307,9 @@ describe("learn schema", () => {
       {
         jsonLd: learnGiveJsonLd,
         path: LEARN_GIVE_PATH,
+        title: LEARN_GIVE_TITLE,
         heading: LEARN_GIVE_HEADING,
+        description: LEARN_GIVE_DESCRIPTION,
         articleImage: LEARN_GIVE_IMAGE,
         citation: LEARN_BDSM_LIKE_HEAD_HREF,
         appImage: LEARN_GIVE_IMAGE,
@@ -318,6 +328,9 @@ describe("learn schema", () => {
       assert.deepEqual(
         {
           ids: graph.map((node) => node["@id"]),
+          name: article?.name,
+          headline: article?.headline,
+          description: article?.description,
           citation: article?.citation,
           images: [app?.image, article?.image],
           breadcrumbItems: breadcrumbs?.itemListElement,
@@ -330,6 +343,9 @@ describe("learn schema", () => {
             `${pageUrl}#page`,
             `${pageUrl}#breadcrumb`,
           ],
+          name: lesson.title,
+          headline: lesson.heading,
+          description: lesson.description,
           citation: lesson.citation,
           images: [
             `https://xcopilot.dev${lesson.appImage}`,
