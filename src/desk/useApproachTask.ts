@@ -5,6 +5,7 @@
  */
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type Dispatch,
@@ -257,8 +258,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   };
   const coachingRef = useRef(coaching);
   coachingRef.current = coaching;
-  const paceLockedRef = useRef(pace.locked);
-  paceLockedRef.current = pace.locked;
   const refreshCoachingRef = useRef(onRefreshCoaching);
   refreshCoachingRef.current = onRefreshCoaching;
   const hydrateInteractedRef = useRef(onHydrateInteracted);
@@ -338,11 +337,21 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         stored,
         storedWait: readForYouWait(owner),
         normalize: normalizeRef.current,
-        paceLocked: paceLockedRef.current,
+        paceLocked: livePaceLocked(),
         task: { owner, coaching: coachingRef.current },
       }),
     );
   }, [agendaReady, deskBootReady, owner, userId]);
+
+  useLayoutEffect(() => {
+    const current = stateRef.current;
+    if (!pace.locked || !current || isForYouTask(current.lock)) return;
+    if (current.lock.phase === "hold") return;
+    commit({
+      lock: { phase: "hold", cardId: null, surface: "for_you" },
+      wait: null,
+    });
+  }, [pace.locked]);
 
   useEffect(() => {
     const current = stateRef.current;
