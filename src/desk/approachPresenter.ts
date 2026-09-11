@@ -62,10 +62,6 @@ export type ApproachPresentation = {
   detector: "for_you" | "scout" | null;
 };
 
-function scoutVerb(scout: ThreadCard | null): string {
-  return scout?.surface === "repost" ? "Repost" : "Reply";
-}
-
 function suggestionVerb(row: ForYouSuggestion | null): string {
   if (row?.kind === "post") return "Original";
   if (row?.kind === "quote") return "Quote";
@@ -140,7 +136,7 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
       return {
         ...blank,
         kind: "scout",
-        verb: scoutVerb(input.scout),
+        verb: "Reply",
         why: "",
         badge: 1,
         detector: input.scoutDetected ? null : "scout",

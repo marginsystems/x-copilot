@@ -44,10 +44,7 @@ import { recordMarkGamification } from "../../server/src/gamification.js";
 import { setGamificationSyncFailed } from "../../server/src/interactionSync.js";
 import { allowRate, clientIp } from "../../server/src/authGuard.js";
 import type { ParsedPostCreate } from "../../server/src/xActivity.js";
-import {
-  replyMatchesLockedScout,
-  repostMatchesLockedScout,
-} from "../../server/src/replyMatchScout.js";
+import { replyMatchesLockedScout } from "../../server/src/replyMatchScout.js";
 import { getScoutApproachLock } from "../../server/src/scoutApproachLock.js";
 import { pruneConsumedScoutThread } from "../../server/src/scoutCache.js";
 
@@ -57,53 +54,28 @@ export async function markOwnReplyInteracted(
   opts?: { nowMs?: number },
 ): Promise<"scout" | "organic" | "skipped"> {
   const isReply = parsed.kind === "reply" && Boolean(parsed.inReplyToId);
-  const isRepost =
-    parsed.kind === "repost" && Boolean(parsed.repostTargetId);
-  if (!isReply && !isRepost) return "skipped";
-  if (isReply && parsed.inReplyToUserId === parsed.xUserId) return "skipped";
-  const targetId = isRepost
-    ? parsed.repostTargetId!
-    : parsed.inReplyToId!;
+  if (!isReply) return "skipped";
+  if (parsed.inReplyToUserId === parsed.xUserId) return "skipped";
+  const targetId = parsed.inReplyToId!;
   const locked = getScoutApproachLock(userId, opts?.nowMs);
-  if (
-    isReply &&
-    locked?.surface === "repost" &&
-    (targetId === locked.id || parsed.conversationId === locked.conversationId)
-  ) {
-    return "skipped";
-  }
-  const watched = isReply
-    && locked?.surface !== "repost"
-    ? getWatchedThread(userId, targetId) ??
-      (parsed.conversationId
-        ? getWatchedThread(userId, parsed.conversationId)
-        : null)
-    : null;
-  const watchedScout = locked?.surface === "repost" ? null : watched;
+  const watched =
+    getWatchedThread(userId, targetId) ??
+    (parsed.conversationId
+      ? getWatchedThread(userId, parsed.conversationId)
+      : null);
   const matchedLock =
-    !watchedScout &&
+    !watched &&
     locked &&
-    (locked.surface === null ||
-      locked.surface === (isRepost ? "repost" : "reply")) &&
-    (isRepost
-      ? repostMatchesLockedScout(
-          {
-            repostTargetId: targetId,
-            conversationId: parsed.conversationId,
-          },
-          locked,
-        )
-      : replyMatchesLockedScout(
-          {
-            inReplyToId: targetId,
-            conversationId: parsed.conversationId,
-          },
-          locked,
-        ))
+    replyMatchesLockedScout(
+      {
+        inReplyToId: targetId,
+        conversationId: parsed.conversationId,
+      },
+      locked,
+    )
       ? locked
       : null;
-  const scoutCard = watchedScout ?? matchedLock;
-  if (isRepost && !scoutCard) return "skipped";
+  const scoutCard = watched ?? matchedLock;
   const threadId =
     watched?.threadId ??
     matchedLock?.id ??
