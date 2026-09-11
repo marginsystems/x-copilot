@@ -10,8 +10,8 @@ import {
 } from "../lib/forYou";
 import type { OwnActivity } from "../lib/coaching";
 import { ApproachDetectingMark } from "./ApproachFrame";
+import { ApproachCardActions } from "./ApproachCardActions";
 import { DeskRow } from "./DeskRow";
-import { HasTipButton, HasTipLink } from "./HasTip";
 
 /**
  * The real x.com/home task. Detection stays in this row; expanding a detected
@@ -78,34 +78,21 @@ export function ForYouFeedRow(props: {
           <span>x.com/home</span>
         </>
       }
+      actions={
+        <ApproachCardActions
+          openHref={detected ? undefined : X_FOR_YOU_URL}
+          openLabel="Open For You"
+          openTip={FYP_OPEN_TIP}
+          onNext={props.onNext}
+          nextTip={FYP_NEXT_TIP}
+        />
+      }
     >
       {detected ? (
         <p className="reason">
           {props.activity?.text.trim() || "Post text unavailable."}
         </p>
       ) : null}
-      <div className="row">
-        {detected ? null : (
-          <HasTipLink
-            className="primary"
-            href={X_FOR_YOU_URL}
-            target="_blank"
-            rel="noreferrer"
-            tip={FYP_OPEN_TIP}
-          >
-            Open For You
-          </HasTipLink>
-        )}
-        {props.onNext ? (
-          <HasTipButton
-            className={detected ? "primary" : "ghost"}
-            onClick={props.onNext}
-            tip={FYP_NEXT_TIP}
-          >
-            Next
-          </HasTipButton>
-        ) : null}
-      </div>
       {!detected ? (
         <p className="reason">{props.actionCopy ?? FYP_ACTION_COPY}</p>
       ) : null}

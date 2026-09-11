@@ -10,6 +10,7 @@ import {
 import type { VoiceState } from "../lib/voice";
 import { SuggestPane } from "../SuggestPane";
 import { SuggestLocked } from "../VoiceCard";
+import { ApproachCardActions } from "./ApproachCardActions";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 
@@ -84,22 +85,24 @@ export function SuggestedRow({
         </>
       }
       onToggle={onToggle}
+      actions={
+        detectsReply ? (
+          <ApproachCardActions
+            openHref={openUrl ?? undefined}
+            openLabel="Open on X"
+            openTip="Open the target reply on X."
+            onNext={onNext}
+            nextTip="Continue to the next Approach card."
+            busy={busy}
+            nextDisabled={!interacted}
+          />
+        ) : undefined
+      }
     >
       {!compose && row.draft ? (
         <p className="for-you-draft">{row.draft}</p>
       ) : null}
-      {interacted && detectsReply ? (
-        <div className="row">
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
-            onClick={onNext}
-          >
-            Next
-          </button>
-        </div>
-      ) : compose && voice?.status === "ready" && voice.unlocked && seed ? (
+      {compose && voice?.status === "ready" && voice.unlocked && seed ? (
         <SuggestPane
           variant="compose"
           composeKind={row.kind === "quote" ? "quote" : "post"}
@@ -122,24 +125,7 @@ export function SuggestedRow({
           onOpenSettings={onOpenSettings}
           onLinkX={onLinkX}
         />
-      ) : detectsReply ? (
-        <div className="row">
-          {openUrl ? (
-            <a
-              className="ghost"
-              href={openUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open on X
-            </a>
-          ) : (
-            <button type="button" className="ghost" disabled>
-              Open on X
-            </button>
-          )}
-        </div>
-      ) : (
+      ) : detectsReply ? null : (
         <div className="row">
           {openUrl ? (
             <a
