@@ -34,10 +34,7 @@ import {
   type ApproachInventory,
 } from "../lib/deskPhase";
 import {
-  clearScoutTakeoffTried,
   eligibleScoutCards,
-  markScoutTakeoffTried,
-  readScoutTakeoffTried,
   shouldArmScoutOnBoot,
   shouldArmScoutRefill,
   shouldBackgroundScout,
@@ -442,19 +439,13 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready]);
 
   const pendingDismissIdRef = useRef<string | null>(null);
-  const autoTriedRef = useRef(readScoutTakeoffTried());
+  const autoTriedRef = useRef(false);
   const bootRefuelCheckedRef = useRef(false);
   const [refuelArmed, setRefuelArmed] = useState(false);
   const refuelArmedRef = useRef(false);
 
-  /**
-   * The existing low-tank trigger. `consume` is an operator release of an
-   * inventory card; it re-opens the session takeoff gate. Task entry does not.
-   */
-  function armRefuel(
-    usableScoutCount: number,
-    consume: boolean,
-  ): boolean {
+  /** Arm the low-tank trigger after an operator releases an inventory card. */
+  function armRefuel(usableScoutCount: number): boolean {
     if (
       !shouldArmScoutRefill(usableScoutCount) ||
       refuelArmedRef.current ||
@@ -462,11 +453,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     ) {
       return false;
     }
-    if (!consume && autoTriedRef.current) return false;
-    if (consume) {
-      clearScoutTakeoffTried();
-      autoTriedRef.current = false;
-    }
+    autoTriedRef.current = false;
     bootRefuelCheckedRef.current = true;
     refuelArmedRef.current = true;
     setRefuelArmed(true);
@@ -481,7 +468,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       // An existing flight already serves this opening, even if it lands empty.
       bootRefuelCheckedRef.current = true;
       autoTriedRef.current = true;
-      markScoutTakeoffTried();
       if (refuelArmedRef.current) {
         refuelArmedRef.current = false;
         setRefuelArmed(false);
@@ -490,13 +476,11 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     }
     if (!shouldArmScoutOnBoot({
       usableScoutCount: eligibleCount,
-      alreadyTried: autoTriedRef.current,
       searching,
       tankKnown: deskBootReady,
       handledThisOpen: bootRefuelCheckedRef.current,
     })) return;
     bootRefuelCheckedRef.current = true;
-    clearScoutTakeoffTried();
     autoTriedRef.current = false;
     refuelArmedRef.current = true;
     setRefuelArmed(true);
@@ -519,7 +503,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       return;
     }
     autoTriedRef.current = true;
-    markScoutTakeoffTried();
     refuelArmedRef.current = false;
     setRefuelArmed(false);
     onSearch();
@@ -568,7 +551,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           })
         : "skip";
     advanceCard({ type: event });
-    if (event === "skip") armRefuel(eligibleCount, true);
+    if (event === "skip") armRefuel(eligibleCount);
   }, [
     deskBootReady,
     forYouSuggestions,
@@ -606,7 +589,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     if (!id || !dismissedHistory.some((entry) => entry.threadId === id)) return;
     pendingDismissIdRef.current = null;
     advanceCard({ type: "dismiss" });
-    armRefuel(eligibleScouts.filter((row) => row.id !== id).length, true);
+    armRefuel(eligibleScouts.filter((row) => row.id !== id).length);
   }, [dismissedHistory]);
   function exitRow(
     id: string,
@@ -643,7 +626,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           advanceCard({ type: "skip" });
           armRefuel(
             eligibleScouts.filter((row) => row.id !== thread.id).length,
-            true,
           );
         }
       });
@@ -669,7 +651,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         if (await actForYou(id, "done")) {
           await onRefreshCoaching();
           advanceCard({ type: "posted" });
-          armRefuel(eligibleCount, true);
+          armRefuel(eligibleCount);
         }
       });
     },
@@ -677,7 +659,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       exitRow(id, `suggest:${id}`, async () => {
         if (await actForYou(id, "skip")) {
           advanceCard({ type: "skip" });
-          armRefuel(eligibleCount, true);
+          armRefuel(eligibleCount);
         }
       });
     },
@@ -685,7 +667,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       exitRow(id, `suggest:${id}`, async () => {
         if (await actForYou(id, "dismiss")) {
           advanceCard({ type: "dismiss" });
-          armRefuel(eligibleCount, true);
+          armRefuel(eligibleCount);
         }
       });
     },
