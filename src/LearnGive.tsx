@@ -219,10 +219,11 @@ export function LearnGivePage(props: {
 
       <h2>The desk holds one minute</h2>
       <p>
-        After Mark detects your reply, Approach holds scouted posts for
-        60 seconds. That is our gate, not a published X number. Burstiness
-        is in the features. Five replies a minute is the shape we do not
-        want. Bypass if you must. The hold is there to keep you on notice.
+        After any reply is detected, Approach waits 60 seconds before the
+        next reply card. That is our gate, not a published X number.
+        Burstiness is in the features. Five replies a minute is the shape
+        we do not want. An original or quote during the minute still
+        counts. Bypass if you must. The hold is there to keep you on notice.
         Hour and day gauges on Instruments are the same family — see Part
         2.
       </p>
