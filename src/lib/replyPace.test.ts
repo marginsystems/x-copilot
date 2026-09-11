@@ -4,6 +4,7 @@ import {
   formatReplyPaceClock,
   nextReplyPaceUntil,
   parseReplyPaceUntil,
+  replyPaceSeedIso,
   seedReplyPaceUntil,
   REPLY_PACE_MS,
   replyPaceLocked,
@@ -64,6 +65,50 @@ describe("replyPace", () => {
         nowMs: Date.parse("2026-09-05T12:01:20.000Z"),
       }),
       Date.parse("2026-09-05T12:02:00.000Z"),
+    );
+  });
+
+  it("seeds from the newest detected reply and ignores other activity", () => {
+    const replyAtIso = "2026-09-05T12:00:00.000Z";
+    assert.equal(
+      replyPaceSeedIso({
+        replyAtIso: undefined,
+        ownActivity: {
+          kind: "reply",
+          postedAt: "2026-09-05T12:00:20.000Z",
+        },
+      }),
+      "2026-09-05T12:00:20.000Z",
+    );
+    assert.equal(
+      replyPaceSeedIso({
+        replyAtIso,
+        ownActivity: {
+          kind: "reply",
+          postedAt: "2026-09-05T12:00:20.000Z",
+        },
+      }),
+      "2026-09-05T12:00:20.000Z",
+    );
+    assert.equal(
+      replyPaceSeedIso({
+        replyAtIso,
+        ownActivity: {
+          kind: "reply",
+          postedAt: "2026-09-05T11:59:40.000Z",
+        },
+      }),
+      replyAtIso,
+    );
+    assert.equal(
+      replyPaceSeedIso({
+        replyAtIso,
+        ownActivity: {
+          kind: "original",
+          postedAt: "2026-09-05T12:00:30.000Z",
+        },
+      }),
+      replyAtIso,
     );
   });
 
