@@ -93,6 +93,7 @@ const LANG1_TO_3: Record<PreferredLanguageCode, string> = {
   pt: "por",
 };
 
+const FRANC_ONLY = Object.values(LANG1_TO_3);
 const MIXED_LANGUAGE_CODES = new Set(["ind", "zlm", "jav", "tgl", "sun", "mad"]);
 const MIXED_LANGUAGE_MIN_SCORE = 0.97;
 /** Below this, franc is unreliable — keep the card. */
@@ -743,13 +744,14 @@ export function isNonPreferredLanguage(
   const sample = languageSampleText(thread);
   if (sample.length < LANGUAGE_MIN_CHARS) return false;
   try {
-    const rankings = francAll(sample, {
+    const preferredRankings = francAll(sample, {
+      only: FRANC_ONLY,
       minLength: LANGUAGE_MIN_CHARS,
     });
-    const detected = rankings[0]?.[0];
+    const detected = preferredRankings[0]?.[0];
     if (!detected || detected === "und") return false;
     if (detected !== LANG1_TO_3[preferred]) return true;
-    return rankings.some(
+    return francAll(sample, { minLength: LANGUAGE_MIN_CHARS }).some(
       ([language, score]) =>
         MIXED_LANGUAGE_CODES.has(language) && score >= MIXED_LANGUAGE_MIN_SCORE,
     );

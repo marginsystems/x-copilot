@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { francAll } from "franc-min";
 import {
   DEFAULT_EXCLUDED_TAGS,
   DEFAULT_MAX_THREAD_CHARS,
@@ -8,6 +9,7 @@ import {
   filterMinViews,
   filterExcludedAccounts,
   filterByLanguage,
+  LANGUAGE_MIN_CHARS,
   filterEmDashes,
   filterHashtags,
   filterNativeMedia,
@@ -360,6 +362,10 @@ Kita harus bisa bedain actual performance dari charm, confidence, loud speaking,
 
 AI agents won't make this easier.
 They'll expose how bad we already are at judging performance.`,
+    );
+    assert.equal(
+      francAll(jaksel.text, { minLength: LANGUAGE_MIN_CHARS })[0]?.[0],
+      "eng",
     );
     assert.equal(isNonPreferredLanguage(jaksel, "en"), true);
     assert.deepEqual(filterByLanguage([jaksel], "en"), {
