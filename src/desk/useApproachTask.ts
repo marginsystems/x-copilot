@@ -41,10 +41,11 @@ import {
   shouldBackgroundScout,
 } from "../lib/deskRefuel";
 import type { ForYouSuggestion } from "../lib/forYou";
-import { replyPaceLocked, replyPaceSeedIso } from "../lib/replyPace";
+import { replyPaceSeedIso } from "../lib/replyPace";
 import {
   clearForYouWait,
   forYouWaitDetected,
+  openForYouWait,
   readForYouWait,
   settleForYouWait,
   writeForYouWait,
@@ -67,10 +68,6 @@ import type {
   ThreadCard,
 } from "./types";
 import { useDeskRowExit } from "./useDeskRowExit";
-import {
-  readReplyPaceUntil,
-  seedReplyPaceFromReplyAt,
-} from "./replyPaceStore";
 import { useReplyPace } from "./useReplyPace";
 import { watchDeskThreads } from "./watch";
 
@@ -234,13 +231,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     };
   }
   function livePaceLocked(): boolean {
-    const until = seedReplyPaceFromReplyAt(
-      replyPaceSeedIso({
-        replyAtIso: coachingRef.current?.replyAt?.[0],
-        ownActivity: coachingRef.current?.ownActivity,
-      }),
-    );
-    return replyPaceLocked(until ?? readReplyPaceUntil(), Date.now());
+    return pace.locked;
   }
   const availableSuggestionId = pickSuggestion(null)?.id ?? null;
   const normalizeRef = useRef<ApproachNormalizeContext>({
@@ -344,13 +335,20 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
 
   useLayoutEffect(() => {
     const current = stateRef.current;
-    if (!livePaceLocked() || !current || isForYouTask(current.lock)) return;
+    if (
+      gate !== null ||
+      !livePaceLocked() ||
+      !current ||
+      isForYouTask(current.lock)
+    ) {
+      return;
+    }
     if (current.lock.phase === "hold") return;
     commit({
       lock: { phase: "hold", cardId: null, surface: "for_you" },
-      wait: null,
+      wait: openForYouWait({ owner, coaching: coachingRef.current }),
     });
-  }, [pace.locked, replyPaceSeed]);
+  }, [gate, owner, pace.locked, replyPaceSeed]);
 
   useEffect(() => {
     const current = stateRef.current;
