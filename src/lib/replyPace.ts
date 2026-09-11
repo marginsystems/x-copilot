@@ -7,7 +7,7 @@ export const REPLY_PACE_EVENT = "x-copilot-reply-pace";
 
 export const REPLY_PACE_LEAD = "One reply a minute.";
 export const REPLY_PACE_HELP =
-  "After Mark detects your reply, we hold scouted replies for 60 seconds. That is a desk gate, not a published X number. It keeps you from firing five replies a minute.";
+  "After any reply is detected, Approach waits 60 seconds before the next reply card. That is a desk gate, not a published X number. An original or quote during the minute still counts. Bypass if you must.";
 
 export function nextReplyPaceUntil(now: number): number {
   return now + REPLY_PACE_MS;

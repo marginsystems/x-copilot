@@ -107,7 +107,7 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /0:00/);
   });
 
-  it("keeps the live pace clock under the For You row", () => {
+  it("shows only the pace row while the minute runs on For You", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -119,14 +119,15 @@ describe("Reply pace", () => {
         }),
       ),
     );
-    assert.match(html, escapeRe(FYP_DETECTING_COPY));
-    assert.match(html, /approach-panel-loader-mark/);
     assert.match(html, /reply-pace/);
     assert.match(html, /0:42/);
     assert.match(html, />Bypass</);
+    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
+    assert.doesNotMatch(html, /approach-panel-loader-mark/);
+    assert.doesNotMatch(html, />Open For You</);
   });
 
-  it("keeps the live pace clock under a Scout row", () => {
+  it("covers a Scout row with the pace clock until the minute ends", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -137,7 +138,7 @@ describe("Reply pace", () => {
         }),
       ),
     );
-    assert.match(html, /live-scout/);
+    assert.doesNotMatch(html, /live-scout/);
     assert.match(html, /reply-pace/);
     assert.match(html, /0:42/);
   });
@@ -158,7 +159,7 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /0:00/);
   });
 
-  it("keeps the live pace clock under a Suggested row", () => {
+  it("covers a Suggested row with the pace clock until the minute ends", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -169,9 +170,8 @@ describe("Reply pace", () => {
         }),
       ),
     );
-    assert.match(html, /A suggested reply/);
-    assert.match(html, /class="mission-card approach-frame"/);
-    assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
+    assert.doesNotMatch(html, /A suggested reply/);
+    assert.doesNotMatch(html, /class="mission-card approach-frame"/);
     assert.match(html, /reply-pace/);
     assert.match(html, /0:42/);
   });
@@ -233,7 +233,7 @@ describe("Reply pace", () => {
 });
 
 describe("Hold presentation", () => {
-  it("holds the same For You card while the minute runs: no Next, Bypass exits", () => {
+  it("replaces the For You card with the pace row while the minute runs", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -245,13 +245,14 @@ describe("Hold presentation", () => {
         }),
       ),
     );
-    assert.match(html, /for-you-status/);
-    assert.match(html, escapeRe(FYP_DETECTING_COPY));
-    assert.match(html, />Open For You</);
-    assert.match(html, escapeRe(FYP_HOLD_ACTION_COPY));
-    assert.doesNotMatch(html, />Next</);
+    assert.match(html, /reply-pace/);
+    assert.match(html, /0:42/);
     assert.match(html, />Bypass</);
-    assert.doesNotMatch(html, /Reply, original, or quote/);
+    assert.doesNotMatch(html, /for-you-status/);
+    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
+    assert.doesNotMatch(html, />Open For You</);
+    assert.doesNotMatch(html, escapeRe(FYP_HOLD_ACTION_COPY));
+    assert.doesNotMatch(html, />Next</);
   });
 
   it("becomes For You on the same card when the minute is over", () => {
@@ -506,8 +507,8 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /You&#x27;re clean/);
   });
 
-  it("keeps a detected hold visible with its post and no Next", () => {
-    const html = renderToStaticMarkup(
+  it("covers a detected hold with the pace row until the minute ends", () => {
+    const running = renderToStaticMarkup(
       MissionCard(
         missionProps({
           phase: "hold",
@@ -538,6 +539,44 @@ describe("Approach flight frame", () => {
         }),
       ),
     );
+    assert.match(running, /reply-pace/);
+    assert.match(running, />Bypass</);
+    assert.doesNotMatch(running, escapeRe(FYP_DETECTED_COPY));
+    assert.doesNotMatch(running, /196504221778/);
+    assert.doesNotMatch(running, />Next</);
+    assert.doesNotMatch(running, />Open For You</);
+
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "hold",
+          surface: "for_you",
+          forYou: { detected: true },
+          remainingMs: 0,
+          clock: "0:00",
+          coaching: {
+            dayUtc: "2026-09-08",
+            nextAction: null,
+            missions: [],
+            beats: {
+              scoutReplyDone: false,
+              organicReplyDone: false,
+              forkChoice: null,
+              forkDone: false,
+            },
+            replyAt: ["2026-09-08T04:00:01.000Z"],
+            ownActivity: {
+              id: "196504221778",
+              url: "https://x.com/desk/status/196504221778",
+              text: "The detected post text.",
+              kind: "reply",
+              postedAt: "2026-09-08T04:00:00.000Z",
+            },
+          },
+          onForYouNext() {},
+        }),
+      ),
+    );
     assert.match(html, escapeRe(FYP_DETECTED_COPY));
     assert.equal(html.split(FYP_DETECTED_COPY).length - 1, 1);
     assert.match(html, /196504221778/);
@@ -545,10 +584,10 @@ describe("Approach flight frame", () => {
     assert.match(html, /The detected post text\./);
     assert.match(html, /aria-label="Open detected post 196504221778 on X"/);
     assert.match(html, /class="caret"/);
-    assert.doesNotMatch(html, />Next</);
+    assert.match(html, />Next</);
     assert.doesNotMatch(html, />Open For You</);
     assert.doesNotMatch(html, /Likes do not count/);
-    assert.match(html, />Bypass</);
+    assert.doesNotMatch(html, /reply-pace/);
   });
 
   it("paints the same For You presenter for both For You phases", () => {

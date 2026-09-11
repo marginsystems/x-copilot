@@ -1,4 +1,4 @@
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { SuggestLocked } from "../VoiceCard";
 import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
@@ -179,25 +179,22 @@ export function MissionCard(props: MissionCardProps) {
   const view = presentApproach(props);
   if (view.kind === "blank") return null;
 
-  const withReplyPace = (card: ReactNode) => (
-    <>
-      {card}
-      {view.showPace ? (
-        <ReplyPaceBar
-          clock={props.clock}
-          remainingMs={props.remainingMs}
-          onBypass={props.onBypass}
-        />
-      ) : null}
-    </>
-  );
+  if (view.showPace && view.kind !== "gate") {
+    return (
+      <ReplyPaceBar
+        clock={props.clock}
+        remainingMs={props.remainingMs}
+        onBypass={props.onBypass}
+      />
+    );
+  }
 
   if (view.kind === "gate") {
-    return withReplyPace(<GateCard {...props} view={view} />);
+    return <GateCard {...props} view={view} />;
   }
 
   if (view.kind === "for_you" && view.forYou) {
-    return withReplyPace(
+    return (
       <ApproachFrame>
         <ForYouFeedRow
           status={view.forYou.status}
@@ -207,25 +204,25 @@ export function MissionCard(props: MissionCardProps) {
           onNext={view.forYou.showNext ? props.onForYouNext : undefined}
           expandable={view.forYou.detected}
         />
-      </ApproachFrame>,
+      </ApproachFrame>
     );
   }
 
   if (view.kind === "scout" && props.scout) {
-    return withReplyPace(
+    return (
       <ApproachFrame>
         <ScoutRow {...props} thread={props.scout} />
-      </ApproachFrame>,
+      </ApproachFrame>
     );
   }
 
   if (view.kind === "scout_missing") {
-    return withReplyPace(
+    return (
       <ApproachFrame verb={view.verb} busy>
         <ApproachFlightRow line={view.why} flying={props.searching === true} />
-      </ApproachFrame>,
+      </ApproachFrame>
     );
   }
 
-  return withReplyPace(<SuggestedCard {...props} view={view} />);
+  return <SuggestedCard {...props} view={view} />;
 }
