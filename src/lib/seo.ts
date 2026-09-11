@@ -431,8 +431,26 @@ export function learnJsonLd(): Record<string, unknown> {
   };
 }
 
-export function learnWeightsJsonLd(): Record<string, unknown> {
-  const pageUrl = `${SITE_ORIGIN}${LEARN_WEIGHTS_PATH}`;
+type LessonJsonLdMetadata = {
+  path: string;
+  title: string;
+  heading: string;
+  description: string;
+  articleImage: string;
+  citation: string;
+  appImage: string;
+};
+
+function lessonJsonLd({
+  path,
+  title,
+  heading,
+  description,
+  articleImage,
+  citation,
+  appImage,
+}: LessonJsonLdMetadata): Record<string, unknown> {
+  const pageUrl = `${SITE_ORIGIN}${path}`;
   const learnUrl = `${SITE_ORIGIN}/learn`;
   const orgId = `${SITE_ORIGIN}/#organization`;
   const appId = `${SITE_ORIGIN}/#app`;
@@ -455,7 +473,7 @@ export function learnWeightsJsonLd(): Record<string, unknown> {
         url: `${SITE_ORIGIN}/`,
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web",
-        image: absoluteSeoUrl(LEARN_IMAGE),
+        image: absoluteSeoUrl(appImage),
         creator: { "@id": orgId },
       },
       {
@@ -470,15 +488,15 @@ export function learnWeightsJsonLd(): Record<string, unknown> {
         "@type": "Article",
         "@id": pageId,
         url: pageUrl,
-        name: LEARN_TITLE,
-        headline: LEARN_HEADING,
-        description: LEARN_DESCRIPTION,
+        name: title,
+        headline: heading,
+        description,
         isPartOf: { "@id": siteId },
         about: { "@id": appId },
-        image: absoluteSeoUrl(LEARN_WEIGHTS_IMAGE),
+        image: absoluteSeoUrl(articleImage),
         inLanguage: "en-US",
         dateModified: LEARN_SOURCE_DATE,
-        citation: LEARN_PARAM_FILE_HREF,
+        citation,
         publisher: { "@id": orgId },
         breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
         sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
@@ -502,333 +520,73 @@ export function learnWeightsJsonLd(): Record<string, unknown> {
           {
             "@type": "ListItem",
             position: 3,
-            name: LEARN_HEADING,
+            name: heading,
             item: pageUrl,
           },
         ],
       },
     ],
   };
+}
+
+export function learnWeightsJsonLd(): Record<string, unknown> {
+  return lessonJsonLd({
+    path: LEARN_WEIGHTS_PATH,
+    title: LEARN_TITLE,
+    heading: LEARN_HEADING,
+    description: LEARN_DESCRIPTION,
+    articleImage: LEARN_WEIGHTS_IMAGE,
+    citation: LEARN_PARAM_FILE_HREF,
+    appImage: LEARN_IMAGE,
+  });
 }
 
 export function learnFollowJsonLd(): Record<string, unknown> {
-  const pageUrl = `${SITE_ORIGIN}/learn/follow`;
-  const learnUrl = `${SITE_ORIGIN}/learn`;
-  const orgId = `${SITE_ORIGIN}/#organization`;
-  const appId = `${SITE_ORIGIN}/#app`;
-  const siteId = `${SITE_ORIGIN}/#website`;
-  const pageId = `${pageUrl}#page`;
-  return {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Organization",
-        "@id": orgId,
-        name: LEGAL_ENTITY,
-        url: "https://mergestorm.ai/",
-        email: LEGAL_CONTACT_EMAIL,
-      },
-      {
-        "@type": "SoftwareApplication",
-        "@id": appId,
-        name: PRODUCT_NAME,
-        url: `${SITE_ORIGIN}/`,
-        applicationCategory: "BusinessApplication",
-        operatingSystem: "Web",
-        image: absoluteSeoUrl(LEARN_IMAGE),
-        creator: { "@id": orgId },
-      },
-      {
-        "@type": "WebSite",
-        "@id": siteId,
-        url: `${SITE_ORIGIN}/`,
-        name: PRODUCT_NAME,
-        publisher: { "@id": orgId },
-        inLanguage: "en-US",
-      },
-      {
-        "@type": "Article",
-        "@id": pageId,
-        url: pageUrl,
-        name: LEARN_FOLLOW_TITLE,
-        headline: LEARN_FOLLOW_HEADING,
-        description: LEARN_FOLLOW_DESCRIPTION,
-        isPartOf: { "@id": siteId },
-        about: { "@id": appId },
-        image: absoluteSeoUrl(LEARN_IMAGE),
-        inLanguage: "en-US",
-        dateModified: LEARN_SOURCE_DATE,
-        citation: LEARN_OON_HREF,
-        publisher: { "@id": orgId },
-        breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
-        sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
-      },
-      {
-        "@type": "BreadcrumbList",
-        "@id": `${pageUrl}#breadcrumb`,
-        itemListElement: [
-          {
-            "@type": "ListItem",
-            position: 1,
-            name: PRODUCT_NAME,
-            item: `${SITE_ORIGIN}/`,
-          },
-          {
-            "@type": "ListItem",
-            position: 2,
-            name: LEARN_HUB_HEADING,
-            item: learnUrl,
-          },
-          {
-            "@type": "ListItem",
-            position: 3,
-            name: LEARN_FOLLOW_HEADING,
-            item: pageUrl,
-          },
-        ],
-      },
-    ],
-  };
+  return lessonJsonLd({
+    path: "/learn/follow",
+    title: LEARN_FOLLOW_TITLE,
+    heading: LEARN_FOLLOW_HEADING,
+    description: LEARN_FOLLOW_DESCRIPTION,
+    articleImage: LEARN_IMAGE,
+    citation: LEARN_OON_HREF,
+    appImage: LEARN_IMAGE,
+  });
 }
 
 export function learnReplyJsonLd(): Record<string, unknown> {
-  const pageUrl = `${SITE_ORIGIN}${LEARN_REPLY_PATH}`;
-  const learnUrl = `${SITE_ORIGIN}/learn`;
-  const orgId = `${SITE_ORIGIN}/#organization`;
-  const appId = `${SITE_ORIGIN}/#app`;
-  const siteId = `${SITE_ORIGIN}/#website`;
-  const pageId = `${pageUrl}#page`;
-  return {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Organization",
-        "@id": orgId,
-        name: LEGAL_ENTITY,
-        url: "https://mergestorm.ai/",
-        email: LEGAL_CONTACT_EMAIL,
-      },
-      {
-        "@type": "SoftwareApplication",
-        "@id": appId,
-        name: PRODUCT_NAME,
-        url: `${SITE_ORIGIN}/`,
-        applicationCategory: "BusinessApplication",
-        operatingSystem: "Web",
-        image: absoluteSeoUrl(LEARN_IMAGE),
-        creator: { "@id": orgId },
-      },
-      {
-        "@type": "WebSite",
-        "@id": siteId,
-        url: `${SITE_ORIGIN}/`,
-        name: PRODUCT_NAME,
-        publisher: { "@id": orgId },
-        inLanguage: "en-US",
-      },
-      {
-        "@type": "Article",
-        "@id": pageId,
-        url: pageUrl,
-        name: LEARN_REPLY_TITLE,
-        headline: LEARN_REPLY_HEADING,
-        description: LEARN_REPLY_DESCRIPTION,
-        isPartOf: { "@id": siteId },
-        about: { "@id": appId },
-        image: absoluteSeoUrl(LEARN_REPLY_IMAGE),
-        inLanguage: "en-US",
-        dateModified: LEARN_SOURCE_DATE,
-        citation: LEARN_REPLY_WEIGHT_HREF,
-        publisher: { "@id": orgId },
-        breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
-        sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
-      },
-      {
-        "@type": "BreadcrumbList",
-        "@id": `${pageUrl}#breadcrumb`,
-        itemListElement: [
-          {
-            "@type": "ListItem",
-            position: 1,
-            name: PRODUCT_NAME,
-            item: `${SITE_ORIGIN}/`,
-          },
-          {
-            "@type": "ListItem",
-            position: 2,
-            name: LEARN_HUB_HEADING,
-            item: learnUrl,
-          },
-          {
-            "@type": "ListItem",
-            position: 3,
-            name: LEARN_REPLY_HEADING,
-            item: pageUrl,
-          },
-        ],
-      },
-    ],
-  };
+  return lessonJsonLd({
+    path: LEARN_REPLY_PATH,
+    title: LEARN_REPLY_TITLE,
+    heading: LEARN_REPLY_HEADING,
+    description: LEARN_REPLY_DESCRIPTION,
+    articleImage: LEARN_REPLY_IMAGE,
+    citation: LEARN_REPLY_WEIGHT_HREF,
+    appImage: LEARN_IMAGE,
+  });
 }
 
 export function learnVolumeJsonLd(): Record<string, unknown> {
-  const pageUrl = `${SITE_ORIGIN}${LEARN_VOLUME_PATH}`;
-  const learnUrl = `${SITE_ORIGIN}/learn`;
-  const orgId = `${SITE_ORIGIN}/#organization`;
-  const appId = `${SITE_ORIGIN}/#app`;
-  const siteId = `${SITE_ORIGIN}/#website`;
-  const pageId = `${pageUrl}#page`;
-  return {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Organization",
-        "@id": orgId,
-        name: LEGAL_ENTITY,
-        url: "https://mergestorm.ai/",
-        email: LEGAL_CONTACT_EMAIL,
-      },
-      {
-        "@type": "SoftwareApplication",
-        "@id": appId,
-        name: PRODUCT_NAME,
-        url: `${SITE_ORIGIN}/`,
-        applicationCategory: "BusinessApplication",
-        operatingSystem: "Web",
-        image: absoluteSeoUrl(LEARN_IMAGE),
-        creator: { "@id": orgId },
-      },
-      {
-        "@type": "WebSite",
-        "@id": siteId,
-        url: `${SITE_ORIGIN}/`,
-        name: PRODUCT_NAME,
-        publisher: { "@id": orgId },
-        inLanguage: "en-US",
-      },
-      {
-        "@type": "Article",
-        "@id": pageId,
-        url: pageUrl,
-        name: LEARN_VOLUME_TITLE,
-        headline: LEARN_VOLUME_HEADING,
-        description: LEARN_VOLUME_DESCRIPTION,
-        isPartOf: { "@id": siteId },
-        about: { "@id": appId },
-        image: absoluteSeoUrl(LEARN_VOLUME_IMAGE),
-        inLanguage: "en-US",
-        dateModified: LEARN_SOURCE_DATE,
-        citation: LEARN_DIVERSITY_FN_HREF,
-        publisher: { "@id": orgId },
-        breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
-        sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
-      },
-      {
-        "@type": "BreadcrumbList",
-        "@id": `${pageUrl}#breadcrumb`,
-        itemListElement: [
-          {
-            "@type": "ListItem",
-            position: 1,
-            name: PRODUCT_NAME,
-            item: `${SITE_ORIGIN}/`,
-          },
-          {
-            "@type": "ListItem",
-            position: 2,
-            name: LEARN_HUB_HEADING,
-            item: learnUrl,
-          },
-          {
-            "@type": "ListItem",
-            position: 3,
-            name: LEARN_VOLUME_HEADING,
-            item: pageUrl,
-          },
-        ],
-      },
-    ],
-  };
+  return lessonJsonLd({
+    path: LEARN_VOLUME_PATH,
+    title: LEARN_VOLUME_TITLE,
+    heading: LEARN_VOLUME_HEADING,
+    description: LEARN_VOLUME_DESCRIPTION,
+    articleImage: LEARN_VOLUME_IMAGE,
+    citation: LEARN_DIVERSITY_FN_HREF,
+    appImage: LEARN_IMAGE,
+  });
 }
 
 export function learnGiveJsonLd(): Record<string, unknown> {
-  const pageUrl = `${SITE_ORIGIN}${LEARN_GIVE_PATH}`;
-  const learnUrl = `${SITE_ORIGIN}/learn`;
-  const orgId = `${SITE_ORIGIN}/#organization`;
-  const appId = `${SITE_ORIGIN}/#app`;
-  const siteId = `${SITE_ORIGIN}/#website`;
-  const pageId = `${pageUrl}#page`;
-  return {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Organization",
-        "@id": orgId,
-        name: LEGAL_ENTITY,
-        url: "https://mergestorm.ai/",
-        email: LEGAL_CONTACT_EMAIL,
-      },
-      {
-        "@type": "SoftwareApplication",
-        "@id": appId,
-        name: PRODUCT_NAME,
-        url: `${SITE_ORIGIN}/`,
-        applicationCategory: "BusinessApplication",
-        operatingSystem: "Web",
-        image: absoluteSeoUrl(LEARN_GIVE_IMAGE),
-        creator: { "@id": orgId },
-      },
-      {
-        "@type": "WebSite",
-        "@id": siteId,
-        url: `${SITE_ORIGIN}/`,
-        name: PRODUCT_NAME,
-        publisher: { "@id": orgId },
-        inLanguage: "en-US",
-      },
-      {
-        "@type": "Article",
-        "@id": pageId,
-        url: pageUrl,
-        name: LEARN_GIVE_TITLE,
-        headline: LEARN_GIVE_HEADING,
-        description: LEARN_GIVE_DESCRIPTION,
-        isPartOf: { "@id": siteId },
-        about: { "@id": appId },
-        image: absoluteSeoUrl(LEARN_GIVE_IMAGE),
-        inLanguage: "en-US",
-        dateModified: LEARN_SOURCE_DATE,
-        citation: LEARN_BDSM_LIKE_HEAD_HREF,
-        publisher: { "@id": orgId },
-        breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
-        sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
-      },
-      {
-        "@type": "BreadcrumbList",
-        "@id": `${pageUrl}#breadcrumb`,
-        itemListElement: [
-          {
-            "@type": "ListItem",
-            position: 1,
-            name: PRODUCT_NAME,
-            item: `${SITE_ORIGIN}/`,
-          },
-          {
-            "@type": "ListItem",
-            position: 2,
-            name: LEARN_HUB_HEADING,
-            item: learnUrl,
-          },
-          {
-            "@type": "ListItem",
-            position: 3,
-            name: LEARN_GIVE_HEADING,
-            item: pageUrl,
-          },
-        ],
-      },
-    ],
-  };
+  return lessonJsonLd({
+    path: LEARN_GIVE_PATH,
+    title: LEARN_GIVE_TITLE,
+    heading: LEARN_GIVE_HEADING,
+    description: LEARN_GIVE_DESCRIPTION,
+    articleImage: LEARN_GIVE_IMAGE,
+    citation: LEARN_BDSM_LIKE_HEAD_HREF,
+    appImage: LEARN_GIVE_IMAGE,
+  });
 }
 
 export function jsonLdForView(view: AppView): Record<string, unknown> {
