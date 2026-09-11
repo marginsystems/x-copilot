@@ -40,6 +40,7 @@ import {
   shouldBackgroundScout,
 } from "../lib/deskRefuel";
 import type { ForYouSuggestion } from "../lib/forYou";
+import { replyPaceSeedIso } from "../lib/replyPace";
 import {
   clearForYouWait,
   forYouWaitDetected,
@@ -121,7 +122,12 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     onRefreshCoaching,
     onHydrateInteracted,
   } = opts;
-  const pace = useReplyPace(coaching?.replyAt?.[0]);
+  const pace = useReplyPace(
+    replyPaceSeedIso({
+      replyAtIso: coaching?.replyAt?.[0],
+      ownActivity: coaching?.ownActivity,
+    }),
+  );
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   const userId = authUser?.id ?? null;
   const owner = userId ?? "local";
