@@ -4,6 +4,8 @@ import {
   LEARN_DESCRIPTION,
   LEARN_FOLLOW_DESCRIPTION,
   LEARN_FOLLOW_HEADING,
+  LEARN_FOLLOW_IMAGE,
+  LEARN_FOLLOW_IMAGE_ALT,
   LEARN_FOLLOW_TITLE,
   LEARN_HEADING,
   LEARN_HUB_DESCRIPTION,
@@ -202,8 +204,8 @@ export function seoForView(view: AppView): SeoMeta {
       title: LEARN_FOLLOW_TITLE,
       description: LEARN_FOLLOW_DESCRIPTION,
       robots,
-      image: LEARN_IMAGE,
-      imageAlt: LEARN_IMAGE_ALT,
+      image: LEARN_FOLLOW_IMAGE,
+      imageAlt: LEARN_FOLLOW_IMAGE_ALT,
     };
   }
   return {
@@ -217,6 +219,20 @@ export function seoForView(view: AppView): SeoMeta {
 
 export function absoluteSeoUrl(path: string): string {
   return `${SITE_ORIGIN}${path}`;
+}
+
+/** Lessons (and the follow note) share as articles. Hub/home stay a website. */
+export function ogTypeForView(view: AppView): "website" | "article" {
+  switch (view) {
+    case "learnWeights":
+    case "learnReply":
+    case "learnVolume":
+    case "learnGive":
+    case "learnFollow":
+      return "article";
+    default:
+      return "website";
+  }
 }
 
 export function softwareApplicationJsonLd(): Record<string, unknown> {
@@ -385,8 +401,14 @@ export function learnJsonLd(): Record<string, unknown> {
         about: { "@id": appId },
         image: absoluteSeoUrl(LEARN_IMAGE),
         inLanguage: "en-US",
+        educationalUse: "instruction",
         dateModified: LEARN_SOURCE_DATE,
         mainEntity: { "@id": listId },
+        hasPart: LEARN_LESSONS.map((lesson) => ({
+          "@type": "LearningResource",
+          url: `${SITE_ORIGIN}${lesson.href}`,
+          name: lesson.heading,
+        })),
         publisher: { "@id": orgId },
         breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
       },
@@ -400,7 +422,8 @@ export function learnJsonLd(): Record<string, unknown> {
           position: index + 1,
           url: `${SITE_ORIGIN}${lesson.href}`,
           item: {
-            "@type": "Article",
+            "@type": "LearningResource",
+            learningResourceType: "Lesson",
             name: lesson.heading,
             description: lesson.lede,
             url: `${SITE_ORIGIN}${lesson.href}`,
@@ -439,6 +462,7 @@ type LessonJsonLdMetadata = {
   articleImage: string;
   citation: string;
   appImage: string;
+  teaches: string;
 };
 
 function lessonJsonLd({
@@ -449,6 +473,7 @@ function lessonJsonLd({
   articleImage,
   citation,
   appImage,
+  teaches,
 }: LessonJsonLdMetadata): Record<string, unknown> {
   const pageUrl = `${SITE_ORIGIN}${path}`;
   const learnUrl = `${SITE_ORIGIN}/learn`;
@@ -456,6 +481,7 @@ function lessonJsonLd({
   const appId = `${SITE_ORIGIN}/#app`;
   const siteId = `${SITE_ORIGIN}/#website`;
   const pageId = `${pageUrl}#page`;
+  const collectionId = `${learnUrl}#page`;
   return {
     "@context": "https://schema.org",
     "@graph": [
@@ -485,18 +511,26 @@ function lessonJsonLd({
         inLanguage: "en-US",
       },
       {
-        "@type": "Article",
+        "@type": "LearningResource",
         "@id": pageId,
         url: pageUrl,
         name: title,
         headline: heading,
         description,
-        isPartOf: { "@id": siteId },
+        learningResourceType: "Lesson",
+        educationalLevel: "beginner",
+        educationalUse: "instruction",
+        teaches,
+        isAccessibleForFree: true,
+        timeRequired: "PT8M",
+        isPartOf: [{ "@id": siteId }, { "@id": collectionId }],
         about: { "@id": appId },
         image: absoluteSeoUrl(articleImage),
         inLanguage: "en-US",
+        datePublished: LEARN_SOURCE_DATE,
         dateModified: LEARN_SOURCE_DATE,
         citation,
+        author: { "@id": orgId },
         publisher: { "@id": orgId },
         breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
         sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
@@ -538,6 +572,8 @@ export function learnWeightsJsonLd(): Record<string, unknown> {
     articleImage: LEARN_WEIGHTS_IMAGE,
     citation: LEARN_PARAM_FILE_HREF,
     appImage: LEARN_IMAGE,
+    teaches:
+      "X For You ranking weights multiply predicted P(action), not raw engagement counts",
   });
 }
 
@@ -547,9 +583,11 @@ export function learnFollowJsonLd(): Record<string, unknown> {
     title: LEARN_FOLLOW_TITLE,
     heading: LEARN_FOLLOW_HEADING,
     description: LEARN_FOLLOW_DESCRIPTION,
-    articleImage: LEARN_IMAGE,
+    articleImage: LEARN_FOLLOW_IMAGE,
     citation: LEARN_OON_HREF,
     appImage: LEARN_IMAGE,
+    teaches:
+      "Out-of-network posts and followed replies are multiplied by 0.75 on X For You",
   });
 }
 
@@ -562,6 +600,7 @@ export function learnReplyJsonLd(): Record<string, unknown> {
     articleImage: LEARN_REPLY_IMAGE,
     citation: LEARN_REPLY_WEIGHT_HREF,
     appImage: LEARN_IMAGE,
+    teaches: "Reply weight and the mutual-follow original boost on X For You",
   });
 }
 
@@ -574,6 +613,7 @@ export function learnVolumeJsonLd(): Record<string, unknown> {
     articleImage: LEARN_VOLUME_IMAGE,
     citation: LEARN_DIVERSITY_FN_HREF,
     appImage: LEARN_IMAGE,
+    teaches: "Slate diversity decay and Thunder reply caps, not a daily quota",
   });
 }
 
@@ -586,6 +626,8 @@ export function learnGiveJsonLd(): Record<string, unknown> {
     articleImage: LEARN_GIVE_IMAGE,
     citation: LEARN_BDSM_LIKE_HEAD_HREF,
     appImage: LEARN_GIVE_IMAGE,
+    teaches:
+      "Likes and follows you give are spam-head sequences, not For You score credits",
   });
 }
 
@@ -613,6 +655,7 @@ export function applyDocumentSeo(doc: SeoDoc & Pick<Document, "title">, view: Ap
   link?.setAttribute("href", canonical);
   upsertMeta(doc, 'meta[name="description"]', { name: "description" }, seo.description);
   upsertMeta(doc, 'meta[property="og:url"]', { property: "og:url" }, canonical);
+  upsertMeta(doc, 'meta[property="og:type"]', { property: "og:type" }, ogTypeForView(view));
   upsertMeta(doc, 'meta[property="og:title"]', { property: "og:title" }, seo.title);
   upsertMeta(
     doc,
@@ -644,6 +687,7 @@ export function htmlWithSeo(html: string, view: AppView): string {
   out = replaceCanonical(out, canonical);
   out = replaceMeta(out, "name", "description", seo.description);
   out = replaceMeta(out, "property", "og:url", canonical);
+  out = replaceMeta(out, "property", "og:type", ogTypeForView(view));
   out = replaceMeta(out, "property", "og:title", seo.title);
   out = replaceMeta(out, "property", "og:description", seo.description);
   out = replaceMeta(out, "property", "og:image", image);

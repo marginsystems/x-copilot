@@ -2,6 +2,7 @@ import { LegalLink } from "./Legal";
 import { LearnChrome } from "./LearnChrome";
 import {
   LEARN_HUB_HEADING,
+  LEARN_HUB_LEDE,
   LEARN_HUB_META,
   LEARN_LESSONS,
   type LearnLessonView,
@@ -17,6 +18,7 @@ export function LearnHubPage(props: {
       meta={LEARN_HUB_META}
       onHome={props.onHome}
     >
+      <p className="learn-hub-lede">{LEARN_HUB_LEDE}</p>
       <ol className="learn-catalog">
         {LEARN_LESSONS.map((lesson) => (
           <li key={lesson.href}>
