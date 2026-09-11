@@ -70,7 +70,7 @@ function suggestionVerb(row: ForYouSuggestion | null): string {
 }
 
 function forYouPresentation(input: ApproachCardInput): ApproachPresentation {
-  const holding = input.remainingMs > 0;
+  const holding = input.remainingMs > 0 && input.phase === "hold";
   const detected = input.forYou?.detected === true;
   const latestActivity = input.coaching?.ownActivity ?? null;
   const activity =
@@ -106,7 +106,7 @@ function forYouPresentation(input: ApproachCardInput): ApproachPresentation {
 }
 
 export function presentApproach(input: ApproachCardInput): ApproachPresentation {
-  const showPace = input.remainingMs > 0;
+  const showPace = input.remainingMs > 0 && input.phase === "hold";
   const blank: ApproachPresentation = {
     kind: "blank",
     verb: "",
