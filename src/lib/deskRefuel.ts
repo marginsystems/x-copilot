@@ -2,8 +2,6 @@ import type { DeskPhase } from "./deskPhase";
 
 /** Start a background takeoff when the last scouted card is on the desk or gone. */
 export const SCOUT_TANK_LOW = 1;
-export const SCOUT_TAKEOFF_TRIED_STORAGE_KEY =
-  "x-copilot-scout-takeoff-tried";
 
 export function shouldArmScoutRefill(usableScoutCount: number): boolean {
   return usableScoutCount <= SCOUT_TANK_LOW;
@@ -23,7 +21,6 @@ export function eligibleScoutCards<T extends { id: string }>(
 
 export function shouldArmScoutOnBoot(opts: {
   usableScoutCount: number;
-  alreadyTried: boolean;
   searching: boolean;
   tankKnown: boolean;
   handledThisOpen: boolean;
@@ -35,30 +32,6 @@ export function shouldArmScoutOnBoot(opts: {
     shouldArmScoutRefill(opts.usableScoutCount) &&
     !opts.searching
   );
-}
-
-export function readScoutTakeoffTried(): boolean {
-  try {
-    return sessionStorage.getItem(SCOUT_TAKEOFF_TRIED_STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function markScoutTakeoffTried(): void {
-  try {
-    sessionStorage.setItem(SCOUT_TAKEOFF_TRIED_STORAGE_KEY, "1");
-  } catch {
-    /* private mode */
-  }
-}
-
-export function clearScoutTakeoffTried(): void {
-  try {
-    sessionStorage.removeItem(SCOUT_TAKEOFF_TRIED_STORAGE_KEY);
-  } catch {
-    /* private mode */
-  }
 }
 
 function phaseAllowsBackgroundScout(phase: DeskPhase): boolean {
