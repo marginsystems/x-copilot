@@ -95,7 +95,12 @@ export function transitionApproachTask(
 ): ApproachTaskState {
   const lock = advanceApproach(state.lock, event, inventory);
   if (lock === state.lock) return state;
-  return { lock, wait: waitFor(lock, ctx) };
+  return {
+    lock,
+    wait: isForYouTask(state.lock) && lock.phase === "hold"
+      ? state.wait
+      : waitFor(lock, ctx),
+  };
 }
 
 /** A prerequisite changed. Active tasks keep their identity and wait. */
