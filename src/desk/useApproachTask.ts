@@ -345,7 +345,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
 
   useLayoutEffect(() => {
     const current = stateRef.current;
-    if (!pace.locked || !current || isForYouTask(current.lock)) return;
+    if (!livePaceLocked() || !current || isForYouTask(current.lock)) return;
     if (current.lock.phase === "hold") return;
     commit({
       lock: { phase: "hold", cardId: null, surface: "for_you" },
