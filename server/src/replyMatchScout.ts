@@ -9,11 +9,6 @@ export type OwnReplyTarget = {
   inReplyToId?: string | null;
 };
 
-export type OwnRepostTarget = {
-  conversationId?: string | null;
-  repostTargetId?: string | null;
-};
-
 function clean(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed || null;
@@ -44,21 +39,5 @@ export function replyMatchesLockedScout(
   return Boolean(
     replyInReplyToId &&
       [cardId, cardInReplyToId].includes(replyInReplyToId),
-  );
-}
-
-export function repostMatchesLockedScout(
-  repost: OwnRepostTarget,
-  card: LockedScoutCard,
-): boolean {
-  const cardId = clean(card.id);
-  const repostTargetId = clean(repost.repostTargetId);
-  if (!cardId || repostTargetId !== cardId) return false;
-
-  const repostConversationId = clean(repost.conversationId);
-  if (!repostConversationId) return true;
-
-  return [cardId, clean(card.conversationId)].includes(
-    repostConversationId,
   );
 }
