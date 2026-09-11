@@ -5,23 +5,37 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHANGELOG } from "./changelog.ts";
 import {
+  LEARN_BDSM_LIKE_HEAD_HREF,
   LEARN_DESCRIPTION,
+  LEARN_DIVERSITY_FN_HREF,
   LEARN_FOLLOW_DESCRIPTION,
+  LEARN_FOLLOW_HEADING,
   LEARN_FOLLOW_TITLE,
+  LEARN_GIVE_HEADING,
+  LEARN_GIVE_PATH,
   LEARN_HUB_DESCRIPTION,
   LEARN_HUB_TITLE,
   LEARN_IMAGE,
+  LEARN_OON_HREF,
+  LEARN_PARAM_FILE_HREF,
   LEARN_REPLY_DESCRIPTION,
+  LEARN_REPLY_HEADING,
   LEARN_REPLY_IMAGE,
+  LEARN_REPLY_PATH,
   LEARN_REPLY_TITLE,
+  LEARN_REPLY_WEIGHT_HREF,
   LEARN_TITLE,
   LEARN_VOLUME_DESCRIPTION,
+  LEARN_VOLUME_HEADING,
   LEARN_VOLUME_IMAGE,
+  LEARN_VOLUME_PATH,
   LEARN_VOLUME_TITLE,
+  LEARN_WEIGHTS_PATH,
   LEARN_WEIGHTS_IMAGE,
   LEARN_GIVE_DESCRIPTION,
   LEARN_GIVE_IMAGE,
   LEARN_GIVE_TITLE,
+  LEARN_HEADING,
 } from "./learn.ts";
 import {
   CHANGELOG_IMAGE,
@@ -246,6 +260,104 @@ describe("learn schema", () => {
     assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs#L252-L257/);
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
     assert.equal(crumbs.itemListElement[2]?.item, "https://xcopilot.dev/learn/follow");
+  });
+
+  it("preserves every lesson graph's ids, citation, images, and breadcrumbs", () => {
+    const lessons = [
+      {
+        jsonLd: learnWeightsJsonLd,
+        path: LEARN_WEIGHTS_PATH,
+        heading: LEARN_HEADING,
+        articleImage: LEARN_WEIGHTS_IMAGE,
+        citation: LEARN_PARAM_FILE_HREF,
+        appImage: LEARN_IMAGE,
+      },
+      {
+        jsonLd: learnFollowJsonLd,
+        path: "/learn/follow",
+        heading: LEARN_FOLLOW_HEADING,
+        articleImage: LEARN_IMAGE,
+        citation: LEARN_OON_HREF,
+        appImage: LEARN_IMAGE,
+      },
+      {
+        jsonLd: learnReplyJsonLd,
+        path: LEARN_REPLY_PATH,
+        heading: LEARN_REPLY_HEADING,
+        articleImage: LEARN_REPLY_IMAGE,
+        citation: LEARN_REPLY_WEIGHT_HREF,
+        appImage: LEARN_IMAGE,
+      },
+      {
+        jsonLd: learnVolumeJsonLd,
+        path: LEARN_VOLUME_PATH,
+        heading: LEARN_VOLUME_HEADING,
+        articleImage: LEARN_VOLUME_IMAGE,
+        citation: LEARN_DIVERSITY_FN_HREF,
+        appImage: LEARN_IMAGE,
+      },
+      {
+        jsonLd: learnGiveJsonLd,
+        path: LEARN_GIVE_PATH,
+        heading: LEARN_GIVE_HEADING,
+        articleImage: LEARN_GIVE_IMAGE,
+        citation: LEARN_BDSM_LIKE_HEAD_HREF,
+        appImage: LEARN_GIVE_IMAGE,
+      },
+    ];
+
+    for (const lesson of lessons) {
+      const pageUrl = `https://xcopilot.dev${lesson.path}`;
+      const graph = lesson.jsonLd()["@graph"] as Array<Record<string, unknown>>;
+      const app = graph.find((node) => node["@type"] === "SoftwareApplication");
+      const article = graph.find((node) => node["@type"] === "Article");
+      const breadcrumbs = graph.find(
+        (node) => node["@type"] === "BreadcrumbList",
+      );
+
+      assert.deepEqual(
+        {
+          ids: graph.map((node) => node["@id"]),
+          citation: article?.citation,
+          images: [app?.image, article?.image],
+          breadcrumbItems: breadcrumbs?.itemListElement,
+        },
+        {
+          ids: [
+            "https://xcopilot.dev/#organization",
+            "https://xcopilot.dev/#app",
+            "https://xcopilot.dev/#website",
+            `${pageUrl}#page`,
+            `${pageUrl}#breadcrumb`,
+          ],
+          citation: lesson.citation,
+          images: [
+            `https://xcopilot.dev${lesson.appImage}`,
+            `https://xcopilot.dev${lesson.articleImage}`,
+          ],
+          breadcrumbItems: [
+            {
+              "@type": "ListItem",
+              position: 1,
+              name: "x-copilot",
+              item: "https://xcopilot.dev/",
+            },
+            {
+              "@type": "ListItem",
+              position: 2,
+              name: "Learn",
+              item: "https://xcopilot.dev/learn",
+            },
+            {
+              "@type": "ListItem",
+              position: 3,
+              name: lesson.heading,
+              item: pageUrl,
+            },
+          ],
+        },
+      );
+    }
   });
 });
 
