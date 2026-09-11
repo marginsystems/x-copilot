@@ -127,12 +127,11 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     onRefreshCoaching,
     onHydrateInteracted,
   } = opts;
-  const pace = useReplyPace(
-    replyPaceSeedIso({
-      replyAtIso: coaching?.replyAt?.[0],
-      ownActivity: coaching?.ownActivity,
-    }),
-  );
+  const replyPaceSeed = replyPaceSeedIso({
+    replyAtIso: coaching?.replyAt?.[0],
+    ownActivity: coaching?.ownActivity,
+  });
+  const pace = useReplyPace(replyPaceSeed);
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   const userId = authUser?.id ?? null;
   const owner = userId ?? "local";
@@ -351,7 +350,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       lock: { phase: "hold", cardId: null, surface: "for_you" },
       wait: null,
     });
-  }, [pace.locked]);
+  }, [pace.locked, replyPaceSeed]);
 
   useEffect(() => {
     const current = stateRef.current;
