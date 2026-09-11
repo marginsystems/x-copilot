@@ -2,7 +2,7 @@
  * Deterministic post-search filters (length / thread openers / Articles +
  * replies under them / self-replies / links / language) before triage.
  */
-import { franc } from "franc-min";
+import { francAll } from "franc-min";
 import { normalizeAuthorKey } from "./interactionCooldown.js";
 import { parseXHandle } from "./xHandle.js";
 import type { ThreadCard } from "./threadCard.js";
@@ -94,6 +94,8 @@ const LANG1_TO_3: Record<PreferredLanguageCode, string> = {
 };
 
 const FRANC_ONLY = Object.values(LANG1_TO_3);
+const MIXED_LANGUAGE_CODES = new Set(["ind", "zlm", "jav", "tgl", "sun", "mad"]);
+const MIXED_LANGUAGE_MIN_SCORE = 0.97;
 /** Below this, franc is unreliable — keep the card. */
 export const LANGUAGE_MIN_CHARS = 40;
 
@@ -742,12 +744,17 @@ export function isNonPreferredLanguage(
   const sample = languageSampleText(thread);
   if (sample.length < LANGUAGE_MIN_CHARS) return false;
   try {
-    const detected = franc(sample, {
+    const preferredRankings = francAll(sample, {
       only: FRANC_ONLY,
       minLength: LANGUAGE_MIN_CHARS,
     });
+    const detected = preferredRankings[0]?.[0];
     if (!detected || detected === "und") return false;
-    return detected !== LANG1_TO_3[preferred];
+    if (detected !== LANG1_TO_3[preferred]) return true;
+    return francAll(sample, { minLength: LANGUAGE_MIN_CHARS }).some(
+      ([language, score]) =>
+        MIXED_LANGUAGE_CODES.has(language) && score >= MIXED_LANGUAGE_MIN_SCORE,
+    );
   } catch {
     return false;
   }

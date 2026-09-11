@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { francAll } from "franc-min";
 import {
   DEFAULT_EXCLUDED_TAGS,
   DEFAULT_MAX_THREAD_CHARS,
@@ -8,6 +9,7 @@ import {
   filterMinViews,
   filterExcludedAccounts,
   filterByLanguage,
+  LANGUAGE_MIN_CHARS,
   filterEmDashes,
   filterHashtags,
   filterNativeMedia,
@@ -346,6 +348,35 @@ describe("filterByLanguage", () => {
     assert.equal(result.languageFilteredCount, 1);
     assert.equal(isNonPreferredLanguage(es, "en"), true);
     assert.equal(isNonPreferredLanguage(en, "en"), false);
+  });
+
+  it("drops a mixed Indonesian-English post for preferred en", () => {
+    const jaksel = thread(
+      "jaksel1",
+      `Hot take:
+Kalau kita belum bisa judge apakah seseorang actually doing a good job atau nggak, kita juga akan kesulitan judge apakah AI agent is doing a good job atau nggak.
+
+And judging humans is already hard.
+
+Kita harus bisa bedain actual performance dari charm, confidence, loud speaking, bahkan lies.
+
+AI agents won't make this easier.
+They'll expose how bad we already are at judging performance.`,
+    );
+    assert.equal(
+      francAll(jaksel.text, { minLength: LANGUAGE_MIN_CHARS })[0]?.[0],
+      "eng",
+    );
+    assert.equal(isNonPreferredLanguage(jaksel, "en"), true);
+    const ordinaryEnglish = thread(
+      "en2",
+      "This is a plain English thought about useful work.",
+    );
+    assert.equal(isNonPreferredLanguage(ordinaryEnglish, "en"), false);
+    assert.deepEqual(filterByLanguage([jaksel], "en"), {
+      threads: [],
+      languageFilteredCount: 1,
+    });
   });
 
   it("keeps short ambiguous text", () => {
