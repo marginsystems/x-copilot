@@ -22,7 +22,9 @@ export const LEARN_SOURCE_DATE_LABEL = formatLearnSourceDate(LEARN_SOURCE_DATE);
 export const LEARN_HUB_TITLE = "Learn the X algorithm — x-copilot";
 export const LEARN_HUB_HEADING = "Learn";
 export const LEARN_HUB_DESCRIPTION =
-  "Cited notes on how X For You ranks posts. Weights multiply P(action), not raw likes. From xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+  "Cited lessons on how X For You ranks posts. Weights multiply P(action), not raw likes. From xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+export const LEARN_HUB_LEDE =
+  "Four cited lessons on how X For You ranks posts. Every number is a permalink into xai-org/x-algorithm at d011592. Weights multiply P(action), not raw likes. Not a blog.";
 export const LEARN_HUB_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 
 export const LEARN_TITLE = "What a like is worth — x-copilot";
@@ -216,6 +218,8 @@ export const LEARN_GIVE_FIGURE_FOLLOW = "/learn/give-follow-cap.png";
 export const LEARN_IMAGE = "/og-learn.png";
 export const LEARN_IMAGE_ALT =
   "x-copilot Learn — ranking weights on a dark field";
+export const LEARN_FOLLOW_IMAGE = LEARN_IMAGE;
+export const LEARN_FOLLOW_IMAGE_ALT = LEARN_IMAGE_ALT;
 
 export type LearnLessonView =
   | "learnWeights"

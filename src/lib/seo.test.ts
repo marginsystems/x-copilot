@@ -10,6 +10,7 @@ import {
   LEARN_DIVERSITY_FN_HREF,
   LEARN_FOLLOW_DESCRIPTION,
   LEARN_FOLLOW_HEADING,
+  LEARN_FOLLOW_IMAGE,
   LEARN_FOLLOW_TITLE,
   LEARN_GIVE_HEADING,
   LEARN_GIVE_PATH,
@@ -42,6 +43,7 @@ import {
   CHANGELOG_TITLE,
   changelogJsonLd,
   htmlWithSeo,
+  ogTypeForView,
   learnFollowJsonLd,
   learnJsonLd,
   learnReplyJsonLd,
@@ -110,7 +112,11 @@ describe("seoForView", () => {
     assert.equal(seoForView("learnFollow").description, LEARN_FOLLOW_DESCRIPTION);
     assert.match(seoForView("learnFollow").description, /0\.75/);
     assert.match(seoForView("learnFollow").description, /not affiliated/i);
-    assert.equal(seoForView("learnFollow").image, LEARN_IMAGE);
+    assert.equal(seoForView("learnFollow").image, LEARN_FOLLOW_IMAGE);
+    assert.equal(ogTypeForView("learnReply"), "article");
+    assert.equal(ogTypeForView("learnFollow"), "article");
+    assert.equal(ogTypeForView("learn"), "website");
+    assert.equal(ogTypeForView("home"), "website");
   });
 
   it("noindexes Privacy and Terms and keeps product pages indexable", () => {
@@ -163,6 +169,10 @@ describe("learn schema", () => {
     assert.equal(page.name, LEARN_HUB_TITLE);
     assert.equal(page.image, "https://xcopilot.dev/og-learn.png");
     assert.equal(list.numberOfItems, 4);
+    assert.equal(page.educationalUse, "instruction");
+    assert.equal(page.hasPart?.[0]?.["@type"], "LearningResource");
+    assert.equal(list.itemListElement[0]?.item?.["@type"], "LearningResource");
+    assert.equal(list.itemListElement[0]?.item?.learningResourceType, "Lesson");
     assert.equal(
       list.itemListElement[0]?.url,
       "https://xcopilot.dev/learn/what-a-like-is-worth",
@@ -182,16 +192,21 @@ describe("learn schema", () => {
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
   });
 
-  it("is an Article for the weights lesson with a learn breadcrumb", () => {
+  it("is a LearningResource for the weights lesson with a learn breadcrumb", () => {
     const graph = learnWeightsJsonLd()["@graph"];
     assert.ok(Array.isArray(graph));
-    const page = graph.find((node) => node["@type"] === "Article");
+    const page = graph.find((node) => node["@type"] === "LearningResource");
     const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
     assert.ok(page && crumbs);
     assert.equal(page.name, LEARN_TITLE);
     assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs/);
     assert.equal(page.sameAs, "https://github.com/xai-org/x-algorithm/tree/d011592");
     assert.equal(page.image, "https://xcopilot.dev/og-learn-weights.png");
+    assert.equal(page.learningResourceType, "Lesson");
+    assert.equal(page.isAccessibleForFree, true);
+    assert.equal(page.timeRequired, "PT8M");
+    assert.equal(page.educationalLevel, "beginner");
+    assert.match(String(page.teaches), /P\(action\)/);
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
     assert.equal(
       crumbs.itemListElement[2]?.item,
@@ -199,25 +214,27 @@ describe("learn schema", () => {
     );
   });
 
-  it("is an Article for the reply lesson with a learn breadcrumb", () => {
+  it("is a LearningResource for the reply lesson with a learn breadcrumb", () => {
     const graph = learnReplyJsonLd()["@graph"];
     assert.ok(Array.isArray(graph));
-    const page = graph.find((node) => node["@type"] === "Article");
+    const page = graph.find((node) => node["@type"] === "LearningResource");
     const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
     assert.ok(page && crumbs);
     assert.equal(page.name, LEARN_REPLY_TITLE);
     assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs#L315/);
     assert.equal(page.image, "https://xcopilot.dev/og-learn-reply.png");
+    assert.equal(page.learningResourceType, "Lesson");
+    assert.match(String(page.teaches), /Reply weight/);
     assert.equal(
       crumbs.itemListElement[2]?.item,
       "https://xcopilot.dev/learn/posts-that-get-a-reply",
     );
   });
 
-  it("is an Article for the volume lesson with a learn breadcrumb", () => {
+  it("is a LearningResource for the volume lesson with a learn breadcrumb", () => {
     const graph = learnVolumeJsonLd()["@graph"];
     assert.ok(Array.isArray(graph));
-    const page = graph.find((node) => node["@type"] === "Article");
+    const page = graph.find((node) => node["@type"] === "LearningResource");
     const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
     assert.ok(page && crumbs);
     assert.equal(page.name, LEARN_VOLUME_TITLE);
@@ -232,10 +249,10 @@ describe("learn schema", () => {
     );
   });
 
-  it("is an Article for the give lesson with a learn breadcrumb", () => {
+  it("is a LearningResource for the give lesson with a learn breadcrumb", () => {
     const graph = learnGiveJsonLd()["@graph"];
     assert.ok(Array.isArray(graph));
-    const page = graph.find((node) => node["@type"] === "Article");
+    const page = graph.find((node) => node["@type"] === "LearningResource");
     const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
     assert.ok(page && crumbs);
     assert.equal(page.name, LEARN_GIVE_TITLE);
@@ -250,10 +267,10 @@ describe("learn schema", () => {
     );
   });
 
-  it("is an Article for /learn/follow with a learn breadcrumb", () => {
+  it("is a LearningResource for /learn/follow with a learn breadcrumb", () => {
     const graph = learnFollowJsonLd()["@graph"];
     assert.ok(Array.isArray(graph));
-    const page = graph.find((node) => node["@type"] === "Article");
+    const page = graph.find((node) => node["@type"] === "LearningResource");
     const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
     assert.ok(page && crumbs);
     assert.equal(page.name, LEARN_FOLLOW_TITLE);
@@ -320,7 +337,7 @@ describe("learn schema", () => {
       const pageUrl = `https://xcopilot.dev${lesson.path}`;
       const graph = lesson.jsonLd()["@graph"] as Array<Record<string, unknown>>;
       const app = graph.find((node) => node["@type"] === "SoftwareApplication");
-      const article = graph.find((node) => node["@type"] === "Article");
+      const resource = graph.find((node) => node["@type"] === "LearningResource");
       const breadcrumbs = graph.find(
         (node) => node["@type"] === "BreadcrumbList",
       );
@@ -328,11 +345,13 @@ describe("learn schema", () => {
       assert.deepEqual(
         {
           ids: graph.map((node) => node["@id"]),
-          name: article?.name,
-          headline: article?.headline,
-          description: article?.description,
-          citation: article?.citation,
-          images: [app?.image, article?.image],
+          name: resource?.name,
+          headline: resource?.headline,
+          description: resource?.description,
+          citation: resource?.citation,
+          learningResourceType: resource?.learningResourceType,
+          isAccessibleForFree: resource?.isAccessibleForFree,
+          images: [app?.image, resource?.image],
           breadcrumbItems: breadcrumbs?.itemListElement,
         },
         {
@@ -347,6 +366,8 @@ describe("learn schema", () => {
           headline: lesson.heading,
           description: lesson.description,
           citation: lesson.citation,
+          learningResourceType: "Lesson",
+          isAccessibleForFree: true,
           images: [
             `https://xcopilot.dev${lesson.appImage}`,
             `https://xcopilot.dev${lesson.articleImage}`,
@@ -398,7 +419,10 @@ describe("htmlWithSeo", () => {
     assert.match(html, /content="https:\/\/xcopilot\.dev\/learn"/);
     assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn\.png"/);
     assert.match(html, /P\(action\)/);
+    assert.match(html, /Cited lessons/);
     assert.match(html, /CollectionPage/);
+    assert.match(html, /LearningResource/);
+    assert.match(html, /og:type" content="website"/);
     assert.match(html, /d011592/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
   });
@@ -410,7 +434,8 @@ describe("htmlWithSeo", () => {
     assert.match(html, /content="https:\/\/xcopilot\.dev\/learn\/what-a-like-is-worth"/);
     assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn-weights\.png"/);
     assert.match(html, /P\(action\)/);
-    assert.match(html, /"@type":"Article"/);
+    assert.match(html, /"@type":"LearningResource"/);
+    assert.match(html, /og:type" content="article"/);
     assert.match(html, /d011592/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
   });
@@ -422,7 +447,8 @@ describe("htmlWithSeo", () => {
     assert.match(html, /content="https:\/\/xcopilot\.dev\/learn\/posts-that-get-a-reply"/);
     assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn-reply\.png"/);
     assert.match(html, /P\(reply\)/);
-    assert.match(html, /"@type":"Article"/);
+    assert.match(html, /"@type":"LearningResource"/);
+    assert.match(html, /og:type" content="article"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
   });
 
@@ -433,7 +459,7 @@ describe("htmlWithSeo", () => {
     assert.match(html, /content="https:\/\/xcopilot\.dev\/learn\/how-many-replies"/);
     assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn-volume\.png"/);
     assert.match(html, /no daily/);
-    assert.match(html, /"@type":"Article"/);
+    assert.match(html, /"@type":"LearningResource"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
   });
 
@@ -444,7 +470,7 @@ describe("htmlWithSeo", () => {
     assert.match(html, /content="https:\/\/xcopilot\.dev\/learn\/likes-and-follows-you-give"/);
     assert.match(html, /content="https:\/\/xcopilot\.dev\/og-learn-give\.png"/);
     assert.match(html, /not subtracted/);
-    assert.match(html, /"@type":"Article"/);
+    assert.match(html, /"@type":"LearningResource"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
   });
 
@@ -454,7 +480,8 @@ describe("htmlWithSeo", () => {
     assert.match(html, /<title>Follow and out-of-network — x-copilot<\/title>/);
     assert.match(html, /content="https:\/\/xcopilot\.dev\/learn\/follow"/);
     assert.match(html, /0\.75/);
-    assert.match(html, /"@type":"Article"/);
+    assert.match(html, /"@type":"LearningResource"/);
+    assert.match(html, /og:type" content="article"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
   });
 });
