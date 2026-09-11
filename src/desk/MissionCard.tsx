@@ -75,35 +75,33 @@ function ScoutRow(props: MissionCardProps & { thread: ThreadCard }) {
       onDismiss={() => props.onScoutDismiss(thread)}
       onNext={props.onScoutNext}
       suggest={
-        thread.surface === "repost"
-          ? undefined
-          : props.voice?.status === "ready" && props.voice.unlocked
-            ? (
-                <SuggestPane
-                  threadId={thread.id}
-                  author={thread.author}
-                  text={thread.text}
-                  opAuthor={thread.opAuthor}
-                  opText={thread.opText}
-                  threadKind={thread.threadKind}
-                  flags={thread.flags}
-                  agenda={props.agenda}
-                  usage={props.voice.suggests}
-                  onUsage={(u) =>
-                    props.setVoice((v) => (v ? { ...v, suggests: u } : v))
-                  }
-                  onOpenIntent={() => watchDeskThreads([thread])}
-                />
-              )
-            : (
-                <SuggestLocked
-                  voice={props.voice}
-                  xLinked={props.authUser?.xLinked}
-                  hasSession={Boolean(props.authUser)}
-                  onOpenSettings={props.onOpenVoice}
-                  onLinkX={props.onLinkX}
-                />
-              )
+        props.voice?.status === "ready" && props.voice.unlocked
+          ? (
+              <SuggestPane
+                threadId={thread.id}
+                author={thread.author}
+                text={thread.text}
+                opAuthor={thread.opAuthor}
+                opText={thread.opText}
+                threadKind={thread.threadKind}
+                flags={thread.flags}
+                agenda={props.agenda}
+                usage={props.voice.suggests}
+                onUsage={(u) =>
+                  props.setVoice((v) => (v ? { ...v, suggests: u } : v))
+                }
+                onOpenIntent={() => watchDeskThreads([thread])}
+              />
+            )
+          : (
+              <SuggestLocked
+                voice={props.voice}
+                xLinked={props.authUser?.xLinked}
+                hasSession={Boolean(props.authUser)}
+                onOpenSettings={props.onOpenVoice}
+                onLinkX={props.onLinkX}
+              />
+            )
       }
     />
   );

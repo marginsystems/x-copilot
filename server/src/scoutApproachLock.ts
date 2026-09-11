@@ -97,7 +97,7 @@ export function setScoutApproachLock(
     id,
     card.conversationId,
     card.inReplyToId,
-    card.surface ?? "reply",
+    "reply",
     card.author,
     card.url,
     card.text,
@@ -154,8 +154,7 @@ export async function tryHandleScoutApproachLock(
     id,
     conversationId: optionalText(raw.conversationId),
     inReplyToId: optionalText(raw.inReplyToId),
-    surface:
-      raw.surface === "reply" || raw.surface === "repost" ? raw.surface : null,
+    surface: raw.surface === "reply" ? "reply" : null,
     author: optionalText(raw.author),
     url: optionalText(raw.url),
     text: optionalText(raw.text),

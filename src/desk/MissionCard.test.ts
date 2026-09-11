@@ -406,26 +406,6 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /I posted on X/);
   });
 
-  it("renders repost scout cards without a Suggest pane", () => {
-    const lead = thread("repost-lead", 420);
-    lead.surface = "repost";
-    const html = renderToStaticMarkup(
-      MissionCard(
-        missionProps({
-          phase: "scout_reply",
-          scout: lead,
-          expandedId: lead.id,
-        }),
-      ),
-    );
-    assert.match(html, escapeRe(FYP_DETECTING_COPY));
-    assert.match(html, /Open on X/);
-    assert.match(html, />Skip</);
-    assert.match(html, /Not interested/);
-    assert.doesNotMatch(html, /Suggest reply/);
-    assert.doesNotMatch(html, /I posted on X/);
-  });
-
   it("keeps an empty Scout lock in the existing collecting flight row", () => {
     for (const searching of [false, true]) {
       const html = renderToStaticMarkup(MissionCard(missionProps({
