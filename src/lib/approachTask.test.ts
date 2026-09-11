@@ -651,7 +651,7 @@ describe("Collecting refill handoff", () => {
     let searches = 0;
     const boot = (tankKnown: boolean, usableScoutCount = 0) => {
       if (!shouldArmScoutOnBoot({
-        tankKnown, usableScoutCount, handledThisOpen, alreadyTried, searching: false,
+        tankKnown, usableScoutCount, handledThisOpen, searching: false,
       })) return;
       handledThisOpen = true;
       alreadyTried = false;
@@ -680,7 +680,7 @@ describe("Collecting refill handoff", () => {
       boot(true);
       assert.equal(searches, 1);
     }
-    // A new page may retry the dry tank even though the session flag is spent.
+    // A new page may retry the dry tank after the prior opening fired.
     handledThisOpen = false;
     boot(true);
     assert.equal(searches, 2);

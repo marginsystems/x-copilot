@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  clearScoutTakeoffTried,
   eligibleScoutCards,
-  markScoutTakeoffTried,
-  readScoutTakeoffTried,
   shouldArmScoutOnBoot,
   shouldArmScoutRefill,
   shouldBackgroundScout,
@@ -94,13 +91,12 @@ describe("Scout refill state", () => {
 });
 
 describe("shouldArmScoutOnBoot", () => {
-  it("arms an empty or low tank when this tab has not tried", () => {
+  it("arms an empty or low tank on a new opening", () => {
     assert.equal(
       shouldArmScoutOnBoot({
         tankKnown: true,
         handledThisOpen: false,
         usableScoutCount: 0,
-        alreadyTried: false,
         searching: false,
       }),
       true,
@@ -110,25 +106,20 @@ describe("shouldArmScoutOnBoot", () => {
         tankKnown: true,
         handledThisOpen: false,
         usableScoutCount: 1,
-        alreadyTried: false,
         searching: false,
       }),
       true,
     );
   });
 
-  it("ignores the old session flag, but waits for stock and debounces this open", () => {
+  it("waits for stock and debounces this opening", () => {
     const boot = {
       tankKnown: true,
       handledThisOpen: false,
       usableScoutCount: 0,
-      alreadyTried: false,
       searching: false,
     };
-    assert.equal(
-      shouldArmScoutOnBoot({ ...boot, alreadyTried: true }),
-      true,
-    );
+    assert.equal(shouldArmScoutOnBoot(boot), true);
     assert.equal(
       shouldArmScoutOnBoot({ ...boot, usableScoutCount: 2 }),
       false,
@@ -136,33 +127,6 @@ describe("shouldArmScoutOnBoot", () => {
     assert.equal(shouldArmScoutOnBoot({ ...boot, searching: true }), false);
     assert.equal(shouldArmScoutOnBoot({ ...boot, tankKnown: false }), false);
     assert.equal(shouldArmScoutOnBoot({ ...boot, handledThisOpen: true }), false);
-    assert.equal(shouldArmScoutOnBoot({ ...boot, usableScoutCount: 1, alreadyTried: true }), true);
-  });
-});
-
-describe("Scout takeoff session gate", () => {
-  it("survives refresh until an operator consume path clears it", () => {
-    const values = new Map<string, string>();
-    Object.defineProperty(globalThis, "sessionStorage", {
-      configurable: true,
-      value: {
-        getItem: (key: string) => values.get(key) ?? null,
-        setItem: (key: string, value: string) => values.set(key, value),
-        removeItem: (key: string) => values.delete(key),
-      },
-    });
-    try {
-      assert.equal(readScoutTakeoffTried(), false);
-      markScoutTakeoffTried();
-      assert.equal(readScoutTakeoffTried(), true);
-      assert.equal(
-        shouldBackgroundScout({ ...ready, alreadyTried: readScoutTakeoffTried() }),
-        false,
-      );
-      clearScoutTakeoffTried();
-      assert.equal(readScoutTakeoffTried(), false);
-    } finally {
-      Reflect.deleteProperty(globalThis, "sessionStorage");
-    }
+    assert.equal(shouldArmScoutOnBoot({ ...boot, usableScoutCount: 1 }), true);
   });
 });
