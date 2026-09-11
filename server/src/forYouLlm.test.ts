@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   draftForYouActions,
   FOR_YOU_DIGEST_SYSTEM,
+  FOR_YOU_SCOUT_ORIGINAL_SYSTEM,
 } from "./forYouLlm.ts";
 import type { ForYouDigest } from "./forYouDigest.ts";
 import type { ChatFn } from "./voiceLlm.ts";
@@ -33,7 +34,14 @@ const digest: ForYouDigest = {
   recentOriginals: [],
   recentReplies: [],
   recentQuotes: [],
-  memories: [],
+  memories: [
+    {
+      threadId: "mem-hit",
+      author: "@builder",
+      url: "https://x.com/builder/status/88",
+      views: 140,
+    },
+  ],
   leftoverScout: [
     {
       id: "77",
@@ -45,9 +53,15 @@ const digest: ForYouDigest = {
   skipped: [],
 };
 
-function fakeChat(content: string, capture?: { purposes: string[] }): ChatFn {
+function fakeChat(
+  content: string,
+  capture?: { purposes: string[]; prompts?: string[] },
+): ChatFn {
   return async (opts) => {
     capture?.purposes.push(opts.purpose ?? "");
+    capture?.prompts?.push(
+      opts.messages.map((message) => message.content).join("\n"),
+    );
     return {
       ok: true,
       content,
@@ -67,25 +81,29 @@ describe("draftForYouActions", () => {
     assert.match(FOR_YOU_DIGEST_SYSTEM, /AVOID_24H/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /100\+ views only/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /Under 100 views is a miss/);
-    assert.match(FOR_YOU_DIGEST_SYSTEM, /LIVE_SCOUT/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /kind=post is a NEW angle from the agenda/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /memory that already earned attention/);
+    assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /LIVE_SCOUT/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /Do not name, rewrite/);
     assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /reply farm/i);
     assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /echoing BEST_24H/);
+    assert.match(FOR_YOU_SCOUT_ORIGINAL_SYSTEM, /Topic from the agenda only/);
+    assert.doesNotMatch(FOR_YOU_SCOUT_ORIGINAL_SYSTEM, /LIVE_SCOUT/);
   });
 
   it("parses a valid first pass", async () => {
-    const capture = { purposes: [] as string[] };
+    const capture = { purposes: [] as string[], prompts: [] as string[] };
     const result = await draftForYouActions({
       digest,
       chat: fakeChat(
         JSON.stringify({
           actions: [
-            { kind: "post", why: "hiring thread is live", draft: "Another recap." },
+            { kind: "post", why: "builder agenda has an open question", draft: "Another recap." },
             {
               kind: "reply",
-              why: "leftover scout",
-              targetId: "77",
-              targetUrl: "https://x.com/a/status/77",
+              why: "builder memory earned attention",
+              targetId: "mem-hit",
+              targetUrl: "https://x.com/builder/status/88",
             },
           ],
         }),
@@ -95,6 +113,8 @@ describe("draftForYouActions", () => {
     assert.equal(result.ok, true);
     assert.equal(result.ok && result.drafts.length, 2);
     assert.deepEqual(capture.purposes, ["for_you_digest"]);
+    assert.doesNotMatch(capture.prompts[0] ?? "", /LIVE_SCOUT/);
+    assert.doesNotMatch(capture.prompts[0] ?? "", /who is hiring/);
   });
 
   it("repairs invalid JSON", async () => {
@@ -115,12 +135,12 @@ describe("draftForYouActions", () => {
         ok: true,
         content: JSON.stringify({
           actions: [
-            { kind: "post", why: "hiring thread is live", draft: "Recap." },
+            { kind: "post", why: "builder agenda has an open question", draft: "Recap." },
             {
               kind: "reply",
-              why: "leftover scout",
-              targetId: "77",
-              targetUrl: "https://x.com/a/status/77",
+              why: "builder memory earned attention",
+              targetId: "mem-hit",
+              targetUrl: "https://x.com/builder/status/88",
             },
           ],
         }),
@@ -143,9 +163,9 @@ describe("draftForYouActions", () => {
       actions: [
         {
           kind: "reply",
-          why: "leftover scout",
-          targetId: "77",
-          targetUrl: "https://x.com/a/status/77",
+          why: "builder memory earned attention",
+          targetId: "mem-hit",
+          targetUrl: "https://x.com/builder/status/88",
         },
         {
           kind: "quote",
@@ -172,12 +192,12 @@ describe("draftForYouActions", () => {
         ok: true,
         content: JSON.stringify({
           actions: [
-            { kind: "post", why: "hiring thread is live", draft: "Another recap." },
+            { kind: "post", why: "builder agenda has an open question", draft: "Another recap." },
             {
               kind: "reply",
-              why: "leftover scout",
-              targetId: "77",
-              targetUrl: "https://x.com/a/status/77",
+              why: "builder memory earned attention",
+              targetId: "mem-hit",
+              targetUrl: "https://x.com/builder/status/88",
             },
           ],
         }),
@@ -203,9 +223,9 @@ describe("draftForYouActions", () => {
       actions: [
         {
           kind: "reply",
-          why: "leftover scout",
-          targetId: "77",
-          targetUrl: "https://x.com/a/status/77",
+          why: "builder memory earned attention",
+          targetId: "mem-hit",
+          targetUrl: "https://x.com/builder/status/88",
         },
         {
           kind: "quote",
@@ -251,7 +271,7 @@ describe("draftForYouActions", () => {
         ok: true,
         content: JSON.stringify({
           actions: [
-            { kind: "post", why: "hiring thread is live", draft: "Another recap." },
+            { kind: "post", why: "builder agenda has an open question", draft: "Another recap." },
           ],
         }),
         model: "deepseek-v4-flash",

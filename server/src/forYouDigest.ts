@@ -1,17 +1,14 @@
 /**
  * SQL-ranked digest for the daily For You pass.
- * No extra X API. own_posts + memories + leftover Scout only.
+ * No extra X API. own_posts + memories only.
  */
 import { getUserById } from "./authStore.js";
 import { getPlatformDb } from "./db.js";
-import { getLastScout } from "./scoutCache.js";
-import { preferRootTargets } from "./scoutTarget.js";
 import { formatOutcomeSection } from "./knowledgeMemory.js";
 import { listInteractionHistory } from "./interactionStore.js";
 import { getVoiceProfile } from "./voiceStore.js";
 import { parseVoiceCardJson, type VoiceCard } from "./voiceLlm.js";
 import { isOwnPostRemixCopy } from "./forYouRemix.js";
-import { getBlockedConversationIds } from "./dismissalStore.js";
 import {
   FOR_YOU_KINDS,
   listRecentSkippedSuggestions,
@@ -216,15 +213,11 @@ export function rankOwnPosts(userId: string, nowMs = Date.now()): {
   };
 }
 
-/** One user's Scout tank — live threads the original should riff on. */
-export async function loadDigestScout(userId: string): Promise<{
+/** Scout tank cards are never digest source material. */
+export async function loadDigestScout(_userId: string): Promise<{
   threads?: DigestScout[];
 } | null> {
-  const snap = await getLastScout({ userId });
-  if (!snap?.threads.length) return null;
-  const threads = preferRootTargets(snap.threads);
-  if (!threads.length) return null;
-  return { threads };
+  return { threads: [] };
 }
 
 export async function buildForYouDigest(opts: {
@@ -252,28 +245,7 @@ export async function buildForYouDigest(opts: {
       views: typeof views === "number" && Number.isFinite(views) ? views : undefined,
     };
   });
-  const scout = await (opts.getScout
-    ? opts.getScout()
-    : loadDigestScout(opts.userId));
-  const blockedConversationIds = await getBlockedConversationIds({
-    userId: opts.userId,
-  });
-  const leftoverScout: DigestScout[] = (scout?.threads ?? [])
-    .filter(
-      (t) =>
-        t.id &&
-        t.url &&
-        t.author &&
-        !blockedConversationIds.has(t.id),
-    )
-    .slice(0, 8)
-    .map((t) => ({
-      id: t.id,
-      author: t.author,
-      text: clip(t.text) ?? "",
-      url: t.url,
-      summary: clip(t.summary) ?? undefined,
-    }));
+  const leftoverScout: DigestScout[] = [];
   const skippedRows = listRecentSkippedSuggestions(opts.userId);
   const skipped: ForYouDraft[] = skippedRows.slice(0, 12).map((row) => ({
     kind: row.kind,
@@ -317,10 +289,6 @@ export function digestAllowlist(digest: ForYouDigest): {
     }
     add(m.threadId, m.url);
     add(m.threadId, m.url, true);
-  }
-  for (const t of digest.leftoverScout) {
-    add(t.id, t.url);
-    add(t.id, t.url, true);
   }
   return { ids, urls, replyIds, replyUrls };
 }

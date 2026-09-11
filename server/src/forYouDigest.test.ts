@@ -22,7 +22,6 @@ import {
   rankOwnPosts,
   type ForYouDigest,
 } from "./forYouDigest.ts";
-import { markInteracted } from "./interactionStore.ts";
 
 function post(
   partial: Partial<ParsedPostCreate> & { postId: string },
@@ -167,7 +166,7 @@ describe("forYouDigest", () => {
     );
   });
 
-  it("drops invented and own targets while keeping reply-only Scout", () => {
+  it("drops invented, own, and leftover Scout targets", () => {
     const digest = emptyDigest({
       best: [
         {
@@ -204,10 +203,23 @@ describe("forYouDigest", () => {
           },
           {
             kind: "reply",
-            why: "open scout thread",
+            why: "leftover Scout reply",
             targetId: "77",
             targetUrl: "https://x.com/a/status/77",
             targetAuthor: "@a",
+          },
+          {
+            kind: "quote",
+            why: "leftover Scout quote",
+            draft: "Still true.",
+            targetId: "77",
+            targetUrl: "https://x.com/a/status/77",
+          },
+          {
+            kind: "repost",
+            why: "leftover Scout repost",
+            targetId: "77",
+            targetUrl: "https://x.com/a/status/77",
           },
           {
             kind: "repost",
@@ -221,7 +233,7 @@ describe("forYouDigest", () => {
     );
     assert.deepEqual(
       kept.map((a) => a.kind),
-      ["post", "reply"],
+      ["post"],
     );
   });
 
@@ -379,19 +391,14 @@ describe("forYouDigest", () => {
     );
   });
 
-  it("drops marked conversations from leftover Scout", async () => {
+  it("keeps leftover Scout empty and builds from an agenda", async () => {
     const now = "2026-08-20T12:00:00.000Z";
     getPlatformDb()
       .prepare(
-        `INSERT INTO users (id, email, created_at, last_login_at)
-         VALUES (?, ?, ?, ?)`,
+        `INSERT INTO users (id, email, created_at, last_login_at, agenda)
+         VALUES (?, ?, ?, ?, ?)`,
       )
-      .run("u1", "u1@example.com", now, now);
-    await markInteracted({
-      threadId: "77",
-      author: "@a",
-      userId: "u1",
-    });
+      .run("u1", "u1@example.com", now, now, "Find builders");
     const digest = await buildForYouDigest({
       userId: "u1",
       getScout: async () => ({
@@ -411,7 +418,15 @@ describe("forYouDigest", () => {
         ],
       }),
     });
-    assert.deepEqual(digest.leftoverScout.map((row) => row.id), ["88"]);
+    assert.deepEqual(digest.leftoverScout, []);
+    assert.equal(digest.agenda, "Find builders");
+
+    const agendaOnly = await buildForYouDigest({
+      userId: "u1",
+      getScout: async () => ({ threads: [] }),
+    });
+    assert.deepEqual(agendaOnly.leftoverScout, []);
+    assert.equal(agendaOnly.agenda, "Find builders");
   });
 
   it("does not let thin best posts be quote/repost targets", () => {
