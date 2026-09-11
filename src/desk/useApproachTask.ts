@@ -5,6 +5,7 @@
  */
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type Dispatch,
@@ -40,7 +41,7 @@ import {
   shouldBackgroundScout,
 } from "../lib/deskRefuel";
 import type { ForYouSuggestion } from "../lib/forYou";
-import { replyPaceSeedIso } from "../lib/replyPace";
+import { replyPaceLocked, replyPaceSeedIso } from "../lib/replyPace";
 import {
   clearForYouWait,
   forYouWaitDetected,
@@ -66,6 +67,10 @@ import type {
   ThreadCard,
 } from "./types";
 import { useDeskRowExit } from "./useDeskRowExit";
+import {
+  readReplyPaceUntil,
+  seedReplyPaceFromReplyAt,
+} from "./replyPaceStore";
 import { useReplyPace } from "./useReplyPace";
 import { watchDeskThreads } from "./watch";
 
@@ -122,12 +127,11 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     onRefreshCoaching,
     onHydrateInteracted,
   } = opts;
-  const pace = useReplyPace(
-    replyPaceSeedIso({
-      replyAtIso: coaching?.replyAt?.[0],
-      ownActivity: coaching?.ownActivity,
-    }),
-  );
+  const replyPaceSeed = replyPaceSeedIso({
+    replyAtIso: coaching?.replyAt?.[0],
+    ownActivity: coaching?.ownActivity,
+  });
+  const pace = useReplyPace(replyPaceSeed);
   const { exitingIds, beginExit, clearGone } = useDeskRowExit();
   const userId = authUser?.id ?? null;
   const owner = userId ?? "local";
@@ -226,8 +230,17 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       suggestionId: pickSuggestion(excludeId, afterForYou)?.id ?? null,
       canPresentForYou: canOpenForYou,
       gate,
-      paceLocked: pace.locked,
+      paceLocked: livePaceLocked(),
     };
+  }
+  function livePaceLocked(): boolean {
+    const until = seedReplyPaceFromReplyAt(
+      replyPaceSeedIso({
+        replyAtIso: coachingRef.current?.replyAt?.[0],
+        ownActivity: coachingRef.current?.ownActivity,
+      }),
+    );
+    return replyPaceLocked(until ?? readReplyPaceUntil(), Date.now());
   }
   const availableSuggestionId = pickSuggestion(null)?.id ?? null;
   const normalizeRef = useRef<ApproachNormalizeContext>({
@@ -244,8 +257,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   };
   const coachingRef = useRef(coaching);
   coachingRef.current = coaching;
-  const paceLockedRef = useRef(pace.locked);
-  paceLockedRef.current = pace.locked;
   const refreshCoachingRef = useRef(onRefreshCoaching);
   refreshCoachingRef.current = onRefreshCoaching;
   const hydrateInteractedRef = useRef(onHydrateInteracted);
@@ -325,11 +336,21 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         stored,
         storedWait: readForYouWait(owner),
         normalize: normalizeRef.current,
-        paceLocked: paceLockedRef.current,
+        paceLocked: livePaceLocked(),
         task: { owner, coaching: coachingRef.current },
       }),
     );
   }, [agendaReady, deskBootReady, owner, userId]);
+
+  useLayoutEffect(() => {
+    const current = stateRef.current;
+    if (!livePaceLocked() || !current || isForYouTask(current.lock)) return;
+    if (current.lock.phase === "hold") return;
+    commit({
+      lock: { phase: "hold", cardId: null, surface: "for_you" },
+      wait: null,
+    });
+  }, [pace.locked, replyPaceSeed]);
 
   useEffect(() => {
     const current = stateRef.current;

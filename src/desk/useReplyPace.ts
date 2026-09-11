@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import {
   formatReplyPaceClock,
   REPLY_PACE_EVENT,
@@ -27,7 +27,7 @@ export function useReplyPace(replyAtIso?: string | null) {
     return () => window.removeEventListener(REPLY_PACE_EVENT, sync);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const seeded = seedReplyPaceFromReplyAt(replyAtIso);
     if (seeded != null) setUntil(seeded);
   }, [replyAtIso]);
