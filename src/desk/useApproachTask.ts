@@ -40,7 +40,7 @@ import {
   shouldBackgroundScout,
 } from "../lib/deskRefuel";
 import type { ForYouSuggestion } from "../lib/forYou";
-import { replyPaceSeedIso } from "../lib/replyPace";
+import { replyPaceLocked, replyPaceSeedIso } from "../lib/replyPace";
 import {
   clearForYouWait,
   forYouWaitDetected,
@@ -66,6 +66,10 @@ import type {
   ThreadCard,
 } from "./types";
 import { useDeskRowExit } from "./useDeskRowExit";
+import {
+  readReplyPaceUntil,
+  seedReplyPaceFromReplyAt,
+} from "./replyPaceStore";
 import { useReplyPace } from "./useReplyPace";
 import { watchDeskThreads } from "./watch";
 
@@ -226,8 +230,17 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       suggestionId: pickSuggestion(excludeId, afterForYou)?.id ?? null,
       canPresentForYou: canOpenForYou,
       gate,
-      paceLocked: pace.locked,
+      paceLocked: livePaceLocked(),
     };
+  }
+  function livePaceLocked(): boolean {
+    const until = seedReplyPaceFromReplyAt(
+      replyPaceSeedIso({
+        replyAtIso: coachingRef.current?.replyAt?.[0],
+        ownActivity: coachingRef.current?.ownActivity,
+      }),
+    );
+    return replyPaceLocked(until ?? readReplyPaceUntil(), Date.now());
   }
   const availableSuggestionId = pickSuggestion(null)?.id ?? null;
   const normalizeRef = useRef<ApproachNormalizeContext>({
