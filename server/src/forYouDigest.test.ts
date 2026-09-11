@@ -9,6 +9,7 @@ import {
   resetPlatformDbForTests,
 } from "./db.ts";
 import { patchOwnPostSnapshot, upsertOwnPost } from "./ownPostStore.ts";
+import { saveScoutCache } from "./scoutCache.ts";
 import type { ParsedPostCreate } from "./xActivity.ts";
 import {
   FOR_YOU_MIN_ENGAGE_VIEWS,
@@ -399,9 +400,10 @@ describe("forYouDigest", () => {
          VALUES (?, ?, ?, ?, ?)`,
       )
       .run("u1", "u1@example.com", now, now, "Find builders");
-    const digest = await buildForYouDigest({
-      userId: "u1",
-      getScout: async () => ({
+    await saveScoutCache(
+      {
+        savedAt: now,
+        queries: [],
         threads: [
           {
             id: "77",
@@ -416,15 +418,14 @@ describe("forYouDigest", () => {
             url: "https://x.com/b/status/88",
           },
         ],
-      }),
-    });
+      },
+      { userId: "u1" },
+    );
+    const digest = await buildForYouDigest({ userId: "u1" });
     assert.deepEqual(digest.leftoverScout, []);
     assert.equal(digest.agenda, "Find builders");
 
-    const agendaOnly = await buildForYouDigest({
-      userId: "u1",
-      getScout: async () => ({ threads: [] }),
-    });
+    const agendaOnly = await buildForYouDigest({ userId: "u1" });
     assert.deepEqual(agendaOnly.leftoverScout, []);
     assert.equal(agendaOnly.agenda, "Find builders");
   });
