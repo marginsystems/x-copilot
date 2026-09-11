@@ -368,6 +368,11 @@ They'll expose how bad we already are at judging performance.`,
       "eng",
     );
     assert.equal(isNonPreferredLanguage(jaksel, "en"), true);
+    const ordinaryEnglish = thread(
+      "en2",
+      "This is a plain English thought about useful work.",
+    );
+    assert.equal(isNonPreferredLanguage(ordinaryEnglish, "en"), false);
     assert.deepEqual(filterByLanguage([jaksel], "en"), {
       threads: [],
       languageFilteredCount: 1,
