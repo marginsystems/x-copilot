@@ -10,6 +10,7 @@ export function DeskRow({
   leadClassName,
   summary,
   meta,
+  actions,
   onToggle,
   index,
   exiting = false,
@@ -23,6 +24,7 @@ export function DeskRow({
   leadClassName?: string;
   summary?: ReactNode;
   meta?: ReactNode;
+  actions?: ReactNode;
   onToggle?: () => void;
   index?: number;
   exiting?: boolean;
@@ -74,6 +76,14 @@ export function DeskRow({
       ) : (
         <div className="row-head next-action-head">{head}</div>
       )}
+      {actions != null ? (
+        <div
+          className="approach-card-actions"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {actions}
+        </div>
+      ) : null}
       {presence.mount || (!expandable && children) ? (
         <div
           className="row-detail-slot"

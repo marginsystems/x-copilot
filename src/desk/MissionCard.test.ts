@@ -125,6 +125,7 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
     assert.doesNotMatch(html, /approach-panel-loader-mark/);
     assert.doesNotMatch(html, />Open For You</);
+    assert.doesNotMatch(html, />Next</);
   });
 
   it("covers a Scout row with the pace clock until the minute ends", () => {
@@ -326,36 +327,55 @@ describe("Approach flight frame", () => {
         missionProps({
           phase: "organic_reply",
           suggestion: detectedSuggestedReply,
-          expandedId: `suggest:${detectedSuggestedReply.id}`,
         }),
       ),
     );
     assert.match(html, escapeRe(FYP_DETECTING_COPY));
     assert.match(html, /Open on X/);
-    assert.match(html, />Skip</);
-    assert.match(html, />Not interested</);
+    assert.match(html, /<button[^>]*disabled=""[^>]*>Next/);
+    assert.doesNotMatch(html, />Skip</);
+    assert.doesNotMatch(html, />Not interested</);
     assert.doesNotMatch(html, /I posted on X/);
-  });
 
-  it("offers only Next after a Suggested reply is detected", () => {
-    const html = renderToStaticMarkup(
+    const expanded = renderToStaticMarkup(
       MissionCard(
         missionProps({
           phase: "organic_reply",
           suggestion: detectedSuggestedReply,
-          suggestionDetected: true,
           expandedId: `suggest:${detectedSuggestedReply.id}`,
         }),
       ),
     );
-    assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
-    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
-    assert.match(html, /chip-interacted/);
-    assert.match(html, />Next</);
-    assert.doesNotMatch(html, /Open on X|Open original/);
-    assert.doesNotMatch(html, />Skip</);
-    assert.doesNotMatch(html, /I posted on X/);
-    assert.doesNotMatch(html, /Not interested/);
+    assert.match(expanded, />Skip</);
+    assert.match(expanded, />Not interested</);
+  });
+
+  it("keeps Open and enabled Next after a Suggested reply is detected", () => {
+    for (const expandedId of [
+      null,
+      `suggest:${detectedSuggestedReply.id}`,
+    ]) {
+      const html = renderToStaticMarkup(
+        MissionCard(
+          missionProps({
+            phase: "organic_reply",
+            suggestion: detectedSuggestedReply,
+            suggestionDetected: true,
+            expandedId,
+          }),
+        ),
+      );
+      assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
+      assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
+      assert.match(html, /chip-interacted/);
+      assert.match(html, /Open on X/);
+      assert.match(html, />Next</);
+      assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
+      assert.doesNotMatch(html, /Open original/);
+      assert.doesNotMatch(html, />Skip</);
+      assert.doesNotMatch(html, /I posted on X/);
+      assert.doesNotMatch(html, /Not interested/);
+    }
   });
 
   it("fills the shared frame with the first locked scout thread", () => {
@@ -384,27 +404,46 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /I posted on X/);
   });
 
-  it("says the reply was detected and offers Next on a retained scout", () => {
-    const lead = thread("detected-lead", 42);
+  it("keeps Open and disabled Next on a collapsed Scout", () => {
+    const lead = thread("collapsed-lead", 42);
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
           phase: "scout_reply",
           scout: lead,
-          scoutDetected: true,
-          expandedId: lead.id,
           onScoutNext() {},
         }),
       ),
     );
-    assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
-    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
-    assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
-    assert.match(html, /chip-interacted/);
-    assert.match(html, />Next</);
-    assert.doesNotMatch(html, /Open on X/);
-    assert.doesNotMatch(html, />Skip</);
-    assert.doesNotMatch(html, /I posted on X/);
+    assert.match(html, /Open on X/);
+    assert.match(html, /<button[^>]*disabled=""[^>]*>Next/);
+    assert.doesNotMatch(html, />Skip|>Not interested/);
+  });
+
+  it("keeps Open and enabled Next on a detected retained Scout", () => {
+    const lead = thread("detected-lead", 42);
+    for (const expandedId of [null, lead.id]) {
+      const html = renderToStaticMarkup(
+        MissionCard(
+          missionProps({
+            phase: "scout_reply",
+            scout: lead,
+            scoutDetected: true,
+            expandedId,
+            onScoutNext() {},
+          }),
+        ),
+      );
+      assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
+      assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
+      assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
+      assert.match(html, /chip-interacted/);
+      assert.match(html, /Open on X/);
+      assert.match(html, />Next</);
+      assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
+      assert.doesNotMatch(html, />Skip</);
+      assert.doesNotMatch(html, /I posted on X/);
+    }
   });
 
   it("keeps an empty Scout lock in the existing collecting flight row", () => {
@@ -639,7 +678,8 @@ describe("ForYouFeedRow", () => {
     );
     assert.match(html, escapeRe(FYP_DETECTED_COPY));
     assert.match(html, /class="caret"/);
-    assert.doesNotMatch(html, />Next</);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
     assert.doesNotMatch(html, /thread-row for-you-row next-action-row kind-reply open/);
   });
 
