@@ -333,7 +333,7 @@
 }
 
 .thread-row:not(.open):hover,
-.thread-row.open:not(:has(.row-head button)):hover {
+.thread-row.open:not(:has(> .row-head:is(button))):hover {
   background: var(--raised);
 }
 
@@ -795,6 +795,7 @@
 .reply-pace-help {
   position: relative;
   flex: 0 0 auto;
+  align-self: flex-start;
 }
 
 .thread-row.reply-pace-bar .row-detail-inner {

@@ -37,7 +37,7 @@ describe("DeskRow card chrome", () => {
 
     assert.match(
       css,
-      /\.thread-row:not\(\.open\):hover\s*,\s*\.thread-row\.open:not\(:has\(\.row-head button\)\):hover\s*\{\s*background: var\(--raised\)/,
+      /\.thread-row:not\(\.open\):hover\s*,\s*\.thread-row\.open:not\(:has\(> \.row-head:is\(button\)\)\):hover\s*\{\s*background: var\(--raised\)/,
     );
     assert.doesNotMatch(css, /\.row-head:hover|\.next-action-head:hover/);
     assert.doesNotMatch(css, /\.approach-card-actions|justify-content:\s*flex-end/);
