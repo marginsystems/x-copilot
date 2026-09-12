@@ -107,41 +107,63 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /0:00/);
   });
 
-  it("shows only the pace row while the minute runs on For You", () => {
+  it("keeps detected For You visible while the minute runs before Next", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
-          phase: "hold",
+          phase: "silent_refuel",
           surface: "for_you",
-          forYou: { detected: false },
+          forYou: { detected: true },
           clock: "0:42",
           remainingMs: 42_000,
+          coaching: {
+            dayUtc: "2026-09-08",
+            nextAction: null,
+            missions: [],
+            beats: {
+              scoutReplyDone: false,
+              organicReplyDone: false,
+              forkChoice: null,
+              forkDone: false,
+            },
+            replyAt: ["2026-09-08T04:00:01.000Z"],
+            ownActivity: {
+              id: "196504221778",
+              url: "https://x.com/desk/status/196504221778",
+              text: "The detected post text.",
+              kind: "reply",
+              postedAt: "2026-09-08T04:00:00.000Z",
+            },
+          },
+          onForYouNext() {},
         }),
       ),
     );
-    assert.match(html, /reply-pace/);
-    assert.match(html, /0:42/);
-    assert.match(html, />Bypass</);
-    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
-    assert.doesNotMatch(html, /approach-panel-loader-mark/);
-    assert.doesNotMatch(html, />Open For You</);
-    assert.doesNotMatch(html, />Next</);
+    assert.doesNotMatch(html, /reply-pace|0:42|>Bypass</);
+    assert.match(html, escapeRe(FYP_DETECTED_COPY));
+    assert.match(html, /aria-label="Open detected post 196504221778 on X"/);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
   });
 
-  it("covers a Scout row with the pace clock until the minute ends", () => {
+  it("keeps a detected Scout visible while the minute runs before Next", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
           phase: "scout_reply",
           scout: thread("live-scout", 42),
+          scoutDetected: true,
           clock: "0:42",
           remainingMs: 42_000,
+          onScoutNext() {},
         }),
       ),
     );
-    assert.doesNotMatch(html, /live-scout/);
-    assert.match(html, /reply-pace/);
-    assert.match(html, /0:42/);
+    assert.match(html, /live-scout/);
+    assert.doesNotMatch(html, /reply-pace|0:42/);
+    assert.match(html, /Open on X/);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
   });
 
   it("hides the pace bar under a Scout row when the clock expires", () => {
@@ -160,21 +182,24 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /0:00/);
   });
 
-  it("covers a Suggested row with the pace clock until the minute ends", () => {
+  it("keeps a detected Suggested row visible while the minute runs before Next", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
           phase: "organic_reply",
-          suggestion: suggestedReply,
+          suggestion: detectedSuggestedReply,
+          suggestionDetected: true,
           clock: "0:42",
           remainingMs: 42_000,
         }),
       ),
     );
-    assert.doesNotMatch(html, /A suggested reply/);
-    assert.doesNotMatch(html, /class="mission-card approach-frame"/);
-    assert.match(html, /reply-pace/);
-    assert.match(html, /0:42/);
+    assert.match(html, /A suggested reply/);
+    assert.match(html, /class="mission-card approach-frame"/);
+    assert.doesNotMatch(html, /reply-pace|0:42/);
+    assert.match(html, /Open on X/);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
   });
 
   it("hides the pace bar under a Suggested row when the clock expires", () => {

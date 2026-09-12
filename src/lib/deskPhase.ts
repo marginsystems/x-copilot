@@ -231,7 +231,9 @@ export function advanceApproach(
   }
   if (isForYouTask(locked)) {
     if (event.type === "next") {
-      if (inventory.paceLocked) return locked;
+      if (inventory.paceLocked) {
+        return locked.phase === "hold" ? locked : { ...HOLD_LOCK };
+      }
       return nextInventoryCard(inventory, null, locked.phase);
     }
     if (event.type === "bypass") {

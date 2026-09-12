@@ -451,6 +451,18 @@ describe("Hold at zero", () => {
     assert.equal(after.lock.cardId, "S");
     assert.equal(after.wait, null);
   });
+
+  it("retains the For You wait when Next enters the reply-minute hold", () => {
+    const wait = openForYouWait({ owner: OWNER, coaching, now: T0 });
+    const state = transitionApproachTask(
+      { lock: FOR_YOU, wait },
+      { type: "next" },
+      { scoutId: "S", suggestionId: null, canPresentForYou: true, paceLocked: true },
+      { owner: OWNER, coaching, now: T0 + 30_000 },
+    );
+    assert.deepEqual(state.lock, { phase: "hold", cardId: null, surface: "for_you" });
+    assert.equal(state.wait, wait);
+  });
 });
 
 describe("Bypass", () => {

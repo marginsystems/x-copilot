@@ -167,7 +167,10 @@ describe("Approach lock", () => {
       surface: "for_you",
     } as const;
     const hold = { phase: "hold", cardId: null, surface: "for_you" } as const;
-    assert.equal(advanceApproach(forYou, { type: "next" }, paced), forYou);
+    assert.deepEqual(
+      advanceApproach(forYou, { type: "next" }, paced),
+      { phase: "hold", cardId: null, surface: "for_you" },
+    );
     assert.equal(advanceApproach(hold, { type: "next" }, paced), hold);
     assert.deepEqual(
       advanceApproach(
