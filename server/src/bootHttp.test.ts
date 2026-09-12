@@ -16,7 +16,6 @@ import { markExpired } from "./expiredStore.ts";
 import { markInteracted } from "./interactionStore.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { saveScoutCache } from "./scoutCache.ts";
-import { appendScoutLog, clearScoutLogMemory } from "./scoutLog.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { createSession } from "./sessionStore.ts";
 import { markSkipped } from "./skipStore.ts";
@@ -120,7 +119,7 @@ describe("GET /api/boot", () => {
     assert.ok(desk.expired && typeof desk.expired === "object");
     assert.ok(desk.forYou && typeof desk.forYou === "object");
     assert.ok(desk.lastScout && typeof desk.lastScout === "object");
-    assert.ok(desk.scoutLog && typeof desk.scoutLog === "object");
+    assert.equal("scoutLog" in desk, false);
     assert.ok(desk.gamification && typeof desk.gamification === "object");
     assert.ok(desk.activityStats && typeof desk.activityStats === "object");
     assert.ok(desk.coaching && typeof desk.coaching === "object");
@@ -230,7 +229,6 @@ describe("GET /api/boot", () => {
       },
       { userId: userB.id },
     );
-    await appendScoutLog({ userId: userB.id, message: "B's Scout stage", stage: "planning" });
     const { token } = createSession(userA.id);
 
     const { status, body } = await get(
@@ -243,14 +241,12 @@ describe("GET /api/boot", () => {
       dismissed: { dismissedIds: string[] };
       expired: { expiredIds: string[] };
       lastScout: { empty?: boolean };
-      scoutLog: { entries: unknown[] };
     };
     assert.deepEqual(desk.skipped.skippedIds, ["skip-a"]);
     assert.deepEqual(desk.dismissed.dismissedIds, ["dismiss-a"]);
     assert.deepEqual(desk.expired.expiredIds, ["exp-a"]);
     assert.equal(desk.lastScout.empty, true);
-    assert.deepEqual(desk.scoutLog.entries, []);
-    clearScoutLogMemory();
+    assert.equal("scoutLog" in desk, false);
 
     const { body: bodyB } = await get(
       "/api/boot",

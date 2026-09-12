@@ -198,8 +198,6 @@ export async function tryHandleBoot(
           },
           forYou,
           lastScout,
-          // The Scout stage log is process-local; it is not desk state.
-          scoutLog: { entries: [] },
           gamification,
           activityStats,
           coaching,

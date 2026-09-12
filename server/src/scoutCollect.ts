@@ -8,7 +8,6 @@ import {
 import { normalizeAuthorKey } from "./interactionCooldown.js";
 import { applyScoutSearchHardFilters } from "./scoutCollectHardFilters.js";
 import { getBlockedConversationIds } from "./dismissalStore.js";
-import { toOpenCodeTurns, type ScoutStageEvent } from "./opencodeAdapter.js";
 import {
   addTokenUsage,
   deepseekConfigured,
@@ -191,7 +190,6 @@ export async function runScoutCollect(opts: {
 
   const targetCool = clampTargetCool(opts.targetCool);
   const bucketSize = clampBucketSize(opts.bucketSize);
-  const events: ScoutStageEvent[] = [];
   const track = (
     stage: ScoutCollectStageId,
     message: string,
@@ -201,13 +199,6 @@ export async function runScoutCollect(opts: {
       bucketSize,
       targetCool,
       ...extra,
-    });
-    events.push({
-      agent: "scout",
-      stage,
-      message,
-      detail: extra?.detail,
-      at: ev.at,
     });
     return ev;
   };
@@ -340,7 +331,7 @@ export async function runScoutCollect(opts: {
   // sum every search page across all buckets/refills, while afterTriage sums only
   // the threads actually scored (bucket-qualified). The afterLength → afterTriage
   // gap is the bucket-qualification drop (author dedupe / bucket-full / partial
-  // stop), not a triage drop — unlike runScoutSearch's single-pass funnel.
+  // stop), not a triage drop.
   const funnelCounts: ScoutPipelineCounts = {
     raw: 0,
     afterDedupe: 0,
@@ -966,7 +957,6 @@ export async function runScoutCollect(opts: {
     llmProvider,
     llmUsage,
     unhydratedReplyCount,
-    opencodeTurns: toOpenCodeTurns(events),
   });
   if (llmUsage) {
     console.info(

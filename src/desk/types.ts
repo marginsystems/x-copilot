@@ -83,12 +83,6 @@ export type ScoutStreamEvent = {
   };
 };
 
-export type ScoutLogEntry = {
-  at: string;
-  message: string;
-  stage?: string;
-};
-
 export type ReplyStatSnapshot = {
   views?: number;
   likes?: number;
