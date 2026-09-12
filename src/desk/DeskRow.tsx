@@ -109,7 +109,7 @@ export function DeskRow({
   children?: ReactNode;
 }) {
   const presence = useDeskRowExpand(Boolean(expandable && open));
-  const expanded = expandable && presence.expanded;
+  const expanded = !expandable || presence.expanded;
   const detailVisible = !expandable || expanded;
   const classes = ["thread-row"];
   if (className) classes.push(className);

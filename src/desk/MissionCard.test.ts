@@ -309,6 +309,7 @@ describe("Gate cards", () => {
       MissionCard(missionProps({ phase: "silent_refuel", surface: "link_x" })),
     );
     assert.match(linkX, />Link X</);
+    assert.match(linkX, /Link X so the desk can see what you post\./);
     assert.doesNotMatch(linkX, />For You</);
     assert.doesNotMatch(linkX, />Open For You</);
     const settings = renderToStaticMarkup(
@@ -323,6 +324,29 @@ describe("Gate cards", () => {
     assert.match(settings, />Set agenda</);
     assert.match(settings, />Settings</);
     assert.doesNotMatch(settings, />For You</);
+  });
+
+  it("removes the post action while a Suggested row is busy", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          actionBusy: true,
+          suggestion: {
+            id: "suggested-post",
+            kind: "post",
+            why: "Share an update",
+            draft: "A desk post.",
+            targetId: null,
+            targetUrl: null,
+            targetAuthor: null,
+          },
+          expandedId: "suggest:suggested-post",
+        }),
+      ),
+    );
+
+    assert.doesNotMatch(html, />I posted on X</);
   });
 
   it("no longer paints usage or wait gates: the feed is open", () => {

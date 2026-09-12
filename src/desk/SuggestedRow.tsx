@@ -91,7 +91,7 @@ export function SuggestedRow({
       nextTip="Continue to the next Approach card."
       nextDisabled={!interacted}
       onPrimary={
-        open && !interacted && !detectsReply ? onPosted : undefined
+        open && !interacted && !detectsReply && !busy ? onPosted : undefined
       }
       primaryLabel="I posted on X"
       onSkip={open && !interacted ? onSkip : undefined}

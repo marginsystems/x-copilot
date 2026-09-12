@@ -796,6 +796,10 @@
   flex: 0 0 auto;
 }
 
+.thread-row.reply-pace-bar .row-detail-inner {
+  overflow: visible;
+}
+
 .reply-pace-help summary {
   list-style: none;
   cursor: pointer;
@@ -844,4 +848,3 @@
 .reply-pace-help-panel a {
   color: var(--accent);
 }
-

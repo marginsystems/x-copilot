@@ -41,4 +41,18 @@ describe("DeskRow card chrome", () => {
     assert.doesNotMatch(css, /\.row-head:hover|\.next-action-head:hover/);
     assert.doesNotMatch(css, /\.approach-card-actions|justify-content:\s*flex-end/);
   });
+
+  it("keeps non-expandable details visible", () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        DeskRow,
+        { lead: "PACE", summary: "Waiting" },
+        createElement("span", null, "Help"),
+      ),
+    );
+
+    assert.match(html, /^<article class="thread-row open">/);
+    assert.match(html, /class="row-detail-inner"/);
+    assert.match(html, />Help</);
+  });
 });
