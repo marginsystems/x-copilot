@@ -795,7 +795,6 @@
 .reply-pace-help {
   position: relative;
   flex: 0 0 auto;
-  align-self: flex-start;
 }
 
 .thread-row.reply-pace-bar .row-detail-inner {

@@ -43,6 +43,19 @@ describe("DeskRow card chrome", () => {
     assert.doesNotMatch(css, /\.approach-card-actions|justify-content:\s*flex-end/);
   });
 
+  it("lets the pace help details span the row for right anchoring", () => {
+    const css = readFileSync(
+      new URL("../styles/12-threads.css", import.meta.url),
+      "utf8",
+    );
+
+    assert.doesNotMatch(
+      css,
+      /\.reply-pace-help\s*\{[^}]*align-self:\s*flex-start/,
+    );
+    assert.match(css, /\.reply-pace-help-panel\s*\{[^}]*right:\s*0/);
+  });
+
   it("keeps non-expandable details visible", () => {
     const html = renderToStaticMarkup(
       createElement(
