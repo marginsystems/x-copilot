@@ -332,7 +332,8 @@
   opacity: 1;
 }
 
-.thread-row:not(.open):hover {
+.thread-row:not(.open):hover,
+.thread-row.open:not(:has(.row-head button)):hover {
   background: var(--raised);
 }
 
