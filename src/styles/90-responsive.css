@@ -40,12 +40,6 @@
     display: none;
   }
 
-  .threads-activity.is-collapsed {
-    height: 56px;
-    min-height: 56px;
-    max-height: 56px;
-  }
-
   .threads-pane-head .section-label {
     display: none;
   }
