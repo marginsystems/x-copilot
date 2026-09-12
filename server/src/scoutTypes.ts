@@ -1,5 +1,4 @@
 import type { LlmProvider, TokenUsage } from "./deepseek.js";
-import type { OpenCodeTurn } from "./opencodeAdapter.js";
 import type { ThreadCard } from "./threadCard.js";
 
 export type ScoutStageId =
@@ -112,5 +111,4 @@ export type ScoutCollectEvent = {
   llmProvider?: LlmProvider;
   llmUsage?: TokenUsage;
   unhydratedReplyCount?: number;
-  opencodeTurns?: OpenCodeTurn[];
 };

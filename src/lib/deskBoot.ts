@@ -5,7 +5,6 @@ import type {
   DismissalHistoryEntry,
   ExpiredHistoryEntry,
   InteractionHistoryEntry,
-  ScoutLogEntry,
   SkipHistoryEntry,
   ThreadCard,
 } from "../desk/types";
@@ -77,7 +76,6 @@ export type DeskBootDesk = {
     extra: ForYouExtraUsage | null;
   };
   lastScout: LastScoutPayload;
-  scoutLog: ScoutLogEntry[];
   gamification: GamificationStats;
   activityStats: ActivityStats;
   coaching: CoachingState | null;
@@ -245,7 +243,6 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
         extra: parseForYouExtra(forYouRaw),
       },
       lastScout: parseLastScout(desk.lastScout),
-      scoutLog: [],
       gamification: parsedGamification?.stats ?? emptyGamificationStats(),
       activityStats: parseActivityStats(desk.activityStats) ?? emptyActivityStats("day"),
       coaching: parseCoachingPayload(desk.coaching),

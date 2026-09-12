@@ -1,5 +1,5 @@
 /**
- * Scout search / NDJSON run / last-snapshot / scout log routes.
+ * Scout NDJSON run / last-snapshot routes.
  *
  * The NDJSON stream on POST /api/scout/run holds the scout lock and the
  * credit / takeoff / X-link gates; keep the streaming contract intact.
@@ -37,13 +37,11 @@ import { preferRootTargets } from "./scoutTarget.js";
 import { runScoutCollect } from "./scoutCollect.js";
 import { startEmptyTankScout, type ScoutEmptyTankDeps } from "./scoutEmptyTank.js";
 import { endScout, tryBeginScout } from "./scoutGate.js";
-import { appendScoutLog, getScoutLog } from "./scoutLog.js";
 import {
   clampBucketSize,
   clampTargetCool,
   isCoolThread,
 } from "./scoutPolicy.js";
-import { runScoutSearch } from "./scoutRun.js";
 import type { ScoutFilters } from "./scoutTypes.js";
 import {
   filterExcludedAccounts,
@@ -137,7 +135,6 @@ function sendScoutUnauthenticated(
 /** Test seam: stub the collect loop / memory index without touching the network. */
 export type ScoutHttpDeps = {
   runScoutCollect?: typeof runScoutCollect;
-  runScoutSearch?: typeof runScoutSearch;
   ensureMemoryIndex?: typeof ensureMemoryIndex;
 };
 
@@ -241,136 +238,7 @@ export async function tryHandleScout(
   deps: ScoutHttpDeps = {},
 ): Promise<boolean> {
   const doScoutCollect = deps.runScoutCollect ?? runScoutCollect;
-  const doScoutSearch = deps.runScoutSearch ?? runScoutSearch;
   const doEnsureMemoryIndex = deps.ensureMemoryIndex ?? ensureMemoryIndex;
-
-  if (req.method === "POST" && url.pathname === "/api/search") {
-    let body: { queries?: unknown; agenda?: unknown; filters?: unknown };
-    try {
-      body = (await readBody(req)) as {
-        queries?: unknown;
-        agenda?: unknown;
-        filters?: unknown;
-      };
-    } catch (err) {
-      const statusCode = err instanceof BodyError ? err.statusCode : 400;
-      send(req, res, statusCode, {
-        error: "bad_request",
-        message: err instanceof Error ? err.message : "Invalid request body",
-      });
-      return true;
-    }
-    const agenda = typeof body.agenda === "string" ? body.agenda.trim() : "";
-    const queries = Array.isArray(body.queries)
-      ? body.queries.filter((q): q is string => typeof q === "string")
-      : [];
-    const filters = parseScoutFilters(body.filters);
-    const sessionUser = getSessionUser(req);
-    if (!sessionUser) {
-      sendScoutUnauthenticated(req, res);
-      return true;
-    }
-    if (sendXLinkRequired(req, res)) return true;
-    if (sendCreditsExhausted(req, res)) return true;
-    if (sendSortiesExhausted(req, res)) return true;
-    const gate = tryBeginScout(sessionUser.id);
-    if (!gate.ok) {
-      send(req, res, gate.status, {
-        error: gate.error,
-        message: gate.message,
-      });
-      return true;
-    }
-    let sortieId: string | undefined;
-    let coolCount = 0;
-    try {
-      await doEnsureMemoryIndex();
-      sortieId = recordSortie();
-      trackAnalytics({
-        name: "scout.takeoff",
-        userId: sessionUser.id,
-        email: sessionUser.email,
-        handle: sessionUser.xUsername,
-        detail: `${queries.length} queries`,
-      });
-      const result = await doScoutSearch({
-        agenda,
-        queries,
-        filters,
-        userId: sessionUser.id,
-      });
-      coolCount = result.ok
-        ? Array.isArray(result.event.threads)
-          ? result.event.threads.filter((t) =>
-              isCoolThread(t, { agendaSet: Boolean(agenda) }),
-            ).length
-          : 0
-        : 0;
-      if (sortieWasWasted({ ok: result.ok, coolCount })) {
-        refundSortie(sortieId);
-      }
-      if (!result.ok) {
-        trackAnalytics({
-          name: "scout.failed",
-          userId: sessionUser.id,
-          email: sessionUser.email,
-          handle: sessionUser.xUsername,
-          detail: result.message,
-          ok: false,
-        });
-        send(req, res, result.status, {
-          error: result.error,
-          message: result.message,
-        });
-        return true;
-      }
-      const done = result.event;
-      send(req, res, 200, {
-        queries: done.queries,
-        threads: done.threads,
-        errors: done.errors,
-        plannedBy: done.plannedBy,
-        model: done.model,
-        triageModel: done.triageModel,
-        triageWarning: done.triageWarning,
-        cooldownFiltered: done.cooldownFiltered,
-        cooldownAuthors: done.cooldownAuthors,
-        cooldownWarning: done.cooldownWarning,
-        minViewsFiltered: done.minViewsFiltered,
-        minViewsWarning: done.minViewsWarning,
-        linkFiltered: done.linkFiltered,
-        linkWarning: done.linkWarning,
-        lengthFiltered: done.lengthFiltered,
-        lengthWarning: done.lengthWarning,
-        pipelineCounts: done.pipelineCounts,
-      });
-      // Mark delivered only once the response write actually landed, so a
-      // torn-down socket does not complete the takeoff mission for threads
-      // the client never received (mirrors the streaming writeLine reorder).
-      if (coolCount >= 1) {
-        markSortieDelivered(sortieId);
-      }
-      return true;
-    } catch (err) {
-      if (sortieId) {
-        // The batch response never reached the client — the single 200 write
-        // threw on a torn socket — so refund the takeoff rather than stranding
-        // it (neither delivered nor refunded).
-        refundSortie(sortieId);
-      }
-      try {
-        send(req, res, 500, {
-          error: "internal_error",
-          message: err instanceof Error ? err.message : String(err),
-        });
-      } catch {
-        // Headers already sent or socket torn down; nothing left to write.
-      }
-      return true;
-    } finally {
-      endScout(sessionUser.id);
-    }
-  }
 
   if (req.method === "POST" && url.pathname === "/api/scout/run") {
     let body: {
@@ -573,64 +441,6 @@ export async function tryHandleScout(
       }),
     );
     return true;
-  }
-
-  if (req.method === "GET" && url.pathname === "/api/scout/log") {
-    const sessionUser = getSessionUser(req);
-    if (!sessionUser) {
-      sendScoutUnauthenticated(req, res);
-      return true;
-    }
-    const entries = await getScoutLog(sessionUser.id);
-    send(req, res, 200, { ok: true, entries });
-    return true;
-  }
-
-  if (req.method === "POST" && url.pathname === "/api/scout/log") {
-    const sessionUser = getSessionUser(req);
-    if (!sessionUser) {
-      sendScoutUnauthenticated(req, res);
-      return true;
-    }
-    let body: { message?: unknown; stage?: unknown; at?: unknown };
-    try {
-      body = (await readBody(req)) as {
-        message?: unknown;
-        stage?: unknown;
-        at?: unknown;
-      };
-    } catch (err) {
-      const statusCode = err instanceof BodyError ? err.statusCode : 400;
-      send(req, res, statusCode, {
-        error: "bad_request",
-        message: err instanceof Error ? err.message : "Invalid request body",
-      });
-      return true;
-    }
-    const message = typeof body.message === "string" ? body.message : "";
-    if (!message.trim()) {
-      send(req, res, 400, {
-        error: "bad_request",
-        message: "Pass { message: string }.",
-      });
-      return true;
-    }
-    try {
-      const entry = await appendScoutLog({
-        userId: sessionUser.id,
-        message,
-        stage: typeof body.stage === "string" ? body.stage : undefined,
-        at: typeof body.at === "string" ? body.at : undefined,
-      });
-      send(req, res, 200, { ok: true, entry });
-      return true;
-    } catch (err) {
-      send(req, res, 500, {
-        error: "store_failed",
-        message: err instanceof Error ? err.message : String(err),
-      });
-      return true;
-    }
   }
 
   return false;

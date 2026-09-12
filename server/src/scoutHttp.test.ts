@@ -18,7 +18,6 @@ import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { createSession } from "./sessionStore.ts";
 import { getSortieUsage } from "./scoutSorties.ts";
 import type { runScoutCollect } from "./scoutCollect.ts";
-import type { runScoutSearch } from "./scoutRun.ts";
 import { resetScoutGateForTests, tryBeginScout } from "./scoutGate.ts";
 import {
   parseScoutFilters,
@@ -310,18 +309,16 @@ describe("tryHandleScout", () => {
     assert.equal(tryBeginScout(pilot.userId).ok, true);
   });
 
-  it("returns 401 on POST /api/scout/run and /api/search without a session", async () => {
+  it("returns 401 on POST /api/scout/run without a session", async () => {
     currentCookie = undefined;
-    for (const path of ["/api/scout/run", "/api/search"]) {
-      const { handled, state } = await call("POST", path, {
-        body: { queries: ["q1"] },
-        deps: stubDeps(),
-      });
-      assert.equal(handled, true, path);
-      assert.equal(state.status, 401, path);
-      const body = JSON.parse(state.chunks.join("")) as Record<string, unknown>;
-      assert.equal(body.error, "unauthenticated", path);
-    }
+    const { handled, state } = await call("POST", "/api/scout/run", {
+      body: { queries: ["q1"] },
+      deps: stubDeps(),
+    });
+    assert.equal(handled, true);
+    assert.equal(state.status, 401);
+    const body = JSON.parse(state.chunks.join("")) as Record<string, unknown>;
+    assert.equal(body.error, "unauthenticated");
   });
 
   it("does not 429 user B while user A's Scout run is active", async () => {
@@ -508,17 +505,6 @@ describe("tryHandleScout", () => {
     assert.equal(body.error, "scout_busy");
   });
 
-  it("returns JSON 429 scout_busy on POST /api/search when locked", async () => {
-    resetScoutGateForTests({ userId: pilot.userId, active: true });
-    const { handled, state } = await call("POST", "/api/search", {
-      body: { queries: ["q1"] },
-    });
-    assert.equal(handled, true);
-    assert.equal(state.status, 429);
-    const body = JSON.parse(state.chunks.join("")) as Record<string, unknown>;
-    assert.equal(body.error, "scout_busy");
-  });
-
   it("aborts an in-flight run when the client closes", async () => {
     let seenSignal: AbortSignal | undefined;
     let release: (value: {
@@ -587,28 +573,6 @@ describe("tryHandleScout", () => {
     assert.match(state.headers["Content-Type"], /application\/x-ndjson/);
   });
 
-  it("rejects invalid JSON on POST /api/search with 400", async () => {
-    const { handled, state } = await call("POST", "/api/search", {
-      rawBody: "not json",
-    });
-    assert.equal(handled, true);
-    assert.equal(state.status, 400);
-    const body = JSON.parse(state.chunks.join("")) as Record<string, unknown>;
-    assert.equal(body.error, "bad_request");
-  });
-
-  it("rejects a missing message on POST /api/scout/log with 400", async () => {
-    const { cookie } = signInXUser("log-validation");
-    const { handled, state } = await call("POST", "/api/scout/log", {
-      body: {},
-      cookie,
-    });
-    assert.equal(handled, true);
-    assert.equal(state.status, 400);
-    const body = JSON.parse(state.chunks.join("")) as Record<string, unknown>;
-    assert.equal(body.error, "bad_request");
-  });
-
   it("refunds the takeoff when collect fails", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
@@ -660,171 +624,6 @@ describe("tryHandleScout", () => {
       body: { queries: ["q1"] },
       deps: stubDeps(),
     });
-    assert.equal(getSortieUsage(tenantId, "free").used, 0);
-  });
-
-  it("refunds the takeoff on POST /api/search when the batch fails", async () => {
-    const tenantId = getLocalTenantId();
-    const deps: ScoutHttpDeps = {
-      runScoutSearch: (async () => ({
-        ok: false,
-        status: 502,
-        error: "bad_gateway",
-        message: "x api down",
-      })) as typeof runScoutSearch,
-      ensureMemoryIndex: async () => {},
-    };
-    await call("POST", "/api/search", {
-      body: { queries: ["q1"] },
-      deps,
-    });
-    assert.equal(getSortieUsage(tenantId, "free").used, 0);
-  });
-
-  it("keeps the takeoff on POST /api/search when a batch lands cool threads", async () => {
-    const tenantId = getLocalTenantId();
-    const deps: ScoutHttpDeps = {
-      runScoutSearch: (async () => ({
-        ok: true,
-        event: {
-          ...doneEvent,
-          threads: [
-            { id: "1", engage: "consider", baitScore: 20, onAgenda: true },
-            { id: "2", engage: "priority", baitScore: 10, onAgenda: true },
-          ],
-          queries: ["q1"],
-        },
-      })) as typeof runScoutSearch,
-      ensureMemoryIndex: async () => {},
-    };
-    await call("POST", "/api/search", {
-      body: { queries: ["q1"] },
-      deps,
-    });
-    assert.equal(getSortieUsage(tenantId, "free").used, 1);
-  });
-
-  it("refunds the takeoff on POST /api/search when a batch lands only non-cool threads", async () => {
-    const tenantId = getLocalTenantId();
-    const deps: ScoutHttpDeps = {
-      runScoutSearch: (async () => ({
-        ok: true,
-        event: {
-          ...doneEvent,
-          threads: [
-            { id: "1", engage: "skip", baitScore: 85 },
-            { id: "2", engage: "consider", threadKind: "hollow_ask", baitScore: 20 },
-          ],
-          queries: ["q1"],
-        },
-      })) as typeof runScoutSearch,
-      ensureMemoryIndex: async () => {},
-    };
-    await call("POST", "/api/search", {
-      body: { queries: ["q1"] },
-      deps,
-    });
-    assert.equal(getSortieUsage(tenantId, "free").used, 0);
-  });
-
-  it("refunds the takeoff on POST /api/search when a batch lands zero threads", async () => {
-    const tenantId = getLocalTenantId();
-    const deps: ScoutHttpDeps = {
-      runScoutSearch: (async () => ({
-        ok: true,
-        event: {
-          ...doneEvent,
-          threads: [],
-          queries: ["q1"],
-        },
-      })) as typeof runScoutSearch,
-      ensureMemoryIndex: async () => {},
-    };
-    await call("POST", "/api/search", {
-      body: { queries: ["q1"] },
-      deps,
-    });
-    assert.equal(getSortieUsage(tenantId, "free").used, 0);
-  });
-
-  it("refunds the takeoff on POST /api/search when the 200 write throws", async () => {
-    const tenantId = getLocalTenantId();
-    const deps: ScoutHttpDeps = {
-      runScoutSearch: (async () => ({
-        ok: true,
-        event: {
-          ...doneEvent,
-          threads: [
-            { id: "1", engage: "consider", baitScore: 20, onAgenda: true },
-            { id: "2", engage: "priority", baitScore: 10, onAgenda: true },
-          ],
-          queries: ["q1"],
-        },
-      })) as typeof runScoutSearch,
-      ensureMemoryIndex: async () => {},
-    };
-    const req = new EventEmitter() as unknown as IncomingMessage;
-    Object.assign(req, {
-      method: "POST",
-      headers: { cookie: pilot.cookie },
-      socket: { remoteAddress: "127.0.0.1" },
-    });
-    const state: FakeState = { status: 0, headers: {}, chunks: [] };
-    let writeHeadCalls = 0;
-    let firstEnd = true;
-    const res = {
-      writableEnded: false,
-      writeHead(code: number, headers?: Record<string, string>) {
-        writeHeadCalls += 1;
-        if (writeHeadCalls > 1) {
-          throw new Error("ERR_HTTP_HEADERS_SENT");
-        }
-        state.status = code;
-        if (headers) Object.assign(state.headers, headers);
-        return this;
-      },
-      write(chunk: unknown) {
-        state.chunks.push(String(chunk));
-        return true;
-      },
-      end(chunk?: unknown) {
-        if (firstEnd) {
-          firstEnd = false;
-          throw new Error("socket torn down");
-        }
-        if (chunk !== undefined) state.chunks.push(String(chunk));
-        this.writableEnded = true;
-      },
-    } as unknown as ServerResponse;
-    const emitter = req as unknown as EventEmitter;
-    const handledPromise = tryHandleScout(
-      req,
-      res,
-      new URL("http://localhost/api/search"),
-      deps,
-    );
-    emitter.emit("data", Buffer.from(JSON.stringify({ queries: ["q1"] })));
-    emitter.emit("end");
-    assert.equal(await handledPromise, true);
-    // writeHead(200) ran, but end(json) threw — the client never got the
-    // threads, so the takeoff is wasted the same as a failed batch.
-    assert.equal(getSortieUsage(tenantId, "free").used, 0);
-  });
-
-  it("refunds the takeoff on POST /api/search when the batch rejects", async () => {
-    const tenantId = getLocalTenantId();
-    const deps: ScoutHttpDeps = {
-      runScoutSearch: (async () => {
-        throw new Error("boom");
-      }) as typeof runScoutSearch,
-      ensureMemoryIndex: async () => {},
-    };
-    const { handled, state } = await call("POST", "/api/search", {
-      body: { queries: ["q1"] },
-      deps,
-    });
-    assert.equal(handled, true);
-    assert.equal(state.status, 500);
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 

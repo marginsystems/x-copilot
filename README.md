@@ -18,7 +18,7 @@ Official X API search → DeepSeek triage in a Vite dashboard. Scout finds cool 
 
 ## Thread triage
 
-After search, `POST /api/search` sends the returned threads (max 20) to DeepSeek in **one batched call** and enriches each card with:
+Scout triages candidate buckets with DeepSeek and enriches each card with:
 
 | Field | Meaning |
 |-------|---------|
@@ -39,8 +39,6 @@ The same action also writes an Obsidian-friendly Markdown note under **`knowledg
 
 The last successful Scout run is also cached in memory and `data/last-scout.json` (gitignored). On dashboard load, `GET /api/scout/last` restores Threads / queries (cooled-down authors filtered out) so a reload or API restart does not wipe the list.
 
-Scout stage lines are appended to `data/scout-log.json` (gitignored; last 1000) via `GET/POST /api/scout/log` and shown in the Scout strip with time-ago + 100-line pages.
-
 ## Length filter
 
 Before triage, posts with more than **480** characters (or obvious `N/M` thread openers like `1/17 …`) are dropped so walls of text never reach DeepSeek or the accordion. The same cap applies to the **hydrated parent** a reply sits under. Override with `X_MAX_THREAD_CHARS` in `.env`, or via **Settings → Max post characters** — the UI sends `filters` on each Scout run and wins over env for that request. **X Articles and replies to them** are hard-dropped by default when the payload marks an article (`tweet.fields=article`, or leftover GraphQL article nodes). When a **note tweet** body is present, that text is used for the char cap instead of the short `full_text` teaser. The search status line reports how many were dropped.
@@ -54,7 +52,7 @@ Before triage, posts with more than **480** characters (or obvious `N/M` thread 
 3. **LLM-qualify** the full bucket. Cool = `engage` `priority`/`consider` and `baitScore ≤ 45`.
 4. Keep cool threads and refill until **Cool threads** target (`targetCool`, 1–20) or supply is exhausted. If a full bucket yields **0 cool**, discard and refill. Budget/Stop → `exhausted` / `aborted`; hit target → `stopReason: target`.
 
-Status shows `Candidates n/K` while filling and `Cool n/target` as cools accumulate. Prefer `POST /api/scout/run` (NDJSON; `done` includes `coolCount`, `bucketSize`, `stopReason`, threads, `opencodeTurns`). `POST /api/search` remains a non-streaming batch JSON fallback. Sessions are rate-limited: one run at a time, then a **15s** cooldown (UI + sidecar `429`) before the next Start — Stop does not bypass that gate.
+Status shows `Candidates n/K` while filling and `Cool n/target` as cools accumulate. Use `POST /api/scout/run` (NDJSON; `done` includes `coolCount`, `bucketSize`, `stopReason`, threads). Sessions are rate-limited: one run at a time, then a **15s** cooldown (UI + sidecar `429`) before the next Start — Stop does not bypass that gate.
 
 ## Architecture
 

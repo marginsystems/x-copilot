@@ -49,9 +49,6 @@ const desk = {
     extra: null,
   },
   lastScout: { ok: true, empty: true },
-  scoutLog: {
-    entries: [{ message: "1 cool thread", at: "2026-08-28T00:00:00.000Z" }],
-  },
   gamification: {
     currentStreak: 2,
     longestStreak: 4,
@@ -124,7 +121,7 @@ describe("parseDeskBoot", () => {
 });
 
 describe("desk boot cache", () => {
-  it("round-trips a signed-in snapshot and drops signed-out writes", () => {
+  it("round-trips a snapshot without scoutLog and drops signed-out writes", () => {
     const store = memoryStore();
     const payload = parseDeskBoot({ ok: true, authRequired: true, user, desk });
     assert.ok(payload);
@@ -133,7 +130,8 @@ describe("desk boot cache", () => {
     const read = readDeskBootCache(store);
     assert.equal(read?.user?.id, "u1");
     assert.equal(read?.desk?.gamification.lifetimeXp, 10);
-    assert.deepEqual(read?.desk?.scoutLog, []);
+    assert.ok(read?.desk);
+    assert.equal("scoutLog" in read.desk, false);
     assert.equal(read?.desk?.forYou.progress?.tracked, 3);
     writeDeskBootCache({ ...payload, user: null }, store);
     assert.equal(store.getItem(DESK_BOOT_KEY), null);
