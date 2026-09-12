@@ -15,21 +15,24 @@ import {
 } from "../lib/gamification";
 
 export function useActivityStrip() {
-  const [activityBucket, setActivityBucket] = useState<ActivityBucket>("day");
+  const seed = peekDeskBootCache()?.desk ?? null;
+  const seedBucket = seed?.activityStats.bucket ?? "day";
+  const [activityBucket, setActivityBucket] = useState<ActivityBucket>(
+    seedBucket,
+  );
   const [flightPathOpen, setFlightPathOpen] = useState(() =>
     readSessionFlag("x-copilot-flight-path-open", 700),
   );
   const [deskTopOpen, setDeskTopOpen] = useState(() => readDeskTopOpen());
-  const seed = peekDeskBootCache()?.desk ?? null;
   const [activityStats, setActivityStats] = useState<ActivityStats>(
-    () => emptyActivityStats("day"),
+    () => seed?.activityStats ?? emptyActivityStats("day"),
   );
   const [gamification, setGamification] = useState<GamificationStats>(
     () => seed?.gamification ?? emptyGamificationStats(),
   );
-  const activityBucketRef = useRef<ActivityBucket>("day");
+  const activityBucketRef = useRef<ActivityBucket>(seedBucket);
   /** In-flight toggle target; may diverge from applied `activityBucketRef`. */
-  const activityRequestBucketRef = useRef<ActivityBucket>("day");
+  const activityRequestBucketRef = useRef<ActivityBucket>(seedBucket);
   /** Set once a user toggles the bucket; boot's snapshot bucket is then stale. */
   const stripStaleRef = useRef(false);
   /** Monotonic token so out-of-order gamification responses don't regress the chip. */

@@ -251,7 +251,8 @@ button.primary.scout-run.desk-top-takeoff {
 .threads-activity {
   position: relative;
   min-width: 0;
-  min-height: 148px;
+  height: 220px;
+  min-height: 220px;
   max-height: 220px;
   display: flex;
   flex-direction: column;
@@ -263,6 +264,7 @@ button.primary.scout-run.desk-top-takeoff {
 }
 
 .threads-activity.is-collapsed {
+  height: 72px;
   min-height: 72px;
   max-height: 72px;
   align-self: start;
@@ -320,6 +322,12 @@ button.primary.scout-run.desk-top-takeoff {
   gap: 6px;
 }
 
+.threads-activity-share-slot {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+}
+
 .threads-activity-share {
   display: inline-flex;
   align-items: center;
@@ -370,6 +378,7 @@ button.primary.scout-run.desk-top-takeoff {
 
 .threads-activity-next {
   margin: 0;
+  min-height: calc(0.78rem * 1.35);
   font-size: 0.78rem;
   color: var(--muted);
   line-height: 1.35;
@@ -524,15 +533,20 @@ button.primary.scout-run.desk-top-takeoff {
 
 .desk-instruments {
   min-width: 0;
+  height: 220px;
+  min-height: 220px;
+  max-height: 220px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: auto;
   border: 1px solid var(--border);
   background: var(--raised);
   padding: 10px 12px;
 }
 
 .desk-instruments.is-collapsed {
+  height: 72px;
   min-height: 72px;
   max-height: 72px;
   overflow: hidden;

@@ -55,17 +55,19 @@ export function ActivityStrip({
                 {flightPathOpen ? "–" : "+"}
               </span>
             </button>
-            {sharePayload ? (
-              <button
-                type="button"
-                className="threads-activity-share"
-                onClick={() => setShareOpen(true)}
-                title="Share this path"
-                aria-label="Share this path"
-              >
-                <ShareIcon />
-              </button>
-            ) : null}
+            <span className="threads-activity-share-slot">
+              {sharePayload ? (
+                <button
+                  type="button"
+                  className="threads-activity-share"
+                  onClick={() => setShareOpen(true)}
+                  title="Share this path"
+                  aria-label="Share this path"
+                >
+                  <ShareIcon />
+                </button>
+              ) : null}
+            </span>
           </div>
           {flightPathOpen ? (
             <span className="threads-activity-sub">
@@ -141,11 +143,14 @@ export function ActivityStrip({
           </span>
         </span>
       </div>
-      {flightPathOpen && gamification.nextGoal ? (
-        <p className="threads-activity-next">
-          Next: {gamification.nextGoal.title} — {gamification.nextGoal.detail}
-        </p>
-      ) : null}
+      <p
+        className="threads-activity-next"
+        aria-hidden={!gamification.nextGoal}
+      >
+        {flightPathOpen && gamification.nextGoal
+          ? `Next: ${gamification.nextGoal.title} — ${gamification.nextGoal.detail}`
+          : "\u00a0"}
+      </p>
       <div className="threads-activity-chart">
         {activityStats.totals.interactions === 0 ? (
           <p className="threads-activity-empty">
