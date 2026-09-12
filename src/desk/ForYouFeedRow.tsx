@@ -10,7 +10,6 @@ import {
 } from "../lib/forYou";
 import type { OwnActivity } from "../lib/coaching";
 import { ApproachDetectingMark } from "./ApproachFrame";
-import { ApproachCardActions } from "./ApproachCardActions";
 import { DeskRow } from "./DeskRow";
 
 /**
@@ -78,15 +77,11 @@ export function ForYouFeedRow(props: {
           <span>x.com/home</span>
         </>
       }
-      actions={
-        <ApproachCardActions
-          openHref={detected ? undefined : X_FOR_YOU_URL}
-          openLabel="Open For You"
-          openTip={FYP_OPEN_TIP}
-          onNext={props.onNext}
-          nextTip={FYP_NEXT_TIP}
-        />
-      }
+      openHref={detected ? null : X_FOR_YOU_URL}
+      openLabel={detected ? undefined : "Open For You"}
+      openTip={FYP_OPEN_TIP}
+      onNext={props.onNext}
+      nextTip={FYP_NEXT_TIP}
     >
       {detected ? (
         <p className="reason">

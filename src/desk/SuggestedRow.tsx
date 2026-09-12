@@ -10,7 +10,6 @@ import {
 import type { VoiceState } from "../lib/voice";
 import { SuggestPane } from "../SuggestPane";
 import { SuggestLocked } from "../VoiceCard";
-import { ApproachCardActions } from "./ApproachCardActions";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 
@@ -85,19 +84,19 @@ export function SuggestedRow({
         </>
       }
       onToggle={onToggle}
-      actions={
-        detectsReply ? (
-          <ApproachCardActions
-            openHref={openUrl ?? undefined}
-            openLabel="Open on X"
-            openTip="Open the target reply on X."
-            onNext={onNext}
-            nextTip="Continue to the next Approach card."
-            busy={busy}
-            nextDisabled={!interacted}
-          />
-        ) : undefined
+      openHref={openUrl}
+      openLabel="Open on X"
+      openTip="Open the target on X."
+      onNext={detectsReply ? onNext : undefined}
+      nextTip="Continue to the next Approach card."
+      nextDisabled={!interacted}
+      onPrimary={
+        open && !interacted && !detectsReply ? onPosted : undefined
       }
+      primaryLabel="I posted on X"
+      onSkip={open && !interacted ? onSkip : undefined}
+      onDismiss={open && !interacted ? onDismiss : undefined}
+      busy={busy}
     >
       {!compose && row.draft ? (
         <p className="for-you-draft">{row.draft}</p>
@@ -125,61 +124,6 @@ export function SuggestedRow({
           onOpenSettings={onOpenSettings}
           onLinkX={onLinkX}
         />
-      ) : detectsReply ? null : (
-        <div className="row">
-          {openUrl ? (
-            <a
-              className="ghost"
-              href={openUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open on X
-            </a>
-          ) : (
-            <button type="button" className="ghost" disabled>
-              Open on X
-            </button>
-          )}
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
-            onClick={onPosted}
-          >
-            I posted on X
-          </button>
-        </div>
-      )}
-      {!interacted ? (
-        <div className="row">
-          {compose ? (
-            <button
-              type="button"
-              className="ghost"
-              disabled={busy}
-              onClick={onPosted}
-            >
-              I posted on X
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="ghost"
-            disabled={busy}
-            onClick={onSkip}
-          >
-            Skip
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            disabled={busy}
-            onClick={onDismiss}
-          >
-            Not interested
-          </button>
-        </div>
       ) : null}
     </DeskRow>
   );

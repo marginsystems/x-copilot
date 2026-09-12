@@ -117,6 +117,10 @@ function MockThreadRow({
         </>
       }
       onToggle={onToggle}
+      onPrimary={open ? onCta : undefined}
+      primaryLabel="Mark interacted"
+      onSkip={open ? onCta : undefined}
+      onDismiss={open ? onCta : undefined}
     >
       <p className="original">{card.text}</p>
       <p className="reason">{card.reason}</p>
@@ -127,22 +131,11 @@ function MockThreadRow({
           </span>
         ))}
       </div>
-      <div className="row">
-        <button className="primary" type="button" onClick={onCta}>
-          Mark interacted
-        </button>
-        <button className="ghost" type="button" onClick={onCta}>
-          Skip
-        </button>
-        <button className="ghost" type="button" onClick={onCta}>
-          Not interested
-        </button>
-        <span className="landing-demo-hint">
-          {signedIn
-            ? "demo — open the desk to use this"
-            : "demo — sign in to use the desk"}
-        </span>
-      </div>
+      <p className="landing-demo-hint">
+        {signedIn
+          ? "demo — open the desk to use this"
+          : "demo — sign in to use the desk"}
+      </p>
     </DeskRow>
   );
 }

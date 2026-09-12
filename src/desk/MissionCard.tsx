@@ -4,6 +4,7 @@ import { SuggestPane } from "../SuggestPane";
 import type { AuthSessionUser } from "../auth/types";
 import type { VoiceState } from "../lib/voice";
 import { ApproachFlightRow, ApproachFrame } from "./ApproachFrame";
+import { DeskRow } from "./DeskRow";
 import {
   presentApproach,
   type ApproachCardInput,
@@ -110,22 +111,23 @@ function ScoutRow(props: MissionCardProps & { thread: ThreadCard }) {
 function GateCard(props: MissionCardProps & { view: ApproachPresentation }) {
   const { view } = props;
   return (
-    <ApproachFrame verb={view.verb} why={view.why}>
-      <div className="row">
-        {view.gate === "link_x" ? (
-          <button type="button" className="primary" onClick={props.onLinkX}>
-            Link X
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="primary"
-            onClick={props.onOpenSettings}
-          >
-            Settings
-          </button>
-        )}
-      </div>
+    <ApproachFrame>
+      <DeskRow
+        className="approach-gate-row"
+        lead={view.gate === "link_x" ? "X" : "SET"}
+        leadTitle={view.verb}
+        summary={
+          <>
+            <strong>{view.verb}</strong>
+            {" — "}
+            {view.why}
+          </>
+        }
+        onPrimary={
+          view.gate === "link_x" ? props.onLinkX : props.onOpenSettings
+        }
+        primaryLabel={view.gate === "link_x" ? "Link X" : "Settings"}
+      />
     </ApproachFrame>
   );
 }
