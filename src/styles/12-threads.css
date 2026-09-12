@@ -5,11 +5,15 @@
 .threads {
   display: grid;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .mission-card {
   display: grid;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .mission-card-verb {
@@ -284,6 +288,8 @@
 }
 
 .thread-row {
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
@@ -339,6 +345,8 @@
 
 .row-head {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -363,6 +371,7 @@
 }
 
 .thread-row > .row {
+  min-width: 0;
   padding: 0 10px 10px;
 }
 
