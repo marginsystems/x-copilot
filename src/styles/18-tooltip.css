@@ -7,7 +7,8 @@
 .has-tip::after {
   content: attr(data-tip);
   position: absolute;
-  right: 0;
+  left: 0;
+  right: auto;
   top: calc(100% + 8px);
   z-index: 3;
   width: max(16rem, 100%);

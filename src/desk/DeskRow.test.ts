@@ -29,6 +29,33 @@ describe("DeskRow card chrome", () => {
     assert.doesNotMatch(html, /approach-card-actions|justify-content/);
   });
 
+  it("keeps the card inside the pane without a horizontal scrollbar", () => {
+    const threads = readFileSync(
+      new URL("../styles/12-threads.css", import.meta.url),
+      "utf8",
+    );
+    const desk = readFileSync(
+      new URL("../styles/05-desk.css", import.meta.url),
+      "utf8",
+    );
+    const responsive = readFileSync(
+      new URL("../styles/90-responsive.css", import.meta.url),
+      "utf8",
+    );
+    const tips = readFileSync(
+      new URL("../styles/18-tooltip.css", import.meta.url),
+      "utf8",
+    );
+
+    assert.match(threads, /\.thread-row\s*\{[^}]*min-width:\s*0/);
+    assert.match(threads, /\.row-head\s*\{[^}]*min-width:\s*0/);
+    assert.match(desk, /\.threads-scroll\s*\{[^}]*min-width:\s*0/);
+    assert.match(desk, /\.threads-scroll\s*\{[^}]*overflow-x:\s*clip/);
+    assert.doesNotMatch(desk, /\.threads-scroll\s*\{[^}]*overflow-x:\s*auto/);
+    assert.match(responsive, /\.threads-scroll\s*\{[^}]*overflow-x:\s*clip/);
+    assert.match(tips, /\.has-tip::after\s*\{[^}]*left:\s*0/);
+  });
+
   it("uses full-card collapsed hover without head hover overrides", () => {
     const css = readFileSync(
       new URL("../styles/12-threads.css", import.meta.url),
