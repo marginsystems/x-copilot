@@ -61,10 +61,6 @@
   cursor: default;
 }
 
-.approach-flight-row .row-head:hover {
-  background: transparent;
-}
-
 .approach-flight-pulse {
   width: 0.55rem;
   height: 0.55rem;
@@ -105,31 +101,8 @@
 }
 
 .history-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  background: transparent;
   animation: history-row-in 320ms var(--ease-out) both;
   animation-delay: calc(min(var(--i, 0), 10) * 28ms);
-}
-
-.history-row:hover {
-  background: var(--raised);
-}
-
-.history-row-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.history-row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .for-you-suggested {
@@ -139,14 +112,6 @@
 
 .for-you-suggested .section-label {
   margin: 0 0 2px;
-}
-
-.next-action-head {
-  cursor: default;
-}
-
-.next-action-head:hover {
-  background: transparent;
 }
 
 .daily-missions-meta,
@@ -367,6 +332,11 @@
   opacity: 1;
 }
 
+.thread-row:not(.open):hover,
+.thread-row.open:not(:has(> .row-head:is(button))):hover {
+  background: var(--raised);
+}
+
 .row-head {
   width: 100%;
   display: flex;
@@ -392,14 +362,7 @@
   align-self: center;
 }
 
-.row-head:hover {
-  background: var(--raised);
-}
-
-.approach-card-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.thread-row > .row {
   padding: 0 10px 10px;
 }
 
@@ -810,13 +773,7 @@
 }
 
 .reply-pace-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
-  border-radius: var(--radius);
   background: color-mix(in srgb, var(--accent) 8%, var(--panel));
 }
 
@@ -835,13 +792,13 @@
   font-size: 0.78rem;
 }
 
-.reply-pace-bar .ghost {
-  margin-left: auto;
-}
-
 .reply-pace-help {
   position: relative;
   flex: 0 0 auto;
+}
+
+.thread-row.reply-pace-bar .row-detail-inner {
+  overflow: visible;
 }
 
 .reply-pace-help summary {
@@ -892,4 +849,3 @@
 .reply-pace-help-panel a {
   color: var(--accent);
 }
-

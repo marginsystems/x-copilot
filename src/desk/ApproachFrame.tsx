@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { FYP_DETECTING_COPY } from "../lib/forYou";
+import { DeskRow } from "./DeskRow";
 import { FadeSwap } from "./FadeSwap";
 import { ScoutTankMark } from "./ScoutTankMark";
 
@@ -47,24 +48,14 @@ export function ApproachFlightRow({
   flying: boolean;
 }) {
   return (
-    <article
-      className={`thread-row approach-flight-row${flying ? " is-flying" : ""}`}
-      aria-busy={flying || undefined}
-      role="status"
-    >
-      <div className="row-head next-action-head">
-        <div className="row-lead bait" aria-hidden="true">
-          <span className="approach-flight-pulse" />
-        </div>
-        <div className="row-main">
-          <div className="row-summary">
-            <FadeSwap text={line} />
-          </div>
-          <div className="row-meta">
-            <ScoutTankMark />
-          </div>
-        </div>
-      </div>
-    </article>
+    <DeskRow
+      className={`approach-flight-row${flying ? " is-flying" : ""}`}
+      lead={<span className="approach-flight-pulse" />}
+      leadTitle="Collecting"
+      summary={<FadeSwap text={line} />}
+      meta={<ScoutTankMark />}
+      ariaBusy={flying}
+      status
+    />
   );
 }

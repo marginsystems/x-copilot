@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { stripMediaShortlinksFromText } from "../lib/mediaText";
 import { formatAbsoluteTime, formatTimeAgo } from "../lib/timeAgo";
 import { XThreadView } from "../XThreadView";
-import { ApproachCardActions } from "./ApproachCardActions";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 import { ScoutTankMark } from "./ScoutTankMark";
@@ -85,18 +84,16 @@ export function ThreadRow({
         </>
       }
       onToggle={onToggle}
-      actions={
-        <ApproachCardActions
-          openHref={thread.url}
-          openLabel="Open on X"
-          openTip="Open this reply on X."
-          onOpen={onWatch}
-          onNext={onNext}
-          nextTip="Continue to the next Approach card."
-          busy={busy}
-          nextDisabled={!interacted}
-        />
-      }
+      openHref={thread.url}
+      openLabel="Open on X"
+      openTip="Open this reply on X."
+      onOpen={onWatch}
+      onNext={onNext}
+      nextTip="Continue to the next Approach card."
+      nextDisabled={!interacted}
+      onSkip={open && !interacted ? onSkip : undefined}
+      onDismiss={open && !interacted ? onDismiss : undefined}
+      busy={busy}
     >
       <XThreadView
         author={thread.author}
@@ -123,16 +120,6 @@ export function ThreadRow({
               {tag}
             </span>
           ))}
-        </div>
-      ) : null}
-      {!interacted ? (
-        <div className="row">
-          <button className="ghost" disabled={busy} onClick={onSkip}>
-            Skip
-          </button>
-          <button className="ghost" disabled={busy} onClick={onDismiss}>
-            Not interested
-          </button>
         </div>
       ) : null}
       {!interacted ? suggest : null}
