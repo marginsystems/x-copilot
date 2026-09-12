@@ -13,6 +13,20 @@ export function nextReplyPaceUntil(now: number): number {
   return now + REPLY_PACE_MS;
 }
 
+export function replyPaceSeedIso(opts: {
+  replyAtIso?: string | null;
+  ownActivity?: { kind: string; postedAt: string } | null;
+}): string | null | undefined {
+  const ownActivity = opts.ownActivity;
+  if (ownActivity?.kind !== "reply") return opts.replyAtIso;
+  const ownReplyAt = Date.parse(ownActivity.postedAt);
+  if (!Number.isFinite(ownReplyAt)) return opts.replyAtIso;
+  const historyReplyAt = opts.replyAtIso ? Date.parse(opts.replyAtIso) : NaN;
+  return !Number.isFinite(historyReplyAt) || ownReplyAt > historyReplyAt
+    ? ownActivity.postedAt
+    : opts.replyAtIso;
+}
+
 /** Seed a hold from the last reply when this tab has no until and the operator did not Bypass. */
 export function seedReplyPaceUntil(opts: {
   storedUntil: number | null;
