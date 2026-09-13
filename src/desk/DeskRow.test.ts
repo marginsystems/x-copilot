@@ -54,6 +54,19 @@ describe("DeskRow card chrome", () => {
     assert.doesNotMatch(desk, /\.threads-scroll\s*\{[^}]*overflow-x:\s*auto/);
     assert.match(responsive, /\.threads-scroll\s*\{[^}]*overflow-x:\s*clip/);
     assert.match(tips, /\.has-tip::after\s*\{[^}]*left:\s*0/);
+    assert.match(tips, /\.has-tip::after\s*\{[^}]*color:\s*var\(--text\)/);
+    assert.match(tips, /\.has-tip::after\s*\{[^}]*background:\s*var\(--panel\)/);
+    assert.doesNotMatch(tips, /\.has-tip::after\s*\{[^}]*color:\s*var\(--muted\)/);
+  });
+
+  it("does not fade the hover tip with the disabled Next face", () => {
+    const buttons = readFileSync(
+      new URL("../styles/11-buttons.css", import.meta.url),
+      "utf8",
+    );
+
+    assert.match(buttons, /button:disabled:not\(\.has-tip\)\s*\{[^}]*opacity:\s*0\.4/);
+    assert.match(buttons, /button\.has-tip:disabled\s*\{[^}]*opacity:\s*1/);
   });
 
   it("uses full-card collapsed hover without head hover overrides", () => {

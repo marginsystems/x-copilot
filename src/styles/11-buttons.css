@@ -44,7 +44,26 @@ a.ghost:hover {
 }
 
 button:disabled {
-  opacity: 0.4;
   cursor: not-allowed;
+}
+
+button:disabled:not(.has-tip) {
+  opacity: 0.4;
+}
+
+/* Opacity on the button also fades ::after. Keep the face dim; keep the tip. */
+button.has-tip:disabled {
+  opacity: 1;
+}
+
+button.primary.has-tip:disabled {
+  background: color-mix(in srgb, var(--accent) 40%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--panel));
+  color: color-mix(in srgb, var(--on-accent) 40%, var(--panel));
+}
+
+button.ghost.has-tip:disabled {
+  color: color-mix(in srgb, var(--text) 40%, transparent);
+  border-color: color-mix(in srgb, var(--border-strong) 40%, transparent);
 }
 
