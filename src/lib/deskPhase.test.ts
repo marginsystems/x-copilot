@@ -66,7 +66,7 @@ describe("Approach lock", () => {
         scoutId: "scout-1",
         fallback: "for_you",
       }),
-      { phase: "hold", cardId: null, surface: "for_you" },
+      { phase: "scout_reply", cardId: "scout-1", surface: null },
     );
   });
 
