@@ -20,7 +20,6 @@ import { readApproachLock, writeApproachLock } from "../lib/approachLock";
 import {
   reconcileApproachGate,
   restoreApproachTask,
-  shouldAutoAdvanceIdle,
   transitionApproachTask,
   type ApproachNormalizeContext,
   type ApproachTaskState,
@@ -342,22 +341,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
 
   useEffect(() => {
     const current = stateRef.current;
-    if (
-      !current ||
-      !shouldAutoAdvanceIdle(
-        current.lock.phase,
-        current.lock.cardId,
-        eligibleCount,
-        availableSuggestionId,
-      )
-    ) {
-      return;
-    }
-    advanceCard({ type: "next" });
-  }, [availableSuggestionId, eligibleCount, phase, lock?.cardId]);
-
-  useEffect(() => {
-    const current = stateRef.current;
     if (!current?.wait || !coaching) return;
     const settled = settleForYouWait(current.wait, coaching);
     if (settled !== current.wait) commit({ lock: current.lock, wait: settled });
@@ -373,6 +356,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     forYou: wait ? { detected: forYouWaitDetected(wait, coaching) } : null,
     remainingMs: pace.remainingMs,
     searching,
+    collectingReady:
+      phase === "done_for_now"
+        ? eligibleCount > 0 || availableSuggestionId !== null
+        : phase === "scout_reply" && lock?.cardId === null && eligibleCount > 0,
     coaching,
   };
   const presentation = presentApproach(cardInput);

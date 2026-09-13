@@ -221,7 +221,11 @@ export function MissionCard(props: MissionCardProps) {
   if (view.kind === "scout_missing") {
     return (
       <ApproachFrame verb={view.verb} busy>
-        <ApproachFlightRow line={view.why} flying={props.searching === true} />
+        <ApproachFlightRow
+          line={view.why}
+          flying={props.searching === true}
+          onNext={view.showNext ? props.onScoutNext : undefined}
+        />
       </ApproachFrame>
     );
   }

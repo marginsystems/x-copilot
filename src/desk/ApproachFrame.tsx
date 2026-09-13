@@ -43,9 +43,11 @@ export function ApproachFrame({
 export function ApproachFlightRow({
   line,
   flying,
+  onNext,
 }: {
   line: string;
   flying: boolean;
+  onNext?: () => void;
 }) {
   return (
     <DeskRow
@@ -56,6 +58,7 @@ export function ApproachFlightRow({
       meta={<ScoutTankMark />}
       ariaBusy={flying}
       status
+      onNext={onNext}
     />
   );
 }

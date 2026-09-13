@@ -495,11 +495,12 @@ describe("Approach flight frame", () => {
     }
   });
 
-  it("keeps an empty Scout lock in the existing collecting flight row", () => {
+  it("keeps an empty Scout lock in the collecting row and shows Next with stock", () => {
     for (const searching of [false, true]) {
       const html = renderToStaticMarkup(MissionCard(missionProps({
         phase: "scout_reply", scout: null, searching,
-        suggestion: suggestedReply, onScoutNext() {}, onForYouNext() {},
+        suggestion: suggestedReply, collectingReady: true,
+        onScoutNext() {}, onForYouNext() {},
       })));
       assert.match(html, />Collecting</);
       assert.match(html, escapeRe(approachCollectingCopy({ searching })));
@@ -507,8 +508,17 @@ describe("Approach flight frame", () => {
       assert.match(html, /aria-busy="true"/);
       assert.equal(html.includes("is-flying"), searching);
       assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
-      assert.doesNotMatch(html, />Next<|>For You<|>Scout<|>Land<|>Take Off<|Suggested reply/);
+      assert.match(html, />Next</);
+      assert.doesNotMatch(html, />For You<|>Scout<|>Land<|>Take Off<|Suggested reply/);
     }
+  });
+
+  it("does not show Next while Collecting has no eligible stock", () => {
+    const html = renderToStaticMarkup(MissionCard(missionProps({
+      phase: "scout_reply", scout: null, collectingReady: false,
+      onScoutNext() {},
+    })));
+    assert.doesNotMatch(html, />Next</);
   });
 
   it("fills a landed scout thread while the desk is done for now", () => {
