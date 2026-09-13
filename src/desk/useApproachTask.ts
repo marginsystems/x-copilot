@@ -5,7 +5,6 @@
  */
 import {
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type Dispatch,
@@ -45,7 +44,6 @@ import { replyPaceSeedIso } from "../lib/replyPace";
 import {
   clearForYouWait,
   forYouWaitDetected,
-  openForYouWait,
   readForYouWait,
   settleForYouWait,
   writeForYouWait,
@@ -110,7 +108,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     coaching,
     interactedIds,
     interactedHistory,
-    interactedHydrated,
     dismissedHistory,
     dismissThread,
     searching,
@@ -333,23 +330,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     );
   }, [agendaReady, deskBootReady, owner, userId]);
 
-  useLayoutEffect(() => {
-    const current = stateRef.current;
-    if (
-      gate !== null ||
-      !livePaceLocked() ||
-      !current ||
-      isForYouTask(current.lock)
-    ) {
-      return;
-    }
-    if (current.lock.phase === "hold") return;
-    commit({
-      lock: { phase: "hold", cardId: null, surface: "for_you" },
-      wait: openForYouWait({ owner, coaching: coachingRef.current }),
-    });
-  }, [gate, owner, pace.locked, replyPaceSeed]);
-
   useEffect(() => {
     const current = stateRef.current;
     if (!current || !deskBootReady || !agendaReady) return;
@@ -542,54 +522,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     hasAgenda,
     eligibleCount,
     onSearch,
-  ]);
-
-  useEffect(() => {
-    if (!deskBootReady || !lock?.cardId) return;
-    if (pendingDismissIdRef.current === lock.cardId) {
-      return;
-    }
-    const cardIsLive =
-      (phase === "scout_reply" &&
-        (curatedThreads.some((row) => row.id === lock.cardId) ||
-          (lockedScout !== null && scoutDetected))) ||
-      (phase === "organic_reply" &&
-        (forYouSuggestions.some((row) => row.id === lock.cardId) ||
-          (lockedSuggestion !== null && suggestionDetected)));
-    if (cardIsLive) return;
-    const retainedCardAwaitingHydration =
-      ((phase === "scout_reply" && lockedScout !== null &&
-        !curatedThreads.some((row) => row.id === lock.cardId)) ||
-        (phase === "organic_reply" && lockedSuggestion !== null &&
-          !forYouSuggestions.some((row) => row.id === lock.cardId))) &&
-      !interactedHydrated;
-    if (retainedCardAwaitingHydration) return;
-    const event =
-      phase === "scout_reply"
-        ? vanishEvent({
-            cardId: lock.cardId,
-            conversationId:
-              lockedScout?.conversationId ?? lockedSuggestion?.targetId,
-            inReplyToId: lockedScout?.inReplyToId,
-            interactedIds,
-            history: interactedHistory,
-          })
-        : "skip";
-    advanceCard({ type: event });
-    if (event === "skip") armRefuel(eligibleCount);
-  }, [
-    deskBootReady,
-    forYouSuggestions,
-    interactedHistory,
-    interactedHydrated,
-    interactedIds,
-    lock?.cardId,
-    lockedScout,
-    lockedSuggestion,
-    phase,
-    curatedThreads,
-    scoutDetected,
-    suggestionDetected,
   ]);
 
   useEffect(() => {
