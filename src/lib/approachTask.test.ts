@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import {
   reconcileApproachGate,
   restoreApproachTask,
-  shouldAutoAdvanceIdle,
   transitionApproachTask,
   type ApproachTaskState,
 } from "./approachTask.ts";
@@ -314,17 +313,14 @@ describe("Next with an empty tank", () => {
     assert.equal(present(second).detector, null);
   });
 
-  it("reopens collecting idle for either scout or suggestion inventory", () => {
-    assert.equal(shouldAutoAdvanceIdle("done_for_now", null, 1, null), true);
-    assert.equal(shouldAutoAdvanceIdle("done_for_now", null, 0, "original_1"), true);
-    assert.equal(shouldAutoAdvanceIdle("done_for_now", null, 0, null), false);
-    assert.equal(shouldAutoAdvanceIdle("scout_reply", "scout-1", 1, "original_1"), false);
-
+  it("keeps collecting until one explicit Next selects inventory", () => {
+    const collecting: ApproachTaskState = {
+      lock: { phase: "done_for_now", cardId: null, surface: null },
+      wait: null,
+    };
+    assert.equal(present(collecting).kind, "scout_missing");
     const next = transitionApproachTask(
-      {
-        lock: { phase: "done_for_now", cardId: null, surface: null },
-        wait: null,
-      },
+      collecting,
       { type: "next" },
       { scoutId: null, suggestionId: "original_1", canPresentForYou: true },
       { owner: OWNER, coaching },
@@ -383,15 +379,12 @@ describe("same-phase Scout release", () => {
     assert.equal(state.wait, null);
     assert.equal(present(state).verb, "Collecting");
     assert.equal(present(state).detector, null);
-    assert.equal(shouldAutoAdvanceIdle(state.lock.phase, state.lock.cardId, 0, "original-1"), false);
     assert.equal(transitionApproachTask(state, { type: "next" }, inventory, { owner: OWNER }), state);
-    assert.equal(shouldAutoAdvanceIdle(state.lock.phase, state.lock.cardId, 1, "original-1"), true);
     state = transitionApproachTask(state, { type: "next" }, {
       ...inventory, scoutId: "B", paceLocked: true,
     }, { owner: OWNER });
     assert.deepEqual(state.lock, { phase: "scout_reply", cardId: "B", surface: null });
     assert.equal(state.wait, null);
-    assert.equal(shouldAutoAdvanceIdle(state.lock.phase, state.lock.cardId, 2, "original-1"), false);
   });
 
   it("A detected, Next to B, Skip B before hydrate never resurfaces A", () => {

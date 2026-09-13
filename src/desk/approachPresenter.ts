@@ -39,6 +39,8 @@ export type ApproachCardInput = {
   /** Remaining reply minute. */
   remainingMs: number;
   searching?: boolean;
+  /** Available inventory that this Collecting lock can select on Next. */
+  collectingReady?: boolean;
   coaching?: CoachingState | null;
 };
 
@@ -58,6 +60,7 @@ export type ApproachPresentation = {
     showNext: boolean;
   } | null;
   showPace: boolean;
+  showNext: boolean;
   /** Which existing poll this task owns. Null once detected or when nothing to detect. */
   detector: "for_you" | "scout" | null;
 };
@@ -101,6 +104,7 @@ function forYouPresentation(input: ApproachCardInput): ApproachPresentation {
       showNext: !holding,
     },
     showPace: holding,
+    showNext: false,
     detector: input.forYou && !detected ? "for_you" : null,
   };
 }
@@ -115,6 +119,7 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
     gate: null,
     forYou: null,
     showPace,
+    showNext: false,
     detector: null,
   };
   if (input.phase === "needs_onboarding") return blank;
@@ -147,6 +152,7 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
       kind: "scout_missing",
       verb: "Collecting",
       why: approachCollectingCopy({ searching: input.searching }),
+      showNext: input.collectingReady === true,
     };
   }
   const detectsReply =
