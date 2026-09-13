@@ -153,7 +153,6 @@ export function initialApproachLock(opts: {
   fallback: "for_you" | ApproachGate;
 }): ApproachLock {
   if (opts.forYouHeld) return { ...FOR_YOU_LOCK };
-  if (opts.paceLocked) return { ...HOLD_LOCK };
   if (opts.scoutId) {
     return { phase: "scout_reply", cardId: opts.scoutId, surface: null };
   }
