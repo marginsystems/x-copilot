@@ -338,6 +338,41 @@ describe("Next with an empty tank", () => {
 });
 
 describe("same-phase Scout release", () => {
+  it("keeps a mark on a live Scout lock without opening a wait", () => {
+    const state: ApproachTaskState = {
+      lock: { phase: "scout_reply", cardId: "A", surface: null },
+      wait: null,
+    };
+    assert.equal(
+      transitionApproachTask(
+        state,
+        { type: "mark" },
+        { scoutId: "B", suggestionId: null, canPresentForYou: true },
+        { owner: OWNER },
+      ),
+      state,
+    );
+  });
+
+  it("marks a missing Scout into collecting idle without opening a wait", () => {
+    const state: ApproachTaskState = {
+      lock: { phase: "scout_reply", cardId: "missing", surface: null },
+      wait: null,
+    };
+    const next = transitionApproachTask(
+      state,
+      { type: "mark" },
+      { scoutId: null, suggestionId: null, canPresentForYou: true },
+      { owner: OWNER },
+    );
+    assert.deepEqual(next.lock, {
+      phase: "scout_reply",
+      cardId: null,
+      surface: null,
+    });
+    assert.equal(next.wait, null);
+  });
+
   it("fills the empty Scout lock on eligible stock only and never opens a wait", () => {
     let state: ApproachTaskState = {
       lock: { phase: "scout_reply", cardId: "A", surface: null }, wait: null,

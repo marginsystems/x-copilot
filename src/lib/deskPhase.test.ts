@@ -104,10 +104,7 @@ describe("Approach lock", () => {
       ),
       { phase: "scout_reply", cardId: null, surface: null },
     );
-    assert.deepEqual(
-      advanceApproach(scout, { type: "mark" }, inventory),
-      scout,
-    );
+    assert.equal(advanceApproach(scout, { type: "mark" }, inventory), scout);
     assert.deepEqual(
       advanceApproach(
         { phase: "silent_refuel", cardId: null, surface: "for_you" },
@@ -484,13 +481,22 @@ describe("S10 skip-next", () => {
   });
 
   it("Mark on a scout lock preserves the scout lock", () => {
-    assert.deepEqual(
+    assert.equal(
       advanceApproach(
         firstScout,
         { type: "mark" },
         { scoutId: "scout-2", suggestionId: null, canPresentForYou: true },
       ),
       firstScout,
+    );
+
+    assert.deepEqual(
+      advanceApproach(
+        firstScout,
+        { type: "mark" },
+        { scoutId: null, suggestionId: null, canPresentForYou: true },
+      ),
+      { phase: "scout_reply", cardId: null, surface: null },
     );
   });
 });

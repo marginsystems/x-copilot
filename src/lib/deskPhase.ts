@@ -248,7 +248,11 @@ export function advanceApproach(
       if (inventory.paceLocked) return { ...HOLD_LOCK };
       return nextInventoryCard(inventory, locked.cardId, locked.phase);
     }
-    if (event.type === "mark") return locked;
+    if (event.type === "mark") {
+      return inventory.scoutId === null
+        ? { phase: "scout_reply", cardId: null, surface: null }
+        : locked;
+    }
     if (event.type === "skip" || event.type === "dismiss") {
       return nextScoutCard(inventory.scoutId, locked.cardId);
     }
