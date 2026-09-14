@@ -1,7 +1,7 @@
 /**
  * The Approach task machine. One locked card, its For You wait, the refill arm,
- * and the detector it owns. Inventory can fill an empty collecting lock; active
- * cards stay locked until a card button, gate change, or normalization.
+ * and the detector it owns. Active cards stay locked until a card button.
+ * Collecting Next fills an empty lock. Detection marks the same card.
  */
 import {
   useEffect,

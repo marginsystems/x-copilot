@@ -4,7 +4,6 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { pickApproachScout } from "./approachScout";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
-import { FYP_HOLD_ACTION_COPY } from "./approachPresenter";
 import { ForYouFeedRow } from "./ForYouFeedRow";
 import {
   FYP_DETECTED_COPY,
@@ -277,7 +276,6 @@ describe("Hold presentation", () => {
     assert.doesNotMatch(html, /for-you-status/);
     assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
     assert.doesNotMatch(html, />Open For You</);
-    assert.doesNotMatch(html, escapeRe(FYP_HOLD_ACTION_COPY));
     assert.doesNotMatch(html, />Next</);
   });
 
@@ -299,7 +297,6 @@ describe("Hold presentation", () => {
     assert.match(html, />Open For You</);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /reply-pace/);
-    assert.doesNotMatch(html, escapeRe(FYP_HOLD_ACTION_COPY));
   });
 });
 

@@ -1,4 +1,4 @@
-/** Desk pace gate after Mark detects a reply. Not an X quota. */
+/** Desk pace clock after a reply is recorded. Overlay waits for Next. Not an X quota. */
 
 export const REPLY_PACE_MS = 60_000;
 export const REPLY_PACE_STORAGE_KEY = "x-copilot-reply-pace-until";
@@ -7,7 +7,7 @@ export const REPLY_PACE_EVENT = "x-copilot-reply-pace";
 
 export const REPLY_PACE_LEAD = "One reply a minute.";
 export const REPLY_PACE_HELP =
-  "After any reply is detected, Approach waits 60 seconds before the next reply card. That is a desk gate, not a published X number. An original or quote during the minute still counts. Bypass if you must.";
+  "After Next, Approach waits out any remaining minute before the next reply card. That is a desk gate, not a published X number. An original or quote during the minute still counts. Bypass if you must.";
 
 export function nextReplyPaceUntil(now: number): number {
   return now + REPLY_PACE_MS;
@@ -27,7 +27,7 @@ export function replyPaceSeedIso(opts: {
     : opts.replyAtIso;
 }
 
-/** Seed a hold from the last reply when this tab has no until and the operator did not Bypass. */
+/** Record a reply timestamp so Next can overlay the incoming card. */
 export function seedReplyPaceUntil(opts: {
   storedUntil: number | null;
   cleared: boolean;

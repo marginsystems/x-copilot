@@ -70,8 +70,8 @@ export function restoreApproachTask(opts: {
 }
 
 /**
- * A card button. Returns the same state when the event is not legal for the
- * locked card (for example Next during the reply minute).
+ * A card button. Effects do not dispatch this. Returns the same state when the
+ * event is not legal for the locked card (for example Next during the reply minute).
  */
 export function transitionApproachTask(
   state: ApproachTaskState,
