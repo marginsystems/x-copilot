@@ -70,8 +70,9 @@ export function restoreApproachTask(opts: {
 }
 
 /**
- * A card button. Effects do not dispatch this. Returns the same state when the
- * event is not legal for the locked card (for example Next during the reply minute).
+ * A card event. No effect synthesizes a transition on its own; the dismiss
+ * effect replays one after the write completes. Returns the same state when
+ * the event is not legal for the locked card (for example Next during the reply minute).
  */
 export function transitionApproachTask(
   state: ApproachTaskState,
