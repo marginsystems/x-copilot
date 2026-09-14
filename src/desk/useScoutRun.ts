@@ -37,6 +37,7 @@ export type ScoutRunDeps = {
   settings: AppSettings;
   authUser: AuthSessionUser | null;
   billing: BillingMe | null;
+  threadCount: number;
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
   setStatus: Dispatch<SetStateAction<string>>;
   keepInCurated: (thread: ThreadCard) => boolean;
@@ -51,6 +52,7 @@ export function useScoutRun({
   settings,
   authUser,
   billing,
+  threadCount,
   setThreads,
   setStatus,
   keepInCurated,
@@ -68,6 +70,7 @@ export function useScoutRun({
   const searchingRef = useRef(0);
   const staleHydration = useRef(false);
   const [watchTank, setWatchTank] = useState(false);
+  const previousThreadCount = useRef(threadCount);
 
   function lastScoutUrl(): string {
     return `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}&autoStart=0`;
@@ -358,6 +361,12 @@ export function useScoutRun({
       abortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    const drained = previousThreadCount.current > 0 && threadCount === 0;
+    previousThreadCount.current = threadCount;
+    if (drained) setWatchTank(true);
+  }, [threadCount]);
 
   useEffect(() => {
     if (!watchTank) return;

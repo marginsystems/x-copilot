@@ -203,6 +203,7 @@ export default function App() {
     settings,
     authUser,
     billing,
+    threadCount: threads.length,
     setThreads,
     setStatus,
     keepInCurated,
