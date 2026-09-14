@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -369,12 +370,12 @@ export function useScoutRun({
     return () => window.clearInterval(id);
   }, [searchCooldownUntil]);
 
-  function releaseScoutFlight() {
+  const releaseScoutFlight = useCallback(() => {
     keepFlightRef.current = false;
     setScoutBlocked(false);
     setScoutStage(null);
     setScoutLine("");
-  }
+  }, []);
 
   return {
     searching,

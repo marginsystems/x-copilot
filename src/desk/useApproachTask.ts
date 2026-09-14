@@ -445,6 +445,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const pendingDismissIdRef = useRef<string | null>(null);
   const autoTriedRef = useRef(false);
   const bootRefuelCheckedRef = useRef(false);
+  const blockedArmUsedRef = useRef(false);
   const [refuelArmed, setRefuelArmed] = useState(false);
   const refuelArmedRef = useRef(false);
 
@@ -524,6 +525,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   ]);
 
   useEffect(() => {
+    if (!scoutBlocked) blockedArmUsedRef.current = false;
     const next = nextBlockedScoutAction({
       searching,
       scoutBlocked,
@@ -535,12 +537,14 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       grounded,
       usableScoutCount: eligibleCount,
       alreadyArmed: refuelArmedRef.current,
+      alreadySpent: blockedArmUsedRef.current,
     });
     if (next === "release") {
       onReleaseScoutFlight?.();
       return;
     }
     if (next !== "arm") return;
+    blockedArmUsedRef.current = true;
     autoTriedRef.current = false;
     bootRefuelCheckedRef.current = true;
     refuelArmedRef.current = true;

@@ -152,6 +152,10 @@ describe("nextBlockedScoutAction", () => {
       nextBlockedScoutAction({ ...blocked, alreadyArmed: true }),
       "wait",
     );
+    assert.equal(
+      nextBlockedScoutAction({ ...blocked, alreadySpent: true }),
+      "wait",
+    );
   });
 
   it("does not reset a blocked wait while cooling down or still hydrating", () => {

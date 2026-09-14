@@ -79,6 +79,7 @@ export function nextBlockedScoutAction(opts: {
   grounded: boolean;
   usableScoutCount: number;
   alreadyArmed: boolean;
+  alreadySpent?: boolean;
 }): "wait" | "arm" | "release" {
   if (opts.searching || !opts.scoutBlocked) return "wait";
   if (opts.cooldownRemainingSec > 0) return "wait";
@@ -91,6 +92,6 @@ export function nextBlockedScoutAction(opts: {
   ) {
     return "release";
   }
-  if (opts.alreadyArmed) return "wait";
+  if (opts.alreadyArmed || opts.alreadySpent) return "wait";
   return "arm";
 }
