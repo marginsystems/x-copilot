@@ -215,9 +215,8 @@ export function normalizeApproachLock(
 }
 
 /**
- * The unlock point for Approach, including stock filling an in-flight Scout lock.
- * The caller supplies one snapshot; the chosen result is locked until another
- * legal card button is pressed.
+ * The unlock point for Approach. The caller supplies one snapshot; the chosen
+ * result is locked until another legal card button is pressed.
  */
 export function advanceApproach(
   locked: ApproachLock,

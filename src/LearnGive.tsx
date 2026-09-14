@@ -219,8 +219,8 @@ export function LearnGivePage(props: {
 
       <h2>The desk holds one minute</h2>
       <p>
-        After any reply is detected, Approach waits 60 seconds before the
-        next reply card. That is our gate, not a published X number.
+        After you click Next, Approach waits out any remaining minute before
+        the next reply card. That is our gate, not a published X number.
         Burstiness is in the features. Five replies a minute is the shape
         we do not want. An original or quote during the minute still
         counts. Bypass if you must. The hold is there to keep you on notice.
@@ -421,7 +421,7 @@ export function LearnGivePage(props: {
         defaults in this snapshot.
       </p>
       <p>
-        The one-minute hold after you mark, and the hour and day gauges on
+        The one-minute wait after Next, and the hour and day gauges on
         Instruments, are that analog on our mark ledger. They are desk
         gauges, not a published X number. Operating points stay 9.99. A
         hot band is not a fire line.

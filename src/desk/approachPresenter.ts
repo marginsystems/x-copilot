@@ -18,9 +18,6 @@ import {
 import type { ScoutStageId } from "../lib/scoutStages";
 import type { ThreadCard } from "./types";
 
-/** Reading, an original, or a quote count during the reply minute. */
-export const FYP_HOLD_ACTION_COPY =
-  "One reply a minute. Read For You; an original or quote counts now. The next reply waits for the clock. Likes do not count.";
 export const GATE_LINK_X_WHY = "Link X so the desk can see what you post.";
 export const GATE_SETTINGS_WHY =
   "Set an agenda in Settings so Scout knows what to look for.";
@@ -106,7 +103,7 @@ function forYouPresentation(input: ApproachCardInput): ApproachPresentation {
     forYou: {
       detected,
       status,
-      actionCopy: holding ? FYP_HOLD_ACTION_COPY : FYP_ACTION_COPY,
+      actionCopy: FYP_ACTION_COPY,
       activity,
       holding,
       showNext: !holding,
