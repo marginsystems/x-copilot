@@ -26,11 +26,7 @@ permissions:
 
 jobs:
   check:
-    # Same Cyclone / mq-live gate as CI. See .github/workflows/ci.yml.
-    if: >
-      github.event_name == 'push' ||
-      github.triggering_actor != 'mergestorm-cyclone[bot]' ||
-      contains(github.event.pull_request.labels.*.name, 'mq-live')
+    # Same as CI: never skip Cyclone. Only [skip ci] on the commit.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
