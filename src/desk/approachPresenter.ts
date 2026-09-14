@@ -11,7 +11,11 @@ import {
   FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
-import { approachCollectingCopy } from "../lib/phaseWhy";
+import {
+  approachCollectingCopy,
+  approachCollectingVerb,
+} from "../lib/phaseWhy";
+import type { ScoutStageId } from "../lib/scoutStages";
 import type { ThreadCard } from "./types";
 
 export const GATE_LINK_X_WHY = "Link X so the desk can see what you post.";
@@ -36,6 +40,10 @@ export type ApproachCardInput = {
   /** Remaining reply minute. */
   remainingMs: number;
   searching?: boolean;
+  /** Live Scout stage while Collecting. Idle when null. */
+  scoutStage?: ScoutStageId | null;
+  /** Branded Scout line. Overrides the default stage sentence when set. */
+  scoutLine?: string | null;
   /** Available inventory that this Collecting lock can select on Next. */
   collectingReady?: boolean;
   coaching?: CoachingState | null;
@@ -144,11 +152,20 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
         detector: input.scoutDetected ? null : "scout",
       };
     }
+    const scoutStage = input.searching ? input.scoutStage : null;
+    const scoutLine = input.searching ? input.scoutLine : null;
     return {
       ...blank,
       kind: "scout_missing",
-      verb: "Collecting",
-      why: approachCollectingCopy({ searching: input.searching }),
+      verb: approachCollectingVerb({
+        searching: input.searching,
+        stage: scoutStage,
+      }),
+      why: approachCollectingCopy({
+        searching: input.searching,
+        stage: scoutStage,
+        line: scoutLine,
+      }),
       showNext: input.collectingReady === true,
     };
   }

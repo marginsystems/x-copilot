@@ -11,8 +11,10 @@ import type { LastScoutPayload } from "../lib/deskBoot";
 import { apiFetch } from "../lib/apiBase";
 import { deskNeedsXLink } from "../lib/deskGate";
 import {
+  brandedScoutLine,
   formatScoutFailure,
   isScoutGateError,
+  isScoutStageId,
   scoutStageMessage,
   type ScoutStageId,
 } from "../lib/scoutStages";
@@ -35,6 +37,7 @@ export type ScoutRunDeps = {
   settings: AppSettings;
   authUser: AuthSessionUser | null;
   billing: BillingMe | null;
+  threadCount: number;
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
   setStatus: Dispatch<SetStateAction<string>>;
   keepInCurated: (thread: ThreadCard) => boolean;
@@ -49,6 +52,7 @@ export function useScoutRun({
   settings,
   authUser,
   billing,
+  threadCount,
   setThreads,
   setStatus,
   keepInCurated,
@@ -58,11 +62,19 @@ export function useScoutRun({
   onScoutFinished,
 }: ScoutRunDeps) {
   const [searching, setSearching] = useState(false);
+  const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
+  const [scoutLine, setScoutLine] = useState("");
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
   const searchingRef = useRef(0);
   const staleHydration = useRef(false);
+  const [watchTank, setWatchTank] = useState(false);
+  const previousThreadCount = useRef(threadCount);
+
+  function lastScoutUrl(autoStart = false): string {
+    return `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}&autoStart=${autoStart ? 1 : 0}`;
+  }
 
   const searchCooldownRemaining = Math.max(
     0,
@@ -72,15 +84,41 @@ export function useScoutRun({
     billing?.sorties != null && billing.sorties.can_fly === false;
 
   function applyScoutEvent(ev: ScoutStreamEvent) {
-    const stage = (ev.stage ?? "planning") as ScoutStageId;
+    const stage = isScoutStageId(ev.stage) ? ev.stage : "planning";
+    setScoutStage(stage);
+    setScoutLine(
+      brandedScoutLine({
+        stage,
+        candidates: ev.candidates,
+        bucketSize: ev.bucketSize,
+        coolCount: ev.coolCount,
+        targetCool: ev.targetCool,
+      }),
+    );
     if (stage === "error") {
       setStatus(ev.message || scoutStageMessage(stage));
     }
   }
 
+  function applyServerFlight(data: LastScoutPayload) {
+    const flight = data.flight;
+    if (flight?.active) {
+      const raw = flight.stage ?? undefined;
+      const stage = isScoutStageId(raw) ? raw : "searching";
+      setScoutStage(stage);
+      setScoutLine(scoutStageMessage(stage));
+      setWatchTank(true);
+      return;
+    }
+    setScoutStage(null);
+    setScoutLine("");
+    setWatchTank(data.empty === true);
+  }
+
   function applyLastScoutFromBoot(data: LastScoutPayload) {
     if (staleHydration.current) return;
     if (!data.ok) return;
+    applyServerFlight(data);
     if (data.empty || !data.snapshot) {
       setThreads([]);
       return;
@@ -93,9 +131,9 @@ export function useScoutRun({
     watchDeskThreads(filtered);
   }
 
-  async function hydrateLastScout() {
+  async function hydrateLastScout(autoStart = false) {
     try {
-      const res = await apiFetch(`/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`);
+      const res = await apiFetch(lastScoutUrl(autoStart));
       if (!res.ok) return;
       applyLastScoutFromBoot((await res.json()) as LastScoutPayload);
     } catch {
@@ -128,6 +166,8 @@ export function useScoutRun({
     abortRef.current = ac;
     searchingRef.current = Infinity;
     staleHydration.current = true;
+    setScoutStage("planning");
+    setScoutLine(scoutStageMessage("planning"));
 
     const targetCool = DEFAULT_TARGET_COOL_THREADS;
 
@@ -257,7 +297,7 @@ export function useScoutRun({
         // Keep partials already in state; merge any cools persisted mid-run.
         try {
           const res = await apiFetch(
-            `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`,
+            lastScoutUrl(),
           );
           if (res.ok) {
             const data = (await res.json()) as {
@@ -286,9 +326,12 @@ export function useScoutRun({
       }
     } finally {
       if (abortRef.current === ac) {
+        staleHydration.current = false;
         const until = Date.now() + SEARCH_COOLDOWN_MS;
         searchingRef.current = until;
         setSearching(false);
+        setScoutStage(null);
+        setScoutLine("");
         setSearchCooldownUntil(until);
         setNowMs(Date.now());
         void loadBilling();
@@ -320,6 +363,21 @@ export function useScoutRun({
   }, []);
 
   useEffect(() => {
+    const drained = previousThreadCount.current > 0 && threadCount === 0;
+    previousThreadCount.current = threadCount;
+    if (drained) setWatchTank(true);
+  }, [threadCount]);
+
+  useEffect(() => {
+    if (!watchTank) return;
+    void hydrateLastScout(true);
+    const id = window.setInterval(() => {
+      void hydrateLastScout(true);
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [watchTank]);
+
+  useEffect(() => {
     if (searchCooldownUntil <= Date.now()) return;
     setNowMs(Date.now());
     const id = window.setInterval(() => {
@@ -334,6 +392,8 @@ export function useScoutRun({
 
   return {
     searching,
+    scoutStage,
+    scoutLine,
     searchCooldownRemaining,
     grounded,
     onSearch,

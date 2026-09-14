@@ -392,6 +392,7 @@ describe("tryHandleScout", () => {
     assert.deepEqual(await readLastScoutPayload({ userId: undefined }), {
       ok: true,
       empty: true,
+      flight: { active: false, stage: null },
     });
 
     const { state } = await call("GET", "/api/scout/last", {

@@ -499,7 +499,7 @@ describe("Approach flight frame", () => {
         suggestion: suggestedReply, collectingReady: true,
         onScoutNext() {}, onForYouNext() {},
       })));
-      assert.match(html, />Collecting</);
+      assert.match(html, searching ? />Searching</ : />Collecting</);
       assert.match(html, escapeRe(approachCollectingCopy({ searching })));
       assert.match(html, /approach-flight-row/);
       assert.match(html, /aria-busy="true"/);
@@ -553,11 +553,44 @@ describe("Approach flight frame", () => {
 
   it("shows the in-air line and flying row while Collecting searches", () => {
     const html = renderToStaticMarkup(MissionCard(missionProps({ searching: true })));
-    assert.match(html, />Collecting</);
+    assert.match(html, />Searching</);
     assert.match(html, escapeRe(approachCollectingCopy({ searching: true })));
     assert.match(html, /approach-flight-row is-flying/);
     assert.match(html, /aria-busy="true"/);
     assert.doesNotMatch(html, /Scout is getting the next reply/);
+  });
+
+  it("updates Collecting title and line as Scout changes stage", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          searching: true,
+          scoutStage: "filtering",
+          scoutLine: "Clearing the noise…",
+        }),
+      ),
+    );
+    assert.match(html, />Filtering</);
+    assert.match(html, /Clearing the noise/);
+    assert.match(html, /approach-flight-row is-flying/);
+    assert.doesNotMatch(html, /Scout is getting the next reply/);
+  });
+
+  it("does not render a stale Scout stage after searching ends", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          searching: false,
+          scoutStage: "searching",
+          scoutLine: "In the air…",
+        }),
+      ),
+    );
+    assert.match(html, />Collecting</);
+    assert.match(html, /Scout is getting the next reply/);
+    assert.doesNotMatch(html, />Searching</);
+    assert.doesNotMatch(html, /In the air/);
+    assert.doesNotMatch(html, /is-flying/);
   });
 
   it("never leaks refill internals onto the For You wait", () => {

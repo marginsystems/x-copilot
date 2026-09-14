@@ -43,17 +43,19 @@ export function ApproachFrame({
 export function ApproachFlightRow({
   line,
   flying,
+  verb = "Collecting",
   onNext,
 }: {
   line: string;
   flying: boolean;
+  verb?: string;
   onNext?: () => void;
 }) {
   return (
     <DeskRow
       className={`approach-flight-row${flying ? " is-flying" : ""}`}
       lead={<span className="approach-flight-pulse" />}
-      leadTitle="Collecting"
+      leadTitle={verb}
       summary={<FadeSwap text={line} />}
       meta={<ScoutTankMark />}
       ariaBusy={flying}

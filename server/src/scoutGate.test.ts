@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   SCOUT_COOLDOWN_MS,
   endScout,
+  noteScoutStage,
+  peekScoutFlight,
   resetScoutGateForTests,
   tryBeginScout,
 } from "./scoutGate.ts";
@@ -60,5 +62,15 @@ describe("scoutGate", () => {
     resetScoutGateForTests({ userId: "a", active: true });
     assert.equal(tryBeginScout("a").ok, false);
     assert.equal(tryBeginScout("b").ok, true);
+  });
+
+  it("exposes the active stage for the desk to watch", () => {
+    assert.deepEqual(peekScoutFlight("a"), { active: false, stage: null });
+    assert.equal(tryBeginScout("a").ok, true);
+    assert.deepEqual(peekScoutFlight("a"), { active: true, stage: "planning" });
+    noteScoutStage("a", "filtering");
+    assert.deepEqual(peekScoutFlight("a"), { active: true, stage: "filtering" });
+    endScout("a");
+    assert.deepEqual(peekScoutFlight("a"), { active: false, stage: null });
   });
 });

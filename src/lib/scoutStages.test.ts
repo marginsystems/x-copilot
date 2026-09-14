@@ -1,9 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  brandedScoutLine,
   formatScoutFailure,
   isScoutGateError,
+  scoutStageInFlight,
   scoutStageMessage,
+  scoutStageVerb,
 } from "./scoutStages.ts";
 
 describe("scoutStages", () => {
@@ -11,6 +14,14 @@ describe("scoutStages", () => {
     assert.match(scoutStageMessage("planning"), /route/i);
     assert.match(scoutStageMessage("searching"), /air/i);
     assert.match(scoutStageMessage("done"), /Landed/);
+    assert.equal(scoutStageVerb("planning"), "Planning");
+    assert.equal(scoutStageVerb("searching"), "Searching");
+    assert.equal(scoutStageInFlight("filtering"), true);
+    assert.equal(scoutStageInFlight("done"), false);
+    assert.equal(
+      brandedScoutLine({ stage: "searching", candidates: 4, bucketSize: 20 }),
+      "In the air… 4/20",
+    );
   });
 
   it("treats 429 cooldown/busy as soft gate errors", () => {

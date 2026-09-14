@@ -192,9 +192,10 @@ export default function App() {
   } = useSettingsDraft({ setSettings });
   const {
     searching,
+    scoutStage,
+    scoutLine,
     searchCooldownRemaining,
     grounded,
-    onSearch,
     applyLastScoutFromBoot,
     hydrateLastScout,
   } = useScoutRun({
@@ -202,6 +203,7 @@ export default function App() {
     settings,
     authUser,
     billing,
+    threadCount: threads.filter((thread) => keepInCurated(thread)).length,
     setThreads,
     setStatus,
     keepInCurated,
@@ -691,6 +693,8 @@ export default function App() {
               dismissedHistory={dismissedHistory}
               expiredHistory={expiredHistory}
               searching={searching}
+              scoutStage={scoutStage}
+              scoutLine={scoutLine}
               actionBusy={actionBusy}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
@@ -712,7 +716,6 @@ export default function App() {
               onLinkX={startXLogin}
               grounded={grounded}
               searchCooldownRemaining={searchCooldownRemaining}
-              onSearch={onSearch}
               onSkip={onSkip}
               onDismiss={openDismissModal}
               onRefreshCoaching={hydrateCoaching}

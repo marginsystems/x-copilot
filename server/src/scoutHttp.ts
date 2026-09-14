@@ -36,7 +36,7 @@ import {
 import { preferRootTargets } from "./scoutTarget.js";
 import { runScoutCollect } from "./scoutCollect.js";
 import { startEmptyTankScout, type ScoutEmptyTankDeps } from "./scoutEmptyTank.js";
-import { endScout, tryBeginScout } from "./scoutGate.js";
+import { endScout, noteScoutStage, peekScoutFlight, tryBeginScout } from "./scoutGate.js";
 import {
   clampBucketSize,
   clampTargetCool,
@@ -149,6 +149,7 @@ export async function readLastScoutPayload(opts: {
 }): Promise<{
   ok: true;
   empty: boolean;
+  flight?: { active: boolean; stage: string | null };
   snapshot?: {
     savedAt: string;
     agenda?: string;
@@ -159,7 +160,11 @@ export async function readLastScoutPayload(opts: {
   };
 }> {
   const userId = opts.userId?.trim();
-  if (!userId) return { ok: true, empty: true };
+  if (!userId) return { ok: true, empty: true, flight: { active: false, stage: null } };
+  const withFlight = <T extends { ok: true; empty: boolean }>(row: T) => ({
+    ...row,
+    flight: peekScoutFlight(userId),
+  });
   try {
     await runExpirePass({ userId });
   } catch (err) {
@@ -170,7 +175,7 @@ export async function readLastScoutPayload(opts: {
     if (opts.allowAutoStart !== false) {
       void startEmptyTankScout(userId, undefined, opts.deps);
     }
-    return { ok: true, empty: true };
+    return withFlight({ ok: true, empty: true });
   }
   const cooled = await getAuthorKeysForScoutFilter(
     opts.dedupeAccounts === null || opts.dedupeAccounts === undefined
@@ -215,9 +220,9 @@ export async function readLastScoutPayload(opts: {
     if (opts.allowAutoStart !== false) {
       void startEmptyTankScout(userId, snapshot.filters, opts.deps);
     }
-    return { ok: true, empty: true };
+    return withFlight({ ok: true, empty: true });
   }
-  return {
+  return withFlight({
     ok: true,
     empty: false,
     snapshot: {
@@ -228,7 +233,7 @@ export async function readLastScoutPayload(opts: {
       message: snapshot.message,
       pipelineCounts: snapshot.pipelineCounts,
     },
-  };
+  });
 }
 
 export async function tryHandleScout(
@@ -308,6 +313,9 @@ export async function tryHandleScout(
 
       let sawTerminal = false;
       const writeLine = (event: { stage?: string; [key: string]: unknown }) => {
+        if (typeof event.stage === "string") {
+          noteScoutStage(sessionUser.id, event.stage);
+        }
         if (event.stage === "done" || event.stage === "error") {
           sawTerminal = true;
         }
@@ -433,6 +441,7 @@ export async function tryHandleScout(
         userId: getSessionUser(req)?.id,
         deps,
         allowAutoStart: (() => {
+          if (url.searchParams.get("autoStart") === "0") return false;
           const origin = requestOrigin(req);
           return origin !== undefined && isOriginAllowed(origin);
         })(),

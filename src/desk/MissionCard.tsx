@@ -223,6 +223,7 @@ export function MissionCard(props: MissionCardProps) {
       <ApproachFrame verb={view.verb} busy>
         <ApproachFlightRow
           line={view.why}
+          verb={view.verb}
           flying={props.searching === true}
           onNext={view.showNext ? props.onScoutNext : undefined}
         />
