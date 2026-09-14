@@ -7,7 +7,6 @@ import { bucketInteractionsWithLive } from "./activityLive.js";
 import { isAdminEmail } from "./adminEmails.js";
 import { toPublicUser } from "./authStore.js";
 import { authRequired } from "./authGuard.js";
-import { isOriginAllowed, requestOrigin } from "./cors.js";
 import {
   ensureUserBillingRow,
   ensureUserTenant,
@@ -98,10 +97,7 @@ export async function tryHandleBoot(
       user ? listActiveInteractions({ userId: user.id }) : [],
       readLastScoutPayload({
         userId: user?.id,
-        allowAutoStart: (() => {
-          const origin = requestOrigin(req);
-          return origin !== undefined && isOriginAllowed(origin);
-        })(),
+        allowAutoStart: false,
         dedupeAccounts:
           dedupeParam === null ? null : dedupeParam !== "false",
       }),

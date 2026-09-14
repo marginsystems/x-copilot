@@ -433,6 +433,7 @@ export async function tryHandleScout(
         userId: getSessionUser(req)?.id,
         deps,
         allowAutoStart: (() => {
+          if (url.searchParams.get("autoStart") === "0") return false;
           const origin = requestOrigin(req);
           return origin !== undefined && isOriginAllowed(origin);
         })(),

@@ -11,6 +11,7 @@ import {
 import { RankingDrawer } from "./RankingDrawer";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
 import type { CoachingState } from "../lib/coaching";
+import type { ScoutStageId } from "../lib/scoutStages";
 import { ThreadsTabCount } from "./ThreadsTabCount";
 import { useApproachTask } from "./useApproachTask";
 import type {
@@ -34,6 +35,9 @@ type ThreadsTabsProps = {
   dismissedHistory: DismissalHistoryEntry[];
   expiredHistory: ExpiredHistoryEntry[];
   searching: boolean;
+  scoutStage?: ScoutStageId | null;
+  scoutLine?: string | null;
+  scoutBlocked?: boolean;
   actionBusy: boolean;
   expandedId: string | null;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
@@ -95,6 +99,9 @@ export function ThreadsTabs({
   dismissedHistory,
   expiredHistory,
   searching,
+  scoutStage,
+  scoutLine,
+  scoutBlocked,
   actionBusy,
   expandedId,
   setExpandedId,
@@ -132,6 +139,9 @@ export function ThreadsTabs({
     dismissedHistory,
     dismissThread,
     searching,
+    scoutStage,
+    scoutLine,
+    scoutBlocked,
     grounded,
     searchCooldownRemaining,
     setExpandedId,

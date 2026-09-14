@@ -66,6 +66,17 @@ describe("phaseWhy", () => {
       "Scout is getting the next reply.",
     );
     assert.equal(approachCollectingCopy({ searching: true }), "In the air…");
+    assert.equal(
+      approachCollectingCopy({ stage: "filtering" }),
+      "Clearing the noise…",
+    );
+    assert.equal(
+      approachCollectingCopy({
+        searching: true,
+        line: "In the air… 4/20",
+      }),
+      "In the air… 4/20",
+    );
   });
 
   it("does not put original copy on a scouted reply", () => {

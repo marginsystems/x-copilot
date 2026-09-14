@@ -11,7 +11,11 @@ import {
   FYP_WAIT_COPY,
   type ForYouSuggestion,
 } from "../lib/forYou";
-import { approachCollectingCopy } from "../lib/phaseWhy";
+import {
+  approachCollectingCopy,
+  approachCollectingVerb,
+} from "../lib/phaseWhy";
+import type { ScoutStageId } from "../lib/scoutStages";
 import type { ThreadCard } from "./types";
 
 /** Reading, an original, or a quote count during the reply minute. */
@@ -39,6 +43,10 @@ export type ApproachCardInput = {
   /** Remaining reply minute. */
   remainingMs: number;
   searching?: boolean;
+  /** Live Scout stage while Collecting. Idle when null. */
+  scoutStage?: ScoutStageId | null;
+  /** Branded Scout line. Overrides the default stage sentence when set. */
+  scoutLine?: string | null;
   /** Available inventory that this Collecting lock can select on Next. */
   collectingReady?: boolean;
   coaching?: CoachingState | null;
@@ -150,8 +158,15 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
     return {
       ...blank,
       kind: "scout_missing",
-      verb: "Collecting",
-      why: approachCollectingCopy({ searching: input.searching }),
+      verb: approachCollectingVerb({
+        searching: input.searching,
+        stage: input.scoutStage,
+      }),
+      why: approachCollectingCopy({
+        searching: input.searching,
+        stage: input.scoutStage,
+        line: input.scoutLine,
+      }),
       showNext: input.collectingReady === true,
     };
   }

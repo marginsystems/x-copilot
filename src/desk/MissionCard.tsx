@@ -5,6 +5,7 @@ import type { AuthSessionUser } from "../auth/types";
 import type { VoiceState } from "../lib/voice";
 import { ApproachFlightRow, ApproachFrame } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
+import { scoutStageInFlight } from "../lib/scoutStages";
 import {
   presentApproach,
   type ApproachCardInput,
@@ -223,7 +224,8 @@ export function MissionCard(props: MissionCardProps) {
       <ApproachFrame verb={view.verb} busy>
         <ApproachFlightRow
           line={view.why}
-          flying={props.searching === true}
+          verb={view.verb}
+          flying={props.searching === true || scoutStageInFlight(props.scoutStage)}
           onNext={view.showNext ? props.onScoutNext : undefined}
         />
       </ApproachFrame>

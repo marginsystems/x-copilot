@@ -5,17 +5,36 @@ import {
   type ForYouKind,
   type ForYouSuggestion,
 } from "./forYou";
-import { scoutStageMessage } from "./scoutStages";
+import {
+  scoutStageMessage,
+  scoutStageVerb,
+  type ScoutStageId,
+} from "./scoutStages";
 
 export const APPROACH_COLLECTING_IDLE =
   "Scout is getting the next reply.";
 /** The locked Scout target has a recorded reply. Only Next releases it. */
 export const SCOUT_DETECTED_COPY = "Reply detected. Tap Next.";
 
-export function approachCollectingCopy(opts: { searching?: boolean }): string {
+export function approachCollectingCopy(opts: {
+  searching?: boolean;
+  stage?: ScoutStageId | null;
+  line?: string | null;
+}): string {
+  const line = opts.line?.trim();
+  if (line) return line;
+  if (opts.stage) return scoutStageMessage(opts.stage);
   return opts.searching
     ? scoutStageMessage("searching")
     : APPROACH_COLLECTING_IDLE;
+}
+
+export function approachCollectingVerb(opts: {
+  searching?: boolean;
+  stage?: ScoutStageId | null;
+}): string {
+  if (opts.stage) return scoutStageVerb(opts.stage);
+  return opts.searching ? scoutStageVerb("searching") : "Collecting";
 }
 
 export function coachingMatchesCard(

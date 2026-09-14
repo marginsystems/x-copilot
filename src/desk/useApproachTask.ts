@@ -11,6 +11,7 @@ import {
   type SetStateAction,
 } from "react";
 import type { AuthSessionUser } from "../auth/types";
+import type { ScoutStageId } from "../lib/scoutStages";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import {
   canServeApproachOriginal,
@@ -82,6 +83,9 @@ export type UseApproachTaskOpts = {
   dismissedHistory: DismissalHistoryEntry[];
   dismissThread: ThreadCard | null;
   searching: boolean;
+  scoutStage?: ScoutStageId | null;
+  scoutLine?: string | null;
+  scoutBlocked?: boolean;
   grounded: boolean;
   searchCooldownRemaining: number;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
@@ -110,6 +114,9 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     dismissedHistory,
     dismissThread,
     searching,
+    scoutStage = null,
+    scoutLine = null,
+    scoutBlocked = false,
     grounded,
     searchCooldownRemaining,
     setExpandedId,
@@ -356,6 +363,8 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     forYou: wait ? { detected: forYouWaitDetected(wait, coaching) } : null,
     remainingMs: pace.remainingMs,
     searching,
+    scoutStage,
+    scoutLine,
     collectingReady:
       phase === "done_for_now"
         ? eligibleCount > 0 || availableSuggestionId !== null
@@ -509,6 +518,27 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     hasAgenda,
     eligibleCount,
     onSearch,
+  ]);
+
+  useEffect(() => {
+    if (searching || !scoutBlocked) return;
+    if (searchCooldownRemaining > 0) return;
+    if (!deskBootReady || !agendaReady || needsXLink || !hasAgenda) return;
+    if (!shouldArmScoutRefill(eligibleCount)) return;
+    autoTriedRef.current = false;
+    bootRefuelCheckedRef.current = true;
+    if (refuelArmedRef.current) return;
+    refuelArmedRef.current = true;
+    setRefuelArmed(true);
+  }, [
+    searching,
+    scoutBlocked,
+    searchCooldownRemaining,
+    deskBootReady,
+    agendaReady,
+    needsXLink,
+    hasAgenda,
+    eligibleCount,
   ]);
 
   useEffect(() => {

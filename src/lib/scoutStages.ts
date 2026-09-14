@@ -21,8 +21,62 @@ export const SCOUT_STAGE_COPY: Record<ScoutStageId, string> = {
   error: "Couldn't land.",
 };
 
+export const SCOUT_STAGE_VERB: Record<ScoutStageId, string> = {
+  planning: "Planning",
+  searching: "Searching",
+  filtering: "Filtering",
+  triaging: "Triaging",
+  partial: "Collecting",
+  done: "Collecting",
+  error: "Collecting",
+};
+
 export function scoutStageMessage(stage: ScoutStageId): string {
   return SCOUT_STAGE_COPY[stage];
+}
+
+export function scoutStageVerb(stage: ScoutStageId): string {
+  return SCOUT_STAGE_VERB[stage];
+}
+
+export function isScoutStageId(value: string | undefined): value is ScoutStageId {
+  return !!value && Object.hasOwn(SCOUT_STAGE_COPY, value);
+}
+
+export function scoutStageInFlight(stage?: ScoutStageId | null): boolean {
+  return (
+    stage === "planning" ||
+    stage === "searching" ||
+    stage === "filtering" ||
+    stage === "triaging" ||
+    stage === "partial"
+  );
+}
+
+/** Branded stage line. Counts stay on the same sentence so FadeSwap can tick them. */
+export function brandedScoutLine(opts: {
+  stage: ScoutStageId;
+  candidates?: number;
+  bucketSize?: number;
+  coolCount?: number;
+  targetCool?: number;
+}): string {
+  const base = SCOUT_STAGE_COPY[opts.stage];
+  if (
+    opts.stage === "searching" &&
+    opts.candidates != null &&
+    opts.bucketSize
+  ) {
+    return `${base} ${opts.candidates}/${opts.bucketSize}`;
+  }
+  if (
+    (opts.stage === "partial" || opts.stage === "triaging") &&
+    opts.coolCount != null &&
+    opts.targetCool
+  ) {
+    return `${base} ${opts.coolCount}/${opts.targetCool}`;
+  }
+  return base;
 }
 
 /** Gate / busy responses are soft — show the server message, not "Scout failed." */

@@ -110,6 +110,38 @@ describe("empty-tank background Scout", () => {
     assert.equal(tryBeginScout(userId, Date.now() + SCOUT_COOLDOWN_MS + 1).ok, true);
   });
 
+  it("does not start an empty-tank collect when autoStart is off", async () => {
+    assert.deepEqual(
+      await (async () => {
+        let status = 0;
+        let raw = "";
+        const req = Object.assign(new EventEmitter(), {
+          method: "GET",
+          headers: { cookie, origin: "http://localhost:5173" },
+          socket: { remoteAddress: "127.0.0.1" },
+        }) as unknown as IncomingMessage;
+        const res = {
+          writeHead(code: number) { status = code; },
+          end(chunk: string) { raw = chunk; },
+        } as unknown as ServerResponse;
+        assert.equal(
+          await tryHandleScout(
+            req,
+            res,
+            new URL("http://localhost/api/scout/last?autoStart=0"),
+            deps,
+          ),
+          true,
+        );
+        assert.equal(status, 200);
+        return JSON.parse(raw);
+      })(),
+      empty,
+    );
+    await setImmediate();
+    assert.equal(calls, 0);
+  });
+
   it("does not start an empty-tank collect without an Origin", async () => {
     let status = 0;
     const req = Object.assign(new EventEmitter(), {

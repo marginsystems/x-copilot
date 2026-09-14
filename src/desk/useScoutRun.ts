@@ -11,8 +11,10 @@ import type { LastScoutPayload } from "../lib/deskBoot";
 import { apiFetch } from "../lib/apiBase";
 import { deskNeedsXLink } from "../lib/deskGate";
 import {
+  brandedScoutLine,
   formatScoutFailure,
   isScoutGateError,
+  isScoutStageId,
   scoutStageMessage,
   type ScoutStageId,
 } from "../lib/scoutStages";
@@ -58,11 +60,19 @@ export function useScoutRun({
   onScoutFinished,
 }: ScoutRunDeps) {
   const [searching, setSearching] = useState(false);
+  const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
+  const [scoutLine, setScoutLine] = useState("");
+  const [scoutBlocked, setScoutBlocked] = useState(false);
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
   const searchingRef = useRef(0);
   const staleHydration = useRef(false);
+  const keepFlightRef = useRef(false);
+
+  function lastScoutUrl(): string {
+    return `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}&autoStart=0`;
+  }
 
   const searchCooldownRemaining = Math.max(
     0,
@@ -72,7 +82,17 @@ export function useScoutRun({
     billing?.sorties != null && billing.sorties.can_fly === false;
 
   function applyScoutEvent(ev: ScoutStreamEvent) {
-    const stage = (ev.stage ?? "planning") as ScoutStageId;
+    const stage = isScoutStageId(ev.stage) ? ev.stage : "planning";
+    setScoutStage(stage);
+    setScoutLine(
+      brandedScoutLine({
+        stage,
+        candidates: ev.candidates,
+        bucketSize: ev.bucketSize,
+        coolCount: ev.coolCount,
+        targetCool: ev.targetCool,
+      }),
+    );
     if (stage === "error") {
       setStatus(ev.message || scoutStageMessage(stage));
     }
@@ -95,7 +115,7 @@ export function useScoutRun({
 
   async function hydrateLastScout() {
     try {
-      const res = await apiFetch(`/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`);
+      const res = await apiFetch(lastScoutUrl());
       if (!res.ok) return;
       applyLastScoutFromBoot((await res.json()) as LastScoutPayload);
     } catch {
@@ -128,6 +148,10 @@ export function useScoutRun({
     abortRef.current = ac;
     searchingRef.current = Infinity;
     staleHydration.current = true;
+    keepFlightRef.current = false;
+    setScoutBlocked(false);
+    setScoutStage("planning");
+    setScoutLine(scoutStageMessage("planning"));
 
     const targetCool = DEFAULT_TARGET_COOL_THREADS;
 
@@ -180,6 +204,15 @@ export function useScoutRun({
         const soft = isScoutGateError(res.status, fallback);
         const line = formatScoutFailure(detail, { soft });
         setStatus(line);
+        if (
+          fallback.error === "scout_busy" ||
+          fallback.error === "scout_cooldown"
+        ) {
+          keepFlightRef.current = true;
+          setScoutBlocked(true);
+          setScoutStage("searching");
+          setScoutLine(scoutStageMessage("searching"));
+        }
         return;
       }
 
@@ -257,7 +290,7 @@ export function useScoutRun({
         // Keep partials already in state; merge any cools persisted mid-run.
         try {
           const res = await apiFetch(
-            `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}`,
+            lastScoutUrl(),
           );
           if (res.ok) {
             const data = (await res.json()) as {
@@ -289,6 +322,10 @@ export function useScoutRun({
         const until = Date.now() + SEARCH_COOLDOWN_MS;
         searchingRef.current = until;
         setSearching(false);
+        if (!keepFlightRef.current) {
+          setScoutStage(null);
+          setScoutLine("");
+        }
         setSearchCooldownUntil(until);
         setNowMs(Date.now());
         void loadBilling();
@@ -334,6 +371,9 @@ export function useScoutRun({
 
   return {
     searching,
+    scoutStage,
+    scoutLine,
+    scoutBlocked,
     searchCooldownRemaining,
     grounded,
     onSearch,

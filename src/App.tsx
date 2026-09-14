@@ -192,6 +192,9 @@ export default function App() {
   } = useSettingsDraft({ setSettings });
   const {
     searching,
+    scoutStage,
+    scoutLine,
+    scoutBlocked,
     searchCooldownRemaining,
     grounded,
     onSearch,
@@ -691,6 +694,9 @@ export default function App() {
               dismissedHistory={dismissedHistory}
               expiredHistory={expiredHistory}
               searching={searching}
+              scoutStage={scoutStage}
+              scoutLine={scoutLine}
+              scoutBlocked={scoutBlocked}
               actionBusy={actionBusy}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
