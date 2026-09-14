@@ -66,32 +66,3 @@ export function shouldBackgroundScout(opts: {
     !opts.alreadyTried
   );
 }
-
-/** After scout_busy, wait, re-arm one takeoff, or drop the in-air card. */
-export function nextBlockedScoutAction(opts: {
-  searching: boolean;
-  scoutBlocked: boolean;
-  cooldownRemainingSec: number;
-  deskReady: boolean;
-  agendaReady: boolean;
-  needsXLink: boolean;
-  hasAgenda: boolean;
-  grounded: boolean;
-  usableScoutCount: number;
-  alreadyArmed: boolean;
-  alreadySpent?: boolean;
-}): "wait" | "arm" | "release" {
-  if (opts.searching || !opts.scoutBlocked) return "wait";
-  if (opts.cooldownRemainingSec > 0) return "wait";
-  if (!opts.deskReady || !opts.agendaReady) return "wait";
-  if (
-    opts.needsXLink ||
-    !opts.hasAgenda ||
-    opts.grounded ||
-    !shouldArmScoutRefill(opts.usableScoutCount)
-  ) {
-    return "release";
-  }
-  if (opts.alreadyArmed || opts.alreadySpent) return "wait";
-  return "arm";
-}

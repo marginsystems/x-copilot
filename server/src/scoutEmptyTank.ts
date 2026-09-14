@@ -21,9 +21,13 @@ export async function maybeStartEmptyTankScout(
   userId: string,
   deps: ScoutEmptyTankDeps = {},
 ): Promise<void> {
-  const snapshot = await getLastScout({ userId });
-  if ((snapshot?.threads.length ?? 0) > 1) return;
-  await startEmptyTankScout(userId, snapshot?.filters, deps);
+  try {
+    const snapshot = await getLastScout({ userId });
+    if ((snapshot?.threads.length ?? 0) > 1) return;
+    await startEmptyTankScout(userId, snapshot?.filters, deps);
+  } catch {
+    console.error("empty-tank Scout failed");
+  }
 }
 
 /** Own the background lifetime, including failures; callers must not await it. */

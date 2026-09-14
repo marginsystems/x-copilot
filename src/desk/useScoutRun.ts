@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -63,13 +62,11 @@ export function useScoutRun({
   const [searching, setSearching] = useState(false);
   const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
   const [scoutLine, setScoutLine] = useState("");
-  const [scoutBlocked, setScoutBlocked] = useState(false);
   const [searchCooldownUntil, setSearchCooldownUntil] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
   const searchingRef = useRef(0);
   const staleHydration = useRef(false);
-  const keepFlightRef = useRef(false);
   const [watchTank, setWatchTank] = useState(false);
 
   function lastScoutUrl(): string {
@@ -103,18 +100,15 @@ export function useScoutRun({
   function applyServerFlight(data: LastScoutPayload) {
     const flight = data.flight;
     if (flight?.active) {
-      const stage = isScoutStageId(flight.stage ?? undefined)
-        ? flight.stage
-        : "searching";
+      const raw = flight.stage ?? undefined;
+      const stage = isScoutStageId(raw) ? raw : "searching";
       setScoutStage(stage);
       setScoutLine(scoutStageMessage(stage));
       setWatchTank(true);
       return;
     }
-    if (!keepFlightRef.current) {
-      setScoutStage(null);
-      setScoutLine("");
-    }
+    setScoutStage(null);
+    setScoutLine("");
     setWatchTank(data.empty === true);
   }
 
@@ -169,8 +163,6 @@ export function useScoutRun({
     abortRef.current = ac;
     searchingRef.current = Infinity;
     staleHydration.current = true;
-    keepFlightRef.current = false;
-    setScoutBlocked(false);
     setScoutStage("planning");
     setScoutLine(scoutStageMessage("planning"));
 
@@ -225,15 +217,6 @@ export function useScoutRun({
         const soft = isScoutGateError(res.status, fallback);
         const line = formatScoutFailure(detail, { soft });
         setStatus(line);
-        if (
-          fallback.error === "scout_busy" ||
-          fallback.error === "scout_cooldown"
-        ) {
-          keepFlightRef.current = true;
-          setScoutBlocked(true);
-          setScoutStage("searching");
-          setScoutLine(scoutStageMessage("searching"));
-        }
         return;
       }
 
@@ -343,10 +326,8 @@ export function useScoutRun({
         const until = Date.now() + SEARCH_COOLDOWN_MS;
         searchingRef.current = until;
         setSearching(false);
-        if (!keepFlightRef.current) {
-          setScoutStage(null);
-          setScoutLine("");
-        }
+        setScoutStage(null);
+        setScoutLine("");
         setSearchCooldownUntil(until);
         setNowMs(Date.now());
         void loadBilling();
@@ -399,22 +380,13 @@ export function useScoutRun({
     return () => window.clearInterval(id);
   }, [searchCooldownUntil]);
 
-  const releaseScoutFlight = useCallback(() => {
-    keepFlightRef.current = false;
-    setScoutBlocked(false);
-    setScoutStage(null);
-    setScoutLine("");
-  }, []);
-
   return {
     searching,
     scoutStage,
     scoutLine,
-    scoutBlocked,
     searchCooldownRemaining,
     grounded,
     onSearch,
-    releaseScoutFlight,
     applyLastScoutFromBoot,
     hydrateLastScout,
   };

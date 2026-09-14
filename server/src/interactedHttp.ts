@@ -33,6 +33,7 @@ import {
 } from "./knowledgeMemory.js";
 import { scheduleMemoryUpsert } from "./memoryReindex.js";
 import { pruneThreadsFromScoutCache } from "./scoutCache.js";
+import { maybeStartEmptyTankScout } from "./scoutEmptyTank.js";
 import { getSessionUser } from "./sessionCookie.js";
 
 export async function tryHandleInteracted(
@@ -245,6 +246,7 @@ export async function tryHandleInteracted(
         ],
         { userId: sessionUser.id },
       );
+      void maybeStartEmptyTankScout(sessionUser.id);
       try {
         recordDeskReplyMarked({
           userId: sessionUser.id,

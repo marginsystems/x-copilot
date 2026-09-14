@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   eligibleScoutCards,
-  nextBlockedScoutAction,
   shouldArmScoutOnBoot,
   shouldArmScoutRefill,
   shouldBackgroundScout,
@@ -129,58 +128,5 @@ describe("shouldArmScoutOnBoot", () => {
     assert.equal(shouldArmScoutOnBoot({ ...boot, tankKnown: false }), false);
     assert.equal(shouldArmScoutOnBoot({ ...boot, handledThisOpen: true }), false);
     assert.equal(shouldArmScoutOnBoot({ ...boot, usableScoutCount: 1 }), true);
-  });
-});
-
-describe("nextBlockedScoutAction", () => {
-  const blocked = {
-    searching: false,
-    scoutBlocked: true,
-    cooldownRemainingSec: 0,
-    deskReady: true,
-    agendaReady: true,
-    needsXLink: false,
-    hasAgenda: true,
-    grounded: false,
-    usableScoutCount: 0,
-    alreadyArmed: false,
-  };
-
-  it("arms only when the refill is not already armed", () => {
-    assert.equal(nextBlockedScoutAction(blocked), "arm");
-    assert.equal(
-      nextBlockedScoutAction({ ...blocked, alreadyArmed: true }),
-      "wait",
-    );
-    assert.equal(
-      nextBlockedScoutAction({ ...blocked, alreadySpent: true }),
-      "wait",
-    );
-  });
-
-  it("does not reset a blocked wait while cooling down or still hydrating", () => {
-    assert.equal(
-      nextBlockedScoutAction({ ...blocked, cooldownRemainingSec: 4 }),
-      "wait",
-    );
-    assert.equal(
-      nextBlockedScoutAction({ ...blocked, deskReady: false }),
-      "wait",
-    );
-  });
-
-  it("releases the in-air card when a retry cannot fly", () => {
-    assert.equal(
-      nextBlockedScoutAction({ ...blocked, usableScoutCount: 2 }),
-      "release",
-    );
-    assert.equal(
-      nextBlockedScoutAction({ ...blocked, grounded: true }),
-      "release",
-    );
-    assert.equal(
-      nextBlockedScoutAction({ ...blocked, needsXLink: true }),
-      "release",
-    );
   });
 });
