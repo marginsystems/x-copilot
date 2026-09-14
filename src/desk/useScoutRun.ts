@@ -72,8 +72,8 @@ export function useScoutRun({
   const [watchTank, setWatchTank] = useState(false);
   const previousThreadCount = useRef(threadCount);
 
-  function lastScoutUrl(): string {
-    return `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}&autoStart=0`;
+  function lastScoutUrl(autoStart = false): string {
+    return `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}&autoStart=${autoStart ? 1 : 0}`;
   }
 
   const searchCooldownRemaining = Math.max(
@@ -131,9 +131,9 @@ export function useScoutRun({
     watchDeskThreads(filtered);
   }
 
-  async function hydrateLastScout() {
+  async function hydrateLastScout(autoStart = false) {
     try {
-      const res = await apiFetch(lastScoutUrl());
+      const res = await apiFetch(lastScoutUrl(autoStart));
       if (!res.ok) return;
       applyLastScoutFromBoot((await res.json()) as LastScoutPayload);
     } catch {
@@ -370,9 +370,9 @@ export function useScoutRun({
 
   useEffect(() => {
     if (!watchTank) return;
-    void hydrateLastScout();
+    void hydrateLastScout(true);
     const id = window.setInterval(() => {
-      void hydrateLastScout();
+      void hydrateLastScout(true);
     }, 4000);
     return () => window.clearInterval(id);
   }, [watchTank]);
