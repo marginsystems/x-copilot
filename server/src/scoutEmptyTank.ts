@@ -4,9 +4,9 @@ import { creditsExhaustedResponse, sortiesExhaustedResponse } from "./billingQuo
 import { ensureUserTenant } from "./billingStore.js";
 import { ensureMemoryIndex } from "./memoryReindex.js";
 import { runWithRequestContext } from "./requestContext.js";
-import { attachScoutCacheFilters } from "./scoutCache.js";
+import { attachScoutCacheFilters, getLastScout } from "./scoutCache.js";
 import { runScoutCollect } from "./scoutCollect.js";
-import { endScout, tryBeginScout } from "./scoutGate.js";
+import { endScout, noteScoutStage, tryBeginScout } from "./scoutGate.js";
 import { markSortieDelivered, recordSortie, refundSortie } from "./scoutSorties.js";
 import type { ScoutFilters } from "./scoutTypes.js";
 import { xLinkRequiredResponse } from "./xLinkGate.js";
@@ -15,6 +15,16 @@ export type ScoutEmptyTankDeps = {
   runScoutCollect?: typeof runScoutCollect;
   ensureMemoryIndex?: typeof ensureMemoryIndex;
 };
+
+/** Refill only when the tank is already at or below the last usable card. */
+export async function maybeStartEmptyTankScout(
+  userId: string,
+  deps: ScoutEmptyTankDeps = {},
+): Promise<void> {
+  const snapshot = await getLastScout({ userId });
+  if ((snapshot?.threads.length ?? 0) > 1) return;
+  await startEmptyTankScout(userId, snapshot?.filters, deps);
+}
 
 /** Own the background lifetime, including failures; callers must not await it. */
 export async function startEmptyTankScout(
@@ -46,6 +56,9 @@ export async function startEmptyTankScout(
         filters,
         sortieId,
         onEvent: (event) => {
+          if (typeof event.stage === "string") {
+            noteScoutStage(userId, event.stage);
+          }
           if (typeof event.coolCount === "number") {
             coolCount = Math.max(coolCount, event.coolCount);
           } else if (event.stage === "done" && Array.isArray(event.threads)) {

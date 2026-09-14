@@ -37,8 +37,6 @@ type ThreadsTabsProps = {
   searching: boolean;
   scoutStage?: ScoutStageId | null;
   scoutLine?: string | null;
-  scoutBlocked?: boolean;
-  onReleaseScoutFlight?: () => void;
   actionBusy: boolean;
   expandedId: string | null;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
@@ -59,7 +57,6 @@ type ThreadsTabsProps = {
   onLinkX: () => void;
   grounded: boolean;
   searchCooldownRemaining: number;
-  onSearch: () => void;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
@@ -102,8 +99,6 @@ export function ThreadsTabs({
   searching,
   scoutStage,
   scoutLine,
-  scoutBlocked,
-  onReleaseScoutFlight,
   actionBusy,
   expandedId,
   setExpandedId,
@@ -121,7 +116,6 @@ export function ThreadsTabs({
   onLinkX,
   grounded,
   searchCooldownRemaining,
-  onSearch,
   onSkip,
   onDismiss,
   onRefreshCoaching,
@@ -143,13 +137,10 @@ export function ThreadsTabs({
     searching,
     scoutStage,
     scoutLine,
-    scoutBlocked,
-    onReleaseScoutFlight,
     grounded,
     searchCooldownRemaining,
     setExpandedId,
     actForYou,
-    onSearch,
     onSkip,
     onDismiss,
     onRefreshCoaching,

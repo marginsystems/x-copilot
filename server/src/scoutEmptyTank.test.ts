@@ -18,7 +18,10 @@ import { countSortiesToday, recordSortie } from "./scoutSorties.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
 import { createSession } from "./sessionStore.ts";
 
-const empty = { ok: true, empty: true };
+function assertEmpty(row: { ok?: boolean; empty?: boolean }) {
+  assert.equal(row.ok, true);
+  assert.equal(row.empty, true);
+}
 const done = { agent: "scout", stage: "done", message: "done", at: new Date().toISOString() } as const;
 const thread = {
   id: "lead", author: "@builder", text: "Shipped a tool",
@@ -94,50 +97,45 @@ describe("empty-tank background Scout", () => {
       return { ok: true, event: done };
     };
     try {
-      assert.deepEqual(await get(), empty);
+      assertEmpty(await get());
       assert.equal(calls, 1);
       assert.equal(countSortiesToday(tenantId), 1);
-      assert.deepEqual(await readLastScoutPayload({ userId, deps }), empty);
-      assert.deepEqual(await get(), empty);
+      assertEmpty(await readLastScoutPayload({ userId, deps }));
+      assertEmpty(await get());
       assert.equal(calls, 1);
     } finally {
       finish();
       await setImmediate();
     }
     assert.equal(countSortiesToday(tenantId), 0);
-    assert.deepEqual(await get(), empty);
+    assertEmpty(await get());
     assert.equal(calls, 1);
     assert.equal(tryBeginScout(userId, Date.now() + SCOUT_COOLDOWN_MS + 1).ok, true);
   });
 
   it("does not start an empty-tank collect when autoStart is off", async () => {
-    assert.deepEqual(
-      await (async () => {
-        let status = 0;
-        let raw = "";
-        const req = Object.assign(new EventEmitter(), {
-          method: "GET",
-          headers: { cookie, origin: "http://localhost:5173" },
-          socket: { remoteAddress: "127.0.0.1" },
-        }) as unknown as IncomingMessage;
-        const res = {
-          writeHead(code: number) { status = code; },
-          end(chunk: string) { raw = chunk; },
-        } as unknown as ServerResponse;
-        assert.equal(
-          await tryHandleScout(
-            req,
-            res,
-            new URL("http://localhost/api/scout/last?autoStart=0"),
-            deps,
-          ),
-          true,
-        );
-        assert.equal(status, 200);
-        return JSON.parse(raw);
-      })(),
-      empty,
+    let status = 0;
+    let raw = "";
+    const req = Object.assign(new EventEmitter(), {
+      method: "GET",
+      headers: { cookie, origin: "http://localhost:5173" },
+      socket: { remoteAddress: "127.0.0.1" },
+    }) as unknown as IncomingMessage;
+    const res = {
+      writeHead(code: number) { status = code; },
+      end(chunk: string) { raw = chunk; },
+    } as unknown as ServerResponse;
+    assert.equal(
+      await tryHandleScout(
+        req,
+        res,
+        new URL("http://localhost/api/scout/last?autoStart=0"),
+        deps,
+      ),
+      true,
     );
+    assert.equal(status, 200);
+    assertEmpty(JSON.parse(raw));
     await setImmediate();
     assert.equal(calls, 0);
   });
@@ -172,7 +170,7 @@ describe("empty-tank background Scout", () => {
       await saveScoutCache({ savedAt: new Date().toISOString(), queries: [], threads: [] }, { userId });
       return { ok: true, event: { ...done, coolCount: 1 } };
     };
-    assert.deepEqual(await readLastScoutPayload({ userId, deps }), empty);
+    assertEmpty(await readLastScoutPayload({ userId, deps }));
     await setImmediate();
     assert.equal(calls, 1);
     assert.deepEqual((await getLastScout({ userId }))?.filters, filters);
@@ -203,7 +201,7 @@ describe("empty-tank background Scout", () => {
       if (gate === "sorties") for (let i = 0; i < 100; i++) recordSortie(tenantId);
       if (gate === "busy") resetScoutGateForTests({ userId, active: true });
       if (gate === "cooldown") resetScoutGateForTests({ userId, lastFinishedAt: Date.now() });
-      assert.deepEqual(await get(), empty);
+      assertEmpty(await get());
       await setImmediate();
       assert.equal(calls, 0);
     });
@@ -213,7 +211,7 @@ describe("empty-tank background Scout", () => {
     it(`contains ${failure} failure, refunds and releases the lock`, async () => {
       if (failure === "memory") deps.ensureMemoryIndex = async () => { throw new Error("test failure"); };
       else deps.runScoutCollect = async () => { calls++; throw new Error("test failure"); };
-      assert.deepEqual(await get(), empty);
+      assertEmpty(await get());
       await setImmediate();
       assert.equal(calls, failure === "memory" ? 0 : 1);
       assert.equal(countSortiesToday(tenantId), 0);

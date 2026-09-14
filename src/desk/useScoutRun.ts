@@ -70,6 +70,7 @@ export function useScoutRun({
   const searchingRef = useRef(0);
   const staleHydration = useRef(false);
   const keepFlightRef = useRef(false);
+  const [watchTank, setWatchTank] = useState(false);
 
   function lastScoutUrl(): string {
     return `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}&autoStart=0`;
@@ -99,9 +100,28 @@ export function useScoutRun({
     }
   }
 
+  function applyServerFlight(data: LastScoutPayload) {
+    const flight = data.flight;
+    if (flight?.active) {
+      const stage = isScoutStageId(flight.stage ?? undefined)
+        ? flight.stage
+        : "searching";
+      setScoutStage(stage);
+      setScoutLine(scoutStageMessage(stage));
+      setWatchTank(true);
+      return;
+    }
+    if (!keepFlightRef.current) {
+      setScoutStage(null);
+      setScoutLine("");
+    }
+    setWatchTank(data.empty === true);
+  }
+
   function applyLastScoutFromBoot(data: LastScoutPayload) {
     if (staleHydration.current) return;
     if (!data.ok) return;
+    applyServerFlight(data);
     if (data.empty || !data.snapshot) {
       setThreads([]);
       return;
@@ -356,6 +376,15 @@ export function useScoutRun({
       abortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (!watchTank) return;
+    void hydrateLastScout();
+    const id = window.setInterval(() => {
+      void hydrateLastScout();
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [watchTank]);
 
   useEffect(() => {
     if (searchCooldownUntil <= Date.now()) return;

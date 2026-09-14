@@ -194,11 +194,8 @@ export default function App() {
     searching,
     scoutStage,
     scoutLine,
-    scoutBlocked,
     searchCooldownRemaining,
     grounded,
-    onSearch,
-    releaseScoutFlight,
     applyLastScoutFromBoot,
     hydrateLastScout,
   } = useScoutRun({
@@ -697,8 +694,6 @@ export default function App() {
               searching={searching}
               scoutStage={scoutStage}
               scoutLine={scoutLine}
-              scoutBlocked={scoutBlocked}
-              onReleaseScoutFlight={releaseScoutFlight}
               actionBusy={actionBusy}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
@@ -720,7 +715,6 @@ export default function App() {
               onLinkX={startXLogin}
               grounded={grounded}
               searchCooldownRemaining={searchCooldownRemaining}
-              onSearch={onSearch}
               onSkip={onSkip}
               onDismiss={openDismissModal}
               onRefreshCoaching={hydrateCoaching}

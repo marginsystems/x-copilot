@@ -47,10 +47,16 @@ export type LastScoutSnapshot = {
   };
 };
 
+export type ScoutFlightPayload = {
+  active: boolean;
+  stage?: string | null;
+};
+
 export type LastScoutPayload = {
   ok: boolean;
   empty: boolean;
   snapshot?: LastScoutSnapshot;
+  flight?: ScoutFlightPayload;
 };
 
 export type DeskBootDesk = {
@@ -135,18 +141,28 @@ function parseIdList(raw: unknown, fallback: string[]): string[] {
   return source.filter((id): id is string => typeof id === "string" && id.length > 0);
 }
 
+function parseScoutFlight(raw: unknown): ScoutFlightPayload | undefined {
+  if (!isRecord(raw)) return undefined;
+  return {
+    active: raw.active === true,
+    stage: typeof raw.stage === "string" ? raw.stage : null,
+  };
+}
+
 function parseLastScout(raw: unknown): LastScoutPayload {
   if (!isRecord(raw)) return { ok: true, empty: true };
+  const flight = parseScoutFlight(raw.flight);
   const snapshot = isRecord(raw.snapshot) ? raw.snapshot : null;
   const threads = Array.isArray(snapshot?.threads)
     ? (snapshot.threads as ThreadCard[])
     : [];
   if (!snapshot || raw.empty === true || threads.length === 0) {
-    return { ok: raw.ok !== false, empty: true };
+    return { ok: raw.ok !== false, empty: true, flight };
   }
   return {
     ok: raw.ok !== false,
     empty: false,
+    flight,
     snapshot: {
       savedAt: typeof snapshot.savedAt === "string" ? snapshot.savedAt : "",
       queries: Array.isArray(snapshot.queries)

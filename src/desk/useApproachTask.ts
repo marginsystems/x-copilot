@@ -33,13 +33,7 @@ import {
   type ApproachEvent,
   type ApproachInventory,
 } from "../lib/deskPhase";
-import {
-  eligibleScoutCards,
-  shouldArmScoutOnBoot,
-  nextBlockedScoutAction,
-  shouldArmScoutRefill,
-  shouldBackgroundScout,
-} from "../lib/deskRefuel";
+import { eligibleScoutCards } from "../lib/deskRefuel";
 import type { ForYouSuggestion } from "../lib/forYou";
 import { replyPaceSeedIso } from "../lib/replyPace";
 import {
@@ -86,8 +80,6 @@ export type UseApproachTaskOpts = {
   searching: boolean;
   scoutStage?: ScoutStageId | null;
   scoutLine?: string | null;
-  scoutBlocked?: boolean;
-  onReleaseScoutFlight?: () => void;
   grounded: boolean;
   searchCooldownRemaining: number;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
@@ -95,7 +87,6 @@ export type UseApproachTaskOpts = {
     id: string,
     action: "done" | "skip" | "dismiss",
   ) => Promise<boolean>;
-  onSearch: () => void;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
@@ -118,13 +109,8 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     searching,
     scoutStage = null,
     scoutLine = null,
-    scoutBlocked = false,
-    onReleaseScoutFlight,
-    grounded,
-    searchCooldownRemaining,
     setExpandedId,
     actForYou,
-    onSearch,
     onSkip,
     onDismiss,
     onRefreshCoaching,
@@ -443,124 +429,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready]);
 
   const pendingDismissIdRef = useRef<string | null>(null);
-  const autoTriedRef = useRef(false);
-  const bootRefuelCheckedRef = useRef(false);
-  const blockedArmUsedRef = useRef(false);
-  const [refuelArmed, setRefuelArmed] = useState(false);
-  const refuelArmedRef = useRef(false);
-
-  /** Arm the low-tank trigger after an operator releases an inventory card. */
-  function armRefuel(usableScoutCount: number): boolean {
-    if (
-      !shouldArmScoutRefill(usableScoutCount) ||
-      refuelArmedRef.current ||
-      searching
-    ) {
-      return false;
-    }
-    autoTriedRef.current = false;
-    bootRefuelCheckedRef.current = true;
-    refuelArmedRef.current = true;
-    setRefuelArmed(true);
-    return true;
-  }
-
-  useEffect(() => {
-    // deskBootReady follows the tank hydrate. Keep observing eligible stock
-    // until we arm: a late history hydrate can remove retained, used cards.
-    if (!deskBootReady || !agendaReady || needsXLink || !hasAgenda) return;
-    if (searching) {
-      // An existing flight already serves this opening, even if it lands empty.
-      bootRefuelCheckedRef.current = true;
-      autoTriedRef.current = true;
-      if (refuelArmedRef.current) {
-        refuelArmedRef.current = false;
-        setRefuelArmed(false);
-      }
-      return;
-    }
-    if (!shouldArmScoutOnBoot({
-      usableScoutCount: eligibleCount,
-      searching,
-      tankKnown: deskBootReady,
-      handledThisOpen: bootRefuelCheckedRef.current,
-    })) return;
-    bootRefuelCheckedRef.current = true;
-    autoTriedRef.current = false;
-    refuelArmedRef.current = true;
-    setRefuelArmed(true);
-  }, [agendaReady, deskBootReady, eligibleCount, hasAgenda, needsXLink, searching]);
-
-  useEffect(() => {
-    if (!refuelArmed || !agendaReady) return;
-    if (
-      !shouldBackgroundScout({
-        phase,
-        searching,
-        grounded,
-        cooldownRemainingSec: searchCooldownRemaining,
-        needsXLink,
-        hasAgenda,
-        scoutCount: eligibleCount,
-        alreadyTried: autoTriedRef.current,
-      })
-    ) {
-      return;
-    }
-    autoTriedRef.current = true;
-    refuelArmedRef.current = false;
-    setRefuelArmed(false);
-    onSearch();
-  }, [
-    refuelArmed,
-    phase,
-    searching,
-    grounded,
-    searchCooldownRemaining,
-    agendaReady,
-    needsXLink,
-    hasAgenda,
-    eligibleCount,
-    onSearch,
-  ]);
-
-  useEffect(() => {
-    if (!scoutBlocked) blockedArmUsedRef.current = false;
-    const next = nextBlockedScoutAction({
-      searching,
-      scoutBlocked,
-      cooldownRemainingSec: searchCooldownRemaining,
-      deskReady: deskBootReady,
-      agendaReady,
-      needsXLink,
-      hasAgenda,
-      grounded,
-      usableScoutCount: eligibleCount,
-      alreadyArmed: refuelArmedRef.current,
-      alreadySpent: blockedArmUsedRef.current,
-    });
-    if (next === "release") {
-      onReleaseScoutFlight?.();
-      return;
-    }
-    if (next !== "arm") return;
-    blockedArmUsedRef.current = true;
-    autoTriedRef.current = false;
-    bootRefuelCheckedRef.current = true;
-    refuelArmedRef.current = true;
-    setRefuelArmed(true);
-  }, [
-    searching,
-    scoutBlocked,
-    searchCooldownRemaining,
-    deskBootReady,
-    agendaReady,
-    needsXLink,
-    hasAgenda,
-    grounded,
-    eligibleCount,
-    onReleaseScoutFlight,
-  ]);
 
   useEffect(() => {
     const live = new Set<string>();
@@ -584,7 +452,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     if (!id || !dismissedHistory.some((entry) => entry.threadId === id)) return;
     pendingDismissIdRef.current = null;
     advanceCard({ type: "dismiss" });
-    armRefuel(eligibleScouts.filter((row) => row.id !== id).length);
   }, [dismissedHistory]);
   function exitRow(
     id: string,
@@ -619,9 +486,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         if (skipped) {
           pendingDismissIdRef.current = null;
           advanceCard({ type: "skip" });
-          armRefuel(
-            eligibleScouts.filter((row) => row.id !== thread.id).length,
-          );
         }
       });
     },
@@ -646,7 +510,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         if (await actForYou(id, "done")) {
           await onRefreshCoaching();
           advanceCard({ type: "posted" });
-          armRefuel(eligibleCount);
         }
       });
     },
@@ -654,7 +517,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       exitRow(id, `suggest:${id}`, async () => {
         if (await actForYou(id, "skip")) {
           advanceCard({ type: "skip" });
-          armRefuel(eligibleCount);
         }
       });
     },
@@ -662,7 +524,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       exitRow(id, `suggest:${id}`, async () => {
         if (await actForYou(id, "dismiss")) {
           advanceCard({ type: "dismiss" });
-          armRefuel(eligibleCount);
         }
       });
     },
