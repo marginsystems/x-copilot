@@ -564,6 +564,7 @@ describe("Approach flight frame", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
+          searching: true,
           scoutStage: "filtering",
           scoutLine: "Clearing the noise…",
         }),
@@ -573,6 +574,23 @@ describe("Approach flight frame", () => {
     assert.match(html, /Clearing the noise/);
     assert.match(html, /approach-flight-row is-flying/);
     assert.doesNotMatch(html, /Scout is getting the next reply/);
+  });
+
+  it("does not render a stale Scout stage after searching ends", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          searching: false,
+          scoutStage: "searching",
+          scoutLine: "In the air…",
+        }),
+      ),
+    );
+    assert.match(html, />Collecting</);
+    assert.match(html, /Scout is getting the next reply/);
+    assert.doesNotMatch(html, />Searching</);
+    assert.doesNotMatch(html, /In the air/);
+    assert.doesNotMatch(html, /is-flying/);
   });
 
   it("never leaks refill internals onto the For You wait", () => {

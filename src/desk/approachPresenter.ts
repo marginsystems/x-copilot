@@ -152,17 +152,19 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
         detector: input.scoutDetected ? null : "scout",
       };
     }
+    const scoutStage = input.searching ? input.scoutStage : null;
+    const scoutLine = input.searching ? input.scoutLine : null;
     return {
       ...blank,
       kind: "scout_missing",
       verb: approachCollectingVerb({
         searching: input.searching,
-        stage: input.scoutStage,
+        stage: scoutStage,
       }),
       why: approachCollectingCopy({
         searching: input.searching,
-        stage: input.scoutStage,
-        line: input.scoutLine,
+        stage: scoutStage,
+        line: scoutLine,
       }),
       showNext: input.collectingReady === true,
     };
