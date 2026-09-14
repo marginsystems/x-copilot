@@ -203,7 +203,7 @@ export default function App() {
     settings,
     authUser,
     billing,
-    threadCount: threads.length,
+    threadCount: threads.filter((thread) => keepInCurated(thread)).length,
     setThreads,
     setStatus,
     keepInCurated,
