@@ -323,6 +323,7 @@ export function useScoutRun({
       }
     } finally {
       if (abortRef.current === ac) {
+        staleHydration.current = false;
         const until = Date.now() + SEARCH_COOLDOWN_MS;
         searchingRef.current = until;
         setSearching(false);
