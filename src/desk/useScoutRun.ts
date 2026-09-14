@@ -369,6 +369,13 @@ export function useScoutRun({
     return () => window.clearInterval(id);
   }, [searchCooldownUntil]);
 
+  function releaseScoutFlight() {
+    keepFlightRef.current = false;
+    setScoutBlocked(false);
+    setScoutStage(null);
+    setScoutLine("");
+  }
+
   return {
     searching,
     scoutStage,
@@ -377,6 +384,7 @@ export function useScoutRun({
     searchCooldownRemaining,
     grounded,
     onSearch,
+    releaseScoutFlight,
     applyLastScoutFromBoot,
     hydrateLastScout,
   };

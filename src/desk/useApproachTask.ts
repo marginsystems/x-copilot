@@ -36,6 +36,7 @@ import {
 import {
   eligibleScoutCards,
   shouldArmScoutOnBoot,
+  nextBlockedScoutAction,
   shouldArmScoutRefill,
   shouldBackgroundScout,
 } from "../lib/deskRefuel";
@@ -86,6 +87,7 @@ export type UseApproachTaskOpts = {
   scoutStage?: ScoutStageId | null;
   scoutLine?: string | null;
   scoutBlocked?: boolean;
+  onReleaseScoutFlight?: () => void;
   grounded: boolean;
   searchCooldownRemaining: number;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
@@ -117,6 +119,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     scoutStage = null,
     scoutLine = null,
     scoutBlocked = false,
+    onReleaseScoutFlight,
     grounded,
     searchCooldownRemaining,
     setExpandedId,
@@ -521,13 +524,25 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   ]);
 
   useEffect(() => {
-    if (searching || !scoutBlocked) return;
-    if (searchCooldownRemaining > 0) return;
-    if (!deskBootReady || !agendaReady || needsXLink || !hasAgenda) return;
-    if (!shouldArmScoutRefill(eligibleCount)) return;
+    const next = nextBlockedScoutAction({
+      searching,
+      scoutBlocked,
+      cooldownRemainingSec: searchCooldownRemaining,
+      deskReady: deskBootReady,
+      agendaReady,
+      needsXLink,
+      hasAgenda,
+      grounded,
+      usableScoutCount: eligibleCount,
+      alreadyArmed: refuelArmedRef.current,
+    });
+    if (next === "release") {
+      onReleaseScoutFlight?.();
+      return;
+    }
+    if (next !== "arm") return;
     autoTriedRef.current = false;
     bootRefuelCheckedRef.current = true;
-    if (refuelArmedRef.current) return;
     refuelArmedRef.current = true;
     setRefuelArmed(true);
   }, [
@@ -538,7 +553,9 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     agendaReady,
     needsXLink,
     hasAgenda,
+    grounded,
     eligibleCount,
+    onReleaseScoutFlight,
   ]);
 
   useEffect(() => {
