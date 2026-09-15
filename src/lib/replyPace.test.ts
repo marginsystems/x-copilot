@@ -11,6 +11,39 @@ import {
   replyPaceRemainingMs,
 } from "./replyPace.ts";
 
+import {
+  armReplyPaceOverlay,
+  clearReplyPace,
+  readReplyPaceOverlay,
+} from "../desk/replyPaceStore.ts";
+
+describe("reply pace overlay storage", () => {
+  it("persists until expiry or Bypass clears it", (t) => {
+    const stored = new Map<string, string>();
+    const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+    const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+    Object.defineProperty(globalThis, "sessionStorage", { configurable: true, value: {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+      removeItem: (key: string) => stored.delete(key),
+    } });
+    Object.defineProperty(globalThis, "window", { configurable: true, value: new EventTarget() });
+    t.after(() => {
+      if (storageDescriptor) Object.defineProperty(globalThis, "sessionStorage", storageDescriptor);
+      else Reflect.deleteProperty(globalThis, "sessionStorage");
+      if (windowDescriptor) Object.defineProperty(globalThis, "window", windowDescriptor);
+      else Reflect.deleteProperty(globalThis, "window");
+    });
+    assert.equal(readReplyPaceOverlay(), false);
+    for (const markCleared of [false, true]) {
+      armReplyPaceOverlay();
+      assert.equal(readReplyPaceOverlay(), true);
+      clearReplyPace(markCleared);
+      assert.equal(readReplyPaceOverlay(), false);
+    }
+  });
+});
+
 describe("replyPace", () => {
   it("arms 60 seconds from now", () => {
     assert.equal(REPLY_PACE_MS, 60_000);

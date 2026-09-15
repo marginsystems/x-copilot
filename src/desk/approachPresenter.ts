@@ -39,6 +39,8 @@ export type ApproachCardInput = {
   forYou: ForYouTaskView | null;
   /** Remaining reply minute. */
   remainingMs: number;
+  /** Next has already selected the card under the reply minute. */
+  paceOverlayArmed?: boolean;
   searching?: boolean;
   /** Live Scout stage while Collecting. Idle when null. */
   scoutStage?: ScoutStageId | null;
@@ -78,7 +80,8 @@ function suggestionVerb(row: ForYouSuggestion | null): string {
 }
 
 function forYouPresentation(input: ApproachCardInput): ApproachPresentation {
-  const holding = input.remainingMs > 0 && input.phase === "hold";
+  const holding = input.remainingMs > 0 &&
+    (input.phase === "hold" || input.paceOverlayArmed === true);
   const detected = input.forYou?.detected === true;
   const latestActivity = input.coaching?.ownActivity ?? null;
   const activity =
@@ -115,7 +118,8 @@ function forYouPresentation(input: ApproachCardInput): ApproachPresentation {
 }
 
 export function presentApproach(input: ApproachCardInput): ApproachPresentation {
-  const showPace = input.remainingMs > 0 && input.phase === "hold";
+  const showPace = input.remainingMs > 0 &&
+    (input.phase === "hold" || input.paceOverlayArmed === true);
   const blank: ApproachPresentation = {
     kind: "blank",
     verb: "",

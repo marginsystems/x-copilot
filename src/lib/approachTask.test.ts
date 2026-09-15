@@ -435,13 +435,13 @@ describe("same-phase Scout release", () => {
   });
 });
 
-describe("Hold at zero", () => {
+describe("Reply minute destinations", () => {
   const hold: ApproachTaskState = {
     lock: { phase: "hold", cardId: null, surface: "for_you" },
     wait: openForYouWait({ owner: OWNER, coaching, now: T0 }),
   };
 
-  it("changes presentation, not card identity", () => {
+  it("Scout Next Hold reveals For You at zero without changing its identity", () => {
     const running = present(hold, { remainingMs: 30_000 });
     assert.equal(running.verb, "Hold");
     assert.equal(running.forYou?.holding, true);
@@ -455,32 +455,20 @@ describe("Hold at zero", () => {
     assert.equal(running.detector, over.detector);
   });
 
-  it("Next during the minute is a no-op; after it Next releases", () => {
-    const inventory = {
-      scoutId: "S",
-      suggestionId: null,
-      canPresentForYou: true,
-    };
-    assert.equal(
-      transitionApproachTask(
+  it("Hold Next selects Scout and drops its wait during or after the minute", () => {
+    for (const paceLocked of [true, false]) {
+      const after = transitionApproachTask(
         hold,
         { type: "next" },
-        { ...inventory, paceLocked: true },
+        { scoutId: "S", suggestionId: null, canPresentForYou: true, paceLocked },
         { owner: OWNER, coaching },
-      ),
-      hold,
-    );
-    const after = transitionApproachTask(
-      hold,
-      { type: "next" },
-      { ...inventory, paceLocked: false },
-      { owner: OWNER, coaching },
-    );
-    assert.equal(after.lock.cardId, "S");
-    assert.equal(after.wait, null);
+      );
+      assert.deepEqual(after.lock, { phase: "scout_reply", cardId: "S", surface: null });
+      assert.equal(after.wait, null);
+    }
   });
 
-  it("retains the For You wait when Next enters the reply-minute hold", () => {
+  it("drops the For You wait when Next locks the incoming Scout during the minute", () => {
     const wait = openForYouWait({ owner: OWNER, coaching, now: T0 });
     const state = transitionApproachTask(
       { lock: FOR_YOU, wait },
@@ -488,8 +476,16 @@ describe("Hold at zero", () => {
       { scoutId: "S", suggestionId: null, canPresentForYou: true, paceLocked: true },
       { owner: OWNER, coaching, now: T0 + 30_000 },
     );
-    assert.deepEqual(state.lock, { phase: "hold", cardId: null, surface: "for_you" });
-    assert.equal(state.wait, wait);
+    assert.deepEqual(state.lock, { phase: "scout_reply", cardId: "S", surface: null });
+    assert.equal(state.wait, null);
+    const scout = { id: "S", author: "@S", text: "incoming Scout", url: "https://x.com/S/status/S", views: 10 };
+    const running = present(state, { scout, paceOverlayArmed: true, remainingMs: 30_000 });
+    assert.equal(running.showPace, true);
+    assert.equal(running.showNext, false);
+    const over = present(state, { scout, paceOverlayArmed: true, remainingMs: 0 });
+    assert.equal(over.kind, "scout");
+    assert.equal(over.showPace, false);
+    assert.equal(over.forYou, null);
   });
 });
 

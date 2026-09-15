@@ -32,6 +32,7 @@ import {
   isForYouTask,
   type ApproachEvent,
   type ApproachInventory,
+  type ApproachLock,
 } from "../lib/deskPhase";
 import { eligibleScoutCards } from "../lib/deskRefuel";
 import type { ForYouSuggestion } from "../lib/forYou";
@@ -92,6 +93,15 @@ export type UseApproachTaskOpts = {
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
   onHydrateInteracted: (preservedId?: string | null) => void | Promise<void>;
 };
+
+export function bypassApproachPace(
+  lock: ApproachLock | null,
+  pace: Pick<ReturnType<typeof useReplyPace>, "bypass" | "overlayArmed">,
+  advance: () => void,
+) {
+  pace.bypass();
+  if (!pace.overlayArmed || (lock && isForYouTask(lock))) advance();
+}
 
 export function useApproachTask(opts: UseApproachTaskOpts) {
   const {
@@ -289,6 +299,12 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       { owner, coaching: coachingRef.current },
     );
     if (next === current) return;
+    if (
+      event.type === "next" && isForYouTask(current.lock) &&
+      next.lock !== current.lock && pace.remainingMs > 0
+    ) {
+      pace.armOverlay();
+    }
     if (current.lock.cardId && current.lock.cardId !== next.lock.cardId) {
       releasedIdsRef.current.add(current.lock.cardId);
     }
@@ -351,6 +367,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     suggestionDetected,
     forYou: wait ? { detected: forYouWaitDetected(wait, coaching) } : null,
     remainingMs: pace.remainingMs,
+    paceOverlayArmed: pace.overlayArmed,
     searching,
     scoutStage,
     scoutLine,
@@ -477,8 +494,9 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     clock: pace.clock,
     exitingIds,
     onBypass() {
-      pace.bypass();
-      advanceCard({ type: "bypass" });
+      bypassApproachPace(stateRef.current?.lock ?? null, pace, () => {
+        advanceCard({ type: "bypass" });
+      });
     },
     onScoutSkip(thread: ThreadCard) {
       exitRow(thread.id, thread.id, async () => {

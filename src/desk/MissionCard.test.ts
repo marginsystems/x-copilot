@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { bypassApproachPace } from "./useApproachTask";
 import { pickApproachScout } from "./approachScout";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
 import { ForYouFeedRow } from "./ForYouFeedRow";
@@ -91,6 +92,38 @@ const detectedSuggestedReply: ForYouSuggestion = {
 };
 
 describe("Reply pace", () => {
+  it("covers the already-selected Scout, then reveals that Scout at zero", () => {
+    const props = missionProps({
+      phase: "scout_reply", scout: thread("incoming-scout", 100),
+      paceOverlayArmed: true, remainingMs: 42_000, clock: "0:42",
+      onScoutNext() {},
+    });
+    const running = renderToStaticMarkup(MissionCard(props));
+    assert.match(running, /reply-pace/);
+    assert.match(running, /0:42/);
+    assert.doesNotMatch(running, /incoming-scout|>Next<|>Skip<|>Dismiss</);
+    const over = renderToStaticMarkup(MissionCard({ ...props, remainingMs: 0 }));
+    assert.match(over, /incoming-scout/);
+    assert.doesNotMatch(over, /reply-pace|>For You</);
+  });
+
+  it("Bypass clears the incoming Scout overlay without advancing again", () => {
+    const lock = { phase: "scout_reply", cardId: "S", surface: null } as const;
+    let overlayArmed = true;
+    let advances = 0;
+    bypassApproachPace(lock, {
+      overlayArmed,
+      bypass() { overlayArmed = false; },
+    }, () => { advances++; });
+    assert.equal(overlayArmed, false);
+    assert.equal(advances, 0);
+    assert.equal(lock.cardId, "S");
+    bypassApproachPace({ phase: "hold", cardId: null, surface: "for_you" }, {
+      overlayArmed: true, bypass() {},
+    }, () => { advances++; });
+    assert.equal(advances, 1);
+  });
+
   it("hides the pace bar when the hold clock has expired", () => {
     const html = renderToStaticMarkup(
       MissionCard(
