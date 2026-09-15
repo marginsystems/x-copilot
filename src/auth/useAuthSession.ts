@@ -31,10 +31,9 @@ export function useAuthSession({
   const setAuthNotice = (notice: string) => session.setNotice(notice, generation);
   const setAuthUser: Dispatch<SetStateAction<AuthSessionUser | null>> = (value) => {
     if (!session.isCurrent(generation)) return;
-    session.updateUser(
-      typeof value === "function" ? value(session.getSnapshot().user) : value,
-      generation,
-    );
+    const user = typeof value === "function" ? value(session.getSnapshot().user) : value;
+    if (user === null) session.clearUser(generation);
+    else session.updateUser(user, generation);
   };
   function applyAuthUser(user: AuthSessionUser | null, required = true) {
     return session.verify(user, required, generation);

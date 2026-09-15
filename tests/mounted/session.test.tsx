@@ -89,6 +89,17 @@ test("indeterminate auth failure does not invalidate the current session", async
   expect(setItem).not.toHaveBeenCalledWith(SESSION_RESET_KEY, expect.anything());
 });
 
+test("clearing a missing auth user does not invalidate the session", () => {
+  const { result } = renderHook(useHarness, { wrapper: SessionBoundary });
+  const generation = result.current.session.capture();
+  act(() => { result.current.finishOnboarding("local agenda"); });
+  expect(result.current.authUser).toBeNull();
+  expect(result.current.agenda).toBe("local agenda");
+  expect(result.current.session.isCurrent(generation)).toBe(true);
+  act(() => { result.current.applyAuthUser(owner("local-owner")); });
+  expect(result.current.authUser?.id).toBe("local-owner");
+});
+
 test("cross-tab invalidation clears memoized cache and state without rebroadcast", () => {
   const { result } = renderHook(useHarness, { wrapper: SessionBoundary });
   act(() => { result.current.applyAuthUser(owner("a")); result.current.setAgenda("private"); });

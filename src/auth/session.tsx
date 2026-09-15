@@ -80,6 +80,11 @@ export function createSession() {
       if (!session.isCurrent(generation)) return;
       session.verify(user, snapshot.required, generation);
     },
+    clearUser(generation: number) {
+      if (!session.isCurrent(generation)) return;
+      if (snapshot.user) clearDeskBootCache();
+      publish({ ...snapshot, user: null });
+    },
     setNotice(notice: string, generation: number) {
       if (generation === snapshot.generation) publish({ ...snapshot, notice });
     },
