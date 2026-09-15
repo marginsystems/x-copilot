@@ -156,7 +156,7 @@ describe("Approach lock", () => {
     );
   });
 
-  it("Next honors the reply minute on a For You task and on a detected Scout", () => {
+  it("Next selects inventory during the minute for For You and Scout", () => {
     const paced = { ...inventory, paceLocked: true };
     const forYou = {
       phase: "silent_refuel",
@@ -165,17 +165,19 @@ describe("Approach lock", () => {
     } as const;
     const hold = { phase: "hold", cardId: null, surface: "for_you" } as const;
     assert.deepEqual(
-      advanceApproach(forYou, { type: "next" }, paced),
-      { phase: "hold", cardId: null, surface: "for_you" },
+      advanceApproach(forYou, { type: "next" }, { ...paced, scoutId: "S" }),
+      { phase: "scout_reply", cardId: "S", surface: null },
     );
-    assert.equal(advanceApproach(hold, { type: "next" }, paced), hold);
+    assert.deepEqual(advanceApproach(hold, { type: "next" }, paced), {
+      phase: "scout_reply", cardId: "scout-2", surface: null,
+    });
     assert.deepEqual(
       advanceApproach(
         { phase: "scout_reply", cardId: "scout-1", surface: null },
         { type: "next" },
         paced,
       ),
-      { phase: "hold", cardId: null, surface: "for_you" },
+      { phase: "organic_reply", cardId: "suggested-1", surface: null },
     );
     assert.deepEqual(
       advanceApproach(forYou, { type: "bypass" }, paced),

@@ -7,6 +7,34 @@ import {
   seedReplyPaceUntil,
 } from "../lib/replyPace";
 
+const REPLY_PACE_OVERLAY_KEY = "x-copilot-reply-pace-overlay";
+
+export function readReplyPaceOverlay(): boolean {
+  try {
+    return sessionStorage.getItem(REPLY_PACE_OVERLAY_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function armReplyPaceOverlay(): void {
+  try {
+    sessionStorage.setItem(REPLY_PACE_OVERLAY_KEY, "1");
+  } catch {
+    /* private mode */
+  }
+  window.dispatchEvent(new Event(REPLY_PACE_EVENT));
+}
+
+export function clearReplyPaceOverlay(): void {
+  try {
+    sessionStorage.removeItem(REPLY_PACE_OVERLAY_KEY);
+  } catch {
+    /* private mode */
+  }
+  window.dispatchEvent(new Event(REPLY_PACE_EVENT));
+}
+
 export function readReplyPaceUntil(): number | null {
   try {
     return parseReplyPaceUntil(sessionStorage.getItem(REPLY_PACE_STORAGE_KEY));
@@ -57,6 +85,7 @@ export function seedReplyPaceFromReplyAt(
 export function clearReplyPace(markCleared = true): void {
   try {
     sessionStorage.removeItem(REPLY_PACE_STORAGE_KEY);
+    sessionStorage.removeItem(REPLY_PACE_OVERLAY_KEY);
     if (markCleared) sessionStorage.setItem(REPLY_PACE_CLEARED_KEY, "1");
   } catch {
     /* private mode */

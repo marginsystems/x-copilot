@@ -55,6 +55,7 @@ import {
   writeRetainedSuggestion,
 } from "./approachRetained";
 import { pickApproachScout } from "./approachScout";
+import { clearReplyPaceOverlay } from "./replyPaceStore";
 import type {
   DismissalHistoryEntry,
   InteractionHistoryEntry,
@@ -92,6 +93,14 @@ export type UseApproachTaskOpts = {
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
   onHydrateInteracted: (preservedId?: string | null) => void | Promise<void>;
 };
+
+export function bypassApproachPace(
+  pace: Pick<ReturnType<typeof useReplyPace>, "bypass" | "overlayArmed">,
+  advance: () => void,
+) {
+  pace.bypass();
+  if (!pace.overlayArmed) advance();
+}
 
 export function useApproachTask(opts: UseApproachTaskOpts) {
   const {
@@ -246,8 +255,14 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   hydrateInteractedRef.current = onHydrateInteracted;
 
   /** Persist and publish one task state; transfer Scout preservation atomically. */
-  function commit(next: ApproachTaskState) {
+  function commit(next: ApproachTaskState, preserveOverlay = false) {
     const prev = stateRef.current;
+    if (
+      !preserveOverlay && pace.overlayArmed && prev &&
+      prev.lock.cardId !== next.lock.cardId
+    ) {
+      clearReplyPaceOverlay();
+    }
     stateRef.current = next;
     writeApproachLock(userId, next.lock);
     if (next.wait) writeForYouWait(next.wait);
@@ -289,15 +304,22 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       { owner, coaching: coachingRef.current },
     );
     if (next === current) return;
+    const armOverlay =
+      event.type === "next" &&
+      next.lock !== current.lock && pace.remainingMs > 0;
+    if (armOverlay) {
+      pace.armOverlay();
+    }
     if (current.lock.cardId && current.lock.cardId !== next.lock.cardId) {
       releasedIdsRef.current.add(current.lock.cardId);
     }
-    commit(next);
+    commit(next, armOverlay);
   }
 
   useEffect(() => {
     if (ownerRef.current === owner) return;
     ownerRef.current = owner;
+    clearReplyPaceOverlay();
     stateRef.current = null;
     releasedIdsRef.current = new Set();
     setState(null);
@@ -351,6 +373,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     suggestionDetected,
     forYou: wait ? { detected: forYouWaitDetected(wait, coaching) } : null,
     remainingMs: pace.remainingMs,
+    paceOverlayArmed: pace.overlayArmed,
     searching,
     scoutStage,
     scoutLine,
@@ -484,8 +507,9 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     clock: pace.clock,
     exitingIds,
     onBypass() {
-      pace.bypass();
-      advanceCard({ type: "bypass" });
+      bypassApproachPace(pace, () => {
+        advanceCard({ type: "bypass" });
+      });
     },
     onScoutSkip(thread: ThreadCard) {
       exitRow(thread.id, thread.id, async () => {
