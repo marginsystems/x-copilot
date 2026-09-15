@@ -74,7 +74,7 @@ Client writes that change server or durable client state. Reads are omitted unle
 | GET `/api/scout/last?autoStart=1` | `useScoutRun.ts:135–137`, `:373–376` | Poll can request automatic collection while signed out. Server branch is `server/src/scoutHttp.ts` `autoStart`. |
 | PUT `/api/scout-approach-lock` | `useApproachTask.ts:419` | Detection correlation for the webhook. Not a second card chooser. |
 | POST `/api/skipped`, `/api/dismissed` | `useSkipDismiss.ts:51`, `:123` | Fired from Approach via `beginExit`. Timer can fire after unmount (F03). |
-| POST `/api/for-you/:id/{done,skip,dismiss}` | `useDeskHistory.ts` `actForYou` | Detected-suggestion next (`useApproachTask.ts:465–467`) advances the lock before awaiting `actForYou` and ignores the boolean (F06). Other suggestion actions wait for success (`:509–527`). |
+| POST `/api/for-you/:id/{done,skip,dismiss}` | `useDeskHistory.ts` `actForYou` | Detected-suggestion next (`useApproachTask.ts:472–475`) advances the lock before awaiting `actForYou` and ignores the boolean (F06). Other suggestion actions wait for success (`:509–527`). |
 | POST `/api/watch`, `/api/activity/subscribe` | `src/desk/watch.ts:39–47` | Fire-and-forget. Boot also calls subscribe. |
 | POST `/api/onboarding/generate`, `/complete` | `Onboarding.tsx:130`, `:184` | First-run only. |
 | POST `/api/voice/stances`, `/suggest`, `/verify`, `/post` | `SuggestPane.tsx` | Stance → suggest → edit → verify → post. Session/attempt guards live here. |
