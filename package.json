@@ -21,7 +21,9 @@
     "test:search": "tsx scripts/test-search.ts",
     "probe:tags": "tsx scripts/probe-triage-tags.ts",
     "memory:reindex": "tsx scripts/reindex-memory.ts",
-    "test:unit": "tsx --test server/src/**/*.test.ts src/**/*.test.ts analytics/src/**/*.test.ts webhook/src/**/*.test.ts",
+    "test:unit": "tsx scripts/test-inventory.ts run",
+    "test:unit:list": "tsx scripts/test-inventory.ts list",
+    "test:unit:coverage": "tsx scripts/test-inventory.ts coverage",
     "test:mounted": "vitest run --config vitest.mounted.config.ts",
     "test:mounted:list": "vitest list --config vitest.mounted.config.ts",
     "typecheck:mounted": "tsc --noEmit -p tsconfig.mounted.json"
