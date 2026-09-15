@@ -260,8 +260,8 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   function commit(next: ApproachTaskState, preserveOverlay = false) {
     const prev = stateRef.current;
     if (
-      !preserveOverlay && pace.overlayArmed &&
-      prev?.lock.cardId !== next.lock.cardId
+      !preserveOverlay && pace.overlayArmed && prev &&
+      prev.lock.cardId !== next.lock.cardId
     ) {
       clearReplyPaceOverlay();
     }
