@@ -157,6 +157,25 @@ export async function markOwnReplyInteracted(
   return source;
 }
 
+async function wakeDesk(parsed: ParsedPostCreate, userId: string): Promise<void> {
+  if (parsed.kind === "repost") return;
+  try {
+    const response = await fetch("http://127.0.0.1:8787/api/desk/events/wake", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.DESK_EVENTS_SECRET?.trim() ?? ""}`,
+      },
+      body: JSON.stringify({ userId, id: parsed.postId, kind: parsed.kind, postedAt: parsed.postedAt }),
+      signal: AbortSignal.timeout(250),
+    });
+    await response.body?.cancel();
+    if (!response.ok) console.warn("[xaa] desk wake soft-fail", response.status);
+  } catch {
+    console.warn("[xaa] desk wake soft-fail");
+  }
+}
+
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -276,6 +295,7 @@ async function handleActivityPost(
   }
   rememberActivityEvent(parsed.eventUuid, parsed.postedAt);
   upsertOwnPost({ parsed, userId, tenantId });
+  void wakeDesk(parsed, userId);
   recordUsageEvent({
     method: "POST",
     path: "/tweets/activity/post.create",

@@ -548,4 +548,46 @@ describe("own reply interaction capture", () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
+
+  it("still 200s when the desk wake fetch throws", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = String(input);
+      if (url.includes("/api/desk/events/wake")) {
+        throw new Error("wake down");
+      }
+      return original(input, init);
+    }) as typeof fetch;
+    const server = createWebhookServer();
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const port = (server.address() as AddressInfo).port;
+    const body = JSON.stringify({
+      data: {
+        event_uuid: "wake-fail",
+        event_type: "post.create",
+        filter: { user_id: "x-user" },
+        payload: {
+          id: "wake-fail-post",
+          author_id: "x-user",
+          text: "original",
+          created_at: "2026-09-04T03:00:00.000Z",
+        },
+      },
+    });
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/x/activity`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-twitter-webhooks-signature": crcResponseToken(body, "secret"),
+        },
+        body,
+      });
+      assert.deepEqual(await res.json(), { ok: true });
+    } finally {
+      globalThis.fetch = original;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
 });

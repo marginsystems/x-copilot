@@ -16,7 +16,11 @@ ALLOWED_ORIGINS=https://xcopilot.dev
 FRONTEND_ORIGIN=https://xcopilot.dev
 GOOGLE_REDIRECT_URI=https://api.xcopilot.dev/api/auth/google/callback
 X_OAUTH_CALLBACK=https://api.xcopilot.dev/api/auth/x/callback
+DESK_EVENTS_SECRET=                 # same value in the API and webhook processes
 ```
+
+`DESK_EVENTS_SECRET` authenticates the webhook process's loopback wake requests
+to the API. Set it identically in both processes and restart both after changing it.
 
 Signup is open (Free plan). A session is still required: public bind always gates, and loopback defaults to gated unless `AUTH_REQUIRED=0`. Set `AUTH_REQUIRED=0` only for break-glass local debugging — never on the deployed `.env`. Keep `ADMIN_EMAILS` for the operator admin panel.
 
