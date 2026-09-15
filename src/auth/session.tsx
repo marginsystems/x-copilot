@@ -52,7 +52,7 @@ export function createSession() {
         user: null,
         checked: true,
         required: true,
-        active: true,
+        active: false,
         notice,
       });
       if (notifyTabs) broadcast();

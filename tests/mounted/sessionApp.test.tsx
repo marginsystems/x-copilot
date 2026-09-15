@@ -23,13 +23,15 @@ test("dashboard reload with cached identity paints only verification until serve
   window.history.replaceState({}, "", "/dashboard");
   writeDeskBootCache(boot);
   const pending = deferred<Response>();
-  vi.stubGlobal("fetch", vi.fn(() => pending.promise));
+  const fetchMock = vi.fn(() => pending.promise);
+  vi.stubGlobal("fetch", fetchMock);
   const first = render(<App />);
   expect(screen.getByText("Checking your session…")).toBeTruthy();
   expect(screen.queryByText("Private Owner")).toBeNull();
   expect(screen.queryByText("Private agenda")).toBeNull();
   await act(async () => { pending.resolve(Response.json({ ok: false }, { status: 401 })); await pending.promise; });
   expect(screen.queryByText("Checking your session…")).toBeNull();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(peekDeskBootCache(user.id)).toBeNull();
   first.unmount();
   const reload = deferred<Response>();
