@@ -1,4 +1,4 @@
-# Unit tests + typecheck + Vite build. No live X / Stripe / search probes.
+# Unit + mounted tests, typecheck, and Vite build. No live probes.
 # Omit optional @xenova/transformers — CI never loads MiniLM. That package
 # was 6 of the 7 minutes on npm ci.
 name: CI
@@ -46,5 +46,12 @@ jobs:
             unpack "@esbuild/linux-x64@$(node -p "require('./node_modules/tsx/node_modules/esbuild/package.json').version")" \
               node_modules/tsx/node_modules/@esbuild/linux-x64
           fi
-      - run: npm test
+      - name: List unit tests
+        run: npm run test:unit:list
+      - name: Run unit tests
+        run: npm run test:unit
+      - name: List mounted tests
+        run: npm run test:mounted:list
+      - name: Run mounted tests
+        run: npm run test:mounted
       - run: npm run build
