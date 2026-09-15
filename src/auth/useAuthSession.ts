@@ -1,14 +1,12 @@
 import {
   useState,
+  useSyncExternalStore,
   type Dispatch,
   type SetStateAction,
 } from "react";
 import { apiFetch, apiUrl } from "../lib/apiBase";
-import {
-  clearDeskBootCache,
-  parseAuthSessionUser,
-  peekDeskBootCache,
-} from "../lib/deskBoot";
+import { parseAuthSessionUser } from "../lib/deskBoot";
+import { useSession } from "./session";
 import type { AuthSessionUser } from "./types";
 
 type UseAuthSessionOptions = {
@@ -22,25 +20,28 @@ export function useAuthSession({
   onLoggedOut,
   onOnboardingFinished,
 }: UseAuthSessionOptions) {
-  const cached = peekDeskBootCache();
-  const [authUser, setAuthUser] = useState<AuthSessionUser | null>(
-    () => cached?.user ?? null,
-  );
+  const session = useSession();
+  const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
+  const generation = snapshot.generation;
+  const authUser = snapshot.user;
+  const authChecked = snapshot.checked;
+  const authRequired = snapshot.required;
+  const authNotice = snapshot.notice;
   const [onboardingDoneLocal, setOnboardingDoneLocal] = useState(false);
-  const [authChecked, setAuthChecked] = useState(() => Boolean(cached?.user));
-  const [authRequired, setAuthRequired] = useState(
-    () => cached?.authRequired ?? true,
-  );
-  const [authNotice, setAuthNotice] = useState("");
-
-  function applyAuthUser(
-    user: AuthSessionUser | null,
-    required = true,
-  ): AuthSessionUser | null {
-    setAuthRequired(required);
-    setAuthUser(user);
-    setAuthChecked(true);
-    return user;
+  const setAuthNotice = (notice: string) => session.setNotice(notice, generation);
+  const setAuthUser: Dispatch<SetStateAction<AuthSessionUser | null>> = (value) => {
+    if (!session.isCurrent(generation)) return;
+    const user = typeof value === "function" ? value(session.getSnapshot().user) : value;
+    if (user === null) session.clearUser(generation);
+    else session.updateUser(user, generation);
+  };
+  function applyAuthUser(user: AuthSessionUser | null, required = true) {
+    return session.verify(user, required, generation);
+  }
+  function invalidateSession() {
+    if (!session.isCurrent(generation)) return false;
+    session.invalidate();
+    return true;
   }
 
   async function hydrateAuth(): Promise<AuthSessionUser | null> {
@@ -57,7 +58,8 @@ export function useAuthSession({
         res.ok && data.ok ? parseAuthSessionUser(data.user) : null;
       return applyAuthUser(user, data.authRequired ?? true);
     } catch {
-      return applyAuthUser(null);
+      const current = session.getSnapshot();
+      return applyAuthUser(current.user, current.user ? current.required : false);
     }
   }
 
@@ -70,15 +72,22 @@ export function useAuthSession({
   }
 
   async function onLogout() {
-    try {
-      await apiFetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      /* still clear local */
-    }
-    setAuthUser(null);
-    clearDeskBootCache();
-    setAuthNotice("Signed out.");
+    if (!session.isCurrent(generation)) return;
+    const resetGeneration = session.invalidate("Signing out…");
     onLoggedOut();
+    try {
+      const response = await apiFetch("/api/auth/logout", {
+        method: "POST",
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) throw new Error(`Logout failed (${response.status})`);
+      session.setNotice("Signed out.", resetGeneration);
+    } catch {
+      session.setNotice(
+        "This tab was cleared, but server sign-out could not be confirmed. Your session may still be active; reload and try signing out again.",
+        resetGeneration,
+      );
+    }
   }
 
   function finishOnboarding(agenda: string) {
@@ -98,6 +107,7 @@ export function useAuthSession({
 
   return {
     authUser,
+    invalidateSession,
     setAuthUser,
     onboardingDoneLocal,
     authChecked,

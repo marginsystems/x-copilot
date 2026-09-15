@@ -4,6 +4,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { useSession } from "../auth/session";
 import type { AuthSessionUser } from "../auth/types";
 import { viewFromPath, type AppView } from "../lib/appView";
 import { readBootQuery } from "../lib/bootQuery";
@@ -50,6 +51,7 @@ type UseDeskBootOpts = {
  * unavailable. Owns the readiness flags the desk waits on.
  */
 export function useDeskBoot(opts: UseDeskBootOpts) {
+  const session = useSession();
   const [agendaReady, setAgendaReady] = useState(false);
   const [deskBootReady, setDeskBootReady] = useState(false);
   const [onboardingSeedAgenda, setOnboardingSeedAgenda] = useState<
@@ -57,6 +59,8 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
   >(null);
 
   useEffect(() => {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
     const {
       setAgenda,
       setAuthNotice,
@@ -131,8 +135,10 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       };
 
       const boot = await fetchDeskBoot(opts.dedupeAccounts);
+      if (!session.isCurrent(generation)) return;
       if (boot.status === "ok") {
         const user = applyAuthUser(boot.payload.user, boot.payload.authRequired);
+        if (!session.isCurrent(generation)) return;
         if (err && !user) setSignInOpen(true);
         applyUser(user);
         if (boot.payload.desk) {
@@ -144,6 +150,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         if (checkout === "success" && sessionId) {
           await confirmCheckout(sessionId);
         }
+        if (!session.isCurrent(generation)) return;
         refreshAfterPaint(user, false);
         setDeskBootReady(true);
         return;
@@ -151,6 +158,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
 
       if (boot.status === "unauthenticated") {
         applyAuthUser(null, boot.authRequired);
+        if (!session.isCurrent(generation)) return;
         clearDeskBootCache();
         if (err) setSignInOpen(true);
         applyUser(null);
@@ -160,12 +168,15 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
 
       clearDeskBootCache();
       const user = await hydrateAuth();
+      if (!session.isCurrent(generation)) return;
       if (err && !user) setSignInOpen(true);
       const onboarded = applyUser(user);
       await hydrateDeskWithoutBoot(onboarded);
+      if (!session.isCurrent(generation)) return;
       if (checkout === "success" && sessionId) {
         await confirmCheckout(sessionId);
       }
+      if (!session.isCurrent(generation)) return;
       refreshAfterPaint(user);
       setDeskBootReady(true);
     })();

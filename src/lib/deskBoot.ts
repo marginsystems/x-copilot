@@ -289,8 +289,16 @@ export function readDeskBootCache(
   }
 }
 
-export function peekDeskBootCache(): DeskBootPayload | null {
-  if (peekMemo !== undefined) return peekMemo;
+/** Display data only. Callers must supply an owner verified by the server.
+ * Omitting the owner deliberately gives unverified hook initializers no seed.
+ */
+export function peekDeskBootCache(
+  verifiedOwnerId: string | null = null,
+): DeskBootPayload | null {
+  if (!verifiedOwnerId) return null;
+  if (peekMemo !== undefined) {
+    return peekMemo?.user?.id === verifiedOwnerId ? peekMemo : null;
+  }
   if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.search);
     if (params.has("auth") || params.has("auth_error")) {
@@ -299,7 +307,7 @@ export function peekDeskBootCache(): DeskBootPayload | null {
     }
   }
   peekMemo = readDeskBootCache();
-  return peekMemo;
+  return peekMemo?.user?.id === verifiedOwnerId ? peekMemo : null;
 }
 
 export function writeDeskBootCache(

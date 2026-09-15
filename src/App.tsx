@@ -52,23 +52,52 @@ import { DeskTop } from "./desk/DeskTop";
 import { ThreadsTabs } from "./desk/ThreadsTabs";
 import { useActivityStrip } from "./desk/useActivityStrip";
 import { useCoaching } from "./desk/useCoaching";
-import { peekDeskBootCache } from "./lib/deskBoot";
+import { SessionBoundary } from "./auth/session";
 
 export default function App() {
-  const cachedBoot = peekDeskBootCache();
+  return (
+    <SessionBoundary>
+      <SessionApp />
+    </SessionBoundary>
+  );
+}
+
+function SessionApp() {
   const [agenda, setAgenda] = useState(
     () =>
-      cachedBoot?.user?.agenda ??
       "Find builders sharing opinions, tradeoffs, or concrete takes on shipping AI / software tools in public. Prefer posts with a clear point of view or a specific technical claim I can agree/disagree with.\nSkip open-ended engagement questions (“what are you shipping?”, “drop your stack”, “who should I follow?”, generic peer polls) even when they mention AI/build-in-public. A lone question with little substance is not interesting.",
   );
   const [status, setStatus] = useState("");
-  const [threads, setThreads] = useState<ThreadCard[]>(
-    () => cachedBoot?.desk?.lastScout.snapshot?.threads ?? [],
-  );
+  const [threads, setThreads] = useState<ThreadCard[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   /** Short mutex for skip/dismiss/settings — not Scout-in-flight. */
   const [actionBusy, setActionBusy] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const {
+    authUser,
+    invalidateSession,
+    setAuthUser,
+    onboardingDoneLocal,
+    authChecked,
+    authRequired,
+    authNotice,
+    setAuthNotice,
+    applyAuthUser,
+    hydrateAuth,
+    startGoogleLogin,
+    startXLogin,
+    onLogout,
+    finishOnboarding,
+    setOnboardingDoneLocal,
+  } = useAuthSession({
+    setAgenda,
+    onLoggedOut: () => closeMenu(),
+    onOnboardingFinished: () => {
+      ensureActivitySubscribe();
+      void hydrateVoice({ skipDaily: true });
+    },
+  });
+  const verifiedOwnerId = authUser?.id ?? null;
   const {
     interactedIds,
     interactedHistory,
@@ -96,7 +125,7 @@ export default function App() {
     setStatus,
     setActionBusy,
     settings,
-  });
+  }, verifiedOwnerId);
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const {
     activityBucket,
@@ -110,8 +139,8 @@ export default function App() {
     onActivityBucket,
     onToggleFlightPath,
     onToggleDeskTop,
-  } = useActivityStrip();
-  const { coaching, applyCoaching, hydrateCoaching } = useCoaching();
+  } = useActivityStrip(verifiedOwnerId);
+  const { coaching, applyCoaching, hydrateCoaching } = useCoaching(verifiedOwnerId);
   const {
     view,
     setView,
@@ -152,29 +181,6 @@ export default function App() {
   const [onboardingPreview, setOnboardingPreview] = useState(false);
   const [simulateUnlinked, setSimulateUnlinked] = useState(false);
   const [previewReachedLink, setPreviewReachedLink] = useState(false);
-  const {
-    authUser,
-    setAuthUser,
-    onboardingDoneLocal,
-    authChecked,
-    authRequired,
-    authNotice,
-    setAuthNotice,
-    applyAuthUser,
-    hydrateAuth,
-    startGoogleLogin,
-    startXLogin,
-    onLogout,
-    finishOnboarding,
-    setOnboardingDoneLocal,
-  } = useAuthSession({
-    setAgenda,
-    onLoggedOut: closeMenu,
-    onOnboardingFinished: () => {
-      ensureActivitySubscribe();
-      void hydrateVoice({ skipDaily: true });
-    },
-  });
   const [theme, setTheme] = useState<Theme>(() =>
     typeof document === "undefined" ? "dark" : readTheme(),
   );
@@ -580,9 +586,7 @@ export default function App() {
           onGoogle={startGoogleLogin}
           onX={startXLogin}
           onSignedOut={() => {
-            setAuthUser(null);
-            setAuthNotice("Signed out.");
-            goToView("home");
+            if (invalidateSession()) goToView("home");
           }}
         />
       ) : null}
