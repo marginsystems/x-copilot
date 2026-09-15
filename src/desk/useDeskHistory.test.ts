@@ -104,7 +104,7 @@ describe("keepCuratedByHistory", () => {
           setStatus: () => {},
           setActionBusy: () => {},
           settings: {} as AppSettings,
-        });
+        }, null);
         return null;
       }
 

@@ -8,9 +8,9 @@ import {
 import { peekDeskBootCache } from "../lib/deskBoot";
 import { useRehydrateOnVisible } from "./useDeskHistory";
 
-export function useCoaching() {
+export function useCoaching(verifiedOwnerId: string | null) {
   const [coaching, setCoaching] = useState<CoachingState | null>(
-    () => peekDeskBootCache()?.desk?.coaching ?? null,
+    () => peekDeskBootCache(verifiedOwnerId)?.desk?.coaching ?? null,
   );
   const requestSeqRef = useRef(0);
 

@@ -158,6 +158,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
 
       if (boot.status === "unauthenticated") {
         applyAuthUser(null, boot.authRequired);
+        if (!session.isCurrent(generation)) return;
         clearDeskBootCache();
         if (err) setSignInOpen(true);
         applyUser(null);

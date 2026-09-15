@@ -14,8 +14,8 @@ import {
   type GamificationStats,
 } from "../lib/gamification";
 
-export function useActivityStrip() {
-  const seed = peekDeskBootCache()?.desk ?? null;
+export function useActivityStrip(verifiedOwnerId: string | null) {
+  const seed = peekDeskBootCache(verifiedOwnerId)?.desk ?? null;
   const seedBucket = seed?.activityStats.bucket ?? "day";
   const [activityBucket, setActivityBucket] = useState<ActivityBucket>(
     seedBucket,

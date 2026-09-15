@@ -74,6 +74,31 @@ function SessionApp() {
   const [actionBusy, setActionBusy] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const {
+    authUser,
+    invalidateSession,
+    setAuthUser,
+    onboardingDoneLocal,
+    authChecked,
+    authRequired,
+    authNotice,
+    setAuthNotice,
+    applyAuthUser,
+    hydrateAuth,
+    startGoogleLogin,
+    startXLogin,
+    onLogout,
+    finishOnboarding,
+    setOnboardingDoneLocal,
+  } = useAuthSession({
+    setAgenda,
+    onLoggedOut: () => closeMenu(),
+    onOnboardingFinished: () => {
+      ensureActivitySubscribe();
+      void hydrateVoice({ skipDaily: true });
+    },
+  });
+  const verifiedOwnerId = authUser?.id ?? null;
+  const {
     interactedIds,
     interactedHistory,
     interactedHydrated,
@@ -100,7 +125,7 @@ function SessionApp() {
     setStatus,
     setActionBusy,
     settings,
-  });
+  }, verifiedOwnerId);
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const {
     activityBucket,
@@ -114,8 +139,8 @@ function SessionApp() {
     onActivityBucket,
     onToggleFlightPath,
     onToggleDeskTop,
-  } = useActivityStrip();
-  const { coaching, applyCoaching, hydrateCoaching } = useCoaching();
+  } = useActivityStrip(verifiedOwnerId);
+  const { coaching, applyCoaching, hydrateCoaching } = useCoaching(verifiedOwnerId);
   const {
     view,
     setView,
@@ -156,30 +181,6 @@ function SessionApp() {
   const [onboardingPreview, setOnboardingPreview] = useState(false);
   const [simulateUnlinked, setSimulateUnlinked] = useState(false);
   const [previewReachedLink, setPreviewReachedLink] = useState(false);
-  const {
-    authUser,
-    invalidateSession,
-    setAuthUser,
-    onboardingDoneLocal,
-    authChecked,
-    authRequired,
-    authNotice,
-    setAuthNotice,
-    applyAuthUser,
-    hydrateAuth,
-    startGoogleLogin,
-    startXLogin,
-    onLogout,
-    finishOnboarding,
-    setOnboardingDoneLocal,
-  } = useAuthSession({
-    setAgenda,
-    onLoggedOut: closeMenu,
-    onOnboardingFinished: () => {
-      ensureActivitySubscribe();
-      void hydrateVoice({ skipDaily: true });
-    },
-  });
   const [theme, setTheme] = useState<Theme>(() =>
     typeof document === "undefined" ? "dark" : readTheme(),
   );

@@ -108,7 +108,7 @@ test("late boot after invalidation cannot restore identity, desk, or cache", asy
   expect(applyDesk).not.toHaveBeenCalled();
   expect(followup).not.toHaveBeenCalled();
   expect(peekDeskBootCache("late-owner")).toBeNull();
-  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
 test("generation contract expires synchronously, even if storage is unavailable", () => {

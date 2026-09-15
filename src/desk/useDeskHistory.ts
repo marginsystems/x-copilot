@@ -87,10 +87,13 @@ export function keepCuratedByHistory(
   );
 }
 
-export function useDeskHistory(deps: DeskHistoryDeps) {
+export function useDeskHistory(
+  deps: DeskHistoryDeps,
+  verifiedOwnerId: string | null,
+) {
   const { setThreads, setStatus, setActionBusy } = deps;
 
-  const seed = peekDeskBootCache()?.desk ?? null;
+  const seed = peekDeskBootCache(verifiedOwnerId)?.desk ?? null;
   const [interactedIds, setInteractedIds] = useState<Set<string>>(
     () => new Set(seed?.interacted.activeIds ?? []),
   );
