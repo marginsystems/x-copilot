@@ -15,12 +15,16 @@
     "preview": "vite preview",
     "deploy:workers": "vite build && npx wrangler deploy",
     "check:file-sizes": "tsx scripts/check-file-sizes.ts",
-    "test": "tsx --test server/src/**/*.test.ts src/**/*.test.ts analytics/src/**/*.test.ts webhook/src/**/*.test.ts",
+    "test": "npm run test:unit",
     "test:x-api": "tsx scripts/test-x-api.ts",
     "test:stripe": "tsx scripts/test-stripe.ts",
     "test:search": "tsx scripts/test-search.ts",
     "probe:tags": "tsx scripts/probe-triage-tags.ts",
-    "memory:reindex": "tsx scripts/reindex-memory.ts"
+    "memory:reindex": "tsx scripts/reindex-memory.ts",
+    "test:unit": "tsx --test server/src/**/*.test.ts src/**/*.test.ts analytics/src/**/*.test.ts webhook/src/**/*.test.ts",
+    "test:mounted": "vitest run --config vitest.mounted.config.ts",
+    "test:mounted:list": "vitest list --config vitest.mounted.config.ts",
+    "typecheck:mounted": "tsc --noEmit -p tsconfig.mounted.json"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.2",
@@ -33,14 +37,18 @@
     "@xenova/transformers": "^2.17.2"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/better-sqlite3": "^7.6.13",
     "@types/franc": "^5.0.3",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^26.1.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^3.2.7"
   }
 }
