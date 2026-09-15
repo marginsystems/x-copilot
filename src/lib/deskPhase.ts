@@ -46,7 +46,7 @@ export type ApproachInventory = {
   canPresentForYou: boolean;
   /** Missing prerequisite when For You cannot present. */
   gate?: ApproachGate | null;
-  /** Remaining reply minute. Next honors it; Bypass is the exception. */
+  /** Remaining reply minute; it does not change the inventory choice. */
   paceLocked?: boolean;
 };
 
@@ -229,9 +229,6 @@ export function advanceApproach(
   }
   if (isForYouTask(locked)) {
     if (event.type === "next") {
-      if (inventory.paceLocked) {
-        return locked.phase === "hold" ? locked : { ...HOLD_LOCK };
-      }
       return nextInventoryCard(inventory, null, locked.phase);
     }
     if (event.type === "bypass") {
@@ -243,7 +240,6 @@ export function advanceApproach(
       if (locked.cardId === null) {
         return inventory.scoutId ? nextScoutCard(inventory.scoutId, null) : locked;
       }
-      if (inventory.paceLocked) return { ...HOLD_LOCK };
       return nextInventoryCard(inventory, locked.cardId, locked.phase);
     }
     if (event.type === "mark") {
@@ -257,7 +253,6 @@ export function advanceApproach(
   }
   if (locked.phase === "organic_reply") {
     if (event.type === "next") {
-      if (inventory.paceLocked) return { ...HOLD_LOCK };
       return nextInventoryCard(inventory, locked.cardId, locked.phase, true);
     }
     if (event.type === "posted" || event.type === "skip" || event.type === "dismiss") {
