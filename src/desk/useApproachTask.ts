@@ -56,6 +56,7 @@ import {
   writeRetainedSuggestion,
 } from "./approachRetained";
 import { pickApproachScout } from "./approachScout";
+import { clearReplyPaceOverlay } from "./replyPaceStore";
 import type {
   DismissalHistoryEntry,
   InteractionHistoryEntry,
@@ -256,8 +257,14 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   hydrateInteractedRef.current = onHydrateInteracted;
 
   /** Persist and publish one task state; transfer Scout preservation atomically. */
-  function commit(next: ApproachTaskState) {
+  function commit(next: ApproachTaskState, preserveOverlay = false) {
     const prev = stateRef.current;
+    if (
+      !preserveOverlay && pace.overlayArmed &&
+      prev?.lock.cardId !== next.lock.cardId
+    ) {
+      clearReplyPaceOverlay();
+    }
     stateRef.current = next;
     writeApproachLock(userId, next.lock);
     if (next.wait) writeForYouWait(next.wait);
@@ -299,21 +306,22 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       { owner, coaching: coachingRef.current },
     );
     if (next === current) return;
-    if (
+    const armOverlay =
       event.type === "next" && isForYouTask(current.lock) &&
-      next.lock !== current.lock && pace.remainingMs > 0
-    ) {
+      next.lock !== current.lock && pace.remainingMs > 0;
+    if (armOverlay) {
       pace.armOverlay();
     }
     if (current.lock.cardId && current.lock.cardId !== next.lock.cardId) {
       releasedIdsRef.current.add(current.lock.cardId);
     }
-    commit(next);
+    commit(next, armOverlay);
   }
 
   useEffect(() => {
     if (ownerRef.current === owner) return;
     ownerRef.current = owner;
+    clearReplyPaceOverlay();
     stateRef.current = null;
     releasedIdsRef.current = new Set();
     setState(null);

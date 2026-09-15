@@ -26,6 +26,15 @@ export function armReplyPaceOverlay(): void {
   window.dispatchEvent(new Event(REPLY_PACE_EVENT));
 }
 
+export function clearReplyPaceOverlay(): void {
+  try {
+    sessionStorage.removeItem(REPLY_PACE_OVERLAY_KEY);
+  } catch {
+    /* private mode */
+  }
+  window.dispatchEvent(new Event(REPLY_PACE_EVENT));
+}
+
 export function readReplyPaceUntil(): number | null {
   try {
     return parseReplyPaceUntil(sessionStorage.getItem(REPLY_PACE_STORAGE_KEY));

@@ -13,6 +13,7 @@ import {
 
 import {
   armReplyPaceOverlay,
+  clearReplyPaceOverlay,
   clearReplyPace,
   readReplyPaceOverlay,
 } from "../desk/replyPaceStore.ts";
@@ -41,6 +42,29 @@ describe("reply pace overlay storage", () => {
       clearReplyPace(markCleared);
       assert.equal(readReplyPaceOverlay(), false);
     }
+  });
+
+  it("clears only the overlay marker", (t) => {
+    const stored = new Map<string, string>();
+    const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+    const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+    Object.defineProperty(globalThis, "sessionStorage", { configurable: true, value: {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+      removeItem: (key: string) => stored.delete(key),
+    } });
+    Object.defineProperty(globalThis, "window", { configurable: true, value: new EventTarget() });
+    t.after(() => {
+      if (storageDescriptor) Object.defineProperty(globalThis, "sessionStorage", storageDescriptor);
+      else Reflect.deleteProperty(globalThis, "sessionStorage");
+      if (windowDescriptor) Object.defineProperty(globalThis, "window", windowDescriptor);
+      else Reflect.deleteProperty(globalThis, "window");
+    });
+    stored.set("x-copilot-reply-pace-until", "1700000060000");
+    armReplyPaceOverlay();
+    clearReplyPaceOverlay();
+    assert.equal(readReplyPaceOverlay(), false);
+    assert.equal(stored.get("x-copilot-reply-pace-until"), "1700000060000");
   });
 });
 
