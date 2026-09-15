@@ -86,6 +86,7 @@ export async function searchTimeline(opts: {
   applyRecency?: boolean;
   /** Stable v2 recent-search start_time shared across pagination pages. */
   startTime?: string;
+  endTime?: string;
   /** When false, do not bill includes.tweets parents. Default true. */
   expandReferenced?: boolean;
   session?: XApiCreds;
@@ -128,6 +129,7 @@ export async function searchTimeline(opts: {
   const product = opts.product ?? "Latest";
   const within = stripped.within ?? resolveWithinTime();
   const startTime = opts.startTime ?? startTimeFromWithin(within);
+  const endTime = opts.endTime?.trim();
 
   const res = await xApiGet({
     path: "/tweets/search/recent",
@@ -135,6 +137,7 @@ export async function searchTimeline(opts: {
       query,
       max_results: String(count),
       start_time: startTime,
+      ...(endTime ? { end_time: endTime } : {}),
       sort_order: product === "Top" ? "relevancy" : "recency",
       "tweet.fields":
         "created_at,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,entities,attachments,public_metrics,note_tweet,article,card_uri",
@@ -178,6 +181,7 @@ export async function searchTimelinePages(opts: {
   cursor?: string;
   /** Stable v2 recent-search window shared with the incoming cursor. */
   startTime?: string;
+  endTime?: string;
   /** When false, do not bill includes.tweets parents. Default true. */
   expandReferenced?: boolean;
   session?: XApiCreds;
@@ -211,6 +215,7 @@ export async function searchTimelinePages(opts: {
     startTimeFromWithin(
       stripSessionTimeOps(query).within ?? resolveWithinTime(),
     );
+  const endTime = opts.endTime?.trim() || undefined;
 
   for (let page = 0; page < maxPages; page++) {
     if (opts.signal?.aborted) {
@@ -230,6 +235,7 @@ export async function searchTimelinePages(opts: {
       count: opts.count ?? 20,
       cursor,
       startTime,
+      endTime,
       expandReferenced: opts.expandReferenced,
       session: opts.session,
       signal: opts.signal,
