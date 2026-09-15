@@ -12,6 +12,8 @@ import {
 } from "./replyPace.ts";
 
 import {
+  armReplyPace,
+  seedReplyPaceFromReplyAt,
   armReplyPaceOverlay,
   clearReplyPaceOverlay,
   clearReplyPace,
@@ -36,6 +38,12 @@ describe("reply pace overlay storage", () => {
       else Reflect.deleteProperty(globalThis, "window");
     });
     assert.equal(readReplyPaceOverlay(), false);
+    const now = Date.parse("2026-09-15T12:00:20.000Z");
+    assert.equal(seedReplyPaceFromReplyAt("2026-09-15T12:00:00.000Z", now),
+      Date.parse("2026-09-15T12:01:00.000Z"));
+    assert.equal(readReplyPaceOverlay(), false, "Detect seeds data without an overlay");
+    armReplyPace(now);
+    assert.equal(readReplyPaceOverlay(), false, "A running clock does not arm the overlay");
     for (const markCleared of [false, true]) {
       armReplyPaceOverlay();
       assert.equal(readReplyPaceOverlay(), true);

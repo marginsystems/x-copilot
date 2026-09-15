@@ -32,7 +32,6 @@ import {
   isForYouTask,
   type ApproachEvent,
   type ApproachInventory,
-  type ApproachLock,
 } from "../lib/deskPhase";
 import { eligibleScoutCards } from "../lib/deskRefuel";
 import type { ForYouSuggestion } from "../lib/forYou";
@@ -96,12 +95,11 @@ export type UseApproachTaskOpts = {
 };
 
 export function bypassApproachPace(
-  lock: ApproachLock | null,
   pace: Pick<ReturnType<typeof useReplyPace>, "bypass" | "overlayArmed">,
   advance: () => void,
 ) {
   pace.bypass();
-  if (!pace.overlayArmed || (lock && isForYouTask(lock))) advance();
+  if (!pace.overlayArmed) advance();
 }
 
 export function useApproachTask(opts: UseApproachTaskOpts) {
@@ -307,7 +305,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     );
     if (next === current) return;
     const armOverlay =
-      event.type === "next" && isForYouTask(current.lock) &&
+      event.type === "next" &&
       next.lock !== current.lock && pace.remainingMs > 0;
     if (armOverlay) {
       pace.armOverlay();
@@ -502,7 +500,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     clock: pace.clock,
     exitingIds,
     onBypass() {
-      bypassApproachPace(stateRef.current?.lock ?? null, pace, () => {
+      bypassApproachPace(pace, () => {
         advanceCard({ type: "bypass" });
       });
     },

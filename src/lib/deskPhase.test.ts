@@ -156,7 +156,7 @@ describe("Approach lock", () => {
     );
   });
 
-  it("For You Next locks Scout during the minute; Scout Next still holds", () => {
+  it("Next selects inventory during the minute for For You and Scout", () => {
     const paced = { ...inventory, paceLocked: true };
     const forYou = {
       phase: "silent_refuel",
@@ -177,7 +177,7 @@ describe("Approach lock", () => {
         { type: "next" },
         paced,
       ),
-      { phase: "hold", cardId: null, surface: "for_you" },
+      { phase: "organic_reply", cardId: "suggested-1", surface: null },
     );
     assert.deepEqual(
       advanceApproach(forYou, { type: "bypass" }, paced),

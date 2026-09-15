@@ -72,7 +72,7 @@ export function restoreApproachTask(opts: {
 /**
  * A card event. No effect synthesizes a transition on its own; the dismiss
  * effect replays one after the write completes. Returns the same state when
- * the event is not legal for the locked card (for example Next during the reply minute).
+ * the event does not change the locked card (for example Next with empty Scout stock).
  */
 export function transitionApproachTask(
   state: ApproachTaskState,

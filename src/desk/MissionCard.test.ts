@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { advanceApproach, type ApproachLock } from "../lib/deskPhase";
 import { bypassApproachPace } from "./useApproachTask";
 import { pickApproachScout } from "./approachScout";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
@@ -48,6 +49,7 @@ function missionProps(
     surface: null,
     clock: "",
     remainingMs: 0,
+    paceOverlayArmed: false,
     onBypass() {},
     scout: null,
     scoutDetected: false,
@@ -92,6 +94,54 @@ const detectedSuggestedReply: ForYouSuggestion = {
 };
 
 describe("Reply pace", () => {
+  it("reveals the destination chosen by each paced Next after expiry or Bypass", () => {
+    const cases: { from: ApproachLock; scoutId: string | null; suggestionId: string | null;
+      expected: ApproachLock; visible: RegExp; departed: RegExp }[] = [
+      { from: { phase: "scout_reply", cardId: "departed-scout", surface: null },
+        scoutId: "incoming-scout", suggestionId: null,
+        expected: { phase: "silent_refuel", cardId: null, surface: "for_you" },
+        visible: />For You</, departed: /departed-scout/ },
+      { from: { phase: "organic_reply", cardId: "departed-suggestion", surface: null },
+        scoutId: null, suggestionId: suggestedReply.id,
+        expected: { phase: "organic_reply", cardId: suggestedReply.id, surface: null },
+        visible: /A suggested reply/, departed: /departed-suggestion/ },
+      { from: { phase: "silent_refuel", cardId: null, surface: "for_you" },
+        scoutId: "incoming-scout", suggestionId: null,
+        expected: { phase: "scout_reply", cardId: "incoming-scout", surface: null },
+        visible: /incoming-scout/, departed: />For You</ },
+    ];
+    for (const row of cases) {
+      const lock = advanceApproach(row.from, { type: "next" }, {
+        scoutId: row.scoutId, suggestionId: row.suggestionId,
+        canPresentForYou: true, paceLocked: true,
+      });
+      assert.deepEqual(lock, row.expected);
+      const props = missionProps({
+        ...lock, scout: lock.phase === "scout_reply" ? thread(lock.cardId!, 100) : null,
+        suggestion: lock.phase === "organic_reply" ? suggestedReply : null,
+        forYou: lock.surface === "for_you" ? { detected: false } : null,
+        paceOverlayArmed: true, remainingMs: 42_000, clock: "0:42",
+        onForYouNext() {}, onScoutNext() {},
+      });
+      const running = renderToStaticMarkup(MissionCard(props));
+      assert.match(running, /reply-pace/);
+      assert.doesNotMatch(running, row.visible);
+      for (const bypass of [false, true]) {
+        let advances = 0;
+        if (bypass) bypassApproachPace({
+          overlayArmed: true, bypass() {},
+        }, () => { advances++; });
+        assert.equal(advances, 0);
+        const revealed = renderToStaticMarkup(MissionCard({
+          ...props, paceOverlayArmed: false, remainingMs: 0,
+        }));
+        assert.match(revealed, row.visible);
+        assert.doesNotMatch(revealed, row.departed);
+        assert.doesNotMatch(revealed, /reply-pace/);
+      }
+    }
+  });
+
   it("covers the already-selected Scout, then reveals that Scout at zero", () => {
     const props = missionProps({
       phase: "scout_reply", scout: thread("incoming-scout", 100),
@@ -107,21 +157,32 @@ describe("Reply pace", () => {
     assert.doesNotMatch(over, /reply-pace|>For You</);
   });
 
-  it("Bypass clears the incoming Scout overlay without advancing again", () => {
-    const lock = { phase: "scout_reply", cardId: "S", surface: null } as const;
+  it("Bypass clears the overlay without advancing the already-chosen card", () => {
     let overlayArmed = true;
     let advances = 0;
-    bypassApproachPace(lock, {
+    bypassApproachPace({
       overlayArmed,
       bypass() { overlayArmed = false; },
     }, () => { advances++; });
     assert.equal(overlayArmed, false);
     assert.equal(advances, 0);
-    assert.equal(lock.cardId, "S");
-    bypassApproachPace({ phase: "hold", cardId: null, surface: "for_you" }, {
-      overlayArmed: true, bypass() {},
+    bypassApproachPace({
+      overlayArmed: false, bypass() {},
     }, () => { advances++; });
     assert.equal(advances, 1);
+  });
+
+  it("keeps a legacy hold visible with Next when a live clock has no overlay", () => {
+    for (const detected of [false, true]) {
+      const html = renderToStaticMarkup(MissionCard(missionProps({
+        phase: "hold", surface: "for_you", forYou: { detected },
+        remainingMs: 42_000, clock: "0:42", onForYouNext() {},
+      })));
+      assert.match(html, />For You</);
+      assert.match(html, />Next</);
+      assert.doesNotMatch(html, /reply-pace|0:42|>Bypass</);
+      assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
+    }
   });
 
   it("hides the pace bar when the hold clock has expired", () => {
@@ -290,12 +351,13 @@ describe("Reply pace", () => {
   });
 });
 
-describe("Hold presentation", () => {
-  it("replaces the For You card with the pace row while the minute runs", () => {
+describe("For You overlay presentation", () => {
+  it("replaces the selected For You card only when Next armed the overlay", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
-          phase: "hold",
+          phase: "silent_refuel",
+          paceOverlayArmed: true,
           surface: "for_you",
           forYou: { detected: false },
           clock: "0:42",
@@ -316,7 +378,7 @@ describe("Hold presentation", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
-          phase: "hold",
+          phase: "silent_refuel",
           surface: "for_you",
           forYou: { detected: false },
           clock: "0:00",
@@ -668,11 +730,12 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /You&#x27;re clean/);
   });
 
-  it("covers a detected hold with the pace row until the minute ends", () => {
+  it("covers a detected For You card when Next armed the overlay", () => {
     const running = renderToStaticMarkup(
       MissionCard(
         missionProps({
-          phase: "hold",
+          phase: "silent_refuel",
+          paceOverlayArmed: true,
           surface: "for_you",
           forYou: { detected: true },
           remainingMs: 42_000,
@@ -710,7 +773,7 @@ describe("Approach flight frame", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
-          phase: "hold",
+          phase: "silent_refuel",
           surface: "for_you",
           forYou: { detected: true },
           remainingMs: 0,

@@ -62,7 +62,7 @@ export type ApproachPresentation = {
     status: string;
     actionCopy: string;
     activity: OwnActivity | null;
-    /** The reply minute is running: no Next, Bypass is the exit. */
+    /** Next armed the running reply minute overlay: Bypass is the exit. */
     holding: boolean;
     showNext: boolean;
   } | null;
@@ -79,9 +79,7 @@ function suggestionVerb(row: ForYouSuggestion | null): string {
   return "Suggested reply";
 }
 
-function forYouPresentation(input: ApproachCardInput): ApproachPresentation {
-  const holding = input.remainingMs > 0 &&
-    (input.phase === "hold" || input.paceOverlayArmed === true);
+function forYouPresentation(input: ApproachCardInput, holding: boolean): ApproachPresentation {
   const detected = input.forYou?.detected === true;
   const latestActivity = input.coaching?.ownActivity ?? null;
   const activity =
@@ -119,7 +117,7 @@ function forYouPresentation(input: ApproachCardInput): ApproachPresentation {
 
 export function presentApproach(input: ApproachCardInput): ApproachPresentation {
   const showPace = input.remainingMs > 0 &&
-    (input.phase === "hold" || input.paceOverlayArmed === true);
+    input.paceOverlayArmed === true;
   const blank: ApproachPresentation = {
     kind: "blank",
     verb: "",
@@ -142,9 +140,9 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
         why: input.surface === "link_x" ? GATE_LINK_X_WHY : GATE_SETTINGS_WHY,
       };
     }
-    return forYouPresentation(input);
+    return forYouPresentation(input, showPace);
   }
-  if (input.phase === "hold") return forYouPresentation(input);
+  if (input.phase === "hold") return forYouPresentation(input, showPace);
   if (input.phase === "scout_reply" || input.phase === "done_for_now") {
     if (input.scout) {
       return {

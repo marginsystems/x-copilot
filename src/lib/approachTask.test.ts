@@ -441,13 +441,20 @@ describe("Reply minute destinations", () => {
     wait: openForYouWait({ owner: OWNER, coaching, now: T0 }),
   };
 
-  it("Scout Next Hold reveals For You at zero without changing its identity", () => {
-    const running = present(hold, { remainingMs: 30_000 });
+  it("Scout Next selects For You under the overlay and reveals it at zero", () => {
+    const state = transitionApproachTask(
+      { lock: { phase: "scout_reply", cardId: "A", surface: null }, wait: null },
+      { type: "next" },
+      { scoutId: "B", suggestionId: null, canPresentForYou: true, paceLocked: true },
+      { owner: OWNER, coaching, now: T0 },
+    );
+    assert.deepEqual(state.lock, FOR_YOU);
+    const running = present(state, { remainingMs: 30_000, paceOverlayArmed: true });
     assert.equal(running.verb, "Hold");
     assert.equal(running.forYou?.holding, true);
     assert.equal(running.forYou?.showNext, false);
     assert.equal(running.showPace, true);
-    const over = present(hold, { remainingMs: 0 });
+    const over = present(state, { remainingMs: 0, paceOverlayArmed: false });
     assert.equal(over.verb, "For You");
     assert.equal(over.forYou?.holding, false);
     assert.equal(over.forYou?.showNext, true);
@@ -606,7 +613,7 @@ describe("Scout detection ownership", () => {
     assert.equal(detected.badge, 1);
   });
 
-  it("Next on a detected Scout during the minute holds; otherwise it takes stock", () => {
+  it("Next on a detected Scout selects For You with or without the minute", () => {
     const lock: ApproachLock = { phase: "scout_reply", cardId: "A", surface: null };
     assert.deepEqual(
       advanceApproach(
@@ -614,7 +621,7 @@ describe("Scout detection ownership", () => {
         { type: "next" },
         { scoutId: "B", suggestionId: null, canPresentForYou: true, paceLocked: true },
       ),
-      { phase: "hold", cardId: null, surface: "for_you" },
+      { phase: "silent_refuel", cardId: null, surface: "for_you" },
     );
     assert.deepEqual(
       advanceApproach(
@@ -626,7 +633,7 @@ describe("Scout detection ownership", () => {
     );
   });
 
-  it("Next on a detected Suggested card honors the reply minute", () => {
+  it("Next on a detected Suggested card selects stock with or without the minute", () => {
     const state: ApproachTaskState = {
       lock: { phase: "organic_reply", cardId: "digest-1", surface: null },
       wait: null,
@@ -638,7 +645,7 @@ describe("Scout detection ownership", () => {
         { scoutId: null, suggestionId: "digest-2", canPresentForYou: true, paceLocked: true },
         { owner: OWNER, coaching },
       ).lock,
-      { phase: "hold", cardId: null, surface: "for_you" },
+      { phase: "organic_reply", cardId: "digest-2", surface: null },
     );
     assert.deepEqual(
       transitionApproachTask(
