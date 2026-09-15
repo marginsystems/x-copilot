@@ -1,12 +1,9 @@
-import { startTimeFromWithin, stripSessionTimeOps } from "./xApi.js";
-import {
-  resolveWithinTime,
-  withSearchRecency,
-} from "./xSearch.js";
+import { startTimeFromWithin } from "./xApi.js";
 
 export type ScoutQueryResume = {
   cursor?: string;
   startTime: string;
+  endTime: string;
 };
 
 type ScoutQueryCursorRecord = ScoutQueryResume & {
@@ -21,11 +18,10 @@ export class ScoutCollectCursors {
     const existing = this.records.get(query);
     if (existing) return existing;
 
-    const searchQuery = withSearchRecency(query.trim());
+    const startTime = startTimeFromWithin("12h");
     const created: ScoutQueryCursorRecord = {
-      startTime: startTimeFromWithin(
-        stripSessionTimeOps(searchQuery).within ?? resolveWithinTime(),
-      ),
+      startTime,
+      endTime: new Date(Date.parse(startTime) + 11 * 60 * 60 * 1000).toISOString(),
       exhausted: false,
     };
     this.records.set(query, created);
@@ -38,6 +34,7 @@ export class ScoutCollectCursors {
     return {
       cursor: record.cursor,
       startTime: record.startTime,
+      endTime: record.endTime,
     };
   }
 
