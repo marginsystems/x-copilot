@@ -216,10 +216,10 @@ export async function readLastScoutPayload(opts: {
       agendaSet: t.scoutAgendaSet ?? Boolean(snapshot.agenda),
     }),
   );
+  if (threads.length <= 1 && opts.allowAutoStart !== false) {
+    void startEmptyTankScout(userId, snapshot.filters, opts.deps);
+  }
   if (threads.length === 0) {
-    if (opts.allowAutoStart !== false) {
-      void startEmptyTankScout(userId, snapshot.filters, opts.deps);
-    }
     return withFlight({ ok: true, empty: true });
   }
   return withFlight({
