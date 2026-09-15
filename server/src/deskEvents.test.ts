@@ -44,10 +44,11 @@ function mockRes() {
 async function wake(
   body: unknown,
   remoteAddress = "127.0.0.1",
+  authorization = "Bearer desk-events-test-secret",
 ): Promise<{ handled: boolean; status: number; json: Record<string, unknown> }> {
   const req = Object.assign(new EventEmitter(), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", authorization },
     socket: { remoteAddress },
   }) as unknown as IncomingMessage;
   const { res, status, chunks } = mockRes();
@@ -76,6 +77,7 @@ describe("desk events", () => {
     dir = mkdtempSync(join(tmpdir(), "x-desk-events-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    process.env.DESK_EVENTS_SECRET = "desk-events-test-secret";
     getPlatformDb();
   });
 
@@ -84,6 +86,7 @@ describe("desk events", () => {
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
+    delete process.env.DESK_EVENTS_SECRET;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -99,6 +102,21 @@ describe("desk events", () => {
       true,
     );
     assert.equal(status(), 401);
+  });
+
+  it("rejects a wake without the shared secret", async () => {
+    const out = await wake(
+      {
+        userId: "u",
+        id: "p",
+        kind: "reply",
+        postedAt: "2026-09-15T00:00:00.000Z",
+      },
+      "127.0.0.1",
+      "",
+    );
+    assert.equal(out.handled, true);
+    assert.equal(out.status, 403);
   });
 
   it("rejects a wake from a non-loopback peer", async () => {

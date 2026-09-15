@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { corsHeaders } from "./cors.js";
 import { BODY_CAP_16K, readJsonBody, send } from "./httpJson.js";
@@ -9,7 +10,7 @@ export function resetDeskEventsForTests(): void {
   subscribers.clear();
 }
 
-/** Runs before the cookie gate; only the TCP peer can authorize a wake. */
+/** Runs before the cookie gate; the webhook sidecar must present the shared secret. */
 export async function tryHandleDeskEventsWake(
   req: IncomingMessage,
   res: ServerResponse,
@@ -17,6 +18,22 @@ export async function tryHandleDeskEventsWake(
 ): Promise<boolean> {
   if (url.pathname !== "/api/desk/events/wake") return false;
   if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress ?? "")) {
+    send(req, res, 403, { error: "forbidden" });
+    return true;
+  }
+  const expected = process.env.DESK_EVENTS_SECRET?.trim();
+  const authorization = req.headers.authorization;
+  const provided =
+    typeof authorization === "string" && authorization.startsWith("Bearer ")
+      ? authorization.slice("Bearer ".length)
+      : "";
+  const expectedBytes = Buffer.from(expected ?? "");
+  const providedBytes = Buffer.from(provided);
+  if (
+    !expected ||
+    expectedBytes.length !== providedBytes.length ||
+    !timingSafeEqual(expectedBytes, providedBytes)
+  ) {
     send(req, res, 403, { error: "forbidden" });
     return true;
   }

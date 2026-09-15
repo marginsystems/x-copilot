@@ -162,7 +162,10 @@ async function wakeDesk(parsed: ParsedPostCreate, userId: string): Promise<void>
   try {
     const response = await fetch("http://127.0.0.1:8787/api/desk/events/wake", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.DESK_EVENTS_SECRET?.trim() ?? ""}`,
+      },
       body: JSON.stringify({ userId, id: parsed.postId, kind: parsed.kind, postedAt: parsed.postedAt }),
       signal: AbortSignal.timeout(250),
     });
