@@ -6,12 +6,15 @@ import {
   replyPaceRemainingMs,
 } from "../lib/replyPace";
 import {
+  armReplyPaceOverlay,
   clearReplyPace,
+  readReplyPaceOverlay,
   readReplyPaceUntil,
   seedReplyPaceFromReplyAt,
 } from "./replyPaceStore";
 
 export function useReplyPace(replyAtIso?: string | null) {
+  const [overlayArmed, setOverlayArmed] = useState(readReplyPaceOverlay);
   const [until, setUntil] = useState<number | null>(readReplyPaceUntil);
   const [now, setNow] = useState(() => Date.now());
   const remainingMs = replyPaceRemainingMs(until, now);
@@ -21,6 +24,7 @@ export function useReplyPace(replyAtIso?: string | null) {
   useEffect(() => {
     function sync() {
       setUntil(readReplyPaceUntil());
+      setOverlayArmed(readReplyPaceOverlay());
       setNow(Date.now());
     }
     window.addEventListener(REPLY_PACE_EVENT, sync);
@@ -39,12 +43,14 @@ export function useReplyPace(replyAtIso?: string | null) {
   }, [countingDown]);
 
   useEffect(() => {
-    if (until != null && remainingMs === 0) {
+    if ((until != null || overlayArmed) && remainingMs === 0) {
       clearReplyPace(false);
     }
-  }, [until, remainingMs]);
+  }, [until, remainingMs, overlayArmed]);
 
   return {
+    overlayArmed,
+    armOverlay: armReplyPaceOverlay,
     locked,
     remainingMs,
     clock: formatReplyPaceClock(remainingMs),
