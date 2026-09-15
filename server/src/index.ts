@@ -23,6 +23,7 @@ import { tryHandleXActivityAuthed } from "./xActivityHttp.js";
 import { tryHandleVoice } from "./voiceHttp.js";
 import { tryHandleForYou } from "./forYouHttp.js";
 import { tryHandleCoaching } from "./coachingHttp.js";
+import { tryHandleDeskEvents, tryHandleDeskEventsWake } from "./deskEvents.js";
 import { tryHandleDeskBeats } from "./deskBeatsHttp.js";
 import { tryHandleDigestEmail } from "./digestEmailHttp.js";
 import { tryHandleMemory } from "./memoryHttp.js";
@@ -78,6 +79,8 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (await tryHandleDeskEventsWake(req, res, url)) return;
+
     if (authRequired() && !isPublicApiPath(url.pathname)) {
       if (
         !isOriginAllowed(
@@ -107,6 +110,8 @@ const server = http.createServer(async (req, res) => {
         });
       }
     }
+
+    if (tryHandleDeskEvents(req, res, url)) return;
 
     const sessionUser = getSessionUser(req);
     const tenantId = sessionUser
