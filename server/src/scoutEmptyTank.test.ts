@@ -12,6 +12,7 @@ import { markDismissed } from "./dismissalStore.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { getRequestContext } from "./requestContext.ts";
 import { getLastScout, saveScoutCache } from "./scoutCache.ts";
+import { maybeStartEmptyTankScout } from "./scoutEmptyTank.ts";
 import { resetScoutGateForTests, tryBeginScout, SCOUT_COOLDOWN_MS } from "./scoutGate.ts";
 import { readLastScoutPayload, tryHandleScout, type ScoutHttpDeps } from "./scoutHttp.ts";
 import { countSortiesToday, recordSortie } from "./scoutSorties.ts";
@@ -179,11 +180,33 @@ describe("empty-tank background Scout", () => {
     assert.equal(row.delivered, 1);
   });
 
-  it("leaves a usable tank alone", async () => {
-    await saveScoutCache({ savedAt: new Date().toISOString(), agenda: "builders", queries: [], threads: [thread] }, { userId });
+  it("leaves two usable threads alone", async () => {
+    await saveScoutCache({ savedAt: new Date().toISOString(), agenda: "builders", queries: [], threads: [thread, { ...thread, id: "second", author: "@second" }] }, { userId });
+    await maybeStartEmptyTankScout(userId, deps);
     assert.equal((await get()).empty, false);
     assert.equal((await readLastScoutPayload({ userId, deps })).empty, false);
     assert.equal(calls, 0);
+  });
+
+  it("starts once with one usable thread and still returns nonempty", async () => {
+    await saveScoutCache({ savedAt: new Date().toISOString(), agenda: "builders", queries: [], threads: [thread] }, { userId });
+    assert.equal((await get()).empty, false);
+    assert.equal((await readLastScoutPayload({ userId, deps })).empty, false);
+    await setImmediate();
+    assert.equal(calls, 1);
+  });
+
+  it("uses the filtered tank for the background start path", async () => {
+    const dismissed = { ...thread, id: "dismissed", author: "@dismissed" };
+    await saveScoutCache({ savedAt: new Date().toISOString(), agenda: "builders", queries: [], threads: [thread, dismissed] }, { userId });
+    await markDismissed({ userId, threadId: dismissed.id, author: dismissed.author });
+    await maybeStartEmptyTankScout(userId, deps);
+    await setImmediate();
+    assert.equal(calls, 1);
+    const payload = await readLastScoutPayload({ userId, deps });
+    assert.equal(payload.empty, false);
+    assert.deepEqual(payload.snapshot?.threads, [{ ...thread, scoutAgendaSet: true }]);
+    assert.equal(calls, 1);
   });
 
   for (const gate of ["session", "agenda", "unlinked", "credits", "sorties", "busy", "cooldown"] as const) {

@@ -102,6 +102,7 @@ export function useScoutRun({
 
   function applyServerFlight(data: LastScoutPayload) {
     const flight = data.flight;
+    setSearching(flight?.active === true);
     if (flight?.active) {
       const raw = flight.stage ?? undefined;
       const stage = isScoutStageId(raw) ? raw : "searching";
@@ -112,7 +113,7 @@ export function useScoutRun({
     }
     setScoutStage(null);
     setScoutLine("");
-    setWatchTank(data.empty === true);
+    setWatchTank(data.empty === true || (data.snapshot?.threads.length ?? 0) <= 1);
   }
 
   function applyLastScoutFromBoot(data: LastScoutPayload) {
@@ -363,7 +364,7 @@ export function useScoutRun({
   }, []);
 
   useEffect(() => {
-    const drained = previousThreadCount.current > 0 && threadCount === 0;
+    const drained = previousThreadCount.current > 1 && threadCount <= 1;
     previousThreadCount.current = threadCount;
     if (drained) setWatchTank(true);
   }, [threadCount]);
