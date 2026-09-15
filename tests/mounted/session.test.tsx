@@ -70,6 +70,25 @@ test("owner change resets mounted state and rejects old-owner auth and setters",
   expect(result.current.agenda).toBe("");
 });
 
+test("indeterminate auth failure does not invalidate the current session", async () => {
+  const pending = deferred<Response>();
+  const setItem = vi.spyOn(Storage.prototype, "setItem");
+  vi.stubGlobal("fetch", vi.fn(() => pending.promise));
+  const { result } = renderHook(useHarness, { wrapper: SessionBoundary });
+  act(() => { result.current.applyAuthUser(owner("a")); });
+  const generation = result.current.session.capture();
+  let hydrate!: Promise<AuthSessionUser | null>;
+  act(() => { hydrate = result.current.hydrateAuth(); });
+  await act(async () => {
+    pending.reject(new Error("offline"));
+    await hydrate;
+  });
+  expect(result.current.authUser?.id).toBe("a");
+  expect(result.current.authChecked).toBe(true);
+  expect(result.current.session.isCurrent(generation)).toBe(true);
+  expect(setItem).not.toHaveBeenCalledWith(SESSION_RESET_KEY, expect.anything());
+});
+
 test("cross-tab invalidation clears memoized cache and state without rebroadcast", () => {
   const { result } = renderHook(useHarness, { wrapper: SessionBoundary });
   act(() => { result.current.applyAuthUser(owner("a")); result.current.setAgenda("private"); });

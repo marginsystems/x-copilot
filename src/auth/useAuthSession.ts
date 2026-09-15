@@ -59,7 +59,8 @@ export function useAuthSession({
         res.ok && data.ok ? parseAuthSessionUser(data.user) : null;
       return applyAuthUser(user, data.authRequired ?? true);
     } catch {
-      return applyAuthUser(null);
+      const current = session.getSnapshot();
+      return applyAuthUser(current.user, current.user ? current.required : false);
     }
   }
 
