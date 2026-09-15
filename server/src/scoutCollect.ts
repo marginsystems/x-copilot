@@ -480,6 +480,7 @@ export async function runScoutCollect(opts: {
           maxPages: 1,
           cursor: resume.cursor,
           startTime: resume.startTime,
+          endTime: resume.endTime,
           expandReferenced: true,
           session,
           signal: opts.signal,

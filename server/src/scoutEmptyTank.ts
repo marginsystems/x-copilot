@@ -1,11 +1,12 @@
-/** One background sortie when a desk read finds no usable Scout posts. */
+/** One background sortie when a desk read finds at most one usable Scout post. */
 import { getUserById } from "./authStore.js";
 import { creditsExhaustedResponse, sortiesExhaustedResponse } from "./billingQuotas.js";
 import { ensureUserTenant } from "./billingStore.js";
 import { ensureMemoryIndex } from "./memoryReindex.js";
 import { runWithRequestContext } from "./requestContext.js";
-import { attachScoutCacheFilters, getLastScout } from "./scoutCache.js";
+import { attachScoutCacheFilters } from "./scoutCache.js";
 import { runScoutCollect } from "./scoutCollect.js";
+import { readLastScoutPayload } from "./scoutHttp.js";
 import { endScout, noteScoutStage, tryBeginScout } from "./scoutGate.js";
 import { markSortieDelivered, recordSortie, refundSortie } from "./scoutSorties.js";
 import type { ScoutFilters } from "./scoutTypes.js";
@@ -22,9 +23,7 @@ export async function maybeStartEmptyTankScout(
   deps: ScoutEmptyTankDeps = {},
 ): Promise<void> {
   try {
-    const snapshot = await getLastScout({ userId });
-    if ((snapshot?.threads.length ?? 0) > 1) return;
-    await startEmptyTankScout(userId, snapshot?.filters, deps);
+    await readLastScoutPayload({ userId, deps });
   } catch {
     console.error("empty-tank Scout failed");
   }

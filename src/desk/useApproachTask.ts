@@ -44,7 +44,7 @@ import {
   writeForYouWait,
 } from "../lib/forYouTask";
 import { vanishEvent } from "../lib/vanishEvent";
-import { apiFetch } from "../lib/apiBase";
+import { apiFetch, apiUrl } from "../lib/apiBase";
 import { presentApproach, type ApproachCardInput } from "./approachPresenter";
 import {
   clearRetainedScout,
@@ -388,11 +388,18 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
 
   useEffect(() => {
     if (detector !== "for_you") return;
+    const source = new EventSource(apiUrl("/api/desk/events"), { withCredentials: true });
+    source.addEventListener("own_post", () => {
+      void refreshCoachingRef.current({ lite: true });
+    });
     const interval = window.setInterval(() => {
       void refreshCoachingRef.current({ lite: true });
     }, 12_000);
-    return () => window.clearInterval(interval);
-  }, [detector]);
+    return () => {
+      source.close();
+      window.clearInterval(interval);
+    };
+  }, [detector, owner]);
 
   const lockedCardId = lock?.cardId ?? null;
   useEffect(() => {
