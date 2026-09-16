@@ -15,6 +15,7 @@ export function MenuDrawer({ entered, onClose, children }: MenuDrawerProps) {
     rootRef,
     dialogRef,
     onDismiss: onClose,
+    preserveOpener: true,
   });
 
   return (

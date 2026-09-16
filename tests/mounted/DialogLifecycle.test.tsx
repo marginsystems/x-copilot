@@ -128,3 +128,33 @@ test("menu drawer focuses its contents and handles Escape while entered", async 
   await user.keyboard("{Escape}");
   expect(document.activeElement).toBe(opener);
 });
+
+test("menu drawer keeps its header close toggle interactive", async () => {
+  function Harness() {
+    const [open, setOpen] = useState(false);
+    return (
+      <div>
+        <header>
+          <button type="button" onClick={() => setOpen((value) => !value)}>
+            {open ? "Close menu" : "Open menu"}
+          </button>
+        </header>
+        {open ? (
+          <MenuDrawer entered onClose={() => setOpen(false)}>
+            <button type="button">Menu action</button>
+          </MenuDrawer>
+        ) : null}
+      </div>
+    );
+  }
+
+  const user = userEvent.setup();
+  render(<Harness />);
+  const toggle = screen.getByRole("button", { name: "Open menu" });
+  await user.click(toggle);
+
+  expect(toggle.inert).not.toBe(true);
+  expect(toggle.closest("header")?.inert).not.toBe(true);
+  await user.click(screen.getByRole("button", { name: "Close menu" }));
+  expect(screen.queryByRole("dialog", { name: "User menu" })).toBeNull();
+});

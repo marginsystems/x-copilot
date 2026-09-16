@@ -10,6 +10,7 @@ type DialogFocusOptions = {
   initialFocusRef?: RefObject<HTMLElement>;
   onDismiss: () => void;
   dismissBlocked?: boolean;
+  preserveOpener?: boolean;
 };
 
 function focusableElements(dialog: HTMLElement) {
@@ -62,6 +63,7 @@ export function useDialogFocus({
   initialFocusRef,
   onDismiss,
   dismissBlocked = false,
+  preserveOpener = false,
 }: DialogFocusOptions) {
   const onDismissRef = useRef(onDismiss);
   const dismissBlockedRef = useRef(dismissBlocked);
@@ -84,6 +86,7 @@ export function useDialogFocus({
     while (branch.parentElement) {
       for (const sibling of Array.from(branch.parentElement.children)) {
         if (sibling === branch || !(sibling instanceof HTMLElement)) continue;
+        if (preserveOpener && opener && sibling.contains(opener)) continue;
         isolateSibling(sibling);
         isolated.push(sibling);
       }
