@@ -11,7 +11,7 @@ export function MenuDrawer({ entered, onClose, children }: MenuDrawerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus({
-    active: true,
+    active: entered,
     rootRef,
     dialogRef,
     onDismiss: onClose,

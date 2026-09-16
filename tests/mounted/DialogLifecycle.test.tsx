@@ -81,7 +81,8 @@ test("overlapping menu and sign-in restore isolation only after the last dialog 
   const user = userEvent.setup();
   render(<Harness />);
   const page = screen.getByRole("button", { name: "Page action" });
-  await user.click(screen.getByRole("button", { name: "Open menu" }));
+  const opener = screen.getByRole("button", { name: "Open menu" });
+  await user.click(opener);
   expect(page.inert).toBe(true);
   await user.click(screen.getByRole("button", { name: "Sign in" }));
   expect(screen.getByRole("dialog", { name: "Sign in to your desk" })).toBeTruthy();
@@ -90,10 +91,14 @@ test("overlapping menu and sign-in restore isolation only after the last dialog 
   });
   expect(page.inert).toBe(true);
   expect(page.getAttribute("aria-hidden")).toBe("true");
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Close" }),
+  );
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(page.inert).not.toBe(true);
   expect(page.getAttribute("aria-hidden")).toBeNull();
+  expect(document.activeElement).toBe(opener);
 });
 
 test("menu drawer focuses its contents and handles Escape while entered", async () => {

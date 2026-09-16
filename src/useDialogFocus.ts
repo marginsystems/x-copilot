@@ -25,6 +25,7 @@ type Isolation = {
 
 const isolation = new WeakMap<HTMLElement, Isolation>();
 let dialogDepth = 0;
+const openers: HTMLElement[] = [];
 
 function isolateSibling(element: HTMLElement) {
   const existing = isolation.get(element);
@@ -76,6 +77,7 @@ export function useDialogFocus({
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
+    if (opener) openers.push(opener);
     const isolated: HTMLElement[] = [];
 
     let branch: HTMLElement = root;
@@ -132,7 +134,16 @@ export function useDialogFocus({
       document.removeEventListener("keydown", onKeyDown);
       for (const element of isolated) releaseSibling(element);
       dialogDepth -= 1;
-      if (dialogDepth === 0 && opener?.isConnected) opener.focus();
+      if (dialogDepth === 0) {
+        for (let index = openers.length - 1; index >= 0; index -= 1) {
+          const candidate = openers[index];
+          if (candidate.isConnected) {
+            candidate.focus();
+            break;
+          }
+        }
+        openers.length = 0;
+      }
     };
   }, [active, dialogRef, initialFocusRef, rootRef]);
 }
