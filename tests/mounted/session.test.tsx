@@ -125,8 +125,8 @@ test("late boot after invalidation cannot restore identity, desk, or cache", asy
     useDeskBoot({
       dedupeAccounts: false, setAgenda: current.setAgenda, setAuthNotice: current.setAuthNotice,
       setBillingNotice: vi.fn(), setView: vi.fn(), setSignInOpen: vi.fn(),
-      applyAuthUser: current.applyAuthUser, hydrateAuth: current.hydrateAuth, applyDesk,
-      hydrateDeskWithoutBoot: followup, confirmCheckout: followup, hydrateCoaching: followup,
+      applyAuthUser: current.applyAuthUser, applyDesk,
+      confirmCheckout: followup, hydrateCoaching: followup,
       hydrateActivityStats: followup, loadBilling: followup, hydrateVoice: followup, loadUsage: followup, loadAdmin: followup,
     });
     return <span>{current.authUser?.id ?? "anonymous"}</span>;

@@ -67,3 +67,13 @@ cross-tab memo invalidation without echo, late boot suppression, and unavailable
 storage. Run `npm run test:mounted` and `npm run typecheck:mounted` alongside the
 repository unit/build/file-size checks. These are mounted jsdom tests, not real
 browser layout or cross-process storage-delivery tests.
+
+PR-06 adds effect-local abort guards to boot and explicit Scout polling enablement
+(after auth verification and onboarding in App, including auth-optional mode). Boot preserves callback query flags across
+StrictMode replay. Its 24-second overall deadline bounds fallback auth, desk reads,
+and checkout waiting; failure releases loading with a reload notice, and failure
+before verification leaves the session inactive. Fallback reads commit together
+through the existing boot applicators, so canceled reads cannot update hook state.
+Polling captures the session when its effect is scheduled, aborts on cleanup or
+invalidation, and stops on a 401. Cancellation stops client work; it does not undo
+checkout or Scout collection already accepted by the server.
