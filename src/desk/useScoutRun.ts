@@ -113,6 +113,9 @@ export function useScoutRun({
     }
     setScoutStage(null);
     setScoutLine("");
+    if (flight && "failure" in flight && flight.failure === true) {
+      setStatus("Scout hit an infra error.");
+    }
     setWatchTank(data.empty === true || (data.snapshot?.threads.length ?? 0) <= 1);
   }
 
