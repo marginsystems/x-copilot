@@ -261,6 +261,8 @@ test("fallback keeps history when one later slice is down", async () => {
   expect(h.applyDesk).toHaveBeenCalledTimes(1);
   expect(h.applyDesk.mock.calls[0][0].interacted.activeIds).toEqual(["kept"]);
   expect(h.applyDesk.mock.calls[0][0].gamification).toBeUndefined();
+  expect(h.applyDesk.mock.calls[0][0].activityStats).toBeUndefined();
+  expect(h.applyDesk.mock.calls[0][0].coaching).toBeUndefined();
 });
 
 test("applyHistoryFromBoot marks interacted history hydrated", () => {

@@ -236,6 +236,8 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       if (expired === undefined) delete desk.expired;
       if (forYou === undefined) delete desk.forYou;
       if (gamification === undefined) delete desk.gamification;
+      delete desk.activityStats;
+      delete desk.coaching;
       if (lastScout == null) delete desk.lastScout;
       applyDesk(desk);
       if (!current()) return;
