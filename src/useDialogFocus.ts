@@ -127,6 +127,7 @@ export function useDialogFocus({
         return;
       }
       if (event.key !== "Tab") return;
+      if (activeDialogs[activeDialogs.length - 1] !== dialogEntry) return;
 
       const focusable = focusableElements(dialog);
       if (focusable.length === 0) {

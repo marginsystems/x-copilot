@@ -119,6 +119,7 @@ test("Escape dismisses only the topmost overlapping dialog", async () => {
         {inner ? (
           <MenuDrawer entered onClose={() => setInner(false)}>
             <button type="button">Inner action</button>
+            <button type="button">Second inner action</button>
           </MenuDrawer>
         ) : null}
       </>
@@ -130,6 +131,12 @@ test("Escape dismisses only the topmost overlapping dialog", async () => {
   await user.click(screen.getByRole("button", { name: "Open outer" }));
   await user.click(screen.getByRole("button", { name: "Continue with Google" }));
   expect(screen.getByRole("dialog", { name: "User menu" })).toBeTruthy();
+  const innerAction = screen.getByRole("button", { name: "Inner action" });
+  innerAction.focus();
+  await user.tab();
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Second inner action" }),
+  );
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("dialog", { name: "User menu" })).toBeNull();
   expect(screen.getByRole("dialog", { name: "Sign in to your desk" })).toBeTruthy();
