@@ -7,7 +7,7 @@ import { runWithRequestContext } from "./requestContext.js";
 import { attachScoutCacheFilters } from "./scoutCache.js";
 import { runScoutCollect } from "./scoutCollect.js";
 import { readLastScoutPayload } from "./scoutHttp.js";
-import { endScout, noteScoutStage, tryBeginScout } from "./scoutGate.js";
+import { endScout, noteScoutFailure, noteScoutStage, tryBeginScout } from "./scoutGate.js";
 import { markSortieDelivered, recordSortie, refundSortie } from "./scoutSorties.js";
 import type { ScoutFilters } from "./scoutTypes.js";
 import { xLinkRequiredResponse } from "./xLinkGate.js";
@@ -61,6 +61,9 @@ export async function startEmptyTankScout(
         onEvent: (event) => {
           if (typeof event.stage === "string") {
             noteScoutStage(userId, event.stage);
+          }
+          if (event.stage === "done" && event.stopReason === "terminal_error") {
+            noteScoutFailure(userId);
           }
           if (typeof event.coolCount === "number") {
             coolCount = Math.max(coolCount, event.coolCount);
