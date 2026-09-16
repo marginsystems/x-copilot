@@ -137,9 +137,7 @@ export function Account(props: {
   }
 
   useEffect(() => {
-    const controller = new AbortController();
-    void load(controller.signal);
-    return () => controller.abort();
+    void load();
   }, []);
 
   async function revokeOne(id: string) {

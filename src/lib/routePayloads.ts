@@ -76,10 +76,10 @@ export function parseBilling(v: unknown): BillingMe | null {
   if (!envelope(v) || !string(v.plan_key) || !optional(v, "plan_state", string) ||
     !optional(v, "subscription_status", nullableString) ||
     !optional(v, "has_stripe_subscription operator_allotment stripe_configured", boolean)) return null;
-  for (const [key, flag] of [["credits", "can_use"], ["sorties", "can_fly"]]) {
-    const meter = v[key];
-    if (meter !== undefined && (!object(meter) || !fields(meter, "used limit remaining", number) || !boolean(meter[flag]))) return null;
-  }
+  const credits = v.credits;
+  if (!object(credits) || !fields(credits, "used limit remaining", number) || !boolean(credits.can_use)) return null;
+  const sorties = v.sorties;
+  if (sorties !== undefined && (!object(sorties) || !fields(sorties, "used limit remaining", number) || !boolean(sorties.can_fly))) return null;
   if (v.activity !== undefined && !activity(v.activity)) return null;
   if (v.subscription !== undefined && (!object(v.subscription) ||
     !optional(v.subscription, "status current_period_end", nullableString) ||

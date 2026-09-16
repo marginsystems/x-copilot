@@ -26,7 +26,7 @@ test("endpoint parsers reject missing fields, wrong containers and malformed nes
   for (const bad of [{ providers: {} }, { sessions: [null] }, { user: { ...account.user, displayName: {} } }, { providers: [{ provider: "x", username: {}, email: null }] }]) expect(parseAccount({ ...account, ...bad })).toBeNull();
   for (const bad of [{ series: {} }, { totals: {} }, { top: [{}] }, { kinds: [null] }, { insight: { headline: "Hi", day: "today", createdAt: "now", bullets: [{}] } }]) expect(parseAnalytics({ ...analytics, ...bad })).toBeNull();
   for (const bad of [{ recent: {} }, { recent: [{}] }, { remaining: {} }, { note: {} }]) expect(parseUsage({ ...usage, ...bad })).toBeNull();
-  for (const bad of [{ credits: {} }, { plans: [] }, { plans: { free: {} } }, { first_week_pulse: [] }, { subscription: null }, { plan_key: {} }]) expect(parseBilling({ ...billing, ...bad })).toBeNull();
+  for (const bad of [{ credits: undefined }, { credits: {} }, { plans: [] }, { plans: { free: {} } }, { first_week_pulse: [] }, { subscription: null }, { plan_key: {} }]) expect(parseBilling({ ...billing, ...bad })).toBeNull();
 });
 
 test.each(["account", "analytics"])("%s keeps good data after malformed and non-JSON refresh and recovers", async (route) => {
