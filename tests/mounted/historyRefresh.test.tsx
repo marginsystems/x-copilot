@@ -123,7 +123,8 @@ test("day/week/day and gamification retain the newest response", async () => {
   sessionStorage.setItem("x-copilot-flight-path-open", "1");
   const requests: ReturnType<typeof deferred<Response>>[] = [];
   vi.stubGlobal("fetch", vi.fn(() => { const d = deferred<Response>(); requests.push(d); return d.promise; }));
-  const { result } = renderHook(() => useActivityStrip(null), { wrapper });
+  const commits: unknown[] = [];
+  const { result } = renderHook(() => useActivityStrip(null, (commit) => commits.push(commit)), { wrapper });
   act(() => {
     result.current.onActivityBucket("day");
     result.current.onActivityBucket("week");
@@ -139,7 +140,37 @@ test("day/week/day and gamification retain the newest response", async () => {
   await act(async () => { requests[4].resolve(response(gamification)); await latest; });
   await act(async () => { requests[3].resolve(response(emptyGamificationStats())); await first; });
   expect(result.current.gamification).toEqual(gamification);
+  expect(commits).toEqual([
+    { kind: "activityStats", value: stats },
+    { kind: "gamification", value: gamification },
+  ]);
 });
+
+test.each(["activity", "gamification"] as const)(
+  "latest %s failure is not replaced by an older success",
+  async (kind) => {
+    const requests: ReturnType<typeof deferred<Response>>[] = [];
+    vi.stubGlobal("fetch", vi.fn(() => { const d = deferred<Response>(); requests.push(d); return d.promise; }));
+    const commits: unknown[] = [];
+    const { result } = renderHook(() => useActivityStrip(null, (commit) => commits.push(commit)), { wrapper });
+    let first!: Promise<void>, latest!: Promise<void>;
+    act(() => {
+      if (kind === "activity") {
+        first = result.current.hydrateActivityStats();
+        latest = result.current.hydrateActivityStats();
+      } else {
+        first = result.current.hydrateGamification();
+        latest = result.current.hydrateGamification();
+      }
+    });
+    await act(async () => { requests[1].resolve(new Response(null, { status: 500 })); await latest; });
+    await act(async () => {
+      requests[0].resolve(response(kind === "activity" ? emptyActivityStats("day") : emptyGamificationStats()));
+      await first;
+    });
+    expect(commits).toEqual([]);
+  },
+);
 
 test("a refresh after a bucket toggle keeps the requested bucket", async () => {
   const requests: ReturnType<typeof deferred<Response>>[] = [];
