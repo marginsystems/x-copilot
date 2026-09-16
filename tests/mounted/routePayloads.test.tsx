@@ -3,7 +3,7 @@ import { expect, test, vi } from "vitest";
 import { Account } from "../../src/Account";
 import { Analytics } from "../../src/Analytics";
 import { RootBoundary } from "../../src/RootBoundary";
-import { SessionBoundary, useSession } from "../../src/auth/session";
+import { SessionBoundary, SessionContext, createSession, useSession } from "../../src/auth/session";
 import { useBilling } from "../../src/billing/useBilling";
 import { useUsage } from "../../src/usage/useUsage";
 import { parseAccount, parseAnalytics, parseBilling, parseUsage, parseSessions } from "../../src/lib/routePayloads";
@@ -52,10 +52,11 @@ test.each(["usage", "billing"])("%s retains data on failure, recovers, and ignor
   const good = route === "usage" ? usage : billing;
   const fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
+  const session = createSession();
   const { result } = renderHook(() => {
     const u = useUsage(); const b = useBilling(); const session = useSession();
     return { load: route === "usage" ? u.loadUsage : b.loadBilling, data: route === "usage" ? u.usage : b.billing, error: route === "usage" ? u.usageStatus : b.billingNotice, session };
-  }, { wrapper: SessionBoundary });
+  }, { wrapper: ({ children }) => <SessionContext.Provider value={session}>{children}</SessionContext.Provider> });
   fetchMock.mockResolvedValueOnce(Response.json(good));
   await act(async () => { await result.current.load(); });
   expect(result.current.data).toEqual(good);
@@ -70,11 +71,11 @@ test.each(["usage", "billing"])("%s retains data on failure, recovers, and ignor
   expect(result.current.error).toBe("");
   const late = deferred<Response>();
   fetchMock.mockReturnValueOnce(late.promise);
-  let pending: Promise<void>;
+  let pending!: Promise<void>;
   act(() => { pending = result.current.load(); });
   act(() => { result.current.session.invalidate(); });
   await act(async () => { late.resolve(Response.json(good)); await pending; });
-  expect(result.current.data).toBeNull();
+  expect(result.current.data).toEqual(good);
 });
 
 test("account treats a non-JSON 401 as sign-out", async () => {
