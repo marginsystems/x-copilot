@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   SCOUT_COOLDOWN_MS,
   endScout,
+  noteScoutFailure,
   noteScoutStage,
   peekScoutFlight,
   resetScoutGateForTests,
@@ -72,5 +73,19 @@ describe("scoutGate", () => {
     assert.deepEqual(peekScoutFlight("a"), { active: true, stage: "filtering" });
     endScout("a");
     assert.deepEqual(peekScoutFlight("a"), { active: false, stage: null });
+  });
+
+  it("persists a terminal 402 failure until the next flight begins", () => {
+    assert.equal(tryBeginScout("a").ok, true);
+    noteScoutStage("a", "done");
+    noteScoutFailure("a");
+    endScout("a", 1);
+    assert.deepEqual(peekScoutFlight("a"), {
+      active: false,
+      stage: null,
+      failure: true,
+    });
+    assert.equal(tryBeginScout("a", SCOUT_COOLDOWN_MS + 1).ok, true);
+    assert.deepEqual(peekScoutFlight("a"), { active: true, stage: "planning" });
   });
 });

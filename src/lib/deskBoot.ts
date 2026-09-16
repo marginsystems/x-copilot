@@ -50,6 +50,7 @@ export type LastScoutSnapshot = {
 export type ScoutFlightPayload = {
   active: boolean;
   stage?: string | null;
+  failure?: true;
 };
 
 export type LastScoutPayload = {
@@ -148,6 +149,7 @@ function parseScoutFlight(raw: unknown): ScoutFlightPayload | undefined {
   return {
     active: raw.active === true,
     stage: typeof raw.stage === "string" ? raw.stage : null,
+    ...(raw.failure === true ? { failure: true as const } : {}),
   };
 }
 

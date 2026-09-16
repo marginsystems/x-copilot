@@ -33,6 +33,8 @@ export const SCOUT_BUCKET_SIZE = 20;
 /** Matches server SCOUT_COOLDOWN_MS — one Search every 15s after a run ends. */
 export const SEARCH_COOLDOWN_MS = 15_000;
 
+const SCOUT_INFRA_STATUS = "Scout hit an infra error.";
+
 export type ScoutRunDeps = {
   pollingEnabled: boolean;
   agenda: string;
@@ -113,10 +115,22 @@ export function useScoutRun({
       setScoutStage(stage);
       setScoutLine(scoutStageMessage(stage));
       setWatchTank(true);
+      setStatus((prev) => (prev === SCOUT_INFRA_STATUS ? "" : prev));
       return;
     }
     setScoutStage(null);
     setScoutLine("");
+    if (flight?.failure === true) {
+      setStatus((prev) => {
+        if (/^Wait \d+s before (starting Scout|searching) again/.test(prev)) {
+          return prev;
+        }
+        if (prev.includes("Link X with the official login")) return prev;
+        return SCOUT_INFRA_STATUS;
+      });
+    } else {
+      setStatus((prev) => (prev === SCOUT_INFRA_STATUS ? "" : prev));
+    }
     setWatchTank(data.empty === true || (data.snapshot?.threads.length ?? 0) <= 1);
   }
 

@@ -28,6 +28,7 @@ type GateState = {
   active: boolean;
   lastFinishedAt: number;
   stage: ScoutFlightStage | null;
+  failed: boolean;
 };
 
 const FLIGHT_STAGES = new Set<string>([
@@ -45,7 +46,7 @@ const gates = new Map<string, GateState>();
 function gateFor(userId: string): GateState {
   let state = gates.get(userId);
   if (!state) {
-    state = { active: false, lastFinishedAt: 0, stage: null };
+    state = { active: false, lastFinishedAt: 0, stage: null, failed: false };
     gates.set(userId, state);
   }
   return state;
@@ -68,6 +69,7 @@ export function resetScoutGateForTests(opts?: {
       active: opts.active ?? false,
       lastFinishedAt: opts.lastFinishedAt ?? 0,
       stage: opts.active ? "planning" : null,
+      failed: false,
     });
   }
 }
@@ -97,6 +99,7 @@ export function tryBeginScout(
   }
   gate.active = true;
   gate.stage = "planning";
+  gate.failed = false;
   return { ok: true };
 }
 
@@ -106,9 +109,15 @@ export function noteScoutStage(userId: string, stage: string): void {
   gate.stage = stage as ScoutFlightStage;
 }
 
+export function noteScoutFailure(userId: string): void {
+  const gate = gateFor(gateKey(userId));
+  if (gate.active) gate.failed = true;
+}
+
 export function peekScoutFlight(userId: string): {
   active: boolean;
   stage: ScoutFlightStage | null;
+  failure?: true;
 } {
   const key = userId.trim();
   if (!key) return { active: false, stage: null };
@@ -117,6 +126,7 @@ export function peekScoutFlight(userId: string): {
   return {
     active: gate.active,
     stage: gate.active ? gate.stage : null,
+    ...(gate.failed ? { failure: true as const } : {}),
   };
 }
 
