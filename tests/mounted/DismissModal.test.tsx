@@ -58,3 +58,50 @@ test("typing a dismissal reason and confirming uses current state and respects b
   unmount();
   expect(screen.queryByRole("dialog")).toBeNull();
 });
+
+test("traps focus, blocks busy Escape, and restores the opener", async () => {
+  function Harness({ busy }: { busy: boolean }) {
+    const [threadToDismiss, setThreadToDismiss] = useState<typeof thread | null>(
+      null,
+    );
+    const [reason, setReason] = useState("");
+    return (
+      <>
+        <button type="button" onClick={() => setThreadToDismiss(thread)}>
+          Dismiss lead
+        </button>
+        <DismissModal
+          thread={threadToDismiss}
+          reason={reason}
+          busy={busy}
+          setReason={setReason}
+          onConfirm={vi.fn()}
+          onClose={() => setThreadToDismiss(null)}
+        />
+      </>
+    );
+  }
+
+  const user = userEvent.setup();
+  const { rerender } = render(<Harness busy={false} />);
+  const opener = screen.getByRole("button", { name: "Dismiss lead" });
+  await user.click(opener);
+
+  const reason = screen.getByRole("textbox", { name: "Reason (optional)" });
+  const cancel = screen.getByRole("button", { name: "Cancel" });
+  expect(document.activeElement).toBe(reason);
+
+  await user.tab({ shift: true });
+  expect(document.activeElement).toBe(cancel);
+  await user.tab();
+  expect(document.activeElement).toBe(reason);
+
+  rerender(<Harness busy />);
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("dialog")).toBeTruthy();
+
+  rerender(<Harness busy={false} />);
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(opener);
+});
