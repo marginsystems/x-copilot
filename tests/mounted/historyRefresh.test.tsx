@@ -62,6 +62,17 @@ test("older completion cannot finish latest readiness or hide its failure", asyn
   expect(result.current.history.interactedHistory).toEqual([]);
 });
 
+test("older failure cannot hide the latest interacted history", async () => {
+  const { result, requests, setStatus } = setup();
+  let first!: Promise<void>, latest!: Promise<void>;
+  act(() => { first = result.current.history.hydrateInteracted(); latest = result.current.history.hydrateInteracted(); });
+  await act(async () => { requests[1].resolve(response({ interactions: [row("new")] })); await latest; });
+  await act(async () => { requests[0].resolve(new Response(null, { status: 500 })); await first; });
+  expect(result.current.history.interactedHydrated).toBe(true);
+  expect(result.current.history.interactedHistory).toEqual([row("new")]);
+  expect(setStatus).not.toHaveBeenCalled();
+});
+
 test("latest failure is not replaced by an older success", async () => {
   const { result, requests, setStatus } = setup();
   let first!: Promise<void>, latest!: Promise<void>;
@@ -172,6 +183,32 @@ test.each(["activity", "gamification"] as const)(
   },
 );
 
+test.each(["activity", "gamification"] as const)(
+  "latest %s success is not replaced by an older failure",
+  async (kind) => {
+    const requests: ReturnType<typeof deferred<Response>>[] = [];
+    vi.stubGlobal("fetch", vi.fn(() => { const d = deferred<Response>(); requests.push(d); return d.promise; }));
+    const commits: unknown[] = [];
+    const { result } = renderHook(() => useActivityStrip(null, (commit) => commits.push(commit)), { wrapper });
+    let first!: Promise<void>, latest!: Promise<void>;
+    act(() => {
+      if (kind === "activity") {
+        first = result.current.hydrateActivityStats();
+        latest = result.current.hydrateActivityStats();
+      } else {
+        first = result.current.hydrateGamification();
+        latest = result.current.hydrateGamification();
+      }
+    });
+    const current = kind === "activity"
+      ? emptyActivityStats("day")
+      : { ...emptyGamificationStats(), lifetimeXp: 50 };
+    await act(async () => { requests[1].resolve(response(current)); await latest; });
+    await act(async () => { requests[0].resolve(new Response(null, { status: 500 })); await first; });
+    expect(commits).toHaveLength(1);
+  },
+);
+
 test("a refresh after a bucket toggle keeps the requested bucket", async () => {
   const requests: ReturnType<typeof deferred<Response>>[] = [];
   vi.stubGlobal("fetch", vi.fn(() => { const d = deferred<Response>(); requests.push(d); return d.promise; }));
@@ -206,6 +243,7 @@ test("For You refresh ordering and local dismissal invalidate older snapshots", 
   act(() => { refresh = result.current.history.hydrateForYou(); dismiss = result.current.history.actForYou("suggestion", "dismiss"); });
   await act(async () => { requests[3].resolve(new Response(null, { status: 404 })); });
   await act(async () => { requests[4].resolve(response({ suggestions: [replacement] })); await dismiss; });
+  expect(result.current.history.forYouSuggestions.map((row) => row.id)).toEqual([replacement.id]);
   await act(async () => { requests[2].resolve(response({ suggestions: [suggestion] })); await refresh; });
   expect(result.current.history.forYouSuggestions.map((row) => row.id)).toEqual([replacement.id]);
 });
@@ -303,6 +341,7 @@ test("Scout lock transfers synchronously and stale refresh keeps the new preserv
     expect(threads.map((t) => t.id)).toEqual(["B"]);
   });
   await act(async () => { requests[1].resolve(response({ activeIds: ["B"] })); await latest; });
-  await act(async () => { requests[0].resolve(response({ activeIds: ["A"] })); await first; });
+  await act(async () => { requests[0].resolve(response({ activeIds: ["A"], interactions: [row("A")] })); await first; });
   expect(result.current.history.interactedIdsRef.current).toEqual(new Set(["B"]));
+  expect(threads.map((t) => t.id)).toEqual(["B"]);
 });
