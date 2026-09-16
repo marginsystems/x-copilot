@@ -112,6 +112,23 @@ describe("parseDeskBoot", () => {
     assert.equal(parsed.desk?.lastScout.empty, true);
   });
 
+  it("keeps a persisted lastScout flight failure", () => {
+    const parsed = parseDeskBoot({
+      ok: true,
+      authRequired: true,
+      user,
+      desk: {
+        ...desk,
+        lastScout: {
+          ok: true,
+          empty: true,
+          flight: { active: false, stage: null, failure: true },
+        },
+      },
+    });
+    assert.equal(parsed?.desk?.lastScout.flight?.failure, true);
+  });
+
   it("rejects a payload that claims ok without a usable user id", () => {
     assert.equal(
       parseDeskBoot({ ok: true, user: { email: "no-id" }, desk }),
