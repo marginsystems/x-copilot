@@ -165,6 +165,21 @@ test("poll 401 expires the session and stops autoStart requests", async () => {
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
+test("poll does not overlap while the response body is pending", async () => {
+  vi.useFakeTimers();
+  const body = deferred<unknown>();
+  const fetcher = vi.fn(async () => ({ ok: true, status: 200, json: () => body.promise }));
+  vi.stubGlobal("fetch", fetcher);
+  const h = mountPoll();
+  act(() => h.result.current.applyLastScoutFromBoot({ ok: true, empty: true }));
+  await act(async () => {});
+  await act(async () => { vi.advanceTimersByTime(8000); });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher.mock.calls[0][0]).toContain("autoStart=1");
+  h.unmount();
+  await act(async () => { body.resolve({ ok: true, empty: true }); });
+});
+
 test("fallback commits one complete desk without starting collection", async () => {
   const fetcher = vi.fn(async (url: string) => {
     if (url.includes("/api/boot?")) return new Response(null, { status: 404 });

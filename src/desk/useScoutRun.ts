@@ -405,7 +405,10 @@ export function useScoutRun({
       if (pending || controller.signal.aborted || !session.isCurrent(generation)) return;
       pending = true;
       try {
-        await hydrateLastScout(true, AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]), generation);
+        const signal = typeof AbortSignal.any === "function"
+          ? AbortSignal.any([controller.signal, AbortSignal.timeout(12000)])
+          : controller.signal;
+        await hydrateLastScout(true, signal, generation);
       } finally {
         pending = false;
       }
