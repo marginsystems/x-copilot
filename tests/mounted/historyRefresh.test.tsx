@@ -4,6 +4,7 @@ import { expect, test, vi } from "vitest";
 import { SessionBoundary, useSession } from "../../src/auth/session";
 import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";
+import type { ThreadCard } from "../../src/desk/types";
 import type { AppSettings } from "../../src/lib/settings";
 import { emptyActivityStats } from "../../src/lib/activityStats";
 import { emptyGamificationStats } from "../../src/lib/gamification";
@@ -176,4 +177,23 @@ test("chart and gamification ignore session-expired results and subsequent refre
   });
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(result.current.strip.gamification.lifetimeXp).toBe(0);
+});
+
+
+test("Scout lock transfers synchronously and stale refresh keeps the new preserved id", async () => {
+  const { result, requests, setThreads } = setup();
+  let threads = [{ id: "A" }, { id: "B" }] as ThreadCard[];
+  setThreads.mockImplementation((update) => { threads = update(threads); });
+  let first!: Promise<void>, latest!: Promise<void>;
+  act(() => {
+    result.current.history.interactedIdsRef.current.add("A");
+    first = result.current.history.hydrateInteracted("A");
+    expect(threads.map((t) => t.id)).toEqual(["A", "B"]);
+    latest = result.current.history.hydrateInteracted("B");
+    expect(threads.map((t) => t.id)).toEqual(["B"]);
+  });
+  await act(async () => { requests[1].resolve(response({ activeIds: ["B"] })); await latest; });
+  await act(async () => { requests[0].resolve(response({ activeIds: ["A"] })); await first; });
+  expect(threads.map((t) => t.id)).toEqual(["B"]);
+  expect(result.current.history.keepInCurated({ id: "B" } as ThreadCard)).toBe(true);
 });
