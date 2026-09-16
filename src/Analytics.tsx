@@ -1,3 +1,5 @@
+import { useSession } from "./auth/session";
+import { parseAnalytics, payloadError } from "./lib/routePayloads";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
 import { estimateTipWidth, tipEdge, type TipEdge } from "./lib/tipEdge";
@@ -17,7 +19,7 @@ type AnalyticsPost = {
   bookmarks: number;
 };
 
-type AnalyticsPayload = {
+export type AnalyticsPayload = {
   ok?: boolean;
   activity?: {
     used: number;
@@ -392,32 +394,40 @@ function Skel({ className }: { className: string }) {
 }
 
 export function Analytics(props: { onBack: () => void }) {
+  const session = useSession();
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(true);
 
-  async function load() {
+  async function load(signal?: AbortSignal) {
+    const generation = session.capture();
+    if (!session.isCurrent(generation) || signal?.aborted) return;
     setBusy(true);
     setError("");
     try {
-      const res = await apiFetch("/api/analytics");
-      const json = (await res.json()) as AnalyticsPayload;
-      if (!res.ok || json.ok === false) {
-        setError(json.message || json.error || `Could not load analytics (${res.status})`);
-        setData(null);
+      const res = await apiFetch("/api/analytics", { signal });
+      if (!session.isCurrent(generation) || signal?.aborted) return;
+      const raw: unknown = await res.json();
+      if (!session.isCurrent(generation) || signal?.aborted) return;
+      const json = parseAnalytics(raw);
+      if (!res.ok || !json) {
+        setError(payloadError(raw, `Could not load analytics (${res.status}): invalid response`));
         return;
       }
       setData(json);
     } catch (err) {
+      if (!session.isCurrent(generation) || signal?.aborted) return;
       setError(err instanceof Error ? err.message : String(err));
-      setData(null);
     } finally {
+      if (!session.isCurrent(generation) || signal?.aborted) return;
       setBusy(false);
     }
   }
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, []);
 
   const totals = data?.totals;

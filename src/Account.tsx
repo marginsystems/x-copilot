@@ -1,8 +1,10 @@
+import { useSession } from "./auth/session";
+import { parseAccount, payloadError, parseMail, parseSessions } from "./lib/routePayloads";
 import { useEffect, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
 import { menuAvatarUrl, menuInitials } from "./lib/menuProfile";
 
-type PublicSession = {
+export type PublicSession = {
   id: string;
   createdAt: string;
   lastSeenAt: string;
@@ -26,7 +28,7 @@ type AccountUser = {
   xCanPost?: boolean;
 };
 
-type AccountPayload = {
+export type AccountPayload = {
   ok?: boolean;
   user?: AccountUser;
   mail?: {
@@ -59,6 +61,7 @@ export function Account(props: {
   onX: () => void;
   onSignedOut: () => void;
 }) {
+  const session = useSession();
   const [user, setUser] = useState<AccountUser | null>(null);
   const [providers, setProviders] = useState<LinkedProvider[]>([]);
   const [sessions, setSessions] = useState<PublicSession[]>([]);
@@ -71,18 +74,20 @@ export function Account(props: {
   const [digestEmailAvailable, setDigestEmailAvailable] = useState(false);
   const [savingDigestEmail, setSavingDigestEmail] = useState(false);
 
-  async function load() {
+  async function load(signal?: AbortSignal) {
+    const generation = session.capture();
+    if (!session.isCurrent(generation) || signal?.aborted) return;
     setBusy(true);
     setError("");
     try {
-      const res = await apiFetch("/api/auth/account");
-      const data = (await res.json()) as AccountPayload;
-      if (res.status === 401) {
-        props.onSignedOut();
-        return;
-      }
-      if (!res.ok || !data.ok) {
-        setError(data.message || data.error || `Account failed (${res.status})`);
+      const res = await apiFetch("/api/auth/account", { signal });
+      if (!session.isCurrent(generation) || signal?.aborted) return;
+      if (res.status === 401) { props.onSignedOut(); return; }
+      const raw: unknown = await res.json();
+      if (!session.isCurrent(generation) || signal?.aborted) return;
+      const data = parseAccount(raw);
+      if (!res.ok || !data) {
+        setError(payloadError(raw, `Account failed (${res.status}): invalid response`));
         return;
       }
       setUser(data.user ?? null);
@@ -91,13 +96,17 @@ export function Account(props: {
       setProviders(data.providers ?? []);
       setSessions(data.sessions ?? []);
     } catch (err) {
+      if (!session.isCurrent(generation) || signal?.aborted) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      if (!session.isCurrent(generation) || signal?.aborted) return;
       setBusy(false);
     }
   }
 
   async function updateDigestEmail(optedIn: boolean) {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
     setSavingDigestEmail(true);
     setError("");
     try {
@@ -106,48 +115,47 @@ export function Account(props: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ digestEmailOptIn: optedIn }),
       });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        digestEmailOptIn?: boolean;
-        digestEmailAvailable?: boolean;
-        message?: string;
-        error?: string;
-      };
-      if (!res.ok || !data.ok) {
+      if (!session.isCurrent(generation)) return;
+      const raw: unknown = await res.json();
+      if (!session.isCurrent(generation)) return;
+      const data = parseMail(raw);
+      if (!res.ok || !data) {
         setError(
-          data.message ||
-            data.error ||
-            `Email preference failed (${res.status})`,
+          payloadError(raw, `Email preference failed (${res.status}): invalid response`),
         );
         return;
       }
       setDigestEmailOptIn(data.digestEmailOptIn === true);
       setDigestEmailAvailable(data.digestEmailAvailable === true);
     } catch (err) {
+      if (!session.isCurrent(generation)) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      if (!session.isCurrent(generation)) return;
       setSavingDigestEmail(false);
     }
   }
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, []);
 
   async function revokeOne(id: string) {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
     setActing(true);
     setError("");
     try {
       const res = await apiFetch(`/api/auth/sessions/${id}`, { method: "DELETE" });
-      const data = (await res.json()) as AccountPayload & {
-        signedOut?: boolean;
-      };
-      if (res.status === 401) {
-        props.onSignedOut();
-        return;
-      }
-      if (!res.ok) {
-        setError(data.message || data.error || `Revoke failed (${res.status})`);
+      if (!session.isCurrent(generation)) return;
+      if (res.status === 401) { props.onSignedOut(); return; }
+      const raw: unknown = await res.json();
+      if (!session.isCurrent(generation)) return;
+      const data = parseSessions(raw);
+      if (!res.ok || !data) {
+        setError(payloadError(raw, `Revoke failed (${res.status}): invalid response`));
         setPendingId(null);
         return;
       }
@@ -158,36 +166,42 @@ export function Account(props: {
       setSessions(data.sessions ?? []);
       setPendingId(null);
     } catch (err) {
+      if (!session.isCurrent(generation)) return;
       setError(err instanceof Error ? err.message : String(err));
       setPendingId(null);
     } finally {
+      if (!session.isCurrent(generation)) return;
       setActing(false);
     }
   }
 
   async function revokeOthers() {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
     setActing(true);
     setError("");
     try {
       const res = await apiFetch("/api/auth/sessions/revoke-others", {
         method: "POST",
       });
-      const data = (await res.json()) as AccountPayload;
-      if (res.status === 401) {
-        props.onSignedOut();
-        return;
-      }
-      if (!res.ok) {
-        setError(data.message || data.error || `Revoke failed (${res.status})`);
+      if (!session.isCurrent(generation)) return;
+      if (res.status === 401) { props.onSignedOut(); return; }
+      const raw: unknown = await res.json();
+      if (!session.isCurrent(generation)) return;
+      const data = parseSessions(raw);
+      if (!res.ok || !data) {
+        setError(payloadError(raw, `Revoke failed (${res.status}): invalid response`));
         setPendingOthers(false);
         return;
       }
       setSessions(data.sessions ?? []);
       setPendingOthers(false);
     } catch (err) {
+      if (!session.isCurrent(generation)) return;
       setError(err instanceof Error ? err.message : String(err));
       setPendingOthers(false);
     } finally {
+      if (!session.isCurrent(generation)) return;
       setActing(false);
     }
   }

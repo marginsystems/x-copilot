@@ -1,3 +1,4 @@
+import { SessionBoundary } from "../../src/auth/session";
 import { StrictMode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
@@ -13,7 +14,7 @@ test("UTC-day effect survives rerenders and cancels its next refresh on unmount"
   const onUtcDay = vi.fn();
   const { result, rerender, unmount } = renderHook(
     () => useBilling({ onUtcDay }),
-    { wrapper: StrictMode },
+    { wrapper: ({ children }) => <StrictMode><SessionBoundary>{children}</SessionBoundary></StrictMode> },
   );
 
   // StrictMode's mount/cleanup/remount must leave exactly one live timer.
