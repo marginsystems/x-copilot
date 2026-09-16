@@ -88,7 +88,7 @@ export type UseApproachTaskOpts = {
   actForYou: (
     id: string,
     action: "done" | "skip" | "dismiss",
-  ) => Promise<boolean>;
+  ) => Promise<boolean | "gone">;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
@@ -508,8 +508,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     suggestionDonePendingRef.current = true;
     try {
       const acknowledged = await actForYou(id, "done");
-      // A stale 404 also returns false: retain the detected card and its lock.
-      if (!acknowledged || !mountedRef.current || !session.isCurrent(generation) ||
+      if (acknowledged === false || !mountedRef.current || !session.isCurrent(generation) ||
         stateRef.current?.lock !== currentLock) return;
       await onRefreshCoaching();
       advanceCard({ type: "next" });
@@ -559,7 +558,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         return;
       }
       exitRow(id, `suggest:${id}`, async () => {
-        if (await actForYou(id, "done")) {
+        if ((await actForYou(id, "done")) === true) {
           await onRefreshCoaching();
           advanceCard({ type: "posted" });
         }
@@ -567,14 +566,14 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     },
     onSuggestionSkip(id: string) {
       exitRow(id, `suggest:${id}`, async () => {
-        if (await actForYou(id, "skip")) {
+        if ((await actForYou(id, "skip")) === true) {
           advanceCard({ type: "skip" });
         }
       });
     },
     onSuggestionDismiss(id: string) {
       exitRow(id, `suggest:${id}`, async () => {
-        if (await actForYou(id, "dismiss")) {
+        if ((await actForYou(id, "dismiss")) === true) {
           advanceCard({ type: "dismiss" });
         }
       });

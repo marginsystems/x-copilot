@@ -446,7 +446,7 @@ export function useDeskHistory(
   async function actForYou(
     id: string,
     path: "done" | "skip" | "dismiss",
-  ): Promise<boolean> {
+  ): Promise<boolean | "gone"> {
     setActionBusy(true);
     try {
       const res = await apiFetch(`/api/for-you/${path}`, {
@@ -462,7 +462,7 @@ export function useDeskHistory(
           if (path === "skip" || path === "dismiss") {
             await hydrateForYou();
           }
-          return false;
+          return path === "done" ? "gone" : false;
         }
         setStatus("Could not update For You. Try again.");
         return false;

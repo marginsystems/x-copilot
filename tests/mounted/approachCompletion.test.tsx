@@ -74,7 +74,7 @@ function setup() {
   return { ...hook, mount, boot, requests, done, setStatus, onRefreshCoaching };
 }
 
-test.each([500, "network", 404] as const)(
+test.each([500, "network"] as const)(
   "%s keeps the detected card locked across refresh and allows retry of the same id",
   async (failure) => {
     const { result, unmount, mount, boot, requests, done, setStatus, onRefreshCoaching } = setup();
@@ -94,15 +94,10 @@ test.each([500, "network", 404] as const)(
     expect(result.current.approach.cardInput.suggestionDetected).toBe(true);
     expect(readApproachLock(user.id)).toEqual(lock);
     expect(readRetainedSuggestion(user.id)).toEqual(suggestion);
-    if (failure === 404) {
-      // History drops a stale row, but that is not acknowledgement of completion.
-      expect(result.current.history.forYouSuggestions).toEqual([]);
-    } else {
-      expect(setStatus).toHaveBeenCalledWith("Could not update For You. Try again.");
-    }
+    expect(setStatus).toHaveBeenCalledWith("Could not update For You. Try again.");
     unmount();
     const refreshed = mount();
-    boot(refreshed, failure === 404 ? [] : [suggestion]);
+    boot(refreshed, [suggestion]);
     expect(refreshed.result.current.approach.cardInput.suggestion?.id).toBe(suggestion.id);
     expect(refreshed.result.current.approach.cardInput.suggestionDetected).toBe(true);
     const oldClick = refreshed.result.current.approach.onSuggestionPosted;
@@ -125,6 +120,17 @@ test("failure releases the pending guard for an immediate retry", async () => {
   expect(done).toHaveBeenCalledTimes(2);
   await act(async () => { requests[1].resolve(new Response("{}")); });
   expect(readApproachLock(user.id)?.cardId).not.toBe(suggestion.id);
+});
+
+test("terminal done 404 reconciles the detected card", async () => {
+  const { result, requests, done, onRefreshCoaching } = setup();
+  act(() => { result.current.approach.onSuggestionPosted(suggestion.id); });
+  await act(async () => { requests[0].resolve(new Response(null, { status: 404 })); });
+  expect(done).toHaveBeenCalledTimes(1);
+  expect(result.current.history.forYouSuggestions).toEqual([]);
+  expect(onRefreshCoaching).toHaveBeenCalledTimes(1);
+  expect(readApproachLock(user.id)?.cardId).not.toBe(suggestion.id);
+  expect(readRetainedSuggestion(user.id)).toBeNull();
 });
 
 test.each(["logout", "owner replacement", "unmount"] as const)(
