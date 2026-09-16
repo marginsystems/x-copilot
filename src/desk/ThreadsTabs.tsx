@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, KeyboardEvent, SetStateAction } from "react";
 import type { AuthSessionUser } from "../auth/types";
 import { APPROACH_TAB_LABEL, type ForYouSuggestion } from "../lib/forYou";
 import type { VoiceState } from "../lib/voice";
@@ -63,6 +63,14 @@ type ThreadsTabsProps = {
   onHydrateInteracted: (preservedId?: string | null) => void | Promise<void>;
 };
 
+const THREAD_TABS: ThreadsTab[] = [
+  "curated",
+  "interacted",
+  "skipped",
+  "dismissed",
+  "expired",
+];
+
 function ThreadsFeedTab(props: {
   tab: ThreadsTab;
   active: ThreadsTab;
@@ -71,13 +79,36 @@ function ThreadsFeedTab(props: {
   onSelect: (tab: ThreadsTab) => void;
 }) {
   const selected = props.active === props.tab;
+  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const current = THREAD_TABS.indexOf(props.tab);
+    let next: ThreadsTab | undefined;
+    if (event.key === "ArrowRight") {
+      next = THREAD_TABS[(current + 1) % THREAD_TABS.length];
+    } else if (event.key === "ArrowLeft") {
+      next =
+        THREAD_TABS[(current - 1 + THREAD_TABS.length) % THREAD_TABS.length];
+    } else if (event.key === "Home") {
+      next = THREAD_TABS[0];
+    } else if (event.key === "End") {
+      next = THREAD_TABS[THREAD_TABS.length - 1];
+    }
+    if (!next) return;
+    event.preventDefault();
+    props.onSelect(next);
+    document.getElementById(`threads-tab-${next}`)?.focus();
+  }
+
   return (
     <button
+      id={`threads-tab-${props.tab}`}
       type="button"
       role="tab"
       aria-selected={selected}
+      aria-controls={`threads-panel-${props.tab}`}
+      tabIndex={selected ? 0 : -1}
       className={selected ? "threads-tab active" : "threads-tab"}
       onClick={() => props.onSelect(props.tab)}
+      onKeyDown={onKeyDown}
     >
       {props.label}
       <ThreadsTabCount n={props.count} />
@@ -191,7 +222,21 @@ export function ThreadsTabs({
           />
         </div>
       </div>
-      <div className="threads-scroll">
+      {THREAD_TABS.filter((tab) => tab !== threadsTab).map((tab) => (
+        <div
+          key={tab}
+          id={`threads-panel-${tab}`}
+          role="tabpanel"
+          aria-labelledby={`threads-tab-${tab}`}
+          hidden
+        />
+      ))}
+      <div
+        id={`threads-panel-${threadsTab}`}
+        className="threads-scroll"
+        role="tabpanel"
+        aria-labelledby={`threads-tab-${threadsTab}`}
+      >
         {threadsTab === "curated" ? (
           !agendaReady || !task.ready ? (
             <ApproachLoadingCard />

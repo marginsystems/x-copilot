@@ -13,7 +13,7 @@ import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { getRequestContext } from "./requestContext.ts";
 import { getLastScout, saveScoutCache } from "./scoutCache.ts";
 import { maybeStartEmptyTankScout } from "./scoutEmptyTank.ts";
-import { resetScoutGateForTests, tryBeginScout, SCOUT_COOLDOWN_MS } from "./scoutGate.ts";
+import { peekScoutFlight, resetScoutGateForTests, tryBeginScout, SCOUT_COOLDOWN_MS } from "./scoutGate.ts";
 import { readLastScoutPayload, tryHandleScout, type ScoutHttpDeps } from "./scoutHttp.ts";
 import { countSortiesToday, recordSortie } from "./scoutSorties.ts";
 import { SESSION_COOKIE } from "./sessionCookie.ts";
@@ -229,6 +229,30 @@ describe("empty-tank background Scout", () => {
       assert.equal(calls, 0);
     });
   }
+
+  it("latches flight failure when the collect reports terminal_error", async () => {
+    deps.runScoutCollect = async (opts) => {
+      calls++;
+      opts.onEvent?.({ ...done, stopReason: "terminal_error" });
+      return { ok: true, event: { ...done, stopReason: "terminal_error" } };
+    };
+    assertEmpty(await get());
+    await setImmediate();
+    assert.equal(calls, 1);
+    assert.equal(peekScoutFlight(userId).failure, true);
+  });
+
+  it("does not latch flight failure on a clean target landing", async () => {
+    deps.runScoutCollect = async (opts) => {
+      calls++;
+      opts.onEvent?.({ ...done, stopReason: "target" });
+      return { ok: true, event: { ...done, stopReason: "target" } };
+    };
+    assertEmpty(await get());
+    await setImmediate();
+    assert.equal(calls, 1);
+    assert.equal(peekScoutFlight(userId).failure, undefined);
+  });
 
   for (const failure of ["memory", "collect"] as const) {
     it(`contains ${failure} failure, refunds and releases the lock`, async () => {

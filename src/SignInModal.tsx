@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { AuthButtons } from "./AuthButtons";
+import { useDialogFocus } from "./useDialogFocus";
 
 export function SignInModal(props: {
   open: boolean;
@@ -7,10 +9,19 @@ export function SignInModal(props: {
   onGoogle: () => void;
   onX: () => void;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus({
+    active: props.open,
+    rootRef,
+    dialogRef,
+    onDismiss: props.onClose,
+  });
+
   if (!props.open) return null;
 
   return (
-    <div className="signin-root" role="presentation">
+    <div ref={rootRef} className="signin-root" role="presentation">
       <button
         type="button"
         className="signin-backdrop"
@@ -18,6 +29,7 @@ export function SignInModal(props: {
         onClick={props.onClose}
       />
       <div
+        ref={dialogRef}
         className="signin-sheet"
         role="dialog"
         aria-modal="true"
