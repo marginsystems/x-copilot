@@ -399,7 +399,7 @@ function SessionApp() {
     (showLanding || needsOnboarding || deskXGate || showOnboardingPreview) &&
     !publicView;
 
-  if (booting) {
+  if (booting && !publicView) {
     return (
       <div className="app app-gate">
         <BootScreen />
