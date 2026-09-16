@@ -207,7 +207,20 @@ test("For You refresh ordering and local dismissal invalidate older snapshots", 
   await act(async () => { requests[3].resolve(new Response(null, { status: 404 })); });
   await act(async () => { requests[4].resolve(response({ suggestions: [replacement] })); await dismiss; });
   await act(async () => { requests[2].resolve(response({ suggestions: [suggestion] })); await refresh; });
-  expect(result.current.history.forYouSuggestions).toEqual([replacement]);
+  expect(result.current.history.forYouSuggestions.map((row) => row.id)).toEqual([replacement.id]);
+});
+
+test("successful For You mutation invalidates an older refresh", async () => {
+  const { result, requests } = setup();
+  let hydrate!: Promise<void>;
+  let action!: Promise<boolean>;
+  act(() => {
+    hydrate = result.current.history.hydrateForYou();
+    action = result.current.history.actForYou("suggestion", "done");
+  });
+  await act(async () => { requests[1].resolve(response({ suggestions: [] })); await action; });
+  await act(async () => { requests[0].resolve(response({ suggestions: [{ id: "suggestion", kind: "post", why: "test" }] })); await hydrate; });
+  expect(result.current.history.forYouSuggestions).toEqual([]);
 });
 
 test.each(["hydrateInteracted", "hydrateSkipped", "hydrateDismissed", "hydrateExpired", "hydrateForYou"] as const)(
