@@ -6,6 +6,7 @@ import type { ThreadsTab } from "../../src/desk/types";
 import type { VoiceState } from "../../src/lib/voice";
 
 vi.mock("../../src/desk/useApproachTask", () => ({
+  // ready:false keeps the Approach loading branch; cardInput/actions are unread.
   useApproachTask: () => ({ badge: 0, ready: false }),
 }));
 

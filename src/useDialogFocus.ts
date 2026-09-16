@@ -18,6 +18,42 @@ function focusableElements(dialog: HTMLElement) {
   );
 }
 
+type Isolation = {
+  count: number;
+  original: { inert: boolean; ariaHidden: string | null };
+};
+
+const isolation = new WeakMap<HTMLElement, Isolation>();
+let dialogDepth = 0;
+
+function isolateSibling(element: HTMLElement) {
+  const existing = isolation.get(element);
+  if (existing) {
+    existing.count += 1;
+    return;
+  }
+  isolation.set(element, {
+    count: 1,
+    original: {
+      inert: element.inert,
+      ariaHidden: element.getAttribute("aria-hidden"),
+    },
+  });
+  element.inert = true;
+  element.setAttribute("aria-hidden", "true");
+}
+
+function releaseSibling(element: HTMLElement) {
+  const existing = isolation.get(element);
+  if (!existing) return;
+  existing.count -= 1;
+  if (existing.count > 0) return;
+  isolation.delete(element);
+  element.inert = existing.original.inert;
+  if (existing.original.ariaHidden === null) element.removeAttribute("aria-hidden");
+  else element.setAttribute("aria-hidden", existing.original.ariaHidden);
+}
+
 export function useDialogFocus({
   active,
   rootRef,
@@ -40,23 +76,14 @@ export function useDialogFocus({
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    const isolated: Array<{
-      element: HTMLElement;
-      inert: boolean;
-      ariaHidden: string | null;
-    }> = [];
+    const isolated: HTMLElement[] = [];
 
     let branch: HTMLElement = root;
     while (branch.parentElement) {
       for (const sibling of Array.from(branch.parentElement.children)) {
         if (sibling === branch || !(sibling instanceof HTMLElement)) continue;
-        isolated.push({
-          element: sibling,
-          inert: sibling.inert,
-          ariaHidden: sibling.getAttribute("aria-hidden"),
-        });
-        sibling.inert = true;
-        sibling.setAttribute("aria-hidden", "true");
+        isolateSibling(sibling);
+        isolated.push(sibling);
       }
       branch = branch.parentElement;
       if (branch === document.body) break;
@@ -100,14 +127,12 @@ export function useDialogFocus({
     }
 
     document.addEventListener("keydown", onKeyDown);
+    dialogDepth += 1;
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      for (const { element, inert, ariaHidden } of isolated) {
-        element.inert = inert;
-        if (ariaHidden === null) element.removeAttribute("aria-hidden");
-        else element.setAttribute("aria-hidden", ariaHidden);
-      }
-      if (opener?.isConnected) opener.focus();
+      for (const element of isolated) releaseSibling(element);
+      dialogDepth -= 1;
+      if (dialogDepth === 0 && opener?.isConnected) opener.focus();
     };
   }, [active, dialogRef, initialFocusRef, rootRef]);
 }
