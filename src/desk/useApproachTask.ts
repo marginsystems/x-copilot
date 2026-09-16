@@ -511,6 +511,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       // A stale 404 also returns false: retain the detected card and its lock.
       if (!acknowledged || !mountedRef.current || !session.isCurrent(generation) ||
         stateRef.current?.lock !== currentLock) return;
+      await onRefreshCoaching();
       advanceCard({ type: "next" });
     } finally {
       suggestionDonePendingRef.current = false;

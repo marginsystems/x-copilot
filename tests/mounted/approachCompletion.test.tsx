@@ -42,6 +42,7 @@ function setup() {
   // Advancing to For You installs its existing detector.
   vi.stubGlobal("EventSource", class { addEventListener() {} close() {} });
   const setStatus = vi.fn();
+  const onRefreshCoaching = vi.fn();
   const mount = () => renderHook(({ ready }) => {
     const session = useSession();
     const history = useDeskHistory({
@@ -54,7 +55,7 @@ function setup() {
       interactedIds: new Set(["123"]), interactedHistory: [], interactedHydrated: true,
       dismissedHistory: [], dismissThread: null, searching: false, grounded: true,
       searchCooldownRemaining: 0, setExpandedId: vi.fn(), actForYou: history.actForYou,
-      onSkip: vi.fn(), onDismiss: vi.fn(), onRefreshCoaching: vi.fn(), onHydrateInteracted: vi.fn(),
+      onSkip: vi.fn(), onDismiss: vi.fn(), onRefreshCoaching, onHydrateInteracted: vi.fn(),
     });
     return { approach, history, session };
   }, { wrapper, initialProps: { ready: false } });
@@ -70,13 +71,13 @@ function setup() {
   writeApproachLock(user.id, lock);
   const hook = mount();
   boot(hook);
-  return { ...hook, mount, boot, requests, done, setStatus };
+  return { ...hook, mount, boot, requests, done, setStatus, onRefreshCoaching };
 }
 
 test.each([500, "network", 404] as const)(
   "%s keeps the detected card locked across refresh and allows retry of the same id",
   async (failure) => {
-    const { result, unmount, mount, boot, requests, done, setStatus } = setup();
+    const { result, unmount, mount, boot, requests, done, setStatus, onRefreshCoaching } = setup();
     expect(result.current.approach.cardInput.suggestionDetected).toBe(true);
     expect(readApproachLock(user.id)).toEqual(lock);
     act(() => {
@@ -108,6 +109,7 @@ test.each([500, "network", 404] as const)(
     act(() => { oldClick(suggestion.id); oldClick(suggestion.id); });
     expect(done).toHaveBeenCalledTimes(2);
     await act(async () => { requests[1].resolve(new Response("{}")); });
+    expect(onRefreshCoaching).toHaveBeenCalledTimes(1);
     expect(readApproachLock(user.id)?.cardId).not.toBe(suggestion.id);
     expect(readRetainedSuggestion(user.id)).toBeNull();
     act(() => { oldClick(suggestion.id); });
