@@ -204,6 +204,7 @@ test("auth-optional fallback 401 does not invalidate the session", async () => {
         { status: 401 },
       );
     }
+    if (url.endsWith("/api/for-you")) return new Response(null, { status: 401 });
     return Response.json({ ok: true });
   }));
   const h = mountBoot();
@@ -216,6 +217,27 @@ test("auth-optional fallback 401 does not invalidate the session", async () => {
   });
   expect(h.result.current.deskBootReady).toBe(true);
   expect(h.applyDesk).toHaveBeenCalledTimes(1);
+});
+
+test("fallback auth failure releases readiness after the session was checked", async () => {
+  const auth = deferred<Response>();
+  const setItem = vi.spyOn(Storage.prototype, "setItem");
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
+    return auth.promise;
+  }));
+  const h = mountBoot();
+  await act(async () => {});
+  act(() => {
+    const generation = h.result.current.session.capture();
+    h.result.current.session.verify(boot.user, true, generation);
+  });
+  await act(async () => { auth.resolve(new Response(null, { status: 500 })); });
+  expect(h.result.current.deskBootReady).toBe(true);
+  expect(h.result.current.agendaReady).toBe(true);
+  expect(h.notice).toHaveBeenLastCalledWith("Desk could not load. Reload to try again.");
+  expect(setItem).not.toHaveBeenCalledWith(SESSION_RESET_KEY, expect.any(String));
+  setItem.mockRestore();
 });
 
 test("fallback keeps history when one later slice is down", async () => {
@@ -238,6 +260,7 @@ test("fallback keeps history when one later slice is down", async () => {
   expect(h.result.current.deskBootReady).toBe(true);
   expect(h.applyDesk).toHaveBeenCalledTimes(1);
   expect(h.applyDesk.mock.calls[0][0].interacted.activeIds).toEqual(["kept"]);
+  expect(h.applyDesk.mock.calls[0][0].gamification).toBeUndefined();
 });
 
 test("applyHistoryFromBoot marks interacted history hydrated", () => {

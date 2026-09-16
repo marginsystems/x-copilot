@@ -87,6 +87,8 @@ export type DeskBootDesk = {
   coaching: CoachingState | null;
 };
 
+export type DeskBootDeskPatch = Partial<DeskBootDesk>;
+
 export type DeskBootPayload = {
   ok: true;
   authRequired: boolean;

@@ -5,7 +5,7 @@ import {
   type ActivityBucket,
   type ActivityStats,
 } from "../lib/activityStats";
-import type { DeskBootDesk } from "../lib/deskBoot";
+import type { DeskBootDeskPatch } from "../lib/deskBoot";
 import { peekDeskBootCache } from "../lib/deskBoot";
 import { readDeskTopOpen, writeDeskTopOpen } from "../lib/deskLayout";
 import {
@@ -54,11 +54,11 @@ export function useActivityStrip(verifiedOwnerId: string | null) {
     setActivityStats(next);
   }
 
-  function applyStripFromBoot(desk: DeskBootDesk) {
-    if (gamificationRequestSeqRef.current === 0) {
+  function applyStripFromBoot(desk: DeskBootDeskPatch) {
+    if (desk.gamification && gamificationRequestSeqRef.current === 0) {
       setGamification(desk.gamification);
     }
-    if (stripStaleRef.current) return;
+    if (!desk.activityStats || stripStaleRef.current) return;
     setActivityStats(desk.activityStats);
     activityBucketRef.current = desk.activityStats.bucket;
     activityRequestBucketRef.current = desk.activityStats.bucket;

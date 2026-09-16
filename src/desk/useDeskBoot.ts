@@ -16,7 +16,7 @@ import {
   parseDeskBoot,
   parseAuthSessionUser,
   writeDeskBootCache,
-  type DeskBootDesk,
+  type DeskBootDeskPatch,
 } from "../lib/deskBoot";
 import {
   readOnboardingAgenda,
@@ -36,7 +36,7 @@ type UseDeskBootOpts = {
     required?: boolean,
   ) => AuthSessionUser | null;
   /** Seed every desk slice from the one-shot boot payload. */
-  applyDesk: (desk: DeskBootDesk) => void;
+  applyDesk: (desk: DeskBootDeskPatch) => void;
   confirmCheckout: (sessionId: string) => Promise<void>;
   hydrateCoaching: () => Promise<void>;
   hydrateActivityStats: () => Promise<void>;
@@ -193,7 +193,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         const res = await apiFetch(path, { signal: controller.signal });
         if (!current()) throw new Error("Boot canceled");
         if (res.status === 401) {
-          let required = true;
+          let required = path === "/api/auth/me" || session.getSnapshot().required;
           try {
             const body = (await res.json()) as { authRequired?: boolean };
             if (typeof body.authRequired === "boolean") required = body.authRequired;
@@ -202,9 +202,9 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
           }
           applyAuthUser(null, required);
           if (required) throw new Error("Session expired");
-          return null;
+          return path === "/api/auth/me" ? null : undefined;
         }
-        if (!res.ok) return null;
+        if (!res.ok) return undefined;
         const data = await res.json();
         if (!current()) throw new Error("Boot canceled");
         return data;
@@ -226,9 +226,18 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         onboarded ? read(`/api/scout/last?dedupeAccounts=${opts.dedupeAccounts}&autoStart=0`) : null,
       ]);
       if (!current()) return;
-      applyDesk(parseDeskBoot({ ok: true, user, desk: {
+      const parsedDesk = parseDeskBoot({ ok: true, user, desk: {
         dismissed, skipped, interacted, expired, forYou, gamification, lastScout,
-      } })!.desk!);
+      } })!.desk!;
+      const desk: DeskBootDeskPatch = parsedDesk;
+      if (dismissed === undefined) delete desk.dismissed;
+      if (skipped === undefined) delete desk.skipped;
+      if (interacted === undefined) delete desk.interacted;
+      if (expired === undefined) delete desk.expired;
+      if (forYou === undefined) delete desk.forYou;
+      if (gamification === undefined) delete desk.gamification;
+      if (lastScout == null) delete desk.lastScout;
+      applyDesk(desk);
       if (!current()) return;
       if (checkout === "success" && sessionId) {
         await confirmCheckout(sessionId);

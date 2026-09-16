@@ -228,8 +228,8 @@ function SessionApp() {
     applyDesk: (desk) => {
       applyHistoryFromBoot(desk);
       applyStripFromBoot(desk);
-      applyCoaching(desk.coaching);
-      applyLastScoutFromBoot(desk.lastScout);
+      if (desk.coaching !== undefined) applyCoaching(desk.coaching);
+      if (desk.lastScout !== undefined) applyLastScoutFromBoot(desk.lastScout);
     },
     confirmCheckout,
     hydrateCoaching,
