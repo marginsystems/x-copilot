@@ -5,6 +5,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { useSession } from "../auth/session";
 import { apiFetch } from "../lib/apiBase";
 import type { DeskBootDeskPatch } from "../lib/deskBoot";
 import { peekDeskBootCache } from "../lib/deskBoot";
@@ -92,6 +93,21 @@ export function useDeskHistory(
   verifiedOwnerId: string | null,
 ) {
   const { setThreads, setStatus, setActionBusy } = deps;
+  const session = useSession();
+  const requestSeq = useRef({
+    interacted: 0, skipped: 0, dismissed: 0, expired: 0, forYou: 0,
+  });
+  const lifetime = useRef(0);
+  useEffect(() => () => { lifetime.current++; }, []);
+
+  function beginRefresh(key: keyof typeof requestSeq.current) {
+    const generation = session.capture();
+    const mounted = lifetime.current;
+    const seq = ++requestSeq.current[key];
+    return () =>
+      session.isCurrent(generation) && mounted === lifetime.current &&
+      seq === requestSeq.current[key];
+  }
 
   const seed = peekDeskBootCache(verifiedOwnerId)?.desk ?? null;
   const [interactedIds, setInteractedIds] = useState<Set<string>>(
@@ -193,6 +209,8 @@ export function useDeskHistory(
    * any later selection, not after the next network round trip.
    */
   async function hydrateInteracted(preservedId?: string | null) {
+    const isCurrent = beginRefresh("interacted");
+    if (!isCurrent()) return;
     setInteractedHydrated(false);
     if (preservedId !== undefined) {
       const changed = preservedIdRef.current !== preservedId;
@@ -203,11 +221,13 @@ export function useDeskHistory(
     }
     try {
       const res = await apiFetch("/api/interacted");
-      if (!res.ok) return;
+      if (!isCurrent()) return;
+      if (!res.ok) throw new Error("Refresh failed");
       const data = (await res.json()) as {
         interactions?: InteractionHistoryEntry[];
         activeIds?: string[];
       };
+      if (!isCurrent()) return;
       const history = (data.interactions ?? []).filter(
         (i) =>
           i &&
@@ -247,9 +267,9 @@ export function useDeskHistory(
         );
       }
     } catch {
-      // Sidecar may be offline on first paint — ignore.
+      if (isCurrent()) setStatus("Could not refresh interacted history. Try again.");
     } finally {
-      setInteractedHydrated(true);
+      if (isCurrent()) setInteractedHydrated(true);
     }
   }
 
@@ -274,13 +294,17 @@ export function useDeskHistory(
   }
 
   async function hydrateSkipped() {
+    const isCurrent = beginRefresh("skipped");
+    if (!isCurrent()) return;
     try {
       const res = await apiFetch("/api/skipped");
-      if (!res.ok) return;
+      if (!isCurrent()) return;
+      if (!res.ok) throw new Error("Refresh failed");
       const data = (await res.json()) as {
         skipped?: SkipHistoryEntry[];
         skippedIds?: string[];
       };
+      if (!isCurrent()) return;
       const history = (data.skipped ?? []).filter(
         (d) =>
           d &&
@@ -313,18 +337,22 @@ export function useDeskHistory(
         setThreads((prev) => prev.filter((t) => keepInCurated(t)));
       }
     } catch {
-      // Sidecar may be offline on first paint — ignore.
+      if (isCurrent()) setStatus("Could not refresh skipped history. Try again.");
     }
   }
 
   async function hydrateDismissed() {
+    const isCurrent = beginRefresh("dismissed");
+    if (!isCurrent()) return;
     try {
       const res = await apiFetch("/api/dismissed");
-      if (!res.ok) return;
+      if (!isCurrent()) return;
+      if (!res.ok) throw new Error("Refresh failed");
       const data = (await res.json()) as {
         dismissals?: DismissalHistoryEntry[];
         dismissedIds?: string[];
       };
+      if (!isCurrent()) return;
       const history = (data.dismissals ?? []).filter(
         (d) =>
           d &&
@@ -354,18 +382,22 @@ export function useDeskHistory(
         setThreads((prev) => prev.filter((t) => keepInCurated(t)));
       }
     } catch {
-      // Sidecar may be offline on first paint — ignore.
+      if (isCurrent()) setStatus("Could not refresh dismissed history. Try again.");
     }
   }
 
   async function hydrateExpired() {
+    const isCurrent = beginRefresh("expired");
+    if (!isCurrent()) return;
     try {
       const res = await apiFetch("/api/expired");
-      if (!res.ok) return;
+      if (!isCurrent()) return;
+      if (!res.ok) throw new Error("Refresh failed");
       const data = (await res.json()) as {
         expired?: ExpiredHistoryEntry[];
         expiredIds?: string[];
       };
+      if (!isCurrent()) return;
       const history = (data.expired ?? []).filter(
         (e) =>
           e &&
@@ -387,15 +419,19 @@ export function useDeskHistory(
         setThreads((prev) => prev.filter((t) => !isHiddenFromCurated(t.id)));
       }
     } catch {
-      // Sidecar may be offline on first paint — ignore.
+      if (isCurrent()) setStatus("Could not refresh expired history. Try again.");
     }
   }
 
   async function hydrateForYou() {
+    const isCurrent = beginRefresh("forYou");
+    if (!isCurrent()) return;
     try {
       const res = await apiFetch("/api/for-you");
-      if (!res.ok) return;
+      if (!isCurrent()) return;
+      if (!res.ok) throw new Error("Refresh failed");
       const data = (await res.json()) as { suggestions?: unknown[] };
+      if (!isCurrent()) return;
       const rows = (Array.isArray(data.suggestions) ? data.suggestions : [])
         .map(parseForYouSuggestion)
         .filter((row): row is ForYouSuggestion => Boolean(row));
@@ -403,7 +439,7 @@ export function useDeskHistory(
       setForYouProgress(parseForYouProgress(data));
       setForYouExtra(parseForYouExtra(data));
     } catch {
-      /* sidecar may be offline */
+      if (isCurrent()) setStatus("Could not refresh For You. Try again.");
     }
   }
 
@@ -420,6 +456,7 @@ export function useDeskHistory(
       });
       if (!res.ok) {
         if (res.status === 404) {
+          requestSeq.current.forYou++;
           setForYouSuggestions((prev) => prev.filter((row) => row.id !== id));
           historyStaleRef.current = true;
           if (path === "skip" || path === "dismiss") {
@@ -437,6 +474,7 @@ export function useDeskHistory(
       const next = (Array.isArray(data.suggestions) ? data.suggestions : [])
         .map(parseForYouSuggestion)
         .filter((item): item is ForYouSuggestion => Boolean(item));
+      requestSeq.current.forYou++;
       setForYouSuggestions(
         next.length || path === "skip" || path === "dismiss"
           ? next
@@ -460,9 +498,16 @@ export function useDeskHistory(
     interactedHistory,
     setInteractedHistory,
     dismissedHistory,
-    setDismissedHistory,
+    // Local mutations supersede any snapshot already in flight.
+    setDismissedHistory: (update: SetStateAction<DismissalHistoryEntry[]>) => {
+      requestSeq.current.dismissed++;
+      setDismissedHistory(update);
+    },
     skippedHistory,
-    setSkippedHistory,
+    setSkippedHistory: (update: SetStateAction<SkipHistoryEntry[]>) => {
+      requestSeq.current.skipped++;
+      setSkippedHistory(update);
+    },
     expiredHistory,
     setExpiredHistory,
     forYouSuggestions,

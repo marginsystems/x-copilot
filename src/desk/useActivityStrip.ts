@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSession } from "../auth/session";
 import {
   emptyActivityStats,
   fetchActivityStats,
@@ -14,7 +15,15 @@ import {
   type GamificationStats,
 } from "../lib/gamification";
 
-export function useActivityStrip(verifiedOwnerId: string | null) {
+type ActivityStripCommit =
+  | { kind: "activityStats"; value: ActivityStats }
+  | { kind: "gamification"; value: GamificationStats };
+
+export function useActivityStrip(
+  verifiedOwnerId: string | null,
+  onCommit?: (commit: ActivityStripCommit) => void,
+) {
+  const session = useSession();
   const seed = peekDeskBootCache(verifiedOwnerId)?.desk ?? null;
   const seedBucket = seed?.activityStats.bucket ?? "day";
   const [activityBucket, setActivityBucket] = useState<ActivityBucket>(
@@ -38,10 +47,21 @@ export function useActivityStrip(verifiedOwnerId: string | null) {
   /** Monotonic token so out-of-order gamification responses don't regress the chip. */
   const gamificationRequestSeqRef = useRef(0);
 
+  const activityRequestSeqRef = useRef(0);
+  const lifetime = useRef(0);
+  useEffect(() => () => {
+    lifetime.current++;
+    activityRequestSeqRef.current++;
+  }, []);
+
   async function hydrateActivityStats(
-    bucket: ActivityBucket = activityBucketRef.current,
+    bucket: ActivityBucket = activityRequestBucketRef.current,
   ) {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
+    const seq = ++activityRequestSeqRef.current;
     const next = await fetchActivityStats(bucket);
+    if (!session.isCurrent(generation) || seq !== activityRequestSeqRef.current) return;
     if (!next) return;
     // Ignore stale responses if a newer toggle request is in flight.
     if (bucket !== activityRequestBucketRef.current) return;
@@ -52,6 +72,7 @@ export function useActivityStrip(verifiedOwnerId: string | null) {
     activityBucketRef.current = bucket;
     setActivityBucket(bucket);
     setActivityStats(next);
+    onCommit?.({ kind: "activityStats", value: next });
   }
 
   function applyStripFromBoot(desk: DeskBootDeskPatch) {
@@ -66,11 +87,16 @@ export function useActivityStrip(verifiedOwnerId: string | null) {
   }
 
   async function hydrateGamification() {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
+    const mounted = lifetime.current;
     const seq = ++gamificationRequestSeqRef.current;
     const next = await fetchGamification();
-    if (seq !== gamificationRequestSeqRef.current) return;
+    if (!session.isCurrent(generation) || seq !== gamificationRequestSeqRef.current) return;
+    if (mounted !== lifetime.current) return;
     if (!next) return;
     setGamification(next);
+    onCommit?.({ kind: "gamification", value: next });
   }
 
   function onActivityBucket(next: ActivityBucket) {
