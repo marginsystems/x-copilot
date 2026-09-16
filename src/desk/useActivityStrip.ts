@@ -55,7 +55,7 @@ export function useActivityStrip(
   }, []);
 
   async function hydrateActivityStats(
-    bucket: ActivityBucket = activityBucketRef.current,
+    bucket: ActivityBucket = activityRequestBucketRef.current,
   ) {
     const generation = session.capture();
     if (!session.isCurrent(generation)) return;

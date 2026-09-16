@@ -141,6 +141,26 @@ test("day/week/day and gamification retain the newest response", async () => {
   expect(result.current.gamification).toEqual(gamification);
 });
 
+test("a refresh after a bucket toggle keeps the requested bucket", async () => {
+  const requests: ReturnType<typeof deferred<Response>>[] = [];
+  vi.stubGlobal("fetch", vi.fn(() => { const d = deferred<Response>(); requests.push(d); return d.promise; }));
+  const { result } = renderHook(() => useActivityStrip(null), { wrapper });
+  let refresh!: Promise<void>;
+  act(() => {
+    result.current.onActivityBucket("week");
+    refresh = result.current.hydrateActivityStats();
+  });
+  await act(async () => {
+    requests[1].resolve(response(emptyActivityStats("week")));
+    await refresh;
+  });
+  await act(async () => {
+    requests[0].resolve(response(emptyActivityStats("week")));
+  });
+  expect(result.current.activityBucket).toBe("week");
+  expect(result.current.activityStats.bucket).toBe("week");
+});
+
 test("For You refresh ordering and local dismissal invalidate older snapshots", async () => {
   const { result, requests } = setup();
   const suggestion = { id: "suggestion", kind: "post", why: "test" };
@@ -198,6 +218,32 @@ test("chart and gamification ignore session-expired results and subsequent refre
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(gamificationCommits).not.toContain(99);
   expect(result.current.strip.gamification.lifetimeXp).toBe(0);
+});
+
+test("chart and gamification ignore results after unmount", async () => {
+  sessionStorage.setItem("x-copilot-flight-path-open", "1");
+  const requests: ReturnType<typeof deferred<Response>>[] = [];
+  vi.stubGlobal("fetch", vi.fn(() => { const d = deferred<Response>(); requests.push(d); return d.promise; }));
+  const commits: unknown[] = [];
+  const { result, unmount } = renderHook(
+    () => useActivityStrip(null, (commit) => commits.push(commit)),
+    { wrapper },
+  );
+  const old = result.current;
+  let chart!: Promise<void>, gamification!: Promise<void>;
+  act(() => {
+    chart = old.hydrateActivityStats();
+    gamification = old.hydrateGamification();
+    unmount();
+  });
+  await act(async () => {
+    requests[0].resolve(response(emptyActivityStats("day")));
+    requests[1].resolve(response({ ...emptyGamificationStats(), lifetimeXp: 99 }));
+    await Promise.all([chart, gamification]);
+  });
+  expect(commits).toEqual([]);
+  expect(old.activityStats).toEqual(emptyActivityStats("day"));
+  expect(old.gamification).toEqual(emptyGamificationStats());
 });
 
 
