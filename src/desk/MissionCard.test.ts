@@ -474,8 +474,8 @@ describe("Approach flight frame", () => {
     assert.match(html, escapeRe(FYP_DETECTING_COPY));
     assert.match(html, /Open on X/);
     assert.match(html, /<button[^>]*disabled=""[^>]*>Next/);
-    assert.doesNotMatch(html, />Skip</);
-    assert.doesNotMatch(html, />Not interested</);
+    assert.match(html, />Skip</);
+    assert.match(html, />Not interested</);
     assert.doesNotMatch(html, /I posted on X/);
 
     const expanded = renderToStaticMarkup(
@@ -545,7 +545,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /I posted on X/);
   });
 
-  it("keeps Open and disabled Next on a collapsed Scout", () => {
+  it("keeps Open, Skip, and Not interested on a collapsed Scout", () => {
     const lead = thread("collapsed-lead", 42);
     const html = renderToStaticMarkup(
       MissionCard(
@@ -558,7 +558,8 @@ describe("Approach flight frame", () => {
     );
     assert.match(html, /Open on X/);
     assert.match(html, /<button[^>]*disabled=""[^>]*>Next/);
-    assert.doesNotMatch(html, />Skip|>Not interested/);
+    assert.match(html, />Skip</);
+    assert.match(html, />Not interested</);
   });
 
   it("keeps Open and enabled Next on a detected retained Scout", () => {

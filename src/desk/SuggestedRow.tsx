@@ -94,8 +94,8 @@ export function SuggestedRow({
         open && !interacted && !detectsReply && !busy ? onPosted : undefined
       }
       primaryLabel="I posted on X"
-      onSkip={open && !interacted ? onSkip : undefined}
-      onDismiss={open && !interacted ? onDismiss : undefined}
+      onSkip={!interacted ? onSkip : undefined}
+      onDismiss={!interacted ? onDismiss : undefined}
       busy={busy}
     >
       {!compose && row.draft ? (
