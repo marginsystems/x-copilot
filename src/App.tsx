@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   loadSettings,
   type AppSettings,
@@ -172,6 +172,7 @@ function SessionApp() {
     loadAdmin,
   } = useAdmin();
   const { menuOpen, menuEntered, openMenu, closeMenu } = useMenu();
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
   const [signInOpen, setSignInOpen] = useState(false);
   const [onboardingPreview, setOnboardingPreview] = useState(false);
   const [simulateUnlinked, setSimulateUnlinked] = useState(false);
@@ -421,10 +422,15 @@ function SessionApp() {
           if (menuOpen && menuEntered) closeMenu();
           else openMenu();
         }}
+        menuToggleRef={menuToggleRef}
       />
 
       {menuOpen ? (
-        <MenuDrawer entered={menuEntered} onClose={closeMenu}>
+        <MenuDrawer
+          entered={menuEntered}
+          onClose={closeMenu}
+          openerRef={menuToggleRef}
+        >
           <UserMenu
             view={view}
             theme={theme}

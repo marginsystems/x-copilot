@@ -1,4 +1,5 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useRef, type Dispatch, type SetStateAction } from "react";
+import { useDialogFocus } from "../useDialogFocus";
 import type { ThreadCard } from "./types";
 
 type DismissModalProps = {
@@ -18,10 +19,22 @@ export function DismissModal({
   onConfirm,
   onClose,
 }: DismissModalProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  useDialogFocus({
+    active: thread !== null,
+    rootRef,
+    dialogRef,
+    initialFocusRef: reasonRef,
+    onDismiss: onClose,
+    dismissBlocked: busy,
+  });
+
   if (!thread) return null;
 
   return (
-    <div className="modal-root" role="presentation">
+    <div ref={rootRef} className="modal-root" role="presentation">
       <button
         type="button"
         className="modal-backdrop"
@@ -30,6 +43,7 @@ export function DismissModal({
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         className="modal-sheet"
         role="dialog"
         aria-modal="true"
@@ -43,12 +57,12 @@ export function DismissModal({
         <label className="settings-field">
           <span>Reason (optional)</span>
           <textarea
+            ref={reasonRef}
             className="mark-reply-text"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
             placeholder="Why skip this lead…"
             rows={3}
-            autoFocus
           />
         </label>
         <div className="row">
