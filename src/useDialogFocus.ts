@@ -11,6 +11,7 @@ type DialogFocusOptions = {
   onDismiss: () => void;
   dismissBlocked?: boolean;
   preserveOpener?: boolean;
+  openerRef?: RefObject<HTMLElement>;
 };
 
 function focusableElements(dialog: HTMLElement) {
@@ -25,8 +26,13 @@ type Isolation = {
 };
 
 const isolation = new WeakMap<HTMLElement, Isolation>();
-let dialogDepth = 0;
-const openers: HTMLElement[] = [];
+const activeDialogs: {
+  dialog: HTMLElement;
+  onDismissRef: { current: () => void };
+  dismissBlockedRef: { current: boolean };
+  opener: HTMLElement | null;
+  fallbackOpener: HTMLElement | null;
+}[] = [];
 
 function isolateSibling(element: HTMLElement) {
   const existing = isolation.get(element);
@@ -64,6 +70,7 @@ export function useDialogFocus({
   onDismiss,
   dismissBlocked = false,
   preserveOpener = false,
+  openerRef,
 }: DialogFocusOptions) {
   const onDismissRef = useRef(onDismiss);
   const dismissBlockedRef = useRef(dismissBlocked);
@@ -76,10 +83,15 @@ export function useDialogFocus({
     const root = rootRef.current;
     const dialog = dialogRef.current;
     const opener =
-      document.activeElement instanceof HTMLElement
+      openerRef?.current ??
+      (document.activeElement instanceof HTMLElement
         ? document.activeElement
+        : null);
+    const fallbackOpener =
+      activeDialogs.length > 0
+        ? activeDialogs[activeDialogs.length - 1].fallbackOpener ??
+          activeDialogs[activeDialogs.length - 1].opener
         : null;
-    if (opener) openers.push(opener);
     const isolated: HTMLElement[] = [];
 
     let branch: HTMLElement = root;
@@ -98,8 +110,18 @@ export function useDialogFocus({
       initialFocusRef?.current ?? focusableElements(dialog)[0] ?? dialog;
     initial.focus();
 
+    const dialogEntry = {
+      dialog,
+      onDismissRef,
+      dismissBlockedRef,
+      opener,
+      fallbackOpener,
+    };
+    activeDialogs.push(dialogEntry);
+
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        if (activeDialogs[activeDialogs.length - 1] !== dialogEntry) return;
         event.preventDefault();
         if (!dismissBlockedRef.current) onDismissRef.current();
         return;
@@ -132,20 +154,18 @@ export function useDialogFocus({
     }
 
     document.addEventListener("keydown", onKeyDown);
-    dialogDepth += 1;
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       for (const element of isolated) releaseSibling(element);
-      dialogDepth -= 1;
-      if (dialogDepth === 0) {
-        for (let index = openers.length - 1; index >= 0; index -= 1) {
-          const candidate = openers[index];
-          if (candidate.isConnected) {
+      const entryIndex = activeDialogs.indexOf(dialogEntry);
+      if (entryIndex !== -1) activeDialogs.splice(entryIndex, 1);
+      if (activeDialogs.length === 0) {
+        for (const candidate of [dialogEntry.opener, dialogEntry.fallbackOpener]) {
+          if (candidate?.isConnected) {
             candidate.focus();
             break;
           }
         }
-        openers.length = 0;
       }
     };
   }, [active, dialogRef, initialFocusRef, rootRef]);

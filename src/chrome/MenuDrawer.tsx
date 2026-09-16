@@ -1,13 +1,14 @@
-import { useRef, type ReactNode } from "react";
+import { useRef, type ReactNode, type RefObject } from "react";
 import { useDialogFocus } from "../useDialogFocus";
 
 type MenuDrawerProps = {
   entered: boolean;
   onClose: () => void;
   children: ReactNode;
+  openerRef?: RefObject<HTMLElement>;
 };
 
-export function MenuDrawer({ entered, onClose, children }: MenuDrawerProps) {
+export function MenuDrawer({ entered, onClose, children, openerRef }: MenuDrawerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus({
@@ -16,6 +17,7 @@ export function MenuDrawer({ entered, onClose, children }: MenuDrawerProps) {
     dialogRef,
     onDismiss: onClose,
     preserveOpener: true,
+    openerRef,
   });
 
   return (

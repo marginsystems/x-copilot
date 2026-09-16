@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import type { AuthSessionUser } from "../auth/types";
 import { HeaderAvatar } from "../UserMenu";
 
@@ -8,6 +9,7 @@ type AppHeaderProps = {
   authUser: AuthSessionUser | null;
   onHome: () => void;
   onToggleMenu: () => void;
+  menuToggleRef: RefObject<HTMLButtonElement>;
 };
 
 export function AppHeader({
@@ -17,6 +19,7 @@ export function AppHeader({
   authUser,
   onHome,
   onToggleMenu,
+  menuToggleRef,
 }: AppHeaderProps) {
   return (
     <header className={gate ? "brand brand-gate" : "brand"}>
@@ -51,6 +54,7 @@ export function AppHeader({
           </div>
         </a>
         <button
+          ref={menuToggleRef}
           type="button"
           className={
             menuOpen && menuEntered

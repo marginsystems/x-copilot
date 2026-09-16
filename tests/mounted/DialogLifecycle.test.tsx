@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { SignInModal } from "../../src/SignInModal";
@@ -101,6 +101,40 @@ test("overlapping menu and sign-in restore isolation only after the last dialog 
   expect(document.activeElement).toBe(opener);
 });
 
+test("Escape dismisses only the topmost overlapping dialog", async () => {
+  function Harness() {
+    const [outer, setOuter] = useState(false);
+    const [inner, setInner] = useState(false);
+    return (
+      <>
+        <button type="button" onClick={() => setOuter(true)}>
+          Open outer
+        </button>
+        <SignInModal
+          open={outer}
+          onClose={() => setOuter(false)}
+          onGoogle={() => setInner(true)}
+          onX={() => setInner(true)}
+        />
+        {inner ? (
+          <MenuDrawer entered onClose={() => setInner(false)}>
+            <button type="button">Inner action</button>
+          </MenuDrawer>
+        ) : null}
+      </>
+    );
+  }
+
+  const user = userEvent.setup();
+  render(<Harness />);
+  await user.click(screen.getByRole("button", { name: "Open outer" }));
+  await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+  expect(screen.getByRole("dialog", { name: "User menu" })).toBeTruthy();
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog", { name: "User menu" })).toBeNull();
+  expect(screen.getByRole("dialog", { name: "Sign in to your desk" })).toBeTruthy();
+});
+
 test("menu drawer focuses its contents and handles Escape while entered", async () => {
   function Harness() {
     const [open, setOpen] = useState(false);
@@ -155,6 +189,10 @@ test("menu drawer keeps its header close toggle interactive", async () => {
 
   expect(toggle.inert).not.toBe(true);
   expect(toggle.closest("header")?.inert).not.toBe(true);
-  await user.click(screen.getByRole("button", { name: "Close menu" }));
+  await user.click(
+    within(screen.getByRole("banner")).getByRole("button", {
+      name: "Close menu",
+    }),
+  );
   expect(screen.queryByRole("dialog", { name: "User menu" })).toBeNull();
 });
