@@ -91,8 +91,8 @@ export function ThreadRow({
       onNext={onNext}
       nextTip="Continue to the next Approach card."
       nextDisabled={!interacted}
-      onSkip={open && !interacted ? onSkip : undefined}
-      onDismiss={open && !interacted ? onDismiss : undefined}
+      onSkip={!interacted ? onSkip : undefined}
+      onDismiss={!interacted ? onDismiss : undefined}
       busy={busy}
     >
       <XThreadView
