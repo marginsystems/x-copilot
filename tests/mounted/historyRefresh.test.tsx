@@ -242,7 +242,7 @@ test("For You refresh ordering and local dismissal invalidate older snapshots", 
   await act(async () => { requests[0].resolve(response({ suggestions: [], tracked: 0 })); await first; });
   expect(result.current.history.forYouSuggestions[0].id).toBe("suggestion");
   expect(result.current.history.forYouProgress?.tracked).toBe(2);
-  let refresh!: Promise<void>, dismiss!: Promise<boolean>;
+  let refresh!: Promise<void>, dismiss!: Promise<boolean | "gone">;
   const replacement = { id: "replacement", kind: "post", why: "new" };
   act(() => { refresh = result.current.history.hydrateForYou(); dismiss = result.current.history.actForYou("suggestion", "dismiss"); });
   await act(async () => { requests[3].resolve(new Response(null, { status: 404 })); });
@@ -255,7 +255,7 @@ test("For You refresh ordering and local dismissal invalidate older snapshots", 
 test("successful For You mutation invalidates an older refresh", async () => {
   const { result, requests } = setup();
   let hydrate!: Promise<void>;
-  let action!: Promise<boolean>;
+  let action!: Promise<boolean | "gone">;
   act(() => {
     hydrate = result.current.history.hydrateForYou();
     action = result.current.history.actForYou("suggestion", "done");
@@ -275,7 +275,7 @@ test("404 For You done mutation invalidates an older refresh", async () => {
   });
 
   let refresh!: Promise<void>;
-  let action!: Promise<boolean>;
+  let action!: Promise<boolean | "gone">;
   act(() => {
     refresh = result.current.history.hydrateForYou();
     action = result.current.history.actForYou("suggestion", "done");
