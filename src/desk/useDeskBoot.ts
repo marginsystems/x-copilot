@@ -104,7 +104,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
     const deadline = window.setTimeout(() => {
       if (!current()) return;
       if (!session.getSnapshot().checked) {
-        session.invalidate("Desk loading timed out. Reload to try again.");
+        session.invalidate("Desk loading timed out. Reload to try again.", false);
         return;
       }
       setAuthNotice("Desk loading timed out. Reload to try again.");
@@ -211,8 +211,12 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       };
       const auth = await read("/api/auth/me");
       if (!current()) return;
-      if (!auth?.ok) throw new Error("Invalid auth response");
-      const user = applyAuthUser(parseAuthSessionUser(auth.user), auth.authRequired ?? true);
+      const optionalAnonymous =
+        auth === null && session.getSnapshot().checked && !session.getSnapshot().required;
+      if (!auth?.ok && !optionalAnonymous) throw new Error("Invalid auth response");
+      const user = optionalAnonymous
+        ? applyAuthUser(null, false)
+        : applyAuthUser(parseAuthSessionUser(auth.user), auth.authRequired ?? true);
       if (!current()) return;
       if (err && !user) setSignInOpen(true);
       const onboarded = applyUser(user);
@@ -235,7 +239,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
     })().catch(() => {
       if (!current()) return;
       if (!session.getSnapshot().checked) {
-        session.invalidate("Desk could not load. Reload to try again.");
+        session.invalidate("Desk could not load. Reload to try again.", false);
         return;
       }
       setAuthNotice("Desk could not load. Reload to try again.");

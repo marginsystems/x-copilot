@@ -1,7 +1,7 @@
 import { StrictMode, type ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { SessionBoundary, useSession } from "../../src/auth/session";
+import { SESSION_RESET_KEY, SessionBoundary, useSession } from "../../src/auth/session";
 import { useDeskBoot } from "../../src/desk/useDeskBoot";
 import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { useScoutRun } from "../../src/desk/useScoutRun";
@@ -73,6 +73,7 @@ test("logout aborts boot and a late response cannot cache or confirm checkout", 
 
 test("stalled fallback releases readiness, aborts reads, and suppresses late data", async () => {
   vi.useFakeTimers();
+  const setItem = vi.spyOn(Storage.prototype, "setItem");
   const stalled = deferred<Response>();
   const signals: AbortSignal[] = [];
   vi.stubGlobal("fetch", vi.fn((url: string, init: RequestInit) => {
@@ -87,6 +88,8 @@ test("stalled fallback releases readiness, aborts reads, and suppresses late dat
   await act(async () => { vi.advanceTimersByTime(24000); });
   expect(h.result.current.deskBootReady).toBe(true);
   expect(h.notice).toHaveBeenLastCalledWith("Desk loading timed out. Reload to try again.");
+  expect(setItem).not.toHaveBeenCalledWith(SESSION_RESET_KEY, expect.any(String));
+  setItem.mockRestore();
   expect(signals.every(signal => signal.aborted)).toBe(true);
   await act(async () => { stalled.resolve(Response.json({})); });
   expect(h.applyDesk).not.toHaveBeenCalled();
@@ -195,10 +198,13 @@ test("unverified fallback timeout ends checking without enabling an anonymous se
 test("auth-optional fallback 401 does not invalidate the session", async () => {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
-    return Response.json(
-      { ok: false, error: "unauthenticated", authRequired: false },
-      { status: 401 },
-    );
+    if (url.endsWith("/api/auth/me")) {
+      return Response.json(
+        { ok: false, error: "unauthenticated", authRequired: false },
+        { status: 401 },
+      );
+    }
+    return Response.json({ ok: true });
   }));
   const h = mountBoot();
   await act(async () => {});
@@ -209,7 +215,7 @@ test("auth-optional fallback 401 does not invalidate the session", async () => {
     user: null,
   });
   expect(h.result.current.deskBootReady).toBe(true);
-  expect(h.applyDesk).not.toHaveBeenCalled();
+  expect(h.applyDesk).toHaveBeenCalledTimes(1);
 });
 
 test("fallback keeps history when one later slice is down", async () => {
