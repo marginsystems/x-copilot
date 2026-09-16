@@ -11,6 +11,7 @@ import {
   type SetStateAction,
 } from "react";
 import type { AuthSessionUser } from "../auth/types";
+import { useSession } from "../auth/session";
 import type { ScoutStageId } from "../lib/scoutStages";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import {
@@ -87,7 +88,7 @@ export type UseApproachTaskOpts = {
   actForYou: (
     id: string,
     action: "done" | "skip" | "dismiss",
-  ) => Promise<boolean>;
+  ) => Promise<boolean | "gone">;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
@@ -103,6 +104,13 @@ export function bypassApproachPace(
 }
 
 export function useApproachTask(opts: UseApproachTaskOpts) {
+  const session = useSession();
+  const mountedRef = useRef(false);
+  const suggestionDonePendingRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const {
     authUser,
     deskBootReady,
@@ -493,8 +501,20 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }
 
   async function onSuggestionNext(id: string) {
-    advanceCard({ type: "next" });
-    await actForYou(id, "done");
+    const generation = session.capture();
+    const currentLock = stateRef.current?.lock;
+    if (!mountedRef.current || !session.isCurrent(generation) ||
+      suggestionDonePendingRef.current || currentLock?.cardId !== id) return;
+    suggestionDonePendingRef.current = true;
+    try {
+      const acknowledged = await actForYou(id, "done");
+      if (acknowledged === false || !mountedRef.current || !session.isCurrent(generation) ||
+        stateRef.current?.lock !== currentLock) return;
+      await onRefreshCoaching();
+      advanceCard({ type: "next" });
+    } finally {
+      suggestionDonePendingRef.current = false;
+    }
   }
 
   const badge = agendaReady && ready ? presentation.badge : 0;
@@ -538,7 +558,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         return;
       }
       exitRow(id, `suggest:${id}`, async () => {
-        if (await actForYou(id, "done")) {
+        if ((await actForYou(id, "done")) === true) {
           await onRefreshCoaching();
           advanceCard({ type: "posted" });
         }
@@ -546,14 +566,14 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     },
     onSuggestionSkip(id: string) {
       exitRow(id, `suggest:${id}`, async () => {
-        if (await actForYou(id, "skip")) {
+        if ((await actForYou(id, "skip")) === true) {
           advanceCard({ type: "skip" });
         }
       });
     },
     onSuggestionDismiss(id: string) {
       exitRow(id, `suggest:${id}`, async () => {
-        if (await actForYou(id, "dismiss")) {
+        if ((await actForYou(id, "dismiss")) === true) {
           advanceCard({ type: "dismiss" });
         }
       });
