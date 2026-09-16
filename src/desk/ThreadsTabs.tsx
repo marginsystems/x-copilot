@@ -51,7 +51,7 @@ type ThreadsTabsProps = {
   actForYou: (
     id: string,
     action: "done" | "skip" | "dismiss",
-  ) => Promise<boolean>;
+  ) => Promise<boolean | "gone">;
   onOpenVoice: () => void;
   onOpenSettings: () => void;
   onLinkX: () => void;

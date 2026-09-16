@@ -74,7 +74,7 @@ Client writes that change server or durable client state. Reads are omitted unle
 | GET `/api/scout/last?autoStart=1` | `useScoutRun.ts:135–137`, `:373–376` | Poll can request automatic collection while signed out. Server branch is `server/src/scoutHttp.ts` `autoStart`. |
 | PUT `/api/scout-approach-lock` | `useApproachTask.ts:419` | Detection correlation for the webhook. Not a second card chooser. |
 | POST `/api/skipped`, `/api/dismissed` | `useSkipDismiss.ts:51`, `:123` | Fired from Approach via `beginExit`. Timer can fire after unmount (F03). |
-| POST `/api/for-you/:id/{done,skip,dismiss}` | `useDeskHistory.ts` `actForYou` | Detected-suggestion next (`useApproachTask.ts:472–475`) advances the lock before awaiting `actForYou` and ignores the boolean (F06). Other suggestion actions wait for success (`:509–527`). |
+| POST `/api/for-you/:id/{done,skip,dismiss}` | `useDeskHistory.ts` `actForYou` | Detected-suggestion next (`useApproachTask.ts:503–517`) awaits `actForYou` and advances only after acknowledgment. Other suggestion actions wait for success (`useApproachTask.ts:560–579`). |
 | POST `/api/watch`, `/api/activity/subscribe` | `src/desk/watch.ts:39–47` | Fire-and-forget. Boot also calls subscribe. |
 | POST `/api/onboarding/generate`, `/complete` | `Onboarding.tsx:130`, `:184` | First-run only. |
 | POST `/api/voice/stances`, `/suggest`, `/verify`, `/post` | `SuggestPane.tsx` | Stance → suggest → edit → verify → post. Session/attempt guards live here. |
@@ -122,7 +122,7 @@ From the Wave 0 src audit. **P1** = session correctness or unintended mutation. 
 | F03 | P1 | `useDeskRowExit` timers can mutate after unmount. | PR-04 Fable / medium |
 | F04 | P2 | History/strip apply out-of-order responses. | PR-07 Fable / hard |
 | F05 | P2 | Agenda queue does not recheck owner after await. | PR-09 Fable / medium |
-| F06 | P2 | Detected suggestion advances before `actForYou` succeeds. | PR-08 Fable / hard |
+| F06 | P2 | Detected suggestion advances before `actForYou` succeeds. | Fixed by PR-08 |
 | F07 | P2 | Public routes wait on auth. | PR-11 Fable / medium |
 | F08 | P2 | Modals/tabs lack keyboard behavior. | PR-10 Fable / medium |
 | F09 | P2 | Unvalidated JSON can throw outside fetch catch; no root error boundary. | PR-12 Fable / medium–hard |
