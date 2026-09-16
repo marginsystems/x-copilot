@@ -265,6 +265,30 @@ test("successful For You mutation invalidates an older refresh", async () => {
   expect(result.current.history.forYouSuggestions).toEqual([]);
 });
 
+test("404 For You done mutation invalidates an older refresh", async () => {
+  const { result, requests } = setup();
+  let initial!: Promise<void>;
+  act(() => { initial = result.current.history.hydrateForYou(); });
+  await act(async () => {
+    requests[0].resolve(response({ suggestions: [{ id: "suggestion", kind: "post", why: "test" }] }));
+    await initial;
+  });
+
+  let refresh!: Promise<void>;
+  let action!: Promise<boolean>;
+  act(() => {
+    refresh = result.current.history.hydrateForYou();
+    action = result.current.history.actForYou("suggestion", "done");
+  });
+  await act(async () => { requests[2].resolve(new Response(null, { status: 404 })); await action; });
+  await act(async () => {
+    requests[1].resolve(response({ suggestions: [{ id: "suggestion", kind: "post", why: "restored" }] }));
+    await refresh;
+  });
+
+  expect(result.current.history.forYouSuggestions).toEqual([]);
+});
+
 test.each(["hydrateInteracted", "hydrateSkipped", "hydrateDismissed", "hydrateExpired", "hydrateForYou"] as const)(
   "%s does not parse or launch work after session invalidation", async (hydrate) => {
     const { result, requests, fetch } = setup();
@@ -280,8 +304,12 @@ test.each(["hydrateInteracted", "hydrateSkipped", "hydrateDismissed", "hydrateEx
 
 test("chart and gamification ignore session-expired results and subsequent refreshes", async () => {
   sessionStorage.setItem("x-copilot-flight-path-open", "1");
-  const pending = deferred<Response>();
-  const fetch = vi.fn(() => pending.promise);
+  const requests: ReturnType<typeof deferred<Response>>[] = [];
+  const fetch = vi.fn(() => {
+    const request = deferred<Response>();
+    requests.push(request);
+    return request.promise;
+  });
   vi.stubGlobal("fetch", fetch);
   const gamificationCommits: number[] = [];
   const { result } = renderHook(() => ({
@@ -298,7 +326,8 @@ test("chart and gamification ignore session-expired results and subsequent refre
     old.session.invalidate("", false);
   });
   await act(async () => {
-    pending.resolve(response({ ...emptyActivityStats("day"), ...emptyGamificationStats(), lifetimeXp: 99 }));
+    requests[0].resolve(response(emptyActivityStats("day")));
+    requests[1].resolve(response({ ...emptyGamificationStats(), lifetimeXp: 99 }));
     await Promise.all([chart, gamification]);
     await old.strip.hydrateActivityStats();
     await old.strip.hydrateGamification();
