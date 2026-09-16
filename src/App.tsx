@@ -114,10 +114,6 @@ function SessionApp() {
     historyStaleRef,
     applyHistoryFromBoot,
     hydrateInteracted,
-    hydrateSkipped,
-    hydrateDismissed,
-    hydrateExpired,
-    hydrateForYou,
     keepInCurated,
     actForYou,
   } = useDeskHistory({
@@ -135,7 +131,6 @@ function SessionApp() {
     gamification,
     applyStripFromBoot,
     hydrateActivityStats,
-    hydrateGamification,
     onActivityBucket,
     onToggleFlightPath,
     onToggleDeskTop,
@@ -203,8 +198,10 @@ function SessionApp() {
     searchCooldownRemaining,
     grounded,
     applyLastScoutFromBoot,
-    hydrateLastScout,
   } = useScoutRun({
+    pollingEnabled: authChecked && (authUser
+      ? authUser.onboardingCompleted
+      : !authRequired && (onboardingDoneLocal || readOnboardingComplete())),
     agenda,
     settings,
     authUser,
@@ -228,23 +225,11 @@ function SessionApp() {
     setView,
     setSignInOpen,
     applyAuthUser,
-    hydrateAuth,
     applyDesk: (desk) => {
       applyHistoryFromBoot(desk);
       applyStripFromBoot(desk);
       applyCoaching(desk.coaching);
       applyLastScoutFromBoot(desk.lastScout);
-    },
-    hydrateDeskWithoutBoot: async (onboarded) => {
-      await Promise.all([
-        hydrateDismissed(),
-        hydrateSkipped(),
-        hydrateInteracted(),
-        hydrateExpired(),
-        hydrateForYou(),
-        hydrateGamification(),
-        onboarded ? hydrateLastScout() : Promise.resolve(),
-      ]);
     },
     confirmCheckout,
     hydrateCoaching,

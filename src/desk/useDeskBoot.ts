@@ -1,9 +1,11 @@
 import {
   useEffect,
   useState,
+  useRef,
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { apiFetch } from "../lib/apiBase";
 import { useSession } from "../auth/session";
 import type { AuthSessionUser } from "../auth/types";
 import { viewFromPath, type AppView } from "../lib/appView";
@@ -11,6 +13,8 @@ import { readBootQuery } from "../lib/bootQuery";
 import {
   clearDeskBootCache,
   fetchDeskBoot,
+  parseDeskBoot,
+  parseAuthSessionUser,
   writeDeskBootCache,
   type DeskBootDesk,
 } from "../lib/deskBoot";
@@ -31,11 +35,8 @@ type UseDeskBootOpts = {
     user: AuthSessionUser | null,
     required?: boolean,
   ) => AuthSessionUser | null;
-  hydrateAuth: () => Promise<AuthSessionUser | null>;
   /** Seed every desk slice from the one-shot boot payload. */
   applyDesk: (desk: DeskBootDesk) => void;
-  /** Per-endpoint hydrate when the boot endpoint is missing or errored. */
-  hydrateDeskWithoutBoot: (onboarded: boolean) => Promise<void>;
   confirmCheckout: (sessionId: string) => Promise<void>;
   hydrateCoaching: () => Promise<void>;
   hydrateActivityStats: () => Promise<void>;
@@ -58,9 +59,16 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
     string | null
   >(null);
 
+  const queryRef = useRef(readBootQuery(window.location));
+
   useEffect(() => {
     const generation = session.capture();
     if (!session.isCurrent(generation)) return;
+    const controller = new AbortController();
+    const current = () => !controller.signal.aborted && session.isCurrent(generation);
+    const unsubscribe = session.subscribe(() => {
+      if (!session.isCurrent(generation)) controller.abort();
+    });
     const {
       setAgenda,
       setAuthNotice,
@@ -68,9 +76,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       setView,
       setSignInOpen,
       applyAuthUser,
-      hydrateAuth,
       applyDesk,
-      hydrateDeskWithoutBoot,
       confirmCheckout,
       hydrateCoaching,
       hydrateActivityStats,
@@ -79,7 +85,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       loadUsage,
       loadAdmin,
     } = opts;
-    const query = readBootQuery(window.location);
+    const query = queryRef.current;
     const err = query.authError;
     if (err) {
       setAuthNotice(err);
@@ -95,6 +101,17 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
     if (query.cleanUrl) {
       window.history.replaceState({}, "", query.cleanUrl);
     }
+    const deadline = window.setTimeout(() => {
+      if (!current()) return;
+      if (!session.getSnapshot().checked) {
+        session.invalidate("Desk loading timed out. Reload to try again.");
+        return;
+      }
+      setAuthNotice("Desk loading timed out. Reload to try again.");
+      setAgendaReady(true);
+      setDeskBootReady(true);
+      controller.abort();
+    }, 24000);
     void (async () => {
       const applyUser = (user: AuthSessionUser | null) => {
         const onboarded = user
@@ -134,23 +151,25 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         }
       };
 
-      const boot = await fetchDeskBoot(opts.dedupeAccounts);
-      if (!session.isCurrent(generation)) return;
+      const boot = await fetchDeskBoot(opts.dedupeAccounts, controller.signal);
+      if (!current()) return;
       if (boot.status === "ok") {
         const user = applyAuthUser(boot.payload.user, boot.payload.authRequired);
-        if (!session.isCurrent(generation)) return;
+        if (!current()) return;
         if (err && !user) setSignInOpen(true);
         applyUser(user);
         if (boot.payload.desk) {
           applyDesk(boot.payload.desk);
+          if (!current()) return;
           writeDeskBootCache(boot.payload);
         } else {
           clearDeskBootCache();
         }
+        if (!current()) return;
         if (checkout === "success" && sessionId) {
           await confirmCheckout(sessionId);
         }
-        if (!session.isCurrent(generation)) return;
+        if (!current()) return;
         refreshAfterPaint(user, false);
         setDeskBootReady(true);
         return;
@@ -158,7 +177,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
 
       if (boot.status === "unauthenticated") {
         applyAuthUser(null, boot.authRequired);
-        if (!session.isCurrent(generation)) return;
+        if (!current()) return;
         clearDeskBootCache();
         if (err) setSignInOpen(true);
         applyUser(null);
@@ -167,19 +186,60 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       }
 
       clearDeskBootCache();
-      const user = await hydrateAuth();
-      if (!session.isCurrent(generation)) return;
+      // Read first, commit together: legacy hydrators commit internally and cannot
+      // be canceled at this call site during StrictMode replay or session reset.
+      const read = async (path: string) => {
+        if (!current()) throw new Error("Boot canceled");
+        const res = await apiFetch(path, { signal: controller.signal });
+        if (!current()) throw new Error("Boot canceled");
+        if (res.status === 401) {
+          applyAuthUser(null, true);
+          throw new Error("Session expired");
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!current()) throw new Error("Boot canceled");
+        return data;
+      };
+      const auth = await read("/api/auth/me");
+      if (!current()) return;
+      if (!auth?.ok) throw new Error("Invalid auth response");
+      const user = applyAuthUser(parseAuthSessionUser(auth.user), auth.authRequired ?? true);
+      if (!current()) return;
       if (err && !user) setSignInOpen(true);
       const onboarded = applyUser(user);
-      await hydrateDeskWithoutBoot(onboarded);
-      if (!session.isCurrent(generation)) return;
+      const [dismissed, skipped, interacted, expired, forYou, gamification, lastScout] = await Promise.all([
+        read("/api/dismissed"), read("/api/skipped"), read("/api/interacted"),
+        read("/api/expired"), read("/api/for-you"), read("/api/gamification"),
+        onboarded ? read(`/api/scout/last?dedupeAccounts=${opts.dedupeAccounts}&autoStart=0`) : null,
+      ]);
+      if (!current()) return;
+      applyDesk(parseDeskBoot({ ok: true, user, desk: {
+        dismissed, skipped, interacted, expired, forYou, gamification, lastScout,
+      } })!.desk!);
+      if (!current()) return;
       if (checkout === "success" && sessionId) {
         await confirmCheckout(sessionId);
       }
-      if (!session.isCurrent(generation)) return;
+      if (!current()) return;
       refreshAfterPaint(user);
       setDeskBootReady(true);
-    })();
+    })().catch(() => {
+      if (!current()) return;
+      if (!session.getSnapshot().checked) {
+        session.invalidate("Desk could not load. Reload to try again.");
+        return;
+      }
+      setAuthNotice("Desk could not load. Reload to try again.");
+      setAgendaReady(true);
+      setDeskBootReady(true);
+      controller.abort();
+    }).finally(() => window.clearTimeout(deadline));
+    return () => {
+      controller.abort();
+      unsubscribe();
+      window.clearTimeout(deadline);
+    };
     // Boot runs once; the callbacks are the first render's closures, same as before the extract.
   }, []);
 

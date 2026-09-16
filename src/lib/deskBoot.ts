@@ -343,10 +343,11 @@ export function clearDeskBootCache(
 
 export async function fetchDeskBoot(
   dedupeAccounts: boolean,
+  signal?: AbortSignal,
 ): Promise<DeskBootFetch> {
   try {
     const res = await apiFetch(`/api/boot?dedupeAccounts=${dedupeAccounts}`, {
-      signal: AbortSignal.timeout(12000),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),
     });
     if (res.status === 404) return { status: "missing" };
     const data: unknown = await res.json().catch(() => null);

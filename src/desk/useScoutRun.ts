@@ -5,6 +5,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { useSession } from "../auth/session";
 import type { AuthSessionUser } from "../auth/types";
 import type { BillingMe } from "../BillingPanel";
 import type { LastScoutPayload } from "../lib/deskBoot";
@@ -33,6 +34,7 @@ export const SCOUT_BUCKET_SIZE = 20;
 export const SEARCH_COOLDOWN_MS = 15_000;
 
 export type ScoutRunDeps = {
+  pollingEnabled: boolean;
   agenda: string;
   settings: AppSettings;
   authUser: AuthSessionUser | null;
@@ -48,6 +50,7 @@ export type ScoutRunDeps = {
 };
 
 export function useScoutRun({
+  pollingEnabled,
   agenda,
   settings,
   authUser,
@@ -61,6 +64,7 @@ export function useScoutRun({
   hydrateAuth,
   onScoutFinished,
 }: ScoutRunDeps) {
+  const session = useSession();
   const [searching, setSearching] = useState(false);
   const [scoutStage, setScoutStage] = useState<ScoutStageId | null>(null);
   const [scoutLine, setScoutLine] = useState("");
@@ -132,11 +136,20 @@ export function useScoutRun({
     watchDeskThreads(filtered);
   }
 
-  async function hydrateLastScout(autoStart = false) {
+  async function hydrateLastScout(autoStart = false, signal?: AbortSignal, generation = session.capture()) {
+    const current = () => session.isCurrent(generation) && !signal?.aborted;
+    if (!current()) return;
     try {
-      const res = await apiFetch(lastScoutUrl(autoStart));
+      const res = await apiFetch(lastScoutUrl(autoStart), { signal });
+      if (!current()) return;
+      if (res.status === 401) {
+        session.invalidate("Your session has ended.");
+        return;
+      }
       if (!res.ok) return;
-      applyLastScoutFromBoot((await res.json()) as LastScoutPayload);
+      const data = (await res.json()) as LastScoutPayload;
+      if (!current()) return;
+      applyLastScoutFromBoot(data);
     } catch {
       // Sidecar may be offline on first paint — ignore.
     }
@@ -370,13 +383,30 @@ export function useScoutRun({
   }, [threadCount]);
 
   useEffect(() => {
-    if (!watchTank) return;
-    void hydrateLastScout(true);
-    const id = window.setInterval(() => {
-      void hydrateLastScout(true);
-    }, 4000);
-    return () => window.clearInterval(id);
-  }, [watchTank]);
+    const generation = session.capture();
+    if (!pollingEnabled || !watchTank || !session.isCurrent(generation)) return;
+    const controller = new AbortController();
+    let pending = false;
+    const poll = async () => {
+      if (pending || controller.signal.aborted || !session.isCurrent(generation)) return;
+      pending = true;
+      try {
+        await hydrateLastScout(true, AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]), generation);
+      } finally {
+        pending = false;
+      }
+    };
+    const id = window.setInterval(() => { void poll(); }, 4000);
+    const stop = () => {
+      controller.abort();
+      window.clearInterval(id);
+    };
+    const unsubscribe = session.subscribe(() => {
+      if (!session.isCurrent(generation)) stop();
+    });
+    void poll();
+    return () => { stop(); unsubscribe(); };
+  }, [pollingEnabled, watchTank, settings.dedupeAccounts, session]);
 
   useEffect(() => {
     if (searchCooldownUntil <= Date.now()) return;
