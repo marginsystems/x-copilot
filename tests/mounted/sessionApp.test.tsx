@@ -42,6 +42,39 @@ test("dashboard reload with cached identity paints only verification until serve
   await act(async () => { reload.resolve(Response.json({ ok: false }, { status: 401 })); await reload.promise; });
 });
 
+test("Scout autoStart stays off until onboarding is complete", async () => {
+  const incomplete = parseDeskBoot({
+    ok: true,
+    user: { ...user, onboardingCompleted: false },
+    desk: { lastScout: { ok: true, empty: true } },
+  })!;
+  const ready = parseDeskBoot({
+    ok: true,
+    user,
+    desk: { lastScout: { ok: true, empty: true } },
+  })!;
+  const urls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.includes("/api/boot?")) return Response.json(incomplete);
+    return Response.json({ ok: true, empty: true });
+  }));
+  const first = render(<App />);
+  await waitFor(() => expect(screen.queryByText("Checking your session…")).toBeNull());
+  expect(urls.some((url) => url.includes("autoStart=1"))).toBe(false);
+  first.unmount();
+  urls.length = 0;
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.includes("/api/boot?")) return Response.json(ready);
+    return Response.json({ ok: true, empty: true });
+  }));
+  render(<App />);
+  await waitFor(() => expect(urls.some((url) => url.includes("autoStart=1"))).toBe(true));
+});
+
 test.each(["401", "revoke"])("Account %s uses the App reset boundary and clears cache", async (mode) => {
   window.history.replaceState({}, "", "/account");
   const interaction = userEvent.setup();

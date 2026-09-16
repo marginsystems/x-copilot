@@ -6,7 +6,7 @@ import {
   type SetStateAction,
 } from "react";
 import { apiFetch } from "../lib/apiBase";
-import type { DeskBootDesk } from "../lib/deskBoot";
+import type { DeskBootDeskPatch } from "../lib/deskBoot";
 import { peekDeskBootCache } from "../lib/deskBoot";
 import {
   parseForYouExtra,
@@ -143,27 +143,48 @@ export function useDeskHistory(
   const historyStaleRef = useRef(false);
   const preservedIdRef = useRef<string | null>(null);
 
-  function applyHistoryFromBoot(desk: DeskBootDesk) {
+  function applyHistoryFromBoot(desk: DeskBootDeskPatch) {
     if (historyStaleRef.current) return;
-    setInteractedHistory(desk.interacted.interactions);
-    const ids = new Set(desk.interacted.activeIds);
-    interactedIdsRef.current = ids;
-    setInteractedIds(ids);
-    setDismissedHistory(desk.dismissed.dismissals);
-    dismissedIdsRef.current = new Set(desk.dismissed.dismissedIds);
-    setSkippedHistory(desk.skipped.skipped);
-    skippedIdsRef.current = new Set(desk.skipped.skippedIds);
-    setExpiredHistory(desk.expired.expired);
-    expiredIdsRef.current = new Set(desk.expired.expiredIds);
-    blockedConversationsRef.current = new Set([
-      ...blockedFromHistory(desk.interacted.interactions),
-      ...blockedFromHistory(desk.dismissed.dismissals),
-      ...blockedFromHistory(desk.skipped.skipped),
-    ]);
-    setForYouSuggestions(desk.forYou.suggestions);
-    setForYouProgress(desk.forYou.progress);
-    setForYouExtra(desk.forYou.extra);
-    setThreads((prev) => prev.filter((t) => keepInCurated(t)));
+    if (desk.interacted) {
+      setInteractedHydrated(true);
+      setInteractedHistory(desk.interacted.interactions);
+      const ids = new Set(desk.interacted.activeIds);
+      interactedIdsRef.current = ids;
+      setInteractedIds(ids);
+    }
+    if (desk.dismissed) {
+      setDismissedHistory(desk.dismissed.dismissals);
+      dismissedIdsRef.current = new Set(desk.dismissed.dismissedIds);
+    }
+    if (desk.skipped) {
+      setSkippedHistory(desk.skipped.skipped);
+      skippedIdsRef.current = new Set(desk.skipped.skippedIds);
+    }
+    if (desk.expired) {
+      setExpiredHistory(desk.expired.expired);
+      expiredIdsRef.current = new Set(desk.expired.expiredIds);
+    }
+    if (desk.interacted || desk.dismissed || desk.skipped || desk.expired) {
+      const blocked = new Set(blockedConversationsRef.current);
+      if (desk.interacted) blockedConversationsRef.current = new Set([
+        ...blocked,
+        ...blockedFromHistory(desk.interacted.interactions),
+      ]);
+      if (desk.dismissed) blockedConversationsRef.current = new Set([
+        ...blockedConversationsRef.current,
+        ...blockedFromHistory(desk.dismissed.dismissals),
+      ]);
+      if (desk.skipped) blockedConversationsRef.current = new Set([
+        ...blockedConversationsRef.current,
+        ...blockedFromHistory(desk.skipped.skipped),
+      ]);
+      setThreads((prev) => prev.filter((t) => keepInCurated(t)));
+    }
+    if (desk.forYou) {
+      setForYouSuggestions(desk.forYou.suggestions);
+      setForYouProgress(desk.forYou.progress);
+      setForYouExtra(desk.forYou.extra);
+    }
   }
 
   /**
