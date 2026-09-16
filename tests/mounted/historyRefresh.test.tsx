@@ -1,6 +1,6 @@
 import { StrictMode, type ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { SessionBoundary, useSession } from "../../src/auth/session";
 import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";
@@ -14,6 +14,10 @@ import { deferred } from "./support/deferred";
 function wrapper({ children }: { children: ReactNode }) {
   return <StrictMode><SessionBoundary>{children}</SessionBoundary></StrictMode>;
 }
+
+beforeEach(() => {
+  sessionStorage.setItem("x-copilot-flight-path-open", "1");
+});
 const row = (threadId: string) => ({ threadId, author: "author", at: "2026-09-16" });
 const response = (data: unknown) => new Response(JSON.stringify(data));
 function setup() {
