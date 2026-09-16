@@ -404,12 +404,16 @@ export function useScoutRun({
     const poll = async () => {
       if (pending || controller.signal.aborted || !session.isCurrent(generation)) return;
       pending = true;
+      const requestController = new AbortController();
+      const abortRequest = () => requestController.abort();
+      const timeoutId = window.setTimeout(abortRequest, 12000);
+      if (controller.signal.aborted) requestController.abort();
+      else controller.signal.addEventListener("abort", abortRequest, { once: true });
       try {
-        const signal = typeof AbortSignal.any === "function"
-          ? AbortSignal.any([controller.signal, AbortSignal.timeout(12000)])
-          : controller.signal;
-        await hydrateLastScout(true, signal, generation);
+        await hydrateLastScout(true, requestController.signal, generation);
       } finally {
+        window.clearTimeout(timeoutId);
+        controller.signal.removeEventListener("abort", abortRequest);
         pending = false;
       }
     };

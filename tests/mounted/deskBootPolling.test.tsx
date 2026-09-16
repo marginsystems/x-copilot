@@ -180,6 +180,38 @@ test("poll does not overlap while the response body is pending", async () => {
   await act(async () => { body.resolve({ ok: true, empty: true }); });
 });
 
+test("poll fallback timeout releases a stalled response without AbortSignal.any", async () => {
+  vi.useFakeTimers();
+  const originalAny = Object.getOwnPropertyDescriptor(AbortSignal, "any");
+  Object.defineProperty(AbortSignal, "any", { configurable: true, value: undefined });
+  try {
+    const signals: AbortSignal[] = [];
+    const fetcher = vi.fn(async (_url: string, init: RequestInit) => {
+      const signal = init.signal!;
+      signals.push(signal);
+      return {
+        ok: true,
+        status: 200,
+        json: () => new Promise<never>((_, reject) => {
+          signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const h = mountPoll();
+    act(() => h.result.current.applyLastScoutFromBoot({ ok: true, empty: true }));
+    await act(async () => {});
+    await act(async () => { vi.advanceTimersByTime(12000); });
+    expect(signals[0].aborted).toBe(true);
+    await act(async () => { vi.advanceTimersByTime(4000); });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    h.unmount();
+  } finally {
+    if (originalAny) Object.defineProperty(AbortSignal, "any", originalAny);
+    else Reflect.deleteProperty(AbortSignal, "any");
+  }
+});
+
 test("fallback commits one complete desk without starting collection", async () => {
   const fetcher = vi.fn(async (url: string) => {
     if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
