@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSession } from "../auth/session";
 import {
   emptyActivityStats,
   fetchActivityStats,
@@ -15,6 +16,7 @@ import {
 } from "../lib/gamification";
 
 export function useActivityStrip(verifiedOwnerId: string | null) {
+  const session = useSession();
   const seed = peekDeskBootCache(verifiedOwnerId)?.desk ?? null;
   const seedBucket = seed?.activityStats.bucket ?? "day";
   const [activityBucket, setActivityBucket] = useState<ActivityBucket>(
@@ -38,10 +40,20 @@ export function useActivityStrip(verifiedOwnerId: string | null) {
   /** Monotonic token so out-of-order gamification responses don't regress the chip. */
   const gamificationRequestSeqRef = useRef(0);
 
+  const activityRequestSeqRef = useRef(0);
+  useEffect(() => () => {
+    activityRequestSeqRef.current++;
+    gamificationRequestSeqRef.current++;
+  }, []);
+
   async function hydrateActivityStats(
     bucket: ActivityBucket = activityBucketRef.current,
   ) {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
+    const seq = ++activityRequestSeqRef.current;
     const next = await fetchActivityStats(bucket);
+    if (!session.isCurrent(generation) || seq !== activityRequestSeqRef.current) return;
     if (!next) return;
     // Ignore stale responses if a newer toggle request is in flight.
     if (bucket !== activityRequestBucketRef.current) return;
@@ -66,9 +78,11 @@ export function useActivityStrip(verifiedOwnerId: string | null) {
   }
 
   async function hydrateGamification() {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
     const seq = ++gamificationRequestSeqRef.current;
     const next = await fetchGamification();
-    if (seq !== gamificationRequestSeqRef.current) return;
+    if (!session.isCurrent(generation) || seq !== gamificationRequestSeqRef.current) return;
     if (!next) return;
     setGamification(next);
   }

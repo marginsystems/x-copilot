@@ -1,3 +1,4 @@
+import { SessionBoundary } from "../auth/session.tsx";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
@@ -108,7 +109,7 @@ describe("keepCuratedByHistory", () => {
         return null;
       }
 
-      renderToString(createElement(Harness));
+      renderToString(createElement(SessionBoundary, null, createElement(Harness)));
       history.interactedIdsRef.current.add("A");
       void history.hydrateInteracted("A");
       void history.hydrateInteracted("B");
