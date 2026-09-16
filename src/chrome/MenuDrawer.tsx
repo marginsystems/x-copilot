@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { useDialogFocus } from "../useDialogFocus";
 
 type MenuDrawerProps = {
   entered: boolean;
@@ -7,8 +8,20 @@ type MenuDrawerProps = {
 };
 
 export function MenuDrawer({ entered, onClose, children }: MenuDrawerProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus({
+    active: true,
+    rootRef,
+    dialogRef,
+    onDismiss: onClose,
+  });
+
   return (
-    <div className={entered ? "menu-root is-open" : "menu-root"}>
+    <div
+      ref={rootRef}
+      className={entered ? "menu-root is-open" : "menu-root"}
+    >
       <button
         type="button"
         className="menu-backdrop"
@@ -16,6 +29,7 @@ export function MenuDrawer({ entered, onClose, children }: MenuDrawerProps) {
         onClick={onClose}
       />
       <aside
+        ref={dialogRef}
         className={entered ? "menu-sheet is-open" : "menu-sheet"}
         role="dialog"
         aria-modal="true"
