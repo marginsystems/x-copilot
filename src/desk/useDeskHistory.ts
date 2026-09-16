@@ -145,6 +145,7 @@ export function useDeskHistory(
 
   function applyHistoryFromBoot(desk: DeskBootDesk) {
     if (historyStaleRef.current) return;
+    setInteractedHydrated(true);
     setInteractedHistory(desk.interacted.interactions);
     const ids = new Set(desk.interacted.activeIds);
     interactedIdsRef.current = ids;

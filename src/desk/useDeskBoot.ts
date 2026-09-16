@@ -193,10 +193,18 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         const res = await apiFetch(path, { signal: controller.signal });
         if (!current()) throw new Error("Boot canceled");
         if (res.status === 401) {
-          applyAuthUser(null, true);
-          throw new Error("Session expired");
+          let required = true;
+          try {
+            const body = (await res.json()) as { authRequired?: boolean };
+            if (typeof body.authRequired === "boolean") required = body.authRequired;
+          } catch {
+            /* Empty 401 bodies still expire a required session. */
+          }
+          applyAuthUser(null, required);
+          if (required) throw new Error("Session expired");
+          return null;
         }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) return null;
         const data = await res.json();
         if (!current()) throw new Error("Boot canceled");
         return data;

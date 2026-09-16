@@ -3,6 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { SessionBoundary, useSession } from "../../src/auth/session";
 import { useDeskBoot } from "../../src/desk/useDeskBoot";
+import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { useScoutRun } from "../../src/desk/useScoutRun";
 import { parseDeskBoot, peekDeskBootCache } from "../../src/lib/deskBoot";
 import { DEFAULT_SETTINGS } from "../../src/lib/settings";
@@ -189,6 +190,69 @@ test("unverified fallback timeout ends checking without enabling an anonymous se
   expect(h.result.current.session.getSnapshot().notice).toContain("Reload to try again");
   await act(async () => { pending.resolve(Response.json(boot)); });
   expect(h.applyDesk).not.toHaveBeenCalled();
+});
+
+test("auth-optional fallback 401 does not invalidate the session", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
+    return Response.json(
+      { ok: false, error: "unauthenticated", authRequired: false },
+      { status: 401 },
+    );
+  }));
+  const h = mountBoot();
+  await act(async () => {});
+  expect(h.result.current.session.getSnapshot()).toMatchObject({
+    checked: true,
+    active: true,
+    required: false,
+    user: null,
+  });
+  expect(h.result.current.deskBootReady).toBe(true);
+  expect(h.applyDesk).not.toHaveBeenCalled();
+});
+
+test("fallback keeps history when one later slice is down", async () => {
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
+    if (url.endsWith("/api/auth/me")) return Response.json(boot);
+    if (url.endsWith("/api/gamification")) return new Response(null, { status: 500 });
+    if (url.endsWith("/api/interacted")) {
+      return Response.json({
+        ok: true,
+        interactions: [{ threadId: "kept", author: "a", at: "now" }],
+        activeIds: ["kept"],
+      });
+    }
+    return Response.json({ ok: true });
+  });
+  vi.stubGlobal("fetch", fetcher);
+  const h = mountBoot();
+  await act(async () => {});
+  expect(h.result.current.deskBootReady).toBe(true);
+  expect(h.applyDesk).toHaveBeenCalledTimes(1);
+  expect(h.applyDesk.mock.calls[0][0].interacted.activeIds).toEqual(["kept"]);
+});
+
+test("applyHistoryFromBoot marks interacted history hydrated", () => {
+  const { result } = renderHook(
+    () =>
+      useDeskHistory(
+        {
+          setStatus: vi.fn(),
+          setThreads: vi.fn(),
+          setActionBusy: vi.fn(),
+          settings: DEFAULT_SETTINGS,
+        },
+        null,
+      ),
+    { wrapper },
+  );
+  expect(result.current.interactedHydrated).toBe(false);
+  act(() => {
+    result.current.applyHistoryFromBoot(boot.desk!);
+  });
+  expect(result.current.interactedHydrated).toBe(true);
 });
 
 test("a full tank stops polling and aborts its effect", async () => {
