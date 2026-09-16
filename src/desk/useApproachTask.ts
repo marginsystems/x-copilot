@@ -11,6 +11,7 @@ import {
   type SetStateAction,
 } from "react";
 import type { AuthSessionUser } from "../auth/types";
+import { useSession } from "../auth/session";
 import type { ScoutStageId } from "../lib/scoutStages";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import {
@@ -103,6 +104,13 @@ export function bypassApproachPace(
 }
 
 export function useApproachTask(opts: UseApproachTaskOpts) {
+  const session = useSession();
+  const mountedRef = useRef(false);
+  const suggestionDonePendingRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const {
     authUser,
     deskBootReady,
@@ -493,8 +501,20 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }
 
   async function onSuggestionNext(id: string) {
-    advanceCard({ type: "next" });
-    await actForYou(id, "done");
+    const generation = session.capture();
+    const currentLock = stateRef.current?.lock;
+    if (!mountedRef.current || !session.isCurrent(generation) ||
+      suggestionDonePendingRef.current || currentLock?.cardId !== id) return;
+    suggestionDonePendingRef.current = true;
+    try {
+      const acknowledged = await actForYou(id, "done");
+      // A stale 404 also returns false: retain the detected card and its lock.
+      if (!acknowledged || !mountedRef.current || !session.isCurrent(generation) ||
+        stateRef.current?.lock !== currentLock) return;
+      advanceCard({ type: "next" });
+    } finally {
+      suggestionDonePendingRef.current = false;
+    }
   }
 
   const badge = agendaReady && ready ? presentation.badge : 0;
