@@ -6,6 +6,7 @@ import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";
 import type { ThreadCard } from "../../src/desk/types";
 import type { AppSettings } from "../../src/lib/settings";
+import type { DeskBootDesk } from "../../src/lib/deskBoot";
 import { emptyActivityStats } from "../../src/lib/activityStats";
 import { emptyGamificationStats } from "../../src/lib/gamification";
 import { deferred } from "./support/deferred";
@@ -103,6 +104,19 @@ test.each(["invalidate", "unmount"] as const)("drops a response during JSON pars
   expect(old.history.interactedIdsRef.current.size).toBe(0);
   expect(setThreads).not.toHaveBeenCalled();
   expect(setStatus).not.toHaveBeenCalled();
+});
+
+test("applyStripFromBoot still applies gamification after StrictMode replay", () => {
+  sessionStorage.setItem("x-copilot-flight-path-open", "1");
+  const { result } = renderHook(() => useActivityStrip(null), { wrapper });
+  const gamification = { ...emptyGamificationStats(), lifetimeXp: 40 };
+  act(() => {
+    result.current.applyStripFromBoot({
+      gamification,
+      activityStats: emptyActivityStats("day"),
+    } as DeskBootDesk);
+  });
+  expect(result.current.gamification).toEqual(gamification);
 });
 
 test("day/week/day and gamification retain the newest response", async () => {

@@ -41,9 +41,10 @@ export function useActivityStrip(verifiedOwnerId: string | null) {
   const gamificationRequestSeqRef = useRef(0);
 
   const activityRequestSeqRef = useRef(0);
+  const lifetime = useRef(0);
   useEffect(() => () => {
+    lifetime.current++;
     activityRequestSeqRef.current++;
-    gamificationRequestSeqRef.current++;
   }, []);
 
   async function hydrateActivityStats(
@@ -80,9 +81,11 @@ export function useActivityStrip(verifiedOwnerId: string | null) {
   async function hydrateGamification() {
     const generation = session.capture();
     if (!session.isCurrent(generation)) return;
+    const mounted = lifetime.current;
     const seq = ++gamificationRequestSeqRef.current;
     const next = await fetchGamification();
     if (!session.isCurrent(generation) || seq !== gamificationRequestSeqRef.current) return;
+    if (mounted !== lifetime.current) return;
     if (!next) return;
     setGamification(next);
   }
