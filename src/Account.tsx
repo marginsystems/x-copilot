@@ -116,6 +116,7 @@ export function Account(props: {
         body: JSON.stringify({ digestEmailOptIn: optedIn }),
       });
       if (!session.isCurrent(generation)) return;
+      if (res.status === 401) { props.onSignedOut(); return; }
       const raw: unknown = await res.json();
       if (!session.isCurrent(generation)) return;
       const data = parseMail(raw);

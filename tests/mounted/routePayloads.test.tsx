@@ -84,6 +84,19 @@ test("account treats a non-JSON 401 as sign-out", async () => {
   await waitFor(() => expect(onSignedOut).toHaveBeenCalledTimes(1));
 });
 
+test("account digest preference 401 signs out", async () => {
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(Response.json({ ...account, mail: { digestEmailOptIn: false, digestEmailAvailable: true } }))
+    .mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }));
+  vi.stubGlobal("fetch", fetchMock);
+  const onSignedOut = vi.fn();
+  render(<Account onBack={vi.fn()} onGoogle={vi.fn()} onX={vi.fn()} onSignedOut={onSignedOut} />, { wrapper: SessionBoundary });
+  const toggle = await screen.findByRole("checkbox");
+  fireEvent.click(toggle);
+  await waitFor(() => expect(onSignedOut).toHaveBeenCalledTimes(1));
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});
+
 test("root render failure leaves recovery controls", () => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   function Broken(): never { throw new Error("render failure"); }
