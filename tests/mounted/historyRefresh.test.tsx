@@ -175,7 +175,13 @@ test("chart and gamification ignore session-expired results and subsequent refre
   const pending = deferred<Response>();
   const fetch = vi.fn(() => pending.promise);
   vi.stubGlobal("fetch", fetch);
-  const { result } = renderHook(() => ({ strip: useActivityStrip(null), session: useSession() }), { wrapper });
+  const gamificationCommits: number[] = [];
+  const { result } = renderHook(() => ({
+    strip: useActivityStrip(null, (commit) => {
+      if (commit.kind === "gamification") gamificationCommits.push(commit.value.lifetimeXp);
+    }),
+    session: useSession(),
+  }), { wrapper });
   const old = result.current;
   let chart!: Promise<void>, gamification!: Promise<void>;
   act(() => {
@@ -190,6 +196,7 @@ test("chart and gamification ignore session-expired results and subsequent refre
     await old.strip.hydrateGamification();
   });
   expect(fetch).toHaveBeenCalledTimes(2);
+  expect(gamificationCommits).not.toContain(99);
   expect(result.current.strip.gamification.lifetimeXp).toBe(0);
 });
 
@@ -209,5 +216,6 @@ test("Scout lock transfers synchronously and stale refresh keeps the new preserv
   await act(async () => { requests[1].resolve(response({ activeIds: ["B"] })); await latest; });
   await act(async () => { requests[0].resolve(response({ activeIds: ["A"] })); await first; });
   expect(threads.map((t) => t.id)).toEqual(["B"]);
+  expect(result.current.history.interactedIdsRef.current).toEqual(new Set(["B"]));
   expect(result.current.history.keepInCurated({ id: "B" } as ThreadCard)).toBe(true);
 });

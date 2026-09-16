@@ -15,7 +15,14 @@ import {
   type GamificationStats,
 } from "../lib/gamification";
 
-export function useActivityStrip(verifiedOwnerId: string | null) {
+type ActivityStripCommit =
+  | { kind: "activityStats"; value: ActivityStats }
+  | { kind: "gamification"; value: GamificationStats };
+
+export function useActivityStrip(
+  verifiedOwnerId: string | null,
+  onCommit?: (commit: ActivityStripCommit) => void,
+) {
   const session = useSession();
   const seed = peekDeskBootCache(verifiedOwnerId)?.desk ?? null;
   const seedBucket = seed?.activityStats.bucket ?? "day";
@@ -65,6 +72,7 @@ export function useActivityStrip(verifiedOwnerId: string | null) {
     activityBucketRef.current = bucket;
     setActivityBucket(bucket);
     setActivityStats(next);
+    onCommit?.({ kind: "activityStats", value: next });
   }
 
   function applyStripFromBoot(desk: DeskBootDesk) {
@@ -88,6 +96,7 @@ export function useActivityStrip(verifiedOwnerId: string | null) {
     if (mounted !== lifetime.current) return;
     if (!next) return;
     setGamification(next);
+    onCommit?.({ kind: "gamification", value: next });
   }
 
   function onActivityBucket(next: ActivityBucket) {
