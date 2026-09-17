@@ -35,11 +35,16 @@ test("UTC-day effect survives rerenders and cancels its next refresh on unmount"
   expect(onUtcDay).toHaveBeenCalledTimes(1);
   expect(result.current.billing).toBeNull();
 
+  const billing = {
+    ok: true,
+    plan_key: "free",
+    credits: { used: 0, limit: 1500, remaining: 1500, can_use: true },
+  };
   await act(async () => {
-    response.resolve(new Response(JSON.stringify({ ok: true, plan_key: "free" })));
+    response.resolve(new Response(JSON.stringify(billing)));
     await response.promise;
   });
-  expect(result.current.billing).toEqual({ ok: true, plan_key: "free" });
+  expect(result.current.billing).toEqual(billing);
   expect(vi.getTimerCount()).toBe(1);
   unmount();
   expect(vi.getTimerCount()).toBe(0);
