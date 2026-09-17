@@ -6,7 +6,7 @@ Independent research + triage desk for posting on X. **Not affiliated with, endo
 
 Official X API search → DeepSeek triage in a Vite dashboard. Scout finds cool threads worth a human reply. Suggest can draft in your Voice; you rewrite it before Copy / Open on X or posting from the desk. No auto-engage.
 
-**Status:** Stream 1 — agenda → DeepSeek Chat queries → recent search (official X API) → triaged thread cards (Start/Stop Scout).
+**Status:** Stream 1 — agenda → DeepSeek Chat queries → recent search (official X API) → triaged thread cards.
 
 ## Idea
 
@@ -33,11 +33,11 @@ The agenda is passed along, so a specific on-agenda question scores low even tho
 
 ## Interacted + author cooldown
 
-**Mark interacted** records the thread + author in a local sidecar file `data/interactions.json` (gitignored). For the next **24 hours**, later searches drop other posts from that same `@handle` *before* triage, so we do not keep hammering the same account or waste DeepSeek tokens on them. The search status line reports how many posts were filtered. Restarting the sidecar keeps the cooldown (file persist).
+**Mark interacted** records the thread + author in `data/platform.sqlite` (`desk_interactions`; `data/` is gitignored). For the next **24 hours**, later searches drop other posts from that same `@handle` *before* triage, so we do not keep hammering the same account or waste DeepSeek tokens on them. The search status line reports how many posts were filtered. Restarting the sidecar keeps the cooldown (SQLite persist).
 
 The same action also writes an Obsidian-friendly Markdown note under **`knowledge/interactions/`** (gitignored) that includes the thread context and the **reply you typed on X** (`POST /api/interacted` requires `reply`). Point Obsidian at the `knowledge/` folder to browse agent memories locally — never commit that directory.
 
-The last successful Scout run is also cached in memory and `data/last-scout.json` (gitignored). On dashboard load, `GET /api/scout/last` restores Threads / queries (cooled-down authors filtered out) so a reload or API restart does not wipe the list.
+The last successful Scout run is cached per user in `scout_tanks` in the same SQLite file (not `data/last-scout.json`). On dashboard load, `GET /api/scout/last` restores Threads / queries (cooled-down authors filtered out) so a reload or API restart does not wipe the list.
 
 ## Length filter
 
@@ -45,14 +45,14 @@ Before triage, posts with more than **480** characters (or obvious `N/M` thread 
 
 ## Scout
 
-**Scout** is x-copilot’s search mini-agent. Use **Start Scout** / **Stop Scout** on the dashboard. Flow:
+**Scout** is x-copilot’s search mini-agent. The desk arms a run when the tank is low (`GET /api/scout/last?autoStart=1`); there is no dashboard Start/Stop control. Flow:
 
 1. Plan queries (DeepSeek), then pace X recent search (**20** hits/query).
 2. **Hard-filter bucket** (cooldown + Article/char/links/self-reply) with **no LLM** until the bucket has **K** candidates (UI sends `bucketSize: 20`; server accepts 5|10|20). Keep searching / cycling queries (one replan, search budget) while the bucket is short.
 3. **LLM-qualify** the full bucket. Cool = `engage` `priority`/`consider` and `baitScore ≤ 45`.
-4. Keep cool threads and refill until **Cool threads** target (`targetCool`, 1–20) or supply is exhausted. If a full bucket yields **0 cool**, discard and refill. Budget/Stop → `exhausted` / `aborted`; hit target → `stopReason: target`.
+4. Keep cool threads and refill until **Cool threads** target (`targetCool`, 1–20) or supply is exhausted. If a full bucket yields **0 cool**, discard and refill. Budget/abort → `exhausted` / `aborted`; hit target → `stopReason: target`.
 
-Status shows `Candidates n/K` while filling and `Cool n/target` as cools accumulate. Use `POST /api/scout/run` (NDJSON; `done` includes `coolCount`, `bucketSize`, `stopReason`, threads). Sessions are rate-limited: one run at a time, then a **15s** cooldown (UI + sidecar `429`) before the next Start — Stop does not bypass that gate.
+Status shows `Candidates n/K` while filling and `Cool n/target` as cools accumulate. Use `POST /api/scout/run` (NDJSON; `done` includes `coolCount`, `bucketSize`, `stopReason`, threads). Sessions are rate-limited: one run at a time, then a **15s** cooldown (sidecar `429`) before the next run.
 
 ## Architecture
 
@@ -63,6 +63,31 @@ Vite UI  →  local Node sidecar  →  X API v2 (app-only bearer)
 ```
 
 Bearer token and LLM keys stay in `.env` on the sidecar. The browser never stores credentials. Public DNS + bind notes: [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md).
+
+### Server source map
+
+`server/src/` is **240 files in one flat folder** at this HEAD: ~131 production modules, ~105 `*.test.ts` files, plus 3 test-support files (`platformDb.testHelpers.ts`, `scoutCollect.testHelpers.ts`, `xGraphqlParse.test.fixtures.ts`) and 1 declaration (`xenova-transformers.d.ts`). No owner folders exist yet.
+
+`scripts/test-inventory.ts` already walks nested paths under `server/src`, `src`, `analytics/src`, and `webhook/src` for `*.test.ts` / `*.test.tsx`. `npm test` and `npm run test:unit` run that inventory; `npm run test:unit:list` prints it. After a later move, tests stay adjacent to their owners. No barrels.
+
+D5 (unused Voice helpers) and D6 (batch Scout/log) already landed. Those deleted helpers and batch/log routes are not current APIs. Live Scout HTTP is `POST /api/scout/run` (NDJSON) and `GET /api/scout/last`.
+
+**Planned** later folders (not live; root stays flat until a later PR):
+
+| Planned folder | Intended owners |
+|----------------|-----------------|
+| `auth/` | session, OAuth, guards |
+| `billing/` | Stripe, quotas, plans |
+| `scout/` | collect, cache, gate, run |
+| `for-you/` | digest, remix, theme |
+| `voice/` | suggest, ingest, post |
+| `desk/` | history, interactions, beats |
+| `x-api/` | search, tweets, GraphQL parse |
+| `http/` | route handlers, JSON, CORS |
+| `memory/` | knowledge notes, index |
+| `platform/` | shared stores, env, mail |
+
+Root keeps `index.ts`, `statsWorker.ts`, and `db.ts` for PM2 entrypoints and numbered SQL migrations (`server/migrations/`). `tsconfig.server.json` already includes `server/src/**/*.ts`. `ecosystem.config.example.cjs` points `x-copilot-api` at `server/src/index.ts` (or `server/dist/index.js`) and `x-copilot-stats` at `statsWorker`.
 
 ## Quick start
 
@@ -88,7 +113,8 @@ Health: `curl http://127.0.0.1:8787/api/health`
 | `npm run dev:server` | `tsx watch server/src/index.ts` |
 | `npm run build:server` | `tsc -p tsconfig.server.json` → `server/dist/` |
 | `npm run test:x-api` | `tsx scripts/test-x-api.ts` |
-| `npm test` | Unit tests (`node:test` via tsx) |
+| `npm test` / `npm run test:unit` | `tsx scripts/test-inventory.ts run` (recursive `*.test.ts` / `*.test.tsx`) |
+| `npm run test:unit:list` | Print the same inventory |
 | `npm run test:search -- "query"` | Live recent-search smoke |
 
 UI typecheck stays on root `tsconfig.json` (`noEmit`); the API uses `tsconfig.server.json` (NodeNext emit).
@@ -128,7 +154,7 @@ Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only 
 | Path | Role |
 |------|------|
 | `src/` | Vite dashboard (agenda, Scout, threads) |
-| `server/src/` | TypeScript sidecar (HTTP API + X API v2 + recent search) |
+| `server/src/` | TypeScript sidecar — currently 240 files, one flat folder (see Server source map) |
 | `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
 | `scripts/test-x-api.ts` | CLI X API bearer smoke test |
 | `tsconfig.server.json` | Server emit config |

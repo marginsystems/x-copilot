@@ -5,7 +5,7 @@ Scope: root `src/` — 211 files, 52 `*.test.ts` files. This is a map of what ex
 
 **Observed** means the current code does this. **Proposed** means a later Wave 0–5 PR. Do not treat proposed rows as live contracts.
 
-This document does not audit `server/src/`, `analytics/`, or `webhook/` except where a frontend caller depends on a named endpoint.
+This document does not audit `server/src/`, `analytics/`, or `webhook/` except where a frontend caller depends on a named endpoint. The current flat `server/src/` map is in the README.
 
 ## Ownership
 
