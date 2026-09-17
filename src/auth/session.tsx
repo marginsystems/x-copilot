@@ -93,7 +93,7 @@ export function createSession() {
 }
 
 export type Session = ReturnType<typeof createSession>;
-const SessionContext = createContext<Session | null>(null);
+export const SessionContext = createContext<Session | null>(null);
 
 export function useSession() {
   const session = useContext(SessionContext);

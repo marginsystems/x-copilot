@@ -1,3 +1,5 @@
+import { useSession } from "../auth/session";
+import { parseBilling, payloadError } from "../lib/routePayloads";
 import { useEffect, useState } from "react";
 import {
   type BillingMe,
@@ -10,43 +12,50 @@ type UseBillingOptions = {
 };
 
 export function useBilling({ onUtcDay }: UseBillingOptions = {}) {
+  const session = useSession();
   const [billing, setBilling] = useState<BillingMe | null>(null);
   const [billingNotice, setBillingNotice] = useState("");
   const [checkoutPlan, setCheckoutPlan] = useState<PaidPlanKey | null>(null);
   const [portalBusy, setPortalBusy] = useState(false);
 
-  async function loadBilling() {
+  async function loadBilling(clearNotice = true) {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
     try {
       const res = await apiFetch("/api/billing/me");
-      const data = (await res.json()) as BillingMe;
-      if (!res.ok) {
-        setBillingNotice(data.message || data.error || `Billing failed (${res.status})`);
+      if (!session.isCurrent(generation)) return;
+      const raw: unknown = await res.json();
+      if (!session.isCurrent(generation)) return;
+      const data = parseBilling(raw);
+      if (!res.ok || !data) {
+        setBillingNotice(payloadError(raw, `Billing failed (${res.status}): invalid response`));
         return;
       }
       setBilling(data);
+      if (clearNotice) setBillingNotice("");
     } catch (err) {
+      if (!session.isCurrent(generation)) return;
       setBillingNotice(err instanceof Error ? err.message : String(err));
     }
   }
 
   async function confirmCheckout(sessionId: string) {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
     try {
       const res = await apiFetch("/api/stripe/checkout/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId }),
       });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        plan_key?: string;
-        error?: string;
-        message?: string;
-      };
-      if (!res.ok) {
+      if (!session.isCurrent(generation)) return;
+      const raw: unknown = await res.json();
+      if (!session.isCurrent(generation)) return;
+      const data = raw && typeof raw === "object" && !Array.isArray(raw)
+        ? raw as Record<string, unknown> : {};
+      if (!res.ok || data.ok !== true || (data.plan_key !== undefined && typeof data.plan_key !== "string")) {
         setBillingNotice(
-          data.message ||
-            data.error ||
-            "Could not confirm checkout yet. Refresh in a moment.",
+          payloadError(raw, "Could not confirm checkout yet. Refresh in a moment."),
         );
         return;
       }
@@ -55,13 +64,16 @@ export function useBilling({ onUtcDay }: UseBillingOptions = {}) {
           ? `You're on ${data.plan_key}. Credits reset each UTC month.`
           : "Subscription active.",
       );
-      await loadBilling();
+      await loadBilling(false);
     } catch (err) {
+      if (!session.isCurrent(generation)) return;
       setBillingNotice(err instanceof Error ? err.message : String(err));
     }
   }
 
   async function onSubscribe(plan: PaidPlanKey) {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
     setCheckoutPlan(plan);
     setBillingNotice("");
     try {
@@ -70,46 +82,53 @@ export function useBilling({ onUtcDay }: UseBillingOptions = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const data = (await res.json()) as {
-        url?: string;
-        error?: string;
-        message?: string;
-      };
-      if (!res.ok || !data.url) {
-        setBillingNotice(data.message || data.error || `Checkout failed (${res.status})`);
+      if (!session.isCurrent(generation)) return;
+      const raw: unknown = await res.json();
+      if (!session.isCurrent(generation)) return;
+      const data = raw && typeof raw === "object" && !Array.isArray(raw)
+        ? raw as Record<string, unknown> : {};
+      if (!res.ok || typeof data.url !== "string" || !data.url) {
+        setBillingNotice(payloadError(raw, `Checkout failed (${res.status})`));
         return;
       }
       window.location.href = data.url;
     } catch (err) {
+      if (!session.isCurrent(generation)) return;
       setBillingNotice(err instanceof Error ? err.message : String(err));
     } finally {
+      if (!session.isCurrent(generation)) return;
       setCheckoutPlan(null);
     }
   }
 
   async function onManageBilling() {
+    const generation = session.capture();
+    if (!session.isCurrent(generation)) return;
     setPortalBusy(true);
     setBillingNotice("");
     try {
       const res = await apiFetch("/api/stripe/portal", { method: "POST" });
-      const data = (await res.json()) as {
-        url?: string;
-        error?: string;
-        message?: string;
-      };
-      if (!res.ok || !data.url) {
-        setBillingNotice(data.message || data.error || `Portal failed (${res.status})`);
+      if (!session.isCurrent(generation)) return;
+      const raw: unknown = await res.json();
+      if (!session.isCurrent(generation)) return;
+      const data = raw && typeof raw === "object" && !Array.isArray(raw)
+        ? raw as Record<string, unknown> : {};
+      if (!res.ok || typeof data.url !== "string" || !data.url) {
+        setBillingNotice(payloadError(raw, `Portal failed (${res.status})`));
         return;
       }
       window.location.href = data.url;
     } catch (err) {
+      if (!session.isCurrent(generation)) return;
       setBillingNotice(err instanceof Error ? err.message : String(err));
     } finally {
+      if (!session.isCurrent(generation)) return;
       setPortalBusy(false);
     }
   }
 
   useEffect(() => {
+    const generation = session.capture();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const arm = () => {
       const now = new Date();
@@ -119,6 +138,7 @@ export function useBilling({ onUtcDay }: UseBillingOptions = {}) {
         now.getUTCDate() + 1,
       );
       timer = setTimeout(() => {
+        if (!session.isCurrent(generation)) return;
         void loadBilling();
         onUtcDay?.();
         arm();
