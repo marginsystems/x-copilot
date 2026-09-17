@@ -15,7 +15,8 @@ runs effects, and dispatches DOM input/keyboard interactions. It does **not**
 launch a browser or the Vite application server. jsdom does not establish real
 browser layout, scrolling, or focus containment; those need future browser tests.
 The separate config does not load the application Vite plugins or API proxy.
-CI integration and expanded node discovery belong to PR-05.
+CI runs both `npm run test:unit` and `npm run test:mounted`. The live command
+matrix is `docs/src-operating-guide.md`.
 
 If installing with `--omit=optional` to skip Transformers, restore the matching
 Rollup/esbuild native packages using the procedure in `.github/workflows/ci.yml`.

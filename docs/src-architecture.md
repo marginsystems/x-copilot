@@ -1,9 +1,14 @@
 # Source architecture map
 
-Revision: `3fb65a89ffe09afc0fee3b0d1b42efdf8b43c8a5` (`main` at Wave 0).  
-Scope: root `src/` — 211 files, 52 `*.test.ts` files. This is a map of what exists today, not a rewrite plan.
+> **As of 0be9793 (2026-09-17):** this file is the Wave 0 snapshot. Live owners,
+> boot/session, failure states, and test commands are in
+> [`docs/src-operating-guide.md`](./src-operating-guide.md). Do not treat
+> **Proposed** rows or the sizes below as current.
 
-**Observed** means the current code does this. **Proposed** means a later Wave 0–5 PR. Do not treat proposed rows as live contracts.
+Revision: `3fb65a89ffe09afc0fee3b0d1b42efdf8b43c8a5` (`main` at Wave 0).  
+Scope: root `src/` — 211 files, 52 `*.test.ts` files. This is a map of what existed at Wave 0, not a rewrite plan.
+
+**Observed** means the Wave 0 code did this. **Proposed** means a later Wave 0–5 PR. Those PRs have since landed through Wave 4; do not treat proposed rows as live contracts.
 
 This document does not audit `server/src/`, `analytics/`, or `webhook/` except where a frontend caller depends on a named endpoint. The current flat `server/src/` map is in the README.
 
