@@ -162,7 +162,8 @@ Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only 
 | `ecosystem.config.example.cjs` | PM2 template (copy → local `ecosystem.config.cjs`) |
 | `.cursor/rules/` | Agent rules (e.g. Graphite stack PRs) |
 | `docs/MVP_PLAN.md` | Stream 1 scope |
-| `docs/src-architecture.md` | Current `src/` ownership, boot/session, mutations, tests, backlog |
+| `docs/src-operating-guide.md` | Live `src/` owners, boot/session, failure states, and test commands |
+| `docs/src-architecture.md` | Wave 0 snapshot only — do not treat Proposed rows as current |
 | `docs/PUBLIC_DEPLOY.md` | `api.xcopilot.dev` DNS, bind, TLS |
 | `wrangler.toml` | Cloudflare Workers static SPA (`xcopilot.dev`) |
 | `.env.example` | Required secrets (no real values) |
