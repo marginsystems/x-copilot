@@ -121,11 +121,9 @@ function mountPoll(enabled = true) {
   const hook = renderHook(({ enabled }) => {
     const session = useSession();
     const scout = useScoutRun({
-      pollingEnabled: enabled, agenda: "", settings: DEFAULT_SETTINGS,
-      authUser: boot.user, billing: null, threadCount: 0, setThreads,
+      pollingEnabled: enabled, settings: DEFAULT_SETTINGS,
+      threadCount: 0, setThreads,
       setStatus: vi.fn(), keepInCurated: () => true,
-      hydrateInteracted: vi.fn(async () => {}), loadBilling: vi.fn(async () => {}),
-      hydrateAuth: vi.fn(async () => boot.user),
     });
     return { ...scout, session };
   }, { wrapper, initialProps: { enabled } });
@@ -168,7 +166,7 @@ test("poll 401 expires the session and stops autoStart requests", async () => {
 test("poll does not overlap while the response body is pending", async () => {
   vi.useFakeTimers();
   const body = deferred<unknown>();
-  const fetcher = vi.fn(async () => ({ ok: true, status: 200, json: () => body.promise }));
+  const fetcher = vi.fn(async (_input: RequestInfo | URL) => ({ ok: true, status: 200, json: () => body.promise }));
   vi.stubGlobal("fetch", fetcher);
   const h = mountPoll();
   act(() => h.result.current.applyLastScoutFromBoot({ ok: true, empty: true }));

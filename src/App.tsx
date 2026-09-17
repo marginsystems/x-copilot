@@ -19,10 +19,7 @@ import {
   readOnboardingComplete,
 } from "./lib/onboarding";
 import { OnboardingPreviewBar } from "./OnboardingPreview";
-import { AdminPanel } from "./AdminPanel";
-import { Analytics } from "./Analytics";
-import { Account } from "./Account";
-import { VoiceCardPanel, VoiceUnlockToast } from "./VoiceCard";
+import { VoiceCardPanel } from "./VoiceCard";
 import { useDeskHistory } from "./desk/useDeskHistory";
 import {
   parseVoiceState,
@@ -48,11 +45,15 @@ import { PublicPages } from "./routing/PublicPages";
 import { AppHeader } from "./chrome/AppHeader";
 import { MenuDrawer } from "./chrome/MenuDrawer";
 import { useMenu } from "./chrome/useMenu";
-import { DeskTop } from "./desk/DeskTop";
-import { ThreadsTabs } from "./desk/ThreadsTabs";
 import { useActivityStrip } from "./desk/useActivityStrip";
 import { useCoaching } from "./desk/useCoaching";
 import { SessionBoundary } from "./auth/session";
+import { lazyRoute } from "./routing/lazyRoute";
+
+const AdminPanel = lazyRoute(() => import("./AdminPanel").then((m) => ({ default: m.AdminPanel })));
+const Analytics = lazyRoute(() => import("./Analytics").then((m) => ({ default: m.Analytics })));
+const Account = lazyRoute(() => import("./Account").then((m) => ({ default: m.Account })));
+const DeskView = lazyRoute(() => import("./desk/DeskView"));
 
 export default function App() {
   return (
@@ -83,7 +84,6 @@ function SessionApp() {
     authNotice,
     setAuthNotice,
     applyAuthUser,
-    hydrateAuth,
     startGoogleLogin,
     startXLogin,
     onLogout,
@@ -101,7 +101,6 @@ function SessionApp() {
   const {
     interactedIds,
     interactedHistory,
-    interactedHydrated,
     dismissedHistory,
     setDismissedHistory,
     skippedHistory,
@@ -196,27 +195,16 @@ function SessionApp() {
     searching,
     scoutStage,
     scoutLine,
-    searchCooldownRemaining,
-    grounded,
     applyLastScoutFromBoot,
   } = useScoutRun({
     pollingEnabled: authChecked && (authUser
       ? authUser.onboardingCompleted
       : !authRequired && (onboardingDoneLocal || readOnboardingComplete())),
-    agenda,
     settings,
-    authUser,
-    billing,
     threadCount: threads.filter((thread) => keepInCurated(thread)).length,
     setThreads,
     setStatus,
     keepInCurated,
-    hydrateInteracted,
-    loadBilling,
-    hydrateAuth,
-    onScoutFinished: () => {
-      void hydrateCoaching();
-    },
   });
   const { agendaReady, deskBootReady, onboardingSeedAgenda } = useDeskBoot({
     dedupeAccounts: settings.dedupeAccounts,
@@ -649,76 +637,68 @@ function SessionApp() {
           onSave={onSaveSettings}
         />
       ) : (
-        <>
-        <VoiceUnlockToast
-          voice={voice}
-          xLinked={authUser?.xLinked}
-          hasSession={Boolean(authUser)}
-          onOpenSettings={openVoice}
-          onLinkX={startXLogin}
+        <DeskView
+          toast={{
+            voice,
+            xLinked: authUser?.xLinked,
+            hasSession: Boolean(authUser),
+            onOpenSettings: openVoice,
+            onLinkX: startXLogin,
+          }}
+          top={{
+            open: deskTopOpen,
+            onToggle: onToggleDeskTop,
+            flightPathOpen,
+            activityBucket,
+            activityStats,
+            gamification,
+            interactedHistory,
+            usableScoutCount: curatedThreads.filter(
+              (thread) => !interactedIds.has(thread.id),
+            ).length,
+            coaching,
+            status,
+            onToggleFlightPath,
+            onActivityBucket,
+          }}
+          tabs={{
+            threadsTab,
+            setThreadsTab,
+            curatedThreads,
+            forYouSuggestions,
+            coaching,
+            interactedHistory,
+            skippedHistory,
+            dismissedHistory,
+            expiredHistory,
+            searching,
+            scoutStage,
+            scoutLine,
+            actionBusy,
+            expandedId,
+            setExpandedId,
+            interactedIds,
+            voice,
+            agenda,
+            agendaReady,
+            deskBootReady,
+            authUser,
+            dismissThread,
+            setVoice,
+            actForYou: async (id, action) => {
+              const succeeded = await actForYou(id, action);
+              void hydrateCoaching();
+              return succeeded;
+            },
+            onOpenVoice: openVoice,
+            onOpenSettings: openSettings,
+            onLinkX: startXLogin,
+            onSkip,
+            onDismiss: openDismissModal,
+            onRefreshCoaching: hydrateCoaching,
+            onHydrateInteracted: hydrateInteracted,
+          }}
         />
-        <div className="dashboard">
-          <section className="desk">
-            <DeskTop
-              open={deskTopOpen}
-              onToggle={onToggleDeskTop}
-              flightPathOpen={flightPathOpen}
-              activityBucket={activityBucket}
-              activityStats={activityStats}
-              gamification={gamification}
-              interactedHistory={interactedHistory}
-              usableScoutCount={
-                curatedThreads.filter((thread) => !interactedIds.has(thread.id))
-                  .length
-              }
-              coaching={coaching}
-              status={status}
-              onToggleFlightPath={onToggleFlightPath}
-              onActivityBucket={onActivityBucket}
-            />
-            <ThreadsTabs
-              threadsTab={threadsTab}
-              setThreadsTab={setThreadsTab}
-              curatedThreads={curatedThreads}
-              forYouSuggestions={forYouSuggestions}
-              coaching={coaching}
-              interactedHistory={interactedHistory}
-              interactedHydrated={interactedHydrated}
-              skippedHistory={skippedHistory}
-              dismissedHistory={dismissedHistory}
-              expiredHistory={expiredHistory}
-              searching={searching}
-              scoutStage={scoutStage}
-              scoutLine={scoutLine}
-              actionBusy={actionBusy}
-              expandedId={expandedId}
-              setExpandedId={setExpandedId}
-              interactedIds={interactedIds}
-              voice={voice}
-              agenda={agenda}
-              agendaReady={agendaReady}
-              deskBootReady={deskBootReady}
-              authUser={authUser}
-              dismissThread={dismissThread}
-              setVoice={setVoice}
-              actForYou={async (id, action) => {
-                const succeeded = await actForYou(id, action);
-                void hydrateCoaching();
-                return succeeded;
-              }}
-              onOpenVoice={openVoice}
-              onOpenSettings={openSettings}
-              onLinkX={startXLogin}
-              grounded={grounded}
-              searchCooldownRemaining={searchCooldownRemaining}
-              onSkip={onSkip}
-              onDismiss={openDismissModal}
-              onRefreshCoaching={hydrateCoaching}
-              onHydrateInteracted={hydrateInteracted}
-            />
-          </section>
-        </div>
-        </>
       )}
         </main>
       ) : null}

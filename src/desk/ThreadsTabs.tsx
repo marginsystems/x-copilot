@@ -30,7 +30,6 @@ type ThreadsTabsProps = {
   forYouSuggestions: ForYouSuggestion[];
   coaching?: CoachingState | null;
   interactedHistory: InteractionHistoryEntry[];
-  interactedHydrated: boolean;
   skippedHistory: SkipHistoryEntry[];
   dismissedHistory: DismissalHistoryEntry[];
   expiredHistory: ExpiredHistoryEntry[];
@@ -55,8 +54,6 @@ type ThreadsTabsProps = {
   onOpenVoice: () => void;
   onOpenSettings: () => void;
   onLinkX: () => void;
-  grounded: boolean;
-  searchCooldownRemaining: number;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
@@ -123,7 +120,6 @@ export function ThreadsTabs({
   forYouSuggestions,
   coaching,
   interactedHistory,
-  interactedHydrated,
   skippedHistory,
   dismissedHistory,
   expiredHistory,
@@ -145,8 +141,6 @@ export function ThreadsTabs({
   onOpenVoice,
   onOpenSettings,
   onLinkX,
-  grounded,
-  searchCooldownRemaining,
   onSkip,
   onDismiss,
   onRefreshCoaching,
@@ -162,14 +156,11 @@ export function ThreadsTabs({
     coaching,
     interactedIds,
     interactedHistory,
-    interactedHydrated,
     dismissedHistory,
     dismissThread,
     searching,
     scoutStage,
     scoutLine,
-    grounded,
-    searchCooldownRemaining,
     setExpandedId,
     actForYou,
     onSkip,
