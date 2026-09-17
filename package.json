@@ -26,7 +26,8 @@
     "test:unit:coverage": "tsx scripts/test-inventory.ts coverage",
     "test:mounted": "vitest run --config vitest.mounted.config.ts",
     "test:mounted:list": "vitest list --config vitest.mounted.config.ts",
-    "typecheck:mounted": "tsc --noEmit -p tsconfig.mounted.json"
+    "typecheck:mounted": "tsc --noEmit -p tsconfig.mounted.json",
+    "lint:hooks": "eslint \"src/**/*.{ts,tsx}\""
   },
   "dependencies": {
     "better-sqlite3": "^13.0.2",
@@ -46,7 +47,10 @@
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/parser": "^8.70.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^26.1.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",

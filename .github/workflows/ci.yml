@@ -54,4 +54,6 @@ jobs:
         run: npm run test:mounted:list
       - name: Run mounted tests
         run: npm run test:mounted
+      - name: Report hook dependency backlog
+        run: npm run lint:hooks
       - run: npm run build
