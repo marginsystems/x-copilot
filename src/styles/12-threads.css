@@ -804,6 +804,7 @@
 .reply-pace-help {
   position: relative;
   flex: 0 0 auto;
+  align-self: flex-start;
 }
 
 .thread-row.reply-pace-bar .row-detail-inner {
@@ -835,7 +836,7 @@
 .reply-pace-help-panel {
   position: absolute;
   z-index: 5;
-  right: 0;
+  left: 0;
   top: calc(100% + 6px);
   width: min(22rem, 78vw);
   padding: 10px 12px;
