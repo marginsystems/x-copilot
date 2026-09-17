@@ -1,4 +1,4 @@
-import { LegalLink, LegalLinks } from "./Legal";
+import { LegalLink, LegalLinks } from "./routing/LegalLinks";
 import {
   CHANGELOG,
   changelogByDate,

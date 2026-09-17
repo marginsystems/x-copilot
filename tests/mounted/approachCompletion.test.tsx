@@ -52,9 +52,9 @@ function setup() {
       authUser: user, deskBootReady: ready, agendaReady: true,
       agenda: "Help developers build reliable software and share useful engineering ideas.",
       curatedThreads: [], forYouSuggestions: history.forYouSuggestions,
-      interactedIds: new Set(["123"]), interactedHistory: [], interactedHydrated: true,
-      dismissedHistory: [], dismissThread: null, searching: false, grounded: true,
-      searchCooldownRemaining: 0, setExpandedId: vi.fn(), actForYou: history.actForYou,
+      interactedIds: new Set(["123"]), interactedHistory: [],
+      dismissedHistory: [], dismissThread: null, searching: false,
+      setExpandedId: vi.fn(), actForYou: history.actForYou,
       onSkip: vi.fn(), onDismiss: vi.fn(), onRefreshCoaching, onHydrateInteracted: vi.fn(),
     });
     return { approach, history, session };

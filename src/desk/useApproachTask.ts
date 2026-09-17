@@ -76,14 +76,11 @@ export type UseApproachTaskOpts = {
   coaching?: CoachingState | null;
   interactedIds: Set<string>;
   interactedHistory: InteractionHistoryEntry[];
-  interactedHydrated: boolean;
   dismissedHistory: DismissalHistoryEntry[];
   dismissThread: ThreadCard | null;
   searching: boolean;
   scoutStage?: ScoutStageId | null;
   scoutLine?: string | null;
-  grounded: boolean;
-  searchCooldownRemaining: number;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
   actForYou: (
     id: string,

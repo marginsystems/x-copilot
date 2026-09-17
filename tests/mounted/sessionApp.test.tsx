@@ -75,6 +75,22 @@ test("Scout autoStart stays off until onboarding is complete", async () => {
   await waitFor(() => expect(urls.some((url) => url.includes("autoStart=1"))).toBe(true));
 });
 
+test("onboarded dashboard mounts the lazy desk view", async () => {
+  window.history.replaceState({}, "", "/dashboard");
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    if (String(input).includes("/api/boot?")) return Response.json(boot);
+    return Response.json({ ok: true });
+  }));
+
+  render(<App />);
+
+  await waitFor(() => {
+    expect(screen.getByRole("heading", { name: "Threads" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Approach/ })).toBeTruthy();
+  });
+  expect(screen.queryByText("Loading page…")).toBeNull();
+});
+
 test.each(["401", "revoke"])("Account %s uses the App reset boundary and clears cache", async (mode) => {
   window.history.replaceState({}, "", "/account");
   const interaction = userEvent.setup();

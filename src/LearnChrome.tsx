@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { LegalLink, LegalLinks } from "./Legal";
+import { LegalLink, LegalLinks } from "./routing/LegalLinks";
 import { LearnMobileBar, LearnPager, LearnToc } from "./LearnLessonNav";
 import {
   LEARN_HUB_HEADING,

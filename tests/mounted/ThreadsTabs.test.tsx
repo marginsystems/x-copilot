@@ -23,7 +23,6 @@ function Harness() {
       curatedThreads={[]}
       forYouSuggestions={[]}
       interactedHistory={[]}
-      interactedHydrated
       skippedHistory={[]}
       dismissedHistory={[]}
       expiredHistory={[]}
@@ -43,8 +42,6 @@ function Harness() {
       onOpenVoice={vi.fn()}
       onOpenSettings={vi.fn()}
       onLinkX={vi.fn()}
-      grounded={false}
-      searchCooldownRemaining={0}
       onSkip={vi.fn()}
       onDismiss={vi.fn()}
       onRefreshCoaching={vi.fn()}
