@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DeskRow } from "./desk/DeskRow";
-import { LegalLinks } from "./Legal";
+import { LegalLinks } from "./routing/LegalLinks";
 import { Onboarding } from "./Onboarding";
 import { writeOnboardingAgenda } from "./lib/onboarding";
 

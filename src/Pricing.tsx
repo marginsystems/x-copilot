@@ -1,4 +1,4 @@
-import { LegalLink, LegalLinks } from "./Legal";
+import { LegalLink, LegalLinks } from "./routing/LegalLinks";
 import { PRODUCT_NAME } from "./lib/legal";
 import { PUBLIC_PLANS } from "./lib/publicPlans";
 

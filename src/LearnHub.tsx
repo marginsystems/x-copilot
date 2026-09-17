@@ -1,4 +1,4 @@
-import { LegalLink } from "./Legal";
+import { LegalLink } from "./routing/LegalLinks";
 import { LearnChrome } from "./LearnChrome";
 import {
   LEARN_HUB_HEADING,

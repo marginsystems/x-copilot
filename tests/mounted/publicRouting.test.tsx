@@ -24,7 +24,7 @@ afterEach(() => {
   window.history.replaceState({}, "", "/");
 });
 
-test("a public deep link paints anonymously while boot is stalled", () => {
+test("a public deep link paints anonymously while boot is stalled", async () => {
   window.history.replaceState({}, "", "/pricing");
   writeDeskBootCache(parseDeskBoot({
     ok: true,
@@ -41,7 +41,7 @@ test("a public deep link paints anonymously while boot is stalled", () => {
 
   render(<App />);
 
-  expect(screen.getByRole("heading", { name: "Plans" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Plans" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Sign in to start Free" })).toBeTruthy();
   expect(screen.queryByText("Usage & Billing")).toBeNull();
   expect(screen.queryByText("Cached Owner")).toBeNull();
@@ -57,7 +57,7 @@ test("route changes and browser history preserve public boot independence", asyn
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
 
-  expect(screen.getByRole("heading", { name: "Plans" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Plans" })).toBeTruthy();
   act(() => {
     window.history.pushState({}, "", "/dashboard");
     window.dispatchEvent(new PopStateEvent("popstate"));
@@ -88,7 +88,7 @@ test("failed auth leaves the public route painted and protected routes gated", a
   render(<App />);
 
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-  expect(screen.getByRole("heading", { name: "Plans" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Plans" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Sign in to start Free" })).toBeTruthy();
 
   act(() => {
@@ -97,4 +97,20 @@ test("failed auth leaves the public route painted and protected routes gated", a
   });
   expect(screen.queryByRole("heading", { name: "Plans" })).toBeNull();
   expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+});
+
+test.each([
+  "/privacy", "/terms", "/changelog", "/learn",
+  "/learn/what-a-like-is-worth", "/learn/posts-that-get-a-reply",
+  "/learn/how-many-replies", "/learn/likes-and-follows-you-give", "/learn/follow",
+])("public chunk %s paints without waiting for auth", async (path) => {
+  window.history.replaceState({}, "", path);
+  const pending = deferred<Response>();
+  vi.stubGlobal("fetch", vi.fn(() => pending.promise));
+  render(<App />);
+  await waitFor(() => {
+    expect(document.querySelector("main h1, main h2")).not.toBeNull();
+  });
+  expect(screen.queryByText("Checking your session…")).toBeNull();
+  expect(screen.queryByText("Loading page…")).toBeNull();
 });

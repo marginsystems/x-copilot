@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LegalLink } from "./Legal";
+import { LegalLink } from "./routing/LegalLinks";
 import { LearnChrome } from "./LearnChrome";
 import { LearnCode } from "./LearnCode";
 import { LearnTip } from "./LearnTip";

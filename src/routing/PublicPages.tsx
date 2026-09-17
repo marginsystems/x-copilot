@@ -1,14 +1,16 @@
-import { LegalPage } from "../Legal";
-import { PricingPage } from "../Pricing";
-import { ChangelogPage } from "../Changelog";
-import { LearnPage } from "../Learn";
-import { LearnHubPage } from "../LearnHub";
-import { LearnReplyPage } from "../LearnReply";
-import { LearnVolumePage } from "../LearnVolume";
-import { LearnGivePage } from "../LearnGive";
-import { LearnFollowPage } from "../LearnFollow";
+import { lazyRoute } from "./lazyRoute";
 import { isLegalKind } from "../lib/legal";
 import type { AppView } from "../lib/appView";
+
+const LegalPage = lazyRoute(() => import("../Legal").then((m) => ({ default: m.LegalPage })));
+const PricingPage = lazyRoute(() => import("../Pricing").then((m) => ({ default: m.PricingPage })));
+const ChangelogPage = lazyRoute(() => import("../Changelog").then((m) => ({ default: m.ChangelogPage })));
+const LearnPage = lazyRoute(() => import("../Learn").then((m) => ({ default: m.LearnPage })));
+const LearnHubPage = lazyRoute(() => import("../LearnHub").then((m) => ({ default: m.LearnHubPage })));
+const LearnReplyPage = lazyRoute(() => import("../LearnReply").then((m) => ({ default: m.LearnReplyPage })));
+const LearnVolumePage = lazyRoute(() => import("../LearnVolume").then((m) => ({ default: m.LearnVolumePage })));
+const LearnGivePage = lazyRoute(() => import("../LearnGive").then((m) => ({ default: m.LearnGivePage })));
+const LearnFollowPage = lazyRoute(() => import("../LearnFollow").then((m) => ({ default: m.LearnFollowPage })));
 
 type PublicPagesProps = {
   view: AppView;
