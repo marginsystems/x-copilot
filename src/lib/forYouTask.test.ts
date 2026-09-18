@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   clearForYouWait,
+  FOR_YOU_WAIT_STORAGE_KEY,
   forYouDetectedActivity,
   forYouWaitDetected,
   hasDetectedForYouPost,
@@ -223,11 +224,19 @@ describe("For You wait detection", () => {
       cursor: scoutReply,
       now: ENTERED,
     });
+    const reMarkedScoutReply = {
+      ...scoutReply,
+      postedAt: "2026-09-05T13:02:00.000Z",
+    };
     assert.equal(
-      hasDetectedForYouPost(wait.snapshot!, scoutReply, wait.enteredAt),
+      hasDetectedForYouPost(
+        wait.snapshot!,
+        reMarkedScoutReply,
+        wait.enteredAt,
+      ),
       false,
     );
-    assert.equal(forYouWaitDetected(wait, scoutReply), false);
+    assert.equal(forYouWaitDetected(wait, reMarkedScoutReply), false);
   });
 
   it("does not detect only a UTC day rollover of an older original", () => {
@@ -277,10 +286,28 @@ describe("For You wait storage", () => {
         cursor: baseline,
         now: ENTERED,
       });
-      writeForYouWait(wait);
-      assert.deepEqual(readForYouWait("u1"), wait);
+      const settled = settleForYouWait(wait, fypReply, ENTERED + 40_000);
+      writeForYouWait(settled);
+      const restored = readForYouWait("u1");
+      assert.deepEqual(restored?.hit, fypReply);
+      assert.deepEqual(forYouDetectedActivity(restored!, baseline), fypReply);
       assert.equal(readForYouWait("u2"), null);
       clearForYouWait("u1");
+      assert.equal(readForYouWait("u1"), null);
+    });
+  });
+
+  it("rejects a wait with a malformed persisted hit", () => {
+    withSessionStorage(() => {
+      const wait = settleForYouWait(
+        openForYouWait({ owner: "u1", cursor: baseline, now: ENTERED }),
+        fypReply,
+        ENTERED + 40_000,
+      );
+      sessionStorage.setItem(
+        `${FOR_YOU_WAIT_STORAGE_KEY}:u1`,
+        JSON.stringify({ ...wait, hit: { ...fypReply, kind: "repost" } }),
+      );
       assert.equal(readForYouWait("u1"), null);
     });
   });
