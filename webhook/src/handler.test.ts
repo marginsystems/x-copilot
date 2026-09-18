@@ -10,27 +10,27 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "../../server/src/db.ts";
-import { getDeskBeats } from "../../server/src/deskBeats.ts";
-import { getGamification } from "../../server/src/gamification.ts";
+import { getDeskBeats } from "../../server/src/desk/deskBeats.ts";
+import { getGamification } from "../../server/src/desk/gamification.ts";
 import {
   listInteractionHistory,
   markInteracted,
-} from "../../server/src/interactionStore.ts";
+} from "../../server/src/desk/interactionStore.ts";
 import {
   countOwnPostsSince,
   upsertOwnPost,
   watchThread,
-} from "../../server/src/ownPostStore.ts";
-import type { ParsedPostCreate } from "../../server/src/xActivity.ts";
-import { crcResponseToken } from "../../server/src/xActivity.ts";
+} from "../../server/src/desk/ownPostStore.ts";
+import type { ParsedPostCreate } from "../../server/src/x-api/xActivity.ts";
+import { crcResponseToken } from "../../server/src/x-api/xActivity.ts";
 import {
   getScoutApproachLock,
   setScoutApproachLock,
-} from "../../server/src/scoutApproachLock.ts";
+} from "../../server/src/scout/scoutApproachLock.ts";
 import {
   getLastScout,
   saveScoutCache,
-} from "../../server/src/scoutCache.ts";
+} from "../../server/src/scout/scoutCache.ts";
 import { markOwnReplyInteracted } from "./handler.ts";
 import { createWebhookServer } from "./sidecar.ts";
 

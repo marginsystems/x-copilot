@@ -9,8 +9,8 @@
  */
 import { resolve } from "node:path";
 import Stripe from "stripe";
-import { loadEnv } from "../server/src/loadEnv.js";
-import { PAID_PLAN_KEYS, PLAN_PRICE_USD, type PaidPlanKey } from "../server/src/plans.js";
+import { loadEnv } from "../server/src/platform/loadEnv.js";
+import { PAID_PLAN_KEYS, PLAN_PRICE_USD, type PaidPlanKey } from "../server/src/billing/plans.js";
 import {
   isNonProductionEnv,
   liveStripeKeyBlockedInNonProduction,
@@ -19,7 +19,7 @@ import {
   resolveStripeSecretKey,
   resolveWebhookSecret,
   stripeSecretKind,
-} from "../server/src/stripeConfig.js";
+} from "../server/src/billing/stripeConfig.js";
 
 const envPath = resolve(process.cwd(), ".env");
 if (!loadEnv(envPath)) {

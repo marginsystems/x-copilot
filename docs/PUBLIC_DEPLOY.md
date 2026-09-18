@@ -28,7 +28,7 @@ Signup is open (Free plan). A session is still required: public bind always gate
 
 `clientIp()` (used for login rate limiting and session IP) trusts `CF-Connecting-IP` / `X-Forwarded-For` only when the direct peer is a Cloudflare IP. From loopback it trusts a single `X-Real-IP` only when the terminator overwrites that header, as nginx does with `proxy_set_header X-Real-IP $remote_addr;`. Any terminator that forwards a client-supplied `X-Real-IP` unchanged (Caddy, cloudflared, SSH tunnels) would let a remote client pick its own rate-limit and session IP, so only a terminator that overwrites the header may sit in front of 8787. A caller that reaches `IP:8787` directly is not a loopback or Cloudflare peer, so its forwarded headers are ignored and it is rate-limited by its own socket IP. Bind 8787 to loopback and reach it only through the local TLS terminator. If you switch `api` to a proxied record instead, keep 8787 firewalled to Cloudflare's published ranges ([`ips-v4`](https://www.cloudflare.com/ips-v4) / [`ips-v6`](https://www.cloudflare.com/ips-v6)).
 
-Keep the server-side copy of these ranges in `server/src/authGuard.ts` in sync
+Keep the server-side copy of these ranges in `server/src/auth/authGuard.ts` in sync
 with the published lists — forwarded IPs are trusted only from peers matching
 those ranges, and `X-Forwarded-Proto` from those ranges or loopback. If
 Cloudflare adds ranges and the copy drifts, requests from the new edge nodes

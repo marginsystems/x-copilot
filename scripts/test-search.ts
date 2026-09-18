@@ -5,9 +5,9 @@
  *   npm run test:search -- "AI tools"
  */
 import { resolve } from "node:path";
-import { loadEnv } from "../server/src/loadEnv.ts";
-import { getXApiCredsFromEnv } from "../server/src/xApi.ts";
-import { searchTimeline } from "../server/src/xSearch.ts";
+import { loadEnv } from "../server/src/platform/loadEnv.ts";
+import { getXApiCredsFromEnv } from "../server/src/x-api/xApi.ts";
+import { searchTimeline } from "../server/src/x-api/xSearch.ts";
 
 const envPath = resolve(process.cwd(), ".env");
 if (!loadEnv(envPath)) {

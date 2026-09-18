@@ -7,8 +7,8 @@
  * Exit 0 on success, 1 on failure. Never prints full token values.
  */
 import { resolve } from "node:path";
-import { loadEnv } from "../server/src/loadEnv.js";
-import { getXApiCredsFromEnv, xApiGet } from "../server/src/xApi.js";
+import { loadEnv } from "../server/src/platform/loadEnv.js";
+import { getXApiCredsFromEnv, xApiGet } from "../server/src/x-api/xApi.js";
 
 const envPath = resolve(process.cwd(), ".env");
 if (!loadEnv(envPath)) {

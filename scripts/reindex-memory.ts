@@ -2,7 +2,7 @@
  * Rebuild the local knowledge memory embedding index.
  * Usage: npx tsx scripts/reindex-memory.ts
  */
-import { reindexMemory, resolveIndexPaths } from "../server/src/memoryIndex.ts";
+import { reindexMemory, resolveIndexPaths } from "../server/src/memory/memoryIndex.ts";
 
 async function main(): Promise<void> {
   const paths = resolveIndexPaths();

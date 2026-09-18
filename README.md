@@ -66,28 +66,28 @@ Bearer token and LLM keys stay in `.env` on the sidecar. The browser never store
 
 ### Server source map
 
-`server/src/` is **240 files in one flat folder** at this HEAD: ~131 production modules, ~105 `*.test.ts` files, plus 3 test-support files (`platformDb.testHelpers.ts`, `scoutCollect.testHelpers.ts`, `xGraphqlParse.test.fixtures.ts`) and 1 declaration (`xenova-transformers.d.ts`). No owner folders exist yet.
+`server/src/` is **237 files across ten ownership folders and five root files**: 130 production modules, 103 `*.test.ts` files, 3 test-support files (`platform/platformDb.testHelpers.ts`, `scout/scoutCollect.testHelpers.ts`, `x-api/xGraphqlParse.test.fixtures.ts`), and 1 declaration (`xenova-transformers.d.ts`).
 
-`scripts/test-inventory.ts` already walks nested paths under `server/src`, `src`, `analytics/src`, and `webhook/src` for `*.test.ts` / `*.test.tsx`. `npm test` and `npm run test:unit` run that inventory; `npm run test:unit:list` prints it. After a later move, tests stay adjacent to their owners. No barrels.
+`scripts/test-inventory.ts` already walks nested paths under `server/src`, `src`, `analytics/src`, and `webhook/src` for `*.test.ts` / `*.test.tsx`. `npm test` and `npm run test:unit` run that inventory; `npm run test:unit:list` prints it. Tests stay adjacent to their owners. No barrels.
 
 D5 (unused Voice helpers) and D6 (batch Scout/log) already landed. Those deleted helpers and batch/log routes are not current APIs. Live Scout HTTP is `POST /api/scout/run` (NDJSON) and `GET /api/scout/last`.
 
-**Planned** later folders (not live; root stays flat until a later PR):
+Ownership folders under `server/src/`:
 
-| Planned folder | Intended owners |
+| Folder | Owners |
 |----------------|-----------------|
 | `auth/` | session, OAuth, guards |
 | `billing/` | Stripe, quotas, plans |
 | `scout/` | collect, cache, gate, run |
-| `for-you/` | digest, remix, theme |
+| `for-you/` | digest, remix, theme, mail |
 | `voice/` | suggest, ingest, post |
 | `desk/` | history, interactions, beats |
 | `x-api/` | search, tweets, GraphQL parse |
-| `http/` | route handlers, JSON, CORS |
+| `http/` | boot composition, JSON, CORS, request context |
 | `memory/` | knowledge notes, index |
-| `platform/` | shared stores, env, mail |
+| `platform/` | env, LLM, file locks, cross-domain test support |
 
-Root keeps `index.ts`, `statsWorker.ts`, and `db.ts` for PM2 entrypoints and numbered SQL migrations (`server/migrations/`). `tsconfig.server.json` already includes `server/src/**/*.ts`. `ecosystem.config.example.cjs` points `x-copilot-api` at `server/src/index.ts` (or `server/dist/index.js`) and `x-copilot-stats` at `statsWorker`.
+Root keeps `index.ts`, `statsWorker.ts`, `statsWorker.test.ts`, `db.ts`, and `xenova-transformers.d.ts` for PM2 entrypoints and numbered SQL migrations (`server/migrations/`). `tsconfig.server.json` already includes `server/src/**/*.ts`. `ecosystem.config.example.cjs` points `x-copilot-api` at `server/src/index.ts` (or `server/dist/index.js`) and `x-copilot-stats` at `statsWorker`.
 
 ## Quick start
 
@@ -154,7 +154,7 @@ Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only 
 | Path | Role |
 |------|------|
 | `src/` | Vite dashboard (agenda, Scout, threads) |
-| `server/src/` | TypeScript sidecar — currently 240 files, one flat folder (see Server source map) |
+| `server/src/` | TypeScript sidecar — 237 files in ownership folders (see Server source map) |
 | `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
 | `scripts/test-x-api.ts` | CLI X API bearer smoke test |
 | `tsconfig.server.json` | Server emit config |
