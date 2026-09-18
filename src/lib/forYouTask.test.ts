@@ -56,12 +56,11 @@ describe("latestActivityCursor", () => {
             replyId: scoutReply.id,
             replyUrl: scoutReply.url,
             postedAt: scoutReply.postedAt,
-            text: scoutReply.text,
             at: scoutReply.postedAt,
           },
         ],
       }),
-      scoutReply,
+      { ...scoutReply, text: "" },
     );
   });
 
@@ -73,12 +72,44 @@ describe("latestActivityCursor", () => {
           replyId: scoutReply.id,
           postedAt: scoutReply.postedAt,
           at: scoutReply.postedAt,
-          text: "",
         },
       ],
     });
     assert.equal(merged?.id, scoutReply.id);
     assert.equal(merged?.text, "from own posts");
+  });
+
+  it("picks the newest postedAt even when attribution order is inverted", () => {
+    const cursor = latestActivityCursor({
+      history: [
+        {
+          replyId: "older-late",
+          postedAt: "2026-09-05T12:00:00.000Z",
+          at: "2026-09-05T13:07:00.000Z",
+        },
+        {
+          replyId: fypReply.id,
+          replyUrl: fypReply.url,
+          postedAt: fypReply.postedAt,
+          at: "2026-09-05T13:06:00.000Z",
+        },
+      ],
+    });
+    assert.equal(cursor?.id, fypReply.id);
+  });
+
+  it("does not treat parent thread text as the reply body", () => {
+    const cursor = latestActivityCursor({
+      history: [
+        {
+          replyId: scoutReply.id,
+          replyUrl: scoutReply.url,
+          postedAt: scoutReply.postedAt,
+          at: scoutReply.postedAt,
+        },
+      ],
+    });
+    assert.equal(cursor?.text, "");
   });
 });
 
@@ -92,6 +123,7 @@ describe("For You wait identity", () => {
       enteredAt: "2026-09-05T13:00:00.000Z",
       snapshot: snapshotForYouWait(baseline),
       detectedAt: null,
+      hit: null,
     });
   });
 
@@ -115,8 +147,15 @@ describe("For You wait identity", () => {
     const wait = openForYouWait({ owner: "u1", cursor: null, now: ENTERED });
     const settled = settleForYouWait(wait, fypReply, ENTERED + 40_000);
     assert.equal(settled.detectedAt, "2026-09-05T13:00:40.000Z");
+    assert.deepEqual(settled.hit, fypReply);
     assert.equal(forYouWaitDetected(settled, fypReply), true);
     assert.deepEqual(forYouDetectedActivity(settled, fypReply), fypReply);
+  });
+
+  it("keeps the completing post after a later stale cursor arrives", () => {
+    const wait = openForYouWait({ owner: "u1", cursor: null, now: ENTERED });
+    const settled = settleForYouWait(wait, fypReply, ENTERED + 40_000);
+    assert.deepEqual(forYouDetectedActivity(settled, baseline), fypReply);
   });
 
   it("detection is monotonic once marked", () => {

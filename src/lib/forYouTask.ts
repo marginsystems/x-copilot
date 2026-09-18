@@ -27,6 +27,8 @@ export type ForYouWait = {
   snapshot: ForYouWaitSnapshot | null;
   /** Set once. Later cursor moves cannot un-detect the task. */
   detectedAt: string | null;
+  /** The cursor that closed the wait. Frozen at detect time. */
+  hit: ActivityCursor | null;
 };
 
 function cursorTime(cursor: Pick<ActivityCursor, "postedAt">): number {
@@ -43,23 +45,28 @@ function snapshotFrom(cursor: ActivityCursor): ForYouWaitSnapshot {
 
 function historyCursor(
   history?: Array<
-    Pick<InteractionHistoryEntry, "replyId" | "replyUrl" | "postedAt" | "at" | "text">
+    Pick<InteractionHistoryEntry, "replyId" | "replyUrl" | "postedAt" | "at">
   >,
 ): ActivityCursor | null {
   if (!history) return null;
+  let best: ActivityCursor | null = null;
+  let bestMs = Number.NEGATIVE_INFINITY;
   for (const row of history) {
     const id = row.replyId?.trim();
     const postedAt = row.postedAt?.trim() || row.at?.trim();
     if (!id || !postedAt) continue;
-    return {
+    const postedMs = Date.parse(postedAt);
+    if (!Number.isFinite(postedMs) || postedMs < bestMs) continue;
+    bestMs = postedMs;
+    best = {
       id,
       postedAt,
       kind: "reply",
       url: row.replyUrl?.trim() || `https://x.com/i/status/${id}`,
-      text: row.text ?? "",
+      text: "",
     };
   }
-  return null;
+  return best;
 }
 
 /**
@@ -69,7 +76,7 @@ function historyCursor(
 export function latestActivityCursor(opts: {
   ownActivity?: ActivityCursor | null;
   history?: Array<
-    Pick<InteractionHistoryEntry, "replyId" | "replyUrl" | "postedAt" | "at" | "text">
+    Pick<InteractionHistoryEntry, "replyId" | "replyUrl" | "postedAt" | "at">
   >;
 }): ActivityCursor | null {
   const fromOwn = opts.ownActivity?.id?.trim()
@@ -83,7 +90,7 @@ export function latestActivityCursor(opts: {
       ...fromHistory,
       ...fromOwn,
       url: fromOwn.url || fromHistory.url,
-      text: fromOwn.text || fromHistory.text,
+      text: fromOwn.text,
     };
   }
   return cursorTime(fromOwn) >= cursorTime(fromHistory) ? fromOwn : fromHistory;
@@ -108,6 +115,7 @@ export function openForYouWait(opts: {
     enteredAt: new Date(opts.now ?? Date.now()).toISOString(),
     snapshot: snapshotForYouWait(opts.cursor),
     detectedAt: null,
+    hit: null,
   };
 }
 
@@ -140,6 +148,7 @@ export function forYouDetectedActivity(
   wait: ForYouWait,
   cursor?: ActivityCursor | null,
 ): ActivityCursor | null {
+  if (wait.hit) return wait.hit;
   if (!forYouWaitDetected(wait, cursor) || !cursor) return null;
   if (wait.snapshot && cursor.id === wait.snapshot.id) return null;
   return cursor;
@@ -158,12 +167,12 @@ export function settleForYouWait(
   const detectedAt = new Date(now).toISOString();
   if (!wait.snapshot) {
     if (newerThan(cursor, wait.enteredAt)) {
-      return { ...wait, detectedAt };
+      return { ...wait, detectedAt, hit: cursor };
     }
     return { ...wait, snapshot: snapshotForYouWait(cursor) };
   }
   if (hasDetectedForYouPost(wait.snapshot, cursor, wait.enteredAt)) {
-    return { ...wait, detectedAt };
+    return { ...wait, detectedAt, hit: cursor };
   }
   return wait;
 }
@@ -183,6 +192,30 @@ function parseSnapshot(raw: unknown): ForYouWaitSnapshot | null | undefined {
   return { id: snapshot.id, postedAt: snapshot.postedAt };
 }
 
+function parseHit(raw: unknown): ActivityCursor | null | undefined {
+  if (raw === null || raw === undefined) return null;
+  if (!raw || typeof raw !== "object") return undefined;
+  const row = raw as Record<string, unknown>;
+  if (
+    typeof row.id !== "string" ||
+    !row.id.trim() ||
+    typeof row.postedAt !== "string" ||
+    !row.postedAt.trim() ||
+    typeof row.url !== "string" ||
+    typeof row.text !== "string" ||
+    (row.kind !== "reply" && row.kind !== "original" && row.kind !== "quote")
+  ) {
+    return undefined;
+  }
+  return {
+    id: row.id,
+    postedAt: row.postedAt,
+    kind: row.kind,
+    url: row.url,
+    text: row.text,
+  };
+}
+
 export function parseForYouWait(
   raw: string | null,
   owner: string,
@@ -200,6 +233,8 @@ export function parseForYouWait(
     }
     const snapshot = parseSnapshot(row.snapshot);
     if (snapshot === undefined) return null;
+    const hit = parseHit(row.hit);
+    if (hit === undefined) return null;
     return {
       held: true,
       kind: "for_you",
@@ -207,6 +242,7 @@ export function parseForYouWait(
       enteredAt: row.enteredAt,
       snapshot,
       detectedAt: row.detectedAt as string | null,
+      hit,
     };
   } catch {
     return null;
