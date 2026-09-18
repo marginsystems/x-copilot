@@ -1,7 +1,4 @@
-/**
- * Legacy X GraphQL SearchTimeline response parsing.
- * Used by tweet lookup and retained fixture tests; no HTTP client.
- */
+/** Parse X GraphQL tweet result nodes into thread cards. */
 import { MAX_OP_TEXT_CHARS, type ThreadCard } from "./threadCard.js";
 import {
   mediaShortlinkKeys,
@@ -9,89 +6,6 @@ import {
   type LinkPreviewCard,
   type UrlEntity,
 } from "./xLinks.js";
-
-type TimelineInstruction = {
-  entries?: TimelineEntry[];
-  addEntries?: { entries?: TimelineEntry[] };
-};
-
-type TimelineEntry = {
-  entryId?: string;
-  content?: {
-    __typename?: string;
-    cursorType?: string;
-    value?: string;
-    itemContent?: {
-      tweet_results?: { result?: unknown };
-    };
-    items?: Array<{
-      item?: {
-        itemContent?: {
-          tweet_results?: { result?: unknown };
-        };
-      };
-    }>;
-  };
-};
-
-export type SearchTimelinePage = {
-  threads: ThreadCard[];
-  bottomCursor: string | null;
-};
-
-/** Parse one SearchTimeline page: tweets + Bottom cursor for pagination. */
-export function parseSearchTimelinePage(data: unknown): SearchTimelinePage {
-  const root = data as {
-    data?: {
-      search_by_raw_query?: {
-        search_timeline?: {
-          timeline?: { instructions?: TimelineInstruction[] };
-        };
-      };
-    };
-  };
-  const instructions =
-    root?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions ||
-    [];
-  const cards: ThreadCard[] = [];
-  let bottomCursor: string | null = null;
-  for (const instr of instructions) {
-    const entries = instr.entries || instr.addEntries?.entries || [];
-    for (const entry of entries) {
-      const content = entry.content;
-      const typename = content?.__typename;
-      const cursorType = content?.cursorType;
-      const cursorValue =
-        typeof content?.value === "string" ? content.value.trim() : "";
-      const isBottom =
-        typename === "TimelineTimelineCursor" &&
-        (cursorType === "Bottom" ||
-          /cursor-bottom/i.test(entry.entryId ?? ""));
-      if (isBottom && cursorValue) {
-        bottomCursor = cursorValue;
-      }
-
-      const fromItem = content?.itemContent?.tweet_results?.result;
-      if (fromItem) {
-        const card = tweetResultToCard(fromItem);
-        if (card) cards.push(card);
-      }
-      for (const item of content?.items || []) {
-        const result = item.item?.itemContent?.tweet_results?.result;
-        if (result) {
-          const card = tweetResultToCard(result);
-          if (card) cards.push(card);
-        }
-      }
-    }
-  }
-  return { threads: cards, bottomCursor };
-}
-
-/** Parse SearchTimeline GraphQL JSON into thread cards (exported for tests). */
-export function parseSearchTimelineResponse(data: unknown): ThreadCard[] {
-  return parseSearchTimelinePage(data).threads;
-}
 
 export type TweetResultNode = {
   __typename?: string;
