@@ -39,7 +39,9 @@ import type { ForYouSuggestion } from "../lib/forYou";
 import { replyPaceSeedIso } from "../lib/replyPace";
 import {
   clearForYouWait,
+  forYouDetectedActivity,
   forYouWaitDetected,
+  latestActivityCursor,
   readForYouWait,
   settleForYouWait,
   writeForYouWait,
@@ -254,6 +256,12 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   };
   const coachingRef = useRef(coaching);
   coachingRef.current = coaching;
+  const activityCursor = latestActivityCursor({
+    ownActivity: coaching?.ownActivity ?? null,
+    history: interactedHistory,
+  });
+  const cursorRef = useRef(activityCursor);
+  cursorRef.current = activityCursor;
   const refreshCoachingRef = useRef(onRefreshCoaching);
   refreshCoachingRef.current = onRefreshCoaching;
   const hydrateInteractedRef = useRef(onHydrateInteracted);
@@ -306,7 +314,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       current,
       event,
       inventoryFor(current.lock.cardId, afterForYou),
-      { owner, coaching: coachingRef.current },
+      { owner, cursor: cursorRef.current },
     );
     if (next === current) return;
     const armOverlay =
@@ -347,7 +355,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         storedWait: readForYouWait(owner),
         normalize: normalizeRef.current,
         paceLocked: livePaceLocked(),
-        task: { owner, coaching: coachingRef.current },
+        task: { owner, cursor: cursorRef.current },
       }),
     );
   }, [agendaReady, deskBootReady, owner, userId]);
@@ -357,17 +365,17 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     if (!current || !deskBootReady || !agendaReady) return;
     const next = reconcileApproachGate(current, normalizeRef.current, {
       owner,
-      coaching: coachingRef.current,
+      cursor: cursorRef.current,
     });
     if (next !== current) commit(next);
   }, [agendaReady, deskBootReady, gate, owner]);
 
   useEffect(() => {
     const current = stateRef.current;
-    if (!current?.wait || !coaching) return;
-    const settled = settleForYouWait(current.wait, coaching);
+    if (!current?.wait) return;
+    const settled = settleForYouWait(current.wait, cursorRef.current);
     if (settled !== current.wait) commit({ lock: current.lock, wait: settled });
-  }, [coaching, wait]);
+  }, [activityCursor?.id, activityCursor?.postedAt, wait]);
 
   const cardInput: ApproachCardInput = {
     phase,
@@ -376,7 +384,12 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     scoutDetected,
     suggestion: lockedSuggestion,
     suggestionDetected,
-    forYou: wait ? { detected: forYouWaitDetected(wait, coaching) } : null,
+    forYou: wait
+      ? {
+          detected: forYouWaitDetected(wait, activityCursor),
+          activity: forYouDetectedActivity(wait, activityCursor),
+        }
+      : null,
     remainingMs: pace.remainingMs,
     paceOverlayArmed: pace.overlayArmed,
     searching,

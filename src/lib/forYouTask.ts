@@ -1,15 +1,19 @@
 /**
- * The For You wait belongs to one presented task. It records who owns it, when
- * the card was entered, the activity baseline, and a monotonic completion mark.
- * Detection marks; only Next (or Bypass) releases.
+ * The For You wait belongs to one presented task. Detection reads one activity
+ * cursor — the newest own post or attributed reply the desk already knows.
+ * Scout still matches a specific card; this cursor only answers "anything new?"
  */
 
-export const FOR_YOU_WAIT_STORAGE_KEY = "x-copilot-fyp-wait";
+import type { OwnActivity } from "./coaching";
+import type { InteractionHistoryEntry } from "../desk/types";
+
+export const FOR_YOU_WAIT_STORAGE_KEY = "x-copilot-fyp-wait-v2";
+
+export type ActivityCursor = OwnActivity;
 
 export type ForYouWaitSnapshot = {
-  postsToday: number;
-  postAt: string | null;
-  replyAt: string | null;
+  id: string;
+  postedAt: string;
 };
 
 export type ForYouWait = {
@@ -17,35 +21,84 @@ export type ForYouWait = {
   kind: "for_you";
   /** User the wait belongs to. A wait never runs behind another operator's card. */
   owner: string;
-  /** When the task was presented. The explicit baseline when coaching was not loaded yet. */
+  /** When the task was presented. Fallback baseline when no cursor existed yet. */
   enteredAt: string;
-  /** Coaching activity at entry, or the first payload that did not post-date entry. */
+  /** Newest known activity at entry, or the first payload that did not post-date entry. */
   snapshot: ForYouWaitSnapshot | null;
-  /** Set once. Later coaching merges cannot un-detect the task. */
+  /** Set once. Later cursor moves cannot un-detect the task. */
   detectedAt: string | null;
 };
 
-type CoachingActivity = {
-  postsToday?: number;
-  postAt?: string[];
-  replyAt?: string[];
-};
+function cursorTime(cursor: Pick<ActivityCursor, "postedAt">): number {
+  return Date.parse(cursor.postedAt);
+}
+
+function newerThan(cursor: ActivityCursor | null, iso: string): boolean {
+  return Boolean(cursor && cursorTime(cursor) > Date.parse(iso));
+}
+
+function snapshotFrom(cursor: ActivityCursor): ForYouWaitSnapshot {
+  return { id: cursor.id, postedAt: cursor.postedAt };
+}
+
+function historyCursor(
+  history?: Array<
+    Pick<InteractionHistoryEntry, "replyId" | "replyUrl" | "postedAt" | "at" | "text">
+  >,
+): ActivityCursor | null {
+  if (!history) return null;
+  for (const row of history) {
+    const id = row.replyId?.trim();
+    const postedAt = row.postedAt?.trim() || row.at?.trim();
+    if (!id || !postedAt) continue;
+    return {
+      id,
+      postedAt,
+      kind: "reply",
+      url: row.replyUrl?.trim() || `https://x.com/i/status/${id}`,
+      text: row.text ?? "",
+    };
+  }
+  return null;
+}
+
+/**
+ * Newest own activity the desk already has. Prefers the later postedAt; same
+ * id keeps ownActivity display fields (url / text).
+ */
+export function latestActivityCursor(opts: {
+  ownActivity?: ActivityCursor | null;
+  history?: Array<
+    Pick<InteractionHistoryEntry, "replyId" | "replyUrl" | "postedAt" | "at" | "text">
+  >;
+}): ActivityCursor | null {
+  const fromOwn = opts.ownActivity?.id?.trim()
+    ? opts.ownActivity
+    : null;
+  const fromHistory = historyCursor(opts.history);
+  if (!fromOwn) return fromHistory;
+  if (!fromHistory) return fromOwn;
+  if (fromOwn.id === fromHistory.id) {
+    return {
+      ...fromHistory,
+      ...fromOwn,
+      url: fromOwn.url || fromHistory.url,
+      text: fromOwn.text || fromHistory.text,
+    };
+  }
+  return cursorTime(fromOwn) >= cursorTime(fromHistory) ? fromOwn : fromHistory;
+}
 
 export function snapshotForYouWait(
-  coaching?: CoachingActivity | null,
+  cursor?: ActivityCursor | null,
 ): ForYouWaitSnapshot | null {
-  if (!coaching) return null;
-  return {
-    postsToday: coaching.postsToday ?? 0,
-    postAt: coaching.postAt?.[0] ?? null,
-    replyAt: coaching.replyAt?.[0] ?? null,
-  };
+  return cursor?.id ? snapshotFrom(cursor) : null;
 }
 
 /** A fresh wait for a task that was just presented. */
 export function openForYouWait(opts: {
   owner: string;
-  coaching?: CoachingActivity | null;
+  cursor?: ActivityCursor | null;
   now?: number;
 }): ForYouWait {
   return {
@@ -53,69 +106,63 @@ export function openForYouWait(opts: {
     kind: "for_you",
     owner: opts.owner,
     enteredAt: new Date(opts.now ?? Date.now()).toISOString(),
-    snapshot: snapshotForYouWait(opts.coaching),
+    snapshot: snapshotForYouWait(opts.cursor),
     detectedAt: null,
   };
 }
 
-function newerThan(latest: string | undefined, baseline: string | null): boolean {
-  return Boolean(
-    latest && (!baseline || Date.parse(latest) > Date.parse(baseline)),
-  );
-}
-
-/** A reply, original, or quote after the entry time. Likes never appear here. */
-function activitySince(
-  enteredAt: string,
-  coaching: CoachingActivity,
-): boolean {
-  return (
-    newerThan(coaching.postAt?.[0], enteredAt) ||
-    newerThan(coaching.replyAt?.[0], enteredAt)
-  );
-}
-
+/** A different post that is newer than the baseline and the wait's entry. */
 export function hasDetectedForYouPost(
   snapshot: ForYouWaitSnapshot,
-  coaching?: CoachingActivity | null,
+  cursor?: ActivityCursor | null,
+  enteredAt?: string,
 ): boolean {
-  if (!coaching) return false;
-  if ((coaching.postsToday ?? 0) > snapshot.postsToday) return true;
-  return (
-    newerThan(coaching.postAt?.[0], snapshot.postAt) ||
-    newerThan(coaching.replyAt?.[0], snapshot.replyAt)
-  );
+  if (!cursor || cursor.id === snapshot.id) return false;
+  if (!newerThan(cursor, snapshot.postedAt)) return false;
+  if (enteredAt && !newerThan(cursor, enteredAt)) return false;
+  return true;
 }
 
 export function forYouWaitDetected(
   wait: ForYouWait,
-  coaching?: CoachingActivity | null,
+  cursor?: ActivityCursor | null,
 ): boolean {
   if (wait.detectedAt) return true;
-  if (!coaching) return false;
-  if (wait.snapshot) return hasDetectedForYouPost(wait.snapshot, coaching);
-  return activitySince(wait.enteredAt, coaching);
+  if (!cursor) return false;
+  if (wait.snapshot) {
+    return hasDetectedForYouPost(wait.snapshot, cursor, wait.enteredAt);
+  }
+  return newerThan(cursor, wait.enteredAt);
+}
+
+/** The cursor that closed the wait — never the baseline post. */
+export function forYouDetectedActivity(
+  wait: ForYouWait,
+  cursor?: ActivityCursor | null,
+): ActivityCursor | null {
+  if (!forYouWaitDetected(wait, cursor) || !cursor) return null;
+  if (wait.snapshot && cursor.id === wait.snapshot.id) return null;
+  return cursor;
 }
 
 /**
- * Fold one coaching payload into the wait. A late payload becomes the baseline
- * only when it carries nothing newer than the entry time; otherwise the task is
- * marked detected. Returns the same object when nothing changes.
+ * Fold one cursor into the wait. A late cursor becomes the baseline only when
+ * it does not post-date entry; otherwise the task is marked detected.
  */
 export function settleForYouWait(
   wait: ForYouWait,
-  coaching?: CoachingActivity | null,
+  cursor?: ActivityCursor | null,
   now: number = Date.now(),
 ): ForYouWait {
-  if (wait.detectedAt || !coaching) return wait;
+  if (wait.detectedAt || !cursor) return wait;
   const detectedAt = new Date(now).toISOString();
   if (!wait.snapshot) {
-    const snapshot = snapshotForYouWait(coaching);
-    return activitySince(wait.enteredAt, coaching)
-      ? { ...wait, snapshot, detectedAt }
-      : { ...wait, snapshot };
+    if (newerThan(cursor, wait.enteredAt)) {
+      return { ...wait, detectedAt };
+    }
+    return { ...wait, snapshot: snapshotForYouWait(cursor) };
   }
-  if (hasDetectedForYouPost(wait.snapshot, coaching)) {
+  if (hasDetectedForYouPost(wait.snapshot, cursor, wait.enteredAt)) {
     return { ...wait, detectedAt };
   }
   return wait;
@@ -129,18 +176,11 @@ function parseSnapshot(raw: unknown): ForYouWaitSnapshot | null | undefined {
   if (raw === null) return null;
   if (!raw || typeof raw !== "object") return undefined;
   const snapshot = raw as Record<string, unknown>;
-  if (
-    typeof snapshot.postsToday !== "number" ||
-    (snapshot.postAt !== null && typeof snapshot.postAt !== "string") ||
-    (snapshot.replyAt !== null && typeof snapshot.replyAt !== "string")
-  ) {
+  if (typeof snapshot.id !== "string" || !snapshot.id.trim()) return undefined;
+  if (typeof snapshot.postedAt !== "string" || !snapshot.postedAt.trim()) {
     return undefined;
   }
-  return {
-    postsToday: snapshot.postsToday,
-    postAt: snapshot.postAt as string | null,
-    replyAt: snapshot.replyAt as string | null,
-  };
+  return { id: snapshot.id, postedAt: snapshot.postedAt };
 }
 
 export function parseForYouWait(

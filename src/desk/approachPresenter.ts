@@ -22,8 +22,11 @@ export const GATE_LINK_X_WHY = "Link X so the desk can see what you post.";
 export const GATE_SETTINGS_WHY =
   "Set an agenda in Settings so Scout knows what to look for.";
 
-/** The For You wait as the presenter needs it: armed, and whether it hit. */
-export type ForYouTaskView = { detected: boolean };
+/** The For You wait as the presenter needs it: armed, and the cursor that hit. */
+export type ForYouTaskView = {
+  detected: boolean;
+  activity?: OwnActivity | null;
+};
 
 export type ApproachCardInput = {
   phase: DeskPhase;
@@ -81,15 +84,7 @@ function suggestionVerb(row: ForYouSuggestion | null): string {
 
 function forYouPresentation(input: ApproachCardInput, holding: boolean): ApproachPresentation {
   const detected = input.forYou?.detected === true;
-  const latestActivity = input.coaching?.ownActivity ?? null;
-  const activity =
-    detected &&
-    latestActivity &&
-    ((latestActivity.kind === "reply" && input.coaching?.replyAt?.length) ||
-      input.coaching?.replyAt?.[0] === latestActivity.postedAt ||
-      input.coaching?.postAt?.[0] === latestActivity.postedAt)
-      ? latestActivity
-      : null;
+  const activity = detected ? input.forYou?.activity ?? null : null;
   const status = !input.forYou
     ? FYP_WAIT_COPY
     : detected

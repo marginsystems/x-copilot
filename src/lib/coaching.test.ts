@@ -6,7 +6,6 @@ import {
   parseDeskBeats,
   parseNextAction,
 } from "./coaching.ts";
-import { hasDetectedForYouPost } from "./forYouTask.ts";
 
 describe("coaching parsers", () => {
   it("accepts a next-action card and daily missions", () => {
@@ -161,13 +160,6 @@ describe("coaching parsers", () => {
       "2026-08-26T11:30:00.000Z",
       "2026-08-26T10:30:00.000Z",
     ]);
-    assert.equal(
-      hasDetectedForYouPost(
-        { postsToday: 0, postAt: "2026-08-26T10:45:00.000Z", replyAt: null },
-        merged,
-      ),
-      true,
-    );
   });
 
 });
