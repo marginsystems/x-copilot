@@ -255,6 +255,23 @@ describe("For You wait detection", () => {
     assert.equal(forYouWaitDetected(wait, yesterday), false);
   });
 
+  it("does not detect an older distinct cursor after absorbing a pre-entry cursor", () => {
+    const wait = openForYouWait({ owner: "u1", cursor: null, now: ENTERED });
+    const absorbed = settleForYouWait(wait, {
+      ...scoutReply,
+      id: "reply-absorbed",
+      postedAt: "2026-09-05T12:50:00.000Z",
+    });
+    const stale = {
+      ...scoutReply,
+      id: "reply-stale",
+      postedAt: "2026-09-05T11:00:00.000Z",
+    };
+
+    assert.equal(forYouWaitDetected(absorbed, stale), false);
+    assert.equal(settleForYouWait(absorbed, stale), absorbed);
+  });
+
   it("does not attach the baseline cursor as the detected post", () => {
     const wait = openForYouWait({ owner: "u1", cursor: baseline, now: ENTERED });
     assert.equal(forYouDetectedActivity(wait, baseline), null);
