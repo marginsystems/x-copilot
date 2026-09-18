@@ -79,23 +79,43 @@ describe("latestActivityCursor", () => {
     assert.equal(merged?.text, "from own posts");
   });
 
-  it("picks the newest postedAt even when attribution order is inverted", () => {
-    const cursor = latestActivityCursor({
-      history: [
-        {
-          replyId: "older-late",
-          postedAt: "2026-09-05T12:00:00.000Z",
-          at: "2026-09-05T13:07:00.000Z",
-        },
-        {
-          replyId: fypReply.id,
-          replyUrl: fypReply.url,
-          postedAt: fypReply.postedAt,
-          at: "2026-09-05T13:06:00.000Z",
-        },
-      ],
-    });
-    assert.equal(cursor?.id, fypReply.id);
+  it("picks the newest postedAt regardless of history order", () => {
+    const older = {
+      replyId: "older-late",
+      postedAt: "2026-09-05T12:00:00.000Z",
+      at: "2026-09-05T13:07:00.000Z",
+    };
+    const newer = {
+      replyId: fypReply.id,
+      replyUrl: fypReply.url,
+      postedAt: fypReply.postedAt,
+      at: "2026-09-05T13:06:00.000Z",
+    };
+    assert.equal(
+      latestActivityCursor({ history: [older, newer] })?.id,
+      fypReply.id,
+    );
+    assert.equal(
+      latestActivityCursor({ history: [newer, older] })?.id,
+      fypReply.id,
+    );
+  });
+
+  it("prefers own activity when timestamps tie", () => {
+    const own = { ...fypReply, id: "own-tie" };
+    assert.equal(
+      latestActivityCursor({
+        ownActivity: own,
+        history: [
+          {
+            replyId: fypReply.id,
+            postedAt: fypReply.postedAt,
+            at: fypReply.postedAt,
+          },
+        ],
+      })?.id,
+      own.id,
+    );
   });
 
   it("does not treat parent thread text as the reply body", () => {

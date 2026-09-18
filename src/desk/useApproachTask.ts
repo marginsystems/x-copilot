@@ -254,8 +254,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     suggestionId: availableSuggestionId,
     canOpenForYou,
   };
-  const coachingRef = useRef(coaching);
-  coachingRef.current = coaching;
   const activityCursor = latestActivityCursor({
     ownActivity: coaching?.ownActivity ?? null,
     history: interactedHistory,
