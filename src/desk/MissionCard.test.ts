@@ -92,6 +92,13 @@ const detectedSuggestedReply: ForYouSuggestion = {
   targetUrl: "https://x.com/target/status/123456",
   targetAuthor: "@target",
 };
+const detectedActivity = {
+  id: "196504221778",
+  url: "https://x.com/desk/status/196504221778",
+  text: "The detected post text.",
+  kind: "reply" as const,
+  postedAt: "2026-09-08T04:00:00.000Z",
+};
 
 describe("Reply pace", () => {
   it("reveals the destination chosen by each paced Next after expiry or Bypass", () => {
@@ -206,28 +213,9 @@ describe("Reply pace", () => {
         missionProps({
           phase: "silent_refuel",
           surface: "for_you",
-          forYou: { detected: true },
+          forYou: { detected: true, activity: detectedActivity },
           clock: "0:42",
           remainingMs: 42_000,
-          coaching: {
-            dayUtc: "2026-09-08",
-            nextAction: null,
-            missions: [],
-            beats: {
-              scoutReplyDone: false,
-              organicReplyDone: false,
-              forkChoice: null,
-              forkDone: false,
-            },
-            replyAt: ["2026-09-08T04:00:01.000Z"],
-            ownActivity: {
-              id: "196504221778",
-              url: "https://x.com/desk/status/196504221778",
-              text: "The detected post text.",
-              kind: "reply",
-              postedAt: "2026-09-08T04:00:00.000Z",
-            },
-          },
           onForYouNext() {},
         }),
       ),
@@ -738,28 +726,9 @@ describe("Approach flight frame", () => {
           phase: "silent_refuel",
           paceOverlayArmed: true,
           surface: "for_you",
-          forYou: { detected: true },
+          forYou: { detected: true, activity: detectedActivity },
           remainingMs: 42_000,
           clock: "0:42",
-          coaching: {
-            dayUtc: "2026-09-08",
-            nextAction: null,
-            missions: [],
-            beats: {
-              scoutReplyDone: false,
-              organicReplyDone: false,
-              forkChoice: null,
-              forkDone: false,
-            },
-            replyAt: ["2026-09-08T04:00:01.000Z"],
-            ownActivity: {
-              id: "196504221778",
-              url: "https://x.com/desk/status/196504221778",
-              text: "The detected post text.",
-              kind: "reply",
-              postedAt: "2026-09-08T04:00:00.000Z",
-            },
-          },
           onForYouNext() {},
         }),
       ),
@@ -776,28 +745,9 @@ describe("Approach flight frame", () => {
         missionProps({
           phase: "silent_refuel",
           surface: "for_you",
-          forYou: { detected: true },
+          forYou: { detected: true, activity: detectedActivity },
           remainingMs: 0,
           clock: "0:00",
-          coaching: {
-            dayUtc: "2026-09-08",
-            nextAction: null,
-            missions: [],
-            beats: {
-              scoutReplyDone: false,
-              organicReplyDone: false,
-              forkChoice: null,
-              forkDone: false,
-            },
-            replyAt: ["2026-09-08T04:00:01.000Z"],
-            ownActivity: {
-              id: "196504221778",
-              url: "https://x.com/desk/status/196504221778",
-              text: "The detected post text.",
-              kind: "reply",
-              postedAt: "2026-09-08T04:00:00.000Z",
-            },
-          },
           onForYouNext() {},
         }),
       ),

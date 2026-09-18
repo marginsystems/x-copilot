@@ -14,7 +14,11 @@ import {
   type ApproachInventory,
   type ApproachLock,
 } from "./deskPhase";
-import { openForYouWait, type ForYouWait } from "./forYouTask";
+import {
+  openForYouWait,
+  type ActivityCursor,
+  type ForYouWait,
+} from "./forYouTask";
 
 export type ApproachTaskState = {
   lock: ApproachLock;
@@ -23,11 +27,7 @@ export type ApproachTaskState = {
 
 export type ApproachTaskContext = {
   owner: string;
-  coaching?: {
-    postsToday?: number;
-    postAt?: string[];
-    replyAt?: string[];
-  } | null;
+  cursor?: ActivityCursor | null;
   now?: number;
 };
 

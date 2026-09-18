@@ -22,10 +22,12 @@ import {
 
 const OWNER = "operator-1";
 const T0 = Date.parse("2026-09-07T10:00:00.000Z");
-const coaching = {
-  postsToday: 1,
-  postAt: ["2026-09-07T09:00:00.000Z"],
-  replyAt: ["2026-09-07T09:30:00.000Z"],
+const cursor = {
+  id: "reply-0930",
+  postedAt: "2026-09-07T09:30:00.000Z",
+  kind: "reply" as const,
+  url: "https://x.com/i/status/reply-0930",
+  text: "baseline",
 };
 const open = {
   gate: null,
@@ -51,7 +53,7 @@ function present(
     suggestion: null,
     suggestionDetected: false,
     forYou: state.wait
-      ? { detected: forYouWaitDetected(state.wait, coaching) }
+      ? { detected: forYouWaitDetected(state.wait, cursor) }
       : null,
     remainingMs: 0,
     ...extra,
@@ -60,13 +62,13 @@ function present(
 
 describe("restored lock", () => {
   it("recovers the stored For You wait together with its lock", () => {
-    const storedWait = openForYouWait({ owner: OWNER, coaching, now: T0 });
+    const storedWait = openForYouWait({ owner: OWNER, cursor, now: T0 });
     const state = restoreApproachTask({
       stored: FOR_YOU,
       storedWait,
       normalize: open,
       paceLocked: false,
-      task: { owner: OWNER, coaching, now: T0 + 60_000 },
+      task: { owner: OWNER, cursor, now: T0 + 60_000 },
     });
     assert.equal(state.lock, FOR_YOU);
     assert.equal(state.wait, storedWait);
@@ -79,30 +81,30 @@ describe("restored lock", () => {
       storedWait: null,
       normalize: open,
       paceLocked: false,
-      task: { owner: OWNER, coaching, now: T0 },
+      task: { owner: OWNER, cursor, now: T0 },
     });
     assert.equal(state.wait?.enteredAt, "2026-09-07T10:00:00.000Z");
     assert.equal(state.wait?.detectedAt, null);
-    assert.equal(forYouWaitDetected(state.wait!, coaching), false);
+    assert.equal(forYouWaitDetected(state.wait!, cursor), false);
   });
 
   it("drops a wait that belongs to another owner or to a non-For You lock", () => {
-    const foreign = openForYouWait({ owner: "someone-else", coaching, now: T0 });
+    const foreign = openForYouWait({ owner: "someone-else", cursor, now: T0 });
     const restored = restoreApproachTask({
       stored: FOR_YOU,
       storedWait: foreign,
       normalize: open,
       paceLocked: false,
-      task: { owner: OWNER, coaching, now: T0 },
+      task: { owner: OWNER, cursor, now: T0 },
     });
     assert.notEqual(restored.wait, foreign);
     assert.equal(restored.wait?.owner, OWNER);
     const scout = restoreApproachTask({
       stored: { phase: "scout_reply", cardId: "A", surface: null },
-      storedWait: openForYouWait({ owner: OWNER, coaching, now: T0 }),
+      storedWait: openForYouWait({ owner: OWNER, cursor, now: T0 }),
       normalize: { ...open, scoutId: "A" },
       paceLocked: false,
-      task: { owner: OWNER, coaching, now: T0 },
+      task: { owner: OWNER, cursor, now: T0 },
     });
     assert.equal(scout.wait, null);
     assert.equal(present(scout, { scout: null }).detector, null);
@@ -114,7 +116,7 @@ describe("restored lock", () => {
       storedWait: null,
       normalize: open,
       paceLocked: false,
-      task: { owner: OWNER, coaching, now: T0 },
+      task: { owner: OWNER, cursor, now: T0 },
     });
     assert.deepEqual(state.lock, { phase: "done_for_now", cardId: null, surface: null });
     assert.equal(state.wait, null);
@@ -133,7 +135,7 @@ describe("gate resolution", () => {
       storedWait: null,
       normalize: gated,
       paceLocked: false,
-      task: { owner: OWNER, coaching, now: T0 },
+      task: { owner: OWNER, cursor, now: T0 },
     });
     assert.deepEqual(boot.lock, {
       phase: "silent_refuel",
@@ -146,7 +148,7 @@ describe("gate resolution", () => {
 
     const linked = reconcileApproachGate(boot, open, {
       owner: OWNER,
-      coaching,
+      cursor,
       now: T0 + 5_000,
     });
     assert.deepEqual(linked.lock, FOR_YOU);
@@ -160,12 +162,12 @@ describe("gate resolution", () => {
       storedWait: null,
       normalize: { ...open, gate: "settings", canOpenForYou: false },
       paceLocked: false,
-      task: { owner: OWNER, coaching, now: T0 },
+      task: { owner: OWNER, cursor, now: T0 },
     });
     const ready = reconcileApproachGate(
       boot,
       { ...open, scoutId: "A" },
-      { owner: OWNER, coaching, now: T0 },
+      { owner: OWNER, cursor, now: T0 },
     );
     assert.deepEqual(ready.lock, {
       phase: "scout_reply",
@@ -181,12 +183,12 @@ describe("gate resolution", () => {
       storedWait: null,
       normalize: open,
       paceLocked: false,
-      task: { owner: OWNER, coaching, now: T0 },
+      task: { owner: OWNER, cursor, now: T0 },
     });
     assert.equal(
       reconcileApproachGate(state, { ...open, scoutId: "landed" }, {
         owner: OWNER,
-        coaching,
+        cursor,
       }),
       state,
     );
@@ -200,7 +202,7 @@ describe("cooldown expiry", () => {
       storedWait: null,
       normalize: open,
       paceLocked: false,
-      task: { owner: OWNER, coaching, now: T0 },
+      task: { owner: OWNER, cursor, now: T0 },
     });
     assert.deepEqual(state.lock, FOR_YOU);
     const view = present(state);
@@ -214,19 +216,19 @@ describe("cooldown expiry", () => {
 });
 
 describe("late baseline", () => {
-  it("coaching that arrives after entry cannot absorb a post made since entry", () => {
+  it("a cursor that arrives after entry cannot absorb a post made since entry", () => {
     const state = restoreApproachTask({
       stored: FOR_YOU,
       storedWait: null,
       normalize: open,
       paceLocked: false,
-      task: { owner: OWNER, coaching: null, now: T0 },
+      task: { owner: OWNER, cursor: null, now: T0 },
     });
     assert.equal(state.wait?.snapshot, null);
     const late = {
-      postsToday: 2,
-      postAt: ["2026-09-07T10:00:20.000Z"],
-      replyAt: coaching.replyAt,
+      ...cursor,
+      id: "reply-100020",
+      postedAt: "2026-09-07T10:00:20.000Z",
     };
     const settled = settleForYouWait(state.wait!, late, T0 + 30_000);
     assert.equal(forYouWaitDetected(settled, late), true);
@@ -242,14 +244,14 @@ describe("late baseline", () => {
 describe("detection with a landing", () => {
   it("new stock updates inventory only; the detected wait keeps its card until Next", () => {
     const wait = settleForYouWait(
-      openForYouWait({ owner: OWNER, coaching, now: T0 }),
-      { ...coaching, replyAt: ["2026-09-07T10:01:00.000Z"] },
+      openForYouWait({ owner: OWNER, cursor, now: T0 }),
+      { ...cursor, id: "reply-1001", postedAt: "2026-09-07T10:01:00.000Z" },
       T0 + 70_000,
     );
     const state: ApproachTaskState = { lock: FOR_YOU, wait };
     const landed = { ...open, scoutId: "landed-1" };
     assert.equal(
-      reconcileApproachGate(state, landed, { owner: OWNER, coaching }),
+      reconcileApproachGate(state, landed, { owner: OWNER, cursor }),
       state,
     );
     const view = present(state, { forYou: { detected: true } });
@@ -265,7 +267,7 @@ describe("detection with a landing", () => {
         suggestionId: null,
         canPresentForYou: true,
       },
-      { owner: OWNER, coaching },
+      { owner: OWNER, cursor },
     );
     assert.deepEqual(released.lock, {
       phase: "scout_reply",
@@ -283,13 +285,13 @@ describe("Next with an empty tank", () => {
       storedWait: null,
       normalize: open,
       paceLocked: false,
-      task: { owner: OWNER, coaching, now: T0 },
+      task: { owner: OWNER, cursor, now: T0 },
     });
     const detected = {
       lock: first.lock,
       wait: settleForYouWait(
         first.wait!,
-        { ...coaching, postsToday: 2, postAt: ["2026-09-07T10:02:00.000Z"] },
+        { ...cursor, id: "og-1002", kind: "original", postedAt: "2026-09-07T10:02:00.000Z" },
         T0 + 130_000,
       ),
     };
@@ -299,7 +301,7 @@ describe("Next with an empty tank", () => {
       { scoutId: null, suggestionId: null, canPresentForYou: true },
       {
         owner: OWNER,
-        coaching: { ...coaching, postsToday: 2 },
+        cursor: { ...cursor, id: "og-1002", kind: "original", postedAt: "2026-09-07T10:02:00.000Z" },
         now: T0 + 131_000,
       },
     );
@@ -323,7 +325,7 @@ describe("Next with an empty tank", () => {
       collecting,
       { type: "next" },
       { scoutId: null, suggestionId: "original_1", canPresentForYou: true },
-      { owner: OWNER, coaching },
+      { owner: OWNER, cursor },
     );
     assert.deepEqual(next.lock, {
       phase: "organic_reply",
@@ -407,7 +409,7 @@ describe("same-phase Scout release", () => {
       state,
       { type: "next" },
       inventory("A"),
-      { owner: OWNER, coaching },
+      { owner: OWNER, cursor },
     );
     released.add("A");
     assert.equal(state.lock.cardId, "B");
@@ -416,7 +418,7 @@ describe("same-phase Scout release", () => {
       state,
       { type: "skip" },
       inventory("B"),
-      { owner: OWNER, coaching },
+      { owner: OWNER, cursor },
     );
     released.add("B");
     assert.deepEqual(state.lock, {
@@ -438,7 +440,7 @@ describe("same-phase Scout release", () => {
 describe("Reply minute destinations", () => {
   const hold: ApproachTaskState = {
     lock: { phase: "hold", cardId: null, surface: "for_you" },
-    wait: openForYouWait({ owner: OWNER, coaching, now: T0 }),
+    wait: openForYouWait({ owner: OWNER, cursor, now: T0 }),
   };
 
   it("Scout Next selects For You under the overlay and reveals it at zero", () => {
@@ -446,7 +448,7 @@ describe("Reply minute destinations", () => {
       { lock: { phase: "scout_reply", cardId: "A", surface: null }, wait: null },
       { type: "next" },
       { scoutId: "B", suggestionId: null, canPresentForYou: true, paceLocked: true },
-      { owner: OWNER, coaching, now: T0 },
+      { owner: OWNER, cursor, now: T0 },
     );
     assert.deepEqual(state.lock, FOR_YOU);
     const running = present(state, { remainingMs: 30_000, paceOverlayArmed: true });
@@ -468,7 +470,7 @@ describe("Reply minute destinations", () => {
         hold,
         { type: "next" },
         { scoutId: "S", suggestionId: null, canPresentForYou: true, paceLocked },
-        { owner: OWNER, coaching },
+        { owner: OWNER, cursor },
       );
       assert.deepEqual(after.lock, { phase: "scout_reply", cardId: "S", surface: null });
       assert.equal(after.wait, null);
@@ -476,12 +478,12 @@ describe("Reply minute destinations", () => {
   });
 
   it("drops the For You wait when Next locks the incoming Scout during the minute", () => {
-    const wait = openForYouWait({ owner: OWNER, coaching, now: T0 });
+    const wait = openForYouWait({ owner: OWNER, cursor, now: T0 });
     const state = transitionApproachTask(
       { lock: FOR_YOU, wait },
       { type: "next" },
       { scoutId: "S", suggestionId: null, canPresentForYou: true, paceLocked: true },
-      { owner: OWNER, coaching, now: T0 + 30_000 },
+      { owner: OWNER, cursor, now: T0 + 30_000 },
     );
     assert.deepEqual(state.lock, { phase: "scout_reply", cardId: "S", surface: null });
     assert.equal(state.wait, null);
@@ -500,7 +502,7 @@ describe("Bypass", () => {
   it("clears the wait and stops its poll in the same transition", () => {
     const held: ApproachTaskState = {
       lock: { phase: "hold", cardId: null, surface: "for_you" },
-      wait: openForYouWait({ owner: OWNER, coaching, now: T0 }),
+      wait: openForYouWait({ owner: OWNER, cursor, now: T0 }),
     };
     assert.equal(present(held, { remainingMs: 40_000 }).detector, "for_you");
     const next = transitionApproachTask(
@@ -512,7 +514,7 @@ describe("Bypass", () => {
         canPresentForYou: true,
         paceLocked: true,
       },
-      { owner: OWNER, coaching },
+      { owner: OWNER, cursor },
     );
     assert.equal(next.lock.phase, "scout_reply");
     assert.equal(next.wait, null);
@@ -526,13 +528,13 @@ describe("Bypass", () => {
   it("bypass onto an empty tank clears the old wait and collects", () => {
     const held: ApproachTaskState = {
       lock: { phase: "hold", cardId: null, surface: "for_you" },
-      wait: openForYouWait({ owner: OWNER, coaching, now: T0 }),
+      wait: openForYouWait({ owner: OWNER, cursor, now: T0 }),
     };
     const next = transitionApproachTask(
       held,
       { type: "bypass" },
       { scoutId: null, suggestionId: null, canPresentForYou: true },
-      { owner: OWNER, coaching, now: T0 + 10_000 },
+      { owner: OWNER, cursor, now: T0 + 10_000 },
     );
     assert.deepEqual(next.lock, {
       phase: "done_for_now",
@@ -643,7 +645,7 @@ describe("Scout detection ownership", () => {
         state,
         { type: "next" },
         { scoutId: null, suggestionId: "digest-2", canPresentForYou: true, paceLocked: true },
-        { owner: OWNER, coaching },
+        { owner: OWNER, cursor },
       ).lock,
       { phase: "organic_reply", cardId: "digest-2", surface: null },
     );
@@ -652,7 +654,7 @@ describe("Scout detection ownership", () => {
         state,
         { type: "next" },
         { scoutId: null, suggestionId: "digest-2", canPresentForYou: true },
-        { owner: OWNER, coaching },
+        { owner: OWNER, cursor },
       ).lock,
       { phase: "organic_reply", cardId: "digest-2", surface: null },
     );
