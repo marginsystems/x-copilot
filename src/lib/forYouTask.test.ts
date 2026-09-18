@@ -252,7 +252,11 @@ describe("For You wait detection", () => {
       cursor: yesterday,
       now: Date.parse("2026-09-05T08:00:00.000Z"),
     });
-    assert.equal(forYouWaitDetected(wait, yesterday), false);
+    const olderDistinctCursor = {
+      ...yesterday,
+      id: "og-repost",
+    };
+    assert.equal(forYouWaitDetected(wait, olderDistinctCursor), false);
   });
 
   it("does not detect an older distinct cursor after absorbing a pre-entry cursor", () => {
@@ -311,6 +315,18 @@ describe("For You wait storage", () => {
       assert.equal(readForYouWait("u2"), null);
       clearForYouWait("u1");
       assert.equal(readForYouWait("u1"), null);
+    });
+  });
+
+  it("round-trips a held wait without a cursor snapshot", () => {
+    withSessionStorage(() => {
+      writeForYouWait(
+        openForYouWait({ owner: "u1", cursor: null, now: ENTERED }),
+      );
+      const restored = readForYouWait("u1");
+      assert.equal(restored?.held, true);
+      assert.equal(restored?.snapshot, null);
+      assert.equal(restored?.detectedAt, null);
     });
   });
 
