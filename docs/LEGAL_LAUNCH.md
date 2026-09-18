@@ -1,6 +1,6 @@
 # Legal, Search Console, Analytics, Stripe
 
-Operator steps that cannot live in git. Product copy below matches `server/src/plans.ts`.
+Operator steps that cannot live in git. Product copy below matches `server/src/billing/plans.ts`.
 
 These Privacy / Terms pages are MVP templates, not a lawyer sign-off.
 

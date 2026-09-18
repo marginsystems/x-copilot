@@ -3,38 +3,38 @@
  */
 import http from "node:http";
 import { resolve } from "node:path";
-import { loadEnv } from "./loadEnv.js";
+import { loadEnv } from "./platform/loadEnv.js";
 import { getPlatformDb, getLocalTenantId } from "./db.js";
-import { getXApiCredsFromEnv } from "./xApi.js";
-import { tryHandleAuth } from "./authHttp.js";
-import { tryHandleAgenda } from "./agendaHttp.js";
-import { tryHandleOnboarding } from "./onboardingHttp.js";
-import { isOriginAllowed, requestOrigin } from "./cors.js";
-import { authRequired, bindHost, isPublicApiPath } from "./authGuard.js";
-import { getSessionUser } from "./sessionCookie.js";
-import { tryHandleAdmin } from "./adminHttp.js";
-import { ensureUserTenant } from "./billingStore.js";
-import { runWithRequestContext } from "./requestContext.js";
+import { getXApiCredsFromEnv } from "./x-api/xApi.js";
+import { tryHandleAuth } from "./auth/authHttp.js";
+import { tryHandleAgenda } from "./desk/agendaHttp.js";
+import { tryHandleOnboarding } from "./auth/onboardingHttp.js";
+import { isOriginAllowed, requestOrigin } from "./http/cors.js";
+import { authRequired, bindHost, isPublicApiPath } from "./auth/authGuard.js";
+import { getSessionUser } from "./auth/sessionCookie.js";
+import { tryHandleAdmin } from "./billing/adminHttp.js";
+import { ensureUserTenant } from "./billing/billingStore.js";
+import { runWithRequestContext } from "./http/requestContext.js";
 import {
   tryHandleBilling,
   tryHandleStripeWebhook,
-} from "./stripeHttp.js";
-import { tryHandleXActivityAuthed } from "./xActivityHttp.js";
-import { tryHandleVoice } from "./voiceHttp.js";
-import { tryHandleForYou } from "./forYouHttp.js";
-import { tryHandleCoaching } from "./coachingHttp.js";
-import { tryHandleDeskEvents, tryHandleDeskEventsWake } from "./deskEvents.js";
-import { tryHandleDeskBeats } from "./deskBeatsHttp.js";
-import { tryHandleDigestEmail } from "./digestEmailHttp.js";
-import { tryHandleMemory } from "./memoryHttp.js";
-import { tryHandleUsage } from "./usageHttp.js";
-import { tryHandleHistory } from "./historyHttp.js";
-import { tryHandleInteracted } from "./interactedHttp.js";
-import { tryHandleScout } from "./scoutHttp.js";
-import { tryHandleBoot } from "./bootHttp.js";
-import { tryHandleScoutApproachLock } from "./scoutApproachLock.js";
-import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
-import { send } from "./httpJson.js";
+} from "./billing/stripeHttp.js";
+import { tryHandleXActivityAuthed } from "./x-api/xActivityHttp.js";
+import { tryHandleVoice } from "./voice/voiceHttp.js";
+import { tryHandleForYou } from "./for-you/forYouHttp.js";
+import { tryHandleCoaching } from "./desk/coachingHttp.js";
+import { tryHandleDeskEvents, tryHandleDeskEventsWake } from "./desk/deskEvents.js";
+import { tryHandleDeskBeats } from "./desk/deskBeatsHttp.js";
+import { tryHandleDigestEmail } from "./for-you/digestEmailHttp.js";
+import { tryHandleMemory } from "./memory/memoryHttp.js";
+import { tryHandleUsage } from "./billing/usageHttp.js";
+import { tryHandleHistory } from "./desk/historyHttp.js";
+import { tryHandleInteracted } from "./desk/interactedHttp.js";
+import { tryHandleScout } from "./scout/scoutHttp.js";
+import { tryHandleBoot } from "./http/bootHttp.js";
+import { tryHandleScoutApproachLock } from "./scout/scoutApproachLock.js";
+import { resumeDueSubscriptions } from "./x-api/xActivitySubscribe.js";
+import { send } from "./http/httpJson.js";
 
 if (
   !loadEnv(resolve(process.cwd(), ".env"), {

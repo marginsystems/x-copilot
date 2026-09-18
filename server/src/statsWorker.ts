@@ -2,51 +2,51 @@
  * PM2 worker — hourly due-queue for 1h / 24h reply engagement snapshots.
  */
 import { resolve } from "node:path";
-import { runExpirePassForAllUsers } from "./expirePass.js";
+import { runExpirePassForAllUsers } from "./desk/expirePass.js";
 import {
   recordMarkGamification,
   recordT24hBonusGamification,
-} from "./gamification.js";
+} from "./desk/gamification.js";
 import {
   DEFAULT_STATS_TICK_CAP,
   listDueStatSamples,
   patchInteractionStats,
   type DueStatSample,
-} from "./interactionStats.js";
+} from "./desk/interactionStats.js";
 import {
   listGamificationSyncRetries,
   listMemorySyncRetries,
   setGamificationSyncFailed,
   setMemorySyncFailed,
-} from "./interactionSync.js";
+} from "./desk/interactionSync.js";
 import {
   MAX_INTERACTION_STORE,
   type Interaction,
-} from "./interactionStore.js";
-import { loadEnv } from "./loadEnv.js";
+} from "./desk/interactionStore.js";
+import { loadEnv } from "./platform/loadEnv.js";
 import {
   syncInteractionOutcomeMemory,
   type SyncInteractionOutcomeResult,
-} from "./memoryOutcome.js";
+} from "./memory/memoryOutcome.js";
 import {
   discoverOwnRepliesForIngestUsers,
   type DiscoverRepliesResult,
-} from "./replyDiscover.js";
-import { fetchTweetMetrics } from "./tweetLookup.js";
-import { getXApiCredsFromEnv } from "./xApi.js";
+} from "./desk/replyDiscover.js";
+import { fetchTweetMetrics } from "./x-api/tweetLookup.js";
+import { getXApiCredsFromEnv } from "./x-api/xApi.js";
 import {
   listDueOwnPostSamples,
   patchOwnPostSnapshot,
   pruneActivityEvents,
   type DueOwnPostSample,
-} from "./ownPostStore.js";
-import { resumeDueSubscriptions } from "./xActivitySubscribe.js";
-import { ingestUsersHourly } from "./userIngest.js";
-import { runForYouDigests } from "./forYouRun.js";
-import { runAnalyticsInsights } from "./analyticsInsight.js";
-import { runWithRequestContext } from "./requestContext.js";
-import { getUserById } from "./authStore.js";
-import { creditsExhaustedResponse } from "./billingQuotas.js";
+} from "./desk/ownPostStore.js";
+import { resumeDueSubscriptions } from "./x-api/xActivitySubscribe.js";
+import { ingestUsersHourly } from "./voice/userIngest.js";
+import { runForYouDigests } from "./for-you/forYouRun.js";
+import { runAnalyticsInsights } from "./desk/analyticsInsight.js";
+import { runWithRequestContext } from "./http/requestContext.js";
+import { getUserById } from "./auth/authStore.js";
+import { creditsExhaustedResponse } from "./billing/billingQuotas.js";
 
 const TICK_MS = 60 * 60 * 1000;
 const LOOKUP_DELAY_MS = 400;

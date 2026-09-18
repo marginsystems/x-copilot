@@ -8,26 +8,26 @@ import {
   openTempPlatformDb,
   seedUser,
   type TempPlatformDb,
-} from "./platformDb.testHelpers.ts";
+} from "./platform/platformDb.testHelpers.ts";
 import {
   STATS_T1H_MS,
   STATS_T24H_MS,
   patchInteractionStats,
   selectDueStatSamples,
-} from "./interactionStats.ts";
+} from "./desk/interactionStats.ts";
 import {
   listGamificationSyncRetries,
   listMemorySyncRetries,
   setGamificationSyncFailed,
-} from "./interactionSync.ts";
+} from "./desk/interactionSync.ts";
 import {
   listInteractionHistory,
   markInteracted,
   type Interaction,
-} from "./interactionStore.ts";
-import { getGamification, recordMarkGamification } from "./gamification.ts";
+} from "./desk/interactionStore.ts";
+import { getGamification, recordMarkGamification } from "./desk/gamification.ts";
 import { runStatsTick, shouldRunStatsMain } from "./statsWorker.ts";
-import type { SyncInteractionOutcomeResult } from "./memoryOutcome.ts";
+import type { SyncInteractionOutcomeResult } from "./memory/memoryOutcome.ts";
 
 describe("shouldRunStatsMain", () => {
   it("returns true for direct statsWorker.js / .ts entry", () => {

@@ -6,7 +6,7 @@
  */
 import http from "node:http";
 import { resolve } from "node:path";
-import { loadEnv } from "../../server/src/loadEnv.js";
+import { loadEnv } from "../../server/src/platform/loadEnv.js";
 import { tryHandleXActivityWebhook } from "./handler.js";
 
 const DEFAULT_PORT = 8789;

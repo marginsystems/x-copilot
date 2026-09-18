@@ -10,7 +10,7 @@ Scope: root `src/` — 211 files, 52 `*.test.ts` files. This is a map of what ex
 
 **Observed** means the Wave 0 code did this. **Proposed** means a later Wave 0–5 PR. Those PRs have since landed through Wave 4; do not treat proposed rows as live contracts.
 
-This document does not audit `server/src/`, `analytics/`, or `webhook/` except where a frontend caller depends on a named endpoint. The current flat `server/src/` map is in the README.
+This document does not audit `server/src/`, `analytics/`, or `webhook/` except where a frontend caller depends on a named endpoint. The current `server/src/` ownership map is in the README.
 
 ## Ownership
 
@@ -76,7 +76,7 @@ Client writes that change server or durable client state. Reads are omitted unle
 | DELETE `/api/auth/sessions/:id`, POST revoke-others | `Account.tsx:141`, `:172` | Current-session revoke uses App’s thin `onSignedOut`, not `onLogout`. |
 | PUT `/api/agenda` | `useAgendaPersist.ts:52` | Queued save can run after logout / owner change (F05). |
 | POST `/api/scout/run` | `useScoutRun.ts:181` | In-flight abort on unmount (`:359–363`) does not roll back accepted server work. |
-| GET `/api/scout/last?autoStart=1` | `useScoutRun.ts:135–137`, `:373–376` | Poll can request automatic collection while signed out. Server branch is `server/src/scoutHttp.ts` `autoStart`. |
+| GET `/api/scout/last?autoStart=1` | `useScoutRun.ts:135–137`, `:373–376` | Poll can request automatic collection while signed out. Server branch is `server/src/scout/scoutHttp.ts` `autoStart`. |
 | PUT `/api/scout-approach-lock` | `useApproachTask.ts:419` | Detection correlation for the webhook. Not a second card chooser. |
 | POST `/api/skipped`, `/api/dismissed` | `useSkipDismiss.ts:51`, `:123` | Fired from Approach via `beginExit`. Timer can fire after unmount (F03). |
 | POST `/api/for-you/:id/{done,skip,dismiss}` | `useDeskHistory.ts` `actForYou` | Detected-suggestion next (`useApproachTask.ts:503–517`) awaits `actForYou` and advances only after acknowledgment. Other suggestion actions wait for success (`useApproachTask.ts:560–579`). |

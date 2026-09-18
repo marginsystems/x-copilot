@@ -7,17 +7,17 @@
  *   npm run probe:tags -- "AI agents" "startup revenue"
  */
 import { resolve } from "node:path";
-import { loadEnv } from "../server/src/loadEnv.ts";
-import { chatCompletions } from "../server/src/deepseek.ts";
-import { getXApiCredsFromEnv } from "../server/src/xApi.ts";
-import type { ThreadCard } from "../server/src/threadCard.ts";
-import { searchTimeline } from "../server/src/xSearch.ts";
-import { triageThreads } from "../server/src/threadTriage.ts";
+import { loadEnv } from "../server/src/platform/loadEnv.ts";
+import { chatCompletions } from "../server/src/platform/deepseek.ts";
+import { getXApiCredsFromEnv } from "../server/src/x-api/xApi.ts";
+import type { ThreadCard } from "../server/src/scout/threadCard.ts";
+import { searchTimeline } from "../server/src/x-api/xSearch.ts";
+import { triageThreads } from "../server/src/scout/threadTriage.ts";
 import {
   EXCLUDEABLE_TAG_VOCAB,
   DEFAULT_EXCLUDED_TAGS,
   normalizeTagToken,
-} from "../server/src/threadFilters.ts";
+} from "../server/src/scout/threadFilters.ts";
 
 const envPath = resolve(process.cwd(), ".env");
 if (!loadEnv(envPath)) {

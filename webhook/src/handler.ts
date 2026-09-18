@@ -3,16 +3,16 @@
  * on 127.0.0.1:8789. nginx routes /api/x/activity there.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { send } from "../../server/src/httpJson.js";
-import { xConsumerCreds } from "../../server/src/xAuth.js";
-import { getUserById } from "../../server/src/authStore.js";
+import { send } from "../../server/src/http/httpJson.js";
+import { xConsumerCreds } from "../../server/src/auth/xAuth.js";
+import { getUserById } from "../../server/src/auth/authStore.js";
 import {
   crcResponseToken,
   parsePostCreateEvent,
   parsePostDeleteEvent,
   postUrl,
   verifyWebhookSignature,
-} from "../../server/src/xActivity.js";
+} from "../../server/src/x-api/xActivity.js";
 import {
   countOwnPostsSince,
   getWatchedThread,
@@ -23,30 +23,30 @@ import {
   seenActivityEvent,
   startOfUtcDayIso,
   upsertOwnPost,
-} from "../../server/src/ownPostStore.js";
+} from "../../server/src/desk/ownPostStore.js";
 import {
   findUserIdByXUserId,
   pauseUserSubscription,
-} from "../../server/src/xActivitySubscribe.js";
+} from "../../server/src/x-api/xActivitySubscribe.js";
 import {
   creditsExhaustedResponse,
   dailyActivityUsage,
-} from "../../server/src/billingQuotas.js";
-import { ensureUserTenant } from "../../server/src/billingStore.js";
-import { recordUsageEvent } from "../../server/src/usageMeter.js";
+} from "../../server/src/billing/billingQuotas.js";
+import { ensureUserTenant } from "../../server/src/billing/billingStore.js";
+import { recordUsageEvent } from "../../server/src/billing/usageMeter.js";
 import {
   listInteractionHistory,
   markInteracted,
   MAX_INTERACTION_STORE,
-} from "../../server/src/interactionStore.js";
-import { recordDeskReplyMarked } from "../../server/src/deskBeats.js";
-import { recordMarkGamification } from "../../server/src/gamification.js";
-import { setGamificationSyncFailed } from "../../server/src/interactionSync.js";
-import { allowRate, clientIp } from "../../server/src/authGuard.js";
-import type { ParsedPostCreate } from "../../server/src/xActivity.js";
-import { replyMatchesLockedScout } from "../../server/src/replyMatchScout.js";
-import { getScoutApproachLock } from "../../server/src/scoutApproachLock.js";
-import { pruneConsumedScoutThread } from "../../server/src/scoutCache.js";
+} from "../../server/src/desk/interactionStore.js";
+import { recordDeskReplyMarked } from "../../server/src/desk/deskBeats.js";
+import { recordMarkGamification } from "../../server/src/desk/gamification.js";
+import { setGamificationSyncFailed } from "../../server/src/desk/interactionSync.js";
+import { allowRate, clientIp } from "../../server/src/auth/authGuard.js";
+import type { ParsedPostCreate } from "../../server/src/x-api/xActivity.js";
+import { replyMatchesLockedScout } from "../../server/src/scout/replyMatchScout.js";
+import { getScoutApproachLock } from "../../server/src/scout/scoutApproachLock.js";
+import { pruneConsumedScoutThread } from "../../server/src/scout/scoutCache.js";
 
 export async function markOwnReplyInteracted(
   parsed: ParsedPostCreate,
