@@ -402,7 +402,7 @@ describe("interactedHttp", () => {
     assert.equal(status, 200);
     assert.equal(json.found, true);
     const reply = json.reply as Record<string, unknown>;
-    assert.equal(reply.replyText, "Stored parent text is not a confirmed reply.");
+    assert.equal(reply.replyText, undefined);
     assert.equal(wrote, false);
   });
 
