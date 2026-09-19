@@ -453,8 +453,67 @@ button.primary.scout-run.desk-top-takeoff {
   fill: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+.activity-chart-bar-original {
+  fill: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.activity-chart-bar-quote {
+  fill: color-mix(in srgb, #7ea88f 70%, transparent);
+}
+
+.activity-chart-bar-reply {
+  fill: color-mix(in srgb, #d4a574 70%, transparent);
+}
+
+.activity-chart-bar-original.is-active {
+  fill: color-mix(in srgb, var(--accent) 80%, transparent);
+}
+
+.activity-chart-bar-quote.is-active {
+  fill: #7ea88f;
+}
+
+.activity-chart-bar-reply.is-active {
+  fill: #d4a574;
+}
+
 .activity-chart-bar.is-active {
   fill: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.activity-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.activity-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.activity-chart-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  flex: 0 0 auto;
+}
+
+.activity-chart-swatch.is-original {
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.activity-chart-swatch.is-quote {
+  background: #7ea88f;
+}
+
+.activity-chart-swatch.is-reply {
+  background: #d4a574;
 }
 
 .activity-chart-area {

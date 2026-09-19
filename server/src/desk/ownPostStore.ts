@@ -64,6 +64,53 @@ export function pruneActivityEvents(beforeIso: string): number {
   return info.changes;
 }
 
+export type ActivityOwnPost = {
+  id: string;
+  kind: OwnPostKind;
+  postedAt: string;
+  views: number;
+  withStats: boolean;
+};
+
+function snapshotHasViews(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/**
+ * Authored posts for the flight-path window. Reposts stay out — the desk
+ * only stacks originals, quotes, and replies. Uncapped within the window so
+ * a 12-week series is not truncated by the Analytics 200-row reader.
+ */
+export function listActivityOwnPosts(opts: {
+  userId: string;
+  sinceIso: string;
+}): ActivityOwnPost[] {
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT id, kind, posted_at, t24h_views, t1h_views, t0_views
+         FROM own_posts
+        WHERE user_id = ? AND posted_at >= ? AND kind != 'repost'
+        ORDER BY posted_at DESC`,
+    )
+    .all(opts.userId, opts.sinceIso) as Array<{
+    id: string;
+    kind: OwnPostKind;
+    posted_at: string;
+    t24h_views: number | null;
+    t1h_views: number | null;
+    t0_views: number | null;
+  }>;
+  return rows.map((row) => ({
+    id: String(row.id),
+    kind: row.kind,
+    postedAt: String(row.posted_at),
+    views: pickLatest(row.t24h_views, row.t1h_views, row.t0_views),
+    withStats:
+      snapshotHasViews(row.t24h_views) ||
+      snapshotHasViews(row.t1h_views),
+  }));
+}
+
 /** Newest `posted_at` values for the given kinds, newest first. */
 export function listOwnPostedAt(opts: {
   userId: string;

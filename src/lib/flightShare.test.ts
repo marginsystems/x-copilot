@@ -16,18 +16,18 @@ import {
 const week: ActivityStats = {
   bucket: "week",
   series: [
-    { period: "2026-W32", interactions: 2, views: 40, withStats: 1 },
-    { period: "2026-W33", interactions: 3, views: 0, withStats: 0 },
-    { period: "2026-W34", interactions: 0, views: 0, withStats: 0 },
+    { period: "2026-W32", interactions: 2, originals: 1, quotes: 0, replies: 1, views: 40, withStats: 1 },
+    { period: "2026-W33", interactions: 3, originals: 0, quotes: 1, replies: 2, views: 0, withStats: 0 },
+    { period: "2026-W34", interactions: 0, originals: 0, quotes: 0, replies: 0, views: 0, withStats: 0 },
   ],
-  totals: { interactions: 5, views: 40, withStats: 1 },
+  totals: { interactions: 5, originals: 1, quotes: 1, replies: 3, views: 40, withStats: 1 },
 };
 
 describe("flightSharePayload", () => {
   it("returns null without marks", () => {
     assert.equal(
       flightSharePayload(
-        { bucket: "week", series: [], totals: { interactions: 0, views: 0, withStats: 0 } },
+        { bucket: "week", series: [], totals: { interactions: 0, originals: 0, quotes: 0, replies: 0, views: 0, withStats: 0 } },
         emptyGamificationStats(),
       ),
       null,
@@ -88,7 +88,7 @@ describe("flightShareFilename and caption", () => {
     );
     const caption = flightShareCaption(payload);
     assert.match(caption, /This week's flight path/);
-    assert.match(caption, /5 marked/);
+    assert.match(caption, /5 posts/);
     assert.match(caption, /Lv 3/);
     assert.match(caption, /streak 4/);
     assert.match(caption, new RegExp(FLIGHT_SHARE_SITE));
