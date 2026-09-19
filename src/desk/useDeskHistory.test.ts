@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { keepCuratedByHistory } from "./useDeskHistory.ts";
+import { keepCuratedByHistory, parseInteractedHistory } from "./useDeskHistory.ts";
 
 describe("keepCuratedByHistory", () => {
   it("hides consumed ids", () => {
@@ -80,4 +80,44 @@ describe("keepCuratedByHistory", () => {
     );
   });
 
+});
+
+describe("parseInteractedHistory", () => {
+  it("accepts a pre-receipt payload and only treats state saved as remembered", () => {
+    const rows = parseInteractedHistory([
+      { threadId: "old", author: "@a", at: "2026-09-18" },
+      {
+        threadId: "saved",
+        author: "@a",
+        at: "2026-09-19",
+        memory: { state: "saved" },
+      },
+      {
+        threadId: "failed",
+        author: "@a",
+        at: "2026-09-19",
+        memory: { state: "unavailable" },
+      },
+      {
+        threadId: "junk",
+        author: "@a",
+        at: "2026-09-19",
+        memory: "saved",
+      },
+    ]);
+    assert.equal(rows[0]?.memory, undefined);
+    assert.deepEqual(rows[1]?.memory, { state: "saved" });
+    assert.deepEqual(rows[2]?.memory, { state: "unavailable" });
+    assert.equal(rows[3]?.memory, undefined);
+  });
+
+  it("does not invent a saved receipt for a stale or foreign-shaped row", () => {
+    assert.deepEqual(parseInteractedHistory(undefined), []);
+    assert.deepEqual(
+      parseInteractedHistory([
+        { threadId: "late", author: "@b", at: "2026-09-19", memory: { ok: true } },
+      ])[0]?.memory,
+      undefined,
+    );
+  });
 });
