@@ -12,6 +12,7 @@ import {
 } from "./billingQuotas.js";
 import { getPlatformDb } from "../db.js";
 import { getRequestTenantId } from "../http/requestContext.js";
+import { startOfUtcDayIso } from "../desk/ownPostStore.js";
 
 /** Official Pay Per Use list price for a post read (~$0.005). */
 export const POST_READ_USD_MICROS = 5_000;
@@ -150,41 +151,68 @@ export function microsToUsd(micros: number): number {
   return Math.round((micros / 1_000_000) * 1_000_000) / 1_000_000;
 }
 
-/** Count tweet objects in a v2 payload (search list or single tweet). */
-export function countPostsRead(path: string, json: unknown): number {
+function tweetId(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const id = (value as { id?: unknown }).id;
+  return typeof id === "string" && id.trim() ? id.trim() : null;
+}
+
+/** Post ids X would bill from a v2 tweet payload (data + includes.tweets). */
+export function countPostReadIds(path: string, json: unknown): string[] {
   const p = path.split("?")[0] ?? path;
-  if (!p.includes("/tweets")) return 0;
-  if (!json || typeof json !== "object") return 0;
+  if (!p.includes("/tweets")) return [];
+  if (!json || typeof json !== "object") return [];
   const root = json as { data?: unknown; includes?: { tweets?: unknown } };
+  const ids = new Set<string>();
   const data = root.data;
   if (Array.isArray(data)) {
-    const ids = new Set<string>();
     for (const t of data) {
-      if (
-        t &&
-        typeof t === "object" &&
-        typeof (t as { id?: unknown }).id === "string"
-      ) {
-        ids.add((t as { id: string }).id);
-      }
+      const id = tweetId(t);
+      if (id) ids.add(id);
     }
-    let count = data.length;
     if (Array.isArray(root.includes?.tweets)) {
       for (const t of root.includes.tweets) {
-        if (
-          t &&
-          typeof t === "object" &&
-          typeof (t as { id?: unknown }).id === "string" &&
-          !ids.has((t as { id: string }).id)
-        ) {
-          count += 1;
-        }
+        const id = tweetId(t);
+        if (id) ids.add(id);
       }
     }
-    return count;
+    return [...ids];
   }
-  if (data && typeof data === "object") return 1;
-  return 0;
+  if (data && typeof data === "object") {
+    const id = tweetId(data);
+    return id ? [id] : [];
+  }
+  return [];
+}
+
+/** Count tweet objects in a v2 payload (search list or single tweet). */
+export function countPostsRead(path: string, json: unknown): number {
+  return countPostReadIds(path, json).length;
+}
+
+/**
+ * X only bills a post once per UTC day. Return how many of these ids are
+ * new for this tenant today and remember them.
+ */
+export function chargeUniquePostReads(
+  ids: readonly string[],
+  opts?: { tenantId?: string; now?: Date },
+): number {
+  const tenantId = opts?.tenantId?.trim() || getRequestTenantId();
+  const dayUtc = startOfUtcDayIso(opts?.now).slice(0, 10);
+  if (!tenantId || !ids.length) return 0;
+  const insert = getPlatformDb().prepare(
+    `INSERT OR IGNORE INTO usage_post_reads (tenant_id, post_id, day_utc)
+     VALUES (?, ?, ?)`,
+  );
+  let n = 0;
+  for (const raw of ids) {
+    const id = raw.trim();
+    if (!id) continue;
+    const result = insert.run(tenantId, id, dayUtc);
+    if (result.changes > 0) n += 1;
+  }
+  return n;
 }
 
 export function estimatePostReadCostMicros(postsRead: number): number {

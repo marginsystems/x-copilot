@@ -3,7 +3,11 @@
  * Replaces session-cookie GraphQL for read paths.
  */
 
-import { countPostsRead, recordUsageEvent } from "../billing/usageMeter.js";
+import {
+  chargeUniquePostReads,
+  countPostReadIds,
+  recordUsageEvent,
+} from "../billing/usageMeter.js";
 import { parseXHandle } from "../auth/xHandle.js";
 
 export const X_API_BASE = "https://api.x.com/2";
@@ -66,7 +70,7 @@ export async function xApiGet(opts: {
     if (opts.skipUsage) return;
     const postsRead =
       result.ok && json !== undefined
-        ? countPostsRead(pathForLog, json)
+        ? chargeUniquePostReads(countPostReadIds(pathForLog, json))
         : 0;
     recordUsageEvent({
       method: "GET",

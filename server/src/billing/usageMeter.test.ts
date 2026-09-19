@@ -9,6 +9,8 @@ import {
   defaultMigrationsDir,
 } from "../db.ts";
 import {
+  chargeUniquePostReads,
+  countPostReadIds,
   countPostsRead,
   describeUsageActivity,
   estimatePostReadCostMicros,
@@ -53,6 +55,9 @@ describe("countPostsRead", () => {
       countPostsRead("/tweets/123", { data: { id: "123", text: "hi" } }),
       1,
     );
+    assert.deepEqual(countPostReadIds("/tweets/123", { data: { id: "123" } }), [
+      "123",
+    ]);
   });
 
   it("ignores non-tweet paths", () => {
@@ -86,6 +91,25 @@ describe("usage ledger", () => {
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("charges a post once per UTC day", () => {
+    const now = new Date("2026-09-19T12:00:00.000Z");
+    assert.equal(
+      chargeUniquePostReads(["a", "b", "a"], { tenantId: "t1", now }),
+      2,
+    );
+    assert.equal(
+      chargeUniquePostReads(["b", "c"], { tenantId: "t1", now }),
+      1,
+    );
+    assert.equal(
+      chargeUniquePostReads(["a", "c"], {
+        tenantId: "t1",
+        now: new Date("2026-09-20T00:30:00.000Z"),
+      }),
+      2,
+    );
   });
 
   it("records events and summarizes estimated spend", () => {
