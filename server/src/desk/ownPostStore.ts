@@ -107,8 +107,7 @@ export function listActivityOwnPosts(opts: {
     views: pickLatest(row.t24h_views, row.t1h_views, row.t0_views),
     withStats:
       snapshotHasViews(row.t24h_views) ||
-      snapshotHasViews(row.t1h_views) ||
-      snapshotHasViews(row.t0_views),
+      snapshotHasViews(row.t1h_views),
   }));
 }
 

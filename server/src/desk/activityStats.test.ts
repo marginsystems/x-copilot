@@ -316,6 +316,9 @@ describe("classified flight-path posts", () => {
           at: "2026-08-04T10:05:00.000Z",
           replyId: "r1",
           inReplyToId: "parent",
+          stats: {
+            t1h: { views: 30, sampledAt: "2026-08-04T11:05:00.000Z" },
+          },
         }),
         ix({
           threadId: "t2",
@@ -327,6 +330,8 @@ describe("classified flight-path posts", () => {
     });
     assert.equal(merged.length, 3);
     assert.equal(merged.find((p) => p.id === "r1")?.kind, "reply");
+    assert.equal(merged.find((p) => p.id === "r1")?.views, 30);
+    assert.equal(merged.find((p) => p.id === "r1")?.withStats, true);
     assert.equal(merged.find((p) => p.id === "og1")?.kind, "original");
     assert.equal(merged.find((p) => p.id === "ghost")?.kind, "reply");
   });

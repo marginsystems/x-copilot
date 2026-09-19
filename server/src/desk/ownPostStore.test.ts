@@ -162,7 +162,8 @@ describe("ownPostStore", () => {
         ["og", "original"],
       ],
     );
-    assert.equal(rows.every((row) => row.withStats), true);
+    assert.equal(rows.every((row) => row.withStats), false);
+    assert.equal(rows.every((row) => row.views === 10), true);
   });
 
   it("removes an own post only for its mapped user and X account", () => {

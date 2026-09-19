@@ -193,7 +193,12 @@ export function mergeClassifiedActivity(opts: {
   }
   for (const row of opts.history) {
     const replyId = row.replyId?.trim();
-    if (replyId && byId.has(replyId)) continue;
+    if (replyId && byId.has(replyId)) {
+      const existing = byId.get(replyId)!;
+      existing.views = Math.max(existing.views, viewsForInteraction(row));
+      existing.withStats = existing.withStats || interactionHasViewStats(row);
+      continue;
+    }
     const postedAt = row.postedAt || row.at;
     const id = replyId || `mark:${row.threadId}:${row.at}`;
     if (byId.has(id)) continue;
