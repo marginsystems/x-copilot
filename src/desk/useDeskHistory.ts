@@ -19,13 +19,23 @@ import {
 } from "../lib/forYou";
 import type { AppSettings } from "../lib/settings";
 import { armReplyPace } from "./replyPaceStore";
-import type {
-  DismissalHistoryEntry,
-  ExpiredHistoryEntry,
-  InteractionHistoryEntry,
-  SkipHistoryEntry,
-  ThreadCard,
+import {
+  parseInteractionHistoryEntry,
+  type DismissalHistoryEntry,
+  type ExpiredHistoryEntry,
+  type InteractionHistoryEntry,
+  type SkipHistoryEntry,
+  type ThreadCard,
 } from "./types";
+
+export function parseInteractedHistory(
+  raw: unknown,
+): InteractionHistoryEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map(parseInteractionHistoryEntry)
+    .filter((row): row is InteractionHistoryEntry => Boolean(row));
+}
 
 function blockedFromHistory(
   rows: ReadonlyArray<{
@@ -228,13 +238,7 @@ export function useDeskHistory(
         activeIds?: string[];
       };
       if (!isCurrent()) return;
-      const history = (data.interactions ?? []).filter(
-        (i) =>
-          i &&
-          typeof i.threadId === "string" &&
-          typeof i.author === "string" &&
-          typeof i.at === "string",
-      );
+      const history = parseInteractedHistory(data.interactions);
       setInteractedHistory(history);
       const ids = new Set(
         (Array.isArray(data.activeIds) ? data.activeIds : []).filter(
