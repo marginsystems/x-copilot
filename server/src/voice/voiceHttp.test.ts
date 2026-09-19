@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
@@ -22,7 +23,10 @@ import {
 import type { AuthUser } from "../auth/authStore.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
+import { getGamification } from "../desk/gamification.ts";
+import { resetInteractionMemoryProjectionForTests } from "../memory/interactionMemoryProjection.ts";
 import { tryHandleVoice } from "./voiceHttp.ts";
+import { resetVoicePostForTests } from "./voicePostHttp.ts";
 import { deriveVoiceUiStatus } from "./voiceStatus.ts";
 import {
   ensureUserBillingRow,
@@ -506,9 +510,15 @@ describe("POST /api/voice/post", () => {
     process.env.X_API_KEY = "ck";
     process.env.X_API_SECRET = "cs";
     getPlatformDb();
+    resetVoicePostForTests({ knowledgeRoot: join(dir, "knowledge") });
+    resetInteractionMemoryProjectionForTests({
+      scheduleUpsert: () => {},
+    });
   });
 
   afterEach(() => {
+    resetVoicePostForTests();
+    resetInteractionMemoryProjectionForTests();
     resetPlatformDbForTests();
     process.chdir(cwd);
     delete process.env.PLATFORM_DB_PATH;
@@ -628,6 +638,157 @@ describe("POST /api/voice/post", () => {
       const interaction = json.interaction as { threadId?: string; replyId?: string };
       assert.equal(interaction.threadId, "1234567890");
       assert.equal(interaction.replyId, "888");
+      const memory = json.memory as { state?: string; memoryPath?: string };
+      assert.equal(memory.state, "saved");
+      assert.equal(json.memoryPath, memory.memoryPath);
+      const note = await readFile(memory.memoryPath!, "utf8");
+      assert.match(note, /I would still pick the tool if it cut the wait/);
+      const gamification = json.gamification as { lifetimeXp?: number };
+      assert.equal(gamification.lifetimeXp, 1);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("writes posted reply text even when mark soft-fails after X succeeds", async () => {
+    resetVoicePostForTests({
+      knowledgeRoot: join(dir, "knowledge"),
+      markInteracted: async () => {
+        throw new Error("injected mark failure");
+      },
+    });
+    const user = seedPoster("post-mark-fail@example.com", true);
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async (input) => {
+      if (String(input).includes("/event")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 202 });
+      }
+      return new Response(JSON.stringify({ data: { id: "889" } }), {
+        status: 201,
+      });
+    }) as typeof fetch;
+    try {
+      const { status, json } = await postReply(
+        user,
+        body,
+        async () => ({
+          ok: true,
+          content: '{"ok":true,"reason":"That reads like you."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
+      assert.equal(status, 200);
+      assert.equal(json.ok, true);
+      assert.equal((json.tweet as { id?: string }).id, "889");
+      assert.equal(json.interaction, undefined);
+      assert.equal(json.gamification, undefined);
+      const memory = json.memory as { state?: string; memoryPath?: string };
+      assert.equal(memory.state, "saved");
+      const note = await readFile(memory.memoryPath!, "utf8");
+      assert.match(note, /I would still pick the tool if it cut the wait/);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("keeps the confirmed post and XP when note write fails", async () => {
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async () => {
+        throw new Error("EACCES: injected filesystem failure");
+      },
+      scheduleUpsert: () => {},
+    });
+    const user = seedPoster("post-note-fail@example.com", true);
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async (input) => {
+      if (String(input).includes("/event")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 202 });
+      }
+      return new Response(JSON.stringify({ data: { id: "890" } }), {
+        status: 201,
+      });
+    }) as typeof fetch;
+    try {
+      const { status, json } = await postReply(
+        user,
+        body,
+        async () => ({
+          ok: true,
+          content: '{"ok":true,"reason":"That reads like you."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
+      assert.equal(status, 200);
+      assert.equal(json.ok, true);
+      assert.equal((json.tweet as { id?: string }).id, "890");
+      assert.equal((json.interaction as { replyId?: string }).replyId, "890");
+      assert.deepEqual(json.memory, { state: "unavailable" });
+      assert.equal(json.memoryPath, undefined);
+      const gamification = json.gamification as { lifetimeXp?: number };
+      assert.equal(gamification.lifetimeXp, 1);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("replays saved reply text and leaves X POST plus XP unchanged", async () => {
+    const user = seedPoster("post-replay-memory@example.com", true);
+    let xPosts = 0;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async (input) => {
+      if (String(input).includes("/event")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 202 });
+      }
+      if (String(input).includes("/2/tweets")) {
+        xPosts += 1;
+      }
+      return new Response(JSON.stringify({ data: { id: "891" } }), {
+        status: 201,
+      });
+    }) as typeof fetch;
+    const chat: ChatFn = async () => ({
+      ok: true,
+      content: '{"ok":true,"reason":"That reads like you."}',
+      model: "deepseek-v4-flash",
+      provider: "deepseek",
+    });
+    try {
+      const first = await postReply(
+        user,
+        { ...body, requestKey: "rk-memory" },
+        chat,
+      );
+      assert.equal(first.status, 200);
+      assert.equal((first.json.memory as { state?: string }).state, "saved");
+      const firstPath = first.json.memoryPath as string;
+      const firstNote = await readFile(firstPath, "utf8");
+      assert.match(firstNote, /I would still pick the tool if it cut the wait/);
+      assert.doesNotMatch(firstNote, /later edited retry body/);
+      const firstXp = (await getGamification({ userId: user.id })).lifetimeXp;
+
+      const retry = await postReply(
+        user,
+        {
+          ...body,
+          requestKey: "rk-memory",
+          edited: "A later edited retry body must not overwrite saved memory.",
+        },
+        chat,
+      );
+      assert.equal(retry.status, 200);
+      assert.equal(xPosts, 1);
+      assert.equal((retry.json.tweet as { id?: string }).id, "891");
+      assert.equal((retry.json.memory as { state?: string }).state, "saved");
+      const retryNote = await readFile(firstPath, "utf8");
+      assert.match(retryNote, /I would still pick the tool if it cut the wait/);
+      assert.doesNotMatch(retryNote, /later edited retry body/);
+      assert.equal(
+        (await getGamification({ userId: user.id })).lifetimeXp,
+        firstXp,
+      );
+      assert.equal(retry.json.gamification, undefined);
     } finally {
       globalThis.fetch = origFetch;
     }
@@ -731,6 +892,7 @@ describe("POST /api/voice/post", () => {
       assert.equal(calls, 1);
       assert.equal(retry.status, 409);
       assert.equal(retry.json.error, "outcome_unknown");
+      assert.equal(retry.json.memory, undefined);
     } finally {
       globalThis.fetch = origFetch;
     }
@@ -766,12 +928,21 @@ describe("POST /api/voice/post", () => {
       assert.equal(calls, 0);
       assert.equal(status, 409);
       assert.equal(json.error, "outcome_unknown");
+      assert.equal(json.memory, undefined);
     } finally {
       globalThis.fetch = origFetch;
     }
   });
 
   it("posts a For You original without in_reply_to and marks the card done", async () => {
+    let wrote = 0;
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async () => {
+        wrote += 1;
+        return { path: "/tmp/compose-must-not-write.md" };
+      },
+      scheduleUpsert: () => {},
+    });
     const user = seedPoster("compose-ok@example.com", true);
     const [row] = insertSuggestions({
       userId: user.id,
@@ -810,6 +981,9 @@ describe("POST /api/voice/post", () => {
       assert.equal(json.ok, true);
       assert.deepEqual(JSON.parse(posted), { text: edited });
       assert.equal(json.interaction, undefined);
+      assert.equal(json.memory, undefined);
+      assert.equal(json.memoryPath, undefined);
+      assert.equal(wrote, 0);
       assert.equal(listActiveSuggestions(user.id).length, 0);
     } finally {
       globalThis.fetch = origFetch;
@@ -1018,6 +1192,7 @@ describe("POST /api/voice/post", () => {
       assert.equal(calls, 0);
       assert.equal(status, 200);
       assert.equal((json.tweet as { id?: string })?.id, "555");
+      assert.equal(json.memory, undefined);
     } finally {
       globalThis.fetch = origFetch;
     }
