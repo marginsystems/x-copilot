@@ -145,7 +145,7 @@ test("day/week/day and gamification retain the newest response", async () => {
     result.current.onActivityBucket("week");
     result.current.onActivityBucket("day");
   });
-  const stats = { ...emptyActivityStats("day"), totals: { interactions: 3, views: 30, withStats: 3 } };
+  const stats = { ...emptyActivityStats("day"), totals: { interactions: 3, originals: 1, quotes: 0, replies: 2, views: 30, withStats: 3 } };
   await act(async () => { requests[2].resolve(response(stats)); });
   await act(async () => { requests[1].resolve(response(emptyActivityStats("week"))); requests[0].resolve(response(emptyActivityStats("day"))); });
   expect(result.current.activityStats).toEqual(stats);

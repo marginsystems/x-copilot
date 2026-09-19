@@ -63,7 +63,7 @@ const desk = {
   activityStats: {
     bucket: "day",
     series: [],
-    totals: { interactions: 0, views: 0, withStats: 0 },
+    totals: { interactions: 0, originals: 0, quotes: 0, replies: 0, views: 0, withStats: 0 },
   },
   coaching: {
     dayUtc: "2026-08-28",

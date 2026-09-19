@@ -5,6 +5,9 @@
 import { LEGAL_ENTITY, PRODUCT_NAME } from "./legal";
 import {
   formatPeriodLabel,
+  postKindCounts,
+  postKindTotal,
+  stackBarSegments,
   viewsLineAltitude,
   type ActivityBucket,
   type ActivitySeriesPoint,
@@ -26,6 +29,9 @@ const C = {
   text: "#f4eee6",
   muted: "#a89f94",
   accent: "#7eb8dc",
+  original: "rgba(126, 184, 220, 0.62)",
+  quote: "rgba(126, 168, 143, 0.78)",
+  reply: "rgba(212, 165, 116, 0.78)",
 };
 
 const FONT_HEAD = '"Space Grotesk", "Segoe UI", sans-serif';
@@ -102,7 +108,7 @@ export function flightShareCaption(payload: FlightSharePayload): string {
     payload.bucket === "week" ? "This week's flight path" : "Last 28 days on the desk";
   const streak =
     payload.streak > 0 ? `, streak ${payload.streak}` : "";
-  const head = `${window} — ${payload.marked} marked, Lv ${payload.level}${streak}.`;
+  const head = `${window} — ${payload.marked} posts, Lv ${payload.level}${streak}.`;
   return [head, "", FLIGHT_SHARE_SITE, FLIGHT_SHARE_DISCLAIMER].join("\n");
 }
 
@@ -210,7 +216,7 @@ export function drawFlightShareImage(
   ctx.fillText(String(payload.marked), padX, 214);
   ctx.fillStyle = C.muted;
   ctx.font = `400 20px ${FONT_BODY}`;
-  ctx.fillText("marked", padX, 280);
+  ctx.fillText("posts", padX, 280);
 
   const col2 = padX + 220;
   ctx.fillStyle = C.text;
@@ -293,7 +299,8 @@ function drawPathChart(
   let maxIx = 1;
   let maxAlt = 1;
   for (const p of series) {
-    if (p.interactions > maxIx) maxIx = p.interactions;
+    const total = Math.max(p.interactions, postKindTotal(postKindCounts(p)));
+    if (total > maxIx) maxIx = total;
   }
   for (const p of payload.altitude) {
     if (p.views > maxAlt) maxAlt = p.views;
@@ -306,11 +313,25 @@ function drawPathChart(
   ctx.lineTo(x + padL + innerW, y + padT + innerH);
   ctx.stroke();
 
+  const segmentFill: Record<"original" | "quote" | "reply", string> = {
+    original: C.original,
+    quote: C.quote,
+    reply: C.reply,
+  };
   series.forEach((p, i) => {
     const bx = x + padL + i * (barW + gap);
-    const bh = (p.interactions / maxIx) * innerH;
-    ctx.fillStyle = "rgba(126, 184, 220, 0.28)";
-    ctx.fillRect(bx, y + padT + innerH - bh, barW, Math.max(bh, p.interactions > 0 ? 2 : 0));
+    const kinds = postKindCounts(p);
+    const segments = stackBarSegments(kinds, maxIx, innerH);
+    let fromBottom = 0;
+    segments.forEach((seg, si) => {
+      const h = Math.max(
+        seg.height,
+        si === segments.length - 1 && p.interactions > 0 ? 2 : 0,
+      );
+      ctx.fillStyle = segmentFill[seg.key];
+      ctx.fillRect(bx, y + padT + innerH - fromBottom - h, barW, h);
+      fromBottom += seg.height;
+    });
   });
 
   const pts = payload.altitude.map((p, i) => {

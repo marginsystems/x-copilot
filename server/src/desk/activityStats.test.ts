@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import {
   ACTIVITY_DAY_WINDOW,
   ACTIVITY_WEEK_WINDOW,
+  activityKindFromOwnPost,
+  bucketClassifiedPosts,
   bucketInteractions,
+  mergeClassifiedActivity,
   mergeLiveMetrics,
   parseActivityBucket,
   pendingReplyIds,
@@ -80,6 +83,9 @@ describe("bucketInteractions", () => {
     assert.equal(result.series[0]?.period, "2026-07-08");
     assert.deepEqual(result.totals, {
       interactions: 0,
+      originals: 0,
+      quotes: 0,
+      replies: 0,
       views: 0,
       withStats: 0,
     });
@@ -158,7 +164,7 @@ describe("viewsLineAltitude", () => {
   it("holds last sampled views when marks exist but samples do not", () => {
     assert.deepEqual(
       viewsLineAltitude(
-        { period: "2026-08-14", interactions: 2, views: 0, withStats: 0 },
+        { period: "2026-08-14", interactions: 2, originals: 0, quotes: 0, replies: 2, views: 0, withStats: 0 },
         400,
       ),
       { views: 400, held: true },
@@ -168,7 +174,7 @@ describe("viewsLineAltitude", () => {
   it("drops to zero on a missed day", () => {
     assert.deepEqual(
       viewsLineAltitude(
-        { period: "2026-08-14", interactions: 0, views: 0, withStats: 0 },
+        { period: "2026-08-14", interactions: 0, originals: 0, quotes: 0, replies: 0, views: 0, withStats: 0 },
         400,
       ),
       { views: 0, held: false },
@@ -178,7 +184,7 @@ describe("viewsLineAltitude", () => {
   it("uses sampled views when present", () => {
     assert.deepEqual(
       viewsLineAltitude(
-        { period: "2026-08-13", interactions: 1, views: 80, withStats: 1 },
+        { period: "2026-08-13", interactions: 1, originals: 0, quotes: 0, replies: 1, views: 80, withStats: 1 },
         400,
       ),
       { views: 80, held: false },
@@ -226,5 +232,102 @@ describe("pendingReplyIds / mergeLiveMetrics", () => {
       "2026-08-14T12:30:00.000Z",
     );
     assert.equal(merged[0]?.stats?.t1h, undefined);
+  });
+});
+
+describe("classified flight-path posts", () => {
+  const now = Date.parse("2026-08-04T15:00:00.000Z");
+
+  it("keeps a persisted original as OG, including a re-quote stored that way", () => {
+    assert.equal(activityKindFromOwnPost("original"), "original");
+    assert.equal(activityKindFromOwnPost("quote"), "quote");
+    assert.equal(activityKindFromOwnPost("reply"), "reply");
+    assert.equal(activityKindFromOwnPost("repost"), null);
+  });
+
+  it("stacks originals, quotes, and replies and drops reposts", () => {
+    const result = bucketClassifiedPosts(
+      [
+        {
+          id: "og",
+          postedAt: "2026-08-04T10:00:00.000Z",
+          kind: "original",
+          views: 20,
+          withStats: true,
+        },
+        {
+          id: "qt",
+          postedAt: "2026-08-04T11:00:00.000Z",
+          kind: "quote",
+          views: 5,
+          withStats: true,
+        },
+        {
+          id: "rp",
+          postedAt: "2026-08-04T12:00:00.000Z",
+          kind: "reply",
+          views: 8,
+          withStats: true,
+        },
+        {
+          id: "old",
+          postedAt: "2026-06-01T00:00:00.000Z",
+          kind: "original",
+          views: 999,
+          withStats: true,
+        },
+      ],
+      { bucket: "day", now },
+    );
+    const aug4 = result.series.find((p) => p.period === "2026-08-04");
+    assert.ok(aug4);
+    assert.equal(aug4.originals, 1);
+    assert.equal(aug4.quotes, 1);
+    assert.equal(aug4.replies, 1);
+    assert.equal(aug4.interactions, 3);
+    assert.equal(aug4.views, 33);
+    assert.equal(result.totals.originals, 1);
+    assert.equal(result.totals.quotes, 1);
+    assert.equal(result.totals.replies, 1);
+    assert.equal(result.totals.interactions, 3);
+  });
+
+  it("does not double-count a mark whose reply is already in own_posts", () => {
+    const merged = mergeClassifiedActivity({
+      ownPosts: [
+        {
+          id: "r1",
+          kind: "reply",
+          postedAt: "2026-08-04T10:00:00.000Z",
+          views: 12,
+          withStats: true,
+        },
+        {
+          id: "og1",
+          kind: "original",
+          postedAt: "2026-08-04T09:00:00.000Z",
+          views: 40,
+          withStats: true,
+        },
+      ],
+      history: [
+        ix({
+          threadId: "t1",
+          at: "2026-08-04T10:05:00.000Z",
+          replyId: "r1",
+          inReplyToId: "parent",
+        }),
+        ix({
+          threadId: "t2",
+          at: "2026-08-04T11:00:00.000Z",
+          replyId: "ghost",
+          inReplyToId: "parent",
+        }),
+      ],
+    });
+    assert.equal(merged.length, 3);
+    assert.equal(merged.find((p) => p.id === "r1")?.kind, "reply");
+    assert.equal(merged.find((p) => p.id === "og1")?.kind, "original");
+    assert.equal(merged.find((p) => p.id === "ghost")?.kind, "reply");
   });
 });

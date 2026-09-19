@@ -10,9 +10,14 @@ import {
   activityChartTipDetail,
   formatPeriodLabel,
   formatPeriodTip,
+  postKindCounts,
+  postKindTotal,
+  stackBarSegments,
   viewsLineAltitude,
   type ActivityBucket,
+  type ActivityKindCounts,
   type ActivitySeriesPoint,
+  type BarSegment,
 } from "./lib/activityStats";
 import {
   estimateTipWidth,
@@ -33,7 +38,8 @@ type BuiltPoint = {
   x: number;
   y: number;
   barX: number;
-  barH: number;
+  segments: BarSegment[];
+  kinds: ActivityKindCounts;
   p: ActivitySeriesPoint;
   held: boolean;
   lineViews: number;
@@ -51,7 +57,8 @@ function buildPoints(
   let lastSampledViews = 0;
   let maxLineViews = 1;
   for (const p of series) {
-    if (p.interactions > maxIx) maxIx = p.interactions;
+    const total = Math.max(p.interactions, postKindTotal(postKindCounts(p)));
+    if (total > maxIx) maxIx = total;
   }
   for (const p of series) {
     const alt = viewsLineAltitude(p, lastSampledViews);
@@ -63,14 +70,15 @@ function buildPoints(
 
   return series.map((p, i) => {
     const barX = padL + i * (barW + gap);
-    const barH = (p.interactions / maxIx) * innerH;
+    const kinds = postKindCounts(p);
     const alt = viewsLineAltitude(p, lastSampledViews);
     if (!alt.held) lastSampledViews = alt.views;
     return {
       x: barX + barW / 2,
       y: padT + innerH - (alt.views / maxLineViews) * innerH,
       barX,
-      barH,
+      segments: stackBarSegments(kinds, maxIx, innerH),
+      kinds,
       p,
       held: alt.held,
       lineViews: alt.views,
@@ -139,7 +147,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
       viewBox={`0 0 ${width} ${height}`}
       preserveAspectRatio="xMidYMid meet"
       role="img"
-      aria-label="Flight path of marked replies and sampled views"
+      aria-label="Flight path of originals, quotes, replies, and sampled views"
     >
       <line
         className="activity-chart-axis"
@@ -148,26 +156,50 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
         x2={padL + innerW}
         y2={padT + innerH}
       />
-      {points.map((pt) => (
-        <rect
-          key={`b-${pt.p.period}`}
-          className={
-            !compact && active === pt.p.period
-              ? "activity-chart-bar is-active"
-              : "activity-chart-bar"
-          }
-          x={pt.barX}
-          y={padT + innerH - pt.barH}
-          width={barW}
-          height={Math.max(pt.barH, pt.p.interactions > 0 ? 1.5 : 0)}
-        >
-          {compact ? (
-            <title>
-              {`${formatPeriodTip(pt.p.period, bucket)}: ${activityChartTipDetail(pt.p.interactions, pt.p.views, false)}`}
-            </title>
-          ) : null}
-        </rect>
-      ))}
+      {points.map((pt) => {
+        let fromBottom = 0;
+        const stacked = pt.segments.map((seg) => {
+          const y = padT + innerH - fromBottom - seg.height;
+          fromBottom += seg.height;
+          return { ...seg, y };
+        });
+        const tip = `${formatPeriodTip(pt.p.period, bucket)}: ${activityChartTipDetail(pt.p.interactions, pt.p.views, false, pt.kinds)}`;
+        if (stacked.length === 0) {
+          return (
+            <rect
+              key={`b-${pt.p.period}`}
+              className="activity-chart-bar"
+              x={pt.barX}
+              y={padT + innerH}
+              width={barW}
+              height={0}
+            />
+          );
+        }
+        return stacked.map((seg, i) => (
+          <rect
+            key={`b-${pt.p.period}-${seg.key}`}
+            className={
+              [
+                "activity-chart-bar",
+                `activity-chart-bar-${seg.key}`,
+                !compact && active === pt.p.period ? "is-active" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")
+            }
+            x={pt.barX}
+            y={seg.y}
+            width={barW}
+            height={Math.max(
+              seg.height,
+              i === stacked.length - 1 && pt.p.interactions > 0 ? 1.5 : 0,
+            )}
+          >
+            {compact ? <title>{tip}</title> : null}
+          </rect>
+        ));
+      })}
       {areaD ? <path className="activity-chart-area" d={areaD} /> : null}
       {points.length > 1 ? (
         <path className="activity-chart-line" d={lineD} fill="none" />
@@ -198,7 +230,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
           >
             {compact ? (
               <title>
-                {`${formatPeriodTip(pt.p.period, bucket)}: ${activityChartTipDetail(pt.p.interactions, pt.lineViews, pt.held)}`}
+                {`${formatPeriodTip(pt.p.period, bucket)}: ${activityChartTipDetail(pt.p.interactions, pt.lineViews, pt.held, pt.kinds)}`}
               </title>
             ) : null}
           </circle>
@@ -233,7 +265,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
               y={padT}
               width={barW + gap}
               height={innerH}
-              aria-label={`${formatPeriodTip(pt.p.period, bucket)}: ${activityChartTipDetail(pt.p.interactions, pt.lineViews, pt.held)}`}
+              aria-label={`${formatPeriodTip(pt.p.period, bucket)}: ${activityChartTipDetail(pt.p.interactions, pt.lineViews, pt.held, pt.kinds)}`}
               onPointerEnter={(ev) => {
                 if (ev.pointerType === "mouse") setActive(pt.p.period);
               }}
@@ -367,6 +399,7 @@ function ActivityChartTipHost({
                   activePoint.p.interactions,
                   activePoint.lineViews,
                   activePoint.held,
+                  activePoint.kinds,
                 )}
               </span>
             </div>,

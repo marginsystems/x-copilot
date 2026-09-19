@@ -114,6 +114,7 @@ export async function tryHandleBoot(
     const activityStats = await bucketInteractionsWithLive(
       interactionHistory,
       "day",
+      user?.id,
     );
 
     let forYou: {
