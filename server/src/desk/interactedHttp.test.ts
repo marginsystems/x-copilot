@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,11 +11,13 @@ import {
   getPlatformDb,
   resetPlatformDbForTests,
 } from "../db.ts";
-import { markInteracted } from "./interactionStore.ts";
+import { listInteractionHistory, markInteracted } from "./interactionStore.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { tryHandleInteracted } from "./interactedHttp.ts";
+import { resetInteractionMemoryProjectionForTests } from "../memory/interactionMemoryProjection.ts";
+import { writeInteractionMemory } from "../memory/knowledgeMemory.ts";
 
 async function call(
   method: string,
@@ -60,6 +63,7 @@ describe("interactedHttp", () => {
   let cwd: string;
 
   beforeEach(() => {
+    resetInteractionMemoryProjectionForTests();
     resetPlatformDbForTests();
     dir = mkdtempSync(join(tmpdir(), "x-interacted-http-"));
     cwd = process.cwd();
@@ -70,6 +74,7 @@ describe("interactedHttp", () => {
   });
 
   afterEach(() => {
+    resetInteractionMemoryProjectionForTests();
     resetPlatformDbForTests();
     process.chdir(cwd);
     delete process.env.PLATFORM_DB_PATH;
@@ -259,6 +264,146 @@ describe("interactedHttp", () => {
     assert.equal(handled, true);
     assert.equal(status, 400);
     assert.equal(json.error, "bad_request");
+  });
+
+  it("POST /api/interacted without reply text stays 200 and awards XP", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-interacted-no-reply",
+      email: "noreply@example.com",
+      emailVerified: true,
+    });
+    const { token } = createSession(user.id);
+    const { status, json } = await call(
+      "POST",
+      "/api/interacted",
+      {
+        threadId: "2081",
+        author: "@x",
+        replyUrl: "https://x.com/me/status/9001",
+        text: "Parent post must not be stored as a reply.",
+      },
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    assert.equal(json.memoryPath, undefined);
+    assert.deepEqual(json.memory, { state: "no_reply_text" });
+    const gamification = json.gamification as { lifetimeXp: number };
+    assert.equal(gamification.lifetimeXp, 1);
+    const history = await listInteractionHistory({ userId: user.id });
+    assert.equal(history.length, 1);
+    assert.equal(history[0]?.threadId, "2081");
+    assert.equal(history[0]?.replyId, "9001");
+  });
+
+  it("POST /api/interacted keeps the mark and XP when note write fails", async () => {
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async () => {
+        throw new Error("EACCES: injected filesystem failure");
+      },
+    });
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-interacted-mem-fail",
+      email: "memfail@example.com",
+      emailVerified: true,
+    });
+    const { token } = createSession(user.id);
+    const { status, json } = await call(
+      "POST",
+      "/api/interacted",
+      {
+        threadId: "2082",
+        author: "@x",
+        replyUrl: "https://x.com/me/status/9002",
+        reply: "Confirmed reply text",
+      },
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    assert.equal(json.memoryPath, undefined);
+    assert.deepEqual(json.memory, { state: "unavailable" });
+    const gamification = json.gamification as { lifetimeXp: number };
+    assert.equal(gamification.lifetimeXp, 1);
+    const history = await listInteractionHistory({ userId: user.id });
+    assert.equal(history.length, 1);
+    assert.equal(history[0]?.threadId, "2082");
+  });
+
+  it("POST /api/interacted returns memoryPath when the note is saved", async () => {
+    const knowledgeRoot = join(dir, "knowledge");
+    resetInteractionMemoryProjectionForTests({
+      writeNote: (input) =>
+        writeInteractionMemory({ ...input, knowledgeRoot }),
+      scheduleUpsert: () => {},
+    });
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-interacted-mem-ok",
+      email: "memok@example.com",
+      emailVerified: true,
+    });
+    const { token } = createSession(user.id);
+    const { status, json } = await call(
+      "POST",
+      "/api/interacted",
+      {
+        threadId: "2083",
+        author: "@x",
+        replyUrl: "https://x.com/me/status/9003",
+        reply: "Confirmed reply text",
+        text: "Card context stays in Post, not Reply.",
+      },
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    assert.equal((json.memory as { state: string }).state, "saved");
+    assert.equal(json.memoryPath, (json.memory as { memoryPath: string }).memoryPath);
+    const body = await readFile(json.memoryPath as string, "utf8");
+    assert.match(body, /Confirmed reply text/);
+    assert.match(body, /Card context stays in Post/);
+    const gamification = json.gamification as { lifetimeXp: number };
+    assert.equal(gamification.lifetimeXp, 1);
+  });
+
+  it("POST /api/interacted/detect does not write reply memory", async () => {
+    let wrote = false;
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async () => {
+        wrote = true;
+        return { path: "/tmp/should-not-write.md" };
+      },
+    });
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-detect-no-write",
+      email: "detect-nowrite@example.com",
+      emailVerified: true,
+    });
+    await markInteracted({
+      threadId: "card",
+      conversationId: "target",
+      author: "@mine",
+      userId: user.id,
+      replyId: "mine-reply",
+      replyUrl: "https://x.com/mine/status/mine-reply",
+      text: "Stored parent text is not a confirmed reply.",
+    });
+    const { token } = createSession(user.id);
+    const { status, json } = await call(
+      "POST",
+      "/api/interacted/detect",
+      { threadId: "target", once: true },
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
+    assert.equal(status, 200);
+    assert.equal(json.found, true);
+    const reply = json.reply as Record<string, unknown>;
+    assert.equal(reply.replyText, "Stored parent text is not a confirmed reply.");
+    assert.equal(wrote, false);
   });
 
   it("ignores unrelated paths", async () => {

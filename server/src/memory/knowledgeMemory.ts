@@ -1,6 +1,7 @@
 /**
- * Obsidian-friendly interaction memories under knowledge/ (gitignored).
- * Storage only — no retrieval in v1.
+ * Obsidian-friendly interaction and dismissal note storage under knowledge/
+ * (gitignored). This module writes and updates notes; MiniLM retrieval lives
+ * in memoryIndex, memoryHttp, and Scout triage.
  */
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";

@@ -27,11 +27,7 @@ import {
   normalizeAuthorKey,
   parseStatusIdFromUrl,
 } from "./interactionCooldown.js";
-import {
-  normalizeReply,
-  writeInteractionMemory,
-} from "../memory/knowledgeMemory.js";
-import { scheduleMemoryUpsert } from "../memory/memoryReindex.js";
+import { projectConfirmedReplyMemory } from "../memory/interactionMemoryProjection.js";
 import { pruneThreadsFromScoutCache } from "../scout/scoutCache.js";
 import { maybeStartEmptyTankScout } from "../scout/scoutEmptyTank.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
@@ -190,7 +186,6 @@ export async function tryHandleInteracted(
     const author = typeof body.author === "string" ? body.author.trim() : "";
     const replyUrl =
       typeof body.replyUrl === "string" ? body.replyUrl.trim() : "";
-    const reply = normalizeReply(body.reply);
     const replyId = parseStatusIdFromUrl(replyUrl);
     if (!threadId || !author || !normalizeAuthorKey(author) || !replyId) {
       send(req, res, 400, {
@@ -283,35 +278,31 @@ export async function tryHandleInteracted(
           pendingAt: interaction.at,
         }).catch(() => {});
       }
-      let memoryPath: string | undefined;
-      if (reply) {
-        const memory = await writeInteractionMemory({
-          threadId,
-          author,
-          reply,
-          source,
-          userId: sessionUser.id,
-          url,
-          text,
-          summary,
-          opAuthor,
-          opText,
-          agenda: typeof body.agenda === "string" ? body.agenda : undefined,
-          baitScore,
-          engage: typeof body.engage === "string" ? body.engage : undefined,
-          flags,
-          intent: typeof body.intent === "string" ? body.intent : undefined,
-          reason: typeof body.reason === "string" ? body.reason : undefined,
-          // Match durable store timestamp so later stats ticks can rediscover the note.
-          interactedAt: interaction.at,
-        });
-        memoryPath = memory.path;
-        scheduleMemoryUpsert(memory.path, "interaction");
-      }
+      const memory = await projectConfirmedReplyMemory({
+        userId: sessionUser.id,
+        reply: body.reply,
+        threadId,
+        author,
+        source,
+        url,
+        text,
+        summary,
+        opAuthor,
+        opText,
+        agenda: typeof body.agenda === "string" ? body.agenda : undefined,
+        baitScore,
+        engage: typeof body.engage === "string" ? body.engage : undefined,
+        flags,
+        intent: typeof body.intent === "string" ? body.intent : undefined,
+        reason: typeof body.reason === "string" ? body.reason : undefined,
+        // Match durable store timestamp so later stats ticks can rediscover the note.
+        interactedAt: interaction.at,
+      });
       send(req, res, 200, {
         ok: true,
         interaction,
-        memoryPath,
+        memoryPath: memory.memoryPath,
+        memory,
         ...(gamification ? { gamification } : {}),
       });
       return true;
