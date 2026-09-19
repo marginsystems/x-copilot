@@ -542,6 +542,137 @@ describe("discoverOwnReplies", () => {
     assert.equal(after.lifetimeMarks, before.lifetimeMarks);
   });
 
+  it("does not overwrite a loop projection with differing own_posts text", async () => {
+    const postedAt = "2026-08-02T11:30:00.000Z";
+    await markInteracted({
+      threadId: "projected-parent",
+      author: "@builder",
+      replyId: "projected-reply",
+      replyUrl: "https://x.com/me/status/projected-reply",
+      source: "discovered",
+      postedAt,
+      userId,
+    });
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-projected-reply",
+        xUserId: "99",
+        postId: "projected-reply",
+        kind: "reply",
+        text: "stale own_posts text",
+        postedAt,
+        inReplyToId: "projected-parent",
+        inReplyToUserId: null,
+        conversationId: "conv-projected",
+        authorUsername: "me",
+        metrics: {},
+      },
+      userId,
+      tenantId: ensureUserTenant(userId),
+    });
+
+    await discoverOwnReplies({
+      nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
+      userId,
+      gamificationPath,
+      knowledgeRoot,
+      upsertMemory: false,
+      session: { configured: true, bearerToken: "t" },
+      resolveScreenName: async () => "me",
+      searchTimelinePages: async (opts) => ({
+        ok: true as const,
+        threads: /is:reply/.test(opts.query)
+          ? [
+              card({
+                id: "projected-reply",
+                text: "fresh loop projection",
+                inReplyToId: "projected-parent",
+                inReplyToScreenName: "@builder",
+              }),
+            ]
+          : [],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
+    });
+
+    const note = await readFile(
+      buildInteractionNotePath({
+        threadId: "projected-parent",
+        interactedAt: postedAt,
+        knowledgeRoot,
+      }),
+      "utf8",
+    );
+    assert.match(note, /fresh loop projection/);
+    assert.doesNotMatch(note, /stale own_posts text/);
+  });
+
+  it("uses watched-thread context when the interaction has no context", async () => {
+    const postedAt = "2026-08-02T11:30:00.000Z";
+    await markInteracted({
+      threadId: "watched-parent",
+      author: "@builder",
+      replyId: "watched-reply",
+      source: "discovered",
+      postedAt,
+      userId,
+    });
+    watchThread({
+      userId,
+      threadId: "watched-parent",
+      url: "https://x.com/builder/status/watched-parent",
+      text: "watched parent text",
+    });
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-watched-reply",
+        xUserId: "99",
+        postId: "watched-reply",
+        kind: "reply",
+        text: "watched reply text",
+        postedAt,
+        inReplyToId: "watched-parent",
+        inReplyToUserId: null,
+        conversationId: null,
+        authorUsername: "me",
+        metrics: {},
+      },
+      userId,
+      tenantId: ensureUserTenant(userId),
+    });
+
+    await discoverOwnReplies({
+      nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
+      userId,
+      gamificationPath,
+      knowledgeRoot,
+      upsertMemory: false,
+      session: { configured: true, bearerToken: "t" },
+      resolveScreenName: async () => "me",
+      searchTimelinePages: async () => ({
+        ok: true as const,
+        threads: [],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
+    });
+
+    const note = await readFile(
+      buildInteractionNotePath({
+        threadId: "watched-parent",
+        interactedAt: postedAt,
+        knowledgeRoot,
+      }),
+      "utf8",
+    );
+    assert.match(note, /https:\/\/x\.com\/builder\/status\/watched-parent/);
+    assert.match(note, /watched parent text/);
+    assert.doesNotMatch(note, /\(no thread text\)/);
+  });
+
   it("leaves unknown parent context absent when no matching interaction exists", async () => {
     upsertOwnPost({
       parsed: {
