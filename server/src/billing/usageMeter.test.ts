@@ -3,12 +3,15 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { xApiGet } from "../x-api/xApi.ts";
 import {
   getPlatformDb,
   resetPlatformDbForTests,
   defaultMigrationsDir,
 } from "../db.ts";
 import {
+  chargeUniquePostReads,
+  countPostReadIds,
   countPostsRead,
   describeUsageActivity,
   estimatePostReadCostMicros,
@@ -53,6 +56,19 @@ describe("countPostsRead", () => {
       countPostsRead("/tweets/123", { data: { id: "123", text: "hi" } }),
       1,
     );
+    assert.deepEqual(countPostReadIds("/tweets/123", { data: { id: "123" } }), [
+      "123",
+    ]);
+  });
+
+  it("counts unique expansions for a single tweet lookup", () => {
+    assert.deepEqual(
+      countPostReadIds("/tweets/123", {
+        data: { id: "123" },
+        includes: { tweets: [{ id: "123" }, { id: "456" }, { id: "456" }] },
+      }),
+      ["123", "456"],
+    );
   });
 
   it("ignores non-tweet paths", () => {
@@ -60,6 +76,14 @@ describe("countPostsRead", () => {
       countPostsRead("/users/by/username/x", { data: { id: "1" } }),
       0,
     );
+    for (const path of [
+      "/users/by/username/tweets",
+      "/users/by/username/tweets_are_great",
+      "/tweets/123/liking_users",
+      "/tweets/counts/recent",
+    ]) {
+      assert.equal(countPostsRead(path, { data: [{ id: "1" }] }), 0, path);
+    }
   });
 });
 
@@ -86,6 +110,89 @@ describe("usage ledger", () => {
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("charges a post once per UTC day", () => {
+    const now = new Date("2026-09-19T23:59:59.999Z");
+    assert.equal(
+      chargeUniquePostReads(["a", "b", "a"], { tenantId: "t1", now }),
+      2,
+    );
+    assert.equal(
+      chargeUniquePostReads(["b", "c"], { tenantId: "t1", now }),
+      1,
+    );
+    assert.equal(
+      chargeUniquePostReads(["a", "b"], { tenantId: "t2", now }),
+      2,
+    );
+    assert.equal(
+      chargeUniquePostReads(["a", "c"], {
+        tenantId: "t1",
+        now: new Date("2026-09-20T00:00:00.000Z"),
+      }),
+      2,
+    );
+  });
+
+  it("rolls back all daily reads when a dedupe insert fails", () => {
+    getPlatformDb().exec(`
+      CREATE TRIGGER fail_usage_post_read
+      BEFORE INSERT ON usage_post_reads
+      WHEN NEW.post_id = 'fail'
+      BEGIN
+        SELECT RAISE(ABORT, 'forced usage read failure');
+      END;
+    `);
+
+    assert.throws(() =>
+      chargeUniquePostReads(["first", "fail"], {
+        tenantId: "t1",
+        now: new Date("2026-09-19T23:59:59.999Z"),
+      }),
+    );
+    assert.equal(
+      (getPlatformDb()
+        .prepare("SELECT COUNT(*) AS n FROM usage_post_reads")
+        .get() as { n: number }).n,
+      0,
+    );
+  });
+
+  it("logs only new daily reads and leaves failed/non-tweet requests uncharged", async (t) => {
+    const responses = [
+      new Response(JSON.stringify({ data: [{ id: "1" }, { id: "2" }] })),
+      new Response(JSON.stringify({
+        data: [{ id: "2" }, { id: "3" }],
+        includes: { tweets: [{ id: "3" }, { id: "4" }, { id: "4" }] },
+      })),
+      new Response(JSON.stringify({
+        data: { id: "4" }, includes: { tweets: [{ id: "4" }, { id: "5" }] },
+      })),
+      new Response(JSON.stringify({ data: [{ id: "6" }] }), { status: 429 }),
+      new Response("not json"),
+      new Response(JSON.stringify({ data: { id: "7" } })),
+      new Response(JSON.stringify({ data: [{ id: "6" }, { id: "7" }] })),
+    ];
+    t.mock.method(globalThis, "fetch", async () => responses.shift()!);
+    const paths = [
+      "/tweets/search/recent", "/tweets/search/recent", "/tweets/4",
+      "/tweets/search/recent", "/tweets/search/recent",
+      "/users/by/username/tweets", "/tweets/search/recent",
+    ];
+    for (const path of paths) {
+      await xApiGet({ path, creds: { bearerToken: "test", configured: true } });
+    }
+    assert.deepEqual(
+      getPlatformDb().prepare(
+        "SELECT posts_read FROM x_api_usage_events ORDER BY rowid",
+      ).all(),
+      [2, 2, 1, 0, 0, 0, 2].map((posts_read) => ({ posts_read })),
+    );
+    assert.equal(
+      (getPlatformDb().prepare("SELECT COUNT(*) AS n FROM usage_post_reads").get() as { n: number }).n,
+      7,
+    );
   });
 
   it("records events and summarizes estimated spend", () => {
