@@ -160,7 +160,11 @@ function tweetId(value: unknown): string | null {
 /** Post ids X would bill from a v2 tweet payload (data + includes.tweets). */
 export function countPostReadIds(path: string, json: unknown): string[] {
   const p = path.split("?")[0] ?? path;
-  if (!p.includes("/tweets")) return [];
+  if (
+    !/^\/(?:2\/)?(?:tweets(?:\/(?:\d+|search\/(?:recent|all)))?|users\/\d+\/tweets)\/?$/.test(p)
+  ) {
+    return [];
+  }
   if (!json || typeof json !== "object") return [];
   const root = json as { data?: unknown; includes?: { tweets?: unknown } };
   const ids = new Set<string>();
@@ -170,19 +174,17 @@ export function countPostReadIds(path: string, json: unknown): string[] {
       const id = tweetId(t);
       if (id) ids.add(id);
     }
-    if (Array.isArray(root.includes?.tweets)) {
-      for (const t of root.includes.tweets) {
-        const id = tweetId(t);
-        if (id) ids.add(id);
-      }
-    }
-    return [...ids];
-  }
-  if (data && typeof data === "object") {
+  } else if (data && typeof data === "object") {
     const id = tweetId(data);
-    return id ? [id] : [];
+    if (id) ids.add(id);
   }
-  return [];
+  if (Array.isArray(root.includes?.tweets)) {
+    for (const t of root.includes.tweets) {
+      const id = tweetId(t);
+      if (id) ids.add(id);
+    }
+  }
+  return [...ids];
 }
 
 /** Count tweet objects in a v2 payload (search list or single tweet). */
