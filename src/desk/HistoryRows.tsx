@@ -1,11 +1,12 @@
 import { formatAbsoluteTime, formatTimeAgo } from "../lib/timeAgo";
 import { DeskRow } from "./DeskRow";
-import type {
-  DismissalHistoryEntry,
-  ExpiredHistoryEntry,
-  InteractionHistoryEntry,
-  ReplyStatSnapshot,
-  SkipHistoryEntry,
+import {
+  hasSavedInteractionMemory,
+  type DismissalHistoryEntry,
+  type ExpiredHistoryEntry,
+  type InteractionHistoryEntry,
+  type ReplyStatSnapshot,
+  type SkipHistoryEntry,
 } from "./types";
 
 export function formatStatChip(
@@ -145,6 +146,11 @@ export function InteractedRow({
           <span>{entry.author}</span>
           {ago ? <span title={absolute ?? undefined}>{ago}</span> : null}
           <span className="chip chip-interacted">interacted</span>
+          {hasSavedInteractionMemory(entry) ? (
+            <span className="chip" role="status">
+              Remembered
+            </span>
+          ) : null}
           {t1hLabel ? <span className="chip">{t1hLabel}</span> : null}
           {t24hLabel ? <span className="chip">{t24hLabel}</span> : null}
         </>
