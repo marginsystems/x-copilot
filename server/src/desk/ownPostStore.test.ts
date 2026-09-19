@@ -16,6 +16,7 @@ import {
   getWatchedThread,
   lastUtcDays,
   listDueOwnPostSamples,
+  listConfirmedOwnReplies,
   listOwnPostedAt,
   patchOwnPostSnapshot,
   removeOwnPost,
@@ -115,6 +116,10 @@ describe("ownPostStore", () => {
     ]);
     assert.equal(listOwnPostedAt({ userId, kinds: ["original", "quote"] }).length, 1);
     assert.equal(listOwnPostedAt({ userId, kinds: ["reply"] }).length, 1);
+    const confirmed = listConfirmedOwnReplies({ userId });
+    assert.equal(confirmed.length, 1);
+    assert.equal(confirmed[0]?.id, "2");
+    assert.equal(confirmed[0]?.inReplyToId, "9");
   });
 
   it("removes an own post only for its mapped user and X account", () => {
