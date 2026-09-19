@@ -68,19 +68,30 @@ async function listInteractionNoteNames(dir: string): Promise<string[] | null> {
   }
 }
 
-function resolveNoteName(
+async function resolveNoteName(
   exactNames: ReadonlySet<string>,
   namesBySuffix: ReadonlyMap<string, readonly string[]>,
   threadId: string,
   interactedAt: string,
-): string | null {
+  dir: string,
+  userId: string,
+): Promise<string | null> {
   const expected = expectedNoteName(threadId, interactedAt);
   if (exactNames.has(expected)) return expected;
   const suffix = noteSuffix(threadId);
-  const wantDate = utcDatePrefix(interactedAt);
   const matches = namesBySuffix.get(suffix) ?? [];
   if (!matches.length) return null;
-  return matches.find((name) => name.startsWith(`${wantDate}-`)) ?? matches[0]!;
+  for (const name of matches) {
+    try {
+      const parsed = parseNoteOwnerAndReply(
+        await readFile(join(dir, name), "utf8"),
+      );
+      if (parsed?.userId === userId) return name;
+    } catch {
+      // Let receiptForNote report an unavailable result for unreadable notes.
+    }
+  }
+  return matches[0]!;
 }
 
 async function receiptForNote(opts: {
@@ -104,7 +115,7 @@ async function receiptForNote(opts: {
 }
 
 /**
- * One directory listing plus one read per returned interaction. Never throws.
+ * One directory listing plus bounded note reads per returned interaction. Never throws.
  */
 export async function lookupInteractionMemoryReceipts(opts: {
   userId: string;
@@ -139,11 +150,13 @@ export async function lookupInteractionMemoryReceipts(opts: {
     const batch = await Promise.all(
       opts.interactions.slice(start, start + batchSize).map(async (interaction) => {
         try {
-          const name = resolveNoteName(
+          const name = await resolveNoteName(
             exactNames,
             namesBySuffix,
             interaction.threadId,
             interaction.at,
+            dir,
+            userId,
           );
           if (!name) return "no_reply_text" as const;
           return await receiptForNote({ userId, path: join(dir, name) });
