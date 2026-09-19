@@ -517,6 +517,11 @@ describe("public crawl files", () => {
     assert.doesNotMatch(robots, /Disallow: \/terms/);
   });
 
+  it("keeps the site OG image at the official size", () => {
+    const size = pngSize(join(publicDir, "og.png"));
+    assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
+  });
+
   it("keeps the changelog featured image at the OG size", () => {
     const size = pngSize(join(publicDir, "og-changelog.png"));
     assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
