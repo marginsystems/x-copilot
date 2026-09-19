@@ -158,6 +158,28 @@ describe("bucketInteractions", () => {
     assert.equal(aug4?.interactions, 1);
     assert.equal(aug4?.views, 3);
   });
+
+  it("uses the shipped classified path for mark timestamps and kinds", () => {
+    const result = bucketInteractions(
+      [
+        ix({
+          threadId: "reply",
+          at: "2026-08-03T23:00:00.000Z",
+          postedAt: "2026-08-04T01:00:00.000Z",
+          inReplyToId: "parent",
+        }),
+      ],
+      { bucket: "day", now },
+    );
+    assert.equal(
+      result.series.find((point) => point.period === "2026-08-04")?.replies,
+      1,
+    );
+    assert.equal(
+      result.series.find((point) => point.period === "2026-08-03")?.interactions,
+      0,
+    );
+  });
 });
 
 describe("viewsLineAltitude", () => {

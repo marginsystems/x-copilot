@@ -44,16 +44,6 @@ export function parseActivityBucket(raw: unknown): ActivityBucket {
   return raw === "week" ? "week" : "day";
 }
 
-function markTimeMs(row: Interaction): number | null {
-  const primary = Date.parse(row.at);
-  if (Number.isFinite(primary)) return primary;
-  if (row.postedAt) {
-    const fallback = Date.parse(row.postedAt);
-    if (Number.isFinite(fallback)) return fallback;
-  }
-  return null;
-}
-
 /** Prefer mature 24h views, else 1h; missing → 0 for the sum. */
 export function viewsForInteraction(row: Interaction): number {
   const v24 = row.stats?.t24h?.views;
@@ -249,41 +239,10 @@ export function bucketInteractions(
   history: readonly Interaction[],
   opts: { bucket: ActivityBucket; now?: number },
 ): ActivityStatsResult {
-  const nowMs = opts.now ?? Date.now();
-  const bucket = opts.bucket;
-  const periods =
-    bucket === "week"
-      ? buildWeekPeriods(nowMs, ACTIVITY_WEEK_WINDOW)
-      : buildDayPeriods(nowMs, ACTIVITY_DAY_WINDOW);
-  const periodSet = new Set(periods);
-  const byPeriod = new Map<string, ActivitySeriesPoint>();
-  for (const period of periods) {
-    byPeriod.set(period, emptyPoint(period));
-  }
-
-  const totals = emptyTotals();
-
-  for (const row of history) {
-    const t = markTimeMs(row);
-    if (t === null) continue;
-    const key = bucket === "week" ? utcWeekKey(t) : utcDayKey(t);
-    if (!periodSet.has(key)) continue;
-    const point = byPeriod.get(key);
-    if (!point) continue;
-    addPostToPoint(
-      point,
-      totals,
-      classifyInteractionFallback(row),
-      viewsForInteraction(row),
-      interactionHasViewStats(row),
-    );
-  }
-
-  return {
-    bucket,
-    series: periods.map((p) => byPeriod.get(p)!),
-    totals,
-  };
+  return bucketClassifiedPosts(
+    mergeClassifiedActivity({ ownPosts: [], history }),
+    opts,
+  );
 }
 
 function postTimeMs(postedAt: string): number | null {
