@@ -1,12 +1,13 @@
 /** First-paint desk payload: GET /api/boot + last-good localStorage snapshot. */
 
 import type { AuthSessionUser } from "../auth/types";
-import type {
-  DismissalHistoryEntry,
-  ExpiredHistoryEntry,
-  InteractionHistoryEntry,
-  SkipHistoryEntry,
-  ThreadCard,
+import {
+  parseInteractionHistoryEntry,
+  type DismissalHistoryEntry,
+  type ExpiredHistoryEntry,
+  type InteractionHistoryEntry,
+  type SkipHistoryEntry,
+  type ThreadCard,
 } from "../desk/types";
 import {
   emptyActivityStats,
@@ -202,7 +203,9 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
   const interactions = (Array.isArray(interacted.interactions)
     ? interacted.interactions
     : []
-  ).filter((row): row is InteractionHistoryEntry => Boolean(historyRow(row)));
+  )
+    .map(parseInteractionHistoryEntry)
+    .filter((row): row is InteractionHistoryEntry => Boolean(row));
   const dismissals = (Array.isArray(dismissed.dismissals)
     ? dismissed.dismissals
     : []
