@@ -455,6 +455,14 @@ describe("discoverOwnReplies", () => {
   it("repairs a local confirmed own_posts reply without a new X read or XP", async () => {
     const postedAt = "2026-08-02T11:30:00.000Z";
     const markedAt = Date.parse("2026-08-02T18:00:00.000Z");
+    let embedCalls = 0;
+    const embedder: Embedder = {
+      dimensions: 8,
+      async embed() {
+        embedCalls += 1;
+        throw new Error("test embedder failure");
+      },
+    };
     await markInteracted({
       threadId: "local-parent",
       author: "@builder",
@@ -497,7 +505,7 @@ describe("discoverOwnReplies", () => {
       userId,
       gamificationPath,
       knowledgeRoot,
-      upsertMemory: false,
+      embedder,
       session: { configured: true, bearerToken: "t" },
       resolveScreenName: async () => "me",
       searchTimelinePages: emptySearch,
@@ -523,7 +531,7 @@ describe("discoverOwnReplies", () => {
       userId,
       gamificationPath,
       knowledgeRoot,
-      upsertMemory: false,
+      embedder,
       session: { configured: true, bearerToken: "t" },
       resolveScreenName: async () => "me",
       searchTimelinePages: emptySearch,
@@ -534,6 +542,7 @@ describe("discoverOwnReplies", () => {
     assert.match(secondNote, /confirmed webhook take/);
     assert.match(secondNote, /interactedAt: "2026-08-02T11:30:00\.000Z"/);
     assert.equal((secondNote.match(/## Reply/g) ?? []).length, 1);
+    assert.equal(embedCalls, 1);
 
     const history = await listInteractionHistory({ userId });
     assert.equal(history.length, 1);

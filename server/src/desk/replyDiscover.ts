@@ -8,8 +8,12 @@ import {
   markInteracted,
   type Interaction,
 } from "./interactionStore.js";
+import { access } from "node:fs/promises";
 import { normalizeAuthorKey } from "./interactionCooldown.js";
-import { normalizeReply } from "../memory/knowledgeMemory.js";
+import {
+  buildInteractionNotePath,
+  normalizeReply,
+} from "../memory/knowledgeMemory.js";
 import { projectConfirmedReplyMemory } from "../memory/interactionMemoryProjection.js";
 import type { Embedder } from "../memory/memoryIndex.js";
 import type { ThreadCard } from "../scout/threadCard.js";
@@ -328,6 +332,18 @@ async function reconcileConfirmedOwnReplies(opts: {
       byReplyId.get(post.id) ??
       (post.inReplyToId ? byThreadId.get(post.inReplyToId) : undefined);
     if (!known) continue;
+    try {
+      await access(
+        buildInteractionNotePath({
+          threadId: known.threadId,
+          interactedAt: canonicalNoteTime(known),
+          knowledgeRoot: opts.knowledgeRoot,
+        }),
+      );
+      continue;
+    } catch {
+      // Reconcile only notes that are still missing.
+    }
     let watched = null;
     try {
       watched =
