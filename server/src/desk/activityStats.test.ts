@@ -342,8 +342,8 @@ describe("classified flight-path posts", () => {
           id: "r1",
           kind: "reply",
           postedAt: "2026-08-04T10:00:00.000Z",
-          views: 12,
-          withStats: true,
+          views: 40,
+          withStats: false,
         },
         {
           id: "og1",
@@ -373,7 +373,7 @@ describe("classified flight-path posts", () => {
     });
     assert.equal(merged.length, 3);
     assert.equal(merged.find((p) => p.id === "r1")?.kind, "reply");
-    assert.equal(merged.find((p) => p.id === "r1")?.views, 30);
+    assert.equal(merged.find((p) => p.id === "r1")?.views, 40);
     assert.equal(merged.find((p) => p.id === "r1")?.withStats, true);
     assert.equal(merged.find((p) => p.id === "og1")?.kind, "original");
     assert.equal(merged.find((p) => p.id === "ghost")?.kind, "quote");
