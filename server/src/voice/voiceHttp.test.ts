@@ -825,6 +825,44 @@ describe("POST /api/voice/post", () => {
     assert.doesNotMatch(await readFile(note.path, "utf8"), /userId:/);
   });
 
+  it("returns confirmed replay when own-post fallback is unavailable", async () => {
+    const user = seedPoster("post-replay-db-fail@example.com", true);
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async (input) => {
+      if (String(input).includes("/event")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 202 });
+      }
+      return new Response(JSON.stringify({ data: { id: "893" } }), {
+        status: 201,
+      });
+    }) as typeof fetch;
+    try {
+      const first = await postReply(
+        user,
+        { ...body, requestKey: "rk-replay-db-fail" },
+        async () => ({
+          ok: true,
+          content: '{"ok":true,"reason":"That reads like you."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
+      assert.equal(first.status, 200);
+      rmSync(first.json.memoryPath as string);
+      getPlatformDb().exec("DROP TABLE own_posts");
+
+      const retry = await postReply(user, {
+        ...body,
+        requestKey: "rk-replay-db-fail",
+      });
+
+      assert.equal(retry.status, 200);
+      assert.deepEqual(retry.json.memory, { state: "unavailable" });
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
   it("rejects a non-trivial edit the LLM verify does not pass", async () => {
     const user = seedPoster("post-verify@example.com", true);
     let calls = 0;
