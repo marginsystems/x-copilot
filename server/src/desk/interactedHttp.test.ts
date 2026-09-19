@@ -17,6 +17,7 @@ import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { tryHandleInteracted } from "./interactedHttp.ts";
 import { resetInteractionMemoryProjectionForTests } from "../memory/interactionMemoryProjection.ts";
+import { resetInteractionMemoryReceiptForTests } from "../memory/interactionMemoryReceipt.ts";
 import { writeInteractionMemory } from "../memory/knowledgeMemory.ts";
 
 async function call(
@@ -69,12 +70,16 @@ describe("interactedHttp", () => {
     cwd = process.cwd();
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    resetInteractionMemoryReceiptForTests({
+      knowledgeRoot: join(dir, "knowledge"),
+    });
     process.chdir(dir);
     getPlatformDb();
   });
 
   afterEach(() => {
     resetInteractionMemoryProjectionForTests();
+    resetInteractionMemoryReceiptForTests();
     resetPlatformDbForTests();
     process.chdir(cwd);
     delete process.env.PLATFORM_DB_PATH;
@@ -404,6 +409,115 @@ describe("interactedHttp", () => {
     const reply = json.reply as Record<string, unknown>;
     assert.equal(reply.replyText, undefined);
     assert.equal(wrote, false);
+  });
+
+  it("GET /api/interacted reports saved, no-note, and wrong-owner receipts", async () => {
+    const knowledgeRoot = join(dir, "knowledge");
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-interacted-receipt",
+      email: "receipt@example.com",
+      emailVerified: true,
+    });
+    const other = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-interacted-receipt-other",
+      email: "receipt-other@example.com",
+      emailVerified: true,
+    });
+    const saved = await markInteracted({
+      threadId: "2081",
+      author: "@saved",
+      userId: user.id,
+    });
+    await markInteracted({
+      threadId: "2082",
+      author: "@none",
+      userId: user.id,
+    });
+    const stolen = await markInteracted({
+      threadId: "2083",
+      author: "@other",
+      userId: user.id,
+    });
+    await writeInteractionMemory({
+      threadId: "2081",
+      author: "@saved",
+      reply: "Owned confirmed reply.",
+      userId: user.id,
+      interactedAt: saved.at,
+      knowledgeRoot,
+    });
+    await writeInteractionMemory({
+      threadId: "2083",
+      author: "@other",
+      reply: "Written for another desk.",
+      userId: other.id,
+      interactedAt: stolen.at,
+      knowledgeRoot,
+    });
+    const { token } = createSession(user.id);
+    const { status, json } = await call(
+      "GET",
+      "/api/interacted",
+      undefined,
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
+    assert.equal(status, 200);
+    const rows = json.interactions as Array<{
+      threadId: string;
+      author: string;
+      at: string;
+      memory?: { state?: string; memoryPath?: string };
+    }>;
+    assert.deepEqual(
+      Object.fromEntries(rows.map((row) => [row.threadId, row.memory?.state])),
+      {
+        "2081": "saved",
+        "2082": "no_reply_text",
+        "2083": "unavailable",
+      },
+    );
+    for (const row of rows) {
+      assert.equal("memoryPath" in (row.memory ?? {}), false);
+      assert.equal(typeof row.threadId, "string");
+      assert.equal(typeof row.author, "string");
+      assert.equal(typeof row.at, "string");
+    }
+  });
+
+  it("GET /api/interacted still parses for callers that ignore memory", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-interacted-old-caller",
+      email: "old@example.com",
+      emailVerified: true,
+    });
+    await markInteracted({
+      threadId: "legacy",
+      author: "@legacy",
+      userId: user.id,
+    });
+    const { token } = createSession(user.id);
+    const { json } = await call(
+      "GET",
+      "/api/interacted",
+      undefined,
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
+    const rows = (json.interactions as unknown[]).filter((row) => {
+      if (!row || typeof row !== "object") return false;
+      const rec = row as { threadId?: unknown; author?: unknown; at?: unknown };
+      return (
+        typeof rec.threadId === "string" &&
+        typeof rec.author === "string" &&
+        typeof rec.at === "string"
+      );
+    });
+    assert.deepEqual(
+      rows.map((row) => (row as { threadId: string }).threadId),
+      ["legacy"],
+    );
   });
 
   it("ignores unrelated paths", async () => {
