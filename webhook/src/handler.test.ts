@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,6 +22,8 @@ import {
   upsertOwnPost,
   watchThread,
 } from "../../server/src/desk/ownPostStore.ts";
+import { resetInteractionMemoryProjectionForTests } from "../../server/src/memory/interactionMemoryProjection.ts";
+import { buildInteractionNotePath } from "../../server/src/memory/knowledgeMemory.ts";
 import type { ParsedPostCreate } from "../../server/src/x-api/xActivity.ts";
 import { crcResponseToken } from "../../server/src/x-api/xActivity.ts";
 import {
@@ -31,7 +34,10 @@ import {
   getLastScout,
   saveScoutCache,
 } from "../../server/src/scout/scoutCache.ts";
-import { markOwnReplyInteracted } from "./handler.ts";
+import {
+  markOwnReplyInteracted,
+  resetWebhookMemoryProjectionForTests,
+} from "./handler.ts";
 import { createWebhookServer } from "./sidecar.ts";
 
 function post(
@@ -57,6 +63,40 @@ function post(
   };
 }
 
+function knowledgeRootFor(dir: string): string {
+  return join(dir, "knowledge");
+}
+
+function notePathFor(
+  dir: string,
+  threadId: string,
+  at = "2026-09-04T03:00:00.000Z",
+): string {
+  return buildInteractionNotePath({
+    threadId,
+    interactedAt: at,
+    knowledgeRoot: knowledgeRootFor(dir),
+  });
+}
+
+async function readNote(
+  dir: string,
+  threadId: string,
+  at?: string,
+): Promise<string> {
+  return readFile(notePathFor(dir, threadId, at), "utf8");
+}
+
+function listedNotes(dir: string): string[] {
+  try {
+    return readdirSync(join(dir, "knowledge", "interactions")).filter((name) =>
+      name.endsWith(".md"),
+    );
+  } catch {
+    return [];
+  }
+}
+
 describe("own reply interaction capture", () => {
   let dir: string;
   const userId = "user-1";
@@ -64,7 +104,12 @@ describe("own reply interaction capture", () => {
 
   beforeEach(() => {
     resetPlatformDbForTests();
+    resetInteractionMemoryProjectionForTests();
     dir = mkdtempSync(join(tmpdir(), "x-webhook-interacted-"));
+    resetWebhookMemoryProjectionForTests({
+      knowledgeRoot: knowledgeRootFor(dir),
+      upsertMemory: false,
+    });
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
     process.env.X_API_KEY = "key";
@@ -84,6 +129,8 @@ describe("own reply interaction capture", () => {
 
   afterEach(() => {
     resetPlatformDbForTests();
+    resetInteractionMemoryProjectionForTests();
+    resetWebhookMemoryProjectionForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
     delete process.env.X_API_KEY;
@@ -97,6 +144,7 @@ describe("own reply interaction capture", () => {
       threadId: "parent-1",
       author: "@watched",
       url: "https://x.com/watched/status/parent-1",
+      text: "Watched parent post",
     });
 
     assert.equal(
@@ -114,6 +162,11 @@ describe("own reply interaction capture", () => {
       gamificationPath: join(dir, "gamification.json"),
     });
     assert.equal(streak.currentStreak >= 1, true);
+    const note = await readNote(dir, "parent-1");
+    assert.match(note, /userId: "user-1"/);
+    assert.match(note, /source: discovered/);
+    assert.match(note, /Watched parent post/);
+    assert.match(note, /## Reply[\s\S]*\nreply\n/);
   });
 
   it("marks a reply to a locked Suggested target as scout", async () => {
@@ -135,6 +188,10 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.threadId, "parent-1");
     assert.equal(row?.inReplyToId, "parent-1");
     assert.equal(row?.author, "@target");
+    const note = await readNote(dir, "parent-1");
+    assert.match(note, /userId: "user-1"/);
+    assert.match(note, /Suggested reply draft/);
+    assert.match(note, /## Reply[\s\S]*\nreply\n/);
   });
 
   it("prunes a matching Scout card but keeps the Approach lock", async () => {
@@ -292,6 +349,10 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.author, "@target");
     assert.equal(row?.replyId, "reply-1");
     assert.equal(getDeskBeats({ userId, nowMs }).organicReplyDone, true);
+    const note = await readNote(dir, "parent-1");
+    assert.match(note, /userId: "user-1"/);
+    assert.match(note, /\(no thread text\)/);
+    assert.match(note, /## Reply[\s\S]*\nreply\n/);
   });
 
   it("attributes an OG reply to the locked Scout card", async () => {
@@ -393,6 +454,7 @@ describe("own reply interaction capture", () => {
       replyId: "known-reply",
       nowMs,
     });
+    const xpBefore = await getGamification({ userId, nowMs });
 
     assert.equal(
       await markOwnReplyInteracted(
@@ -402,6 +464,9 @@ describe("own reply interaction capture", () => {
       ),
       "skipped",
     );
+    const repaired = await readNote(dir, "parent-1");
+    assert.match(repaired, /userId: "user-1"/);
+    assert.match(repaired, /## Reply[\s\S]*\nreply\n/);
     assert.equal(
       await markOwnReplyInteracted(
         post({ postId: "new-reply" }),
@@ -414,6 +479,87 @@ describe("own reply interaction capture", () => {
       (await listInteractionHistory({ userId })).length,
       1,
     );
+    assert.deepEqual(listedNotes(dir), ["2026-09-04-parent-1.md"]);
+    const xpAfter = await getGamification({ userId, nowMs: nowMs + 2 });
+    assert.equal(xpAfter.lifetimeXp, xpBefore.lifetimeXp);
+  });
+
+  it("repairs one note for a known watched reply without extra XP", async () => {
+    watchThread({
+      userId,
+      threadId: "parent-1",
+      author: "@watched",
+      url: "https://x.com/watched/status/parent-1",
+      text: "Watched parent post",
+    });
+    assert.equal(
+      await markOwnReplyInteracted(post(), userId, { nowMs }),
+      "scout",
+    );
+    const xpAfterFirst = await getGamification({ userId, nowMs });
+    assert.equal(
+      await markOwnReplyInteracted(post(), userId, { nowMs: nowMs + 1 }),
+      "skipped",
+    );
+    assert.equal((await listInteractionHistory({ userId })).length, 1);
+    assert.deepEqual(listedNotes(dir), ["2026-09-04-parent-1.md"]);
+    const note = await readNote(dir, "parent-1");
+    assert.match(note, /Watched parent post/);
+    assert.match(note, /## Reply[\s\S]*\nreply\n/);
+    const xpAfterRepair = await getGamification({ userId, nowMs: nowMs + 1 });
+    assert.equal(xpAfterRepair.lifetimeXp, xpAfterFirst.lifetimeXp);
+  });
+
+  it("keeps the mark when confirmed-reply memory cannot be saved", async () => {
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async () => {
+        throw new Error("EACCES: injected filesystem failure");
+      },
+    });
+    watchThread({
+      userId,
+      threadId: "parent-1",
+      author: "@watched",
+      url: "https://x.com/watched/status/parent-1",
+      text: "Watched parent post",
+    });
+    assert.equal(
+      await markOwnReplyInteracted(post(), userId, { nowMs }),
+      "scout",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.replyId, "reply-1");
+    assert.equal(getDeskBeats({ userId, nowMs }).scoutReplyDone, true);
+    await assert.rejects(() => readNote(dir, "parent-1"), /ENOENT/);
+  });
+
+  it("keeps a saved note when MiniLM upsert is unavailable", async () => {
+    resetWebhookMemoryProjectionForTests({
+      knowledgeRoot: knowledgeRootFor(dir),
+      awaitUpsert: true,
+    });
+    resetInteractionMemoryProjectionForTests({
+      upsertNote: async (notePath) => ({
+        ok: false,
+        path: notePath,
+        error: "injected index failure",
+      }),
+    });
+    watchThread({
+      userId,
+      threadId: "parent-1",
+      author: "@watched",
+      url: "https://x.com/watched/status/parent-1",
+      text: "Watched parent post",
+    });
+    assert.equal(
+      await markOwnReplyInteracted(post(), userId, { nowMs }),
+      "scout",
+    );
+    const note = await readNote(dir, "parent-1");
+    assert.match(note, /Watched parent post/);
+    assert.match(note, /## Reply[\s\S]*\nreply\n/);
+    assert.equal((await listInteractionHistory({ userId })).length, 1);
   });
 
   it("ignores a duplicate event_uuid", async () => {
@@ -449,6 +595,74 @@ describe("own reply interaction capture", () => {
       assert.deepEqual(await first.json(), { ok: true });
       const duplicate = await send();
       assert.deepEqual(await duplicate.json(), { ok: true, duplicate: true });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("does not remake or reaward a duplicate reply event", async () => {
+    watchThread({
+      userId,
+      threadId: "parent-1",
+      author: "@watched",
+      url: "https://x.com/watched/status/parent-1",
+      text: "Watched parent post",
+    });
+    const server = createWebhookServer();
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const port = (server.address() as AddressInfo).port;
+    const body = JSON.stringify({
+      data: {
+        event_uuid: "reply-duplicate-event",
+        event_type: "post.create",
+        filter: { user_id: "x-user" },
+        payload: {
+          id: "reply-dup",
+          author_id: "x-user",
+          text: "Confirmed webhook reply",
+          created_at: "2026-09-04T03:00:00.000Z",
+          conversation_id: "parent-1",
+          in_reply_to_user_id: "target-id",
+          in_reply_to_tweet_id: "parent-1",
+          referenced_tweets: [{ type: "replied_to", id: "parent-1" }],
+        },
+        includes: {
+          users: [
+            { id: "x-user", username: "pilot" },
+            { id: "target-id", username: "watched" },
+          ],
+        },
+      },
+    });
+    const send = () =>
+      fetch(`http://127.0.0.1:${port}/api/x/activity`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-twitter-webhooks-signature": crcResponseToken(body, "secret"),
+        },
+        body,
+      });
+
+    try {
+      const first = await send();
+      assert.deepEqual(await first.json(), { ok: true });
+      const xpAfterFirst = await getGamification({ userId, nowMs });
+      const notesAfterFirst = listedNotes(dir);
+      assert.equal(notesAfterFirst.length, 1);
+      const note = await readFile(
+        join(dir, "knowledge", "interactions", notesAfterFirst[0]!),
+        "utf8",
+      );
+      assert.match(note, /Confirmed webhook reply/);
+      assert.match(note, /Watched parent post/);
+      const duplicate = await send();
+      assert.deepEqual(await duplicate.json(), { ok: true, duplicate: true });
+      assert.equal((await listInteractionHistory({ userId })).length, 1);
+      assert.deepEqual(listedNotes(dir), notesAfterFirst);
+      const xpAfterDup = await getGamification({ userId, nowMs });
+      assert.equal(xpAfterDup.lifetimeXp, xpAfterFirst.lifetimeXp);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
