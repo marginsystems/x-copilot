@@ -124,7 +124,7 @@ async function savedOrCanonicalReply(opts: {
   if (path) {
     try {
       const parsed = parseInteractionNoteReply(await readFile(path, "utf8"));
-      if (parsed?.text && (!parsed.userId || parsed.userId === opts.userId)) {
+      if (parsed?.text && parsed.userId === opts.userId) {
         return {
           reply: parsed.text,
           interactedAt: parsed.postedAt ?? undefined,
