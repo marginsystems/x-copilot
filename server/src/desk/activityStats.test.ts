@@ -172,13 +172,34 @@ describe("bucketInteractions", () => {
       { bucket: "day", now },
     );
     assert.equal(
-      result.series.find((point) => point.period === "2026-08-04")?.replies,
+      result.series.find((point) => point.period === "2026-08-04")?.quotes,
       1,
     );
     assert.equal(
       result.series.find((point) => point.period === "2026-08-03")?.interactions,
       0,
     );
+  });
+
+  it("classifies mark-only top-level replies and quote cards correctly", () => {
+    const merged = mergeClassifiedActivity({
+      ownPosts: [],
+      history: [
+        ix({
+          threadId: "top-level",
+          at: "2026-08-04T10:00:00.000Z",
+          replyId: "reply",
+        }),
+        ix({
+          threadId: "quote-card",
+          at: "2026-08-04T11:00:00.000Z",
+          replyId: "quote",
+          inReplyToId: "quoted-post",
+        }),
+      ],
+    });
+    assert.equal(merged.find((post) => post.id === "reply")?.kind, "reply");
+    assert.equal(merged.find((post) => post.id === "quote")?.kind, "quote");
   });
 });
 
