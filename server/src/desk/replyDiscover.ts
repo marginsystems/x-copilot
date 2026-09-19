@@ -10,11 +10,11 @@ import {
 } from "./interactionStore.js";
 import { access } from "node:fs/promises";
 import { normalizeAuthorKey } from "./interactionCooldown.js";
+import { buildInteractionNotePath } from "../memory/knowledgeMemory.js";
 import {
-  buildInteractionNotePath,
-  normalizeReply,
-} from "../memory/knowledgeMemory.js";
-import { projectConfirmedReplyMemory } from "../memory/interactionMemoryProjection.js";
+  projectConfirmedReplyMemory,
+  type ConfirmedReplyMemoryState,
+} from "../memory/interactionMemoryProjection.js";
 import type { Embedder } from "../memory/memoryIndex.js";
 import type { ThreadCard } from "../scout/threadCard.js";
 import {
@@ -261,7 +261,7 @@ async function projectDiscoveredReply(opts: {
   indexDir?: string;
   embedder?: Embedder;
   upsertMemory?: boolean;
-}): Promise<void> {
+}): Promise<ConfirmedReplyMemoryState> {
   const result = await projectConfirmedReplyMemory({
     userId: opts.userId,
     reply: opts.reply,
@@ -284,6 +284,7 @@ async function projectDiscoveredReply(opts: {
       `[reply-discover] knowledge write soft-fail threadId=${opts.threadId}`,
     );
   }
+  return result.state;
 }
 
 function memorySeams(opts: {
@@ -550,7 +551,7 @@ export async function discoverOwnReplies(opts: {
       if (verdict === "known_reply") {
         const known = history.find((row) => row.replyId === card.id.trim());
         if (known) {
-          await projectDiscoveredReply({
+          const projectionState = await projectDiscoveredReply({
             userId: opts.userId,
             threadId: known.threadId,
             author: known.author,
@@ -562,7 +563,7 @@ export async function discoverOwnReplies(opts: {
             interactedAt: canonicalNoteTime(known),
             ...seams,
           });
-          if (normalizeReply(card.text)) projectedReplyIds.add(card.id.trim());
+          if (projectionState === "saved") projectedReplyIds.add(card.id.trim());
         }
       }
       skipped += 1;
@@ -652,7 +653,7 @@ export async function discoverOwnReplies(opts: {
         }
       }
 
-      await projectDiscoveredReply({
+      const projectionState = await projectDiscoveredReply({
         userId: opts.userId,
         threadId,
         author,
@@ -664,7 +665,7 @@ export async function discoverOwnReplies(opts: {
         interactedAt: canonicalNoteTime(interaction),
         ...seams,
       });
-      if (normalizeReply(card.text)) projectedReplyIds.add(replyId);
+      if (projectionState === "saved") projectedReplyIds.add(replyId);
     } catch (err) {
       skipped += 1;
       console.warn(

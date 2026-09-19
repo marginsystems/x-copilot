@@ -38,6 +38,7 @@ import {
   updateInteractionMemoryOutcome,
   writeInteractionMemory,
 } from "../memory/knowledgeMemory.ts";
+import { resetInteractionMemoryProjectionForTests } from "../memory/interactionMemoryProjection.ts";
 import type { Embedder } from "../memory/memoryIndex.ts";
 import type { Interaction } from "./interactionStore.ts";
 import {
@@ -225,6 +226,7 @@ describe("discoverOwnReplies", () => {
   });
 
   afterEach(async () => {
+    resetInteractionMemoryProjectionForTests();
     closeTempPlatformDb(temp);
     await rm(dir, { recursive: true, force: true });
   });
@@ -682,6 +684,82 @@ describe("discoverOwnReplies", () => {
       "utf8",
     );
     assert.match(note, /confirmed text/);
+  });
+
+  it("reconciles a known reply when the loop projection is unavailable", async () => {
+    const postedAt = "2026-08-02T11:30:00.000Z";
+    await markInteracted({
+      threadId: "unavailable-projection-parent",
+      author: "@builder",
+      replyId: "unavailable-projection-reply",
+      replyUrl: "https://x.com/me/status/unavailable-projection-reply",
+      source: "discovered",
+      postedAt,
+      userId,
+    });
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-unavailable-projection-reply",
+        xUserId: "99",
+        postId: "unavailable-projection-reply",
+        kind: "reply",
+        text: "confirmed after write failure",
+        postedAt,
+        inReplyToId: "unavailable-projection-parent",
+        inReplyToUserId: null,
+        conversationId: null,
+        authorUsername: "me",
+        metrics: {},
+      },
+      userId,
+      tenantId: ensureUserTenant(userId),
+    });
+
+    let writes = 0;
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async (input) => {
+        writes += 1;
+        if (writes === 1) throw new Error("knowledge write unavailable");
+        return writeInteractionMemory(input);
+      },
+    });
+
+    await discoverOwnReplies({
+      nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
+      userId,
+      gamificationPath,
+      knowledgeRoot,
+      upsertMemory: false,
+      session: { configured: true, bearerToken: "t" },
+      resolveScreenName: async () => "me",
+      searchTimelinePages: async (opts) => ({
+        ok: true as const,
+        threads: /is:reply/.test(opts.query)
+          ? [
+              card({
+                id: "unavailable-projection-reply",
+                text: "loop reply text",
+                inReplyToId: "unavailable-projection-parent",
+                inReplyToScreenName: "@builder",
+              }),
+            ]
+          : [],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
+    });
+
+    const note = await readFile(
+      buildInteractionNotePath({
+        threadId: "unavailable-projection-parent",
+        interactedAt: postedAt,
+        knowledgeRoot,
+      }),
+      "utf8",
+    );
+    assert.match(note, /confirmed after write failure/);
+    assert.equal(writes, 2);
   });
 
   it("uses watched-thread context when the interaction has no context", async () => {
