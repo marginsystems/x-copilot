@@ -176,7 +176,7 @@ export async function markOwnReplyInteracted(
   if (known) {
     const notePath = buildInteractionNotePath({
       threadId: known.threadId,
-      interactedAt: known.at,
+      interactedAt: known.postedAt ?? known.at,
       knowledgeRoot: memoryOpts(opts).knowledgeRoot,
     });
     if (!existsSync(notePath)) {
@@ -185,7 +185,7 @@ export async function markOwnReplyInteracted(
         reply: parsed.text,
         threadId: known.threadId,
         author: known.author || author,
-        interactedAt: known.at,
+        interactedAt: known.postedAt ?? known.at,
         url: contextUrl ?? known.url,
         text: contextText ?? known.text,
         summary: known.summary,
@@ -249,7 +249,7 @@ export async function markOwnReplyInteracted(
     reply: parsed.text,
     threadId: interaction.threadId,
     author: interaction.author || author,
-    interactedAt: interaction.at,
+    interactedAt: interaction.postedAt ?? interaction.at,
     url: interaction.url ?? contextUrl,
     text: contextText ?? interaction.text,
     summary: interaction.summary,

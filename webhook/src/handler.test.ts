@@ -487,6 +487,22 @@ describe("own reply interaction capture", () => {
     assert.equal(xpAfter.lifetimeXp, xpBefore.lifetimeXp);
   });
 
+  it("keys webhook memory by reply time across a UTC date boundary", async () => {
+    const postedAt = "2026-09-04T23:59:55.000Z";
+    const deliveredAt = Date.parse("2026-09-05T00:00:05.000Z");
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({ postedAt }),
+        userId,
+        { nowMs: deliveredAt },
+      ),
+      "organic",
+    );
+
+    assert.deepEqual(listedNotes(dir), ["2026-09-04-parent-1.md"]);
+  });
+
   it("does not overwrite an existing manual note on the known path", async () => {
     await markInteracted({
       threadId: "parent-1",
