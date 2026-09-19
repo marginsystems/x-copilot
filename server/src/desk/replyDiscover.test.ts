@@ -929,6 +929,7 @@ describe("discoverOwnReplies", () => {
     assert.match(body, /Keep this summary/);
     assert.match(body, /Keep this agenda/);
     assert.match(body, /Curated post/);
+    assert.match(body, /x\.com\/builder\/status\/curated-parent/);
     assert.doesNotMatch(body, /Fresh search result/);
   });
 
