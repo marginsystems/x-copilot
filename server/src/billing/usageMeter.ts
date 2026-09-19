@@ -203,18 +203,21 @@ export function chargeUniquePostReads(
   const tenantId = opts?.tenantId?.trim() || getRequestTenantId();
   const dayUtc = startOfUtcDayIso(opts?.now).slice(0, 10);
   if (!tenantId || !ids.length) return 0;
-  const insert = getPlatformDb().prepare(
+  const database = getPlatformDb();
+  const insert = database.prepare(
     `INSERT OR IGNORE INTO usage_post_reads (tenant_id, post_id, day_utc)
      VALUES (?, ?, ?)`,
   );
-  let n = 0;
-  for (const raw of ids) {
-    const id = raw.trim();
-    if (!id) continue;
-    const result = insert.run(tenantId, id, dayUtc);
-    if (result.changes > 0) n += 1;
-  }
-  return n;
+  return database.transaction(() => {
+    let n = 0;
+    for (const raw of ids) {
+      const id = raw.trim();
+      if (!id) continue;
+      const result = insert.run(tenantId, id, dayUtc);
+      if (result.changes > 0) n += 1;
+    }
+    return n;
+  })();
 }
 
 export function estimatePostReadCostMicros(postsRead: number): number {

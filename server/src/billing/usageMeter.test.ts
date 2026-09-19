@@ -135,6 +135,30 @@ describe("usage ledger", () => {
     );
   });
 
+  it("rolls back all daily reads when a dedupe insert fails", () => {
+    getPlatformDb().exec(`
+      CREATE TRIGGER fail_usage_post_read
+      BEFORE INSERT ON usage_post_reads
+      WHEN NEW.post_id = 'fail'
+      BEGIN
+        SELECT RAISE(ABORT, 'forced usage read failure');
+      END;
+    `);
+
+    assert.throws(() =>
+      chargeUniquePostReads(["first", "fail"], {
+        tenantId: "t1",
+        now: new Date("2026-09-19T23:59:59.999Z"),
+      }),
+    );
+    assert.equal(
+      (getPlatformDb()
+        .prepare("SELECT COUNT(*) AS n FROM usage_post_reads")
+        .get() as { n: number }).n,
+      0,
+    );
+  });
+
   it("logs only new daily reads and leaves failed/non-tweet requests uncharged", async (t) => {
     const responses = [
       new Response(JSON.stringify({ data: [{ id: "1" }, { id: "2" }] })),
