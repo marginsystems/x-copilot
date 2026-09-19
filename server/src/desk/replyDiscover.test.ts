@@ -622,7 +622,7 @@ describe("discoverOwnReplies", () => {
     watchThread({
       userId,
       threadId: "watched-parent",
-      url: "https://x.com/builder/status/watched-parent",
+      url: "https://x.com/builder/status/watched-url",
       text: "watched parent text",
     });
     upsertOwnPost({
@@ -668,9 +668,67 @@ describe("discoverOwnReplies", () => {
       }),
       "utf8",
     );
-    assert.match(note, /https:\/\/x\.com\/builder\/status\/watched-parent/);
+    assert.match(note, /https:\/\/x\.com\/builder\/status\/watched-url/);
     assert.match(note, /watched parent text/);
     assert.doesNotMatch(note, /\(no thread text\)/);
+  });
+
+  it("indexes a note repaired from own_posts", async () => {
+    const interactedAt = "2026-08-02T11:30:00.000Z";
+    await markInteracted({
+      threadId: "reconcile-parent",
+      author: "@builder",
+      replyId: "reconcile-reply",
+      source: "manual",
+      postedAt: interactedAt,
+      text: "Saved parent text",
+      userId,
+    });
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-reconcile-reply",
+        xUserId: "99",
+        postId: "reconcile-reply",
+        kind: "reply",
+        text: "Repaired own reply",
+        postedAt: interactedAt,
+        inReplyToId: "reconcile-parent",
+        inReplyToUserId: null,
+        conversationId: null,
+        authorUsername: "me",
+        metrics: {},
+      },
+      userId,
+      tenantId: ensureUserTenant(userId),
+    });
+
+    let embedded = 0;
+    const embedder: Embedder = {
+      dimensions: 8,
+      async embed(texts) {
+        embedded += texts.length;
+        return texts.map(() => new Float32Array(8));
+      },
+    };
+    await discoverOwnReplies({
+      nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
+      userId,
+      gamificationPath,
+      knowledgeRoot,
+      indexDir: join(dir, "index"),
+      embedder,
+      session: { configured: true, bearerToken: "t" },
+      resolveScreenName: async () => "me",
+      searchTimelinePages: async () => ({
+        ok: true as const,
+        threads: [],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
+    });
+
+    assert.ok(embedded > 0);
   });
 
   it("leaves unknown parent context absent when no matching interaction exists", async () => {
