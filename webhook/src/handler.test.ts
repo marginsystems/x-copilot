@@ -525,7 +525,7 @@ describe("own reply interaction capture", () => {
     const note = await readNote(dir, "parent-1");
     assert.match(note, /source: manual/);
     assert.match(note, /richer OP context/);
-    assert.match(note, /agenda: follow up/);
+    assert.match(note, /agenda: "follow up"/);
     assert.match(note, /manual triage/);
     assert.match(note, /manual reply/);
     assert.doesNotMatch(note, /webhook retry/);
