@@ -376,6 +376,6 @@ describe("classified flight-path posts", () => {
     assert.equal(merged.find((p) => p.id === "r1")?.views, 30);
     assert.equal(merged.find((p) => p.id === "r1")?.withStats, true);
     assert.equal(merged.find((p) => p.id === "og1")?.kind, "original");
-    assert.equal(merged.find((p) => p.id === "ghost")?.kind, "reply");
+    assert.equal(merged.find((p) => p.id === "ghost")?.kind, "quote");
   });
 });
