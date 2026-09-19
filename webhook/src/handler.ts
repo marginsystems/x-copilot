@@ -3,6 +3,7 @@
  * on 127.0.0.1:8789. nginx routes /api/x/activity there.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { existsSync } from "node:fs";
 import { send } from "../../server/src/http/httpJson.js";
 import { xConsumerCreds } from "../../server/src/auth/xAuth.js";
 import { getUserById } from "../../server/src/auth/authStore.js";
@@ -51,6 +52,7 @@ import {
   projectConfirmedReplyMemory,
   type ProjectConfirmedReplyMemoryInput,
 } from "../../server/src/memory/interactionMemoryProjection.js";
+import { buildInteractionNotePath } from "../../server/src/memory/knowledgeMemory.js";
 
 type WebhookMemoryOpts = Pick<
   ProjectConfirmedReplyMemoryInput,
@@ -172,17 +174,24 @@ export async function markOwnReplyInteracted(
     history.find((row) => row.replyId === parsed.postId) ??
     history.find((row) => row.threadId === threadId);
   if (known) {
-    await projectWebhookReplyMemory({
-      userId,
-      reply: parsed.text,
+    const notePath = buildInteractionNotePath({
       threadId: known.threadId,
-      author: known.author || author,
       interactedAt: known.at,
-      url: contextUrl ?? known.url,
-      text: contextText ?? known.text,
-      summary: known.summary,
-      ...memoryOpts(opts),
+      knowledgeRoot: memoryOpts(opts).knowledgeRoot,
     });
+    if (!existsSync(notePath)) {
+      await projectWebhookReplyMemory({
+        userId,
+        reply: parsed.text,
+        threadId: known.threadId,
+        author: known.author || author,
+        interactedAt: known.at,
+        url: contextUrl ?? known.url,
+        text: contextText ?? known.text,
+        summary: known.summary,
+        ...memoryOpts(opts),
+      });
+    }
     return "skipped";
   }
   const source = scoutCard ? "scout" : "organic";
