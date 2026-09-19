@@ -462,6 +462,7 @@ describe("discoverOwnReplies", () => {
       replyUrl: "https://x.com/me/status/local-reply",
       source: "discovered",
       postedAt,
+      text: "Saved parent text",
       nowMs: markedAt,
       userId,
     });
@@ -512,9 +513,9 @@ describe("discoverOwnReplies", () => {
     const firstNote = await readFile(notePath, "utf8");
     assert.match(firstNote, /userId: "u1"/);
     assert.match(firstNote, /confirmed webhook take/);
+    assert.match(firstNote, /Saved parent text/);
     assert.match(firstNote, /interactedAt: "2026-08-02T11:30:00\.000Z"/);
     assert.doesNotMatch(firstNote, /2026-08-02T18:00:00/);
-    assert.match(firstNote, /\(no thread text\)/);
     assert.doesNotMatch(firstNote, /## OP/);
 
     const second = await discoverOwnReplies({
