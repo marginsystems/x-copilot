@@ -28,6 +28,7 @@ import {
   parseStatusIdFromUrl,
 } from "./interactionCooldown.js";
 import { projectConfirmedReplyMemory } from "../memory/interactionMemoryProjection.js";
+import { attachInteractionMemoryReceipts } from "../memory/interactionMemoryReceipt.js";
 import { pruneThreadsFromScoutCache } from "../scout/scoutCache.js";
 import { maybeStartEmptyTankScout } from "../scout/scoutEmptyTank.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
@@ -60,8 +61,13 @@ export async function tryHandleInteracted(
           listActiveInteractions({ userId: sessionUser.id }),
         ])
       : [[], []];
+    const history = sessionUser
+      ? await attachInteractionMemoryReceipts(interactions, {
+          userId: sessionUser.id,
+        })
+      : interactions;
     send(req, res, 200, {
-      interactions,
+      interactions: history,
       activeIds: active.map((i) => i.threadId),
     });
     return true;
