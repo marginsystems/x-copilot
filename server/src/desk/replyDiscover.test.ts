@@ -609,6 +609,72 @@ describe("discoverOwnReplies", () => {
     assert.doesNotMatch(note, /stale own_posts text/);
   });
 
+  it("repairs a known reply when the loop projection has no text", async () => {
+    const postedAt = "2026-08-02T11:30:00.000Z";
+    await markInteracted({
+      threadId: "empty-projection-parent",
+      author: "@builder",
+      replyId: "empty-projection-reply",
+      replyUrl: "https://x.com/me/status/empty-projection-reply",
+      source: "discovered",
+      postedAt,
+      userId,
+    });
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-empty-projection-reply",
+        xUserId: "99",
+        postId: "empty-projection-reply",
+        kind: "reply",
+        text: "confirmed text",
+        postedAt,
+        inReplyToId: "empty-projection-parent",
+        inReplyToUserId: null,
+        conversationId: "conv-empty-projection",
+        authorUsername: "me",
+        metrics: {},
+      },
+      userId,
+      tenantId: ensureUserTenant(userId),
+    });
+
+    await discoverOwnReplies({
+      nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
+      userId,
+      gamificationPath,
+      knowledgeRoot,
+      upsertMemory: false,
+      session: { configured: true, bearerToken: "t" },
+      resolveScreenName: async () => "me",
+      searchTimelinePages: async (opts) => ({
+        ok: true as const,
+        threads: /is:reply/.test(opts.query)
+          ? [
+              card({
+                id: "empty-projection-reply",
+                text: "",
+                inReplyToId: "empty-projection-parent",
+                inReplyToScreenName: "@builder",
+              }),
+            ]
+          : [],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
+    });
+
+    const note = await readFile(
+      buildInteractionNotePath({
+        threadId: "empty-projection-parent",
+        interactedAt: postedAt,
+        knowledgeRoot,
+      }),
+      "utf8",
+    );
+    assert.match(note, /confirmed text/);
+  });
+
   it("uses watched-thread context when the interaction has no context", async () => {
     const postedAt = "2026-08-02T11:30:00.000Z";
     await markInteracted({
