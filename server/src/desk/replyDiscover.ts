@@ -8,12 +8,14 @@ import {
   markInteracted,
   type Interaction,
 } from "./interactionStore.js";
+import { access } from "node:fs/promises";
 import { normalizeAuthorKey } from "./interactionCooldown.js";
+import { buildInteractionNotePath } from "../memory/knowledgeMemory.js";
 import {
-  writeInteractionMemory,
-  normalizeReply,
-} from "../memory/knowledgeMemory.js";
-import { upsertMemoryNote } from "../memory/memoryIndex.js";
+  projectConfirmedReplyMemory,
+  type ConfirmedReplyMemoryState,
+} from "../memory/interactionMemoryProjection.js";
+import type { Embedder } from "../memory/memoryIndex.js";
 import type { ThreadCard } from "../scout/threadCard.js";
 import {
   searchTimelinePages,
@@ -26,7 +28,11 @@ import { findUserIdByXUsername } from "../auth/xIdentityStore.js";
 import { resolveIngestHandle } from "../voice/userIngest.js";
 import { dailyActivityUsage } from "../billing/billingQuotas.js";
 import { ensureUserTenant } from "../billing/billingStore.js";
-import { getWatchedThread, upsertOwnPost } from "./ownPostStore.js";
+import {
+  getWatchedThread,
+  listConfirmedOwnReplies,
+  upsertOwnPost,
+} from "./ownPostStore.js";
 import { recordDeskReplyMarked } from "./deskBeats.js";
 import { recordMarkGamification } from "./gamification.js";
 import { setGamificationSyncFailed } from "./interactionSync.js";
@@ -237,7 +243,12 @@ function indexKnownIds(history: Interaction[]): {
   return { knownReplyIds, knownThreadIds };
 }
 
-async function softWriteMemory(opts: {
+function canonicalNoteTime(row: { postedAt?: string; at: string }): string {
+  return row.postedAt ?? row.at;
+}
+
+async function projectDiscoveredReply(opts: {
+  userId: string;
   threadId: string;
   author: string;
   reply: string;
@@ -247,38 +258,125 @@ async function softWriteMemory(opts: {
   opText?: string;
   interactedAt: string;
   knowledgeRoot?: string;
+  indexDir?: string;
+  embedder?: Embedder;
+  upsertMemory?: boolean;
+}): Promise<ConfirmedReplyMemoryState> {
+  const result = await projectConfirmedReplyMemory({
+    userId: opts.userId,
+    reply: opts.reply,
+    threadId: opts.threadId,
+    author: opts.author,
+    source: "discovered",
+    url: opts.url,
+    text: opts.text,
+    opAuthor: opts.opAuthor,
+    opText: opts.opText,
+    interactedAt: opts.interactedAt,
+    knowledgeRoot: opts.knowledgeRoot,
+    indexDir: opts.indexDir,
+    embedder: opts.embedder,
+    upsertMemory: opts.upsertMemory,
+    awaitUpsert: opts.upsertMemory !== false,
+  });
+  if (result.state === "unavailable") {
+    console.warn(
+      `[reply-discover] knowledge write soft-fail threadId=${opts.threadId}`,
+    );
+  }
+  return result.state;
+}
+
+function memorySeams(opts: {
+  knowledgeRoot?: string;
+  indexDir?: string;
+  embedder?: Embedder;
+  upsertMemory?: boolean;
+}) {
+  return {
+    knowledgeRoot: opts.knowledgeRoot,
+    indexDir: opts.indexDir,
+    embedder: opts.embedder,
+    upsertMemory: opts.upsertMemory,
+  };
+}
+
+/** Fill missing notes from confirmed local own_posts — no extra X reads or XP. */
+async function reconcileConfirmedOwnReplies(opts: {
+  userId: string;
+  history: Interaction[];
+  skipReplyIds: Set<string>;
+  knowledgeRoot?: string;
+  indexDir?: string;
+  embedder?: Embedder;
   upsertMemory?: boolean;
 }): Promise<void> {
-  const reply = normalizeReply(opts.reply);
-  if (!reply) return;
+  let posts;
   try {
-    const memory = await writeInteractionMemory({
-      threadId: opts.threadId,
-      author: opts.author,
-      reply,
-      source: "discovered",
-      url: opts.url,
-      text: opts.text,
-      opAuthor: opts.opAuthor,
-      opText: opts.opText,
-      interactedAt: opts.interactedAt,
-      knowledgeRoot: opts.knowledgeRoot,
-    });
-    if (opts.upsertMemory !== false) {
-      await upsertMemoryNote(memory.path, { type: "interaction" }).catch(
-        (err) => {
-          console.warn(
-            `[reply-discover] memory index soft-fail threadId=${opts.threadId}:`,
-            err,
-          );
-        },
+    posts = listConfirmedOwnReplies({ userId: opts.userId });
+  } catch (err) {
+    console.warn("[reply-discover] confirmed own_posts read soft-fail:", err);
+    return;
+  }
+  if (posts.length === 0) return;
+
+  const byReplyId = new Map<string, Interaction>();
+  const byThreadId = new Map<string, Interaction>();
+  for (const row of opts.history) {
+    if (row.replyId) byReplyId.set(row.replyId, row);
+    byThreadId.set(row.threadId, row);
+  }
+
+  for (const post of posts) {
+    if (opts.skipReplyIds.has(post.id)) continue;
+    const known =
+      byReplyId.get(post.id) ??
+      (post.inReplyToId ? byThreadId.get(post.inReplyToId) : undefined);
+    if (!known) continue;
+    try {
+      await access(
+        buildInteractionNotePath({
+          threadId: known.threadId,
+          interactedAt: canonicalNoteTime(known),
+          knowledgeRoot: opts.knowledgeRoot,
+        }),
+      );
+      continue;
+    } catch {
+      // Reconcile only notes that are still missing.
+    }
+    let watched = null;
+    try {
+      watched =
+        getWatchedThread(opts.userId, known.threadId) ??
+        (post.inReplyToId
+          ? getWatchedThread(opts.userId, post.inReplyToId)
+          : null) ??
+        (post.conversationId
+          ? getWatchedThread(opts.userId, post.conversationId)
+          : null) ??
+        (known.conversationId
+          ? getWatchedThread(opts.userId, known.conversationId)
+          : null);
+    } catch (err) {
+      console.warn(
+        `[reply-discover] watch lookup soft-fail replyId=${post.id}:`,
+        err,
       );
     }
-  } catch (err) {
-    console.warn(
-      `[reply-discover] knowledge write soft-fail threadId=${opts.threadId}:`,
-      err,
-    );
+    await projectDiscoveredReply({
+      userId: opts.userId,
+      threadId: known.threadId,
+      author: known.author,
+      reply: post.text,
+      url:
+        known.url ??
+        watched?.url ??
+        parentStatusUrl(known.author, known.threadId),
+      text: known.text ?? watched?.text ?? undefined,
+      interactedAt: canonicalNoteTime(known),
+      ...memorySeams(opts),
+    });
   }
 }
 
@@ -293,6 +391,8 @@ export async function discoverOwnReplies(opts: {
   maxPages?: number;
   nowMs?: number;
   knowledgeRoot?: string;
+  indexDir?: string;
+  embedder?: Embedder;
   /** When false, skip MiniLM upsert after note write (tests). Default true. */
   upsertMemory?: boolean;
   session?: XApiCreds;
@@ -435,6 +535,8 @@ export async function discoverOwnReplies(opts: {
     limit: MAX_INTERACTION_STORE,
   });
   const { knownReplyIds, knownThreadIds } = indexKnownIds(history);
+  const projectedReplyIds = new Set<string>();
+  const seams = memorySeams(opts);
   let discovered = 0;
   let skipped = 0;
 
@@ -449,7 +551,8 @@ export async function discoverOwnReplies(opts: {
       if (verdict === "known_reply") {
         const known = history.find((row) => row.replyId === card.id.trim());
         if (known) {
-          await softWriteMemory({
+          const projectionState = await projectDiscoveredReply({
+            userId: opts.userId,
             threadId: known.threadId,
             author: known.author,
             reply: card.text,
@@ -457,10 +560,10 @@ export async function discoverOwnReplies(opts: {
             text: card.opText,
             opAuthor: card.opAuthor,
             opText: card.opText,
-            interactedAt: known.postedAt ?? known.at,
-            knowledgeRoot: opts?.knowledgeRoot,
-            upsertMemory: opts?.upsertMemory,
+            interactedAt: canonicalNoteTime(known),
+            ...seams,
           });
+          if (projectionState === "saved") projectedReplyIds.add(card.id.trim());
         }
       }
       skipped += 1;
@@ -550,7 +653,8 @@ export async function discoverOwnReplies(opts: {
         }
       }
 
-      await softWriteMemory({
+      const projectionState = await projectDiscoveredReply({
+        userId: opts.userId,
         threadId,
         author,
         reply: card.text,
@@ -558,10 +662,10 @@ export async function discoverOwnReplies(opts: {
         text: card.opText,
         opAuthor: card.opAuthor,
         opText: card.opText,
-        interactedAt: interaction.postedAt ?? interaction.at,
-        knowledgeRoot: opts?.knowledgeRoot,
-        upsertMemory: opts?.upsertMemory,
+        interactedAt: canonicalNoteTime(interaction),
+        ...seams,
       });
+      if (projectionState === "saved") projectedReplyIds.add(replyId);
     } catch (err) {
       skipped += 1;
       console.warn(
@@ -570,6 +674,13 @@ export async function discoverOwnReplies(opts: {
       );
     }
   }
+
+  await reconcileConfirmedOwnReplies({
+    userId: opts.userId,
+    history,
+    skipReplyIds: projectedReplyIds,
+    ...seams,
+  });
 
   return {
     ok: true,
