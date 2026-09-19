@@ -172,7 +172,7 @@ describe("bucketInteractions", () => {
       { bucket: "day", now },
     );
     assert.equal(
-      result.series.find((point) => point.period === "2026-08-04")?.quotes,
+      result.series.find((point) => point.period === "2026-08-04")?.replies,
       1,
     );
     assert.equal(
@@ -198,8 +198,8 @@ describe("bucketInteractions", () => {
         }),
       ],
     });
-    assert.equal(merged.find((post) => post.id === "reply")?.kind, "reply");
-    assert.equal(merged.find((post) => post.id === "quote")?.kind, "quote");
+    assert.equal(merged.find((post) => post.id === "reply")?.kind, "quote");
+    assert.equal(merged.find((post) => post.id === "quote")?.kind, "reply");
   });
 });
 
@@ -376,6 +376,6 @@ describe("classified flight-path posts", () => {
     assert.equal(merged.find((p) => p.id === "r1")?.views, 40);
     assert.equal(merged.find((p) => p.id === "r1")?.withStats, true);
     assert.equal(merged.find((p) => p.id === "og1")?.kind, "original");
-    assert.equal(merged.find((p) => p.id === "ghost")?.kind, "quote");
+    assert.equal(merged.find((p) => p.id === "ghost")?.kind, "reply");
   });
 });

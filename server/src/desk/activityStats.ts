@@ -158,7 +158,7 @@ export function activityKindFromOwnPost(
 export function classifyInteractionFallback(
   row: Pick<Interaction, "inReplyToId">,
 ): ActivityPostKind {
-  return row.inReplyToId ? "quote" : "reply";
+  return row.inReplyToId ? "reply" : "quote";
 }
 
 /**
