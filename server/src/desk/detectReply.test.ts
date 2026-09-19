@@ -94,7 +94,6 @@ describe("findRecentInteractionReply", () => {
         {
           replyId: "my-reply",
           replyUrl: "https://x.com/i/status/my-reply",
-          replyText: "the reply text",
           createdAt: "2026-09-05T12:00:00.000Z",
         },
       );

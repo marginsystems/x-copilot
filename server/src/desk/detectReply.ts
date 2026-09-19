@@ -12,7 +12,7 @@ import {
 export type DetectedReply = {
   replyId: string;
   replyUrl: string;
-  replyText: string;
+  replyText?: string;
   createdAt?: string;
 };
 
@@ -65,7 +65,6 @@ export function findRecentInteractionReply(opts: {
     return {
       replyId: row.replyId?.trim() || replyUrl.split("/").pop() || "",
       replyUrl,
-      replyText: row.text ?? "",
       ...(row.postedAt ? { createdAt: row.postedAt } : {}),
     };
   }
