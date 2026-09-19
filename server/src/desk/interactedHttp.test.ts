@@ -233,7 +233,7 @@ describe("interactedHttp", () => {
     const reply = json.reply as Record<string, unknown>;
     assert.equal(reply.replyId, "mine-reply");
     assert.equal(reply.replyUrl, "https://x.com/mine/status/mine-reply");
-    assert.equal(reply.replyText, "");
+    assert.equal(reply.replyText, undefined);
   });
 
   it("POST /api/interacted without a session is 401", async () => {
