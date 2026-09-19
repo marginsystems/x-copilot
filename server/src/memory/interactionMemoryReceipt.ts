@@ -69,15 +69,16 @@ async function listInteractionNoteNames(dir: string): Promise<string[] | null> {
 }
 
 function resolveNoteName(
-  names: string[],
+  exactNames: ReadonlySet<string>,
+  namesBySuffix: ReadonlyMap<string, readonly string[]>,
   threadId: string,
   interactedAt: string,
 ): string | null {
   const expected = expectedNoteName(threadId, interactedAt);
-  if (names.includes(expected)) return expected;
+  if (exactNames.has(expected)) return expected;
   const suffix = noteSuffix(threadId);
   const wantDate = utcDatePrefix(interactedAt);
-  const matches = names.filter((name) => name.endsWith(suffix)).sort().reverse();
+  const matches = namesBySuffix.get(suffix) ?? [];
   if (!matches.length) return null;
   return matches.find((name) => name.startsWith(`${wantDate}-`)) ?? matches[0]!;
 }
@@ -121,20 +122,37 @@ export async function lookupInteractionMemoryReceipts(opts: {
     return opts.interactions.map(() => "unavailable");
   }
 
-  const states: ConfirmedReplyMemoryState[] = [];
-  for (const interaction of opts.interactions) {
-    try {
-      const name = resolveNoteName(names, interaction.threadId, interaction.at);
-      if (!name) {
-        states.push("no_reply_text");
-        continue;
-      }
-      states.push(
-        await receiptForNote({ userId, path: join(dir, name) }),
-      );
-    } catch {
-      states.push("unavailable");
-    }
+  const exactNames = new Set(names);
+  const namesBySuffix = new Map<string, string[]>();
+  for (const name of names) {
+    if (!/^\d{4}-\d{2}-\d{2}-/.test(name)) continue;
+    const suffix = name.slice(10);
+    const matches = namesBySuffix.get(suffix);
+    if (matches) matches.push(name);
+    else namesBySuffix.set(suffix, [name]);
+  }
+  for (const matches of namesBySuffix.values()) matches.sort().reverse();
+
+  const states = new Array<ConfirmedReplyMemoryState>(opts.interactions.length);
+  const batchSize = 20;
+  for (let start = 0; start < opts.interactions.length; start += batchSize) {
+    const batch = await Promise.all(
+      opts.interactions.slice(start, start + batchSize).map(async (interaction) => {
+        try {
+          const name = resolveNoteName(
+            exactNames,
+            namesBySuffix,
+            interaction.threadId,
+            interaction.at,
+          );
+          if (!name) return "no_reply_text" as const;
+          return await receiptForNote({ userId, path: join(dir, name) });
+        } catch {
+          return "unavailable" as const;
+        }
+      }),
+    );
+    states.splice(start, batch.length, ...batch);
   }
   return states;
 }
