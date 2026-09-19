@@ -335,6 +335,23 @@ describe("classified flight-path posts", () => {
     assert.equal(result.totals.interactions, 3);
   });
 
+  it("drops reposts from own-post activity", () => {
+    const merged = mergeClassifiedActivity({
+      ownPosts: [
+        {
+          id: "repost",
+          kind: "repost",
+          postedAt: "2026-08-04T10:00:00.000Z",
+          views: 12,
+          withStats: true,
+        },
+      ],
+      history: [],
+    });
+
+    assert.equal(merged.find((post) => post.id === "repost"), undefined);
+  });
+
   it("does not double-count a mark whose reply is already in own_posts", () => {
     const merged = mergeClassifiedActivity({
       ownPosts: [
