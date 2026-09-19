@@ -23,7 +23,10 @@ import {
   watchThread,
 } from "../../server/src/desk/ownPostStore.ts";
 import { resetInteractionMemoryProjectionForTests } from "../../server/src/memory/interactionMemoryProjection.ts";
-import { buildInteractionNotePath } from "../../server/src/memory/knowledgeMemory.ts";
+import {
+  buildInteractionNotePath,
+  writeInteractionMemory,
+} from "../../server/src/memory/knowledgeMemory.ts";
 import type { ParsedPostCreate } from "../../server/src/x-api/xActivity.ts";
 import { crcResponseToken } from "../../server/src/x-api/xActivity.ts";
 import {
@@ -482,6 +485,50 @@ describe("own reply interaction capture", () => {
     assert.deepEqual(listedNotes(dir), ["2026-09-04-parent-1.md"]);
     const xpAfter = await getGamification({ userId, nowMs: nowMs + 2 });
     assert.equal(xpAfter.lifetimeXp, xpBefore.lifetimeXp);
+  });
+
+  it("does not overwrite an existing manual note on the known path", async () => {
+    await markInteracted({
+      threadId: "parent-1",
+      author: "@target",
+      userId,
+      replyId: "known-reply",
+      nowMs,
+    });
+    await writeInteractionMemory({
+      threadId: "parent-1",
+      author: "@target",
+      reply: "manual reply",
+      source: "manual",
+      userId,
+      text: "parent context",
+      opAuthor: "@target",
+      opText: "richer OP context",
+      agenda: "follow up",
+      baitScore: 7,
+      engage: "high",
+      flags: ["important"],
+      intent: "reply",
+      reason: "manual triage",
+      interactedAt: new Date(nowMs).toISOString(),
+      knowledgeRoot: knowledgeRootFor(dir),
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({ postId: "known-reply", text: "webhook retry" }),
+        userId,
+        { nowMs: nowMs + 1 },
+      ),
+      "skipped",
+    );
+    const note = await readNote(dir, "parent-1");
+    assert.match(note, /source: manual/);
+    assert.match(note, /richer OP context/);
+    assert.match(note, /agenda: follow up/);
+    assert.match(note, /manual triage/);
+    assert.match(note, /manual reply/);
+    assert.doesNotMatch(note, /webhook retry/);
   });
 
   it("repairs one note for a known watched reply without extra XP", async () => {
