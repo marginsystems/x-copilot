@@ -357,7 +357,6 @@ async function reconcileConfirmedOwnReplies(opts: {
         watched?.url ??
         parentStatusUrl(known.author, known.threadId),
       text: known.text ?? watched?.text ?? undefined,
-      opText: known.text ?? watched?.text ?? undefined,
       interactedAt: canonicalNoteTime(known),
       ...memorySeams(opts),
     });
