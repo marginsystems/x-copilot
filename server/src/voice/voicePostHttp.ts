@@ -134,15 +134,22 @@ async function savedOrCanonicalReply(opts: {
       // Fall through to confirmed own-post text.
     }
   }
-  const row = getPlatformDb()
-    .prepare(
-      `SELECT text, posted_at AS postedAt
-         FROM own_posts
-        WHERE user_id = ? AND id = ?`,
-    )
-    .get(opts.userId, opts.tweetId) as
+  let row:
     | { text: string | null; postedAt: string | null }
     | undefined;
+  try {
+    row = getPlatformDb()
+      .prepare(
+        `SELECT text, posted_at AS postedAt
+           FROM own_posts
+          WHERE user_id = ? AND id = ?`,
+      )
+      .get(opts.userId, opts.tweetId) as
+      | { text: string | null; postedAt: string | null }
+      | undefined;
+  } catch {
+    return undefined;
+  }
   const reply = row?.text?.trim();
   if (!reply) return undefined;
   return { reply, interactedAt: row?.postedAt ?? undefined };
