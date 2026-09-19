@@ -25,6 +25,7 @@ import { createSession } from "../auth/sessionStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { getGamification } from "../desk/gamification.ts";
 import { resetInteractionMemoryProjectionForTests } from "../memory/interactionMemoryProjection.ts";
+import { writeInteractionMemory } from "../memory/knowledgeMemory.ts";
 import { tryHandleVoice } from "./voiceHttp.ts";
 import { resetVoicePostForTests } from "./voicePostHttp.ts";
 import { deriveVoiceUiStatus } from "./voiceStatus.ts";
@@ -792,6 +793,36 @@ describe("POST /api/voice/post", () => {
     } finally {
       globalThis.fetch = origFetch;
     }
+  });
+
+  it("does not replay an unowned interaction note into another user's memory", async () => {
+    const user = seedPoster("post-replay-unowned@example.com", true);
+    const knowledgeRoot = join(dir, "knowledge");
+    const note = await writeInteractionMemory({
+      threadId: body.threadId,
+      author: body.author,
+      reply: "A different user's saved reply.",
+      interactedAt: new Date().toISOString(),
+      knowledgeRoot,
+    });
+    recordDeskPost({
+      userId: user.id,
+      tweetId: "892",
+      inReplyToId: body.inReplyToId,
+      threadId: body.threadId,
+      requestKey: "rk-unowned-memory",
+      atIso: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    });
+
+    const retry = await postReply(user, {
+      ...body,
+      requestKey: "rk-unowned-memory",
+    });
+
+    assert.equal(retry.status, 200);
+    assert.deepEqual(retry.json.memory, { state: "unavailable" });
+    assert.equal(retry.json.memoryPath, undefined);
+    assert.doesNotMatch(await readFile(note.path, "utf8"), /userId:/);
   });
 
   it("rejects a non-trivial edit the LLM verify does not pass", async () => {
