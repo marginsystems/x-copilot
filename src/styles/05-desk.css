@@ -561,10 +561,13 @@ button.primary.scout-run.desk-top-takeoff {
   font-family: var(--font-body);
   font-size: 0.72rem;
   color: var(--muted);
-  white-space: nowrap;
+  white-space: normal;
+  width: max-content;
+  max-width: min(260px, 86vw);
+  box-sizing: border-box;
+  overflow-wrap: break-word;
   pointer-events: none;
   transform: translate(-50%, calc(-100% - 10px));
-  max-width: min(220px, 86vw);
 }
 
 .activity-chart-tip strong {

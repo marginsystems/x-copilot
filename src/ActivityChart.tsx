@@ -8,6 +8,8 @@ import {
 import { createPortal } from "react-dom";
 import {
   activityChartTipDetail,
+  activityChartTipHead,
+  activityChartTipMix,
   formatPeriodLabel,
   formatPeriodTip,
   postKindCounts,
@@ -327,6 +329,7 @@ function ActivityChartTipHost({
   const [anchor, setAnchor] = useState({ x: 0, y: 0 });
   const activePoint =
     active === null ? null : points.find((pt) => pt.p.period === active) ?? null;
+  const mix = activePoint ? activityChartTipMix(activePoint.kinds) : "";
 
   useLayoutEffect(() => {
     function place() {
@@ -395,13 +398,13 @@ function ActivityChartTipHost({
             >
               <strong>{formatPeriodTip(activePoint.p.period, bucket)}</strong>
               <span>
-                {activityChartTipDetail(
+                {activityChartTipHead(
                   activePoint.p.interactions,
                   activePoint.lineViews,
                   activePoint.held,
-                  activePoint.kinds,
                 )}
               </span>
+              {mix ? <span>{mix}</span> : null}
             </div>,
             document.body,
           )

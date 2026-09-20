@@ -2,6 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   activityChartTipDetail,
+  activityChartTipHead,
+  activityChartTipMix,
   formatCount,
   formatPeriodTip,
   parseActivityStats,
@@ -51,6 +53,13 @@ describe("activityChartTipDetail", () => {
       }),
       "4 posts · 80 views · 2 OG · 1 quote · 1 reply",
     );
+  });
+
+  it("keeps the popover head and mix on separate strings", () => {
+    const kinds = { originals: 4, quotes: 2, replies: 46 };
+    assert.equal(activityChartTipHead(52, 1100, false), "52 posts · 1.1k views");
+    assert.equal(activityChartTipMix(kinds), "4 OG · 2 quotes · 46 replies");
+    assert.equal(activityChartTipMix({ originals: 0, quotes: 0, replies: 0 }), "");
   });
 });
 
