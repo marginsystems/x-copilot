@@ -216,7 +216,7 @@ describe("projectConfirmedReplyMemory", () => {
     assert.deepEqual(scheduled, [result.memoryPath]);
   });
 
-  it("waits for the scheduled upsert before returning", async () => {
+  it("returns without waiting for the scheduled upsert", async () => {
     let release!: () => void;
     let started = false;
     const upsertFinished = new Promise<void>((resolve) => {
@@ -240,7 +240,7 @@ describe("projectConfirmedReplyMemory", () => {
     );
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(started, true);
-    assert.equal(returned, false);
+    assert.equal(returned, true);
     release();
 
     const result = await resultPromise;

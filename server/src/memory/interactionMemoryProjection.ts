@@ -121,7 +121,11 @@ export async function projectConfirmedReplyMemory(
           );
         }
       } else {
-        await deps.scheduleUpsert(memory.path, "interaction");
+        void Promise.resolve(
+          deps.scheduleUpsert(memory.path, "interaction"),
+        ).catch((err) => {
+          console.warn("confirmed-reply memory schedule soft-fail:", err);
+        });
       }
     }
 
