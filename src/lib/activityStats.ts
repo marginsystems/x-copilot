@@ -188,18 +188,21 @@ export function formatCount(n: number): string {
   return n.toLocaleString();
 }
 
-export function activityChartTipDetail(
+export function activityChartTipHead(
   posts: number,
   views: number,
   held: boolean,
-  kinds?: ActivityKindCounts,
 ): string {
   const postLabel = posts === 1 ? "1 post" : `${formatCount(posts)} posts`;
-  const head = held
+  return held
     ? `${postLabel} · views pending`
     : `${postLabel} · ${formatCount(views)} views`;
-  if (!kinds) return head;
-  const mix = [
+}
+
+/** Second tip line. Empty when the bucket has no kind mix to show. */
+export function activityChartTipMix(kinds?: ActivityKindCounts): string {
+  if (!kinds) return "";
+  return [
     kinds.originals > 0
       ? `${formatCount(kinds.originals)} OG`
       : null,
@@ -209,6 +212,18 @@ export function activityChartTipDetail(
     kinds.replies > 0
       ? `${formatCount(kinds.replies)} ${kinds.replies === 1 ? "reply" : "replies"}`
       : null,
-  ].filter(Boolean);
-  return mix.length ? `${head} · ${mix.join(" · ")}` : head;
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function activityChartTipDetail(
+  posts: number,
+  views: number,
+  held: boolean,
+  kinds?: ActivityKindCounts,
+): string {
+  const head = activityChartTipHead(posts, views, held);
+  const mix = activityChartTipMix(kinds);
+  return mix ? `${head} · ${mix}` : head;
 }
