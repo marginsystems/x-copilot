@@ -305,10 +305,10 @@ describe("interactedHttp", () => {
     assert.equal(history[0]?.replyId, "9001");
   });
 
-  it("POST /api/interacted keeps the mark and XP when note write fails", async () => {
+  it("POST /api/interacted keeps the mark and XP on an ownership conflict", async () => {
     resetInteractionMemoryProjectionForTests({
       writeNote: async () => {
-        throw new Error("EACCES: injected filesystem failure");
+        throw new Error("interaction note belongs to another user");
       },
     });
     const user = upsertOauthUser({

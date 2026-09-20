@@ -454,6 +454,52 @@ describe("discoverOwnReplies", () => {
     assert.equal(history[0]?.replyId, "webhook-reply");
   });
 
+  it("continues when a known reply note belongs to another user", async () => {
+    await markInteracted({
+      threadId: "owned-parent",
+      author: "@builder",
+      replyId: "owned-reply",
+      replyUrl: "https://x.com/me/status/owned-reply",
+      source: "discovered",
+      postedAt: "2026-08-02T11:30:00.000Z",
+      userId,
+    });
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async () => {
+        throw new Error("interaction note belongs to another user");
+      },
+    });
+
+    const result = await discoverOwnReplies({
+      nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
+      userId,
+      gamificationPath,
+      knowledgeRoot,
+      upsertMemory: false,
+      session: { configured: true, bearerToken: "t" },
+      resolveScreenName: async () => "me",
+      searchTimelinePages: async (opts) => ({
+        ok: true as const,
+        threads: /is:reply/.test(opts.query)
+          ? [
+              card({
+                id: "owned-reply",
+                text: "known reply",
+                inReplyToId: "owned-parent",
+                inReplyToScreenName: "@builder",
+              }),
+            ]
+          : [],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.skipped, 1);
+  });
+
   it("repairs a local confirmed own_posts reply without a new X read or XP", async () => {
     const postedAt = "2026-08-02T11:30:00.000Z";
     const markedAt = Date.parse("2026-08-02T18:00:00.000Z");

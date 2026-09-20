@@ -617,16 +617,27 @@ export async function handlePost(
     }
   }
 
-  const memory = interaction
-    ? await projectVoiceReplyMemory({
+  let memory: ConfirmedReplyMemoryResult = { state: "unavailable" };
+  if (interaction) {
+    try {
+      memory = await projectVoiceReplyMemory({
         userId: user.id,
         reply: edited.trim(),
         threadId,
         author,
         interactedAt: interaction.at,
         ...context,
-      })
-    : { state: "unavailable" as const };
+      });
+    } catch (err) {
+      if (
+        !(err instanceof Error) ||
+        err.message !== "interaction note belongs to another user"
+      ) {
+        throw err;
+      }
+      console.warn("voice reply memory ownership conflict:", err);
+    }
+  }
 
   send(req, res, 200, {
     ok: true,

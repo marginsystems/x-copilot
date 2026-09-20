@@ -797,6 +797,7 @@ describe("POST /api/voice/post", () => {
     const user = seedPoster("post-replay-unowned@example.com", true);
     const knowledgeRoot = join(dir, "knowledge");
     const note = await writeInteractionMemory({
+      userId: "different-user",
       threadId: body.threadId,
       author: body.author,
       reply: "A different user's saved reply.",

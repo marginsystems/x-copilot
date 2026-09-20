@@ -368,19 +368,26 @@ async function reconcileConfirmedOwnReplies(opts: {
         err,
       );
     }
-    await projectDiscoveredReply({
-      userId: opts.userId,
-      threadId: known.threadId,
-      author: known.author,
-      reply: post.text,
-      url:
-        known.url ??
-        watched?.url ??
-        parentStatusUrl(known.author, known.threadId),
-      text: known.text ?? watched?.text ?? undefined,
-      interactedAt: canonicalNoteTime(known),
-      ...memorySeams(opts),
-    });
+    try {
+      await projectDiscoveredReply({
+        userId: opts.userId,
+        threadId: known.threadId,
+        author: known.author,
+        reply: post.text,
+        url:
+          known.url ??
+          watched?.url ??
+          parentStatusUrl(known.author, known.threadId),
+        text: known.text ?? watched?.text ?? undefined,
+        interactedAt: canonicalNoteTime(known),
+        ...memorySeams(opts),
+      });
+    } catch (err) {
+      console.warn(
+        `[reply-discover] reconcile memory soft-fail replyId=${post.id}:`,
+        err,
+      );
+    }
   }
 }
 
@@ -555,19 +562,26 @@ export async function discoverOwnReplies(opts: {
       if (verdict === "known_reply") {
         const known = history.find((row) => row.replyId === card.id.trim());
         if (known) {
-          const projectionState = await projectDiscoveredReply({
-            userId: opts.userId,
-            threadId: known.threadId,
-            author: known.author,
-            reply: card.text,
-            url: known.url ?? parentStatusUrl(known.author, known.threadId),
-            text: card.opText,
-            opAuthor: card.opAuthor,
-            opText: card.opText,
-            interactedAt: canonicalNoteTime(known),
-            ...seams,
-          });
-          if (projectionState === "saved") projectedReplyIds.add(card.id.trim());
+          try {
+            const projectionState = await projectDiscoveredReply({
+              userId: opts.userId,
+              threadId: known.threadId,
+              author: known.author,
+              reply: card.text,
+              url: known.url ?? parentStatusUrl(known.author, known.threadId),
+              text: card.opText,
+              opAuthor: card.opAuthor,
+              opText: card.opText,
+              interactedAt: canonicalNoteTime(known),
+              ...seams,
+            });
+            if (projectionState === "saved") projectedReplyIds.add(card.id.trim());
+          } catch (err) {
+            console.warn(
+              `[reply-discover] known reply memory soft-fail replyId=${card.id}:`,
+              err,
+            );
+          }
         }
       }
       skipped += 1;

@@ -27,7 +27,10 @@ import {
   normalizeAuthorKey,
   parseStatusIdFromUrl,
 } from "./interactionCooldown.js";
-import { projectConfirmedReplyMemory } from "../memory/interactionMemoryProjection.js";
+import {
+  projectConfirmedReplyMemory,
+  type ConfirmedReplyMemoryResult,
+} from "../memory/interactionMemoryProjection.js";
 import { attachInteractionMemoryReceipts } from "../memory/interactionMemoryReceipt.js";
 import { pruneThreadsFromScoutCache } from "../scout/scoutCache.js";
 import { maybeStartEmptyTankScout } from "../scout/scoutEmptyTank.js";
@@ -289,26 +292,38 @@ export async function tryHandleInteracted(
           pendingAt: interaction.at,
         }).catch(() => {});
       }
-      const memory = await projectConfirmedReplyMemory({
-        userId: sessionUser.id,
-        reply: body.reply,
-        threadId,
-        author,
-        source,
-        url,
-        text,
-        summary,
-        opAuthor,
-        opText,
-        agenda: typeof body.agenda === "string" ? body.agenda : undefined,
-        baitScore,
-        engage: typeof body.engage === "string" ? body.engage : undefined,
-        flags,
-        intent: typeof body.intent === "string" ? body.intent : undefined,
-        reason: typeof body.reason === "string" ? body.reason : undefined,
-        // Match durable store timestamp so later stats ticks can rediscover the note.
-        interactedAt: interaction.at,
-      });
+      let memory: ConfirmedReplyMemoryResult;
+      try {
+        memory = await projectConfirmedReplyMemory({
+          userId: sessionUser.id,
+          reply: body.reply,
+          threadId,
+          author,
+          source,
+          url,
+          text,
+          summary,
+          opAuthor,
+          opText,
+          agenda: typeof body.agenda === "string" ? body.agenda : undefined,
+          baitScore,
+          engage: typeof body.engage === "string" ? body.engage : undefined,
+          flags,
+          intent: typeof body.intent === "string" ? body.intent : undefined,
+          reason: typeof body.reason === "string" ? body.reason : undefined,
+          // Match durable store timestamp so later stats ticks can rediscover the note.
+          interactedAt: interaction.at,
+        });
+      } catch (err) {
+        if (
+          !(err instanceof Error) ||
+          err.message !== "interaction note belongs to another user"
+        ) {
+          throw err;
+        }
+        console.warn("confirmed-reply memory ownership conflict:", err);
+        memory = { state: "unavailable" as const };
+      }
       send(req, res, 200, {
         ok: true,
         interaction,
