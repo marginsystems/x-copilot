@@ -449,7 +449,7 @@ describe("own reply interaction capture", () => {
     assert.deepEqual(await listInteractionHistory({ userId }), []);
   });
 
-  it("skips a known reply or known thread", async () => {
+  it("skips a known reply and records another reply in the same thread", async () => {
     await markInteracted({
       threadId: "parent-1",
       author: "@target",
@@ -476,7 +476,7 @@ describe("own reply interaction capture", () => {
         userId,
         { nowMs: nowMs + 2 },
       ),
-      "skipped",
+      "organic",
     );
     assert.equal(
       (await listInteractionHistory({ userId })).length,
