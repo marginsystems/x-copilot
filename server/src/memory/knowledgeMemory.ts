@@ -529,8 +529,8 @@ async function noteInteractedAtDate(path: string): Promise<string | null> {
 }
 
 /**
- * Find an interaction note by expected path from `at` + threadId, then
- * filename-suffix fallback for legacy / re-marked notes. Never uses postedAt.
+ * Find an interaction note by expected path from the canonical interaction
+ * time + threadId, then filename-suffix fallback for legacy / re-marked notes.
  */
 export async function findInteractionNotePath(opts: {
   threadId: string;
@@ -661,7 +661,7 @@ export async function updateInteractionMemoryOutcome(opts: {
 
   const path = await findInteractionNotePath({
     threadId: interaction.threadId,
-    interactedAt: interaction.at,
+    interactedAt: interaction.postedAt ?? interaction.at,
     knowledgeRoot: opts.knowledgeRoot,
   });
   if (!path) {

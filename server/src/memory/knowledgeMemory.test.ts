@@ -387,6 +387,49 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /views24h/);
   });
 
+  it("locates outcomes by postedAt when it crosses a UTC date boundary", async () => {
+    const at = "2026-07-27T23:59:00.000Z";
+    const postedAt = "2026-07-28T00:01:00.000Z";
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "Earlier reply",
+      knowledgeRoot: root,
+      interactedAt: at,
+    });
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "Canonical reply",
+      knowledgeRoot: root,
+      interactedAt: postedAt,
+    });
+
+    const result = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({
+        at,
+        postedAt,
+        stats: {
+          t1h: {
+            views: 5,
+            likes: 1,
+            replies: 0,
+            retweets: 0,
+            sampledAt: postedAt,
+          },
+        },
+      }),
+      knowledgeRoot: root,
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.match(result.path, /2026-07-28-99\.md$/);
+    const body = await readFile(result.path, "utf8");
+    assert.match(body, /Canonical reply/);
+    assert.doesNotMatch(body, /Earlier reply/);
+  });
+
   it("keeps t1h when writing t24h and is idempotent", async () => {
     await writeInteractionMemory({
       threadId: "99",

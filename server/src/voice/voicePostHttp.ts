@@ -291,7 +291,7 @@ export async function handlePost(
         threadId,
         author,
         tweetId: prior.tweetId,
-        interactedAt: interaction?.at,
+        interactedAt: interaction?.postedAt ?? interaction?.at,
         ...context,
       });
       const snap = await getGamification({ userId: user.id });
