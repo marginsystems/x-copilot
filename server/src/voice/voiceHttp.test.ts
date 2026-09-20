@@ -821,7 +821,10 @@ describe("POST /api/voice/post", () => {
     assert.equal(retry.status, 200);
     assert.deepEqual(retry.json.memory, { state: "unavailable" });
     assert.equal(retry.json.memoryPath, undefined);
-    assert.doesNotMatch(await readFile(note.path, "utf8"), /userId:/);
+    const kept = await readFile(note.path, "utf8");
+    assert.match(kept, /userId: "different-user"/);
+    assert.match(kept, /A different user's saved reply/);
+    assert.doesNotMatch(kept, /I would still pick the tool/);
   });
 
   it("returns confirmed replay when own-post fallback is unavailable", async () => {
