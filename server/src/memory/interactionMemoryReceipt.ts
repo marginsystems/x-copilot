@@ -10,7 +10,6 @@ import {
   defaultKnowledgeRoot,
   normalizeReply,
   safeThreadIdForFilename,
-  utcDatePrefix,
 } from "./knowledgeMemory.js";
 
 export type InteractionMemoryReceipt = {
@@ -32,10 +31,6 @@ export function resetInteractionMemoryReceiptForTests(opts?: {
 
 function resolveKnowledgeRoot(explicit?: string): string {
   return explicit ?? testKnowledgeRoot ?? defaultKnowledgeRoot();
-}
-
-function expectedNoteName(threadId: string, interactedAt: string): string {
-  return `${utcDatePrefix(interactedAt)}-${safeThreadIdForFilename(threadId)}.md`;
 }
 
 function noteSuffix(threadId: string): string {
@@ -69,15 +64,11 @@ async function listInteractionNoteNames(dir: string): Promise<string[] | null> {
 }
 
 async function resolveNoteName(
-  exactNames: ReadonlySet<string>,
   namesBySuffix: ReadonlyMap<string, readonly string[]>,
   threadId: string,
-  interactedAt: string,
   dir: string,
   userId: string,
 ): Promise<string | null> {
-  const expected = expectedNoteName(threadId, interactedAt);
-  if (exactNames.has(expected)) return expected;
   const suffix = noteSuffix(threadId);
   const matches = namesBySuffix.get(suffix) ?? [];
   if (!matches.length) return null;
@@ -133,7 +124,6 @@ export async function lookupInteractionMemoryReceipts(opts: {
     return opts.interactions.map(() => "unavailable");
   }
 
-  const exactNames = new Set(names);
   const namesBySuffix = new Map<string, string[]>();
   for (const name of names) {
     if (!/^\d{4}-\d{2}-\d{2}-/.test(name)) continue;
@@ -151,10 +141,8 @@ export async function lookupInteractionMemoryReceipts(opts: {
       opts.interactions.slice(start, start + batchSize).map(async (interaction) => {
         try {
           const name = await resolveNoteName(
-            exactNames,
             namesBySuffix,
             interaction.threadId,
-            interaction.at,
             dir,
             userId,
           );
