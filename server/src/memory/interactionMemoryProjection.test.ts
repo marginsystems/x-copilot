@@ -216,6 +216,37 @@ describe("projectConfirmedReplyMemory", () => {
     assert.deepEqual(scheduled, [result.memoryPath]);
   });
 
+  it("waits for the scheduled upsert before returning", async () => {
+    let release!: () => void;
+    let started = false;
+    const upsertFinished = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    resetInteractionMemoryProjectionForTests({
+      writeNote: (input) =>
+        writeInteractionMemory({ ...input, knowledgeRoot: root }),
+      scheduleUpsert: async () => {
+        started = true;
+        await upsertFinished;
+      },
+    });
+
+    let returned = false;
+    const resultPromise = projectConfirmedReplyMemory(baseInput()).then(
+      (result) => {
+        returned = true;
+        return result;
+      },
+    );
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(started, true);
+    assert.equal(returned, false);
+    release();
+
+    const result = await resultPromise;
+    assert.equal(result.state, "saved");
+  });
+
   it("indexes a saved note when a hash embedder is injected", async () => {
     const result = await projectConfirmedReplyMemory(
       baseInput({

@@ -58,7 +58,10 @@ type ProjectionDeps = {
     input: InteractionMemoryInput,
   ) => Promise<{ path: string }>;
   upsertNote: typeof upsertMemoryNote;
-  scheduleUpsert: (notePath: string, type: MemoryType) => void;
+  scheduleUpsert: (
+    notePath: string,
+    type: MemoryType,
+  ) => void | Promise<void>;
 };
 
 const defaultDeps: ProjectionDeps = {
@@ -118,7 +121,7 @@ export async function projectConfirmedReplyMemory(
           );
         }
       } else {
-        deps.scheduleUpsert(memory.path, "interaction");
+        await deps.scheduleUpsert(memory.path, "interaction");
       }
     }
 
