@@ -2,8 +2,7 @@
  * Bounded owner-verified saved-memory receipts for desk history and boot.
  * Saved means this user's matching note exists — not that MiniLM indexed it.
  */
-import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ConfirmedReplyMemoryState } from "./interactionMemoryProjection.js";
 import {
@@ -24,11 +23,15 @@ export type InteractionMemoryLookupKey = {
 };
 
 let testKnowledgeRoot: string | undefined;
+const noteNamesCache = new Map<string, { mtimeMs: number; names: string[] }>();
+const noteContentsCache = new Map<string, { mtimeMs: number; raw: string }>();
 
 export function resetInteractionMemoryReceiptForTests(opts?: {
   knowledgeRoot?: string;
 }): void {
   testKnowledgeRoot = opts?.knowledgeRoot;
+  noteNamesCache.clear();
+  noteContentsCache.clear();
 }
 
 function resolveKnowledgeRoot(explicit?: string): string {
@@ -58,11 +61,25 @@ function parseNoteOwnerAndReply(markdown: string): {
 
 async function listInteractionNoteNames(dir: string): Promise<string[] | null> {
   try {
-    if (!existsSync(dir)) return null;
-    return (await readdir(dir)).filter((name) => name.endsWith(".md"));
+    const mtimeMs = (await stat(dir)).mtimeMs;
+    const cached = noteNamesCache.get(dir);
+    if (cached?.mtimeMs === mtimeMs) return cached.names;
+    const names = (await readdir(dir)).filter((name) => name.endsWith(".md"));
+    noteNamesCache.set(dir, { mtimeMs, names });
+    return names;
   } catch {
+    noteNamesCache.delete(dir);
     return null;
   }
+}
+
+async function readCachedNote(path: string): Promise<string> {
+  const mtimeMs = (await stat(path)).mtimeMs;
+  const cached = noteContentsCache.get(path);
+  if (cached?.mtimeMs === mtimeMs) return cached.raw;
+  const raw = await readFile(path, "utf8");
+  noteContentsCache.set(path, { mtimeMs, raw });
+  return raw;
 }
 
 async function resolveNoteName(
@@ -81,7 +98,7 @@ async function resolveNoteName(
   for (const name of matches) {
     try {
       const parsed = parseNoteOwnerAndReply(
-        await readFile(join(dir, name), "utf8"),
+        await readCachedNote(join(dir, name)),
       );
       if (parsed?.userId === userId) return name;
     } catch {
@@ -97,7 +114,7 @@ async function receiptForNote(opts: {
 }): Promise<ConfirmedReplyMemoryState> {
   let raw: string;
   try {
-    raw = await readFile(opts.path, "utf8");
+    raw = await readCachedNote(opts.path);
   } catch {
     return "unavailable";
   }

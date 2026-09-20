@@ -202,6 +202,36 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.equal("memoryPath" in attached[0]!.memory, false);
   });
 
+  it("refreshes cached receipts when notes are created", async () => {
+    const interaction = { threadId: "2081", at: interactedAt };
+    await mkdir(join(root, "interactions"), { recursive: true });
+    assert.deepEqual(
+      await lookupInteractionMemoryReceipts({
+        userId: "user-1",
+        knowledgeRoot: root,
+        interactions: [interaction],
+      }),
+      ["no_reply_text"],
+    );
+
+    await writeInteractionMemory({
+      threadId: "2081",
+      author: "@A",
+      reply: "Newly saved reply",
+      userId: "user-1",
+      interactedAt,
+      knowledgeRoot: root,
+    });
+    assert.deepEqual(
+      await lookupInteractionMemoryReceipts({
+        userId: "user-1",
+        knowledgeRoot: root,
+        interactions: [interaction],
+      }),
+      ["saved"],
+    );
+  });
+
   it("never throws when a note file is unreadable", async () => {
     await mkdir(join(root, "interactions"), { recursive: true });
     await writeFile(
