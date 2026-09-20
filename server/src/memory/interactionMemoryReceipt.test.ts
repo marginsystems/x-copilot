@@ -42,6 +42,21 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["saved"]);
   });
 
+  it("accepts single-quoted user IDs in hand-edited notes", async () => {
+    await mkdir(join(root, "interactions"), { recursive: true });
+    await writeFile(
+      join(root, "interactions", "2026-07-27-2081.md"),
+      `---\ntype: interaction\nthreadId: "2081"\nuserId: 'user-1'\n---\n\n## Reply\n\nA hand-edited reply.\n`,
+      "utf8",
+    );
+    const states = await lookupInteractionMemoryReceipts({
+      userId: "user-1",
+      knowledgeRoot: root,
+      interactions: [{ threadId: "2081", at: interactedAt }],
+    });
+    assert.deepEqual(states, ["saved"]);
+  });
+
   it("uses the reply posted date when it differs from the interaction date", async () => {
     const postedAt = "2026-07-27T23:00:00.000Z";
     const markedAt = "2026-07-28T00:05:00.000Z";

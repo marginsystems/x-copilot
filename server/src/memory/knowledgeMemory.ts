@@ -182,7 +182,7 @@ export function parseInteractionNoteReply(
   const threadId = /(?:^|\n)threadId:\s*"?(\d+)"?/.exec(fm[1]!)?.[1] ?? "";
   const interactedAt =
     /(?:^|\n)interactedAt:\s*"?([^\s"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
-  const userId = /(?:^|\n)userId:\s*"?([^"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
+  const userId = /(?:^|\n)userId:\s*["']?([^"'\n]+)["']?/.exec(fm[1]!)?.[1] ?? "";
   const replyMatch = /^##\s+Reply\s*\r?\n+([\s\S]*?)(?=^##\s|$(?![\s\S]))/m.exec(
     markdown,
   );

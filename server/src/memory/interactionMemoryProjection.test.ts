@@ -106,6 +106,18 @@ describe("projectConfirmedReplyMemory", () => {
     );
   });
 
+  it("does not swallow an ownership conflict as an unavailable write", async () => {
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async () => {
+        throw new Error("interaction note belongs to another user");
+      },
+    });
+    await assert.rejects(
+      () => projectConfirmedReplyMemory(baseInput({ knowledgeRoot: root })),
+      /interaction note belongs to another user/,
+    );
+  });
+
   it("keeps a saved note when MiniLM upsert is unavailable", async () => {
     const bad: Embedder = {
       dimensions: 8,

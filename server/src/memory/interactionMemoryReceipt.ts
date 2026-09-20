@@ -49,7 +49,7 @@ function parseNoteOwnerAndReply(markdown: string): {
   const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown);
   if (!fm) return null;
   const userId =
-    /(?:^|\n)userId:\s*"?([^"\n]+)"?/.exec(fm[1]!)?.[1]?.trim() ?? "";
+    /(?:^|\n)userId:\s*["']?([^"'\n]+)["']?/.exec(fm[1]!)?.[1]?.trim() ?? "";
   const replyMatch = /^##\s+Reply\s*\r?\n+([\s\S]*?)(?=^##\s|$(?![\s\S]))/m.exec(
     markdown,
   );

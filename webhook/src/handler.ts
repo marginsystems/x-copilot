@@ -188,7 +188,7 @@ export async function markOwnReplyInteracted(
       const note = await readFile(notePath, "utf8");
       const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(note)?.[1] ?? "";
       noteOwned =
-        /(?:^|\n)userId:\s*"?([^"\n]+)"?/.exec(frontmatter)?.[1]?.trim() ===
+        /(?:^|\n)userId:\s*["']?([^"'\n]+)["']?/.exec(frontmatter)?.[1]?.trim() ===
         userId;
     } catch {
       // A missing or unreadable note needs the same repair attempt.

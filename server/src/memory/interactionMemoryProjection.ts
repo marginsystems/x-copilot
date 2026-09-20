@@ -131,6 +131,12 @@ export async function projectConfirmedReplyMemory(
 
     return { state: "saved", memoryPath: memory.path };
   } catch (err) {
+    if (
+      err instanceof Error &&
+      err.message === "interaction note belongs to another user"
+    ) {
+      throw err;
+    }
     console.warn("confirmed-reply memory write unavailable:", err);
     return { state: "unavailable" };
   }
