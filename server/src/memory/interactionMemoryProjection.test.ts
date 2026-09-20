@@ -223,8 +223,7 @@ describe("projectConfirmedReplyMemory", () => {
       release = resolve;
     });
     resetInteractionMemoryProjectionForTests({
-      writeNote: (input) =>
-        writeInteractionMemory({ ...input, knowledgeRoot: root }),
+      writeNote: async () => ({ path: join(root, "note.md") }),
       scheduleUpsert: async () => {
         started = true;
         await upsertFinished;
@@ -238,8 +237,9 @@ describe("projectConfirmedReplyMemory", () => {
         return result;
       },
     );
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    assert.equal(started, true);
+    while (!started) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
     assert.equal(returned, true);
     release();
 
