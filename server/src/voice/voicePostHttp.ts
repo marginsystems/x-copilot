@@ -617,14 +617,16 @@ export async function handlePost(
     }
   }
 
-  const memory = await projectVoiceReplyMemory({
-    userId: user.id,
-    reply: edited.trim(),
-    threadId,
-    author,
-    interactedAt: interaction?.at ?? new Date().toISOString(),
-    ...context,
-  });
+  const memory = interaction
+    ? await projectVoiceReplyMemory({
+        userId: user.id,
+        reply: edited.trim(),
+        threadId,
+        author,
+        interactedAt: interaction.at,
+        ...context,
+      })
+    : { state: "unavailable" as const };
 
   send(req, res, 200, {
     ok: true,

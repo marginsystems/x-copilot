@@ -85,7 +85,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["unavailable"]);
   });
 
-  it("finds the current user's older note when a newer foreign note shares its thread", async () => {
+  it("does not use an older note for a later interaction", async () => {
     await writeInteractionMemory({
       threadId: "2081",
       author: "@Builder",
@@ -107,10 +107,10 @@ describe("lookupInteractionMemoryReceipts", () => {
       knowledgeRoot: root,
       interactions: [{ threadId: "2081", at: "2026-08-11T12:00:00.000Z" }],
     });
-    assert.deepEqual(states, ["saved"]);
+    assert.deepEqual(states, ["no_reply_text"]);
   });
 
-  it("checks ownership when the expected filename belongs to another user", async () => {
+  it("reports unavailable when the expected-date note belongs to another user", async () => {
     await writeInteractionMemory({
       threadId: "2081",
       author: "@Builder",
@@ -132,7 +132,7 @@ describe("lookupInteractionMemoryReceipts", () => {
       knowledgeRoot: root,
       interactions: [{ threadId: "2081", at: "2026-08-11T12:00:00.000Z" }],
     });
-    assert.deepEqual(states, ["saved"]);
+    assert.deepEqual(states, ["unavailable"]);
   });
 
   it("returns unavailable when interaction storage is missing", async () => {

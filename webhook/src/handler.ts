@@ -3,7 +3,7 @@
  * on 127.0.0.1:8789. nginx routes /api/x/activity there.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { send } from "../../server/src/http/httpJson.js";
 import { xConsumerCreds } from "../../server/src/auth/xAuth.js";
 import { getUserById } from "../../server/src/auth/authStore.js";
@@ -183,7 +183,17 @@ export async function markOwnReplyInteracted(
       interactedAt: known.postedAt ?? known.at,
       knowledgeRoot: memoryOpts(opts).knowledgeRoot,
     });
-    if (!existsSync(notePath)) {
+    let noteOwned = false;
+    try {
+      const note = await readFile(notePath, "utf8");
+      const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(note)?.[1] ?? "";
+      noteOwned =
+        /(?:^|\n)userId:\s*"?([^"\n]+)"?/.exec(frontmatter)?.[1]?.trim() ===
+        userId;
+    } catch {
+      // A missing or unreadable note needs the same repair attempt.
+    }
+    if (!noteOwned) {
       await projectWebhookReplyMemory({
         userId,
         reply: parsed.text,

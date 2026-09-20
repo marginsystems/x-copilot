@@ -651,7 +651,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("writes posted reply text even when mark soft-fails after X succeeds", async () => {
+  it("does not save memory when mark soft-fails after X succeeds", async () => {
     resetVoicePostForTests({
       knowledgeRoot: join(dir, "knowledge"),
       markInteracted: async () => {
@@ -684,10 +684,8 @@ describe("POST /api/voice/post", () => {
       assert.equal((json.tweet as { id?: string }).id, "889");
       assert.equal(json.interaction, undefined);
       assert.equal(json.gamification, undefined);
-      const memory = json.memory as { state?: string; memoryPath?: string };
-      assert.equal(memory.state, "saved");
-      const note = await readFile(memory.memoryPath!, "utf8");
-      assert.match(note, /I would still pick the tool if it cut the wait/);
+      assert.deepEqual(json.memory, { state: "unavailable" });
+      assert.equal(json.memoryPath, undefined);
     } finally {
       globalThis.fetch = origFetch;
     }

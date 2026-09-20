@@ -10,6 +10,7 @@ import {
   defaultKnowledgeRoot,
   normalizeReply,
   safeThreadIdForFilename,
+  utcDatePrefix,
 } from "./knowledgeMemory.js";
 
 export type InteractionMemoryReceipt = {
@@ -66,11 +67,15 @@ async function listInteractionNoteNames(dir: string): Promise<string[] | null> {
 async function resolveNoteName(
   namesBySuffix: ReadonlyMap<string, readonly string[]>,
   threadId: string,
+  interactedAt: string,
   dir: string,
   userId: string,
 ): Promise<string | null> {
   const suffix = noteSuffix(threadId);
-  const matches = namesBySuffix.get(suffix) ?? [];
+  const datePrefix = `${utcDatePrefix(interactedAt)}-`;
+  const matches = (namesBySuffix.get(suffix) ?? []).filter((name) =>
+    name.startsWith(datePrefix),
+  );
   if (!matches.length) return null;
   for (const name of matches) {
     try {
@@ -143,6 +148,7 @@ export async function lookupInteractionMemoryReceipts(opts: {
           const name = await resolveNoteName(
             namesBySuffix,
             interaction.threadId,
+            interaction.at,
             dir,
             userId,
           );

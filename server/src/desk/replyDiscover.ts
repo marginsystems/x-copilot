@@ -313,7 +313,7 @@ async function reconcileConfirmedOwnReplies(opts: {
 }): Promise<void> {
   let posts;
   try {
-    posts = listConfirmedOwnReplies({ userId: opts.userId });
+    posts = listConfirmedOwnReplies({ userId: opts.userId, limit: 200 });
   } catch (err) {
     console.warn("[reply-discover] confirmed own_posts read soft-fail:", err);
     return;

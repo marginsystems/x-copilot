@@ -547,6 +547,42 @@ describe("own reply interaction capture", () => {
     assert.doesNotMatch(note, /webhook retry/);
   });
 
+  it("attempts repair when the known path belongs to another user", async () => {
+    await markInteracted({
+      threadId: "parent-1",
+      author: "@target",
+      userId,
+      replyId: "known-reply",
+      nowMs,
+    });
+    await writeInteractionMemory({
+      threadId: "parent-1",
+      author: "@target",
+      reply: "foreign reply",
+      userId: "user-other",
+      interactedAt: new Date(nowMs).toISOString(),
+      knowledgeRoot: knowledgeRootFor(dir),
+    });
+    let writes = 0;
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async (input) => {
+        writes += 1;
+        return writeInteractionMemory(input);
+      },
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(
+        post({ postId: "known-reply" }),
+        userId,
+        { nowMs: nowMs + 1 },
+      ),
+      "skipped",
+    );
+    assert.equal(writes, 1);
+    assert.match(await readNote(dir, "parent-1"), /userId: "user-other"/);
+  });
+
   it("repairs one note for a known watched reply without extra XP", async () => {
     watchThread({
       userId,
