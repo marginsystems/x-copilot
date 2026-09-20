@@ -849,7 +849,9 @@ describe("POST /api/voice/post", () => {
       );
       assert.equal(first.status, 200);
       rmSync(first.json.memoryPath as string);
-      getPlatformDb().exec("DROP TABLE own_posts");
+      // Hide the canonical own-post row. Do not drop the table: streak
+      // overlay still reads own_posts on replay.
+      getPlatformDb().prepare("DELETE FROM own_posts WHERE id = ?").run("893");
 
       const retry = await postReply(user, {
         ...body,
