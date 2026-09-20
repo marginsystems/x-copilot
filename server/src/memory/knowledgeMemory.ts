@@ -1,6 +1,7 @@
 /**
- * Obsidian-friendly interaction memories under knowledge/ (gitignored).
- * Storage only — no retrieval in v1.
+ * Obsidian-friendly interaction and dismissal note storage under knowledge/
+ * (gitignored). This module writes and updates notes; MiniLM retrieval lives
+ * in memoryIndex, memoryHttp, and Scout triage.
  */
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
@@ -181,7 +182,7 @@ export function parseInteractionNoteReply(
   const threadId = /(?:^|\n)threadId:\s*"?(\d+)"?/.exec(fm[1]!)?.[1] ?? "";
   const interactedAt =
     /(?:^|\n)interactedAt:\s*"?([^\s"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
-  const userId = /(?:^|\n)userId:\s*"?([^"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
+  const userId = /(?:^|\n)userId:\s*["']?([^"'\n]+)["']?/.exec(fm[1]!)?.[1] ?? "";
   const replyMatch = /^##\s+Reply\s*\r?\n+([\s\S]*?)(?=^##\s|$(?![\s\S]))/m.exec(
     markdown,
   );
@@ -298,12 +299,19 @@ export async function writeInteractionMemory(
     interactedAt: input.interactedAt,
     knowledgeRoot: input.knowledgeRoot,
   });
+  let existing: string | undefined;
   try {
-    const existing = await readFile(path, "utf8");
-    markdown = preserveInteractionOutcome(existing, markdown);
-    if (existing === markdown) return { path, markdown };
+    existing = await readFile(path, "utf8");
   } catch {
     // The note does not exist yet.
+  }
+  if (existing !== undefined) {
+    const existingUserId = /^userId:\s*["']?([^"'\n]+)["']?\s*$/m.exec(existing)?.[1];
+    if (existingUserId && input.userId && existingUserId !== input.userId) {
+      throw new Error("interaction note belongs to another user");
+    }
+    markdown = preserveInteractionOutcome(existing, markdown);
+    if (existing === markdown) return { path, markdown };
   }
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, markdown, "utf8");
@@ -521,8 +529,8 @@ async function noteInteractedAtDate(path: string): Promise<string | null> {
 }
 
 /**
- * Find an interaction note by expected path from `at` + threadId, then
- * filename-suffix fallback for legacy / re-marked notes. Never uses postedAt.
+ * Find an interaction note by expected path from the canonical interaction
+ * time + threadId, then filename-suffix fallback for legacy / re-marked notes.
  */
 export async function findInteractionNotePath(opts: {
   threadId: string;
@@ -653,7 +661,7 @@ export async function updateInteractionMemoryOutcome(opts: {
 
   const path = await findInteractionNotePath({
     threadId: interaction.threadId,
-    interactedAt: interaction.at,
+    interactedAt: interaction.postedAt ?? interaction.at,
     knowledgeRoot: opts.knowledgeRoot,
   });
   if (!path) {

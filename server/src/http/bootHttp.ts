@@ -39,6 +39,7 @@ import {
 import { resolvePlan } from "../billing/planResolution.js";
 import { getRequestTenantId } from "./requestContext.js";
 import { readLastScoutPayload } from "../scout/scoutHttp.js";
+import { attachInteractionMemoryReceipts } from "../memory/interactionMemoryReceipt.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { listSkipHistory } from "../desk/skipStore.js";
 
@@ -110,7 +111,10 @@ export async function tryHandleBoot(
         : Promise.resolve(toPublicGamification(emptyGamificationState())),
     ]);
 
-    const interactions = interactionHistory.slice(0, MAX_INTERACTION_HISTORY);
+    const historySlice = interactionHistory.slice(0, MAX_INTERACTION_HISTORY);
+    const interactions = user
+      ? await attachInteractionMemoryReceipts(historySlice, { userId: user.id })
+      : historySlice;
     const activityStats = await bucketInteractionsWithLive(
       interactionHistory,
       "day",

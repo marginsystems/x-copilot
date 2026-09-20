@@ -91,6 +91,13 @@ export type ReplyStatSnapshot = {
   sampledAt: string;
 };
 
+/** Honest saved-memory receipt from boot / GET history. Paths stay off the desk. */
+export type InteractionMemoryState = "saved" | "unavailable" | "no_reply_text";
+
+export type InteractionMemoryReceipt = {
+  state: InteractionMemoryState;
+};
+
 export type InteractionHistoryEntry = {
   threadId: string;
   author: string;
@@ -107,7 +114,51 @@ export type InteractionHistoryEntry = {
     t1h?: ReplyStatSnapshot;
     t24h?: ReplyStatSnapshot;
   };
+  memory?: InteractionMemoryReceipt;
 };
+
+export function parseInteractionMemoryReceipt(
+  raw: unknown,
+): InteractionMemoryReceipt | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const state = (raw as { state?: unknown }).state;
+  if (
+    state === "saved" ||
+    state === "unavailable" ||
+    state === "no_reply_text"
+  ) {
+    return { state };
+  }
+  return undefined;
+}
+
+export function parseInteractionHistoryEntry(
+  raw: unknown,
+): InteractionHistoryEntry | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Record<string, unknown>;
+  if (
+    typeof row.threadId !== "string" ||
+    typeof row.author !== "string" ||
+    typeof row.at !== "string"
+  ) {
+    return null;
+  }
+  const memory = parseInteractionMemoryReceipt(row.memory);
+  const entry = raw as InteractionHistoryEntry;
+  if (memory) return { ...entry, memory };
+  if ("memory" in entry) {
+    const { memory: _drop, ...rest } = entry;
+    return rest;
+  }
+  return entry;
+}
+
+export function hasSavedInteractionMemory(
+  entry: Pick<InteractionHistoryEntry, "memory">,
+): boolean {
+  return entry.memory?.state === "saved";
+}
 
 export type ThreadsTab =
   | "curated"

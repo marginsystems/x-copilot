@@ -13,8 +13,11 @@ import {
 let memoryReindexInFlight: Promise<ReindexResult> | null = null;
 
 /** Best-effort index upsert — never fails the request. */
-export function scheduleMemoryUpsert(notePath: string, type: MemoryType): void {
-  void (async () => {
+export async function scheduleMemoryUpsert(
+  notePath: string,
+  type: MemoryType,
+): Promise<void> {
+  try {
     if (memoryReindexInFlight) {
       await memoryReindexInFlight;
     }
@@ -22,7 +25,12 @@ export function scheduleMemoryUpsert(notePath: string, type: MemoryType): void {
     if (!result.ok && result.error) {
       console.warn(`memory upsert soft-fail (${type}):`, result.error);
     }
-  })();
+  } catch (err) {
+    console.warn(
+      `memory upsert soft-fail (${type}):`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 }
 
 /** Rebuild index, sharing the in-flight guard across lazy and manual paths. */

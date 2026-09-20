@@ -387,6 +387,49 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /views24h/);
   });
 
+  it("locates outcomes by postedAt when it crosses a UTC date boundary", async () => {
+    const at = "2026-07-27T23:59:00.000Z";
+    const postedAt = "2026-07-28T00:01:00.000Z";
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "Earlier reply",
+      knowledgeRoot: root,
+      interactedAt: at,
+    });
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      reply: "Canonical reply",
+      knowledgeRoot: root,
+      interactedAt: postedAt,
+    });
+
+    const result = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({
+        at,
+        postedAt,
+        stats: {
+          t1h: {
+            views: 5,
+            likes: 1,
+            replies: 0,
+            retweets: 0,
+            sampledAt: postedAt,
+          },
+        },
+      }),
+      knowledgeRoot: root,
+    });
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.match(result.path, /2026-07-28-99\.md$/);
+    const body = await readFile(result.path, "utf8");
+    assert.match(body, /Canonical reply/);
+    assert.doesNotMatch(body, /Earlier reply/);
+  });
+
   it("keeps t1h when writing t24h and is idempotent", async () => {
     await writeInteractionMemory({
       threadId: "99",
@@ -537,6 +580,41 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /First agenda/);
     assert.doesNotMatch(body, /First intent/);
     assert.doesNotMatch(body, /First reply/);
+  });
+
+  it("does not overwrite an interaction note owned by another user", async () => {
+    await writeInteractionMemory({
+      threadId: "foreign-owner",
+      author: "@A",
+      reply: "First user's reply",
+      source: "manual",
+      userId: "user-1",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+
+    await assert.rejects(
+      writeInteractionMemory({
+        threadId: "foreign-owner",
+        author: "@A",
+        reply: "Second user's reply",
+        source: "manual",
+        userId: "user-2",
+        knowledgeRoot: root,
+        interactedAt: "2026-07-27T01:02:03.000Z",
+      }),
+    );
+    const body = await readFile(
+      buildInteractionNotePath({
+        threadId: "foreign-owner",
+        interactedAt: "2026-07-27T01:02:03.000Z",
+        knowledgeRoot: root,
+      }),
+      "utf8",
+    );
+    assert.match(body, /userId: "user-1"/);
+    assert.match(body, /First user's reply/);
+    assert.doesNotMatch(body, /Second user's reply/);
   });
 
   it("removes omitted fields when a manual note is rewritten", async () => {

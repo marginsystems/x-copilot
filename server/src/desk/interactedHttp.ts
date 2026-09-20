@@ -28,10 +28,10 @@ import {
   parseStatusIdFromUrl,
 } from "./interactionCooldown.js";
 import {
-  normalizeReply,
-  writeInteractionMemory,
-} from "../memory/knowledgeMemory.js";
-import { scheduleMemoryUpsert } from "../memory/memoryReindex.js";
+  projectConfirmedReplyMemory,
+  type ConfirmedReplyMemoryResult,
+} from "../memory/interactionMemoryProjection.js";
+import { attachInteractionMemoryReceipts } from "../memory/interactionMemoryReceipt.js";
 import { pruneThreadsFromScoutCache } from "../scout/scoutCache.js";
 import { maybeStartEmptyTankScout } from "../scout/scoutEmptyTank.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
@@ -69,8 +69,13 @@ export async function tryHandleInteracted(
           listActiveInteractions({ userId: sessionUser.id }),
         ])
       : [[], []];
+    const history = sessionUser
+      ? await attachInteractionMemoryReceipts(interactions, {
+          userId: sessionUser.id,
+        })
+      : interactions;
     send(req, res, 200, {
-      interactions,
+      interactions: history,
       activeIds: active.map((i) => i.threadId),
     });
     return true;
@@ -195,7 +200,6 @@ export async function tryHandleInteracted(
     const author = typeof body.author === "string" ? body.author.trim() : "";
     const replyUrl =
       typeof body.replyUrl === "string" ? body.replyUrl.trim() : "";
-    const reply = normalizeReply(body.reply);
     const replyId = parseStatusIdFromUrl(replyUrl);
     if (!threadId || !author || !normalizeAuthorKey(author) || !replyId) {
       send(req, res, 400, {
@@ -288,14 +292,14 @@ export async function tryHandleInteracted(
           pendingAt: interaction.at,
         }).catch(() => {});
       }
-      let memoryPath: string | undefined;
-      if (reply) {
-        const memory = await writeInteractionMemory({
+      let memory: ConfirmedReplyMemoryResult;
+      try {
+        memory = await projectConfirmedReplyMemory({
+          userId: sessionUser.id,
+          reply: body.reply,
           threadId,
           author,
-          reply,
           source,
-          userId: sessionUser.id,
           url,
           text,
           summary,
@@ -310,13 +314,21 @@ export async function tryHandleInteracted(
           // Match durable store timestamp so later stats ticks can rediscover the note.
           interactedAt: interaction.at,
         });
-        memoryPath = memory.path;
-        scheduleMemoryUpsert(memory.path, "interaction");
+      } catch (err) {
+        if (
+          !(err instanceof Error) ||
+          err.message !== "interaction note belongs to another user"
+        ) {
+          throw err;
+        }
+        console.warn("confirmed-reply memory ownership conflict:", err);
+        memory = { state: "unavailable" as const };
       }
       send(req, res, 200, {
         ok: true,
         interaction,
-        memoryPath,
+        memoryPath: memory.memoryPath,
+        memory,
         ...(gamification ? { gamification } : {}),
       });
       return true;

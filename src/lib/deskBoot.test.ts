@@ -5,6 +5,7 @@ import {
   clearDeskBootCache,
   parseAuthSessionUser,
   parseDeskBoot,
+  peekDeskBootCache,
   readDeskBootCache,
   writeDeskBootCache,
 } from "./deskBoot.ts";
@@ -135,6 +136,64 @@ describe("parseDeskBoot", () => {
       null,
     );
   });
+
+  it("keeps an older boot payload that has no memory receipt", () => {
+    const parsed = parseDeskBoot({
+      ok: true,
+      authRequired: true,
+      user,
+      desk: {
+        ...desk,
+        interacted: {
+          interactions: [
+            { threadId: "t1", author: "@ada", at: "2026-09-19T12:00:00.000Z" },
+          ],
+          activeIds: ["t1"],
+        },
+      },
+    });
+    assert.equal(parsed?.desk?.interacted.interactions.length, 1);
+    assert.equal(parsed?.desk?.interacted.interactions[0]?.memory, undefined);
+  });
+
+  it("keeps a saved memory receipt and drops a malformed one", () => {
+    const parsed = parseDeskBoot({
+      ok: true,
+      authRequired: true,
+      user,
+      desk: {
+        ...desk,
+        interacted: {
+          interactions: [
+            {
+              threadId: "saved",
+              author: "@ada",
+              at: "2026-09-19T12:00:00.000Z",
+              memory: { state: "saved", memoryPath: "/secret.md" },
+            },
+            {
+              threadId: "missing",
+              author: "@ada",
+              at: "2026-09-19T12:01:00.000Z",
+              memory: { state: "no_reply_text" },
+            },
+            {
+              threadId: "bad",
+              author: "@ada",
+              at: "2026-09-19T12:02:00.000Z",
+              memory: { state: "yes" },
+            },
+          ],
+          activeIds: ["saved", "missing", "bad"],
+        },
+      },
+    });
+    const rows = parsed?.desk?.interacted.interactions ?? [];
+    assert.deepEqual(rows[0]?.memory, { state: "saved" });
+    assert.equal("memoryPath" in (rows[0]?.memory ?? {}), false);
+    assert.deepEqual(rows[1]?.memory, { state: "no_reply_text" });
+    assert.equal(rows[2]?.memory, undefined);
+  });
 });
 
 describe("desk boot cache", () => {
@@ -152,6 +211,41 @@ describe("desk boot cache", () => {
     assert.equal(read?.desk?.forYou.progress?.tracked, 3);
     writeDeskBootCache({ ...payload, user: null }, store);
     assert.equal(store.getItem(DESK_BOOT_KEY), null);
+    clearDeskBootCache(store);
+  });
+
+  it("persists a saved receipt and hides it from another account", () => {
+    const store = memoryStore();
+    const payload = parseDeskBoot({
+      ok: true,
+      authRequired: true,
+      user,
+      desk: {
+        ...desk,
+        interacted: {
+          interactions: [
+            {
+              threadId: "t1",
+              author: "@ada",
+              at: "2026-09-19T12:00:00.000Z",
+              memory: { state: "saved" },
+            },
+          ],
+          activeIds: ["t1"],
+        },
+      },
+    });
+    assert.ok(payload);
+    writeDeskBootCache(payload, store);
+    const read = readDeskBootCache(store);
+    assert.equal(read?.desk?.interacted.interactions[0]?.memory?.state, "saved");
+    writeDeskBootCache(payload);
+    assert.equal(
+      peekDeskBootCache("u1")?.desk?.interacted.interactions[0]?.memory?.state,
+      "saved",
+    );
+    assert.equal(peekDeskBootCache("other-user"), null);
+    clearDeskBootCache();
     clearDeskBootCache(store);
   });
 });

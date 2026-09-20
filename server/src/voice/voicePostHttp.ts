@@ -1,10 +1,12 @@
 /**
  * Desk POST /api/voice/post — X write, idempotency, and mark-after-post.
  */
+import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { trackAnalytics } from "../desk/analyticsClient.js";
 import { allowRate } from "../auth/authGuard.js";
 import type { AuthUser } from "../auth/authStore.js";
+import { getPlatformDb } from "../db.js";
 import {
   recordDeskOriginalPosted,
   recordDeskReplyMarked,
@@ -17,6 +19,14 @@ import {
   parseStatusIdFromUrl,
 } from "../desk/interactionCooldown.js";
 import { markInteracted } from "../desk/interactionStore.js";
+import {
+  findInteractionNotePath,
+  parseInteractionNoteReply,
+} from "../memory/knowledgeMemory.js";
+import {
+  projectConfirmedReplyMemory,
+  type ConfirmedReplyMemoryResult,
+} from "../memory/interactionMemoryProjection.js";
 import { pruneConsumedScoutThread } from "../scout/scoutCache.js";
 import {
   MAX_REPLY_CHARS,
@@ -38,8 +48,141 @@ import {
 } from "../x-api/xPostLimits.js";
 import { postUserReply, postUserTweet } from "../x-api/xTweet.js";
 
+type VoicePostTestHooks = {
+  markInteracted?: typeof markInteracted;
+  knowledgeRoot?: string;
+};
+
+let testHooks: VoicePostTestHooks = {};
+
+/** Test-only seams: inject mark failure and isolate note writes. */
+export function resetVoicePostForTests(overrides?: VoicePostTestHooks): void {
+  testHooks = { ...overrides };
+}
+
 export function voiceMode(body: Record<string, unknown>): "reply" | "compose" {
   return body.mode === "compose" ? "compose" : "reply";
+}
+
+function cardContext(body: Record<string, unknown>): {
+  url?: string;
+  text?: string;
+  summary?: string;
+} {
+  return {
+    url: typeof body.url === "string" ? body.url : undefined,
+    text: typeof body.text === "string" ? body.text : undefined,
+    summary: typeof body.summary === "string" ? body.summary : undefined,
+  };
+}
+
+async function markVoiceInteracted(
+  opts: Parameters<typeof markInteracted>[0],
+) {
+  return (testHooks.markInteracted ?? markInteracted)(opts);
+}
+
+async function projectVoiceReplyMemory(opts: {
+  userId: string;
+  reply: string;
+  threadId: string;
+  author: string;
+  interactedAt: string;
+  url?: string;
+  text?: string;
+  summary?: string;
+}): Promise<ConfirmedReplyMemoryResult> {
+  return projectConfirmedReplyMemory({
+    ...opts,
+    source: "manual",
+    knowledgeRoot: testHooks.knowledgeRoot,
+  });
+}
+
+function memoryFields(memory: ConfirmedReplyMemoryResult): {
+  memory: ConfirmedReplyMemoryResult;
+  memoryPath?: string;
+} {
+  return {
+    memory,
+    ...(memory.memoryPath ? { memoryPath: memory.memoryPath } : {}),
+  };
+}
+
+/** Saved note first; own-post text only when the note is missing. */
+async function savedOrCanonicalReply(opts: {
+  userId: string;
+  threadId: string;
+  tweetId: string;
+  interactedAt?: string;
+}): Promise<{ reply: string; interactedAt?: string } | undefined> {
+  const path = await findInteractionNotePath({
+    threadId: opts.threadId,
+    interactedAt: opts.interactedAt,
+    knowledgeRoot: testHooks.knowledgeRoot,
+  });
+  if (path) {
+    try {
+      const parsed = parseInteractionNoteReply(await readFile(path, "utf8"));
+      if (parsed?.text && parsed.userId === opts.userId) {
+        return {
+          reply: parsed.text,
+          interactedAt: parsed.postedAt ?? undefined,
+        };
+      }
+    } catch {
+      // Fall through to confirmed own-post text.
+    }
+  }
+  let row:
+    | { text: string | null; postedAt: string | null }
+    | undefined;
+  try {
+    row = getPlatformDb()
+      .prepare(
+        `SELECT text, posted_at AS postedAt
+           FROM own_posts
+          WHERE user_id = ? AND id = ?`,
+      )
+      .get(opts.userId, opts.tweetId) as
+      | { text: string | null; postedAt: string | null }
+      | undefined;
+  } catch {
+    return undefined;
+  }
+  const reply = row?.text?.trim();
+  if (!reply) return undefined;
+  return { reply, interactedAt: row?.postedAt ?? undefined };
+}
+
+async function replayReplyMemory(opts: {
+  userId: string;
+  threadId: string;
+  author: string;
+  tweetId: string;
+  interactedAt?: string;
+  url?: string;
+  text?: string;
+  summary?: string;
+}): Promise<ConfirmedReplyMemoryResult> {
+  const canonical = await savedOrCanonicalReply({
+    userId: opts.userId,
+    threadId: opts.threadId,
+    tweetId: opts.tweetId,
+    interactedAt: opts.interactedAt,
+  });
+  if (!canonical) return { state: "unavailable" };
+  return projectVoiceReplyMemory({
+    userId: opts.userId,
+    reply: canonical.reply,
+    threadId: opts.threadId,
+    author: opts.author,
+    interactedAt:
+      canonical.interactedAt ?? opts.interactedAt ?? new Date().toISOString(),
+    url: opts.url,
+    text: opts.text,
+    summary: opts.summary,
+  });
 }
 
 export async function handlePost(
@@ -118,16 +261,15 @@ export async function handlePost(
         return;
       }
       const replyId = parseStatusIdFromUrl(replyUrl) ?? prior.tweetId;
+      const context = cardContext(body);
       let interaction;
       try {
-        interaction = await markInteracted({
+        interaction = await markVoiceInteracted({
           threadId,
           author,
           source: "manual",
           userId: user.id,
-          url: typeof body.url === "string" ? body.url : undefined,
-          text: typeof body.text === "string" ? body.text : undefined,
-          summary: typeof body.summary === "string" ? body.summary : undefined,
+          ...context,
           replyId,
           replyUrl,
           conversationId:
@@ -144,6 +286,14 @@ export async function handlePost(
       } catch (err) {
         console.warn("mark after desk post replay soft-fail:", err);
       }
+      const memory = await replayReplyMemory({
+        userId: user.id,
+        threadId,
+        author,
+        tweetId: prior.tweetId,
+        interactedAt: interaction?.postedAt ?? interaction?.at,
+        ...context,
+      });
       const snap = await getGamification({ userId: user.id });
       const limit = checkDeskPostLimit({
         userId: user.id,
@@ -156,6 +306,7 @@ export async function handlePost(
         interaction,
         remainingToday: limit.remainingToday,
         cap: limit.cap,
+        ...memoryFields(memory),
       });
       return;
     }
@@ -420,16 +571,15 @@ export async function handlePost(
 
   const conversationId =
     typeof body.conversationId === "string" ? body.conversationId : undefined;
+  const context = cardContext(body);
   let interaction;
   try {
-    interaction = await markInteracted({
+    interaction = await markVoiceInteracted({
       threadId,
       author,
       source: "manual",
       userId: user.id,
-      url: typeof body.url === "string" ? body.url : undefined,
-      text: typeof body.text === "string" ? body.text : undefined,
-      summary: typeof body.summary === "string" ? body.summary : undefined,
+      ...context,
       replyId,
       replyUrl,
       conversationId,
@@ -467,12 +617,35 @@ export async function handlePost(
     }
   }
 
+  let memory: ConfirmedReplyMemoryResult = { state: "unavailable" };
+  if (interaction) {
+    try {
+      memory = await projectVoiceReplyMemory({
+        userId: user.id,
+        reply: edited.trim(),
+        threadId,
+        author,
+        interactedAt: interaction.at,
+        ...context,
+      });
+    } catch (err) {
+      if (
+        !(err instanceof Error) ||
+        err.message !== "interaction note belongs to another user"
+      ) {
+        throw err;
+      }
+      console.warn("voice reply memory ownership conflict:", err);
+    }
+  }
+
   send(req, res, 200, {
     ok: true,
     tweet: { id: posted.tweetId, url: replyUrl },
     interaction,
     remainingToday: Math.max(0, limit.remainingToday - 1),
     cap: limit.cap,
+    ...memoryFields(memory),
     ...(gamification ? { gamification } : {}),
   });
 }

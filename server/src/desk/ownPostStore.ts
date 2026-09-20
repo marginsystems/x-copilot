@@ -157,6 +157,53 @@ export function countOwnPostsSince(
   return Number(row?.n ?? 0);
 }
 
+export type ConfirmedOwnReply = {
+  id: string;
+  userId: string;
+  text: string;
+  postedAt: string;
+  inReplyToId: string | null;
+  conversationId: string | null;
+  url: string | null;
+};
+
+/** Bounded owner-scoped replies that already have confirmed local text. */
+export function listConfirmedOwnReplies(opts: {
+  userId: string;
+  limit?: number;
+}): ConfirmedOwnReply[] {
+  const limit = Math.min(Math.max(opts.limit ?? 80, 1), 200);
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT id, user_id, text, posted_at, in_reply_to_id, conversation_id, url
+         FROM own_posts
+        WHERE user_id = ?
+          AND kind = 'reply'
+          AND text IS NOT NULL
+          AND length(trim(text)) > 0
+        ORDER BY posted_at DESC
+        LIMIT ?`,
+    )
+    .all(opts.userId, limit) as Array<{
+      id: string;
+      user_id: string;
+      text: string;
+      posted_at: string;
+      in_reply_to_id: string | null;
+      conversation_id: string | null;
+      url: string | null;
+    }>;
+  return rows.map((row) => ({
+    id: String(row.id),
+    userId: String(row.user_id),
+    text: String(row.text),
+    postedAt: String(row.posted_at),
+    inReplyToId: row.in_reply_to_id ? String(row.in_reply_to_id) : null,
+    conversationId: row.conversation_id ? String(row.conversation_id) : null,
+    url: row.url ? String(row.url) : null,
+  }));
+}
+
 export function upsertOwnPost(input: {
   parsed: ParsedPostCreate;
   userId: string;

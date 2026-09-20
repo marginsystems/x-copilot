@@ -3,6 +3,7 @@
  * on 127.0.0.1:8789. nginx routes /api/x/activity there.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { readFile } from "node:fs/promises";
 import { send } from "../../server/src/http/httpJson.js";
 import { xConsumerCreds } from "../../server/src/auth/xAuth.js";
 import { getUserById } from "../../server/src/auth/authStore.js";
@@ -47,11 +48,81 @@ import type { ParsedPostCreate } from "../../server/src/x-api/xActivity.js";
 import { replyMatchesLockedScout } from "../../server/src/scout/replyMatchScout.js";
 import { getScoutApproachLock } from "../../server/src/scout/scoutApproachLock.js";
 import { pruneConsumedScoutThread } from "../../server/src/scout/scoutCache.js";
+import {
+  projectConfirmedReplyMemory,
+  type ProjectConfirmedReplyMemoryInput,
+} from "../../server/src/memory/interactionMemoryProjection.js";
+import { buildInteractionNotePath } from "../../server/src/memory/knowledgeMemory.js";
+
+type WebhookMemoryOpts = Pick<
+  ProjectConfirmedReplyMemoryInput,
+  "knowledgeRoot" | "indexDir" | "awaitUpsert" | "upsertMemory"
+>;
+
+let testMemoryOpts: WebhookMemoryOpts = {};
+
+/** Test seam so webhook notes land in an isolated knowledge root. */
+export function resetWebhookMemoryProjectionForTests(
+  overrides?: WebhookMemoryOpts,
+): void {
+  testMemoryOpts = { ...overrides };
+}
+
+function optionalContext(
+  value: string | null | undefined,
+): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+function memoryOpts(
+  opts?: { nowMs?: number } & WebhookMemoryOpts,
+): WebhookMemoryOpts {
+  return {
+    knowledgeRoot: opts?.knowledgeRoot ?? testMemoryOpts.knowledgeRoot,
+    indexDir: opts?.indexDir ?? testMemoryOpts.indexDir,
+    awaitUpsert: opts?.awaitUpsert ?? testMemoryOpts.awaitUpsert,
+    upsertMemory: opts?.upsertMemory ?? testMemoryOpts.upsertMemory,
+  };
+}
+
+async function projectWebhookReplyMemory(
+  input: {
+    userId: string;
+    reply: string;
+    threadId: string;
+    author: string;
+    interactedAt: string;
+    url?: string;
+    text?: string;
+    summary?: string;
+  } & WebhookMemoryOpts,
+): Promise<void> {
+  try {
+    await projectConfirmedReplyMemory({
+      userId: input.userId,
+      reply: input.reply,
+      threadId: input.threadId,
+      author: input.author,
+      interactedAt: input.interactedAt,
+      source: "discovered",
+      url: input.url,
+      text: input.text,
+      summary: input.summary,
+      knowledgeRoot: input.knowledgeRoot,
+      indexDir: input.indexDir,
+      awaitUpsert: input.awaitUpsert,
+      upsertMemory: input.upsertMemory,
+    });
+  } catch (err) {
+    console.warn("[xaa] confirmed-reply memory soft-fail", err);
+  }
+}
 
 export async function markOwnReplyInteracted(
   parsed: ParsedPostCreate,
   userId: string,
-  opts?: { nowMs?: number },
+  opts?: { nowMs?: number } & WebhookMemoryOpts,
 ): Promise<"scout" | "organic" | "skipped"> {
   const isReply = parsed.kind === "reply" && Boolean(parsed.inReplyToId);
   if (!isReply) return "skipped";
@@ -82,17 +153,6 @@ export async function markOwnReplyInteracted(
     targetId ??
     parsed.conversationId ??
     parsed.postId;
-  const history = await listInteractionHistory({
-    limit: MAX_INTERACTION_STORE,
-    userId,
-  });
-  if (
-    history.some(
-      (row) => row.replyId === parsed.postId || row.threadId === threadId,
-    )
-  ) {
-    return "skipped";
-  }
   const author =
     scoutCard?.author ??
     (parsed.inReplyToUsername
@@ -100,18 +160,62 @@ export async function markOwnReplyInteracted(
       : parsed.inReplyToUserId
         ? `@${parsed.inReplyToUserId}`
         : "@unknown");
+  const contextUrl =
+    optionalContext(scoutCard?.url) ??
+    (parsed.inReplyToUsername
+      ? postUrl(parsed.inReplyToUsername, targetId)
+      : undefined);
+  const contextText = optionalContext(scoutCard?.text);
+  const history = await listInteractionHistory({
+    limit: MAX_INTERACTION_STORE,
+    userId,
+  });
+  const known = history.find((row) => row.replyId === parsed.postId) ??
+    history.find(
+      (row) =>
+        !row.replyId &&
+        (parsed.inReplyToId === row.threadId ||
+          parsed.conversationId === row.threadId),
+    );
+  if (known) {
+    const notePath = buildInteractionNotePath({
+      threadId: known.threadId,
+      interactedAt: known.postedAt ?? known.at,
+      knowledgeRoot: memoryOpts(opts).knowledgeRoot,
+    });
+    let noteOwned = false;
+    try {
+      const note = await readFile(notePath, "utf8");
+      const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(note)?.[1] ?? "";
+      noteOwned =
+        /(?:^|\n)userId:\s*["']?([^"'\n]+)["']?/.exec(frontmatter)?.[1]?.trim() ===
+        userId;
+    } catch {
+      // A missing or unreadable note needs the same repair attempt.
+    }
+    if (!noteOwned) {
+      await projectWebhookReplyMemory({
+        userId,
+        reply: parsed.text,
+        threadId: known.threadId,
+        author: known.author || author,
+        interactedAt: known.postedAt ?? known.at,
+        url: contextUrl ?? known.url,
+        text: contextText ?? known.text,
+        summary: known.summary,
+        ...memoryOpts(opts),
+      });
+    }
+    return "skipped";
+  }
   const source = scoutCard ? "scout" : "organic";
   const interaction = await markInteracted({
     threadId,
     author,
     source: "discovered",
     userId,
-    url:
-      scoutCard?.url ??
-      (parsed.inReplyToUsername
-        ? postUrl(parsed.inReplyToUsername, targetId)
-        : undefined),
-    text: scoutCard?.text ?? undefined,
+    url: contextUrl,
+    text: contextText,
     replyId: parsed.postId,
     replyUrl: postUrl(parsed.authorUsername, parsed.postId),
     postedAt: parsed.postedAt,
@@ -154,6 +258,17 @@ export async function markOwnReplyInteracted(
       }).catch(() => {});
     }
   }
+  await projectWebhookReplyMemory({
+    userId,
+    reply: parsed.text,
+    threadId: interaction.threadId,
+    author: interaction.author || author,
+    interactedAt: interaction.postedAt ?? interaction.at,
+    url: interaction.url ?? contextUrl,
+    text: contextText ?? interaction.text,
+    summary: interaction.summary,
+    ...memoryOpts(opts),
+  });
   return source;
 }
 

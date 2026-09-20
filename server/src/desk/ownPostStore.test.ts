@@ -17,6 +17,7 @@ import {
   lastUtcDays,
   listActivityOwnPosts,
   listDueOwnPostSamples,
+  listConfirmedOwnReplies,
   listOwnPostedAt,
   patchOwnPostSnapshot,
   removeOwnPost,
@@ -116,6 +117,25 @@ describe("ownPostStore", () => {
     ]);
     assert.equal(listOwnPostedAt({ userId, kinds: ["original", "quote"] }).length, 1);
     assert.equal(listOwnPostedAt({ userId, kinds: ["reply"] }).length, 1);
+    const confirmed = listConfirmedOwnReplies({ userId });
+    assert.equal(confirmed.length, 1);
+    assert.equal(confirmed[0]?.id, "2");
+    assert.equal(confirmed[0]?.inReplyToId, "9");
+
+    upsertOwnPost({
+      parsed: post({ postId: "other-user-reply", kind: "reply", text: "private" }),
+      userId: "user-2",
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({ postId: "blank-reply", kind: "reply", text: "   " }),
+      userId,
+      tenantId,
+    });
+    assert.deepEqual(
+      listConfirmedOwnReplies({ userId }).map((row) => row.id),
+      ["2"],
+    );
   });
 
   it("lists flight-path own posts and excludes reposts", () => {
