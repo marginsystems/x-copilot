@@ -71,8 +71,9 @@ export function ActivityStrip({
           </div>
           {flightPathOpen ? (
             <span className="threads-activity-sub">
-              Altitude is sampled views. Marks without a sample hold the
-              last altitude.
+              Bars stack originals, quotes, and replies. Altitude is
+              sampled views; posts without a sample hold the last
+              altitude.
             </span>
           ) : null}
         </div>
@@ -108,8 +109,11 @@ export function ActivityStrip({
         </div>
       </div>
       <div className="threads-activity-meta">
-        <span className="chip chip-muted">
-          {activityStats.totals.interactions} marked ·{" "}
+        <span
+          className="chip chip-muted"
+          title={`${activityStats.totals.originals} original · ${activityStats.totals.quotes} quote · ${activityStats.totals.replies} reply`}
+        >
+          {activityStats.totals.interactions} posts ·{" "}
           {activityStats.totals.views} views
         </span>
         <span
@@ -142,6 +146,20 @@ export function ActivityStrip({
             />
           </span>
         </span>
+        <span className="activity-chart-legend" aria-label="Post kinds">
+          <span className="activity-chart-legend-item">
+            <span className="activity-chart-swatch is-original" />
+            Original
+          </span>
+          <span className="activity-chart-legend-item">
+            <span className="activity-chart-swatch is-quote" />
+            Quote
+          </span>
+          <span className="activity-chart-legend-item">
+            <span className="activity-chart-swatch is-reply" />
+            Reply
+          </span>
+        </span>
       </div>
       <p
         className="threads-activity-next"
@@ -154,7 +172,7 @@ export function ActivityStrip({
       <div className="threads-activity-chart">
         {activityStats.totals.interactions === 0 ? (
           <p className="threads-activity-empty">
-            Post a reply to start a flight path.
+            Post on X to start a flight path.
           </p>
         ) : (
           <ActivityChart

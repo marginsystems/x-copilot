@@ -169,6 +169,9 @@ describe("interactedHttp", () => {
     assert.equal(status, 200);
     assert.deepEqual(json.totals, {
       interactions: 0,
+      originals: 0,
+      quotes: 0,
+      replies: 0,
       views: 0,
       withStats: 0,
     });

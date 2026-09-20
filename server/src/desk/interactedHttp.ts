@@ -49,7 +49,12 @@ export async function tryHandleInteracted(
           userId: sessionUser.id,
         })
       : [];
-    send(req, res, 200, await bucketInteractionsWithLive(history, bucket));
+    send(
+      req,
+      res,
+      200,
+      await bucketInteractionsWithLive(history, bucket, sessionUser?.id),
+    );
     return true;
   }
 

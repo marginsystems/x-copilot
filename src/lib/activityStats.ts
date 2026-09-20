@@ -7,8 +7,17 @@ export type ActivityBucket = "day" | "week";
 export type ActivitySeriesPoint = {
   period: string;
   interactions: number;
+  originals: number;
+  quotes: number;
+  replies: number;
   views: number;
   withStats: number;
+};
+
+export type ActivityKindCounts = {
+  originals: number;
+  quotes: number;
+  replies: number;
 };
 
 export type ActivityStats = {
@@ -16,17 +25,78 @@ export type ActivityStats = {
   series: ActivitySeriesPoint[];
   totals: {
     interactions: number;
+    originals: number;
+    quotes: number;
+    replies: number;
     views: number;
     withStats: number;
   };
 };
 
+function finiteCount(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : 0;
+}
+
 export function emptyActivityStats(bucket: ActivityBucket): ActivityStats {
   return {
     bucket,
     series: [],
-    totals: { interactions: 0, views: 0, withStats: 0 },
+    totals: {
+      interactions: 0,
+      originals: 0,
+      quotes: 0,
+      replies: 0,
+      views: 0,
+      withStats: 0,
+    },
   };
+}
+
+/** Stack order: originals at the baseline, quotes, then replies on top. */
+export function postKindCounts(
+  point: Pick<
+    ActivitySeriesPoint,
+    "interactions" | "originals" | "quotes" | "replies"
+  >,
+): ActivityKindCounts {
+  const originals = finiteCount(point.originals);
+  const quotes = finiteCount(point.quotes);
+  const replies = finiteCount(point.replies);
+  if (originals + quotes + replies > 0) return { originals, quotes, replies };
+  return { originals: 0, quotes: 0, replies: finiteCount(point.interactions) };
+}
+
+export function postKindTotal(kinds: ActivityKindCounts): number {
+  return kinds.originals + kinds.quotes + kinds.replies;
+}
+
+export type BarSegment = {
+  key: "original" | "quote" | "reply";
+  count: number;
+  height: number;
+};
+
+export function stackBarSegments(
+  kinds: ActivityKindCounts,
+  maxTotal: number,
+  innerH: number,
+): BarSegment[] {
+  const max = Math.max(maxTotal, 1);
+  return (
+    [
+      ["original", kinds.originals],
+      ["quote", kinds.quotes],
+      ["reply", kinds.replies],
+    ] as const
+  )
+    .filter(([, count]) => count > 0)
+    .map(([key, count]) => ({
+      key,
+      count,
+      height: (count / max) * innerH,
+    }));
 }
 
 export function parseActivityStats(
@@ -42,31 +112,20 @@ export function parseActivityStats(
     bucket: data.bucket,
     series: data.series.map((p) => ({
       period: String(p.period ?? ""),
-      interactions:
-        typeof p.interactions === "number" && Number.isFinite(p.interactions)
-          ? p.interactions
-          : 0,
-      views: typeof p.views === "number" && Number.isFinite(p.views) ? p.views : 0,
-      withStats:
-        typeof p.withStats === "number" && Number.isFinite(p.withStats)
-          ? p.withStats
-          : 0,
+      interactions: finiteCount(p.interactions),
+      originals: finiteCount(p.originals),
+      quotes: finiteCount(p.quotes),
+      replies: finiteCount(p.replies),
+      views: finiteCount(p.views),
+      withStats: finiteCount(p.withStats),
     })),
     totals: {
-      interactions:
-        typeof data.totals.interactions === "number" &&
-        Number.isFinite(data.totals.interactions)
-          ? data.totals.interactions
-          : 0,
-      views:
-        typeof data.totals.views === "number" && Number.isFinite(data.totals.views)
-          ? data.totals.views
-          : 0,
-      withStats:
-        typeof data.totals.withStats === "number" &&
-        Number.isFinite(data.totals.withStats)
-          ? data.totals.withStats
-          : 0,
+      interactions: finiteCount(data.totals.interactions),
+      originals: finiteCount(data.totals.originals),
+      quotes: finiteCount(data.totals.quotes),
+      replies: finiteCount(data.totals.replies),
+      views: finiteCount(data.totals.views),
+      withStats: finiteCount(data.totals.withStats),
     },
   };
 }
@@ -129,11 +188,42 @@ export function formatCount(n: number): string {
   return n.toLocaleString();
 }
 
-export function activityChartTipDetail(
+export function activityChartTipHead(
   posts: number,
   views: number,
   held: boolean,
 ): string {
   const postLabel = posts === 1 ? "1 post" : `${formatCount(posts)} posts`;
-  return held ? `${postLabel} · views pending` : `${postLabel} · ${formatCount(views)} views`;
+  return held
+    ? `${postLabel} · views pending`
+    : `${postLabel} · ${formatCount(views)} views`;
+}
+
+/** Second tip line. Empty when the bucket has no kind mix to show. */
+export function activityChartTipMix(kinds?: ActivityKindCounts): string {
+  if (!kinds) return "";
+  return [
+    kinds.originals > 0
+      ? `${formatCount(kinds.originals)} OG`
+      : null,
+    kinds.quotes > 0
+      ? `${formatCount(kinds.quotes)} ${kinds.quotes === 1 ? "quote" : "quotes"}`
+      : null,
+    kinds.replies > 0
+      ? `${formatCount(kinds.replies)} ${kinds.replies === 1 ? "reply" : "replies"}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function activityChartTipDetail(
+  posts: number,
+  views: number,
+  held: boolean,
+  kinds?: ActivityKindCounts,
+): string {
+  const head = activityChartTipHead(posts, views, held);
+  const mix = activityChartTipMix(kinds);
+  return mix ? `${head} · ${mix}` : head;
 }

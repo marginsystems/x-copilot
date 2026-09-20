@@ -15,6 +15,7 @@ import {
   countOwnPostsSince,
   getWatchedThread,
   lastUtcDays,
+  listActivityOwnPosts,
   listDueOwnPostSamples,
   listConfirmedOwnReplies,
   listOwnPostedAt,
@@ -135,6 +136,54 @@ describe("ownPostStore", () => {
       listConfirmedOwnReplies({ userId }).map((row) => row.id),
       ["2"],
     );
+  });
+
+  it("lists flight-path own posts and excludes reposts", () => {
+    const userId = "user-flight";
+    const tenantId = "tenant-1";
+    upsertOwnPost({
+      parsed: post({ postId: "og", kind: "original", postedAt: "2026-08-15T12:00:00.000Z" }),
+      userId,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({ postId: "qt", kind: "quote", postedAt: "2026-08-15T13:00:00.000Z" }),
+      userId,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({ postId: "rp", kind: "reply", postedAt: "2026-08-15T14:00:00.000Z" }),
+      userId,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({ postId: "rt", kind: "repost", postedAt: "2026-08-15T15:00:00.000Z" }),
+      userId,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({
+        postId: "old",
+        kind: "original",
+        postedAt: "2026-04-01T00:00:00.000Z",
+      }),
+      userId,
+      tenantId,
+    });
+    const rows = listActivityOwnPosts({
+      userId,
+      sinceIso: "2026-08-01T00:00:00.000Z",
+    });
+    assert.deepEqual(
+      rows.map((row) => [row.id, row.kind]),
+      [
+        ["rp", "reply"],
+        ["qt", "quote"],
+        ["og", "original"],
+      ],
+    );
+    assert.equal(rows.every((row) => row.withStats), false);
+    assert.equal(rows.every((row) => row.views === 10), true);
   });
 
   it("removes an own post only for its mapped user and X account", () => {

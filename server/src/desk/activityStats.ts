@@ -1,15 +1,23 @@
 /**
- * Pure bucketing of marked interactions for the Threads activity dashboard.
- * Source of truth = interaction history + existing 1h/24h reply-stat samples.
+ * Pure bucketing of marked interactions and classified own posts for the
+ * Threads activity dashboard. Bars stack original / quote / reply; the
+ * views line still uses sampled snapshots.
  */
 import type { Interaction } from "./interactionStore.js";
+import type { OwnPostKind } from "../x-api/xActivity.js";
+import type { ActivityOwnPost } from "./ownPostStore.js";
 
 export type ActivityBucket = "day" | "week";
+
+export type ActivityPostKind = "original" | "quote" | "reply";
 
 export type ActivitySeriesPoint = {
   /** UTC day `YYYY-MM-DD` or ISO week `YYYY-Www`. */
   period: string;
   interactions: number;
+  originals: number;
+  quotes: number;
+  replies: number;
   views: number;
   withStats: number;
 };
@@ -19,6 +27,9 @@ export type ActivityStatsResult = {
   series: ActivitySeriesPoint[];
   totals: {
     interactions: number;
+    originals: number;
+    quotes: number;
+    replies: number;
     views: number;
     withStats: number;
   };
@@ -31,16 +42,6 @@ export const LIVE_METRICS_ID_CAP = 25;
 
 export function parseActivityBucket(raw: unknown): ActivityBucket {
   return raw === "week" ? "week" : "day";
-}
-
-function markTimeMs(row: Interaction): number | null {
-  const primary = Date.parse(row.at);
-  if (Number.isFinite(primary)) return primary;
-  if (row.postedAt) {
-    const fallback = Date.parse(row.postedAt);
-    if (Number.isFinite(fallback)) return fallback;
-  }
-  return null;
 }
 
 /** Prefer mature 24h views, else 1h; missing → 0 for the sum. */
@@ -111,6 +112,124 @@ function buildWeekPeriods(nowMs: number, count: number): string[] {
   return out;
 }
 
+function emptyPoint(period: string): ActivitySeriesPoint {
+  return {
+    period,
+    interactions: 0,
+    originals: 0,
+    quotes: 0,
+    replies: 0,
+    views: 0,
+    withStats: 0,
+  };
+}
+
+function emptyTotals(): ActivityStatsResult["totals"] {
+  return {
+    interactions: 0,
+    originals: 0,
+    quotes: 0,
+    replies: 0,
+    views: 0,
+    withStats: 0,
+  };
+}
+
+export type ClassifiedActivityPost = {
+  id: string;
+  postedAt: string;
+  kind: ActivityPostKind;
+  views: number;
+  withStats: boolean;
+};
+
+export function activityWindowStartIso(nowMs = Date.now()): string {
+  return new Date(nowMs - ACTIVITY_WEEK_WINDOW * 7 * 86400000).toISOString();
+}
+
+/** Persist the collector's kind. A re-quote stored as original stays OG. */
+export function activityKindFromOwnPost(
+  kind: OwnPostKind,
+): ActivityPostKind | null {
+  if (kind === "repost") return null;
+  return kind;
+}
+
+export function classifyInteractionFallback(
+  row: Pick<Interaction, "inReplyToId">,
+): ActivityPostKind {
+  return row.inReplyToId ? "reply" : "quote";
+}
+
+/**
+ * Prefer the own-post ledger's kind. Marks whose reply is not in the ledger
+ * still count so a webhook-less desk does not lose its flight path.
+ */
+export function mergeClassifiedActivity(opts: {
+  ownPosts: readonly ActivityOwnPost[];
+  history: readonly Interaction[];
+}): ClassifiedActivityPost[] {
+  const byId = new Map<string, ClassifiedActivityPost>();
+  for (const post of opts.ownPosts) {
+    const kind = activityKindFromOwnPost(post.kind);
+    if (!kind) continue;
+    byId.set(post.id, {
+      id: post.id,
+      postedAt: post.postedAt,
+      kind,
+      views: post.views,
+      withStats: post.withStats,
+    });
+  }
+  for (const row of opts.history) {
+    const replyId = row.replyId?.trim();
+    if (replyId && byId.has(replyId)) {
+      const existing = byId.get(replyId)!;
+      existing.views = Math.max(existing.views, viewsForInteraction(row));
+      existing.withStats = existing.withStats || interactionHasViewStats(row);
+      continue;
+    }
+    const postedAt = row.postedAt || row.at;
+    const id = replyId || `mark:${row.threadId}:${row.at}`;
+    if (byId.has(id)) continue;
+    byId.set(id, {
+      id,
+      postedAt,
+      kind: classifyInteractionFallback(row),
+      views: viewsForInteraction(row),
+      withStats: interactionHasViewStats(row),
+    });
+  }
+  return [...byId.values()];
+}
+
+function addPostToPoint(
+  point: ActivitySeriesPoint,
+  totals: ActivityStatsResult["totals"],
+  kind: ActivityPostKind,
+  views: number,
+  withStats: boolean,
+): void {
+  point.interactions += 1;
+  totals.interactions += 1;
+  if (kind === "original") {
+    point.originals += 1;
+    totals.originals += 1;
+  } else if (kind === "quote") {
+    point.quotes += 1;
+    totals.quotes += 1;
+  } else {
+    point.replies += 1;
+    totals.replies += 1;
+  }
+  point.views += views;
+  totals.views += views;
+  if (withStats) {
+    point.withStats += 1;
+    totals.withStats += 1;
+  }
+}
+
 /**
  * Bucket retained interaction history into a stable day/week series.
  * Callers should pass the durable store retain (see MAX_INTERACTION_STORE),
@@ -118,6 +237,22 @@ function buildWeekPeriods(nowMs: number, count: number): string[] {
  */
 export function bucketInteractions(
   history: readonly Interaction[],
+  opts: { bucket: ActivityBucket; now?: number },
+): ActivityStatsResult {
+  return bucketClassifiedPosts(
+    mergeClassifiedActivity({ ownPosts: [], history }),
+    opts,
+  );
+}
+
+function postTimeMs(postedAt: string): number | null {
+  const t = Date.parse(postedAt);
+  return Number.isFinite(t) ? t : null;
+}
+
+/** Bucket classified own posts (plus leftover marks) into a day/week series. */
+export function bucketClassifiedPosts(
+  posts: readonly ClassifiedActivityPost[],
   opts: { bucket: ActivityBucket; now?: number },
 ): ActivityStatsResult {
   const nowMs = opts.now ?? Date.now();
@@ -129,43 +264,24 @@ export function bucketInteractions(
   const periodSet = new Set(periods);
   const byPeriod = new Map<string, ActivitySeriesPoint>();
   for (const period of periods) {
-    byPeriod.set(period, {
-      period,
-      interactions: 0,
-      views: 0,
-      withStats: 0,
-    });
+    byPeriod.set(period, emptyPoint(period));
   }
+  const totals = emptyTotals();
 
-  let totalsInteractions = 0;
-  let totalsViews = 0;
-  let totalsWithStats = 0;
-
-  for (const row of history) {
-    const t = markTimeMs(row);
+  for (const post of posts) {
+    const t = postTimeMs(post.postedAt);
     if (t === null) continue;
     const key = bucket === "week" ? utcWeekKey(t) : utcDayKey(t);
     if (!periodSet.has(key)) continue;
     const point = byPeriod.get(key);
     if (!point) continue;
-    const views = viewsForInteraction(row);
-    const withStats = interactionHasViewStats(row);
-    point.interactions += 1;
-    point.views += views;
-    if (withStats) point.withStats += 1;
-    totalsInteractions += 1;
-    totalsViews += views;
-    if (withStats) totalsWithStats += 1;
+    addPostToPoint(point, totals, post.kind, post.views, post.withStats);
   }
 
   return {
     bucket,
     series: periods.map((p) => byPeriod.get(p)!),
-    totals: {
-      interactions: totalsInteractions,
-      views: totalsViews,
-      withStats: totalsWithStats,
-    },
+    totals,
   };
 }
 
