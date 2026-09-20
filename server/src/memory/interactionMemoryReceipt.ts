@@ -20,6 +20,7 @@ export type InteractionMemoryReceipt = {
 export type InteractionMemoryLookupKey = {
   threadId: string;
   at: string;
+  postedAt?: string;
 };
 
 let testKnowledgeRoot: string | undefined;
@@ -148,7 +149,7 @@ export async function lookupInteractionMemoryReceipts(opts: {
           const name = await resolveNoteName(
             namesBySuffix,
             interaction.threadId,
-            interaction.at,
+            interaction.postedAt ?? interaction.at,
             dir,
             userId,
           );

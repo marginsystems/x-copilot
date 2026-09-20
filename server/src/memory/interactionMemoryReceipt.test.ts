@@ -42,6 +42,25 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["saved"]);
   });
 
+  it("uses the reply posted date when it differs from the interaction date", async () => {
+    const postedAt = "2026-07-27T23:00:00.000Z";
+    const markedAt = "2026-07-28T00:05:00.000Z";
+    await writeInteractionMemory({
+      threadId: "2081",
+      author: "@Builder",
+      reply: "A reply saved across midnight.",
+      userId: "user-1",
+      interactedAt: postedAt,
+      knowledgeRoot: root,
+    });
+    const states = await lookupInteractionMemoryReceipts({
+      userId: "user-1",
+      knowledgeRoot: root,
+      interactions: [{ threadId: "2081", at: markedAt, postedAt }],
+    });
+    assert.deepEqual(states, ["saved"]);
+  });
+
   it("returns no_reply_text when storage exists but the note does not", async () => {
     await mkdir(join(root, "interactions"), { recursive: true });
     const states = await lookupInteractionMemoryReceipts({
