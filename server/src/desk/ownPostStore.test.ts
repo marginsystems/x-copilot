@@ -120,6 +120,21 @@ describe("ownPostStore", () => {
     assert.equal(confirmed.length, 1);
     assert.equal(confirmed[0]?.id, "2");
     assert.equal(confirmed[0]?.inReplyToId, "9");
+
+    upsertOwnPost({
+      parsed: post({ postId: "other-user-reply", kind: "reply", text: "private" }),
+      userId: "user-2",
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({ postId: "blank-reply", kind: "reply", text: "   " }),
+      userId,
+      tenantId,
+    });
+    assert.deepEqual(
+      listConfirmedOwnReplies({ userId }).map((row) => row.id),
+      ["2"],
+    );
   });
 
   it("removes an own post only for its mapped user and X account", () => {

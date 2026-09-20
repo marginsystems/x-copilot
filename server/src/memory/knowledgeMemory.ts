@@ -299,12 +299,19 @@ export async function writeInteractionMemory(
     interactedAt: input.interactedAt,
     knowledgeRoot: input.knowledgeRoot,
   });
+  let existing: string | undefined;
   try {
-    const existing = await readFile(path, "utf8");
-    markdown = preserveInteractionOutcome(existing, markdown);
-    if (existing === markdown) return { path, markdown };
+    existing = await readFile(path, "utf8");
   } catch {
     // The note does not exist yet.
+  }
+  if (existing !== undefined) {
+    const existingUserId = /^userId:\s*["']?([^"'\n]+)["']?\s*$/m.exec(existing)?.[1];
+    if (existingUserId && input.userId && existingUserId !== input.userId) {
+      throw new Error("interaction note belongs to another user");
+    }
+    markdown = preserveInteractionOutcome(existing, markdown);
+    if (existing === markdown) return { path, markdown };
   }
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, markdown, "utf8");

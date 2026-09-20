@@ -170,9 +170,13 @@ export async function markOwnReplyInteracted(
     limit: MAX_INTERACTION_STORE,
     userId,
   });
-  const known =
-    history.find((row) => row.replyId === parsed.postId) ??
-    history.find((row) => row.threadId === threadId);
+  const known = history.find((row) => row.replyId === parsed.postId) ??
+    history.find(
+      (row) =>
+        !row.replyId &&
+        (parsed.inReplyToId === row.threadId ||
+          parsed.conversationId === row.threadId),
+    );
   if (known) {
     const notePath = buildInteractionNotePath({
       threadId: known.threadId,

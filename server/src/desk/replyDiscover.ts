@@ -331,7 +331,11 @@ async function reconcileConfirmedOwnReplies(opts: {
     if (opts.skipReplyIds.has(post.id)) continue;
     const known =
       byReplyId.get(post.id) ??
-      (post.inReplyToId ? byThreadId.get(post.inReplyToId) : undefined);
+      (post.inReplyToId
+        ? byThreadId.get(post.inReplyToId)?.replyId === post.id
+          ? byThreadId.get(post.inReplyToId)
+          : undefined
+        : undefined);
     if (!known) continue;
     try {
       await access(
