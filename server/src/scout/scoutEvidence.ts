@@ -10,6 +10,7 @@
  * about the ScoutProfile reducer (C10 consumes this module).
  */
 import { getPlatformDb } from "../db.js";
+import { notifyScoutEvidenceChanged } from "./scoutProfileProjection.js";
 import { THREAD_KINDS, type ThreadKind } from "./threadTriage.js";
 
 export type ScoutEvidenceAction = "take" | "skip" | "dismiss";
@@ -287,7 +288,7 @@ export function listScoutEvidenceNeedingNoteCheck(opts: {
     "user_id = ?",
     "action = 'take'",
     "reply_id IS NOT NULL",
-    "note_state != 'stored'",
+    "note_state = 'unknown'",
   ];
   const params: unknown[] = [id];
   if (opts.before) {
@@ -396,7 +397,7 @@ export function recordScoutEvidence(input: ScoutEvidenceInput): {
         : "unknown",
   };
   const db = getPlatformDb();
-  return db.transaction((): { changed: boolean; row: ScoutEvidenceRow } => {
+  const result = db.transaction((): { changed: boolean; row: ScoutEvidenceRow } => {
     const existing = getScoutEvidence(v.userId, v.eventKey);
     if (!existing) {
       const revision = bumpRevision(v.userId, v.eventKey, nowIso);
@@ -502,6 +503,13 @@ export function recordScoutEvidence(input: ScoutEvidenceInput): {
     );
     return { changed: true, row: getScoutEvidence(v.userId, v.eventKey)! };
   })();
+  if (result.changed) {
+    notifyScoutEvidenceChanged({
+      userId: v.userId,
+      revision: result.row.revision,
+    });
+  }
+  return result;
 }
 
 /**
@@ -519,7 +527,7 @@ export function setScoutEvidenceNoteState(opts: {
   if (!replyId) return false;
   if (opts.state !== "stored" && opts.state !== "missing") return false;
   const db = getPlatformDb();
-  return db.transaction((): boolean => {
+  const changed = db.transaction((): boolean => {
     const existing = findScoutTakeByReplyId(userId, replyId);
     if (!existing || existing.noteState === opts.state) return false;
     const nowIso = new Date(opts.nowMs ?? Date.now()).toISOString();
@@ -531,6 +539,13 @@ export function setScoutEvidenceNoteState(opts: {
     ).run(opts.state, nowIso, revision, nowIso, userId, existing.eventKey);
     return true;
   })();
+  if (changed) {
+    notifyScoutEvidenceChanged({
+      userId,
+      revision: readScoutEvidenceRevision(userId).revision,
+    });
+  }
+  return changed;
 }
 
 /** Resumable keyset cursor for bounded reconciliation scopes. */

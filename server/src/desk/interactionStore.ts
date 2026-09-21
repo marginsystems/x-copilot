@@ -13,7 +13,6 @@ import {
 } from "./interactionCooldown.js";
 import {
   recordScoutEvidence,
-  type ScoutEvidenceInput,
   type ActionEvidenceInput,
 } from "../scout/scoutEvidence.js";
 
