@@ -467,10 +467,41 @@ describe("memory triage context", () => {
   });
 
   it("gatherTriageMemories soft-fails to [] when search returns empty", async () => {
-    const hits = await gatherTriageMemories([thread("1")], async () => ({
-      hits: [],
-    }));
+    const hits = await gatherTriageMemories([thread("1")], {
+      userId: "user-a",
+      search: async () => ({ hits: [] }),
+    });
     assert.deepEqual(hits, []);
+  });
+
+  it("gatherTriageMemories passes the owner to every search call", async () => {
+    const seen: Array<{ userId: string; types?: string[] }> = [];
+    await gatherTriageMemories([thread("1")], {
+      userId: " user-a ",
+      search: async (opts) => {
+        seen.push({ userId: opts.userId, types: opts.types });
+        return { hits: [] };
+      },
+    });
+    assert.deepEqual(seen, [
+      { userId: "user-a", types: ["interaction"] },
+      { userId: "user-a", types: ["dismissal"] },
+    ]);
+  });
+
+  it("gatherTriageMemories never calls search without an owner", async () => {
+    let calls = 0;
+    for (const userId of [undefined, "", "   "]) {
+      const hits = await gatherTriageMemories([thread("1")], {
+        userId,
+        search: async () => {
+          calls++;
+          return { hits: [{ path: "p", type: "dismissal", score: 1, excerpt: "leak" }] };
+        },
+      });
+      assert.deepEqual(hits, []);
+    }
+    assert.equal(calls, 0);
   });
 
   it("gatherTriageMemories spreads the batch query across all cards", async () => {
@@ -479,9 +510,12 @@ describe("memory triage context", () => {
       text: `${i}: ${"B".repeat(500)}`,
     }));
     let query = "";
-    const hits = await gatherTriageMemories(batch, async (opts) => {
-      query = opts.query;
-      return { hits: [] };
+    const hits = await gatherTriageMemories(batch, {
+      userId: "user-a",
+      search: async (opts) => {
+        query = opts.query;
+        return { hits: [] };
+      },
     });
     assert.equal(hits.length, 0);
     assert.ok(

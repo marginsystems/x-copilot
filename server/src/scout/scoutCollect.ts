@@ -754,10 +754,13 @@ export async function runScoutCollect(opts: {
       );
       usableAdditions += forTriage.length;
 
+      // Memory retrieval is scoped to this run's user; a userless run triages
+      // with no memory rather than a global corpus.
       const triaged = await doTriage({
         agenda,
         avoid: avoidPrompt,
         threads: forTriage,
+        userId,
       });
       if (triaged.warning) triageWarning = triaged.warning;
       llmUsage = addTokenUsage(llmUsage, triaged.usage);
