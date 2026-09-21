@@ -227,6 +227,26 @@ describe("ownPostStore", () => {
       }).length,
       0,
     );
+
+    upsertOwnPost({
+      parsed: post({
+        postId: "unlinked-self-reply-by-x-id",
+        kind: "reply",
+        inReplyToId: "missing-parent",
+        inReplyToUserId: "99",
+      }),
+      userId: userWithoutSubscription,
+      tenantId,
+    });
+    assert.equal(
+      listConfirmedOwnRepliesPage({
+        userId: userWithoutSubscription,
+        limit: 10,
+        excludeSelfReplies: true,
+        replyId: "unlinked-self-reply-by-x-id",
+      }).length,
+      0,
+    );
   });
 
   it("lists flight-path own posts and excludes reposts", () => {

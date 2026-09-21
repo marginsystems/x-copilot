@@ -281,6 +281,40 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(take?.threadKind, null);
   });
 
+  it("does not restore a self-reply take through its owned note", async () => {
+    const at = new Date(T0).toISOString();
+    await markInteracted({
+      threadId: "mine",
+      author: "@me",
+      userId,
+      replyId: "self-note",
+      replyUrl: "https://x.com/me/status/self-note",
+      nowMs: T0,
+    });
+    upsertOwnPost({
+      parsed: ownReply({
+        postId: "self-note",
+        inReplyToId: "mine",
+        inReplyToUserId: X_USER,
+        postedAt: at,
+      }),
+      userId,
+      tenantId,
+    });
+    await writeNote({
+      knowledgeRoot,
+      userId,
+      threadId: "mine",
+      at,
+      reply: "self reply",
+      replyId: "self-note",
+    });
+
+    await reconcileScoutEvidence({ userId, knowledgeRoot, nowMs: T0 });
+
+    assert.equal(findScoutTakeByReplyId(userId, "self-note"), null);
+  });
+
   it("backfills confirmed own replies beyond the interaction history in bounded batches", async () => {
     for (let i = 0; i < 250; i++) {
       upsertOwnPost({

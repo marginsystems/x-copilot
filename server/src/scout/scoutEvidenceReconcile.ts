@@ -214,6 +214,13 @@ async function reconcileInteractions(
     const ownReply = confirmedOwnReplyText(state.userId, replyId);
     let confirmed = ownReply !== null;
     if (!confirmed) {
+      // A rejected local self-reply must not regain take credit through its note.
+      const rejectedOwnReply = listConfirmedOwnRepliesPage({
+        userId: state.userId,
+        limit: 1,
+        replyId,
+      });
+      if (rejectedOwnReply.length > 0) continue;
       const note = await verifyOwnedReplyNote({
         userId: state.userId,
         threadId: row.threadId,
