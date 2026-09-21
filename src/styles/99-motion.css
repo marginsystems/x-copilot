@@ -72,7 +72,8 @@
   .desk-top-body-inner,
   .desk-meter-fill,
   .row-detail-slot,
-  .row-detail-inner {
+  .row-detail-inner,
+  .row-action {
     transition: none;
   }
 

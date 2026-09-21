@@ -204,6 +204,25 @@
 .for-you-status .approach-panel-loader-mark {
   display: inline-block;
   flex: 0 0 auto;
+  margin-left: 0.45rem;
+  animation: approach-detect-mark 1.6s ease-in-out infinite;
+}
+
+@keyframes approach-detect-mark {
+  0%,
+  20% {
+    opacity: 0.35;
+    transform: none;
+  }
+  48%,
+  72% {
+    opacity: 1;
+    transform: translateX(5px);
+  }
+  100% {
+    opacity: 0.35;
+    transform: none;
+  }
 }
 
 .for-you-detected-id {

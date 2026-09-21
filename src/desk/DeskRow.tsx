@@ -1,11 +1,63 @@
-import type {
-  CSSProperties,
-  HTMLAttributes,
-  MouseEventHandler,
-  ReactNode,
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type HTMLAttributes,
+  type MouseEventHandler,
+  type ReactNode,
 } from "react";
 import { HasTipButton, HasTipLink } from "./HasTip";
 import { useDeskRowExpand } from "./useDeskRowExpand";
+
+const ACTION_COLLAPSE_MS = 240;
+
+/** Keep a departing action mounted so the row can collapse it instead of popping. */
+function useActionPresence(active: boolean) {
+  const [mounted, setMounted] = useState(active);
+  const [open, setOpen] = useState(active);
+
+  useEffect(() => {
+    if (active) {
+      setMounted(true);
+      const frame = requestAnimationFrame(() => setOpen(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    setOpen(false);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(
+      () => setMounted(false),
+      reduce ? 0 : ACTION_COLLAPSE_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [active]);
+
+  return { mounted, open };
+}
+
+function ActionSlot({
+  shown,
+  children,
+}: {
+  shown: boolean;
+  children: ReactNode;
+}) {
+  const cached = useRef<ReactNode>(null);
+  if (children != null) cached.current = children;
+  const presence = useActionPresence(shown && cached.current != null);
+  if (!presence.mounted || cached.current == null) return null;
+  return (
+    <span
+      className={presence.open ? "row-action" : "row-action is-collapsed"}
+      aria-hidden={presence.open ? undefined : true}
+      {...(!presence.open
+        ? ({ inert: "" } as HTMLAttributes<HTMLSpanElement>)
+        : {})}
+    >
+      <span className="row-action-clip">{cached.current}</span>
+    </span>
+  );
+}
 
 function ActionButton({
   label,
@@ -172,76 +224,90 @@ export function DeskRow({
           className="row"
           onClick={(event) => event.stopPropagation()}
         >
-          {openLabel ? (
-            openHref ? (
+          <ActionSlot shown={openLabel != null}>
+            {openLabel ? (
+              openHref ? (
+                <HasTipLink
+                  className="ghost"
+                  href={openHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  tip={openTip ?? openLabel}
+                  onClick={onOpen}
+                >
+                  {openLabel}
+                </HasTipLink>
+              ) : (
+                <button type="button" className="ghost" disabled>
+                  {openLabel}
+                </button>
+              )
+            ) : null}
+          </ActionSlot>
+          <ActionSlot shown={Boolean(secondaryOpenHref && secondaryOpenLabel)}>
+            {secondaryOpenHref && secondaryOpenLabel ? (
               <HasTipLink
                 className="ghost"
-                href={openHref}
+                href={secondaryOpenHref}
                 target="_blank"
                 rel="noreferrer"
-                tip={openTip ?? openLabel}
-                onClick={onOpen}
+                tip={secondaryOpenTip ?? secondaryOpenLabel}
               >
-                {openLabel}
+                {secondaryOpenLabel}
               </HasTipLink>
-            ) : (
-              <button type="button" className="ghost" disabled>
-                {openLabel}
-              </button>
-            )
-          ) : null}
-          {secondaryOpenHref && secondaryOpenLabel ? (
-            <HasTipLink
-              className="ghost"
-              href={secondaryOpenHref}
-              target="_blank"
-              rel="noreferrer"
-              tip={secondaryOpenTip ?? secondaryOpenLabel}
-            >
-              {secondaryOpenLabel}
-            </HasTipLink>
-          ) : null}
-          {onPrimary && primaryLabel ? (
-            <ActionButton
-              className="primary"
-              disabled={busy}
-              label={primaryLabel}
-              onClick={onPrimary}
-              tip={primaryTip}
-            />
-          ) : null}
-          {onNext ? (
-            <ActionButton
-              className="primary"
-              disabled={busy || nextDisabled}
-              label="Next"
-              onClick={onNext}
-              tip={nextTip}
-            />
-          ) : null}
-          {onBypass ? (
-            <ActionButton
-              className="ghost"
-              label={bypassLabel}
-              onClick={onBypass}
-            />
-          ) : null}
-          {onSkip ? (
-            <ActionButton
-              className="ghost"
-              disabled={busy}
-              label="Skip"
-              onClick={onSkip}
-            />
-          ) : null}
-          {onDismiss ? (
-            <ActionButton
-              className="ghost"
-              disabled={busy}
-              label="Not interested"
-              onClick={onDismiss}
-            />
-          ) : null}
+            ) : null}
+          </ActionSlot>
+          <ActionSlot shown={Boolean(onPrimary && primaryLabel)}>
+            {onPrimary && primaryLabel ? (
+              <ActionButton
+                className="primary"
+                disabled={busy}
+                label={primaryLabel}
+                onClick={onPrimary}
+                tip={primaryTip}
+              />
+            ) : null}
+          </ActionSlot>
+          <ActionSlot shown={Boolean(onNext)}>
+            {onNext ? (
+              <ActionButton
+                className="primary"
+                disabled={busy || nextDisabled}
+                label="Next"
+                onClick={onNext}
+                tip={nextTip}
+              />
+            ) : null}
+          </ActionSlot>
+          <ActionSlot shown={Boolean(onBypass)}>
+            {onBypass ? (
+              <ActionButton
+                className="ghost"
+                label={bypassLabel}
+                onClick={onBypass}
+              />
+            ) : null}
+          </ActionSlot>
+          <ActionSlot shown={Boolean(onSkip)}>
+            {onSkip ? (
+              <ActionButton
+                className="ghost"
+                disabled={busy}
+                label="Skip"
+                onClick={onSkip}
+              />
+            ) : null}
+          </ActionSlot>
+          <ActionSlot shown={Boolean(onDismiss)}>
+            {onDismiss ? (
+              <ActionButton
+                className="ghost"
+                disabled={busy}
+                label="Not interested"
+                onClick={onDismiss}
+              />
+            ) : null}
+          </ActionSlot>
         </div>
       ) : null}
       {presence.mount || (!expandable && children) ? (
