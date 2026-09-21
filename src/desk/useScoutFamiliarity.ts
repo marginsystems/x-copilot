@@ -79,6 +79,9 @@ export function useScoutFamiliarity(verifiedOwnerId: string | null) {
 
   function commit(owner: string, next: ScoutFamiliarity | null) {
     const current = stateRef.current;
+    if (next && current?.owner === owner && current.value.revision === next.revision) {
+      return; // equal revisions are the same server projection
+    }
     if (next && current && current.owner === owner && current.value.revision > next.revision) {
       return; // older data for the same owner never regresses a newer revision
     }

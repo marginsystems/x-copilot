@@ -202,6 +202,24 @@ test("refresh fetches the profile endpoint and an older boot cannot regress it",
   expect(result.current.scoutFamiliarity).toEqual(NEUTRAL);
 });
 
+test("same-revision refresh does not rewrite the owned cache", async () => {
+  writeDeskBootCache(bootFor(userA, SUPPORTED));
+  const { requests } = fetchQueue();
+  const setItem = vi.spyOn(Storage.prototype, "setItem");
+  const { result } = mount();
+  let refresh!: Promise<void>;
+
+  act(() => { refresh = result.current.hydrateScoutFamiliarity(); });
+  await act(async () => { requests[0].resolve(profile(SUPPORTED)); await refresh; });
+  const writesAfterFirstRefresh = setItem.mock.calls.length;
+
+  act(() => { refresh = result.current.hydrateScoutFamiliarity(); });
+  await act(async () => { requests[1].resolve(profile(SUPPORTED)); await refresh; });
+
+  expect(setItem.mock.calls.length).toBe(writesAfterFirstRefresh);
+  expect(result.current.scoutFamiliarity).toEqual(SUPPORTED);
+});
+
 test("out-of-order same-owner refreshes keep the latest request's result", async () => {
   const { requests } = fetchQueue();
   const { result } = mount();
