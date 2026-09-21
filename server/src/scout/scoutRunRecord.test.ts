@@ -89,6 +89,8 @@ describe("Scout run records", () => {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
         saveScoutCache: async () => {},
+        // Keep this suite off the durable profile store (C11 run snapshot).
+        loadScoutProfile: async () => null,
         searchTimeline: async () => ({
           ok: true as const,
           queryId: "test",

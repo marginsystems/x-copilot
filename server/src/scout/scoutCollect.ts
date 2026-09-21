@@ -19,6 +19,7 @@ import {
   type PlanQueriesOpts,
 } from "./queryPlan.js";
 import { mergeScoutPlanHistoryOpts, scoutPlanHistoryOpts } from "./queryPlanHistory.js";
+import { loadScoutRunProfile, type ScoutRunProfileLoader } from "./scoutRunProfile.js";
 import { saveScoutCache } from "./scoutCache.js";
 import { isAbortError, sleep } from "./scoutAbort.js";
 import { filterPostHydrateThreads } from "./scoutPipeline.js";
@@ -110,6 +111,8 @@ export type ScoutCollectDeps = {
    * single run cannot keep reading past the tenant's remaining pool.
    */
   creditGate?: () => boolean | Promise<boolean>;
+  /** One owned ScoutProfile snapshot per run; defaults to readScoutProfile. */
+  loadScoutProfile?: ScoutRunProfileLoader;
 };
 
 export async function runScoutCollect(opts: {
@@ -231,8 +234,12 @@ export async function runScoutCollect(opts: {
         message: "Set DEEPSEEK_API_KEY for agenda → query planning.",
       };
     }
+  }
+  const profile = await loadScoutRunProfile(userId, deps.loadScoutProfile);
+  const withProfile = (o?: PlanQueriesOpts) => (profile ? { ...o, profile } : o);
+  if (queries.length === 0) {
     track("planning", "Scout is planning search queries (deepseek)…");
-    const plan = await doPlan(agenda, scoutPlanHistoryOpts(userId));
+    const plan = await doPlan(agenda, withProfile(scoutPlanHistoryOpts(userId)));
     if (aborted()) {
       await persistRun("aborted", queries);
       const done = track("done", "Scout stopped.", {
@@ -355,6 +362,7 @@ export async function runScoutCollect(opts: {
         : "Scout is broadening search queries…",
     );
     const planOpts: PlanQueriesOpts = mergeScoutPlanHistoryOpts(userId, {
+      ...(profile ? { profile } : {}),
       broaden: true,
       priorQueries: [...queries],
       yieldNote:

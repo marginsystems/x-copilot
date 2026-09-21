@@ -11,6 +11,7 @@ import {
   validateQueries,
 } from "./queryPlan.ts";
 import { resolveFlashModel, DEEPSEEK_FLASH_MODEL } from "../platform/deepseek.ts";
+import { emptyScoutProfile } from "./scoutProfile.ts";
 
 describe("parseQueryPlanJson", () => {
   it("parses raw JSON", () => {
@@ -193,6 +194,23 @@ describe("hasAgendaNounQueries", () => {
     });
     assert.match(prompt, /within the agenda topic family/);
     assert.match(prompt, /at least two queries must contain agenda content words/);
+  });
+
+  it("renders byte-identical prompts for absent, null and empty profiles", () => {
+    const opts = {
+      priorQueries: ["freight software"],
+      yieldNote: "unique=75 usable=0 cool=0 calls=8",
+    };
+    const base = formatPlanUserPrompt("B2B freight OS", opts);
+    assert.equal(formatPlanUserPrompt("B2B freight OS", { ...opts, profile: null }), base);
+    assert.equal(
+      formatPlanUserPrompt("B2B freight OS", { ...opts, profile: emptyScoutProfile("u") }),
+      base,
+    );
+    assert.equal(
+      formatPlanUserPrompt("B2B freight OS", { profile: emptyScoutProfile("u") }),
+      'Agenda: "B2B freight OS"\n\nRespond with JSON only.',
+    );
   });
 });
 
