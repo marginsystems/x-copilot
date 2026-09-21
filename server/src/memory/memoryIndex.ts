@@ -330,9 +330,13 @@ type IndexRow = {
 };
 
 const UPSERT_SQL = `INSERT INTO memories
-  (path, user_id, type, excerpt, mtime_ms, indexed_at_ms, content_hash, embedding)
- VALUES
-  (@path, @user_id, @type, @excerpt, @mtime_ms, @indexed_at_ms, @content_hash, @embedding)
+ (path, user_id, type, excerpt, mtime_ms, indexed_at_ms, content_hash, embedding)
+ SELECT
+   @path, @user_id, @type, @excerpt, @mtime_ms, @indexed_at_ms, @content_hash, @embedding
+ WHERE NOT EXISTS (
+   SELECT 1 FROM memory_deletions
+   WHERE path = @path AND mtime_ms >= @mtime_ms
+ )
  ON CONFLICT(path) DO UPDATE SET
    user_id = excluded.user_id,
    type = excluded.type,
@@ -678,7 +682,7 @@ export async function upsertMemoryNote(
     await withFileLock(paths.dbPath, async () => {
       const db = await openDb(paths.dbPath);
       try {
-        db.prepare("DELETE FROM memory_deletions WHERE path = ? AND mtime_ms < ?").run(
+        db.prepare("DELETE FROM memory_deletions WHERE path = ? AND mtime_ms <= ?").run(
           row.path,
           Math.round(row.mtime_ms),
         );

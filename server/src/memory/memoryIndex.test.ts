@@ -537,12 +537,19 @@ describe("memoryIndex with injectable embedder", () => {
 
     // Losing the owner removes the row entirely rather than leaving a stale one.
     await writeFile(path, note({ type: "dismissal", threadId: "1", sections: body }), "utf8");
-    await utimes(path, new Date(), new Date(Date.now() + 4000));
+    const ownerLossMtime = Date.now() + 4000;
+    await utimes(path, new Date(), new Date(ownerLossMtime));
     const gone = await upsertMemoryNote(path, { knowledgeRoot, indexDir, embedder });
     assert.equal(gone.ok, false);
     assert.match(gone.error ?? "", /no verified owner/);
     assert.equal((await search(A, "Same words")).hits.length, 0);
     assert.equal((await search(B, "Same words")).hits.length, 0);
+
+    // Re-owning at the tombstone's exact mtime must clear the tombstone and reinsert the row.
+    await writeFile(path, note({ type: "dismissal", userId: A, threadId: "1", sections: body }), "utf8");
+    await utimes(path, new Date(), new Date(ownerLossMtime));
+    assert.equal((await upsertMemoryNote(path, { knowledgeRoot, indexDir, embedder })).ok, true);
+    assert.equal((await search(A, "Same words")).hits.length, 1);
   });
 
   it("indexes a migrated legacy note once, at its canonical path", async () => {
