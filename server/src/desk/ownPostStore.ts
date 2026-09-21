@@ -231,7 +231,7 @@ export function listConfirmedOwnRepliesPage(opts: {
   }
   if (opts.excludeSelfReplies) {
     clauses.push(
-      "NOT EXISTS (SELECT 1 FROM activity_subscriptions AS subscriptions WHERE subscriptions.user_id = own_posts.user_id AND (subscriptions.x_user_id = own_posts.in_reply_to_user_id OR (subscriptions.x_user_id = own_posts.x_user_id AND EXISTS (SELECT 1 FROM own_posts AS parent WHERE parent.user_id = own_posts.user_id AND parent.id = own_posts.in_reply_to_id))))",
+      "NOT EXISTS (SELECT 1 FROM activity_subscriptions AS subscriptions WHERE subscriptions.user_id = own_posts.user_id AND subscriptions.x_user_id = own_posts.in_reply_to_user_id) AND NOT EXISTS (SELECT 1 FROM own_posts AS parent WHERE parent.user_id = own_posts.user_id AND parent.id = own_posts.in_reply_to_id)",
     );
   }
   if (opts.before) {

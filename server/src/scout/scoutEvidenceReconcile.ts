@@ -181,7 +181,12 @@ function confirmedOwnReplyText(
   userId: string,
   replyId: string,
 ): ConfirmedOwnReply | null {
-  const page = listConfirmedOwnRepliesPage({ userId, limit: 1, replyId });
+  const page = listConfirmedOwnRepliesPage({
+    userId,
+    limit: 1,
+    replyId,
+    excludeSelfReplies: true,
+  });
   return page[0] ?? null;
 }
 

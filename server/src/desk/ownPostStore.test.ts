@@ -203,6 +203,30 @@ describe("ownPostStore", () => {
       }).length,
       0,
     );
+
+    const userWithoutSubscription = "user-self-reply-without-subscription";
+    upsertOwnPost({
+      parsed: post({ postId: "unlinked-parent", kind: "original" }),
+      userId: userWithoutSubscription,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({
+        postId: "unlinked-self-reply",
+        kind: "reply",
+        inReplyToId: "unlinked-parent",
+      }),
+      userId: userWithoutSubscription,
+      tenantId,
+    });
+    assert.equal(
+      listConfirmedOwnRepliesPage({
+        userId: userWithoutSubscription,
+        limit: 10,
+        excludeSelfReplies: true,
+      }).length,
+      0,
+    );
   });
 
   it("lists flight-path own posts and excludes reposts", () => {

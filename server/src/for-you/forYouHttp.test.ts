@@ -397,7 +397,15 @@ describe("POST /api/for-you/skip", () => {
     const [card] = insertSuggestions({
       userId: user.id,
       tenantId: "local",
-      drafts: [{ kind: "reply", why: "A live thread", draft: "Take a side." }],
+      drafts: [
+        {
+          kind: "reply",
+          why: "A live thread",
+          draft: "Take a side.",
+          targetId: "thread-1",
+          targetAuthor: "@thread-author",
+        },
+      ],
     });
     assert.ok(card);
     getPlatformDb().exec("DROP TABLE scout_target_context");
