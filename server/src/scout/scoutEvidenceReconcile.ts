@@ -69,6 +69,14 @@ export type OwnedReplyNoteCheck = {
   reply: string | null;
 };
 
+function allowsLegacyNote(userId: string, threadId: string, replyId: string): boolean {
+  return !listConfirmedOwnRepliesPage({
+    userId,
+    limit: 500,
+    excludeSelfReplies: true,
+  }).some((reply) => reply.id !== replyId && reply.inReplyToId === threadId);
+}
+
 function noteReplyId(frontmatter: string): string | null {
   const m = /^replyId:\s*["']?([^"'\r\n]+)["']?\s*$/m.exec(frontmatter);
   return m?.[1]?.trim() || null;
@@ -87,6 +95,7 @@ export async function verifyOwnedReplyNote(opts: {
   knowledgeRoot: string;
   cache?: OwnedNoteCache;
   names?: string[] | null;
+  allowLegacy?: boolean;
 }): Promise<OwnedReplyNoteCheck> {
   let resolved;
   try {
@@ -108,6 +117,9 @@ export async function verifyOwnedReplyNote(opts: {
   const reply = resolved.meta.reply.trim();
   if (!reply) return { state: "missing", reply: null };
   const declared = noteReplyId(resolved.meta.frontmatter);
+  if (declared === null && opts.allowLegacy === false) {
+    return { state: "missing", reply: null };
+  }
   if (declared !== null && declared !== opts.replyId.trim()) {
     return { state: "missing", reply: null };
   }
@@ -148,6 +160,7 @@ async function recordConfirmedTake(
     knowledgeRoot: state.knowledgeRoot,
     cache: state.cache,
     names: state.names,
+    allowLegacy: allowsLegacyNote(state.userId, facts.threadId, facts.replyId),
   });
   const context = await captureScoutTargetContext({
     userId: state.userId,
@@ -229,6 +242,7 @@ async function reconcileInteractions(
         knowledgeRoot: state.knowledgeRoot,
         cache: state.cache,
         names: state.names,
+        allowLegacy: allowsLegacyNote(state.userId, row.threadId, replyId),
       });
       confirmed = note.state === "stored";
     }
@@ -326,6 +340,7 @@ async function reconcileNotes(state: PassState, batch: number): Promise<boolean>
       knowledgeRoot: state.knowledgeRoot,
       cache: state.cache,
       names: state.names,
+      allowLegacy: allowsLegacyNote(state.userId, threadId, row.replyId),
     });
     const changed = setScoutEvidenceNoteState({
       userId: state.userId,

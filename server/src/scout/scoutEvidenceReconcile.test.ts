@@ -251,6 +251,29 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(foreign.state, "missing");
   });
 
+  it("does not join a legacy note to a later reply on the same thread", async () => {
+    const at = new Date(T0).toISOString();
+    await writeNote({ knowledgeRoot, userId, threadId: "t-legacy", at, reply: "legacy reply" });
+    upsertOwnPost({
+      parsed: ownReply({ postId: "r-first", inReplyToId: "t-legacy", postedAt: at }),
+      userId,
+      tenantId,
+    });
+    await markInteracted({
+      threadId: "t-legacy",
+      author: "@alice",
+      userId,
+      replyId: "r-later",
+      replyUrl: "https://x.com/me/status/r-later",
+      nowMs: T0 + 1,
+    });
+
+    await reconcileScoutEvidence({ userId, knowledgeRoot, nowMs: T0 + 1 });
+
+    assert.equal(findScoutTakeByReplyId(userId, "r-first")?.noteState, "stored");
+    assert.equal(findScoutTakeByReplyId(userId, "r-later"), null);
+  });
+
   it("verifies separate same-day replies on the same thread", async () => {
     const at = new Date(T0).toISOString();
     await writeNote({ knowledgeRoot, userId, threadId: "same-thread", at, reply: "first", replyId: "r1" });
