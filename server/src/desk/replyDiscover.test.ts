@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -216,6 +216,8 @@ describe("discoverOwnReplies", () => {
   let gamificationPath: string;
   let knowledgeRoot: string;
   const userId = "u1";
+  const notePath = (threadId: string, interactedAt: string) =>
+    buildInteractionNotePath({ userId, threadId, interactedAt, knowledgeRoot });
 
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), "x-copilot-discover-"));
@@ -320,7 +322,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(row.url, "https://x.com/builder/status/new-parent");
 
     const note = await readFile(
-      join(knowledgeRoot, "interactions", "2026-08-02-new-parent.md"),
+      notePath("new-parent", "2026-08-02T11:30:00.000Z"),
       "utf8",
     );
     assert.match(note, /source: discovered/);
@@ -442,10 +444,7 @@ describe("discoverOwnReplies", () => {
 
     assert.equal(result.discovered, 0);
     assert.equal(result.skipped, 1);
-    const note = await readFile(
-      join(knowledgeRoot, "interactions", "2026-08-02-webhook-parent.md"),
-      "utf8",
-    );
+    const note = await readFile(notePath("webhook-parent", postedAt), "utf8");
     assert.match(note, /updated parent/);
     assert.match(note, /userId: "u1"/);
     assert.match(note, /interactedAt: "2026-08-02T11:30:00\.000Z"/);
@@ -561,12 +560,8 @@ describe("discoverOwnReplies", () => {
     assert.equal(first.ok, true);
     assert.equal(first.discovered, 0);
 
-    const notePath = join(
-      knowledgeRoot,
-      "interactions",
-      "2026-08-02-local-parent.md",
-    );
-    const firstNote = await readFile(notePath, "utf8");
+    const localNotePath = notePath("local-parent", postedAt);
+    const firstNote = await readFile(localNotePath, "utf8");
     assert.match(firstNote, /userId: "u1"/);
     assert.match(firstNote, /confirmed webhook take/);
     assert.match(firstNote, /Saved parent text/);
@@ -585,7 +580,7 @@ describe("discoverOwnReplies", () => {
       searchTimelinePages: emptySearch,
     });
     assert.equal(second.discovered, 0);
-    const secondNote = await readFile(notePath, "utf8");
+    const secondNote = await readFile(localNotePath, "utf8");
     assert.match(secondNote, /userId: "u1"/);
     assert.match(secondNote, /confirmed webhook take/);
     assert.match(secondNote, /interactedAt: "2026-08-02T11:30:00\.000Z"/);
@@ -654,14 +649,7 @@ describe("discoverOwnReplies", () => {
       }),
     });
 
-    const note = await readFile(
-      buildInteractionNotePath({
-        threadId: "projected-parent",
-        interactedAt: postedAt,
-        knowledgeRoot,
-      }),
-      "utf8",
-    );
+    const note = await readFile(notePath("projected-parent", postedAt), "utf8");
     assert.match(note, /fresh loop projection/);
     assert.doesNotMatch(note, /stale own_posts text/);
   });
@@ -722,11 +710,7 @@ describe("discoverOwnReplies", () => {
     });
 
     const note = await readFile(
-      buildInteractionNotePath({
-        threadId: "empty-projection-parent",
-        interactedAt: postedAt,
-        knowledgeRoot,
-      }),
+      notePath("empty-projection-parent", postedAt),
       "utf8",
     );
     assert.match(note, /confirmed text/);
@@ -797,11 +781,7 @@ describe("discoverOwnReplies", () => {
     });
 
     const note = await readFile(
-      buildInteractionNotePath({
-        threadId: "unavailable-projection-parent",
-        interactedAt: postedAt,
-        knowledgeRoot,
-      }),
+      notePath("unavailable-projection-parent", postedAt),
       "utf8",
     );
     assert.match(note, /confirmed after write failure/);
@@ -859,17 +839,85 @@ describe("discoverOwnReplies", () => {
       }),
     });
 
-    const note = await readFile(
-      buildInteractionNotePath({
-        threadId: "watched-parent",
-        interactedAt: postedAt,
-        knowledgeRoot,
-      }),
-      "utf8",
-    );
+    const note = await readFile(notePath("watched-parent", postedAt), "utf8");
     assert.match(note, /https:\/\/x\.com\/builder\/status\/watched-url/);
     assert.match(note, /watched parent text/);
     assert.doesNotMatch(note, /\(no thread text\)/);
+  });
+
+  it("repairs a missing own note even when a foreign or unowned file shares the thread and date", async () => {
+    const postedAt = "2026-08-02T11:30:00.000Z";
+    await markInteracted({
+      threadId: "shared-parent",
+      author: "@builder",
+      replyId: "shared-reply",
+      source: "discovered",
+      postedAt,
+      userId,
+    });
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-shared-reply",
+        xUserId: "99",
+        postId: "shared-reply",
+        kind: "reply",
+        text: "my confirmed take",
+        postedAt,
+        inReplyToId: "shared-parent",
+        inReplyToUserId: null,
+        conversationId: null,
+        authorUsername: "me",
+        metrics: {},
+      },
+      userId,
+      tenantId: ensureUserTenant(userId),
+    });
+    const foreign = await writeInteractionMemory({
+      threadId: "shared-parent",
+      author: "@builder",
+      reply: "someone else's take",
+      userId: "u2",
+      interactedAt: postedAt,
+      knowledgeRoot,
+    });
+    const legacyPath = join(knowledgeRoot, "interactions", "2026-08-02-shared-parent.md");
+    const unowned = `---\ntype: interaction\nthreadId: "shared-parent"\ninteractedAt: "${postedAt}"\n---\n\n## Reply\n\nunowned legacy\n`;
+    await writeFile(legacyPath, unowned, "utf8");
+
+    const run = () =>
+      discoverOwnReplies({
+        nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
+        userId,
+        gamificationPath,
+        knowledgeRoot,
+        upsertMemory: false,
+        session: { configured: true, bearerToken: "t" },
+        resolveScreenName: async () => "me",
+        searchTimelinePages: async () => ({
+          ok: true as const,
+          threads: [],
+          queryId: "q",
+          bottomCursor: null,
+          pages: 1,
+        }),
+      });
+    await run();
+    const own = await readFile(notePath("shared-parent", postedAt), "utf8");
+    assert.match(own, /userId: "u1"/);
+    assert.match(own, /my confirmed take/);
+    assert.match(await readFile(foreign.path, "utf8"), /someone else's take/);
+    assert.equal(await readFile(legacyPath, "utf8"), unowned);
+
+    // Once our own verified note exists, reconciliation leaves it alone.
+    let writes = 0;
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async (input) => {
+        writes += 1;
+        return writeInteractionMemory(input);
+      },
+    });
+    await run();
+    assert.equal(writes, 0);
   });
 
   it("indexes a note repaired from own_posts", async () => {
@@ -965,11 +1013,7 @@ describe("discoverOwnReplies", () => {
       }),
     });
     await assert.rejects(
-      () =>
-        readFile(
-          join(knowledgeRoot, "interactions", "2026-08-02-orphan-parent.md"),
-          "utf8",
-        ),
+      () => readFile(join(knowledgeRoot, "interactions"), "utf8"),
       /ENOENT/,
     );
     assert.equal((await listInteractionHistory({ userId })).length, 0);
@@ -1048,14 +1092,7 @@ describe("discoverOwnReplies", () => {
       }),
     });
 
-    const body = await readFile(
-      buildInteractionNotePath({
-        threadId: "curated-parent",
-        interactedAt,
-        knowledgeRoot,
-      }),
-      "utf8",
-    );
+    const body = await readFile(notePath("curated-parent", interactedAt), "utf8");
     assert.match(body, /userId: "u1"/);
     assert.match(body, /## Outcome/);
     assert.match(body, /views1h: 100/);
@@ -1111,7 +1148,7 @@ describe("discoverOwnReplies", () => {
       console.warn = origWarn;
     }
     const note = await readFile(
-      join(knowledgeRoot, "interactions", "2026-08-02-idx-parent.md"),
+      notePath("idx-parent", "2026-08-02T11:30:00.000Z"),
       "utf8",
     );
     assert.match(note, /userId: "u1"/);

@@ -1,7 +1,6 @@
 /**
  * Desk POST /api/voice/post — X write, idempotency, and mark-after-post.
  */
-import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { trackAnalytics } from "../desk/analyticsClient.js";
 import { allowRate } from "../auth/authGuard.js";
@@ -19,10 +18,8 @@ import {
   parseStatusIdFromUrl,
 } from "../desk/interactionCooldown.js";
 import { markInteracted } from "../desk/interactionStore.js";
-import {
-  findInteractionNotePath,
-  parseInteractionNoteReply,
-} from "../memory/knowledgeMemory.js";
+import { defaultKnowledgeRoot } from "../memory/knowledgeMemory.js";
+import { resolveOwnedNote } from "../memory/ownedMemoryNotes.js";
 import {
   projectConfirmedReplyMemory,
   type ConfirmedReplyMemoryResult,
@@ -116,23 +113,25 @@ async function savedOrCanonicalReply(opts: {
   tweetId: string;
   interactedAt?: string;
 }): Promise<{ reply: string; interactedAt?: string } | undefined> {
-  const path = await findInteractionNotePath({
-    threadId: opts.threadId,
-    interactedAt: opts.interactedAt,
-    knowledgeRoot: testHooks.knowledgeRoot,
-  });
-  if (path) {
-    try {
-      const parsed = parseInteractionNoteReply(await readFile(path, "utf8"));
-      if (parsed?.text && parsed.userId === opts.userId) {
-        return {
-          reply: parsed.text,
-          interactedAt: parsed.postedAt ?? undefined,
-        };
-      }
-    } catch {
-      // Fall through to confirmed own-post text.
+  try {
+    // Owner-verified resolution: a foreign or unowned note on the same
+    // thread/date never becomes this user's replayed text.
+    const resolved = await resolveOwnedNote({
+      kind: "interaction",
+      userId: opts.userId,
+      threadId: opts.threadId,
+      at: opts.interactedAt,
+      knowledgeRoot: testHooks.knowledgeRoot ?? defaultKnowledgeRoot(),
+      allowOtherDates: true,
+    });
+    if (resolved.state === "found" && resolved.meta.reply) {
+      return {
+        reply: resolved.meta.reply,
+        interactedAt: resolved.meta.actionAt ?? undefined,
+      };
     }
+  } catch {
+    // Fall through to confirmed own-post text.
   }
   let row:
     | { text: string | null; postedAt: string | null }

@@ -2,9 +2,13 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { markDismissed } from "./dismissalStore.ts";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { listDismissalHistory, markDismissed } from "./dismissalStore.ts";
 import { markExpired } from "./expiredStore.ts";
-import { tryHandleHistory } from "./historyHttp.ts";
+import { resetHistoryHttpForTests, tryHandleHistory } from "./historyHttp.ts";
+import { buildDismissalNotePath } from "../memory/knowledgeMemory.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import {
   closeTempPlatformDb,
@@ -71,17 +75,134 @@ async function call(
 
 describe("historyHttp", () => {
   let temp: TempPlatformDb;
+  let dir: string;
+  let knowledgeRoot: string;
   let a: { userId: string; cookie: string };
   let b: { userId: string; cookie: string };
 
   beforeEach(() => {
     temp = openTempPlatformDb("x-history-http-");
+    dir = mkdtempSync(join(tmpdir(), "x-history-http-knowledge-"));
+    knowledgeRoot = join(dir, "knowledge");
+    resetHistoryHttpForTests({ knowledgeRoot, scheduleUpsert: async () => {} });
     a = signIn("a");
     b = signIn("b");
   });
 
   afterEach(() => {
+    resetHistoryHttpForTests();
     closeTempPlatformDb(temp);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function dismissalNotes(): string[] {
+    try {
+      return readdirSync(join(knowledgeRoot, "dismissals")).filter((n) =>
+        n.endsWith(".md"),
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  it("POST /api/dismissed records the action first, then an owned note keyed by the durable time", async () => {
+    const { status, json } = await call(
+      "POST",
+      "/api/dismissed",
+      { threadId: "2081", author: "@x", text: "raw body", reason: "off topic" },
+      a.cookie,
+    );
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    assert.deepEqual(json.memory, { state: "saved" });
+    const dismissal = json.dismissal as { at: string; threadId: string };
+    const expectedPath = buildDismissalNotePath({
+      userId: a.userId,
+      threadId: "2081",
+      dismissedAt: dismissal.at,
+      knowledgeRoot,
+    });
+    assert.equal(json.memoryPath, expectedPath);
+    const note = readFileSync(expectedPath, "utf8");
+    assert.match(note, /type: dismissal/);
+    assert.match(note, new RegExp(`userId: "${a.userId}"`));
+    assert.match(note, /threadId: "2081"/);
+    assert.match(note, new RegExp(`dismissedAt: "${dismissal.at.replace(/\./g, "\\.")}"`));
+    assert.match(note, /off topic/);
+    assert.match(note, /raw body/);
+    assert.equal(dismissalNotes().length, 1);
+
+    // Another desk dismissing the same thread gets its own note.
+    const other = await call(
+      "POST",
+      "/api/dismissed",
+      { threadId: "2081", author: "@x", reason: "b's reason" },
+      b.cookie,
+    );
+    assert.equal(other.status, 200);
+    assert.notEqual(other.json.memoryPath, expectedPath);
+    assert.equal(dismissalNotes().length, 2);
+    assert.match(readFileSync(expectedPath, "utf8"), /off topic/);
+  });
+
+  it("POST /api/dismissed succeeds with memory unavailable when the note write fails", async () => {
+    resetHistoryHttpForTests({
+      knowledgeRoot,
+      writeDismissalNote: async () => {
+        throw new Error("EACCES: injected filesystem failure");
+      },
+    });
+    const { status, json } = await call(
+      "POST",
+      "/api/dismissed",
+      { threadId: "2082", author: "@y", reason: "spam" },
+      a.cookie,
+    );
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    assert.deepEqual(json.memory, { state: "unavailable" });
+    assert.equal("memoryPath" in json, false);
+    const rows = await listDismissalHistory({ userId: a.userId });
+    assert.deepEqual(rows.map((r) => r.threadId), ["2082"]);
+    assert.deepEqual(dismissalNotes(), []);
+  });
+
+  it("POST /api/dismissed keeps saved when the index upsert fails", async () => {
+    resetHistoryHttpForTests({
+      knowledgeRoot,
+      scheduleUpsert: async () => {
+        throw new Error("injected index failure");
+      },
+    });
+    const { status, json } = await call(
+      "POST",
+      "/api/dismissed",
+      { threadId: "2083", author: "@z" },
+      a.cookie,
+    );
+    assert.equal(status, 200);
+    assert.deepEqual(json.memory, { state: "saved" });
+    assert.equal(typeof json.memoryPath, "string");
+    assert.equal(dismissalNotes().length, 1);
+  });
+
+  it("POST /api/dismissed fails without writing any note when the durable store fails", async () => {
+    resetHistoryHttpForTests({
+      knowledgeRoot,
+      markDismissed: async () => {
+        throw new Error("injected sqlite failure");
+      },
+    });
+    const { status, json } = await call(
+      "POST",
+      "/api/dismissed",
+      { threadId: "2084", author: "@w", reason: "nope" },
+      a.cookie,
+    );
+    assert.equal(status, 500);
+    assert.equal(json.error, "store_failed");
+    assert.deepEqual(dismissalNotes(), []);
+    assert.deepEqual(await listDismissalHistory({ userId: a.userId }), []);
   });
 
   it("GET /api/expired returns expired + expiredIds", async () => {

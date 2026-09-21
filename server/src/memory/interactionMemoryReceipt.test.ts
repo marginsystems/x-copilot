@@ -103,14 +103,13 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["unavailable"]);
   });
 
-  it("returns unavailable for an unowned matching note", async () => {
-    await writeInteractionMemory({
-      threadId: "2081",
-      author: "@Builder",
-      reply: "Legacy note with no owner.",
-      interactedAt,
-      knowledgeRoot: root,
-    });
+  it("returns unavailable for an unowned matching legacy note", async () => {
+    await mkdir(join(root, "interactions"), { recursive: true });
+    await writeFile(
+      join(root, "interactions", "2026-07-27-2081.md"),
+      `---\ntype: interaction\nthreadId: "2081"\ninteractedAt: "${interactedAt}"\n---\n\n## Reply\n\nLegacy note with no owner.\n`,
+      "utf8",
+    );
     const states = await lookupInteractionMemoryReceipts({
       userId: "user-1",
       knowledgeRoot: root,
@@ -244,6 +243,68 @@ describe("lookupInteractionMemoryReceipts", () => {
         interactions: [interaction],
       }),
       ["saved"],
+    );
+  });
+
+  it("reports saved for a verified legacy note and each owner's own canonical note", async () => {
+    await mkdir(join(root, "interactions"), { recursive: true });
+    await writeFile(
+      join(root, "interactions", "2026-07-27-2081.md"),
+      `---\ntype: interaction\nthreadId: "2081"\nuserId: "user-1"\ninteractedAt: "${interactedAt}"\n---\n\n## Reply\n\nLegacy but mine.\n`,
+      "utf8",
+    );
+    await writeInteractionMemory({
+      threadId: "2082",
+      author: "@A",
+      reply: "Mine on the shared thread.",
+      userId: "user-1",
+      interactedAt,
+      knowledgeRoot: root,
+    });
+    await writeInteractionMemory({
+      threadId: "2082",
+      author: "@A",
+      reply: "Theirs on the shared thread.",
+      userId: "user-2",
+      interactedAt,
+      knowledgeRoot: root,
+    });
+    const keys = [
+      { threadId: "2081", at: interactedAt },
+      { threadId: "2082", at: interactedAt },
+    ];
+    assert.deepEqual(
+      await lookupInteractionMemoryReceipts({ userId: "user-1", knowledgeRoot: root, interactions: keys }),
+      ["saved", "saved"],
+    );
+    assert.deepEqual(
+      await lookupInteractionMemoryReceipts({ userId: "user-2", knowledgeRoot: root, interactions: keys }),
+      ["unavailable", "saved"],
+    );
+  });
+
+  it("never reports saved for a note without reply text or with conflicting owners", async () => {
+    await mkdir(join(root, "interactions"), { recursive: true });
+    await writeFile(
+      join(root, "interactions", "2026-07-27-2081.md"),
+      `---\ntype: interaction\nthreadId: "2081"\nuserId: "user-1"\ninteractedAt: "${interactedAt}"\n---\n\n## Post\n\nno reply section\n`,
+      "utf8",
+    );
+    await writeFile(
+      join(root, "interactions", "2026-07-27-2082.md"),
+      `---\ntype: interaction\nthreadId: "2082"\nuserId: "user-1"\nuserId: "user-2"\ninteractedAt: "${interactedAt}"\n---\n\n## Reply\n\nwho owns this\n`,
+      "utf8",
+    );
+    assert.deepEqual(
+      await lookupInteractionMemoryReceipts({
+        userId: "user-1",
+        knowledgeRoot: root,
+        interactions: [
+          { threadId: "2081", at: interactedAt },
+          { threadId: "2082", at: interactedAt },
+        ],
+      }),
+      ["unavailable", "unavailable"],
     );
   });
 

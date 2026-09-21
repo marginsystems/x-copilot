@@ -8,9 +8,9 @@ import {
   markInteracted,
   type Interaction,
 } from "./interactionStore.js";
-import { access } from "node:fs/promises";
 import { normalizeAuthorKey } from "./interactionCooldown.js";
-import { buildInteractionNotePath } from "../memory/knowledgeMemory.js";
+import { defaultKnowledgeRoot } from "../memory/knowledgeMemory.js";
+import { resolveOwnedNote } from "../memory/ownedMemoryNotes.js";
 import {
   projectConfirmedReplyMemory,
   type ConfirmedReplyMemoryState,
@@ -338,16 +338,21 @@ async function reconcileConfirmedOwnReplies(opts: {
         : undefined);
     if (!known) continue;
     try {
-      await access(
-        buildInteractionNotePath({
-          threadId: known.threadId,
-          interactedAt: canonicalNoteTime(known),
-          knowledgeRoot: opts.knowledgeRoot,
-        }),
+      // Reconcile only when this user's own note with reply text is missing:
+      // a foreign or unowned file on the same thread/date is not ours.
+      const resolved = await resolveOwnedNote({
+        kind: "interaction",
+        userId: opts.userId,
+        threadId: known.threadId,
+        at: canonicalNoteTime(known),
+        knowledgeRoot: opts.knowledgeRoot ?? defaultKnowledgeRoot(),
+      });
+      if (resolved.state === "found" && resolved.meta.reply) continue;
+    } catch (err) {
+      console.warn(
+        `[reply-discover] note lookup soft-fail replyId=${post.id}:`,
+        err,
       );
-      continue;
-    } catch {
-      // Reconcile only notes that are still missing.
     }
     let watched = null;
     try {

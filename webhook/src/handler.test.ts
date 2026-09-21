@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import {
   defaultMigrationsDir,
@@ -74,20 +81,27 @@ function notePathFor(
   dir: string,
   threadId: string,
   at = "2026-09-04T03:00:00.000Z",
+  owner = "user-1",
 ): string {
   return buildInteractionNotePath({
+    userId: owner,
     threadId,
     interactedAt: at,
     knowledgeRoot: knowledgeRootFor(dir),
   });
 }
 
+function noteNameFor(threadId: string, at?: string, owner?: string): string {
+  return basename(notePathFor("/x", threadId, at, owner));
+}
+
 async function readNote(
   dir: string,
   threadId: string,
   at?: string,
+  owner?: string,
 ): Promise<string> {
-  return readFile(notePathFor(dir, threadId, at), "utf8");
+  return readFile(notePathFor(dir, threadId, at, owner), "utf8");
 }
 
 function listedNotes(dir: string): string[] {
@@ -482,7 +496,7 @@ describe("own reply interaction capture", () => {
       (await listInteractionHistory({ userId })).length,
       1,
     );
-    assert.deepEqual(listedNotes(dir), ["2026-09-04-parent-1.md"]);
+    assert.deepEqual(listedNotes(dir), [noteNameFor("parent-1")]);
     const xpAfter = await getGamification({ userId, nowMs: nowMs + 2 });
     assert.equal(xpAfter.lifetimeXp, xpBefore.lifetimeXp);
   });
@@ -500,7 +514,8 @@ describe("own reply interaction capture", () => {
       "organic",
     );
 
-    assert.deepEqual(listedNotes(dir), ["2026-09-04-parent-1.md"]);
+    assert.deepEqual(listedNotes(dir), [noteNameFor("parent-1", postedAt)]);
+    assert.match(listedNotes(dir)[0]!, /^2026-09-04-u[0-9a-f]{64}-h[0-9a-f]{64}\.md$/);
   });
 
   it("does not overwrite an existing manual note on the known path", async () => {
@@ -547,7 +562,7 @@ describe("own reply interaction capture", () => {
     assert.doesNotMatch(note, /webhook retry/);
   });
 
-  it("attempts repair when the known path belongs to another user", async () => {
+  it("repairs its own note when another user's note shares the thread and date", async () => {
     await markInteracted({
       threadId: "parent-1",
       author: "@target",
@@ -555,7 +570,7 @@ describe("own reply interaction capture", () => {
       replyId: "known-reply",
       nowMs,
     });
-    await writeInteractionMemory({
+    const foreign = await writeInteractionMemory({
       threadId: "parent-1",
       author: "@target",
       reply: "foreign reply",
@@ -580,7 +595,67 @@ describe("own reply interaction capture", () => {
       "skipped",
     );
     assert.equal(writes, 1);
-    assert.match(await readNote(dir, "parent-1"), /userId: "user-other"/);
+    const own = await readNote(dir, "parent-1");
+    assert.match(own, /userId: "user-1"/);
+    assert.match(own, /## Reply[\s\S]*\nreply\n/);
+    const kept = await readFile(foreign.path, "utf8");
+    assert.match(kept, /userId: "user-other"/);
+    assert.match(kept, /foreign reply/);
+    assert.equal(listedNotes(dir).length, 2);
+  });
+
+  it("repairs when the known path holds an unowned legacy note or a note without reply text", async () => {
+    await markInteracted({
+      threadId: "parent-1",
+      author: "@target",
+      userId,
+      replyId: "known-reply",
+      nowMs,
+    });
+    const legacyDir = join(knowledgeRootFor(dir), "interactions");
+    mkdirSync(legacyDir, { recursive: true });
+    const legacyPath = join(legacyDir, "2026-09-04-parent-1.md");
+    const unowned = `---\ntype: interaction\nthreadId: "parent-1"\ninteractedAt: "${new Date(nowMs).toISOString()}"\n---\n\n## Reply\n\nunowned legacy\n`;
+    writeFileSync(legacyPath, unowned, "utf8");
+    let writes = 0;
+    resetInteractionMemoryProjectionForTests({
+      writeNote: async (input) => {
+        writes += 1;
+        return writeInteractionMemory(input);
+      },
+    });
+    assert.equal(
+      await markOwnReplyInteracted(post({ postId: "known-reply" }), userId, {
+        nowMs: nowMs + 1,
+      }),
+      "skipped",
+    );
+    assert.equal(writes, 1);
+    assert.equal(readFileSync(legacyPath, "utf8"), unowned);
+    assert.match(await readNote(dir, "parent-1"), /userId: "user-1"/);
+
+    // A verified owned note with reply text suppresses further repair...
+    assert.equal(
+      await markOwnReplyInteracted(post({ postId: "known-reply" }), userId, {
+        nowMs: nowMs + 2,
+      }),
+      "skipped",
+    );
+    assert.equal(writes, 1);
+    // ...but the same discovered note without reply text does not.
+    writeFileSync(
+      notePathFor(dir, "parent-1"),
+      `---\ntype: interaction\nthreadId: "parent-1"\nuserId: "user-1"\ninteractedAt: "${new Date(nowMs).toISOString()}"\nsource: discovered\n---\n\n## Post\n\nno reply\n`,
+      "utf8",
+    );
+    assert.equal(
+      await markOwnReplyInteracted(post({ postId: "known-reply" }), userId, {
+        nowMs: nowMs + 3,
+      }),
+      "skipped",
+    );
+    assert.equal(writes, 2);
+    assert.match(await readNote(dir, "parent-1"), /## Reply[\s\S]*\nreply\n/);
   });
 
   it("repairs one note for a known watched reply without extra XP", async () => {
@@ -601,7 +676,7 @@ describe("own reply interaction capture", () => {
       "skipped",
     );
     assert.equal((await listInteractionHistory({ userId })).length, 1);
-    assert.deepEqual(listedNotes(dir), ["2026-09-04-parent-1.md"]);
+    assert.deepEqual(listedNotes(dir), [noteNameFor("parent-1")]);
     const note = await readNote(dir, "parent-1");
     assert.match(note, /Watched parent post/);
     assert.match(note, /## Reply[\s\S]*\nreply\n/);

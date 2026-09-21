@@ -3,7 +3,6 @@
  * on 127.0.0.1:8789. nginx routes /api/x/activity there.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
 import { send } from "../../server/src/http/httpJson.js";
 import { xConsumerCreds } from "../../server/src/auth/xAuth.js";
 import { getUserById } from "../../server/src/auth/authStore.js";
@@ -52,7 +51,8 @@ import {
   projectConfirmedReplyMemory,
   type ProjectConfirmedReplyMemoryInput,
 } from "../../server/src/memory/interactionMemoryProjection.js";
-import { buildInteractionNotePath } from "../../server/src/memory/knowledgeMemory.js";
+import { defaultKnowledgeRoot } from "../../server/src/memory/knowledgeMemory.js";
+import { resolveOwnedNote } from "../../server/src/memory/ownedMemoryNotes.js";
 
 type WebhookMemoryOpts = Pick<
   ProjectConfirmedReplyMemoryInput,
@@ -178,18 +178,18 @@ export async function markOwnReplyInteracted(
           parsed.conversationId === row.threadId),
     );
   if (known) {
-    const notePath = buildInteractionNotePath({
-      threadId: known.threadId,
-      interactedAt: known.postedAt ?? known.at,
-      knowledgeRoot: memoryOpts(opts).knowledgeRoot,
-    });
+    // Owner/thread/reply-verified lookup: a foreign, unowned, unreadable or
+    // reply-less note on the same thread/date cannot suppress repair.
     let noteOwned = false;
     try {
-      const note = await readFile(notePath, "utf8");
-      const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(note)?.[1] ?? "";
-      noteOwned =
-        /(?:^|\n)userId:\s*["']?([^"'\n]+)["']?/.exec(frontmatter)?.[1]?.trim() ===
-        userId;
+      const resolved = await resolveOwnedNote({
+        kind: "interaction",
+        userId,
+        threadId: known.threadId,
+        at: known.postedAt ?? known.at,
+        knowledgeRoot: memoryOpts(opts).knowledgeRoot ?? defaultKnowledgeRoot(),
+      });
+      noteOwned = resolved.state === "found" && resolved.meta.reply.length > 0;
     } catch {
       // A missing or unreadable note needs the same repair attempt.
     }

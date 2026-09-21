@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -347,6 +347,50 @@ Race condition note.
     });
     assert.equal(result.ok, true);
     assert.equal(result.indexed, 1);
+  });
+
+  it("indexes one row per migrated legacy note and keeps the original file", async () => {
+    const legacyPath = join(knowledgeRoot, "interactions", "2026-07-30-2081.md");
+    const legacyNote = `---
+type: interaction
+threadId: "2081"
+userId: "user-a"
+interactedAt: "2026-07-30T12:00:00.000Z"
+---
+
+## Summary
+
+Owned legacy shipping question.
+
+## Reply
+
+Ship weekly.
+`;
+    await writeFile(legacyPath, legacyNote, "utf8");
+    await writeFile(
+      join(knowledgeRoot, "interactions", "2026-07-30-2082.md"),
+      `---\ntype: interaction\nthreadId: "2082"\n---\n\n## Summary\n\nUnowned legacy note stays indexed as itself.\n`,
+      "utf8",
+    );
+    const result = await reindexMemory({ knowledgeRoot, indexDir, embedder });
+    assert.equal(result.ok, true);
+    assert.equal(result.indexed, 2);
+    const names = (await readdir(join(knowledgeRoot, "interactions"))).filter((n) =>
+      n.endsWith(".md"),
+    );
+    assert.equal(names.length, 3);
+    assert.ok(names.includes("2026-07-30-2081.md"));
+    assert.equal(await readFile(legacyPath, "utf8"), legacyNote);
+    const { hits } = await searchMemory({
+      query: "Owned legacy shipping question",
+      k: 5,
+      knowledgeRoot,
+      indexDir,
+      embedder,
+    });
+    const legacyHits = hits.filter((h) => /2081\.md$/.test(h.path));
+    assert.equal(legacyHits.length, 1);
+    assert.match(legacyHits[0]!.path, /-u[0-9a-f]{64}-2081\.md$/);
   });
 
   it("search surfaces embedder failure as unavailable", async () => {

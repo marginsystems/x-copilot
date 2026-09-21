@@ -18,6 +18,11 @@ export async function syncInteractionOutcomeMemory(opts: {
   embedder?: Embedder;
   nowIso?: string;
 }): Promise<SyncInteractionOutcomeResult> {
+  // The owner is part of note identity: an unowned interaction cannot be
+  // matched to a note, so it soft-fails before any filesystem work.
+  if (!opts.interaction.userId?.trim()) {
+    return { ok: false, error: "interaction has no owner" };
+  }
   const updated = await updateInteractionMemoryOutcome({
     interaction: opts.interaction,
     checkpoint: opts.checkpoint,

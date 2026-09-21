@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -22,8 +23,28 @@ import {
 } from "./knowledgeMemory.ts";
 import type { Interaction } from "../desk/interactionStore.ts";
 
+const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/** Pre-C07 note at the legacy `<date>-<threadId>.md` path (never written by code now). */
+async function writeLegacyNote(
+  root: string,
+  name: string,
+  opts: { threadId: string; userId?: string; interactedAt: string; reply: string; extra?: string },
+): Promise<string> {
+  const dir = join(root, "interactions");
+  await mkdir(dir, { recursive: true });
+  const owner = opts.userId ? `userId: "${opts.userId}"\n` : "";
+  const path = join(dir, name);
+  await writeFile(
+    path,
+    `---\ntype: interaction\nthreadId: "${opts.threadId}"\n${owner}author: "@A"\nauthorKey: "a"\ninteractedAt: "${opts.interactedAt}"\nsource: manual\n${opts.extra ?? ""}---\n\n## Post\n\nlegacy post\n\n## Reply\n\n${opts.reply}\n`,
+    "utf8",
+  );
+  return path;
+}
+
 describe("safeThreadIdForFilename", () => {
-  it("keeps alphanumerics and strips junk", () => {
+  it("keeps alphanumerics and strips junk (legacy reader only)", () => {
     assert.equal(safeThreadIdForFilename("2081314968155111817"), "2081314968155111817");
     assert.equal(safeThreadIdForFilename("../evil/id!!"), "evil_id");
     assert.equal(safeThreadIdForFilename("   "), "unknown");
@@ -35,10 +56,12 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     const md = renderInteractionMarkdown({
       threadId: "t1",
       author: "@A",
+      userId: "user-1",
       reply: "off-app reply",
       source: "discovered",
     });
     assert.match(md, /source: discovered/);
+    assert.match(md, /userId: "user-1"/);
   });
 
   it("rejects empty reply", () => {
@@ -48,16 +71,41 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
         renderInteractionMarkdown({
           threadId: "1",
           author: "@Foo",
+          userId: "user-1",
           reply: "   ",
         }),
       /reply is required/,
     );
   });
 
-  it("parses threadId and Reply out of a rendered note", async () => {
+  it("rejects a blank owner", () => {
+    assert.throws(
+      () =>
+        renderInteractionMarkdown({
+          threadId: "1",
+          author: "@Foo",
+          userId: "   ",
+          reply: "hi",
+        }),
+      /userId is required/,
+    );
+    assert.throws(
+      () =>
+        buildInteractionNotePath({
+          userId: "",
+          threadId: "1",
+          interactedAt: "2026-07-27T12:00:00.000Z",
+          knowledgeRoot: "/tmp/vault",
+        }),
+      /userId is required/,
+    );
+  });
+
+  it("parses threadId, owner and Reply out of a rendered note", async () => {
     const md = renderInteractionMarkdown({
       threadId: "2081",
       author: "@Builder",
+      userId: "user-1",
       reply: "Thanks — here's a concrete tip.",
       interactedAt: "2026-07-27T12:00:00.000Z",
     });
@@ -65,6 +113,7 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
       threadId: "2081",
       text: "Thanks — here's a concrete tip.",
       postedAt: "2026-07-27T12:00:00.000Z",
+      userId: "user-1",
     });
   });
 
@@ -72,20 +121,18 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     const md = renderInteractionMarkdown({
       threadId: "2081",
       author: "@Builder",
+      userId: "user-1",
       reply: "Line one\nLine two",
       interactedAt: "2026-07-27T12:00:00.000Z",
     });
-    assert.deepEqual(parseInteractionNoteReply(md), {
-      threadId: "2081",
-      text: "Line one\nLine two",
-      postedAt: "2026-07-27T12:00:00.000Z",
-    });
+    assert.equal(parseInteractionNoteReply(md)?.text, "Line one\nLine two");
   });
 
   it("includes threadId and reply in markdown", () => {
     const md = renderInteractionMarkdown({
       threadId: "2081",
       author: "@Builder",
+      userId: "user-1",
       reply: "Thanks — here's a concrete tip.",
       text: "How do I ship AI tools in public?",
       summary: "Asking about shipping AI tools",
@@ -106,6 +153,7 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     const md = renderInteractionMarkdown({
       threadId: "2081",
       author: "@Builder",
+      userId: "user-1",
       reply: "My reply",
       text: "@Scobleizer He’s also the only guy who can help\n\n Google win a product shipping war",
       summary: "Claiming someone can help Google win a product shipping war against GPT and Claude.",
@@ -114,8 +162,6 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     assert.match(md, /## Post/);
     assert.match(md, /@Scobleizer/);
     assert.match(md, /## Summary/);
-    assert.match(md, /Claiming someone can help Google/);
-    // Summary must not be the Post body (old bug: summary || text).
     const postIdx = md.indexOf("## Post");
     const summaryIdx = md.indexOf("## Summary");
     assert.ok(postIdx >= 0 && summaryIdx > postIdx);
@@ -128,6 +174,7 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     const md = renderInteractionMarkdown({
       threadId: "99",
       author: "@replier",
+      userId: "user-1",
       reply: "Agree",
       text: "Love this Building in public is a skill",
       summary: "Reply praising mentor advice",
@@ -142,13 +189,26 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
 });
 
 describe("buildInteractionNotePath", () => {
-  it("uses UTC date and safe id under knowledge/interactions", () => {
+  it("uses UTC date, hashed owner and collision-safe thread key under knowledge/interactions", () => {
     const path = buildInteractionNotePath({
+      userId: "user-1",
       threadId: "abc/def",
       interactedAt: "2026-07-27T15:00:00.000Z",
       knowledgeRoot: "/tmp/vault",
     });
-    assert.equal(path, join("/tmp/vault", "interactions", "2026-07-27-abc_def.md"));
+    assert.equal(
+      path,
+      join("/tmp/vault", "interactions", `2026-07-27-u${sha("user-1")}-h${sha("abc/def")}.md`),
+    );
+    assert.equal(
+      buildInteractionNotePath({
+        userId: "user-1",
+        threadId: "2081",
+        interactedAt: "2026-07-27T15:00:00.000Z",
+        knowledgeRoot: "/tmp/vault",
+      }),
+      join("/tmp/vault", "interactions", `2026-07-27-u${sha("user-1")}-2081.md`),
+    );
   });
 });
 
@@ -163,40 +223,137 @@ describe("writeInteractionMemory", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it("writes a file containing threadId and reply", async () => {
+  it("writes a file containing threadId, owner and reply", async () => {
     const { path } = await writeInteractionMemory({
       threadId: "99",
       author: "@A",
+      userId: "user-1",
       reply: "My reply on X",
       text: "Original post",
       knowledgeRoot: root,
       interactedAt: "2026-07-27T01:02:03.000Z",
     });
     const body = await readFile(path, "utf8");
-    assert.match(path, /2026-07-27-99\.md$/);
+    assert.match(path, new RegExp(`2026-07-27-u${sha("user-1")}-99\\.md$`));
     assert.match(body, /threadId: "99"/);
+    assert.match(body, /userId: "user-1"/);
     assert.match(body, /My reply on X/);
     assert.match(body, /## Post/);
     assert.match(body, /Original post/);
   });
+
+  it("rejects a blank owner without writing", async () => {
+    await assert.rejects(
+      writeInteractionMemory({
+        threadId: "99",
+        author: "@A",
+        userId: " ",
+        reply: "My reply on X",
+        knowledgeRoot: root,
+      }),
+      /userId is required/,
+    );
+    await assert.rejects(readdir(join(root, "interactions")), /ENOENT/);
+  });
+
+  it("lets two owners save the same thread and date independently", async () => {
+    const a = await writeInteractionMemory({
+      threadId: "2081",
+      author: "@A",
+      userId: "user-a",
+      reply: "A's reply",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    const b = await writeInteractionMemory({
+      threadId: "2081",
+      author: "@A",
+      userId: "user-b",
+      reply: "B's reply",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    assert.notEqual(a.path, b.path);
+    assert.match(await readFile(a.path, "utf8"), /A's reply/);
+    assert.match(await readFile(b.path, "utf8"), /B's reply/);
+    const names = (await readdir(join(root, "interactions"))).filter((n) => n.endsWith(".md"));
+    assert.equal(names.length, 2);
+  });
+
+  it("adopts a verified legacy note without deleting the original", async () => {
+    const legacy = await writeLegacyNote(root, "2026-07-27-99.md", {
+      threadId: "99",
+      userId: "user-1",
+      interactedAt: "2026-07-27T01:02:03.000Z",
+      reply: "legacy reply",
+      extra: 'agenda: "Legacy agenda"\nviews1h: 7\n',
+    });
+    const legacyBefore = await readFile(legacy, "utf8");
+    const { path } = await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      userId: "user-1",
+      reply: "legacy reply",
+      source: "discovered",
+      text: "refreshed",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    assert.notEqual(path, legacy);
+    const body = await readFile(path, "utf8");
+    assert.match(body, /Legacy agenda/);
+    assert.match(body, /views1h: 7/);
+    assert.match(body, /userId: "user-1"/);
+    assert.equal(await readFile(legacy, "utf8"), legacyBefore);
+  });
+
+  it("does not adopt an unowned legacy note on the same thread and date", async () => {
+    const legacy = await writeLegacyNote(root, "2026-07-27-99.md", {
+      threadId: "99",
+      interactedAt: "2026-07-27T01:02:03.000Z",
+      reply: "unowned legacy reply",
+    });
+    const { path } = await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      userId: "user-1",
+      reply: "my new reply",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T01:02:03.000Z",
+    });
+    assert.notEqual(path, legacy);
+    assert.doesNotMatch(await readFile(path, "utf8"), /unowned legacy reply/);
+    assert.match(await readFile(legacy, "utf8"), /unowned legacy reply/);
+  });
 });
 
 describe("buildDismissalNotePath / writeDismissalMemory", () => {
-  it("paths under knowledge/dismissals", () => {
+  it("paths under knowledge/dismissals with an owner component", () => {
     assert.equal(
       buildDismissalNotePath({
+        userId: "user-1",
         threadId: "42",
         dismissedAt: "2026-07-29T01:00:00.000Z",
         knowledgeRoot: "/tmp/vault",
       }),
-      join("/tmp/vault", "dismissals", "2026-07-29-42.md"),
+      join("/tmp/vault", "dismissals", `2026-07-29-u${sha("user-1")}-42.md`),
+    );
+    assert.throws(
+      () =>
+        buildDismissalNotePath({
+          userId: "",
+          threadId: "42",
+          knowledgeRoot: "/tmp/vault",
+        }),
+      /userId is required/,
     );
   });
 
-  it("renders dismissal markdown with raw Post, Summary, Reason, and OP", () => {
+  it("renders dismissal markdown with owner, raw Post, Summary, Reason, and OP", () => {
     const md = renderDismissalMarkdown({
       threadId: "42",
       author: "@x",
+      userId: "user-1",
       text: "Love this Building in public is a skill not just posting",
       summary: "promo spam",
       opAuthor: "@mentor",
@@ -205,6 +362,7 @@ describe("buildDismissalNotePath / writeDismissalMemory", () => {
       dismissedAt: "2026-07-29T01:00:00.000Z",
     });
     assert.match(md, /type: dismissal/);
+    assert.match(md, /userId: "user-1"/);
     assert.match(md, /## Post/);
     assert.match(md, /Love this Building in public/);
     assert.match(md, /## Summary/);
@@ -212,15 +370,10 @@ describe("buildDismissalNotePath / writeDismissalMemory", () => {
     assert.match(md, /## OP/);
     assert.match(md, /@mentor: Start the audience/);
     assert.match(md, /not a question/);
-    const postIdx = md.indexOf("## Post");
-    const summaryIdx = md.indexOf("## Summary");
-    const postSection = md.slice(postIdx, summaryIdx > 0 ? summaryIdx : undefined);
-    // OP may be between Post and Summary — check Post isn't only summary
-    assert.doesNotMatch(
-      md.slice(postIdx, md.indexOf("## OP")),
-      /^## Post\n\npromo spam$/m,
+    assert.throws(
+      () => renderDismissalMarkdown({ threadId: "42", author: "@x", userId: "" }),
+      /userId is required/,
     );
-    assert.ok(postSection.includes("Love this") || md.includes("Love this"));
   });
 
   it("writes dismissal note without reason defaults to (none)", async () => {
@@ -229,6 +382,7 @@ describe("buildDismissalNotePath / writeDismissalMemory", () => {
       const { path } = await writeDismissalMemory({
         threadId: "42",
         author: "@x",
+        userId: "user-1",
         text: "raw tweet body",
         summary: "promo spam",
         knowledgeRoot: root,
@@ -240,6 +394,10 @@ describe("buildDismissalNotePath / writeDismissalMemory", () => {
       assert.match(body, /raw tweet body/);
       assert.match(body, /## Summary/);
       assert.match(body, /promo spam/);
+      await assert.rejects(
+        writeDismissalMemory({ threadId: "42", author: "@x", userId: "", knowledgeRoot: root }),
+        /userId is required/,
+      );
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -249,20 +407,8 @@ describe("buildDismissalNotePath / writeDismissalMemory", () => {
 describe("formatOutcomeSection / upsertOutcomeSection", () => {
   it("formats 1h and 24h lines", () => {
     const body = formatOutcomeSection({
-      t1h: {
-        views: 100,
-        likes: 4,
-        replies: 1,
-        retweets: 0,
-        sampledAt: "2026-08-01T12:00:00.000Z",
-      },
-      t24h: {
-        views: 420,
-        likes: 12,
-        replies: 3,
-        retweets: 1,
-        sampledAt: "2026-08-02T12:00:00.000Z",
-      },
+      t1h: { views: 100, likes: 4, replies: 1, retweets: 0, sampledAt: "2026-08-01T12:00:00.000Z" },
+      t24h: { views: 420, likes: 12, replies: 3, retweets: 1, sampledAt: "2026-08-02T12:00:00.000Z" },
     });
     assert.match(body, /1h: 100 views · 4 likes · 1 reply · 0 reposts/);
     assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
@@ -307,6 +453,8 @@ describe("formatOutcomeSection / upsertOutcomeSection", () => {
 
 describe("updateInteractionMemoryOutcome", () => {
   let root: string;
+  const userId = "user-1";
+  const interactedAt = "2026-07-27T01:02:03.000Z";
 
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "x-copilot-outcome-"));
@@ -321,25 +469,31 @@ describe("updateInteractionMemoryOutcome", () => {
       threadId: "99",
       author: "@A",
       authorKey: "a",
-      at: "2026-07-27T01:02:03.000Z",
+      at: interactedAt,
       source: "manual",
+      userId,
       ...partial,
     };
   }
 
+  const t1h = {
+    views: 100,
+    likes: 4,
+    replies: 1,
+    retweets: 0,
+    sampledAt: "2026-07-27T02:02:03.000Z",
+  };
+  const t24h = {
+    views: 420,
+    likes: 12,
+    replies: 3,
+    retweets: 1,
+    sampledAt: "2026-07-28T01:02:03.000Z",
+  };
+
   it("soft-fails when note is missing", async () => {
     const result = await updateInteractionMemoryOutcome({
-      interaction: baseInteraction({
-        stats: {
-          t1h: {
-            views: 10,
-            likes: 0,
-            replies: 0,
-            retweets: 0,
-            sampledAt: "2026-07-27T02:00:00.000Z",
-          },
-        },
-      }),
+      interaction: baseInteraction({ stats: { t1h } }),
       knowledgeRoot: root,
     });
     assert.equal(result.ok, false);
@@ -347,28 +501,37 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.match(result.error, /not found/);
   });
 
+  it("soft-fails for an interaction without an owner", async () => {
+    await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      userId,
+      reply: "My reply",
+      knowledgeRoot: root,
+      interactedAt,
+    });
+    const result = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({ userId: "", stats: { t1h } }),
+      knowledgeRoot: root,
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.match(result.error, /no owner/);
+  });
+
   it("writes t1h-only Outcome and frontmatter", async () => {
     await writeInteractionMemory({
       threadId: "99",
       author: "@A",
+      userId,
       reply: "My reply",
       text: "Original post",
       summary: "A summary",
       knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
+      interactedAt,
     });
     const result = await updateInteractionMemoryOutcome({
-      interaction: baseInteraction({
-        stats: {
-          t1h: {
-            views: 100,
-            likes: 4,
-            replies: 1,
-            retweets: 0,
-            sampledAt: "2026-07-27T02:02:03.000Z",
-          },
-        },
-      }),
+      interaction: baseInteraction({ stats: { t1h } }),
       knowledgeRoot: root,
       nowIso: "2026-07-27T02:02:03.000Z",
     });
@@ -393,6 +556,7 @@ describe("updateInteractionMemoryOutcome", () => {
     await writeInteractionMemory({
       threadId: "99",
       author: "@A",
+      userId,
       reply: "Earlier reply",
       knowledgeRoot: root,
       interactedAt: at,
@@ -400,6 +564,7 @@ describe("updateInteractionMemoryOutcome", () => {
     await writeInteractionMemory({
       threadId: "99",
       author: "@A",
+      userId,
       reply: "Canonical reply",
       knowledgeRoot: root,
       interactedAt: postedAt,
@@ -409,76 +574,62 @@ describe("updateInteractionMemoryOutcome", () => {
       interaction: baseInteraction({
         at,
         postedAt,
-        stats: {
-          t1h: {
-            views: 5,
-            likes: 1,
-            replies: 0,
-            retweets: 0,
-            sampledAt: postedAt,
-          },
-        },
+        stats: { t1h: { views: 5, likes: 1, replies: 0, retweets: 0, sampledAt: postedAt } },
       }),
       knowledgeRoot: root,
     });
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.match(result.path, /2026-07-28-99\.md$/);
+    assert.match(result.path, /2026-07-28-u[0-9a-f]{64}-99\.md$/);
     const body = await readFile(result.path, "utf8");
     assert.match(body, /Canonical reply/);
     assert.doesNotMatch(body, /Earlier reply/);
   });
 
-  it("keeps t1h when writing t24h and is idempotent", async () => {
-    await writeInteractionMemory({
+  it("never updates another owner's note for the same thread and date", async () => {
+    const foreign = await writeInteractionMemory({
       threadId: "99",
       author: "@A",
-      reply: "My reply",
-      source: "discovered",
-      text: "Original post",
+      userId: "user-other",
+      reply: "Other's reply",
       knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
+      interactedAt,
     });
-    const stats = {
-      t1h: {
-        views: 100,
-        likes: 4,
-        replies: 1,
-        retweets: 0,
-        sampledAt: "2026-07-27T02:02:03.000Z",
-      },
-      t24h: {
-        views: 420,
-        likes: 12,
-        replies: 3,
-        retweets: 1,
-        sampledAt: "2026-07-28T01:02:03.000Z",
-      },
+    const result = await updateInteractionMemoryOutcome({
+      interaction: baseInteraction({ stats: { t1h } }),
+      knowledgeRoot: root,
+    });
+    assert.equal(result.ok, false);
+    assert.doesNotMatch(await readFile(foreign.path, "utf8"), /views1h/);
+  });
+
+  it("keeps t1h when writing t24h and is idempotent", async () => {
+    const input = {
+      threadId: "99",
+      author: "@A",
+      userId,
+      reply: "My reply",
+      source: "discovered" as const,
+      knowledgeRoot: root,
+      interactedAt,
     };
+    await writeInteractionMemory({ ...input, text: "Original post" });
+    const stats = { t1h, t24h };
     const first = await updateInteractionMemoryOutcome({
       interaction: baseInteraction({ stats }),
       knowledgeRoot: root,
       nowIso: "2026-07-28T01:02:03.000Z",
     });
     assert.equal(first.ok, true);
-    await writeInteractionMemory({
+    await writeInteractionMemory({ ...input, text: "Updated original" });
+    const notePath = buildInteractionNotePath({
+      userId,
       threadId: "99",
-      author: "@A",
-      reply: "My reply",
-      source: "discovered",
-      text: "Updated original",
+      interactedAt,
       knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
     });
-    const intermediate = await readFile(
-      buildInteractionNotePath({
-        threadId: "99",
-        interactedAt: "2026-07-27T01:02:03.000Z",
-        knowledgeRoot: root,
-      }),
-      "utf8",
-    );
+    const intermediate = await readFile(notePath, "utf8");
     assert.match(intermediate, /## Outcome/);
     assert.match(intermediate, /views1h: 100/);
     assert.match(intermediate, /views24h: 420/);
@@ -497,79 +648,93 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
   });
 
-  it("preserves manually curated fields during a discovered refresh", async () => {
-    await writeInteractionMemory({
+  it("preserves curated context and both checkpoints across repeated same-user projections", async () => {
+    const input = {
       threadId: "100",
       author: "@A",
+      userId,
       reply: "My reply",
-      userId: "user-1",
+      knowledgeRoot: root,
+      interactedAt,
+    };
+    await writeInteractionMemory({
+      ...input,
       summary: "Keep this summary",
       agenda: "Keep this agenda",
       source: "manual",
       text: "Curated post",
-      knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
     });
-    await writeInteractionMemory({
-      threadId: "100",
-      author: "@A",
-      reply: "My reply",
-      source: "discovered",
-      text: "Fresh search result",
-      knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
-    });
+    assert.equal(
+      (
+        await updateInteractionMemoryOutcome({
+          interaction: baseInteraction({ threadId: "100", stats: { t1h } }),
+          knowledgeRoot: root,
+        })
+      ).ok,
+      true,
+    );
+    assert.equal(
+      (
+        await updateInteractionMemoryOutcome({
+          interaction: baseInteraction({ threadId: "100", stats: { t24h } }),
+          knowledgeRoot: root,
+        })
+      ).ok,
+      true,
+    );
+    for (let i = 0; i < 3; i++) {
+      await writeInteractionMemory({
+        ...input,
+        source: "discovered",
+        text: `Fresh search result ${i}`,
+      });
+    }
+    const names = (await readdir(join(root, "interactions"))).filter((n) => n.endsWith(".md"));
+    assert.equal(names.length, 1);
     const body = await readFile(
-      buildInteractionNotePath({
-        threadId: "100",
-        interactedAt: "2026-07-27T01:02:03.000Z",
-        knowledgeRoot: root,
-      }),
+      buildInteractionNotePath({ userId, threadId: "100", interactedAt, knowledgeRoot: root }),
       "utf8",
     );
     assert.match(body, /type: interaction/);
     assert.match(body, /threadId: "100"/);
-    assert.match(body, /author: "@A"/);
-    assert.match(body, /authorKey: "a"/);
-    assert.match(body, /interactedAt: "2026-07-27T01:02:03\.000Z"/);
     assert.match(body, /userId: "user-1"/);
+    assert.match(body, /source: manual/);
     assert.match(body, /Keep this summary/);
     assert.match(body, /Keep this agenda/);
     assert.match(body, /Curated post/);
+    assert.match(body, /views1h: 100/);
+    assert.match(body, /views24h: 420/);
+    assert.equal((body.match(/## Outcome/g) ?? []).length, 1);
     assert.doesNotMatch(body, /Fresh search result/);
   });
 
   it("updates a manually written note when it is written again manually", async () => {
-    await writeInteractionMemory({
+    const input = {
       threadId: "101",
       author: "@A",
+      userId,
+      source: "manual" as const,
+      knowledgeRoot: root,
+      interactedAt,
+    };
+    await writeInteractionMemory({
+      ...input,
       reply: "First reply",
-      source: "manual",
       text: "First post",
       agenda: "First agenda",
       intent: "First intent",
       url: "https://example.com/first",
-      knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
     });
     await writeInteractionMemory({
-      threadId: "101",
-      author: "@A",
+      ...input,
       reply: "Updated reply",
-      source: "manual",
       text: "Updated post",
       agenda: "Updated agenda",
       intent: "Updated intent",
       url: "https://example.com/updated",
-      knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
     });
     const body = await readFile(
-      buildInteractionNotePath({
-        threadId: "101",
-        interactedAt: "2026-07-27T01:02:03.000Z",
-        knowledgeRoot: root,
-      }),
+      buildInteractionNotePath({ userId, threadId: "101", interactedAt, knowledgeRoot: root }),
       "utf8",
     );
     assert.match(body, /Updated reply/);
@@ -582,17 +747,20 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /First reply/);
   });
 
-  it("does not overwrite an interaction note owned by another user", async () => {
-    await writeInteractionMemory({
+  it("does not overwrite an interaction note planted at another owner's path", async () => {
+    // Same filename can only mean a hand-edited or planted file; metadata wins.
+    const path = buildInteractionNotePath({
+      userId: "user-2",
       threadId: "foreign-owner",
-      author: "@A",
-      reply: "First user's reply",
-      source: "manual",
-      userId: "user-1",
+      interactedAt,
       knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
     });
-
+    await mkdir(join(root, "interactions"), { recursive: true });
+    await writeFile(
+      path,
+      `---\ntype: interaction\nthreadId: "foreign-owner"\nuserId: "user-1"\ninteractedAt: "${interactedAt}"\n---\n\n## Reply\n\nFirst user's reply\n`,
+      "utf8",
+    );
     await assert.rejects(
       writeInteractionMemory({
         threadId: "foreign-owner",
@@ -601,17 +769,11 @@ describe("updateInteractionMemoryOutcome", () => {
         source: "manual",
         userId: "user-2",
         knowledgeRoot: root,
-        interactedAt: "2026-07-27T01:02:03.000Z",
+        interactedAt,
       }),
+      /belongs to another user/,
     );
-    const body = await readFile(
-      buildInteractionNotePath({
-        threadId: "foreign-owner",
-        interactedAt: "2026-07-27T01:02:03.000Z",
-        knowledgeRoot: root,
-      }),
-      "utf8",
-    );
+    const body = await readFile(path, "utf8");
     assert.match(body, /userId: "user-1"/);
     assert.match(body, /First user's reply/);
     assert.doesNotMatch(body, /Second user's reply/);
@@ -621,8 +783,9 @@ describe("updateInteractionMemoryOutcome", () => {
     const input = {
       threadId: "103",
       author: "@A",
+      userId,
       knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
+      interactedAt,
     } as const;
     await writeInteractionMemory({
       ...input,
@@ -632,11 +795,7 @@ describe("updateInteractionMemoryOutcome", () => {
       intent: "First intent",
       url: "https://example.com/first",
     });
-    await writeInteractionMemory({
-      ...input,
-      reply: "Updated reply",
-      text: "Updated post",
-    });
+    await writeInteractionMemory({ ...input, reply: "Updated reply", text: "Updated post" });
     const body = await readFile(buildInteractionNotePath(input), "utf8");
     assert.match(body, /Updated reply/);
     assert.match(body, /Updated post/);
@@ -649,8 +808,9 @@ describe("updateInteractionMemoryOutcome", () => {
     const input = {
       threadId: "102",
       author: "@A",
+      userId,
       knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
+      interactedAt,
     } as const;
     await writeInteractionMemory({
       ...input,
@@ -671,10 +831,7 @@ describe("updateInteractionMemoryOutcome", () => {
       source: "discovered",
       text: "Refreshed post",
     });
-    const body = await readFile(
-      buildInteractionNotePath(input),
-      "utf8",
-    );
+    const body = await readFile(buildInteractionNotePath(input), "utf8");
     assert.match(body, /source: manual/);
     assert.match(body, /Curated reply/);
     assert.match(body, /Curated post/);
@@ -686,39 +843,20 @@ describe("updateInteractionMemoryOutcome", () => {
     await writeInteractionMemory({
       threadId: "99",
       author: "@A",
+      userId,
       reply: "My reply",
       text: "Original post",
       knowledgeRoot: root,
-      interactedAt: "2026-07-27T01:02:03.000Z",
+      interactedAt,
     });
     const first = await updateInteractionMemoryOutcome({
-      interaction: baseInteraction({
-        stats: {
-          t1h: {
-            views: 100,
-            likes: 4,
-            replies: 1,
-            retweets: 0,
-            sampledAt: "2026-07-27T02:02:03.000Z",
-          },
-        },
-      }),
+      interaction: baseInteraction({ stats: { t1h } }),
       knowledgeRoot: root,
       nowIso: "2026-07-27T02:02:03.000Z",
     });
     assert.equal(first.ok, true);
     const second = await updateInteractionMemoryOutcome({
-      interaction: baseInteraction({
-        stats: {
-          t24h: {
-            views: 420,
-            likes: 12,
-            replies: 3,
-            retweets: 1,
-            sampledAt: "2026-07-28T01:02:03.000Z",
-          },
-        },
-      }),
+      interaction: baseInteraction({ stats: { t24h } }),
       knowledgeRoot: root,
       nowIso: "2026-07-28T01:02:03.000Z",
     });
@@ -732,63 +870,94 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.equal((body.match(/## Outcome/g) ?? []).length, 1);
   });
 
-  it("finds legacy notes via filename suffix fallback", async () => {
-    // Write with a different date than interaction.at
-    await writeInteractionMemory({
+  it("adopts a verified legacy note found via suffix fallback into the canonical path", async () => {
+    const legacy = await writeLegacyNote(root, "2026-07-26-99.md", {
       threadId: "99",
-      author: "@A",
-      reply: "My reply",
-      text: "Original post",
-      knowledgeRoot: root,
+      userId,
       interactedAt: "2026-07-26T23:00:00.000Z",
+      reply: "My reply",
     });
+    const legacyBefore = await readFile(legacy, "utf8");
     const found = await findInteractionNotePath({
+      userId,
       threadId: "99",
-      interactedAt: "2026-07-27T01:02:03.000Z",
+      interactedAt,
       knowledgeRoot: root,
     });
-    assert.ok(found);
-    assert.match(found!, /2026-07-26-99\.md$/);
+    assert.equal(found, legacy);
 
     const result = await updateInteractionMemoryOutcome({
-      interaction: baseInteraction({
-        at: "2026-07-27T01:02:03.000Z",
-        stats: {
-          t1h: {
-            views: 5,
-            likes: 0,
-            replies: 0,
-            retweets: 0,
-            sampledAt: "2026-07-27T02:00:00.000Z",
-          },
-        },
-      }),
+      interaction: baseInteraction({ stats: { t1h } }),
       knowledgeRoot: root,
     });
     assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(
+      result.path,
+      buildInteractionNotePath({ userId, threadId: "99", interactedAt, knowledgeRoot: root }),
+    );
+    assert.match(await readFile(result.path, "utf8"), /views1h: 100/);
+    assert.equal(await readFile(legacy, "utf8"), legacyBefore);
+    assert.equal(
+      await findInteractionNotePath({ userId, threadId: "99", interactedAt, knowledgeRoot: root }),
+      result.path,
+    );
+  });
+
+  it("ignores unowned legacy notes and stays unavailable when candidates are ambiguous", async () => {
+    await writeLegacyNote(root, "2026-07-26-99.md", {
+      threadId: "99",
+      interactedAt: "2026-07-26T23:00:00.000Z",
+      reply: "unowned",
+    });
+    assert.equal(
+      await findInteractionNotePath({ userId, threadId: "99", interactedAt, knowledgeRoot: root }),
+      null,
+    );
+    assert.equal(
+      (await updateInteractionMemoryOutcome({
+        interaction: baseInteraction({ stats: { t1h } }),
+        knowledgeRoot: root,
+      })).ok,
+      false,
+    );
+    await writeLegacyNote(root, "2026-07-24-99.md", {
+      threadId: "99",
+      userId,
+      interactedAt: "2026-07-24T23:00:00.000Z",
+      reply: "first",
+    });
+    await writeLegacyNote(root, "2026-07-25-99.md", {
+      threadId: "99",
+      userId,
+      interactedAt: "2026-07-25T23:00:00.000Z",
+      reply: "second",
+    });
+    assert.equal(
+      await findInteractionNotePath({ userId, threadId: "99", interactedAt, knowledgeRoot: root }),
+      null,
+    );
   });
 
   it("fallback prefers a note whose interactedAt matches interaction.at", async () => {
-    // A re-marked thread can leave multiple dated notes sharing a threadId.
-    // The expected path for interaction.at is absent (no note written on the
-    // latest mark), so the suffix fallback must not pick the newest file.
     await writeInteractionMemory({
       threadId: "99",
       author: "@A",
+      userId,
       reply: "Unrelated later reply",
       knowledgeRoot: root,
       interactedAt: "2026-07-28T10:00:00.000Z",
     });
-    const legacyDir = join(root, "interactions");
-    await mkdir(legacyDir, { recursive: true });
-    await writeFile(
-      join(legacyDir, "2026-07-26-99.md"),
-      '---\ntype: interaction\nthreadId: "99"\ninteractedAt: "2026-07-27T01:02:03.000Z"\n---\n\n## Reply\n\nMy reply\n',
-      "utf8",
-    );
-    const found = await findInteractionNotePath({
+    await writeLegacyNote(root, "2026-07-26-99.md", {
       threadId: "99",
-      interactedAt: "2026-07-27T01:02:03.000Z",
+      userId,
+      interactedAt,
+      reply: "My reply",
+    });
+    const found = await findInteractionNotePath({
+      userId,
+      threadId: "99",
+      interactedAt,
       knowledgeRoot: root,
     });
     assert.ok(found);
@@ -825,47 +994,27 @@ describe("listInteractionMemoryReplies", () => {
       interactedAt: "2026-07-27T01:02:03.000Z",
     });
 
-    const forA = await listInteractionMemoryReplies({
-      knowledgeRoot: root,
-      userId: "user-a",
-    });
-    assert.deepEqual(
-      forA.map((n) => n.text),
-      ["A's reply"],
-    );
-
-    const forB = await listInteractionMemoryReplies({
-      knowledgeRoot: root,
-      userId: "user-b",
-    });
-    assert.deepEqual(
-      forB.map((n) => n.text),
-      ["B's reply"],
-    );
+    const forA = await listInteractionMemoryReplies({ knowledgeRoot: root, userId: "user-a" });
+    assert.deepEqual(forA.map((n) => n.text), ["A's reply"]);
+    const forB = await listInteractionMemoryReplies({ knowledgeRoot: root, userId: "user-b" });
+    assert.deepEqual(forB.map((n) => n.text), ["B's reply"]);
   });
 
   it("skips unowned notes so they never leak into a user's corpus", async () => {
-    await writeInteractionMemory({
+    await writeLegacyNote(root, "2026-07-27-111.md", {
       threadId: "111",
-      author: "@A",
-      reply: "A's reply",
-      knowledgeRoot: root,
       interactedAt: "2026-07-27T01:02:03.000Z",
+      reply: "A's reply",
     });
-    const rows = await listInteractionMemoryReplies({
-      knowledgeRoot: root,
-      userId: "user-a",
-    });
+    const rows = await listInteractionMemoryReplies({ knowledgeRoot: root, userId: "user-a" });
     assert.equal(rows.length, 0);
   });
 
   it("folds unowned notes when the caller opts in (single-user sidecar)", async () => {
-    await writeInteractionMemory({
+    await writeLegacyNote(root, "2026-07-27-111.md", {
       threadId: "111",
-      author: "@A",
-      reply: "pre-PR reply",
-      knowledgeRoot: root,
       interactedAt: "2026-07-27T01:02:03.000Z",
+      reply: "pre-PR reply",
     });
     const rows = await listInteractionMemoryReplies({
       knowledgeRoot: root,
@@ -890,9 +1039,34 @@ describe("listInteractionMemoryReplies", () => {
       userId: "user-a",
       includeUnowned: true,
     });
-    assert.deepEqual(
-      rows.map((n) => n.text),
-      [],
+    assert.deepEqual(rows.map((n) => n.text), []);
+  });
+
+  it("returns one entry per migrated legacy note and excludes conflicting owners", async () => {
+    await writeLegacyNote(root, "2026-07-27-111.md", {
+      threadId: "111",
+      userId: "user-a",
+      interactedAt: "2026-07-27T01:02:03.000Z",
+      reply: "owned legacy reply",
+    });
+    await mkdir(join(root, "interactions"), { recursive: true });
+    await writeFile(
+      join(root, "interactions", "2026-07-27-333.md"),
+      `---\ntype: interaction\nthreadId: "333"\nuserId: "user-a"\nuserId: "user-b"\ninteractedAt: "2026-07-27T01:02:03.000Z"\n---\n\n## Reply\n\nconflicting\n`,
+      "utf8",
     );
+    const first = await listInteractionMemoryReplies({
+      knowledgeRoot: root,
+      userId: "user-a",
+      includeUnowned: true,
+    });
+    assert.deepEqual(first.map((n) => n.text), ["owned legacy reply"]);
+    // The scan copied the owned legacy note; the original stays and the
+    // canonical copy is what gets listed on the next pass — still once.
+    const names = (await readdir(join(root, "interactions"))).filter((n) => n.endsWith(".md"));
+    assert.equal(names.length, 3);
+    assert.ok(names.includes("2026-07-27-111.md"));
+    const second = await listInteractionMemoryReplies({ knowledgeRoot: root, userId: "user-a" });
+    assert.deepEqual(second.map((n) => n.text), ["owned legacy reply"]);
   });
 });

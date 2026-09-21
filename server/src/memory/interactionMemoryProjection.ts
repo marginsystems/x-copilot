@@ -4,6 +4,7 @@
  * and never changes the receipt.
  */
 import {
+  FOREIGN_NOTE_ERROR,
   normalizeReply,
   writeInteractionMemory,
   type InteractionMemoryInput,
@@ -83,6 +84,12 @@ export async function projectConfirmedReplyMemory(
 ): Promise<ConfirmedReplyMemoryResult> {
   const reply = normalizeReply(input.reply);
   if (!reply) return { state: "no_reply_text" };
+  const userId = typeof input.userId === "string" ? input.userId.trim() : "";
+  if (!userId) {
+    // New notes are never unowned: no owner means no write, not a legacy note.
+    console.warn("confirmed-reply memory skipped: missing userId");
+    return { state: "unavailable" };
+  }
 
   try {
     const memory = await deps.writeNote({
@@ -90,7 +97,7 @@ export async function projectConfirmedReplyMemory(
       author: input.author,
       reply,
       source: input.source,
-      userId: input.userId,
+      userId,
       url: input.url,
       text: input.text,
       summary: input.summary,
@@ -131,10 +138,7 @@ export async function projectConfirmedReplyMemory(
 
     return { state: "saved", memoryPath: memory.path };
   } catch (err) {
-    if (
-      err instanceof Error &&
-      err.message === "interaction note belongs to another user"
-    ) {
+    if (err instanceof Error && err.message === FOREIGN_NOTE_ERROR) {
       throw err;
     }
     console.warn("confirmed-reply memory write unavailable:", err);
