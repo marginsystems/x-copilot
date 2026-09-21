@@ -8,7 +8,13 @@ import {
   conversationIdsFromHistory,
   normalizeAuthorKey,
 } from "./interactionCooldown.js";
-import { requireUserId } from "./interactionStore.js";
+import {
+  requireUserId,
+} from "./interactionStore.js";
+import {
+  recordScoutEvidence,
+  type ActionEvidenceInput,
+} from "../scout/scoutEvidence.js";
 
 export type Skip = {
   threadId: string;
@@ -96,6 +102,8 @@ export async function markSkipped(opts: {
   conversationId?: string;
   inReplyToId?: string;
   nowMs?: number;
+  /** Explicit skip evidence committed with the row (rolls back together). */
+  evidence?: ActionEvidenceInput;
 }): Promise<Skip> {
   const threadId = opts.threadId.trim();
   const author = opts.author.trim();
@@ -170,6 +178,15 @@ export async function markSkipped(opts: {
            LIMIT -1 OFFSET ?
         )`,
     ).run(userId, userId, MAX_SKIP_HISTORY);
+    if (opts.evidence) {
+      recordScoutEvidence({
+        ...opts.evidence,
+        userId,
+        action: "skip",
+        actedAt: next.at,
+        nowMs,
+      });
+    }
   })();
   return next;
 }

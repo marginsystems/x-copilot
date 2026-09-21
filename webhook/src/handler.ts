@@ -53,6 +53,7 @@ import {
 } from "../../server/src/memory/interactionMemoryProjection.js";
 import { defaultKnowledgeRoot } from "../../server/src/memory/knowledgeMemory.js";
 import { resolveOwnedNote } from "../../server/src/memory/ownedMemoryNotes.js";
+import { confirmedTakeEvidence } from "../../server/src/scout/scoutEvidenceRecord.js";
 
 type WebhookMemoryOpts = Pick<
   ProjectConfirmedReplyMemoryInput,
@@ -93,6 +94,7 @@ async function projectWebhookReplyMemory(
     threadId: string;
     author: string;
     interactedAt: string;
+    replyId?: string;
     url?: string;
     text?: string;
     summary?: string;
@@ -105,6 +107,7 @@ async function projectWebhookReplyMemory(
       threadId: input.threadId,
       author: input.author,
       interactedAt: input.interactedAt,
+      replyId: input.replyId,
       source: "discovered",
       url: input.url,
       text: input.text,
@@ -187,6 +190,7 @@ export async function markOwnReplyInteracted(
         userId,
         threadId: known.threadId,
         at: known.postedAt ?? known.at,
+        replyId: parsed.postId,
         knowledgeRoot: memoryOpts(opts).knowledgeRoot ?? defaultKnowledgeRoot(),
       });
       noteOwned = resolved.state === "found" && resolved.meta.reply.length > 0;
@@ -200,6 +204,7 @@ export async function markOwnReplyInteracted(
         threadId: known.threadId,
         author: known.author || author,
         interactedAt: known.postedAt ?? known.at,
+        replyId: parsed.postId,
         url: contextUrl ?? known.url,
         text: contextText ?? known.text,
         summary: known.summary,
@@ -209,21 +214,43 @@ export async function markOwnReplyInteracted(
     return "skipped";
   }
   const source = scoutCard ? "scout" : "organic";
-  const interaction = await markInteracted({
-    threadId,
-    author,
-    source: "discovered",
-    userId,
-    url: contextUrl,
-    text: contextText,
-    replyId: parsed.postId,
-    replyUrl: postUrl(parsed.authorUsername, parsed.postId),
-    postedAt: parsed.postedAt,
-    conversationId:
-      parsed.conversationId ?? scoutCard?.conversationId ?? undefined,
-    inReplyToId: targetId,
-    nowMs: opts?.nowMs,
-  });
+  let evidence: Awaited<ReturnType<typeof confirmedTakeEvidence>> | undefined;
+  try {
+    evidence = await confirmedTakeEvidence({
+      userId,
+      replyId: parsed.postId,
+      targetId: threadId,
+      source: "webhook",
+      conversationId: parsed.conversationId ?? scoutCard?.conversationId ?? null,
+      inReplyToId: targetId,
+      fallbackText: contextText ?? parsed.text,
+      fallbackAuthor: author,
+    });
+  } catch (err) {
+    console.warn("[xaa] scout evidence capture soft-fail", err);
+  }
+  let interaction;
+  try {
+    interaction = await markInteracted({
+      threadId,
+      author,
+      source: "discovered",
+      userId,
+      url: contextUrl,
+      text: contextText,
+      replyId: parsed.postId,
+      replyUrl: postUrl(parsed.authorUsername, parsed.postId),
+      postedAt: parsed.postedAt,
+      conversationId:
+        parsed.conversationId ?? scoutCard?.conversationId ?? undefined,
+      inReplyToId: targetId,
+      nowMs: opts?.nowMs,
+      evidence,
+    });
+  } catch (err) {
+    console.warn("[xaa] mark after post soft-fail (post already on X):", err);
+    throw err;
+  }
   try {
     await pruneConsumedScoutThread(userId, [
       interaction.threadId,
@@ -264,6 +291,7 @@ export async function markOwnReplyInteracted(
     threadId: interaction.threadId,
     author: interaction.author || author,
     interactedAt: interaction.postedAt ?? interaction.at,
+    replyId: parsed.postId,
     url: interaction.url ?? contextUrl,
     text: contextText ?? interaction.text,
     summary: interaction.summary,

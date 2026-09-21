@@ -387,6 +387,39 @@ describe("POST /api/for-you/skip", () => {
     assert.equal(drafts, 0);
   });
 
+  it("marks a reply skipped when evidence capture fails", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-skip-evidence-fail",
+      email: "skip-evidence-fail@example.com",
+      emailVerified: true,
+    });
+    const [card] = insertSuggestions({
+      userId: user.id,
+      tenantId: "local",
+      drafts: [
+        {
+          kind: "reply",
+          why: "A live thread",
+          draft: "Take a side.",
+          targetId: "thread-1",
+          targetAuthor: "@thread-author",
+        },
+      ],
+    });
+    assert.ok(card);
+    getPlatformDb().exec("DROP TABLE scout_target_context");
+    const { token } = createSession(user.id);
+    const out = await invokeForYou({
+      method: "POST",
+      path: "/api/for-you/skip",
+      token,
+      body: { id: card.id },
+    });
+    assert.equal(out.status, 200);
+    assert.equal(getSuggestion(card.id, user.id)?.status, "skipped");
+  });
+
   it("does not let another user act on a suggestion", async () => {
     const owner = upsertOauthUser({
       provider: "google",

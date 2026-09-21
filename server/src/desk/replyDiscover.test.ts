@@ -233,6 +233,50 @@ describe("discoverOwnReplies", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it("persists discovered replies when evidence context capture fails", async () => {
+    getPlatformDb().exec("DROP TABLE scout_target_context");
+
+    const result = await discoverOwnReplies({
+      nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
+      userId,
+      gamificationPath,
+      knowledgeRoot,
+      upsertMemory: false,
+      session: { configured: true, bearerToken: "t" },
+      resolveScreenName: async () => "me",
+      searchTimelinePages: async (opts) =>
+        /is:reply/.test(opts.query)
+          ? {
+              ok: true as const,
+              threads: [
+                card({
+                  id: "capture-failed-reply",
+                  inReplyToId: "capture-failed-parent",
+                  inReplyToScreenName: "@builder",
+                }),
+              ],
+              queryId: "q",
+              bottomCursor: null,
+              pages: 1,
+            }
+          : {
+              ok: true as const,
+              threads: [],
+              queryId: "q",
+              bottomCursor: null,
+              pages: 1,
+            },
+    });
+
+    assert.equal(result.discovered, 1);
+    assert.equal(
+      (await listInteractionHistory({ userId })).some(
+        (row) => row.replyId === "capture-failed-reply",
+      ),
+      true,
+    );
+  });
+
   it("upserts new replies and writes knowledge; skips dupes/self", async () => {
     await markInteracted({
       threadId: "already-parent",

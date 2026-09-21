@@ -340,6 +340,35 @@ describe("interactedHttp", () => {
     assert.equal(history[0]?.threadId, "2082");
   });
 
+  it("POST /api/interacted keeps the mark when evidence capture fails", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-interacted-evidence-fail",
+      email: "evidencefail@example.com",
+      emailVerified: true,
+    });
+    const { token } = createSession(user.id);
+    getPlatformDb().exec("DROP TABLE scout_target_context");
+
+    const { status, json } = await call(
+      "POST",
+      "/api/interacted",
+      {
+        threadId: "2084",
+        author: "@x",
+        replyUrl: "https://x.com/me/status/9004",
+        reply: "Confirmed reply text",
+      },
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    );
+
+    assert.equal(status, 200);
+    assert.equal(json.ok, true);
+    const history = await listInteractionHistory({ userId: user.id });
+    assert.equal(history.length, 1);
+    assert.equal(history[0]?.threadId, "2084");
+  });
+
   it("POST /api/interacted returns memoryPath when the note is saved", async () => {
     const knowledgeRoot = join(dir, "knowledge");
     resetInteractionMemoryProjectionForTests({

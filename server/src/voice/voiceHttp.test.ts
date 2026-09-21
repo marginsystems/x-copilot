@@ -691,6 +691,37 @@ describe("POST /api/voice/post", () => {
     }
   });
 
+  it("keeps the confirmed interaction when evidence capture fails", async () => {
+    const user = seedPoster("post-evidence-fail@example.com", true);
+    getPlatformDb().exec("DROP TABLE scout_target_context");
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async (input) => {
+      if (String(input).includes("/event")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 202 });
+      }
+      return new Response(JSON.stringify({ data: { id: "8901" } }), {
+        status: 201,
+      });
+    }) as typeof fetch;
+    try {
+      const { status, json } = await postReply(
+        user,
+        body,
+        async () => ({
+          ok: true,
+          content: '{"ok":true,"reason":"That reads like you."}',
+          model: "deepseek-v4-flash",
+          provider: "deepseek" as const,
+        }),
+      );
+      assert.equal(status, 200);
+      assert.equal((json.tweet as { id?: string }).id, "8901");
+      assert.equal((json.interaction as { replyId?: string }).replyId, "8901");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
   it("keeps the confirmed post and XP when note write fails", async () => {
     resetInteractionMemoryProjectionForTests({
       writeNote: async () => {

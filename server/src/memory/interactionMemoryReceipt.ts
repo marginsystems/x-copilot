@@ -21,6 +21,7 @@ export type InteractionMemoryLookupKey = {
   threadId: string;
   at: string;
   postedAt?: string;
+  replyId?: string;
 };
 
 let testKnowledgeRoot: string | undefined;
@@ -69,6 +70,7 @@ export async function lookupInteractionMemoryReceipts(opts: {
             userId,
             threadId: interaction.threadId,
             at: interaction.postedAt ?? interaction.at,
+            replyId: interaction.replyId,
             knowledgeRoot,
             cache,
             names,

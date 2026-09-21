@@ -17,10 +17,12 @@ import {
 import { getExtraUsage } from "./forYouExtra.js";
 import { draftForYouScoutOriginal } from "./forYouLlm.js";
 import {
+  getSuggestion,
   insertSuggestions,
   listActiveSuggestions,
   markSuggestion,
 } from "./forYouStore.js";
+import { explicitScoutActionEvidence } from "../scout/scoutEvidenceRecord.js";
 import type { ForYouSuggestion } from "./forYouStore.js";
 import { BODY_CAP_256K, readJsonBody, send } from "../http/httpJson.js";
 import { resolvePlan } from "../billing/planResolution.js";
@@ -78,10 +80,34 @@ export async function tryHandleForYou(
         : url.pathname === "/api/for-you/dismiss"
           ? "dismissed"
           : "skipped";
+    const pending = getSuggestion(id, user.id);
+    let evidence;
+    if (
+      pending &&
+      pending.status === "suggested" &&
+      (status === "skipped" || status === "dismissed") &&
+      pending.kind === "reply" &&
+      pending.targetId
+    ) {
+      try {
+        evidence = await explicitScoutActionEvidence({
+          userId: user.id,
+          action: status === "dismissed" ? "dismiss" : "skip",
+          surface: "for-you",
+          cardId: id,
+          source: "for-you",
+          targetId: pending.targetId,
+          fallbackAuthor: pending.targetAuthor,
+        });
+      } catch (err) {
+        console.warn("For You evidence capture soft-fail:", err);
+      }
+    }
     const suggestion = markSuggestion({
       id,
       userId: user.id,
       status,
+      evidence,
     });
     if (!suggestion) {
       send(req, res, 404, {

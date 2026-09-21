@@ -13,6 +13,16 @@ import { getPlatformDb } from "../db.js";
 import { isOwnPostRemixCopy } from "./forYouRemix.js";
 import { parseStatusIdFromUrl } from "../desk/interactionCooldown.js";
 import { startOfUtcDayIso } from "../desk/ownPostStore.js";
+import {
+  recordScoutEvidence,
+  type ScoutEvidenceInput,
+} from "../scout/scoutEvidence.js";
+
+/** Explicit For You skip/dismiss evidence, committed with the status update. */
+export type ForYouActionEvidence = Omit<
+  ScoutEvidenceInput,
+  "userId" | "eventKey" | "action" | "actedAt" | "nowMs"
+> & { eventKey: string };
 
 export const FOR_YOU_KINDS = ["post", "quote", "repost", "reply"] as const;
 export type ForYouKind = (typeof FOR_YOU_KINDS)[number];
@@ -345,26 +355,40 @@ export function markSuggestion(opts: {
   status: Exclude<ForYouStatus, "suggested">;
   postedTweetId?: string;
   nowMs?: number;
+  /** Explicit skip/dismiss only — sibling suppression never passes evidence. */
+  evidence?: ForYouActionEvidence;
 }): ForYouSuggestion | null {
-  const now = new Date(opts.nowMs ?? Date.now()).toISOString();
+  const nowMs = opts.nowMs ?? Date.now();
+  const now = new Date(nowMs).toISOString();
   const db = getPlatformDb();
-  const info = db
-    .prepare(
-      `UPDATE for_you_suggestions
-        SET status = ?, acted_at = ?, target_id = COALESCE(?, target_id)
-        WHERE id = ? AND user_id = ? AND status = 'suggested'`,
-    )
-    .run(opts.status, now, opts.postedTweetId ?? null, opts.id, opts.userId);
-  if (!info.changes) return null;
-  const row = db
-    .prepare(`SELECT * FROM for_you_suggestions WHERE id = ?`)
-    .get(opts.id) as Record<string, unknown> | undefined;
-  const mapped = row ? mapRow(row) : null;
+  const mapped = db.transaction((): ForYouSuggestion | null => {
+    const info = db
+      .prepare(
+        `UPDATE for_you_suggestions
+          SET status = ?, acted_at = ?, target_id = COALESCE(?, target_id)
+          WHERE id = ? AND user_id = ? AND status = 'suggested'`,
+      )
+      .run(opts.status, now, opts.postedTweetId ?? null, opts.id, opts.userId);
+    if (!info.changes) return null;
+    if (opts.evidence) {
+      recordScoutEvidence({
+        ...opts.evidence,
+        userId: opts.userId,
+        action: opts.status === "dismissed" ? "dismiss" : "skip",
+        actedAt: now,
+        nowMs,
+      });
+    }
+    const row = db
+      .prepare(`SELECT * FROM for_you_suggestions WHERE id = ?`)
+      .get(opts.id) as Record<string, unknown> | undefined;
+    return row ? mapRow(row) : null;
+  })();
   if (mapped && opts.status === "skipped") {
     suppressMatchingSuggestions({
       userId: opts.userId,
       seed: mapped,
-      nowMs: opts.nowMs ?? Date.now(),
+      nowMs,
     });
   }
   return mapped;

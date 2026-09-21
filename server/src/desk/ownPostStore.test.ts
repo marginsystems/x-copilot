@@ -18,6 +18,7 @@ import {
   listActivityOwnPosts,
   listDueOwnPostSamples,
   listConfirmedOwnReplies,
+  listConfirmedOwnRepliesPage,
   listOwnPostedAt,
   patchOwnPostSnapshot,
   removeOwnPost,
@@ -135,6 +136,116 @@ describe("ownPostStore", () => {
     assert.deepEqual(
       listConfirmedOwnReplies({ userId }).map((row) => row.id),
       ["2"],
+    );
+  });
+
+  it("excludes replies to the operator's own X account", () => {
+    const userId = "user-self-reply";
+    const tenantId = "tenant-1";
+    getPlatformDb()
+      .prepare(
+        `INSERT INTO activity_subscriptions
+           (user_id, x_user_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?)`,
+      )
+      .run(userId, "99", "2026-08-15T00:00:00.000Z", "2026-08-15T00:00:00.000Z");
+    upsertOwnPost({
+      parsed: post({
+        postId: "self-reply",
+        kind: "reply",
+        inReplyToId: "own-parent",
+        inReplyToUserId: "99",
+      }),
+      userId,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({
+        postId: "other-reply",
+        kind: "reply",
+        inReplyToId: "other-parent",
+        inReplyToUserId: "88",
+      }),
+      userId,
+      tenantId,
+    });
+
+    assert.deepEqual(
+      listConfirmedOwnRepliesPage({
+        userId,
+        limit: 10,
+        excludeSelfReplies: true,
+      }).map((row) => row.id),
+      ["other-reply"],
+    );
+
+    upsertOwnPost({
+      parsed: post({ postId: "discovered-parent", kind: "original" }),
+      userId,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({
+        postId: "discovered-self-reply",
+        kind: "reply",
+        inReplyToId: "discovered-parent",
+        inReplyToUserId: null,
+      }),
+      userId,
+      tenantId,
+    });
+    assert.equal(
+      listConfirmedOwnRepliesPage({
+        userId,
+        limit: 10,
+        excludeSelfReplies: true,
+        replyId: "discovered-self-reply",
+      }).length,
+      0,
+    );
+
+    const userWithoutSubscription = "user-self-reply-without-subscription";
+    upsertOwnPost({
+      parsed: post({ postId: "unlinked-parent", kind: "original" }),
+      userId: userWithoutSubscription,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({
+        postId: "unlinked-self-reply",
+        kind: "reply",
+        inReplyToId: "unlinked-parent",
+      }),
+      userId: userWithoutSubscription,
+      tenantId,
+    });
+    assert.equal(
+      listConfirmedOwnRepliesPage({
+        userId: userWithoutSubscription,
+        limit: 10,
+        excludeSelfReplies: true,
+      }).length,
+      0,
+    );
+
+    upsertOwnPost({
+      parsed: post({
+        postId: "unlinked-self-reply-by-x-id",
+        kind: "reply",
+        inReplyToId: "missing-parent",
+        inReplyToUserId: "99",
+      }),
+      userId: userWithoutSubscription,
+      tenantId,
+    });
+    assert.equal(
+      listConfirmedOwnRepliesPage({
+        userId: userWithoutSubscription,
+        limit: 10,
+        excludeSelfReplies: true,
+        replyId: "unlinked-self-reply-by-x-id",
+      }).length,
+      0,
     );
   });
 

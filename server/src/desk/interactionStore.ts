@@ -11,7 +11,15 @@ import {
   normalizeAuthorKey,
   pruneExpired,
 } from "./interactionCooldown.js";
+import {
+  recordScoutEvidence,
+  type ActionEvidenceInput,
+} from "../scout/scoutEvidence.js";
 
+/**
+ * Durable evidence written inside the same SQL transaction as the action row.
+ * Everything but user/eventKey/action/actedAt/nowMs, which the store owns.
+ */
 export type InteractionSource = "manual" | "copy" | "discovered";
 
 function normalizeInteractionSource(source: unknown): InteractionSource {
@@ -272,6 +280,11 @@ export async function markInteracted(opts: {
   conversationId?: string;
   inReplyToId?: string;
   nowMs?: number;
+  /**
+   * Confirmed-take evidence (reply text already known) committed with the
+   * row; an evidence failure rolls the mark back with it.
+   */
+  evidence?: ActionEvidenceInput;
 }): Promise<Interaction> {
   const threadId = opts.threadId.trim();
   const author = opts.author.trim();
@@ -334,9 +347,49 @@ export async function markInteracted(opts: {
     // Retain enough history for the activity dashboard window; feed UI still
     // lists at MAX_INTERACTION_HISTORY via listInteractionHistory().
     trimUserRows(userId, MAX_INTERACTION_STORE);
+    if (opts.evidence) {
+      recordScoutEvidence({
+        ...opts.evidence,
+        userId,
+        action: "take",
+        actedAt: next.postedAt ?? at,
+        nowMs,
+      });
+    }
   });
   tx();
   return next;
+}
+
+/**
+ * Keyset page over one user's rows (newest first) for bounded, resumable
+ * reconciliation. `before` resumes after the last row of the prior page.
+ */
+export function listInteractionRowsPage(opts: {
+  userId: string;
+  limit: number;
+  before?: { at: string; threadId: string };
+  /** Only rows that carry a reply id (candidate takes). */
+  withReplyId?: boolean;
+}): Interaction[] {
+  const userId = requireUserId(opts.userId);
+  const limit = Math.max(1, Math.min(opts.limit, MAX_INTERACTION_STORE));
+  const clauses = ["user_id = ?"];
+  const params: unknown[] = [userId];
+  if (opts.withReplyId) clauses.push("reply_id IS NOT NULL");
+  if (opts.before) {
+    clauses.push("(at < ? OR (at = ? AND thread_id < ?))");
+    params.push(opts.before.at, opts.before.at, opts.before.threadId);
+  }
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT * FROM desk_interactions
+        WHERE ${clauses.join(" AND ")}
+        ORDER BY at DESC, thread_id DESC
+        LIMIT ?`,
+    )
+    .all(...params, limit) as InteractionRow[];
+  return rows.map(rowToInteraction);
 }
 
 /** Interactions still inside the 24h Scout cooldown window. */

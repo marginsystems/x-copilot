@@ -44,6 +44,7 @@ import {
   recordDeskPost,
 } from "../x-api/xPostLimits.js";
 import { postUserReply, postUserTweet } from "../x-api/xTweet.js";
+import { confirmedTakeEvidence } from "../scout/scoutEvidenceRecord.js";
 
 type VoicePostTestHooks = {
   markInteracted?: typeof markInteracted;
@@ -85,6 +86,7 @@ async function projectVoiceReplyMemory(opts: {
   threadId: string;
   author: string;
   interactedAt: string;
+  replyId?: string;
   url?: string;
   text?: string;
   summary?: string;
@@ -111,6 +113,7 @@ async function savedOrCanonicalReply(opts: {
   userId: string;
   threadId: string;
   tweetId: string;
+  replyId?: string;
   interactedAt?: string;
 }): Promise<{ reply: string; interactedAt?: string } | undefined> {
   try {
@@ -121,6 +124,7 @@ async function savedOrCanonicalReply(opts: {
       userId: opts.userId,
       threadId: opts.threadId,
       at: opts.interactedAt,
+      replyId: opts.replyId,
       knowledgeRoot: testHooks.knowledgeRoot ?? defaultKnowledgeRoot(),
       allowOtherDates: true,
     });
@@ -159,6 +163,7 @@ async function replayReplyMemory(opts: {
   threadId: string;
   author: string;
   tweetId: string;
+  replyId?: string;
   interactedAt?: string;
   url?: string;
   text?: string;
@@ -168,6 +173,7 @@ async function replayReplyMemory(opts: {
     userId: opts.userId,
     threadId: opts.threadId,
     tweetId: opts.tweetId,
+    replyId: opts.replyId,
     interactedAt: opts.interactedAt,
   });
   if (!canonical) return { state: "unavailable" };
@@ -178,6 +184,7 @@ async function replayReplyMemory(opts: {
     author: opts.author,
     interactedAt:
       canonical.interactedAt ?? opts.interactedAt ?? new Date().toISOString(),
+    replyId: opts.replyId ?? opts.tweetId,
     url: opts.url,
     text: opts.text,
     summary: opts.summary,
@@ -261,8 +268,26 @@ export async function handlePost(
       }
       const replyId = parseStatusIdFromUrl(replyUrl) ?? prior.tweetId;
       const context = cardContext(body);
+      let evidence;
       let interaction;
       try {
+        try {
+          evidence = await confirmedTakeEvidence({
+            userId: user.id,
+            replyId,
+            targetId: threadId,
+            source: "voice",
+            conversationId:
+              typeof body.conversationId === "string"
+                ? body.conversationId
+                : undefined,
+            inReplyToId,
+            fallbackText: context.text ?? context.summary,
+            fallbackAuthor: author,
+          });
+        } catch (err) {
+          console.warn("Voice evidence capture soft-fail:", err);
+        }
         interaction = await markVoiceInteracted({
           threadId,
           author,
@@ -276,6 +301,7 @@ export async function handlePost(
               ? body.conversationId
               : undefined,
           inReplyToId,
+          evidence,
         });
         await pruneConsumedScoutThread(user.id, [
           interaction.threadId,
@@ -291,6 +317,7 @@ export async function handlePost(
         author,
         tweetId: prior.tweetId,
         interactedAt: interaction?.postedAt ?? interaction?.at,
+        replyId,
         ...context,
       });
       const snap = await getGamification({ userId: user.id });
@@ -571,6 +598,21 @@ export async function handlePost(
   const conversationId =
     typeof body.conversationId === "string" ? body.conversationId : undefined;
   const context = cardContext(body);
+  let evidence;
+  try {
+    evidence = await confirmedTakeEvidence({
+      userId: user.id,
+      replyId,
+      targetId: threadId,
+      source: "voice",
+      conversationId,
+      inReplyToId,
+      fallbackText: edited.trim() || context.text || context.summary,
+      fallbackAuthor: author,
+    });
+  } catch (err) {
+    console.warn("Voice evidence capture soft-fail:", err);
+  }
   let interaction;
   try {
     interaction = await markVoiceInteracted({
@@ -583,6 +625,7 @@ export async function handlePost(
       replyUrl,
       conversationId,
       inReplyToId,
+      evidence,
     });
     await pruneConsumedScoutThread(user.id, [
       interaction.threadId,
@@ -625,6 +668,7 @@ export async function handlePost(
         threadId,
         author,
         interactedAt: interaction.at,
+        replyId,
         ...context,
       });
     } catch (err) {

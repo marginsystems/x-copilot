@@ -72,8 +72,12 @@ export function ownedNoteFilename(opts: {
   userId: string;
   threadId: string;
   at?: string;
+  replyId?: string;
 }): string {
-  return `${utcDatePrefix(opts.at)}-u${ownerHash(opts.userId)}-${threadKey(opts.threadId)}.md`;
+  const replySuffix = opts.replyId?.trim()
+    ? `-r${createHash("sha256").update(opts.replyId.trim()).digest("hex").slice(0, 16)}`
+    : "";
+  return `${utcDatePrefix(opts.at)}-u${ownerHash(opts.userId)}-${threadKey(opts.threadId)}${replySuffix}.md`;
 }
 
 export function legacyNoteFilename(threadId: string, at?: string): string {
@@ -89,6 +93,7 @@ export function buildOwnedNotePath(opts: {
   userId: string;
   threadId: string;
   at?: string;
+  replyId?: string;
   knowledgeRoot: string;
 }): string {
   return join(ownedNoteDir(opts.kind, opts.knowledgeRoot), ownedNoteFilename(opts));
@@ -110,16 +115,17 @@ export type OwnedNoteName = {
   date: string;
   ownerHash: string;
   threadKey: string;
+  replyKey: string | null;
 };
 
 const OWNED_NAME_RE =
-  /^(\d{4}-\d{2}-\d{2})-u([0-9a-f]{64})-(\d{1,40}|h[0-9a-f]{64})\.md$/;
+  /^(\d{4}-\d{2}-\d{2})-u([0-9a-f]{64})-(\d{1,40}|h[0-9a-f]{64})(-r([0-9a-f]{16}))?\.md$/;
 
 /** Parse a canonical owned filename; null for legacy or foreign names. */
 export function parseOwnedNoteName(name: string): OwnedNoteName | null {
   const m = OWNED_NAME_RE.exec(name);
   if (!m) return null;
-  return { date: m[1]!, ownerHash: m[2]!, threadKey: m[3]! };
+  return { date: m[1]!, ownerHash: m[2]!, threadKey: m[3]!, replyKey: m[5] ?? null };
 }
 
 export type OwnerState = "owned" | "unowned" | "conflict";
@@ -318,6 +324,7 @@ export async function resolveOwnedNote(opts: {
   threadId: string;
   /** Canonical action time. Without it only a unique verified candidate resolves. */
   at?: string;
+  replyId?: string;
   knowledgeRoot: string;
   /** Accept a unique verified note from another date (legacy re-marks). */
   allowOtherDates?: boolean;
@@ -335,7 +342,10 @@ export async function resolveOwnedNote(opts: {
 
   const hash = ownerHash(userId);
   const key = threadKey(threadId);
-  const ownedSuffix = `-u${hash}-${key}.md`;
+  const replyKey = opts.replyId?.trim()
+    ? createHash("sha256").update(opts.replyId.trim()).digest("hex").slice(0, 16)
+    : null;
+  const ownedSuffix = `-u${hash}-${key}${replyKey ? `-r${replyKey}` : ""}.md`;
   const legacySuffix = `-${safeThreadIdForFilename(threadId)}.md`;
   const wantDate = opts.at ? utcDatePrefix(opts.at) : null;
   const canonicalName = wantDate ? `${wantDate}${ownedSuffix}` : null;
@@ -380,6 +390,11 @@ export async function resolveOwnedNote(opts: {
     let candidate = false;
     if (parsedName) {
       if (parsedName.threadKey !== key) continue;
+      if (
+        replyKey !== null &&
+        parsedName.replyKey !== null &&
+        parsedName.replyKey !== replyKey
+      ) continue;
       if (parsedName.ownerHash !== hash) {
         if (wantDate === null || parsedName.date === wantDate) foreignSeen = true;
         continue;
