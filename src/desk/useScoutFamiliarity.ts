@@ -96,6 +96,7 @@ export function useScoutFamiliarity(verifiedOwnerId: string | null) {
     if (desk.scoutFamiliarity === undefined) return; // older payload: no claim
     const owner = verifiedOwner();
     if (!owner) return;
+    if (desk.scoutFamiliarity === null && stateRef.current?.owner === owner) return;
     commit(owner, desk.scoutFamiliarity);
   }
 

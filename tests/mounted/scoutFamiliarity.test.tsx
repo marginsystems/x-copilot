@@ -265,6 +265,19 @@ test("a refresh failure that lands after newer data does not clear it", async ()
   expect(result.current.scoutFamiliarity).toEqual(SUPPORTED);
 });
 
+test("a late unavailable boot slice does not clear newer data or its cache", async () => {
+  writeDeskBootCache(bootFor(userA));
+  const { requests } = fetchQueue();
+  const { result } = mount();
+  let refresh!: Promise<void>;
+  act(() => { refresh = result.current.hydrateScoutFamiliarity(); });
+  await act(async () => { requests[0].resolve(profile(SUPPORTED)); await refresh; });
+
+  act(() => result.current.applyScoutFamiliarityFromBoot({ scoutFamiliarity: null }));
+  expect(result.current.scoutFamiliarity).toEqual(SUPPORTED);
+  expect(peekDeskBootCache(userA.id)?.desk?.scoutFamiliarity).toEqual(SUPPORTED);
+});
+
 test("switching from A to B during a refresh never exposes or caches A under B", async () => {
   const { requests } = fetchQueue();
   const setItem = vi.spyOn(Storage.prototype, "setItem");
