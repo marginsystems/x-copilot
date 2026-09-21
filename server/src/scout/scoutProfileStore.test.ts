@@ -104,14 +104,12 @@ describe("scoutProfileStore", () => {
     seedUser(OTHER);
     root = mkdtempSync(join(tmpdir(), "x-scout-profile-data-"));
     profileDir = join(root, "data", "scout-profile");
-    process.env.SCOUT_PROFILE_DIR = profileDir;
-    installScoutProfileProjection();
+    installScoutProfileProjection({ profileDir });
   });
 
   afterEach(async () => {
     await flushScoutProfileProjections();
     setScoutProfileRebuild(null);
-    delete process.env.SCOUT_PROFILE_DIR;
     closeTempPlatformDb(temp);
     rmSync(root, { recursive: true, force: true });
   });
