@@ -7,6 +7,8 @@ import {
   send,
 } from "../http/httpJson.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
+import { allowRate } from "../auth/authGuard.js";
+import { retainScoutContextForTarget } from "./scoutEvidenceContext.js";
 
 const SCOUT_APPROACH_LOCK_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -120,6 +122,10 @@ export async function tryHandleScoutApproachLock(
     send(req, res, 401, { error: "unauthenticated" });
     return true;
   }
+  if (!allowRate(`scout-approach-lock:${user.id}`, 40, 60_000)) {
+    send(req, res, 429, { error: "rate_limited" });
+    return true;
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -150,15 +156,32 @@ export async function tryHandleScoutApproachLock(
     send(req, res, 400, { error: "card_id_required" });
     return true;
   }
+  const conversationId = optionalText(raw.conversationId);
+  const inReplyToId = optionalText(raw.inReplyToId);
+  const author = optionalText(raw.author);
+  const text = optionalText(raw.text);
   setScoutApproachLock(user.id, {
     id,
-    conversationId: optionalText(raw.conversationId),
-    inReplyToId: optionalText(raw.inReplyToId),
+    conversationId,
+    inReplyToId,
     surface: raw.surface === "reply" ? "reply" : null,
-    author: optionalText(raw.author),
+    author,
     url: optionalText(raw.url),
-    text: optionalText(raw.text),
+    text,
   });
+  try {
+    await retainScoutContextForTarget({
+      userId: user.id,
+      targetId: id,
+      conversationId,
+      inReplyToId,
+      fallbackAuthor: author,
+      fallbackText: text,
+      source: "lock",
+    });
+  } catch (err) {
+    console.warn("scout approach-lock context retain soft-fail:", err);
+  }
   send(req, res, 200, { ok: true });
   return true;
 }

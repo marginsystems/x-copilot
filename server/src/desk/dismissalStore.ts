@@ -9,6 +9,10 @@ import {
   requireUserId,
 } from "./interactionStore.js";
 import {
+  recordScoutEvidence,
+  type ActionEvidenceInput,
+} from "../scout/scoutEvidence.js";
+import {
   conversationIdsFromHistory,
   normalizeAuthorKey,
 } from "./interactionCooldown.js";
@@ -106,6 +110,8 @@ export async function markDismissed(opts: {
   conversationId?: string;
   inReplyToId?: string;
   nowMs?: number;
+  /** Explicit dismiss evidence committed with the row (rolls back together). */
+  evidence?: ActionEvidenceInput;
 }): Promise<Dismissal> {
   const threadId = opts.threadId.trim();
   const author = opts.author.trim();
@@ -184,6 +190,15 @@ export async function markDismissed(opts: {
            LIMIT -1 OFFSET ?
         )`,
     ).run(userId, userId, MAX_DISMISSAL_HISTORY);
+    if (opts.evidence) {
+      recordScoutEvidence({
+        ...opts.evidence,
+        userId,
+        action: "dismiss",
+        actedAt: next.at,
+        nowMs,
+      });
+    }
   })();
   return next;
 }

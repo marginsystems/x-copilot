@@ -13,6 +13,7 @@ import { subscribeUserToPostCreate } from "./xActivitySubscribe.js";
 import { dailyActivityUsage } from "../billing/billingQuotas.js";
 import { latestAnalyticsInsight } from "../desk/analyticsInsight.js";
 import { allowRate } from "../auth/authGuard.js";
+import { retainScoutContextForTarget } from "../scout/scoutEvidenceContext.js";
 
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -69,17 +70,31 @@ export async function tryHandleXActivityAuthed(
       const row = item as Record<string, unknown>;
       const threadId = String(row.threadId ?? "").trim();
       if (!threadId) continue;
+      const author = typeof row.author === "string" ? row.author : undefined;
+      const url = typeof row.url === "string" ? row.url : undefined;
+      const text = typeof row.text === "string" ? row.text : undefined;
+      const conversationId =
+        typeof row.conversationId === "string" ? row.conversationId : undefined;
       watchThread({
         userId: user.id,
         threadId,
-        author: typeof row.author === "string" ? row.author : undefined,
-        url: typeof row.url === "string" ? row.url : undefined,
-        text: typeof row.text === "string" ? row.text : undefined,
-        conversationId:
-          typeof row.conversationId === "string"
-            ? row.conversationId
-            : undefined,
+        author,
+        url,
+        text,
+        conversationId,
       });
+      try {
+        await retainScoutContextForTarget({
+          userId: user.id,
+          targetId: threadId,
+          conversationId,
+          fallbackAuthor: author,
+          fallbackText: text,
+          source: "watch",
+        });
+      } catch (err) {
+        console.warn("watch context retain soft-fail:", err);
+      }
       n += 1;
     }
     if (!n) {

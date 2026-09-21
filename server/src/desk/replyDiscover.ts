@@ -17,6 +17,8 @@ import {
 } from "../memory/interactionMemoryProjection.js";
 import type { Embedder } from "../memory/memoryIndex.js";
 import type { ThreadCard } from "../scout/threadCard.js";
+import { confirmedTakeEvidence } from "../scout/scoutEvidenceRecord.js";
+import { reconcileScoutEvidence } from "../scout/scoutEvidenceReconcile.js";
 import {
   searchTimelinePages,
   withSearchRecency,
@@ -252,6 +254,7 @@ async function projectDiscoveredReply(opts: {
   threadId: string;
   author: string;
   reply: string;
+  replyId?: string;
   url?: string;
   text?: string;
   opAuthor?: string;
@@ -267,6 +270,7 @@ async function projectDiscoveredReply(opts: {
     reply: opts.reply,
     threadId: opts.threadId,
     author: opts.author,
+    replyId: opts.replyId,
     source: "discovered",
     url: opts.url,
     text: opts.text,
@@ -573,6 +577,7 @@ export async function discoverOwnReplies(opts: {
               threadId: known.threadId,
               author: known.author,
               reply: card.text,
+              replyId: card.id.trim(),
               url: known.url ?? parentStatusUrl(known.author, known.threadId),
               text: card.opText,
               opAuthor: card.opAuthor,
@@ -606,6 +611,16 @@ export async function discoverOwnReplies(opts: {
     }
 
     try {
+      const evidence = await confirmedTakeEvidence({
+        userId: opts.userId,
+        replyId,
+        targetId: threadId,
+        source: "discovery",
+        conversationId: card.conversationId,
+        inReplyToId: threadId,
+        fallbackText: card.opText ?? card.text,
+        fallbackAuthor: author,
+      });
       const interaction = await markInteracted({
         threadId,
         author,
@@ -619,6 +634,7 @@ export async function discoverOwnReplies(opts: {
         conversationId: card.conversationId,
         inReplyToId: threadId,
         nowMs,
+        evidence,
       });
       try {
         await pruneConsumedScoutThread(opts.userId, [
@@ -681,6 +697,7 @@ export async function discoverOwnReplies(opts: {
         threadId,
         author,
         reply: card.text,
+        replyId,
         url: interaction.url,
         text: card.opText,
         opAuthor: card.opAuthor,
@@ -704,6 +721,15 @@ export async function discoverOwnReplies(opts: {
     skipReplyIds: projectedReplyIds,
     ...seams,
   });
+
+  try {
+    await reconcileScoutEvidence({
+      userId: opts.userId,
+      knowledgeRoot: opts.knowledgeRoot ?? defaultKnowledgeRoot(),
+    });
+  } catch (err) {
+    console.warn("[reply-discover] scout evidence reconcile soft-fail:", err);
+  }
 
   return {
     ok: true,

@@ -15,6 +15,7 @@ import { pruneThreadsFromScoutCache } from "../scout/scoutCache.js";
 import { maybeStartEmptyTankScout } from "../scout/scoutEmptyTank.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { listSkipHistory, markSkipped } from "./skipStore.js";
+import { explicitScoutActionEvidence } from "../scout/scoutEvidenceRecord.js";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
@@ -166,6 +167,18 @@ export async function tryHandleHistory(
           : undefined;
       const inReplyToId =
         typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
+      const evidence = await explicitScoutActionEvidence({
+        userId: user.id,
+        action: "skip",
+        surface: "scout",
+        cardId: threadId,
+        source: "scout",
+        targetId: threadId,
+        conversationId,
+        inReplyToId,
+        fallbackText: [text, summary].filter(Boolean).join(" "),
+        fallbackAuthor: author,
+      });
       const skip = await markSkipped({
         threadId,
         author,
@@ -175,6 +188,7 @@ export async function tryHandleHistory(
         summary,
         conversationId,
         inReplyToId,
+        evidence,
       });
       await pruneThreadsFromScoutCache(
         [skip.threadId, skip.conversationId ?? "", skip.inReplyToId ?? ""],
@@ -243,6 +257,18 @@ export async function tryHandleHistory(
         typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
       // Durable action first: SQL failure is the only thing that fails the
       // request. The owned note is keyed by the durable action time.
+      const evidence = await explicitScoutActionEvidence({
+        userId: user.id,
+        action: "dismiss",
+        surface: "scout",
+        cardId: threadId,
+        source: "scout",
+        targetId: threadId,
+        conversationId,
+        inReplyToId,
+        fallbackText: [text, summary].filter(Boolean).join(" "),
+        fallbackAuthor: author,
+      });
       const dismissal = await deps.markDismissed({
         threadId,
         author,
@@ -254,6 +280,7 @@ export async function tryHandleHistory(
         conversationId,
         inReplyToId,
         nowMs: Date.now(),
+        evidence,
       });
       const memory = await projectDismissalMemory({
         threadId,
