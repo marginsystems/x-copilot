@@ -552,6 +552,28 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal((await search(A, "Same words")).hits.length, 1);
   });
 
+  it("does not remove a fresher owned row when an older read loses its owner", async () => {
+    const body = { Post: "Fresher owned content." };
+    const path = await write(
+      "dismissals",
+      "2026-07-30-fresher-owner.md",
+      note({ type: "dismissal", userId: A, threadId: "fresher-owner", sections: body }),
+    );
+    const freshMtime = Date.now() + 5000;
+    await utimes(path, new Date(), new Date(freshMtime));
+    assert.equal((await upsertMemoryNote(path, { knowledgeRoot, indexDir, embedder })).ok, true);
+
+    await writeFile(
+      path,
+      note({ type: "dismissal", threadId: "fresher-owner", sections: body }),
+      "utf8",
+    );
+    await utimes(path, new Date(), new Date(freshMtime - 2000));
+    const removed = await upsertMemoryNote(path, { knowledgeRoot, indexDir, embedder });
+    assert.equal(removed.ok, false);
+    assert.equal((await search(A, "Fresher owned content")).hits.length, 1);
+  });
+
   it("indexes a migrated legacy note once, at its canonical path", async () => {
     const legacy = await write(
       "interactions",

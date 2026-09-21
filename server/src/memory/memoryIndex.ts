@@ -660,7 +660,10 @@ export async function upsertMemoryNote(
                 `INSERT INTO memory_deletions (path, mtime_ms) VALUES (?, ?)
                  ON CONFLICT(path) DO UPDATE SET mtime_ms = MAX(memory_deletions.mtime_ms, excluded.mtime_ms)`,
               ).run(path, Math.round(st.mtimeMs));
-              db.prepare("DELETE FROM memories WHERE path = ?").run(path);
+              db.prepare("DELETE FROM memories WHERE path = ? AND mtime_ms <= ?").run(
+                path,
+                Math.round(st.mtimeMs),
+              );
             })();
           } finally {
             db.close();
