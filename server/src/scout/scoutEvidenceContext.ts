@@ -406,15 +406,19 @@ export async function retainScoutContextForTarget(opts: {
   fallbackText?: string | null;
   source: "watch" | "lock";
   nowMs?: number;
+  snapshot?: LastScoutSnapshot | null;
 }): Promise<RetainedTargetContext | null> {
   const userId = requireEvidenceUserId(opts.userId);
   const targetId = optionalId(opts.targetId);
   if (!targetId) return null;
-  let snapshot: LastScoutSnapshot | null = null;
-  try {
-    snapshot = await getLastScout({ userId });
-  } catch (err) {
-    console.warn("scout evidence tank read soft-fail:", err);
+  let snapshot = opts.snapshot;
+  if (!("snapshot" in opts)) {
+    snapshot = null;
+    try {
+      snapshot = await getLastScout({ userId });
+    } catch (err) {
+      console.warn("scout evidence tank read soft-fail:", err);
+    }
   }
   const card = cardContextFromSnapshot(snapshot, {
     targetId,

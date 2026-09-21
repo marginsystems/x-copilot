@@ -14,6 +14,7 @@ import { dailyActivityUsage } from "../billing/billingQuotas.js";
 import { latestAnalyticsInsight } from "../desk/analyticsInsight.js";
 import { allowRate } from "../auth/authGuard.js";
 import { retainScoutContextForTarget } from "../scout/scoutEvidenceContext.js";
+import { getLastScout, type LastScoutSnapshot } from "../scout/scoutCache.js";
 
 function readRawBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -64,6 +65,12 @@ export async function tryHandleXActivityAuthed(
       return true;
     }
     const batch = Array.isArray(body.threads) ? body.threads : [body];
+    let scoutSnapshot: LastScoutSnapshot | null = null;
+    try {
+      scoutSnapshot = await getLastScout({ userId: user.id });
+    } catch (err) {
+      console.warn("watch context tank read soft-fail:", err);
+    }
     let n = 0;
     for (const item of batch.slice(0, 40)) {
       if (!item || typeof item !== "object") continue;
@@ -91,6 +98,7 @@ export async function tryHandleXActivityAuthed(
           fallbackAuthor: author,
           fallbackText: text,
           source: "watch",
+          snapshot: scoutSnapshot,
         });
       } catch (err) {
         console.warn("watch context retain soft-fail:", err);
