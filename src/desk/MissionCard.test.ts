@@ -359,6 +359,7 @@ describe("For You overlay presentation", () => {
     assert.doesNotMatch(html, /for-you-status/);
     assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
     assert.doesNotMatch(html, />Open For You</);
+    assert.doesNotMatch(html, />Open Inspiration</);
     assert.doesNotMatch(html, />Next</);
   });
 
@@ -378,6 +379,7 @@ describe("For You overlay presentation", () => {
     assert.match(html, />For You</);
     assert.doesNotMatch(html, /mission-card-verb/);
     assert.match(html, />Open For You</);
+    assert.match(html, />Open Inspiration</);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /reply-pace/);
   });
@@ -392,6 +394,7 @@ describe("Gate cards", () => {
     assert.match(linkX, /Link X so the desk can see what you post\./);
     assert.doesNotMatch(linkX, />For You</);
     assert.doesNotMatch(linkX, />Open For You</);
+    assert.doesNotMatch(linkX, />Open Inspiration</);
     const settings = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -442,6 +445,7 @@ describe("Gate cards", () => {
       );
       assert.match(html, />For You</);
       assert.match(html, />Open For You</);
+      assert.match(html, />Open Inspiration</);
       assert.match(html, />Next</);
       assert.doesNotMatch(html, /Approach is holding/);
       assert.doesNotMatch(html, /Grounded/);
@@ -629,6 +633,7 @@ describe("Approach flight frame", () => {
     assert.match(html, /Scout is getting the next reply/);
     assert.doesNotMatch(html, />For You</);
     assert.doesNotMatch(html, />Open For You</);
+    assert.doesNotMatch(html, />Open Inspiration</);
     assert.doesNotMatch(html, />Next</);
     assert.match(html, /approach-flight-row/);
     assert.match(html, /aria-busy="true"/);
@@ -690,6 +695,7 @@ describe("Approach flight frame", () => {
     );
     assert.match(html, />For You</);
     assert.match(html, />Open For You</);
+    assert.match(html, />Open Inspiration</);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /queued for takeoff/);
     assert.doesNotMatch(html, /waiting for the cooldown/);
@@ -715,6 +721,7 @@ describe("Approach flight frame", () => {
     assert.match(html, /for-you-status/);
     assert.match(html, /approach-panel-loader-mark/);
     assert.match(html, />Open For You</);
+    assert.match(html, />Open Inspiration</);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /You&#x27;re clean/);
   });
@@ -739,6 +746,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(running, /196504221778/);
     assert.doesNotMatch(running, />Next</);
     assert.doesNotMatch(running, />Open For You</);
+    assert.doesNotMatch(running, />Open Inspiration</);
 
     const html = renderToStaticMarkup(
       MissionCard(
@@ -761,6 +769,7 @@ describe("Approach flight frame", () => {
     assert.match(html, /class="caret"/);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, />Open For You</);
+    assert.doesNotMatch(html, />Open Inspiration</);
     assert.doesNotMatch(html, /Likes do not count/);
     assert.doesNotMatch(html, /reply-pace/);
   });

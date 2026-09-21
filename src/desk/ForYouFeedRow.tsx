@@ -3,18 +3,20 @@ import {
   FYP_ACTION_COPY,
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
+  FYP_INSPIRATION_TIP,
   FYP_NEXT_TIP,
   FYP_OPEN_TIP,
   FYP_WAIT_COPY,
   X_FOR_YOU_URL,
+  X_INSPIRATION_URL,
 } from "../lib/forYou";
 import type { OwnActivity } from "../lib/coaching";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 
 /**
- * The real x.com/home task. Detection stays in this row; expanding a detected
- * row reveals the activity that completed the wait.
+ * The real X wait: post on For You or Inspiration. Detection stays in this
+ * row; expanding a detected row reveals the activity that completed the wait.
  */
 export function ForYouFeedRow(props: {
   status?: string;
@@ -80,6 +82,9 @@ export function ForYouFeedRow(props: {
       openHref={detected ? null : X_FOR_YOU_URL}
       openLabel={detected ? undefined : "Open For You"}
       openTip={FYP_OPEN_TIP}
+      secondaryOpenHref={detected ? null : X_INSPIRATION_URL}
+      secondaryOpenLabel={detected ? undefined : "Open Inspiration"}
+      secondaryOpenTip={FYP_INSPIRATION_TIP}
       onNext={props.onNext}
       nextTip={FYP_NEXT_TIP}
     >
