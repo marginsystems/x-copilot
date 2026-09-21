@@ -236,6 +236,27 @@ describe("retained target context", () => {
     assert.equal(readRetainedContextByConversation(userId, "root-many"), null);
   });
 
+  it("ignores retained targets without a card when resolving a conversation", () => {
+    retainScoutTargetContext({
+      userId,
+      targetId: "card-a",
+      cardId: "card-a",
+      conversationId: "root-known",
+      threadKind: "fact_add",
+      contextSource: "scout_cache",
+    });
+    retainScoutTargetContext({
+      userId,
+      targetId: "reply-a",
+      conversationId: "root-known",
+      contextSource: "watch",
+    });
+    assert.equal(
+      readRetainedContextByConversation(userId, "root-known")?.cardId,
+      "card-a",
+    );
+  });
+
   it("falls back to the watch list for author only", async () => {
     watchThread({ userId, threadId: "w1", author: "@erin", text: "GPU pricing" });
     const captured = await captureScoutTargetContext({ userId, targetId: "w1" });

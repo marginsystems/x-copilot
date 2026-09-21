@@ -13,7 +13,6 @@ import {
 } from "./interactionCooldown.js";
 import {
   recordScoutEvidence,
-  type ScoutEvidenceInput,
   type ActionEvidenceInput,
 } from "../scout/scoutEvidence.js";
 
@@ -379,7 +378,7 @@ export function listInteractionRowsPage(opts: {
   const params: unknown[] = [userId];
   if (opts.withReplyId) clauses.push("reply_id IS NOT NULL");
   if (opts.before) {
-    clauses.push("(at < ? OR (at = ? AND thread_id <= ?))");
+    clauses.push("(at < ? OR (at = ? AND thread_id < ?))");
     params.push(opts.before.at, opts.before.at, opts.before.threadId);
   }
   const rows = getPlatformDb()

@@ -180,11 +180,13 @@ export function readRetainedContextByConversation(
   const rows = getPlatformDb()
     .prepare(
       `SELECT ${RETAINED_COLUMNS} FROM scout_target_context
-        WHERE user_id = ? AND (conversation_id = ? OR target_id = ?)
+        WHERE user_id = ? AND card_id IS NOT NULL
+          AND (conversation_id = ? OR target_id = ?)
           AND (
-            SELECT COUNT(DISTINCT COALESCE(card_id, target_id))
+            SELECT COUNT(DISTINCT card_id)
             FROM scout_target_context
-            WHERE user_id = ? AND (conversation_id = ? OR target_id = ?)
+            WHERE user_id = ? AND card_id IS NOT NULL
+              AND (conversation_id = ? OR target_id = ?)
           ) = 1
         ORDER BY retained_at DESC LIMIT 1`,
     )
