@@ -1,11 +1,11 @@
 /**
  * Obsidian-friendly interaction and dismissal note storage under knowledge/
- * (gitignored). This module writes and updates notes; MiniLM retrieval lives
- * in memoryIndex, memoryHttp, and Scout triage.
+ * (gitignored). This module renders and updates notes; identity, resolution
+ * and atomic persistence live in ownedMemoryNotes, legacy adoption in
+ * memoryLegacyMigration, and MiniLM retrieval in memoryIndex / Scout triage.
  */
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   type Interaction,
@@ -14,6 +14,19 @@ import {
 } from "../desk/interactionStore.js";
 import type { StatsCheckpoint } from "../desk/interactionStats.js";
 import { normalizeAuthorKey } from "../desk/interactionCooldown.js";
+import {
+  buildOwnedNotePath,
+  noteVerifiedFor,
+  parseOwnedNoteMetadata,
+  requireNoteOwner,
+  resolveOwnedNote,
+  safeThreadIdForFilename,
+  utcDatePrefix,
+  writeOwnedNoteAtomically,
+} from "./ownedMemoryNotes.js";
+import { enumerateMemoryNotes } from "./memoryLegacyMigration.js";
+
+export { safeThreadIdForFilename, utcDatePrefix };
 
 export const MAX_THREAD_EXCERPT_CHARS = 2000;
 export const MAX_REPLY_CHARS = 8000;
@@ -36,8 +49,8 @@ export type InteractionMemoryInput = {
   reason?: string;
   source?: "manual" | "copy" | "discovered";
   interactedAt?: string;
-  /** Platform user who marked this thread — scopes voice folds to their own replies. */
-  userId?: string;
+  /** Platform user who marked this thread — required for every new note. */
+  userId: string;
   /** Override root for tests. Default: <projectRoot>/knowledge */
   knowledgeRoot?: string;
 };
@@ -60,27 +73,20 @@ export function defaultKnowledgeRoot(): string {
   return resolve(projectRoot, "knowledge");
 }
 
-/** Sanitize threadId for filenames: keep [A-Za-z0-9_-], collapse junk. */
-export function safeThreadIdForFilename(threadId: string): string {
-  const cleaned = threadId.trim().replace(/[^A-Za-z0-9_-]+/g, "_");
-  const collapsed = cleaned.replace(/_+/g, "_").replace(/^_|_$/g, "");
-  return collapsed.slice(0, 80) || "unknown";
-}
-
-export function utcDatePrefix(iso: string = new Date().toISOString()): string {
-  const d = iso.slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : new Date().toISOString().slice(0, 10);
-}
-
+/** Canonical owned interaction note path: `<date>-u<ownerHash>-<threadKey>.md`. */
 export function buildInteractionNotePath(opts: {
+  userId: string;
   threadId: string;
   interactedAt?: string;
   knowledgeRoot?: string;
 }): string {
-  const root = opts.knowledgeRoot ?? defaultKnowledgeRoot();
-  const date = utcDatePrefix(opts.interactedAt);
-  const id = safeThreadIdForFilename(opts.threadId);
-  return resolve(root, "interactions", `${date}-${id}.md`);
+  return buildOwnedNotePath({
+    kind: "interaction",
+    userId: opts.userId,
+    threadId: opts.threadId,
+    at: opts.interactedAt,
+    knowledgeRoot: opts.knowledgeRoot ?? defaultKnowledgeRoot(),
+  });
 }
 
 function yamlString(value: string): string {
@@ -169,7 +175,7 @@ export type MemoryReplyInput = {
   threadId: string;
   text: string;
   postedAt: string | null;
-  /** Owning platform user, when the mark carried one. */
+  /** Owning platform user, when the note carries one. */
   userId?: string;
 };
 
@@ -177,27 +183,21 @@ export type MemoryReplyInput = {
 export function parseInteractionNoteReply(
   markdown: string,
 ): MemoryReplyInput | null {
-  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown);
-  if (!fm) return null;
-  const threadId = /(?:^|\n)threadId:\s*"?(\d+)"?/.exec(fm[1]!)?.[1] ?? "";
-  const interactedAt =
-    /(?:^|\n)interactedAt:\s*"?([^\s"\n]+)"?/.exec(fm[1]!)?.[1] ?? "";
-  const userId = /(?:^|\n)userId:\s*["']?([^"'\n]+)["']?/.exec(fm[1]!)?.[1] ?? "";
-  const replyMatch = /^##\s+Reply\s*\r?\n+([\s\S]*?)(?=^##\s|$(?![\s\S]))/m.exec(
-    markdown,
-  );
-  const text = normalizeReply(replyMatch?.[1] ?? "");
-  if (!threadId || !text) return null;
+  const meta = parseOwnedNoteMetadata(markdown);
+  if (!meta?.threadId || !meta.reply) return null;
   const parsed: MemoryReplyInput = {
-    threadId,
-    text,
-    postedAt: interactedAt || null,
+    threadId: meta.threadId,
+    text: meta.reply,
+    postedAt: meta.actionAt,
   };
-  if (userId) parsed.userId = userId;
+  if (meta.ownerState === "owned" && meta.userId) parsed.userId = meta.userId;
   return parsed;
 }
 
-/** Every interaction note for `userId` that still has a usable ## Reply. */
+/**
+ * Every interaction note for `userId` that still has a usable ## Reply.
+ * Legacy notes already copied to canonical paths appear once.
+ */
 export async function listInteractionMemoryReplies(opts?: {
   knowledgeRoot?: string;
   userId?: string;
@@ -205,32 +205,30 @@ export async function listInteractionMemoryReplies(opts?: {
   includeUnowned?: boolean;
 }): Promise<MemoryReplyInput[]> {
   const root = opts?.knowledgeRoot ?? defaultKnowledgeRoot();
-  const dir = join(root, "interactions");
-  if (!existsSync(dir)) return [];
-  let names: string[];
+  let notes;
   try {
-    names = (await readdir(dir)).filter((n) => n.endsWith(".md"));
+    notes = await enumerateMemoryNotes({
+      knowledgeRoot: root,
+      kind: "interaction",
+      migrate: true,
+    });
   } catch {
     return [];
   }
   const out: MemoryReplyInput[] = [];
-  for (const name of names) {
-    try {
-      const raw = await readFile(join(dir, name), "utf8");
-      const parsed = parseInteractionNoteReply(raw);
-      if (!parsed) continue;
-      // Fold only the calling user's own notes. Notes without a userId (written
-      // before userId scoping, or by the hourly discover tick) fold only when
-      // the caller opts in — the single-user sidecar — so they cannot leak into
-      // any one user's corpus on a multi-user install.
-      if (opts?.userId) {
-        if (parsed.userId && parsed.userId !== opts.userId) continue;
-        if (!parsed.userId && !opts.includeUnowned) continue;
-      }
-      out.push(parsed);
-    } catch {
-      // Skip unreadable notes — one bad file must not block learn.
+  for (const note of notes) {
+    const parsed = parseInteractionNoteReply(note.markdown);
+    if (!parsed) continue;
+    // Fold only the calling user's own notes. Notes without a userId (written
+    // before userId scoping, or by the hourly discover tick) fold only when
+    // the caller opts in — the single-user sidecar — so they cannot leak into
+    // any one user's corpus on a multi-user install. Conflicting owners never fold.
+    if (opts?.userId) {
+      if (note.meta?.ownerState === "conflict") continue;
+      if (parsed.userId && parsed.userId !== opts.userId) continue;
+      if (!parsed.userId && !opts.includeUnowned) continue;
     }
+    out.push(parsed);
   }
   return out;
 }
@@ -252,6 +250,7 @@ export function renderInteractionMarkdown(
   if (!threadId || !author || !authorKey) {
     throw new Error("threadId and author are required");
   }
+  const userId = requireNoteOwner(input.userId);
 
   const interactedAt = input.interactedAt ?? new Date().toISOString();
   const source =
@@ -261,8 +260,7 @@ export function renderInteractionMarkdown(
 
   const lines: string[] = ["---", "type: interaction"];
   lines.push(`threadId: ${yamlString(threadId)}`);
-  const userId = optionalStringTrim(input.userId);
-  if (userId) lines.push(`userId: ${yamlString(userId)}`);
+  lines.push(`userId: ${yamlString(userId)}`);
   const url = yamlOptionalString(input.url);
   if (url) lines.push(`url: ${url}`);
   lines.push(`author: ${yamlString(author)}`);
@@ -290,37 +288,59 @@ export function renderInteractionMarkdown(
   return `${lines.join("\n")}\n`;
 }
 
+export const FOREIGN_NOTE_ERROR = "interaction note belongs to another user";
+
+/**
+ * Write this user's interaction note at its canonical owned path under the
+ * shared file lock. A verified legacy note for the same owner/thread/date is
+ * adopted (copied, never deleted) so curated fields and Outcome carry over.
+ */
 export async function writeInteractionMemory(
   input: InteractionMemoryInput,
 ): Promise<{ path: string; markdown: string }> {
-  let markdown = renderInteractionMarkdown(input);
+  const userId = requireNoteOwner(input.userId);
+  const interactedAt = input.interactedAt ?? new Date().toISOString();
+  const rendered = renderInteractionMarkdown({ ...input, userId, interactedAt });
+  const threadId = input.threadId.trim();
+  const knowledgeRoot = input.knowledgeRoot ?? defaultKnowledgeRoot();
   const path = buildInteractionNotePath({
-    threadId: input.threadId,
-    interactedAt: input.interactedAt,
-    knowledgeRoot: input.knowledgeRoot,
+    userId,
+    threadId,
+    interactedAt,
+    knowledgeRoot,
   });
-  let existing: string | undefined;
-  try {
-    existing = await readFile(path, "utf8");
-  } catch {
-    // The note does not exist yet.
-  }
-  if (existing !== undefined) {
-    const existingUserId = /^userId:\s*["']?([^"'\n]+)["']?\s*$/m.exec(existing)?.[1];
-    if (existingUserId && input.userId && existingUserId !== input.userId) {
-      throw new Error("interaction note belongs to another user");
-    }
-    markdown = preserveInteractionOutcome(existing, markdown);
-    if (existing === markdown) return { path, markdown };
-  }
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, markdown, "utf8");
-  return { path, markdown };
+  const result = await writeOwnedNoteAtomically({
+    path,
+    merge: async (existing) => {
+      let base = existing;
+      if (base === undefined) {
+        const legacy = await resolveOwnedNote({
+          kind: "interaction",
+          userId,
+          threadId,
+          at: interactedAt,
+          knowledgeRoot,
+        });
+        if (legacy.state === "found" && !legacy.canonical) base = legacy.markdown;
+      } else {
+        const meta = parseOwnedNoteMetadata(base);
+        if (!meta) throw new Error("interaction note metadata is unreadable");
+        if (!noteVerifiedFor(meta, { userId, threadId })) {
+          throw new Error(FOREIGN_NOTE_ERROR);
+        }
+      }
+      if (base === undefined) return rendered;
+      return preserveInteractionOutcome(base, rendered);
+    },
+  });
+  return { path, markdown: result.markdown };
 }
 
 export type DismissalMemoryInput = {
   threadId: string;
   author: string;
+  /** Platform user who dismissed the thread — required for every new note. */
+  userId: string;
   url?: string;
   text?: string;
   summary?: string;
@@ -333,15 +353,20 @@ export type DismissalMemoryInput = {
 
 const MAX_DISMISSAL_REASON_CHARS = 500;
 
+/** Canonical owned dismissal note path: `<date>-u<ownerHash>-<threadKey>.md`. */
 export function buildDismissalNotePath(opts: {
+  userId: string;
   threadId: string;
   dismissedAt?: string;
   knowledgeRoot?: string;
 }): string {
-  const root = opts.knowledgeRoot ?? defaultKnowledgeRoot();
-  const date = utcDatePrefix(opts.dismissedAt);
-  const id = safeThreadIdForFilename(opts.threadId);
-  return resolve(root, "dismissals", `${date}-${id}.md`);
+  return buildOwnedNotePath({
+    kind: "dismissal",
+    userId: opts.userId,
+    threadId: opts.threadId,
+    at: opts.dismissedAt,
+    knowledgeRoot: opts.knowledgeRoot ?? defaultKnowledgeRoot(),
+  });
 }
 
 export function renderDismissalMarkdown(input: DismissalMemoryInput): string {
@@ -351,12 +376,14 @@ export function renderDismissalMarkdown(input: DismissalMemoryInput): string {
   if (!threadId || !author || !authorKey) {
     throw new Error("threadId and author are required");
   }
+  const userId = requireNoteOwner(input.userId);
 
   const dismissedAt = input.dismissedAt ?? new Date().toISOString();
   const reason = optionalStringTrim(input.reason);
 
   const lines: string[] = ["---", "type: dismissal"];
   lines.push(`threadId: ${yamlString(threadId)}`);
+  lines.push(`userId: ${yamlString(userId)}`);
   const url = yamlOptionalString(input.url);
   if (url) lines.push(`url: ${url}`);
   lines.push(`author: ${yamlString(author)}`);
@@ -386,15 +413,29 @@ export function renderDismissalMarkdown(input: DismissalMemoryInput): string {
 export async function writeDismissalMemory(
   input: DismissalMemoryInput,
 ): Promise<{ path: string; markdown: string }> {
-  const markdown = renderDismissalMarkdown(input);
+  const userId = requireNoteOwner(input.userId);
+  const dismissedAt = input.dismissedAt ?? new Date().toISOString();
+  const markdown = renderDismissalMarkdown({ ...input, userId, dismissedAt });
+  const threadId = input.threadId.trim();
   const path = buildDismissalNotePath({
-    threadId: input.threadId,
-    dismissedAt: input.dismissedAt,
+    userId,
+    threadId,
+    dismissedAt,
     knowledgeRoot: input.knowledgeRoot,
   });
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, markdown, "utf8");
-  return { path, markdown };
+  const result = await writeOwnedNoteAtomically({
+    path,
+    merge: (existing) => {
+      if (existing !== undefined) {
+        const meta = parseOwnedNoteMetadata(existing);
+        if (!noteVerifiedFor(meta, { userId, threadId })) {
+          throw new Error("dismissal note belongs to another user");
+        }
+      }
+      return markdown;
+    },
+  });
+  return { path, markdown: result.markdown };
 }
 
 /** Frontmatter keys owned by the stats → memory projection (replaced, never duplicated). */
@@ -517,61 +558,28 @@ function checkpointFrontmatterLines(
   return lines;
 }
 
-/** Date prefix of an interaction note's `interactedAt` frontmatter, if any. */
-async function noteInteractedAtDate(path: string): Promise<string | null> {
-  try {
-    const raw = await readFile(path, "utf8");
-    const m = /^interactedAt:\s*"?(\d{4}-\d{2}-\d{2})/m.exec(raw);
-    return m?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Find an interaction note by expected path from the canonical interaction
- * time + threadId, then filename-suffix fallback for legacy / re-marked notes.
+ * Locate this owner's interaction note: canonical path first, then a unique
+ * metadata-verified legacy / other-date note. Null when none or ambiguous.
  */
 export async function findInteractionNotePath(opts: {
+  userId: string;
   threadId: string;
   interactedAt?: string;
   knowledgeRoot?: string;
 }): Promise<string | null> {
+  const userId = opts.userId?.trim() ?? "";
   const threadId = opts.threadId.trim();
-  if (!threadId) return null;
-  const root = opts.knowledgeRoot ?? defaultKnowledgeRoot();
-  const expected = buildInteractionNotePath({
+  if (!userId || !threadId) return null;
+  const resolved = await resolveOwnedNote({
+    kind: "interaction",
+    userId,
     threadId,
-    interactedAt: opts.interactedAt,
-    knowledgeRoot: root,
+    at: opts.interactedAt,
+    knowledgeRoot: opts.knowledgeRoot ?? defaultKnowledgeRoot(),
+    allowOtherDates: true,
   });
-  if (existsSync(expected)) return expected;
-
-  const dir = join(root, "interactions");
-  if (!existsSync(dir)) return null;
-  const safeId = safeThreadIdForFilename(threadId);
-  const suffix = `-${safeId}.md`;
-  try {
-    const names = await readdir(dir);
-    const matches = names
-      .filter((n) => n.endsWith(suffix))
-      .sort()
-      .reverse();
-    if (!matches.length) return null;
-    // Re-marked threads can leave several dated notes for one threadId; prefer
-    // one whose interactedAt matches the interaction date over the newest file.
-    const wantDate = opts.interactedAt ? utcDatePrefix(opts.interactedAt) : null;
-    if (wantDate) {
-      for (const name of matches) {
-        if ((await noteInteractedAtDate(join(dir, name))) === wantDate) {
-          return join(dir, name);
-        }
-      }
-    }
-    return join(dir, matches[0]!);
-  } catch {
-    return null;
-  }
+  return resolved.state === "found" ? resolved.path : null;
 }
 
 /**
@@ -641,47 +649,12 @@ function mergedOutcomeSection(body: string, stats: InteractionStats): string {
     .join("\n");
 }
 
-/**
- * Project interaction stats onto the matching knowledge note.
- * Soft-fails (ok:false) when the note is missing — never throws for that case.
- */
-export async function updateInteractionMemoryOutcome(opts: {
-  interaction: Interaction;
-  /** Checkpoint just patched by the stats worker (SyncOutcomeFn contract). */
-  checkpoint?: StatsCheckpoint;
-  knowledgeRoot?: string;
-  /** Override clock for statsUpdatedAt (tests). */
-  nowIso?: string;
-}): Promise<UpdateInteractionMemoryOutcomeResult> {
-  const { interaction } = opts;
-  const stats = interaction.stats;
-  if (!stats?.t1h && !stats?.t24h) {
-    return { ok: false, error: "no stats snapshots on interaction" };
-  }
-
-  const path = await findInteractionNotePath({
-    threadId: interaction.threadId,
-    interactedAt: interaction.postedAt ?? interaction.at,
-    knowledgeRoot: opts.knowledgeRoot,
-  });
-  if (!path) {
-    return {
-      ok: false,
-      error: `interaction note not found for threadId=${interaction.threadId}`,
-    };
-  }
-
-  let raw: string;
-  try {
-    raw = await readFile(path, "utf8");
-  } catch (err) {
-    return {
-      ok: false,
-      path,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-
+/** Apply stats to a note's raw markdown; null when there is nothing to write. */
+function applyOutcomeToMarkdown(
+  raw: string,
+  stats: InteractionStats,
+  updatedAt: string,
+): string | null {
   const trimmed = raw.replace(/^\uFEFF/, "");
   let fm = "";
   let body = trimmed;
@@ -699,7 +672,6 @@ export async function updateInteractionMemoryOutcome(opts: {
   if (stats.t1h) activeCheckpoints.add("1h");
   if (stats.t24h) activeCheckpoints.add("24h");
   const keptFm = stripManagedOutcomeFrontmatter(fm, activeCheckpoints);
-  const updatedAt = opts.nowIso ?? new Date().toISOString();
   const outcomeLines: string[] = [
     keptFm,
     `statsUpdatedAt: ${yamlString(updatedAt)}`,
@@ -712,16 +684,72 @@ export async function updateInteractionMemoryOutcome(opts: {
   }
 
   const outcomeBody = mergedOutcomeSection(body, stats);
-  if (!outcomeBody) {
-    return { ok: false, path, error: "empty outcome body" };
-  }
+  if (!outcomeBody) return null;
   const nextBody = upsertOutcomeSection(body, outcomeBody);
   const markdown = `---\n${outcomeLines.join("\n")}\n---\n${nextBody.replace(/^\n/, "")}`;
-  // Ensure trailing newline
-  const finalMd = markdown.endsWith("\n") ? markdown : `${markdown}\n`;
+  return markdown.endsWith("\n") ? markdown : `${markdown}\n`;
+}
 
+/**
+ * Project interaction stats onto the owner's matching knowledge note under
+ * the same canonical lock reply writes use. A verified legacy note is adopted
+ * into the canonical path (original kept). Soft-fails (ok:false) when the
+ * note is missing or unowned — never throws for that case.
+ */
+export async function updateInteractionMemoryOutcome(opts: {
+  interaction: Interaction;
+  /** Checkpoint just patched by the stats worker (SyncOutcomeFn contract). */
+  checkpoint?: StatsCheckpoint;
+  knowledgeRoot?: string;
+  /** Override clock for statsUpdatedAt (tests). */
+  nowIso?: string;
+}): Promise<UpdateInteractionMemoryOutcomeResult> {
+  const { interaction } = opts;
+  const stats = interaction.stats;
+  if (!stats?.t1h && !stats?.t24h) {
+    return { ok: false, error: "no stats snapshots on interaction" };
+  }
+  const userId = interaction.userId?.trim() ?? "";
+  const threadId = interaction.threadId.trim();
+  if (!userId) {
+    return { ok: false, error: "interaction has no owner" };
+  }
+  const knowledgeRoot = opts.knowledgeRoot ?? defaultKnowledgeRoot();
+  const interactedAt = interaction.postedAt ?? interaction.at;
+  const resolved = await resolveOwnedNote({
+    kind: "interaction",
+    userId,
+    threadId,
+    at: interactedAt,
+    knowledgeRoot,
+    allowOtherDates: true,
+  });
+  if (resolved.state !== "found") {
+    return {
+      ok: false,
+      error: `interaction note not found for threadId=${threadId} (${resolved.state})`,
+    };
+  }
+
+  const path = resolved.canonical
+    ? resolved.path
+    : buildInteractionNotePath({ userId, threadId, interactedAt, knowledgeRoot });
+  const updatedAt = opts.nowIso ?? new Date().toISOString();
   try {
-    await writeFile(path, finalMd, "utf8");
+    const result = await writeOwnedNoteAtomically({
+      path,
+      merge: (existing) => {
+        const base = existing ?? resolved.markdown;
+        const meta = parseOwnedNoteMetadata(base);
+        if (!noteVerifiedFor(meta, { userId, threadId })) {
+          throw new Error(FOREIGN_NOTE_ERROR);
+        }
+        const next = applyOutcomeToMarkdown(base, stats, updatedAt);
+        if (next === null) throw new Error("empty outcome body");
+        return next;
+      },
+    });
+    return { ok: true, path, markdown: result.markdown };
   } catch (err) {
     return {
       ok: false,
@@ -729,5 +757,4 @@ export async function updateInteractionMemoryOutcome(opts: {
       error: err instanceof Error ? err.message : String(err),
     };
   }
-  return { ok: true, path, markdown: finalMd };
 }

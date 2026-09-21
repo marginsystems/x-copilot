@@ -72,6 +72,7 @@ describe("projectConfirmedReplyMemory", () => {
       () =>
         readFile(
           buildInteractionNotePath({
+            userId: "user-1",
             threadId: "2081",
             interactedAt,
             knowledgeRoot: root,
@@ -80,6 +81,14 @@ describe("projectConfirmedReplyMemory", () => {
         ),
       /ENOENT/,
     );
+  });
+
+  it("returns unavailable without writing when the owner is blank", async () => {
+    const result = await projectConfirmedReplyMemory(
+      baseInput({ userId: "  ", knowledgeRoot: root }),
+    );
+    assert.deepEqual(result, { state: "unavailable" });
+    await assert.rejects(() => readFile(join(root, "interactions")), /ENOENT/);
   });
 
   it("returns unavailable when the note write is injected to fail", async () => {
@@ -96,6 +105,7 @@ describe("projectConfirmedReplyMemory", () => {
       () =>
         readFile(
           buildInteractionNotePath({
+            userId: "user-1",
             threadId: "2081",
             interactedAt,
             knowledgeRoot: root,

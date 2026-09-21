@@ -5,10 +5,11 @@
 /// <reference path="../xenova-transformers.d.ts" />
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import type Database from "better-sqlite3";
 import { defaultKnowledgeRoot, projectRoot } from "./knowledgeMemory.js";
+import { enumerateMemoryNotes } from "./memoryLegacyMigration.js";
 
 export type MemoryType = "interaction" | "dismissal";
 
@@ -228,27 +229,22 @@ async function openDb(dbPath: string): Promise<Database.Database> {
   return db;
 }
 
+/**
+ * Notes to index. Verifiably owned legacy notes are first copied to their
+ * canonical owned paths, and a legacy file whose canonical copy exists is
+ * skipped so each migrated note gets one index row.
+ */
 async function listNoteFiles(knowledgeRoot: string): Promise<
   { path: string; type: MemoryType }[]
 > {
   const out: { path: string; type: MemoryType }[] = [];
   for (const type of ["interaction", "dismissal"] as const) {
-    const dir = join(
+    const notes = await enumerateMemoryNotes({
       knowledgeRoot,
-      type === "interaction" ? "interactions" : "dismissals",
-    );
-    let names: string[];
-    try {
-      names = await readdir(dir);
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") continue;
-      throw err;
-    }
-    for (const name of names) {
-      if (!name.endsWith(".md")) continue;
-      out.push({ path: join(dir, name), type });
-    }
+      kind: type,
+      migrate: true,
+    });
+    for (const note of notes) out.push({ path: note.path, type });
   }
   return out;
 }

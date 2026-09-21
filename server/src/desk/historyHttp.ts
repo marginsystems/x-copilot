@@ -18,6 +18,62 @@ import { listSkipHistory, markSkipped } from "./skipStore.js";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
+export type DismissalMemoryResult = {
+  state: "saved" | "unavailable";
+  memoryPath?: string;
+};
+
+type HistoryHttpDeps = {
+  markDismissed: typeof markDismissed;
+  writeDismissalNote: typeof writeDismissalMemory;
+  scheduleUpsert: typeof scheduleMemoryUpsert;
+  knowledgeRoot?: string;
+};
+
+const defaultDeps: HistoryHttpDeps = {
+  markDismissed,
+  writeDismissalNote: writeDismissalMemory,
+  scheduleUpsert: scheduleMemoryUpsert,
+};
+
+let deps: HistoryHttpDeps = { ...defaultDeps };
+
+/** Test seams: inject durable-store, note and index failures; isolate note writes. */
+export function resetHistoryHttpForTests(
+  overrides?: Partial<HistoryHttpDeps>,
+): void {
+  deps = { ...defaultDeps, ...overrides };
+}
+
+/**
+ * Owned dismissal note after the durable action. Isolated soft-failure: a
+ * note or index problem yields `unavailable`, never a failed dismissal.
+ */
+async function projectDismissalMemory(
+  input: Parameters<typeof writeDismissalMemory>[0],
+): Promise<DismissalMemoryResult> {
+  let memory: { path: string };
+  try {
+    memory = await deps.writeDismissalNote({
+      ...input,
+      knowledgeRoot: input.knowledgeRoot ?? deps.knowledgeRoot,
+    });
+  } catch (err) {
+    console.warn("dismissal memory write unavailable:", err);
+    return { state: "unavailable" };
+  }
+  try {
+    void Promise.resolve(deps.scheduleUpsert(memory.path, "dismissal")).catch(
+      (err) => {
+        console.warn("dismissal memory schedule soft-fail:", err);
+      },
+    );
+  } catch (err) {
+    console.warn("dismissal memory schedule soft-fail:", err);
+  }
+  return { state: "saved", memoryPath: memory.path };
+}
+
 function sendUnauthenticated(
   req: IncomingMessage,
   res: ServerResponse,
@@ -185,21 +241,9 @@ export async function tryHandleHistory(
           : undefined;
       const inReplyToId =
         typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
-      const nowMs = Date.now();
-      const dismissedAt = new Date(nowMs).toISOString();
-      const memory = await writeDismissalMemory({
-        threadId,
-        author,
-        url: urlField,
-        text,
-        summary,
-        opAuthor,
-        opText,
-        reason,
-        dismissedAt,
-      });
-      scheduleMemoryUpsert(memory.path, "dismissal");
-      const dismissal = await markDismissed({
+      // Durable action first: SQL failure is the only thing that fails the
+      // request. The owned note is keyed by the durable action time.
+      const dismissal = await deps.markDismissed({
         threadId,
         author,
         userId: user.id,
@@ -209,7 +253,19 @@ export async function tryHandleHistory(
         reason,
         conversationId,
         inReplyToId,
-        nowMs,
+        nowMs: Date.now(),
+      });
+      const memory = await projectDismissalMemory({
+        threadId,
+        author,
+        userId: user.id,
+        url: urlField,
+        text,
+        summary,
+        opAuthor,
+        opText,
+        reason,
+        dismissedAt: dismissal.at,
       });
       await pruneThreadsFromScoutCache(
         [
@@ -223,7 +279,8 @@ export async function tryHandleHistory(
       send(req, res, 200, {
         ok: true,
         dismissal,
-        memoryPath: memory.path,
+        memory: { state: memory.state },
+        ...(memory.memoryPath ? { memoryPath: memory.memoryPath } : {}),
       });
       return true;
     } catch (err) {
