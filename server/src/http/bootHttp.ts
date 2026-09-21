@@ -40,10 +40,20 @@ import { resolvePlan } from "../billing/planResolution.js";
 import { getRequestTenantId } from "./requestContext.js";
 import { readLastScoutPayload } from "../scout/scoutHttp.js";
 import { attachInteractionMemoryReceipts } from "../memory/interactionMemoryReceipt.js";
+import {
+  loadScoutFamiliarity,
+  type ScoutFamiliarityLoader,
+} from "../scout/scoutFamiliarity.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { listSkipHistory } from "../desk/skipStore.js";
 
-const NO_STORE = { "Cache-Control": "no-store" };
+// Per-user payload: never cacheable by a shared cache or a later reload.
+const NO_STORE = { "Cache-Control": "private, no-store" };
+
+export type BootHttpDeps = {
+  /** Injectable owned-profile read (tests). Production uses the store. */
+  loadScoutProfile?: ScoutFamiliarityLoader;
+};
 
 function publicUser(user: NonNullable<ReturnType<typeof getSessionUser>>) {
   return {
@@ -56,6 +66,7 @@ export async function tryHandleBoot(
   req: IncomingMessage,
   res: ServerResponse,
   url: URL,
+  deps: BootHttpDeps = {},
 ): Promise<boolean> {
   if (url.pathname !== "/api/boot") return false;
   if (req.method !== "GET") return false;
@@ -86,6 +97,7 @@ export async function tryHandleBoot(
       active,
       lastScout,
       gamification,
+      scoutFamiliarity,
     ] = await Promise.all([
       user ? listDismissalHistory({ userId: user.id }) : [],
       user ? listSkipHistory({ userId: user.id }) : [],
@@ -109,6 +121,9 @@ export async function tryHandleBoot(
       user
         ? getGamification({ userId: user.id })
         : Promise.resolve(toPublicGamification(emptyGamificationState())),
+      // Soft-failing inside its own promise: an unreadable profile is null,
+      // never a boot 500. No session performs no profile read.
+      user ? loadScoutFamiliarity(user.id, deps.loadScoutProfile) : null,
     ]);
 
     const historySlice = interactionHistory.slice(0, MAX_INTERACTION_HISTORY);
@@ -206,6 +221,7 @@ export async function tryHandleBoot(
           gamification,
           activityStats,
           coaching,
+          scoutFamiliarity,
         },
       },
       NO_STORE,
