@@ -390,7 +390,11 @@ export async function resolveOwnedNote(opts: {
     let candidate = false;
     if (parsedName) {
       if (parsedName.threadKey !== key) continue;
-      if (replyKey !== null && parsedName.replyKey !== replyKey) continue;
+      if (
+        replyKey !== null &&
+        parsedName.replyKey !== null &&
+        parsedName.replyKey !== replyKey
+      ) continue;
       if (parsedName.ownerHash !== hash) {
         if (wantDate === null || parsedName.date === wantDate) foreignSeen = true;
         continue;

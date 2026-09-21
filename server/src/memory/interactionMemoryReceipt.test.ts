@@ -283,6 +283,37 @@ describe("lookupInteractionMemoryReceipts", () => {
     );
   });
 
+  it("resolves same-day notes by reply id", async () => {
+    await writeInteractionMemory({
+      threadId: "2081",
+      author: "@A",
+      reply: "First reply",
+      replyId: "reply-1",
+      userId: "user-1",
+      interactedAt,
+      knowledgeRoot: root,
+    });
+    await writeInteractionMemory({
+      threadId: "2081",
+      author: "@A",
+      reply: "Second reply",
+      replyId: "reply-2",
+      userId: "user-1",
+      interactedAt,
+      knowledgeRoot: root,
+    });
+
+    const states = await lookupInteractionMemoryReceipts({
+      userId: "user-1",
+      knowledgeRoot: root,
+      interactions: [
+        { threadId: "2081", at: interactedAt, replyId: "reply-1" },
+        { threadId: "2081", at: interactedAt, replyId: "reply-2" },
+      ],
+    });
+    assert.deepEqual(states, ["saved", "saved"]);
+  });
+
   it("never reports saved for a note without reply text or with conflicting owners", async () => {
     await mkdir(join(root, "interactions"), { recursive: true });
     await writeFile(
