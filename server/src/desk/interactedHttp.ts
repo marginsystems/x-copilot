@@ -240,8 +240,10 @@ export async function tryHandleInteracted(
       const inReplyToId =
         typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
       const confirmedReply = normalizeReply(body.reply);
-      const evidence = confirmedReply
-        ? await confirmedTakeEvidence({
+      let evidence;
+      if (confirmedReply) {
+        try {
+          evidence = await confirmedTakeEvidence({
             userId: sessionUser.id,
             replyId,
             targetId: threadId,
@@ -250,8 +252,11 @@ export async function tryHandleInteracted(
             inReplyToId,
             fallbackText: [text, summary].filter(Boolean).join(" "),
             fallbackAuthor: author,
-          })
-        : undefined;
+          });
+        } catch (err) {
+          console.warn("Interacted evidence capture soft-fail:", err);
+        }
+      }
       const interaction = await markInteracted({
         threadId,
         author,

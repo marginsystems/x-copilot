@@ -361,7 +361,7 @@ export function markSuggestion(opts: {
   const nowMs = opts.nowMs ?? Date.now();
   const now = new Date(nowMs).toISOString();
   const db = getPlatformDb();
-  return db.transaction((): ForYouSuggestion | null => {
+  const mapped = db.transaction((): ForYouSuggestion | null => {
     const info = db
       .prepare(
         `UPDATE for_you_suggestions
@@ -382,16 +382,16 @@ export function markSuggestion(opts: {
     const row = db
       .prepare(`SELECT * FROM for_you_suggestions WHERE id = ?`)
       .get(opts.id) as Record<string, unknown> | undefined;
-    const mapped = row ? mapRow(row) : null;
-    if (mapped && opts.status === "skipped") {
-      suppressMatchingSuggestions({
-        userId: opts.userId,
-        seed: mapped,
-        nowMs,
-      });
-    }
-    return mapped;
+    return row ? mapRow(row) : null;
   })();
+  if (mapped && opts.status === "skipped") {
+    suppressMatchingSuggestions({
+      userId: opts.userId,
+      seed: mapped,
+      nowMs,
+    });
+  }
+  return mapped;
 }
 
 /** Skip one card, bury live remixes of the same thesis or target. */

@@ -299,6 +299,38 @@ describe("forYouStore", () => {
     assert.equal(listActiveSuggestions("u1", now + 4000).length, 1);
   });
 
+  it("keeps the skipped card when sibling suppression fails", () => {
+    const now = Date.parse("2026-08-20T12:00:00.000Z");
+    const [seed] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [{ kind: "post", why: "same launch thesis", draft: "Seed." }],
+    });
+    const [sibling] = insertSuggestions({
+      userId: "u1",
+      tenantId: "local",
+      nowMs: now,
+      drafts: [{ kind: "post", why: "same launch thesis", draft: "Sibling." }],
+    });
+    assert.ok(seed && sibling);
+    getPlatformDb().exec(`
+      CREATE TRIGGER fail_suggestion_suppression
+      BEFORE UPDATE ON for_you_suggestions
+      WHEN OLD.status = 'suggested' AND NEW.status = 'skipped'
+        AND NEW.id = '${sibling.id}'
+      BEGIN
+        SELECT RAISE(ABORT, 'suppression failed');
+      END
+    `);
+
+    assert.throws(
+      () => markSuggestion({ id: seed.id, userId: "u1", status: "skipped", nowMs: now + 1000 }),
+      /suppression failed/,
+    );
+    assert.equal(getSuggestion(seed.id, "u1")?.status, "skipped");
+  });
+
   it("keeps paid extra originals through the daily expiry pass", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     insertSuggestions({
