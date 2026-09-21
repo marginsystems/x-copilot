@@ -1,6 +1,11 @@
 /**
  * Local embedding index over knowledge/{interactions,dismissals}.
  * Advisory retrieval for Scout triage — soft-fails when model/index unavailable.
+ *
+ * Every row carries its verified owner (frontmatter `userId`, C07 metadata
+ * rules) and every search is filtered by `user_id` in SQL before cosine
+ * ranking. Unowned or conflicting notes are never indexed, so no caller can
+ * fall back to a global corpus.
  */
 /// <reference path="../xenova-transformers.d.ts" />
 import { createHash } from "node:crypto";
@@ -8,8 +13,14 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import type Database from "better-sqlite3";
+import { withFileLock } from "../platform/fileLock.js";
 import { defaultKnowledgeRoot, projectRoot } from "./knowledgeMemory.js";
 import { enumerateMemoryNotes } from "./memoryLegacyMigration.js";
+import {
+  parseOwnedNoteMetadata,
+  type OwnedNoteMetadata,
+  type OwnerState,
+} from "./ownedMemoryNotes.js";
 
 export type MemoryType = "interaction" | "dismissal";
 
@@ -32,6 +43,8 @@ export type MemoryIndexPaths = {
 };
 
 export type SearchMemoryOpts = {
+  /** Authenticated owner whose notes may be returned. Blank fails closed. */
+  userId: string;
   query: string;
   k?: number;
   types?: MemoryType[];
@@ -51,6 +64,8 @@ export type ReindexResult = {
   ok: boolean;
   indexed: number;
   skipped: number;
+  /** Notes left out because their owner could not be verified. */
+  excluded?: number;
   error?: string;
 };
 
@@ -65,6 +80,15 @@ const DEFAULT_DIMS = 384;
 const MAX_CHUNK_CHARS = 2000;
 const MAX_EXCERPT_CHARS = 400;
 const DB_FILENAME = "index.sqlite";
+/**
+ * Derived-schema version. Bumped when a row's meaning changes (v2 added the
+ * verified owner). Distinct from the pre-C08 `indexed_at` flag so an old
+ * global index is never mistaken for a ready user-scoped one.
+ */
+export const MEMORY_INDEX_SCHEMA_VERSION = "2";
+const META_SCHEMA_KEY = "schema_version";
+const META_READY_KEY = "indexed_schema";
+const LEGACY_READY_KEY = "indexed_at";
 
 let cachedEmbedder: Embedder | null = null;
 let embedderLoadError: string | null = null;
@@ -87,25 +111,27 @@ export function resolveIndexPaths(opts?: {
   };
 }
 
-/** Extract ## Section bodies and frontmatter type from a knowledge note. */
-export function parseKnowledgeNote(markdown: string): {
+/** Trimmed nonblank owner id, or null. Never derived from anything but the argument. */
+export function normalizeMemoryOwner(userId: unknown): string | null {
+  const id = typeof userId === "string" ? userId.trim() : "";
+  return id || null;
+}
+
+export type ParsedKnowledgeNote = {
   type: MemoryType | null;
   chunk: string;
   excerpt: string;
-} {
-  const trimmed = markdown.replace(/^\uFEFF/, "");
-  let body = trimmed;
-  let type: MemoryType | null = null;
+  /** Verified owner; null unless ownerState is "owned". */
+  userId: string | null;
+  ownerState: OwnerState;
+};
 
-  if (trimmed.startsWith("---")) {
-    const end = trimmed.indexOf("\n---", 3);
-    if (end >= 0) {
-      const fm = trimmed.slice(3, end).trim();
-      const typeMatch = /^type:\s*["']?(interaction|dismissal)["']?\s*$/m.exec(fm);
-      if (typeMatch) type = typeMatch[1] as MemoryType;
-      body = trimmed.slice(end + 4).replace(/^\s*\n/, "");
-    }
-  }
+/** Extract ## Section bodies, frontmatter type and verified owner from a knowledge note. */
+export function parseKnowledgeNote(markdown: string): ParsedKnowledgeNote {
+  const trimmed = markdown.replace(/^\uFEFF/, "");
+  const meta: OwnedNoteMetadata | null = parseOwnedNoteMetadata(trimmed);
+  const type: MemoryType | null = meta?.type ?? null;
+  const body = meta ? meta.body.replace(/^\s*\n/, "") : trimmed;
 
   const sections = extractSections(body);
   const parts: string[] = [];
@@ -138,7 +164,15 @@ export function parseKnowledgeNote(markdown: string): {
       chunk;
   }
   const excerpt = truncate(excerptSource.replace(/\s+/g, " ").trim(), MAX_EXCERPT_CHARS);
-  return { type, chunk, excerpt };
+  const ownerState: OwnerState = meta?.ownerState ?? "unowned";
+  const userId = ownerState === "owned" ? normalizeMemoryOwner(meta?.userId) : null;
+  return {
+    type,
+    chunk,
+    excerpt,
+    userId,
+    ownerState: userId ? "owned" : ownerState === "conflict" ? "conflict" : "unowned",
+  };
 }
 
 function extractSections(body: string): Record<string, string> {
@@ -211,46 +245,172 @@ async function getDatabaseModule(): Promise<typeof Database> {
   return dbLoadPromise;
 }
 
-async function openDb(dbPath: string): Promise<Database.Database> {
-  const DatabaseCtor = await getDatabaseModule();
-  const db = new DatabaseCtor(dbPath);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS memories (
-      path TEXT PRIMARY KEY,
-      type TEXT NOT NULL,
-      excerpt TEXT NOT NULL,
-      mtime_ms INTEGER NOT NULL,
-      content_hash TEXT NOT NULL,
-      embedding BLOB NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
-    CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-  `);
-  return db;
+function readMeta(db: Database.Database, key: string): string | null {
+  const row = db
+    .prepare("SELECT value FROM meta WHERE key = ?")
+    .get(key) as { value: string } | undefined;
+  return row?.value ?? null;
+}
+
+function writeMeta(db: Database.Database, key: string, value: string): void {
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(key, value);
 }
 
 /**
- * Notes to index. Verifiably owned legacy notes are first copied to their
- * canonical owned paths, and a legacy file whose canonical copy exists is
- * skipped so each migrated note gets one index row.
+ * Create or upgrade the derived schema. Rows written under an older schema
+ * have no verified owner, so they are dropped (not readable by any user)
+ * until a rebuild reconstructs them from owned notes. The old completed
+ * flag is cleared so readiness cannot be inherited from a global index.
  */
-async function listNoteFiles(knowledgeRoot: string): Promise<
-  { path: string; type: MemoryType }[]
-> {
-  const out: { path: string; type: MemoryType }[] = [];
-  for (const type of ["interaction", "dismissal"] as const) {
-    const notes = await enumerateMemoryNotes({
-      knowledgeRoot,
-      kind: type,
-      migrate: true,
-    });
-    for (const note of notes) out.push({ path: note.path, type });
-  }
-  return out;
+function ensureSchema(db: Database.Database): void {
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+  );
+  const upgrade = db.transaction(() => {
+    const hasTable =
+      db
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'memories'",
+        )
+        .get() !== undefined;
+    const version = readMeta(db, META_SCHEMA_KEY);
+    if (hasTable && version !== MEMORY_INDEX_SCHEMA_VERSION) {
+      db.exec("DROP TABLE memories");
+      db.prepare("DELETE FROM meta WHERE key IN (?, ?)").run(
+        LEGACY_READY_KEY,
+        META_READY_KEY,
+      );
+    }
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS memories (
+        path TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        excerpt TEXT NOT NULL,
+        mtime_ms INTEGER NOT NULL,
+        indexed_at_ms INTEGER NOT NULL,
+        content_hash TEXT NOT NULL,
+        embedding BLOB NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS memory_deletions (
+        path TEXT PRIMARY KEY,
+        mtime_ms INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_memories_user_type ON memories(user_id, type);
+    `);
+    writeMeta(db, META_SCHEMA_KEY, MEMORY_INDEX_SCHEMA_VERSION);
+  });
+  upgrade();
 }
 
-function contentHash(text: string): string {
-  return createHash("sha256").update(text).digest("hex").slice(0, 16);
+async function openDb(dbPath: string): Promise<Database.Database> {
+  const DatabaseCtor = await getDatabaseModule();
+  const db = new DatabaseCtor(dbPath);
+  try {
+    ensureSchema(db);
+  } catch (err) {
+    db.close();
+    throw err;
+  }
+  return db;
+}
+
+type IndexRow = {
+  path: string;
+  user_id: string;
+  type: MemoryType;
+  excerpt: string;
+  mtime_ms: number;
+  indexed_at_ms: number;
+  content_hash: string;
+  embedding: Buffer;
+};
+
+const UPSERT_SQL = `INSERT INTO memories
+ (path, user_id, type, excerpt, mtime_ms, indexed_at_ms, content_hash, embedding)
+ SELECT
+   @path, @user_id, @type, @excerpt, @mtime_ms, @indexed_at_ms, @content_hash, @embedding
+ WHERE NOT EXISTS (
+   SELECT 1 FROM memory_deletions
+   WHERE path = @path AND mtime_ms >= @mtime_ms
+ )
+ ON CONFLICT(path) DO UPDATE SET
+   user_id = excluded.user_id,
+   type = excluded.type,
+   excerpt = excluded.excerpt,
+   mtime_ms = excluded.mtime_ms,
+   indexed_at_ms = excluded.indexed_at_ms,
+   content_hash = excluded.content_hash,
+   embedding = excluded.embedding`;
+
+const UPSERT_GUARD_SQL = `
+ AND NOT EXISTS (
+   SELECT 1 FROM memory_deletions
+   WHERE path = excluded.path AND mtime_ms >= excluded.mtime_ms
+ )`;
+
+/** Owner participates in the hash so an owner-only edit is never a no-op. */
+function contentHash(userId: string, text: string): string {
+  return createHash("sha256")
+    .update(userId)
+    .update("\n")
+    .update(text)
+    .digest("hex")
+    .slice(0, 16);
+}
+
+type PreparedNote = {
+  path: string;
+  userId: string;
+  type: MemoryType;
+  excerpt: string;
+  mtime_ms: number;
+  content_hash: string;
+  chunk: string;
+};
+
+/** Parse one note into an index row; null when it cannot be indexed. */
+function prepareNote(opts: {
+  path: string;
+  markdown: string;
+  mtimeMs: number;
+  fallbackType?: MemoryType;
+}): { row: PreparedNote } | { reason: "unowned" | "empty" } {
+  const parsed = parseKnowledgeNote(opts.markdown);
+  if (!parsed.userId) return { reason: "unowned" };
+  if (!parsed.chunk.trim()) return { reason: "empty" };
+  const type = parsed.type ?? opts.fallbackType ?? "interaction";
+  return {
+    row: {
+      path: resolve(opts.path),
+      userId: parsed.userId,
+      type,
+      excerpt: parsed.excerpt || basename(opts.path),
+      mtime_ms: Math.round(opts.mtimeMs),
+      content_hash: contentHash(parsed.userId, parsed.chunk),
+      chunk: parsed.chunk,
+    },
+  };
+}
+
+function toIndexRow(
+  row: PreparedNote,
+  vec: Float32Array,
+  indexedAtMs: number,
+): IndexRow {
+  return {
+    path: row.path,
+    user_id: row.userId,
+    type: row.type,
+    excerpt: row.excerpt,
+    mtime_ms: row.mtime_ms,
+    indexed_at_ms: indexedAtMs,
+    content_hash: row.content_hash,
+    embedding: float32ToBuffer(vec),
+  };
 }
 
 /** Deterministic hash embedder for tests (no model download). */
@@ -343,6 +503,13 @@ async function resolveEmbedder(embedder?: Embedder): Promise<Embedder> {
   return getDefaultEmbedder();
 }
 
+/**
+ * Full rebuild from canonical owned notes (C07 enumeration, legacy aliases
+ * collapsed). Embeds everything first, then publishes in one locked
+ * transaction: rows written by a concurrent upsert after the rebuild
+ * started are kept, and a newer file read always wins by mtime. Readiness
+ * is recorded only after the whole snapshot is published.
+ */
 export async function reindexMemory(opts?: {
   knowledgeRoot?: string;
   indexDir?: string;
@@ -363,89 +530,76 @@ export async function reindexMemory(opts?: {
 
   try {
     await mkdir(paths.indexDir, { recursive: true });
-    const files = await listNoteFiles(paths.knowledgeRoot);
-    const db = await openDb(paths.dbPath);
-    try {
-      db.exec("DELETE FROM memories");
-      const insert = db.prepare(
-        `INSERT INTO memories (path, type, excerpt, mtime_ms, content_hash, embedding)
-         VALUES (@path, @type, @excerpt, @mtime_ms, @content_hash, @embedding)
-         ON CONFLICT(path) DO UPDATE SET
-           type = excluded.type,
-           excerpt = excluded.excerpt,
-           mtime_ms = excluded.mtime_ms,
-           content_hash = excluded.content_hash,
-           embedding = excluded.embedding`,
-      );
-
-      let indexed = 0;
-      let skipped = 0;
-      const batchSize = 8;
-      for (let i = 0; i < files.length; i += batchSize) {
-        const batch = files.slice(i, i + batchSize);
-        const rows: {
-          path: string;
-          type: MemoryType;
-          excerpt: string;
-          mtime_ms: number;
-          content_hash: string;
-          chunk: string;
-        }[] = [];
-
-        for (const file of batch) {
-          try {
-            const markdown = await readFile(file.path, "utf8");
-            const parsed = parseKnowledgeNote(markdown);
-            const type = parsed.type ?? file.type;
-            if (!parsed.chunk.trim()) {
-              skipped++;
-              continue;
-            }
-            const st = await stat(file.path);
-            rows.push({
-              path: file.path,
-              type,
-              excerpt: parsed.excerpt || basename(file.path),
-              mtime_ms: Math.round(st.mtimeMs),
-              content_hash: contentHash(parsed.chunk),
-              chunk: parsed.chunk,
-            });
-          } catch {
-            skipped++;
-          }
+    const startedAtMs = Date.now();
+    let skipped = 0;
+    let excluded = 0;
+    const prepared: PreparedNote[] = [];
+    for (const kind of ["interaction", "dismissal"] as const) {
+      const notes = await enumerateMemoryNotes({
+        knowledgeRoot: paths.knowledgeRoot,
+        kind,
+        migrate: true,
+      });
+      for (const note of notes) {
+        try {
+          const st = await stat(note.path);
+          const result = prepareNote({
+            path: note.path,
+            markdown: note.markdown,
+            mtimeMs: st.mtimeMs,
+            fallbackType: kind,
+          });
+          if ("row" in result) prepared.push(result.row);
+          else if (result.reason === "unowned") excluded++;
+          else skipped++;
+        } catch {
+          skipped++;
         }
-
-        if (!rows.length) continue;
-        const vectors = await embedder.embed(rows.map((r) => r.chunk));
-        const tx = db.transaction(() => {
-          for (let j = 0; j < rows.length; j++) {
-            const row = rows[j]!;
-            const vec = vectors[j]!;
-            insert.run({
-              path: row.path,
-              type: row.type,
-              excerpt: row.excerpt,
-              mtime_ms: row.mtime_ms,
-              content_hash: row.content_hash,
-              embedding: float32ToBuffer(vec),
-            });
-            indexed++;
-          }
-        });
-        tx();
       }
-
-      if (indexed > 0) {
-        db.prepare(
-          `INSERT INTO meta (key, value) VALUES ('indexed_at', '1')
-           ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-        ).run();
-      }
-
-      return { ok: true, indexed, skipped };
-    } finally {
-      db.close();
     }
+
+    const rows: IndexRow[] = [];
+    const batchSize = 8;
+    for (let i = 0; i < prepared.length; i += batchSize) {
+      const batch = prepared.slice(i, i + batchSize);
+      const vectors = await embedder.embed(batch.map((r) => r.chunk));
+      for (let j = 0; j < batch.length; j++) {
+        const vec = vectors[j];
+        if (!vec) throw new Error("embed returned too few vectors");
+        rows.push(toIndexRow(batch[j]!, vec, startedAtMs));
+      }
+    }
+
+    await withFileLock(paths.dbPath, async () => {
+      const db = await openDb(paths.dbPath);
+      try {
+        const publish = db.transaction(() => {
+          // Rows older than this snapshot are stale; concurrent upserts stay.
+          db.prepare("DELETE FROM memories WHERE indexed_at_ms < ?").run(
+            startedAtMs,
+          );
+          // A row upserted during the rebuild read the file at least as
+          // recently as this snapshot; only a strictly newer read replaces it.
+          const insert = db.prepare(
+            `${UPSERT_SQL}
+            WHERE excluded.mtime_ms > memories.mtime_ms${UPSERT_GUARD_SQL}`,
+          );
+          for (const row of rows) insert.run(row);
+          for (const row of rows) {
+            db.prepare(
+              "DELETE FROM memory_deletions WHERE path = ? AND mtime_ms < ?",
+            ).run(row.path, row.mtime_ms);
+          }
+          db.prepare("DELETE FROM meta WHERE key = ?").run(LEGACY_READY_KEY);
+          writeMeta(db, META_READY_KEY, MEMORY_INDEX_SCHEMA_VERSION);
+        });
+        publish();
+      } finally {
+        db.close();
+      }
+    });
+
+    return { ok: true, indexed: rows.length, skipped, excluded };
   } catch (err) {
     return {
       ok: false,
@@ -456,6 +610,12 @@ export async function reindexMemory(opts?: {
   }
 }
 
+/**
+ * Index one note. A note whose owner cannot be verified is removed from the
+ * index (an ownership edit must never leave a stale row behind). An older
+ * read never overwrites a newer row (mtime), so a slow upsert cannot undo a
+ * rebuild that already published fresher content.
+ */
 export async function upsertMemoryNote(
   notePath: string,
   opts?: {
@@ -479,43 +639,67 @@ export async function upsertMemoryNote(
   try {
     await mkdir(paths.indexDir, { recursive: true });
     const markdown = await readFile(notePath, "utf8");
-    const parsed = parseKnowledgeNote(markdown);
-    const type =
+    const st = await stat(notePath);
+    const fallbackType =
       opts?.type ??
-      parsed.type ??
       (/dismissals[/\\]/.test(notePath) ? "dismissal" : "interaction");
-    if (!parsed.chunk.trim()) {
+    const result = prepareNote({
+      path: notePath,
+      markdown,
+      mtimeMs: st.mtimeMs,
+      fallbackType,
+    });
+    if (!("row" in result)) {
+      if (result.reason === "unowned") {
+        await withFileLock(paths.dbPath, async () => {
+          const db = await openDb(paths.dbPath);
+          try {
+            const path = resolve(notePath);
+            db.transaction(() => {
+              db.prepare(
+                `INSERT INTO memory_deletions (path, mtime_ms) VALUES (?, ?)
+                 ON CONFLICT(path) DO UPDATE SET mtime_ms = MAX(memory_deletions.mtime_ms, excluded.mtime_ms)`,
+              ).run(path, Math.round(st.mtimeMs));
+              db.prepare("DELETE FROM memories WHERE path = ? AND mtime_ms <= ?").run(
+                path,
+                Math.round(st.mtimeMs),
+              );
+            })();
+          } finally {
+            db.close();
+          }
+        });
+        return {
+          ok: false,
+          path: notePath,
+          error: "note has no verified owner; excluded from index",
+        };
+      }
       return { ok: false, path: notePath, error: "empty note chunk" };
     }
-    const st = await stat(notePath);
-    const [vec] = await embedder.embed([parsed.chunk]);
+    const row = result.row;
+    if (opts?.type) row.type = opts.type;
+    const [vec] = await embedder.embed([row.chunk]);
     if (!vec) {
       return { ok: false, path: notePath, error: "embed failed" };
     }
 
-    const db = await openDb(paths.dbPath);
-    try {
-      db.prepare(
-        `INSERT INTO memories (path, type, excerpt, mtime_ms, content_hash, embedding)
-         VALUES (@path, @type, @excerpt, @mtime_ms, @content_hash, @embedding)
-         ON CONFLICT(path) DO UPDATE SET
-           type = excluded.type,
-           excerpt = excluded.excerpt,
-           mtime_ms = excluded.mtime_ms,
-           content_hash = excluded.content_hash,
-           embedding = excluded.embedding`,
-      ).run({
-        path: resolve(notePath),
-        type,
-        excerpt: parsed.excerpt || basename(notePath),
-        mtime_ms: Math.round(st.mtimeMs),
-        content_hash: contentHash(parsed.chunk),
-        embedding: float32ToBuffer(vec),
-      });
-    } finally {
-      db.close();
-    }
-    return { ok: true, path: resolve(notePath) };
+    await withFileLock(paths.dbPath, async () => {
+      const db = await openDb(paths.dbPath);
+      try {
+        db.prepare("DELETE FROM memory_deletions WHERE path = ? AND mtime_ms <= ?").run(
+          row.path,
+          Math.round(row.mtime_ms),
+        );
+        db.prepare(
+          `${UPSERT_SQL}
+           WHERE excluded.mtime_ms >= memories.mtime_ms${UPSERT_GUARD_SQL}`,
+        ).run(toIndexRow(row, vec, Date.now()));
+      } finally {
+        db.close();
+      }
+    });
+    return { ok: true, path: row.path };
   } catch (err) {
     return {
       ok: false,
@@ -525,9 +709,17 @@ export async function upsertMemoryNote(
   }
 }
 
+/**
+ * Owner-scoped nearest-neighbour search. The `user_id = ?` filter runs in
+ * SQL before any scoring or top-k, so a foreign note with a higher
+ * similarity can never enter the candidate set. Missing identity fails
+ * closed before touching the model or the database.
+ */
 export async function searchMemory(
   opts: SearchMemoryOpts,
 ): Promise<SearchMemoryResult> {
+  const userId = normalizeMemoryOwner(opts.userId);
+  if (!userId) return { hits: [], error: "memory search requires a user" };
   const query = opts.query?.trim() ?? "";
   if (!query) return { hits: [] };
 
@@ -555,9 +747,10 @@ export async function searchMemory(
     const placeholders = typeFilter.map(() => "?").join(",");
     const rows = db
       .prepare(
-        `SELECT path, type, excerpt, embedding FROM memories WHERE type IN (${placeholders})`,
+        `SELECT path, type, excerpt, embedding FROM memories
+         WHERE user_id = ? AND type IN (${placeholders})`,
       )
-      .all(...typeFilter) as {
+      .all(userId, ...typeFilter) as {
       path: string;
       type: string;
       excerpt: string;
@@ -593,7 +786,11 @@ export async function searchMemory(
   }
 }
 
-/** Lightweight readiness probe (no model download). */
+/**
+ * Lightweight readiness probe (no model download). `dbIndexed` is true only
+ * when a complete rebuild has been published under the current schema; the
+ * pre-C08 global flag never counts.
+ */
 export async function memoryIndexStatus(opts?: {
   knowledgeRoot?: string;
   indexDir?: string;
@@ -602,6 +799,7 @@ export async function memoryIndexStatus(opts?: {
   dbPath: string;
   dbExists: boolean;
   dbIndexed: boolean;
+  schemaVersion: string;
   modelCached: boolean;
   modelError: string | null;
 }> {
@@ -611,9 +809,7 @@ export async function memoryIndexStatus(opts?: {
     try {
       const db = await openDb(paths.dbPath);
       try {
-        dbIndexed =
-          db.prepare("SELECT 1 FROM meta WHERE key = 'indexed_at'").get() !==
-          undefined;
+        dbIndexed = readMeta(db, META_READY_KEY) === MEMORY_INDEX_SCHEMA_VERSION;
       } finally {
         db.close();
       }
@@ -626,6 +822,7 @@ export async function memoryIndexStatus(opts?: {
     dbPath: paths.dbPath,
     dbExists: existsSync(paths.dbPath),
     dbIndexed,
+    schemaVersion: MEMORY_INDEX_SCHEMA_VERSION,
     modelCached: cachedEmbedder !== null,
     modelError: embedderLoadError,
   };

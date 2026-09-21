@@ -78,11 +78,16 @@ if (!sample.length) {
   process.exit(1);
 }
 
-console.log(`\nTriaging ${sample.length} threads…`);
+console.log(`\nTriaging ${sample.length} threads… (memory retrieval disabled: probe has no user)`);
+// The standalone probe has no authenticated user, so it runs in memory-disabled
+// mode: no userId is passed and the seam below fails loudly if anything tries
+// to retrieve owned notes anyway.
 const triaged = await triageThreads({
   agenda,
   threads: sample,
-  searchMemory: async () => ({ hits: [] }),
+  searchMemory: async () => {
+    throw new Error("probe-triage-tags has no user identity; memory retrieval is disabled");
+  },
 });
 if (triaged.warning) console.warn(`  triage warning: ${triaged.warning}`);
 console.log(`  scored: ${triaged.threads.length}`);

@@ -383,11 +383,26 @@ export type TriageMemoryHit = {
   excerpt: string;
 };
 
+/** Owner-scoped search seam; `userId` is the authenticated Scout user. */
 export type MemorySearchFn = (opts: {
+  userId: string;
   query: string;
   k?: number;
   types?: MemoryType[];
 }) => Promise<SearchMemoryResult>;
+
+export type GatherTriageMemoriesOpts = {
+  /** Authenticated owner. Blank/missing disables retrieval entirely. */
+  userId?: string;
+  /** Injectable search (tests). Defaults to the local index. */
+  search?: MemorySearchFn;
+};
+
+/** Nonblank identity or null; never inferred from anything else. */
+export function triageMemoryOwner(userId: unknown): string | null {
+  const id = typeof userId === "string" ? userId.trim() : "";
+  return id || null;
+}
 
 /** Build query text from a card for memory retrieval. */
 export function memoryQueryForThread(thread: ThreadCard): string {
@@ -441,11 +456,18 @@ export function formatMemoryBlock(hits: TriageMemoryHit[]): string {
   return `Memory (advisory — past judgments; do not invent):\n${lines.join("\n")}`;
 }
 
-/** Soft-fail memory gather for a triage batch. */
+/**
+ * Soft-fail memory gather for a triage batch. Without an authenticated
+ * owner it returns [] and never calls the search seam, so identity-less
+ * triage proceeds with no memory rather than a global corpus.
+ */
 export async function gatherTriageMemories(
   threads: ThreadCard[],
-  search: MemorySearchFn = searchMemory,
+  opts: GatherTriageMemoriesOpts = {},
 ): Promise<TriageMemoryHit[]> {
+  const userId = triageMemoryOwner(opts.userId);
+  if (!userId || !threads.length) return [];
+  const search = opts.search ?? searchMemory;
   const perCardCap = Math.max(1, Math.floor(800 / threads.length));
   const query = threads
     .map((t) => memoryQueryForThread(t).slice(0, perCardCap))
@@ -457,6 +479,7 @@ export async function gatherTriageMemories(
   for (const type of ["interaction", "dismissal"] as const) {
     try {
       const result = await search({
+        userId,
         query,
         k: DEFAULT_MEMORY_K,
         types: [type],
@@ -502,11 +525,20 @@ export async function triageThreads(opts: {
   avoid?: string;
   threads: ThreadCard[];
   apiKey?: string;
+  /**
+   * Authenticated Scout user whose owned notes may inform triage. Absent or
+   * blank: triage runs with no memory and the search seam is never called.
+   */
+  userId?: string;
   /** Injectable memory search (tests). Defaults to local index; soft-fails. */
   searchMemory?: MemorySearchFn;
 }): Promise<TriageResult> {
   const threads = opts.threads;
   if (!threads.length) return { threads };
+  const memoryOpts: GatherTriageMemoriesOpts = {
+    userId: opts.userId,
+    search: opts.searchMemory,
+  };
 
   const provider: LlmProvider = "deepseek";
   // Explicit apiKey (including "") wins so tests can force a missing key.
@@ -526,7 +558,7 @@ export async function triageThreads(opts: {
   let usage: TokenUsage | undefined;
   let memories: TriageMemoryHit[] = [];
   try {
-    memories = await gatherTriageMemories(batch, opts.searchMemory ?? searchMemory);
+    memories = await gatherTriageMemories(batch, memoryOpts);
   } catch {
     memories = [];
   }
@@ -590,10 +622,7 @@ export async function triageThreads(opts: {
     const missingThreads = batch.filter((t) => missing.includes(t.id));
     let missingMemories: TriageMemoryHit[] = [];
     try {
-      missingMemories = await gatherTriageMemories(
-        missingThreads,
-        opts.searchMemory ?? searchMemory,
-      );
+      missingMemories = await gatherTriageMemories(missingThreads, memoryOpts);
     } catch {
       missingMemories = [];
     }
