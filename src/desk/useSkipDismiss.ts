@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { useState } from "react";
+import { useSession } from "../auth/session";
 import { apiFetch } from "../lib/apiBase";
 import type {
   DismissalHistoryEntry,
@@ -18,6 +19,12 @@ type UseSkipDismissDeps = {
   dismissedIdsRef: MutableRefObject<Set<string>>;
   blockedConversationsRef: MutableRefObject<Set<string>>;
   historyStaleRef: MutableRefObject<boolean>;
+  /**
+   * Runs once after an acknowledged skip/dismiss POST, only while the session
+   * and owner captured before the request are still current. Failed actions
+   * never trigger it; its own failure never fails the action.
+   */
+  onActionSucceeded?: () => void;
 };
 
 export function useSkipDismiss({
@@ -31,9 +38,26 @@ export function useSkipDismiss({
   dismissedIdsRef,
   blockedConversationsRef,
   historyStaleRef,
+  onActionSucceeded,
 }: UseSkipDismissDeps) {
+  const session = useSession();
   const [dismissThread, setDismissThread] = useState<ThreadCard | null>(null);
   const [dismissReason, setDismissReason] = useState("");
+
+  /** Capture before awaiting so an old action cannot refresh a new account. */
+  function actionGuard(): () => void {
+    const generation = session.capture();
+    const owner = session.getSnapshot().user?.id ?? null;
+    return () => {
+      if (!session.isCurrent(generation)) return;
+      if ((session.getSnapshot().user?.id ?? null) !== owner) return;
+      try {
+        onActionSucceeded?.();
+      } catch {
+        /* The action is already acknowledged; a refresh error is not ours. */
+      }
+    };
+  }
 
   function openDismissModal(thread: ThreadCard) {
     setDismissThread(thread);
@@ -47,6 +71,7 @@ export function useSkipDismiss({
 
   async function onSkip(thread: ThreadCard): Promise<boolean> {
     setActionBusy(true);
+    const afterSuccess = actionGuard();
     try {
       const res = await apiFetch("/api/skipped", {
         method: "POST",
@@ -106,6 +131,7 @@ export function useSkipDismiss({
       );
       setExpandedId((id) => (id === thread.id ? null : id));
       setStatus(`Skipped ${thread.author}`);
+      afterSuccess();
       return true;
     } catch {
       setStatus("Could not skip. Try again.");
@@ -119,6 +145,7 @@ export function useSkipDismiss({
     thread: ThreadCard,
     reason: string,
   ): Promise<boolean> {
+    const afterSuccess = actionGuard();
     try {
       const res = await apiFetch("/api/dismissed", {
         method: "POST",
@@ -186,6 +213,7 @@ export function useSkipDismiss({
         }),
       );
       setExpandedId((id) => (id === thread.id ? null : id));
+      afterSuccess();
       return true;
     } catch {
       setStatus("Could not dismiss. Try again.");

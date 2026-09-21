@@ -842,3 +842,73 @@ button.primary.scout-run.desk-top-takeoff {
   }
 }
 
+
+/* Scout familiarity: a compact meter beside the flight path (C14). */
+.desk-top-path {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.scout-familiarity {
+  min-width: 0;
+  align-self: start;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.scout-familiarity-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.scout-familiarity-meter {
+  display: block;
+  width: 100%;
+  height: 4px;
+  background: var(--border-strong);
+  overflow: hidden;
+}
+
+.scout-familiarity-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  min-width: 0;
+}
+
+.scout-familiarity p {
+  margin: 0;
+}
+
+.scout-familiarity-coverage,
+.scout-familiarity-state {
+  color: var(--text);
+}
+
+.scout-familiarity-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+@media (min-width: 1100px) {
+  .desk-top-path.has-familiarity {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+    align-items: start;
+  }
+}

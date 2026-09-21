@@ -20,6 +20,7 @@ afterEach(() => window.history.replaceState({}, "", "/"));
 function mountBoot(strict = false) {
   const applyDesk = vi.fn();
   const followup = vi.fn(async () => {});
+  const familiarity = vi.fn(async () => {});
   const notice = vi.fn();
   const hook = renderHook(() => {
     const session = useSession();
@@ -30,12 +31,20 @@ function mountBoot(strict = false) {
       applyAuthUser: (user, required = true) => session.verify(user, required, generation),
       applyDesk, confirmCheckout: followup, hydrateCoaching: followup,
       hydrateActivityStats: followup, loadBilling: followup, hydrateVoice: followup,
-      loadUsage: followup, loadAdmin: followup,
+      loadUsage: followup, loadAdmin: followup, hydrateScoutFamiliarity: familiarity,
     });
     return { ...state, session };
   }, { wrapper: strict ? wrapper : SessionBoundary });
-  return { ...hook, applyDesk, followup, notice };
+  return { ...hook, applyDesk, followup, familiarity, notice };
 }
+
+const familiarityFixture = {
+  state: "learning", version: 1, revision: 2, score: 0,
+  coverage: { storedConfirmedReplies: 1, knownKindResolvedActions: 1 },
+  biases: [], hints: [],
+  lastLearned: { at: "2026-09-20T10:00:01.000Z", action: "take", threadKind: "fact_add" },
+  updatedAt: "2026-09-20T10:00:01.000Z",
+};
 
 test("StrictMode cancels the first boot and preserves checkout for the replay", async () => {
   window.history.replaceState({}, "", "/?checkout=success&session_id=checkout-id");
@@ -71,6 +80,21 @@ test("logout aborts boot and a late response cannot cache or confirm checkout", 
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
+test("an invalid optional profile body does not abort fallback boot", async () => {
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
+    if (url.endsWith("/api/auth/me")) return Response.json(boot);
+    if (url.endsWith("/api/scout/profile")) return new Response("<html>");
+    return Response.json({});
+  });
+  vi.stubGlobal("fetch", fetcher);
+  const h = mountBoot();
+  await act(async () => {});
+  expect(h.applyDesk).toHaveBeenCalledTimes(1);
+  expect(h.result.current.deskBootReady).toBe(true);
+  expect(h.notice).not.toHaveBeenCalledWith("Desk could not load. Reload to try again.");
+});
+
 test("stalled fallback releases readiness, aborts reads, and suppresses late data", async () => {
   vi.useFakeTimers();
   const setItem = vi.spyOn(Storage.prototype, "setItem");
@@ -84,7 +108,7 @@ test("stalled fallback releases readiness, aborts reads, and suppresses late dat
   }));
   const h = mountBoot();
   await act(async () => {});
-  expect(signals.length).toBe(9);
+  expect(signals.length).toBe(10);
   await act(async () => { vi.advanceTimersByTime(24000); });
   expect(h.result.current.deskBootReady).toBe(true);
   expect(h.notice).toHaveBeenLastCalledWith("Desk loading timed out. Reload to try again.");
@@ -308,6 +332,97 @@ test("fallback keeps history when one later slice is down", async () => {
   expect(h.applyDesk.mock.calls[0][0].gamification).toBeUndefined();
   expect(h.applyDesk.mock.calls[0][0].activityStats).toBeUndefined();
   expect(h.applyDesk.mock.calls[0][0].coaching).toBeUndefined();
+});
+
+test("boot with the familiarity slice applies it and schedules no post-paint refresh", async () => {
+  const payload = { ...boot, desk: { scoutFamiliarity: familiarityFixture } };
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json(payload)));
+  const h = mountBoot();
+  await act(async () => {});
+  expect(h.result.current.deskBootReady).toBe(true);
+  expect(h.applyDesk).toHaveBeenCalledTimes(1);
+  expect(h.applyDesk.mock.calls[0][0].scoutFamiliarity).toEqual(familiarityFixture);
+  expect(peekDeskBootCache("owner")?.desk?.scoutFamiliarity).toEqual(familiarityFixture);
+  expect(h.familiarity).not.toHaveBeenCalled();
+});
+
+test.each(["absent", "null"] as const)("boot with %s familiarity still paints; only the absent case refreshes once after paint", async (shape) => {
+  const payload = shape === "absent" ? boot : { ...boot, desk: { scoutFamiliarity: null } };
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json(payload)));
+  const h = mountBoot();
+  await act(async () => {});
+  expect(h.result.current.deskBootReady).toBe(true);
+  expect(h.applyDesk).toHaveBeenCalledTimes(1);
+  const applied = h.applyDesk.mock.calls[0][0];
+  if (shape === "absent") {
+    expect("scoutFamiliarity" in applied).toBe(false);
+    expect(h.familiarity).toHaveBeenCalledTimes(1);
+  } else {
+    expect(applied.scoutFamiliarity).toBeNull();
+    expect(h.familiarity).not.toHaveBeenCalled();
+  }
+  expect(h.result.current.session.getSnapshot().user?.id).toBe("owner");
+});
+
+test("fallback reads the profile endpoint after auth and commits it with the desk", async () => {
+  const urls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    urls.push(url);
+    if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
+    if (url.endsWith("/api/auth/me")) return Response.json(boot);
+    if (url.endsWith("/api/scout/profile")) return Response.json({ ok: true, scoutFamiliarity: familiarityFixture });
+    return Response.json({ ok: true });
+  }));
+  const h = mountBoot();
+  await act(async () => {});
+  expect(h.result.current.deskBootReady).toBe(true);
+  const profileAt = urls.findIndex((url) => url.endsWith("/api/scout/profile"));
+  const authAt = urls.findIndex((url) => url.endsWith("/api/auth/me"));
+  expect(profileAt).toBeGreaterThan(authAt);
+  expect(h.applyDesk).toHaveBeenCalledTimes(1);
+  expect(h.applyDesk.mock.calls[0][0].scoutFamiliarity).toEqual(familiarityFixture);
+  expect(h.familiarity).not.toHaveBeenCalled();
+});
+
+test.each([404, 500, "malformed"] as const)("fallback profile %s does not block readiness or sibling slices", async (outcome) => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
+    if (url.endsWith("/api/auth/me")) return Response.json(boot);
+    if (url.endsWith("/api/scout/profile")) {
+      return outcome === "malformed"
+        ? Response.json({ ok: true, scoutFamiliarity: { state: "supported", score: 500 } })
+        : new Response(null, { status: outcome });
+    }
+    if (url.endsWith("/api/interacted")) {
+      return Response.json({ ok: true, interactions: [{ threadId: "kept", author: "a", at: "now" }], activeIds: ["kept"] });
+    }
+    return Response.json({ ok: true });
+  }));
+  const h = mountBoot();
+  await act(async () => {});
+  expect(h.result.current.deskBootReady).toBe(true);
+  expect(h.applyDesk).toHaveBeenCalledTimes(1);
+  const applied = h.applyDesk.mock.calls[0][0];
+  expect(applied.interacted.activeIds).toEqual(["kept"]);
+  if (outcome === "malformed") expect(applied.scoutFamiliarity).toBeNull();
+  else expect("scoutFamiliarity" in applied).toBe(false);
+  expect(h.familiarity).not.toHaveBeenCalled();
+  expect(h.result.current.session.getSnapshot().active).toBe(true);
+});
+
+test("fallback profile 401 under required auth still resets the session", async () => {
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
+    if (url.endsWith("/api/auth/me")) return Response.json(boot);
+    if (url.endsWith("/api/scout/profile")) return new Response(null, { status: 401 });
+    return Response.json({ ok: true });
+  });
+  vi.stubGlobal("fetch", fetcher);
+  const h = mountBoot();
+  await act(async () => {});
+  expect(h.result.current.session.getSnapshot().active).toBe(false);
+  expect(h.applyDesk).not.toHaveBeenCalled();
+  expect(h.familiarity).not.toHaveBeenCalled();
 });
 
 test("applyHistoryFromBoot marks interacted history hydrated", () => {

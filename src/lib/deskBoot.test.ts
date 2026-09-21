@@ -156,6 +156,53 @@ describe("parseDeskBoot", () => {
     assert.equal(parsed?.desk?.interacted.interactions[0]?.memory, undefined);
   });
 
+  it("treats a missing familiarity field as absent and a present one as parsed", () => {
+    const older = parseDeskBoot({ ok: true, authRequired: true, user, desk });
+    assert.ok(older?.desk);
+    assert.equal("scoutFamiliarity" in older.desk, false);
+    assert.equal(older.desk.scoutFamiliarity, undefined);
+
+    const familiarity = {
+      state: "learning",
+      version: 1,
+      revision: 2,
+      score: 0,
+      coverage: { storedConfirmedReplies: 1, knownKindResolvedActions: 1 },
+      biases: [],
+      hints: [],
+      lastLearned: { at: "2026-09-20T10:00:01.000Z", action: "take", threadKind: "fact_add" },
+      updatedAt: "2026-09-20T10:00:01.000Z",
+    };
+    const withField = parseDeskBoot({
+      ok: true,
+      authRequired: true,
+      user,
+      desk: { ...desk, scoutFamiliarity: { ...familiarity, userId: "u1", notes: ["x"] } },
+    });
+    assert.deepEqual(withField?.desk?.scoutFamiliarity, familiarity);
+    assert.equal(withField?.desk?.gamification.level, 2);
+
+    const nulled = parseDeskBoot({
+      ok: true,
+      authRequired: true,
+      user,
+      desk: { ...desk, scoutFamiliarity: null },
+    });
+    assert.ok(nulled?.desk);
+    assert.equal("scoutFamiliarity" in nulled.desk, true);
+    assert.equal(nulled.desk.scoutFamiliarity, null);
+
+    const malformed = parseDeskBoot({
+      ok: true,
+      authRequired: true,
+      user,
+      desk: { ...desk, scoutFamiliarity: { state: "supported", score: 500 } },
+    });
+    assert.equal(malformed?.desk?.scoutFamiliarity, null);
+    assert.equal(malformed?.desk?.coaching?.missions[0]?.id, "mark_2");
+    assert.equal(malformed?.desk?.lastScout.empty, true);
+  });
+
   it("keeps a saved memory receipt and drops a malformed one", () => {
     const parsed = parseDeskBoot({
       ok: true,
@@ -211,6 +258,37 @@ describe("desk boot cache", () => {
     assert.equal(read?.desk?.forYou.progress?.tracked, 3);
     writeDeskBootCache({ ...payload, user: null }, store);
     assert.equal(store.getItem(DESK_BOOT_KEY), null);
+    clearDeskBootCache(store);
+  });
+
+  it("caches familiarity only inside the owned envelope and never seeds another owner", () => {
+    const store = memoryStore();
+    const familiarity = {
+      state: "empty",
+      version: 1,
+      revision: 0,
+      score: 0,
+      coverage: { storedConfirmedReplies: 0, knownKindResolvedActions: 0 },
+      biases: [],
+      hints: [],
+      lastLearned: null,
+      updatedAt: null,
+    };
+    const payload = parseDeskBoot({
+      ok: true,
+      authRequired: true,
+      user,
+      desk: { ...desk, scoutFamiliarity: familiarity },
+    });
+    assert.ok(payload);
+    writeDeskBootCache(payload, store);
+    assert.deepEqual(readDeskBootCache(store)?.desk?.scoutFamiliarity, familiarity);
+    assert.equal(store.getItem(DESK_BOOT_KEY)?.includes("scoutFamiliarity"), true);
+    writeDeskBootCache(payload);
+    assert.deepEqual(peekDeskBootCache("u1")?.desk?.scoutFamiliarity, familiarity);
+    assert.equal(peekDeskBootCache("other-user"), null);
+    assert.equal(peekDeskBootCache(null), null);
+    clearDeskBootCache();
     clearDeskBootCache(store);
   });
 

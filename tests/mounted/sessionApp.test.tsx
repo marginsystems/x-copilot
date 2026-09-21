@@ -75,6 +75,52 @@ test("Scout autoStart stays off until onboarding is complete", async () => {
   await waitFor(() => expect(urls.some((url) => url.includes("autoStart=1"))).toBe(true));
 });
 
+test("dashboard shows owned familiarity beside the flight path and hides it after sign-out", async () => {
+  window.history.replaceState({}, "", "/dashboard");
+  const familiar = parseDeskBoot({
+    ok: true,
+    user,
+    desk: {
+      scoutFamiliarity: {
+        state: "learning", version: 1, revision: 2, score: 0,
+        coverage: { storedConfirmedReplies: 1, knownKindResolvedActions: 1 },
+        biases: [], hints: [],
+        lastLearned: { at: "2026-09-20T10:00:01.000Z", action: "take", threadKind: "fact_add" },
+        updatedAt: "2026-09-20T10:00:01.000Z",
+      },
+    },
+  })!;
+  const urls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.includes("/api/boot?")) return Response.json(familiar);
+    if (url.endsWith("/api/auth/sessions/current")) return Response.json({ ok: true, signedOut: true });
+    return Response.json({ ok: true, empty: true });
+  }));
+  render(<App />);
+  await waitFor(() => {
+    expect(
+      screen.queryByRole("button", { name: "Expand desk panel" })
+      ?? screen.queryByRole("meter", { name: "Scout familiarity" }),
+    ).toBeTruthy();
+  }, { timeout: 4000 });
+  const expand = screen.queryByRole("button", { name: "Expand desk panel" });
+  if (expand) await userEvent.setup().click(expand);
+  await waitFor(() => expect(screen.getByRole("meter", { name: "Scout familiarity" })).toBeTruthy());
+  expect(screen.getByText("Learning.")).toBeTruthy();
+  expect(screen.getByText(/Streak 0/)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Flight path" })).toBeTruthy();
+  expect(screen.getByRole("group", { name: "Activity bucket" })).toBeTruthy();
+  expect(urls.some((url) => url.endsWith("/api/scout/profile"))).toBe(false);
+  expect(peekDeskBootCache(user.id)?.desk?.scoutFamiliarity?.revision).toBe(2);
+  const interaction = userEvent.setup();
+  await interaction.click(screen.getByRole("button", { name: /menu/i }));
+  await interaction.click(await screen.findByRole("button", { name: /sign out|log out/i }));
+  await waitFor(() => expect(screen.queryByRole("meter", { name: "Scout familiarity" })).toBeNull());
+  expect(peekDeskBootCache(user.id)).toBeNull();
+});
+
 test("onboarded dashboard mounts the lazy desk view", async () => {
   window.history.replaceState({}, "", "/dashboard");
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {

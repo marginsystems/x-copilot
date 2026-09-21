@@ -29,6 +29,7 @@ import {
   parseGamificationPayload,
   type GamificationStats,
 } from "./gamification";
+import { parseScoutFamiliarity, type ScoutFamiliarity } from "./scoutFamiliarity";
 
 export const DESK_BOOT_KEY = "x-copilot-desk-boot-v1";
 
@@ -87,6 +88,11 @@ export type DeskBootDesk = {
   gamification: GamificationStats;
   activityStats: ActivityStats;
   coaching: CoachingState | null;
+  /**
+   * Owned Scout familiarity (C13). `undefined` when the payload predates the
+   * field; `null` when the server had no usable owned projection.
+   */
+  scoutFamiliarity?: ScoutFamiliarity | null;
 };
 
 export type DeskBootDeskPatch = Partial<DeskBootDesk>;
@@ -269,6 +275,11 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
       gamification: parsedGamification?.stats ?? emptyGamificationStats(),
       activityStats: parseActivityStats(desk.activityStats) ?? emptyActivityStats("day"),
       coaching: parseCoachingPayload(desk.coaching),
+      // Older payloads omit the key entirely; a present-but-unusable value is
+      // "unavailable", and neither case invalidates the rest of the desk.
+      ...("scoutFamiliarity" in desk
+        ? { scoutFamiliarity: parseScoutFamiliarity(desk.scoutFamiliarity) }
+        : {}),
     },
   };
 }

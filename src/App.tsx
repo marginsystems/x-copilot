@@ -31,6 +31,7 @@ import { ensureActivitySubscribe } from "./desk/watch";
 import { DismissModal } from "./desk/DismissModal";
 import { useAgendaPersist } from "./desk/useAgendaPersist";
 import { useDeskBoot } from "./desk/useDeskBoot";
+import { useScoutFamiliarity } from "./desk/useScoutFamiliarity";
 import { useScoutRun } from "./desk/useScoutRun";
 import { useSkipDismiss } from "./desk/useSkipDismiss";
 import { SettingsForm } from "./settings/SettingsForm";
@@ -99,6 +100,11 @@ function SessionApp() {
   });
   const verifiedOwnerId = authUser?.id ?? null;
   const {
+    scoutFamiliarity,
+    applyScoutFamiliarityFromBoot,
+    hydrateScoutFamiliarity,
+  } = useScoutFamiliarity(verifiedOwnerId);
+  const {
     interactedIds,
     interactedHistory,
     dismissedHistory,
@@ -120,6 +126,7 @@ function SessionApp() {
     setStatus,
     setActionBusy,
     settings,
+    onHydrated: () => void hydrateScoutFamiliarity(),
   }, verifiedOwnerId);
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const {
@@ -217,6 +224,7 @@ function SessionApp() {
     applyDesk: (desk) => {
       applyHistoryFromBoot(desk);
       applyStripFromBoot(desk);
+      applyScoutFamiliarityFromBoot(desk);
       if (desk.coaching !== undefined) applyCoaching(desk.coaching);
       if (desk.lastScout !== undefined) applyLastScoutFromBoot(desk.lastScout);
     },
@@ -227,6 +235,7 @@ function SessionApp() {
     hydrateVoice,
     loadUsage,
     loadAdmin,
+    hydrateScoutFamiliarity,
   });
   const needsLogin = authChecked && authRequired && !authUser && !localUi;
   const needsOnboarding = needsOnboardingWizard({
@@ -260,6 +269,7 @@ function SessionApp() {
     dismissedIdsRef,
     blockedConversationsRef,
     historyStaleRef,
+    onActionSucceeded: () => void hydrateScoutFamiliarity(),
   });
   const curatedThreads = threads.filter((t) => keepInCurated(t));
 
@@ -652,6 +662,7 @@ function SessionApp() {
             activityBucket,
             activityStats,
             gamification,
+            scoutFamiliarity,
             interactedHistory,
             usableScoutCount: curatedThreads.filter(
               (thread) => !interactedIds.has(thread.id),
