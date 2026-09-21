@@ -184,6 +184,7 @@ describe("retained target context", () => {
     retainScoutTargetContext({
       userId,
       targetId: "c1",
+      cardId: "c1",
       conversationId: "root1",
       threadKind: "fact_add",
       contextSource: "scout_cache",
