@@ -585,9 +585,11 @@ export async function reindexMemory(opts?: {
              WHERE excluded.mtime_ms > memories.mtime_ms${UPSERT_GUARD_SQL}`,
            );
            for (const row of rows) insert.run(row);
-           db.prepare("DELETE FROM memory_deletions WHERE mtime_ms <= ?").run(
-             startedAtMs,
-           );
+          for (const row of rows) {
+            db.prepare(
+              "DELETE FROM memory_deletions WHERE path = ? AND mtime_ms <= ?",
+            ).run(row.path, startedAtMs);
+          }
           db.prepare("DELETE FROM meta WHERE key = ?").run(LEGACY_READY_KEY);
           writeMeta(db, META_READY_KEY, MEMORY_INDEX_SCHEMA_VERSION);
         });

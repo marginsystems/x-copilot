@@ -765,6 +765,41 @@ Ship weekly.
     assert.equal((await search(A, "must disappear")).hits.length, 0);
   });
 
+  it("keeps an owner-loss tombstone when a stale upsert finishes after rebuild", async () => {
+    const path = await write(
+      "interactions",
+      canonical(A, "stale-owner-loss"),
+      note({ type: "interaction", userId: A, threadId: "stale-owner-loss", sections: { Post: "must stay gone" } }),
+    );
+    await utimes(path, new Date(), new Date(Date.now() - 10_000));
+
+    let raced = false;
+    const slowEmbedder: Embedder = {
+      dimensions: embedder.dimensions,
+      async embed(texts) {
+        if (!raced) {
+          raced = true;
+          await writeFile(
+            path,
+            note({ type: "interaction", threadId: "stale-owner-loss", sections: { Post: "owner removed" } }),
+            "utf8",
+          );
+          await utimes(path, new Date(), new Date(Date.now() - 1_000));
+          const removed = await upsertMemoryNote(path, { knowledgeRoot, indexDir, embedder });
+          assert.equal(removed.ok, false);
+          const rebuilt = await reindexMemory({ knowledgeRoot, indexDir, embedder });
+          assert.equal(rebuilt.ok, true);
+        }
+        return embedder.embed(texts);
+      },
+    };
+
+    const upsert = upsertMemoryNote(path, { knowledgeRoot, indexDir, embedder: slowEmbedder });
+    const result = await upsert;
+    assert.equal(result.ok, true);
+    assert.equal((await search(A, "must stay gone")).hits.length, 0);
+  });
+
   it("search surfaces embedder failure as unavailable, never old rows", async () => {
     await write(
       "interactions",
