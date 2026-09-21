@@ -287,6 +287,33 @@ describe("recordScoutEvidence", () => {
     assert.equal(new Set(row.topics).size, 12);
   });
 
+  it("persists context-source-only enrichment", () => {
+    recordScoutEvidence({
+      userId,
+      eventKey: takeEventKey("r-context"),
+      action: "take",
+      source: "webhook",
+      targetId: "t-context",
+      replyId: "r-context",
+      actedAt: new Date(T0).toISOString(),
+      threadKind: "fact_add",
+      nowMs: T0,
+    });
+    const result = recordScoutEvidence({
+      userId,
+      eventKey: takeEventKey("r-context"),
+      action: "take",
+      source: "reconcile",
+      targetId: "t-context",
+      replyId: "r-context",
+      actedAt: new Date(T0).toISOString(),
+      contextSource: "watch",
+      nowMs: T0 + 1,
+    });
+    assert.equal(result.changed, true);
+    assert.equal(result.row.contextSource, "watch");
+  });
+
   it("note verification advances the revision only when the state changes", () => {
     recordScoutEvidence({
       userId,

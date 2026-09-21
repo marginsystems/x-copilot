@@ -235,7 +235,7 @@ export function listConfirmedOwnRepliesPage(opts: {
     );
   }
   if (opts.before) {
-    clauses.push("(posted_at < ? OR (posted_at = ? AND id < ?))");
+    clauses.push("(posted_at < ? OR (posted_at = ? AND id <= ?))");
     params.push(opts.before.postedAt, opts.before.postedAt, opts.before.id);
   }
   const rows = getPlatformDb()

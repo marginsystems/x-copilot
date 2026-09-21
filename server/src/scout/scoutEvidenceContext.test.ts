@@ -208,6 +208,34 @@ describe("retained target context", () => {
     assert.equal(captured, null);
   });
 
+  it("checks older retained cards before accepting a conversation fallback", () => {
+    retainScoutTargetContext({
+      userId,
+      targetId: "new-1",
+      cardId: "card-a",
+      conversationId: "root-many",
+      contextSource: "scout_cache",
+      nowMs: 3,
+    });
+    retainScoutTargetContext({
+      userId,
+      targetId: "new-2",
+      cardId: "card-a",
+      conversationId: "root-many",
+      contextSource: "scout_cache",
+      nowMs: 2,
+    });
+    retainScoutTargetContext({
+      userId,
+      targetId: "old-1",
+      cardId: "card-b",
+      conversationId: "root-many",
+      contextSource: "scout_cache",
+      nowMs: 1,
+    });
+    assert.equal(readRetainedContextByConversation(userId, "root-many"), null);
+  });
+
   it("falls back to the watch list for author only", async () => {
     watchThread({ userId, threadId: "w1", author: "@erin", text: "GPU pricing" });
     const captured = await captureScoutTargetContext({ userId, targetId: "w1" });

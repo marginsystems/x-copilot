@@ -58,6 +58,11 @@ export type ScoutEvidenceInput = ScoutEvidenceContext & {
   nowMs?: number;
 };
 
+export type ActionEvidenceInput = Omit<
+  ScoutEvidenceInput,
+  "userId" | "eventKey" | "action" | "actedAt" | "nowMs"
+> & { eventKey: string };
+
 export type ScoutEvidenceRow = {
   userId: string;
   eventKey: string;
@@ -272,6 +277,34 @@ export function listScoutEvidence(opts: {
   return rows.map(rowFromSql);
 }
 
+export function listScoutEvidenceNeedingNoteCheck(opts: {
+  userId: string;
+  before?: { actedAt: string; eventKey: string };
+  limit: number;
+}): ScoutEvidenceRow[] {
+  const id = requireEvidenceUserId(opts.userId);
+  const clauses = [
+    "user_id = ?",
+    "action = 'take'",
+    "reply_id IS NOT NULL",
+    "note_state != 'stored'",
+  ];
+  const params: unknown[] = [id];
+  if (opts.before) {
+    clauses.push("(acted_at < ? OR (acted_at = ? AND event_key < ?))");
+    params.push(opts.before.actedAt, opts.before.actedAt, opts.before.eventKey);
+  }
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT ${SELECT_COLUMNS} FROM scout_evidence
+       WHERE ${clauses.join(" AND ")}
+       ORDER BY acted_at DESC, event_key DESC
+       LIMIT ?`,
+    )
+    .all(...params, Math.max(1, opts.limit)) as EvidenceSqlRow[];
+  return rows.map(rowFromSql);
+}
+
 export function readScoutEvidenceRevision(userId: string): ScoutEvidenceRevision {
   const id = requireEvidenceUserId(userId);
   const row = getPlatformDb()
@@ -429,8 +462,9 @@ export function recordScoutEvidence(input: ScoutEvidenceInput): {
       next.topics = incoming.topics;
       changed = true;
     }
-    if (changed && next.contextSource === null && incoming.contextSource) {
+    if (next.contextSource === null && incoming.contextSource) {
       next.contextSource = incoming.contextSource;
+      changed = true;
     }
     if (
       incoming.noteState !== "unknown" &&

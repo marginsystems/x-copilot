@@ -2,7 +2,7 @@
  * Thin helpers for HTTP / webhook / Voice adapters: capture server-owned
  * context before prune, then build the evidence payload for store transactions.
  */
-import type { ActionEvidenceInput } from "../desk/interactionStore.js";
+import type { ActionEvidenceInput } from "./scoutEvidence.js";
 import {
   captureScoutTargetContext,
   evidenceContextFields,

@@ -7,9 +7,11 @@ import { getPlatformDb } from "../db.js";
 import {
   getEverInteractedConversationIds,
   requireUserId,
-  type ActionEvidenceInput,
 } from "./interactionStore.js";
-import { recordScoutEvidence } from "../scout/scoutEvidence.js";
+import {
+  recordScoutEvidence,
+  type ActionEvidenceInput,
+} from "../scout/scoutEvidence.js";
 import {
   conversationIdsFromHistory,
   normalizeAuthorKey,

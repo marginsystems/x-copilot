@@ -10,9 +10,11 @@ import {
 } from "./interactionCooldown.js";
 import {
   requireUserId,
-  type ActionEvidenceInput,
 } from "./interactionStore.js";
-import { recordScoutEvidence } from "../scout/scoutEvidence.js";
+import {
+  recordScoutEvidence,
+  type ActionEvidenceInput,
+} from "../scout/scoutEvidence.js";
 
 export type Skip = {
   threadId: string;

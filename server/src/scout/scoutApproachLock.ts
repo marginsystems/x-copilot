@@ -7,6 +7,7 @@ import {
   send,
 } from "../http/httpJson.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
+import { allowRate } from "../auth/authGuard.js";
 import { retainScoutContextForTarget } from "./scoutEvidenceContext.js";
 
 const SCOUT_APPROACH_LOCK_TTL_MS = 24 * 60 * 60 * 1000;
@@ -119,6 +120,10 @@ export async function tryHandleScoutApproachLock(
   const user = getSessionUser(req);
   if (!user) {
     send(req, res, 401, { error: "unauthenticated" });
+    return true;
+  }
+  if (!allowRate(`scout-approach-lock:${user.id}`, 40, 60_000)) {
+    send(req, res, 429, { error: "rate_limited" });
     return true;
   }
 

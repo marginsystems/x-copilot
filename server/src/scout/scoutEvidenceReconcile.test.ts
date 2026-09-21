@@ -10,8 +10,14 @@ import {
   type TempPlatformDb,
 } from "../platform/platformDb.testHelpers.ts";
 import { ensureUserTenant } from "../billing/billingStore.ts";
-import { markInteracted } from "../desk/interactionStore.ts";
-import { upsertOwnPost } from "../desk/ownPostStore.ts";
+import {
+  listInteractionRowsPage,
+  markInteracted,
+} from "../desk/interactionStore.ts";
+import {
+  listConfirmedOwnRepliesPage,
+  upsertOwnPost,
+} from "../desk/ownPostStore.ts";
 import {
   buildOwnedNotePath,
   writeOwnedNoteAtomically,
@@ -97,6 +103,41 @@ describe("reconcileScoutEvidence", () => {
   afterEach(() => {
     closeTempPlatformDb(temp);
     rmSync(knowledgeRoot, { recursive: true, force: true });
+  });
+
+  it("resumes tied keyset pages without skipping the boundary's older rows", async () => {
+    const at = new Date(T0).toISOString();
+    for (const id of ["a", "b", "c"]) {
+      await markInteracted({
+        threadId: `thread-${id}`,
+        author: "@alice",
+        userId,
+        nowMs: T0,
+      });
+      upsertOwnPost({
+        parsed: ownReply({ postId: `reply-${id}`, postedAt: at }),
+        userId,
+        tenantId,
+      });
+    }
+    const interactions = listInteractionRowsPage({ userId, limit: 2 });
+    const nextInteractions = listInteractionRowsPage({
+      userId,
+      limit: 2,
+      before: {
+        at: interactions[1]!.at,
+        threadId: interactions[1]!.threadId,
+      },
+    });
+    assert.ok(nextInteractions.some((row) => row.threadId === "thread-a"));
+
+    const replies = listConfirmedOwnRepliesPage({ userId, limit: 2 });
+    const nextReplies = listConfirmedOwnRepliesPage({
+      userId,
+      limit: 2,
+      before: { postedAt: replies[1]!.postedAt, id: replies[1]!.id },
+    });
+    assert.ok(nextReplies.some((row) => row.id === "reply-a"));
   });
 
   it("does not turn a URL-only mark into a take", async () => {

@@ -181,11 +181,15 @@ export function readRetainedContextByConversation(
     .prepare(
       `SELECT ${RETAINED_COLUMNS} FROM scout_target_context
         WHERE user_id = ? AND (conversation_id = ? OR target_id = ?)
-        ORDER BY retained_at DESC LIMIT 2`,
+          AND (
+            SELECT COUNT(DISTINCT COALESCE(card_id, target_id))
+            FROM scout_target_context
+            WHERE user_id = ? AND (conversation_id = ? OR target_id = ?)
+          ) = 1
+        ORDER BY retained_at DESC LIMIT 1`,
     )
-    .all(id, conversation, conversation) as RetainedRow[];
-  const distinctCards = new Set(rows.map((r) => r.card_id ?? r.target_id));
-  if (rows.length === 0 || distinctCards.size !== 1) return null;
+    .all(id, conversation, conversation, id, conversation, conversation) as RetainedRow[];
+  if (rows.length === 0) return null;
   return retainedFromRow(rows[0]!);
 }
 

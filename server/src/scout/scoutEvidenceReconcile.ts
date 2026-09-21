@@ -31,7 +31,7 @@ import {
 } from "./scoutEvidenceContext.js";
 import {
   findScoutTakeByReplyId,
-  listScoutEvidence,
+  listScoutEvidenceNeedingNoteCheck,
   readScoutEvidenceCursor,
   recordScoutEvidence,
   requireEvidenceUserId,
@@ -291,24 +291,11 @@ function takesNeedingNoteCheck(
   cursor: NoteCursor | null,
   batch: number,
 ): ScoutEvidenceRow[] {
-  // Evidence volume per user is small; page in memory over the ordered list.
-  const rows = listScoutEvidence({ userId }).filter(
-    (row) => row.action === "take" && row.replyId && row.noteState !== "stored",
-  );
-  const ordered = [...rows].sort((a, b) =>
-    a.actedAt === b.actedAt
-      ? b.eventKey.localeCompare(a.eventKey)
-      : b.actedAt.localeCompare(a.actedAt),
-  );
-  const start = cursor
-    ? ordered.findIndex(
-        (row) =>
-          row.actedAt < cursor.actedAt ||
-          (row.actedAt === cursor.actedAt && row.eventKey < cursor.eventKey),
-      )
-    : 0;
-  if (start < 0) return [];
-  return ordered.slice(start, start + batch);
+  return listScoutEvidenceNeedingNoteCheck({
+    userId,
+    before: cursor ?? undefined,
+    limit: batch,
+  });
 }
 
 async function reconcileNotes(state: PassState, batch: number): Promise<boolean> {

@@ -14,17 +14,13 @@ import {
 import {
   recordScoutEvidence,
   type ScoutEvidenceInput,
+  type ActionEvidenceInput,
 } from "../scout/scoutEvidence.js";
 
 /**
  * Durable evidence written inside the same SQL transaction as the action row.
  * Everything but user/eventKey/action/actedAt/nowMs, which the store owns.
  */
-export type ActionEvidenceInput = Omit<
-  ScoutEvidenceInput,
-  "userId" | "eventKey" | "action" | "actedAt" | "nowMs"
-> & { eventKey: string };
-
 export type InteractionSource = "manual" | "copy" | "discovered";
 
 function normalizeInteractionSource(source: unknown): InteractionSource {
@@ -383,7 +379,7 @@ export function listInteractionRowsPage(opts: {
   const params: unknown[] = [userId];
   if (opts.withReplyId) clauses.push("reply_id IS NOT NULL");
   if (opts.before) {
-    clauses.push("(at < ? OR (at = ? AND thread_id < ?))");
+    clauses.push("(at < ? OR (at = ? AND thread_id <= ?))");
     params.push(opts.before.at, opts.before.at, opts.before.threadId);
   }
   const rows = getPlatformDb()
