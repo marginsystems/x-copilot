@@ -178,6 +178,31 @@ describe("ownPostStore", () => {
       }).map((row) => row.id),
       ["other-reply"],
     );
+
+    upsertOwnPost({
+      parsed: post({ postId: "discovered-parent", kind: "original" }),
+      userId,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: post({
+        postId: "discovered-self-reply",
+        kind: "reply",
+        inReplyToId: "discovered-parent",
+        inReplyToUserId: null,
+      }),
+      userId,
+      tenantId,
+    });
+    assert.equal(
+      listConfirmedOwnRepliesPage({
+        userId,
+        limit: 10,
+        excludeSelfReplies: true,
+        replyId: "discovered-self-reply",
+      }).length,
+      0,
+    );
   });
 
   it("lists flight-path own posts and excludes reposts", () => {

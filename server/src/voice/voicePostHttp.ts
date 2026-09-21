@@ -268,19 +268,23 @@ export async function handlePost(
       let evidence;
       let interaction;
       try {
-        evidence = await confirmedTakeEvidence({
-          userId: user.id,
-          replyId,
-          targetId: threadId,
-          source: "voice",
-          conversationId:
-            typeof body.conversationId === "string"
-              ? body.conversationId
-              : undefined,
-          inReplyToId,
-          fallbackText: context.text ?? context.summary,
-          fallbackAuthor: author,
-        });
+        try {
+          evidence = await confirmedTakeEvidence({
+            userId: user.id,
+            replyId,
+            targetId: threadId,
+            source: "voice",
+            conversationId:
+              typeof body.conversationId === "string"
+                ? body.conversationId
+                : undefined,
+            inReplyToId,
+            fallbackText: context.text ?? context.summary,
+            fallbackAuthor: author,
+          });
+        } catch (err) {
+          console.warn("Voice evidence capture soft-fail:", err);
+        }
         interaction = await markVoiceInteracted({
           threadId,
           author,
@@ -591,16 +595,21 @@ export async function handlePost(
   const conversationId =
     typeof body.conversationId === "string" ? body.conversationId : undefined;
   const context = cardContext(body);
-  const evidence = await confirmedTakeEvidence({
-    userId: user.id,
-    replyId,
-    targetId: threadId,
-    source: "voice",
-    conversationId,
-    inReplyToId,
-    fallbackText: edited.trim() || context.text || context.summary,
-    fallbackAuthor: author,
-  });
+  let evidence;
+  try {
+    evidence = await confirmedTakeEvidence({
+      userId: user.id,
+      replyId,
+      targetId: threadId,
+      source: "voice",
+      conversationId,
+      inReplyToId,
+      fallbackText: edited.trim() || context.text || context.summary,
+      fallbackAuthor: author,
+    });
+  } catch (err) {
+    console.warn("Voice evidence capture soft-fail:", err);
+  }
   let interaction;
   try {
     interaction = await markVoiceInteracted({

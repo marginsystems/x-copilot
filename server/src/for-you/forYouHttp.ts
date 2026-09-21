@@ -89,15 +89,19 @@ export async function tryHandleForYou(
       pending.kind === "reply" &&
       pending.targetId
     ) {
-      evidence = await explicitScoutActionEvidence({
-        userId: user.id,
-        action: status === "dismissed" ? "dismiss" : "skip",
-        surface: "for-you",
-        cardId: id,
-        source: "for-you",
-        targetId: pending.targetId,
-        fallbackAuthor: pending.targetAuthor,
-      });
+      try {
+        evidence = await explicitScoutActionEvidence({
+          userId: user.id,
+          action: status === "dismissed" ? "dismiss" : "skip",
+          surface: "for-you",
+          cardId: id,
+          source: "for-you",
+          targetId: pending.targetId,
+          fallbackAuthor: pending.targetAuthor,
+        });
+      } catch (err) {
+        console.warn("For You evidence capture soft-fail:", err);
+      }
     }
     const suggestion = markSuggestion({
       id,
