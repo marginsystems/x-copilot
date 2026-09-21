@@ -182,4 +182,63 @@ describe("memoryLegacyMigration", () => {
     assert.equal((await listMd(interactions)).length, 4);
     assert.deepEqual(await enumerateMemoryNotes({ knowledgeRoot: join(root, "missing"), kind: "interaction" }), []);
   });
+
+  it("keeps existing reply-suffixed notes, never bulk-converts them, and prefers the canonical alias", async () => {
+    const canonical = `2026-07-27-u${sha("user-a")}-2081.md`;
+    const suffixed = (replyId: string) =>
+      `${canonical.slice(0, -3)}-r${sha(replyId).slice(0, 16)}.md`;
+    await writeFile(
+      join(interactions, suffixed("reply-1")),
+      legacy({ userId: "user-a", body: '## Reply\n\nsuffixed reply\n' }).replace(
+        'interactedAt:',
+        'replyId: "reply-1"\ninteractedAt:',
+      ),
+      "utf8",
+    );
+
+    // The bulk legacy migrator leaves owned (suffixed) names alone.
+    const [report] = await migrateLegacyNotes({ knowledgeRoot: root, log: (m) => logs.push(m) });
+    assert.equal(report?.scanned, 0);
+    assert.equal(report?.copied, 0);
+    assert.deepEqual(await listMd(interactions), [suffixed("reply-1")]);
+
+    // Without a canonical alias the suffixed note is still visible, as noncanonical.
+    const before = await enumerateMemoryNotes({ knowledgeRoot: root, kind: "interaction", migrate: true });
+    assert.deepEqual(before.map((n) => [n.name, n.canonical]), [[suffixed("reply-1"), false]]);
+    assert.equal(canonicalAliasFor(suffixed("reply-1"), before[0]!.meta), canonical);
+
+    // A real write lands on the canonical path; the suffixed original stays
+    // and enumeration collapses the alias onto the canonical record.
+    await writeInteractionMemory({
+      userId: "user-a",
+      threadId: "2081",
+      author: "@x",
+      reply: "canonical reply",
+      replyId: "reply-1",
+      interactedAt: "2026-07-27T12:00:00.000Z",
+      knowledgeRoot: root,
+    });
+    assert.deepEqual(await listMd(interactions), [canonical, suffixed("reply-1")].sort());
+    assert.match(await readFile(join(interactions, suffixed("reply-1")), "utf8"), /suffixed reply/);
+    const after = await enumerateMemoryNotes({ knowledgeRoot: root, kind: "interaction", migrate: true });
+    assert.deepEqual(after.map((n) => [n.name, n.canonical]), [[canonical, true]]);
+    assert.match(after[0]!.markdown, /canonical reply/);
+
+    // Several divergent suffixed notes for another thread are never folded
+    // into one by migration or enumeration; each stays a visible original.
+    const other = `2026-07-27-u${sha("user-a")}-2082`;
+    for (const replyId of ["reply-a", "reply-b"]) {
+      await writeFile(
+        join(interactions, `${other}-r${sha(replyId).slice(0, 16)}.md`),
+        legacy({ userId: "user-a", threadId: "2082", body: `## Reply\n\n${replyId}\n` }),
+        "utf8",
+      );
+    }
+    const [again] = await migrateLegacyNotes({ knowledgeRoot: root, log: (m) => logs.push(m) });
+    assert.equal(again?.copied, 0);
+    const listed = await enumerateMemoryNotes({ knowledgeRoot: root, kind: "interaction", migrate: true });
+    assert.equal(listed.filter((n) => n.name.startsWith(other)).length, 2);
+    assert.equal(listed.some((n) => n.name === `${other}.md`), false);
+    assert.equal((await listMd(interactions)).length, 4);
+  });
 });

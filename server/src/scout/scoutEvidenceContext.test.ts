@@ -12,7 +12,6 @@ import { pruneThreadsFromScoutCache, saveScoutCache } from "./scoutCache.ts";
 import {
   captureScoutTargetContext,
   cardContextFromSnapshot,
-  MAX_RETAINED_TARGET_CONTEXT,
   normalizeEvidenceAuthor,
   readRetainedContextByConversation,
   readRetainedTargetContext,
@@ -261,8 +260,22 @@ describe("retained target context", () => {
     );
   });
 
-  it("caps retained context per user", () => {
-    for (let i = 0; i <= MAX_RETAINED_TARGET_CONTEXT; i++) {
+  it("keeps old retained context available after more than 2,000 later targets", () => {
+    // C09: watch / lock context is durable across pruning and delayed
+    // replies; retaining more targets never evicts an older one.
+    const laterTargets = 2001;
+    retainScoutTargetContext({
+      userId,
+      targetId: "old-target",
+      cardId: "old-card",
+      conversationId: "old-root",
+      author: "@erin",
+      threadKind: "fact_add",
+      topics: ["rates"],
+      contextSource: "scout_cache",
+      nowMs: 0,
+    });
+    for (let i = 1; i <= laterTargets; i++) {
       retainScoutTargetContext({
         userId,
         targetId: `target-${i}`,
@@ -270,12 +283,21 @@ describe("retained target context", () => {
         nowMs: i,
       });
     }
+    const old = readRetainedTargetContext(userId, "old-target");
+    assert.equal(old?.cardId, "old-card");
+    assert.equal(old?.threadKind, "fact_add");
+    assert.equal(old?.author, "erin");
+    assert.deepEqual(old?.topics, ["rates"]);
+    assert.equal(
+      readRetainedContextByConversation(userId, "old-root")?.cardId,
+      "old-card",
+    );
     const row = getPlatformDb()
       .prepare(
         "SELECT COUNT(*) AS count FROM scout_target_context WHERE user_id = ?",
       )
       .get(userId) as { count: number };
-    assert.equal(row.count, MAX_RETAINED_TARGET_CONTEXT);
+    assert.equal(row.count, laterTargets + 1);
   });
 
   it("falls back to the watch list for author only", async () => {

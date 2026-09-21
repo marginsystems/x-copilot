@@ -3,10 +3,14 @@
  * persistence for knowledge/{interactions,dismissals}.
  *
  * Canonical filename: `<date>-u<sha256(userId)>-<threadKey>.md`, where the
- * thread key keeps readable numeric X ids and hashes anything else. Every
- * lookup verifies frontmatter userId/threadId; the filename alone is never
- * proof of ownership. Legacy `<date>-<safeThreadId>.md` notes are still
- * resolvable when their metadata verifies, until migration copies them.
+ * thread key keeps readable numeric X ids and hashes anything else. One
+ * owner has one note per thread and date; reply ids are note metadata and
+ * SQL evidence keys, never part of the filename. Every lookup verifies
+ * frontmatter userId/threadId; the filename alone is never proof of
+ * ownership. Legacy `<date>-<safeThreadId>.md` notes and previously written
+ * `<canonical>-r<16hex>.md` reply-suffixed notes are still resolvable when
+ * their metadata verifies; both are noncanonical fallback input and are
+ * never deleted.
  */
 import { createHash, randomBytes } from "node:crypto";
 import {
@@ -68,16 +72,13 @@ export function safeThreadIdForFilename(threadId: string): string {
   return collapsed.slice(0, 80) || "unknown";
 }
 
+/** The one canonical name for this owner/thread/date; independent of any reply id. */
 export function ownedNoteFilename(opts: {
   userId: string;
   threadId: string;
   at?: string;
-  replyId?: string;
 }): string {
-  const replySuffix = opts.replyId?.trim()
-    ? `-r${createHash("sha256").update(opts.replyId.trim()).digest("hex").slice(0, 16)}`
-    : "";
-  return `${utcDatePrefix(opts.at)}-u${ownerHash(opts.userId)}-${threadKey(opts.threadId)}${replySuffix}.md`;
+  return `${utcDatePrefix(opts.at)}-u${ownerHash(opts.userId)}-${threadKey(opts.threadId)}.md`;
 }
 
 export function legacyNoteFilename(threadId: string, at?: string): string {
@@ -93,7 +94,6 @@ export function buildOwnedNotePath(opts: {
   userId: string;
   threadId: string;
   at?: string;
-  replyId?: string;
   knowledgeRoot: string;
 }): string {
   return join(ownedNoteDir(opts.kind, opts.knowledgeRoot), ownedNoteFilename(opts));
@@ -115,17 +115,33 @@ export type OwnedNoteName = {
   date: string;
   ownerHash: string;
   threadKey: string;
+  /** Set only for previously written reply-suffixed names; those are not canonical. */
   replyKey: string | null;
 };
 
 const OWNED_NAME_RE =
   /^(\d{4}-\d{2}-\d{2})-u([0-9a-f]{64})-(\d{1,40}|h[0-9a-f]{64})(-r([0-9a-f]{16}))?\.md$/;
 
-/** Parse a canonical owned filename; null for legacy or foreign names. */
+/**
+ * Parse an owned filename (canonical, or an existing reply-suffixed
+ * compatibility name); null for legacy or foreign names.
+ */
 export function parseOwnedNoteName(name: string): OwnedNoteName | null {
   const m = OWNED_NAME_RE.exec(name);
   if (!m) return null;
   return { date: m[1]!, ownerHash: m[2]!, threadKey: m[3]!, replyKey: m[5] ?? null };
+}
+
+/** True only for the C07 `<date>-u<hash>-<threadKey>.md` name. */
+export function isCanonicalOwnedNoteName(name: string): boolean {
+  const parsed = parseOwnedNoteName(name);
+  return parsed !== null && parsed.replyKey === null;
+}
+
+/** Filename reply key of an existing suffixed note for this reply id. */
+function replyKeyFor(replyId: string | undefined): string | null {
+  const id = replyId?.trim();
+  return id ? createHash("sha256").update(id).digest("hex").slice(0, 16) : null;
 }
 
 export type OwnerState = "owned" | "unowned" | "conflict";
@@ -315,8 +331,9 @@ export type OwnedNoteResolution =
   | { state: "unreadable" };
 
 /**
- * Resolve this owner's note for a thread. Expected path first, then
- * metadata-verified legacy/other-date candidates. Never picks arbitrarily.
+ * Resolve this owner's note for a thread. The canonical path first, then
+ * metadata-verified legacy / reply-suffixed / other-date candidates, with a
+ * canonical-named candidate preferred. Never picks arbitrarily.
  */
 export async function resolveOwnedNote(opts: {
   kind: OwnedNoteKind;
@@ -324,6 +341,10 @@ export async function resolveOwnedNote(opts: {
   threadId: string;
   /** Canonical action time. Without it only a unique verified candidate resolves. */
   at?: string;
+  /**
+   * Compatibility only: narrows existing reply-suffixed fallback files to
+   * this reply. It never changes the canonical path.
+   */
   replyId?: string;
   knowledgeRoot: string;
   /** Accept a unique verified note from another date (legacy re-marks). */
@@ -342,10 +363,8 @@ export async function resolveOwnedNote(opts: {
 
   const hash = ownerHash(userId);
   const key = threadKey(threadId);
-  const replyKey = opts.replyId?.trim()
-    ? createHash("sha256").update(opts.replyId.trim()).digest("hex").slice(0, 16)
-    : null;
-  const ownedSuffix = `-u${hash}-${key}${replyKey ? `-r${replyKey}` : ""}.md`;
+  const replyKey = replyKeyFor(opts.replyId);
+  const ownedSuffix = `-u${hash}-${key}.md`;
   const legacySuffix = `-${safeThreadIdForFilename(threadId)}.md`;
   const wantDate = opts.at ? utcDatePrefix(opts.at) : null;
   const canonicalName = wantDate ? `${wantDate}${ownedSuffix}` : null;
@@ -383,6 +402,7 @@ export async function resolveOwnedNote(opts: {
     markdown: string;
     meta: OwnedNoteMetadata;
     dateMatches: boolean;
+    canonical: boolean;
   }> = [];
   for (const name of names) {
     if (name === canonicalName) continue;
@@ -390,6 +410,8 @@ export async function resolveOwnedNote(opts: {
     let candidate = false;
     if (parsedName) {
       if (parsedName.threadKey !== key) continue;
+      // An existing reply-suffixed file for a different reply is not a
+      // candidate when the caller names the reply it is looking for.
       if (
         replyKey !== null &&
         parsedName.replyKey !== null &&
@@ -417,25 +439,36 @@ export async function resolveOwnedNote(opts: {
       name.slice(0, 10) === wantDate ||
       (meta?.actionAt ? utcDatePrefix(meta.actionAt) === wantDate : false);
     if (noteVerifiedFor(meta, { userId, threadId })) {
-      verified.push({ name, markdown, meta: meta!, dateMatches });
+      verified.push({
+        name,
+        markdown,
+        meta: meta!,
+        dateMatches,
+        canonical: parsedName !== null && parsedName.replyKey === null,
+      });
     } else if (dateMatches) {
       foreignSeen = true;
     }
   }
 
+  // A verified canonical-named note wins over legacy / reply-suffixed
+  // aliases; several of the same rank stay ambiguous rather than letting
+  // directory order choose.
   const pick = (list: typeof verified): OwnedNoteResolution | null => {
-    if (list.length === 1) {
-      const hit = list[0]!;
+    const canonical = list.filter((v) => v.canonical);
+    const ranked = canonical.length > 0 ? canonical : list;
+    if (ranked.length === 1) {
+      const hit = ranked[0]!;
       return {
         state: "found",
         path: join(dir, hit.name),
         name: hit.name,
         markdown: hit.markdown,
         meta: hit.meta,
-        canonical: parseOwnedNoteName(hit.name) !== null,
+        canonical: hit.canonical,
       };
     }
-    if (list.length > 1) return { state: "ambiguous" };
+    if (ranked.length > 1) return { state: "ambiguous" };
     return null;
   };
   const exact = pick(verified.filter((v) => v.dateMatches));

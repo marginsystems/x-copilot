@@ -20,6 +20,11 @@ import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { listSkipHistory, markSkipped } from "./skipStore.ts";
 import { getPlatformDb } from "../db.ts";
+import {
+  explicitEventKey,
+  getScoutEvidence,
+  listScoutEvidence,
+} from "../scout/scoutEvidence.ts";
 
 function signIn(tag: string): { userId: string; cookie: string } {
   const user = upsertOauthUser({
@@ -232,6 +237,40 @@ describe("historyHttp", () => {
       (await listSkipHistory({ userId: a.userId })).map((row) => row.threadId),
       ["capture-failed-skip"],
     );
+
+    // The explicit votes still become evidence, keyed correctly, with the
+    // context left unknown rather than guessed.
+    const skipRow = getScoutEvidence(
+      a.userId,
+      explicitEventKey("skip", "scout", "capture-failed-skip"),
+    );
+    const dismissRow = getScoutEvidence(
+      a.userId,
+      explicitEventKey("dismiss", "scout", "capture-failed-dismiss"),
+    );
+    assert.equal(skipRow?.action, "skip");
+    assert.equal(skipRow?.targetId, "capture-failed-skip");
+    assert.equal(skipRow?.threadKind, null);
+    assert.equal(skipRow?.contextSource, null);
+    assert.equal(skipRow?.targetAuthor, "x");
+    assert.equal(dismissRow?.action, "dismiss");
+    assert.equal(dismissRow?.targetId, "capture-failed-dismiss");
+    assert.equal(dismissRow?.threadKind, null);
+    assert.equal(dismissRow?.contextSource, null);
+    assert.equal(listScoutEvidence({ userId: a.userId }).length, 2);
+  });
+
+  it("POST /api/skipped fails and records no evidence when the evidence table itself is gone", async () => {
+    getPlatformDb().exec("DROP TABLE scout_evidence");
+    const { status, json } = await call(
+      "POST",
+      "/api/skipped",
+      { threadId: "evidence-failed-skip", author: "@x" },
+      a.cookie,
+    );
+    assert.equal(status, 500);
+    assert.equal(json.error, "store_failed");
+    assert.deepEqual(await listSkipHistory({ userId: a.userId }), []);
   });
 
   it("GET /api/expired returns expired + expiredIds", async () => {

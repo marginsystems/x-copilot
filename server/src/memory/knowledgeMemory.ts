@@ -75,12 +75,14 @@ export function defaultKnowledgeRoot(): string {
   return resolve(projectRoot, "knowledge");
 }
 
-/** Canonical owned interaction note path: `<date>-u<ownerHash>-<threadKey>.md`. */
+/**
+ * Canonical owned interaction note path: `<date>-u<ownerHash>-<threadKey>.md`.
+ * One note per owner/thread/date; a reply id never selects another file.
+ */
 export function buildInteractionNotePath(opts: {
   userId: string;
   threadId: string;
   interactedAt?: string;
-  replyId?: string;
   knowledgeRoot?: string;
 }): string {
   return buildOwnedNotePath({
@@ -88,7 +90,6 @@ export function buildInteractionNotePath(opts: {
     userId: opts.userId,
     threadId: opts.threadId,
     at: opts.interactedAt,
-    replyId: opts.replyId,
     knowledgeRoot: opts.knowledgeRoot ?? defaultKnowledgeRoot(),
   });
 }
@@ -298,8 +299,9 @@ export const FOREIGN_NOTE_ERROR = "interaction note belongs to another user";
 
 /**
  * Write this user's interaction note at its canonical owned path under the
- * shared file lock. A verified legacy note for the same owner/thread/date is
- * adopted (copied, never deleted) so curated fields and Outcome carry over.
+ * shared file lock, whatever reply id the write carries. A unique verified
+ * legacy or reply-suffixed note for the same owner/thread/date is adopted
+ * (copied, never deleted) so curated fields and Outcome carry over.
  */
 export async function writeInteractionMemory(
   input: InteractionMemoryInput,
@@ -313,7 +315,6 @@ export async function writeInteractionMemory(
     userId,
     threadId,
     interactedAt,
-    replyId: input.replyId,
     knowledgeRoot,
   });
   const result = await writeOwnedNoteAtomically({
@@ -473,6 +474,13 @@ function preserveInteractionOutcome(existing: string, next: string): string {
   const managed = new Set<string>(MANAGED_OUTCOME_FRONTMATTER_KEYS);
   const preserveCurated =
     oldSource !== "discovered" && nextSource === "discovered";
+  // The curated ## Reply survives this merge, so an incoming reply id may
+  // label it only when it names that same text; otherwise the note keeps
+  // its own (possibly absent) reply id rather than being relabelled.
+  const replyMatches =
+    preserveCurated &&
+    normalizeReply(parseOwnedNoteMetadata(existing)?.reply) ===
+      normalizeReply(parseOwnedNoteMetadata(next)?.reply);
   const preserved = oldLines.filter((line) => {
     const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
     if (!key) return true;
@@ -482,12 +490,12 @@ function preserveInteractionOutcome(existing: string, next: string): string {
   });
   const fresh = nextMatch[1].split("\n").filter((line) => {
     const key = /^([A-Za-z0-9_]+)\s*:/.exec(line)?.[1];
-    return (
-      !key ||
-      (key === "source"
-        ? nextSource !== "discovered"
-        : !oldKeys.has(key) || !preserveCurated)
-    );
+    if (!key) return true;
+    if (key === "source") return nextSource !== "discovered";
+    if (!preserveCurated) return true;
+    if (oldKeys.has(key)) return false;
+    if (key === "replyId") return replyMatches;
+    return true;
   });
   const fm = [...preserved, ...fresh].filter(Boolean).join("\n");
   let body = nextMatch[2];
@@ -569,6 +577,7 @@ function checkpointFrontmatterLines(
 /**
  * Locate this owner's interaction note: canonical path first, then a unique
  * metadata-verified legacy / other-date note. Null when none or ambiguous.
+ * `replyId` only narrows existing reply-suffixed fallback files.
  */
 export async function findInteractionNotePath(opts: {
   userId: string;
@@ -744,7 +753,7 @@ export async function updateInteractionMemoryOutcome(opts: {
 
   const path = resolved.canonical
     ? resolved.path
-    : buildInteractionNotePath({ userId, threadId, interactedAt, replyId: interaction.replyId, knowledgeRoot });
+    : buildInteractionNotePath({ userId, threadId, interactedAt, knowledgeRoot });
   const updatedAt = opts.nowIso ?? new Date().toISOString();
   try {
     const result = await writeOwnedNoteAtomically({

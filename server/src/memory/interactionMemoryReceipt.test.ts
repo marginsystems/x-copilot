@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   attachInteractionMemoryReceipts,
   lookupInteractionMemoryReceipts,
@@ -283,8 +284,8 @@ describe("lookupInteractionMemoryReceipts", () => {
     );
   });
 
-  it("resolves same-day notes by reply id", async () => {
-    await writeInteractionMemory({
+  it("keeps one canonical note for same-day replies and reports it saved for both", async () => {
+    const first = await writeInteractionMemory({
       threadId: "2081",
       author: "@A",
       reply: "First reply",
@@ -293,7 +294,7 @@ describe("lookupInteractionMemoryReceipts", () => {
       interactedAt,
       knowledgeRoot: root,
     });
-    await writeInteractionMemory({
+    const second = await writeInteractionMemory({
       threadId: "2081",
       author: "@A",
       reply: "Second reply",
@@ -302,7 +303,19 @@ describe("lookupInteractionMemoryReceipts", () => {
       interactedAt,
       knowledgeRoot: root,
     });
+    // C07: one owned note per user/date/thread; the reply id is metadata.
+    assert.equal(second.path, first.path);
+    assert.equal(
+      basename(first.path),
+      `2026-07-27-u${createHash("sha256").update("user-1").digest("hex")}-2081.md`,
+    );
+    assert.deepEqual(
+      (await readdir(join(root, "interactions"))).filter((n) => n.endsWith(".md")),
+      [basename(first.path)],
+    );
 
+    // Receipt semantics stay owner/thread/nonempty-reply: both durable rows
+    // point at the same saved note.
     const states = await lookupInteractionMemoryReceipts({
       userId: "user-1",
       knowledgeRoot: root,

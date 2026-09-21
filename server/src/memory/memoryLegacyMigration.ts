@@ -6,11 +6,15 @@
  * Only a note whose frontmatter verifiably names one owner and one thread is
  * copied. Unowned or conflicting notes stay where they are and are reported
  * in aggregate; a lone installed user or a matching thread id is not proof.
- * Originals are never deleted or rewritten.
+ * Previously written reply-suffixed owned notes are not bulk-converted here;
+ * they are read-compatible fallback input that enumeration collapses onto
+ * the canonical alias when one exists. Originals are never deleted or
+ * rewritten.
  */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  isCanonicalOwnedNoteName,
   listNoteNames,
   ownedNoteDir,
   ownedNoteFilename,
@@ -109,6 +113,7 @@ export async function migrateLegacyNotes(opts: {
     if (!names) continue;
     const nameSet = new Set(names);
     for (const name of names) {
+      // Owned names (canonical or reply-suffixed) are not legacy input.
       if (parseOwnedNoteName(name)) continue;
       report.scanned += 1;
       const path = join(dir, name);
@@ -208,8 +213,9 @@ export async function enumerateMemoryNotes(opts: {
       continue;
     }
     const meta = parseOwnedNoteMetadata(markdown);
-    const canonical = parseOwnedNoteName(name) !== null;
+    const canonical = isCanonicalOwnedNoteName(name);
     if (!canonical) {
+      // Legacy and reply-suffixed aliases collapse onto the canonical note.
       const alias = canonicalAliasFor(name, meta);
       if (alias && nameSet.has(alias)) continue;
     }

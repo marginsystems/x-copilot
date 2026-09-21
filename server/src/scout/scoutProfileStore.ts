@@ -418,10 +418,12 @@ export async function readScoutProfile(
  * the store.
  */
 export function installScoutProfileProjection(
-  opts: Pick<ScoutProfileStoreOpts, "profileDir"> = {},
+  opts: Pick<ScoutProfileStoreOpts, "profileDir" | "knowledgeRoot"> = {},
 ): void {
   setScoutProfileRebuild(async (userId) => {
-    await withoutScoutProfileProjectionNotifications(() => reconcileScoutEvidence({ userId }));
+    await withoutScoutProfileProjectionNotifications(() =>
+      reconcileScoutEvidence({ userId, knowledgeRoot: opts.knowledgeRoot }),
+    );
     return rebuildScoutProfile(userId, { profileDir: opts.profileDir, reconcile: false });
   });
 }

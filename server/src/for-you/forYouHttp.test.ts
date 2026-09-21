@@ -27,6 +27,7 @@ import {
   listActiveSuggestions,
 } from "./forYouStore.ts";
 import { patchOwnPostSnapshot, upsertOwnPost } from "../desk/ownPostStore.ts";
+import { explicitEventKey, listScoutEvidence } from "../scout/scoutEvidence.ts";
 import type { ChatFn } from "../voice/voiceLlm.ts";
 
 describe("GET /api/for-you", () => {
@@ -408,6 +409,20 @@ describe("POST /api/for-you/skip", () => {
       ],
     });
     assert.ok(card);
+    const [sibling] = insertSuggestions({
+      userId: user.id,
+      tenantId: "local",
+      drafts: [
+        {
+          kind: "reply",
+          why: "Same live thread",
+          draft: "Take the other side.",
+          targetId: "thread-1",
+          targetAuthor: "@thread-author",
+        },
+      ],
+    });
+    assert.ok(sibling);
     getPlatformDb().exec("DROP TABLE scout_target_context");
     const { token } = createSession(user.id);
     const out = await invokeForYou({
@@ -418,6 +433,18 @@ describe("POST /api/for-you/skip", () => {
     });
     assert.equal(out.status, 200);
     assert.equal(getSuggestion(card.id, user.id)?.status, "skipped");
+
+    // Only the explicit skip becomes evidence, with unknown context; the
+    // suppressed sibling never votes.
+    const rows = listScoutEvidence({ userId: user.id });
+    assert.deepEqual(
+      rows.map((row) => row.eventKey),
+      [explicitEventKey("skip", "for-you", card.id)],
+    );
+    assert.equal(rows[0]?.targetId, "thread-1");
+    assert.equal(rows[0]?.threadKind, null);
+    assert.equal(rows[0]?.contextSource, null);
+    assert.equal(getSuggestion(sibling.id, user.id)?.status, "skipped");
   });
 
   it("does not let another user act on a suggestion", async () => {

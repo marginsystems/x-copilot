@@ -1,6 +1,11 @@
 /**
  * Thin helpers for HTTP / webhook / Voice adapters: capture server-owned
  * context before prune, then build the evidence payload for store transactions.
+ *
+ * A context read failure is a soft failure: the payload is still built with
+ * unknown context and the adapter's permitted fallback fields, so an explicit
+ * action or confirmed take is never dropped for want of a tank card. Evidence
+ * persistence errors are not caught here; they belong to the store transaction.
  */
 import type { ActionEvidenceInput } from "./scoutEvidence.js";
 import {
@@ -8,6 +13,7 @@ import {
   evidenceContextFields,
   normalizeEvidenceAuthor,
   tokenizeScoutTopics,
+  type ScoutCardContext,
 } from "./scoutEvidenceContext.js";
 import {
   explicitEventKey,
@@ -15,6 +21,18 @@ import {
   type ScoutEvidenceNoteState,
   type ScoutEvidenceSource,
 } from "./scoutEvidence.js";
+
+async function captureContextOrUnknown(
+  opts: Parameters<typeof captureScoutTargetContext>[0],
+  label: string,
+): Promise<ScoutCardContext | null> {
+  try {
+    return await captureScoutTargetContext(opts);
+  } catch (err) {
+    console.warn(`${label} evidence context read soft-fail (unknown context):`, err);
+    return null;
+  }
+}
 
 export async function explicitScoutActionEvidence(opts: {
   userId: string;
@@ -30,12 +48,15 @@ export async function explicitScoutActionEvidence(opts: {
 }): Promise<ActionEvidenceInput> {
   const cardId = opts.cardId.trim();
   const targetId = opts.targetId?.trim() || cardId;
-  const context = await captureScoutTargetContext({
-    userId: opts.userId,
-    targetId,
-    conversationId: opts.conversationId,
-    inReplyToId: opts.inReplyToId,
-  });
+  const context = await captureContextOrUnknown(
+    {
+      userId: opts.userId,
+      targetId,
+      conversationId: opts.conversationId,
+      inReplyToId: opts.inReplyToId,
+    },
+    `Scout ${opts.action}`,
+  );
   const fields = evidenceContextFields(context);
   return {
     eventKey: explicitEventKey(opts.action, opts.surface, cardId),
@@ -68,12 +89,15 @@ export async function confirmedTakeEvidence(opts: {
 }): Promise<ActionEvidenceInput> {
   const replyId = opts.replyId.trim();
   const targetId = opts.targetId.trim();
-  const context = await captureScoutTargetContext({
-    userId: opts.userId,
-    targetId,
-    conversationId: opts.conversationId,
-    inReplyToId: opts.inReplyToId,
-  });
+  const context = await captureContextOrUnknown(
+    {
+      userId: opts.userId,
+      targetId,
+      conversationId: opts.conversationId,
+      inReplyToId: opts.inReplyToId,
+    },
+    "Scout take",
+  );
   const fields = evidenceContextFields(context);
   return {
     eventKey: takeEventKey(replyId),

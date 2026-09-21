@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readdir, rm, readFile, stat, writeFile } from "node:fs/promises";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   listInteractionHistory,
   markInteracted,
@@ -47,6 +47,7 @@ import {
   seedUser,
   type TempPlatformDb,
 } from "../platform/platformDb.testHelpers.ts";
+import { findScoutTakeByReplyId, takeEventKey } from "../scout/scoutEvidence.ts";
 import type { ThreadCard } from "../scout/threadCard.ts";
 import { runStatsTick } from "../statsWorker.ts";
 
@@ -275,6 +276,14 @@ describe("discoverOwnReplies", () => {
       ),
       true,
     );
+    // The confirmed take is still evidence, keyed by its reply, with the
+    // context left unknown rather than dropped.
+    const take = findScoutTakeByReplyId(userId, "capture-failed-reply");
+    assert.equal(take?.eventKey, takeEventKey("capture-failed-reply"));
+    assert.equal(take?.targetId, "capture-failed-parent");
+    assert.equal(take?.threadKind, null);
+    assert.equal(take?.contextSource, null);
+    assert.equal(take?.targetAuthor, "builder");
   });
 
   it("upserts new replies and writes knowledge; skips dupes/self", async () => {
@@ -1150,6 +1159,15 @@ describe("discoverOwnReplies", () => {
     assert.match(body, /Curated post/);
     assert.match(body, /x\.com\/builder\/status\/curated-parent/);
     assert.doesNotMatch(body, /Fresh search result/);
+    // Rediscovery lands on the same canonical file: the reply id becomes
+    // metadata on the curated Reply, and no reply-suffixed sibling appears.
+    assert.match(body, /replyId: "curated-reply"/);
+    assert.match(body, /## Reply\n\nkept reply\n/);
+    assert.equal((body.match(/## Reply/g) ?? []).length, 1);
+    assert.deepEqual(
+      (await readdir(join(knowledgeRoot, "interactions"))).filter((n) => n.endsWith(".md")),
+      [basename(notePath("curated-parent", interactedAt))],
+    );
   });
 
   it("keeps the saved note when MiniLM upsert is unavailable", async () => {

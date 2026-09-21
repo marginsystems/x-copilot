@@ -348,6 +348,126 @@ describe("writeInteractionMemory", () => {
     assert.doesNotMatch(await readFile(path, "utf8"), /unowned legacy reply/);
     assert.match(await readFile(legacy, "utf8"), /unowned legacy reply/);
   });
+
+  it("keeps one canonical note for a second same-day reply and labels it with that reply", async () => {
+    const interactedAt = "2026-07-27T01:02:03.000Z";
+    const first = await writeInteractionMemory({
+      threadId: "2081",
+      author: "@A",
+      userId: "user-1",
+      reply: "first take",
+      replyId: "reply-1",
+      knowledgeRoot: root,
+      interactedAt,
+    });
+    const outcome = await updateInteractionMemoryOutcome({
+      interaction: {
+        threadId: "2081",
+        author: "@A",
+        authorKey: "a",
+        at: interactedAt,
+        source: "manual",
+        userId: "user-1",
+        replyId: "reply-1",
+        stats: {
+          t1h: { views: 100, likes: 4, replies: 1, retweets: 0, sampledAt: "2026-07-27T02:02:03.000Z" },
+        },
+      } as Interaction,
+      knowledgeRoot: root,
+      nowIso: "2026-07-27T02:02:03.000Z",
+    });
+    assert.equal(outcome.ok, true);
+    const second = await writeInteractionMemory({
+      threadId: "2081",
+      author: "@A",
+      userId: "user-1",
+      reply: "second take",
+      replyId: "reply-2",
+      knowledgeRoot: root,
+      interactedAt,
+    });
+    assert.equal(second.path, first.path);
+    assert.equal(
+      second.path,
+      buildInteractionNotePath({ userId: "user-1", threadId: "2081", interactedAt, knowledgeRoot: root }),
+    );
+    const names = (await readdir(join(root, "interactions"))).filter((n) => n.endsWith(".md"));
+    assert.deepEqual(names, [`2026-07-27-u${sha("user-1")}-2081.md`]);
+    const body = await readFile(second.path, "utf8");
+    // Reply metadata and the Reply body agree; the canonical Outcome survives.
+    assert.match(body, /replyId: "reply-2"/);
+    assert.doesNotMatch(body, /replyId: "reply-1"/);
+    assert.match(body, /## Reply\n\nsecond take\n/);
+    assert.doesNotMatch(body, /first take/);
+    assert.match(body, /## Outcome\n\n1h: 100 views/);
+    assert.match(body, /views1h: 100/);
+    assert.equal((body.match(/## Reply/g) ?? []).length, 1);
+  });
+
+  it("labels a curated Reply with a discovered reply id only when the text matches", async () => {
+    const interactedAt = "2026-07-27T01:02:03.000Z";
+    const write = (reply: string, replyId: string, source: "manual" | "discovered") =>
+      writeInteractionMemory({
+        threadId: "2081",
+        author: "@A",
+        userId: "user-1",
+        reply,
+        replyId: source === "manual" ? undefined : replyId,
+        source,
+        text: source === "manual" ? "Curated post" : "Fresh search result",
+        summary: source === "manual" ? "Keep this summary" : undefined,
+        knowledgeRoot: root,
+        interactedAt,
+      });
+    // Curated note without a reply id; rediscovery of that same reply text
+    // may attach its id without touching the curated body.
+    const curated = await write("kept reply", "unused", "manual");
+    const matched = await write("kept reply", "reply-1", "discovered");
+    assert.equal(matched.path, curated.path);
+    let body = await readFile(curated.path, "utf8");
+    assert.match(body, /replyId: "reply-1"/);
+    assert.match(body, /source: manual/);
+    assert.match(body, /## Reply\n\nkept reply\n/);
+    assert.match(body, /Keep this summary/);
+    assert.match(body, /Curated post/);
+    assert.doesNotMatch(body, /Fresh search result/);
+
+    // A different reply text keeps the curated Reply and its existing id.
+    await write("some other reply", "reply-2", "discovered");
+    body = await readFile(curated.path, "utf8");
+    assert.match(body, /replyId: "reply-1"/);
+    assert.doesNotMatch(body, /replyId: "reply-2"/);
+    assert.match(body, /## Reply\n\nkept reply\n/);
+    assert.doesNotMatch(body, /some other reply/);
+
+    // A curated note with no id is never relabelled by a non-matching reply.
+    const other = await writeInteractionMemory({
+      threadId: "3090",
+      author: "@A",
+      userId: "user-1",
+      reply: "hand-written take",
+      source: "manual",
+      knowledgeRoot: root,
+      interactedAt,
+    });
+    await writeInteractionMemory({
+      threadId: "3090",
+      author: "@A",
+      userId: "user-1",
+      reply: "different text on X",
+      replyId: "reply-3",
+      source: "discovered",
+      knowledgeRoot: root,
+      interactedAt,
+    });
+    body = await readFile(other.path, "utf8");
+    assert.doesNotMatch(body, /replyId:/);
+    assert.match(body, /## Reply\n\nhand-written take\n/);
+    assert.equal(
+      (await readdir(join(root, "interactions"))).filter((n) => n.endsWith(".md")).length,
+      2,
+    );
+  });
 });
 
 describe("buildDismissalNotePath / writeDismissalMemory", () => {
