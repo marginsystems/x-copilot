@@ -44,6 +44,7 @@ import {
   recordDeskPost,
 } from "../x-api/xPostLimits.js";
 import { postUserReply, postUserTweet } from "../x-api/xTweet.js";
+import { confirmedTakeEvidence } from "../scout/scoutEvidenceRecord.js";
 
 type VoicePostTestHooks = {
   markInteracted?: typeof markInteracted;
@@ -85,6 +86,7 @@ async function projectVoiceReplyMemory(opts: {
   threadId: string;
   author: string;
   interactedAt: string;
+  replyId?: string;
   url?: string;
   text?: string;
   summary?: string;
@@ -159,6 +161,7 @@ async function replayReplyMemory(opts: {
   threadId: string;
   author: string;
   tweetId: string;
+  replyId?: string;
   interactedAt?: string;
   url?: string;
   text?: string;
@@ -178,6 +181,7 @@ async function replayReplyMemory(opts: {
     author: opts.author,
     interactedAt:
       canonical.interactedAt ?? opts.interactedAt ?? new Date().toISOString(),
+    replyId: opts.replyId ?? opts.tweetId,
     url: opts.url,
     text: opts.text,
     summary: opts.summary,
@@ -261,6 +265,19 @@ export async function handlePost(
       }
       const replyId = parseStatusIdFromUrl(replyUrl) ?? prior.tweetId;
       const context = cardContext(body);
+      const evidence = await confirmedTakeEvidence({
+        userId: user.id,
+        replyId,
+        targetId: threadId,
+        source: "voice",
+        conversationId:
+          typeof body.conversationId === "string"
+            ? body.conversationId
+            : undefined,
+        inReplyToId,
+        fallbackText: context.text ?? context.summary,
+        fallbackAuthor: author,
+      });
       let interaction;
       try {
         interaction = await markVoiceInteracted({
@@ -276,6 +293,7 @@ export async function handlePost(
               ? body.conversationId
               : undefined,
           inReplyToId,
+          evidence,
         });
         await pruneConsumedScoutThread(user.id, [
           interaction.threadId,
@@ -291,6 +309,7 @@ export async function handlePost(
         author,
         tweetId: prior.tweetId,
         interactedAt: interaction?.postedAt ?? interaction?.at,
+        replyId,
         ...context,
       });
       const snap = await getGamification({ userId: user.id });
@@ -571,6 +590,16 @@ export async function handlePost(
   const conversationId =
     typeof body.conversationId === "string" ? body.conversationId : undefined;
   const context = cardContext(body);
+  const evidence = await confirmedTakeEvidence({
+    userId: user.id,
+    replyId,
+    targetId: threadId,
+    source: "voice",
+    conversationId,
+    inReplyToId,
+    fallbackText: edited.trim() || context.text || context.summary,
+    fallbackAuthor: author,
+  });
   let interaction;
   try {
     interaction = await markVoiceInteracted({
@@ -583,6 +612,7 @@ export async function handlePost(
       replyUrl,
       conversationId,
       inReplyToId,
+      evidence,
     });
     await pruneConsumedScoutThread(user.id, [
       interaction.threadId,
@@ -625,6 +655,7 @@ export async function handlePost(
         threadId,
         author,
         interactedAt: interaction.at,
+        replyId,
         ...context,
       });
     } catch (err) {

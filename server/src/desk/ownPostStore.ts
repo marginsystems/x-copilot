@@ -204,6 +204,68 @@ export function listConfirmedOwnReplies(opts: {
   }));
 }
 
+/**
+ * Keyset page of confirmed own replies (newest first) for bounded evidence
+ * reconciliation. Optional `replyId` narrows to one post; `before` resumes
+ * after the prior page; self-replies (to the operator's own X id) are
+ * never Scout takes.
+ */
+export function listConfirmedOwnRepliesPage(opts: {
+  userId: string;
+  limit: number;
+  before?: { postedAt: string; id: string };
+  replyId?: string;
+  excludeSelfReplies?: boolean;
+}): ConfirmedOwnReply[] {
+  const limit = Math.min(Math.max(opts.limit, 1), 500);
+  const clauses = [
+    "user_id = ?",
+    "kind = 'reply'",
+    "text IS NOT NULL",
+    "length(trim(text)) > 0",
+  ];
+  const params: unknown[] = [opts.userId];
+  if (opts.replyId) {
+    clauses.push("id = ?");
+    params.push(opts.replyId);
+  }
+  if (opts.excludeSelfReplies) {
+    clauses.push(
+      "(in_reply_to_user_id IS NULL OR in_reply_to_user_id != x_user_id)",
+    );
+  }
+  if (opts.before) {
+    clauses.push("(posted_at < ? OR (posted_at = ? AND id < ?))");
+    params.push(opts.before.postedAt, opts.before.postedAt, opts.before.id);
+  }
+  const rows = getPlatformDb()
+    .prepare(
+      `SELECT id, user_id, text, posted_at, in_reply_to_id, conversation_id, url
+         FROM own_posts
+        WHERE ${clauses.join(" AND ")}
+        ORDER BY posted_at DESC, id DESC
+        LIMIT ?`,
+    )
+    .all(...params, limit) as Array<{
+      id: string;
+      user_id: string;
+      text: string;
+      posted_at: string;
+      in_reply_to_id: string | null;
+      conversation_id: string | null;
+      url: string | null;
+    }>;
+  return rows.map((row) => ({
+    id: String(row.id),
+    userId: String(row.user_id),
+    text: String(row.text),
+    postedAt: String(row.posted_at),
+    inReplyToId: row.in_reply_to_id ? String(row.in_reply_to_id) : null,
+    conversationId: row.conversation_id ? String(row.conversation_id) : null,
+    url: row.url ? String(row.url) : null,
+  }));
+}
+
 export function upsertOwnPost(input: {
   parsed: ParsedPostCreate;
   userId: string;

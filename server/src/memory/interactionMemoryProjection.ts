@@ -15,6 +15,7 @@ import {
   type MemoryType,
 } from "./memoryIndex.js";
 import { scheduleMemoryUpsert } from "./memoryReindex.js";
+import { setScoutEvidenceNoteState } from "../scout/scoutEvidence.js";
 
 export type ConfirmedReplyMemoryState =
   | "saved"
@@ -52,6 +53,8 @@ export type ProjectConfirmedReplyMemoryInput = {
   upsertMemory?: boolean;
   /** Await upsert so callers can observe MiniLM. Default: schedule. */
   awaitUpsert?: boolean;
+  /** Confirmed reply status id when known — stored in note metadata. */
+  replyId?: string;
 };
 
 type ProjectionDeps = {
@@ -110,6 +113,7 @@ export async function projectConfirmedReplyMemory(
       intent: input.intent,
       reason: input.reason,
       interactedAt: input.interactedAt,
+      replyId: input.replyId,
       knowledgeRoot: input.knowledgeRoot,
     });
 
@@ -136,12 +140,38 @@ export async function projectConfirmedReplyMemory(
       }
     }
 
+    const replyId =
+      typeof input.replyId === "string" ? input.replyId.trim() : "";
+    if (replyId) {
+      try {
+        setScoutEvidenceNoteState({
+          userId,
+          replyId,
+          state: "stored",
+        });
+      } catch (noteErr) {
+        console.warn("scout evidence note verification soft-fail:", noteErr);
+      }
+    }
     return { state: "saved", memoryPath: memory.path };
   } catch (err) {
     if (err instanceof Error && err.message === FOREIGN_NOTE_ERROR) {
       throw err;
     }
     console.warn("confirmed-reply memory write unavailable:", err);
+    const replyId =
+      typeof input.replyId === "string" ? input.replyId.trim() : "";
+    if (replyId) {
+      try {
+        setScoutEvidenceNoteState({
+          userId,
+          replyId,
+          state: "missing",
+        });
+      } catch (noteErr) {
+        console.warn("scout evidence note verification soft-fail:", noteErr);
+      }
+    }
     return { state: "unavailable" };
   }
 }

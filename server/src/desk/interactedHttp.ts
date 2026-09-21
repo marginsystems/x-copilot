@@ -28,9 +28,14 @@ import {
   parseStatusIdFromUrl,
 } from "./interactionCooldown.js";
 import {
+  normalizeReply,
+  type InteractionMemoryInput,
+} from "../memory/knowledgeMemory.js";
+import {
   projectConfirmedReplyMemory,
   type ConfirmedReplyMemoryResult,
 } from "../memory/interactionMemoryProjection.js";
+import { confirmedTakeEvidence } from "../scout/scoutEvidenceRecord.js";
 import { attachInteractionMemoryReceipts } from "../memory/interactionMemoryReceipt.js";
 import { pruneThreadsFromScoutCache } from "../scout/scoutCache.js";
 import { maybeStartEmptyTankScout } from "../scout/scoutEmptyTank.js";
@@ -234,6 +239,19 @@ export async function tryHandleInteracted(
           : undefined;
       const inReplyToId =
         typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
+      const confirmedReply = normalizeReply(body.reply);
+      const evidence = confirmedReply
+        ? await confirmedTakeEvidence({
+            userId: sessionUser.id,
+            replyId,
+            targetId: threadId,
+            source: "manual",
+            conversationId,
+            inReplyToId,
+            fallbackText: [text, summary].filter(Boolean).join(" "),
+            fallbackAuthor: author,
+          })
+        : undefined;
       const interaction = await markInteracted({
         threadId,
         author,
@@ -246,6 +264,7 @@ export async function tryHandleInteracted(
         replyUrl,
         conversationId,
         inReplyToId,
+        evidence,
       });
       await pruneThreadsFromScoutCache(
         [
@@ -299,7 +318,7 @@ export async function tryHandleInteracted(
           reply: body.reply,
           threadId,
           author,
-          source,
+          source: source as InteractionMemoryInput["source"],
           url,
           text,
           summary,
@@ -311,6 +330,7 @@ export async function tryHandleInteracted(
           flags,
           intent: typeof body.intent === "string" ? body.intent : undefined,
           reason: typeof body.reason === "string" ? body.reason : undefined,
+          replyId,
           // Match durable store timestamp so later stats ticks can rediscover the note.
           interactedAt: interaction.at,
         });

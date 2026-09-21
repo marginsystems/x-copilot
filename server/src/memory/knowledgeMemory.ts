@@ -49,6 +49,8 @@ export type InteractionMemoryInput = {
   reason?: string;
   source?: "manual" | "copy" | "discovered";
   interactedAt?: string;
+  /** Confirmed reply status id, when known — lets reconciliation verify the note. */
+  replyId?: string;
   /** Platform user who marked this thread — required for every new note. */
   userId: string;
   /** Override root for tests. Default: <projectRoot>/knowledge */
@@ -268,6 +270,8 @@ export function renderInteractionMarkdown(
   const agenda = yamlOptionalString(input.agenda);
   if (agenda) lines.push(`agenda: ${agenda}`);
   lines.push(`interactedAt: ${yamlString(interactedAt)}`);
+  const replyId = yamlOptionalString(input.replyId);
+  if (replyId) lines.push(`replyId: ${replyId}`);
   lines.push(`source: ${source}`);
   if (typeof input.baitScore === "number" && Number.isFinite(input.baitScore)) {
     lines.push(`baitScore: ${Math.round(input.baitScore)}`);
