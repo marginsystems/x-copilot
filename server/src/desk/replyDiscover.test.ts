@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, readFile, stat, writeFile } from "node:fs/promises";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -909,15 +909,12 @@ describe("discoverOwnReplies", () => {
     assert.equal(await readFile(legacyPath, "utf8"), unowned);
 
     // Once our own verified note exists, reconciliation leaves it alone.
-    let writes = 0;
-    resetInteractionMemoryProjectionForTests({
-      writeNote: async (input) => {
-        writes += 1;
-        return writeInteractionMemory(input);
-      },
-    });
+    const beforeReconciliation = await stat(own.path);
+    const beforeContent = await readFile(own.path, "utf8");
     await run();
-    assert.equal(writes, 0);
+    const afterReconciliation = await stat(own.path);
+    assert.equal(afterReconciliation.mtimeNs, beforeReconciliation.mtimeNs);
+    assert.equal(await readFile(own.path, "utf8"), beforeContent);
   });
 
   it("indexes a note repaired from own_posts", async () => {
@@ -1012,9 +1009,16 @@ describe("discoverOwnReplies", () => {
         pages: 1,
       }),
     });
-    await assert.rejects(
-      () => readFile(notePath("orphan-parent", "2026-08-02T11:30:00.000Z"), "utf8"),
-      /ENOENT/,
+    const interactionDir = join(knowledgeRoot, "interactions");
+    let interactionNames: string[] = [];
+    try {
+      interactionNames = await readdir(interactionDir);
+    } catch (error) {
+      assert.equal((error as NodeJS.ErrnoException).code, "ENOENT");
+    }
+    assert.deepEqual(
+      interactionNames.filter((name) => name.endsWith(".md")),
+      [],
     );
     assert.equal((await listInteractionHistory({ userId })).length, 0);
   });

@@ -256,7 +256,7 @@ export class OwnedNoteCache {
 
   async list(dir: string): Promise<string[] | null> {
     try {
-      const mtimeNs = (await stat(dir)).mtimeNs;
+      const mtimeNs = (await stat(dir, { bigint: true })).mtimeNs;
       const cached = this.names.get(dir);
       if (cached?.mtimeNs === mtimeNs) return cached.names;
       const names = (await readdir(dir)).filter((n) => n.endsWith(".md"));
@@ -269,7 +269,7 @@ export class OwnedNoteCache {
   }
 
   async read(path: string): Promise<string> {
-    const mtimeNs = (await stat(path)).mtimeNs;
+    const mtimeNs = (await stat(path, { bigint: true })).mtimeNs;
     const cached = this.contents.get(path);
     if (cached?.mtimeNs === mtimeNs) return cached.raw;
     const raw = await readFile(path, "utf8");

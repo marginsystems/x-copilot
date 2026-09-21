@@ -307,7 +307,7 @@ describe("writeInteractionMemory", () => {
     assert.equal(await readFile(legacy, "utf8"), legacyBefore);
   });
 
-  it("adopts a verified legacy note across an action-date boundary", async () => {
+  it("starts a fresh note across an action-date boundary", async () => {
     const legacy = await writeLegacyNote(root, "2026-07-26-99.md", {
       threadId: "99",
       userId: "user-1",
@@ -325,8 +325,9 @@ describe("writeInteractionMemory", () => {
     });
     assert.notEqual(path, legacy);
     const body = await readFile(path, "utf8");
-    assert.match(body, /Legacy agenda/);
-    assert.match(body, /views24h: 9/);
+    assert.match(body, /updated reply/);
+    assert.doesNotMatch(body, /Legacy agenda/);
+    assert.doesNotMatch(body, /views24h: 9/);
   });
 
   it("does not adopt an unowned legacy note on the same thread and date", async () => {

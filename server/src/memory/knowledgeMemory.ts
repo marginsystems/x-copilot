@@ -320,7 +320,6 @@ export async function writeInteractionMemory(
           threadId,
           at: interactedAt,
           knowledgeRoot,
-          allowOtherDates: true,
         });
         if (legacy.state === "found" && !legacy.canonical) base = legacy.markdown;
       } else {
