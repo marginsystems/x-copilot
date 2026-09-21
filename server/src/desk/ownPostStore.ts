@@ -231,7 +231,7 @@ export function listConfirmedOwnRepliesPage(opts: {
   }
   if (opts.excludeSelfReplies) {
     clauses.push(
-      "(in_reply_to_user_id IS NULL OR in_reply_to_user_id != x_user_id)",
+      "(in_reply_to_user_id IS NULL OR NOT EXISTS (SELECT 1 FROM activity_subscriptions AS subscriptions WHERE subscriptions.user_id = own_posts.user_id AND subscriptions.x_user_id = own_posts.in_reply_to_user_id))",
     );
   }
   if (opts.before) {

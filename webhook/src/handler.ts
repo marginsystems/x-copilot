@@ -243,7 +243,7 @@ export async function markOwnReplyInteracted(
     });
   } catch (err) {
     console.warn("[xaa] mark after post soft-fail (post already on X):", err);
-    return source;
+    throw err;
   }
   try {
     await pruneConsumedScoutThread(userId, [

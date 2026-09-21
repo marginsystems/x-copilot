@@ -288,7 +288,7 @@ export function listScoutEvidenceNeedingNoteCheck(opts: {
     "user_id = ?",
     "action = 'take'",
     "reply_id IS NOT NULL",
-    "note_state = 'unknown'",
+    "note_state IN ('unknown', 'missing')",
   ];
   const params: unknown[] = [id];
   if (opts.before) {

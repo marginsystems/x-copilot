@@ -96,7 +96,6 @@ export async function tryHandleForYou(
         cardId: id,
         source: "for-you",
         targetId: pending.targetId,
-        fallbackText: pending.draft,
         fallbackAuthor: pending.targetAuthor,
       });
     }

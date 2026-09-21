@@ -265,21 +265,22 @@ export async function handlePost(
       }
       const replyId = parseStatusIdFromUrl(replyUrl) ?? prior.tweetId;
       const context = cardContext(body);
-      const evidence = await confirmedTakeEvidence({
-        userId: user.id,
-        replyId,
-        targetId: threadId,
-        source: "voice",
-        conversationId:
-          typeof body.conversationId === "string"
-            ? body.conversationId
-            : undefined,
-        inReplyToId,
-        fallbackText: context.text ?? context.summary,
-        fallbackAuthor: author,
-      });
+      let evidence;
       let interaction;
       try {
+        evidence = await confirmedTakeEvidence({
+          userId: user.id,
+          replyId,
+          targetId: threadId,
+          source: "voice",
+          conversationId:
+            typeof body.conversationId === "string"
+              ? body.conversationId
+              : undefined,
+          inReplyToId,
+          fallbackText: context.text ?? context.summary,
+          fallbackAuthor: author,
+        });
         interaction = await markVoiceInteracted({
           threadId,
           author,
