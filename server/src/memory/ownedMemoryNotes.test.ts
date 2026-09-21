@@ -8,6 +8,7 @@ import { basename, join } from "node:path";
 import {
   OwnedNoteCache,
   buildOwnedNotePath,
+  isCanonicalOwnedNoteName,
   noteVerifiedFor,
   ownedNoteFilename,
   ownerHash,
@@ -27,17 +28,23 @@ import type { Interaction } from "../desk/interactionStore.ts";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const at = "2026-09-04T03:00:00.000Z";
+/** Filename of a previously written reply-suffixed note (compatibility input only). */
+const suffixedName = (userId: string, threadId: string, replyId: string) =>
+  `2026-09-04-u${sha(userId)}-${threadId}-r${sha(replyId).slice(0, 16)}.md`;
 
 function note(opts: {
   userId?: string | string[];
   threadId?: string | string[];
   reply?: string;
+  replyId?: string;
   interactedAt?: string;
 }): string {
   const lines = ["---", "type: interaction"];
   for (const t of [opts.threadId ?? "2081"].flat()) lines.push(`threadId: "${t}"`);
   for (const u of [opts.userId ?? []].flat()) lines.push(`userId: "${u}"`);
-  lines.push(`interactedAt: "${opts.interactedAt ?? at}"`, "---", "");
+  lines.push(`interactedAt: "${opts.interactedAt ?? at}"`);
+  if (opts.replyId) lines.push(`replyId: "${opts.replyId}"`);
+  lines.push("---", "");
   lines.push("## Post", "", "parent", "");
   if (opts.reply !== undefined) lines.push("## Reply", "", opts.reply, "");
   return `${lines.join("\n")}\n`;
@@ -100,6 +107,25 @@ describe("owned note identity", () => {
     assert.equal(parsed.date, "2026-09-04");
     assert.equal(parseOwnedNoteName("2026-09-04-parent-1.md"), null);
     assert.equal(parseOwnedNoteName(`2026-09-04-u${sha("u")}-x.md`), null);
+  });
+
+  it("names one canonical note per owner/date/thread and never encodes a reply id", () => {
+    const canonical = `2026-09-04-u${sha("user-1")}-2081.md`;
+    assert.equal(ownedNoteFilename({ userId: "user-1", threadId: "2081", at }), canonical);
+    assert.doesNotMatch(canonical, /-r[0-9a-f]{16}\.md$/);
+    assert.equal(isCanonicalOwnedNoteName(canonical), true);
+    assert.deepEqual(parseOwnedNoteName(canonical)?.replyKey, null);
+
+    // Existing reply-suffixed files still parse (read compatibility) but are
+    // not the C07 canonical name.
+    const suffixed = suffixedName("user-1", "2081", "reply-1");
+    const parsed = parseOwnedNoteName(suffixed);
+    assert.ok(parsed);
+    assert.equal(parsed.ownerHash, sha("user-1"));
+    assert.equal(parsed.threadKey, "2081");
+    assert.equal(parsed.replyKey, sha("reply-1").slice(0, 16));
+    assert.equal(isCanonicalOwnedNoteName(suffixed), false);
+    assert.equal(isCanonicalOwnedNoteName("2026-09-04-2081.md"), false);
   });
 });
 
@@ -299,8 +325,8 @@ describe("resolveOwnedNote", () => {
     );
   });
 
-  it("resolves the requested reply note when sibling replies share a date", async () => {
-    await writeInteractionMemory({
+  it("writes one canonical note per owner/date/thread whatever reply id the writes carry", async () => {
+    const first = await writeInteractionMemory({
       userId: "user-a",
       threadId: "2081",
       replyId: "reply-a",
@@ -309,7 +335,7 @@ describe("resolveOwnedNote", () => {
       interactedAt: at,
       knowledgeRoot: root,
     });
-    await writeInteractionMemory({
+    const second = await writeInteractionMemory({
       userId: "user-a",
       threadId: "2081",
       replyId: "reply-b",
@@ -318,10 +344,166 @@ describe("resolveOwnedNote", () => {
       interactedAt: at,
       knowledgeRoot: root,
     });
-    const found = await resolveFor("user-a", { replyId: "reply-b" });
-    assert.equal(found.state, "found");
-    if (found.state !== "found") return;
-    assert.equal(found.meta.reply, "reply B");
+    const canonical = buildOwnedNotePath({
+      kind: "interaction",
+      userId: "user-a",
+      threadId: "2081",
+      at,
+      knowledgeRoot: root,
+    });
+    assert.equal(first.path, canonical);
+    assert.equal(second.path, canonical);
+    assert.equal(basename(canonical), `2026-09-04-u${sha("user-a")}-2081.md`);
+    assert.deepEqual(
+      (await readdir(dir)).filter((n) => n.endsWith(".md")),
+      [basename(canonical)],
+    );
+    // Reply ids stay metadata; ordinary lookup keeps the owner/thread meaning
+    // and a requested reply id never selects a different file.
+    const body = await readFile(canonical, "utf8");
+    assert.match(body, /replyId: "reply-b"/);
+    assert.doesNotMatch(body, /replyId: "reply-a"/);
+    for (const extra of [{}, { replyId: "reply-a" }, { replyId: "reply-b" }]) {
+      const found = await resolveFor("user-a", extra);
+      assert.equal(found.state, "found");
+      if (found.state !== "found") return;
+      assert.equal(found.path, canonical);
+      assert.equal(found.canonical, true);
+      assert.equal(found.meta.reply, "reply B");
+    }
+  });
+
+  it("reads an existing reply-suffixed note as verified noncanonical fallback and prefers the canonical file", async () => {
+    const suffixed = suffixedName("user-a", "2081", "reply-a");
+    await writeFile(
+      join(dir, suffixed),
+      note({ userId: "user-a", reply: "suffixed take", replyId: "reply-a" }),
+      "utf8",
+    );
+    const fallback = await resolveFor("user-a");
+    assert.equal(fallback.state, "found");
+    if (fallback.state !== "found") return;
+    assert.equal(fallback.canonical, false);
+    assert.equal(basename(fallback.path), suffixed);
+    assert.equal(fallback.meta.reply, "suffixed take");
+    // Another owner's or an unowned suffixed file never verifies.
+    assert.deepEqual(await resolveFor("user-b"), { state: "foreign" });
+    await writeFile(join(dir, suffixed), note({ reply: "unowned" }), "utf8");
+    assert.deepEqual(await resolveFor("user-a"), { state: "foreign" });
+    await writeFile(
+      join(dir, suffixed),
+      note({ userId: "user-a", reply: "suffixed take", replyId: "reply-a" }),
+      "utf8",
+    );
+
+    // A new write lands on the canonical path (adopting the unique verified
+    // fallback as its base), the original stays, and the canonical file wins.
+    const written = await writeInteractionMemory({
+      userId: "user-a",
+      threadId: "2081",
+      replyId: "reply-a",
+      author: "@x",
+      reply: "canonical take",
+      interactedAt: at,
+      knowledgeRoot: root,
+    });
+    assert.equal(basename(written.path), `2026-09-04-u${sha("user-a")}-2081.md`);
+    assert.deepEqual(
+      (await readdir(dir)).filter((n) => n.endsWith(".md")).sort(),
+      [basename(written.path), suffixed].sort(),
+    );
+    assert.match(await readFile(join(dir, suffixed), "utf8"), /suffixed take/);
+    const preferred = await resolveFor("user-a");
+    assert.equal(preferred.state, "found");
+    if (preferred.state !== "found") return;
+    assert.equal(preferred.canonical, true);
+    assert.equal(preferred.path, written.path);
+    assert.equal(preferred.meta.reply, "canonical take");
+  });
+
+  it("never picks among several suffixed notes; a reply id narrows to the matching one", async () => {
+    await writeFile(
+      join(dir, suffixedName("user-a", "2081", "reply-a")),
+      note({ userId: "user-a", reply: "take A", replyId: "reply-a" }),
+      "utf8",
+    );
+    await writeFile(
+      join(dir, suffixedName("user-a", "2081", "reply-b")),
+      note({ userId: "user-a", reply: "take B", replyId: "reply-b" }),
+      "utf8",
+    );
+    assert.deepEqual(await resolveFor("user-a"), { state: "ambiguous" });
+    assert.deepEqual(await resolveFor("user-a", { allowOtherDates: true }), {
+      state: "ambiguous",
+    });
+    const narrowed = await resolveFor("user-a", { replyId: "reply-b" });
+    assert.equal(narrowed.state, "found");
+    if (narrowed.state !== "found") return;
+    assert.equal(narrowed.canonical, false);
+    assert.equal(narrowed.meta.reply, "take B");
+    // Ambiguous fallback stays unavailable to a write: nothing is folded.
+    await writeInteractionMemory({
+      userId: "user-a",
+      threadId: "2081",
+      author: "@x",
+      reply: "fresh take",
+      interactedAt: at,
+      knowledgeRoot: root,
+    });
+    assert.equal((await readdir(dir)).filter((n) => n.endsWith(".md")).length, 3);
+    const canonical = await resolveFor("user-a");
+    assert.equal(canonical.state, "found");
+    if (canonical.state !== "found") return;
+    assert.equal(canonical.canonical, true);
+    assert.equal(canonical.meta.reply, "fresh take");
+  });
+
+  it("prefers a reply-matched suffix over a legacy alias", async () => {
+    await writeFile(
+      join(dir, "2026-09-04-2081.md"),
+      note({ userId: "user-a", reply: "legacy take", replyId: "reply-a" }),
+      "utf8",
+    );
+    const suffixed = suffixedName("user-a", "2081", "reply-a");
+    await writeFile(
+      join(dir, suffixed),
+      note({ userId: "user-a", reply: "reply-specific take", replyId: "reply-a" }),
+      "utf8",
+    );
+
+    const resolved = await resolveFor("user-a", { replyId: "reply-a" });
+    assert.equal(resolved.state, "found");
+    if (resolved.state !== "found") return;
+    assert.equal(basename(resolved.path), suffixed);
+    assert.equal(resolved.meta.reply, "reply-specific take");
+  });
+
+  it("prefers a canonical note over a reply-matched suffix without an action time", async () => {
+    const canonical = ownedNoteFilename({ userId: "user-a", threadId: "2081", at });
+    await writeFile(
+      join(dir, canonical),
+      note({ userId: "user-a", reply: "canonical take", replyId: "reply-a" }),
+      "utf8",
+    );
+    const suffixed = suffixedName("user-a", "2081", "reply-a");
+    await writeFile(
+      join(dir, suffixed),
+      note({ userId: "user-a", reply: "stale reply take", replyId: "reply-a" }),
+      "utf8",
+    );
+
+    const resolved = await resolveOwnedNote({
+      kind: "interaction",
+      userId: "user-a",
+      threadId: "2081",
+      replyId: "reply-a",
+      knowledgeRoot: root,
+    });
+    assert.equal(resolved.state, "found");
+    if (resolved.state !== "found") return;
+    assert.equal(resolved.name, canonical);
+    assert.equal(resolved.meta.reply, "canonical take");
+    assert.equal(resolved.canonical, true);
   });
 
   it("matches a legacy note by its metadata date when the filename date differs", async () => {

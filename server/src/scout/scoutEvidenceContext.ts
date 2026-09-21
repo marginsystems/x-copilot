@@ -24,7 +24,6 @@ import type { ThreadKind } from "./threadTriage.js";
 export const MAX_TOPIC_INPUT_CHARS = 2000;
 export const MIN_TOPIC_CHARS = 3;
 export const MAX_TOPIC_CHARS = 32;
-export const MAX_RETAINED_TARGET_CONTEXT = 2000;
 
 /** Fixed English stop list; keep sorted so the tokenizer stays reviewable. */
 const STOP_WORDS: ReadonlySet<string> = new Set([
@@ -252,15 +251,8 @@ export function retainScoutTargetContext(input: {
       contextSource,
       nowIso,
     );
-    db.prepare(
-      `DELETE FROM scout_target_context
-        WHERE user_id = ? AND target_id IN (
-          SELECT target_id FROM scout_target_context
-           WHERE user_id = ?
-           ORDER BY retained_at DESC, target_id DESC
-           LIMIT -1 OFFSET ?
-        )`,
-    ).run(userId, userId, MAX_RETAINED_TARGET_CONTEXT);
+    // Retained context is durable: a delayed reply to an old watched or
+    // locked target must still find its kind, so nothing here evicts rows.
     return readRetainedTargetContext(userId, targetId)!;
   })();
 }

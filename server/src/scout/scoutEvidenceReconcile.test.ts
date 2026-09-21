@@ -1,8 +1,8 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   closeTempPlatformDb,
   openTempPlatformDb,
@@ -66,12 +66,12 @@ async function writeNote(opts: {
   reply: string;
   replyId?: string;
 }): Promise<string> {
+  // C07: the canonical path never depends on the reply id; it is metadata.
   const path = buildOwnedNotePath({
     kind: "interaction",
     userId: opts.userId,
     threadId: opts.threadId,
     at: opts.at,
-    replyId: opts.replyId,
     knowledgeRoot: opts.knowledgeRoot,
   });
   const lines = [
@@ -274,15 +274,38 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(findScoutTakeByReplyId(userId, "r-later"), null);
   });
 
-  it("verifies separate same-day replies on the same thread", async () => {
+  it("keeps distinct same-day take identities in SQL while one canonical note credits only its declared reply", async () => {
     const at = new Date(T0).toISOString();
-    await writeNote({ knowledgeRoot, userId, threadId: "same-thread", at, reply: "first", replyId: "r1" });
-    await writeNote({ knowledgeRoot, userId, threadId: "same-thread", at, reply: "second", replyId: "r2" });
+    const path = await writeNote({ knowledgeRoot, userId, threadId: "same-thread", at, reply: "first", replyId: "r1" });
+    assert.deepEqual(
+      readdirSync(join(knowledgeRoot, "interactions")).filter((n) => n.endsWith(".md")),
+      [basename(path)],
+    );
+    assert.doesNotMatch(basename(path), /-r[0-9a-f]{16}\.md$/);
 
+    // The note verifies for the reply it declares and for no other reply id.
     const first = await verifyOwnedReplyNote({ userId, threadId: "same-thread", replyId: "r1", at, knowledgeRoot });
     const second = await verifyOwnedReplyNote({ userId, threadId: "same-thread", replyId: "r2", at, knowledgeRoot });
     assert.deepEqual(first, { state: "stored", reply: "first" });
-    assert.deepEqual(second, { state: "stored", reply: "second" });
+    assert.deepEqual(second, { state: "missing", reply: null });
+
+    // Two confirmed replies on that thread still get two durable takes.
+    for (const postId of ["r1", "r2"]) {
+      upsertOwnPost({
+        parsed: ownReply({ postId, inReplyToId: "same-thread", postedAt: at }),
+        userId,
+        tenantId,
+      });
+    }
+    const result = await reconcileScoutEvidence({ userId, knowledgeRoot, nowMs: T0 + 1 });
+    assert.equal(result.inserted, 2);
+    const takes = listScoutEvidence({ userId }).filter((row) => row.action === "take");
+    assert.deepEqual(
+      takes.map((row) => row.eventKey).sort(),
+      [takeEventKey("r1"), takeEventKey("r2")].sort(),
+    );
+    assert.equal(findScoutTakeByReplyId(userId, "r1")?.noteState, "stored");
+    assert.equal(findScoutTakeByReplyId(userId, "r2")?.noteState, "missing");
   });
 
   it("confirms a trimmed-history interaction from an owned note alone", async () => {

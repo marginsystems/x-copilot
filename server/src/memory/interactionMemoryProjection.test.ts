@@ -245,7 +245,7 @@ describe("projectConfirmedReplyMemory", () => {
       release = resolve;
     });
     resetInteractionMemoryProjectionForTests({
-      writeNote: async () => ({ path: join(root, "note.md") }),
+      writeNote: async () => ({ path: join(root, "note.md"), markdown: "" }),
       scheduleUpsert: async () => {
         started = true;
         await upsertFinished;

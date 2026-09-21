@@ -23,6 +23,7 @@ import { ensureUserTenant } from "../billing/billingStore.ts";
 import { upsertOwnPost } from "../desk/ownPostStore.ts";
 import {
   explicitEventKey,
+  getScoutEvidence,
   readScoutEvidenceRevision,
   recordScoutEvidence,
   setScoutEvidenceNoteState,
@@ -49,6 +50,8 @@ const OTHER = "user-b";
 let temp: TempPlatformDb;
 let root: string;
 let profileDir: string;
+/** Isolated note root: hook reconciliation reads only this temp directory. */
+let knowledgeRoot: string;
 
 function noReconcile(userId: string) {
   return readScoutProfile(userId, { profileDir, reconcile: false });
@@ -106,7 +109,8 @@ describe("scoutProfileStore", () => {
     seedUser(OTHER);
     root = mkdtempSync(join(tmpdir(), "x-scout-profile-data-"));
     profileDir = join(root, "data", "scout-profile");
-    installScoutProfileProjection({ profileDir });
+    knowledgeRoot = join(root, "knowledge");
+    installScoutProfileProjection({ profileDir, knowledgeRoot });
   });
 
   afterEach(async () => {
@@ -239,12 +243,16 @@ describe("scoutProfileStore", () => {
 
   it("rebuilds the projection after a material evidence change via the hook", async () => {
     const path = scoutProfilePathForUser(USER, profileDir);
-    take(USER, { replyId: "r1" });
+    // Seed an already-verified note state so revision 1 is exactly one
+    // material evidence change; the hook's real reconciliation then has
+    // nothing to repair (see the unknown→missing case below).
+    take(USER, { replyId: "r1", noteState: "missing" });
     await flushScoutProfileProjections();
     assert.equal(existsSync(path), true);
     const stored = readFileProfile(USER) as ScoutProfile;
     assert.equal(stored.revision, 1);
     assert.equal(stored.counts.takes, 1);
+    assert.equal(stored.coverage.storedConfirmedReplies, 0);
 
     // Duplicate delivery: no material change, no revision, no rewrite.
     const mtime = statSync(path).mtimeMs;
@@ -273,6 +281,34 @@ describe("scoutProfileStore", () => {
     });
     // A read at that revision serves the file without rebuilding.
     assert.deepEqual(await noReconcile(USER), repaired);
+  });
+
+  it("treats the hook's unknown→missing note repair as one material revision, then stays stable", async () => {
+    const path = scoutProfilePathForUser(USER, profileDir);
+    // No noteState: the take is recorded as `unknown`, so the hook's
+    // reconciliation verifies the (absent) note and records `missing`. That
+    // is a real evidence change — revision 2 — not a second rebuild.
+    take(USER, { replyId: "r-unknown" });
+    await flushScoutProfileProjections();
+    const stored = readFileProfile(USER) as ScoutProfile;
+    assert.equal(stored.revision, 2);
+    assert.equal(stored.counts.takes, 1);
+    assert.equal(stored.coverage.storedConfirmedReplies, 0);
+    assert.equal(readScoutEvidenceRevision(USER).revision, 2);
+    assert.equal(
+      getScoutEvidence(USER, takeEventKey("r-unknown"))?.noteState,
+      "missing",
+    );
+    assert.equal(existsSync(join(knowledgeRoot, "interactions")), false);
+
+    // Nothing changed: further flushes and reads neither bump nor rewrite.
+    const mtime = statSync(path).mtimeMs;
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    await flushScoutProfileProjections();
+    assert.deepEqual(await readScoutProfile(USER, { profileDir, knowledgeRoot }), stored);
+    assert.deepEqual(await noReconcile(USER), stored);
+    assert.equal(statSync(path).mtimeMs, mtime);
+    assert.equal(readScoutEvidenceRevision(USER).revision, 2);
   });
 
   it("reconciles legacy own replies before the hook publishes the profile", async () => {
