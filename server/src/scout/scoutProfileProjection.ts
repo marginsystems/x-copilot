@@ -29,6 +29,8 @@ type PendingState = {
   done: Promise<void>;
 };
 
+const PROJECTION_DEBOUNCE_MS = 10;
+
 let rebuildFn: ScoutProfileRebuildFn | null = null;
 const pending = new Map<string, PendingState>();
 let notified = 0;
@@ -45,7 +47,7 @@ export function hasScoutProfileRebuild(): boolean {
 
 function runProjection(userId: string, state: PendingState): Promise<void> {
   return new Promise<void>((resolveDone) => {
-    setImmediate(async () => {
+    setTimeout(async () => {
       state.running = true;
       try {
         do {
@@ -67,7 +69,7 @@ function runProjection(userId: string, state: PendingState): Promise<void> {
         pending.delete(userId);
         resolveDone();
       }
-    });
+    }, PROJECTION_DEBOUNCE_MS);
   });
 }
 
