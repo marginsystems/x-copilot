@@ -19,6 +19,8 @@ import {
   seedUser,
   type TempPlatformDb,
 } from "../platform/platformDb.testHelpers.ts";
+import { ensureUserTenant } from "../billing/billingStore.ts";
+import { upsertOwnPost } from "../desk/ownPostStore.ts";
 import {
   explicitEventKey,
   readScoutEvidenceRevision,
@@ -271,6 +273,33 @@ describe("scoutProfileStore", () => {
     });
     // A read at that revision serves the file without rebuilding.
     assert.deepEqual(await noReconcile(USER), repaired);
+  });
+
+  it("reconciles legacy own replies before the hook publishes the profile", async () => {
+    upsertOwnPost({
+      userId: USER,
+      tenantId: ensureUserTenant(USER),
+      parsed: {
+        eventUuid: "legacy-event",
+        xUserId: "x-user",
+        postId: "legacy-reply",
+        kind: "reply",
+        text: "legacy reply",
+        postedAt: new Date(T0).toISOString(),
+        inReplyToId: "legacy-target",
+        inReplyToUserId: "target-user",
+        conversationId: "legacy-target",
+        authorUsername: "user-a",
+        metrics: {},
+      },
+    });
+
+    take(USER);
+    await flushScoutProfileProjections();
+
+    const profile = readFileProfile(USER) as ScoutProfile;
+    assert.equal(profile.counts.takes, 2);
+    assert.equal(profile.revision, readScoutEvidenceRevision(USER).revision);
   });
 
   it("bootstraps reconciliation only when no valid projection exists", async () => {

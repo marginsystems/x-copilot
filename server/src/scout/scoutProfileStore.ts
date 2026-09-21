@@ -417,9 +417,10 @@ export async function readScoutProfile(
 export function installScoutProfileProjection(
   opts: Pick<ScoutProfileStoreOpts, "profileDir"> = {},
 ): void {
-  setScoutProfileRebuild((userId) =>
-    rebuildScoutProfile(userId, { profileDir: opts.profileDir, reconcile: false }),
-  );
+  setScoutProfileRebuild(async (userId) => {
+    await reconcileScoutEvidence({ userId });
+    return rebuildScoutProfile(userId, { profileDir: opts.profileDir, reconcile: false });
+  });
 }
 
 installScoutProfileProjection();
