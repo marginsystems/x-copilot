@@ -613,16 +613,24 @@ export async function discoverOwnReplies(opts: {
     }
 
     try {
-      const evidence = await confirmedTakeEvidence({
-        userId: opts.userId,
-        replyId,
-        targetId: threadId,
-        source: "discovery",
-        conversationId: card.conversationId,
-        inReplyToId: threadId,
-        fallbackText: card.opText ?? card.text,
-        fallbackAuthor: author,
-      });
+      let evidence;
+      try {
+        evidence = await confirmedTakeEvidence({
+          userId: opts.userId,
+          replyId,
+          targetId: threadId,
+          source: "discovery",
+          conversationId: card.conversationId,
+          inReplyToId: threadId,
+          fallbackText: card.opText ?? card.text,
+          fallbackAuthor: author,
+        });
+      } catch (err) {
+        console.warn(
+          `[reply-discover] evidence capture soft-fail replyId=${replyId}:`,
+          err,
+        );
+      }
       const interaction = await markInteracted({
         threadId,
         author,

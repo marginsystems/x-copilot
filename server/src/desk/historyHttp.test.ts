@@ -18,7 +18,8 @@ import {
 import { getLastScout, saveScoutCache } from "../scout/scoutCache.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
-import { markSkipped } from "./skipStore.ts";
+import { listSkipHistory, markSkipped } from "./skipStore.ts";
+import { getPlatformDb } from "../db.ts";
 
 function signIn(tag: string): { userId: string; cookie: string } {
   const user = upsertOauthUser({
@@ -203,6 +204,34 @@ describe("historyHttp", () => {
     assert.equal(json.error, "store_failed");
     assert.deepEqual(dismissalNotes(), []);
     assert.deepEqual(await listDismissalHistory({ userId: a.userId }), []);
+  });
+
+  it("persists Scout actions when evidence context capture fails", async () => {
+    getPlatformDb().exec("DROP TABLE scout_target_context");
+
+    const skipped = await call(
+      "POST",
+      "/api/skipped",
+      { threadId: "capture-failed-skip", author: "@x" },
+      a.cookie,
+    );
+    const dismissed = await call(
+      "POST",
+      "/api/dismissed",
+      { threadId: "capture-failed-dismiss", author: "@x" },
+      a.cookie,
+    );
+
+    assert.equal(skipped.status, 200);
+    assert.equal(dismissed.status, 200);
+    assert.deepEqual(
+      (await listDismissalHistory({ userId: a.userId })).map((row) => row.threadId),
+      ["capture-failed-dismiss"],
+    );
+    assert.deepEqual(
+      (await listSkipHistory({ userId: a.userId })).map((row) => row.threadId),
+      ["capture-failed-skip"],
+    );
   });
 
   it("GET /api/expired returns expired + expiredIds", async () => {

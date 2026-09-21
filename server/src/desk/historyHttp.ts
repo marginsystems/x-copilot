@@ -167,18 +167,23 @@ export async function tryHandleHistory(
           : undefined;
       const inReplyToId =
         typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
-      const evidence = await explicitScoutActionEvidence({
-        userId: user.id,
-        action: "skip",
-        surface: "scout",
-        cardId: threadId,
-        source: "scout",
-        targetId: threadId,
-        conversationId,
-        inReplyToId,
-        fallbackText: [text, summary].filter(Boolean).join(" "),
-        fallbackAuthor: author,
-      });
+      let evidence;
+      try {
+        evidence = await explicitScoutActionEvidence({
+          userId: user.id,
+          action: "skip",
+          surface: "scout",
+          cardId: threadId,
+          source: "scout",
+          targetId: threadId,
+          conversationId,
+          inReplyToId,
+          fallbackText: [text, summary].filter(Boolean).join(" "),
+          fallbackAuthor: author,
+        });
+      } catch (err) {
+        console.warn("Scout skip evidence capture soft-fail:", err);
+      }
       const skip = await markSkipped({
         threadId,
         author,
@@ -257,18 +262,23 @@ export async function tryHandleHistory(
         typeof body.inReplyToId === "string" ? body.inReplyToId : undefined;
       // Durable action first: SQL failure is the only thing that fails the
       // request. The owned note is keyed by the durable action time.
-      const evidence = await explicitScoutActionEvidence({
-        userId: user.id,
-        action: "dismiss",
-        surface: "scout",
-        cardId: threadId,
-        source: "scout",
-        targetId: threadId,
-        conversationId,
-        inReplyToId,
-        fallbackText: [text, summary].filter(Boolean).join(" "),
-        fallbackAuthor: author,
-      });
+      let evidence;
+      try {
+        evidence = await explicitScoutActionEvidence({
+          userId: user.id,
+          action: "dismiss",
+          surface: "scout",
+          cardId: threadId,
+          source: "scout",
+          targetId: threadId,
+          conversationId,
+          inReplyToId,
+          fallbackText: [text, summary].filter(Boolean).join(" "),
+          fallbackAuthor: author,
+        });
+      } catch (err) {
+        console.warn("Scout dismissal evidence capture soft-fail:", err);
+      }
       const dismissal = await deps.markDismissed({
         threadId,
         author,

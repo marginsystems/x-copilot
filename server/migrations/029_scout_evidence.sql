@@ -34,6 +34,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_scout_evidence_user_reply
 CREATE INDEX IF NOT EXISTS idx_scout_evidence_user_target
   ON scout_evidence (user_id, target_id);
 
+CREATE INDEX IF NOT EXISTS idx_scout_evidence_user_acted_at
+  ON scout_evidence (user_id, acted_at, event_key);
+
 -- Per-user monotonic revision; advances only on material evidence changes.
 CREATE TABLE IF NOT EXISTS scout_evidence_revisions (
   user_id TEXT PRIMARY KEY,
