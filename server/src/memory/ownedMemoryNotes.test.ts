@@ -478,6 +478,34 @@ describe("resolveOwnedNote", () => {
     assert.equal(resolved.meta.reply, "reply-specific take");
   });
 
+  it("prefers a canonical note over a reply-matched suffix without an action time", async () => {
+    const canonical = ownedNoteFilename({ userId: "user-a", threadId: "2081", at });
+    await writeFile(
+      join(dir, canonical),
+      note({ userId: "user-a", reply: "canonical take", replyId: "reply-a" }),
+      "utf8",
+    );
+    const suffixed = suffixedName("user-a", "2081", "reply-a");
+    await writeFile(
+      join(dir, suffixed),
+      note({ userId: "user-a", reply: "stale reply take", replyId: "reply-a" }),
+      "utf8",
+    );
+
+    const resolved = await resolveOwnedNote({
+      kind: "interaction",
+      userId: "user-a",
+      threadId: "2081",
+      replyId: "reply-a",
+      knowledgeRoot: root,
+    });
+    assert.equal(resolved.state, "found");
+    if (resolved.state !== "found") return;
+    assert.equal(resolved.name, canonical);
+    assert.equal(resolved.meta.reply, "canonical take");
+    assert.equal(resolved.canonical, true);
+  });
+
   it("matches a legacy note by its metadata date when the filename date differs", async () => {
     await writeFile(
       join(dir, "2026-09-03-2081.md"),

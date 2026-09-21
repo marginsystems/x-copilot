@@ -455,6 +455,9 @@ export async function resolveOwnedNote(opts: {
   // aliases; several of the same rank stay ambiguous rather than letting
   // directory order choose.
   const pick = (list: typeof verified): OwnedNoteResolution | null => {
+    const canonical = list.filter((v) => v.canonical);
+    if (canonical.length > 0) list = canonical;
+
     const replyMatched =
       replyKey === null
         ? []
@@ -462,9 +465,8 @@ export async function resolveOwnedNote(opts: {
             const parsed = parseOwnedNoteName(v.name);
             return parsed?.replyKey === replyKey;
           });
-    if (replyMatched.length > 0) list = replyMatched;
-    const canonical = list.filter((v) => v.canonical);
-    const ranked = canonical.length > 0 ? canonical : list;
+    if (canonical.length === 0 && replyMatched.length > 0) list = replyMatched;
+    const ranked = list;
     if (ranked.length === 1) {
       const hit = ranked[0]!;
       return {
