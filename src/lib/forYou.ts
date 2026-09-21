@@ -5,12 +5,16 @@ export type ForYouKind = (typeof FOR_YOU_KINDS)[number];
 export const APPROACH_TAB_LABEL = "Approach";
 export const APPROACH_MIN_TRACKED = 5;
 export const X_FOR_YOU_URL = "https://x.com/home";
-export const FYP_WAIT_COPY = "Open For You. Come back and tap Next.";
+export const X_INSPIRATION_URL =
+  "https://x.com/i/jf/creators/inspiration/top_posts";
+export const FYP_WAIT_COPY =
+  "Open For You or Inspiration. Come back and tap Next.";
 export const FYP_ACTION_COPY =
-  "Reply, original, or quote something you actually read. Likes do not count.";
+  "Reply, original, or quote something you actually read — For You or Inspiration. Likes do not count.";
 export const FYP_DETECTING_COPY = "Detection in progress.";
 export const FYP_DETECTED_COPY = "Post detected";
 export const FYP_OPEN_TIP = "Opens your real X For You page.";
+export const FYP_INSPIRATION_TIP = "Opens X Inspiration top posts.";
 export const FYP_NEXT_TIP =
   "Leave this wait. Take the next Approach card.";
 

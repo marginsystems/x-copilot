@@ -12,9 +12,11 @@ import {
   parseForYouProgress,
   parseForYouSuggestion,
   FYP_ACTION_COPY,
+  FYP_INSPIRATION_TIP,
   FYP_NEXT_TIP,
   FYP_OPEN_TIP,
   FYP_WAIT_COPY,
+  X_INSPIRATION_URL,
   type ForYouSuggestion,
 } from "./forYou.ts";
 
@@ -128,13 +130,19 @@ describe("forYou helpers", () => {
 
   it("names the For You row buttons", () => {
     assert.match(FYP_OPEN_TIP, /For You page/);
+    assert.match(FYP_INSPIRATION_TIP, /Inspiration/);
     assert.match(FYP_NEXT_TIP, /next Approach card/);
+    assert.equal(
+      X_INSPIRATION_URL,
+      "https://x.com/i/jf/creators/inspiration/top_posts",
+    );
   });
 
   it("keeps the collapsed wait short and names the expanded action", () => {
     assert.equal(FYP_WAIT_COPY.includes("Like"), false);
-    assert.match(FYP_WAIT_COPY, /Open For You/);
+    assert.match(FYP_WAIT_COPY, /Open For You or Inspiration/);
     assert.match(FYP_ACTION_COPY, /Reply, original, or quote/);
+    assert.match(FYP_ACTION_COPY, /For You or Inspiration/);
     assert.match(FYP_ACTION_COPY, /Likes do not count/);
   });
 
