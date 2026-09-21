@@ -30,6 +30,7 @@ describe("scoutProfileProjection", () => {
       calls.push(userId);
     });
     notifyScoutEvidenceChanged({ userId: "u1", revision: 1 });
+    await new Promise((resolve) => setImmediate(resolve));
     notifyScoutEvidenceChanged({ userId: "u1", revision: 2 });
     notifyScoutEvidenceChanged({ userId: "u2", revision: 1 });
     // Nothing has run yet: the caller's transaction is still "open".
@@ -53,8 +54,7 @@ describe("scoutProfileProjection", () => {
       }
     });
     notifyScoutEvidenceChanged({ userId: "u1", revision: 1 });
-    await new Promise((resolve) => setImmediate(resolve));
-    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setTimeout(resolve, 20));
     assert.equal(calls, 1);
     notifyScoutEvidenceChanged({ userId: "u1", revision: 2 });
     release();

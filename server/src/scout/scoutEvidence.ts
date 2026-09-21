@@ -527,9 +527,11 @@ export function setScoutEvidenceNoteState(opts: {
   if (!replyId) return false;
   if (opts.state !== "stored" && opts.state !== "missing") return false;
   const db = getPlatformDb();
-  const changed = db.transaction((): boolean => {
+  const result = db.transaction((): { changed: boolean; revision: number | null } => {
     const existing = findScoutTakeByReplyId(userId, replyId);
-    if (!existing || existing.noteState === opts.state) return false;
+    if (!existing || existing.noteState === opts.state) {
+      return { changed: false, revision: null };
+    }
     const nowIso = new Date(opts.nowMs ?? Date.now()).toISOString();
     const revision = bumpRevision(userId, existing.eventKey, nowIso);
     db.prepare(
@@ -537,15 +539,15 @@ export function setScoutEvidenceNoteState(opts: {
           SET note_state = ?, note_verified_at = ?, revision = ?, updated_at = ?
         WHERE user_id = ? AND event_key = ?`,
     ).run(opts.state, nowIso, revision, nowIso, userId, existing.eventKey);
-    return true;
+    return { changed: true, revision };
   })();
-  if (changed) {
+  if (result.changed) {
     notifyScoutEvidenceChanged({
       userId,
-      revision: readScoutEvidenceRevision(userId).revision,
+      revision: result.revision!,
     });
   }
-  return changed;
+  return result.changed;
 }
 
 /** Resumable keyset cursor for bounded reconciliation scopes. */
