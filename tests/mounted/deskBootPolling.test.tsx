@@ -80,6 +80,21 @@ test("logout aborts boot and a late response cannot cache or confirm checkout", 
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
+test("an invalid optional profile body does not abort fallback boot", async () => {
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
+    if (url.endsWith("/api/auth/me")) return Response.json(boot);
+    if (url.endsWith("/api/scout/profile")) return new Response("<html>");
+    return Response.json({});
+  });
+  vi.stubGlobal("fetch", fetcher);
+  const h = mountBoot();
+  await act(async () => {});
+  expect(h.applyDesk).toHaveBeenCalledTimes(1);
+  expect(h.result.current.deskBootReady).toBe(true);
+  expect(h.notice).not.toHaveBeenCalledWith("Desk could not load. Reload to try again.");
+});
+
 test("stalled fallback releases readiness, aborts reads, and suppresses late data", async () => {
   vi.useFakeTimers();
   const setItem = vi.spyOn(Storage.prototype, "setItem");

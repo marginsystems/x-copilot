@@ -109,6 +109,8 @@ export function useDeskHistory(
   verifiedOwnerId: string | null,
 ) {
   const { setThreads, setStatus, setActionBusy, onHydrated } = deps;
+  const onHydratedRef = useRef(onHydrated);
+  onHydratedRef.current = onHydrated;
   const session = useSession();
   const requestSeq = useRef({
     interacted: 0, skipped: 0, dismissed: 0, expired: 0, forYou: 0,
@@ -276,7 +278,7 @@ export function useDeskHistory(
           ),
         );
       }
-      onHydrated?.("interacted");
+      onHydratedRef.current?.("interacted");
     } catch {
       if (isCurrent()) setStatus("Could not refresh interacted history. Try again.");
     } finally {
@@ -347,7 +349,7 @@ export function useDeskHistory(
       if (ids.size || blocked.size) {
         setThreads((prev) => prev.filter((t) => keepInCurated(t)));
       }
-      onHydrated?.("skipped");
+      onHydratedRef.current?.("skipped");
     } catch {
       if (isCurrent()) setStatus("Could not refresh skipped history. Try again.");
     }
@@ -393,7 +395,7 @@ export function useDeskHistory(
       if (ids.size || blocked.size) {
         setThreads((prev) => prev.filter((t) => keepInCurated(t)));
       }
-      onHydrated?.("dismissed");
+      onHydratedRef.current?.("dismissed");
     } catch {
       if (isCurrent()) setStatus("Could not refresh dismissed history. Try again.");
     }

@@ -89,6 +89,27 @@ test("a stale interacted completion does not run the hydrated callback", async (
   expect(onHydrated).toHaveBeenCalledTimes(1);
 });
 
+test("an interacted completion uses the latest hydrated callback", async () => {
+  const requests: ReturnType<typeof deferred<Response>>[] = [];
+  vi.stubGlobal("fetch", vi.fn(() => {
+    const request = deferred<Response>();
+    requests.push(request);
+    return request.promise;
+  }));
+  const first = vi.fn();
+  const latest = vi.fn();
+  const hook = renderHook(({ onHydrated }) => useDeskHistory({
+    setStatus: vi.fn(), setThreads: vi.fn(), setActionBusy: vi.fn(),
+    settings: {} as AppSettings, onHydrated,
+  }, null), { wrapper, initialProps: { onHydrated: first } });
+  let pending!: Promise<void>;
+  act(() => { pending = hook.result.current.hydrateInteracted(); });
+  hook.rerender({ onHydrated: latest });
+  await act(async () => { requests[0].resolve(response({ interactions: [] })); await pending; });
+  expect(first).not.toHaveBeenCalled();
+  expect(latest).toHaveBeenCalledWith("interacted");
+});
+
 function setupSkipDismiss() {
   const requests: ReturnType<typeof deferred<Response>>[] = [];
   vi.stubGlobal("fetch", vi.fn(() => {

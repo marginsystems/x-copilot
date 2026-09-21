@@ -233,7 +233,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         read("/api/expired"), read("/api/for-you"), read("/api/gamification"),
         onboarded ? read(`/api/scout/last?dedupeAccounts=${opts.dedupeAccounts}&autoStart=0`) : null,
         // Optional: an older API (404) or failed read leaves the slice absent.
-        user ? read("/api/scout/profile") : null,
+        user ? read("/api/scout/profile").catch(() => undefined) : null,
       ]);
       if (!current()) return;
       const parsedDesk = parseDeskBoot({ ok: true, user, desk: {
