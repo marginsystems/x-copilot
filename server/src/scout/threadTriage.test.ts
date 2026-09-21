@@ -14,11 +14,13 @@ import {
   selectMemoryHits,
   selectScoredThreads,
   TRIAGE_SYSTEM_PROMPT,
+  triageProfileForOwner,
   triageThreads,
   MAX_TRIAGE_THREADS,
   THREAD_KINDS,
 } from "./threadTriage.ts";
 import type { ThreadCard } from "./threadCard.ts";
+import { emptyScoutProfile } from "./scoutProfile.ts";
 
 function thread(id: string): ThreadCard {
   return {
@@ -464,6 +466,36 @@ describe("memory triage context", () => {
       "skip beginner dunking",
     );
     assert.match(msg, /Avoid: "skip beginner dunking"/);
+  });
+
+  it("buildUserMessage is byte-identical with an absent, null or empty profile", () => {
+    const memories = [
+      { type: "dismissal" as const, score: 0.88, excerpt: "Generic favorite-tool bait" },
+    ];
+    const base = buildUserMessage("Find builders", [thread("1")], memories, "skip dunking");
+    assert.equal(buildUserMessage("Find builders", [thread("1")], memories, "skip dunking", null), base);
+    assert.equal(
+      buildUserMessage("Find builders", [thread("1")], memories, "skip dunking", emptyScoutProfile("user-a")),
+      base,
+    );
+    assert.equal(
+      buildUserMessage("Find builders", [thread("1")], memories, "skip dunking", {
+        ...emptyScoutProfile("user-a"),
+        revision: 5,
+      }),
+      base,
+    );
+  });
+
+  it("triageProfileForOwner requires a matching nonblank owner", () => {
+    const profile = emptyScoutProfile("user-a");
+    assert.equal(triageProfileForOwner(profile, " user-a "), profile);
+    assert.equal(triageProfileForOwner(profile, "user-b"), null);
+    assert.equal(triageProfileForOwner(profile, ""), null);
+    assert.equal(triageProfileForOwner(profile, "   "), null);
+    assert.equal(triageProfileForOwner(profile, undefined), null);
+    assert.equal(triageProfileForOwner(null, "user-a"), null);
+    assert.equal(triageProfileForOwner(undefined, "user-a"), null);
   });
 
   it("gatherTriageMemories soft-fails to [] when search returns empty", async () => {

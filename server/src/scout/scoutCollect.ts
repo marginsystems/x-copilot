@@ -769,6 +769,7 @@ export async function runScoutCollect(opts: {
         avoid: avoidPrompt,
         threads: forTriage,
         userId,
+        profile,
       });
       if (triaged.warning) triageWarning = triaged.warning;
       llmUsage = addTokenUsage(llmUsage, triaged.usage);

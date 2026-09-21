@@ -373,3 +373,107 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
     assert.match(requests[3]![1]!.content, /Low yield/);
   });
 });
+
+describe("runScoutCollect — the same snapshot reaches every triage batch (C12)", () => {
+  type TriageSeen = { userId?: string; profile?: ScoutProfile | null; ids: string[] };
+
+  function triageSpy(seen: TriageSeen[], engageFor: (batch: number) => "skip" | "consider") {
+    return async (opts: {
+      threads: Parameters<NonNullable<ScoutCollectDeps["triageThreads"]>>[0]["threads"];
+      userId?: string;
+      profile?: ScoutProfile | null;
+    }) => {
+      seen.push({ userId: opts.userId, profile: opts.profile, ids: opts.threads.map((t) => t.id) });
+      const engage = engageFor(seen.length);
+      return {
+        threads: opts.threads.map((t) => ({ ...t, engage, baitScore: engage === "skip" ? 90 : 20 })),
+      };
+    };
+  }
+
+  it("one load total across plan, replan and multiple triage buckets", async () => {
+    withLlmKey();
+    temp = openTempPlatformDb("x-scout-profile-triage-");
+    const userId = seedUser("profile-triage-user");
+    const profile = supportedProfile(userId);
+    const loader = spyLoader(() => profile);
+    const planCalls: PlanCall[] = [];
+    const seen: TriageSeen[] = [];
+    // First bucket triages to all-skip (refill), second qualifies.
+    const result = await runScoutCollect({
+      agenda: "B2B freight OS",
+      bucketSize: 5,
+      targetCool: 1,
+      userId,
+      session,
+      deps: stubDeps({
+        loadScoutProfile: loader.loadScoutProfile,
+        planCalls,
+        triageThreads: triageSpy(seen, (batch) => (batch === 1 ? "skip" : "consider")),
+      }),
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(loader.calls, [userId], "exactly one read for the whole run");
+    assert.ok(seen.length >= 2, "at least two triage batches");
+    for (const call of seen) {
+      assert.equal(call.userId, userId);
+      assert.equal(call.profile, profile, "same snapshot object in every batch");
+      assert.equal(call.profile?.revision, 1);
+    }
+    assert.equal(planCalls[0]?.opts?.profile, profile);
+  });
+
+  it("explicit client queries forward the snapshot too; a blank identity forwards no profile", async () => {
+    const profile = supportedProfile("user-a");
+    const loader = spyLoader(() => profile);
+    const seen: TriageSeen[] = [];
+    const ok = await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      userId: " user-a ",
+      session,
+      deps: stubDeps({ loadScoutProfile: loader.loadScoutProfile, triageThreads: triageSpy(seen, () => "consider") }),
+    });
+    assert.equal(ok.ok, true);
+    assert.deepEqual(loader.calls, ["user-a"]);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0]?.profile, profile);
+    assert.equal(seen[0]?.userId, "user-a");
+
+    const anon: TriageSeen[] = [];
+    const anonLoader = spyLoader(() => profile);
+    await runScoutCollect({
+      queries: ["q1"],
+      bucketSize: 5,
+      targetCool: 1,
+      session,
+      deps: stubDeps({ loadScoutProfile: anonLoader.loadScoutProfile, triageThreads: triageSpy(anon, () => "consider") }),
+    });
+    assert.deepEqual(anonLoader.calls, []);
+    assert.equal(anon[0]?.profile, null);
+    assert.equal(anon[0]?.userId, "");
+  });
+
+  it("a rejected or throwing loader forwards no profile to triage", async () => {
+    for (const backing of [
+      () => supportedProfile("someone-else"),
+      () => {
+        throw new Error("store offline");
+      },
+    ]) {
+      const loader = spyLoader(backing);
+      const seen: TriageSeen[] = [];
+      await runScoutCollect({
+        queries: ["q1"],
+        bucketSize: 5,
+        targetCool: 1,
+        userId: "user-a",
+        session,
+        deps: stubDeps({ loadScoutProfile: loader.loadScoutProfile, triageThreads: triageSpy(seen, () => "consider") }),
+      });
+      assert.deepEqual(loader.calls, ["user-a"]);
+      assert.equal(seen[0]?.profile, null);
+    }
+  });
+});
