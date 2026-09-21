@@ -822,6 +822,44 @@ Ship weekly.
     assert.equal((await search(A, "must stay gone")).hits.length, 0);
   });
 
+  it("keeps an equal-mtime tombstone when rebuild cannot insert its row", async () => {
+    const path = await write(
+      "interactions",
+      canonical(A, "equal-mtime-tombstone"),
+      note({ type: "interaction", userId: A, threadId: "equal-mtime-tombstone", sections: { Post: "owned content" } }),
+    );
+    const mtime = Date.now() - 10_000;
+    await utimes(path, new Date(), new Date(mtime));
+
+    await writeFile(
+      path,
+      note({ type: "interaction", threadId: "equal-mtime-tombstone", sections: { Post: "owner removed" } }),
+      "utf8",
+    );
+    await utimes(path, new Date(), new Date(mtime));
+    assert.equal((await upsertMemoryNote(path, { knowledgeRoot, indexDir, embedder })).ok, false);
+
+    await writeFile(
+      path,
+      note({ type: "interaction", userId: A, threadId: "equal-mtime-tombstone", sections: { Post: "owned content restored" } }),
+      "utf8",
+    );
+    await utimes(path, new Date(), new Date(mtime));
+    const rebuilt = await reindexMemory({ knowledgeRoot, indexDir, embedder });
+    assert.equal(rebuilt.ok, true);
+    assert.equal((await search(A, "owned content restored")).hits.length, 0);
+
+    const db = new Database(join(indexDir, "index.sqlite"));
+    try {
+      const tombstone = db
+        .prepare("SELECT mtime_ms FROM memory_deletions WHERE path = ?")
+        .get(path) as { mtime_ms: number } | undefined;
+      assert.equal(tombstone?.mtime_ms, Math.round(mtime));
+    } finally {
+      db.close();
+    }
+  });
+
   it("search surfaces embedder failure as unavailable, never old rows", async () => {
     await write(
       "interactions",

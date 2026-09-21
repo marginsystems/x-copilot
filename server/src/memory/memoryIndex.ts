@@ -580,15 +580,15 @@ export async function reindexMemory(opts?: {
           );
           // A row upserted during the rebuild read the file at least as
           // recently as this snapshot; only a strictly newer read replaces it.
-           const insert = db.prepare(
-             `${UPSERT_SQL}
-             WHERE excluded.mtime_ms > memories.mtime_ms${UPSERT_GUARD_SQL}`,
-           );
-           for (const row of rows) insert.run(row);
+          const insert = db.prepare(
+            `${UPSERT_SQL}
+            WHERE excluded.mtime_ms > memories.mtime_ms${UPSERT_GUARD_SQL}`,
+          );
+          for (const row of rows) insert.run(row);
           for (const row of rows) {
             db.prepare(
-              "DELETE FROM memory_deletions WHERE path = ? AND mtime_ms <= ?",
-            ).run(row.path, startedAtMs);
+              "DELETE FROM memory_deletions WHERE path = ? AND mtime_ms < ?",
+            ).run(row.path, row.mtime_ms);
           }
           db.prepare("DELETE FROM meta WHERE key = ?").run(LEGACY_READY_KEY);
           writeMeta(db, META_READY_KEY, MEMORY_INDEX_SCHEMA_VERSION);
