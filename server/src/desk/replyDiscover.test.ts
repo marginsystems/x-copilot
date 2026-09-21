@@ -1013,7 +1013,7 @@ describe("discoverOwnReplies", () => {
       }),
     });
     await assert.rejects(
-      () => readFile(join(knowledgeRoot, "interactions"), "utf8"),
+      () => readFile(notePath("orphan-parent", "2026-08-02T11:30:00.000Z"), "utf8"),
       /ENOENT/,
     );
     assert.equal((await listInteractionHistory({ userId })).length, 0);

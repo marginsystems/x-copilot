@@ -246,8 +246,8 @@ export function noteVerifiedFor(
 
 /** mtime-keyed listing/content cache so one batch reuses directory work. */
 export class OwnedNoteCache {
-  private names = new Map<string, { mtimeMs: number; names: string[] }>();
-  private contents = new Map<string, { mtimeMs: number; raw: string }>();
+  private names = new Map<string, { mtimeNs: bigint; names: string[] }>();
+  private contents = new Map<string, { mtimeNs: bigint; raw: string }>();
 
   clear(): void {
     this.names.clear();
@@ -256,11 +256,11 @@ export class OwnedNoteCache {
 
   async list(dir: string): Promise<string[] | null> {
     try {
-      const mtimeMs = (await stat(dir)).mtimeMs;
+      const mtimeNs = (await stat(dir)).mtimeNs;
       const cached = this.names.get(dir);
-      if (cached?.mtimeMs === mtimeMs) return cached.names;
+      if (cached?.mtimeNs === mtimeNs) return cached.names;
       const names = (await readdir(dir)).filter((n) => n.endsWith(".md"));
-      this.names.set(dir, { mtimeMs, names });
+      this.names.set(dir, { mtimeNs, names });
       return names;
     } catch {
       this.names.delete(dir);
@@ -269,11 +269,11 @@ export class OwnedNoteCache {
   }
 
   async read(path: string): Promise<string> {
-    const mtimeMs = (await stat(path)).mtimeMs;
+    const mtimeNs = (await stat(path)).mtimeNs;
     const cached = this.contents.get(path);
-    if (cached?.mtimeMs === mtimeMs) return cached.raw;
+    if (cached?.mtimeNs === mtimeNs) return cached.raw;
     const raw = await readFile(path, "utf8");
-    this.contents.set(path, { mtimeMs, raw });
+    this.contents.set(path, { mtimeNs, raw });
     return raw;
   }
 }

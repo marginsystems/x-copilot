@@ -321,6 +321,21 @@ describe("resolveOwnedNote", () => {
       state: "missing",
     });
   });
+
+  it("refreshes cached listings after a note is written", async () => {
+    const cache = new OwnedNoteCache();
+    assert.deepEqual(await cache.list(dir), []);
+    await writeInteractionMemory({
+      userId: "user-a",
+      threadId: "2081",
+      author: "@x",
+      reply: "new note",
+      interactedAt: at,
+      knowledgeRoot: root,
+    });
+    const found = await resolveFor("user-a", { cache });
+    assert.equal(found.state, "found");
+  });
 });
 
 describe("writeOwnedNoteAtomically", () => {

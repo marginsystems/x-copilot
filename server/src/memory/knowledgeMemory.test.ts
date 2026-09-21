@@ -307,6 +307,28 @@ describe("writeInteractionMemory", () => {
     assert.equal(await readFile(legacy, "utf8"), legacyBefore);
   });
 
+  it("adopts a verified legacy note across an action-date boundary", async () => {
+    const legacy = await writeLegacyNote(root, "2026-07-26-99.md", {
+      threadId: "99",
+      userId: "user-1",
+      interactedAt: "2026-07-26T23:59:00.000Z",
+      reply: "legacy reply",
+      extra: 'agenda: "Legacy agenda"\nviews24h: 9\n',
+    });
+    const { path } = await writeInteractionMemory({
+      threadId: "99",
+      author: "@A",
+      userId: "user-1",
+      reply: "updated reply",
+      knowledgeRoot: root,
+      interactedAt: "2026-07-27T00:01:00.000Z",
+    });
+    assert.notEqual(path, legacy);
+    const body = await readFile(path, "utf8");
+    assert.match(body, /Legacy agenda/);
+    assert.match(body, /views24h: 9/);
+  });
+
   it("does not adopt an unowned legacy note on the same thread and date", async () => {
     const legacy = await writeLegacyNote(root, "2026-07-27-99.md", {
       threadId: "99",
