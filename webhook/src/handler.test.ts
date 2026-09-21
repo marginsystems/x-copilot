@@ -707,6 +707,24 @@ describe("own reply interaction capture", () => {
     await assert.rejects(() => readNote(dir, "parent-1"), /ENOENT/);
   });
 
+  it("keeps the mark when scout evidence context cannot be read", async () => {
+    getPlatformDb().prepare("DROP TABLE scout_target_context").run();
+    watchThread({
+      userId,
+      threadId: "parent-1",
+      author: "@watched",
+      url: "https://x.com/watched/status/parent-1",
+      text: "Watched parent post",
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(post(), userId, { nowMs }),
+      "scout",
+    );
+    const [row] = await listInteractionHistory({ userId });
+    assert.equal(row?.replyId, "reply-1");
+  });
+
   it("keeps a saved note when MiniLM upsert is unavailable", async () => {
     resetWebhookMemoryProjectionForTests({
       knowledgeRoot: knowledgeRootFor(dir),

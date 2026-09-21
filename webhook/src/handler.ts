@@ -213,16 +213,21 @@ export async function markOwnReplyInteracted(
     return "skipped";
   }
   const source = scoutCard ? "scout" : "organic";
-  const evidence = await confirmedTakeEvidence({
-    userId,
-    replyId: parsed.postId,
-    targetId: threadId,
-    source: "webhook",
-    conversationId: parsed.conversationId ?? scoutCard?.conversationId ?? null,
-    inReplyToId: targetId,
-    fallbackText: contextText ?? parsed.text,
-    fallbackAuthor: author,
-  });
+  let evidence: Awaited<ReturnType<typeof confirmedTakeEvidence>> | undefined;
+  try {
+    evidence = await confirmedTakeEvidence({
+      userId,
+      replyId: parsed.postId,
+      targetId: threadId,
+      source: "webhook",
+      conversationId: parsed.conversationId ?? scoutCard?.conversationId ?? null,
+      inReplyToId: targetId,
+      fallbackText: contextText ?? parsed.text,
+      fallbackAuthor: author,
+    });
+  } catch (err) {
+    console.warn("[xaa] scout evidence capture soft-fail", err);
+  }
   let interaction;
   try {
     interaction = await markInteracted({
