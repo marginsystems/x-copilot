@@ -349,6 +349,7 @@ async function reconcileConfirmedOwnReplies(opts: {
         userId: opts.userId,
         threadId: known.threadId,
         at: canonicalNoteTime(known),
+        replyId: post.id,
         knowledgeRoot: opts.knowledgeRoot ?? defaultKnowledgeRoot(),
       });
       if (resolved.state === "found" && resolved.meta.reply) continue;
@@ -383,6 +384,7 @@ async function reconcileConfirmedOwnReplies(opts: {
         threadId: known.threadId,
         author: known.author,
         reply: post.text,
+        replyId: post.id,
         url:
           known.url ??
           watched?.url ??

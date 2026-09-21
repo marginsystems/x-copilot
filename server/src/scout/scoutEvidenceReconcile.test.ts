@@ -71,6 +71,7 @@ async function writeNote(opts: {
     userId: opts.userId,
     threadId: opts.threadId,
     at: opts.at,
+    replyId: opts.replyId,
     knowledgeRoot: opts.knowledgeRoot,
   });
   const lines = [
@@ -248,6 +249,17 @@ describe("reconcileScoutEvidence", () => {
       knowledgeRoot,
     });
     assert.equal(foreign.state, "missing");
+  });
+
+  it("verifies separate same-day replies on the same thread", async () => {
+    const at = new Date(T0).toISOString();
+    await writeNote({ knowledgeRoot, userId, threadId: "same-thread", at, reply: "first", replyId: "r1" });
+    await writeNote({ knowledgeRoot, userId, threadId: "same-thread", at, reply: "second", replyId: "r2" });
+
+    const first = await verifyOwnedReplyNote({ userId, threadId: "same-thread", replyId: "r1", at, knowledgeRoot });
+    const second = await verifyOwnedReplyNote({ userId, threadId: "same-thread", replyId: "r2", at, knowledgeRoot });
+    assert.deepEqual(first, { state: "stored", reply: "first" });
+    assert.deepEqual(second, { state: "stored", reply: "second" });
   });
 
   it("confirms a trimmed-history interaction from an owned note alone", async () => {

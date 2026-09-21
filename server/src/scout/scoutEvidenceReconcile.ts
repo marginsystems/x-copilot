@@ -95,6 +95,7 @@ export async function verifyOwnedReplyNote(opts: {
       userId: opts.userId,
       threadId: opts.threadId,
       at: opts.at,
+      replyId: opts.replyId,
       knowledgeRoot: opts.knowledgeRoot,
       allowOtherDates: true,
       cache: opts.cache,

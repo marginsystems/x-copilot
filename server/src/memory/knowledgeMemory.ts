@@ -80,6 +80,7 @@ export function buildInteractionNotePath(opts: {
   userId: string;
   threadId: string;
   interactedAt?: string;
+  replyId?: string;
   knowledgeRoot?: string;
 }): string {
   return buildOwnedNotePath({
@@ -87,6 +88,7 @@ export function buildInteractionNotePath(opts: {
     userId: opts.userId,
     threadId: opts.threadId,
     at: opts.interactedAt,
+    replyId: opts.replyId,
     knowledgeRoot: opts.knowledgeRoot ?? defaultKnowledgeRoot(),
   });
 }
@@ -311,6 +313,7 @@ export async function writeInteractionMemory(
     userId,
     threadId,
     interactedAt,
+    replyId: input.replyId,
     knowledgeRoot,
   });
   const result = await writeOwnedNoteAtomically({
@@ -323,6 +326,7 @@ export async function writeInteractionMemory(
           userId,
           threadId,
           at: interactedAt,
+          replyId: input.replyId,
           knowledgeRoot,
         });
         if (legacy.state === "found" && !legacy.canonical) base = legacy.markdown;
@@ -570,6 +574,7 @@ export async function findInteractionNotePath(opts: {
   userId: string;
   threadId: string;
   interactedAt?: string;
+  replyId?: string;
   knowledgeRoot?: string;
 }): Promise<string | null> {
   const userId = opts.userId?.trim() ?? "";
@@ -580,6 +585,7 @@ export async function findInteractionNotePath(opts: {
     userId,
     threadId,
     at: opts.interactedAt,
+    replyId: opts.replyId,
     knowledgeRoot: opts.knowledgeRoot ?? defaultKnowledgeRoot(),
     allowOtherDates: true,
   });
@@ -725,6 +731,7 @@ export async function updateInteractionMemoryOutcome(opts: {
     userId,
     threadId,
     at: interactedAt,
+    replyId: interaction.replyId,
     knowledgeRoot,
     allowOtherDates: true,
   });
@@ -737,7 +744,7 @@ export async function updateInteractionMemoryOutcome(opts: {
 
   const path = resolved.canonical
     ? resolved.path
-    : buildInteractionNotePath({ userId, threadId, interactedAt, knowledgeRoot });
+    : buildInteractionNotePath({ userId, threadId, interactedAt, replyId: interaction.replyId, knowledgeRoot });
   const updatedAt = opts.nowIso ?? new Date().toISOString();
   try {
     const result = await writeOwnedNoteAtomically({
