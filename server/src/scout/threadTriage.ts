@@ -17,6 +17,8 @@ import {
   type SearchMemoryResult,
 } from "../memory/memoryIndex.js";
 import { stripMediaShortlinksFromText } from "../x-api/mediaText.js";
+import type { ScoutProfile } from "./scoutProfile.js";
+import { formatScoutProfileBlock } from "./scoutProfilePrompt.js";
 import type { ThreadCard } from "./threadCard.js";
 
 export type Engage = "skip" | "consider" | "priority";
@@ -492,11 +494,25 @@ export async function gatherTriageMemories(
   return selectMemoryHits(pooled);
 }
 
+/**
+ * The run's profile snapshot may inform triage only for its own nonblank
+ * owner; identity-less or mismatched callers get no private context.
+ */
+export function triageProfileForOwner(
+  profile: ScoutProfile | null | undefined,
+  userId: unknown,
+): ScoutProfile | null {
+  const owner = triageMemoryOwner(userId);
+  if (!owner || !profile || profile.userId !== owner) return null;
+  return profile;
+}
+
 export function buildUserMessage(
   agenda: string,
   threads: ThreadCard[],
   memories: TriageMemoryHit[] = [],
   avoid = "",
+  profile: ScoutProfile | null = null,
 ): string {
   const compact = buildTriageCompact(threads);
   const agendaLine = agenda.trim()
@@ -507,7 +523,11 @@ export function buildUserMessage(
     : "";
   const memoryBlock = formatMemoryBlock(memories);
   const memorySection = memoryBlock ? `\n\n${memoryBlock}` : "";
-  return `${agendaLine}${avoidLine}\n\nPosts:\n${JSON.stringify(compact)}${memorySection}\n\nRespond with JSON only, one item per post. Every item needs id, summary, baitScore, threadKind, and onAgenda (true or false). When opText is set, judge the conversation (reply + OP), not the reply alone.`;
+  // C12: structured preferences ride alongside owned excerpts; the shared
+  // formatter returns "" for anything unsupported, adding no bytes.
+  const profileBlock = formatScoutProfileBlock(profile);
+  const profileSection = profileBlock ? `\n\n${profileBlock}` : "";
+  return `${agendaLine}${avoidLine}\n\nPosts:\n${JSON.stringify(compact)}${memorySection}${profileSection}\n\nRespond with JSON only, one item per post. Every item needs id, summary, baitScore, threadKind, and onAgenda (true or false). When opText is set, judge the conversation (reply + OP), not the reply alone.`;
 }
 
 function buildWarning(parts: string[]): string | undefined {
@@ -532,6 +552,11 @@ export async function triageThreads(opts: {
   userId?: string;
   /** Injectable memory search (tests). Defaults to local index; soft-fails. */
   searchMemory?: MemorySearchFn;
+  /**
+   * The collector's one owned ScoutProfile snapshot for this run (C11/C12).
+   * Never loaded here; used only when it belongs to the nonblank `userId`.
+   */
+  profile?: ScoutProfile | null;
 }): Promise<TriageResult> {
   const threads = opts.threads;
   if (!threads.length) return { threads };
@@ -539,6 +564,7 @@ export async function triageThreads(opts: {
     userId: opts.userId,
     search: opts.searchMemory,
   };
+  const profile = triageProfileForOwner(opts.profile, opts.userId);
 
   const provider: LlmProvider = "deepseek";
   // Explicit apiKey (including "") wins so tests can force a missing key.
@@ -567,6 +593,7 @@ export async function triageThreads(opts: {
     batch,
     memories,
     opts.avoid ?? "",
+    profile,
   );
 
   const first = await chatCompletions({
@@ -634,7 +661,7 @@ export async function triageThreads(opts: {
         { role: "system", content: TRIAGE_SYSTEM_PROMPT },
         {
           role: "user",
-          content: `${buildUserMessage(opts.agenda ?? "", missingThreads, missingMemories, opts.avoid ?? "")}\n\nYou omitted these ids: ${JSON.stringify(missing)}. Return JSON items ONLY for those ids, each with id, summary, baitScore, threadKind, and onAgenda.`,
+          content: `${buildUserMessage(opts.agenda ?? "", missingThreads, missingMemories, opts.avoid ?? "", profile)}\n\nYou omitted these ids: ${JSON.stringify(missing)}. Return JSON items ONLY for those ids, each with id, summary, baitScore, threadKind, and onAgenda.`,
         },
       ],
     });
