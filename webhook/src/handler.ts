@@ -190,6 +190,7 @@ export async function markOwnReplyInteracted(
         userId,
         threadId: known.threadId,
         at: known.postedAt ?? known.at,
+        replyId: parsed.postId,
         knowledgeRoot: memoryOpts(opts).knowledgeRoot ?? defaultKnowledgeRoot(),
       });
       noteOwned = resolved.state === "found" && resolved.meta.reply.length > 0;

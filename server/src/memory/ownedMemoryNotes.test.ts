@@ -299,6 +299,31 @@ describe("resolveOwnedNote", () => {
     );
   });
 
+  it("resolves the requested reply note when sibling replies share a date", async () => {
+    await writeInteractionMemory({
+      userId: "user-a",
+      threadId: "2081",
+      replyId: "reply-a",
+      author: "@x",
+      reply: "reply A",
+      interactedAt: at,
+      knowledgeRoot: root,
+    });
+    await writeInteractionMemory({
+      userId: "user-a",
+      threadId: "2081",
+      replyId: "reply-b",
+      author: "@x",
+      reply: "reply B",
+      interactedAt: at,
+      knowledgeRoot: root,
+    });
+    const found = await resolveFor("user-a", { replyId: "reply-b" });
+    assert.equal(found.state, "found");
+    if (found.state !== "found") return;
+    assert.equal(found.meta.reply, "reply B");
+  });
+
   it("matches a legacy note by its metadata date when the filename date differs", async () => {
     await writeFile(
       join(dir, "2026-09-03-2081.md"),

@@ -24,6 +24,7 @@ import type { ThreadKind } from "./threadTriage.js";
 export const MAX_TOPIC_INPUT_CHARS = 2000;
 export const MIN_TOPIC_CHARS = 3;
 export const MAX_TOPIC_CHARS = 32;
+export const MAX_RETAINED_TARGET_CONTEXT = 2000;
 
 /** Fixed English stop list; keep sorted so the tokenizer stays reviewable. */
 const STOP_WORDS: ReadonlySet<string> = new Set([
@@ -179,18 +180,18 @@ export function readRetainedContextByConversation(
   if (!conversation) return null;
   const rows = getPlatformDb()
     .prepare(
-      `SELECT ${RETAINED_COLUMNS} FROM scout_target_context
-        WHERE user_id = ? AND card_id IS NOT NULL
-          AND (conversation_id = ? OR target_id = ?)
-          AND (
-            SELECT COUNT(DISTINCT card_id)
-            FROM scout_target_context
-            WHERE user_id = ? AND card_id IS NOT NULL
-              AND (conversation_id = ? OR target_id = ?)
-          ) = 1
+      `WITH matching AS (
+         SELECT ${RETAINED_COLUMNS} FROM scout_target_context
+          WHERE user_id = ? AND card_id IS NOT NULL AND conversation_id = ?
+         UNION
+         SELECT ${RETAINED_COLUMNS} FROM scout_target_context
+          WHERE user_id = ? AND card_id IS NOT NULL AND target_id = ?
+       )
+       SELECT ${RETAINED_COLUMNS} FROM matching
+        WHERE (SELECT COUNT(DISTINCT card_id) FROM matching) = 1
         ORDER BY retained_at DESC LIMIT 1`,
     )
-    .all(id, conversation, conversation, id, conversation, conversation) as RetainedRow[];
+    .all(id, conversation, id, conversation) as RetainedRow[];
   if (rows.length === 0) return null;
   return retainedFromRow(rows[0]!);
 }
@@ -251,6 +252,15 @@ export function retainScoutTargetContext(input: {
       contextSource,
       nowIso,
     );
+    db.prepare(
+      `DELETE FROM scout_target_context
+        WHERE user_id = ? AND target_id IN (
+          SELECT target_id FROM scout_target_context
+           WHERE user_id = ?
+           ORDER BY retained_at DESC, target_id DESC
+           LIMIT -1 OFFSET ?
+        )`,
+    ).run(userId, userId, MAX_RETAINED_TARGET_CONTEXT);
     return readRetainedTargetContext(userId, targetId)!;
   })();
 }

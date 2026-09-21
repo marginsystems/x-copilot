@@ -113,6 +113,7 @@ async function savedOrCanonicalReply(opts: {
   userId: string;
   threadId: string;
   tweetId: string;
+  replyId?: string;
   interactedAt?: string;
 }): Promise<{ reply: string; interactedAt?: string } | undefined> {
   try {
@@ -123,6 +124,7 @@ async function savedOrCanonicalReply(opts: {
       userId: opts.userId,
       threadId: opts.threadId,
       at: opts.interactedAt,
+      replyId: opts.replyId,
       knowledgeRoot: testHooks.knowledgeRoot ?? defaultKnowledgeRoot(),
       allowOtherDates: true,
     });
@@ -171,6 +173,7 @@ async function replayReplyMemory(opts: {
     userId: opts.userId,
     threadId: opts.threadId,
     tweetId: opts.tweetId,
+    replyId: opts.replyId,
     interactedAt: opts.interactedAt,
   });
   if (!canonical) return { state: "unavailable" };

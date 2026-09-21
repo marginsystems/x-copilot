@@ -6,11 +6,13 @@ import {
   seedUser,
   type TempPlatformDb,
 } from "../platform/platformDb.testHelpers.ts";
+import { getPlatformDb } from "../db.ts";
 import { watchThread } from "../desk/ownPostStore.ts";
 import { pruneThreadsFromScoutCache, saveScoutCache } from "./scoutCache.ts";
 import {
   captureScoutTargetContext,
   cardContextFromSnapshot,
+  MAX_RETAINED_TARGET_CONTEXT,
   normalizeEvidenceAuthor,
   readRetainedContextByConversation,
   readRetainedTargetContext,
@@ -257,6 +259,23 @@ describe("retained target context", () => {
       readRetainedContextByConversation(userId, "root-known")?.cardId,
       "card-a",
     );
+  });
+
+  it("caps retained context per user", () => {
+    for (let i = 0; i <= MAX_RETAINED_TARGET_CONTEXT; i++) {
+      retainScoutTargetContext({
+        userId,
+        targetId: `target-${i}`,
+        contextSource: "watch",
+        nowMs: i,
+      });
+    }
+    const row = getPlatformDb()
+      .prepare(
+        "SELECT COUNT(*) AS count FROM scout_target_context WHERE user_id = ?",
+      )
+      .get(userId) as { count: number };
+    assert.equal(row.count, MAX_RETAINED_TARGET_CONTEXT);
   });
 
   it("falls back to the watch list for author only", async () => {
