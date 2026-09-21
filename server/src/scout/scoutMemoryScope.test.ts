@@ -255,6 +255,8 @@ describe("runScoutCollect forwards its user to triage", () => {
         getCooledAuthorKeys: async () => new Set(),
         saveScoutCache: async () => {},
         saveScoutRunRecord: () => {},
+        // Keep this suite off the durable profile store (C11 run snapshot).
+        loadScoutProfile: async () => null,
         searchTimeline: async () => ({
           ok: true as const,
           queryId: "test",

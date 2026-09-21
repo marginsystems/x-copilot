@@ -8,6 +8,8 @@ import {
   type LlmProvider,
   type TokenUsage,
 } from "../platform/deepseek.js";
+import type { ScoutProfile } from "./scoutProfile.js";
+import { formatScoutProfileBlock } from "./scoutProfilePrompt.js";
 
 export type QueryPlanResult =
   | {
@@ -26,6 +28,12 @@ export type PlanQueriesOpts = {
   priorQueries?: string[];
   /** Human-readable yield context for replan. */
   yieldNote?: string;
+  /**
+   * The run's one owned ScoutProfile snapshot (C11). Rendered as a bounded
+   * advisory data block only when it carries supported preferences; absent,
+   * empty or unsupported profiles leave the prompt byte-identical.
+   */
+  profile?: ScoutProfile | null;
 };
 
 /**
@@ -222,6 +230,8 @@ export function formatPlanUserPrompt(
       "Broaden within the agenda topic family: prefer shorter high-recall 2-word Latest keywords (3 ok when needed); mix broad + tighter; do not copy the agenda sentence; at least two queries must contain agenda content words.",
     );
   }
+  const profileBlock = formatScoutProfileBlock(opts?.profile);
+  if (profileBlock) parts.push(profileBlock);
   parts.push("Respond with JSON only.");
   return parts.join("\n\n");
 }
@@ -335,6 +345,8 @@ export async function planQueriesFromAgenda(
       trimmed,
       {
         broaden: true,
+        // Same run snapshot as the first request; never reloaded here.
+        profile: opts?.profile,
         priorQueries: [...(opts?.priorQueries ?? []), ...queries],
         yieldNote: [
           opts?.yieldNote,

@@ -6,7 +6,11 @@ import {
   seedUser,
   type TempPlatformDb,
 } from "../platform/platformDb.testHelpers.ts";
-import { scoutPlanHistoryOpts } from "./queryPlanHistory.ts";
+import {
+  mergeScoutPlanHistoryOpts,
+  scoutPlanHistoryOpts,
+} from "./queryPlanHistory.ts";
+import { emptyScoutProfile } from "./scoutProfile.ts";
 import {
   emptyScoutRejectionCounts,
   saveScoutRunRecord,
@@ -63,5 +67,58 @@ describe("scoutPlanHistoryOpts", () => {
       /unique=0 usable=2 cool=0 calls=8 queries=\["dock claims","carrier ops"\]/,
     );
     assert.match(opts?.yieldNote ?? "", /unique=75 usable=2 cool=0 calls=8/);
+  });
+});
+
+describe("mergeScoutPlanHistoryOpts", () => {
+  it("keeps the run's profile snapshot and other opts while deduping history", () => {
+    temp = openTempPlatformDb("x-plan-history-merge-");
+    const userId = seedUser("history-merge-user");
+    saveScoutRunRecord({
+      id: "prior",
+      userId,
+      startedAt: "2026-01-02T00:00:00.000Z",
+      finishedAt: "2026-01-02T00:00:00.000Z",
+      queries: ["dock claims", "carrier ops"],
+      uniqueCandidateIds: 0,
+      rejectionCounts: emptyScoutRejectionCounts(),
+      usableAdditions: 2,
+      coolAdditions: 0,
+      searchCalls: 8,
+      stopReason: "exhausted",
+    });
+    const profile = emptyScoutProfile(userId);
+
+    const merged = mergeScoutPlanHistoryOpts(userId, {
+      broaden: true,
+      priorQueries: ["carrier ops", "freight software"],
+      yieldNote: "Low yield",
+      profile,
+    });
+    assert.equal(merged.profile, profile, "same snapshot object, not a copy");
+    assert.equal(merged.broaden, true);
+    assert.deepEqual(merged.priorQueries, [
+      "carrier ops",
+      "freight software",
+      "dock claims",
+    ]);
+    assert.match(
+      merged.yieldNote ?? "",
+      /^unique=0 usable=2 cool=0 calls=8 queries=\["dock claims","carrier ops"\]; Low yield$/,
+    );
+
+    // Same history strings whether or not a profile rides along.
+    const without = mergeScoutPlanHistoryOpts(userId, {
+      broaden: true,
+      priorQueries: ["carrier ops", "freight software"],
+      yieldNote: "Low yield",
+    });
+    assert.deepEqual(without.priorQueries, merged.priorQueries);
+    assert.equal(without.yieldNote, merged.yieldNote);
+    assert.equal("profile" in without, false);
+
+    // No history: the caller's object comes back untouched.
+    const fresh = { broaden: true, profile };
+    assert.equal(mergeScoutPlanHistoryOpts(seedUser("history-none-user"), fresh), fresh);
   });
 });
