@@ -7,6 +7,7 @@ import {
   resetScoutProfileProjectionForTests,
   scoutProfileProjectionStats,
   setScoutProfileRebuild,
+  withoutScoutProfileProjectionNotifications,
 } from "./scoutProfileProjection.ts";
 
 describe("scoutProfileProjection", () => {
@@ -60,6 +61,19 @@ describe("scoutProfileProjection", () => {
     release();
     await flushScoutProfileProjections();
     assert.equal(calls, 2);
+  });
+
+  it("does not re-run for notifications from internal repair", async () => {
+    let calls = 0;
+    setScoutProfileRebuild(async (userId) => {
+      calls += 1;
+      await withoutScoutProfileProjectionNotifications(async () => {
+        notifyScoutEvidenceChanged({ userId, revision: calls });
+      });
+    });
+    notifyScoutEvidenceChanged({ userId: "u1", revision: 1 });
+    await flushScoutProfileProjections();
+    assert.equal(calls, 1);
   });
 
   it("swallows rebuild failures and keeps serving later changes", async () => {

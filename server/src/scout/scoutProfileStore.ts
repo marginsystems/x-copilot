@@ -33,7 +33,10 @@ import {
   type ScoutProfileObservation,
   type ScoutSupportedHint,
 } from "./scoutProfile.js";
-import { setScoutProfileRebuild } from "./scoutProfileProjection.js";
+import {
+  setScoutProfileRebuild,
+  withoutScoutProfileProjectionNotifications,
+} from "./scoutProfileProjection.js";
 import { THREAD_KINDS, type ThreadKind } from "./threadTriage.js";
 
 export type { ScoutProfile } from "./scoutProfile.js";
@@ -418,7 +421,7 @@ export function installScoutProfileProjection(
   opts: Pick<ScoutProfileStoreOpts, "profileDir"> = {},
 ): void {
   setScoutProfileRebuild(async (userId) => {
-    await reconcileScoutEvidence({ userId });
+    await withoutScoutProfileProjectionNotifications(() => reconcileScoutEvidence({ userId }));
     return rebuildScoutProfile(userId, { profileDir: opts.profileDir, reconcile: false });
   });
 }

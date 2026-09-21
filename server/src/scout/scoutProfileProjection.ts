@@ -33,6 +33,7 @@ const PROJECTION_DEBOUNCE_MS = 10;
 
 let rebuildFn: ScoutProfileRebuildFn | null = null;
 const pending = new Map<string, PendingState>();
+let suppressedNotifications = 0;
 let notified = 0;
 let failures = 0;
 
@@ -43,6 +44,18 @@ export function setScoutProfileRebuild(fn: ScoutProfileRebuildFn | null): void {
 
 export function hasScoutProfileRebuild(): boolean {
   return rebuildFn !== null;
+}
+
+/** Run internal evidence repair without scheduling a projection for its writes. */
+export async function withoutScoutProfileProjectionNotifications<T>(
+  fn: () => Promise<T>,
+): Promise<T> {
+  suppressedNotifications += 1;
+  try {
+    return await fn();
+  } finally {
+    suppressedNotifications -= 1;
+  }
 }
 
 function runProjection(userId: string, state: PendingState): Promise<void> {
@@ -80,7 +93,7 @@ function runProjection(userId: string, state: PendingState): Promise<void> {
  */
 export function notifyScoutEvidenceChanged(change: ScoutEvidenceChange): void {
   const userId = typeof change.userId === "string" ? change.userId.trim() : "";
-  if (!userId || !rebuildFn) return;
+  if (!userId || !rebuildFn || suppressedNotifications > 0) return;
   notified += 1;
   const existing = pending.get(userId);
   if (existing) {
@@ -115,6 +128,7 @@ export function scoutProfileProjectionStats(): {
 export function resetScoutProfileProjectionForTests(): void {
   rebuildFn = null;
   pending.clear();
+  suppressedNotifications = 0;
   notified = 0;
   failures = 0;
 }
