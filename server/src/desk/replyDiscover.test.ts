@@ -902,19 +902,20 @@ describe("discoverOwnReplies", () => {
         }),
       });
     await run();
-    const own = await readFile(notePath("shared-parent", postedAt), "utf8");
+    const ownPath = notePath("shared-parent", postedAt);
+    const own = await readFile(ownPath, "utf8");
     assert.match(own, /userId: "u1"/);
     assert.match(own, /my confirmed take/);
     assert.match(await readFile(foreign.path, "utf8"), /someone else's take/);
     assert.equal(await readFile(legacyPath, "utf8"), unowned);
 
     // Once our own verified note exists, reconciliation leaves it alone.
-    const beforeReconciliation = await stat(own.path);
-    const beforeContent = await readFile(own.path, "utf8");
+    const beforeReconciliation = await stat(ownPath, { bigint: true });
+    const beforeContent = await readFile(ownPath, "utf8");
     await run();
-    const afterReconciliation = await stat(own.path);
+    const afterReconciliation = await stat(ownPath, { bigint: true });
     assert.equal(afterReconciliation.mtimeNs, beforeReconciliation.mtimeNs);
-    assert.equal(await readFile(own.path, "utf8"), beforeContent);
+    assert.equal(await readFile(ownPath, "utf8"), beforeContent);
   });
 
   it("indexes a note repaired from own_posts", async () => {
