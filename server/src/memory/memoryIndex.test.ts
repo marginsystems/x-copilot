@@ -727,6 +727,37 @@ Ship weekly.
     assert.match(hits[0]!.excerpt, /version two/);
   });
 
+  it("a rebuild cannot resurrect a row removed by a newer owner-loss upsert", async () => {
+    const path = await write(
+      "interactions",
+      canonical(A, "owner-loss"),
+      note({ type: "interaction", userId: A, threadId: "owner-loss", sections: { Post: "must disappear" } }),
+    );
+    assert.equal((await reindexMemory({ knowledgeRoot, indexDir, embedder })).indexed, 1);
+
+    let raced = false;
+    const racingEmbedder: Embedder = {
+      dimensions: embedder.dimensions,
+      async embed(texts) {
+        if (!raced) {
+          raced = true;
+          await writeFile(
+            path,
+            note({ type: "interaction", threadId: "owner-loss", sections: { Post: "owner removed" } }),
+            "utf8",
+          );
+          await utimes(path, new Date(), new Date(Date.now() + 5000));
+          const up = await upsertMemoryNote(path, { knowledgeRoot, indexDir, embedder });
+          assert.equal(up.ok, false);
+        }
+        return embedder.embed(texts);
+      },
+    };
+    const rebuilt = await reindexMemory({ knowledgeRoot, indexDir, embedder: racingEmbedder });
+    assert.equal(rebuilt.ok, true);
+    assert.equal((await search(A, "must disappear")).hits.length, 0);
+  });
+
   it("search surfaces embedder failure as unavailable, never old rows", async () => {
     await write(
       "interactions",

@@ -170,6 +170,18 @@ describe("memoryHttp", () => {
     assert.equal(calls.length, 0);
   });
 
+  it("returns 400 for a primitive JSON body", async () => {
+    const { calls, deps } = spySearch();
+    const { status, body } = await post(
+      "/api/memory/search",
+      { origin: LOCAL, body: "hello", cookie: a.cookie },
+      deps,
+    );
+    assert.equal(status, 400);
+    assert.equal(body.error, "bad_request");
+    assert.equal(calls.length, 0);
+  });
+
   it("searches as the session user only, after ensuring the index", async () => {
     const order: string[] = [];
     const { calls, deps } = spySearch();

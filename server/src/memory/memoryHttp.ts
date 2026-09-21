@@ -55,7 +55,7 @@ export async function tryHandleMemory(
     }
     let body: Record<string, unknown>;
     try {
-      body = (await readBody(req)) as Record<string, unknown>;
+      body = (await readBody(req, { requireObject: true })) as Record<string, unknown>;
     } catch (err) {
       const statusCode = err instanceof BodyError ? err.statusCode : 400;
       send(req, res, statusCode, {

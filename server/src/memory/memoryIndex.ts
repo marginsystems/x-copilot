@@ -295,6 +295,10 @@ function ensureSchema(db: Database.Database): void {
         content_hash TEXT NOT NULL,
         embedding BLOB NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS memory_deletions (
+        path TEXT PRIMARY KEY,
+        mtime_ms INTEGER NOT NULL
+      );
       CREATE INDEX IF NOT EXISTS idx_memories_user_type ON memories(user_id, type);
     `);
     writeMeta(db, META_SCHEMA_KEY, MEMORY_INDEX_SCHEMA_VERSION);
@@ -337,6 +341,12 @@ const UPSERT_SQL = `INSERT INTO memories
    indexed_at_ms = excluded.indexed_at_ms,
    content_hash = excluded.content_hash,
    embedding = excluded.embedding`;
+
+const UPSERT_GUARD_SQL = `
+ AND NOT EXISTS (
+   SELECT 1 FROM memory_deletions
+   WHERE path = excluded.path AND mtime_ms >= excluded.mtime_ms
+ )`;
 
 /** Owner participates in the hash so an owner-only edit is never a no-op. */
 function contentHash(userId: string, text: string): string {
@@ -566,11 +576,14 @@ export async function reindexMemory(opts?: {
           );
           // A row upserted during the rebuild read the file at least as
           // recently as this snapshot; only a strictly newer read replaces it.
-          const insert = db.prepare(
-            `${UPSERT_SQL}
-             WHERE excluded.mtime_ms > memories.mtime_ms`,
-          );
-          for (const row of rows) insert.run(row);
+           const insert = db.prepare(
+             `${UPSERT_SQL}
+             WHERE excluded.mtime_ms > memories.mtime_ms${UPSERT_GUARD_SQL}`,
+           );
+           for (const row of rows) insert.run(row);
+           db.prepare("DELETE FROM memory_deletions WHERE mtime_ms <= ?").run(
+             startedAtMs,
+           );
           db.prepare("DELETE FROM meta WHERE key = ?").run(LEGACY_READY_KEY);
           writeMeta(db, META_READY_KEY, MEMORY_INDEX_SCHEMA_VERSION);
         });
@@ -635,7 +648,14 @@ export async function upsertMemoryNote(
         await withFileLock(paths.dbPath, async () => {
           const db = await openDb(paths.dbPath);
           try {
-            db.prepare("DELETE FROM memories WHERE path = ?").run(resolve(notePath));
+            const path = resolve(notePath);
+            db.transaction(() => {
+              db.prepare(
+                `INSERT INTO memory_deletions (path, mtime_ms) VALUES (?, ?)
+                 ON CONFLICT(path) DO UPDATE SET mtime_ms = MAX(memory_deletions.mtime_ms, excluded.mtime_ms)`,
+              ).run(path, Math.round(st.mtimeMs));
+              db.prepare("DELETE FROM memories WHERE path = ?").run(path);
+            })();
           } finally {
             db.close();
           }
@@ -658,9 +678,13 @@ export async function upsertMemoryNote(
     await withFileLock(paths.dbPath, async () => {
       const db = await openDb(paths.dbPath);
       try {
+        db.prepare("DELETE FROM memory_deletions WHERE path = ? AND mtime_ms < ?").run(
+          row.path,
+          Math.round(row.mtime_ms),
+        );
         db.prepare(
           `${UPSERT_SQL}
-           WHERE excluded.mtime_ms >= memories.mtime_ms`,
+           WHERE excluded.mtime_ms >= memories.mtime_ms${UPSERT_GUARD_SQL}`,
         ).run(toIndexRow(row, vec, Date.now()));
       } finally {
         db.close();
