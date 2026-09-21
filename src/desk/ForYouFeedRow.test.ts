@@ -49,6 +49,8 @@ describe("ForYouFeedRow outbound doors", () => {
       }),
     );
 
+    assert.match(html, /chip-interacted/);
+    assert.match(html, />interacted</);
     assert.doesNotMatch(html, />Open For You</);
     assert.doesNotMatch(html, />Open Inspiration</);
     assert.doesNotMatch(html, new RegExp(X_INSPIRATION_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

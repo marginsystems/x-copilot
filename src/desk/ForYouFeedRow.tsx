@@ -76,6 +76,9 @@ export function ForYouFeedRow(props: {
       meta={
         <>
           <span className="chip">For You</span>
+          {detected ? (
+            <span className="chip chip-interacted">interacted</span>
+          ) : null}
           <span>x.com/home</span>
         </>
       }
