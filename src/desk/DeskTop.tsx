@@ -2,9 +2,11 @@ import { useId, useState } from "react";
 import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import type { CoachingState } from "../lib/coaching";
 import type { GamificationStats } from "../lib/gamification";
+import type { ScoutFamiliarity as ScoutFamiliarityData } from "../lib/scoutFamiliarity";
 import { ActivityStrip } from "./ActivityStrip";
 import { FadeSwap } from "./FadeSwap";
 import { InstrumentsPanel } from "./InstrumentsPanel";
+import { ScoutFamiliarity } from "./ScoutFamiliarity";
 import type { InteractionHistoryEntry } from "./types";
 
 type DeskTab = "path" | "instruments";
@@ -16,6 +18,8 @@ type DeskTopProps = {
   activityBucket: ActivityBucket;
   activityStats: ActivityStats;
   gamification: GamificationStats;
+  /** Owned Scout familiarity; null renders no meter (kept apart from XP). */
+  scoutFamiliarity?: ScoutFamiliarityData | null;
   interactedHistory: InteractionHistoryEntry[];
   usableScoutCount: number;
   coaching?: CoachingState | null;
@@ -31,6 +35,7 @@ export function DeskTop({
   activityBucket,
   activityStats,
   gamification,
+  scoutFamiliarity = null,
   interactedHistory,
   usableScoutCount,
   coaching,
@@ -108,14 +113,23 @@ export function DeskTop({
         <div className="desk-top-body-inner">
           <div className="desk-top-body-content">
             {tab === "path" ? (
-              <ActivityStrip
-                flightPathOpen={flightPathOpen}
-                activityBucket={activityBucket}
-                activityStats={activityStats}
-                gamification={gamification}
-                onToggleFlightPath={onToggleFlightPath}
-                onActivityBucket={onActivityBucket}
-              />
+              <div
+                className={
+                  scoutFamiliarity
+                    ? "desk-top-path has-familiarity"
+                    : "desk-top-path"
+                }
+              >
+                <ActivityStrip
+                  flightPathOpen={flightPathOpen}
+                  activityBucket={activityBucket}
+                  activityStats={activityStats}
+                  gamification={gamification}
+                  onToggleFlightPath={onToggleFlightPath}
+                  onActivityBucket={onActivityBucket}
+                />
+                <ScoutFamiliarity familiarity={scoutFamiliarity} />
+              </div>
             ) : (
               <InstrumentsPanel
                 expanded={flightPathOpen}

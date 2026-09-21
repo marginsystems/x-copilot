@@ -80,6 +80,12 @@ export type DeskHistoryDeps = {
   setStatus: (s: string) => void;
   setActionBusy: (b: boolean) => void;
   settings: AppSettings;
+  /**
+   * Runs after a current interacted/skipped/dismissed hydration commits,
+   * even when the returned ids did not change (a note repair can move
+   * familiarity coverage). Never runs for stale or failed refreshes.
+   */
+  onHydrated?: (slice: "interacted" | "skipped" | "dismissed") => void;
 };
 
 export function keepCuratedByHistory(
@@ -102,7 +108,7 @@ export function useDeskHistory(
   deps: DeskHistoryDeps,
   verifiedOwnerId: string | null,
 ) {
-  const { setThreads, setStatus, setActionBusy } = deps;
+  const { setThreads, setStatus, setActionBusy, onHydrated } = deps;
   const session = useSession();
   const requestSeq = useRef({
     interacted: 0, skipped: 0, dismissed: 0, expired: 0, forYou: 0,
@@ -270,6 +276,7 @@ export function useDeskHistory(
           ),
         );
       }
+      onHydrated?.("interacted");
     } catch {
       if (isCurrent()) setStatus("Could not refresh interacted history. Try again.");
     } finally {
@@ -340,6 +347,7 @@ export function useDeskHistory(
       if (ids.size || blocked.size) {
         setThreads((prev) => prev.filter((t) => keepInCurated(t)));
       }
+      onHydrated?.("skipped");
     } catch {
       if (isCurrent()) setStatus("Could not refresh skipped history. Try again.");
     }
@@ -385,6 +393,7 @@ export function useDeskHistory(
       if (ids.size || blocked.size) {
         setThreads((prev) => prev.filter((t) => keepInCurated(t)));
       }
+      onHydrated?.("dismissed");
     } catch {
       if (isCurrent()) setStatus("Could not refresh dismissed history. Try again.");
     }

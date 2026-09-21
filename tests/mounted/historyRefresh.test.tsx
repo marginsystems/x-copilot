@@ -4,6 +4,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { SessionBoundary, useSession } from "../../src/auth/session";
 import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";
+import { useSkipDismiss } from "../../src/desk/useSkipDismiss";
 import type { ThreadCard } from "../../src/desk/types";
 import type { AppSettings } from "../../src/lib/settings";
 import type { DeskBootDesk } from "../../src/lib/deskBoot";
@@ -30,11 +31,12 @@ function setup() {
   vi.stubGlobal("fetch", fetch);
   const setStatus = vi.fn();
   const setThreads = vi.fn();
+  const onHydrated = vi.fn();
   const hook = renderHook(() => ({
-    history: useDeskHistory({ setStatus, setThreads, setActionBusy: vi.fn(), settings: {} as AppSettings }, null),
+    history: useDeskHistory({ setStatus, setThreads, setActionBusy: vi.fn(), settings: {} as AppSettings, onHydrated }, null),
     session: useSession(),
   }), { wrapper });
-  return { ...hook, requests, fetch, setStatus, setThreads };
+  return { ...hook, requests, fetch, setStatus, setThreads, onHydrated };
 }
 
 test.each([
@@ -52,6 +54,110 @@ test.each([
   await act(async () => { requests[1].resolve(response({ [field]: [row("new")] })); await latest; });
   await act(async () => { requests[0].resolve(response({ [field]: [row("old")] })); await first; });
   expect(result.current.history[state]).toEqual([row("new")]);
+});
+
+test.each([
+  ["hydrateInteracted", "interacted", "interactions"],
+  ["hydrateSkipped", "skipped", "skipped"],
+  ["hydrateDismissed", "dismissed", "dismissals"],
+] as const)("%s runs the hydrated callback once per current success, even with unchanged ids", async (hydrate, slice, field) => {
+  const { result, requests, onHydrated } = setup();
+  let first!: Promise<void>;
+  act(() => { first = result.current.history[hydrate](); });
+  await act(async () => { requests[0].resolve(response({ [field]: [row("same")] })); await first; });
+  expect(onHydrated).toHaveBeenCalledTimes(1);
+  expect(onHydrated).toHaveBeenLastCalledWith(slice);
+  // Same ids again (a later revision from a note repair or webhook) still refreshes.
+  let second!: Promise<void>;
+  act(() => { second = result.current.history[hydrate](); });
+  await act(async () => { requests[1].resolve(response({ [field]: [row("same")] })); await second; });
+  expect(onHydrated).toHaveBeenCalledTimes(2);
+  // A failed refresh does not.
+  let failed!: Promise<void>;
+  act(() => { failed = result.current.history[hydrate](); });
+  await act(async () => { requests[2].resolve(new Response(null, { status: 500 })); await failed; });
+  expect(onHydrated).toHaveBeenCalledTimes(2);
+});
+
+test("a stale interacted completion does not run the hydrated callback", async () => {
+  const { result, requests, onHydrated } = setup();
+  let first!: Promise<void>, latest!: Promise<void>;
+  act(() => { first = result.current.history.hydrateInteracted(); latest = result.current.history.hydrateInteracted(); });
+  await act(async () => { requests[1].resolve(response({ interactions: [row("new")] })); await latest; });
+  expect(onHydrated).toHaveBeenCalledTimes(1);
+  await act(async () => { requests[0].resolve(response({ interactions: [row("old")] })); await first; });
+  expect(onHydrated).toHaveBeenCalledTimes(1);
+});
+
+function setupSkipDismiss() {
+  const requests: ReturnType<typeof deferred<Response>>[] = [];
+  vi.stubGlobal("fetch", vi.fn(() => {
+    const request = deferred<Response>();
+    requests.push(request);
+    return request.promise;
+  }));
+  const onActionSucceeded = vi.fn();
+  const setStatus = vi.fn();
+  const hook = renderHook(() => ({
+    session: useSession(),
+    actions: useSkipDismiss({
+      setActionBusy: vi.fn(), setStatus, setThreads: vi.fn(), setExpandedId: vi.fn(),
+      setSkippedHistory: vi.fn(), setDismissedHistory: vi.fn(),
+      skippedIdsRef: { current: new Set<string>() }, dismissedIdsRef: { current: new Set<string>() },
+      blockedConversationsRef: { current: new Set<string>() }, historyStaleRef: { current: false },
+      onActionSucceeded,
+    }),
+  }), { wrapper });
+  act(() => {
+    const generation = hook.result.current.session.capture();
+    hook.result.current.session.verify({ id: "owner-a" } as never, true, generation);
+  });
+  return { ...hook, requests, onActionSucceeded, setStatus };
+}
+
+const card = { id: "card-1", author: "@a", text: "t", url: "https://x.com/a/status/1" } as ThreadCard;
+
+test("skip success runs the action callback once; a failed skip does not", async () => {
+  const { result, requests, onActionSucceeded } = setupSkipDismiss();
+  let skip!: Promise<boolean>;
+  act(() => { skip = result.current.actions.onSkip(card); });
+  await act(async () => { requests[0].resolve(response({ ok: true })); });
+  expect(await skip).toBe(true);
+  expect(onActionSucceeded).toHaveBeenCalledTimes(1);
+  act(() => { skip = result.current.actions.onSkip(card); });
+  await act(async () => { requests[1].resolve(new Response("{}", { status: 500 })); });
+  expect(await skip).toBe(false);
+  expect(onActionSucceeded).toHaveBeenCalledTimes(1);
+  act(() => { skip = result.current.actions.onSkip(card); });
+  await act(async () => { requests[2].reject(new Error("offline")); });
+  expect(await skip).toBe(false);
+  expect(onActionSucceeded).toHaveBeenCalledTimes(1);
+});
+
+test("dismiss success runs the action callback once and a throwing callback cannot fail the action", async () => {
+  const { result, requests, onActionSucceeded, setStatus } = setupSkipDismiss();
+  onActionSucceeded.mockImplementation(() => { throw new Error("refresh exploded"); });
+  act(() => { result.current.actions.openDismissModal(card); });
+  let confirm!: Promise<void>;
+  act(() => { confirm = result.current.actions.confirmDismiss(); });
+  await act(async () => { requests[0].resolve(response({ ok: true })); await confirm; });
+  expect(onActionSucceeded).toHaveBeenCalledTimes(1);
+  expect(setStatus).toHaveBeenLastCalledWith("Marked @a not interested");
+  expect(result.current.actions.dismissThread).toBeNull();
+});
+
+test("an action acknowledged after an account switch does not refresh the new account", async () => {
+  const { result, requests, onActionSucceeded } = setupSkipDismiss();
+  const old = result.current;
+  let skip!: Promise<boolean>;
+  act(() => { skip = old.actions.onSkip(card); });
+  act(() => {
+    const generation = old.session.capture();
+    old.session.verify({ id: "owner-b" } as never, true, generation);
+  });
+  await act(async () => { requests[0].resolve(response({ ok: true })); });
+  expect(await skip).toBe(true);
+  expect(onActionSucceeded).not.toHaveBeenCalled();
 });
 
 test("older completion cannot finish latest readiness or hide its failure", async () => {

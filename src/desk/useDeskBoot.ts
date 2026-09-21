@@ -44,10 +44,12 @@ type UseDeskBootOpts = {
   hydrateVoice: () => Promise<void>;
   loadUsage: () => Promise<void>;
   loadAdmin: () => Promise<void>;
+  /** Optional post-paint familiarity refresh when boot predates the field. */
+  hydrateScoutFamiliarity?: () => Promise<void>;
 };
 
 /**
- * One-shot desk boot: consume callback query flags, fetch `/api/desk/boot`,
+ * One-shot desk boot: consume callback query flags, fetch `/api/boot`,
  * write the paint cache, then fall back to per-endpoint hydrate when boot is
  * unavailable. Owns the readiness flags the desk waits on.
  */
@@ -84,6 +86,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       hydrateVoice,
       loadUsage,
       loadAdmin,
+      hydrateScoutFamiliarity,
     } = opts;
     const query = queryRef.current;
     const err = query.authError;
@@ -172,6 +175,11 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         if (!current()) return;
         refreshAfterPaint(user, false);
         setDeskBootReady(true);
+        // An older boot payload has no familiarity slice: one optional
+        // refresh after paint, no retry, never blocking readiness.
+        if (user && boot.payload.desk && boot.payload.desk.scoutFamiliarity === undefined) {
+          void hydrateScoutFamiliarity?.();
+        }
         return;
       }
 
@@ -220,14 +228,19 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       if (!current()) return;
       if (err && !user) setSignInOpen(true);
       const onboarded = applyUser(user);
-      const [dismissed, skipped, interacted, expired, forYou, gamification, lastScout] = await Promise.all([
+      const [dismissed, skipped, interacted, expired, forYou, gamification, lastScout, scoutProfile] = await Promise.all([
         read("/api/dismissed"), read("/api/skipped"), read("/api/interacted"),
         read("/api/expired"), read("/api/for-you"), read("/api/gamification"),
         onboarded ? read(`/api/scout/last?dedupeAccounts=${opts.dedupeAccounts}&autoStart=0`) : null,
+        // Optional: an older API (404) or failed read leaves the slice absent.
+        user ? read("/api/scout/profile") : null,
       ]);
       if (!current()) return;
       const parsedDesk = parseDeskBoot({ ok: true, user, desk: {
         dismissed, skipped, interacted, expired, forYou, gamification, lastScout,
+        ...(scoutProfile == null
+          ? {}
+          : { scoutFamiliarity: (scoutProfile as { scoutFamiliarity?: unknown }).scoutFamiliarity ?? null }),
       } })!.desk!;
       const desk: DeskBootDeskPatch = parsedDesk;
       if (dismissed === undefined) delete desk.dismissed;
