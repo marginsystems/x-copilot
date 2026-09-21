@@ -458,6 +458,26 @@ describe("resolveOwnedNote", () => {
     assert.equal(canonical.meta.reply, "fresh take");
   });
 
+  it("prefers a reply-matched suffix over a legacy alias", async () => {
+    await writeFile(
+      join(dir, "2026-09-04-2081.md"),
+      note({ userId: "user-a", reply: "legacy take", replyId: "reply-a" }),
+      "utf8",
+    );
+    const suffixed = suffixedName("user-a", "2081", "reply-a");
+    await writeFile(
+      join(dir, suffixed),
+      note({ userId: "user-a", reply: "reply-specific take", replyId: "reply-a" }),
+      "utf8",
+    );
+
+    const resolved = await resolveFor("user-a", { replyId: "reply-a" });
+    assert.equal(resolved.state, "found");
+    if (resolved.state !== "found") return;
+    assert.equal(basename(resolved.path), suffixed);
+    assert.equal(resolved.meta.reply, "reply-specific take");
+  });
+
   it("matches a legacy note by its metadata date when the filename date differs", async () => {
     await writeFile(
       join(dir, "2026-09-03-2081.md"),

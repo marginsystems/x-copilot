@@ -9,6 +9,7 @@ import {
   writeInteractionMemory,
   type InteractionMemoryInput,
 } from "./knowledgeMemory.js";
+import { parseOwnedNoteMetadata } from "./ownedMemoryNotes.js";
 import {
   upsertMemoryNote,
   type Embedder,
@@ -60,7 +61,7 @@ export type ProjectConfirmedReplyMemoryInput = {
 type ProjectionDeps = {
   writeNote: (
     input: InteractionMemoryInput,
-  ) => Promise<{ path: string }>;
+  ) => Promise<{ path: string; markdown: string }>;
   upsertNote: typeof upsertMemoryNote;
   scheduleUpsert: (
     notePath: string,
@@ -144,10 +145,13 @@ export async function projectConfirmedReplyMemory(
       typeof input.replyId === "string" ? input.replyId.trim() : "";
     if (replyId) {
       try {
+        const declared = /^replyId:\s*["']?([^"'\r\n]+)["']?\s*$/m.exec(
+          parseOwnedNoteMetadata(memory.markdown)?.frontmatter ?? "",
+        )?.[1]?.trim();
         setScoutEvidenceNoteState({
           userId,
           replyId,
-          state: "stored",
+          state: declared === replyId ? "stored" : "missing",
         });
       } catch (noteErr) {
         console.warn("scout evidence note verification soft-fail:", noteErr);
