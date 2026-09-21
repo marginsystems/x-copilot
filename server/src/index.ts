@@ -31,6 +31,7 @@ import { tryHandleUsage } from "./billing/usageHttp.js";
 import { tryHandleHistory } from "./desk/historyHttp.js";
 import { tryHandleInteracted } from "./desk/interactedHttp.js";
 import { tryHandleScout } from "./scout/scoutHttp.js";
+import { tryHandleScoutProfile } from "./scout/scoutProfileHttp.js";
 import { tryHandleBoot } from "./http/bootHttp.js";
 import { tryHandleScoutApproachLock } from "./scout/scoutApproachLock.js";
 import { resumeDueSubscriptions } from "./x-api/xActivitySubscribe.js";
@@ -168,6 +169,9 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       if (await tryHandleScoutApproachLock(req, res, url)) {
+        return;
+      }
+      if (await tryHandleScoutProfile(req, res, url)) {
         return;
       }
       if (await tryHandleScout(req, res, url)) {
