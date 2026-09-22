@@ -146,14 +146,14 @@ export function AdminPanel(props: {
   }
 
   async function onGrant() {
-    const who = grantHandle.trim();
-    if (!who) {
-      setGrantNotice("Pass an X handle or an email.");
-      return;
-    }
-    setGrantBusy(true);
-    setGrantNotice("");
     try {
+      const who = grantHandle.trim();
+      if (!who) {
+        setGrantNotice("Pass an X handle or an email.");
+        return;
+      }
+      setGrantBusy(true);
+      setGrantNotice("");
       const looksEmail = who.includes("@") && !who.startsWith("@");
       const res = await apiFetch("/api/admin/grants", {
         method: "POST",
