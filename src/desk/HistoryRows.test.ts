@@ -16,8 +16,8 @@ function entry(
   };
 }
 
-describe("InteractedRow remembered line", () => {
-  it("shows one accessible Remembered line only for a saved receipt", () => {
+await describe("InteractedRow remembered line", async () => {
+  await it("shows one accessible Remembered line only for a saved receipt", () => {
     const saved = renderToStaticMarkup(
       createElement(InteractedRow, { entry: entry({ state: "saved" }) }),
     );
@@ -26,7 +26,7 @@ describe("InteractedRow remembered line", () => {
     assert.match(saved, /chip-interacted/);
   });
 
-  it("stays quiet when the receipt is missing or not saved", () => {
+  await it("stays quiet when the receipt is missing or not saved", () => {
     for (const memory of [
       undefined,
       { state: "unavailable" as const },

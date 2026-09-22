@@ -1,3 +1,5 @@
+import { isRecord } from "../lib/typeGuards";
+import { parseDeskBoot } from "../lib/deskBoot";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { useState } from "react";
 import { useSession } from "../auth/session";
@@ -86,15 +88,13 @@ export function useSkipDismiss({
           inReplyToId: thread.inReplyToId,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        message?: string;
-        skip?: SkipHistoryEntry;
-      };
+      const raw: unknown = await res.json().catch(() => ({}));
+      const data = isRecord(raw) ? raw : {};
       if (!res.ok) {
         setStatus("Could not skip. Try again.");
         return false;
       }
-      const entry: SkipHistoryEntry = data.skip ?? {
+      const entry: SkipHistoryEntry = parseDeskBoot({ ok: true, desk: { skipped: { skipped: [data.skip] } } })?.desk?.skipped.skipped[0] ?? {
         threadId: thread.id,
         author: thread.author,
         at: new Date().toISOString(),
@@ -163,10 +163,8 @@ export function useSkipDismiss({
           ...(reason.trim() ? { reason: reason.trim() } : {}),
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        message?: string;
-        dismissal?: DismissalHistoryEntry;
-      };
+      const raw: unknown = await res.json().catch(() => ({}));
+      const data = isRecord(raw) ? raw : {};
       if (!res.ok) {
         setStatus("Could not dismiss. Try again.");
         return false;
@@ -175,7 +173,7 @@ export function useSkipDismiss({
         thread.conversationId?.trim() ||
         thread.inReplyToId?.trim() ||
         thread.id;
-      const entry: DismissalHistoryEntry = data.dismissal ?? {
+      const entry: DismissalHistoryEntry = parseDeskBoot({ ok: true, desk: { dismissed: { dismissals: [data.dismissal] } } })?.desk?.dismissed.dismissals[0] ?? {
         threadId: thread.id,
         author: thread.author,
         at: new Date().toISOString(),

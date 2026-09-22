@@ -1,3 +1,4 @@
+import { isRecord } from "../lib/typeGuards";
 import {
   useEffect,
   useState,
@@ -139,18 +140,18 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         user: AuthSessionUser | null,
         refreshActivityStats = true,
       ) => {
-        void hydrateCoaching();
-        if (refreshActivityStats) void hydrateActivityStats();
-        void loadBilling();
+        hydrateCoaching().catch(() => undefined);
+        if (refreshActivityStats) hydrateActivityStats().catch(() => undefined);
+        loadBilling().catch(() => undefined);
         if (user) {
           ensureActivitySubscribe();
-          void hydrateVoice();
+          hydrateVoice().catch(() => undefined);
         }
         if (viewFromPath(window.location.pathname) === "usage" || checkout) {
-          void loadUsage();
+          loadUsage().catch(() => undefined);
         }
         if (viewFromPath(window.location.pathname) === "admin" && user?.isAdmin) {
-          void loadAdmin();
+          loadAdmin().catch(() => undefined);
         }
       };
 
@@ -178,7 +179,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         // An older boot payload has no familiarity slice: one optional
         // refresh after paint, no retry, never blocking readiness.
         if (user && boot.payload.desk && boot.payload.desk.scoutFamiliarity === undefined) {
-          void hydrateScoutFamiliarity?.();
+          hydrateScoutFamiliarity?.().catch(() => undefined);
         }
         return;
       }
@@ -203,8 +204,8 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         if (res.status === 401) {
           let required = path === "/api/auth/me" || session.getSnapshot().required;
           try {
-            const body = (await res.json()) as { authRequired?: boolean };
-            if (typeof body.authRequired === "boolean") required = body.authRequired;
+            const body: unknown = await res.json();
+            if (isRecord(body) && typeof body.authRequired === "boolean") required = body.authRequired;
           } catch {
             /* Empty 401 bodies still expire a required session. */
           }
@@ -213,7 +214,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
           return path === "/api/auth/me" ? null : undefined;
         }
         if (!res.ok) return undefined;
-        const data = await res.json();
+        const data: unknown = await res.json();
         if (!current()) throw new Error("Boot canceled");
         return data;
       };
@@ -221,10 +222,11 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       if (!current()) return;
       const optionalAnonymous =
         auth === null && session.getSnapshot().checked && !session.getSnapshot().required;
-      if (!auth?.ok && !optionalAnonymous) throw new Error("Invalid auth response");
+      if ((!isRecord(auth) || !auth.ok) && !optionalAnonymous) throw new Error("Invalid auth response");
       const user = optionalAnonymous
         ? applyAuthUser(null, false)
-        : applyAuthUser(parseAuthSessionUser(auth.user), auth.authRequired ?? true);
+        : applyAuthUser(parseAuthSessionUser(isRecord(auth) ? auth.user : null),
+            isRecord(auth) && typeof auth.authRequired === "boolean" ? auth.authRequired : true);
       if (!current()) return;
       if (err && !user) setSignInOpen(true);
       const onboarded = applyUser(user);
@@ -240,7 +242,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         dismissed, skipped, interacted, expired, forYou, gamification, lastScout,
         ...(scoutProfile == null
           ? {}
-          : { scoutFamiliarity: (scoutProfile as { scoutFamiliarity?: unknown }).scoutFamiliarity ?? null }),
+          : { scoutFamiliarity: (isRecord(scoutProfile) ? scoutProfile.scoutFamiliarity : null) ?? null }),
       } })!.desk!;
       const desk: DeskBootDeskPatch = parsedDesk;
       if (dismissed === undefined) delete desk.dismissed;

@@ -5,8 +5,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DeskRow } from "./DeskRow";
 
-describe("DeskRow card chrome", () => {
-  it("owns one left-aligned button row on the collapsed article", () => {
+await describe("DeskRow card chrome", async () => {
+  await it("owns one left-aligned button row on the collapsed article", () => {
     const html = renderToStaticMarkup(
       createElement(DeskRow, {
         lead: "FY",
@@ -29,7 +29,7 @@ describe("DeskRow card chrome", () => {
     assert.doesNotMatch(html, /approach-card-actions|justify-content/);
   });
 
-  it("keeps the card inside the pane without a horizontal scrollbar", () => {
+  await it("keeps the card inside the pane without a horizontal scrollbar", () => {
     const threads = readFileSync(
       new URL("../styles/12-threads.css", import.meta.url),
       "utf8",
@@ -59,7 +59,7 @@ describe("DeskRow card chrome", () => {
     assert.doesNotMatch(tips, /\.has-tip::after\s*\{[^}]*color:\s*var\(--muted\)/);
   });
 
-  it("does not fade the hover tip with the disabled Next face", () => {
+  await it("does not fade the hover tip with the disabled Next face", () => {
     const buttons = readFileSync(
       new URL("../styles/11-buttons.css", import.meta.url),
       "utf8",
@@ -69,7 +69,7 @@ describe("DeskRow card chrome", () => {
     assert.match(buttons, /button\.has-tip:disabled\s*\{[^}]*opacity:\s*1/);
   });
 
-  it("uses full-card collapsed hover without head hover overrides", () => {
+  await it("uses full-card collapsed hover without head hover overrides", () => {
     const css = readFileSync(
       new URL("../styles/12-threads.css", import.meta.url),
       "utf8",
@@ -83,7 +83,7 @@ describe("DeskRow card chrome", () => {
     assert.doesNotMatch(css, /\.approach-card-actions|justify-content:\s*flex-end/);
   });
 
-  it("anchors the pace help panel under the question chip", () => {
+  await it("anchors the pace help panel under the question chip", () => {
     const css = readFileSync(
       new URL("../styles/12-threads.css", import.meta.url),
       "utf8",
@@ -97,7 +97,7 @@ describe("DeskRow card chrome", () => {
     assert.doesNotMatch(css, /\.reply-pace-help-panel\s*\{[^}]*right:\s*0/);
   });
 
-  it("keeps non-expandable details visible", () => {
+  await it("keeps non-expandable details visible", () => {
     const html = renderToStaticMarkup(
       createElement(
         DeskRow,

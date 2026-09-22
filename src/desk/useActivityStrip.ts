@@ -102,7 +102,7 @@ export function useActivityStrip(
   function onActivityBucket(next: ActivityBucket) {
     activityRequestBucketRef.current = next;
     stripStaleRef.current = true;
-    void hydrateActivityStats(next);
+    hydrateActivityStats(next).catch((err: unknown) => console.error(err));
   }
 
   function onToggleFlightPath() {

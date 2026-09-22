@@ -297,7 +297,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       clearRetainedSuggestion(userId);
     }
     if (prevScout !== nextScout) {
-      void hydrateInteractedRef.current(nextScout);
+      Promise.resolve(hydrateInteractedRef.current(nextScout)).catch((err: unknown) => console.error(err));
     }
     setState(next);
   }
@@ -406,10 +406,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     if (detector !== "for_you") return;
     const source = new EventSource(apiUrl("/api/desk/events"), { withCredentials: true });
     source.addEventListener("own_post", () => {
-      void refreshCoachingRef.current({ lite: true });
+      Promise.resolve(refreshCoachingRef.current({ lite: true })).catch((err: unknown) => console.error(err));
     });
     const interval = window.setInterval(() => {
-      void refreshCoachingRef.current({ lite: true });
+      Promise.resolve(refreshCoachingRef.current({ lite: true })).catch((err: unknown) => console.error(err));
     }, 12_000);
     return () => {
       source.close();
@@ -421,7 +421,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   useEffect(() => {
     if (detector !== "scout" || !lockedCardId) return;
     const interval = window.setInterval(() => {
-      void hydrateInteractedRef.current(lockedCardId);
+      Promise.resolve(hydrateInteractedRef.current(lockedCardId)).catch((err: unknown) => console.error(err));
     }, 5_000);
     return () => window.clearInterval(interval);
   }, [detector, lockedCardId]);
@@ -562,7 +562,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         row?.kind === "reply" &&
         row.targetId
       ) {
-        void onSuggestionNext(id);
+        onSuggestionNext(id).catch((err: unknown) => console.error(err));
         return;
       }
       exitRow(id, `suggest:${id}`, async () => {
@@ -588,7 +588,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     },
     onForYouNext() {
       advanceCard({ type: "next" });
-      void onRefreshCoaching();
+      Promise.resolve(onRefreshCoaching()).catch((err: unknown) => console.error(err));
     },
   };
 }

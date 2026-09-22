@@ -16,8 +16,8 @@ function card(id: string, extra: Partial<ThreadCard> = {}): ThreadCard {
   };
 }
 
-describe("appendThreadsById", () => {
-  it("appends unseen ids and keeps first occurrence", () => {
+await describe("appendThreadsById", async () => {
+  await it("appends unseen ids and keeps first occurrence", () => {
     const prev = [card("1"), card("2")];
     const out = appendThreadsById(prev, [card("2", { text: "dup" }), card("3")]);
     assert.deepEqual(
@@ -27,15 +27,15 @@ describe("appendThreadsById", () => {
     assert.equal(out[1].text, "t2");
   });
 
-  it("returns prev when next is empty", () => {
+  await it("returns prev when next is empty", () => {
     const prev = [card("1")];
     assert.equal(appendThreadsById(prev, []), prev);
     assert.equal(appendThreadsById(prev, undefined), prev);
   });
 });
 
-describe("baitClass", () => {
-  it("bins bait scores", () => {
+await describe("baitClass", async () => {
+  await it("bins bait scores", () => {
     assert.equal(baitClass(null), "bait");
     assert.equal(baitClass(65), "bait high");
     assert.equal(baitClass(35), "bait mid");

@@ -345,4 +345,24 @@ it("keeps valid Scout cards intact and drops malformed cached fields", () => {
   assert.equal(mixed?.snapshot?.pipelineCounts, undefined);
   assert.equal(boot([null], counts)?.empty, true);
 }).catch(assert.fail);
+
+it("rejects a non-empty lastScout snapshot when every card is malformed", () => {
+  const parsed = parseDeskBoot({
+    ok: true,
+    user,
+    desk: {
+      ...desk,
+      lastScout: {
+        ok: true,
+        empty: false,
+        snapshot: {
+          savedAt: "2026-09-22",
+          threads: [{ id: "t1", author: "ada", text: "hello", url: "https://x.com/1", views: "42" }],
+        },
+      },
+    },
+  });
+  assert.equal(parsed?.desk?.lastScout.ok, false);
+  assert.equal(parsed?.desk?.lastScout.empty, true);
+});
 });

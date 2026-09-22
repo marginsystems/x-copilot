@@ -93,7 +93,9 @@ export function FlightShareModal({
             className="ghost flight-share-icon-btn"
             aria-label="Download PNG"
             title="Download PNG"
-            onClick={() => void downloadFlightSharePng(payload)}
+            onClick={() => {
+              downloadFlightSharePng(payload).catch(() => undefined);
+            }}
           >
             <DownloadIcon />
           </button>

@@ -29,14 +29,14 @@ function escapeRe(copy: string): RegExp {
   return new RegExp(copy.replace(/[.;]/g, (m) => `\\${m}`));
 }
 
-describe("pickApproachScout", () => {
-  it("locks the first tank row even when a later row has more views", () => {
+await describe("pickApproachScout", async () => {
+  await it("locks the first tank row even when a later row has more views", () => {
     const quieter = thread("quiet-root", 10);
     const louder = thread("loud-leaf", 9000);
     assert.equal(pickApproachScout([quieter, louder]), quieter);
   });
 
-  it("returns null when the tank is empty", () => {
+  await it("returns null when the tank is empty", () => {
     assert.equal(pickApproachScout([]), null);
   });
 });
@@ -100,8 +100,8 @@ const detectedActivity = {
   postedAt: "2026-09-08T04:00:00.000Z",
 };
 
-describe("Reply pace", () => {
-  it("reveals the destination chosen by each paced Next after expiry or Bypass", () => {
+await describe("Reply pace", async () => {
+  await it("reveals the destination chosen by each paced Next after expiry or Bypass", () => {
     const cases: { from: ApproachLock; scoutId: string | null; suggestionId: string | null;
       expected: ApproachLock; visible: RegExp; departed: RegExp }[] = [
       { from: { phase: "scout_reply", cardId: "departed-scout", surface: null },
@@ -149,7 +149,7 @@ describe("Reply pace", () => {
     }
   });
 
-  it("covers the already-selected Scout, then reveals that Scout at zero", () => {
+  await it("covers the already-selected Scout, then reveals that Scout at zero", () => {
     const props = missionProps({
       phase: "scout_reply", scout: thread("incoming-scout", 100),
       paceOverlayArmed: true, remainingMs: 42_000, clock: "0:42",
@@ -164,7 +164,7 @@ describe("Reply pace", () => {
     assert.doesNotMatch(over, /reply-pace|>For You</);
   });
 
-  it("Bypass clears the overlay without advancing the already-chosen card", () => {
+  await it("Bypass clears the overlay without advancing the already-chosen card", () => {
     let overlayArmed = true;
     let advances = 0;
     bypassApproachPace({
@@ -179,7 +179,7 @@ describe("Reply pace", () => {
     assert.equal(advances, 1);
   });
 
-  it("keeps a legacy hold visible with Next when a live clock has no overlay", () => {
+  await it("keeps a legacy hold visible with Next when a live clock has no overlay", () => {
     for (const detected of [false, true]) {
       const html = renderToStaticMarkup(MissionCard(missionProps({
         phase: "hold", surface: "for_you", forYou: { detected },
@@ -192,7 +192,7 @@ describe("Reply pace", () => {
     }
   });
 
-  it("hides the pace bar when the hold clock has expired", () => {
+  await it("hides the pace bar when the hold clock has expired", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -207,7 +207,7 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /0:00/);
   });
 
-  it("keeps detected For You visible while the minute runs before Next", () => {
+  await it("keeps detected For You visible while the minute runs before Next", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -227,7 +227,7 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
   });
 
-  it("keeps a detected Scout visible while the minute runs before Next", () => {
+  await it("keeps a detected Scout visible while the minute runs before Next", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -247,7 +247,7 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
   });
 
-  it("hides the pace bar under a Scout row when the clock expires", () => {
+  await it("hides the pace bar under a Scout row when the clock expires", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -263,7 +263,7 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /0:00/);
   });
 
-  it("keeps a detected Suggested row visible while the minute runs before Next", () => {
+  await it("keeps a detected Suggested row visible while the minute runs before Next", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -283,7 +283,7 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
   });
 
-  it("hides the pace bar under a Suggested row when the clock expires", () => {
+  await it("hides the pace bar under a Suggested row when the clock expires", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -301,7 +301,7 @@ describe("Reply pace", () => {
     assert.doesNotMatch(html, /0:00/);
   });
 
-  it("does not add an Open original link beside Open on X", () => {
+  await it("does not add an Open original link beside Open on X", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -339,8 +339,8 @@ describe("Reply pace", () => {
   });
 });
 
-describe("For You overlay presentation", () => {
-  it("replaces the selected For You card only when Next armed the overlay", () => {
+await describe("For You overlay presentation", async () => {
+  await it("replaces the selected For You card only when Next armed the overlay", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -363,7 +363,7 @@ describe("For You overlay presentation", () => {
     assert.doesNotMatch(html, />Next</);
   });
 
-  it("becomes For You on the same card when the minute is over", () => {
+  await it("becomes For You on the same card when the minute is over", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -385,8 +385,8 @@ describe("For You overlay presentation", () => {
   });
 });
 
-describe("Gate cards", () => {
-  it("names the missing prerequisite instead of For You", () => {
+await describe("Gate cards", async () => {
+  await it("names the missing prerequisite instead of For You", () => {
     const linkX = renderToStaticMarkup(
       MissionCard(missionProps({ phase: "silent_refuel", surface: "link_x" })),
     );
@@ -409,7 +409,7 @@ describe("Gate cards", () => {
     assert.doesNotMatch(settings, />For You</);
   });
 
-  it("removes the post action while a Suggested row is busy", () => {
+  await it("removes the post action while a Suggested row is busy", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -438,7 +438,7 @@ describe("Gate cards", () => {
     assert.match(html, /Opens your real X For You page\./);
   });
 
-  it("no longer paints usage or wait gates: the feed is open", () => {
+  await it("no longer paints usage or wait gates: the feed is open", () => {
     for (const surface of ["usage", "wait"] as const) {
       const html = renderToStaticMarkup(
         MissionCard(
@@ -459,8 +459,8 @@ describe("Gate cards", () => {
   });
 });
 
-describe("Approach flight frame", () => {
-  it("listens for a target-backed Suggested reply without I posted", () => {
+await describe("Approach flight frame", async () => {
+  await it("listens for a target-backed Suggested reply without I posted", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -489,7 +489,7 @@ describe("Approach flight frame", () => {
     assert.match(expanded, />Not interested</);
   });
 
-  it("keeps Open and enabled Next after a Suggested reply is detected", () => {
+  await it("keeps Open and enabled Next after a Suggested reply is detected", () => {
     for (const expandedId of [
       null,
       `suggest:${detectedSuggestedReply.id}`,
@@ -517,7 +517,7 @@ describe("Approach flight frame", () => {
     }
   });
 
-  it("fills the shared frame with the first locked scout thread", () => {
+  await it("fills the shared frame with the first locked scout thread", () => {
     const lead = thread("first-lead", 42);
     lead.summary = "A real landed summary";
     const html = renderToStaticMarkup(
@@ -543,7 +543,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /I posted on X/);
   });
 
-  it("keeps Open, Skip, and Not interested on a collapsed Scout", () => {
+  await it("keeps Open, Skip, and Not interested on a collapsed Scout", () => {
     const lead = thread("collapsed-lead", 42);
     const html = renderToStaticMarkup(
       MissionCard(
@@ -560,7 +560,7 @@ describe("Approach flight frame", () => {
     assert.match(html, />Not interested</);
   });
 
-  it("keeps Open and enabled Next on a detected retained Scout", () => {
+  await it("keeps Open and enabled Next on a detected retained Scout", () => {
     const lead = thread("detected-lead", 42);
     for (const expandedId of [null, lead.id]) {
       const html = renderToStaticMarkup(
@@ -586,7 +586,7 @@ describe("Approach flight frame", () => {
     }
   });
 
-  it("keeps an empty Scout lock in the collecting row and shows Next with stock", () => {
+  await it("keeps an empty Scout lock in the collecting row and shows Next with stock", () => {
     for (const searching of [false, true]) {
       const html = renderToStaticMarkup(MissionCard(missionProps({
         phase: "scout_reply", scout: null, searching,
@@ -604,7 +604,7 @@ describe("Approach flight frame", () => {
     }
   });
 
-  it("does not show Next while Collecting has no eligible stock", () => {
+  await it("does not show Next while Collecting has no eligible stock", () => {
     const html = renderToStaticMarkup(MissionCard(missionProps({
       phase: "scout_reply", scout: null, collectingReady: false,
       onScoutNext() {},
@@ -612,7 +612,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, />Next</);
   });
 
-  it("fills a landed scout thread while the desk is done for now", () => {
+  await it("fills a landed scout thread while the desk is done for now", () => {
     const lead = thread("restored-lead", 42);
     lead.summary = "A restored landed summary";
     const html = renderToStaticMarkup(
@@ -622,7 +622,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /Scout landed\. Loading Approach\./);
   });
 
-  it("renders a busy panel loader without skeleton rows for boot", () => {
+  await it("renders a busy panel loader without skeleton rows for boot", () => {
     const html = renderToStaticMarkup(ApproachLoadingCard());
     assert.match(html, /class="approach-panel-loader"/);
     assert.match(html, /role="status"/);
@@ -631,7 +631,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /mission-skel|thread-row|mission-card/);
   });
 
-  it("keeps an empty idle Approach collecting for Scout", () => {
+  await it("keeps an empty idle Approach collecting for Scout", () => {
     const html = renderToStaticMarkup(
       MissionCard(missionProps({ onForYouNext() {} })),
     );
@@ -646,7 +646,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /is-flying/);
   });
 
-  it("shows the in-air line and flying row while Collecting searches", () => {
+  await it("shows the in-air line and flying row while Collecting searches", () => {
     const html = renderToStaticMarkup(MissionCard(missionProps({ searching: true })));
     assert.match(html, />Searching</);
     assert.match(html, escapeRe(approachCollectingCopy({ searching: true })));
@@ -655,7 +655,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /Scout is getting the next reply/);
   });
 
-  it("updates Collecting title and line as Scout changes stage", () => {
+  await it("updates Collecting title and line as Scout changes stage", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -671,7 +671,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /Scout is getting the next reply/);
   });
 
-  it("does not render a stale Scout stage after searching ends", () => {
+  await it("does not render a stale Scout stage after searching ends", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -688,7 +688,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /is-flying/);
   });
 
-  it("never leaks refill internals onto the For You wait", () => {
+  await it("never leaks refill internals onto the For You wait", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -710,7 +710,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /Scouting/);
   });
 
-  it("shows detecting copy on an empty For You wait", () => {
+  await it("shows detecting copy on an empty For You wait", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -732,7 +732,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /You&#x27;re clean/);
   });
 
-  it("covers a detected For You card when Next armed the overlay", () => {
+  await it("covers a detected For You card when Next armed the overlay", () => {
     const running = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -780,7 +780,7 @@ describe("Approach flight frame", () => {
     assert.doesNotMatch(html, /reply-pace/);
   });
 
-  it("paints the same For You presenter for both For You phases", () => {
+  await it("paints the same For You presenter for both For You phases", () => {
     const entries = [
       { phase: "silent_refuel", surface: "for_you" },
       { phase: "hold", surface: "for_you" },
@@ -802,8 +802,8 @@ describe("Approach flight frame", () => {
   });
 });
 
-describe("ForYouFeedRow", () => {
-  it("keeps detected status and fallback text without activity detail", () => {
+await describe("ForYouFeedRow", async () => {
+  await it("keeps detected status and fallback text without activity detail", () => {
     const html = renderToStaticMarkup(
       createElement(ForYouFeedRow, {
         detected: true,
@@ -816,7 +816,7 @@ describe("ForYouFeedRow", () => {
     assert.match(html, /class="caret"/);
   });
 
-  it("lets a detected wait collapse while keeping its status visible", () => {
+  await it("lets a detected wait collapse while keeping its status visible", () => {
     const html = renderToStaticMarkup(
       createElement(ForYouFeedRow, {
         status: FYP_DETECTED_COPY,
@@ -834,7 +834,7 @@ describe("ForYouFeedRow", () => {
     assert.doesNotMatch(html, /thread-row for-you-row next-action-row kind-reply open/);
   });
 
-  it("lets an undetected wait collapse its details", () => {
+  await it("lets an undetected wait collapse its details", () => {
     const html = renderToStaticMarkup(
       createElement(ForYouFeedRow, {
         status: FYP_DETECTING_COPY,

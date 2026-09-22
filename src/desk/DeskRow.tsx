@@ -3,7 +3,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type HTMLAttributes,
   type MouseEventHandler,
   type ReactNode,
 } from "react";
@@ -51,7 +50,7 @@ function ActionSlot({
       className={presence.open ? "row-action" : "row-action is-collapsed"}
       aria-hidden={presence.open ? undefined : true}
       {...(!presence.open
-        ? ({ inert: "" } as HTMLAttributes<HTMLSpanElement>)
+        ? { inert: "" }
         : {})}
     >
       <span className="row-action-clip">{cached.current}</span>
@@ -315,7 +314,7 @@ export function DeskRow({
           className="row-detail-slot"
           aria-hidden={!detailVisible}
           {...(!detailVisible
-            ? ({ inert: "" } as HTMLAttributes<HTMLDivElement>)
+            ? { inert: "" }
             : {})}
         >
           <div className="row-detail-inner">

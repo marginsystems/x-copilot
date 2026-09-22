@@ -15,6 +15,7 @@ vi.mock("../../src/desk/watch", () => ({
 
 const boot = parseDeskBoot({ ok: true, user: { id: "owner", onboardingCompleted: true }, desk: {} })!;
 const wrapper = ({ children }: { children: ReactNode }) => <StrictMode><SessionBoundary>{children}</SessionBoundary></StrictMode>;
+const threadCard = (id: string) => ({ id, author: "@author", text: "text", url: `https://x.com/author/status/${id}` });
 afterEach(() => window.history.replaceState({}, "", "/"));
 
 function mountBoot(strict = false) {
@@ -185,6 +186,24 @@ test("poll 401 expires the session and stops autoStart requests", async () => {
   expect(h.result.current.session.getSnapshot().active).toBe(false);
   await act(async () => { vi.advanceTimersByTime(16000); });
   expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+test("invalid empty snapshots still apply flight state and start polling", async () => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn(async () => ({ ok: true, status: 200, json: () => ({ ok: true, empty: true }) }));
+  vi.stubGlobal("fetch", fetcher);
+  const h = mountPoll(false);
+  act(() => h.result.current.applyLastScoutFromBoot({
+    ok: false,
+    empty: true,
+    flight: { active: true, stage: "searching" },
+  }));
+  expect(h.result.current.searching).toBe(true);
+  h.rerender({ enabled: true });
+  await act(async () => {});
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher.mock.calls[0][0]).toContain("autoStart=1");
+  h.unmount();
 });
 
 test("poll does not overlap while the response body is pending", async () => {
@@ -448,12 +467,40 @@ test("applyHistoryFromBoot marks interacted history hydrated", () => {
 
 test("a full tank stops polling and aborts its effect", async () => {
   vi.useFakeTimers();
-  const fetcher = vi.fn(async () => Response.json({ ok: true, empty: false, snapshot: { threads: [{ id: "a" }, { id: "b" }] } }));
+  const threads = [threadCard("a"), threadCard("b")];
+  const fetcher = vi.fn(async () => Response.json({ ok: true, empty: false, snapshot: { threads } }));
   vi.stubGlobal("fetch", fetcher);
   const h = mountPoll();
   act(() => h.result.current.applyLastScoutFromBoot({ ok: true, empty: true }));
+  h.setThreads.mockClear();
   await act(async () => {});
   expect(fetcher).toHaveBeenCalledTimes(1);
   await act(async () => { vi.advanceTimersByTime(16000); });
   expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(h.setThreads).toHaveBeenCalledWith(threads);
+});
+
+test.each([
+  { name: "active flight", empty: false, active: true, threads: [threadCard("a"), threadCard("b")], expected: [threadCard("a"), threadCard("b")] },
+  { name: "explicitly empty tank", empty: true, active: false, threads: [threadCard("a"), threadCard("b")], expected: [] },
+  { name: "low tank", empty: false, active: false, threads: [{ id: "invalid" }], expected: null },
+])("$name keeps polling after card validation", async ({ empty, active, threads, expected }) => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn(async () => Response.json({
+    ok: true, empty, flight: { active }, snapshot: { threads },
+  }));
+  vi.stubGlobal("fetch", fetcher);
+  const h = mountPoll();
+  act(() => h.result.current.applyLastScoutFromBoot({ ok: true, empty: true }));
+  h.setThreads.mockClear();
+  await act(async () => {});
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(h.result.current.searching).toBe(active);
+  await act(async () => { vi.advanceTimersByTime(4000); });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  if (expected) {
+    expect(h.setThreads).toHaveBeenCalledWith(expected);
+  } else {
+    expect(h.setThreads).not.toHaveBeenCalled();
+  }
 });

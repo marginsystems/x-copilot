@@ -10,8 +10,8 @@ import {
   X_INSPIRATION_URL,
 } from "../lib/forYou";
 
-describe("ForYouFeedRow outbound doors", () => {
-  it("offers For You and Inspiration while waiting", () => {
+await describe("ForYouFeedRow outbound doors", async () => {
+  await it("offers For You and Inspiration while waiting", () => {
     const html = renderToStaticMarkup(
       createElement(ForYouFeedRow, {
         status: FYP_DETECTING_COPY,
@@ -34,7 +34,7 @@ describe("ForYouFeedRow outbound doors", () => {
     assert.match(html, />Next</);
   });
 
-  it("hides both outbound doors after a post is detected", () => {
+  await it("hides both outbound doors after a post is detected", () => {
     const html = renderToStaticMarkup(
       createElement(ForYouFeedRow, {
         detected: true,

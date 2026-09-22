@@ -92,20 +92,20 @@ export function useAgendaPersist({
   }
 
   function flushAgenda(): void {
-    void persistNow();
+    persistNow().catch((err: unknown) => console.error(err));
   }
 
   useEffect(() => {
     if (!enabled) return;
     const id = window.setTimeout(() => {
-      void persistNow();
+      persistNow().catch((err: unknown) => console.error(err));
     }, AGENDA_DEBOUNCE_MS);
     return () => window.clearTimeout(id);
   }, [agenda, enabled, authUser?.id]);
 
   useEffect(() => {
     return () => {
-      void persistNow();
+      persistNow().catch((err: unknown) => console.error(err));
     };
   }, []);
 

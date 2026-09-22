@@ -1,3 +1,4 @@
+import { isRecord } from "../lib/typeGuards";
 import { useSession } from "../auth/session";
 import { parseBilling, payloadError } from "../lib/routePayloads";
 import { useEffect, useState } from "react";
@@ -51,8 +52,7 @@ export function useBilling({ onUtcDay }: UseBillingOptions = {}) {
       if (!session.isCurrent(generation)) return;
       const raw: unknown = await res.json();
       if (!session.isCurrent(generation)) return;
-      const data = raw && typeof raw === "object" && !Array.isArray(raw)
-        ? raw as Record<string, unknown> : {};
+      const data = isRecord(raw) && !Array.isArray(raw) ? raw : {};
       if (!res.ok || data.ok !== true || (data.plan_key !== undefined && typeof data.plan_key !== "string")) {
         setBillingNotice(
           payloadError(raw, "Could not confirm checkout yet. Refresh in a moment."),
@@ -85,8 +85,7 @@ export function useBilling({ onUtcDay }: UseBillingOptions = {}) {
       if (!session.isCurrent(generation)) return;
       const raw: unknown = await res.json();
       if (!session.isCurrent(generation)) return;
-      const data = raw && typeof raw === "object" && !Array.isArray(raw)
-        ? raw as Record<string, unknown> : {};
+      const data = isRecord(raw) && !Array.isArray(raw) ? raw : {};
       if (!res.ok || typeof data.url !== "string" || !data.url) {
         setBillingNotice(payloadError(raw, `Checkout failed (${res.status})`));
         return;
@@ -111,8 +110,7 @@ export function useBilling({ onUtcDay }: UseBillingOptions = {}) {
       if (!session.isCurrent(generation)) return;
       const raw: unknown = await res.json();
       if (!session.isCurrent(generation)) return;
-      const data = raw && typeof raw === "object" && !Array.isArray(raw)
-        ? raw as Record<string, unknown> : {};
+      const data = isRecord(raw) && !Array.isArray(raw) ? raw : {};
       if (!res.ok || typeof data.url !== "string" || !data.url) {
         setBillingNotice(payloadError(raw, `Portal failed (${res.status})`));
         return;
@@ -139,7 +137,10 @@ export function useBilling({ onUtcDay }: UseBillingOptions = {}) {
       );
       timer = setTimeout(() => {
         if (!session.isCurrent(generation)) return;
-        void loadBilling();
+        loadBilling().catch((err: unknown) => {
+          if (!session.isCurrent(generation)) return;
+          setBillingNotice(err instanceof Error ? err.message : String(err));
+        });
         onUtcDay?.();
         arm();
       }, Math.max(0, nextUtcDay - Date.now()) + 500);

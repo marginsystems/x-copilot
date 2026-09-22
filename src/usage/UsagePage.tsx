@@ -63,7 +63,12 @@ export function UsagePage({
             className="settings-select"
             value={usageWindow}
             disabled={busy}
-            onChange={(e) => onWindowChange(e.target.value as UsageWindow)}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === "24h" || value === "7d" || value === "all") {
+                onWindowChange(value);
+              }
+            }}
           >
             <option value="24h">Last 24h</option>
             <option value="7d">Last 7 days</option>
