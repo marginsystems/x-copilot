@@ -26,7 +26,6 @@ describe("isLeafReply", () => {
       true,
     );
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("retargetLeafToRoot", () => {
   it("rewrites a leftover last-scout leaf onto the OP", () => {
@@ -78,7 +77,6 @@ describe("retargetLeafToRoot", () => {
     assert.equal(next.views, undefined);
     assert.equal(next.inReplyToScreenName, undefined);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("preferRootTargets", () => {
   it("keeps roots and ranks by views", () => {
@@ -99,4 +97,3 @@ describe("preferRootTargets", () => {
       ["loud", "quiet"],
     );
   }).catch(assert.fail);
-}).catch(assert.fail);

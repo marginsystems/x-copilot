@@ -10,7 +10,6 @@ describe("gaMeasurementId", () => {
   it("defaults to the xcopilot.dev stream", () => {
     assert.equal(gaMeasurementId(), DEFAULT_GA_MEASUREMENT_ID);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("trackPageView", () => {
   it("no-ops when gtag is missing", () => {
@@ -48,4 +47,3 @@ describe("trackPageView", () => {
       ],
     ]);
   }).catch(assert.fail);
-}).catch(assert.fail);

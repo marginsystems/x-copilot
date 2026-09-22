@@ -10,7 +10,6 @@ describe("deskNeedsXLink", () => {
     assert.equal(deskNeedsXLink({ xLinked: false }), true);
     assert.equal(deskNeedsXLink({}), true);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("showDeskXGate", () => {
   const base = {
@@ -50,4 +49,3 @@ describe("showDeskXGate", () => {
     assert.equal(showDeskXGate({ ...base, needsOnboarding: true }), false);
     assert.equal(showDeskXGate({ ...base, needsXLink: false }), false);
   }).catch(assert.fail);
-}).catch(assert.fail);

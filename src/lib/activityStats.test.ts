@@ -19,7 +19,6 @@ describe("formatPeriodTip", () => {
   it("writes a week as Week N", () => {
     assert.equal(formatPeriodTip("2026-W33", "week"), "Week 33");
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("formatCount", () => {
   it("keeps small numbers intact", () => {
@@ -29,7 +28,6 @@ describe("formatCount", () => {
   it("compacts thousands", () => {
     assert.equal(formatCount(37410), "37k");
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("activityChartTipDetail", () => {
   it("names posts and views", () => {
@@ -61,7 +59,6 @@ describe("activityChartTipDetail", () => {
     assert.equal(activityChartTipMix(kinds), "4 OG · 2 quotes · 46 replies");
     assert.equal(activityChartTipMix({ originals: 0, quotes: 0, replies: 0 }), "");
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("postKindCounts / stackBarSegments", () => {
   it("treats a legacy interactions-only point as replies", () => {
@@ -91,7 +88,6 @@ describe("postKindCounts / stackBarSegments", () => {
       ],
     );
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("parseActivityStats", () => {
   it("defaults missing kind fields on an old boot snapshot", () => {
@@ -105,4 +101,3 @@ describe("parseActivityStats", () => {
     assert.equal(parsed?.series[0]?.replies, 0);
     assert.equal(parsed?.totals.originals, 0);
   }).catch(assert.fail);
-}).catch(assert.fail);

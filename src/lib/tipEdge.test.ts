@@ -43,7 +43,6 @@ describe("tipEdge", () => {
     assert.equal(tipEdge(60, 243.2, 320), "start");
     assert.equal(tipEdge(260, 243.2, 320), "end");
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("tipAlignClass", () => {
   it("names the CSS class for each edge", () => {
@@ -51,14 +50,12 @@ describe("tipAlignClass", () => {
     assert.equal(tipAlignClass("center"), "is-tip-center");
     assert.equal(tipAlignClass("end"), "is-tip-end");
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("estimateTipWidth", () => {
   it("uses 16rem until 76vw is smaller", () => {
     assert.equal(estimateTipWidth(1200), 240);
     assert.equal(estimateTipWidth(300), 228);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("tipFlipBelow", () => {
   it("flips when the tip would clip the top of the viewport", () => {
@@ -68,7 +65,6 @@ describe("tipFlipBelow", () => {
   it("stays above when there is room", () => {
     assert.equal(tipFlipBelow(120, 44), false);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("tipAnchor", () => {
   it("maps a point from chart viewBox coordinates to fixed viewport coordinates", () => {
@@ -84,4 +80,3 @@ describe("tipAnchor", () => {
       { x: 12, y: 24 },
     );
   }).catch(assert.fail);
-}).catch(assert.fail);

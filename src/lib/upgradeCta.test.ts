@@ -30,4 +30,3 @@ describe("upgrade CTAs", () => {
       /Subscribe to Pulse to keep these limits/,
     );
   }).catch(assert.fail);
-}).catch(assert.fail);

@@ -200,4 +200,3 @@ describe("onboarding helpers", () => {
       { open: true, nextSearch: "?tab=grants" },
     );
   }).catch(assert.fail);
-}).catch(assert.fail);

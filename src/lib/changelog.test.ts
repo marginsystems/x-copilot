@@ -35,7 +35,6 @@ describe("CHANGELOG", () => {
     assert.match(CHANGELOG[0]!.body, /P\(action\)/);
     assert.match(CHANGELOG[0]!.body, /\/learn/);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("changelogByDate", () => {
   it("groups consecutive same-day rows and keeps newest first", () => {
@@ -52,7 +51,6 @@ describe("changelogByDate", () => {
       ],
     );
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("formatChangelogDate", () => {
   it("formats a UTC day without shifting the calendar date", () => {
@@ -62,4 +60,3 @@ describe("formatChangelogDate", () => {
     assert.equal(isChangelogDate("2026-13-01"), false);
     assert.equal(isChangelogDate("2026-02-31"), false);
   }).catch(assert.fail);
-}).catch(assert.fail);

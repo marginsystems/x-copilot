@@ -7,4 +7,3 @@ describe("nextTheme", () => {
     assert.equal(nextTheme("dark"), "light");
     assert.equal(nextTheme("light"), "dark");
   }).catch(assert.fail);
-}).catch(assert.fail);

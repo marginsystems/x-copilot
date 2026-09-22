@@ -95,7 +95,6 @@ describe("parseAuthSessionUser", () => {
     assert.equal(parsed?.onboardingCompleted, true);
     assert.equal(parsed?.agenda, null);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("parseDeskBoot", () => {
   it("keeps a signed-in payload and parses Approach progress", () => {
@@ -241,7 +240,6 @@ describe("parseDeskBoot", () => {
     assert.deepEqual(rows[1]?.memory, { state: "no_reply_text" });
     assert.equal(rows[2]?.memory, undefined);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("desk boot cache", () => {
   it("round-trips a snapshot without scoutLog and drops signed-out writes", () => {
@@ -326,7 +324,6 @@ describe("desk boot cache", () => {
     clearDeskBootCache();
     clearDeskBootCache(store);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 it("keeps valid Scout cards intact and drops malformed cached fields", () => {
   const card = { id: "t1", author: "ada", text: "hello", url: "https://x.com/ada/status/1", flags: ["question"], score: 5 };
@@ -343,4 +340,3 @@ it("keeps valid Scout cards intact and drops malformed cached fields", () => {
   assert.deepEqual(mixed?.snapshot?.threads, [card]);
   assert.equal(mixed?.snapshot?.pipelineCounts, undefined);
   assert.equal(boot([null], counts)?.empty, true);
-}).catch(assert.fail);
