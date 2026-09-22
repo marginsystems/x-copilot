@@ -106,7 +106,7 @@ export async function handleAnalyticsRequest(
   try {
     rawText = await readLimitedBody(req);
   } catch (err) {
-    const code = err instanceof Error ? (err as { code?: string }).code : undefined;
+    const code = err instanceof Error && "code" in err ? err.code : undefined;
     if (code === "body_too_large") {
       json(res, 413, { error: "body_too_large" });
       res.on("finish", () => res.socket?.destroy());
@@ -138,8 +138,10 @@ export async function handleAnalyticsRequest(
     log(`[analytics] ${text.replaceAll("\n", " ")}`);
     return;
   }
-  void postSlackWebhook(webhook, text, deps.fetchImpl ?? fetch).then((ok) => {
+  postSlackWebhook(webhook, text, deps.fetchImpl ?? fetch).then((ok) => {
     if (!ok) log("[analytics] slack post failed");
+  }).catch(() => {
+    log("[analytics] slack post failed");
   });
 }
 
@@ -147,7 +149,7 @@ export function createAnalyticsServer(
   deps: AnalyticsServiceDeps = {},
 ): http.Server {
   return http.createServer((req, res) => {
-    void handleAnalyticsRequest(req, res, deps).catch((err) => {
+    handleAnalyticsRequest(req, res, deps).catch((err) => {
       console.error("[analytics] handler error:", err);
       if (!res.headersSent) {
         json(res, 500, { error: "internal" });
