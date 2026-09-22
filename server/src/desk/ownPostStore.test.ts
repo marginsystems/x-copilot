@@ -470,7 +470,7 @@ describe("ownPostStore", () => {
       "99",
       "original",
       "garbled",
-      Buffer.from("2026-08-01T00:00:00.000Z"),
+      Buffer.from([0x00, 0xff]),
       "2026-08-01T00:00:00.000Z",
     );
     assert.throws(() => backfillOwnPostPostedAt(db), {

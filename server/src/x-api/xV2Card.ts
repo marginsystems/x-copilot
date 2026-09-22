@@ -82,7 +82,12 @@ function v2TweetHasOutboundLink(tweet: V2Tweet): boolean {
 
 function v2UrlLooksLikeArticle(tweet: V2Tweet): boolean {
   for (const u of tweet.entities?.urls ?? []) {
-    const expanded = (u.expanded_url ?? u.url ?? "").trim();
+    const expanded =
+      typeof u.expanded_url === "string"
+        ? u.expanded_url.trim()
+        : typeof u.url === "string"
+          ? u.url.trim()
+          : "";
     if (expanded && isXArticleUrl(expanded)) return true;
   }
   return false;
