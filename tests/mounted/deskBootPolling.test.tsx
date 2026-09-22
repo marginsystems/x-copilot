@@ -483,7 +483,7 @@ test("a full tank stops polling and aborts its effect", async () => {
 test.each([
   { name: "active flight", empty: false, active: true, threads: [threadCard("a"), threadCard("b")], expected: [threadCard("a"), threadCard("b")] },
   { name: "explicitly empty tank", empty: true, active: false, threads: [threadCard("a"), threadCard("b")], expected: [] },
-  { name: "low tank", empty: false, active: false, threads: [{ id: "invalid" }], expected: [] },
+  { name: "low tank", empty: false, active: false, threads: [{ id: "invalid" }], expected: null },
 ])("$name keeps polling after card validation", async ({ empty, active, threads, expected }) => {
   vi.useFakeTimers();
   const fetcher = vi.fn(async () => Response.json({
@@ -498,5 +498,9 @@ test.each([
   expect(h.result.current.searching).toBe(active);
   await act(async () => { vi.advanceTimersByTime(4000); });
   expect(fetcher).toHaveBeenCalledTimes(2);
-  expect(h.setThreads).toHaveBeenCalledWith(expected);
+  if (expected) {
+    expect(h.setThreads).toHaveBeenCalledWith(expected);
+  } else {
+    expect(h.setThreads).not.toHaveBeenCalled();
+  }
 });
