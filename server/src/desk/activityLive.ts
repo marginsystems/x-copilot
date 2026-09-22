@@ -1,10 +1,11 @@
 import {
   LIVE_METRICS_ID_CAP,
   activityWindowStartIso,
+  applyLiveOwnPostViews,
   bucketClassifiedPosts,
+  chartRefreshReplyIds,
   mergeClassifiedActivity,
   mergeLiveMetrics,
-  pendingReplyIds,
   type ActivityBucket,
   type ActivityStatsResult,
 } from "./activityStats.js";
@@ -17,16 +18,23 @@ export async function bucketInteractionsWithLive(
   bucket: ActivityBucket,
   userId?: string,
 ): Promise<ActivityStatsResult> {
-  const pending = pendingReplyIds(history, LIVE_METRICS_ID_CAP);
-  let rows = history;
-  if (pending.length) {
-    const live = await fetchTweetMetricsMany({ tweetIds: pending });
-    rows = mergeLiveMetrics(history, live);
-  }
   const ownPosts = userId
     ? listActivityOwnPosts({ userId, sinceIso: activityWindowStartIso() })
     : [];
-  return bucketClassifiedPosts(mergeClassifiedActivity({ ownPosts, history: rows }), {
-    bucket,
-  });
+  const refreshIds = chartRefreshReplyIds(
+    history,
+    ownPosts,
+    LIVE_METRICS_ID_CAP,
+  );
+  let rows = history;
+  let posts = ownPosts;
+  if (refreshIds.length) {
+    const live = await fetchTweetMetricsMany({ tweetIds: refreshIds });
+    rows = mergeLiveMetrics(history, live);
+    posts = applyLiveOwnPostViews(ownPosts, live);
+  }
+  return bucketClassifiedPosts(
+    mergeClassifiedActivity({ ownPosts: posts, history: rows }),
+    { bucket },
+  );
 }
