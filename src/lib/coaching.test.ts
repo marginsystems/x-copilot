@@ -186,3 +186,4 @@ describe("parseDeskBeats", () => {
       null,
     );
   }).catch(assert.fail);
+});
