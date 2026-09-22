@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "./auth/session";
 import { apiFetch } from "./lib/apiBase";
+import { isRecord } from "./lib/typeGuards";
 import { localEditHint, type SuggestUsage } from "./lib/voice";
 
 type PaneStage =
@@ -31,6 +32,33 @@ export type SuggestPaneProps = {
   quoteTweetId?: string | null;
   onDeskPosted?: () => void;
 };
+
+export function parseSuggestResponse(raw: unknown) {
+  const data = isRecord(raw) ? raw : {};
+  const suggests = data.suggests;
+  return {
+    ok: data.ok,
+    needed: data.needed,
+    fallback: data.fallback,
+    pass: data.pass,
+    canPost: data.canPost,
+    options: Array.isArray(data.options) && data.options.every((item: unknown) => typeof item === "string") ? data.options : undefined,
+    draft: typeof data.draft === "string" ? data.draft : undefined,
+    message: typeof data.message === "string" ? data.message : undefined,
+    error: typeof data.error === "string" ? data.error : undefined,
+    reason: typeof data.reason === "string" ? data.reason : undefined,
+    intentUrl: typeof data.intentUrl === "string" ? data.intentUrl : undefined,
+    used: typeof data.used === "number" ? data.used : undefined,
+    limit: typeof data.limit === "number" ? data.limit : undefined,
+    planKey: typeof data.planKey === "string" ? data.planKey : undefined,
+    suggests: isRecord(suggests) &&
+      typeof suggests.used === "number" && typeof suggests.limit === "number" &&
+      typeof suggests.remaining === "number" && typeof suggests.canSuggest === "boolean" &&
+      typeof suggests.planKey === "string"
+      ? { used: suggests.used, limit: suggests.limit, remaining: suggests.remaining, canSuggest: suggests.canSuggest, planKey: suggests.planKey }
+      : undefined,
+  };
+}
 
 export function useSuggestPane({
   threadId,
@@ -98,6 +126,12 @@ export function useSuggestPane({
       : {};
   }
 
+  function onError(err: unknown) {
+    if (!active()) return;
+    setNoteKind("fail");
+    setNote(err instanceof Error ? err.message : String(err));
+  }
+
   function onClose() {
     sessionRef.current += 1;
     attemptRef.current++;
@@ -124,13 +158,7 @@ export function useSuggestPane({
     setStartedAt(Date.now());
     setNote(null);
     let res: Response;
-    let data: {
-      ok?: boolean;
-      needed?: boolean;
-      options?: string[];
-      fallback?: boolean;
-      message?: string;
-    };
+    let data: ReturnType<typeof parseSuggestResponse>;
     try {
       res = await apiFetch("/api/voice/stances", {
         method: "POST",
@@ -146,7 +174,7 @@ export function useSuggestPane({
           ...composeFields(),
         }),
       });
-      data = (await res.json().catch(() => ({}))) as typeof data;
+      data = parseSuggestResponse(await res.json().catch(() => ({})));
     } catch {
       if (!current(session)) return;
       setStage("idle");
@@ -201,16 +229,7 @@ export function useSuggestPane({
           ...composeFields(),
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        draft?: string;
-        message?: string;
-        error?: string;
-        suggests?: SuggestUsage;
-        used?: number;
-        limit?: number;
-        planKey?: string;
-      };
+      const data = parseSuggestResponse(await res.json().catch(() => ({})));
       if (!current(session)) return;
       if (data.error === "suggest_daily_limit") {
         const used = typeof data.used === "number" ? data.used : usage.used;
@@ -277,14 +296,7 @@ export function useSuggestPane({
             : { draft, edited, inReplyToId: threadId },
         ),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        pass?: boolean;
-        reason?: string;
-        intentUrl?: string;
-        message?: string;
-        canPost?: boolean;
-      };
+      const data = parseSuggestResponse(await res.json().catch(() => ({})));
       if (!current(session) || attemptRef.current !== attempt) return;
       if (!res.ok || !data.ok) {
         setStage("editing");
@@ -354,12 +366,7 @@ export function useSuggestPane({
           requestKey: postKeyRef.current || undefined,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        message?: string;
-        error?: string;
-        tweet?: { url?: string };
-      };
+      const data = parseSuggestResponse(await res.json().catch(() => ({})));
       if (!current(session) || attemptRef.current !== attempt) return;
       if (!res.ok || !data.ok) {
         setNoteKind("fail");
@@ -432,6 +439,7 @@ export function useSuggestPane({
     compose,
     editHint,
     hint,
+    onError,
     onClose,
     onStart,
     onSuggest,

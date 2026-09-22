@@ -426,7 +426,7 @@ export function Analytics(props: { onBack: () => void }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal);
+    load(controller.signal).catch((err) => setError(err instanceof Error ? err.message : String(err)));
     return () => controller.abort();
   }, []);
 
@@ -462,7 +462,7 @@ export function Analytics(props: { onBack: () => void }) {
       <div className="settings-head">
         <h2>Analytics</h2>
         <div className="analytics-head-actions">
-          <button type="button" className="ghost" disabled={busy} onClick={() => void load()}>
+          <button type="button" className="ghost" disabled={busy} onClick={() => { load().catch((err) => setError(err instanceof Error ? err.message : String(err))); }}>
             {busy ? "Loading…" : "Refresh"}
           </button>
           <button type="button" className="ghost" onClick={props.onBack}>

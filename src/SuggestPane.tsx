@@ -74,6 +74,7 @@ export function SuggestPane(props: SuggestPaneProps) {
     compose,
     editHint,
     hint,
+    onError,
     onClose,
     onStart,
     onSuggest,
@@ -93,7 +94,7 @@ export function SuggestPane(props: SuggestPaneProps) {
           type="button"
           className="ghost suggest-trigger"
           disabled={!usage.canSuggest}
-          onClick={() => void onStart()}
+          onClick={() => { onStart().catch(onError); }}
         >
           {compose ? "Suggest post" : "Suggest reply"}
         </button>
@@ -124,7 +125,7 @@ export function SuggestPane(props: SuggestPaneProps) {
               key={side}
               type="button"
               className="ghost suggest-stance"
-              onClick={() => void onSuggest(side)}
+              onClick={() => { onSuggest(side).catch(onError); }}
             >
               {side}
             </button>
@@ -135,7 +136,7 @@ export function SuggestPane(props: SuggestPaneProps) {
           onSubmit={(e) => {
             e.preventDefault();
             const side = customStance.trim();
-            if (side) void onSuggest(side);
+            if (side) onSuggest(side).catch(onError);
           }}
         >
           <input
@@ -202,7 +203,7 @@ export function SuggestPane(props: SuggestPaneProps) {
             <button
               type="button"
               className="ghost suggest-reference-copy"
-              onClick={() => void onCopyDraft()}
+              onClick={() => { onCopyDraft().catch(onError); }}
             >
               {draftCopied ? "Copied" : "Copy draft"}
             </button>
@@ -246,7 +247,7 @@ export function SuggestPane(props: SuggestPaneProps) {
                 className="primary suggest-verify"
                 disabled={stage === "verifying" || Boolean(hint)}
                 title={hint ?? undefined}
-                onClick={() => void onVerify()}
+                onClick={() => { onVerify().catch(onError); }}
               >
                 Check my edit
               </button>
@@ -261,7 +262,7 @@ export function SuggestPane(props: SuggestPaneProps) {
                     ? undefined
                     : "Re-link X with Read and write to post from the desk."
                 }
-                onClick={() => void onDeskPost()}
+                onClick={() => { onDeskPost().catch(onError); }}
               >
                 {posting ? "Posting…" : "Post"}
               </button>
@@ -270,7 +271,7 @@ export function SuggestPane(props: SuggestPaneProps) {
               type="button"
               className="ghost"
               disabled={!verified}
-              onClick={() => void onCopy()}
+              onClick={() => { onCopy().catch(onError); }}
             >
               {copied ? "Copied" : "Copy"}
             </button>

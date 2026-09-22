@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
+import { isOneOf, isRecord } from "./lib/typeGuards";
 
 export type AdminTenantRow = {
   tenantId: string;
@@ -47,6 +48,32 @@ type AdminTenantUsageResponse = {
   message?: string;
 };
 
+export function isAdminTenantUsageResponse(value: unknown): value is AdminTenantUsageResponse {
+  if (!isRecord(value)) return false;
+  if (!["calls", "postsRead", "estimatedUsd"].every((key) => value[key] === undefined || typeof value[key] === "number")) return false;
+  if (!["remaining", "creditLimit"].every((key) => value[key] == null || typeof value[key] === "number")) return false;
+  if (!["error", "message"].every((key) => value[key] === undefined || typeof value[key] === "string")) return false;
+  if (value.ok !== undefined && typeof value.ok !== "boolean") return false;
+  if (value.window !== undefined && !isOneOf(value.window, ["24h", "7d", "all"])) return false;
+  if (value.tenant !== undefined) {
+    const tenant = value.tenant;
+    if (!isRecord(tenant) ||
+      !["tenantId", "slug", "name", "createdAt", "planKey"].every((key) => typeof tenant[key] === "string") ||
+      !["userId", "email", "subscriptionStatus"].every((key) => tenant[key] === null || typeof tenant[key] === "string") ||
+      !["postsRead", "estimatedUsd", "creditLimit"].every((key) => typeof tenant[key] === "number") ||
+      (tenant.grantPlanKey != null && typeof tenant.grantPlanKey !== "string") ||
+      (tenant.manualGrant !== undefined && typeof tenant.manualGrant !== "boolean")) return false;
+  }
+  return value.recent === undefined || (Array.isArray(value.recent) && value.recent.every((row: unknown) =>
+    isRecord(row) &&
+    ["id", "at", "method", "path"].every((key) => typeof row[key] === "string") &&
+    ["status", "postsRead", "estimatedUsd"].every((key) => typeof row[key] === "number") &&
+    (row.error === null || typeof row.error === "string") &&
+    (row.activity === undefined || typeof row.activity === "string") &&
+    (row.credits === undefined || typeof row.credits === "number") &&
+    (row.remaining == null || typeof row.remaining === "number")));
+}
+
 export function AdminPanel(props: {
   tenants: AdminTenantRow[] | null;
   busy: boolean;
@@ -81,9 +108,10 @@ export function AdminPanel(props: {
       const res = await apiFetch(
         `/api/admin/tenants/${encodeURIComponent(tenantId)}/usage?window=${encodeURIComponent(window)}`,
       );
-      const data = (await res.json()) as AdminTenantUsageResponse;
+      const raw: unknown = await res.json();
+      const data = isAdminTenantUsageResponse(raw) ? raw : {};
       if (seq !== logsRequestSeqRef.current) return;
-      if (!res.ok) {
+      if (!res.ok || !isAdminTenantUsageResponse(raw)) {
         setLogs(null);
         setLogsError(data.message || data.error || `Logs failed (${res.status})`);
         return;
@@ -102,7 +130,7 @@ export function AdminPanel(props: {
     setSelectedId(tenantId);
     setLogs(null);
     setLogsError("");
-    void loadTenantLogs(tenantId, logWindow);
+    loadTenantLogs(tenantId, logWindow).catch((err) => setLogsError(err instanceof Error ? err.message : String(err)));
   }
 
   function backToList() {
@@ -135,22 +163,21 @@ export function AdminPanel(props: {
           ...(looksEmail ? { email: who } : { handle: who }),
         }),
       });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        notice?: string;
-        plan_key?: string;
-        grant?: { notice?: string } | null;
-        message?: string;
-        error?: string;
-      };
+      const raw: unknown = await res.json();
+      const data = isRecord(raw) ? raw : {};
+      const message = typeof data.message === "string" ? data.message : undefined;
+      const error = typeof data.error === "string" ? data.error : undefined;
+      const notice = typeof data.notice === "string" ? data.notice : undefined;
+      const grantNotice = isRecord(data.grant) && typeof data.grant.notice === "string" ? data.grant.notice : undefined;
+      const planKey = typeof data.plan_key === "string" ? data.plan_key : undefined;
       if (!res.ok || !data.ok) {
-        setGrantNotice(data.message || data.error || `Grant failed (${res.status})`);
+        setGrantNotice(message || error || `Grant failed (${res.status})`);
         return;
       }
       setGrantNotice(
-        data.notice ||
-          data.grant?.notice ||
-          `Granted ${data.plan_key ?? grantPlan}.`,
+        notice ||
+          grantNotice ||
+          `Granted ${planKey ?? grantPlan}.`,
       );
       props.onRefresh();
     } catch (err) {
@@ -200,9 +227,10 @@ export function AdminPanel(props: {
             <select
               className="settings-select"
               value={grantPlan}
-              onChange={(e) =>
-                setGrantPlan(e.target.value as typeof grantPlan)
-              }
+              onChange={(e) => {
+                const next = e.target.value;
+                if (isOneOf(next, ["pulse", "radar", "horizon", "free"])) setGrantPlan(next);
+              }}
             >
               <option value="pulse">Pulse</option>
               <option value="radar">Radar</option>
@@ -214,7 +242,7 @@ export function AdminPanel(props: {
             type="button"
             className="primary"
             disabled={grantBusy || props.busy}
-            onClick={() => void onGrant()}
+            onClick={() => { onGrant().catch((err) => setGrantNotice(err instanceof Error ? err.message : String(err))); }}
           >
             {grantBusy ? "Granting…" : "Grant plan"}
           </button>
@@ -237,7 +265,7 @@ export function AdminPanel(props: {
           disabled={props.busy || logsBusy}
           onClick={() => {
             props.onRefresh();
-            if (selectedId) void loadTenantLogs(selectedId, logWindow);
+            if (selectedId) loadTenantLogs(selectedId, logWindow).catch((err) => setLogsError(err instanceof Error ? err.message : String(err)));
           }}
         >
           {props.busy || logsBusy ? "Loading…" : "Refresh"}
@@ -285,9 +313,10 @@ export function AdminPanel(props: {
                 value={logWindow}
                 disabled={logsBusy}
                 onChange={(e) => {
-                  const next = e.target.value as UsageWindow;
+                  const next = e.target.value;
+                  if (!isOneOf(next, ["24h", "7d", "all"])) return;
                   setLogWindow(next);
-                  void loadTenantLogs(selected.tenantId, next);
+                  loadTenantLogs(selected.tenantId, next).catch((err) => setLogsError(err instanceof Error ? err.message : String(err)));
                 }}
               >
                 <option value="24h">Last 24h</option>
