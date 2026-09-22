@@ -47,11 +47,13 @@ async function post(
   let status = 0;
   let raw = "";
   const res = Object.assign(new ServerResponse(req), {
-    writeHead: (code: number) => {
+    writeHead(code: number) {
       status = code;
+      return this;
     },
-    end: (chunk: string) => {
+    end(chunk: string) {
       raw = chunk;
+      return this;
     },
   });
   const handledPromise = tryHandleMemory(

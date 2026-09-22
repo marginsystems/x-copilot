@@ -100,11 +100,13 @@ await describe("GET /api/for-you", async () => {
     let status = 0;
     let raw = "";
     const res = Object.assign(new ServerResponse(req), {
-      writeHead: (code: number) => {
+      writeHead(code: number) {
         status = code;
+        return this;
       },
-      end: (chunk: string) => {
+      end(chunk: string) {
         raw = chunk;
+        return this;
       },
     });
     const handled = await tryHandleForYou(
@@ -145,11 +147,13 @@ async function invokeForYou(opts: {
   let status = 0;
   let raw = "";
   const res = Object.assign(new ServerResponse(req), {
-    writeHead: (code: number) => {
+    writeHead(code: number) {
       status = code;
+      return this;
     },
-    end: (chunk: string) => {
+    end(chunk: string) {
       raw = chunk;
+      return this;
     },
   });
   const handledP = tryHandleForYou(

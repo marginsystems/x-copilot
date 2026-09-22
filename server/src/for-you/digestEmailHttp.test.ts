@@ -55,10 +55,12 @@ async function call(opts: {
     new URL(`http://localhost${opts.path}`),
   );
   if (opts.body === undefined) {
-    req.emit("end");
+    queueMicrotask(() => req.emit("end"));
   } else {
-    req.emit("data", Buffer.from(JSON.stringify(opts.body)));
-    req.emit("end");
+    queueMicrotask(() => {
+      req.emit("data", Buffer.from(JSON.stringify(opts.body)));
+      req.emit("end");
+    });
   }
   assert.equal(await handled, true);
   let body: Record<string, unknown> = {};
