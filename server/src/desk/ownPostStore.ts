@@ -65,6 +65,7 @@ export function pruneActivityEvents(beforeIso: string): number {
 }
 
 export type ActivityOwnPost = {
+  t24hViews?: number | null;
   id: string;
   kind: OwnPostKind;
   postedAt: string;
@@ -105,6 +106,7 @@ export function listActivityOwnPosts(opts: {
     kind: row.kind,
     postedAt: String(row.posted_at),
     views: pickLatest(row.t24h_views, row.t1h_views, row.t0_views),
+    t24hViews: row.t24h_views,
     withStats:
       snapshotHasViews(row.t24h_views) ||
       snapshotHasViews(row.t1h_views),

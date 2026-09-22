@@ -1,7 +1,7 @@
 /**
  * Pure bucketing of marked interactions and classified own posts for the
  * Threads activity dashboard. Bars stack original / quote / reply; the
- * views line still uses sampled snapshots.
+ * views line uses the best known count (live impression, else checkpoint).
  */
 import type { Interaction } from "./interactionStore.js";
 import type { OwnPostKind } from "../x-api/xActivity.js";
@@ -37,23 +37,39 @@ export type ActivityStatsResult = {
 
 export const ACTIVITY_DAY_WINDOW = 28;
 export const ACTIVITY_WEEK_WINDOW = 12;
-/** One batched tweet lookup for marks that still lack 1h/24h snapshots. */
-export const LIVE_METRICS_ID_CAP = 25;
+/**
+ * One batched tweet lookup (X allows 100 ids) for the newest replies and
+ * own posts, including ones that already have a 1h/24h checkpoint. Views
+ * keep climbing after those samples, so the flight path re-reads them.
+ */
+export const LIVE_METRICS_ID_CAP = 100;
 
 export function parseActivityBucket(raw: unknown): ActivityBucket {
   return raw === "week" ? "week" : "day";
 }
 
-/** Prefer mature 24h views, else 1h; missing → 0 for the sum. */
+function finiteViews(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
+}
+
+/**
+ * Best known view count for the flight path. A 24h checkpoint can land
+ * below the 1h sample, and both can sit well under the live impression
+ * count, so the chart takes the max instead of freezing on t24h.
+ */
 export function viewsForInteraction(row: Interaction): number {
-  const v24 = row.stats?.t24h?.views;
-  if (typeof v24 === "number" && Number.isFinite(v24) && v24 >= 0) return v24;
-  const v1 = row.stats?.t1h?.views;
-  if (typeof v1 === "number" && Number.isFinite(v1) && v1 >= 0) return v1;
-  return 0;
+  const matureViews = finiteViews(row.stats?.t24h?.views);
+  if (matureViews !== null) return matureViews;
+  return Math.max(
+    finiteViews(row.stats?.live?.views) ?? 0,
+    finiteViews(row.stats?.t1h?.views) ?? 0,
+  );
 }
 
 export function interactionHasViewStats(row: Interaction): boolean {
+  if (finiteViews(row.stats?.live?.views) !== null) return true;
   const v24 = row.stats?.t24h?.views;
   if (typeof v24 === "number" && Number.isFinite(v24) && v24 >= 0) return true;
   const v1 = row.stats?.t1h?.views;
@@ -170,6 +186,18 @@ export function mergeClassifiedActivity(opts: {
   history: readonly Interaction[];
 }): ClassifiedActivityPost[] {
   const byId = new Map<string, ClassifiedActivityPost>();
+  const matureViews = new Map<string, number>();
+  for (const post of opts.ownPosts) {
+    const views = finiteViews(post.t24hViews);
+    if (views !== null) matureViews.set(post.id, views);
+  }
+  for (const row of opts.history) {
+    const id = row.replyId?.trim();
+    const views = finiteViews(row.stats?.t24h?.views);
+    if (id && views !== null) {
+      matureViews.set(id, Math.max(matureViews.get(id) ?? 0, views));
+    }
+  }
   for (const post of opts.ownPosts) {
     const kind = activityKindFromOwnPost(post.kind);
     if (!kind) continue;
@@ -177,7 +205,7 @@ export function mergeClassifiedActivity(opts: {
       id: post.id,
       postedAt: post.postedAt,
       kind,
-      views: post.views,
+      views: matureViews.get(post.id) ?? post.views,
       withStats: post.withStats,
     });
   }
@@ -185,7 +213,9 @@ export function mergeClassifiedActivity(opts: {
     const replyId = row.replyId?.trim();
     if (replyId && byId.has(replyId)) {
       const existing = byId.get(replyId)!;
-      existing.views = Math.max(existing.views, viewsForInteraction(row));
+      existing.views =
+        matureViews.get(replyId) ??
+        Math.max(existing.views, viewsForInteraction(row));
       existing.withStats = existing.withStats || interactionHasViewStats(row);
       continue;
     }
@@ -285,7 +315,7 @@ export function bucketClassifiedPosts(
   };
 }
 
-/** Marked reply ids that still have no 1h/24h snapshot (oldest first, capped). */
+/** Marked reply ids that still have no 1h/24h snapshot (history order, capped). */
 export function pendingReplyIds(
   history: readonly Interaction[],
   cap: number = LIVE_METRICS_ID_CAP,
@@ -303,9 +333,64 @@ export function pendingReplyIds(
   return out;
 }
 
+/**
+ * Newest reply ids, then own-post ids, for a live impression refresh.
+ * Checkpoints stay; this list is what the chart re-reads so a reply that
+ * has grown past its 1h sample still moves the altitude.
+ */
+export function chartRefreshReplyIds(
+  history: readonly Interaction[],
+  ownPosts: readonly Pick<ActivityOwnPost, "id" | "t24hViews">[] = [],
+  cap: number = LIVE_METRICS_ID_CAP,
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  if (cap <= 0) return out;
+  const matureIds = new Set<string>();
+  for (const row of history) {
+    if (row.replyId && finiteViews(row.stats?.t24h?.views) !== null) {
+      matureIds.add(row.replyId.trim());
+    }
+  }
+  for (const post of ownPosts) {
+    if (finiteViews(post.t24hViews) !== null) matureIds.add(post.id);
+  }
+  const push = (id: string | undefined) => {
+    const trimmed = id?.trim();
+    if (!trimmed || seen.has(trimmed) || matureIds.has(trimmed)) return;
+    seen.add(trimmed);
+    out.push(trimmed);
+  };
+  for (const row of history) {
+    push(row.replyId);
+    if (out.length >= cap) return out;
+  }
+  for (const post of ownPosts) {
+    push(post.id);
+    if (out.length >= cap) return out;
+  }
+  return out;
+}
+
 export type LiveMetric = { views?: number; likes?: number };
 
-/** In-memory only — do not persist as t1h (hourly worker owns checkpoints). */
+function liveViews(metric: LiveMetric | undefined): number | null {
+  if (
+    !metric ||
+    typeof metric.views !== "number" ||
+    !Number.isFinite(metric.views) ||
+    metric.views < 0
+  ) {
+    return null;
+  }
+  return metric.views;
+}
+
+/**
+ * In-memory only — do not persist as t1h (hourly worker owns checkpoints).
+ * Rows that already have a checkpoint keep it and gain a `live` overlay so
+ * the chart can plot the higher current count.
+ */
 export function mergeLiveMetrics(
   history: readonly Interaction[],
   live: ReadonlyMap<string, LiveMetric>,
@@ -314,29 +399,38 @@ export function mergeLiveMetrics(
   if (live.size === 0) return [...history];
   return history.map((row) => {
     const id = row.replyId?.trim();
-    if (!id || interactionHasViewStats(row)) return row;
+    if (!id || finiteViews(row.stats?.t24h?.views) !== null) return row;
     const m = live.get(id);
-    // Only a finite views value resolves a row: a likes-only tweet (X omits
-    // impression_count) must not write a t1h snapshot with views undefined,
-    // which would never satisfy interactionHasViewStats and stay re-fetched.
-    if (
-      !m ||
-      typeof m.views !== "number" ||
-      !Number.isFinite(m.views) ||
-      m.views < 0
-    ) {
-      return row;
-    }
+    const views = liveViews(m);
+    if (views === null || !m) return row;
+    const snap = {
+      views,
+      likes: m.likes,
+      sampledAt,
+    };
     return {
       ...row,
       stats: {
         ...row.stats,
-        t1h: {
-          views: m.views,
-          likes: m.likes,
-          sampledAt,
-        },
+        live: snap,
       },
+    };
+  });
+}
+
+/** Raise own-post altitude to the live impression count without touching stored snapshots. */
+export function applyLiveOwnPostViews(
+  posts: readonly ActivityOwnPost[],
+  live: ReadonlyMap<string, LiveMetric>,
+): ActivityOwnPost[] {
+  if (live.size === 0) return [...posts];
+  return posts.map((post) => {
+    const views = liveViews(live.get(post.id));
+    if (views === null || finiteViews(post.t24hViews) !== null) return post;
+    return {
+      ...post,
+      views: Math.max(post.views, views),
+      withStats: true,
     };
   });
 }

@@ -6,6 +6,8 @@ import {
   activityKindFromOwnPost,
   bucketClassifiedPosts,
   bucketInteractions,
+  applyLiveOwnPostViews,
+  chartRefreshReplyIds,
   mergeClassifiedActivity,
   mergeLiveMetrics,
   parseActivityBucket,
@@ -68,6 +70,39 @@ describe("viewsForInteraction", () => {
         ix({ threadId: "3", at: "2026-08-01T12:00:00.000Z" }),
       ),
       0,
+    );
+  });
+
+  it("uses the stored 24h count even when the 1h and live counts are higher", () => {
+    assert.equal(
+      viewsForInteraction(
+        ix({
+          threadId: "4",
+          at: "2026-09-21T10:00:00.000Z",
+          stats: {
+            t1h: { views: 3077, sampledAt: "2026-09-21T11:00:00.000Z" },
+            t24h: { views: 3011, sampledAt: "2026-09-22T10:00:00.000Z" },
+            live: { views: 6300, sampledAt: "2026-09-22T11:00:00.000Z" },
+          },
+        }),
+      ),
+      3011,
+    );
+  });
+
+  it("uses a live impression count above the 1h checkpoint while 24h is pending", () => {
+    assert.equal(
+      viewsForInteraction(
+        ix({
+          threadId: "5",
+          at: "2026-09-22T01:00:00.000Z",
+          stats: {
+            t1h: { views: 3017, sampledAt: "2026-09-22T02:00:00.000Z" },
+            live: { views: 6300, sampledAt: "2026-09-22T10:00:00.000Z" },
+          },
+        }),
+      ),
+      6300,
     );
   });
 });
@@ -157,6 +192,34 @@ describe("bucketInteractions", () => {
     const aug4 = result.series.find((p) => p.period === "2026-08-04");
     assert.equal(aug4?.interactions, 1);
     assert.equal(aug4?.views, 3);
+  });
+
+  it("plots a live view count on the reply day, above the 1h checkpoint", () => {
+    const now = Date.parse("2026-09-22T10:09:00.000Z");
+    const history = mergeLiveMetrics(
+      [
+        ix({
+          threadId: "parent",
+          at: "2026-09-22T01:09:00.000Z",
+          postedAt: "2026-09-22T01:09:00.000Z",
+          replyId: "reply",
+          inReplyToId: "parent",
+          stats: {
+            t1h: { views: 3017, sampledAt: "2026-09-22T02:09:00.000Z" },
+          },
+        }),
+      ],
+      new Map([["reply", { views: 6300 }]]),
+    );
+    const result = bucketInteractions(history, { bucket: "day", now });
+    assert.equal(
+      result.series.find((point) => point.period === "2026-09-22")?.views,
+      6300,
+    );
+    assert.equal(
+      result.series.find((point) => point.period === "2026-09-21")?.views,
+      0,
+    );
   });
 
   it("uses the shipped classified path for mark timestamps and kinds", () => {
@@ -256,7 +319,9 @@ describe("pendingReplyIds / mergeLiveMetrics", () => {
       new Map([["r1", { views: 12, likes: 1 }]]),
       "2026-08-14T12:30:00.000Z",
     );
-    assert.equal(merged[0]?.stats?.t1h?.views, 12);
+    assert.equal(merged[0]?.stats?.live?.views, 12);
+    assert.equal(merged[0]?.stats?.t1h, undefined);
+    assert.equal(bucketInteractions(merged, { bucket: "day", now: Date.parse("2026-08-14T13:00:00Z") }).totals.withStats, 2);
     assert.equal(history[0]?.stats?.t1h, undefined);
     assert.equal(merged[1]?.stats?.t1h?.views, 9);
   });
@@ -275,6 +340,83 @@ describe("pendingReplyIds / mergeLiveMetrics", () => {
       "2026-08-14T12:30:00.000Z",
     );
     assert.equal(merged[0]?.stats?.t1h, undefined);
+  });
+
+  it("overlays a live count without replacing a stored 1h checkpoint", () => {
+    const history = [
+      ix({
+        threadId: "oreva",
+        at: "2026-09-22T01:00:00.000Z",
+        replyId: "r-live",
+        stats: { t1h: { views: 3017, sampledAt: "2026-09-22T02:00:00.000Z" } },
+      }),
+    ];
+    const merged = mergeLiveMetrics(
+      history,
+      new Map([["r-live", { views: 6300, likes: 0 }]]),
+      "2026-09-22T10:00:00.000Z",
+    );
+    assert.equal(merged[0]?.stats?.t1h?.views, 3017);
+    assert.equal(merged[0]?.stats?.live?.views, 6300);
+    assert.equal(viewsForInteraction(merged[0]!), 6300);
+    assert.equal(history[0]?.stats?.live, undefined);
+  });
+
+  it("refreshes newest replies that already have a checkpoint, then own posts", () => {
+    const history = [
+      ix({
+        threadId: "new",
+        at: "2026-09-22T01:00:00.000Z",
+        replyId: "fresh",
+        stats: { t1h: { views: 3017, sampledAt: "2026-09-22T02:00:00.000Z" } },
+      }),
+      ix({
+        threadId: "old",
+        at: "2026-09-01T01:00:00.000Z",
+        replyId: "stale-missing",
+      }),
+    ];
+    assert.deepEqual(
+      chartRefreshReplyIds(
+        history,
+        [{ id: "og" }, { id: "fresh" }],
+        2,
+      ),
+      ["fresh", "stale-missing"],
+    );
+    assert.deepEqual(
+      chartRefreshReplyIds(history, [{ id: "og" }], 3),
+      ["fresh", "stale-missing", "og"],
+    );
+  });
+});
+
+describe("applyLiveOwnPostViews", () => {
+  it("raises a checkpoint to the live count and leaves a lower live count alone", () => {
+    const posts = applyLiveOwnPostViews(
+      [
+        {
+          id: "r1",
+          kind: "reply",
+          postedAt: "2026-09-22T01:00:00.000Z",
+          views: 3017,
+          withStats: true,
+        },
+        {
+          id: "r2",
+          kind: "reply",
+          postedAt: "2026-09-21T01:00:00.000Z",
+          views: 8000,
+          withStats: true,
+        },
+      ],
+      new Map([
+        ["r1", { views: 6300 }],
+        ["r2", { views: 1000 }],
+      ]),
+    );
+    assert.equal(posts[0]?.views, 6300);
+    assert.equal(posts[1]?.views, 8000);
   });
 });
 
@@ -394,5 +536,86 @@ describe("classified flight-path posts", () => {
     assert.equal(merged.find((p) => p.id === "r1")?.withStats, true);
     assert.equal(merged.find((p) => p.id === "og1")?.kind, "original");
     assert.equal(merged.find((p) => p.id === "ghost")?.kind, "reply");
+  });
+});
+
+describe("stored 24h views in the flight path", () => {
+  const postedAt = "2026-09-21T23:30:00.000Z";
+  const sampledAt = "2026-09-22T23:30:00.000Z";
+  const now = Date.parse(sampledAt);
+
+  for (const snapshotSource of ["interaction", "own post"] as const) {
+    it(`uses the ${snapshotSource} 24h snapshot over the other ledger's higher pending count`, () => {
+      const history = [ix({
+        threadId: "parent",
+        replyId: "reply",
+        at: sampledAt,
+        postedAt,
+        stats: {
+          t1h: { views: 3077, sampledAt },
+          ...(snapshotSource === "interaction"
+            ? { t24h: { views: 3011, sampledAt } }
+            : {}),
+        },
+      })];
+      const ownPosts = [{
+        id: "reply",
+        kind: "reply" as const,
+        postedAt,
+        views: snapshotSource === "own post" ? 3011 : 7000,
+        t24hViews: snapshotSource === "own post" ? 3011 : null,
+        withStats: true,
+      }];
+      assert.deepEqual(chartRefreshReplyIds(history, ownPosts), []);
+      const live = new Map([["reply", { views: 9000 }]]);
+      const rows = mergeLiveMetrics(history, live);
+      const posts = applyLiveOwnPostViews(ownPosts, live);
+      const result = bucketClassifiedPosts(
+        mergeClassifiedActivity({ history: rows, ownPosts: posts }),
+        { bucket: "day", now },
+      );
+      assert.equal(result.totals.interactions, 1);
+      assert.equal(result.totals.views, 3011);
+      assert.equal(result.series.find((p) => p.period === "2026-09-21")?.views, 3011);
+      assert.equal(result.series.find((p) => p.period === "2026-09-22")?.views, 0);
+      assert.equal(history[0]?.stats?.live, undefined);
+      if (snapshotSource === "interaction") assert.equal(rows[0], history[0]);
+      else assert.equal(posts[0], ownPosts[0]);
+    });
+  }
+
+  it("retains a stored snapshot on an unmatched reply and excludes posts outside the UTC window", () => {
+    const history = [ix({
+      threadId: "parent",
+      replyId: "unmatched",
+      at: sampledAt,
+      postedAt,
+      stats: { t24h: { views: 3011, sampledAt } },
+    }), ix({
+      threadId: "old-parent",
+      replyId: "old-reply",
+      at: sampledAt,
+      postedAt: "2026-01-01T00:00:00.000Z",
+      stats: { t24h: { views: 9999, sampledAt } },
+    })];
+    const result = bucketClassifiedPosts(
+      mergeClassifiedActivity({ history, ownPosts: [] }),
+      { bucket: "day", now },
+    );
+    assert.equal(result.totals.views, 3011);
+    assert.equal(result.totals.interactions, 1);
+  });
+
+  it("treats zero as a mature count and refreshes missing or invalid 24h views within the cap", () => {
+    const history = [0, undefined, NaN].map((views, i) => ix({
+      threadId: `parent-${i}`,
+      replyId: `reply-${i}`,
+      at: postedAt,
+      stats: { t24h: { views, sampledAt } },
+    }));
+    assert.deepEqual(chartRefreshReplyIds(history, [], 1), ["reply-1"]);
+    assert.deepEqual(chartRefreshReplyIds(history, [], 0), []);
+    assert.deepEqual(chartRefreshReplyIds(history), ["reply-1", "reply-2"]);
+    assert.equal(viewsForInteraction(mergeLiveMetrics(history, new Map([["reply-0", { views: 100 }]]))[0]!), 0);
   });
 });

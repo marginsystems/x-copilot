@@ -9,9 +9,12 @@ import {
   MAX_INTERACTION_HISTORY,
   MAX_INTERACTION_STORE,
   markInteracted,
+  readInteractionRow,
+  writeInteractionRow,
   type Interaction,
 } from "./interactionStore.ts";
 import { patchInteractionStats } from "./interactionStats.ts";
+import { ensureUserTenant } from "../billing/billingStore.ts";
 import {
   listGamificationSyncRetries,
   listMemorySyncRetries,
@@ -708,6 +711,47 @@ describe("gamification sync retry flag", () => {
     const [stored] = await listInteractionHistory({ userId });
     assert.equal(stored?.stats?.t1h?.views, 12);
     assert.deepEqual(stored?.pendingMarkAts, [new Date(now).toISOString()]);
+  });
+
+  it("does not persist the live stats overlay", async () => {
+    const now = Date.parse("2026-07-28T12:00:00.000Z");
+    await markInteracted({
+      threadId: "parent",
+      author: "@target",
+      userId,
+      nowMs: now,
+    });
+    await patchInteractionStats({
+      threadId: "parent",
+      userId,
+      checkpoint: "t1h",
+      snapshot: { views: 12, sampledAt: new Date(now).toISOString() },
+    });
+    await patchInteractionStats({
+      threadId: "parent",
+      userId,
+      checkpoint: "t24h",
+      snapshot: { views: 24, sampledAt: new Date(now).toISOString() },
+    });
+    const stored = readInteractionRow(userId, "parent");
+    assert.ok(stored);
+
+    writeInteractionRow(
+      {
+        ...stored,
+        stats: {
+          ...stored.stats,
+          live: { views: 99, sampledAt: new Date(now + 1000).toISOString() },
+        },
+      },
+      ensureUserTenant(userId),
+    );
+
+    const reread = readInteractionRow(userId, "parent");
+    assert.ok(reread);
+    assert.equal(reread.stats?.live, undefined);
+    assert.equal(reread.stats?.t1h?.views, 12);
+    assert.equal(reread.stats?.t24h?.views, 24);
   });
 });
 

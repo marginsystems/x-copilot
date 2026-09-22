@@ -149,7 +149,7 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
       viewBox={`0 0 ${width} ${height}`}
       preserveAspectRatio="xMidYMid meet"
       role="img"
-      aria-label="Flight path of originals, quotes, replies, and sampled views"
+      aria-label="Flight path of originals, quotes, replies, and 24h views, refreshed live while pending"
     >
       <line
         className="activity-chart-axis"

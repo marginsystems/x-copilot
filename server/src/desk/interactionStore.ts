@@ -38,6 +38,11 @@ export type ReplyStatSnapshot = {
 export type InteractionStats = {
   t1h?: ReplyStatSnapshot;
   t24h?: ReplyStatSnapshot;
+  /**
+   * In-memory only. Latest impression count for the flight path.
+   * Stripped on write so the hourly worker still owns t1h/t24h.
+   */
+  live?: ReplyStatSnapshot;
 };
 
 export type Interaction = {
@@ -200,6 +205,13 @@ const UPSERT_SQL = `INSERT INTO desk_interactions (
     bonus_gamification_sync_failed = excluded.bonus_gamification_sync_failed,
     pending_mark_ats = excluded.pending_mark_ats`;
 
+/** Drop the in-memory live overlay so a chart refresh cannot freeze into t1h/t24h. */
+function durableInteractionStats(stats: InteractionStats): InteractionStats {
+  if (!stats.live) return stats;
+  const { live: _live, ...rest } = stats;
+  return rest;
+}
+
 /** Write the full row for (user, thread). Callers hold the merged shape. */
 export function writeInteractionRow(
   interaction: Interaction,
@@ -223,7 +235,9 @@ export function writeInteractionRow(
       posted_at: interaction.postedAt ?? null,
       conversation_id: interaction.conversationId ?? null,
       in_reply_to_id: interaction.inReplyToId ?? null,
-      stats: interaction.stats ? JSON.stringify(interaction.stats) : null,
+      stats: interaction.stats
+        ? JSON.stringify(durableInteractionStats(interaction.stats))
+        : null,
       memory_sync_failed: interaction.memorySyncFailed ? 1 : 0,
       mark_gamification_sync_failed: interaction.markGamificationSyncFailed
         ? 1

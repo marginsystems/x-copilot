@@ -72,8 +72,8 @@ export function ActivityStrip({
           {flightPathOpen ? (
             <span className="threads-activity-sub">
               Bars stack originals, quotes, and replies. Altitude is
-              sampled views; posts without a sample hold the last
-              altitude.
+              24h views, refreshed live while pending; posts without a
+              count hold the last altitude.
             </span>
           ) : null}
         </div>
