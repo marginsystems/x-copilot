@@ -8,15 +8,15 @@ import {
   verifyWebhookSignature,
 } from "./xActivity.ts";
 
-describe("xActivity CRC / signature", () => {
-  it("builds the sha256= CRC token", () => {
+await describe("xActivity CRC / signature", async () => {
+  await it("builds the sha256= CRC token", () => {
     const token = crcResponseToken("challenge", "secret");
     assert.match(token, /^sha256=/);
     assert.equal(token, crcResponseToken("challenge", "secret"));
     assert.notEqual(token, crcResponseToken("other", "secret"));
   });
 
-  it("accepts a matching webhook signature", () => {
+  await it("accepts a matching webhook signature", () => {
     const body = Buffer.from('{"ok":true}', "utf8");
     const header = crcResponseToken('{"ok":true}', "secret");
     // CRC helper hashes a string; signature hashes raw bytes of the same text.
@@ -25,8 +25,8 @@ describe("xActivity CRC / signature", () => {
   });
 });
 
-describe("parsePostCreateEvent", () => {
-  it("reads a reply with t0 metrics", () => {
+await describe("parsePostCreateEvent", async () => {
+  await it("reads a reply with t0 metrics", () => {
     const parsed = parsePostCreateEvent({
       data: {
         event_uuid: "evt-1",
@@ -64,7 +64,7 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.metrics.views, 10);
   });
 
-  it("takes the reply parent from referenced_tweets when X omits in_reply_to_tweet_id", () => {
+  await it("takes the reply parent from referenced_tweets when X omits in_reply_to_tweet_id", () => {
     const parsed = parsePostCreateEvent({
       data: {
         event_uuid: "evt-ref",
@@ -86,7 +86,7 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.inReplyToId, "222");
   });
 
-  it("prefers in_reply_to_tweet_id over referenced_tweets when both exist", () => {
+  await it("prefers in_reply_to_tweet_id over referenced_tweets when both exist", () => {
     const parsed = parsePostCreateEvent({
       data: {
         event_uuid: "evt-both",
@@ -104,7 +104,7 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.inReplyToId, "222");
   });
 
-  it("ignores a replied_to reference with no id", () => {
+  await it("ignores a replied_to reference with no id", () => {
     const parsed = parsePostCreateEvent({
       data: {
         event_uuid: "evt-noid",
@@ -122,7 +122,7 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.inReplyToId, null);
   });
 
-  it("reads the authoritative target from a repost reference", () => {
+  await it("reads the authoritative target from a repost reference", () => {
     const parsed = parsePostCreateEvent({
       data: {
         event_uuid: "evt-repost",
@@ -142,7 +142,7 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.inReplyToId, null);
   });
 
-  it("does not invent a target for a malformed repost reference", () => {
+  await it("does not invent a target for a malformed repost reference", () => {
     const parsed = parsePostCreateEvent({
       data: {
         event_uuid: "evt-repost-noid",
@@ -159,7 +159,7 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.repostTargetId, null);
   });
 
-  it("reads an original post", () => {
+  await it("reads an original post", () => {
     const parsed = parsePostCreateEvent({
       data: {
         event_uuid: "evt-2",
@@ -179,7 +179,7 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.metrics.likes, 1);
   });
 
-  it("reads a flat XAA v2 delivery with the post under data", () => {
+  await it("reads a flat XAA v2 delivery with the post under data", () => {
     const parsed = parsePostCreateEvent({
       event_uuid: "evt-flat",
       event_type: "post.create",
@@ -200,7 +200,7 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.metrics.views, 7);
   });
 
-  it("normalizes X's real created_at format to ISO postedAt", () => {
+  await it("normalizes X's real created_at format to ISO postedAt", () => {
     const parsed = parsePostCreateEvent({
       data: {
         event_uuid: "evt-legacy",
@@ -219,7 +219,7 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.postedAtFallback, false);
   });
 
-  it("flags a missing/unparseable created_at as a fallback posted_at", () => {
+  await it("flags a missing/unparseable created_at as a fallback posted_at", () => {
     const parsed = parsePostCreateEvent({
       data: {
         event_uuid: "evt-no-stamp",
@@ -236,7 +236,7 @@ describe("parsePostCreateEvent", () => {
     assert.equal(parsed?.postedAtFallback, true);
   });
 
-  it("ignores non-create events", () => {
+  await it("ignores non-create events", () => {
     assert.equal(
       parsePostCreateEvent({
         data: { event_type: "post.delete", payload: { id: "1" } },
@@ -251,7 +251,7 @@ describe("parsePostCreateEvent", () => {
     );
   });
 
-  it("reads post.delete and rejects unknown event types", () => {
+  await it("reads post.delete and rejects unknown event types", () => {
     assert.deepEqual(
       parsePostDeleteEvent({
         data: {
@@ -272,8 +272,8 @@ describe("parsePostCreateEvent", () => {
   });
 });
 
-describe("classifyPostKind", () => {
-  it("prefers repost then quote then reply", () => {
+await describe("classifyPostKind", async () => {
+  await it("prefers repost then quote then reply", () => {
     assert.equal(
       classifyPostKind({ referenced_tweets: [{ type: "retweeted" }] }),
       "repost",

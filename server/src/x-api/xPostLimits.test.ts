@@ -15,8 +15,8 @@ import {
   recordDeskPost,
 } from "./xPostLimits.ts";
 
-describe("dailyPostCap", () => {
-  it("starts at 5 and grows with level and streak, capped at 20", () => {
+await describe("dailyPostCap", async () => {
+  await it("starts at 5 and grows with level and streak, capped at 20", () => {
     assert.equal(dailyPostCap({ level: 1, currentStreak: 0 }), 5);
     assert.equal(dailyPostCap({ level: 3, currentStreak: 0 }), 6);
     assert.equal(dailyPostCap({ level: 3, currentStreak: 3 }), 7);
@@ -25,7 +25,7 @@ describe("dailyPostCap", () => {
   });
 });
 
-describe("checkDeskPostLimit", () => {
+await describe("checkDeskPostLimit", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -43,7 +43,7 @@ describe("checkDeskPostLimit", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("allows the first post of the day", () => {
+  await it("allows the first post of the day", () => {
     const got = checkDeskPostLimit({
       userId: "u1",
       level: 1,
@@ -56,7 +56,7 @@ describe("checkDeskPostLimit", () => {
     assert.equal(got.remainingToday, 5);
   });
 
-  it("enforces the cooldown after a recent post", () => {
+  await it("enforces the cooldown after a recent post", () => {
     const nowMs = Date.parse("2026-08-19T12:00:00.000Z");
     recordDeskPost({
       userId: "u1",
@@ -79,7 +79,7 @@ describe("checkDeskPostLimit", () => {
     );
   });
 
-  it("blocks once the daily cap is spent", () => {
+  await it("blocks once the daily cap is spent", () => {
     const nowMs = Date.parse("2026-08-19T12:00:00.000Z");
     for (let i = 0; i < 5; i++) {
       recordDeskPost({

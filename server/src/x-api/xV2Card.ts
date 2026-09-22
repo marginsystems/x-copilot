@@ -2,6 +2,8 @@
  * Official X API v2 tweet → ThreadCard conversion.
  * Used by recent-search and tweet lookup. No HTTP client.
  */
+import { objectValue } from "../platform/unknownValue.js";
+import { isV2Tweet, isV2User } from "./xPayload.js";
 import { MAX_OP_TEXT_CHARS, type ThreadCard } from "../scout/threadCard.js";
 import {
   entityUrlsHaveOutbound,
@@ -292,32 +294,29 @@ export function parseV2SearchPayload(json: unknown): {
   threads: ThreadCard[];
   nextToken: string | null;
 } {
-  const root = json as {
-    data?: V2Tweet[];
-    includes?: {
-      users?: V2User[];
-      tweets?: V2Tweet[];
-      media?: Array<{ media_key?: string }>;
-    };
-    meta?: { next_token?: string };
-  };
+  const root = objectValue(json);
+  const includes = objectValue(root.includes);
+  const users = Array.isArray(includes.users) ? includes.users.filter(isV2User) : [];
+  const tweets = Array.isArray(includes.tweets) ? includes.tweets.filter(isV2Tweet) : [];
+  const media = Array.isArray(includes.media) ? includes.media.map(objectValue) : [];
+  const data: unknown[] = Array.isArray(root.data) ? root.data : [];
   const usersById = new Map<string, V2User>();
-  for (const u of root.includes?.users ?? []) {
+  for (const u of users) {
     if (u.id) usersById.set(u.id, u);
   }
   const tweetsById = new Map<string, V2Tweet>();
-  for (const t of root.includes?.tweets ?? []) {
+  for (const t of tweets) {
     if (t.id) tweetsById.set(t.id, t);
   }
   const includedMediaKeys = new Set(
-    (root.includes?.media ?? [])
+    media
       .map((m) => m.media_key)
       .filter((key): key is string => typeof key === "string"),
   );
   const threads: ThreadCard[] = [];
   let dropped = 0;
-  for (const tw of root.data ?? []) {
-    const card = v2TweetToCard(tw, usersById, tweetsById, includedMediaKeys);
+  for (const tw of data) {
+    const card = isV2Tweet(tw) ? v2TweetToCard(tw, usersById, tweetsById, includedMediaKeys) : null;
     if (card) threads.push(card);
     else dropped += 1;
   }
@@ -326,8 +325,9 @@ export function parseV2SearchPayload(json: unknown): {
       `[xSearch] v2 recent search dropped ${dropped} result(s) with unresolvable id/text/author (suspended or withheld author missing from includes.users).`,
     );
   }
+  const nextToken = objectValue(root.meta).next_token;
   return {
     threads,
-    nextToken: root.meta?.next_token?.trim() || null,
+    nextToken: typeof nextToken === "string" ? nextToken.trim() || null : null,
   };
 }

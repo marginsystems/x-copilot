@@ -9,28 +9,28 @@ import {
   textHasOutboundLink,
 } from "./xLinks.ts";
 
-describe("hasCardUri", () => {
-  it("flags website/summary card:// URIs", () => {
+await describe("hasCardUri", async () => {
+  await it("flags website/summary card:// URIs", () => {
     assert.equal(hasCardUri("card://2087820143858499584"), true);
     assert.equal(hasCardUri("  card://1  "), true);
     assert.equal(hasCardUri("CARD://1"), true);
   });
 
-  it("does not flag native X card schemes as outbound", () => {
+  await it("does not flag native X card schemes as outbound", () => {
     assert.equal(hasCardUri("poll://2087820143858499584"), false);
     assert.equal(hasCardUri("audiospace://2087820143858499584"), false);
     assert.equal(hasCardUri("broadcast://2087820143858499584"), false);
   });
 
-  it("treats missing card_uri as no card", () => {
+  await it("treats missing card_uri as no card", () => {
     assert.equal(hasCardUri(""), false);
     assert.equal(hasCardUri(undefined), false);
     assert.equal(hasCardUri(null), false);
   });
 });
 
-describe("isXArticleUrl", () => {
-  it("matches native X Article permalinks", () => {
+await describe("isXArticleUrl", async () => {
+  await it("matches native X Article permalinks", () => {
     assert.equal(isXArticleUrl("https://x.com/i/article/99"), true);
     assert.equal(isXArticleUrl("https://twitter.com/i/article/99?s=20"), true);
     assert.equal(isXArticleUrl("https://x.com/dave/status/444"), false);
@@ -38,8 +38,8 @@ describe("isXArticleUrl", () => {
   });
 });
 
-describe("outbound link detection", () => {
-  it("classifies media vs outbound URLs", () => {
+await describe("outbound link detection", async () => {
+  await it("classifies media vs outbound URLs", () => {
     assert.equal(isNativeMediaUrl("https://pic.twitter.com/abc"), true);
     assert.equal(isNativeMediaUrl("https://pic.x.com/zK5ZiEkdNn"), true);
     assert.equal(isNativeMediaUrl("https://pbs.twimg.com/media/x.jpg"), true);
@@ -65,7 +65,7 @@ describe("outbound link detection", () => {
     );
   });
 
-  it("flags entities.urls on parse", () => {
+  await it("flags entities.urls on parse", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "501",
@@ -90,7 +90,7 @@ describe("outbound link detection", () => {
     assert.equal(card.hasOutboundLink, true);
   });
 
-  it("does not flag bare t.co in full_text when entities are absent", () => {
+  await it("does not flag bare t.co in full_text when entities are absent", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "502",
@@ -106,7 +106,7 @@ describe("outbound link detection", () => {
     assert.equal(card.hasOutboundLink, undefined);
   });
 
-  it("does not flag clean text", () => {
+  await it("does not flag clean text", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "503",
@@ -122,7 +122,7 @@ describe("outbound link detection", () => {
     assert.equal(card.hasOutboundLink, undefined);
   });
 
-  it("does not flag media-only entity URLs (even with t.co in text)", () => {
+  await it("does not flag media-only entity URLs (even with t.co in text)", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "504",
@@ -147,7 +147,7 @@ describe("outbound link detection", () => {
     assert.equal(card.hasOutboundLink, undefined);
   });
 
-  it("does not flag media shortlinks in note_tweet body entities", () => {
+  await it("does not flag media shortlinks in note_tweet body entities", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "505",
@@ -181,7 +181,7 @@ describe("outbound link detection", () => {
     assert.equal(card.hasOutboundLink, undefined);
   });
 
-  it("does not flag media-only posts via legacy.entities.media", () => {
+  await it("does not flag media-only posts via legacy.entities.media", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "506",
@@ -209,7 +209,7 @@ describe("outbound link detection", () => {
     assert.deepEqual(card.mediaShortlinks, ["t.co/mediareal"]);
   });
 
-  it("does not flag media URL entities with twitter.com photo expanded_url", () => {
+  await it("does not flag media URL entities with twitter.com photo expanded_url", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "508",
@@ -236,7 +236,7 @@ describe("outbound link detection", () => {
     assert.deepEqual(card.mediaShortlinks, ["t.co/mediatwitter"]);
   });
 
-  it("flags outbound URLs in note_tweet body entity_set", () => {
+  await it("flags outbound URLs in note_tweet body entity_set", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "509",
@@ -270,7 +270,7 @@ describe("outbound link detection", () => {
     assert.equal(card.hasOutboundLink, true);
   });
 
-  it("does not flag note_tweet media via entity_set.media", () => {
+  await it("does not flag note_tweet media via entity_set.media", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "507",

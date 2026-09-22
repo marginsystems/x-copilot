@@ -18,12 +18,7 @@ function withSession(fn: () => Promise<void>): Promise<void> {
 }
 
 function jsonResponse(body: unknown, status: number): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    text: async () =>
-      typeof body === "string" ? body : JSON.stringify(body),
-  } as Response;
+  return new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
 }
 
 function replyCard(overrides: Partial<ThreadCard> = {}): ThreadCard {
@@ -38,12 +33,12 @@ function replyCard(overrides: Partial<ThreadCard> = {}): ThreadCard {
   };
 }
 
-describe("hydrateReplyParents", () => {
+await describe("hydrateReplyParents", async () => {
   beforeEach(() => {
     clearParentTweetCache();
   });
 
-  it("fills opText for replies missing OP", async () => {
+  await it("fills opText for replies missing OP", async () => {
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [replyCard()],
       delayMs: 0,
@@ -68,7 +63,7 @@ describe("hydrateReplyParents", () => {
     );
   });
 
-  it("copies an off-platform parent link onto the reply", async () => {
+  await it("copies an off-platform parent link onto the reply", async () => {
     const { threads } = await hydrateReplyParents({
       threads: [replyCard()],
       delayMs: 0,
@@ -82,7 +77,7 @@ describe("hydrateReplyParents", () => {
     assert.match(threads[0]?.opText ?? "", /Read the rest/);
   });
 
-  it("copies parent longform and full char count onto the reply", async () => {
+  await it("copies parent longform and full char count onto the reply", async () => {
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [replyCard()],
       delayMs: 0,
@@ -98,7 +93,7 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.opText?.length, 500);
   });
 
-  it("skips lookup when already parent-derived", async () => {
+  await it("skips lookup when already parent-derived", async () => {
     let calls = 0;
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [
@@ -119,7 +114,7 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.opText, "already have OP");
   });
 
-  it("hydrates quote-bearing replies from the reply parent", async () => {
+  await it("hydrates quote-bearing replies from the reply parent", async () => {
     let calls = 0;
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [
@@ -140,7 +135,7 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.opParentDerived, true);
   });
 
-  it("soft-fails when parent lookup returns null", async () => {
+  await it("soft-fails when parent lookup returns null", async () => {
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [replyCard()],
       delayMs: 0,
@@ -151,7 +146,7 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.text, "How do you pick products?");
   });
 
-  it("prefers conversation root when nested (parent ≠ root)", async () => {
+  await it("prefers conversation root when nested (parent ≠ root)", async () => {
     const fetched: string[] = [];
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [
@@ -179,7 +174,7 @@ describe("hydrateReplyParents", () => {
     assert.match(threads[0]?.opText ?? "", /Japan so behind/);
   });
 
-  it("drops nested replies when the conversation root is unavailable", async () => {
+  await it("drops nested replies when the conversation root is unavailable", async () => {
     const fetched: string[] = [];
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [
@@ -202,7 +197,7 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.opParentDerived, undefined);
   });
 
-  it("marks nested self-replies via the immediate parent (root author differs)", async () => {
+  await it("marks nested self-replies via the immediate parent (root author differs)", async () => {
     const fetched: string[] = [];
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [
@@ -227,7 +222,7 @@ describe("hydrateReplyParents", () => {
     assert.equal(threads[0]?.opParentDerived, true);
   });
 
-  it("drops nested replies when the conversation root is the card author's own thread", async () => {
+  await it("drops nested replies when the conversation root is the card author's own thread", async () => {
     const fetched: string[] = [];
     const { threads, unhydratedReplyCount } = await hydrateReplyParents({
       threads: [
@@ -254,12 +249,12 @@ describe("hydrateReplyParents", () => {
   });
 });
 
-describe("fetchParentTweet cache semantics", () => {
+await describe("fetchParentTweet cache semantics", async () => {
   beforeEach(() => {
     clearParentTweetCache();
   });
 
-  it("does not cache transient failures (5xx), so a later retry re-fetches", async () => {
+  await it("does not cache transient failures (5xx), so a later retry re-fetches", async () => {
     await withSession(async () => {
       let calls = 0;
       const origFetch = globalThis.fetch;
@@ -281,7 +276,7 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
-  it("does not cache network failures, so a later retry re-fetches", async () => {
+  await it("does not cache network failures, so a later retry re-fetches", async () => {
     await withSession(async () => {
       let calls = 0;
       const origFetch = globalThis.fetch;
@@ -303,7 +298,7 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
-  it("caches a genuine miss (HTTP 404)", async () => {
+  await it("caches a genuine miss (HTTP 404)", async () => {
     await withSession(async () => {
       let calls = 0;
       const origFetch = globalThis.fetch;
@@ -326,7 +321,7 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
-  it("caches an authoritative 200 miss (no data)", async () => {
+  await it("caches an authoritative 200 miss (no data)", async () => {
     await withSession(async () => {
       let calls = 0;
       const origFetch = globalThis.fetch;
@@ -349,7 +344,7 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
-  it("caches successful lookups", async () => {
+  await it("caches successful lookups", async () => {
     await withSession(async () => {
       let calls = 0;
       const origFetch = globalThis.fetch;
@@ -391,7 +386,7 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
-  it("follows OP t.co via expanded_url and copies the outbound flag onto the reply", async () => {
+  await it("follows OP t.co via expanded_url and copies the outbound flag onto the reply", async () => {
     await withSession(async () => {
       const origFetch = globalThis.fetch;
       globalThis.fetch = async () =>
@@ -452,7 +447,7 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
-  it("copies an OP website card_uri onto the reply with no URL entities", async () => {
+  await it("copies an OP website card_uri onto the reply with no URL entities", async () => {
     await withSession(async () => {
       const origFetch = globalThis.fetch;
       globalThis.fetch = async () =>
@@ -504,7 +499,7 @@ describe("fetchParentTweet cache semantics", () => {
     });
   });
 
-  it("flags a note_tweet parent with an off-platform note entity link", async () => {
+  await it("flags a note_tweet parent with an off-platform note entity link", async () => {
     await withSession(async () => {
       const origFetch = globalThis.fetch;
       globalThis.fetch = async () =>
@@ -543,8 +538,8 @@ describe("fetchParentTweet cache semantics", () => {
   });
 });
 
-describe("parseTweetsMetricsMap", () => {
-  it("maps v2 batch tweets to metrics by id", () => {
+await describe("parseTweetsMetricsMap", async () => {
+  await it("maps v2 batch tweets to metrics by id", () => {
     const map = parseTweetsMetricsMap({
       data: [
         {

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage } from "node:http";
+import { testRequest, testResponse } from "./http.testHelpers.ts";
 import {
   BODY_CAP_16K,
   BODY_CAP_256K,
@@ -12,12 +12,12 @@ import {
 } from "./httpJson.ts";
 
 function requestWithBody(chunks: Buffer[]): IncomingMessage {
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = testRequest();
   queueMicrotask(() => {
     for (const chunk of chunks) {
-      (req as EventEmitter).emit("data", chunk);
+      req.emit("data", chunk);
     }
-    (req as EventEmitter).emit("end");
+    req.emit("end");
   });
   return req;
 }
@@ -36,13 +36,13 @@ async function readJsonNow(
   return readJsonBody(requestWithBody(chunks), opts);
 }
 
-describe("httpJson readBody", () => {
-  it("treats an empty body as {}", async () => {
+await describe("httpJson readBody", async () => {
+  await it("treats an empty body as {}", async () => {
     const body = await readBodyNow([]);
     assert.deepEqual(body, {});
   });
 
-  it("rejects invalid JSON with 400", async () => {
+  await it("rejects invalid JSON with 400", async () => {
     await assert.rejects(
       () => readBodyNow([Buffer.from("{not json", "utf8")]),
       (err: unknown) => {
@@ -54,7 +54,7 @@ describe("httpJson readBody", () => {
     );
   });
 
-  it("rejects bodies over 1 MB with 413", async () => {
+  await it("rejects bodies over 1 MB with 413", async () => {
     await assert.rejects(
       () => readBodyNow([Buffer.alloc(1_048_577)]),
       (err: unknown) => {
@@ -66,7 +66,7 @@ describe("httpJson readBody", () => {
     );
   });
 
-  it("requireObject rejects JSON null", async () => {
+  await it("requireObject rejects JSON null", async () => {
     await assert.rejects(
       () =>
         readBodyNow([Buffer.from("null", "utf8")], { requireObject: true }),
@@ -78,7 +78,7 @@ describe("httpJson readBody", () => {
     );
   });
 
-  it("rejectArray rejects a JSON array (onboarding)", async () => {
+  await it("rejectArray rejects a JSON array (onboarding)", async () => {
     await assert.rejects(
       () =>
         readBodyNow([Buffer.from("[1]", "utf8")], {
@@ -94,15 +94,15 @@ describe("httpJson readBody", () => {
   });
 });
 
-describe("httpJson readJsonBody", () => {
-  it("defaults to 256 KiB and returns null on overflow (voice / for-you)", async () => {
+await describe("httpJson readJsonBody", async () => {
+  await it("defaults to 256 KiB and returns null on overflow (voice / for-you)", async () => {
     const body = await readJsonNow([Buffer.alloc(BODY_CAP_256K + 1)], {
       maxBytes: BODY_CAP_256K,
     });
     assert.equal(body, null);
   });
 
-  it("rejects 16 KiB overflow for admin grants", async () => {
+  await it("rejects 16 KiB overflow for admin grants", async () => {
     await assert.rejects(
       () =>
         readJsonNow([Buffer.alloc(BODY_CAP_16K + 1)], {
@@ -119,7 +119,14 @@ describe("httpJson readJsonBody", () => {
     );
   });
 
-  it("trimEmpty treats whitespace as {}", async () => {
+  await it("preserves arrays and rejects scalar JSON in the object body reader", async () => {
+    assert.deepEqual(await readJsonNow([Buffer.from('[1,{"ok":true}]')]), [1, { ok: true }]);
+    for (const raw of ["null", "42", '"text"']) {
+      assert.equal(await readJsonNow([Buffer.from(raw)]), null);
+    }
+  });
+
+  await it("trimEmpty treats whitespace as {}", async () => {
     const body = await readJsonNow([Buffer.from("  \n", "utf8")], {
       trimEmpty: true,
     });
@@ -127,23 +134,14 @@ describe("httpJson readJsonBody", () => {
   });
 });
 
-describe("httpJson send", () => {
-  it("writes JSON plus optional Set-Cookie", () => {
-    const written: { status?: number; headers?: unknown; body?: string } = {};
-    const res = {
-      writeHead(status: number, headers: unknown) {
-        written.status = status;
-        written.headers = headers;
-      },
-      end(body: string) {
-        written.body = body;
-      },
-    } as unknown as ServerResponse;
-    const req = { headers: {} } as IncomingMessage;
+await describe("httpJson send", async () => {
+  await it("writes JSON plus optional Set-Cookie", () => {
+    const req = testRequest();
+    const { res, captured: written } = testResponse(req);
     send(req, res, 200, { ok: true }, { "Set-Cookie": "sid=x; Path=/" });
     assert.equal(written.status, 200);
-    assert.equal(written.body, JSON.stringify({ ok: true }));
-    const headers = written.headers as Record<string, string | string[]>;
+    assert.equal(written.raw, JSON.stringify({ ok: true }));
+    const headers = written.headers;
     assert.equal(headers["Content-Type"], "application/json");
     assert.equal(headers["Set-Cookie"], "sid=x; Path=/");
   });

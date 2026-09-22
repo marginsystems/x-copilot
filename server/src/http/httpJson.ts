@@ -2,6 +2,7 @@
  * JSON request/response helpers for the sidecar HTTP server.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { isRecord } from "../platform/unknownValue.js";
 import { corsHeaders } from "./cors.js";
 
 export const BODY_CAP_1MB = 1_048_576;
@@ -120,10 +121,10 @@ export function readJsonBody(
       const raw = Buffer.concat(chunks).toString("utf8");
       if (opts?.trimEmpty ? !raw.trim() : !raw) return resolve({});
       try {
-        const parsed = JSON.parse(raw) as unknown;
+        const parsed: unknown = JSON.parse(raw);
         resolve(
-          parsed && typeof parsed === "object"
-            ? (parsed as Record<string, unknown>)
+          isRecord(parsed)
+            ? parsed
             : null,
         );
       } catch {
