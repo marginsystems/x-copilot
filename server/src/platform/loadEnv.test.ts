@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadEnv } from "./loadEnv.ts";
 
-describe("loadEnv", () => {
+await describe("loadEnv", async () => {
   const prev = process.env.LOADENV_TEST_KEY;
   const prevNodeEnv = process.env.NODE_ENV;
   const dirs: string[] = [];
@@ -29,21 +29,21 @@ describe("loadEnv", () => {
     return file;
   }
 
-  it("does not override an existing key by default", () => {
+  await it("does not override an existing key by default", () => {
     const file = writeEnv("LOADENV_TEST_KEY=from-file\n");
     process.env.LOADENV_TEST_KEY = "from-process";
     assert.equal(loadEnv(file), true);
     assert.equal(process.env.LOADENV_TEST_KEY, "from-process");
   });
 
-  it("overwrites when override is true", () => {
+  await it("overwrites when override is true", () => {
     const file = writeEnv("LOADENV_TEST_KEY=from-file\n");
     process.env.LOADENV_TEST_KEY = "from-process";
     assert.equal(loadEnv(file, { override: true }), true);
     assert.equal(process.env.LOADENV_TEST_KEY, "from-file");
   });
 
-  it("never overrides protected keys, even with override true", () => {
+  await it("never overrides protected keys, even with override true", () => {
     const file = writeEnv("LOADENV_TEST_KEY=from-file\nNODE_ENV=development\n");
     process.env.LOADENV_TEST_KEY = "from-process";
     process.env.NODE_ENV = "production";

@@ -2,6 +2,7 @@
  * Platform SQLite DB + numbered SQL migrations (Postgres-portable dialect).
  * File: data/platform.sqlite (gitignored via data/).
  */
+import { stringRow } from "./platform/unknownValue.js";
 import Database from "better-sqlite3";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -80,7 +81,7 @@ export function backfillOwnPostPostedAt(database: Database.Database): void {
       `SELECT id, posted_at FROM own_posts
        WHERE posted_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'`,
     )
-    .all() as Array<{ id: string; posted_at: string }>;
+    .all().map((row) => stringRow(row, "id", "posted_at"));
   if (!rows.length) return;
   const update = database.prepare(
     `UPDATE own_posts SET posted_at = ? WHERE id = ?`,
@@ -136,7 +137,7 @@ export function applyMigrations(
     (
       database
         .prepare(`SELECT id FROM schema_migrations ORDER BY id`)
-        .all() as Array<{ id: string }>
+        .all().map((row) => stringRow(row, "id"))
     ).map((r) => r.id),
   );
 

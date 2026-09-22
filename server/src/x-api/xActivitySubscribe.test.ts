@@ -12,18 +12,18 @@ import {
   webhookIdFromCreate,
 } from "./xActivitySubscribe.ts";
 
-describe("XAA webhook paths", () => {
-  it("lists and creates at /webhooks, not /activity/webhooks", () => {
+await describe("XAA webhook paths", async () => {
+  await it("lists and creates at /webhooks, not /activity/webhooks", () => {
     assert.equal(X_WEBHOOKS_PATH, "/webhooks");
     assert.notEqual(X_WEBHOOKS_PATH, "/activity/webhooks");
     assert.equal(X_ACTIVITY_SUBSCRIPTIONS_PATH, "/activity/subscriptions");
   });
 });
 
-describe("findListedWebhookId", () => {
+await describe("findListedWebhookId", async () => {
   const url = "https://api.xcopilot.dev/api/x/activity";
 
-  it("returns the id for a matching url", () => {
+  await it("returns the id for a matching url", () => {
     assert.equal(
       findListedWebhookId(
         { data: [{ id: "wh-1", url }, { id: "wh-2", url: "https://other" }] },
@@ -33,15 +33,15 @@ describe("findListedWebhookId", () => {
     );
   });
 
-  it("returns null when the url is absent or data is not a list", () => {
+  await it("returns null when the url is absent or data is not a list", () => {
     assert.equal(findListedWebhookId({ data: [{ id: "wh-1", url: "https://other" }] }, url), null);
     assert.equal(findListedWebhookId({ data: { id: "wh-1", url } }, url), null);
     assert.equal(findListedWebhookId(null, url), null);
   });
 });
 
-describe("webhookIdFromCreate", () => {
-  it("reads data.id from the official create shape", () => {
+await describe("webhookIdFromCreate", async () => {
+  await it("reads data.id from the official create shape", () => {
     assert.equal(
       webhookIdFromCreate({
         data: {
@@ -57,8 +57,8 @@ describe("webhookIdFromCreate", () => {
   });
 });
 
-describe("subscriptionIdFromCreate", () => {
-  it("reads the official object shape and the list-shaped array", () => {
+await describe("subscriptionIdFromCreate", async () => {
+  await it("reads the official object shape and the list-shaped array", () => {
     assert.equal(
       subscriptionIdFromCreate({
         data: { subscription_id: "sub-obj", event_type: "post.create" },
@@ -75,8 +75,8 @@ describe("subscriptionIdFromCreate", () => {
   });
 });
 
-describe("findListedSubscriptionId", () => {
-  it("matches post.create for that x user and webhook", () => {
+await describe("findListedSubscriptionId", async () => {
+  await it("matches post.create for that x user and webhook", () => {
     assert.equal(
       findListedSubscriptionId(
         {
@@ -137,8 +137,8 @@ describe("findListedSubscriptionId", () => {
   });
 });
 
-describe("activitySubscriptionBody", () => {
-  it("registers post.create and post.delete against the same user and webhook", () => {
+await describe("activitySubscriptionBody", async () => {
+  await it("registers post.create and post.delete against the same user and webhook", () => {
     assert.deepEqual(
       [
         activitySubscriptionBody("post.create", "99", "wh-1", "user-1"),
@@ -161,7 +161,7 @@ describe("activitySubscriptionBody", () => {
     );
   });
 
-  it("reuses existing event subscriptions before creating a missing one", async () => {
+  await it("reuses existing event subscriptions before creating a missing one", async () => {
     const calls: Array<{ method: string; path: string; body?: unknown }> = [];
     const request = async (opts: {
       method: string;
@@ -225,10 +225,10 @@ describe("activitySubscriptionBody", () => {
   });
 });
 
-describe("registerActivityWebhook", () => {
+await describe("registerActivityWebhook", async () => {
   const url = "https://api.xcopilot.dev/api/x/activity";
 
-  it("reuses a listed webhook and does not POST", async () => {
+  await it("reuses a listed webhook and does not POST", async () => {
     const calls: Array<{ method: string; path: string }> = [];
     const id = await registerActivityWebhook({
       url,
@@ -245,7 +245,7 @@ describe("registerActivityWebhook", () => {
     assert.deepEqual(calls, [{ method: "GET", path: "/webhooks" }]);
   });
 
-  it("POSTs /webhooks when the list is empty", async () => {
+  await it("POSTs /webhooks when the list is empty", async () => {
     const calls: Array<{ method: string; path: string; body?: unknown }> = [];
     const id = await registerActivityWebhook({
       url,
@@ -276,7 +276,7 @@ describe("registerActivityWebhook", () => {
     ]);
   });
 
-  it("registers a listed webhook that is invalid", async () => {
+  await it("registers a listed webhook that is invalid", async () => {
     const calls: Array<{ method: string; path: string }> = [];
     const id = await registerActivityWebhook({
       url,
@@ -299,7 +299,7 @@ describe("registerActivityWebhook", () => {
     ]);
   });
 
-  it("returns null when create fails", async () => {
+  await it("returns null when create fails", async () => {
     const id = await registerActivityWebhook({
       url,
       request: async (opts) => {

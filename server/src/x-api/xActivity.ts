@@ -1,6 +1,7 @@
 /**
  * X Activity API webhook helpers — CRC, signature, post.create parse.
  */
+import { objectValue } from "../platform/unknownValue.js";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export type OwnPostKind = "original" | "reply" | "quote" | "repost";
@@ -73,7 +74,7 @@ function asFiniteNumber(value: unknown): number | undefined {
 
 export function metricsFromPublic(raw: unknown): ActivityMetrics {
   if (!raw || typeof raw !== "object") return {};
-  const m = raw as Record<string, unknown>;
+  const m = objectValue(raw);
   return {
     views: asFiniteNumber(m.impression_count),
     likes: asFiniteNumber(m.like_count),
@@ -89,7 +90,7 @@ function referencedTypes(payload: Record<string, unknown>): Set<string> {
   if (!Array.isArray(refs)) return out;
   for (const ref of refs) {
     if (!ref || typeof ref !== "object") continue;
-    const t = String((ref as { type?: unknown }).type ?? "").trim();
+    const t = String((objectValue(ref)).type ?? "").trim();
     if (t) out.add(t);
   }
   return out;
@@ -105,7 +106,7 @@ function replyParentId(payload: Record<string, unknown>): string | null {
   if (!Array.isArray(refs)) return null;
   for (const ref of refs) {
     if (!ref || typeof ref !== "object") continue;
-    const row = ref as { type?: unknown; id?: unknown };
+    const row = objectValue(ref);
     if (String(row.type ?? "").trim() !== "replied_to") continue;
     const id = String(row.id ?? "").trim();
     if (id) return id;
@@ -119,7 +120,7 @@ function repostTargetId(payload: Record<string, unknown>): string | null {
   if (!Array.isArray(refs)) return null;
   for (const ref of refs) {
     if (!ref || typeof ref !== "object") continue;
-    const row = ref as { type?: unknown; id?: unknown };
+    const row = objectValue(ref);
     if (String(row.type ?? "").trim() !== "retweeted") continue;
     const id = String(row.id ?? "").trim();
     if (id) return id;
@@ -145,7 +146,7 @@ function usernameFromIncludes(
   if (!Array.isArray(users)) return null;
   for (const u of users) {
     if (!u || typeof u !== "object") continue;
-    const row = u as { id?: unknown; username?: unknown };
+    const row = objectValue(u);
     if (String(row.id ?? "") === authorId && typeof row.username === "string") {
       return row.username.replace(/^@+/, "");
     }
@@ -156,19 +157,19 @@ function usernameFromIncludes(
 /** Pull a post.create event from an XAA webhook envelope (or a bare data object). */
 export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
   if (!json || typeof json !== "object") return null;
-  const root = json as Record<string, unknown>;
+  const root = objectValue(json);
   const data =
     root.data && typeof root.data === "object"
-      ? (root.data as Record<string, unknown>)
+      ? (objectValue(root.data))
       : root;
   const eventType = String(data.event_type ?? root.event_type ?? "");
   if (eventType && eventType !== "post.create") return null;
 
   const payload =
     data.payload && typeof data.payload === "object"
-      ? (data.payload as Record<string, unknown>)
+      ? (objectValue(data.payload))
       : data;
-  const post = payload as Record<string, unknown>;
+  const post = objectValue(payload);
   const postId = String(post.id ?? "").trim();
   if (!postId) return null;
 
@@ -216,17 +217,17 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
 /** Pull a post.delete event from an XAA webhook envelope. */
 export function parsePostDeleteEvent(json: unknown): ParsedPostDelete | null {
   if (!json || typeof json !== "object") return null;
-  const root = json as Record<string, unknown>;
+  const root = objectValue(json);
   const data =
     root.data && typeof root.data === "object"
-      ? (root.data as Record<string, unknown>)
+      ? (objectValue(root.data))
       : root;
   if (String(data.event_type ?? root.event_type ?? "") !== "post.delete") {
     return null;
   }
   const payload =
     data.payload && typeof data.payload === "object"
-      ? (data.payload as Record<string, unknown>)
+      ? (objectValue(data.payload))
       : data;
   const postId = String(payload.id ?? payload.post_id ?? "").trim();
   const filter =

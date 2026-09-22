@@ -2,6 +2,7 @@
  * Official X API v2 client (app-only Bearer).
  * Replaces session-cookie GraphQL for read paths.
  */
+import { objectValue } from "../platform/unknownValue.js";
 
 import {
   chargeUniquePostReads,
@@ -273,16 +274,8 @@ export async function lookupXUserByUsername(
       message: res.message,
     };
   }
-  const data = res.json as {
-    data?: {
-      id?: string;
-      username?: string;
-      name?: string;
-      protected?: boolean;
-    };
-  };
-  const u = data.data;
-  if (!u?.id || !u.username) {
+  const u = objectValue(objectValue(res.json).data);
+  if (typeof u.id !== "string" || !u.id || typeof u.username !== "string" || !u.username) {
     return {
       ok: false,
       status: 404,
@@ -295,7 +288,7 @@ export async function lookupXUserByUsername(
     user: {
       id: u.id,
       screen_name: u.username,
-      name: u.name || u.username,
+      name: (typeof u.name === "string" && u.name) || u.username,
       protected: Boolean(u.protected),
     },
   };
