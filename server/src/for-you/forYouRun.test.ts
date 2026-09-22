@@ -88,7 +88,7 @@ const chat: ChatFn = async () => ({
   provider: "deepseek",
 });
 
-describe("runForYouDigestForUser", () => {
+await describe("runForYouDigestForUser", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -106,7 +106,7 @@ describe("runForYouDigestForUser", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("skips thin accounts and no-ops a second run the same UTC day", async () => {
+  await it("skips thin accounts and no-ops a second run the same UTC day", async () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     seedSnapshots("u1", 2);
     const thin = await runForYouDigestForUser({
@@ -138,7 +138,7 @@ describe("runForYouDigestForUser", () => {
     assert.equal(again.reason, "already_ran");
   });
 
-  it("drops remix posts while keeping valid actions", async () => {
+  await it("drops remix posts while keeping valid actions", async () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     seedSnapshots("u1", MIN_T24H_SNAPSHOTS);
     let calls = 0;
@@ -178,7 +178,7 @@ describe("runForYouDigestForUser", () => {
     assert.equal(hasForYouRunToday("u1", now), true);
   });
 
-  it("does not record an empty Scout pass and retries when data arrives", async () => {
+  await it("does not record an empty Scout pass and retries when data arrives", async () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     seedSnapshots("u2", MIN_T24H_SNAPSHOTS, false);
     const empty = await runForYouDigestForUser({
@@ -211,7 +211,7 @@ describe("runForYouDigestForUser", () => {
     assert.equal(retried.reason, "ok");
   });
 
-  it("does not burn the daily run on an LLM failure; retries next tick", async () => {
+  await it("does not burn the daily run on an LLM failure; retries next tick", async () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     seedSnapshots("u1", MIN_T24H_SNAPSHOTS);
     const failingChat: ChatFn = async () => ({

@@ -1,7 +1,8 @@
+import { objectValue } from "../platform/unknownValue.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
@@ -34,7 +35,7 @@ async function post(
   opts: { origin?: string; body?: unknown; cookie?: string } = {},
   deps: MemoryHttpDeps = {},
 ): Promise<{ handled: boolean; status: number; body: Record<string, unknown> }> {
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = new IncomingMessage(new Socket());
   const headers: Record<string, string> = {};
   if (opts.origin) headers.origin = opts.origin;
   if (opts.cookie) headers.cookie = opts.cookie;
@@ -45,14 +46,14 @@ async function post(
   });
   let status = 0;
   let raw = "";
-  const res = {
+  const res = Object.assign(new ServerResponse(req), {
     writeHead: (code: number) => {
       status = code;
     },
     end: (chunk: string) => {
       raw = chunk;
     },
-  } as unknown as ServerResponse;
+  });
   const handledPromise = tryHandleMemory(
     req,
     res,
@@ -60,14 +61,14 @@ async function post(
     deps,
   );
   if (opts.body !== undefined) {
-    (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(opts.body)));
+    req.emit("data", Buffer.from(JSON.stringify(opts.body)));
   }
-  (req as EventEmitter).emit("end");
+  req.emit("end");
   const handled = await handledPromise;
   return {
     handled,
     status,
-    body: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+    body: raw ? (objectValue(JSON.parse(raw))) : {},
   };
 }
 
@@ -84,7 +85,7 @@ function spySearch(result: { hits: never[]; error?: string } = { hits: [] }) {
   return { calls, deps };
 }
 
-describe("memoryHttp", () => {
+await describe("memoryHttp", async () => {
   let temp: TempPlatformDb;
   let a: { userId: string; cookie: string };
   let b: { userId: string; cookie: string };
@@ -99,7 +100,7 @@ describe("memoryHttp", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("rejects a non-local Origin on search before checking the session", async () => {
+  await it("rejects a non-local Origin on search before checking the session", async () => {
     const { calls, deps } = spySearch();
     const { handled, status, body } = await post(
       "/api/memory/search",
@@ -112,7 +113,7 @@ describe("memoryHttp", () => {
     assert.equal(calls.length, 0);
   });
 
-  it("rejects a non-local Origin on reindex", async () => {
+  await it("rejects a non-local Origin on reindex", async () => {
     const { handled, status, body } = await post("/api/memory/reindex", {
       origin: "https://evil.example",
     });
@@ -121,7 +122,7 @@ describe("memoryHttp", () => {
     assert.equal(body.error, "forbidden");
   });
 
-  it("returns 401 without a session and never reaches the index", async () => {
+  await it("returns 401 without a session and never reaches the index", async () => {
     let ensured = 0;
     const { calls, deps } = spySearch();
     deps.ensureMemoryIndex = async () => {
@@ -138,7 +139,7 @@ describe("memoryHttp", () => {
     assert.equal(ensured, 0);
   });
 
-  it("rejects a body-supplied userId or tenantId even with a valid session", async () => {
+  await it("rejects a body-supplied userId or tenantId even with a valid session", async () => {
     const { calls, deps } = spySearch();
     for (const forged of [
       { query: "hi", userId: b.userId },
@@ -157,7 +158,7 @@ describe("memoryHttp", () => {
     assert.equal(calls.length, 0);
   });
 
-  it("rejects a missing search query", async () => {
+  await it("rejects a missing search query", async () => {
     const { calls, deps } = spySearch();
     const { handled, status, body } = await post(
       "/api/memory/search",
@@ -170,7 +171,7 @@ describe("memoryHttp", () => {
     assert.equal(calls.length, 0);
   });
 
-  it("returns 400 for a primitive JSON body", async () => {
+  await it("returns 400 for a primitive JSON body", async () => {
     const { calls, deps } = spySearch();
     const { status, body } = await post(
       "/api/memory/search",
@@ -182,7 +183,7 @@ describe("memoryHttp", () => {
     assert.equal(calls.length, 0);
   });
 
-  it("searches as the session user only, after ensuring the index", async () => {
+  await it("searches as the session user only, after ensuring the index", async () => {
     const order: string[] = [];
     const { calls, deps } = spySearch();
     deps.ensureMemoryIndex = async () => {
@@ -216,7 +217,7 @@ describe("memoryHttp", () => {
     assert.equal(calls[1]!.userId, b.userId);
   });
 
-  it("reports an unavailable index as 503 with no hits", async () => {
+  await it("reports an unavailable index as 503 with no hits", async () => {
     const { deps } = spySearch({ hits: [], error: "Embedding model unavailable" });
     const { status, body } = await post(
       "/api/memory/search",
@@ -228,7 +229,7 @@ describe("memoryHttp", () => {
     assert.deepEqual(body.hits, []);
   });
 
-  it("reindex returns operational counts only", async () => {
+  await it("reindex returns operational counts only", async () => {
     const { status, body } = await post(
       "/api/memory/reindex",
       { origin: LOCAL },
@@ -240,7 +241,7 @@ describe("memoryHttp", () => {
     assert.deepEqual(body, { ok: true, indexed: 3, skipped: 1, excluded: 2 });
   });
 
-  it("ignores unrelated paths", async () => {
+  await it("ignores unrelated paths", async () => {
     const { handled, status } = await post("/api/usage", { body: {} });
     assert.equal(handled, false);
     assert.equal(status, 0);

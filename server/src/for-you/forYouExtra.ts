@@ -1,4 +1,5 @@
 /** Historical extra Approach usage returned during boot hydration. */
+import { objectValue } from "../platform/unknownValue.js";
 import { getCreditUsage } from "../billing/billingQuotas.js";
 import { getPlatformDb } from "../db.js";
 import { startOfUtcDayIso } from "../desk/ownPostStore.js";
@@ -12,12 +13,12 @@ function countExtraBatchesToday(
   userId: string,
   now = new Date(),
 ): number {
-  const row = getPlatformDb()
+  const row = objectValue(getPlatformDb()
     .prepare(
       `SELECT COUNT(*) AS n FROM for_you_extras
        WHERE user_id = ? AND at >= ? AND (expires_at IS NULL OR expires_at > ?)`,
     )
-    .get(userId, startOfUtcDayIso(now), now.toISOString()) as { n: number };
+    .get(userId, startOfUtcDayIso(now), now.toISOString()));
   return Number(row?.n ?? 0);
 }
 

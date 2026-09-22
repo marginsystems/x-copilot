@@ -58,7 +58,7 @@ function emptyDigest(overrides: Partial<ForYouDigest> = {}): ForYouDigest {
   };
 }
 
-describe("forYouDigest", () => {
+await describe("forYouDigest", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -76,7 +76,7 @@ describe("forYouDigest", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("ranks t24h snapshots and waits for a handful before eligibility", () => {
+  await it("ranks t24h snapshots and waits for a handful before eligibility", () => {
     for (let i = 1; i <= MIN_T24H_SNAPSHOTS + 1; i++) {
       upsertOwnPost({
         parsed: post({
@@ -109,7 +109,7 @@ describe("forYouDigest", () => {
     assert.ok(ranked.recentOriginals.length >= 1);
   });
 
-  it("does not put sub-100 view posts in BEST even when they beat other misses", () => {
+  await it("does not put sub-100 view posts in BEST even when they beat other misses", () => {
     for (const [id, views] of [
       ["5", 5],
       ["25", 25],
@@ -140,7 +140,7 @@ describe("forYouDigest", () => {
     assert.ok(ranked.worst.some((p) => p.id === "25"));
   });
 
-  it("omits own posts younger than 1 hour from recent lists", () => {
+  await it("omits own posts younger than 1 hour from recent lists", () => {
     const now = Date.parse("2026-08-26T18:00:00.000Z");
     upsertOwnPost({
       parsed: post({
@@ -167,7 +167,7 @@ describe("forYouDigest", () => {
     );
   });
 
-  it("drops invented, own, and leftover Scout targets", () => {
+  await it("drops invented, own, and leftover Scout targets", () => {
     const digest = emptyDigest({
       best: [
         {
@@ -238,7 +238,7 @@ describe("forYouDigest", () => {
     );
   });
 
-  it("rewrites first-person why and leaves the draft in their voice", () => {
+  await it("rewrites first-person why and leaves the draft in their voice", () => {
     const digest = emptyDigest({
       best: [
         {
@@ -280,7 +280,7 @@ describe("forYouDigest", () => {
     assert.equal(kept[0]?.draft, "I shipped the recap.");
   });
 
-  it("does not let worst posts or memories be engagement targets", () => {
+  await it("does not let worst posts or memories be engagement targets", () => {
     const digest = emptyDigest({
       best: [
         {
@@ -392,7 +392,7 @@ describe("forYouDigest", () => {
     );
   });
 
-  it("keeps leftover Scout empty and builds from an agenda", async () => {
+  await it("keeps leftover Scout empty and builds from an agenda", async () => {
     const now = "2026-08-20T12:00:00.000Z";
     getPlatformDb()
       .prepare(
@@ -431,7 +431,7 @@ describe("forYouDigest", () => {
     assert.equal(agendaOnly.agenda, "Find builders");
   });
 
-  it("does not let thin best posts be quote/repost targets", () => {
+  await it("does not let thin best posts be quote/repost targets", () => {
     const digest = emptyDigest({
       best: [
         {
@@ -485,7 +485,7 @@ describe("forYouDigest", () => {
     );
   });
 
-  it("drops thin and worst-via-recent posts from recent allowlists", () => {
+  await it("drops thin and worst-via-recent posts from recent allowlists", () => {
     const worstPost = {
       id: "2",
       kind: "original" as const,
@@ -578,7 +578,7 @@ describe("forYouDigest", () => {
     );
   });
 
-  it("keeps three unique extra originals and drops other kinds", () => {
+  await it("keeps three unique extra originals and drops other kinds", () => {
     const kept = filterExtraPosts({
       actions: [
         { kind: "reply", why: "scout", draft: "hey", targetId: "77" },
@@ -599,7 +599,7 @@ describe("forYouDigest", () => {
     );
   });
 
-  it("drops originals that rewrite an old own post", () => {
+  await it("drops originals that rewrite an old own post", () => {
     const digest = emptyDigest({
       leftoverScout: [{ id: "77", author: "@a", text: "who is hiring", url: "https://x.com/a/status/77" }],
       best: [{
@@ -616,7 +616,7 @@ describe("forYouDigest", () => {
     assert.deepEqual(kept.map((a) => a.draft), ["Who is actually hiring this week?"]);
   });
 
-  it("drops digest and extra drafts that match a skipped theme", () => {
+  await it("drops digest and extra drafts that match a skipped theme", () => {
     const digest = emptyDigest({ skipped: [{
       kind: "post",
       why: "Your 8.7k-view Claude refusal reply is your best shape.",
@@ -634,7 +634,7 @@ describe("forYouDigest", () => {
     assert.deepEqual(extras.map((a) => a.draft), ["What did you ship?"]);
   });
 
-  it("refills digest and extra caps after skipped drafts are removed", () => {
+  await it("refills digest and extra caps after skipped drafts are removed", () => {
     const skipped = [
       { kind: "post", why: "Your Claude refusal leads", draft: "Refusal is a feature." },
     ];

@@ -1,10 +1,11 @@
+import { objectValue } from "../platform/unknownValue.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import {
   defaultMigrationsDir,
   getPlatformDb,
@@ -30,7 +31,7 @@ import { patchOwnPostSnapshot, upsertOwnPost } from "../desk/ownPostStore.ts";
 import { explicitEventKey, listScoutEvidence } from "../scout/scoutEvidence.ts";
 import type { ChatFn } from "../voice/voiceLlm.ts";
 
-describe("GET /api/for-you", () => {
+await describe("GET /api/for-you", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -48,7 +49,7 @@ describe("GET /api/for-you", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("reports how many 24h snapshots are tracked toward the digest", async () => {
+  await it("reports how many 24h snapshots are tracked toward the digest", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-fy",
@@ -88,7 +89,7 @@ describe("GET /api/for-you", () => {
       return extraChat();
     };
     const { token } = createSession(user.id);
-    const req = new EventEmitter() as unknown as IncomingMessage;
+    const req = new IncomingMessage(new Socket());
     Object.assign(req, {
       method: "GET",
       headers: {
@@ -98,14 +99,14 @@ describe("GET /api/for-you", () => {
     });
     let status = 0;
     let raw = "";
-    const res = {
+    const res = Object.assign(new ServerResponse(req), {
       writeHead: (code: number) => {
         status = code;
       },
       end: (chunk: string) => {
         raw = chunk;
       },
-    } as unknown as ServerResponse;
+    });
     const handled = await tryHandleForYou(
       req,
       res,
@@ -114,19 +115,14 @@ describe("GET /api/for-you", () => {
     );
     assert.equal(handled, true);
     assert.equal(status, 200);
-    const json = JSON.parse(raw) as {
-      tracked?: number;
-      needed?: number;
-      suggestions?: unknown[];
-      extra?: { cost?: number; batchSize?: number; used?: number; limit?: number };
-    };
+    const json = objectValue(JSON.parse(raw));
     assert.equal(json.tracked, 3);
     assert.equal(json.needed, MIN_T24H_SNAPSHOTS);
     assert.deepEqual(json.suggestions, []);
-    assert.equal(json.extra?.cost, 15);
-    assert.equal(json.extra?.batchSize, 3);
-    assert.equal(json.extra?.used, 0);
-    assert.equal(json.extra?.limit, 10);
+    assert.equal(objectValue(json.extra).cost, 15);
+    assert.equal(objectValue(json.extra).batchSize, 3);
+    assert.equal(objectValue(json.extra).used, 0);
+    assert.equal(objectValue(json.extra).limit, 10);
     assert.equal(drafts, 0);
   });
 });
@@ -138,7 +134,7 @@ async function invokeForYou(opts: {
   chat?: ChatFn;
   body?: unknown;
 }): Promise<{ handled: boolean; status: number; json: Record<string, unknown> }> {
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = new IncomingMessage(new Socket());
   Object.assign(req, {
     method: opts.method,
     headers: opts.token
@@ -148,14 +144,14 @@ async function invokeForYou(opts: {
   });
   let status = 0;
   let raw = "";
-  const res = {
+  const res = Object.assign(new ServerResponse(req), {
     writeHead: (code: number) => {
       status = code;
     },
     end: (chunk: string) => {
       raw = chunk;
     },
-  } as unknown as ServerResponse;
+  });
   const handledP = tryHandleForYou(
     req,
     res,
@@ -172,7 +168,7 @@ async function invokeForYou(opts: {
   return {
     handled,
     status,
-    json: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+    json: raw ? (objectValue(JSON.parse(raw))) : {},
   };
 }
 
@@ -201,7 +197,7 @@ const extraChat: ChatFn = async () => ({
   provider: "deepseek",
 });
 
-describe("POST /api/for-you/done", () => {
+await describe("POST /api/for-you/done", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -219,7 +215,7 @@ describe("POST /api/for-you/done", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("advances the organic beat on quote I posted", async () => {
+  await it("advances the organic beat on quote I posted", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-quote-done",
@@ -243,7 +239,7 @@ describe("POST /api/for-you/done", () => {
     assert.equal(getDeskBeats({ userId: user.id }).organicReplyDone, true);
   });
 
-  it("does not complete a reply fork on quote I posted", async () => {
+  await it("does not complete a reply fork on quote I posted", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-quote-reply-fork",
@@ -271,7 +267,7 @@ describe("POST /api/for-you/done", () => {
     assert.equal(beats.organicReplyDone, true);
   });
 
-  it("completes a reply fork on reply I posted", async () => {
+  await it("completes a reply fork on reply I posted", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-reply-reply-fork",
@@ -298,7 +294,7 @@ describe("POST /api/for-you/done", () => {
   });
 });
 
-describe("POST /api/for-you/skip", () => {
+await describe("POST /api/for-you/skip", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -316,7 +312,7 @@ describe("POST /api/for-you/skip", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("marks the card skipped and inserts a Scout-based original", async () => {
+  await it("marks the card skipped and inserts a Scout-based original", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-skip-refill",
@@ -345,7 +341,7 @@ describe("POST /api/for-you/skip", () => {
       body: { id: card.id },
     });
     assert.equal(out.status, 200);
-    const replacement = out.json.replacement as { why?: string; draft?: string } | null;
+    const replacement = objectValue(out.json.replacement);
     assert.ok(replacement?.draft);
     assert.notEqual(replacement.draft, card.draft);
     const live = listActiveSuggestions(user.id);
@@ -354,7 +350,7 @@ describe("POST /api/for-you/skip", () => {
     assert.equal(getSuggestion(card.id, user.id)?.status, "skipped");
   });
 
-  it("marks Not interested dismissed without refilling", async () => {
+  await it("marks Not interested dismissed without refilling", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-dismiss",
@@ -388,7 +384,7 @@ describe("POST /api/for-you/skip", () => {
     assert.equal(drafts, 0);
   });
 
-  it("marks a reply skipped when evidence capture fails", async () => {
+  await it("marks a reply skipped when evidence capture fails", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-skip-evidence-fail",
@@ -447,7 +443,7 @@ describe("POST /api/for-you/skip", () => {
     assert.equal(getSuggestion(sibling.id, user.id)?.status, "skipped");
   });
 
-  it("does not let another user act on a suggestion", async () => {
+  await it("does not let another user act on a suggestion", async () => {
     const owner = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-owner",

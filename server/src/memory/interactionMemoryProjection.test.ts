@@ -29,7 +29,7 @@ function baseInput(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe("projectConfirmedReplyMemory", () => {
+await describe("projectConfirmedReplyMemory", async () => {
   let root: string;
 
   beforeEach(async () => {
@@ -42,7 +42,7 @@ describe("projectConfirmedReplyMemory", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it("saves confirmed reply text and returns the note path", async () => {
+  await it("saves confirmed reply text and returns the note path", async () => {
     const result = await projectConfirmedReplyMemory(
       baseInput({
         knowledgeRoot: root,
@@ -59,7 +59,7 @@ describe("projectConfirmedReplyMemory", () => {
     assert.match(body, /source: manual/);
   });
 
-  it("returns no_reply_text without writing when reply text is missing", async () => {
+  await it("returns no_reply_text without writing when reply text is missing", async () => {
     const result = await projectConfirmedReplyMemory(
       baseInput({
         reply: "  \n\t ",
@@ -83,7 +83,7 @@ describe("projectConfirmedReplyMemory", () => {
     );
   });
 
-  it("returns unavailable without writing when the owner is blank", async () => {
+  await it("returns unavailable without writing when the owner is blank", async () => {
     const result = await projectConfirmedReplyMemory(
       baseInput({ userId: "  ", knowledgeRoot: root }),
     );
@@ -91,7 +91,7 @@ describe("projectConfirmedReplyMemory", () => {
     await assert.rejects(() => readFile(join(root, "interactions")), /ENOENT/);
   });
 
-  it("returns unavailable when the note write is injected to fail", async () => {
+  await it("returns unavailable when the note write is injected to fail", async () => {
     resetInteractionMemoryProjectionForTests({
       writeNote: async () => {
         throw new Error("EACCES: injected filesystem failure");
@@ -116,7 +116,7 @@ describe("projectConfirmedReplyMemory", () => {
     );
   });
 
-  it("does not swallow an ownership conflict as an unavailable write", async () => {
+  await it("does not swallow an ownership conflict as an unavailable write", async () => {
     resetInteractionMemoryProjectionForTests({
       writeNote: async () => {
         throw new Error("interaction note belongs to another user");
@@ -128,7 +128,7 @@ describe("projectConfirmedReplyMemory", () => {
     );
   });
 
-  it("keeps a saved note when MiniLM upsert is unavailable", async () => {
+  await it("keeps a saved note when MiniLM upsert is unavailable", async () => {
     const bad: Embedder = {
       dimensions: 8,
       async embed() {
@@ -149,7 +149,7 @@ describe("projectConfirmedReplyMemory", () => {
     assert.match(body, /Thanks — here's a concrete tip\./);
   });
 
-  it("keeps a saved note when index upsert is injected to fail", async () => {
+  await it("keeps a saved note when index upsert is injected to fail", async () => {
     let upserted = "";
     resetInteractionMemoryProjectionForTests({
       upsertNote: async (notePath) => {
@@ -169,7 +169,7 @@ describe("projectConfirmedReplyMemory", () => {
     assert.match(body, /Thanks — here's a concrete tip\./);
   });
 
-  it("preserves existing outcome and curated context on a discovered refresh", async () => {
+  await it("preserves existing outcome and curated context on a discovered refresh", async () => {
     const first = await writeInteractionMemory({
       threadId: "2081",
       author: "@Builder",
@@ -224,7 +224,7 @@ describe("projectConfirmedReplyMemory", () => {
     assert.doesNotMatch(body, /Fresh search result/);
   });
 
-  it("schedules MiniLM by default after a successful write", async () => {
+  await it("schedules MiniLM by default after a successful write", async () => {
     const scheduled: string[] = [];
     resetInteractionMemoryProjectionForTests({
       writeNote: (input) =>
@@ -238,7 +238,7 @@ describe("projectConfirmedReplyMemory", () => {
     assert.deepEqual(scheduled, [result.memoryPath]);
   });
 
-  it("returns without waiting for the scheduled upsert", async () => {
+  await it("returns without waiting for the scheduled upsert", async () => {
     let release!: () => void;
     let started = false;
     const upsertFinished = new Promise<void>((resolve) => {
@@ -269,7 +269,7 @@ describe("projectConfirmedReplyMemory", () => {
     assert.equal(result.state, "saved");
   });
 
-  it("indexes a saved note when a hash embedder is injected", async () => {
+  await it("indexes a saved note when a hash embedder is injected", async () => {
     const result = await projectConfirmedReplyMemory(
       baseInput({
         knowledgeRoot: root,
