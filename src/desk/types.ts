@@ -1,3 +1,4 @@
+import { isRecord } from "../lib/typeGuards";
 import type { ScoutStageId } from "../lib/scoutStages";
 
 /** Closed preference category from triage (mirrors server THREAD_KINDS). */
@@ -132,26 +133,29 @@ export function parseInteractionMemoryReceipt(
   return undefined;
 }
 
+function isReplyStatSnapshot(raw: unknown): raw is ReplyStatSnapshot {
+  return isRecord(raw) && typeof raw.sampledAt === "string" &&
+    ["views", "likes", "replies", "retweets"].every((key) => raw[key] === undefined || typeof raw[key] === "number");
+}
+
+function isInteractionHistoryEntry(raw: unknown): raw is Omit<InteractionHistoryEntry, "memory"> & { memory?: unknown } {
+  if (!isRecord(raw)) return false;
+  if (!["threadId", "author", "at"].every((key) => typeof raw[key] === "string")) return false;
+  if (!["url", "summary", "text", "replyId", "replyUrl", "postedAt", "conversationId", "inReplyToId"].every(
+    (key) => raw[key] === undefined || typeof raw[key] === "string",
+  )) return false;
+  return raw.stats === undefined || (isRecord(raw.stats) &&
+    (raw.stats.t1h === undefined || isReplyStatSnapshot(raw.stats.t1h)) &&
+    (raw.stats.t24h === undefined || isReplyStatSnapshot(raw.stats.t24h)));
+}
+
 export function parseInteractionHistoryEntry(
   raw: unknown,
 ): InteractionHistoryEntry | null {
-  if (!raw || typeof raw !== "object") return null;
-  const row = raw as Record<string, unknown>;
-  if (
-    typeof row.threadId !== "string" ||
-    typeof row.author !== "string" ||
-    typeof row.at !== "string"
-  ) {
-    return null;
-  }
-  const memory = parseInteractionMemoryReceipt(row.memory);
-  const entry = raw as InteractionHistoryEntry;
-  if (memory) return { ...entry, memory };
-  if ("memory" in entry) {
-    const { memory: _drop, ...rest } = entry;
-    return rest;
-  }
-  return entry;
+  if (!isInteractionHistoryEntry(raw)) return null;
+  const { memory: rawMemory, ...entry } = raw;
+  const memory = parseInteractionMemoryReceipt(rawMemory);
+  return memory ? { ...entry, memory } : entry;
 }
 
 export function hasSavedInteractionMemory(

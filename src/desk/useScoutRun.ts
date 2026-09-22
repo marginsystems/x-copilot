@@ -6,7 +6,7 @@ import {
   type SetStateAction,
 } from "react";
 import { useSession } from "../auth/session";
-import type { LastScoutPayload } from "../lib/deskBoot";
+import { parseDeskBoot, type LastScoutPayload } from "../lib/deskBoot";
 import { apiFetch } from "../lib/apiBase";
 import {
   isScoutStageId,
@@ -101,9 +101,10 @@ export function useScoutRun({
         return;
       }
       if (!res.ok) return;
-      const data = (await res.json()) as LastScoutPayload;
+      const raw: unknown = await res.json();
+      const data = parseDeskBoot({ ok: true, desk: { lastScout: raw } })?.desk?.lastScout;
       if (!current()) return;
-      applyLastScoutFromBoot(data);
+      if (data) applyLastScoutFromBoot(data);
     } catch {
       // Sidecar may be offline on first paint — ignore.
     }
@@ -137,7 +138,7 @@ export function useScoutRun({
         pending = false;
       }
     };
-    const id = window.setInterval(() => { void poll(); }, 4000);
+    const id = window.setInterval(() => { poll().catch((err: unknown) => console.error(err)); }, 4000);
     const stop = () => {
       controller.abort();
       window.clearInterval(id);
@@ -145,7 +146,7 @@ export function useScoutRun({
     const unsubscribe = session.subscribe(() => {
       if (!session.isCurrent(generation)) stop();
     });
-    void poll();
+    poll().catch((err: unknown) => console.error(err));
     return () => { stop(); unsubscribe(); };
   }, [pollingEnabled, watchTank, settings.dedupeAccounts, session]);
 

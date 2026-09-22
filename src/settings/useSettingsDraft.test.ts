@@ -16,8 +16,8 @@ afterEach(() => {
   }
 });
 
-describe("commitSettingsDraft", () => {
-  it("saves settings without rewriting parked threads", () => {
+await describe("commitSettingsDraft", async () => {
+  await it("saves settings without rewriting parked threads", () => {
     const stored = new Map<string, string>();
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,

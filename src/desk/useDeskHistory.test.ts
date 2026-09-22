@@ -2,8 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { keepCuratedByHistory, parseInteractedHistory } from "./useDeskHistory.ts";
 
-describe("keepCuratedByHistory", () => {
-  it("hides consumed ids", () => {
+await describe("keepCuratedByHistory", async () => {
+  await it("hides consumed ids", () => {
     const hidden = new Set(["used"]);
     assert.equal(
       keepCuratedByHistory(
@@ -23,7 +23,7 @@ describe("keepCuratedByHistory", () => {
     );
   });
 
-  it("keeps the active locked card while history hydrates", () => {
+  await it("keeps the active locked card while history hydrates", () => {
     assert.equal(
       keepCuratedByHistory(
         { id: "locked" },
@@ -35,7 +35,7 @@ describe("keepCuratedByHistory", () => {
     );
   });
 
-  it("does not let a preserved card bypass history blocking", () => {
+  await it("does not let a preserved card bypass history blocking", () => {
     assert.equal(
       keepCuratedByHistory(
         { id: "other", conversationId: "locked" },
@@ -47,7 +47,7 @@ describe("keepCuratedByHistory", () => {
     );
   });
 
-  it("hides blocked conversations and parents", () => {
+  await it("hides blocked conversations and parents", () => {
     const blocked = new Set(["root", "parent"]);
     assert.equal(
       keepCuratedByHistory(
@@ -67,7 +67,7 @@ describe("keepCuratedByHistory", () => {
     );
   });
 
-  it("does not inspect settings-shaped thread fields", () => {
+  await it("does not inspect settings-shaped thread fields", () => {
     const parked = {
       id: "parked",
       views: 1,
@@ -82,8 +82,8 @@ describe("keepCuratedByHistory", () => {
 
 });
 
-describe("parseInteractedHistory", () => {
-  it("accepts a pre-receipt payload and only treats state saved as remembered", () => {
+await describe("parseInteractedHistory", async () => {
+  await it("accepts a pre-receipt payload and only treats state saved as remembered", () => {
     const rows = parseInteractedHistory([
       { threadId: "old", author: "@a", at: "2026-09-18" },
       {
@@ -111,7 +111,7 @@ describe("parseInteractedHistory", () => {
     assert.equal(rows[3]?.memory, undefined);
   });
 
-  it("does not invent a saved receipt for a stale or foreign-shaped row", () => {
+  await it("does not invent a saved receipt for a stale or foreign-shaped row", () => {
     assert.deepEqual(parseInteractedHistory(undefined), []);
     assert.deepEqual(
       parseInteractedHistory([
@@ -120,4 +120,12 @@ describe("parseInteractedHistory", () => {
       undefined,
     );
   });
+});
+
+await it("rejects malformed optional history fields and preserves valid reply stats", () => {
+  const row = { threadId: "thread", author: "@a", at: "2026-09-18" };
+  assert.deepEqual(parseInteractedHistory([{ ...row, conversationId: 42 }]), []);
+  assert.deepEqual(parseInteractedHistory([{ ...row, stats: { t1h: { views: "10" } } }]), []);
+  const valid = { ...row, stats: { t1h: { sampledAt: "2026-09-18", views: 10 } } };
+  assert.deepEqual(parseInteractedHistory([valid]), [valid]);
 });

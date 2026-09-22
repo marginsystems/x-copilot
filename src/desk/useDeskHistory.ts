@@ -8,7 +8,8 @@ import {
 import { useSession } from "../auth/session";
 import { apiFetch } from "../lib/apiBase";
 import type { DeskBootDeskPatch } from "../lib/deskBoot";
-import { peekDeskBootCache } from "../lib/deskBoot";
+import { isRecord } from "../lib/typeGuards";
+import { parseDeskBoot, peekDeskBootCache } from "../lib/deskBoot";
 import {
   parseForYouExtra,
   parseForYouProgress,
@@ -67,7 +68,7 @@ export function useRehydrateOnVisible(refresh: () => void | Promise<void>) {
     if (typeof document === "undefined") return;
     const onVisibility = () => {
       if (document.visibilityState !== "visible") return;
-      void refreshRef.current();
+      Promise.resolve(refreshRef.current()).catch((err: unknown) => console.error(err));
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () =>
@@ -241,10 +242,8 @@ export function useDeskHistory(
       const res = await apiFetch("/api/interacted");
       if (!isCurrent()) return;
       if (!res.ok) throw new Error("Refresh failed");
-      const data = (await res.json()) as {
-        interactions?: InteractionHistoryEntry[];
-        activeIds?: string[];
-      };
+      const raw: unknown = await res.json();
+      const data = isRecord(raw) ? raw : {};
       if (!isCurrent()) return;
       const history = parseInteractedHistory(data.interactions);
       setInteractedHistory(history);
@@ -313,18 +312,10 @@ export function useDeskHistory(
       const res = await apiFetch("/api/skipped");
       if (!isCurrent()) return;
       if (!res.ok) throw new Error("Refresh failed");
-      const data = (await res.json()) as {
-        skipped?: SkipHistoryEntry[];
-        skippedIds?: string[];
-      };
+      const raw: unknown = await res.json();
+      const data = isRecord(raw) ? raw : {};
       if (!isCurrent()) return;
-      const history = (data.skipped ?? []).filter(
-        (d) =>
-          d &&
-          typeof d.threadId === "string" &&
-          typeof d.author === "string" &&
-          typeof d.at === "string",
-      );
+      const history = parseDeskBoot({ ok: true, desk: { skipped: data } })?.desk?.skipped.skipped ?? [];
       setSkippedHistory(history);
       const ids = new Set(
         (Array.isArray(data.skippedIds)
@@ -362,18 +353,10 @@ export function useDeskHistory(
       const res = await apiFetch("/api/dismissed");
       if (!isCurrent()) return;
       if (!res.ok) throw new Error("Refresh failed");
-      const data = (await res.json()) as {
-        dismissals?: DismissalHistoryEntry[];
-        dismissedIds?: string[];
-      };
+      const raw: unknown = await res.json();
+      const data = isRecord(raw) ? raw : {};
       if (!isCurrent()) return;
-      const history = (data.dismissals ?? []).filter(
-        (d) =>
-          d &&
-          typeof d.threadId === "string" &&
-          typeof d.author === "string" &&
-          typeof d.at === "string",
-      );
+      const history = parseDeskBoot({ ok: true, desk: { dismissed: data } })?.desk?.dismissed.dismissals ?? [];
       setDismissedHistory(history);
       const ids = new Set(
         (Array.isArray(data.dismissedIds) ? data.dismissedIds : history.map((d) => d.threadId)).filter(
@@ -408,18 +391,10 @@ export function useDeskHistory(
       const res = await apiFetch("/api/expired");
       if (!isCurrent()) return;
       if (!res.ok) throw new Error("Refresh failed");
-      const data = (await res.json()) as {
-        expired?: ExpiredHistoryEntry[];
-        expiredIds?: string[];
-      };
+      const raw: unknown = await res.json();
+      const data = isRecord(raw) ? raw : {};
       if (!isCurrent()) return;
-      const history = (data.expired ?? []).filter(
-        (e) =>
-          e &&
-          typeof e.threadId === "string" &&
-          typeof e.author === "string" &&
-          typeof e.at === "string",
-      );
+      const history = parseDeskBoot({ ok: true, desk: { expired: data } })?.desk?.expired.expired ?? [];
       setExpiredHistory(history);
       const ids = new Set(
         (Array.isArray(data.expiredIds)
@@ -445,7 +420,8 @@ export function useDeskHistory(
       const res = await apiFetch("/api/for-you");
       if (!isCurrent()) return;
       if (!res.ok) throw new Error("Refresh failed");
-      const data = (await res.json()) as { suggestions?: unknown[] };
+      const raw: unknown = await res.json();
+      const data = isRecord(raw) ? raw : {};
       if (!isCurrent()) return;
       const rows = (Array.isArray(data.suggestions) ? data.suggestions : [])
         .map(parseForYouSuggestion)
@@ -482,9 +458,8 @@ export function useDeskHistory(
         setStatus("Could not update For You. Try again.");
         return false;
       }
-      const data = (await res.json().catch(() => ({}))) as {
-        suggestions?: unknown[];
-      };
+      const raw: unknown = await res.json().catch(() => ({}));
+      const data = isRecord(raw) ? raw : {};
       const row = forYouSuggestions.find((item) => item.id === id);
       const next = (Array.isArray(data.suggestions) ? data.suggestions : [])
         .map(parseForYouSuggestion)

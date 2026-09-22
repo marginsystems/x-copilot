@@ -3,6 +3,7 @@
  * the card from inventory before the lock is restored; the retained payload
  * lets the desk keep showing the same card with its detected mark until Next.
  */
+import { parseDeskBoot } from "../lib/deskBoot";
 import type { ThreadCard } from "./types";
 import { parseForYouSuggestion, type ForYouSuggestion } from "../lib/forYou";
 
@@ -21,17 +22,10 @@ export function parseRetainedScout(raw: string | null): ThreadCard | null {
   if (raw === null) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-    const row = parsed as Record<string, unknown>;
-    if (
-      typeof row.id !== "string" ||
-      typeof row.author !== "string" ||
-      typeof row.text !== "string" ||
-      typeof row.url !== "string"
-    ) {
-      return null;
-    }
-    return row as ThreadCard;
+    return parseDeskBoot({
+      ok: true,
+      desk: { lastScout: { snapshot: { threads: [parsed] } } },
+    })?.desk?.lastScout.snapshot?.threads[0] ?? null;
   } catch {
     return null;
   }
