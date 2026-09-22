@@ -88,7 +88,6 @@ describe("coaching parsers", () => {
       null,
     );
   }).catch(assert.fail);
-});
 
   it("merges lite coaching without dropping full coaching fields", () => {
     const full = parseCoachingPayload({

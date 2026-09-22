@@ -74,7 +74,6 @@ describe("restored lock", () => {
     assert.equal(state.wait, storedWait);
     assert.equal(present(state).detector, "for_you");
   }).catch(assert.fail);
-});
 
   it("establishes a fresh baseline when no wait was stored, before claiming detection", () => {
     const state = restoreApproachTask({
