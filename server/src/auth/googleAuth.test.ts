@@ -12,7 +12,7 @@ import {
   type GoogleProfile,
 } from "./googleAuth.ts";
 
-describe("googleAuth", () => {
+await describe("googleAuth", async () => {
   let dir: string;
   beforeEach(() => {
     resetPlatformDbForTests();
@@ -29,7 +29,7 @@ describe("googleAuth", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("builds authorize URL with openid email profile", () => {
+  await it("builds authorize URL with openid email profile", () => {
     const url = buildGoogleAuthorizeUrl({
       clientId: "cid.apps.googleusercontent.com",
       redirectUri: "http://127.0.0.1:8787/api/auth/google/callback",
@@ -43,7 +43,7 @@ describe("googleAuth", () => {
     assert.equal(parsed.searchParams.get("state"), "st");
   });
 
-  it("exchanges code via injected fetch", async () => {
+  await it("exchanges code via injected fetch", async () => {
     const calls: string[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = String(input);
@@ -82,7 +82,7 @@ describe("googleAuth", () => {
     assert.equal(calls.length, 2);
   });
 
-  it("treats a 200 non-JSON token body as exchange_failed", async () => {
+  await it("treats a 200 non-JSON token body as exchange_failed", async () => {
     const fetchImpl: typeof fetch = async (input) => {
       const url = String(input);
       if (url.includes("/token")) {
@@ -100,7 +100,26 @@ describe("googleAuth", () => {
     assert.equal(result.ok, false);
   });
 
-  it("treats a 200 non-JSON userinfo body as userinfo_failed", async () => {
+  await it("rejects a non-string access token", async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      if (String(input).includes("/token")) {
+        return new Response(JSON.stringify({ access_token: 42 }), { status: 200 });
+      }
+      return new Response("nope", { status: 404 });
+    };
+    const result = await exchangeGoogleCode({
+      code: "code-1",
+      clientId: "cid",
+      clientSecret: "sec",
+      redirectUri: "http://127.0.0.1:8787/api/auth/google/callback",
+      fetchImpl,
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, "missing_access_token");
+  });
+
+  await it("treats a 200 non-JSON userinfo body as userinfo_failed", async () => {
     const fetchImpl: typeof fetch = async (input) => {
       const url = String(input);
       if (url.includes("/token")) {
@@ -124,7 +143,30 @@ describe("googleAuth", () => {
     assert.equal(result.ok, false);
   });
 
-  it("completes login for any verified Google email", () => {
+  await it("rejects a non-string userinfo subject", async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      if (url.includes("/token")) {
+        return new Response(JSON.stringify({ access_token: "at" }), { status: 200 });
+      }
+      if (url.includes("userinfo")) {
+        return new Response(JSON.stringify({ sub: 42 }), { status: 200 });
+      }
+      return new Response("nope", { status: 404 });
+    };
+    const result = await exchangeGoogleCode({
+      code: "code-1",
+      clientId: "cid",
+      clientSecret: "sec",
+      redirectUri: "http://127.0.0.1:8787/api/auth/google/callback",
+      fetchImpl,
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, "missing_sub");
+  });
+
+  await it("completes login for any verified Google email", () => {
     const okProfile: GoogleProfile = {
       sub: "gid-ok",
       email: "alice@example.com",

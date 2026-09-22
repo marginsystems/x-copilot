@@ -8,6 +8,7 @@
  * fall back to a global corpus.
  */
 /// <reference path="../xenova-transformers.d.ts" />
+import { optionalStringRow, isRecord } from "../platform/unknownValue.js";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, stat } from "node:fs/promises";
@@ -246,9 +247,9 @@ async function getDatabaseModule(): Promise<typeof Database> {
 }
 
 function readMeta(db: Database.Database, key: string): string | null {
-  const row = db
+  const row = optionalStringRow(db
     .prepare("SELECT value FROM meta WHERE key = ?")
-    .get(key) as { value: string } | undefined;
+    .get(key), "value");
   return row?.value ?? null;
 }
 
@@ -750,12 +751,7 @@ export async function searchMemory(
         `SELECT path, type, excerpt, embedding FROM memories
          WHERE user_id = ? AND type IN (${placeholders})`,
       )
-      .all(userId, ...typeFilter) as {
-      path: string;
-      type: string;
-      excerpt: string;
-      embedding: Buffer;
-    }[];
+      .all(userId, ...typeFilter);
 
     if (!rows.length) return { hits: [] };
 
@@ -764,8 +760,14 @@ export async function searchMemory(
 
     const scored: MemoryHit[] = [];
     for (const row of rows) {
-      if (row.type !== "interaction" && row.type !== "dismissal") continue;
+      if (!isRecord(row) || (row.type !== "interaction" && row.type !== "dismissal")) continue;
       try {
+        if (
+          typeof row.path !== "string" || typeof row.excerpt !== "string" ||
+          !Buffer.isBuffer(row.embedding)
+        ) {
+          throw new TypeError("Invalid memory row");
+        }
         const vec = bufferToFloat32(row.embedding);
         scored.push({
           path: row.path,

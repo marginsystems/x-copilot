@@ -8,7 +8,7 @@ import { setUserXUsername } from "./authStore.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { xLinkRequiredResponse } from "./xLinkGate.ts";
 
-describe("xLinkRequiredResponse", () => {
+await describe("xLinkRequiredResponse", async () => {
   let dir: string;
   beforeEach(() => {
     resetPlatformDbForTests();
@@ -25,7 +25,7 @@ describe("xLinkRequiredResponse", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("is null without a session or when X is linked", () => {
+  await it("is null without a session or when X is linked", () => {
     assert.equal(xLinkRequiredResponse(null), null);
     const x = upsertOauthUser({
       provider: "x",
@@ -36,7 +36,7 @@ describe("xLinkRequiredResponse", () => {
     assert.equal(xLinkRequiredResponse(x), null);
   });
 
-  it("blocks a Google-only user even if they typed a handle", () => {
+  await it("blocks a Google-only user even if they typed a handle", () => {
     const google = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-1",

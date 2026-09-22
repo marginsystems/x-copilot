@@ -1,3 +1,5 @@
+import { stringRow } from "../platform/unknownValue.js";
+import { expectRecord } from "../http/http.testHelpers.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -31,7 +33,7 @@ import {
 import { VOICE_TARGET_REPLIES } from "./voiceIngest.ts";
 import { beginVoiceCorpus, confirmRecentOwnPosts, runUserIngest } from "./userIngest.ts";
 
-describe("runUserIngest", () => {
+await describe("runUserIngest", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -49,7 +51,7 @@ describe("runUserIngest", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("initial pull stores replies and advances the cursor", async () => {
+  await it("initial pull stores replies and advances the cursor", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -101,7 +103,7 @@ describe("runUserIngest", () => {
     assert.equal(profile?.xUserId, "99");
   });
 
-  it("hourly pull uses the stored since_id", async () => {
+  await it("hourly pull uses the stored since_id", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -174,7 +176,7 @@ describe("runUserIngest", () => {
     assert.equal(seenSince, "r1");
   });
 
-  it("hourly pull with no cursor targets the full corpus", async () => {
+  await it("hourly pull with no cursor targets the full corpus", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -213,7 +215,7 @@ describe("runUserIngest", () => {
     assert.equal(target, VOICE_TARGET_REPLIES);
   });
 
-  it("writes a tone-only starter card below the Suggest threshold", async () => {
+  await it("writes a tone-only starter card below the Suggest threshold", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -270,12 +272,12 @@ describe("runUserIngest", () => {
     const profile = getVoiceProfile(user.id);
     assert.equal(profile?.status, "empty");
     assert.equal(
-      (JSON.parse(profile?.cardJson ?? "{}") as { starter?: boolean }).starter,
+      (expectRecord(JSON.parse(profile?.cardJson ?? "{}"))).starter,
       true,
     );
   });
 
-  it("replaces a starter with a full card at 100 posts", async () => {
+  await it("replaces a starter with a full card at 100 posts", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -346,12 +348,12 @@ describe("runUserIngest", () => {
     const profile = getVoiceProfile(user.id);
     assert.equal(profile?.status, "ready");
     assert.equal(
-      (JSON.parse(profile?.cardJson ?? "{}") as { starter?: boolean }).starter,
+      (expectRecord(JSON.parse(profile?.cardJson ?? "{}"))).starter,
       undefined,
     );
   });
 
-  it("initial pull that unlocks writes the voice card so Suggest opens", async () => {
+  await it("initial pull that unlocks writes the voice card so Suggest opens", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -409,7 +411,7 @@ describe("runUserIngest", () => {
     assert.notEqual(profile?.cardJson, null);
   });
 
-  it("a slower concurrent run cannot wedge a card-holder back to empty", async () => {
+  await it("a slower concurrent run cannot wedge a card-holder back to empty", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -580,7 +582,7 @@ describe("runUserIngest", () => {
     model: "test-model",
   });
 
-  it("hourly ingest rewrites a >24h-old card when the pull adds posts", async () => {
+  await it("hourly ingest rewrites a >24h-old card when the pull adds posts", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -611,7 +613,7 @@ describe("runUserIngest", () => {
     );
   });
 
-  it("hourly ingest leaves a fresh card alone even when posts arrive", async () => {
+  await it("hourly ingest leaves a fresh card alone even when posts arrive", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -635,7 +637,7 @@ describe("runUserIngest", () => {
     assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
   });
 
-  it("hourly ingest does not rewrite a stale card when nothing new arrived", async () => {
+  await it("hourly ingest does not rewrite a stale card when nothing new arrived", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -659,7 +661,7 @@ describe("runUserIngest", () => {
     assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
   });
 
-  it("hourly ingest does not rewrite a stale card when a pull returns only duplicates", async () => {
+  await it("hourly ingest does not rewrite a stale card when a pull returns only duplicates", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -706,7 +708,7 @@ describe("runUserIngest", () => {
     assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
   });
 
-  it("a failed hourly rewrite is stamped so the next pass does not retry the same day", async () => {
+  await it("a failed hourly rewrite is stamped so the next pass does not retry the same day", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -750,7 +752,7 @@ describe("runUserIngest", () => {
     assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
   });
 
-  it("a failed hourly rewrite keeps the old card and stays ready", async () => {
+  await it("a failed hourly rewrite keeps the old card and stays ready", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -776,7 +778,7 @@ describe("runUserIngest", () => {
     assert.equal(profile?.status, "ready");
   });
 
-  it("listIngestUsers prepares and returns rotation-eligible users", () => {
+  await it("listIngestUsers prepares and returns rotation-eligible users", () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -789,7 +791,7 @@ describe("runUserIngest", () => {
     assert.equal(users[0].xUsername, "me");
   });
 
-  it("fail path stamps last_pull_at so failing users demote in rotation", async () => {
+  await it("fail path stamps last_pull_at so failing users demote in rotation", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -813,7 +815,7 @@ describe("runUserIngest", () => {
     assert.notEqual(getVoiceProfile(user.id)?.lastPullAt, null);
   });
 
-  it("folds a null-postedAt reply with a fallback now that a real timestamp corrects on re-ingest", async () => {
+  await it("folds a null-postedAt reply with a fallback now that a real timestamp corrects on re-ingest", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -854,9 +856,9 @@ describe("runUserIngest", () => {
       mode: "initial",
       deps: deps([{ id: "r-no-date", text: "no timestamp" }]),
     });
-    const fallbackRow = getPlatformDb()
+    const fallbackRow = stringRow(getPlatformDb()
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("r-no-date") as { posted_at: string };
+      .get("r-no-date"), "posted_at");
     const fallbackMs = Date.parse(fallbackRow.posted_at);
     assert.ok(Number.isFinite(fallbackMs));
     assert.ok(fallbackMs >= before, "fallback posted_at should be ≈ now");
@@ -873,14 +875,14 @@ describe("runUserIngest", () => {
         },
       ]),
     });
-    const repaired = getPlatformDb()
+    const repaired = stringRow(getPlatformDb()
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("r-no-date") as { posted_at: string };
+      .get("r-no-date"), "posted_at");
     assert.equal(repaired.posted_at, "2026-08-16T10:00:00.000Z");
   });
 });
 
-describe("beginVoiceCorpus", () => {
+await describe("beginVoiceCorpus", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -898,7 +900,7 @@ describe("beginVoiceCorpus", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("starts an initial pull on first X link", async () => {
+  await it("starts an initial pull on first X link", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -933,7 +935,7 @@ describe("beginVoiceCorpus", () => {
     assert.equal(result?.pulled, 12);
   });
 
-  it("skips a repeat pull when a cursor already exists", async () => {
+  await it("skips a repeat pull when a cursor already exists", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -1002,7 +1004,7 @@ describe("beginVoiceCorpus", () => {
     assert.equal(subscribeCalls, 1);
   });
 
-  it("repoints the corpus when OAuth links a different account than the typed handle", async () => {
+  await it("repoints the corpus when OAuth links a different account than the typed handle", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "B",
@@ -1048,7 +1050,7 @@ describe("beginVoiceCorpus", () => {
     assert.equal(getVoiceProfile(user.id)?.xUserId, null);
   });
 
-  it("forces a fresh pull after an account change", async () => {
+  await it("forces a fresh pull after an account change", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -1088,7 +1090,7 @@ describe("beginVoiceCorpus", () => {
     assert.equal(ingestCalls, 1);
   });
 
-  it("resolves the most recently linked X account for the OAuth identity", async () => {
+  await it("resolves the most recently linked X account for the OAuth identity", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-oauth-order",
@@ -1112,7 +1114,7 @@ describe("beginVoiceCorpus", () => {
     assert.equal(getXOauthUsername(user.id), "c");
   });
 
-  it("re-linking an earlier X account resolves as the most recent login", async () => {
+  await it("re-linking an earlier X account resolves as the most recent login", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-relink",
@@ -1143,7 +1145,7 @@ describe("beginVoiceCorpus", () => {
     assert.equal(getXOauthUsername(user.id), "b");
   });
 
-  it("hourly ingest after an OAuth repoint follows the linked account, not the stale typed handle", async () => {
+  await it("hourly ingest after an OAuth repoint follows the linked account, not the stale typed handle", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-hourly",
@@ -1211,7 +1213,7 @@ describe("beginVoiceCorpus", () => {
     assert.equal(resolvedHandle, "b");
   });
 
-  it("does nothing without a handle", async () => {
+  await it("does nothing without a handle", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid",
@@ -1243,7 +1245,7 @@ describe("beginVoiceCorpus", () => {
   });
 });
 
-describe("confirmRecentOwnPosts", () => {
+await describe("confirmRecentOwnPosts", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -1261,7 +1263,7 @@ describe("confirmRecentOwnPosts", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("folds a quote and leaves the hourly since_id alone", async () => {
+  await it("folds a quote and leaves the hourly since_id alone", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -1301,15 +1303,15 @@ describe("confirmRecentOwnPosts", () => {
     assert.equal(result.ok, true);
     assert.equal(result.ingested, 1);
     assert.equal(getVoiceProfile(user.id)?.sinceId ?? null, null);
-    const row = getPlatformDb()
+    const row = expectRecord(getPlatformDb()
       .prepare(
         `SELECT kind FROM own_posts WHERE user_id = ? AND id = ?`,
       )
-      .get(user.id, "q1") as { kind?: string } | undefined;
+      .get(user.id, "q1"));
     assert.equal(row?.kind, "quote");
   });
 
-  it("coalesces concurrent confirmations for a user", async () => {
+  await it("coalesces concurrent confirmations for a user", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -1344,7 +1346,7 @@ describe("confirmRecentOwnPosts", () => {
     assert.equal(resolves, 1);
   });
 
-  it("skips a fresh sequential confirmation", async () => {
+  await it("skips a fresh sequential confirmation", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",

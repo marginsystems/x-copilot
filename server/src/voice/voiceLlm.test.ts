@@ -1,3 +1,4 @@
+import { expectRecord } from "../http/http.testHelpers.js";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { ChatMessage } from "../platform/deepseek.js";
@@ -42,14 +43,14 @@ function fakeChat(
   };
 }
 
-describe("voice card parsing", () => {
-  it("parses a fenced card", () => {
+await describe("voice card parsing", async () => {
+  await it("parses a fenced card", () => {
     const card = parseVoiceCardJson("```json\n" + CARD_JSON + "\n```");
     assert.equal(card?.tone, "Dry, direct, a little playful.");
     assert.equal(card?.examples.length, 3);
   });
 
-  it("accepts snake_case keys", () => {
+  await it("accepts snake_case keys", () => {
     const card = parseVoiceCardJson(
       JSON.stringify({
         tone: "warm",
@@ -63,7 +64,7 @@ describe("voice card parsing", () => {
     assert.deepEqual(card?.neverDo, ["emoji"]);
   });
 
-  it("rejects a card without enough examples", () => {
+  await it("rejects a card without enough examples", () => {
     assert.equal(
       parseVoiceCardJson(JSON.stringify({ tone: "x", examples: ["one"] })),
       null,
@@ -71,7 +72,7 @@ describe("voice card parsing", () => {
     assert.equal(extractJsonObject("no json here"), null);
   });
 
-  it("parses a starter as tone only and discards claimed examples", () => {
+  await it("parses a starter as tone only and discards claimed examples", () => {
     const card = parseStarterVoiceCardJson(
       JSON.stringify({
         tone: "Brief and direct.",
@@ -90,8 +91,8 @@ describe("voice card parsing", () => {
   });
 });
 
-describe("generateVoiceCard", () => {
-  it("tags usage as voice_card and returns the parsed card", async () => {
+await describe("generateVoiceCard", async () => {
+  await it("tags usage as voice_card and returns the parsed card", async () => {
     const capture: { purpose?: string } = {};
     const result = await generateVoiceCard({
       handle: "margin",
@@ -105,7 +106,7 @@ describe("generateVoiceCard", () => {
     assert.equal(capture.purpose, "voice_card");
   });
 
-  it("generates a tone-only starter without asking for examples", async () => {
+  await it("generates a tone-only starter without asking for examples", async () => {
     const capture: { messages?: ChatMessage[] } = {};
     const result = await generateVoiceCard({
       handle: "margin",
@@ -119,15 +120,15 @@ describe("generateVoiceCard", () => {
     if (result.ok) {
       assert.equal(result.card.starter, true);
       assert.deepEqual(result.card.examples, []);
-      assert.equal(JSON.parse(result.cardJson).starter, true);
+      assert.equal(expectRecord(JSON.parse(result.cardJson)).starter, true);
     }
     const system = capture.messages?.find((message) => message.role === "system");
     assert.match(system?.content ?? "", /do not quote, paraphrase, invent/i);
   });
 });
 
-describe("suggestReply", () => {
-  it("tags usage as reply_suggest and strips wrapping quotes", async () => {
+await describe("suggestReply", async () => {
+  await it("tags usage as reply_suggest and strips wrapping quotes", async () => {
     const capture: { purpose?: string } = {};
     const result = await suggestReply({
       cardJson: CARD_JSON,
@@ -141,7 +142,7 @@ describe("suggestReply", () => {
     assert.equal(capture.purpose, "reply_suggest");
   });
 
-  it("strips em dashes from a draft", async () => {
+  await it("strips em dashes from a draft", async () => {
     const result = await suggestReply({
       cardJson: CARD_JSON,
       thread: { author: "@dev", text: "the loop is the work" },
@@ -154,7 +155,7 @@ describe("suggestReply", () => {
     }
   });
 
-  it("rejects a draft that stays on the this-isn-t template", async () => {
+  await it("rejects a draft that stays on the this-isn-t template", async () => {
     const result = await suggestReply({
       cardJson: CARD_JSON,
       thread: { author: "@dev", text: "tools vs process" },
@@ -164,8 +165,8 @@ describe("suggestReply", () => {
     if (!result.ok) assert.equal(result.error, "draft_slop");
   });
 
-  it("lets a contrast-cadence draft pass when the operator's card uses that cadence", async () => {
-    const card = JSON.parse(CARD_JSON) as { examples: string[] };
+  await it("lets a contrast-cadence draft pass when the operator's card uses that cadence", async () => {
+    const card = expectRecord(JSON.parse(CARD_JSON));
     card.examples = ["It's not the tool, it's the loop."];
     const result = await suggestReply({
       cardJson: JSON.stringify(card),
@@ -176,7 +177,7 @@ describe("suggestReply", () => {
     if (result.ok) assert.equal(result.draft, "It's not the tool, it's the loop.");
   });
 
-  it("rejects an em-dash if-then draft as slop", async () => {
+  await it("rejects an em-dash if-then draft as slop", async () => {
     const result = await suggestReply({
       cardJson: CARD_JSON,
       thread: { author: "@dev", text: "speed vs process" },
@@ -186,7 +187,7 @@ describe("suggestReply", () => {
     if (!result.ok) assert.equal(result.error, "draft_slop");
   });
 
-  it("rescues a trope draft on retry and returns the clean retry", async () => {
+  await it("rescues a trope draft on retry and returns the clean retry", async () => {
     let call = 0;
     const chat: ChatFn = async () => {
       call += 1;
@@ -213,7 +214,7 @@ describe("suggestReply", () => {
     }
   });
 
-  it("propagates a retry failure instead of masking it as draft slop", async () => {
+  await it("propagates a retry failure instead of masking it as draft slop", async () => {
     let call = 0;
     const chat: ChatFn = async () => {
       call += 1;
@@ -243,13 +244,13 @@ describe("suggestReply", () => {
     }
   });
 
-  it("cleans fenced drafts and caps length", () => {
+  await it("cleans fenced drafts and caps length", () => {
     assert.equal(cleanDraft("```\nhello there\n```"), "hello there");
     assert.equal(cleanDraft(`“smart quotes”`), "smart quotes");
     assert.equal(cleanDraft("x".repeat(400)).length, 280);
   });
 
-  it("injects the chosen stance into the draft prompt", async () => {
+  await it("injects the chosen stance into the draft prompt", async () => {
     const capture: { purpose?: string; messages?: ChatMessage[] } = {};
     const result = await suggestReply({
       cardJson: CARD_JSON,
@@ -264,7 +265,7 @@ describe("suggestReply", () => {
     assert.ok(userMsg.content.includes("The loop is the tax"));
   });
 
-  it("drafts an original post in compose mode", async () => {
+  await it("drafts an original post in compose mode", async () => {
     const capture: { purpose?: string; messages?: ChatMessage[] } = {};
     const result = await suggestReply({
       cardJson: CARD_JSON,
@@ -283,8 +284,8 @@ describe("suggestReply", () => {
   });
 });
 
-describe("proposeStances", () => {
-  it("asks for a side on a fact add", async () => {
+await describe("proposeStances", async () => {
+  await it("asks for a side on a fact add", async () => {
     const result = await proposeStances({
       thread: {
         author: "@dev",
@@ -301,7 +302,7 @@ describe("proposeStances", () => {
     }
   });
 
-  it("returns 2-3 sides for a sharp opinion", async () => {
+  await it("returns 2-3 sides for a sharp opinion", async () => {
     const capture: { purpose?: string } = {};
     const result = await proposeStances({
       thread: {
@@ -323,7 +324,7 @@ describe("proposeStances", () => {
     assert.equal(capture.purpose, "reply_stances");
   });
 
-  it("tags compose stance lookup separately", async () => {
+  await it("tags compose stance lookup separately", async () => {
     const capture: { purpose?: string; messages?: ChatMessage[] } = {};
     const result = await proposeStances({
       thread: { author: "@you", text: "900 views. Ship a recap." },
@@ -340,7 +341,7 @@ describe("proposeStances", () => {
     assert.match(userMsg.content, /Proposed original post/);
   });
 
-  it("parses stance JSON and drops empties", () => {
+  await it("parses stance JSON and drops empties", () => {
     assert.deepEqual(parseStanceOptions('{"options":["Agree","", "Push back"]}'), [
       "Agree",
       "Push back",
@@ -348,7 +349,7 @@ describe("proposeStances", () => {
     assert.deepEqual(parseStanceOptions("nope"), []);
   });
 
-  it("falls back to generic sides marked as fallback when the model finds no side on an opinion post", async () => {
+  await it("falls back to generic sides marked as fallback when the model finds no side on an opinion post", async () => {
     const result = await proposeStances({
       thread: {
         author: "@dev",
@@ -365,7 +366,7 @@ describe("proposeStances", () => {
     }
   });
 
-  it("propagates a failed stance LLM call instead of masking it as generic sides", async () => {
+  await it("propagates a failed stance LLM call instead of masking it as generic sides", async () => {
     const result = await proposeStances({
       thread: {
         author: "@dev",
@@ -387,8 +388,8 @@ describe("proposeStances", () => {
   });
 });
 
-describe("verifyReplyEdit", () => {
-  it("tags usage as reply_verify and parses the verdict", async () => {
+await describe("verifyReplyEdit", async () => {
+  await it("tags usage as reply_verify and parses the verdict", async () => {
     const capture: { purpose?: string } = {};
     const result = await verifyReplyEdit({
       draft: "a",
@@ -403,7 +404,7 @@ describe("verifyReplyEdit", () => {
     assert.equal(capture.purpose, "reply_verify");
   });
 
-  it("rejects malformed verdicts", () => {
+  await it("rejects malformed verdicts", () => {
     assert.equal(parseVerifyJson("not json"), null);
     assert.equal(parseVerifyJson('{"reason":"no ok flag"}'), null);
     assert.deepEqual(parseVerifyJson('{"ok":true}'), { ok: true, reason: "" });

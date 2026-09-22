@@ -15,8 +15,8 @@ import { seedUser } from "../platform/platformDb.testHelpers.ts";
 import { foldLocalVoiceSources, memoryRepliesToVoiceInputs } from "./voiceLocal.ts";
 import { listVoiceReplies } from "./voiceStore.ts";
 
-describe("memoryRepliesToVoiceInputs", () => {
-  it("prefers the marked reply id and conversation root", () => {
+await describe("memoryRepliesToVoiceInputs", async () => {
+  await it("prefers the marked reply id and conversation root", () => {
     const rows = memoryRepliesToVoiceInputs(
       [
         {
@@ -47,7 +47,7 @@ describe("memoryRepliesToVoiceInputs", () => {
     ]);
   });
 
-  it("falls back to mem:threadId when the mark has no reply id", () => {
+  await it("falls back to mem:threadId when the mark has no reply id", () => {
     const rows = memoryRepliesToVoiceInputs(
       [{ threadId: "222", text: "solo", postedAt: null }],
       [],
@@ -57,7 +57,7 @@ describe("memoryRepliesToVoiceInputs", () => {
   });
 });
 
-describe("foldLocalVoiceSources", () => {
+await describe("foldLocalVoiceSources", async () => {
   let dbDir: string;
   let root: string;
 
@@ -78,7 +78,7 @@ describe("foldLocalVoiceSources", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("folds only the calling user's memory into their voice corpus", async () => {
+  await it("folds only the calling user's memory into their voice corpus", async () => {
     seedUser("user-a");
     seedUser("user-b");
     await writeInteractionMemory({
@@ -107,7 +107,7 @@ describe("foldLocalVoiceSources", () => {
     assert.equal(rows[0]?.id, "999");
   });
 
-  it("folds unowned notes when exactly one platform user exists", async () => {
+  await it("folds unowned notes when exactly one platform user exists", async () => {
     getPlatformDb()
       .prepare(
         `INSERT INTO users (id, email, created_at, last_login_at)
@@ -133,7 +133,7 @@ describe("foldLocalVoiceSources", () => {
     assert.deepEqual(readdirSync(join(root, "interactions")), ["2026-07-27-333.md"]);
   });
 
-  it("keeps unowned notes out of every corpus on a multi-user install", async () => {
+  await it("keeps unowned notes out of every corpus on a multi-user install", async () => {
     seedUser("user-a");
     seedUser("user-b");
     await writeLegacyNote(root, "2026-07-27-333.md", {
@@ -146,7 +146,7 @@ describe("foldLocalVoiceSources", () => {
     assert.equal(listVoiceReplies("user-b").length, 0);
   });
 
-  it("folds a migrated owned legacy note exactly once", async () => {
+  await it("folds a migrated owned legacy note exactly once", async () => {
     seedUser("user-a");
     seedUser("user-b");
     await writeLegacyNote(root, "2026-07-27-444.md", {

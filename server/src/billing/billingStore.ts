@@ -1,6 +1,7 @@
 /**
  * Tenant + Stripe billing rows. Credits = X post reads this UTC month.
  */
+import { hasStrings, hasNullableStrings, isRecord } from "../platform/unknownValue.js";
 import { randomUUID } from "node:crypto";
 import { getPlatformDb } from "../db.js";
 import {
@@ -71,9 +72,9 @@ type UserTenantRow = {
 
 export function ensureUserTenant(userId: string): string {
   const database = getPlatformDb();
-  const user = database
+  const user = readUserTenantRowOrUndefined(database
     .prepare(`SELECT id, email, display_name, tenant_id FROM users WHERE id = ?`)
-    .get(userId) as UserTenantRow | undefined;
+    .get(userId));
   if (!user) throw new Error("user_missing");
   if (user.tenant_id) {
     ensureUserBillingRow(userId, user.tenant_id);
@@ -129,8 +130,8 @@ export function ensureUserBillingRow(
 
 function mapBilling(row: BillingSqlRow): UserBillingRow {
   const planKey: PlanKey = isPaidPlanKey(row.plan_key) ? row.plan_key : "free";
-  const grantPlanKey = isPaidPlanKey(row.grant_plan_key ?? "")
-    ? (row.grant_plan_key as PaidPlanKey)
+  const grantPlanKey = row.grant_plan_key !== null && isPaidPlanKey(row.grant_plan_key)
+    ? row.grant_plan_key
     : null;
   return {
     userId: row.user_id,
@@ -151,26 +152,26 @@ function mapBilling(row: BillingSqlRow): UserBillingRow {
 }
 
 export function getUserBilling(userId: string): UserBillingRow | null {
-  const row = getPlatformDb()
+  const row = readBillingSqlRowOrUndefined(getPlatformDb()
     .prepare(
       `SELECT ${BILLING_SELECT},
               (SELECT created_at FROM users WHERE id = user_billing.user_id) AS user_created_at
        FROM user_billing WHERE user_id = ?`,
     )
-    .get(userId) as BillingSqlRow | undefined;
+    .get(userId));
   return row ? mapBilling(row) : null;
 }
 
 export function getUserBillingBySubscriptionId(
   subscriptionId: string,
 ): UserBillingRow | null {
-  const row = getPlatformDb()
+  const row = readBillingSqlRowOrUndefined(getPlatformDb()
     .prepare(
       `SELECT ${BILLING_SELECT},
               (SELECT created_at FROM users WHERE id = user_billing.user_id) AS user_created_at
        FROM user_billing WHERE stripe_subscription_id = ?`,
     )
-    .get(subscriptionId) as BillingSqlRow | undefined;
+    .get(subscriptionId));
   return row ? mapBilling(row) : null;
 }
 
@@ -208,4 +209,46 @@ export function grantManualPlan(opts: {
   const row = getUserBilling(opts.userId);
   if (!row) throw new Error("billing_row_missing");
   return row;
+}
+
+function readUserTenantRow(value: unknown): UserTenantRow {
+  if (!(
+    hasStrings(value, "id") &&
+    hasNullableStrings(value, "email", "display_name", "tenant_id")
+  )) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function readUserTenantRowOrUndefined(value: unknown) {
+  return value === undefined ? undefined : readUserTenantRow(value);
+}
+
+function readBillingSqlRow(value: unknown): BillingSqlRow {
+  if (!(
+    isRecord(value) &&
+    hasStrings(value, "user_id", "tenant_id", "plan_key", "updated_at") &&
+    hasNullableStrings(value, "stripe_customer_id", "stripe_subscription_id", "subscription_status", "current_period_end", "grant_plan_key", "grant_created_at", "grant_created_by", "user_created_at") &&
+    ("cancel_at_period_end" in value && typeof value.cancel_at_period_end === "number") &&
+    ("stripe_last_event_created" in value && typeof value.stripe_last_event_created === "number")
+  )) throw new TypeError("Invalid database row");
+  return {
+    user_id: value.user_id,
+    tenant_id: value.tenant_id,
+    plan_key: value.plan_key,
+    stripe_customer_id: value.stripe_customer_id,
+    stripe_subscription_id: value.stripe_subscription_id,
+    subscription_status: value.subscription_status,
+    current_period_end: value.current_period_end,
+    cancel_at_period_end: value.cancel_at_period_end,
+    stripe_last_event_created: value.stripe_last_event_created,
+    updated_at: value.updated_at,
+    grant_plan_key: value.grant_plan_key,
+    grant_created_at: value.grant_created_at,
+    grant_created_by: value.grant_created_by,
+    user_created_at: value.user_created_at,
+  };
+}
+
+function readBillingSqlRowOrUndefined(value: unknown) {
+  return value === undefined ? undefined : readBillingSqlRow(value);
 }

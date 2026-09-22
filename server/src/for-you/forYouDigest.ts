@@ -2,6 +2,7 @@
  * SQL-ranked digest for the daily For You pass.
  * No extra X API. own_posts + memories only.
  */
+import { objectValue, stringRow } from "../platform/unknownValue.js";
 import { getUserById } from "../auth/authStore.js";
 import { getPlatformDb } from "../db.js";
 import { formatOutcomeSection } from "../memory/knowledgeMemory.js";
@@ -74,12 +75,12 @@ export type ForYouDigest = {
 };
 
 export function countT24hSnapshots(userId: string): number {
-  const row = getPlatformDb()
+  const row = objectValue(getPlatformDb()
     .prepare(
       `SELECT COUNT(*) AS n FROM own_posts
        WHERE user_id = ? AND t24h_at IS NOT NULL`,
     )
-    .get(userId) as { n: number };
+    .get(userId));
   return Number(row.n) || 0;
 }
 
@@ -95,7 +96,7 @@ export function listEligibleForYouUsers(): Array<{
        GROUP BY user_id
        HAVING COUNT(*) >= ?`,
     )
-    .all(MIN_T24H_SNAPSHOTS) as Array<{ userId: string; tenantId: string }>;
+    .all(MIN_T24H_SNAPSHOTS).map((row) => stringRow(row, "userId", "tenantId"));
 }
 
 function clip(text: string | null | undefined): string | null {
@@ -146,8 +147,8 @@ function mapPost(row: Record<string, unknown>): DigestPost {
   return {
     id: String(row.id),
     kind: String(row.kind),
-    text: clip((row.text as string | null) ?? null),
-    url: (row.url as string | null) ?? null,
+    text: clip(typeof row.text === "string" ? row.text : null),
+    url: typeof row.url === "string" ? row.url : null,
     views: Number(row.views ?? 0),
     likes: Number(row.likes ?? 0),
     replies: Number(row.replies ?? 0),
@@ -175,7 +176,7 @@ export function rankOwnPosts(userId: string, nowMs = Date.now()): {
        WHERE user_id = ? AND t24h_at IS NOT NULL
        ORDER BY views DESC`,
     )
-    .all(userId) as Array<Record<string, unknown>>;
+    .all(userId).map(objectValue);
   const mapped = scored.map(mapPost);
   const best = mapped
     .filter((p) => p.views >= FOR_YOU_MIN_ENGAGE_VIEWS)
@@ -201,7 +202,7 @@ export function rankOwnPosts(userId: string, nowMs = Date.now()): {
            ORDER BY posted_at DESC
            LIMIT 3`,
         )
-        .all(userId, kind, postedBefore) as Array<Record<string, unknown>>
+        .all(userId, kind, postedBefore).map(objectValue)
     ).map(mapPost);
 
   return {
@@ -294,10 +295,7 @@ export function digestAllowlist(digest: ForYouDigest): {
 }
 
 function asKind(value: unknown): ForYouKind | null {
-  return typeof value === "string" &&
-    (FOR_YOU_KINDS as readonly string[]).includes(value)
-    ? (value as ForYouKind)
-    : null;
+  return FOR_YOU_KINDS.find((kind) => kind === value) ?? null;
 }
 
 /**
@@ -308,7 +306,7 @@ export function filterDigestActions(
   raw: unknown,
   digest: ForYouDigest,
 ): ForYouDraft[] {
-  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const obj = objectValue(raw);
   const list = Array.isArray(obj?.actions) ? obj.actions : [];
   const { ids, urls, replyIds, replyUrls } = digestAllowlist(digest);
   const ownPosts = [
@@ -326,7 +324,7 @@ export function filterDigestActions(
   const seen = new Set<string>();
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
-    const row = item as Record<string, unknown>;
+    const row = objectValue(item);
     const kind = asKind(row.kind);
     const why =
       typeof row.why === "string" ? secondPersonWhy(row.why.trim()) : "";
@@ -396,13 +394,13 @@ export function filterExtraPosts(
   raw: unknown,
   skipped: ForYouDraft[] = [],
 ): ForYouDraft[] {
-  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const obj = objectValue(raw);
   const list = Array.isArray(obj?.actions) ? obj.actions : [];
   const out: ForYouDraft[] = [];
   const seen = new Set<string>();
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
-    const row = item as Record<string, unknown>;
+    const row = objectValue(item);
     if (row.kind !== "post") continue;
     const why =
       typeof row.why === "string" ? secondPersonWhy(row.why.trim()) : "";

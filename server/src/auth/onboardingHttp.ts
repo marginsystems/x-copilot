@@ -1,6 +1,7 @@
 /**
  * First-run onboarding HTTP: persist a chosen agenda.
  */
+import { objectValue } from "../platform/unknownValue.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { completeOnboarding, toPublicUser } from "./authStore.js";
 import {
@@ -25,11 +26,11 @@ const ONBOARDING_COMPLETE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 async function readOnboardingBody(
   req: IncomingMessage,
 ): Promise<Record<string, unknown>> {
-  return (await readBody(req, {
+  return objectValue(await readBody(req, {
     maxBytes: BODY_CAP_1MB,
     requireObject: true,
     rejectArray: true,
-  })) as Record<string, unknown>;
+  }));
 }
 
 /** Handle /api/onboarding/* — returns true if the request was consumed. */

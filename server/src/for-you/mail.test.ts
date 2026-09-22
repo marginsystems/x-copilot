@@ -1,3 +1,4 @@
+import { objectValue } from "../platform/unknownValue.js";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -46,7 +47,7 @@ function suggestion(userId: string, id: string): ForYouSuggestion {
   };
 }
 
-describe("Approach digest mail", () => {
+await describe("Approach digest mail", async () => {
   let dir: string;
   let userId: string;
 
@@ -72,7 +73,7 @@ describe("Approach digest mail", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("defaults off and signs tamper-resistant unsubscribe tokens", () => {
+  await it("defaults off and signs tamper-resistant unsubscribe tokens", () => {
     assert.equal(getDigestEmailSettings(userId)?.optedIn, false);
     const token = makeUnsubscribeToken(userId, ENV);
     assert.ok(token);
@@ -80,7 +81,7 @@ describe("Approach digest mail", () => {
     assert.equal(verifyUnsubscribeToken(`${token}x`, ENV), null);
   });
 
-  it("sends only after opt-in and records once-per-UTC-day delivery", async () => {
+  await it("sends only after opt-in and records once-per-UTC-day delivery", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       calls.push({ url: String(input), init });
@@ -106,7 +107,7 @@ describe("Approach digest mail", () => {
     });
     assert.deepEqual(sent, { sent: true, reason: "sent" });
     assert.equal(calls.length, 1);
-    const body = JSON.parse(String(calls[0].init?.body)) as Record<string, unknown>;
+    const body = objectValue(JSON.parse(String(calls[0].init?.body)));
     assert.equal(body.from, ENV.MAIL_FROM);
     assert.deepEqual(body.to, ["reader@example.com"]);
     assert.equal(body.reply_to, ENV.MAIL_REPLY_TO);
@@ -125,7 +126,7 @@ describe("Approach digest mail", () => {
     assert.equal(calls.length, 1);
   });
 
-  it("soft-fails provider errors without marking delivery", async () => {
+  await it("soft-fails provider errors without marking delivery", async () => {
     setDigestEmailOptIn(userId, true, NOW);
     const failed = await sendApproachDigestEmail({
       userId,
