@@ -1,6 +1,7 @@
 /**
  * Hashed session persistence and client metadata.
  */
+import { optionalStringRow, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { getUserById, type AuthUser } from "./authStore.js";
 import { getPlatformDb } from "../db.js";
@@ -96,14 +97,12 @@ export function getSessionForToken(
   token: string,
 ): { user: AuthUser; sessionId: string } | null {
   const hash = hashSessionToken(token);
-  const row = getPlatformDb()
+  const row = readSessionForTokenRowOrUndefined(getPlatformDb()
     .prepare(
       `SELECT s.id, s.user_id, s.expires_at, s.revoked_at
        FROM sessions s WHERE s.token_hash = ?`,
     )
-    .get(hash) as
-    | { id: string; user_id: string; expires_at: string; revoked_at: string | null }
-    | undefined;
+    .get(hash));
   if (!row || row.revoked_at) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
   const user = getUserById(row.user_id);
@@ -124,11 +123,11 @@ export function touchSessionMeta(
   const ip = clipMetaIp(meta?.ip);
   const userAgent = clipMetaUa(meta?.userAgent);
   const database = getPlatformDb();
-  const existing = database
+  const existing = optionalStringRow(database
     .prepare(
       `SELECT last_seen_at FROM session_meta WHERE session_id = ? AND user_id = ?`,
     )
-    .get(sessionId, userId) as { last_seen_at: string } | undefined;
+    .get(sessionId, userId), "last_seen_at");
   if (existing) {
     const last = Date.parse(existing.last_seen_at);
     if (Number.isFinite(last) && Date.now() - last < LAST_SEEN_THROTTLE_MS) {
@@ -171,15 +170,7 @@ export function listSessionsForUser(userId: string): SessionListRow[] {
          AND s.expires_at > ?
        ORDER BY s.created_at DESC`,
     )
-    .all(userId, nowIso()) as Array<{
-    id: string;
-    created_at: string;
-    last_seen_at: string;
-    created_ip: string | null;
-    last_seen_ip: string | null;
-    created_user_agent: string | null;
-    last_seen_user_agent: string | null;
-  }>;
+    .all(userId, nowIso()).map(readSessionsForUserRow);
   return rows.map((row) => ({
     id: row.id,
     createdAt: row.created_at,
@@ -219,4 +210,24 @@ export function revokeSessionToken(token: string): void {
       `UPDATE sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL`,
     )
     .run(nowIso(), hashSessionToken(token));
+}
+
+function readSessionForTokenRow(value: unknown) {
+  if (!(
+    hasStrings(value, "id", "user_id", "expires_at") &&
+    hasNullableStrings(value, "revoked_at")
+  )) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function readSessionForTokenRowOrUndefined(value: unknown) {
+  return value === undefined ? undefined : readSessionForTokenRow(value);
+}
+
+function readSessionsForUserRow(value: unknown) {
+  if (!(
+    hasStrings(value, "id", "created_at", "last_seen_at") &&
+    hasNullableStrings(value, "created_ip", "last_seen_ip", "created_user_agent", "last_seen_user_agent")
+  )) throw new TypeError("Invalid database row");
+  return value;
 }

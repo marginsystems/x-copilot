@@ -1,3 +1,4 @@
+import { expectRecord } from "../http/http.testHelpers.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -36,7 +37,7 @@ function ageUser(userId: string, days: number): void {
     .run(at, userId);
 }
 
-describe("billingStore", () => {
+await describe("billingStore", async () => {
   let dir: string;
   const prevAdmin = process.env.ADMIN_EMAILS;
 
@@ -58,7 +59,7 @@ describe("billingStore", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("creates a tenant + free billing row per user", () => {
+  await it("creates a tenant + free billing row per user", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-b1",
@@ -77,7 +78,7 @@ describe("billingStore", () => {
     assert.equal(usage.canUse, true);
   });
 
-  it("402s when the free pool is empty", () => {
+  await it("402s when the free pool is empty", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-b2",
@@ -104,7 +105,7 @@ describe("billingStore", () => {
     assert.match(exhausted?.message ?? "", /Usage & Billing/);
   });
 
-  it("counts Approach extras toward monthly credits, not user lookups", () => {
+  await it("counts Approach extras toward monthly credits, not user lookups", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-b-extra",
@@ -127,7 +128,7 @@ describe("billingStore", () => {
     assert.equal(countPostsReadThisUtcMonth(tenantId), 15);
   });
 
-  it("exposes Free in billing/me with free_active state", () => {
+  await it("exposes Free in billing/me with free_active state", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-b-me",
@@ -140,19 +141,16 @@ describe("billingStore", () => {
     assert.equal(me.plan_key, "free");
     assert.equal(me.plan_state, "free_active");
     assert.equal(me.first_week_pulse, null);
-    const plans = me.plans as Record<
-      string,
-      { name: string; credits: number; available: boolean; daily_suggests?: number }
-    >;
-    assert.equal(plans.free.name, "Free");
-    assert.equal(plans.free.credits, 1500);
-    assert.equal(plans.free.available, true);
-    assert.equal(plans.pulse.name, "Pulse");
-    assert.equal(plans.free.daily_suggests, 10);
-    assert.equal(plans.pulse.daily_suggests, 20);
+    const plans = expectRecord(me.plans);
+    assert.equal(expectRecord(plans.free).name, "Free");
+    assert.equal(expectRecord(plans.free).credits, 1500);
+    assert.equal(expectRecord(plans.free).available, true);
+    assert.equal(expectRecord(plans.pulse).name, "Pulse");
+    assert.equal(expectRecord(plans.free).daily_suggests, 10);
+    assert.equal(expectRecord(plans.pulse).daily_suggests, 20);
   });
 
-  it("marks free_limit_reached when the monthly pool is empty", () => {
+  await it("marks free_limit_reached when the monthly pool is empty", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-b-empty",
@@ -171,7 +169,7 @@ describe("billingStore", () => {
     assert.equal(me.plan_state, "free_limit_reached");
   });
 
-  it("gives ADMIN_EMAILS the Horizon pool until they subscribe", () => {
+  await it("gives ADMIN_EMAILS the Horizon pool until they subscribe", () => {
     process.env.ADMIN_EMAILS = "ops@example.com";
     const user = upsertOauthUser({
       provider: "google",
@@ -194,7 +192,7 @@ describe("billingStore", () => {
     assert.equal(exhausted, null);
   });
 
-  it("reports the Horizon pool to admins as a paid plan, not Free", () => {
+  await it("reports the Horizon pool to admins as a paid plan, not Free", () => {
     process.env.ADMIN_EMAILS = "ops-me@example.com";
     const user = upsertOauthUser({
       provider: "google",
@@ -210,7 +208,7 @@ describe("billingStore", () => {
     assert.equal(me.has_stripe_subscription, false);
   });
 
-  it("activates a paid plan and ignores stale webhook events", () => {
+  await it("activates a paid plan and ignores stale webhook events", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-b4",
@@ -244,7 +242,7 @@ describe("billingStore", () => {
     assert.equal(getUserBilling(user.id)?.planKey, "free");
   });
 
-  it("caps free daily watch events at 15", () => {
+  await it("caps free daily watch events at 15", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-watch-1",
@@ -280,7 +278,7 @@ describe("billingStore", () => {
     assert.equal(full.can_watch, false);
   });
 
-  it("applies a complimentary Pulse grant without a Stripe sub", () => {
+  await it("applies a complimentary Pulse grant without a Stripe sub", () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "xid-grant",
@@ -298,9 +296,10 @@ describe("billingStore", () => {
     assert.equal(me.plan_key, "pulse");
     assert.equal(me.plan_state, "subscription_active");
     assert.equal(me.has_stripe_subscription, false);
-    const grant = me.manual_grant as { plan_key?: string; notice?: string };
+    const grant = expectRecord(me.manual_grant);
     assert.equal(grant.plan_key, "pulse");
-    assert.match(grant.notice ?? "", /manually upgraded to Pulse/);
+    assert.ok(typeof grant.notice === "string");
+    assert.match(grant.notice, /manually upgraded to Pulse/);
     const tenants = listAdminTenantUsage();
     const row = tenants.find((t) => t.userId === user.id);
     assert.equal(row?.manualGrant, true);
@@ -309,7 +308,7 @@ describe("billingStore", () => {
     assert.equal(getCreditUsage(row!.tenantId, "pulse").limit, 6000);
   });
 
-  it("lets a live Stripe sub win over a leftover grant", () => {
+  await it("lets a live Stripe sub win over a leftover grant", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-grant-stripe",
@@ -337,7 +336,7 @@ describe("billingStore", () => {
     assert.equal(me.manual_grant, null);
   });
 
-  it("keeps the grant live when the Stripe sub is incomplete", () => {
+  await it("keeps the grant live when the Stripe sub is incomplete", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-grant-incomplete",
@@ -363,13 +362,13 @@ describe("billingStore", () => {
     const me = billingMePayload({ userId: user.id, email: user.email });
     assert.equal(me.plan_key, "pulse");
     assert.equal(me.plan_state, "subscription_active");
-    const grant = me.manual_grant as { plan_key?: string };
+    const grant = expectRecord(me.manual_grant);
     assert.equal(grant?.plan_key, "pulse");
     const tenants = listAdminTenantUsage();
     assert.equal(tenants.find((t) => t.userId === user.id)?.manualGrant, true);
   });
 
-  it("clears a grant back to Free", () => {
+  await it("clears a grant back to Free", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-grant-clear",
@@ -393,7 +392,7 @@ describe("billingStore", () => {
     assert.equal(me.manual_grant, null);
   });
 
-  it("gives a new account Pulse limits for the first week", () => {
+  await it("gives a new account Pulse limits for the first week", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-first-week",
@@ -405,15 +404,16 @@ describe("billingStore", () => {
     assert.equal(me.plan_key, "pulse");
     assert.equal(me.plan_state, "free_active");
     assert.equal(me.has_stripe_subscription, false);
-    const week = me.first_week_pulse as { plan_key?: string; notice?: string };
+    const week = expectRecord(me.first_week_pulse);
     assert.equal(week.plan_key, "pulse");
-    assert.match(week.notice ?? "", /first week is a Pulse week/);
-    assert.equal((me.credits as { limit?: number }).limit, 6000);
-    assert.equal((me.sorties as { limit?: number }).limit, 5);
+    assert.ok(typeof week.notice === "string");
+    assert.match(week.notice, /first week is a Pulse week/);
+    assert.equal((expectRecord(me.credits)).limit, 6000);
+    assert.equal((expectRecord(me.sorties)).limit, 5);
     assert.equal(dailyActivityUsage(user.id, user.email).limit, 50);
   });
 
-  it("applies equal-or-newer Stripe watermarks", () => {
+  await it("applies equal-or-newer Stripe watermarks", () => {
     assert.equal(shouldApplyStripeEvent(0, 1), true);
     assert.equal(shouldApplyStripeEvent(10, 10), true);
     assert.equal(shouldApplyStripeEvent(10, 9), false);

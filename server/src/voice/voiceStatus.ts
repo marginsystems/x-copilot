@@ -8,7 +8,7 @@ import {
 } from "../billing/billingStore.js";
 import { effectivePlanKey } from "../billing/planResolution.js";
 import { getXOauthUsername } from "../auth/xIdentityStore.js";
-import type { VoiceCard } from "./voiceLlm.js";
+import { isRecord } from "../platform/unknownValue.js";
 import {
   VOICE_UNLOCK_MIN_POSTS,
   getSuggestUsage,
@@ -42,10 +42,11 @@ export function deriveVoiceUiStatus(
   return "empty";
 }
 
-function parseCard(cardJson: string | null): VoiceCard | null {
+function parseCard(cardJson: string | null): Record<string, unknown> | null {
   if (!cardJson) return null;
   try {
-    return JSON.parse(cardJson) as VoiceCard;
+    const card: unknown = JSON.parse(cardJson);
+    return isRecord(card) ? card : null;
   } catch {
     return null;
   }

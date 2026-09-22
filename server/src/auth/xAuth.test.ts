@@ -14,7 +14,7 @@ import {
   fetchXRequestToken,
 } from "./xAuth.ts";
 
-describe("xAuth", () => {
+await describe("xAuth", async () => {
   let dir: string;
   beforeEach(() => {
     resetPlatformDbForTests();
@@ -31,7 +31,7 @@ describe("xAuth", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("parses a request token response", async () => {
+  await it("parses a request token response", async () => {
     const fetchImpl: typeof fetch = async () =>
       new Response(
         "oauth_token=rt&oauth_token_secret=rs&oauth_callback_confirmed=true",
@@ -49,7 +49,7 @@ describe("xAuth", () => {
     assert.equal(got.secret, "rs");
   });
 
-  it("parses access token identity without calling users/me", async () => {
+  await it("parses access token identity without calling users/me", async () => {
     const fetchImpl: typeof fetch = async () =>
       new Response(
         "oauth_token=at&oauth_token_secret=as&user_id=42&screen_name=alice",
@@ -71,7 +71,7 @@ describe("xAuth", () => {
     assert.equal(got.secret, "as");
   });
 
-  it("allows X-only login for any handle", () => {
+  await it("allows X-only login for any handle", () => {
     const login = completeXLogin({
       profile: { providerUserId: "42", username: "alice" },
       existingUser: null,
@@ -98,7 +98,7 @@ describe("xAuth", () => {
     assert.equal(getUserForSessionToken(other.token)?.displayName, "eve");
   });
 
-  it("enlarges the X _normal avatar crop", () => {
+  await it("enlarges the X _normal avatar crop", () => {
     assert.equal(
       enlargeXAvatarUrl(
         "https://pbs.twimg.com/profile_images/1/abc_normal.jpg",
@@ -107,7 +107,7 @@ describe("xAuth", () => {
     );
   });
 
-  it("stores an X photo on an X-only login when provided", () => {
+  await it("stores an X photo on an X-only login when provided", () => {
     const login = completeXLogin({
       profile: {
         providerUserId: "42",
@@ -124,7 +124,7 @@ describe("xAuth", () => {
     );
   });
 
-  it("skips the live X avatar lookup under node:test", async () => {
+  await it("skips the live X avatar lookup under node:test", async () => {
     const avatar = await fetchXProfileAvatar(
       "alice",
       async () =>
@@ -142,7 +142,7 @@ describe("xAuth", () => {
     assert.equal(avatar, null);
   });
 
-  it("reads profile_image_url when tests allow the lookup", async () => {
+  await it("reads profile_image_url when tests allow the lookup", async () => {
     const avatar = await fetchXProfileAvatar(
       "alice",
       async () =>
@@ -163,7 +163,7 @@ describe("xAuth", () => {
     );
   });
 
-  it("links X onto an existing Google session", () => {
+  await it("links X onto an existing Google session", () => {
     const google = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-x",
@@ -184,7 +184,7 @@ describe("xAuth", () => {
     );
   });
 
-  it("does not overwrite an existing Google photo when linking X with an avatar", () => {
+  await it("does not overwrite an existing Google photo when linking X with an avatar", () => {
     const google = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-x",

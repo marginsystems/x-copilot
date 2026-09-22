@@ -1,9 +1,10 @@
+import { testRequest, testResponse, expectRecord, expectRecords } from "../http/http.testHelpers.js";
+
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   defaultMigrationsDir,
   getPlatformDb,
@@ -24,31 +25,18 @@ async function call(opts: {
   origin?: string;
   ua?: string;
 }): Promise<{ status: number; body: Record<string, unknown>; setCookie: string }> {
-  let status = 0;
-  let raw = "";
-  let setCookie = "";
   const headers: Record<string, string> = {};
   if (opts.token) {
     headers.cookie = `${SESSION_COOKIE}=${encodeURIComponent(opts.token)}`;
   }
   if (opts.origin) headers.origin = opts.origin;
   if (opts.ua) headers["user-agent"] = opts.ua;
-  const req = {
+  const req = Object.assign(testRequest(), {
     method: opts.method,
-    headers,
-    socket: { remoteAddress: "127.0.0.1" },
-  } as unknown as IncomingMessage;
-  const res = {
-    writeHead: (code: number, out?: Record<string, unknown>) => {
-      status = code;
-      const cookie = out?.["Set-Cookie"];
-      if (typeof cookie === "string") setCookie = cookie;
-      else if (Array.isArray(cookie)) setCookie = cookie.map(String).join("\n");
-    },
-    end: (chunk: string) => {
-      raw = chunk;
-    },
-  } as unknown as ServerResponse;
+    headers
+  });
+  Object.defineProperty(req.socket, "remoteAddress", { value: "127.0.0.1" });
+  const { res, captured } = testResponse(req);
   const handled = await tryHandleAuth(
     req,
     res,
@@ -56,13 +44,15 @@ async function call(opts: {
   );
   assert.equal(handled, true);
   return {
-    status,
-    body: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
-    setCookie,
+    status: captured.status,
+    body: captured.raw ? (expectRecord(JSON.parse(captured.raw))) : {},
+    setCookie: Array.isArray(captured.headers["Set-Cookie"])
+      ? captured.headers["Set-Cookie"].map(String).join("\n")
+      : typeof captured.headers["Set-Cookie"] === "string" ? captured.headers["Set-Cookie"] : "",
   };
 }
 
-describe("sessions HTTP", () => {
+await describe("sessions HTTP", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -92,12 +82,12 @@ describe("sessions HTTP", () => {
     });
   }
 
-  it("returns 401 without a session", async () => {
+  await it("returns 401 without a session", async () => {
     const res = await call({ method: "GET", path: "/api/auth/sessions" });
     assert.equal(res.status, 401);
   });
 
-  it("lists this device as current and never returns a token hash", async () => {
+  await it("lists this device as current and never returns a token hash", async () => {
     const alice = user("list");
     const sess = createSession(alice.id, {
       ip: "203.0.113.8",
@@ -110,7 +100,7 @@ describe("sessions HTTP", () => {
       token: sess.token,
     });
     assert.equal(res.status, 200);
-    const sessions = res.body.sessions as Array<Record<string, unknown>>;
+    const sessions = expectRecords(res.body.sessions);
     assert.equal(sessions.length, 1);
     assert.equal(sessions[0].id, sess.id);
     assert.equal(sessions[0].current, true);
@@ -123,7 +113,7 @@ describe("sessions HTTP", () => {
     assert.equal(dumped.includes("tokenHash"), false);
   });
 
-  it("loads account profile, providers, and sessions in one trip", async () => {
+  await it("loads account profile, providers, and sessions in one trip", async () => {
     const alice = user("account");
     const sess = createSession(alice.id);
     const res = await call({
@@ -132,9 +122,9 @@ describe("sessions HTTP", () => {
       token: sess.token,
     });
     assert.equal(res.status, 200);
-    const userBody = res.body.user as { email?: string };
+    const userBody = expectRecord(res.body.user);
     assert.equal(userBody.email, "account@example.com");
-    const providers = res.body.providers as Array<{ provider: string }>;
+    const providers = expectRecords(res.body.providers);
     assert.equal(providers.some((p) => p.provider === "google"), true);
     assert.deepEqual(res.body.mail, {
       digestEmailOptIn: false,
@@ -143,7 +133,7 @@ describe("sessions HTTP", () => {
     assert.equal(JSON.stringify(res.body).includes("gid-account"), false);
   });
 
-  it("rejects revoke mutations from a foreign origin", async () => {
+  await it("rejects revoke mutations from a foreign origin", async () => {
     const alice = user("csrf");
     const sess = createSession(alice.id);
     const res = await call({
@@ -158,7 +148,7 @@ describe("sessions HTTP", () => {
       .get(sess.id));
   });
 
-  it("keeps this device when revoking others", async () => {
+  await it("keeps this device when revoking others", async () => {
     const alice = user("keep");
     const keep = createSession(alice.id);
     const other = createSession(alice.id);
@@ -170,17 +160,17 @@ describe("sessions HTTP", () => {
     });
     assert.equal(res.status, 200);
     assert.equal(res.body.revoked, 1);
-    const sessions = res.body.sessions as Array<{ id: string; current: boolean }>;
+    const sessions = expectRecords(res.body.sessions);
     assert.equal(sessions.length, 1);
     assert.equal(sessions[0].id, keep.id);
     assert.equal(sessions[0].current, true);
-    const otherRow = getPlatformDb()
+    const otherRow = expectRecord(getPlatformDb()
       .prepare(`SELECT revoked_at FROM sessions WHERE id = ?`)
-      .get(other.id) as { revoked_at: string | null };
+      .get(other.id));
     assert.ok(otherRow.revoked_at);
   });
 
-  it("returns 404 when another user guesses a session UUID", async () => {
+  await it("returns 404 when another user guesses a session UUID", async () => {
     const alice = user("owner");
     const eve = user("thief");
     const aliceSess = createSession(alice.id);
@@ -192,13 +182,13 @@ describe("sessions HTTP", () => {
       origin: LOCAL_ORIGIN,
     });
     assert.equal(res.status, 404);
-    const still = getPlatformDb()
+    const still = expectRecord(getPlatformDb()
       .prepare(`SELECT revoked_at FROM sessions WHERE id = ?`)
-      .get(aliceSess.id) as { revoked_at: string | null };
+      .get(aliceSess.id));
     assert.equal(still.revoked_at, null);
   });
 
-  it("clears the cookie when this device is revoked", async () => {
+  await it("clears the cookie when this device is revoked", async () => {
     const alice = user("self");
     const sess = createSession(alice.id);
     const res = await call({
@@ -213,7 +203,7 @@ describe("sessions HTTP", () => {
     assert.match(res.setCookie, /Max-Age=0/);
   });
 
-  it("rate-limits revoke tightly", async () => {
+  await it("rate-limits revoke tightly", async () => {
     const alice = user("rate");
     const keep = createSession(alice.id);
     let last = { status: 0 };
@@ -228,7 +218,7 @@ describe("sessions HTTP", () => {
     assert.equal(last.status, 429);
   });
 
-  it("rejects typed X username updates", async () => {
+  await it("rejects typed X username updates", async () => {
     const alice = user("typed");
     const sess = createSession(alice.id);
     const res = await call({

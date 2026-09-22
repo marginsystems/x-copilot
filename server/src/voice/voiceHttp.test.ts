@@ -1,3 +1,5 @@
+import { testRequest, testResponse, expectRecord } from "../http/http.testHelpers.js";
+
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -5,7 +7,6 @@ import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   defaultMigrationsDir,
   getPlatformDb,
@@ -61,27 +62,27 @@ function profile(
   };
 }
 
-describe("deriveVoiceUiStatus", () => {
-  it("is unlinked only with no corpus and no handle", () => {
+await describe("deriveVoiceUiStatus", async () => {
+  await it("is unlinked only with no corpus and no handle", () => {
     assert.equal(deriveVoiceUiStatus(null, null), "unlinked");
     assert.equal(deriveVoiceUiStatus(profile(), null), "unlinked");
   });
 
-  it("treats memory corpus without a handle as insufficient, not unlinked", () => {
+  await it("treats memory corpus without a handle as insufficient, not unlinked", () => {
     assert.equal(
       deriveVoiceUiStatus(profile({ replyCount: 40 }), null),
       "insufficient",
     );
   });
 
-  it("is empty when memories already unlock but the card is not written", () => {
+  await it("is empty when memories already unlock but the card is not written", () => {
     assert.equal(
       deriveVoiceUiStatus(profile({ replyCount: 107 }), null),
       "empty",
     );
   });
 
-  it("stays ready when a card exists", () => {
+  await it("stays ready when a card exists", () => {
     assert.equal(
       deriveVoiceUiStatus(
         profile({
@@ -97,7 +98,7 @@ describe("deriveVoiceUiStatus", () => {
   });
 });
 
-describe("POST /api/voice/learn", () => {
+await describe("POST /api/voice/learn", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -115,7 +116,7 @@ describe("POST /api/voice/learn", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("rejects client-triggered learn with a 403", async () => {
+  await it("rejects client-triggered learn with a 403", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-learn",
@@ -123,36 +124,27 @@ describe("POST /api/voice/learn", () => {
       emailVerified: true,
     });
     const { token } = createSession(user.id);
-    const req = {
+    const req = Object.assign(testRequest(), {
       method: "POST",
       headers: {
         cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
-      },
-      socket: { remoteAddress: "127.0.0.1" },
-    } as unknown as IncomingMessage;
-    let status = 0;
-    let body = "";
-    const res = {
-      writeHead: (code: number) => {
-        status = code;
-      },
-      end: (chunk: string) => {
-        body = chunk;
-      },
-    } as unknown as ServerResponse;
+      }
+    });
+    Object.defineProperty(req.socket, "remoteAddress", { value: "127.0.0.1" });
+    const { res, captured } = testResponse(req);
     const handled = await tryHandleVoice(
       req,
       res,
       new URL("http://localhost/api/voice/learn"),
     );
     assert.equal(handled, true);
-    assert.equal(status, 403);
-    const json = JSON.parse(body) as { error?: string };
+    assert.equal(captured.status, 403);
+    const json = expectRecord(JSON.parse(captured.raw));
     assert.equal(json.error, "ingest_not_user_triggered");
   });
 });
 
-describe("POST /api/voice/stances", () => {
+await describe("POST /api/voice/stances", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -197,7 +189,7 @@ describe("POST /api/voice/stances", () => {
     chat?: ChatFn,
   ): Promise<{ status: number; json: Record<string, unknown> }> {
     const { token } = createSession(user.id);
-    const req = new EventEmitter() as unknown as IncomingMessage;
+    const req = testRequest();
     Object.assign(req, {
       method: "POST",
       headers: {
@@ -205,16 +197,7 @@ describe("POST /api/voice/stances", () => {
       },
       socket: { remoteAddress: "127.0.0.1" },
     });
-    let status = 0;
-    let raw = "";
-    const res = {
-      writeHead: (code: number) => {
-        status = code;
-      },
-      end: (chunk: string) => {
-        raw = chunk;
-      },
-    } as unknown as ServerResponse;
+    const { res, captured } = testResponse(req);
 
     const handledPromise = tryHandleVoice(
       req,
@@ -225,10 +208,10 @@ describe("POST /api/voice/stances", () => {
     (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
     (req as EventEmitter).emit("end");
     assert.equal(await handledPromise, true);
-    return { status, json: JSON.parse(raw || "{}") as Record<string, unknown> };
+    return { status: captured.status, json: expectRecord(JSON.parse(captured.raw || "{}")) };
   }
 
-  it("returns needed:true on a fact-add without spending a suggest slot", async () => {
+  await it("returns needed:true on a fact-add without spending a suggest slot", async () => {
     const { user, planKey } = seedReadyUser("stance@example.com");
     const before = getSuggestUsage(user.id, planKey);
     const chat: ChatFn = async () => ({
@@ -258,7 +241,7 @@ describe("POST /api/voice/stances", () => {
     assert.deepEqual(getSuggestUsage(user.id, planKey), before);
   });
 
-  it("rate-limits the 21st stance lookup in a minute, on any thread kind", async () => {
+  await it("rate-limits the 21st stance lookup in a minute, on any thread kind", async () => {
     const { user } = seedReadyUser("stance-rate@example.com");
     let chatCalls = 0;
     const chat: ChatFn = async () => {
@@ -300,7 +283,7 @@ describe("POST /api/voice/stances", () => {
     assert.equal(json.error, "rate_limited");
   });
 
-  it("does not spend a suggest slot on a stance lookup — the draft charges", async () => {
+  await it("does not spend a suggest slot on a stance lookup — the draft charges", async () => {
     const { user, planKey } = seedReadyUser("stance-count@example.com");
     const before = getSuggestUsage(user.id, planKey).used;
 
@@ -323,7 +306,7 @@ describe("POST /api/voice/stances", () => {
     assert.equal(getSuggestUsage(user.id, planKey).used, before);
   });
 
-  it("rejects an opinionated stance lookup when today's suggest cap is spent", async () => {
+  await it("rejects an opinionated stance lookup when today's suggest cap is spent", async () => {
     const { user, planKey } = seedReadyUser("stance-cap@example.com");
     const at = new Date().toISOString();
     const stmt = getPlatformDb().prepare(
@@ -343,7 +326,7 @@ describe("POST /api/voice/stances", () => {
     assert.equal(json.error, "suggest_daily_limit");
   });
 
-  it("surfaces a stance LLM failure as a 502 instead of masking it with generic sides", async () => {
+  await it("surfaces a stance LLM failure as a 502 instead of masking it with generic sides", async () => {
     const { user } = seedReadyUser("stance-502@example.com");
     const { status, json } = await postStances(
       user,
@@ -364,7 +347,7 @@ describe("POST /api/voice/stances", () => {
     assert.equal(json.error, "deepseek_http");
   });
 
-  it("marks generic sides as fallback when the model finds no side", async () => {
+  await it("marks generic sides as fallback when the model finds no side", async () => {
     const { user } = seedReadyUser("stance-fallback@example.com");
     const { status, json } = await postStances(
       user,
@@ -388,7 +371,7 @@ describe("POST /api/voice/stances", () => {
   });
 });
 
-describe("POST /api/voice/suggest", () => {
+await describe("POST /api/voice/suggest", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -432,7 +415,7 @@ describe("POST /api/voice/suggest", () => {
     chat?: ChatFn,
   ): Promise<{ status: number; json: Record<string, unknown> }> {
     const { token } = createSession(user.id);
-    const req = new EventEmitter() as unknown as IncomingMessage;
+    const req = testRequest();
     Object.assign(req, {
       method: "POST",
       headers: {
@@ -440,16 +423,7 @@ describe("POST /api/voice/suggest", () => {
       },
       socket: { remoteAddress: "127.0.0.1" },
     });
-    let status = 0;
-    let raw = "";
-    const res = {
-      writeHead: (code: number) => {
-        status = code;
-      },
-      end: (chunk: string) => {
-        raw = chunk;
-      },
-    } as unknown as ServerResponse;
+    const { res, captured } = testResponse(req);
     const handledPromise = tryHandleVoice(
       req,
       res,
@@ -459,10 +433,10 @@ describe("POST /api/voice/suggest", () => {
     (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
     (req as EventEmitter).emit("end");
     assert.equal(await handledPromise, true);
-    return { status, json: JSON.parse(raw || "{}") as Record<string, unknown> };
+    return { status: captured.status, json: expectRecord(JSON.parse(captured.raw || "{}")) };
   }
 
-  it("passes a ~130-char typed side through to the draft prompt untruncated", async () => {
+  await it("passes a ~130-char typed side through to the draft prompt untruncated", async () => {
     const user = seedReadyUser("suggest-stance@example.com");
     const capture: { messages?: ChatMessage[] } = {};
     const stance = "Ship the sqlite migration now before the quarter-end freeze";
@@ -494,7 +468,7 @@ describe("POST /api/voice/suggest", () => {
   });
 });
 
-describe("POST /api/voice/post", () => {
+await describe("POST /api/voice/post", async () => {
   let dir: string;
   let cwd: string;
   const prevKey = process.env.X_API_KEY;
@@ -564,7 +538,7 @@ describe("POST /api/voice/post", () => {
     chat?: ChatFn,
   ): Promise<{ status: number; json: Record<string, unknown> }> {
     const { token } = createSession(user.id);
-    const req = new EventEmitter() as unknown as IncomingMessage;
+    const req = testRequest();
     Object.assign(req, {
       method: "POST",
       headers: {
@@ -572,16 +546,7 @@ describe("POST /api/voice/post", () => {
       },
       socket: { remoteAddress: "127.0.0.1" },
     });
-    let status = 0;
-    let raw = "";
-    const res = {
-      writeHead: (code: number) => {
-        status = code;
-      },
-      end: (chunk: string) => {
-        raw = chunk;
-      },
-    } as unknown as ServerResponse;
+    const { res, captured } = testResponse(req);
     const handledPromise = tryHandleVoice(
       req,
       res,
@@ -591,7 +556,7 @@ describe("POST /api/voice/post", () => {
     (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
     (req as EventEmitter).emit("end");
     assert.equal(await handledPromise, true);
-    return { status, json: JSON.parse(raw || "{}") as Record<string, unknown> };
+    return { status: captured.status, json: expectRecord(JSON.parse(captured.raw || "{}")) };
   }
 
   const draft = "The loop is the tax on shipping.";
@@ -607,7 +572,7 @@ describe("POST /api/voice/post", () => {
     text: "the tool is never the bottleneck",
   };
 
-  it("posts as the user and auto-marks the thread", async () => {
+  await it("posts as the user and auto-marks the thread", async () => {
     const user = seedPoster("post-ok@example.com", true);
     const origFetch = globalThis.fetch;
     globalThis.fetch = (async (input, init) => {
@@ -633,25 +598,26 @@ describe("POST /api/voice/post", () => {
       );
       assert.equal(status, 200);
       assert.equal(json.ok, true);
-      const tweet = json.tweet as { id?: string; url?: string };
+      const tweet = expectRecord(json.tweet);
       assert.equal(tweet.id, "888");
       assert.equal(tweet.url, "https://x.com/alice/status/888");
-      const interaction = json.interaction as { threadId?: string; replyId?: string };
+      const interaction = expectRecord(json.interaction);
       assert.equal(interaction.threadId, "1234567890");
       assert.equal(interaction.replyId, "888");
-      const memory = json.memory as { state?: string; memoryPath?: string };
+      const memory = expectRecord(json.memory);
       assert.equal(memory.state, "saved");
       assert.equal(json.memoryPath, memory.memoryPath);
-      const note = await readFile(memory.memoryPath!, "utf8");
+      assert.ok(typeof memory.memoryPath === "string");
+      const note = await readFile(memory.memoryPath, "utf8");
       assert.match(note, /I would still pick the tool if it cut the wait/);
-      const gamification = json.gamification as { lifetimeXp?: number };
+      const gamification = expectRecord(json.gamification);
       assert.equal(gamification.lifetimeXp, 1);
     } finally {
       globalThis.fetch = origFetch;
     }
   });
 
-  it("does not save memory when mark soft-fails after X succeeds", async () => {
+  await it("does not save memory when mark soft-fails after X succeeds", async () => {
     resetVoicePostForTests({
       knowledgeRoot: join(dir, "knowledge"),
       markInteracted: async () => {
@@ -681,7 +647,7 @@ describe("POST /api/voice/post", () => {
       );
       assert.equal(status, 200);
       assert.equal(json.ok, true);
-      assert.equal((json.tweet as { id?: string }).id, "889");
+      assert.equal((expectRecord(json.tweet)).id, "889");
       assert.equal(json.interaction, undefined);
       assert.equal(json.gamification, undefined);
       assert.deepEqual(json.memory, { state: "unavailable" });
@@ -691,7 +657,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("keeps the confirmed interaction when evidence capture fails", async () => {
+  await it("keeps the confirmed interaction when evidence capture fails", async () => {
     const user = seedPoster("post-evidence-fail@example.com", true);
     getPlatformDb().exec("DROP TABLE scout_target_context");
     const origFetch = globalThis.fetch;
@@ -715,14 +681,14 @@ describe("POST /api/voice/post", () => {
         }),
       );
       assert.equal(status, 200);
-      assert.equal((json.tweet as { id?: string }).id, "8901");
-      assert.equal((json.interaction as { replyId?: string }).replyId, "8901");
+      assert.equal((expectRecord(json.tweet)).id, "8901");
+      assert.equal((expectRecord(json.interaction)).replyId, "8901");
     } finally {
       globalThis.fetch = origFetch;
     }
   });
 
-  it("keeps the confirmed post and XP when note write fails", async () => {
+  await it("keeps the confirmed post and XP when note write fails", async () => {
     resetInteractionMemoryProjectionForTests({
       writeNote: async () => {
         throw new Error("EACCES: injected filesystem failure");
@@ -752,18 +718,18 @@ describe("POST /api/voice/post", () => {
       );
       assert.equal(status, 200);
       assert.equal(json.ok, true);
-      assert.equal((json.tweet as { id?: string }).id, "890");
-      assert.equal((json.interaction as { replyId?: string }).replyId, "890");
+      assert.equal((expectRecord(json.tweet)).id, "890");
+      assert.equal((expectRecord(json.interaction)).replyId, "890");
       assert.deepEqual(json.memory, { state: "unavailable" });
       assert.equal(json.memoryPath, undefined);
-      const gamification = json.gamification as { lifetimeXp?: number };
+      const gamification = expectRecord(json.gamification);
       assert.equal(gamification.lifetimeXp, 1);
     } finally {
       globalThis.fetch = origFetch;
     }
   });
 
-  it("replays saved reply text and leaves X POST plus XP unchanged", async () => {
+  await it("replays saved reply text and leaves X POST plus XP unchanged", async () => {
     const user = seedPoster("post-replay-memory@example.com", true);
     let xPosts = 0;
     const origFetch = globalThis.fetch;
@@ -791,8 +757,9 @@ describe("POST /api/voice/post", () => {
         chat,
       );
       assert.equal(first.status, 200);
-      assert.equal((first.json.memory as { state?: string }).state, "saved");
-      const firstPath = first.json.memoryPath as string;
+      assert.equal((expectRecord(first.json.memory)).state, "saved");
+      const firstPath = first.json.memoryPath;
+      assert.ok(typeof firstPath === "string");
       const firstNote = await readFile(firstPath, "utf8");
       assert.match(firstNote, /I would still pick the tool if it cut the wait/);
       assert.doesNotMatch(firstNote, /later edited retry body/);
@@ -809,8 +776,8 @@ describe("POST /api/voice/post", () => {
       );
       assert.equal(retry.status, 200);
       assert.equal(xPosts, 1);
-      assert.equal((retry.json.tweet as { id?: string }).id, "891");
-      assert.equal((retry.json.memory as { state?: string }).state, "saved");
+      assert.equal((expectRecord(retry.json.tweet)).id, "891");
+      assert.equal((expectRecord(retry.json.memory)).state, "saved");
       const retryNote = await readFile(firstPath, "utf8");
       assert.match(retryNote, /I would still pick the tool if it cut the wait/);
       assert.doesNotMatch(retryNote, /later edited retry body/);
@@ -824,7 +791,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("does not replay an unowned interaction note into another user's memory", async () => {
+  await it("does not replay an unowned interaction note into another user's memory", async () => {
     const user = seedPoster("post-replay-unowned@example.com", true);
     const knowledgeRoot = join(dir, "knowledge");
     const note = await writeInteractionMemory({
@@ -858,7 +825,7 @@ describe("POST /api/voice/post", () => {
     assert.doesNotMatch(kept, /I would still pick the tool/);
   });
 
-  it("returns confirmed replay when own-post fallback is unavailable", async () => {
+  await it("returns confirmed replay when own-post fallback is unavailable", async () => {
     const user = seedPoster("post-replay-db-fail@example.com", true);
     const origFetch = globalThis.fetch;
     globalThis.fetch = (async (input) => {
@@ -881,7 +848,8 @@ describe("POST /api/voice/post", () => {
         }),
       );
       assert.equal(first.status, 200);
-      rmSync(first.json.memoryPath as string);
+      assert.ok(typeof first.json.memoryPath === "string");
+      rmSync(first.json.memoryPath);
       // Hide the canonical own-post row. Do not drop the table: streak
       // overlay still reads own_posts on replay.
       getPlatformDb().prepare("DELETE FROM own_posts WHERE id = ?").run("893");
@@ -898,7 +866,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("rejects a non-trivial edit the LLM verify does not pass", async () => {
+  await it("rejects a non-trivial edit the LLM verify does not pass", async () => {
     const user = seedPoster("post-verify@example.com", true);
     let calls = 0;
     const origFetch = globalThis.fetch;
@@ -925,14 +893,14 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("refuses to post without write tokens", async () => {
+  await it("refuses to post without write tokens", async () => {
     const user = seedPoster("post-nowrite@example.com", false);
     const { status, json } = await postReply(user, body);
     assert.equal(status, 403);
     assert.equal(json.error, "x_write_required");
   });
 
-  it("rejects a trivial edit before calling X", async () => {
+  await it("rejects a trivial edit before calling X", async () => {
     const user = seedPoster("post-trivial@example.com", true);
     let calls = 0;
     const origFetch = globalThis.fetch;
@@ -953,7 +921,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("returns 429 during the desk-post cooldown", async () => {
+  await it("returns 429 during the desk-post cooldown", async () => {
     const user = seedPoster("post-cool@example.com", true);
     recordDeskPost({
       userId: user.id,
@@ -965,7 +933,7 @@ describe("POST /api/voice/post", () => {
     assert.equal(json.error, "cooldown");
   });
 
-  it("consumes the idempotency key on an ambiguous X failure so a retry cannot duplicate the reply", async () => {
+  await it("consumes the idempotency key on an ambiguous X failure so a retry cannot duplicate the reply", async () => {
     const user = seedPoster("post-ambig@example.com", true);
     let calls = 0;
     const origFetch = globalThis.fetch;
@@ -1002,7 +970,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("replays an ambiguous-failure key as outcome_unknown instead of re-posting", async () => {
+  await it("replays an ambiguous-failure key as outcome_unknown instead of re-posting", async () => {
     const user = seedPoster("post-replay@example.com", true);
     recordDeskPost({
       userId: user.id,
@@ -1038,7 +1006,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("posts a For You original without in_reply_to and marks the card done", async () => {
+  await it("posts a For You original without in_reply_to and marks the card done", async () => {
     let wrote = 0;
     resetInteractionMemoryProjectionForTests({
       writeNote: async () => {
@@ -1094,7 +1062,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("quotes from the suggestion targetId and rejects a compose reply", async () => {
+  await it("quotes from the suggestion targetId and rejects a compose reply", async () => {
     const user = seedPoster("compose-quote@example.com", true);
     const tenantId = ensureUserTenant(user.id);
     const [quote] = insertSuggestions({
@@ -1179,7 +1147,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("rejects posting an expired For You suggestion", async () => {
+  await it("rejects posting an expired For You suggestion", async () => {
     const user = seedPoster("compose-expired@example.com", true);
     const [row] = insertSuggestions({
       userId: user.id,
@@ -1213,7 +1181,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("rejects posting the stored digest draft verbatim", async () => {
+  await it("rejects posting the stored digest draft verbatim", async () => {
     const user = seedPoster("compose-digest@example.com", true);
     const digestDraft = "Ship the recap.";
     const [row] = insertSuggestions({
@@ -1254,7 +1222,7 @@ describe("POST /api/voice/post", () => {
     }
   });
 
-  it("replays a completed For You desk post by key even after the card is marked done", async () => {
+  await it("replays a completed For You desk post by key even after the card is marked done", async () => {
     const user = seedPoster("compose-replay@example.com", true);
     const [row] = insertSuggestions({
       userId: user.id,
@@ -1295,7 +1263,7 @@ describe("POST /api/voice/post", () => {
       );
       assert.equal(calls, 0);
       assert.equal(status, 200);
-      assert.equal((json.tweet as { id?: string })?.id, "555");
+      assert.equal((expectRecord(json.tweet))?.id, "555");
       assert.equal(json.memory, undefined);
     } finally {
       globalThis.fetch = origFetch;
