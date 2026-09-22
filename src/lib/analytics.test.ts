@@ -11,6 +11,8 @@ describe("gaMeasurementId", () => {
     assert.equal(gaMeasurementId(), DEFAULT_GA_MEASUREMENT_ID);
   }).catch(assert.fail);
 
+});
+
 describe("trackPageView", () => {
   it("no-ops when gtag is missing", () => {
     const prevWindow = globalThis.window;
@@ -47,3 +49,4 @@ describe("trackPageView", () => {
       ],
     ]);
   }).catch(assert.fail);
+});

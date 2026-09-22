@@ -31,3 +31,4 @@ describe("xThreadView helpers", () => {
     assert.equal(parentKind({ isQuote: true, inReplyToId: "1" }), "reply");
     assert.equal(parentKind({}), "reply");
   }).catch(assert.fail);
+});

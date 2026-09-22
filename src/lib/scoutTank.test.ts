@@ -19,3 +19,4 @@ describe("scout tank brand", () => {
     assert.doesNotMatch(source, /<path\b/);
     assert.doesNotMatch(source, /M5 10\.5h12|M9\.5 10\.5V8|M9 8h6/);
   }).catch(assert.fail);
+});

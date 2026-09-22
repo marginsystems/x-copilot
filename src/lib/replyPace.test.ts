@@ -75,6 +75,8 @@ describe("reply pace overlay storage", () => {
     assert.equal(stored.get("x-copilot-reply-pace-until"), "1700000060000");
   }).catch(assert.fail);
 
+});
+
 describe("replyPace", () => {
   it("arms 60 seconds from now", () => {
     assert.equal(REPLY_PACE_MS, 60_000);
@@ -204,3 +206,4 @@ describe("replyPace", () => {
     assert.equal(formatReplyPaceClock(1), "0:01");
     assert.equal(formatReplyPaceClock(0), "0:00");
   }).catch(assert.fail);
+});

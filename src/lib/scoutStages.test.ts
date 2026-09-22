@@ -59,3 +59,4 @@ describe("scoutStages", () => {
       assert.doesNotMatch(line, /sidecar|pm2|npm|localhost|\.\//i);
     }
   }).catch(assert.fail);
+});

@@ -170,3 +170,4 @@ describe("forYou helpers", () => {
       canExtra: true,
     });
   }).catch(assert.fail);
+});

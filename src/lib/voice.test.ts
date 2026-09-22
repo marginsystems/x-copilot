@@ -41,6 +41,8 @@ describe("localEditHint", () => {
     );
   }).catch(assert.fail);
 
+});
+
 describe("suggestNoteSlot", () => {
   it("keeps a reserved slot when there is no hint or verdict", () => {
     const empty = suggestNoteSlot({
@@ -116,6 +118,8 @@ describe("suggestNoteSlot", () => {
     assert.doesNotMatch(noteWins.text, /very small touch/);
   }).catch(assert.fail);
 
+});
+
 describe("voice state parsing", () => {
   it("parses the /api/voice payload", () => {
     const state = parseVoiceState({
@@ -157,6 +161,8 @@ describe("voice state parsing", () => {
     assert.deepEqual(state?.card?.examples, []);
   }).catch(assert.fail);
 
+});
+
 describe("voiceUnlockCopy", () => {
   it("explains the 100-post bar when state has not loaded", () => {
     assert.match(voiceUnlockCopy(null), /100 public posts/);
@@ -189,6 +195,8 @@ describe("voiceUnlockCopy", () => {
       VOICE_LINK_X_COPY,
     );
   }).catch(assert.fail);
+
+});
 
 describe("shouldShowVoiceUnlockToast", () => {
   const locked: VoiceState = {
@@ -295,6 +303,8 @@ describe("shouldShowVoiceUnlockToast", () => {
     );
   }).catch(assert.fail);
 
+});
+
 describe("voiceNeedsXLink", () => {
   it("is true with no official X link and no voice payload yet", () => {
     assert.equal(voiceNeedsXLink(null, null), true);
@@ -392,6 +402,8 @@ describe("voiceNeedsXLink", () => {
     );
   }).catch(assert.fail);
 
+});
+
 describe("phase + meter helpers", () => {
   it("advances phases and holds on the last", () => {
     assert.equal(phaseIndexAt(LEARN_PHASES, 0), 0);
@@ -426,3 +438,4 @@ it("rejects unknown voice statuses and non-string card lists", () => {
   assert.deepEqual(parsed?.card, {
     tone: "dry", typicalLength: "", examples: ["hello"], habits: [], neverDo: [], starter: false,
   });
+});

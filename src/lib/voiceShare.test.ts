@@ -125,6 +125,8 @@ describe("voiceSharePayload", () => {
     assert.deepEqual(payload?.examples, []);
   }).catch(assert.fail);
 
+});
+
 describe("voiceShareFilename and caption", () => {
   it("names the file after a sanitized handle", () => {
     const payload = voiceSharePayload(voice())!;
@@ -164,6 +166,8 @@ describe("voiceShareFilename and caption", () => {
     assert.match(starter, new RegExp(VOICE_SHARE_DISCLAIMER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }).catch(assert.fail);
 
+});
+
 describe("wrapLines and ellipsize", () => {
   const measure = (s: string) => s.length * 10;
 
@@ -177,6 +181,8 @@ describe("wrapLines and ellipsize", () => {
     assert.equal(ellipsize("short", 100, measure), "short");
     assert.equal(ellipsize("toolongword", 50, measure), "tool…");
   }).catch(assert.fail);
+
+});
 
 describe("drawVoiceShareImage", () => {
   function recordCtx() {
@@ -249,3 +255,4 @@ describe("drawVoiceShareImage", () => {
     assert.doesNotMatch(joined, /secret example/);
     assert.match(joined, new RegExp(VOICE_SHARE_SITE));
   }).catch(assert.fail);
+});

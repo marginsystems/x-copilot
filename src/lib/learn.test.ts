@@ -299,3 +299,4 @@ describe("learn citations", () => {
     assert.equal(learnDiversityMultiplier(2), 0.4375);
     assert.equal(learnDiversityMultiplier(3), 0.34375);
   }).catch(assert.fail);
+});

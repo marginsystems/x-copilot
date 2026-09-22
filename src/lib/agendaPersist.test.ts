@@ -46,3 +46,4 @@ describe("agendaNeedsPersist", () => {
   it("persists a draft exactly at the maximum", () => {
     assert.equal(agendaNeedsPersist("x".repeat(5000), null), "x".repeat(5000));
   }).catch(assert.fail);
+});

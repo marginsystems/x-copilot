@@ -59,3 +59,4 @@ describe("desk routes", () => {
     assert.equal(isPublicView("dashboard"), false);
     assert.equal(isPublicView("home"), false);
   }).catch(assert.fail);
+});

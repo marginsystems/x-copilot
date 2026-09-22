@@ -133,6 +133,8 @@ describe("latestActivityCursor", () => {
     assert.equal(cursor?.text, "");
   }).catch(assert.fail);
 
+});
+
 describe("For You wait identity", () => {
   it("opens with an owner, entry time, cursor baseline, and no completion", () => {
     const wait = openForYouWait({ owner: "u1", cursor: baseline, now: ENTERED });
@@ -192,6 +194,8 @@ describe("For You wait identity", () => {
     assert.equal(settleForYouWait(wait, baseline), wait);
     assert.equal(settleForYouWait(wait, null), wait);
   }).catch(assert.fail);
+
+});
 
 describe("For You wait detection", () => {
   it("does not treat an already-attributed scout reply as a For You post", () => {
@@ -278,6 +282,8 @@ describe("For You wait detection", () => {
     const wait = openForYouWait({ owner: "u1", cursor: baseline, now: ENTERED });
     assert.equal(forYouDetectedActivity(wait, baseline), null);
   }).catch(assert.fail);
+
+});
 
 describe("For You wait storage", () => {
   function withSessionStorage(run: () => void) {
@@ -370,3 +376,4 @@ describe("For You wait storage", () => {
     assert.deepEqual(parseForYouWait(JSON.stringify(wait), "u2"), wait);
     assert.equal(parseForYouWait("not json", "u1"), null);
   }).catch(assert.fail);
+});

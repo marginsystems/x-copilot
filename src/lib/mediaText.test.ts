@@ -11,3 +11,4 @@ describe("stripMediaShortlinksFromText (client)", () => {
       "What's your read on KYA",
     );
   }).catch(assert.fail);
+});

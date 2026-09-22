@@ -11,6 +11,8 @@ describe("parseConsent", () => {
     assert.equal(parseConsent("granted"), null);
   }).catch(assert.fail);
 
+});
+
 describe("applyAnalyticsConsent", () => {
   it("maps accepted to granted and rejected to denied", () => {
     const calls: unknown[][] = [];
@@ -28,3 +30,4 @@ describe("applyAnalyticsConsent", () => {
       ["consent", "update", { analytics_storage: "denied" }],
     ]);
   }).catch(assert.fail);
+});
