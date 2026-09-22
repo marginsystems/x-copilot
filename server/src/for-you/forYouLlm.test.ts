@@ -71,8 +71,8 @@ function fakeChat(
   };
 }
 
-describe("draftForYouActions", () => {
-  it("asks for at least one original that invites a reply", () => {
+await describe("draftForYouActions", async () => {
+  await it("asks for at least one original that invites a reply", () => {
     assert.match(FOR_YOU_DIGEST_SYSTEM, /At least one kind=post/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /invite a reply/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /max 90 characters/);
@@ -91,7 +91,7 @@ describe("draftForYouActions", () => {
     assert.doesNotMatch(FOR_YOU_SCOUT_ORIGINAL_SYSTEM, /LIVE_SCOUT/);
   });
 
-  it("parses a valid first pass", async () => {
+  await it("parses a valid first pass", async () => {
     const capture = { purposes: [] as string[], prompts: [] as string[] };
     const result = await draftForYouActions({
       digest,
@@ -117,7 +117,7 @@ describe("draftForYouActions", () => {
     assert.doesNotMatch(capture.prompts[0] ?? "", /who is hiring/);
   });
 
-  it("repairs invalid JSON", async () => {
+  await it("repairs invalid JSON", async () => {
     const capture = { purposes: [] as string[] };
     let calls = 0;
     const chat: ChatFn = async (opts) => {
@@ -157,7 +157,7 @@ describe("draftForYouActions", () => {
     ]);
   });
 
-  it("repairs a first pass that has 2+ actions but no post", async () => {
+  await it("repairs a first pass that has 2+ actions but no post", async () => {
     const capture = { purposes: [] as string[] };
     const noPost = JSON.stringify({
       actions: [
@@ -217,7 +217,7 @@ describe("draftForYouActions", () => {
     ]);
   });
 
-  it("rejects a repair pass that still has no post", async () => {
+  await it("rejects a repair pass that still has no post", async () => {
     const capture = { purposes: [] as string[] };
     const noPost = JSON.stringify({
       actions: [
@@ -253,7 +253,7 @@ describe("draftForYouActions", () => {
     ]);
   });
 
-  it("rejects a repair pass that returns a single post", async () => {
+  await it("rejects a repair pass that returns a single post", async () => {
     const capture = { purposes: [] as string[] };
     let calls = 0;
     const chat: ChatFn = async (opts) => {
@@ -286,7 +286,7 @@ describe("draftForYouActions", () => {
     ]);
   });
 
-  it("reports an LLM failure without drafts", async () => {
+  await it("reports an LLM failure without drafts", async () => {
     const chat: ChatFn = async () => ({
       ok: false,
       status: 429,
@@ -297,7 +297,7 @@ describe("draftForYouActions", () => {
     assert.equal(result.ok, false);
   });
 
-  it("reports a repair-call LLM failure as an error", async () => {
+  await it("reports a repair-call LLM failure as an error", async () => {
     const capture = { purposes: [] as string[] };
     let calls = 0;
     const chat: ChatFn = async (opts) => {

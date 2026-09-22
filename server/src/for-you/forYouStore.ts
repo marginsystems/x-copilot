@@ -3,6 +3,7 @@
  * Status: suggested | done | skipped | dismissed. Unused cards expire on the next
  * daily run or after 48h. Not tweet-age.
  */
+import { objectValue, hasNullableStrings, hasStrings, isRecord } from "../platform/unknownValue.js";
 import { randomUUID } from "node:crypto";
 import {
   SKIPPED_THEME_WINDOW_MS,
@@ -101,13 +102,13 @@ function mapRow(row: Record<string, unknown>): ForYouSuggestion | null {
     kind,
     status,
     why: secondPersonWhy(String(row.why ?? "")),
-    draft: (row.draft as string | null) ?? null,
-    targetId: (row.target_id as string | null) ?? null,
-    targetUrl: (row.target_url as string | null) ?? null,
-    targetAuthor: (row.target_author as string | null) ?? null,
+    draft: typeof row.draft === "string" ? row.draft : null,
+    targetId: typeof row.target_id === "string" ? row.target_id : null,
+    targetUrl: typeof row.target_url === "string" ? row.target_url : null,
+    targetAuthor: typeof row.target_author === "string" ? row.target_author : null,
     createdAt: String(row.created_at),
     expiresAt: String(row.expires_at),
-    actedAt: (row.acted_at as string | null) ?? null,
+    actedAt: typeof row.acted_at === "string" ? row.acted_at : null,
     origin: row.origin === "extra" ? "extra" : "daily",
   };
 }
@@ -116,12 +117,12 @@ export function hasForYouRunToday(
   userId: string,
   nowMs: number = Date.now(),
 ): boolean {
-  const row = getPlatformDb()
+  const row = objectValue(getPlatformDb()
     .prepare(
       `SELECT COUNT(*) AS n FROM for_you_runs
        WHERE user_id = ? AND at >= ?`,
     )
-    .get(userId, startOfUtcDayIso(new Date(nowMs))) as { n: number };
+    .get(userId, startOfUtcDayIso(new Date(nowMs))));
   return (Number(row.n) || 0) > 0;
 }
 
@@ -161,7 +162,7 @@ export function listRecentSkippedSuggestions(
        WHERE user_id = ? AND status = 'skipped' AND acted_at >= ?
        ORDER BY acted_at DESC`,
     )
-    .all(userId, since) as Array<Record<string, unknown>>;
+    .all(userId, since).map(objectValue);
   return rows.map(mapRow).filter((row): row is ForYouSuggestion => Boolean(row));
 }
 
@@ -249,8 +250,8 @@ export function getSuggestion(
     .prepare(
       `SELECT * FROM for_you_suggestions WHERE id = ? AND user_id = ?`,
     )
-    .get(id, userId) as Record<string, unknown> | undefined;
-  return row ? mapRow(row) : null;
+    .get(id, userId);
+  return isRecord(row) ? mapRow(row) : null;
 }
 
 export function listActiveSuggestions(
@@ -274,18 +275,21 @@ export function listActiveSuggestions(
          )
        ORDER BY created_at DESC`,
     )
-    .all(userId, new Date(nowMs).toISOString()) as Array<Record<string, unknown>>;
+    .all(userId, new Date(nowMs).toISOString()).map(objectValue);
   const markedRows = db
     .prepare(
       `SELECT thread_id, conversation_id, in_reply_to_id, url
        FROM desk_interactions WHERE user_id = ?`,
     )
-    .all(userId) as Array<{
-    thread_id: string;
-    conversation_id: string | null;
-    in_reply_to_id: string | null;
-    url: string | null;
-  }>;
+    .all(userId).map((row) => {
+      if (
+        !hasStrings(row, "thread_id") ||
+        !hasNullableStrings(row, "conversation_id", "in_reply_to_id", "url")
+      ) {
+        throw new TypeError("Invalid interaction row");
+      }
+      return row;
+    });
   const markedIds = new Set(
     markedRows.flatMap((row) =>
       [row.thread_id, row.conversation_id, row.in_reply_to_id].filter(
@@ -322,12 +326,12 @@ export function countDoneSuggestionsSince(opts: {
   kind: ForYouKind;
   sinceIso: string;
 }): number {
-  const row = getPlatformDb()
+  const row = objectValue(getPlatformDb()
     .prepare(
       `SELECT COUNT(*) AS n FROM for_you_suggestions
         WHERE user_id = ? AND kind = ? AND status = 'done' AND acted_at >= ?`,
     )
-    .get(opts.userId, opts.kind, opts.sinceIso) as { n: number };
+    .get(opts.userId, opts.kind, opts.sinceIso));
   return Number(row.n) || 0;
 }
 
@@ -342,10 +346,12 @@ export function listDonePostActedAtSince(
           AND acted_at >= ?
         ORDER BY acted_at DESC LIMIT 2000`,
     )
-    .all(userId, sinceIso) as Array<{
-    tweetId: string | null;
-    actedAt: string;
-  }>;
+    .all(userId, sinceIso).map((row) => {
+      if (!hasStrings(row, "actedAt") || !hasNullableStrings(row, "tweetId")) {
+        throw new TypeError("Invalid completed suggestion row");
+      }
+      return row;
+    });
   return rows;
 }
 
@@ -381,8 +387,8 @@ export function markSuggestion(opts: {
     }
     const row = db
       .prepare(`SELECT * FROM for_you_suggestions WHERE id = ?`)
-      .get(opts.id) as Record<string, unknown> | undefined;
-    return row ? mapRow(row) : null;
+      .get(opts.id);
+    return isRecord(row) ? mapRow(row) : null;
   })();
   if (mapped && opts.status === "skipped") {
     suppressMatchingSuggestions({
@@ -407,7 +413,7 @@ export function suppressMatchingSuggestions(opts: {
       `SELECT * FROM for_you_suggestions
        WHERE user_id = ? AND status = 'suggested' AND expires_at > ? AND id != ?`,
     )
-    .all(opts.userId, now, opts.seed.id) as Array<Record<string, unknown>>;
+    .all(opts.userId, now, opts.seed.id).map(objectValue);
   let changed = 0;
   const update = getPlatformDb().prepare(
     `UPDATE for_you_suggestions

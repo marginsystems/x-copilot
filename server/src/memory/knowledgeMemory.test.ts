@@ -43,16 +43,16 @@ async function writeLegacyNote(
   return path;
 }
 
-describe("safeThreadIdForFilename", () => {
-  it("keeps alphanumerics and strips junk (legacy reader only)", () => {
+await describe("safeThreadIdForFilename", async () => {
+  await it("keeps alphanumerics and strips junk (legacy reader only)", () => {
     assert.equal(safeThreadIdForFilename("2081314968155111817"), "2081314968155111817");
     assert.equal(safeThreadIdForFilename("../evil/id!!"), "evil_id");
     assert.equal(safeThreadIdForFilename("   "), "unknown");
   });
 });
 
-describe("normalizeReply / renderInteractionMarkdown", () => {
-  it("renders discovered source", () => {
+await describe("normalizeReply / renderInteractionMarkdown", async () => {
+  await it("renders discovered source", () => {
     const md = renderInteractionMarkdown({
       threadId: "t1",
       author: "@A",
@@ -64,7 +64,7 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     assert.match(md, /userId: "user-1"/);
   });
 
-  it("rejects empty reply", () => {
+  await it("rejects empty reply", () => {
     assert.equal(normalizeReply("  \n\t "), "");
     assert.throws(
       () =>
@@ -78,7 +78,7 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     );
   });
 
-  it("rejects a blank owner", () => {
+  await it("rejects a blank owner", () => {
     assert.throws(
       () =>
         renderInteractionMarkdown({
@@ -101,7 +101,7 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     );
   });
 
-  it("parses threadId, owner and Reply out of a rendered note", async () => {
+  await it("parses threadId, owner and Reply out of a rendered note", async () => {
     const md = renderInteractionMarkdown({
       threadId: "2081",
       author: "@Builder",
@@ -117,7 +117,7 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     });
   });
 
-  it("round-trips a multi-line Reply body", () => {
+  await it("round-trips a multi-line Reply body", () => {
     const md = renderInteractionMarkdown({
       threadId: "2081",
       author: "@Builder",
@@ -128,7 +128,7 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     assert.equal(parseInteractionNoteReply(md)?.text, "Line one\nLine two");
   });
 
-  it("includes threadId and reply in markdown", () => {
+  await it("includes threadId and reply in markdown", () => {
     const md = renderInteractionMarkdown({
       threadId: "2081",
       author: "@Builder",
@@ -149,7 +149,7 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     assert.match(md, /authorKey: "builder"/);
   });
 
-  it("keeps raw Post separate from Summary when both set", () => {
+  await it("keeps raw Post separate from Summary when both set", () => {
     const md = renderInteractionMarkdown({
       threadId: "2081",
       author: "@Builder",
@@ -170,7 +170,7 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
     assert.doesNotMatch(postSection, /Claiming someone can help Google/);
   });
 
-  it("includes OP section for reply cards", () => {
+  await it("includes OP section for reply cards", () => {
     const md = renderInteractionMarkdown({
       threadId: "99",
       author: "@replier",
@@ -188,8 +188,8 @@ describe("normalizeReply / renderInteractionMarkdown", () => {
   });
 });
 
-describe("buildInteractionNotePath", () => {
-  it("uses UTC date, hashed owner and collision-safe thread key under knowledge/interactions", () => {
+await describe("buildInteractionNotePath", async () => {
+  await it("uses UTC date, hashed owner and collision-safe thread key under knowledge/interactions", () => {
     const path = buildInteractionNotePath({
       userId: "user-1",
       threadId: "abc/def",
@@ -212,7 +212,7 @@ describe("buildInteractionNotePath", () => {
   });
 });
 
-describe("writeInteractionMemory", () => {
+await describe("writeInteractionMemory", async () => {
   let root: string;
 
   beforeEach(async () => {
@@ -223,7 +223,7 @@ describe("writeInteractionMemory", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it("writes a file containing threadId, owner and reply", async () => {
+  await it("writes a file containing threadId, owner and reply", async () => {
     const { path } = await writeInteractionMemory({
       threadId: "99",
       author: "@A",
@@ -242,7 +242,7 @@ describe("writeInteractionMemory", () => {
     assert.match(body, /Original post/);
   });
 
-  it("rejects a blank owner without writing", async () => {
+  await it("rejects a blank owner without writing", async () => {
     await assert.rejects(
       writeInteractionMemory({
         threadId: "99",
@@ -256,7 +256,7 @@ describe("writeInteractionMemory", () => {
     await assert.rejects(readdir(join(root, "interactions")), /ENOENT/);
   });
 
-  it("lets two owners save the same thread and date independently", async () => {
+  await it("lets two owners save the same thread and date independently", async () => {
     const a = await writeInteractionMemory({
       threadId: "2081",
       author: "@A",
@@ -280,7 +280,7 @@ describe("writeInteractionMemory", () => {
     assert.equal(names.length, 2);
   });
 
-  it("adopts a verified legacy note without deleting the original", async () => {
+  await it("adopts a verified legacy note without deleting the original", async () => {
     const legacy = await writeLegacyNote(root, "2026-07-27-99.md", {
       threadId: "99",
       userId: "user-1",
@@ -307,7 +307,7 @@ describe("writeInteractionMemory", () => {
     assert.equal(await readFile(legacy, "utf8"), legacyBefore);
   });
 
-  it("starts a fresh note across an action-date boundary", async () => {
+  await it("starts a fresh note across an action-date boundary", async () => {
     const legacy = await writeLegacyNote(root, "2026-07-26-99.md", {
       threadId: "99",
       userId: "user-1",
@@ -330,7 +330,7 @@ describe("writeInteractionMemory", () => {
     assert.doesNotMatch(body, /views24h: 9/);
   });
 
-  it("does not adopt an unowned legacy note on the same thread and date", async () => {
+  await it("does not adopt an unowned legacy note on the same thread and date", async () => {
     const legacy = await writeLegacyNote(root, "2026-07-27-99.md", {
       threadId: "99",
       interactedAt: "2026-07-27T01:02:03.000Z",
@@ -349,7 +349,7 @@ describe("writeInteractionMemory", () => {
     assert.match(await readFile(legacy, "utf8"), /unowned legacy reply/);
   });
 
-  it("keeps one canonical note for a second same-day reply and labels it with that reply", async () => {
+  await it("keeps one canonical note for a second same-day reply and labels it with that reply", async () => {
     const interactedAt = "2026-07-27T01:02:03.000Z";
     const first = await writeInteractionMemory({
       threadId: "2081",
@@ -404,7 +404,7 @@ describe("writeInteractionMemory", () => {
     assert.equal((body.match(/## Reply/g) ?? []).length, 1);
   });
 
-  it("labels a curated Reply with a discovered reply id only when the text matches", async () => {
+  await it("labels a curated Reply with a discovered reply id only when the text matches", async () => {
     const interactedAt = "2026-07-27T01:02:03.000Z";
     const write = (reply: string, replyId: string, source: "manual" | "discovered") =>
       writeInteractionMemory({
@@ -470,8 +470,8 @@ describe("writeInteractionMemory", () => {
   });
 });
 
-describe("buildDismissalNotePath / writeDismissalMemory", () => {
-  it("paths under knowledge/dismissals with an owner component", () => {
+await describe("buildDismissalNotePath / writeDismissalMemory", async () => {
+  await it("paths under knowledge/dismissals with an owner component", () => {
     assert.equal(
       buildDismissalNotePath({
         userId: "user-1",
@@ -492,7 +492,7 @@ describe("buildDismissalNotePath / writeDismissalMemory", () => {
     );
   });
 
-  it("renders dismissal markdown with owner, raw Post, Summary, Reason, and OP", () => {
+  await it("renders dismissal markdown with owner, raw Post, Summary, Reason, and OP", () => {
     const md = renderDismissalMarkdown({
       threadId: "42",
       author: "@x",
@@ -519,7 +519,7 @@ describe("buildDismissalNotePath / writeDismissalMemory", () => {
     );
   });
 
-  it("writes dismissal note without reason defaults to (none)", async () => {
+  await it("writes dismissal note without reason defaults to (none)", async () => {
     const root = await mkdtemp(join(tmpdir(), "x-copilot-dismiss-mem-"));
     try {
       const { path } = await writeDismissalMemory({
@@ -547,8 +547,8 @@ describe("buildDismissalNotePath / writeDismissalMemory", () => {
   });
 });
 
-describe("formatOutcomeSection / upsertOutcomeSection", () => {
-  it("formats 1h and 24h lines", () => {
+await describe("formatOutcomeSection / upsertOutcomeSection", async () => {
+  await it("formats 1h and 24h lines", () => {
     const body = formatOutcomeSection({
       t1h: { views: 100, likes: 4, replies: 1, retweets: 0, sampledAt: "2026-08-01T12:00:00.000Z" },
       t24h: { views: 420, likes: 12, replies: 3, retweets: 1, sampledAt: "2026-08-02T12:00:00.000Z" },
@@ -557,7 +557,7 @@ describe("formatOutcomeSection / upsertOutcomeSection", () => {
     assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
   });
 
-  it("replaces Outcome without touching other sections", () => {
+  await it("replaces Outcome without touching other sections", () => {
     const body = `## Post\n\nHello\n\n## Outcome\n\nold\n\n## Reply\n\nYo\n`;
     const next = upsertOutcomeSection(body, "1h: 10 views · 0 likes · 0 replies · 0 reposts");
     assert.match(next, /## Post\n\nHello/);
@@ -566,7 +566,7 @@ describe("formatOutcomeSection / upsertOutcomeSection", () => {
     assert.doesNotMatch(next, /\nold\n/);
   });
 
-  it("replaces Outcome when heading is last line or content spans multiple lines", () => {
+  await it("replaces Outcome when heading is last line or content spans multiple lines", () => {
     const bare = upsertOutcomeSection(
       "## Post\n\nHello\n\n## Outcome",
       "1h: 10 views · 0 likes · 0 replies · 0 reposts",
@@ -584,7 +584,7 @@ describe("formatOutcomeSection / upsertOutcomeSection", () => {
     assert.doesNotMatch(multi, /24h: 420 views/);
   });
 
-  it("strips managed frontmatter keys only", () => {
+  await it("strips managed frontmatter keys only", () => {
     const fm = `type: interaction\nthreadId: "1"\nviews1h: 9\ncustomNote: keep\nsampledAt24h: "x"`;
     const kept = stripManagedOutcomeFrontmatter(fm);
     assert.match(kept, /type: interaction/);
@@ -594,7 +594,7 @@ describe("formatOutcomeSection / upsertOutcomeSection", () => {
   });
 });
 
-describe("updateInteractionMemoryOutcome", () => {
+await describe("updateInteractionMemoryOutcome", async () => {
   let root: string;
   const userId = "user-1";
   const interactedAt = "2026-07-27T01:02:03.000Z";
@@ -634,7 +634,7 @@ describe("updateInteractionMemoryOutcome", () => {
     sampledAt: "2026-07-28T01:02:03.000Z",
   };
 
-  it("soft-fails when note is missing", async () => {
+  await it("soft-fails when note is missing", async () => {
     const result = await updateInteractionMemoryOutcome({
       interaction: baseInteraction({ stats: { t1h } }),
       knowledgeRoot: root,
@@ -644,7 +644,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.match(result.error, /not found/);
   });
 
-  it("soft-fails for an interaction without an owner", async () => {
+  await it("soft-fails for an interaction without an owner", async () => {
     await writeInteractionMemory({
       threadId: "99",
       author: "@A",
@@ -662,7 +662,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.match(result.error, /no owner/);
   });
 
-  it("writes t1h-only Outcome and frontmatter", async () => {
+  await it("writes t1h-only Outcome and frontmatter", async () => {
     await writeInteractionMemory({
       threadId: "99",
       author: "@A",
@@ -693,7 +693,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /views24h/);
   });
 
-  it("locates outcomes by postedAt when it crosses a UTC date boundary", async () => {
+  await it("locates outcomes by postedAt when it crosses a UTC date boundary", async () => {
     const at = "2026-07-27T23:59:00.000Z";
     const postedAt = "2026-07-28T00:01:00.000Z";
     await writeInteractionMemory({
@@ -730,7 +730,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /Earlier reply/);
   });
 
-  it("never updates another owner's note for the same thread and date", async () => {
+  await it("never updates another owner's note for the same thread and date", async () => {
     const foreign = await writeInteractionMemory({
       threadId: "99",
       author: "@A",
@@ -747,7 +747,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(await readFile(foreign.path, "utf8"), /views1h/);
   });
 
-  it("keeps t1h when writing t24h and is idempotent", async () => {
+  await it("keeps t1h when writing t24h and is idempotent", async () => {
     const input = {
       threadId: "99",
       author: "@A",
@@ -791,7 +791,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.match(body, /24h: 420 views · 12 likes · 3 replies · 1 repost/);
   });
 
-  it("preserves curated context and both checkpoints across repeated same-user projections", async () => {
+  await it("preserves curated context and both checkpoints across repeated same-user projections", async () => {
     const input = {
       threadId: "100",
       author: "@A",
@@ -851,7 +851,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /Fresh search result/);
   });
 
-  it("updates a manually written note when it is written again manually", async () => {
+  await it("updates a manually written note when it is written again manually", async () => {
     const input = {
       threadId: "101",
       author: "@A",
@@ -890,7 +890,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /First reply/);
   });
 
-  it("does not overwrite an interaction note planted at another owner's path", async () => {
+  await it("does not overwrite an interaction note planted at another owner's path", async () => {
     // Same filename can only mean a hand-edited or planted file; metadata wins.
     const path = buildInteractionNotePath({
       userId: "user-2",
@@ -922,7 +922,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /Second user's reply/);
   });
 
-  it("removes omitted fields when a manual note is rewritten", async () => {
+  await it("removes omitted fields when a manual note is rewritten", async () => {
     const input = {
       threadId: "103",
       author: "@A",
@@ -947,7 +947,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /url:/);
   });
 
-  it("keeps manual content after replacing a discovered note", async () => {
+  await it("keeps manual content after replacing a discovered note", async () => {
     const input = {
       threadId: "102",
       author: "@A",
@@ -982,7 +982,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.doesNotMatch(body, /Refreshed reply/);
   });
 
-  it("keeps the earlier checkpoint when a later tick writes only the other", async () => {
+  await it("keeps the earlier checkpoint when a later tick writes only the other", async () => {
     await writeInteractionMemory({
       threadId: "99",
       author: "@A",
@@ -1013,7 +1013,7 @@ describe("updateInteractionMemoryOutcome", () => {
     assert.equal((body.match(/## Outcome/g) ?? []).length, 1);
   });
 
-  it("adopts a verified legacy note found via suffix fallback into the canonical path", async () => {
+  await it("adopts a verified legacy note found via suffix fallback into the canonical path", async () => {
     const legacy = await writeLegacyNote(root, "2026-07-26-99.md", {
       threadId: "99",
       userId,
@@ -1047,7 +1047,7 @@ describe("updateInteractionMemoryOutcome", () => {
     );
   });
 
-  it("ignores unowned legacy notes and stays unavailable when candidates are ambiguous", async () => {
+  await it("ignores unowned legacy notes and stays unavailable when candidates are ambiguous", async () => {
     await writeLegacyNote(root, "2026-07-26-99.md", {
       threadId: "99",
       interactedAt: "2026-07-26T23:00:00.000Z",
@@ -1082,7 +1082,7 @@ describe("updateInteractionMemoryOutcome", () => {
     );
   });
 
-  it("fallback prefers a note whose interactedAt matches interaction.at", async () => {
+  await it("fallback prefers a note whose interactedAt matches interaction.at", async () => {
     await writeInteractionMemory({
       threadId: "99",
       author: "@A",
@@ -1108,7 +1108,7 @@ describe("updateInteractionMemoryOutcome", () => {
   });
 });
 
-describe("listInteractionMemoryReplies", () => {
+await describe("listInteractionMemoryReplies", async () => {
   let root: string;
 
   beforeEach(async () => {
@@ -1119,7 +1119,7 @@ describe("listInteractionMemoryReplies", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it("only returns notes owned by the requested userId", async () => {
+  await it("only returns notes owned by the requested userId", async () => {
     await writeInteractionMemory({
       threadId: "111",
       author: "@A",
@@ -1143,7 +1143,7 @@ describe("listInteractionMemoryReplies", () => {
     assert.deepEqual(forB.map((n) => n.text), ["B's reply"]);
   });
 
-  it("skips unowned notes so they never leak into a user's corpus", async () => {
+  await it("skips unowned notes so they never leak into a user's corpus", async () => {
     await writeLegacyNote(root, "2026-07-27-111.md", {
       threadId: "111",
       interactedAt: "2026-07-27T01:02:03.000Z",
@@ -1153,7 +1153,7 @@ describe("listInteractionMemoryReplies", () => {
     assert.equal(rows.length, 0);
   });
 
-  it("folds unowned notes when the caller opts in (single-user sidecar)", async () => {
+  await it("folds unowned notes when the caller opts in (single-user sidecar)", async () => {
     await writeLegacyNote(root, "2026-07-27-111.md", {
       threadId: "111",
       interactedAt: "2026-07-27T01:02:03.000Z",
@@ -1168,7 +1168,7 @@ describe("listInteractionMemoryReplies", () => {
     assert.equal(rows[0]?.text, "pre-PR reply");
   });
 
-  it("still keeps another user's notes out even with includeUnowned", async () => {
+  await it("still keeps another user's notes out even with includeUnowned", async () => {
     await writeInteractionMemory({
       threadId: "111",
       author: "@B",
@@ -1185,7 +1185,7 @@ describe("listInteractionMemoryReplies", () => {
     assert.deepEqual(rows.map((n) => n.text), []);
   });
 
-  it("returns one entry per migrated legacy note and excludes conflicting owners", async () => {
+  await it("returns one entry per migrated legacy note and excludes conflicting owners", async () => {
     await writeLegacyNote(root, "2026-07-27-111.md", {
       threadId: "111",
       userId: "user-a",

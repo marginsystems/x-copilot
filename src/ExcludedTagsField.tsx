@@ -166,7 +166,7 @@ export function ExcludedTagsField({ tags, onChange }: Props) {
       <details
         className="excluded-tags-vocab"
         open={vocabOpen}
-        onToggle={(e) => setVocabOpen((e.target as HTMLDetailsElement).open)}
+        onToggle={(e) => setVocabOpen(e.currentTarget.open)}
       >
         <summary>Available tags to exclude</summary>
         <div className="excluded-tags-vocab-list">

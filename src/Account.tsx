@@ -139,7 +139,7 @@ export function Account(props: {
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal);
+    load(controller.signal).catch((err) => setError(err instanceof Error ? err.message : String(err)));
     return () => controller.abort();
   }, []);
 
@@ -221,7 +221,7 @@ export function Account(props: {
       <div className="settings-head">
         <h2>Account</h2>
         <div className="account-head-actions">
-          <button type="button" className="ghost" disabled={busy} onClick={() => void load()}>
+          <button type="button" className="ghost" disabled={busy} onClick={() => { load().catch((err) => setError(err instanceof Error ? err.message : String(err))); }}>
             {busy ? "Loading…" : "Refresh"}
           </button>
           <button type="button" className="ghost" onClick={props.onBack}>
@@ -309,9 +309,9 @@ export function Account(props: {
                 type="checkbox"
                 checked={digestEmailOptIn}
                 disabled={busy || savingDigestEmail}
-                onChange={(event) =>
-                  void updateDigestEmail(event.currentTarget.checked)
-                }
+                onChange={(event) => {
+                  updateDigestEmail(event.currentTarget.checked).catch((err) => setError(err instanceof Error ? err.message : String(err)));
+                }}
               />
               <span aria-live="polite">
                 {savingDigestEmail ? "Saving…" : digestEmailOptIn ? "On" : "Off"}
@@ -358,7 +358,7 @@ export function Account(props: {
                         type="button"
                         className="ghost"
                         disabled={acting}
-                        onClick={() => void revokeOne(row.id)}
+                        onClick={() => { revokeOne(row.id).catch((err) => setError(err instanceof Error ? err.message : String(err))); }}
                       >
                         Confirm
                       </button>
@@ -400,7 +400,7 @@ export function Account(props: {
                 type="button"
                 className="ghost"
                 disabled={acting}
-                onClick={() => void revokeOthers()}
+                onClick={() => { revokeOthers().catch((err) => setError(err instanceof Error ? err.message : String(err))); }}
               >
                 Confirm
               </button>

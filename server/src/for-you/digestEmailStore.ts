@@ -1,6 +1,7 @@
 /**
  * Durable opt-in and once-per-UTC-day delivery state for Approach email.
  */
+import { hasNullableStrings, objectValue } from "../platform/unknownValue.js";
 import { getPlatformDb } from "../db.js";
 import { startOfUtcDayIso } from "../desk/ownPostStore.js";
 
@@ -11,17 +12,18 @@ export type DigestEmailSettings = {
   sentAt: string | null;
 };
 
-type DigestEmailRow = {
-  email: string | null;
-  digest_email_opt_in: number;
-  digest_email_opt_in_at: string | null;
-  digest_email_sent_at: string | null;
-};
-
-function mapSettings(row: DigestEmailRow): DigestEmailSettings {
+function mapSettings(value: unknown): DigestEmailSettings {
+  const optedIn = objectValue(value).digest_email_opt_in;
+  if (
+    !hasNullableStrings(value, "email", "digest_email_opt_in_at", "digest_email_sent_at") ||
+    typeof optedIn !== "number"
+  ) {
+    throw new TypeError("Invalid digest email row");
+  }
+  const row = value;
   return {
     email: row.email,
-    optedIn: row.digest_email_opt_in === 1,
+    optedIn: optedIn === 1,
     optedInAt: row.digest_email_opt_in_at,
     sentAt: row.digest_email_sent_at,
   };
@@ -37,7 +39,7 @@ export function getDigestEmailSettings(
        FROM users
        WHERE id = ?`,
     )
-    .get(userId) as DigestEmailRow | undefined;
+    .get(userId);
   return row ? mapSettings(row) : null;
 }
 

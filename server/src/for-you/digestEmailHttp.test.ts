@@ -1,10 +1,11 @@
+import { objectValue } from "../platform/unknownValue.js";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PassThrough } from "node:stream";
 import {
   defaultMigrationsDir,
   getPlatformDb,
@@ -28,7 +29,7 @@ async function call(opts: {
 }): Promise<{ status: number; raw: string; body: Record<string, unknown> }> {
   let status = 0;
   let raw = "";
-  const req = new PassThrough() as unknown as IncomingMessage;
+  const req = new IncomingMessage(new Socket());
   req.method = opts.method;
   req.headers = {};
   if (opts.token) {
@@ -38,7 +39,7 @@ async function call(opts: {
   Object.defineProperty(req, "socket", {
     value: { remoteAddress: "127.0.0.1" },
   });
-  const res = {
+  const res = Object.assign(new ServerResponse(req), {
     writeHead(code: number) {
       status = code;
       return this;
@@ -47,24 +48,27 @@ async function call(opts: {
       raw = chunk ?? "";
       return this;
     },
-  } as unknown as ServerResponse;
+  });
   const handled = tryHandleDigestEmail(
     req,
     res,
     new URL(`http://localhost${opts.path}`),
   );
   if (opts.body === undefined) {
-    (req as unknown as PassThrough).end();
+    queueMicrotask(() => req.emit("end"));
   } else {
-    (req as unknown as PassThrough).end(JSON.stringify(opts.body));
+    queueMicrotask(() => {
+      req.emit("data", Buffer.from(JSON.stringify(opts.body)));
+      req.emit("end");
+    });
   }
   assert.equal(await handled, true);
   let body: Record<string, unknown> = {};
-  if (raw.startsWith("{")) body = JSON.parse(raw) as Record<string, unknown>;
+  if (raw.startsWith("{")) body = objectValue(JSON.parse(raw));
   return { status, raw, body };
 }
 
-describe("digest email HTTP", () => {
+await describe("digest email HTTP", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -84,7 +88,7 @@ describe("digest email HTTP", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("requires a session and allowed origin for preference changes", async () => {
+  await it("requires a session and allowed origin for preference changes", async () => {
     const missing = await call({
       method: "PATCH",
       path: "/api/mail/preferences",
@@ -110,7 +114,7 @@ describe("digest email HTTP", () => {
     assert.equal(foreign.status, 403);
   });
 
-  it("opts a verified Google email in and X-only accounts out", async () => {
+  await it("opts a verified Google email in and X-only accounts out", async () => {
     const google = upsertOauthUser({
       provider: "google",
       providerUserId: "reader-google",
@@ -146,7 +150,7 @@ describe("digest email HTTP", () => {
     assert.equal(rejected.body.error, "verified_email_required");
   });
 
-  it("requires confirmation before a signed public link unsubscribes", async () => {
+  await it("requires confirmation before a signed public link unsubscribes", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "unsubscribe-google",
