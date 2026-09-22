@@ -5,7 +5,7 @@ import { SESSION_RESET_KEY, SessionBoundary, useSession } from "../../src/auth/s
 import { useDeskBoot } from "../../src/desk/useDeskBoot";
 import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { useScoutRun } from "../../src/desk/useScoutRun";
-import { parseDeskBoot, peekDeskBootCache } from "../../src/lib/deskBoot";
+import { parseDeskBoot, peekDeskBootCache, type DeskBootDeskPatch } from "../../src/lib/deskBoot";
 import { DEFAULT_SETTINGS } from "../../src/lib/settings";
 import { deferred } from "./support/deferred";
 
@@ -19,7 +19,7 @@ const threadCard = (id: string) => ({ id, author: "@author", text: "text", url: 
 afterEach(() => window.history.replaceState({}, "", "/"));
 
 function mountBoot(strict = false) {
-  const applyDesk = vi.fn();
+  const applyDesk = vi.fn<(desk: DeskBootDeskPatch) => void>();
   const followup = vi.fn(async () => {});
   const familiarity = vi.fn(async () => {});
   const notice = vi.fn();
@@ -51,10 +51,10 @@ test("StrictMode cancels the first boot and preserves checkout for the replay", 
   window.history.replaceState({}, "", "/?checkout=success&session_id=checkout-id");
   const first = deferred<Response>();
   const second = deferred<Response>();
-  const fetcher = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+  const fetcher = vi.fn<typeof fetch>().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
   vi.stubGlobal("fetch", fetcher);
   const h = mountBoot(true);
-  expect(fetcher.mock.calls[0][1].signal.aborted).toBe(true);
+  expect(fetcher.mock.calls[0][1]?.signal?.aborted).toBe(true);
   await act(async () => { first.resolve(Response.json(boot)); });
   expect(h.applyDesk).not.toHaveBeenCalled();
   expect(h.followup).not.toHaveBeenCalled();
@@ -68,12 +68,12 @@ test("StrictMode cancels the first boot and preserves checkout for the replay", 
 test("logout aborts boot and a late response cannot cache or confirm checkout", async () => {
   window.history.replaceState({}, "", "/?checkout=success&session_id=id");
   const pending = deferred<Response>();
-  const fetcher = vi.fn(() => pending.promise);
+  const fetcher = vi.fn<typeof fetch>(() => pending.promise);
   vi.stubGlobal("fetch", fetcher);
   const h = mountBoot();
-  const signal = (fetcher.mock.calls as unknown as [string, RequestInit][])[0][1].signal!;
+  const signal = fetcher.mock.calls[0][1]?.signal;
   act(() => { h.result.current.session.invalidate(); });
-  expect(signal.aborted).toBe(true);
+  expect(signal?.aborted).toBe(true);
   await act(async () => { pending.resolve(Response.json(boot)); });
   expect(h.applyDesk).not.toHaveBeenCalled();
   expect(h.followup).not.toHaveBeenCalled();
@@ -158,19 +158,21 @@ function mountPoll(enabled = true) {
 test.each(["disable", "logout", "unmount"])("poll %s aborts response-body work and stops scheduling", async (action) => {
   vi.useFakeTimers();
   const body = deferred<unknown>();
-  const fetcher = vi.fn(async () => ({ ok: true, status: 200, json: () => body.promise }));
+  const pendingResponse = new Response();
+  vi.spyOn(pendingResponse, "json").mockImplementation(() => body.promise);
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(pendingResponse);
   vi.stubGlobal("fetch", fetcher);
   const h = mountPoll(false);
   act(() => h.result.current.applyLastScoutFromBoot({ ok: true, empty: true }));
   expect(fetcher).not.toHaveBeenCalled();
   h.rerender({ enabled: true });
   await act(async () => {});
-  const signal = (fetcher.mock.calls as unknown as [string, RequestInit][])[0][1].signal!;
+  const signal = fetcher.mock.calls[0][1]?.signal;
   h.setThreads.mockClear();
   if (action === "disable") h.rerender({ enabled: false });
   else if (action === "logout") act(() => { h.result.current.session.invalidate(); });
   else h.unmount();
-  expect(signal.aborted).toBe(true);
+  expect(signal?.aborted).toBe(true);
   await act(async () => { body.resolve({ ok: true, empty: true }); vi.advanceTimersByTime(16000); });
   expect(h.setThreads).not.toHaveBeenCalled();
   expect(fetcher).toHaveBeenCalledTimes(1);
@@ -190,7 +192,7 @@ test("poll 401 expires the session and stops autoStart requests", async () => {
 
 test("invalid empty snapshots still apply flight state and start polling", async () => {
   vi.useFakeTimers();
-  const fetcher = vi.fn(async () => ({ ok: true, status: 200, json: () => ({ ok: true, empty: true }) }));
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ ok: true, empty: true }));
   vi.stubGlobal("fetch", fetcher);
   const h = mountPoll(false);
   act(() => h.result.current.applyLastScoutFromBoot({
@@ -264,7 +266,7 @@ test("fallback commits one complete desk without starting collection", async () 
   await act(async () => {});
   expect(h.result.current.deskBootReady).toBe(true);
   expect(h.applyDesk).toHaveBeenCalledTimes(1);
-  expect(h.applyDesk.mock.calls[0][0].interacted.activeIds).toEqual(["hidden"]);
+  expect(h.applyDesk.mock.calls[0][0].interacted?.activeIds).toEqual(["hidden"]);
   expect(fetcher.mock.calls.some(([url]) => url.includes("autoStart=0"))).toBe(true);
   expect(fetcher.mock.calls.some(([url]) => url.includes("autoStart=1"))).toBe(false);
 });
@@ -347,7 +349,7 @@ test("fallback keeps history when one later slice is down", async () => {
   await act(async () => {});
   expect(h.result.current.deskBootReady).toBe(true);
   expect(h.applyDesk).toHaveBeenCalledTimes(1);
-  expect(h.applyDesk.mock.calls[0][0].interacted.activeIds).toEqual(["kept"]);
+  expect(h.applyDesk.mock.calls[0][0].interacted?.activeIds).toEqual(["kept"]);
   expect(h.applyDesk.mock.calls[0][0].gamification).toBeUndefined();
   expect(h.applyDesk.mock.calls[0][0].activityStats).toBeUndefined();
   expect(h.applyDesk.mock.calls[0][0].coaching).toBeUndefined();
@@ -422,7 +424,7 @@ test.each([404, 500, "malformed"] as const)("fallback profile %s does not block 
   expect(h.result.current.deskBootReady).toBe(true);
   expect(h.applyDesk).toHaveBeenCalledTimes(1);
   const applied = h.applyDesk.mock.calls[0][0];
-  expect(applied.interacted.activeIds).toEqual(["kept"]);
+  expect(applied.interacted?.activeIds).toEqual(["kept"]);
   if (outcome === "malformed") expect(applied.scoutFamiliarity).toBeNull();
   else expect("scoutFamiliarity" in applied).toBe(false);
   expect(h.familiarity).not.toHaveBeenCalled();

@@ -12,7 +12,7 @@ const thread = {
 };
 
 test("typing a dismissal reason and confirming uses current state and respects busy", async () => {
-  const onConfirm = vi.fn();
+  const onConfirm = vi.fn<(reason: string) => void>();
   const onClose = vi.fn();
   function Form({ busy }: { busy: boolean }) {
     const [reason, setReason] = useState("");

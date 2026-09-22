@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { SuggestPane } from "../../src/SuggestPane";
 import { createSession, SessionContext } from "../../src/auth/session";
+import { isRecord } from "../../src/lib/typeGuards";
 import { deferred } from "./support/deferred";
 
 const usage = { used: 0, limit: 10, remaining: 10, canSuggest: true, planKey: "free" };
@@ -13,7 +14,9 @@ function setup(compose = false) {
   const requests: { url: string; body: Record<string, unknown>; pending: ReturnType<typeof deferred<Response>> }[] = [];
   vi.stubGlobal("fetch", vi.fn((url: string, init: RequestInit) => {
     const pending = deferred<Response>();
-    requests.push({ url, body: JSON.parse(String(init.body)), pending });
+    const body: unknown = JSON.parse(String(init.body));
+    if (!isRecord(body) || Array.isArray(body)) throw new Error("Expected a request object");
+    requests.push({ url, body, pending });
     return pending.promise;
   }));
   const session = createSession();

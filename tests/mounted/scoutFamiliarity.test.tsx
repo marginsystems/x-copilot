@@ -1,6 +1,7 @@
 import { StrictMode, type ReactNode } from "react";
 import { act, render, renderHook, screen } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
+import type { AuthSessionUser } from "../../src/auth/types";
 import { SessionBoundary, useSession } from "../../src/auth/session";
 import { ScoutFamiliarity } from "../../src/desk/ScoutFamiliarity";
 import { useScoutFamiliarity } from "../../src/desk/useScoutFamiliarity";
@@ -11,6 +12,7 @@ import {
   writeDeskBootCache,
 } from "../../src/lib/deskBoot";
 import type { ScoutFamiliarity as Familiarity } from "../../src/lib/scoutFamiliarity";
+import { authUser } from "./support/authUser";
 import { deferred } from "./support/deferred";
 
 const EMPTY: Familiarity = {
@@ -46,8 +48,8 @@ const HINTS: Familiarity = {
   lastLearned: { at: "2026-09-20T10:00:03.000Z", action: "take", threadKind: null },
 };
 
-const userA = { id: "owner-a", onboardingCompleted: true };
-const userB = { id: "owner-b", onboardingCompleted: true };
+const userA = authUser("owner-a");
+const userB = authUser("owner-b");
 const bootFor = (user: { id: string }, scoutFamiliarity?: Familiarity | null) =>
   parseDeskBoot({ ok: true, user, desk: scoutFamiliarity === undefined ? {} : { scoutFamiliarity } })!;
 const profile = (scoutFamiliarity: Familiarity | null) => Response.json({ ok: true, scoutFamiliarity });
@@ -137,7 +139,7 @@ function wrapper({ children }: { children: ReactNode }) {
   return <StrictMode><SessionBoundary>{children}</SessionBoundary></StrictMode>;
 }
 
-function mount(owner: { id: string } | null = userA) {
+function mount(owner: AuthSessionUser | null = userA) {
   const hook = renderHook(() => {
     const session = useSession();
     const verified = session.getSnapshot().user?.id ?? null;
@@ -146,7 +148,7 @@ function mount(owner: { id: string } | null = userA) {
   if (owner) {
     act(() => {
       const generation = hook.result.current.session.capture();
-      hook.result.current.session.verify(owner as never, true, generation);
+      hook.result.current.session.verify(owner, true, generation);
     });
   }
   return hook;
@@ -287,7 +289,7 @@ test("switching from A to B during a refresh never exposes or caches A under B",
   act(() => { refresh = old.hydrateScoutFamiliarity(); });
   act(() => {
     const generation = old.session.capture();
-    old.session.verify(userB as never, true, generation);
+    old.session.verify(userB, true, generation);
   });
   expect(result.current.session.getSnapshot().user?.id).toBe(userB.id);
   expect(result.current.scoutFamiliarity).toBeNull();
@@ -304,7 +306,7 @@ test("A's persisted cache stays hidden while B verifies and after B is verified"
   expect(result.current.scoutFamiliarity).toBeNull();
   act(() => {
     const generation = result.current.session.capture();
-    result.current.session.verify(userB as never, true, generation);
+    result.current.session.verify(userB, true, generation);
   });
   expect(result.current.scoutFamiliarity).toBeNull();
   act(() => result.current.applyScoutFamiliarityFromBoot({ scoutFamiliarity: LEARNING }));
