@@ -145,4 +145,13 @@ await describe("httpJson send", async () => {
     assert.equal(headers["Content-Type"], "application/json");
     assert.equal(headers["Set-Cookie"], "sid=x; Path=/");
   });
+
+  await it("captures empty and binary response bodies", () => {
+    const req = testRequest();
+    const { res, captured } = testResponse(req);
+    res.end();
+    assert.equal(captured.raw, "");
+    res.end(Buffer.from("binary"));
+    assert.equal(captured.raw, "binary");
+  });
 });

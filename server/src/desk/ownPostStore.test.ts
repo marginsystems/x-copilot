@@ -457,6 +457,28 @@ describe("ownPostStore", () => {
     assert.equal(row.posted_at, "not-a-real-timestamp");
   });
 
+  it("rejects non-string posted_at rows during backfill", () => {
+    const db = getPlatformDb();
+    db.prepare(
+      `INSERT INTO own_posts (
+         id, user_id, tenant_id, x_user_id, kind, text, posted_at, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      "binary-posted-at",
+      "u",
+      "t",
+      "99",
+      "original",
+      "garbled",
+      Buffer.from("2026-08-01T00:00:00.000Z"),
+      "2026-08-01T00:00:00.000Z",
+    );
+    assert.throws(() => backfillOwnPostPostedAt(db), {
+      name: "TypeError",
+      message: "Invalid database row",
+    });
+  });
+
   it("keeps a correct stored posted_at and only repairs non-ISO values on re-ingest", () => {
     // A re-ingest must not clobber a good ISO timestamp with a fallback "now"
     // (parsePostCreateEvent / replyToOwnPost emit `now` when created_at is unknown).

@@ -25,8 +25,7 @@ export function testResponse(req: IncomingMessage) {
     return res;
   };
   res.end = (chunk: unknown) => {
-    assert.equal(typeof chunk, "string");
-    if (typeof chunk === "string") captured.raw = chunk;
+    captured.raw = typeof chunk === "string" ? chunk : String(chunk ?? "");
     return res;
   };
   return { res, captured };
