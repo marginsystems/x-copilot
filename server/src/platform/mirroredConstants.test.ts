@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { expectRecord, expectRecords } from "../http/http.testHelpers.ts";
 import { createRequire } from "node:module";
 import {
   normalizeTcoKey as spaNormalizeTcoKey,
@@ -17,12 +18,10 @@ import { ANALYTICS_EVENT_NAMES as sidecarAnalyticsEventNames } from "../../../an
 import { emptyDeskBeats as apiEmptyDeskBeats } from "../desk/deskBeats.ts";
 
 const require = createRequire(import.meta.url);
-const ecosystem = require("../../../ecosystem.config.example.cjs") as {
-  apps: { name: string; env?: { XCOPILOT_ROLE?: string } }[];
-};
+const ecosystem = expectRecord(require("../../../ecosystem.config.example.cjs"));
 
-describe("mirrored SPA/API constants", () => {
-  it("keeps mediaText equal on both sides", () => {
+await describe("mirrored SPA/API constants", async () => {
+  await it("keeps mediaText equal on both sides", () => {
     assert.equal(spaNormalizeTcoKey.toString(), apiNormalizeTcoKey.toString());
     assert.equal(
       spaStripMediaShortlinksFromText.toString(),
@@ -30,21 +29,21 @@ describe("mirrored SPA/API constants", () => {
     );
   });
 
-  it("keeps NEXT_ACTION_KINDS equal on both sides", () => {
+  await it("keeps NEXT_ACTION_KINDS equal on both sides", () => {
     assert.deepEqual(spaNextActionKinds, apiNextActionKinds);
   });
 
-  it("keeps analytics event names equal on both sides", () => {
+  await it("keeps analytics event names equal on both sides", () => {
     assert.deepEqual(apiAnalyticsEventNames, sidecarAnalyticsEventNames);
   });
 
-  it("keeps empty DeskBeats equal on both sides", () => {
+  await it("keeps empty DeskBeats equal on both sides", () => {
     assert.deepEqual(spaEmptyDeskBeats(), apiEmptyDeskBeats());
   });
 
-  it("keeps PM2 roles aligned with sidecar role gates", () => {
+  await it("keeps PM2 roles aligned with sidecar role gates", () => {
     assert.deepEqual(
-      ecosystem.apps.map(({ name, env }) => [name, env?.XCOPILOT_ROLE]),
+      expectRecords(ecosystem.apps).map(({ name, env }) => [name, expectRecord(env).XCOPILOT_ROLE]),
       [
         ["x-copilot-api", "api"],
         ["x-copilot-stats", "stats"],

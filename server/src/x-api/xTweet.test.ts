@@ -10,7 +10,7 @@ import {
 } from "../db.ts";
 import { buildTweetCreateBody, postUserReply, postUserTweet } from "./xTweet.ts";
 
-describe("postUserReply", () => {
+await describe("postUserReply", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -28,7 +28,7 @@ describe("postUserReply", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("rejects an empty reply without calling X", async () => {
+  await it("rejects an empty reply without calling X", async () => {
     let calls = 0;
     const got = await postUserReply({
       consumerKey: "k",
@@ -48,7 +48,7 @@ describe("postUserReply", () => {
     assert.equal(calls, 0);
   });
 
-  it("rejects a non-numeric parent id", async () => {
+  await it("rejects a non-numeric parent id", async () => {
     const got = await postUserReply({
       consumerKey: "k",
       consumerSecret: "s",
@@ -63,7 +63,7 @@ describe("postUserReply", () => {
     assert.equal(got.error, "bad_parent");
   });
 
-  it("rejects an empty parent id instead of posting an original", async () => {
+  await it("rejects an empty parent id instead of posting an original", async () => {
     let calls = 0;
     const got = await postUserReply({
       consumerKey: "k",
@@ -83,7 +83,7 @@ describe("postUserReply", () => {
     assert.equal(calls, 0);
   });
 
-  it("posts JSON as a reply and returns the tweet id", async () => {
+  await it("posts JSON as a reply and returns the tweet id", async () => {
     let body = "";
     const got = await postUserReply({
       consumerKey: "k",
@@ -95,7 +95,7 @@ describe("postUserReply", () => {
       fetchImpl: async (_url, init) => {
         body = String(init?.body ?? "");
         assert.equal(init?.method, "POST");
-        assert.match(String(init?.headers?.["Authorization"] ?? ""), /^OAuth /);
+        assert.match(new Headers(init?.headers).get("Authorization") ?? "", /^OAuth /);
         return new Response(JSON.stringify({ data: { id: "99" } }), {
           status: 201,
         });
@@ -110,7 +110,7 @@ describe("postUserReply", () => {
     });
   });
 
-  it("surfaces an X refusal", async () => {
+  await it("surfaces an X refusal", async () => {
     const got = await postUserReply({
       consumerKey: "k",
       consumerSecret: "s",
@@ -130,8 +130,8 @@ describe("postUserReply", () => {
   });
 });
 
-describe("buildTweetCreateBody", () => {
-  it("builds an original, a quote, or a reply — never a mix", () => {
+await describe("buildTweetCreateBody", async () => {
+  await it("builds an original, a quote, or a reply — never a mix", () => {
     assert.deepEqual(buildTweetCreateBody({ text: "hello" }), {
       ok: true,
       body: { text: "hello" },
@@ -157,7 +157,7 @@ describe("buildTweetCreateBody", () => {
   });
 });
 
-describe("postUserTweet", () => {
+await describe("postUserTweet", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -175,7 +175,7 @@ describe("postUserTweet", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("posts an original without a reply target", async () => {
+  await it("posts an original without a reply target", async () => {
     let body = "";
     const got = await postUserTweet({
       consumerKey: "k",
@@ -196,7 +196,7 @@ describe("postUserTweet", () => {
     assert.deepEqual(JSON.parse(body), { text: "ship the recap" });
   });
 
-  it("posts a quote caption with quote_tweet_id", async () => {
+  await it("posts a quote caption with quote_tweet_id", async () => {
     let body = "";
     const got = await postUserTweet({
       consumerKey: "k",

@@ -80,14 +80,14 @@ describe("learn citations", () => {
       algorithmPermalink("home-mixer/scorers/ranking_scorer.rs", 447, 458),
       "https://github.com/xai-org/x-algorithm/blob/d011592/home-mixer/scorers/ranking_scorer.rs#L447-L458",
     );
-  });
+  }).catch(assert.fail);
 
   it("ties the on-page date to LEARN_SOURCE_DATE", () => {
     assert.equal(LEARN_SOURCE_DATE, "2026-08-24");
     assert.equal(formatLearnSourceDate(LEARN_SOURCE_DATE), "24 August 2026");
     assert.match(LEARN_META, /24 August 2026/);
     assert.match(LEARN_FOLLOW_META, /24 August 2026/);
-  });
+  }).catch(assert.fail);
 
   it("keeps the published defaults and does not invent extras", () => {
     assert.equal(LEARN_WEIGHTS.length, 14);
@@ -103,13 +103,13 @@ describe("learn citations", () => {
     for (const row of LEARN_WEIGHTS) {
       assert.match(weightPermalink(row), /\/blob\/d011592\/home-mixer\/params\/param\.rs#L/);
     }
-  });
+  }).catch(assert.fail);
 
   it("prints signed defaults and the official formula", () => {
     assert.equal(formatLearnWeight(0.5), "+0.5");
     assert.equal(formatLearnWeight(-234.0), "-234.0");
     assert.equal(LEARN_FORMULA, "Final Score = Σ (weight_i × P(action_i))");
-  });
+  }).catch(assert.fail);
 
   it("pins follow / OON citations to the same SHA", () => {
     assert.match(LEARN_OON_HREF, /\/blob\/d011592\/home-mixer\/params\/param\.rs#L252-L257/);
@@ -118,7 +118,7 @@ describe("learn citations", () => {
       /EnableOonRescoreForInNetworkRepliesRetweets|#L266-L271/,
     );
     assert.match(LEARN_OON_SWITCH_HREF, /\/blob\/d011592\//);
-  });
+  }).catch(assert.fail);
 
   it("keeps the Approach drawer to three cited sentences", () => {
     assert.match(LEARN_DRAWER_LEAD, /P\(action\)/);
@@ -126,7 +126,7 @@ describe("learn citations", () => {
     assert.match(LEARN_DRAWER_OON, /0\.75/);
     assert.match(LEARN_DRAWER_SOURCE, /d011592/);
     assert.match(LEARN_DRAWER_SOURCE, /not affiliated/i);
-  });
+  }).catch(assert.fail);
 
   it("walks catalog lessons in published order", () => {
     assert.deepEqual(learnAdjacentLessons("learnWeights"), {
@@ -149,7 +149,7 @@ describe("learn citations", () => {
       prev: null,
       next: null,
     });
-  });
+  }).catch(assert.fail);
 
   it("publishes four catalog lessons", () => {
     assert.equal(LEARN_LESSONS.length, 4);
@@ -203,7 +203,7 @@ describe("learn citations", () => {
       "Eight spam heads, not For You. Reply-only is ReplySpamBot. Ramp and decay stay theory. Do not like or auto-follow who you reply to. Fire lines stay redacted. A like you give is not a For You debit.",
     );
     assert.equal(LEARN_LESSONS[3]!.href, LEARN_GIVE_PATH);
-  });
+  }).catch(assert.fail);
 
   it("keeps official snippets verbatim", () => {
     assert.match(LEARN_APPLY_SNIPPET, /score\.unwrap_or\(0\.0\) \* weight/);
@@ -228,7 +228,7 @@ describe("learn citations", () => {
     assert.match(LEARN_BDSM_AMPLIFIER_HEAD_SNIPPET, /FOLLOW_LIKE_AMPLIFIER/);
     assert.match(LEARN_THUNDER_FOLLOW_TAKE_SNIPPET, /take\(MAX_INPUT_LIST_SIZE\)/);
     assert.match(LEARN_THUNDER_FOLLOW_TAKE_SNIPPET, /Limiting following_user_ids/);
-  });
+  }).catch(assert.fail);
 
   it("pins volume citations and does not invent a daily quota", () => {
     assert.match(
@@ -298,5 +298,5 @@ describe("learn citations", () => {
     assert.equal(learnDiversityMultiplier(1), 0.625);
     assert.equal(learnDiversityMultiplier(2), 0.4375);
     assert.equal(learnDiversityMultiplier(3), 0.34375);
-  });
+  }).catch(assert.fail);
 });

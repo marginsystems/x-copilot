@@ -438,7 +438,9 @@ async function handleActivityPost(
   }
   rememberActivityEvent(parsed.eventUuid, parsed.postedAt);
   upsertOwnPost({ parsed, userId, tenantId });
-  void wakeDesk(parsed, userId);
+  wakeDesk(parsed, userId).catch((err) => {
+    console.warn("[xaa] desk wake soft-fail", err);
+  });
   recordUsageEvent({
     method: "POST",
     path: "/tweets/activity/post.create",

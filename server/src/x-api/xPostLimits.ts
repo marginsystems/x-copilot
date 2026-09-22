@@ -2,6 +2,7 @@
  * Desk-post rate limits for the operator's own account.
  * Cooldown + UTC-day cap that grows with level / streak.
  */
+import { stringRow, objectValue, optionalStringRow } from "../platform/unknownValue.js";
 import { randomUUID } from "node:crypto";
 import { getPlatformDb } from "../db.js";
 
@@ -36,7 +37,7 @@ export function listDeskPostsSince(
         WHERE user_id = ? AND created_at >= ?
         ORDER BY created_at DESC`,
     )
-    .all(userId, sinceIso) as Array<{ tweetId: string; createdAt: string }>;
+    .all(userId, sinceIso).map((row) => stringRow(row, "tweetId", "createdAt"));
   return rows;
 }
 
@@ -45,13 +46,15 @@ export function countDeskOriginalsSince(
   userId: string,
   sinceIso: string,
 ): number {
-  const row = getPlatformDb()
-    .prepare(
-      `SELECT COUNT(*) AS n FROM x_desk_posts
-        WHERE user_id = ? AND created_at >= ?
-          AND in_reply_to_id = ? AND tweet_id != ?`,
-    )
-    .get(userId, sinceIso, "", "") as { n: number };
+  const row = objectValue(
+    getPlatformDb()
+      .prepare(
+        `SELECT COUNT(*) AS n FROM x_desk_posts
+          WHERE user_id = ? AND created_at >= ?
+            AND in_reply_to_id = ? AND tweet_id != ?`,
+      )
+      .get(userId, sinceIso, "", ""),
+  );
   return Number(row.n) || 0;
 }
 
@@ -66,10 +69,7 @@ export function listDeskOriginalsSince(
           AND in_reply_to_id = ? AND tweet_id != ?
         ORDER BY created_at DESC LIMIT 2000`,
     )
-    .all(userId, sinceIso, "", "") as Array<{
-    tweetId: string;
-    createdAt: string;
-  }>;
+    .all(userId, sinceIso, "", "").map((row) => stringRow(row, "tweetId", "createdAt"));
   return rows;
 }
 
@@ -104,13 +104,16 @@ export function findDeskPostByKey(
   userId: string,
   requestKey: string,
 ): { tweetId: string } | undefined {
-  const row = getPlatformDb()
-    .prepare(
-      `SELECT tweet_id AS tweetId
-         FROM x_desk_posts
-        WHERE user_id = ? AND id = ?`,
-    )
-    .get(userId, requestKey) as { tweetId: string } | undefined;
+  const row = optionalStringRow(
+    getPlatformDb()
+      .prepare(
+        `SELECT tweet_id AS tweetId
+           FROM x_desk_posts
+          WHERE user_id = ? AND id = ?`,
+      )
+      .get(userId, requestKey),
+    "tweetId",
+  );
   return row;
 }
 
@@ -153,15 +156,18 @@ export function checkDeskPostLimit(opts: {
   }
   // The cooldown is not tied to the UTC day: a post from the last minutes of
   // the previous day must still block the next one across the day boundary.
-  const latestRow = getPlatformDb()
-    .prepare(
-      `SELECT created_at AS createdAt
-         FROM x_desk_posts
-        WHERE user_id = ?
-        ORDER BY created_at DESC
-        LIMIT 1`,
-    )
-    .get(opts.userId) as { createdAt: string } | undefined;
+  const latestRow = optionalStringRow(
+    getPlatformDb()
+      .prepare(
+        `SELECT created_at AS createdAt
+           FROM x_desk_posts
+          WHERE user_id = ?
+          ORDER BY created_at DESC
+          LIMIT 1`,
+      )
+      .get(opts.userId),
+    "createdAt",
+  );
   if (latestRow) {
     const lastMs = Date.parse(latestRow.createdAt);
     if (Number.isFinite(lastMs) && nowMs - lastMs < POST_COOLDOWN_MS) {

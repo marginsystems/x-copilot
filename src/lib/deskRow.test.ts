@@ -16,7 +16,7 @@ describe("deskRow expand phase", () => {
     assert.equal(deskRowInitialPhase(true), "open");
     assert.equal(deskRowExpandMount("closed"), false);
     assert.equal(deskRowExpandOpen("open"), true);
-  });
+  }).catch(assert.fail);
 
   it("opens through entering so the 0fr slot can paint before 1fr", () => {
     assert.equal(deskRowPhaseOnOpenChange("closed", true), "entering");
@@ -24,7 +24,7 @@ describe("deskRow expand phase", () => {
     assert.equal(deskRowExpandOpen("entering"), false);
     assert.equal(deskRowPhaseAfterEnter("entering"), "open");
     assert.equal(deskRowPhaseOnOpenChange("open", true), "open");
-  });
+  }).catch(assert.fail);
 
   it("closes through leaving so collapse can play before unmount", () => {
     assert.equal(deskRowPhaseOnOpenChange("open", false), "leaving");
@@ -35,12 +35,12 @@ describe("deskRow expand phase", () => {
     assert.equal(deskRowKeepMount("closed", false), false);
     assert.equal(deskRowKeepMount("closed", true), true);
     assert.equal(deskRowKeepMount("leaving", false), true);
-  });
+  }).catch(assert.fail);
 
   it("reverses mid-flight without getting stuck", () => {
     assert.equal(deskRowPhaseOnOpenChange("entering", false), "leaving");
     assert.equal(deskRowPhaseOnOpenChange("leaving", true), "entering");
     assert.equal(deskRowPhaseAfterEnter("open"), "open");
     assert.equal(deskRowPhaseAfterLeave("closed"), "closed");
-  });
+  }).catch(assert.fail);
 });

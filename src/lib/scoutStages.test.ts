@@ -22,7 +22,7 @@ describe("scoutStages", () => {
       brandedScoutLine({ stage: "searching", candidates: 4, bucketSize: 20 }),
       "In the air… 4/20",
     );
-  });
+  }).catch(assert.fail);
 
   it("treats 429 cooldown/busy as soft gate errors", () => {
     assert.equal(
@@ -36,7 +36,7 @@ describe("scoutStages", () => {
     assert.equal(isScoutGateError(429, { error: "scout_daily_limit" }), true);
     assert.equal(isScoutGateError(402, { error: "credits_exhausted" }), true);
     assert.equal(isScoutGateError(500, { error: "deepseek_error" }), false);
-  });
+  }).catch(assert.fail);
 
   it("formats hard failures with Scout failed prefix", () => {
     assert.equal(
@@ -47,7 +47,7 @@ describe("scoutStages", () => {
       formatScoutFailure("Wait 12s before searching again.", { soft: true }),
       "Wait 12s before searching again.",
     );
-  });
+  }).catch(assert.fail);
 
   it("does not expose local operations instructions", () => {
     for (const detail of [
@@ -58,5 +58,5 @@ describe("scoutStages", () => {
       assert.equal(line, "Scout is unavailable right now.");
       assert.doesNotMatch(line, /sidecar|pm2|npm|localhost|\.\//i);
     }
-  });
+  }).catch(assert.fail);
 });

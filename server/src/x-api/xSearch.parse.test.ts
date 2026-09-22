@@ -8,15 +8,15 @@ import {
 } from "./xSearch.ts";
 import type { ThreadCard } from "../scout/threadCard.ts";
 
-describe("withSearchRecency / resolveWithinTime", () => {
-  it("appends within_time by default", () => {
+await describe("withSearchRecency / resolveWithinTime", async () => {
+  await it("appends within_time by default", () => {
     assert.equal(
       withSearchRecency("shipping AI", "6h"),
       "shipping AI within_time:6h",
     );
   });
 
-  it("does not double-append time operators", () => {
+  await it("does not double-append time operators", () => {
     assert.equal(
       withSearchRecency("foo within_time:3h", "6h"),
       "foo within_time:3h",
@@ -24,7 +24,7 @@ describe("withSearchRecency / resolveWithinTime", () => {
     assert.equal(withSearchRecency("foo since:2026-01-01", "6h"), "foo since:2026-01-01");
   });
 
-  it("clamps invalid env to 6h", () => {
+  await it("clamps invalid env to 6h", () => {
     assert.equal(resolveWithinTime(""), "6h");
     assert.equal(resolveWithinTime("nope"), "6h");
     assert.equal(resolveWithinTime("48h"), "6h");
@@ -33,7 +33,7 @@ describe("withSearchRecency / resolveWithinTime", () => {
   });
 });
 
-describe("searchTimelinePages", () => {
+await describe("searchTimelinePages", async () => {
   function card(id: string): ThreadCard {
     return {
       id,
@@ -43,7 +43,7 @@ describe("searchTimelinePages", () => {
     };
   }
 
-  it("follows Bottom cursor up to 3 pages", async () => {
+  await it("follows Bottom cursor up to 3 pages", async () => {
     const calls: Array<string | undefined> = [];
     const result = await searchTimelinePages({
       query: "builders",
@@ -70,7 +70,7 @@ describe("searchTimelinePages", () => {
     assert.match(withSearchRecency("builders"), /within_time:/);
   });
 
-  it("honors maxPages: 1 even when a cursor remains", async () => {
+  await it("honors maxPages: 1 even when a cursor remains", async () => {
     let pages = 0;
     const result = await searchTimelinePages({
       query: "q",
@@ -91,7 +91,7 @@ describe("searchTimelinePages", () => {
     if (result.ok) assert.equal(result.pages, 1);
   });
 
-  it("resumes from an incoming cursor in the same search window", async () => {
+  await it("resumes from an incoming cursor in the same search window", async () => {
     const seen: Array<{ cursor?: string; startTime?: string }> = [];
     const result = await searchTimelinePages({
       query: "q",
@@ -119,12 +119,12 @@ describe("searchTimelinePages", () => {
     if (result.ok) assert.equal(result.bottomCursor, "page-three");
   });
 
-  it("reduced expansions drop referenced-tweet parent objects", () => {
+  await it("reduced expansions drop referenced-tweet parent objects", () => {
     assert.match(searchExpansions(true), /referenced_tweets\.id/);
     assert.doesNotMatch(searchExpansions(false), /referenced_tweets/);
   });
 
-  it("stops early when cursor is null", async () => {
+  await it("stops early when cursor is null", async () => {
     let pages = 0;
     const result = await searchTimelinePages({
       query: "q",
@@ -144,7 +144,7 @@ describe("searchTimelinePages", () => {
     if (result.ok) assert.equal(result.pages, 1);
   });
 
-  it("aborts when signal is aborted", async () => {
+  await it("aborts when signal is aborted", async () => {
     const ac = new AbortController();
     ac.abort();
     const result = await searchTimelinePages({

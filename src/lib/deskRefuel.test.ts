@@ -22,7 +22,7 @@ describe("shouldBackgroundScout", () => {
   it("fires only after the caller arms an idle low tank", () => {
     assert.equal(shouldBackgroundScout(ready), true);
     assert.equal(shouldBackgroundScout({ ...ready, phase: "hold" }), true);
-  });
+  }).catch(assert.fail);
 
   it("fires when the last scouted card is still on the desk", () => {
     assert.equal(
@@ -41,7 +41,7 @@ describe("shouldBackgroundScout", () => {
       shouldBackgroundScout({ ...ready, phase: "done_for_now" }),
       true,
     );
-  });
+  }).catch(assert.fail);
 
   it("waits while searching, cooling down, or already tried", () => {
     assert.equal(shouldBackgroundScout({ ...ready, searching: true }), false);
@@ -50,13 +50,13 @@ describe("shouldBackgroundScout", () => {
       false,
     );
     assert.equal(shouldBackgroundScout({ ...ready, alreadyTried: true }), false);
-  });
+  }).catch(assert.fail);
 
   it("does not fly grounded, unlinked, or without an agenda", () => {
     assert.equal(shouldBackgroundScout({ ...ready, grounded: true }), false);
     assert.equal(shouldBackgroundScout({ ...ready, needsXLink: true }), false);
     assert.equal(shouldBackgroundScout({ ...ready, hasAgenda: false }), false);
-  });
+  }).catch(assert.fail);
 
   it("does not scout a tank that still has more than one card", () => {
     assert.equal(
@@ -67,7 +67,8 @@ describe("shouldBackgroundScout", () => {
       }),
       false,
     );
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("Scout refill state", () => {
@@ -75,7 +76,7 @@ describe("Scout refill state", () => {
     assert.equal(shouldArmScoutRefill(0), true);
     assert.equal(shouldArmScoutRefill(1), true);
     assert.equal(shouldArmScoutRefill(2), false);
-  });
+  }).catch(assert.fail);
 
   it("counts only eligible stock: a retained detected card is not tank", () => {
     const tank = [{ id: "detected" }, { id: "fresh" }, { id: "released" }];
@@ -87,7 +88,8 @@ describe("Scout refill state", () => {
     assert.deepEqual(eligible.map((row) => row.id), ["fresh"]);
     assert.equal(shouldArmScoutRefill(eligible.length), true);
     assert.equal(shouldArmScoutRefill(tank.length), false);
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("shouldArmScoutOnBoot", () => {
@@ -110,7 +112,7 @@ describe("shouldArmScoutOnBoot", () => {
       }),
       true,
     );
-  });
+  }).catch(assert.fail);
 
   it("waits for stock and debounces this opening", () => {
     const boot = {
@@ -128,5 +130,5 @@ describe("shouldArmScoutOnBoot", () => {
     assert.equal(shouldArmScoutOnBoot({ ...boot, tankKnown: false }), false);
     assert.equal(shouldArmScoutOnBoot({ ...boot, handledThisOpen: true }), false);
     assert.equal(shouldArmScoutOnBoot({ ...boot, usableScoutCount: 1 }), true);
-  });
+  }).catch(assert.fail);
 });

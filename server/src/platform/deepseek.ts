@@ -2,6 +2,7 @@
  * OpenAI-compatible DeepSeek chat client.
  * Query planning / triage / onboarding use DeepSeek v4-flash.
  */
+import { objectValue } from "./unknownValue.js";
 
 export type LlmProvider = "deepseek";
 
@@ -52,7 +53,7 @@ export function resolveDeepseekBaseUrl(): string {
 /** Parse OpenAI-compatible usage objects. */
 export function parseTokenUsage(raw: unknown): TokenUsage | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const u = raw as Record<string, unknown>;
+  const u = objectValue(raw);
   const prompt = numberOrZero(u.prompt_tokens ?? u.input_tokens);
   const completion = numberOrZero(u.completion_tokens ?? u.output_tokens);
   const total = numberOrZero(u.total_tokens ?? prompt + completion);
@@ -146,11 +147,7 @@ export async function chatCompletions(opts: {
         };
       }
 
-      let data: {
-        choices?: Array<{ message?: { content?: string } }>;
-        model?: string;
-        usage?: unknown;
-      };
+      let data: unknown;
       try {
         data = JSON.parse(text);
       } catch {
@@ -162,7 +159,13 @@ export async function chatCompletions(opts: {
         };
       }
 
-      const content = data.choices?.[0]?.message?.content;
+      if (data === null) throw new TypeError("deepseek returned null.");
+      const payload = objectValue(data);
+      const choice = Array.isArray(payload.choices) ? objectValue(payload.choices[0]) : {};
+      const content = objectValue(choice.message).content;
+      if (content != null && typeof content !== "string") {
+        throw new TypeError("deepseek returned non-string content.");
+      }
       if (!content?.trim()) {
         return {
           ok: false,
@@ -172,12 +175,13 @@ export async function chatCompletions(opts: {
         };
       }
 
-      const usage = parseTokenUsage(data.usage);
-      logLlmUsage({ model: data.model || model, purpose, usage });
+      const usage = parseTokenUsage(payload.usage);
+      const responseModel = (typeof payload.model === "string" && payload.model) || model;
+      logLlmUsage({ model: responseModel, purpose, usage });
       return {
         ok: true,
         content,
-        model: data.model || model,
+        model: responseModel,
         provider: "deepseek",
         ...(usage ? { usage } : {}),
       };

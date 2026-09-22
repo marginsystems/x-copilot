@@ -262,7 +262,7 @@ export function softwareApplicationJsonLd(): Record<string, unknown> {
   };
 }
 
-export function changelogJsonLd(): Record<string, unknown> {
+export function changelogJsonLd() {
   const pageUrl = `${SITE_ORIGIN}/changelog`;
   const orgId = `${SITE_ORIGIN}/#organization`;
   const appId = `${SITE_ORIGIN}/#app`;
@@ -274,14 +274,14 @@ export function changelogJsonLd(): Record<string, unknown> {
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": "Organization",
+        "@type": "Organization" as const,
         "@id": orgId,
         name: LEGAL_ENTITY,
         url: "https://mergestorm.ai/",
         email: LEGAL_CONTACT_EMAIL,
       },
       {
-        "@type": "SoftwareApplication",
+        "@type": "SoftwareApplication" as const,
         "@id": appId,
         name: PRODUCT_NAME,
         url: `${SITE_ORIGIN}/`,
@@ -291,7 +291,7 @@ export function changelogJsonLd(): Record<string, unknown> {
         creator: { "@id": orgId },
       },
       {
-        "@type": "WebSite",
+        "@type": "WebSite" as const,
         "@id": siteId,
         url: `${SITE_ORIGIN}/`,
         name: PRODUCT_NAME,
@@ -299,7 +299,7 @@ export function changelogJsonLd(): Record<string, unknown> {
         inLanguage: "en-US",
       },
       {
-        "@type": "CollectionPage",
+        "@type": "CollectionPage" as const,
         "@id": pageId,
         url: pageUrl,
         name: CHANGELOG_TITLE,
@@ -314,17 +314,17 @@ export function changelogJsonLd(): Record<string, unknown> {
         breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
       },
       {
-        "@type": "ItemList",
+        "@type": "ItemList" as const,
         "@id": listId,
         name: CHANGELOG_TITLE,
         itemListOrder: "https://schema.org/ItemListOrderDescending",
         numberOfItems: CHANGELOG.length,
         itemListElement: CHANGELOG.map((entry, index) => ({
-          "@type": "ListItem",
+          "@type": "ListItem" as const,
           position: index + 1,
           url: entry.href ?? pageUrl,
           item: {
-            "@type": "CreativeWork",
+            "@type": "CreativeWork" as const,
             name: entry.title,
             description: entry.body,
             datePublished: entry.date,
@@ -335,17 +335,17 @@ export function changelogJsonLd(): Record<string, unknown> {
         })),
       },
       {
-        "@type": "BreadcrumbList",
+        "@type": "BreadcrumbList" as const,
         "@id": `${pageUrl}#breadcrumb`,
         itemListElement: [
           {
-            "@type": "ListItem",
+            "@type": "ListItem" as const,
             position: 1,
             name: PRODUCT_NAME,
             item: `${SITE_ORIGIN}/`,
           },
           {
-            "@type": "ListItem",
+            "@type": "ListItem" as const,
             position: 2,
             name: "Changelog",
             item: pageUrl,
@@ -356,7 +356,7 @@ export function changelogJsonLd(): Record<string, unknown> {
   };
 }
 
-export function learnJsonLd(): Record<string, unknown> {
+export function learnJsonLd() {
   const pageUrl = `${SITE_ORIGIN}/learn`;
   const orgId = `${SITE_ORIGIN}/#organization`;
   const appId = `${SITE_ORIGIN}/#app`;
@@ -367,14 +367,14 @@ export function learnJsonLd(): Record<string, unknown> {
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": "Organization",
+        "@type": "Organization" as const,
         "@id": orgId,
         name: LEGAL_ENTITY,
         url: "https://mergestorm.ai/",
         email: LEGAL_CONTACT_EMAIL,
       },
       {
-        "@type": "SoftwareApplication",
+        "@type": "SoftwareApplication" as const,
         "@id": appId,
         name: PRODUCT_NAME,
         url: `${SITE_ORIGIN}/`,
@@ -384,7 +384,7 @@ export function learnJsonLd(): Record<string, unknown> {
         creator: { "@id": orgId },
       },
       {
-        "@type": "WebSite",
+        "@type": "WebSite" as const,
         "@id": siteId,
         url: `${SITE_ORIGIN}/`,
         name: PRODUCT_NAME,
@@ -392,7 +392,7 @@ export function learnJsonLd(): Record<string, unknown> {
         inLanguage: "en-US",
       },
       {
-        "@type": "CollectionPage",
+        "@type": "CollectionPage" as const,
         "@id": pageId,
         url: pageUrl,
         name: LEARN_HUB_TITLE,
@@ -405,7 +405,7 @@ export function learnJsonLd(): Record<string, unknown> {
         dateModified: LEARN_SOURCE_DATE,
         mainEntity: { "@id": listId },
         hasPart: LEARN_LESSONS.map((lesson) => ({
-          "@type": "LearningResource",
+          "@type": "LearningResource" as const,
           url: `${SITE_ORIGIN}${lesson.href}`,
           name: lesson.heading,
         })),
@@ -413,16 +413,16 @@ export function learnJsonLd(): Record<string, unknown> {
         breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
       },
       {
-        "@type": "ItemList",
+        "@type": "ItemList" as const,
         "@id": listId,
         name: LEARN_HUB_TITLE,
         numberOfItems: LEARN_LESSONS.length,
         itemListElement: LEARN_LESSONS.map((lesson, index) => ({
-          "@type": "ListItem",
+          "@type": "ListItem" as const,
           position: index + 1,
           url: `${SITE_ORIGIN}${lesson.href}`,
           item: {
-            "@type": "LearningResource",
+            "@type": "LearningResource" as const,
             learningResourceType: "Lesson",
             name: lesson.heading,
             description: lesson.lede,
@@ -433,17 +433,17 @@ export function learnJsonLd(): Record<string, unknown> {
         })),
       },
       {
-        "@type": "BreadcrumbList",
+        "@type": "BreadcrumbList" as const,
         "@id": `${pageUrl}#breadcrumb`,
         itemListElement: [
           {
-            "@type": "ListItem",
+            "@type": "ListItem" as const,
             position: 1,
             name: PRODUCT_NAME,
             item: `${SITE_ORIGIN}/`,
           },
           {
-            "@type": "ListItem",
+            "@type": "ListItem" as const,
             position: 2,
             name: LEARN_HUB_HEADING,
             item: pageUrl,
@@ -474,7 +474,7 @@ function lessonJsonLd({
   citation,
   appImage,
   teaches,
-}: LessonJsonLdMetadata): Record<string, unknown> {
+}: LessonJsonLdMetadata) {
   const pageUrl = `${SITE_ORIGIN}${path}`;
   const learnUrl = `${SITE_ORIGIN}/learn`;
   const orgId = `${SITE_ORIGIN}/#organization`;
@@ -486,14 +486,14 @@ function lessonJsonLd({
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": "Organization",
+        "@type": "Organization" as const,
         "@id": orgId,
         name: LEGAL_ENTITY,
         url: "https://mergestorm.ai/",
         email: LEGAL_CONTACT_EMAIL,
       },
       {
-        "@type": "SoftwareApplication",
+        "@type": "SoftwareApplication" as const,
         "@id": appId,
         name: PRODUCT_NAME,
         url: `${SITE_ORIGIN}/`,
@@ -503,7 +503,7 @@ function lessonJsonLd({
         creator: { "@id": orgId },
       },
       {
-        "@type": "WebSite",
+        "@type": "WebSite" as const,
         "@id": siteId,
         url: `${SITE_ORIGIN}/`,
         name: PRODUCT_NAME,
@@ -511,7 +511,7 @@ function lessonJsonLd({
         inLanguage: "en-US",
       },
       {
-        "@type": "LearningResource",
+        "@type": "LearningResource" as const,
         "@id": pageId,
         url: pageUrl,
         name: title,
@@ -536,23 +536,23 @@ function lessonJsonLd({
         sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
       },
       {
-        "@type": "BreadcrumbList",
+        "@type": "BreadcrumbList" as const,
         "@id": `${pageUrl}#breadcrumb`,
         itemListElement: [
           {
-            "@type": "ListItem",
+            "@type": "ListItem" as const,
             position: 1,
             name: PRODUCT_NAME,
             item: `${SITE_ORIGIN}/`,
           },
           {
-            "@type": "ListItem",
+            "@type": "ListItem" as const,
             position: 2,
             name: LEARN_HUB_HEADING,
             item: learnUrl,
           },
           {
-            "@type": "ListItem",
+            "@type": "ListItem" as const,
             position: 3,
             name: heading,
             item: pageUrl,
@@ -563,7 +563,7 @@ function lessonJsonLd({
   };
 }
 
-export function learnWeightsJsonLd(): Record<string, unknown> {
+export function learnWeightsJsonLd() {
   return lessonJsonLd({
     path: LEARN_WEIGHTS_PATH,
     title: LEARN_TITLE,
@@ -577,7 +577,7 @@ export function learnWeightsJsonLd(): Record<string, unknown> {
   });
 }
 
-export function learnFollowJsonLd(): Record<string, unknown> {
+export function learnFollowJsonLd() {
   return lessonJsonLd({
     path: "/learn/follow",
     title: LEARN_FOLLOW_TITLE,
@@ -591,7 +591,7 @@ export function learnFollowJsonLd(): Record<string, unknown> {
   });
 }
 
-export function learnReplyJsonLd(): Record<string, unknown> {
+export function learnReplyJsonLd() {
   return lessonJsonLd({
     path: LEARN_REPLY_PATH,
     title: LEARN_REPLY_TITLE,
@@ -604,7 +604,7 @@ export function learnReplyJsonLd(): Record<string, unknown> {
   });
 }
 
-export function learnVolumeJsonLd(): Record<string, unknown> {
+export function learnVolumeJsonLd() {
   return lessonJsonLd({
     path: LEARN_VOLUME_PATH,
     title: LEARN_VOLUME_TITLE,
@@ -617,7 +617,7 @@ export function learnVolumeJsonLd(): Record<string, unknown> {
   });
 }
 
-export function learnGiveJsonLd(): Record<string, unknown> {
+export function learnGiveJsonLd() {
   return lessonJsonLd({
     path: LEARN_GIVE_PATH,
     title: LEARN_GIVE_TITLE,

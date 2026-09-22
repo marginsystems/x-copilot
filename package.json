@@ -27,7 +27,8 @@
     "test:mounted": "vitest run --config vitest.mounted.config.ts",
     "test:mounted:list": "vitest list --config vitest.mounted.config.ts",
     "typecheck:mounted": "tsc --noEmit -p tsconfig.mounted.json",
-    "lint:hooks": "eslint \"src/**/*.{ts,tsx}\""
+    "lint:hooks": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:types": "eslint --config eslint.types.config.js . --max-warnings=0"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.2",
@@ -47,6 +48,7 @@
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "8.70.0",
     "@typescript-eslint/parser": "^8.70.0",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^10.10.0",

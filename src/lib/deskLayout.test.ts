@@ -22,7 +22,7 @@ describe("deskLayout", () => {
   it("defaults collapsed when nothing is stored", () => {
     assert.equal(readDeskTopOpen(memoryStore()), false);
     assert.equal(readDeskTopOpen(null), false);
-  });
+  }).catch(assert.fail);
 
   it("reads and writes the expand preference", () => {
     const store = memoryStore();
@@ -31,5 +31,5 @@ describe("deskLayout", () => {
     assert.equal(readDeskTopOpen(store), true);
     writeDeskTopOpen(false, store);
     assert.equal(readDeskTopOpen(store), false);
-  });
+  }).catch(assert.fail);
 });

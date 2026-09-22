@@ -1,10 +1,10 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { hasStrings } from "../platform/unknownValue.js";
+import { testRequest, testResponse, expectRecord, expectRecords } from "../http/http.testHelpers.ts";
 import { tryHandleBoot, type BootHttpDeps } from "./bootHttp.ts";
 import { recordScoutEvidence, takeEventKey } from "../scout/scoutEvidence.ts";
 import { emptyScoutProfile } from "../scout/scoutProfile.ts";
@@ -38,24 +38,13 @@ async function get(
   headers: Record<string, unknown>;
   body: Record<string, unknown>;
 }> {
-  let status = 0;
-  let headers: Record<string, unknown> = {};
-  let raw = "";
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = testRequest();
   Object.assign(req, {
     method: "GET",
     headers: cookie ? { cookie } : {},
     socket: { remoteAddress: "127.0.0.1" },
   });
-  const res = {
-    writeHead: (code: number, h: Record<string, unknown>) => {
-      status = code;
-      headers = h;
-    },
-    end: (chunk: string) => {
-      raw = chunk;
-    },
-  } as unknown as ServerResponse;
+  const { res, captured } = testResponse(req);
   const handled = await tryHandleBoot(
     req,
     res,
@@ -64,9 +53,9 @@ async function get(
   );
   return {
     handled,
-    status,
-    headers,
-    body: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+    status: captured.status,
+    headers: captured.headers,
+    body: captured.raw ? expectRecord(JSON.parse(captured.raw)) : {},
   };
 }
 
@@ -74,30 +63,21 @@ async function getProfile(
   cookie: string,
   deps?: BootHttpDeps,
 ): Promise<Record<string, unknown>> {
-  let status = 0;
-  let raw = "";
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = testRequest();
   Object.assign(req, {
     method: "GET",
     headers: { cookie },
     socket: { remoteAddress: "127.0.0.1" },
   });
-  const res = {
-    writeHead: (code: number) => {
-      status = code;
-    },
-    end: (chunk: string) => {
-      raw = chunk;
-    },
-  } as unknown as ServerResponse;
+  const { res, captured } = testResponse(req);
   await tryHandleScoutProfile(
     req,
     res,
     new URL("http://localhost/api/scout/profile"),
     deps,
   );
-  assert.equal(status, 200);
-  return raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  assert.equal(captured.status, 200);
+  return captured.raw ? expectRecord(JSON.parse(captured.raw)) : {};
 }
 
 const EMPTY_FAMILIARITY = {
@@ -127,32 +107,23 @@ const DESK_SLICES = [
 async function getInteracted(
   cookie: string,
 ): Promise<Record<string, unknown>> {
-  let status = 0;
-  let raw = "";
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = testRequest();
   Object.assign(req, {
     method: "GET",
     headers: { cookie },
     socket: { remoteAddress: "127.0.0.1" },
   });
-  const res = {
-    writeHead: (code: number) => {
-      status = code;
-    },
-    end: (chunk: string) => {
-      raw = chunk;
-    },
-  } as unknown as ServerResponse;
+  const { res, captured } = testResponse(req);
   await tryHandleInteracted(
     req,
     res,
     new URL("http://localhost/api/interacted"),
   );
-  assert.equal(status, 200);
-  return raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  assert.equal(captured.status, 200);
+  return captured.raw ? expectRecord(JSON.parse(captured.raw)) : {};
 }
 
-describe("GET /api/boot", () => {
+await describe("GET /api/boot", async () => {
   const prevAuth = process.env.AUTH_REQUIRED;
   let dir: string;
   let cwd: string;
@@ -185,13 +156,13 @@ describe("GET /api/boot", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("ignores unrelated paths", async () => {
+  await it("ignores unrelated paths", async () => {
     const { handled, status } = await get("/api/health");
     assert.equal(handled, false);
     assert.equal(status, 0);
   });
 
-  it("returns 401 without a session when auth is required", async () => {
+  await it("returns 401 without a session when auth is required", async () => {
     let reads = 0;
     const { handled, status, headers, body } = await get("/api/boot", undefined, {
       loadScoutProfile: (id) => {
@@ -207,7 +178,7 @@ describe("GET /api/boot", () => {
     assert.equal(reads, 0);
   });
 
-  it("anonymous optional-auth boot has null familiarity and performs no profile read", async () => {
+  await it("anonymous optional-auth boot has null familiarity and performs no profile read", async () => {
     process.env.AUTH_REQUIRED = "0";
     let reads = 0;
     const { status, headers, body } = await get("/api/boot", undefined, {
@@ -219,13 +190,13 @@ describe("GET /api/boot", () => {
     assert.equal(status, 200);
     assert.equal(body.user, null);
     assert.equal(headers["Cache-Control"], "private, no-store");
-    const desk = body.desk as Record<string, unknown>;
+    const desk = expectRecord(body.desk);
     assert.equal("scoutFamiliarity" in desk, true);
     assert.equal(desk.scoutFamiliarity, null);
     assert.equal(reads, 0);
   });
 
-  it("returns auth + desk slices in one payload", async () => {
+  await it("returns auth + desk slices in one payload", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-boot",
@@ -242,10 +213,10 @@ describe("GET /api/boot", () => {
     assert.equal(headers["Cache-Control"], "private, no-store");
     assert.equal(body.ok, true);
     assert.equal(body.authRequired, true);
-    const publicUser = body.user as { id?: string; email?: string };
+    const publicUser = expectRecord(body.user);
     assert.equal(publicUser.id, user.id);
     assert.equal(publicUser.email, "boot@example.com");
-    const desk = body.desk as Record<string, unknown>;
+    const desk = expectRecord(body.desk);
     assert.ok(desk);
     assert.ok(desk.interacted && typeof desk.interacted === "object");
     assert.ok(desk.dismissed && typeof desk.dismissed === "object");
@@ -257,26 +228,22 @@ describe("GET /api/boot", () => {
     assert.ok(desk.gamification && typeof desk.gamification === "object");
     assert.ok(desk.activityStats && typeof desk.activityStats === "object");
     assert.ok(desk.coaching && typeof desk.coaching === "object");
-    const lastScout = desk.lastScout as { ok?: boolean; empty?: boolean };
+    const lastScout = expectRecord(desk.lastScout);
     assert.equal(lastScout.ok, true);
     assert.equal(lastScout.empty, true);
-    const coaching = desk.coaching as {
-      nextAction?: unknown;
-      missions?: unknown[];
-      beats?: { forkChoice?: unknown };
-    };
+    const coaching = expectRecord(desk.coaching);
     assert.equal(coaching.nextAction, null);
     assert.ok(Array.isArray(coaching.missions));
     assert.ok(coaching.missions.length >= 1);
-    assert.equal(coaching.beats?.forkChoice, null);
-    const stats = desk.activityStats as { bucket?: string };
+    assert.equal(expectRecord(coaching.beats).forkChoice, null);
+    const stats = expectRecord(desk.activityStats);
     assert.equal(stats.bucket, "day");
     // Default store path: a fresh user's familiarity is an honest empty object.
     assert.deepEqual(desk.scoutFamiliarity, EMPTY_FAMILIARITY);
     assert.equal(JSON.stringify(desk.scoutFamiliarity).includes(user.id), false);
   });
 
-  it("boot and GET /api/scout/profile agree at the same evidence revision", async () => {
+  await it("boot and GET /api/scout/profile agree at the same evidence revision", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-boot-familiarity",
@@ -309,14 +276,14 @@ describe("GET /api/boot", () => {
     const cookie = `${SESSION_COOKIE}=${encodeURIComponent(createSession(user.id).token)}`;
     const { status, body } = await get("/api/boot", cookie, deps);
     assert.equal(status, 200);
-    const desk = body.desk as { scoutFamiliarity: Record<string, unknown> };
+    const desk = expectRecord(body.desk);
     assert.deepEqual(calls, [user.id], "one loader call for the boot read");
-    assert.equal(desk.scoutFamiliarity.state, "learning");
-    assert.deepEqual(desk.scoutFamiliarity.coverage, {
+    assert.equal(expectRecord(desk.scoutFamiliarity).state, "learning");
+    assert.deepEqual(expectRecord(desk.scoutFamiliarity).coverage, {
       storedConfirmedReplies: 2,
       knownKindResolvedActions: 2,
     });
-    assert.deepEqual(desk.scoutFamiliarity.lastLearned, {
+    assert.deepEqual(expectRecord(desk.scoutFamiliarity).lastLearned, {
       at: new Date(T0 + 2000).toISOString(),
       action: "take",
       threadKind: "fact_add",
@@ -327,7 +294,7 @@ describe("GET /api/boot", () => {
     assert.deepEqual(profile.scoutFamiliarity, desk.scoutFamiliarity);
   });
 
-  it("an unreadable, foreign or absent profile keeps boot 200 with every other slice intact", async () => {
+  await it("an unreadable, foreign or absent profile keeps boot 200 with every other slice intact", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-boot-profile-fail",
@@ -356,23 +323,23 @@ describe("GET /api/boot", () => {
       assert.equal(status, 200, label);
       assert.equal(body.ok, true, label);
       assert.equal(headers["Cache-Control"], "private, no-store", label);
-      const desk = body.desk as Record<string, unknown>;
+      const desk = expectRecord(body.desk);
       assert.equal(desk.scoutFamiliarity, null, label);
       for (const slice of DESK_SLICES) {
         assert.ok(desk[slice] && typeof desk[slice] === "object", `${label}: ${slice}`);
       }
-      const interacted = desk.interacted as { interactions: Array<{ threadId: string }> };
+      const interacted = expectRecord(desk.interacted);
       assert.deepEqual(
-        interacted.interactions.map((row) => row.threadId),
+        expectRecords(interacted.interactions).map((row) => row.threadId),
         ["keep-1"],
         label,
       );
-      const gamification = desk.gamification as { xp?: unknown; level?: unknown };
+      const gamification = expectRecord(desk.gamification);
       assert.ok("xp" in gamification || "level" in gamification, label);
     }
   });
 
-  it("does not expose another session user's interactions", async () => {
+  await it("does not expose another session user's interactions", async () => {
     const userA = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-boot-a",
@@ -402,20 +369,15 @@ describe("GET /api/boot", () => {
       `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     );
     assert.equal(status, 200);
-    const desk = body.desk as {
-      interacted: {
-        interactions: Array<{ threadId: string }>;
-        activeIds: string[];
-      };
-    };
+    const desk = expectRecord(body.desk);
     assert.deepEqual(
-      desk.interacted.interactions.map((row) => row.threadId),
+      expectRecords(expectRecord(desk.interacted).interactions).map((row) => row.threadId),
       ["thread-a"],
     );
-    assert.deepEqual(desk.interacted.activeIds, ["thread-a"]);
+    assert.deepEqual(expectRecord(desk.interacted).activeIds, ["thread-a"]);
   });
 
-  it("does not expose another user's skip, dismiss, expired, or tank", async () => {
+  await it("does not expose another user's skip, dismiss, expired, or tank", async () => {
     const userA = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-boot-desk-a",
@@ -469,35 +431,27 @@ describe("GET /api/boot", () => {
       `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     );
     assert.equal(status, 200);
-    const desk = body.desk as {
-      skipped: { skippedIds: string[] };
-      dismissed: { dismissedIds: string[] };
-      expired: { expiredIds: string[] };
-      lastScout: { empty?: boolean };
-    };
-    assert.deepEqual(desk.skipped.skippedIds, ["skip-a"]);
-    assert.deepEqual(desk.dismissed.dismissedIds, ["dismiss-a"]);
-    assert.deepEqual(desk.expired.expiredIds, ["exp-a"]);
-    assert.equal(desk.lastScout.empty, true);
+    const desk = expectRecord(body.desk);
+    assert.deepEqual(expectRecord(desk.skipped).skippedIds, ["skip-a"]);
+    assert.deepEqual(expectRecord(desk.dismissed).dismissedIds, ["dismiss-a"]);
+    assert.deepEqual(expectRecord(desk.expired).expiredIds, ["exp-a"]);
+    assert.equal(expectRecord(desk.lastScout).empty, true);
     assert.equal("scoutLog" in desk, false);
 
     const { body: bodyB } = await get(
       "/api/boot",
       `${SESSION_COOKIE}=${encodeURIComponent(createSession(userB.id).token)}`,
     );
-    const deskB = bodyB.desk as {
-      skipped: { skippedIds: string[] };
-      lastScout: { empty?: boolean; snapshot?: { threads: Array<{ id: string }> } };
-    };
-    assert.deepEqual(deskB.skipped.skippedIds, ["skip-b"]);
-    assert.equal(deskB.lastScout.empty, false);
+    const deskB = expectRecord(bodyB.desk);
+    assert.deepEqual(expectRecord(deskB.skipped).skippedIds, ["skip-b"]);
+    assert.equal(expectRecord(deskB.lastScout).empty, false);
     assert.deepEqual(
-      deskB.lastScout.snapshot?.threads.map((t) => t.id),
+      expectRecords(expectRecord(expectRecord(deskB.lastScout).snapshot).threads).map((t) => t.id),
       ["tank-b"],
     );
   });
 
-  it("boot and GET history share saved, no-note, and wrong-owner receipts", async () => {
+  await it("boot and GET history share saved, no-note, and wrong-owner receipts", async () => {
     const knowledgeRoot = join(dir, "knowledge");
     const user = upsertOauthUser({
       provider: "google",
@@ -545,38 +499,34 @@ describe("GET /api/boot", () => {
     const cookie = `${SESSION_COOKIE}=${encodeURIComponent(createSession(user.id).token)}`;
     const { status, body } = await get("/api/boot", cookie);
     assert.equal(status, 200);
-    const desk = body.desk as {
-      interacted: {
-        interactions: Array<{
-          threadId: string;
-          author: string;
-          at: string;
-          memory?: { state?: string; memoryPath?: string };
-        }>;
-      };
-    };
+    const desk = expectRecord(body.desk);
     const bootById = Object.fromEntries(
-      desk.interacted.interactions.map((row) => [row.threadId, row.memory]),
+      expectRecords(expectRecord(desk.interacted).interactions).map((row): [string, unknown] => {
+        assert.equal(typeof row.threadId, "string");
+        if (typeof row.threadId !== "string") assert.fail("Expected a thread id");
+        return [row.threadId, row.memory];
+      }),
     );
     assert.deepEqual(bootById["2081"], { state: "saved" });
     assert.deepEqual(bootById["2082"], { state: "no_reply_text" });
     assert.deepEqual(bootById["2083"], { state: "unavailable" });
-    for (const row of desk.interacted.interactions) {
-      assert.equal("memoryPath" in (row.memory ?? {}), false);
+    for (const row of expectRecords(expectRecord(desk.interacted).interactions)) {
+      assert.equal("memoryPath" in expectRecord(row.memory ?? {}), false);
     }
 
     const history = await getInteracted(cookie);
-    const getRows = history.interactions as Array<{
-      threadId: string;
-      memory?: { state?: string };
-    }>;
+    const getRows = expectRecords(history.interactions);
     assert.deepEqual(
-      Object.fromEntries(getRows.map((row) => [row.threadId, row.memory])),
+      Object.fromEntries(getRows.map((row): [string, unknown] => {
+        assert.equal(typeof row.threadId, "string");
+        if (typeof row.threadId !== "string") assert.fail("Expected a thread id");
+        return [row.threadId, row.memory];
+      })),
       bootById,
     );
   });
 
-  it("missing memory storage does not fail boot", async () => {
+  await it("missing memory storage does not fail boot", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-boot-missing-store",
@@ -594,13 +544,11 @@ describe("GET /api/boot", () => {
     );
     assert.equal(status, 200);
     assert.equal(body.ok, true);
-    const desk = body.desk as {
-      interacted: { interactions: Array<{ memory?: { state?: string } }> };
-    };
-    assert.equal(desk.interacted.interactions[0]?.memory?.state, "unavailable");
+    const desk = expectRecord(body.desk);
+    assert.equal(expectRecord(expectRecords(expectRecord(desk.interacted).interactions)[0]?.memory).state, "unavailable");
   });
 
-  it("old boot callers still parse rows that include a memory receipt", async () => {
+  await it("old boot callers still parse rows that include a memory receipt", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-boot-old-caller",
@@ -617,21 +565,13 @@ describe("GET /api/boot", () => {
       `${SESSION_COOKIE}=${encodeURIComponent(createSession(user.id).token)}`,
     );
     assert.equal(status, 200);
-    const desk = body.desk as { interacted?: { interactions?: unknown } };
-    const rows = (Array.isArray(desk.interacted?.interactions)
-      ? desk.interacted.interactions
-      : []
-    ).filter((row) => {
-      if (!row || typeof row !== "object") return false;
-      const rec = row as { threadId?: unknown; author?: unknown; at?: unknown };
-      return (
-        typeof rec.threadId === "string" &&
-        typeof rec.author === "string" &&
-        typeof rec.at === "string"
-      );
-    });
+    const desk = expectRecord(body.desk);
+    const interactions = expectRecord(desk.interacted).interactions;
+    const rows = (Array.isArray(interactions) ? interactions : []).filter(
+      (row) => hasStrings(row, "threadId", "author", "at"),
+    );
     assert.deepEqual(
-      rows.map((row) => (row as { threadId: string }).threadId),
+      rows.map((row) => row.threadId),
       ["legacy"],
     );
   });

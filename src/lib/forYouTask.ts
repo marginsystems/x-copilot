@@ -1,3 +1,4 @@
+import { isRecord } from "./typeGuards";
 /**
  * The For You wait belongs to one presented task. Detection reads one activity
  * cursor — the newest own post or attributed reply the desk already knows.
@@ -183,8 +184,8 @@ function storageKey(owner: string): string {
 
 function parseSnapshot(raw: unknown): ForYouWaitSnapshot | null | undefined {
   if (raw === null) return null;
-  if (!raw || typeof raw !== "object") return undefined;
-  const snapshot = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return undefined;
+  const snapshot = raw;
   if (typeof snapshot.id !== "string" || !snapshot.id.trim()) return undefined;
   if (typeof snapshot.postedAt !== "string" || !snapshot.postedAt.trim()) {
     return undefined;
@@ -194,8 +195,8 @@ function parseSnapshot(raw: unknown): ForYouWaitSnapshot | null | undefined {
 
 function parseHit(raw: unknown): ActivityCursor | null | undefined {
   if (raw === null || raw === undefined) return null;
-  if (!raw || typeof raw !== "object") return undefined;
-  const row = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return undefined;
+  const row = raw;
   if (
     typeof row.id !== "string" ||
     !row.id.trim() ||
@@ -223,8 +224,8 @@ export function parseForYouWait(
   if (raw === null) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-    const row = parsed as Record<string, unknown>;
+    if (!isRecord(parsed)) return null;
+    const row = parsed;
     if (row.held !== true || row.kind !== "for_you") return null;
     if (row.owner !== owner) return null;
     if (typeof row.enteredAt !== "string") return null;

@@ -14,7 +14,7 @@ describe("vanishEvent", () => {
       vanishEvent({ ...base, interactedIds: new Set(["card"]) }),
       "mark",
     );
-  });
+  }).catch(assert.fail);
 
   it("marks through conversation and parent ancestry", () => {
     assert.equal(
@@ -33,7 +33,7 @@ describe("vanishEvent", () => {
       }),
       "mark",
     );
-  });
+  }).catch(assert.fail);
 
   it("marks when a history row points back to the card", () => {
     assert.equal(
@@ -43,7 +43,7 @@ describe("vanishEvent", () => {
       }),
       "mark",
     );
-  });
+  }).catch(assert.fail);
 
   it("marks a digest card through its Suggested X target", () => {
     assert.equal(
@@ -66,7 +66,7 @@ describe("vanishEvent", () => {
       }),
       "mark",
     );
-  });
+  }).catch(assert.fail);
 
   it("skips an unrelated vanished card", () => {
     assert.equal(
@@ -77,5 +77,5 @@ describe("vanishEvent", () => {
       }),
       "skip",
     );
-  });
+  }).catch(assert.fail);
 });

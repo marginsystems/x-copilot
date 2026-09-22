@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.webhook.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["webhook/src/**/*.ts", "server/src/xenova-transformers.d.ts"],
+  "exclude": []
+}

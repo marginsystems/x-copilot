@@ -50,7 +50,7 @@ describe("reply pace overlay storage", () => {
       clearReplyPace(markCleared);
       assert.equal(readReplyPaceOverlay(), false);
     }
-  });
+  }).catch(assert.fail);
 
   it("clears only the overlay marker", (t) => {
     const stored = new Map<string, string>();
@@ -73,14 +73,15 @@ describe("reply pace overlay storage", () => {
     clearReplyPaceOverlay();
     assert.equal(readReplyPaceOverlay(), false);
     assert.equal(stored.get("x-copilot-reply-pace-until"), "1700000060000");
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("replyPace", () => {
   it("arms 60 seconds from now", () => {
     assert.equal(REPLY_PACE_MS, 60_000);
     assert.equal(nextReplyPaceUntil(1_000), 61_000);
-  });
+  }).catch(assert.fail);
 
   it("reads a finite until or returns null", () => {
     assert.equal(parseReplyPaceUntil("1700000060000"), 1_700_000_060_000);
@@ -88,7 +89,7 @@ describe("replyPace", () => {
     assert.equal(parseReplyPaceUntil(""), null);
     assert.equal(parseReplyPaceUntil("nope"), null);
     assert.equal(parseReplyPaceUntil("0"), null);
-  });
+  }).catch(assert.fail);
 
   it("locks only while remaining time is positive", () => {
     assert.equal(replyPaceRemainingMs(1_060, 1_000), 60);
@@ -98,7 +99,7 @@ describe("replyPace", () => {
     assert.equal(replyPaceLocked(1_060, 1_000), true);
     assert.equal(replyPaceLocked(1_000, 1_000), false);
     assert.equal(replyPaceLocked(null, 1_000), false);
-  });
+  }).catch(assert.fail);
 
   it("seeds from a recent replyAt and keeps an existing until", () => {
     assert.equal(
@@ -119,7 +120,7 @@ describe("replyPace", () => {
       }),
       Date.parse("2026-09-05T12:00:40.000Z"),
     );
-  });
+  }).catch(assert.fail);
 
   it("re-seeds from a recent replyAt when the stored until has expired", () => {
     assert.equal(
@@ -131,7 +132,7 @@ describe("replyPace", () => {
       }),
       Date.parse("2026-09-05T12:02:00.000Z"),
     );
-  });
+  }).catch(assert.fail);
 
   it("seeds from the newest detected reply and ignores other activity", () => {
     const replyAtIso = "2026-09-05T12:00:00.000Z";
@@ -175,7 +176,7 @@ describe("replyPace", () => {
       }),
       replyAtIso,
     );
-  });
+  }).catch(assert.fail);
 
   it("does not seed after Bypass or when the minute has elapsed", () => {
     assert.equal(
@@ -196,7 +197,7 @@ describe("replyPace", () => {
       }),
       null,
     );
-  });
+  }).catch(assert.fail);
 
   it("prints a m:ss clock", () => {
     assert.equal(formatReplyPaceClock(60_000), "1:00");
@@ -204,5 +205,5 @@ describe("replyPace", () => {
     assert.equal(formatReplyPaceClock(1_000), "0:01");
     assert.equal(formatReplyPaceClock(1), "0:01");
     assert.equal(formatReplyPaceClock(0), "0:00");
-  });
+  }).catch(assert.fail);
 });
