@@ -29,8 +29,8 @@ import { getGamification, recordMarkGamification } from "./desk/gamification.ts"
 import { runStatsTick, shouldRunStatsMain } from "./statsWorker.ts";
 import type { SyncInteractionOutcomeResult } from "./memory/memoryOutcome.ts";
 
-describe("shouldRunStatsMain", () => {
-  it("returns true for direct statsWorker.js / .ts entry", () => {
+await describe("shouldRunStatsMain", async () => {
+  await it("returns true for direct statsWorker.js / .ts entry", () => {
     assert.equal(
       shouldRunStatsMain("/root/x-copilot/server/dist/statsWorker.js"),
       true,
@@ -41,7 +41,7 @@ describe("shouldRunStatsMain", () => {
     );
   });
 
-  it("returns true under PM2 when XCOPILOT_ROLE=stats", () => {
+  await it("returns true under PM2 when XCOPILOT_ROLE=stats", () => {
     assert.equal(
       shouldRunStatsMain(
         "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
@@ -51,7 +51,7 @@ describe("shouldRunStatsMain", () => {
     );
   });
 
-  it("returns false for ProcessContainerFork without the stats role", () => {
+  await it("returns false for ProcessContainerFork without the stats role", () => {
     assert.equal(
       shouldRunStatsMain(
         "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
@@ -68,7 +68,7 @@ describe("shouldRunStatsMain", () => {
     );
   });
 
-  it("returns false for test-runner style argv", () => {
+  await it("returns false for test-runner style argv", () => {
     assert.equal(
       shouldRunStatsMain("/root/x-copilot/node_modules/tsx/dist/cli.mjs", {
         pm_id: undefined,
@@ -78,10 +78,10 @@ describe("shouldRunStatsMain", () => {
   });
 });
 
-describe("selectDueStatSamples", () => {
+await describe("selectDueStatSamples", async () => {
   const now = Date.parse("2026-07-28T12:00:00.000Z");
 
-  it("skips rows without replyId", () => {
+  await it("skips rows without replyId", () => {
     const rows: Interaction[] = [
       {
         userId: "u1",
@@ -95,7 +95,7 @@ describe("selectDueStatSamples", () => {
     assert.equal(selectDueStatSamples(rows, now).length, 0);
   });
 
-  it("returns t1h when age >= 1h and snapshot missing", () => {
+  await it("returns t1h when age >= 1h and snapshot missing", () => {
     const postedAt = new Date(now - STATS_T1H_MS - 1000).toISOString();
     const rows: Interaction[] = [
       {
@@ -116,7 +116,7 @@ describe("selectDueStatSamples", () => {
     assert.equal(due[0]?.replyId, "99");
   });
 
-  it("returns both checkpoints when 24h due and both missing", () => {
+  await it("returns both checkpoints when 24h due and both missing", () => {
     const postedAt = new Date(now - STATS_T24H_MS - 1000).toISOString();
     const rows: Interaction[] = [
       {
@@ -137,7 +137,7 @@ describe("selectDueStatSamples", () => {
     );
   });
 
-  it("omits checkpoints that already have snapshots", () => {
+  await it("omits checkpoints that already have snapshots", () => {
     const postedAt = new Date(now - STATS_T24H_MS - 1000).toISOString();
     const rows: Interaction[] = [
       {
@@ -160,7 +160,7 @@ describe("selectDueStatSamples", () => {
   });
 });
 
-describe("runStatsTick", () => {
+await describe("runStatsTick", async () => {
   let dir: string;
   let temp: TempPlatformDb;
   const userId = "u1";
@@ -176,7 +176,7 @@ describe("runStatsTick", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("fills t1h snapshot when metrics fetch succeeds", async () => {
+  await it("fills t1h snapshot when metrics fetch succeeds", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
       threadId: "parent",
@@ -205,7 +205,7 @@ describe("runStatsTick", () => {
     assert.equal(history[0]?.stats?.t1h?.likes, 4);
   });
 
-  it("soft-fails leave slot open for retry", async () => {
+  await it("soft-fails leave slot open for retry", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
       threadId: "parent",
@@ -232,7 +232,7 @@ describe("runStatsTick", () => {
     assert.equal(stillDue.length, 1);
   });
 
-  it("invokes outcome sync with patched interaction after sample", async () => {
+  await it("invokes outcome sync with patched interaction after sample", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
       threadId: "parent",
@@ -266,7 +266,7 @@ describe("runStatsTick", () => {
     assert.equal(synced[0]?.stats?.t1h?.likes, 4);
   });
 
-  it("memory sync failure does not undo sampled metric", async () => {
+  await it("memory sync failure does not undo sampled metric", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
       threadId: "parent",
@@ -299,7 +299,7 @@ describe("runStatsTick", () => {
     assert.equal(history[0]?.stats?.t1h?.views, 50);
   });
 
-  it("does not let burned failures starve newer due samples", async () => {
+  await it("does not let burned failures starve newer due samples", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     // Oldest-first due queue: 15 permanently-missing replies + one newer.
     for (let i = 0; i < 15; i++) {
@@ -345,7 +345,7 @@ describe("runStatsTick", () => {
     assert.equal(result.failed, 0);
   });
 
-  it("retries a failed memory sync on the next tick and clears the flag", async () => {
+  await it("retries a failed memory sync on the next tick and clears the flag", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
       threadId: "parent",
@@ -389,7 +389,7 @@ describe("runStatsTick", () => {
     assert.equal((await listMemorySyncRetries()).length, 0);
   });
 
-  it("retries a soft-failed t24h gamification bonus on the next tick", async () => {
+  await it("retries a soft-failed t24h gamification bonus on the next tick", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     const gamificationPath = join(dir, "gamification.json");
     await markInteracted({
@@ -431,7 +431,7 @@ describe("runStatsTick", () => {
     assert.equal(snap.currentStreak, 1);
   });
 
-  it("retries a soft-failed mark gamification on the next tick", async () => {
+  await it("retries a soft-failed mark gamification on the next tick", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     const gamificationPath = join(dir, "gamification.json");
     await markInteracted({
@@ -465,7 +465,7 @@ describe("runStatsTick", () => {
     assert.equal(snap.currentStreak, 1);
   });
 
-  it("does not double-credit a mark when two flagged marks share a first ledger write", async () => {
+  await it("does not double-credit a mark when two flagged marks share a first ledger write", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     const gamificationPath = join(dir, "gamification.json");
     await markInteracted({
@@ -513,7 +513,7 @@ describe("runStatsTick", () => {
     assert.equal(snap.currentStreak, 1);
   });
 
-  it("replaying an older flagged mark after a newer mark does not regress the streak", async () => {
+  await it("replaying an older flagged mark after a newer mark does not regress the streak", async () => {
     const d1 = Date.parse("2026-08-05T12:00:00.000Z");
     const d2 = Date.parse("2026-08-06T12:00:00.000Z");
     const d3 = Date.parse("2026-08-07T12:00:00.000Z");
@@ -588,7 +588,7 @@ describe("runStatsTick", () => {
     assert.equal(after.lastMarkUtcDay, "2026-08-07");
   });
 
-  it("does not lose a soft-failed mark when the same thread is re-marked before the retry", async () => {
+  await it("does not lose a soft-failed mark when the same thread is re-marked before the retry", async () => {
     const d1 = Date.parse("2026-08-05T12:00:00.000Z");
     const d2 = Date.parse("2026-08-06T12:00:00.000Z");
     const gamificationPath = join(dir, "gamification.json");
