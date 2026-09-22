@@ -1,10 +1,11 @@
+import { testRequest } from "../http/http.testHelpers.js";
+import { isRecord } from "../platform/unknownValue.js";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { EventEmitter } from "node:events";
 import { setImmediate } from "node:timers/promises";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { type IncomingMessage, ServerResponse } from "node:http";
 import { updateUserAgenda } from "../auth/authStore.ts";
 import { ensureUserTenant } from "../billing/billingStore.ts";
 import { defaultMigrationsDir, getPlatformDb, resetPlatformDbForTests } from "../db.ts";
@@ -19,7 +20,8 @@ import { countSortiesToday, recordSortie } from "./scoutSorties.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 
-function assertEmpty(row: { ok?: boolean; empty?: boolean }) {
+function assertEmpty(row: unknown) {
+  assert.ok(isRecord(row));
   assert.equal(row.ok, true);
   assert.equal(row.empty, true);
 }
@@ -30,7 +32,7 @@ const thread = {
   engage: "consider" as const, baitScore: 10, onAgenda: true,
 };
 
-describe("empty-tank background Scout", () => {
+await describe("empty-tank background Scout", async () => {
   let dir: string;
   let userId: string;
   let tenantId: string;
@@ -71,19 +73,21 @@ describe("empty-tank background Scout", () => {
   async function get() {
     let status = 0;
     let raw = "";
-    const req = Object.assign(new EventEmitter(), {
+    const req = Object.assign(testRequest(), {
       method: "GET", headers: { cookie, origin: "http://localhost:5173" }, socket: { remoteAddress: "127.0.0.1" },
-    }) as unknown as IncomingMessage;
-    const res = {
+    });
+    const res = Object.assign(new ServerResponse(testRequest()), {
       writeHead(code: number) { status = code; },
       end(chunk: string) { raw = chunk; },
-    } as unknown as ServerResponse;
+    });
     assert.equal(await tryHandleScout(req, res, new URL("http://localhost/api/scout/last"), deps), true);
     assert.equal(status, 200);
-    return JSON.parse(raw);
+    const result: unknown = JSON.parse(raw);
+    assert.ok(isRecord(result));
+    return result;
   }
 
-  it("returns empty while one collect is pending, then enforces cooldown", async () => {
+  await it("returns empty while one collect is pending, then enforces cooldown", async () => {
     let finish!: () => void;
     const pending = new Promise<void>((resolve) => { finish = resolve; });
     deps.runScoutCollect = async (opts) => {
@@ -114,18 +118,18 @@ describe("empty-tank background Scout", () => {
     assert.equal(tryBeginScout(userId, Date.now() + SCOUT_COOLDOWN_MS + 1).ok, true);
   });
 
-  it("does not start an empty-tank collect when autoStart is off", async () => {
+  await it("does not start an empty-tank collect when autoStart is off", async () => {
     let status = 0;
     let raw = "";
-    const req = Object.assign(new EventEmitter(), {
+    const req = Object.assign(testRequest(), {
       method: "GET",
       headers: { cookie, origin: "http://localhost:5173" },
       socket: { remoteAddress: "127.0.0.1" },
-    }) as unknown as IncomingMessage;
-    const res = {
+    });
+    const res = Object.assign(new ServerResponse(testRequest()), {
       writeHead(code: number) { status = code; },
       end(chunk: string) { raw = chunk; },
-    } as unknown as ServerResponse;
+    });
     assert.equal(
       await tryHandleScout(
         req,
@@ -141,15 +145,15 @@ describe("empty-tank background Scout", () => {
     assert.equal(calls, 0);
   });
 
-  it("does not start an empty-tank collect without an Origin", async () => {
+  await it("does not start an empty-tank collect without an Origin", async () => {
     let status = 0;
-    const req = Object.assign(new EventEmitter(), {
+    const req = Object.assign(testRequest(), {
       method: "GET", headers: { cookie }, socket: { remoteAddress: "127.0.0.1" },
-    }) as unknown as IncomingMessage;
-    const res = {
+    });
+    const res = Object.assign(new ServerResponse(testRequest()), {
       writeHead(code: number) { status = code; },
       end() {},
-    } as unknown as ServerResponse;
+    });
 
     assert.equal(
       await tryHandleScout(req, res, new URL("http://localhost/api/scout/last"), deps),
@@ -160,7 +164,7 @@ describe("empty-tank background Scout", () => {
     assert.equal(calls, 0);
   });
 
-  it("starts from the shared reader after filtering, using the live agenda and snapshot filters", async () => {
+  await it("starts from the shared reader after filtering, using the live agenda and snapshot filters", async () => {
     const filters = { excludedTags: ["political"], minViews: 200, filterByMinViews: true };
     await saveScoutCache({ savedAt: new Date().toISOString(), agenda: "old agenda", queries: ["old query"], filters, threads: [thread] }, { userId });
     await markDismissed({ userId, threadId: thread.id, author: thread.author });
@@ -176,11 +180,11 @@ describe("empty-tank background Scout", () => {
     assert.equal(calls, 1);
     assert.deepEqual((await getLastScout({ userId }))?.filters, filters);
     assert.equal(countSortiesToday(tenantId), 1);
-    const row = getPlatformDb().prepare("SELECT delivered FROM scout_sorties WHERE tenant_id = ?").get(tenantId) as { delivered: number };
+    const row = parseRowRow(getPlatformDb().prepare("SELECT delivered FROM scout_sorties WHERE tenant_id = ?").get(tenantId));
     assert.equal(row.delivered, 1);
   });
 
-  it("leaves two usable threads alone", async () => {
+  await it("leaves two usable threads alone", async () => {
     await saveScoutCache({ savedAt: new Date().toISOString(), agenda: "builders", queries: [], threads: [thread, { ...thread, id: "second", author: "@second" }] }, { userId });
     await maybeStartEmptyTankScout(userId, deps);
     assert.equal((await get()).empty, false);
@@ -188,7 +192,7 @@ describe("empty-tank background Scout", () => {
     assert.equal(calls, 0);
   });
 
-  it("starts once with one usable thread and still returns nonempty", async () => {
+  await it("starts once with one usable thread and still returns nonempty", async () => {
     await saveScoutCache({ savedAt: new Date().toISOString(), agenda: "builders", queries: [], threads: [thread] }, { userId });
     assert.equal((await get()).empty, false);
     assert.equal((await readLastScoutPayload({ userId, deps })).empty, false);
@@ -196,7 +200,7 @@ describe("empty-tank background Scout", () => {
     assert.equal(calls, 1);
   });
 
-  it("uses the filtered tank for the background start path", async () => {
+  await it("uses the filtered tank for the background start path", async () => {
     const dismissed = { ...thread, id: "dismissed", author: "@dismissed" };
     await saveScoutCache({ savedAt: new Date().toISOString(), agenda: "builders", queries: [], threads: [thread, dismissed] }, { userId });
     await markDismissed({ userId, threadId: dismissed.id, author: dismissed.author });
@@ -210,7 +214,7 @@ describe("empty-tank background Scout", () => {
   });
 
   for (const gate of ["session", "agenda", "unlinked", "credits", "sorties", "busy", "cooldown"] as const) {
-    it(`returns 200 empty without collect when blocked by ${gate}`, async () => {
+    await it(`returns 200 empty without collect when blocked by ${gate}`, async () => {
       if (gate === "session") cookie = "";
       if (gate === "agenda") updateUserAgenda(userId, "   ");
       if (gate === "unlinked") {
@@ -230,7 +234,7 @@ describe("empty-tank background Scout", () => {
     });
   }
 
-  it("latches flight failure when the collect reports terminal_error", async () => {
+  await it("latches flight failure when the collect reports terminal_error", async () => {
     deps.runScoutCollect = async (opts) => {
       calls++;
       opts.onEvent?.({ ...done, stopReason: "terminal_error" });
@@ -242,7 +246,7 @@ describe("empty-tank background Scout", () => {
     assert.equal(peekScoutFlight(userId).failure, true);
   });
 
-  it("does not latch flight failure on a clean target landing", async () => {
+  await it("does not latch flight failure on a clean target landing", async () => {
     deps.runScoutCollect = async (opts) => {
       calls++;
       opts.onEvent?.({ ...done, stopReason: "target" });
@@ -255,7 +259,7 @@ describe("empty-tank background Scout", () => {
   });
 
   for (const failure of ["memory", "collect"] as const) {
-    it(`contains ${failure} failure, refunds and releases the lock`, async () => {
+    await it(`contains ${failure} failure, refunds and releases the lock`, async () => {
       if (failure === "memory") deps.ensureMemoryIndex = async () => { throw new Error("test failure"); };
       else deps.runScoutCollect = async () => { calls++; throw new Error("test failure"); };
       assertEmpty(await get());
@@ -266,3 +270,11 @@ describe("empty-tank background Scout", () => {
     });
   }
 });
+
+function parseRowRow(value: unknown): { delivered: number } {
+  const valid = (row: unknown): row is { delivered: number } =>
+    (isRecord(row) &&
+    typeof row.delivered === "number");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

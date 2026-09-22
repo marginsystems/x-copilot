@@ -87,7 +87,7 @@ async function writeNote(opts: {
   return path;
 }
 
-describe("reconcileScoutEvidence", () => {
+await describe("reconcileScoutEvidence", async () => {
   let temp: TempPlatformDb;
   let knowledgeRoot: string;
   const userId = "user-a";
@@ -106,7 +106,7 @@ describe("reconcileScoutEvidence", () => {
     rmSync(knowledgeRoot, { recursive: true, force: true });
   });
 
-  it("resumes tied keyset pages without skipping the boundary's older rows", async () => {
+  await it("resumes tied keyset pages without skipping the boundary's older rows", async () => {
     const at = new Date(T0).toISOString();
     for (const id of ["a", "b", "c"]) {
       await markInteracted({
@@ -144,7 +144,7 @@ describe("reconcileScoutEvidence", () => {
     assert.deepEqual(nextReplies.map((row) => row.id), ["reply-a"]);
   });
 
-  it("does not turn a URL-only mark into a take", async () => {
+  await it("does not turn a URL-only mark into a take", async () => {
     await markInteracted({
       threadId: "target-1",
       author: "@alice",
@@ -160,7 +160,7 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(listScoutEvidence({ userId }).length, 0);
   });
 
-  it("confirms a take from own_posts text, then repairs stored-note credit", async () => {
+  await it("confirms a take from own_posts text, then repairs stored-note credit", async () => {
     await saveScoutCache(
       {
         savedAt: new Date(T0).toISOString(),
@@ -220,7 +220,7 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(listScoutEvidence({ userId: "user-b" }).length, 0);
   });
 
-  it("joins a legacy note without a reply id, but not a note for a different reply", async () => {
+  await it("joins a legacy note without a reply id, but not a note for a different reply", async () => {
     const at = new Date(T0).toISOString();
     await writeNote({ knowledgeRoot, userId, threadId: "t-legacy", at, reply: "legacy reply" });
     const legacy = await verifyOwnedReplyNote({
@@ -251,7 +251,7 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(foreign.state, "missing");
   });
 
-  it("does not join a legacy note to a later reply on the same thread", async () => {
+  await it("does not join a legacy note to a later reply on the same thread", async () => {
     const at = new Date(T0).toISOString();
     await writeNote({ knowledgeRoot, userId, threadId: "t-legacy", at, reply: "legacy reply" });
     upsertOwnPost({
@@ -274,7 +274,7 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(findScoutTakeByReplyId(userId, "r-later"), null);
   });
 
-  it("keeps distinct same-day take identities in SQL while one canonical note credits only its declared reply", async () => {
+  await it("keeps distinct same-day take identities in SQL while one canonical note credits only its declared reply", async () => {
     const at = new Date(T0).toISOString();
     const path = await writeNote({ knowledgeRoot, userId, threadId: "same-thread", at, reply: "first", replyId: "r1" });
     assert.deepEqual(
@@ -308,7 +308,7 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(findScoutTakeByReplyId(userId, "r2")?.noteState, "missing");
   });
 
-  it("confirms a trimmed-history interaction from an owned note alone", async () => {
+  await it("confirms a trimmed-history interaction from an owned note alone", async () => {
     const at = new Date(T0).toISOString();
     await markInteracted({
       threadId: "t-note",
@@ -327,7 +327,7 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(take?.threadKind, null);
   });
 
-  it("does not restore a self-reply take through its owned note", async () => {
+  await it("does not restore a self-reply take through its owned note", async () => {
     const at = new Date(T0).toISOString();
     await markInteracted({
       threadId: "mine",
@@ -361,7 +361,7 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(findScoutTakeByReplyId(userId, "self-note"), null);
   });
 
-  it("backfills confirmed own replies beyond the interaction history in bounded batches", async () => {
+  await it("backfills confirmed own replies beyond the interaction history in bounded batches", async () => {
     for (let i = 0; i < 250; i++) {
       upsertOwnPost({
         parsed: ownReply({
@@ -408,7 +408,7 @@ describe("reconcileScoutEvidence", () => {
     assert.equal(readScoutEvidenceRevision(userId).revision, revision);
   });
 
-  it("enriches an adapter take that lacked context without rewriting its time", async () => {
+  await it("enriches an adapter take that lacked context without rewriting its time", async () => {
     recordScoutEvidence({
       userId,
       eventKey: takeEventKey("r-adapter"),

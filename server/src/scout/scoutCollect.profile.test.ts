@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * C11: the collector takes exactly one owned ScoutProfile snapshot per run
  * and carries that same object into the initial plan, the low-yield replan
@@ -140,8 +141,8 @@ function spyLoader(backing: () => ScoutProfile | null | undefined | Promise<Scou
   return { calls, loadScoutProfile };
 }
 
-describe("runScoutCollect — one owned profile snapshot per run", () => {
-  it("reads once with the trimmed userId, even for explicit client queries", async () => {
+await describe("runScoutCollect — one owned profile snapshot per run", async () => {
+  await it("reads once with the trimmed userId, even for explicit client queries", async () => {
     const profile = supportedProfile("user-a");
     const loader = spyLoader(() => profile);
     const planCalls: PlanCall[] = [];
@@ -158,7 +159,7 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
     assert.equal(planCalls.length, 0, "explicit queries still bypass the initial planner");
   });
 
-  it("performs zero reads without an identity", async () => {
+  await it("performs zero reads without an identity", async () => {
     for (const userId of [undefined, "", "   "]) {
       const loader = spyLoader(() => supportedProfile("user-a"));
       const result = await runScoutCollect({
@@ -174,7 +175,7 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
     }
   });
 
-  it("does not read before early credential or input failures", async () => {
+  await it("does not read before early credential or input failures", async () => {
     const loader = spyLoader(() => supportedProfile("user-a"));
     const deps = stubDeps({ loadScoutProfile: loader.loadScoutProfile });
     const noCreds = await runScoutCollect({
@@ -193,7 +194,7 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
     assert.deepEqual(loader.calls, []);
   });
 
-  it("a throwing loader does not fail collection and supplies no profile", async () => {
+  await it("a throwing loader does not fail collection and supplies no profile", async () => {
     withLlmKey();
     temp = openTempPlatformDb("x-scout-profile-throw-");
     const userId = seedUser("profile-throw-user");
@@ -215,7 +216,7 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
     assert.equal(planCalls[0]?.opts, undefined, "no history, no profile → undefined opts as before");
   });
 
-  it("a foreign or absent profile is dropped without a retry or fallback owner", async () => {
+  await it("a foreign or absent profile is dropped without a retry or fallback owner", async () => {
     withLlmKey();
     temp = openTempPlatformDb("x-scout-profile-foreign-");
     const userId = seedUser("profile-foreign-user");
@@ -223,7 +224,7 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
       () => supportedProfile("someone-else"),
       () => null,
       () => undefined,
-      () => ({ ...supportedProfile(userId), version: 2 as unknown as 1 }),
+      () => (unsupportedVersionProfile(supportedProfile(userId))),
     ]) {
       const loader = spyLoader(backing);
       const planCalls: PlanCall[] = [];
@@ -241,7 +242,7 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
     }
   });
 
-  it("the same object reaches the initial plan and the low-yield replan; no second read mid-run", async () => {
+  await it("the same object reaches the initial plan and the low-yield replan; no second read mid-run", async () => {
     withLlmKey();
     temp = openTempPlatformDb("x-scout-profile-replan-");
     const userId = seedUser("profile-replan-user");
@@ -287,7 +288,7 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
     assert.equal(planCalls[2]?.opts?.profile?.revision, 2, "next run sees the new revision");
   });
 
-  it("profile availability adds no planning call; explicit queries still replan as before", async () => {
+  await it("profile availability adds no planning call; explicit queries still replan as before", async () => {
     withLlmKey();
     temp = openTempPlatformDb("x-scout-profile-budget-");
     const userId = seedUser("profile-budget-user");
@@ -321,7 +322,7 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
     assert.equal(withProfile[0]?.opts?.yieldNote, without[0]?.opts?.yieldNote);
   });
 
-  it("with the real planner, initial, JSON repair, broaden and replan all carry one block", async () => {
+  await it("with the real planner, initial, JSON repair, broaden and replan all carry one block", async () => {
     withLlmKey();
     temp = openTempPlatformDb("x-scout-profile-real-planner-");
     const userId = seedUser("profile-real-planner-user");
@@ -337,9 +338,7 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
     ];
     const original = globalThis.fetch;
     globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body ?? "{}")) as {
-        messages: Array<{ role: string; content: string }>;
-      };
+      const body = parseBodyRow(JSON.parse(String(init?.body ?? "{}")));
       requests.push(body.messages);
       const content = answers[Math.min(requests.length, answers.length) - 1] ?? "";
       return new Response(
@@ -374,7 +373,7 @@ describe("runScoutCollect — one owned profile snapshot per run", () => {
   });
 });
 
-describe("runScoutCollect — the same snapshot reaches every triage batch (C12)", () => {
+await describe("runScoutCollect — the same snapshot reaches every triage batch (C12)", async () => {
   type TriageSeen = { userId?: string; profile?: ScoutProfile | null; ids: string[] };
 
   function triageSpy(seen: TriageSeen[], engageFor: (batch: number) => "skip" | "consider") {
@@ -391,7 +390,7 @@ describe("runScoutCollect — the same snapshot reaches every triage batch (C12)
     };
   }
 
-  it("one load total across plan, replan and multiple triage buckets", async () => {
+  await it("one load total across plan, replan and multiple triage buckets", async () => {
     withLlmKey();
     temp = openTempPlatformDb("x-scout-profile-triage-");
     const userId = seedUser("profile-triage-user");
@@ -423,7 +422,7 @@ describe("runScoutCollect — the same snapshot reaches every triage batch (C12)
     assert.equal(planCalls[0]?.opts?.profile, profile);
   });
 
-  it("explicit client queries forward the snapshot too; a blank identity forwards no profile", async () => {
+  await it("explicit client queries forward the snapshot too; a blank identity forwards no profile", async () => {
     const profile = supportedProfile("user-a");
     const loader = spyLoader(() => profile);
     const seen: TriageSeen[] = [];
@@ -455,7 +454,7 @@ describe("runScoutCollect — the same snapshot reaches every triage batch (C12)
     assert.equal(anon[0]?.userId, "");
   });
 
-  it("a rejected or throwing loader forwards no profile to triage", async () => {
+  await it("a rejected or throwing loader forwards no profile to triage", async () => {
     for (const backing of [
       () => supportedProfile("someone-else"),
       () => {
@@ -477,3 +476,22 @@ describe("runScoutCollect — the same snapshot reaches every triage batch (C12)
     }
   });
 });
+
+function parseBodyRow(value: unknown): {
+        messages: Array<{ role: string; content: string }>;
+      } {
+  const valid = (row: unknown): row is {
+        messages: Array<{ role: string; content: string }>;
+      } =>
+    (isRecord(row) &&
+    (Array.isArray(row.messages) && row.messages.every((item: unknown) => (isRecord(item) &&
+    typeof item.role === "string" &&
+    typeof item.content === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function unsupportedVersionProfile(profile: ScoutProfile): ScoutProfile {
+  Reflect.set(profile, "version", 2);
+  return profile;
+}

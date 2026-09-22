@@ -47,8 +47,8 @@ function completeJson(
   return JSON.stringify({ items });
 }
 
-describe("buildTriageCompact", () => {
-  it("includes OP context when present", () => {
+await describe("buildTriageCompact", async () => {
+  await it("includes OP context when present", () => {
     const compact = buildTriageCompact([
       {
         id: "1",
@@ -70,7 +70,7 @@ describe("buildTriageCompact", () => {
     });
   });
 
-  it("strips media shortlinks and annotates hasNativeMedia", () => {
+  await it("strips media shortlinks and annotates hasNativeMedia", () => {
     const compact = buildTriageCompact([
       {
         id: "2",
@@ -89,15 +89,15 @@ describe("buildTriageCompact", () => {
   });
 });
 
-describe("TRIAGE_SYSTEM_PROMPT media annotation", () => {
-  it("tells the model not to treat hasNativeMedia as an outbound link", () => {
+await describe("TRIAGE_SYSTEM_PROMPT media annotation", async () => {
+  await it("tells the model not to treat hasNativeMedia as an outbound link", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /hasNativeMedia/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /Do NOT treat that as an outbound link/);
   });
 });
 
-describe("isCompleteTriageItem", () => {
-  it("requires id, summary, baitScore, and threadKind", () => {
+await describe("isCompleteTriageItem", async () => {
+  await it("requires id, summary, baitScore, and threadKind", () => {
     assert.equal(
       isCompleteTriageItem({
         id: "1",
@@ -120,8 +120,8 @@ describe("isCompleteTriageItem", () => {
   });
 });
 
-describe("parseTriageJson", () => {
-  it("parses a full item", () => {
+await describe("parseTriageJson", async () => {
+  await it("parses a full item", () => {
     const items = parseTriageJson(
       completeJson([
         {
@@ -150,7 +150,7 @@ describe("parseTriageJson", () => {
     ]);
   });
 
-  it("parses onAgenda true and false", () => {
+  await it("parses onAgenda true and false", () => {
     const items = parseTriageJson(
       completeJson([
         {
@@ -173,7 +173,7 @@ describe("parseTriageJson", () => {
     assert.equal(items?.[1]?.onAgenda, false);
   });
 
-  it("normalizes threadKind and drops items with unknown kinds", () => {
+  await it("normalizes threadKind and drops items with unknown kinds", () => {
     const items = parseTriageJson(
       completeJson([
         {
@@ -195,7 +195,7 @@ describe("parseTriageJson", () => {
     assert.equal(items?.[0]?.threadKind, "timely_take");
   });
 
-  it("strips markdown fences for complete items", () => {
+  await it("strips markdown fences for complete items", () => {
     const items = parseTriageJson(
       '```json\n{"items":[{"id":"7","summary":"Short take.","baitScore":20,"threadKind":"sharp_opinion"}]}\n```',
     );
@@ -209,7 +209,7 @@ describe("parseTriageJson", () => {
     ]);
   });
 
-  it("rejects incomplete items without baitScore, summary, or threadKind", () => {
+  await it("rejects incomplete items without baitScore, summary, or threadKind", () => {
     const items = parseTriageJson(
       completeJson([
         { id: "1", engage: "skip", summary: "Has summary only" },
@@ -223,7 +223,7 @@ describe("parseTriageJson", () => {
     ]);
   });
 
-  it("clamps and rounds baitScore", () => {
+  await it("clamps and rounds baitScore", () => {
     const items = parseTriageJson(
       completeJson([
         { id: "a", summary: "A", baitScore: 140, threadKind: "other" },
@@ -237,7 +237,7 @@ describe("parseTriageJson", () => {
     );
   });
 
-  it("drops invalid engage values but keeps complete items", () => {
+  await it("drops invalid engage values but keeps complete items", () => {
     const items = parseTriageJson(
       completeJson([
         {
@@ -254,14 +254,14 @@ describe("parseTriageJson", () => {
     ]);
   });
 
-  it("normalizes flags and drops empty ones", () => {
+  await it("normalizes flags and drops empty ones", () => {
     const items = parseTriageJson(
       '{"items":[{"id":"1","summary":"Promo.","baitScore":70,"threadKind":"promo_context","flags":["Engagement Bait","promo","promo","",3]}]}',
     );
     assert.deepEqual(items?.[0].flags, ["engagement_bait", "promo"]);
   });
 
-  it("skips items without an id and dedupes repeats", () => {
+  await it("skips items without an id and dedupes repeats", () => {
     const items = parseTriageJson(
       '{"items":[{"summary":"no id","baitScore":1},{"id":"1","summary":"First","baitScore":10,"threadKind":"other"},{"id":"1","summary":"Second","baitScore":90,"threadKind":"other"}]}',
     );
@@ -270,7 +270,7 @@ describe("parseTriageJson", () => {
     ]);
   });
 
-  it("handles {} characters inside string values", () => {
+  await it("handles {} characters inside string values", () => {
     const json =
       '{"items":[{"id":"1","summary":"Shows code: { x = 1 }","baitScore":25,"threadKind":"other","reason":"Contains } brace"}]}';
     const items = parseTriageJson(json);
@@ -285,7 +285,7 @@ describe("parseTriageJson", () => {
     ]);
   });
 
-  it("ignores incomplete items when extra text surrounds JSON", () => {
+  await it("ignores incomplete items when extra text surrounds JSON", () => {
     const json =
       'Some prefix {"items":[{"id":"1","summary":"Ok.","baitScore":11,"threadKind":"other"}]} trailing';
     const items = parseTriageJson(json);
@@ -294,14 +294,14 @@ describe("parseTriageJson", () => {
     ]);
   });
 
-  it("returns null for non-json and missing items array", () => {
+  await it("returns null for non-json and missing items array", () => {
     assert.equal(parseTriageJson("just text"), null);
     assert.equal(parseTriageJson('{"threads":[]}'), null);
   });
 });
 
-describe("missingTriageIds", () => {
-  it("returns batch ids without a complete item", () => {
+await describe("missingTriageIds", async () => {
+  await it("returns batch ids without a complete item", () => {
     assert.deepEqual(
       missingTriageIds(
         ["1", "2", "3"],
@@ -319,8 +319,8 @@ describe("missingTriageIds", () => {
   });
 });
 
-describe("selectScoredThreads", () => {
-  it("keeps only threads with a numeric baitScore", () => {
+await describe("selectScoredThreads", async () => {
+  await it("keeps only threads with a numeric baitScore", () => {
     const scored = selectScoredThreads([
       { ...thread("1"), baitScore: 12 },
       thread("2"),
@@ -333,15 +333,15 @@ describe("selectScoredThreads", () => {
   });
 });
 
-describe("threadKind helpers", () => {
-  it("accepts the closed enum and rejects junk", () => {
+await describe("threadKind helpers", async () => {
+  await it("accepts the closed enum and rejects junk", () => {
     assert.equal(cleanThreadKind("lived_answer"), "lived_answer");
     assert.equal(cleanThreadKind(" Bare News "), "bare_news");
     assert.equal(cleanThreadKind("nope"), undefined);
     assert.equal(THREAD_KINDS.includes("other"), true);
   });
 
-  it("flags cool-skip kinds", () => {
+  await it("flags cool-skip kinds", () => {
     assert.equal(isCoolSkipThreadKind("hollow_ask"), true);
     assert.equal(isCoolSkipThreadKind("promo_context"), true);
     assert.equal(isCoolSkipThreadKind("bare_news"), true);
@@ -350,7 +350,7 @@ describe("threadKind helpers", () => {
     assert.equal(isCoolSkipThreadKind(undefined), false);
   });
 
-  it("documents prefer/skip kinds in the system prompt", () => {
+  await it("documents prefer/skip kinds in the system prompt", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /threadKind/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /timely_take/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /hollow_ask/);
@@ -361,8 +361,8 @@ describe("threadKind helpers", () => {
   });
 });
 
-describe("mergeTriage", () => {
-  it("merges by id and mirrors baitScore onto score", () => {
+await describe("mergeTriage", async () => {
+  await it("merges by id and mirrors baitScore onto score", () => {
     const merged = mergeTriage(
       [thread("1"), thread("2")],
       [
@@ -386,7 +386,7 @@ describe("mergeTriage", () => {
     assert.equal(merged[1].score, undefined);
   });
 
-  it("copies onAgenda onto the card", () => {
+  await it("copies onAgenda onto the card", () => {
     const merged = mergeTriage(
       [thread("1")],
       [
@@ -402,7 +402,7 @@ describe("mergeTriage", () => {
     assert.equal(merged[0].onAgenda, false);
   });
 
-  it("ignores unknown ids", () => {
+  await it("ignores unknown ids", () => {
     const merged = mergeTriage(
       [thread("1")],
       [
@@ -418,8 +418,8 @@ describe("mergeTriage", () => {
   });
 });
 
-describe("memory triage context", () => {
-  it("selectMemoryHits prefers 2 interactions + 2 dismissals", () => {
+await describe("memory triage context", async () => {
+  await it("selectMemoryHits prefers 2 interactions + 2 dismissals", () => {
     const hits = selectMemoryHits([
       { path: "a", type: "interaction", score: 0.9, excerpt: "ship AI" },
       { path: "b", type: "interaction", score: 0.8, excerpt: "builders" },
@@ -434,7 +434,7 @@ describe("memory triage context", () => {
     assert.ok(hits.every((h) => h.excerpt !== "extra" && h.excerpt !== "skip"));
   });
 
-  it("formatMemoryBlock / buildUserMessage include stubs when hits exist", () => {
+  await it("formatMemoryBlock / buildUserMessage include stubs when hits exist", () => {
     const block = formatMemoryBlock([
       { type: "dismissal", score: 0.88, excerpt: "Generic favorite-tool bait" },
       { type: "interaction", score: 0.71, excerpt: "Shipping AI in public tip" },
@@ -451,14 +451,14 @@ describe("memory triage context", () => {
     assert.match(msg, /Posts:/);
   });
 
-  it("buildUserMessage omits Memory when search is empty", () => {
+  await it("buildUserMessage omits Memory when search is empty", () => {
     const msg = buildUserMessage("Find builders", [thread("1")], []);
     assert.doesNotMatch(msg, /Memory \(advisory/);
     assert.doesNotMatch(msg, /Avoid:/);
     assert.match(msg, /onAgenda \(true or false\)/);
   });
 
-  it("buildUserMessage injects a standing Avoid line", () => {
+  await it("buildUserMessage injects a standing Avoid line", () => {
     const msg = buildUserMessage(
       "Find builders",
       [thread("1")],
@@ -468,7 +468,7 @@ describe("memory triage context", () => {
     assert.match(msg, /Avoid: "skip beginner dunking"/);
   });
 
-  it("buildUserMessage is byte-identical with an absent, null or empty profile", () => {
+  await it("buildUserMessage is byte-identical with an absent, null or empty profile", () => {
     const memories = [
       { type: "dismissal" as const, score: 0.88, excerpt: "Generic favorite-tool bait" },
     ];
@@ -487,7 +487,7 @@ describe("memory triage context", () => {
     );
   });
 
-  it("triageProfileForOwner requires a matching nonblank owner", () => {
+  await it("triageProfileForOwner requires a matching nonblank owner", () => {
     const profile = emptyScoutProfile("user-a");
     assert.equal(triageProfileForOwner(profile, " user-a "), profile);
     assert.equal(triageProfileForOwner(profile, "user-b"), null);
@@ -498,7 +498,7 @@ describe("memory triage context", () => {
     assert.equal(triageProfileForOwner(undefined, "user-a"), null);
   });
 
-  it("gatherTriageMemories soft-fails to [] when search returns empty", async () => {
+  await it("gatherTriageMemories soft-fails to [] when search returns empty", async () => {
     const hits = await gatherTriageMemories([thread("1")], {
       userId: "user-a",
       search: async () => ({ hits: [] }),
@@ -506,7 +506,7 @@ describe("memory triage context", () => {
     assert.deepEqual(hits, []);
   });
 
-  it("gatherTriageMemories passes the owner to every search call", async () => {
+  await it("gatherTriageMemories passes the owner to every search call", async () => {
     const seen: Array<{ userId: string; types?: string[] }> = [];
     await gatherTriageMemories([thread("1")], {
       userId: " user-a ",
@@ -521,7 +521,7 @@ describe("memory triage context", () => {
     ]);
   });
 
-  it("gatherTriageMemories never calls search without an owner", async () => {
+  await it("gatherTriageMemories never calls search without an owner", async () => {
     let calls = 0;
     for (const userId of [undefined, "", "   "]) {
       const hits = await gatherTriageMemories([thread("1")], {
@@ -536,7 +536,7 @@ describe("memory triage context", () => {
     assert.equal(calls, 0);
   });
 
-  it("gatherTriageMemories spreads the batch query across all cards", async () => {
+  await it("gatherTriageMemories spreads the batch query across all cards", async () => {
     const batch = Array.from({ length: 20 }, (_, i) => ({
       ...thread(String(i)),
       text: `${i}: ${"B".repeat(500)}`,
@@ -557,14 +557,14 @@ describe("memory triage context", () => {
   });
 });
 
-describe("triageThreads", () => {
-  it("returns threads untouched when there is nothing to triage", async () => {
+await describe("triageThreads", async () => {
+  await it("returns threads untouched when there is nothing to triage", async () => {
     const result = await triageThreads({ threads: [], apiKey: "test-key" });
     assert.deepEqual(result.threads, []);
     assert.equal(result.warning, undefined);
   });
 
-  it("returns empty list without an api key (no unscored fallback)", async () => {
+  await it("returns empty list without an api key (no unscored fallback)", async () => {
     const threads = [thread("1")];
     const result = await triageThreads({
       threads,
@@ -578,19 +578,19 @@ describe("triageThreads", () => {
   });
 });
 
-describe("MAX_TRIAGE_THREADS", () => {
-  it("caps the batch at 20", () => {
+await describe("MAX_TRIAGE_THREADS", async () => {
+  await it("caps the batch at 20", () => {
     assert.equal(MAX_TRIAGE_THREADS, 20);
   });
 });
 
-describe("TRIAGE_SYSTEM_PROMPT", () => {
-  it("includes political in the flags vocabulary", () => {
+await describe("TRIAGE_SYSTEM_PROMPT", async () => {
+  await it("includes political in the flags vocabulary", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /genuine_question, political, interpersonal_conflict/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /flag political/);
   });
 
-  it("flags interpersonal fights without forcing closed_thread", () => {
+  await it("flags interpersonal fights without forcing closed_thread", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /flag interpersonal_conflict/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /you keep making this about me or you/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /just brainless take/);
@@ -601,14 +601,14 @@ describe("TRIAGE_SYSTEM_PROMPT", () => {
     assert.doesNotMatch(TRIAGE_SYSTEM_PROMPT, /personal conflict is closed_thread/);
   });
 
-  it("skips genuine questions under hiring / quote-promo OPs", () => {
+  await it("skips genuine questions under hiring / quote-promo OPs", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /We are hiring! Come join us/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /What's the stack looking like for inference/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /do not cool genuine questions under hiring\/promo roots/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /quote-retweet praise/);
   });
 
-  it("skips substance-free BIP process pledges as low_substance", () => {
+  await it("skips substance-free BIP process pledges as low_substance", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /Substance bar/);
     assert.match(
       TRIAGE_SYSTEM_PROMPT,
@@ -626,14 +626,14 @@ describe("TRIAGE_SYSTEM_PROMPT", () => {
     );
   });
 
-  it("hard-skips pure event promos without suppressing substantive posts", () => {
+  await it("hard-skips pure event promos without suppressing substantive posts", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /register, RSVP, tune in, or join/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /flag event_promo/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /does not become event_promo/);
     assert.match(TRIAGE_SYSTEM_PROMPT, /Post-event recaps are not automatically skipped/);
   });
 
-  it("treats high outcomes as stronger positive evidence and low as weak not negative", () => {
+  await it("treats high outcomes as stronger positive evidence and low as weak not negative", () => {
     assert.match(TRIAGE_SYSTEM_PROMPT, /Mature 24h outcomes are stronger/);
     assert.match(
       TRIAGE_SYSTEM_PROMPT,

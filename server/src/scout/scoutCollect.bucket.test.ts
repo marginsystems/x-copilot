@@ -7,13 +7,13 @@ import { normalizeAuthorKey } from "../desk/interactionCooldown.ts";
 import type { PlanQueriesOpts } from "./queryPlan.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
-describe("runScoutCollect bucket loop", () => {
+await describe("runScoutCollect bucket loop", async () => {
   const session = {
     bearerToken: "t",
     configured: true,
   };
 
-  it("asks search for one page with referenced-tweet expansions", async () => {
+  await it("asks search for one page with referenced-tweet expansions", async () => {
     const seen: Array<{
       query?: string;
       maxPages?: number;
@@ -61,7 +61,7 @@ describe("runScoutCollect bucket loop", () => {
     assert.match(seen[0]?.query ?? "", /-is:retweet/);
   });
 
-  it("drops quote-of-Article candidates before triage", async () => {
+  await it("drops quote-of-Article candidates before triage", async () => {
     let triageIds: string[] = [];
 
     const result = await runScoutCollect({
@@ -108,7 +108,7 @@ describe("runScoutCollect bucket loop", () => {
     assert.deepEqual(triageIds, ["normal"]);
   });
 
-  it("fills bucket to K before any triage call", async () => {
+  await it("fills bucket to K before any triage call", async () => {
     let triageCalls = 0;
     let searchCalls = 0;
     const id = { n: 0 };
@@ -158,7 +158,7 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.event.coolCount, 1);
   });
 
-  it("discards zero-cool bucket and refills before stopping", async () => {
+  await it("discards zero-cool bucket and refills before stopping", async () => {
     let triageCalls = 0;
     let searchCalls = 0;
     const id = { n: 0 };
@@ -214,7 +214,7 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.event.coolCount, 1);
   });
 
-  it("excludes default supportive encouragement from cool and refills", async () => {
+  await it("excludes default supportive encouragement from cool and refills", async () => {
     let triageCalls = 0;
     let searchCalls = 0;
     const id = { n: 0 };
@@ -280,7 +280,7 @@ describe("runScoutCollect bucket loop", () => {
     );
   });
 
-  it("continues filling until cool target across buckets", async () => {
+  await it("continues filling until cool target across buckets", async () => {
     let triageCalls = 0;
     let searchCalls = 0;
     const id = { n: 0 };
@@ -329,7 +329,7 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(searchCalls, 2, "one search per full bucket of 5");
   });
 
-  it("keeps partial cools when later searches are exhausted", async () => {
+  await it("keeps partial cools when later searches are exhausted", async () => {
     let triageCalls = 0;
     const id = { n: 0 };
 
@@ -382,7 +382,7 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.event.coolCount, 1);
   });
 
-  it("triages a stalled partial bucket before exhausting", async () => {
+  await it("triages a stalled partial bucket before exhausting", async () => {
     let triageCalls = 0;
     let triagedIds: string[] = [];
     const id = { n: 0 };
@@ -446,7 +446,7 @@ describe("runScoutCollect bucket loop", () => {
     );
   });
 
-  it("does not triage when underfill is empty", async () => {
+  await it("does not triage when underfill is empty", async () => {
     let triageCalls = 0;
 
     const result = await runScoutCollect({
@@ -482,7 +482,7 @@ describe("runScoutCollect bucket loop", () => {
     assert.equal(result.event.coolCount, 0);
   });
 
-  it("refills from paid overflow before searching X again", async () => {
+  await it("refills from paid overflow before searching X again", async () => {
     let searchCalls = 0;
     let triageCalls = 0;
     const id = { n: 0 };

@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { getPlatformDb } from "../db.ts";
@@ -36,13 +37,13 @@ function sample(overrides: Partial<LastScoutSnapshot> = {}): LastScoutSnapshot {
   };
 }
 
-describe("parseScoutSnapshot", () => {
-  it("rejects invalid payloads", () => {
+await describe("parseScoutSnapshot", async () => {
+  await it("rejects invalid payloads", () => {
     assert.equal(parseScoutSnapshot(null), null);
     assert.equal(parseScoutSnapshot({ savedAt: "nope" }), null);
   });
 
-  it("keeps valid threads and drops junk rows", () => {
+  await it("keeps valid threads and drops junk rows", () => {
     const parsed = parseScoutSnapshot({
       savedAt: "2026-07-27T02:00:00.000Z",
       queries: ["q"],
@@ -62,7 +63,7 @@ describe("parseScoutSnapshot", () => {
   });
 });
 
-describe("saveScoutCache / getLastScout", () => {
+await describe("saveScoutCache / getLastScout", async () => {
   let temp: TempPlatformDb;
   const userId = "user-a";
 
@@ -76,7 +77,7 @@ describe("saveScoutCache / getLastScout", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("round-trips through scout_tanks with user and tenant", async () => {
+  await it("round-trips through scout_tanks with user and tenant", async () => {
     const snap = sample();
     const saved = {
       ...snap,
@@ -85,22 +86,22 @@ describe("saveScoutCache / getLastScout", () => {
     await saveScoutCache(snap, { userId });
     assert.deepEqual(await getLastScout({ userId }), saved);
 
-    const row = getPlatformDb()
+    const row = parseRowRow(getPlatformDb()
       .prepare(
         `SELECT user_id, tenant_id, saved_at FROM scout_tanks WHERE user_id = ?`,
       )
-      .get(userId) as { user_id: string; tenant_id: string; saved_at: string };
+      .get(userId));
     assert.equal(row.user_id, userId);
     assert.ok(row.tenant_id);
     assert.equal(row.saved_at, snap.savedAt);
     assert.deepEqual(listScoutTankUserIds(), [userId]);
   });
 
-  it("returns null for a user who never Scouted", async () => {
+  await it("returns null for a user who never Scouted", async () => {
     assert.equal(await getLastScout({ userId }), null);
   });
 
-  it("requires a userId", async () => {
+  await it("requires a userId", async () => {
     await assert.rejects(
       () => saveScoutCache(sample(), { userId: "" }),
       /userId is required/,
@@ -108,7 +109,7 @@ describe("saveScoutCache / getLastScout", () => {
     await assert.rejects(() => getLastScout({ userId: "" }), /userId is required/);
   });
 
-  it("keeps each user's tank separate", async () => {
+  await it("keeps each user's tank separate", async () => {
     await saveScoutCache(sample({ message: "a's run" }), { userId });
     await saveScoutCache(
       sample({
@@ -139,7 +140,7 @@ describe("saveScoutCache / getLastScout", () => {
     );
   });
 
-  it("replaces metadata but merges threads by id", async () => {
+  await it("replaces metadata but merges threads by id", async () => {
     await saveScoutCache(sample({ message: "first" }), { userId });
     await saveScoutCache(
       sample({
@@ -163,7 +164,7 @@ describe("saveScoutCache / getLastScout", () => {
     );
   });
 
-  it("keeps stored filters when a later snapshot omits them", async () => {
+  await it("keeps stored filters when a later snapshot omits them", async () => {
     const filters = {
       filterByMinViews: true,
       minViews: 250,
@@ -187,7 +188,7 @@ describe("saveScoutCache / getLastScout", () => {
     });
   });
 
-  it("does not revive consumed conversations during a later merge", async () => {
+  await it("does not revive consumed conversations during a later merge", async () => {
     await saveScoutCache(
       sample({
         threads: [
@@ -239,7 +240,7 @@ describe("saveScoutCache / getLastScout", () => {
     );
   });
 
-  it("keeps agenda provenance when runs accumulate threads", async () => {
+  await it("keeps agenda provenance when runs accumulate threads", async () => {
     await saveScoutCache(sample({ agenda: undefined }), { userId });
     const first = await getLastScout({ userId });
     assert.equal(
@@ -266,7 +267,7 @@ describe("saveScoutCache / getLastScout", () => {
     assert.equal(last?.threads.find((t) => t.id === "2")?.scoutAgendaSet, true);
   });
 
-  it("backfills agenda provenance from a tank saved without it", async () => {
+  await it("backfills agenda provenance from a tank saved without it", async () => {
     getPlatformDb()
       .prepare(
         `INSERT INTO scout_tanks (user_id, tenant_id, saved_at, snapshot_json)
@@ -303,7 +304,7 @@ describe("saveScoutCache / getLastScout", () => {
     assert.equal(last?.threads.find((t) => t.id === "2")?.scoutAgendaSet, true);
   });
 
-  it("refreshes agenda provenance for an existing thread", async () => {
+  await it("refreshes agenda provenance for an existing thread", async () => {
     await saveScoutCache(sample({ agenda: "Agenda run" }), { userId });
     await saveScoutCache(sample({ agenda: undefined }), { userId });
 
@@ -312,8 +313,8 @@ describe("saveScoutCache / getLastScout", () => {
   });
 });
 
-describe("mergeThreadsById", () => {
-  it("appends unseen ids and skips duplicates", () => {
+await describe("mergeThreadsById", async () => {
+  await it("appends unseen ids and skips duplicates", () => {
     const a = {
       id: "1",
       author: "@a",
@@ -332,3 +333,13 @@ describe("mergeThreadsById", () => {
     );
   });
 });
+
+function parseRowRow(value: unknown): { user_id: string; tenant_id: string; saved_at: string } {
+  const valid = (row: unknown): row is { user_id: string; tenant_id: string; saved_at: string } =>
+    (isRecord(row) &&
+    typeof row.user_id === "string" &&
+    typeof row.tenant_id === "string" &&
+    typeof row.saved_at === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

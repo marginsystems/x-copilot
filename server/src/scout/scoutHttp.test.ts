@@ -1,10 +1,12 @@
+import { isRecord } from "../platform/unknownValue.js";
+import { testRequest } from "../http/http.testHelpers.js";
+import { expectRecord } from "../http/http.testHelpers.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { type IncomingMessage, ServerResponse } from "node:http";
 import {
   defaultMigrationsDir,
   getLocalTenantId,
@@ -58,15 +60,14 @@ function makeReqRes(
   res: ServerResponse;
   state: FakeState;
 } {
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = testRequest();
   Object.assign(req, {
     method,
     headers: cookie ? { cookie } : {},
     socket: { remoteAddress: "127.0.0.1" },
   });
   const state: FakeState = { status: 0, headers: {}, chunks: [] };
-  const res = {
-    writableEnded: false,
+  const res = Object.assign(new ServerResponse(testRequest()), {
     writeHead(code: number, headers?: Record<string, string>) {
       state.status = code;
       if (headers) Object.assign(state.headers, headers);
@@ -78,9 +79,9 @@ function makeReqRes(
     },
     end(chunk?: unknown) {
       if (chunk !== undefined) state.chunks.push(String(chunk));
-      this.writableEnded = true;
+      Object.defineProperty(this, "writableEnded", { value: true, configurable: true });
     },
-  } as unknown as ServerResponse;
+  });
   return { req, res, state };
 }
 
@@ -105,7 +106,7 @@ async function call(
     new URL(`http://localhost${path}`),
     opts.deps,
   );
-  const emitter = req as unknown as EventEmitter;
+  const emitter = req;
   if (opts.rawBody !== undefined) {
     emitter.emit("data", Buffer.from(opts.rawBody));
   } else if (opts.body !== undefined) {
@@ -121,7 +122,7 @@ function ndjsonLines(chunks: string[]): Array<Record<string, unknown>> {
     .join("")
     .split("\n")
     .filter((line) => line.trim())
-    .map((line) => JSON.parse(line) as Record<string, unknown>);
+    .map((line) => expectRecord(JSON.parse(line)));
 }
 
 const doneEvent = {
@@ -149,19 +150,19 @@ const stubDeps = (): ScoutHttpDeps => ({
   ensureMemoryIndex: async () => {},
 });
 
-describe("parseScoutFilters", () => {
-  it("returns undefined for missing or non-object input", () => {
+await describe("parseScoutFilters", async () => {
+  await it("returns undefined for missing or non-object input", () => {
     assert.equal(parseScoutFilters(undefined), undefined);
     assert.equal(parseScoutFilters(null), undefined);
     assert.equal(parseScoutFilters("x"), undefined);
     assert.equal(parseScoutFilters(42), undefined);
   });
 
-  it("returns undefined for an empty object", () => {
+  await it("returns undefined for an empty object", () => {
     assert.equal(parseScoutFilters({}), undefined);
   });
 
-  it("keeps maxThreadChars only when it is an integer", () => {
+  await it("keeps maxThreadChars only when it is an integer", () => {
     assert.deepEqual(parseScoutFilters({ maxThreadChars: 1200 }), {
       maxThreadChars: 1200,
     });
@@ -169,7 +170,7 @@ describe("parseScoutFilters", () => {
     assert.equal(parseScoutFilters({ maxThreadChars: "1200" }), undefined);
   });
 
-  it("passes boolean flags through", () => {
+  await it("passes boolean flags through", () => {
     assert.deepEqual(
       parseScoutFilters({
         dropArticles: true,
@@ -196,14 +197,14 @@ describe("parseScoutFilters", () => {
     );
   });
 
-  it("trims and lowercases preferredLanguage, drops blank", () => {
+  await it("trims and lowercases preferredLanguage, drops blank", () => {
     assert.deepEqual(parseScoutFilters({ preferredLanguage: "  EN " }), {
       preferredLanguage: "en",
     });
     assert.equal(parseScoutFilters({ preferredLanguage: "   " }), undefined);
   });
 
-  it("preserves explicit empty exclude arrays", () => {
+  await it("preserves explicit empty exclude arrays", () => {
     assert.deepEqual(parseScoutFilters({ excludedTags: [] }), {
       excludedTags: [],
     });
@@ -212,7 +213,7 @@ describe("parseScoutFilters", () => {
     });
   });
 
-  it("trims exclude entries and drops blanks and non-strings", () => {
+  await it("trims exclude entries and drops blanks and non-strings", () => {
     assert.deepEqual(
       parseScoutFilters({ excludedTags: [" a ", "", 1, "b"] }),
       { excludedTags: ["a", "b"] },
@@ -223,7 +224,7 @@ describe("parseScoutFilters", () => {
   });
 });
 
-describe("tryHandleScout", () => {
+await describe("tryHandleScout", async () => {
   let dir: string;
   let pilot: { userId: string; cookie: string };
 
@@ -247,7 +248,7 @@ describe("tryHandleScout", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("streams NDJSON on POST /api/scout/run with a terminal done line", async () => {
+  await it("streams NDJSON on POST /api/scout/run with a terminal done line", async () => {
     const { handled, state, res } = await call("POST", "/api/scout/run", {
       body: { queries: ["q1"], agenda: "find cool threads" },
       deps: stubDeps(),
@@ -262,7 +263,7 @@ describe("tryHandleScout", () => {
     assert.equal(res.writableEnded, true);
   });
 
-  it("attaches request filters to the snapshot written by collect", async () => {
+  await it("attaches request filters to the snapshot written by collect", async () => {
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async (opts) => {
         await saveScoutCache(
@@ -299,7 +300,7 @@ describe("tryHandleScout", () => {
     });
   });
 
-  it("releases the scout lock after a run ends", async () => {
+  await it("releases the scout lock after a run ends", async () => {
     await call("POST", "/api/scout/run", {
       body: { queries: ["q1"] },
       deps: stubDeps(),
@@ -309,7 +310,7 @@ describe("tryHandleScout", () => {
     assert.equal(tryBeginScout(pilot.userId).ok, true);
   });
 
-  it("returns 401 on POST /api/scout/run without a session", async () => {
+  await it("returns 401 on POST /api/scout/run without a session", async () => {
     currentCookie = undefined;
     const { handled, state } = await call("POST", "/api/scout/run", {
       body: { queries: ["q1"] },
@@ -317,11 +318,11 @@ describe("tryHandleScout", () => {
     });
     assert.equal(handled, true);
     assert.equal(state.status, 401);
-    const body = JSON.parse(state.chunks.join("")) as Record<string, unknown>;
+    const body = expectRecord(JSON.parse(state.chunks.join("")));
     assert.equal(body.error, "unauthenticated");
   });
 
-  it("does not 429 user B while user A's Scout run is active", async () => {
+  await it("does not 429 user B while user A's Scout run is active", async () => {
     resetScoutGateForTests({ userId: pilot.userId, active: true });
     const busy = await call("POST", "/api/scout/run", {
       body: { queries: ["q1"] },
@@ -340,7 +341,7 @@ describe("tryHandleScout", () => {
     assert.equal(ndjsonLines(state.chunks).at(-1)?.stage, "done");
   });
 
-  it("GET /api/scout/last returns only the session user's tank", async () => {
+  await it("GET /api/scout/last returns only the session user's tank", async () => {
     const other = signInXUser("b");
     const thread = (id: string, author: string) => ({
       id,
@@ -382,11 +383,11 @@ describe("tryHandleScout", () => {
     assert.equal(a.empty, false);
     assert.equal(b.empty, false);
     assert.deepEqual(
-      (a.snapshot?.threads as Array<{ id: string }>).map((t) => t.id),
+      (parseDatabaseRow(a.snapshot?.threads)).map((t) => t.id),
       ["a1"],
     );
     assert.deepEqual(
-      (b.snapshot?.threads as Array<{ id: string }>).map((t) => t.id).sort(),
+      (parseDatabaseRow(b.snapshot?.threads)).map((t) => t.id).sort(),
       ["b1", "shared"],
     );
     assert.deepEqual(await readLastScoutPayload({ userId: undefined }), {
@@ -399,16 +400,14 @@ describe("tryHandleScout", () => {
       cookie: other.cookie,
     });
     assert.equal(state.status, 200);
-    const body = JSON.parse(state.chunks.join("")) as {
-      snapshot?: { threads: Array<{ id: string }> };
-    };
+    const body = parseBodyRow(JSON.parse(state.chunks.join("")));
     assert.deepEqual(
       body.snapshot?.threads.map((t) => t.id).sort(),
       ["b1", "shared"],
     );
   });
 
-  it("serves a tank through its stored tag and account filters", async () => {
+  await it("serves a tank through its stored tag and account filters", async () => {
     const thread = (
       id: string,
       overrides: Record<string, unknown> = {},
@@ -452,14 +451,14 @@ describe("tryHandleScout", () => {
     const payload = await readLastScoutPayload({ userId: pilot.userId });
     assert.equal(payload.empty, false);
     assert.deepEqual(
-      (payload.snapshot?.threads as Array<{ id: string }>).map(
+      (parseDatabaseRow(payload.snapshot?.threads)).map(
         (item) => item.id,
       ),
       ["keep", "low", "unknown-root"],
     );
   });
 
-  it("writes an error line when the collect fails without a terminal event", async () => {
+  await it("writes an error line when the collect fails without a terminal event", async () => {
     await saveScoutCache(
       {
         savedAt: new Date().toISOString(),
@@ -493,7 +492,7 @@ describe("tryHandleScout", () => {
     });
   });
 
-  it("returns JSON 429 scout_busy before any NDJSON writeHead when locked", async () => {
+  await it("returns JSON 429 scout_busy before any NDJSON writeHead when locked", async () => {
     resetScoutGateForTests({ userId: pilot.userId, active: true });
     const { handled, state } = await call("POST", "/api/scout/run", {
       body: { queries: ["q1"] },
@@ -502,30 +501,30 @@ describe("tryHandleScout", () => {
     assert.equal(handled, true);
     assert.equal(state.status, 429);
     assert.equal(state.headers["Content-Type"], "application/json");
-    const body = JSON.parse(state.chunks.join("")) as Record<string, unknown>;
+    const body = expectRecord(JSON.parse(state.chunks.join("")));
     assert.equal(body.error, "scout_busy");
   });
 
-  it("aborts an in-flight run when the client closes", async () => {
+  await it("aborts an in-flight run when the client closes", async () => {
     let seenSignal: AbortSignal | undefined;
     let release: (value: {
       ok: true;
-      event: Record<string, unknown>;
+      event: typeof doneEvent;
     }) => void = () => {};
-    const pending = new Promise<{ ok: true; event: Record<string, unknown> }>(
+    const pending = new Promise<{ ok: true; event: typeof doneEvent }>(
       (resolve) => {
         release = resolve;
       },
     );
     const deps: ScoutHttpDeps = {
-      runScoutCollect: (async (opts) => {
+      runScoutCollect: async (opts) => {
         seenSignal = opts.signal;
         return pending;
-      }) as unknown as typeof runScoutCollect,
+      },
       ensureMemoryIndex: async () => {},
     };
     const { req, res, state } = makeReqRes("POST");
-    const emitter = req as unknown as EventEmitter;
+    const emitter = req;
     const handledPromise = tryHandleScout(
       req,
       res,
@@ -546,7 +545,7 @@ describe("tryHandleScout", () => {
     assert.match(state.headers["Content-Type"], /application\/x-ndjson/);
   });
 
-  it("does not abort after a clean end when close fires", async () => {
+  await it("does not abort after a clean end when close fires", async () => {
     let seenSignal: AbortSignal | undefined;
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async (opts) => {
@@ -557,7 +556,7 @@ describe("tryHandleScout", () => {
       ensureMemoryIndex: async () => {},
     };
     const { req, res, state } = makeReqRes("POST");
-    const emitter = req as unknown as EventEmitter;
+    const emitter = req;
     const handledPromise = tryHandleScout(
       req,
       res,
@@ -574,7 +573,7 @@ describe("tryHandleScout", () => {
     assert.match(state.headers["Content-Type"], /application\/x-ndjson/);
   });
 
-  it("refunds the takeoff when collect fails", async () => {
+  await it("refunds the takeoff when collect fails", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async () => ({
@@ -592,24 +591,24 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("keeps the takeoff when a run lands cool threads", async () => {
+  await it("keeps the takeoff when a run lands cool threads", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
-      runScoutCollect: (async (opts) => {
+      runScoutCollect: async (opts) => {
         opts.onEvent?.({
           ...doneEvent,
           coolCount: 2,
-          threads: [{ id: "1" }, { id: "2" }],
+          threads: ["1", "2"].map((id) => ({ id, author: "@pilot", text: "A cool thread", url: `https://x.com/pilot/status/${id}` })),
         });
         return {
           ok: true,
           event: {
             ...doneEvent,
             coolCount: 2,
-            threads: [{ id: "1" }, { id: "2" }],
+            threads: ["1", "2"].map((id) => ({ id, author: "@pilot", text: "A cool thread", url: `https://x.com/pilot/status/${id}` })),
           },
         };
-      }) as typeof runScoutCollect,
+      },
       ensureMemoryIndex: async () => {},
     };
     await call("POST", "/api/scout/run", {
@@ -619,7 +618,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 1);
   });
 
-  it("refunds the takeoff when a finished run finds no cool threads", async () => {
+  await it("refunds the takeoff when a finished run finds no cool threads", async () => {
     const tenantId = getLocalTenantId();
     await call("POST", "/api/scout/run", {
       body: { queries: ["q1"] },
@@ -628,7 +627,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("refunds the takeoff when a run rejects", async () => {
+  await it("refunds the takeoff when a run rejects", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async () => {
@@ -643,7 +642,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 0);
   });
 
-  it("ends the stream with an error line when a run rejects mid-stream", async () => {
+  await it("ends the stream with an error line when a run rejects mid-stream", async () => {
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async () => {
         throw new Error("boom");
@@ -661,7 +660,7 @@ describe("tryHandleScout", () => {
     assert.equal(res.writableEnded, true);
   });
 
-  it("keeps the takeoff when a run delivered cools before failing", async () => {
+  await it("keeps the takeoff when a run delivered cools before failing", async () => {
     const tenantId = getLocalTenantId();
     const deps: ScoutHttpDeps = {
       runScoutCollect: (async (opts) => {
@@ -690,7 +689,7 @@ describe("tryHandleScout", () => {
     assert.equal(getSortieUsage(tenantId, "free").used, 1);
   });
 
-  it("ignores unrelated paths", async () => {
+  await it("ignores unrelated paths", async () => {
     for (const path of ["/api/health", "/api/expired", "/api/interacted"]) {
       const { handled, state } = await call("GET", path);
       assert.equal(handled, false, path);
@@ -698,3 +697,25 @@ describe("tryHandleScout", () => {
     }
   });
 });
+
+function parseDatabaseRow(value: unknown): Array<{ id: string }> {
+  const valid = (row: unknown): row is Array<{ id: string }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.id === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseBodyRow(value: unknown): {
+      snapshot?: { threads: Array<{ id: string }> };
+    } {
+  const valid = (row: unknown): row is {
+      snapshot?: { threads: Array<{ id: string }> };
+    } =>
+    (isRecord(row) &&
+    (row.snapshot === undefined || (isRecord(row.snapshot) &&
+    (Array.isArray(row.snapshot.threads) && row.snapshot.threads.every((item: unknown) => (isRecord(item) &&
+    typeof item.id === "string"))))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

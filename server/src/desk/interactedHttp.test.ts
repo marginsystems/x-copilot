@@ -1,9 +1,11 @@
+import { isRecord } from "../platform/unknownValue.js";
+import { testRequest } from "../http/http.testHelpers.js";
+import { expectRecord } from "../http/http.testHelpers.js";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { type IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -26,7 +28,7 @@ async function call(
   body?: unknown,
   cookie?: string,
 ): Promise<{ handled: boolean; status: number; json: Record<string, unknown> }> {
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = testRequest();
   Object.assign(req, {
     method,
     headers: cookie ? { cookie } : {},
@@ -34,32 +36,32 @@ async function call(
   });
   let status = 0;
   let raw = "";
-  const res = {
+  const res = Object.assign(new ServerResponse(testRequest()), {
     writeHead: (code: number) => {
       status = code;
     },
     end: (chunk: string) => {
       raw = chunk;
     },
-  } as unknown as ServerResponse;
+  });
   const handledPromise = tryHandleInteracted(
     req,
     res,
     new URL(`http://localhost${path}`),
   );
   if (body !== undefined) {
-    (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
+    (req).emit("data", Buffer.from(JSON.stringify(body)));
   }
-  (req as EventEmitter).emit("end");
+  (req).emit("end");
   const handled = await handledPromise;
   return {
     handled,
     status,
-    json: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+    json: raw ? (expectRecord(JSON.parse(raw))) : {},
   };
 }
 
-describe("interactedHttp", () => {
+await describe("interactedHttp", async () => {
   let dir: string;
   let cwd: string;
 
@@ -87,7 +89,7 @@ describe("interactedHttp", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("GET /api/interacted returns only the session user's marks", async () => {
+  await it("GET /api/interacted returns only the session user's marks", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-interacted-a",
@@ -120,7 +122,7 @@ describe("interactedHttp", () => {
     assert.equal(handled, true);
     assert.equal(status, 200);
     assert.deepEqual(
-      (json.interactions as Array<{ threadId: string }>).map(
+      (parseDatabaseRow(json.interactions)).map(
         (row) => row.threadId,
       ),
       ["thread-a"],
@@ -128,7 +130,7 @@ describe("interactedHttp", () => {
     assert.deepEqual(json.activeIds, ["thread-a"]);
   });
 
-  it("GET /api/interacted returns empty data without a session", async () => {
+  await it("GET /api/interacted returns empty data without a session", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-interacted-sole",
@@ -146,14 +148,18 @@ describe("interactedHttp", () => {
     assert.deepEqual(json.activeIds, []);
   });
 
-  it("a mark without a userId is refused at the store", async () => {
+  await it("a mark without a userId is refused at the store", async () => {
     await assert.rejects(
-      () => markInteracted({ threadId: "unowned", author: "@legacy" } as never),
+      async () => {
+        const result: unknown = Reflect.apply(markInteracted, undefined, [{ threadId: "unowned", author: "@legacy" }]);
+        assert.ok(result instanceof Promise);
+        await result;
+      },
       /userId is required/,
     );
   });
 
-  it("GET /api/interacted/stats returns empty stats without a session", async () => {
+  await it("GET /api/interacted/stats returns empty stats without a session", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-interacted-stats",
@@ -177,7 +183,7 @@ describe("interactedHttp", () => {
     });
   });
 
-  it("POST /api/interacted/detect rejects a missing threadId", async () => {
+  await it("POST /api/interacted/detect rejects a missing threadId", async () => {
     const { handled, status, json } = await call(
       "POST",
       "/api/interacted/detect",
@@ -188,7 +194,7 @@ describe("interactedHttp", () => {
     assert.equal(json.error, "bad_request");
   });
 
-  it("POST /api/interacted/detect is 503 when X username is unresolved", async () => {
+  await it("POST /api/interacted/detect is 503 when X username is unresolved", async () => {
     const { handled, status, json } = await call(
       "POST",
       "/api/interacted/detect",
@@ -199,7 +205,7 @@ describe("interactedHttp", () => {
     assert.equal(json.error, "identity_unresolved");
   });
 
-  it("POST /api/interacted/detect resolves the session user's ledger first", async () => {
+  await it("POST /api/interacted/detect resolves the session user's ledger first", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-detect-a",
@@ -238,13 +244,13 @@ describe("interactedHttp", () => {
 
     assert.equal(status, 200);
     assert.equal(json.found, true);
-    const reply = json.reply as Record<string, unknown>;
+    const reply = expectRecord(json.reply);
     assert.equal(reply.replyId, "mine-reply");
     assert.equal(reply.replyUrl, "https://x.com/mine/status/mine-reply");
     assert.equal(reply.replyText, undefined);
   });
 
-  it("POST /api/interacted without a session is 401", async () => {
+  await it("POST /api/interacted without a session is 401", async () => {
     const { handled, status, json } = await call("POST", "/api/interacted", {
       threadId: "123",
       author: "@x",
@@ -255,7 +261,7 @@ describe("interactedHttp", () => {
     assert.equal(json.error, "unauthenticated");
   });
 
-  it("POST /api/interacted rejects a missing reply URL", async () => {
+  await it("POST /api/interacted rejects a missing reply URL", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-interacted-post",
@@ -274,7 +280,7 @@ describe("interactedHttp", () => {
     assert.equal(json.error, "bad_request");
   });
 
-  it("POST /api/interacted without reply text stays 200 and awards XP", async () => {
+  await it("POST /api/interacted without reply text stays 200 and awards XP", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-interacted-no-reply",
@@ -297,7 +303,7 @@ describe("interactedHttp", () => {
     assert.equal(json.ok, true);
     assert.equal(json.memoryPath, undefined);
     assert.deepEqual(json.memory, { state: "no_reply_text" });
-    const gamification = json.gamification as { lifetimeXp: number };
+    const gamification = parseGamificationRow(json.gamification);
     assert.equal(gamification.lifetimeXp, 1);
     const history = await listInteractionHistory({ userId: user.id });
     assert.equal(history.length, 1);
@@ -305,7 +311,7 @@ describe("interactedHttp", () => {
     assert.equal(history[0]?.replyId, "9001");
   });
 
-  it("POST /api/interacted keeps the mark and XP on an ownership conflict", async () => {
+  await it("POST /api/interacted keeps the mark and XP on an ownership conflict", async () => {
     resetInteractionMemoryProjectionForTests({
       writeNote: async () => {
         throw new Error("interaction note belongs to another user");
@@ -333,14 +339,14 @@ describe("interactedHttp", () => {
     assert.equal(json.ok, true);
     assert.equal(json.memoryPath, undefined);
     assert.deepEqual(json.memory, { state: "unavailable" });
-    const gamification = json.gamification as { lifetimeXp: number };
+    const gamification = parseGamificationRow(json.gamification);
     assert.equal(gamification.lifetimeXp, 1);
     const history = await listInteractionHistory({ userId: user.id });
     assert.equal(history.length, 1);
     assert.equal(history[0]?.threadId, "2082");
   });
 
-  it("POST /api/interacted keeps the mark when evidence capture fails", async () => {
+  await it("POST /api/interacted keeps the mark when evidence capture fails", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-interacted-evidence-fail",
@@ -369,7 +375,7 @@ describe("interactedHttp", () => {
     assert.equal(history[0]?.threadId, "2084");
   });
 
-  it("POST /api/interacted returns memoryPath when the note is saved", async () => {
+  await it("POST /api/interacted returns memoryPath when the note is saved", async () => {
     const knowledgeRoot = join(dir, "knowledge");
     resetInteractionMemoryProjectionForTests({
       writeNote: (input) =>
@@ -397,16 +403,16 @@ describe("interactedHttp", () => {
     );
     assert.equal(status, 200);
     assert.equal(json.ok, true);
-    assert.equal((json.memory as { state: string }).state, "saved");
-    assert.equal(json.memoryPath, (json.memory as { memoryPath: string }).memoryPath);
+    assert.equal((parseDatabaseRow2(json.memory)).state, "saved");
+    assert.equal(json.memoryPath, (parseDatabaseRow3(json.memory)).memoryPath);
     const body = await readFile(json.memoryPath as string, "utf8");
     assert.match(body, /Confirmed reply text/);
     assert.match(body, /Card context stays in Post/);
-    const gamification = json.gamification as { lifetimeXp: number };
+    const gamification = parseGamificationRow(json.gamification);
     assert.equal(gamification.lifetimeXp, 1);
   });
 
-  it("POST /api/interacted/detect does not write reply memory", async () => {
+  await it("POST /api/interacted/detect does not write reply memory", async () => {
     let wrote = false;
     resetInteractionMemoryProjectionForTests({
       writeNote: async () => {
@@ -438,12 +444,12 @@ describe("interactedHttp", () => {
     );
     assert.equal(status, 200);
     assert.equal(json.found, true);
-    const reply = json.reply as Record<string, unknown>;
+    const reply = expectRecord(json.reply);
     assert.equal(reply.replyText, undefined);
     assert.equal(wrote, false);
   });
 
-  it("GET /api/interacted reports saved, no-note, and wrong-owner receipts", async () => {
+  await it("GET /api/interacted reports saved, no-note, and wrong-owner receipts", async () => {
     const knowledgeRoot = join(dir, "knowledge");
     const user = upsertOauthUser({
       provider: "google",
@@ -496,12 +502,7 @@ describe("interactedHttp", () => {
       `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     );
     assert.equal(status, 200);
-    const rows = json.interactions as Array<{
-      threadId: string;
-      author: string;
-      at: string;
-      memory?: { state?: string; memoryPath?: string };
-    }>;
+    const rows = parseRowsRow(json.interactions);
     assert.deepEqual(
       Object.fromEntries(rows.map((row) => [row.threadId, row.memory?.state])),
       {
@@ -518,7 +519,7 @@ describe("interactedHttp", () => {
     }
   });
 
-  it("GET /api/interacted still parses for callers that ignore memory", async () => {
+  await it("GET /api/interacted still parses for callers that ignore memory", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-interacted-old-caller",
@@ -537,9 +538,9 @@ describe("interactedHttp", () => {
       undefined,
       `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     );
-    const rows = (json.interactions as unknown[]).filter((row) => {
+    const rows = (parseunknown(json.interactions)).filter((row) => {
       if (!row || typeof row !== "object") return false;
-      const rec = row as { threadId?: unknown; author?: unknown; at?: unknown };
+      const rec = parseRecRow(row);
       return (
         typeof rec.threadId === "string" &&
         typeof rec.author === "string" &&
@@ -547,14 +548,94 @@ describe("interactedHttp", () => {
       );
     });
     assert.deepEqual(
-      rows.map((row) => (row as { threadId: string }).threadId),
+      rows.map((row) => (parseDatabaseRow4(row)).threadId),
       ["legacy"],
     );
   });
 
-  it("ignores unrelated paths", async () => {
+  await it("ignores unrelated paths", async () => {
     const { handled, status } = await call("GET", "/api/skipped");
     assert.equal(handled, false);
     assert.equal(status, 0);
   });
 });
+
+function parseDatabaseRow(value: unknown): Array<{ threadId: string }> {
+  const valid = (row: unknown): row is Array<{ threadId: string }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.threadId === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseGamificationRow(value: unknown): { lifetimeXp: number } {
+  const valid = (row: unknown): row is { lifetimeXp: number } =>
+    (isRecord(row) &&
+    typeof row.lifetimeXp === "number");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseDatabaseRow2(value: unknown): { state: string } {
+  const valid = (row: unknown): row is { state: string } =>
+    (isRecord(row) &&
+    typeof row.state === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseDatabaseRow3(value: unknown): { memoryPath: string } {
+  const valid = (row: unknown): row is { memoryPath: string } =>
+    (isRecord(row) &&
+    typeof row.memoryPath === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseRowsRow(value: unknown): Array<{
+      threadId: string;
+      author: string;
+      at: string;
+      memory?: { state?: string; memoryPath?: string };
+    }> {
+  const valid = (row: unknown): row is Array<{
+      threadId: string;
+      author: string;
+      at: string;
+      memory?: { state?: string; memoryPath?: string };
+    }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.threadId === "string" &&
+    typeof item.author === "string" &&
+    typeof item.at === "string" &&
+    (item.memory === undefined || (isRecord(item.memory) &&
+    (item.memory.state === undefined || typeof item.memory.state === "string") &&
+    (item.memory.memoryPath === undefined || typeof item.memory.memoryPath === "string"))))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseunknown(value: unknown): unknown[] {
+  const valid = (row: unknown): row is unknown[] =>
+    (Array.isArray(row) && row.every((item: unknown) => true));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseRecRow(value: unknown): { threadId?: unknown; author?: unknown; at?: unknown } {
+  const valid = (row: unknown): row is { threadId?: unknown; author?: unknown; at?: unknown } =>
+    (isRecord(row) &&
+    true &&
+    true &&
+    true);
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseDatabaseRow4(value: unknown): { threadId: string } {
+  const valid = (row: unknown): row is { threadId: string } =>
+    (isRecord(row) &&
+    typeof row.threadId === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

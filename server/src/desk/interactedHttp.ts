@@ -1,3 +1,4 @@
+import { objectValue } from "../platform/unknownValue.js";
 /**
  * Interacted list, stats, mark-detect, and mark.
  */
@@ -89,7 +90,7 @@ export async function tryHandleInteracted(
   if (req.method === "POST" && url.pathname === "/api/interacted/detect") {
     let body: Record<string, unknown>;
     try {
-      body = (await readBody(req)) as Record<string, unknown>;
+      body = objectValue((await readBody(req)));
     } catch (err) {
       const statusCode = err instanceof BodyError ? err.statusCode : 400;
       send(req, res, statusCode, {
@@ -192,7 +193,7 @@ export async function tryHandleInteracted(
     }
     let body: Record<string, unknown>;
     try {
-      body = (await readBody(req)) as Record<string, unknown>;
+      body = objectValue((await readBody(req)));
     } catch (err) {
       const statusCode = err instanceof BodyError ? err.statusCode : 400;
       send(req, res, statusCode, {
@@ -279,7 +280,9 @@ export async function tryHandleInteracted(
         ],
         { userId: sessionUser.id },
       );
-      void maybeStartEmptyTankScout(sessionUser.id);
+      maybeStartEmptyTankScout(sessionUser.id).catch((err: unknown) => {
+        console.warn("Empty-tank scout soft-fail:", err);
+      });
       try {
         recordDeskReplyMarked({
           userId: sessionUser.id,

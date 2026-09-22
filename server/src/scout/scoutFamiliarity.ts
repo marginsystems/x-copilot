@@ -187,12 +187,12 @@ function selectLastLearned(
   if (value === null) return null;
   if (!isRecord(value)) return undefined;
   const { at, action, threadKind } = value;
-  if (!isIso(at) || typeof action !== "string" || !ACTIONS.has(action)) {
+  if (!isIso(at) || typeof action !== "string" || !isFamiliarityAction(action)) {
     return undefined;
   }
   return {
     at,
-    action: action as ScoutFamiliarityAction,
+    action: action,
     // Only the closed kind enum is displayed; anything else reads as unknown.
     threadKind: isKnownKind(threadKind) ? threadKind : null,
   };
@@ -221,14 +221,14 @@ export function projectScoutFamiliarity(
     return null;
   }
   const { state, score } = familiarity;
-  if (typeof state !== "string" || !STATES.has(state)) return null;
+  if (typeof state !== "string" || !isFamiliarityState(state)) return null;
   if (!isCount(score) || score > 100) return null;
   const lastLearned = selectLastLearned(profile.lastLearned);
   if (lastLearned === undefined) return null;
 
   const supported = state === "supported";
   return {
-    state: state as ScoutFamiliarityState,
+    state: state,
     version: 1,
     revision,
     score,
@@ -259,4 +259,12 @@ export async function loadScoutFamiliarity(
     return null;
   }
   return projectScoutFamiliarity(loaded, id);
+}
+
+function isFamiliarityAction(value: string): value is ScoutFamiliarityAction {
+  return ACTIONS.has(value);
+}
+
+function isFamiliarityState(value: string): value is ScoutFamiliarityState {
+  return STATES.has(value);
 }

@@ -105,8 +105,8 @@ export function tryBeginScout(
 
 export function noteScoutStage(userId: string, stage: string): void {
   const gate = gateFor(gateKey(userId));
-  if (!gate.active || !FLIGHT_STAGES.has(stage)) return;
-  gate.stage = stage as ScoutFlightStage;
+  if (!gate.active || !isFlightStage(stage)) return;
+  gate.stage = stage;
 }
 
 export function noteScoutFailure(userId: string): void {
@@ -135,4 +135,8 @@ export function endScout(userId: string, nowMs: number = Date.now()): void {
   gate.active = false;
   gate.stage = null;
   gate.lastFinishedAt = nowMs;
+}
+
+function isFlightStage(value: string): value is ScoutFlightStage {
+  return FLIGHT_STAGES.has(value);
 }

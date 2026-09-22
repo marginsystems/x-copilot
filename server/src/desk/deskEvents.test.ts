@@ -1,8 +1,9 @@
+import { testRequest } from "../http/http.testHelpers.js";
+import { expectRecord } from "../http/http.testHelpers.js";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { type IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -22,7 +23,7 @@ import { createSession } from "../auth/sessionStore.ts";
 function mockRes() {
   let status = 0;
   const chunks: string[] = [];
-  const res = {
+  const res = Object.assign(new ServerResponse(testRequest()), {
     writeHead(code: number) {
       status = code;
     },
@@ -37,7 +38,7 @@ function mockRes() {
     once() {
       return res;
     },
-  } as unknown as ServerResponse;
+  });
   return { res, status: () => status, chunks };
 }
 
@@ -46,29 +47,29 @@ async function wake(
   remoteAddress = "127.0.0.1",
   authorization = "Bearer desk-events-test-secret",
 ): Promise<{ handled: boolean; status: number; json: Record<string, unknown> }> {
-  const req = Object.assign(new EventEmitter(), {
+  const req = Object.assign(testRequest(), {
     method: "POST",
     headers: { "content-type": "application/json", authorization },
     socket: { remoteAddress },
-  }) as unknown as IncomingMessage;
+  });
   const { res, status, chunks } = mockRes();
   const pending = tryHandleDeskEventsWake(
     req,
     res,
     new URL("http://localhost/api/desk/events/wake"),
   );
-  (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
-  (req as EventEmitter).emit("end");
+  (req).emit("data", Buffer.from(JSON.stringify(body)));
+  (req).emit("end");
   const handled = await pending;
   const raw = chunks.join("");
   return {
     handled,
     status: status(),
-    json: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+    json: raw ? (expectRecord(JSON.parse(raw))) : {},
   };
 }
 
-describe("desk events", () => {
+await describe("desk events", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -90,12 +91,12 @@ describe("desk events", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("GET /api/desk/events without a session is 401", () => {
-    const req = Object.assign(new EventEmitter(), {
+  await it("GET /api/desk/events without a session is 401", () => {
+    const req = Object.assign(testRequest(), {
       method: "GET",
       headers: {},
       socket: { remoteAddress: "127.0.0.1" },
-    }) as unknown as IncomingMessage;
+    });
     const { res, status } = mockRes();
     assert.equal(
       tryHandleDeskEvents(req, res, new URL("http://localhost/api/desk/events")),
@@ -104,7 +105,7 @@ describe("desk events", () => {
     assert.equal(status(), 401);
   });
 
-  it("rejects a wake without the shared secret", async () => {
+  await it("rejects a wake without the shared secret", async () => {
     const out = await wake(
       {
         userId: "u",
@@ -119,7 +120,7 @@ describe("desk events", () => {
     assert.equal(out.status, 403);
   });
 
-  it("rejects a wake from a non-loopback peer", async () => {
+  await it("rejects a wake from a non-loopback peer", async () => {
     const out = await wake(
       {
         userId: "u",
@@ -133,7 +134,7 @@ describe("desk events", () => {
     assert.equal(out.status, 403);
   });
 
-  it("writes own_post only to that user's subscribers", async () => {
+  await it("writes own_post only to that user's subscribers", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "desk-events",
@@ -141,11 +142,11 @@ describe("desk events", () => {
       emailVerified: true,
     });
     const { token } = createSession(user.id);
-    const req = Object.assign(new EventEmitter(), {
+    const req = Object.assign(testRequest(), {
       method: "GET",
       headers: { cookie: `${SESSION_COOKIE}=${token}` },
       socket: { remoteAddress: "127.0.0.1" },
-    }) as unknown as IncomingMessage;
+    });
     const { res, status, chunks } = mockRes();
     assert.equal(
       tryHandleDeskEvents(req, res, new URL("http://localhost/api/desk/events")),

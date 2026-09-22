@@ -10,12 +10,12 @@ import {
   tryBeginScout,
 } from "./scoutGate.ts";
 
-describe("scoutGate", () => {
+await describe("scoutGate", async () => {
   beforeEach(() => {
     resetScoutGateForTests();
   });
 
-  it("allows the first begin and rejects overlap for the same user", () => {
+  await it("allows the first begin and rejects overlap for the same user", () => {
     const t0 = 1_000_000;
     assert.equal(tryBeginScout("a", t0).ok, true);
     const busy = tryBeginScout("a", t0 + 100);
@@ -26,7 +26,7 @@ describe("scoutGate", () => {
     }
   });
 
-  it("does not 429 another user while one user's run is active", () => {
+  await it("does not 429 another user while one user's run is active", () => {
     const t0 = 1_000_000;
     assert.equal(tryBeginScout("a", t0).ok, true);
     assert.equal(tryBeginScout("b", t0 + 100).ok, true);
@@ -36,7 +36,7 @@ describe("scoutGate", () => {
     endScout("a", t0 + 400);
   });
 
-  it("enforces cooldown after endScout per user", () => {
+  await it("enforces cooldown after endScout per user", () => {
     const t0 = 2_000_000;
     assert.equal(tryBeginScout("a", t0).ok, true);
     endScout("a", t0 + 500);
@@ -52,11 +52,11 @@ describe("scoutGate", () => {
     endScout("a", t0 + 500 + SCOUT_COOLDOWN_MS + 1);
   });
 
-  it("rejects an empty userId", () => {
+  await it("rejects an empty userId", () => {
     assert.throws(() => tryBeginScout(" "), /userId is required/);
   });
 
-  it("resetScoutGateForTests clears every user and can seed one", () => {
+  await it("resetScoutGateForTests clears every user and can seed one", () => {
     assert.equal(tryBeginScout("a").ok, true);
     resetScoutGateForTests();
     assert.equal(tryBeginScout("a").ok, true);
@@ -65,7 +65,7 @@ describe("scoutGate", () => {
     assert.equal(tryBeginScout("b").ok, true);
   });
 
-  it("exposes the active stage for the desk to watch", () => {
+  await it("exposes the active stage for the desk to watch", () => {
     assert.deepEqual(peekScoutFlight("a"), { active: false, stage: null });
     assert.equal(tryBeginScout("a").ok, true);
     assert.deepEqual(peekScoutFlight("a"), { active: true, stage: "planning" });
@@ -75,7 +75,7 @@ describe("scoutGate", () => {
     assert.deepEqual(peekScoutFlight("a"), { active: false, stage: null });
   });
 
-  it("persists a terminal 402 failure until the next flight begins", () => {
+  await it("persists a terminal 402 failure until the next flight begins", () => {
     assert.equal(tryBeginScout("a").ok, true);
     noteScoutStage("a", "done");
     noteScoutFailure("a");

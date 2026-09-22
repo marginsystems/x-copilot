@@ -30,10 +30,10 @@ function card(
   };
 }
 
-describe("selectStaleThreads", () => {
+await describe("selectStaleThreads", async () => {
   const now = Date.parse("2026-07-29T12:00:00.000Z");
 
-  it("includes threads older than 24h", () => {
+  await it("includes threads older than 24h", () => {
     const stale = selectStaleThreads(
       [
         card({
@@ -53,7 +53,7 @@ describe("selectStaleThreads", () => {
     );
   });
 
-  it("skips missing/bad createdAt and skipIds", () => {
+  await it("skips missing/bad createdAt and skipIds", () => {
     const stale = selectStaleThreads(
       [
         card({ id: "nope" }),
@@ -70,7 +70,7 @@ describe("selectStaleThreads", () => {
   });
 });
 
-describe("runExpirePass", () => {
+await describe("runExpirePass", async () => {
   let temp: TempPlatformDb;
   const userA = "user-a";
   const userB = "user-b";
@@ -109,7 +109,7 @@ describe("runExpirePass", () => {
     );
   }
 
-  it("marks stale threads and prunes the user's tank", async () => {
+  await it("marks stale threads and prunes the user's tank", async () => {
     await fillTank(userA);
 
     const result = await runExpirePass({ userId: userA, nowMs: now });
@@ -127,7 +127,7 @@ describe("runExpirePass", () => {
     assert.equal(again.expired, 0);
   });
 
-  it("skips threads the user already marked or dismissed", async () => {
+  await it("skips threads the user already marked or dismissed", async () => {
     await saveScoutCache(
       {
         savedAt: new Date(now).toISOString(),
@@ -164,7 +164,7 @@ describe("runExpirePass", () => {
     assert.deepEqual(result.ids, ["stale"]);
   });
 
-  it("expiring A does not write expired rows for B or prune B's tank", async () => {
+  await it("expiring A does not write expired rows for B or prune B's tank", async () => {
     await fillTank(userA);
     await fillTank(userB, "-b");
 
@@ -180,7 +180,7 @@ describe("runExpirePass", () => {
     );
   });
 
-  it("runExpirePassForAllUsers sweeps every tank into its own history", async () => {
+  await it("runExpirePassForAllUsers sweeps every tank into its own history", async () => {
     await fillTank(userA);
     await fillTank(userB, "-b");
 
@@ -197,7 +197,7 @@ describe("runExpirePass", () => {
     );
   });
 
-  it("markExpired upserts by user and threadId", async () => {
+  await it("markExpired upserts by user and threadId", async () => {
     const row = await markExpired({
       threadId: "1",
       author: "@x",
@@ -216,7 +216,7 @@ describe("runExpirePass", () => {
     assert.deepEqual(await listExpiredHistory({ userId: userB }), []);
   });
 
-  it("requires a userId", async () => {
+  await it("requires a userId", async () => {
     await assert.rejects(
       () => markExpired({ threadId: "1", author: "@x", userId: "" }),
       /userId is required/,

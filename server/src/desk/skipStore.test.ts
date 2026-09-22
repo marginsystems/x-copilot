@@ -14,7 +14,7 @@ import {
   markSkipped,
 } from "./skipStore.ts";
 
-describe("markSkipped / listSkipHistory", () => {
+await describe("markSkipped / listSkipHistory", async () => {
   let temp: TempPlatformDb;
   const userId = "user-a";
 
@@ -28,7 +28,7 @@ describe("markSkipped / listSkipHistory", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("upserts by threadId and lists newest first", async () => {
+  await it("upserts by threadId and lists newest first", async () => {
     const t1 = Date.parse("2026-07-28T10:00:00.000Z");
     const t2 = Date.parse("2026-07-28T11:00:00.000Z");
     await markSkipped({
@@ -63,7 +63,7 @@ describe("markSkipped / listSkipHistory", () => {
     assert.equal(ids.has("c"), false);
   });
 
-  it("does not store a reason field", async () => {
+  await it("does not store a reason field", async () => {
     const row = await markSkipped({
       threadId: "x",
       author: "@x",
@@ -72,7 +72,7 @@ describe("markSkipped / listSkipHistory", () => {
     assert.equal("reason" in row, false);
   });
 
-  it("persists conversation ancestry across an upsert", async () => {
+  await it("persists conversation ancestry across an upsert", async () => {
     await markSkipped({
       threadId: "reply-1",
       author: "@x",
@@ -96,14 +96,14 @@ describe("markSkipped / listSkipHistory", () => {
     assert.ok(blocked.has("reply-1"));
   });
 
-  it("requires a userId", async () => {
+  await it("requires a userId", async () => {
     await assert.rejects(
       () => markSkipped({ threadId: "x", author: "@x", userId: "" }),
       /userId is required/,
     );
   });
 
-  it("keeps one user's skips out of another's list", async () => {
+  await it("keeps one user's skips out of another's list", async () => {
     await markSkipped({ threadId: "shared", author: "@a", userId });
     const a = await listSkipHistory({ userId });
     const b = await listSkipHistory({ userId: "user-b" });
@@ -125,7 +125,7 @@ describe("markSkipped / listSkipHistory", () => {
     );
   });
 
-  it("caps history per user", async () => {
+  await it("caps history per user", async () => {
     const base = Date.parse("2026-07-28T10:00:00.000Z");
     for (let i = 0; i < MAX_SKIP_HISTORY + 3; i++) {
       await markSkipped({

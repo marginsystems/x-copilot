@@ -1,3 +1,5 @@
+import { objectValue } from "../platform/unknownValue.js";
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Scout tank — one LastScoutSnapshot per platform user in `scout_tanks`.
  * Threads accumulate across runs (merge by id); other fields track the latest
@@ -43,7 +45,7 @@ export type LastScoutSnapshot = {
 
 function isThreadCard(value: unknown): value is ThreadCard {
   if (!value || typeof value !== "object") return false;
-  const t = value as Record<string, unknown>;
+  const t = objectValue(value);
   return (
     typeof t.id === "string" &&
     typeof t.author === "string" &&
@@ -56,7 +58,7 @@ function parseScoutSnapshotFilters(
   raw: unknown,
 ): ScoutSnapshotFilters | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const obj = raw as Record<string, unknown>;
+  const obj = objectValue(raw);
   const filters: ScoutSnapshotFilters = {};
   if (typeof obj.filterByMinViews === "boolean") {
     filters.filterByMinViews = obj.filterByMinViews;
@@ -79,7 +81,7 @@ function parseScoutSnapshotFilters(
 
 export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
   if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
+  const obj = objectValue(raw);
   const savedAt = typeof obj.savedAt === "string" ? obj.savedAt : "";
   if (!savedAt || !Number.isFinite(Date.parse(savedAt))) return null;
   const queries = Array.isArray(obj.queries)
@@ -116,7 +118,7 @@ export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
     snapshot.lengthWarning = obj.lengthWarning;
   }
   if (typeof obj.pipelineCounts === "object" && obj.pipelineCounts !== null) {
-    const pc = obj.pipelineCounts as Record<string, unknown>;
+    const pc = objectValue(obj.pipelineCounts);
     if (
       typeof pc.raw === "number" &&
       typeof pc.afterDedupe === "number" &&
@@ -146,9 +148,9 @@ export function parseScoutSnapshot(raw: unknown): LastScoutSnapshot | null {
 }
 
 function readTank(userId: string): LastScoutSnapshot | null {
-  const row = getPlatformDb()
+  const row = parseReadTankRow(getPlatformDb()
     .prepare(`SELECT snapshot_json FROM scout_tanks WHERE user_id = ?`)
-    .get(userId) as { snapshot_json: string } | undefined;
+    .get(userId));
   if (!row) return null;
   try {
     return parseScoutSnapshot(JSON.parse(row.snapshot_json) as unknown);
@@ -181,9 +183,9 @@ export async function getLastScout(opts: {
 
 /** Every user with a tank (expire sweeps). */
 export function listScoutTankUserIds(): string[] {
-  const rows = getPlatformDb()
+  const rows = parseListScoutTankUserIdsRow(getPlatformDb()
     .prepare(`SELECT user_id FROM scout_tanks ORDER BY user_id`)
-    .all() as Array<{ user_id: string }>;
+    .all());
   return rows.map((r) => r.user_id);
 }
 
@@ -216,7 +218,7 @@ function hasConsumedIdentity(thread: ThreadCard, consumed: Set<string>): boolean
 }
 
 function readConsumedIdentityIds(userId: string): Set<string> {
-  const rows = getPlatformDb()
+  const rows = parseReadConsumedIdentityIdsRow(getPlatformDb()
     .prepare(
       `SELECT thread_id, conversation_id, in_reply_to_id
          FROM desk_interactions WHERE user_id = ?
@@ -227,11 +229,7 @@ function readConsumedIdentityIds(userId: string): Set<string> {
        SELECT thread_id, conversation_id, in_reply_to_id
          FROM desk_skips WHERE user_id = ?`,
     )
-    .all(userId, userId, userId) as Array<{
-    thread_id: string;
-    conversation_id: string | null;
-    in_reply_to_id: string | null;
-  }>;
+    .all(userId, userId, userId));
   return new Set(
     rows.flatMap((row) =>
       [row.thread_id, row.conversation_id, row.in_reply_to_id].filter(
@@ -350,4 +348,38 @@ export async function pruneConsumedScoutThread(
     [...ids].filter((id): id is string => typeof id === "string"),
     { userId },
   );
+}
+
+function parseReadTankRow(value: unknown): { snapshot_json: string } | undefined {
+  const valid = (row: unknown): row is { snapshot_json: string } | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.snapshot_json === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseListScoutTankUserIdsRow(value: unknown): Array<{ user_id: string }> {
+  const valid = (row: unknown): row is Array<{ user_id: string }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.user_id === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseReadConsumedIdentityIdsRow(value: unknown): Array<{
+    thread_id: string;
+    conversation_id: string | null;
+    in_reply_to_id: string | null;
+  }> {
+  const valid = (row: unknown): row is Array<{
+    thread_id: string;
+    conversation_id: string | null;
+    in_reply_to_id: string | null;
+  }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.thread_id === "string" &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.in_reply_to_id === null || typeof item.in_reply_to_id === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

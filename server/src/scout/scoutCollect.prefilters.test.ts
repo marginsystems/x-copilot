@@ -7,13 +7,13 @@ import { normalizeAuthorKey } from "../desk/interactionCooldown.ts";
 import type { PlanQueriesOpts } from "./queryPlan.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
-describe("runScoutCollect prefilters", () => {
+await describe("runScoutCollect prefilters", async () => {
   const session = {
     bearerToken: "t",
     configured: true,
   };
 
-  it("keeps at most one card per author in the bucket", async () => {
+  await it("keeps at most one card per author in the bucket", async () => {
     let triageAuthors: string[] = [];
 
     const result = await runScoutCollect({
@@ -67,7 +67,7 @@ describe("runScoutCollect prefilters", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
-  it("drops outbound-link cards before triage", async () => {
+  await it("drops outbound-link cards before triage", async () => {
     let triageIds: string[] = [];
 
     const result = await runScoutCollect({
@@ -126,7 +126,7 @@ describe("runScoutCollect prefilters", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
-  it("drops media and hashtag cards before triage", async () => {
+  await it("drops media and hashtag cards before triage", async () => {
     let triageIds: string[] = [];
 
     const result = await runScoutCollect({
@@ -185,7 +185,7 @@ describe("runScoutCollect prefilters", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
-  it("keeps outbound-link cards when the setting is off", async () => {
+  await it("keeps outbound-link cards when the setting is off", async () => {
     let triageIds: string[] = [];
 
     const result = await runScoutCollect({
@@ -238,7 +238,7 @@ describe("runScoutCollect prefilters", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
-  it("drops self-replies before triage", async () => {
+  await it("drops self-replies before triage", async () => {
     let triageIds: string[] = [];
 
     const result = await runScoutCollect({
@@ -298,7 +298,7 @@ describe("runScoutCollect prefilters", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
-  it("drops non-preferred-language cards before triage", async () => {
+  await it("drops non-preferred-language cards before triage", async () => {
     let triageIds: string[] = [];
     const spanish =
       "Ahora que todos están quejándose de build in public, voy yo: dejé de hacer build in public porque me copiaban todo, literalmente todo, hasta las publicaciones sobre qué roles contratábamos.";

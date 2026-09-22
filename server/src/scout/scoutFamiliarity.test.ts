@@ -123,15 +123,15 @@ function supportedProfile(patch: Partial<ScoutProfile> = {}): ScoutProfile {
   return { ...base, ...patch };
 }
 
-describe("projectScoutFamiliarity — producer-backed states", () => {
-  it("no evidence is an honest empty object with exactly the frozen keys", () => {
+await describe("projectScoutFamiliarity — producer-backed states", async () => {
+  await it("no evidence is an honest empty object with exactly the frozen keys", () => {
     const out = project(reduce([], { revision: 0, updatedAt: null }));
     assert.deepEqual(out, EMPTY);
     assert.deepEqual(Object.keys(out).sort(), PROJECTION_KEYS);
     assert.deepEqual(project(emptyScoutProfile(USER)), EMPTY);
   });
 
-  it("skip/dismiss-only evidence stays empty but keeps producer revision, coverage and lastLearned", () => {
+  await it("skip/dismiss-only evidence stays empty but keeps producer revision, coverage and lastLearned", () => {
     const rows = [
       ...skips(2, "hollow_ask"),
       obs({ action: "dismiss", threadKind: "fact_add" }),
@@ -152,7 +152,7 @@ describe("projectScoutFamiliarity — producer-backed states", () => {
     });
   });
 
-  it("a stored reply with an unknown kind is learning with zero known coverage", () => {
+  await it("a stored reply with an unknown kind is learning with zero known coverage", () => {
     const rows = takes(1, null);
     const out = project(reduce(rows));
     assert.equal(out.state, "learning");
@@ -163,14 +163,14 @@ describe("projectScoutFamiliarity — producer-backed states", () => {
     assert.deepEqual(out.lastLearned, { at: rows[0].changedAt, action: "take", threadKind: null });
   });
 
-  it("learning at score zero copies the producer state instead of deriving it", () => {
+  await it("learning at score zero copies the producer state instead of deriving it", () => {
     const out = project(reduce(takes(1, "fact_add")));
     assert.equal(out.state, "learning");
     assert.equal(out.score, 0);
     assert.deepEqual(out.coverage, { storedConfirmedReplies: 1, knownKindResolvedActions: 1 });
   });
 
-  it("supported directional: prefer/avoid kinds with counts only, sorted and bounded", () => {
+  await it("supported directional: prefer/avoid kinds with counts only, sorted and bounded", () => {
     const profile = reduce([...takes(5, "fact_add"), ...skips(5, "hollow_ask")]);
     const out = project(profile);
     assert.equal(out.state, "supported");
@@ -187,7 +187,7 @@ describe("projectScoutFamiliarity — producer-backed states", () => {
     assert.deepEqual(out.hints, []);
   });
 
-  it("supported neutral-only: state is supported while no directional bias is emitted", () => {
+  await it("supported neutral-only: state is supported while no directional bias is emitted", () => {
     const profile = reduce([
       ...takes(5, "fact_add"),
       ...skips(5, "fact_add"),
@@ -202,7 +202,7 @@ describe("projectScoutFamiliarity — producer-backed states", () => {
     assert.deepEqual(out.hints, []);
   });
 
-  it("supported hint-only: topic and author support without any kind bias", () => {
+  await it("supported hint-only: topic and author support without any kind bias", () => {
     const profile = reduce(takes(3, null, { topics: ["rates"], author: "alice" }));
     assert.equal(profile.familiarity.state, "supported");
     const out = project(profile);
@@ -218,14 +218,14 @@ describe("projectScoutFamiliarity — producer-backed states", () => {
   });
 });
 
-describe("projectScoutFamiliarity — boundaries", () => {
-  it("4/5 kind actions: the under-floor kind is not emitted, the supported one is", () => {
+await describe("projectScoutFamiliarity — boundaries", async () => {
+  await it("4/5 kind actions: the under-floor kind is not emitted, the supported one is", () => {
     const out = project(reduce([...takes(4, "fact_add"), ...skips(6, "hollow_ask")]));
     assert.equal(out.state, "supported");
     assert.deepEqual(out.biases, [{ kind: "hollow_ask", bias: "avoid", takes: 0, skips: 6 }]);
   });
 
-  it("9/10 overall: nine resolved actions stay learning with no biases; ten are supported", () => {
+  await it("9/10 overall: nine resolved actions stay learning with no biases; ten are supported", () => {
     const nine = project(reduce([...takes(5, "fact_add"), ...skips(4, "hollow_ask")]));
     assert.equal(nine.state, "learning");
     assert.deepEqual(nine.biases, []);
@@ -234,7 +234,7 @@ describe("projectScoutFamiliarity — boundaries", () => {
     assert.equal(ten.biases.length, 2);
   });
 
-  it("2/3 distinct targets: two targets give no hint, three do", () => {
+  await it("2/3 distinct targets: two targets give no hint, three do", () => {
     const two = project(
       reduce([
         ...takes(2, null, { topics: ["rates"], targetId: "same" }),
@@ -247,7 +247,7 @@ describe("projectScoutFamiliarity — boundaries", () => {
     assert.deepEqual(three.hints, [{ category: "topic", value: "rates", distinctTargets: 3 }]);
   });
 
-  it("re-enforces the floors on a supported profile instead of trusting its lists", () => {
+  await it("re-enforces the floors on a supported profile instead of trusting its lists", () => {
     const base = supportedProfile();
     const underOverall = {
       ...base,
@@ -271,7 +271,7 @@ describe("projectScoutFamiliarity — boundaries", () => {
     assert.deepEqual(project(thinHint).hints, []);
   });
 
-  it("deterministic ties and caps: three biases, three hints total", () => {
+  await it("deterministic ties and caps: three biases, three hints total", () => {
     const base = supportedProfile();
     const kinds = { ...base.kinds };
     const entry = (takes: number, skips: number, bias: "prefer" | "avoid") => ({
@@ -313,7 +313,7 @@ describe("projectScoutFamiliarity — boundaries", () => {
     ]);
   });
 
-  it("never emits learning or neutral kinds, rates, dismissals or preference magnitude", () => {
+  await it("never emits learning or neutral kinds, rates, dismissals or preference magnitude", () => {
     const base = supportedProfile();
     const kinds = { ...base.kinds };
     kinds.timely_take = { ...kinds.fact_add, bias: "learning" };
@@ -340,7 +340,7 @@ describe("projectScoutFamiliarity — boundaries", () => {
     }
   });
 
-  it("emits no lists outside the supported state even when kinds would qualify", () => {
+  await it("emits no lists outside the supported state even when kinds would qualify", () => {
     const base = supportedProfile();
     const out = project({ ...base, familiarity: { state: "learning", score: 13 } });
     assert.equal(out.state, "learning");
@@ -349,8 +349,8 @@ describe("projectScoutFamiliarity — boundaries", () => {
   });
 });
 
-describe("projectScoutFamiliarity — validation", () => {
-  it("rejects foreign ownership and blank identity", () => {
+await describe("projectScoutFamiliarity — validation", async () => {
+  await it("rejects foreign ownership and blank identity", () => {
     const profile = reduce(takes(1, "fact_add"));
     assert.equal(projectScoutFamiliarity(profile, OTHER), null);
     // Owner comparison is exact on the trimmed requested identity.
@@ -360,7 +360,7 @@ describe("projectScoutFamiliarity — validation", () => {
     assert.equal(projectScoutFamiliarity(profile, "  "), null);
   });
 
-  it("rejects unusable core data to null", () => {
+  await it("rejects unusable core data to null", () => {
     const base = reduce(takes(1, "fact_add"));
     const bad: unknown[] = [
       null,
@@ -393,7 +393,7 @@ describe("projectScoutFamiliarity — validation", () => {
     }
   });
 
-  it("filters invalid list entries and unknown lastLearned kinds without failing the projection", () => {
+  await it("filters invalid list entries and unknown lastLearned kinds without failing the projection", () => {
     const base = supportedProfile();
     const out = project({
       ...base,
@@ -427,7 +427,7 @@ describe("projectScoutFamiliarity — validation", () => {
     assert.deepEqual(out.biases, [{ kind: "hollow_ask", bias: "avoid", takes: 0, skips: 5 }]);
   });
 
-  it("drops private and unknown fields wherever they appear", () => {
+  await it("drops private and unknown fields wherever they appear", () => {
     const base = supportedProfile();
     const out = project({
       ...base,
@@ -445,13 +445,13 @@ describe("projectScoutFamiliarity — validation", () => {
     assert.equal(JSON.stringify(out).includes("u1"), false);
   });
 
-  it("only emits the closed kind enum", () => {
+  await it("only emits the closed kind enum", () => {
     const out = project(supportedProfile());
     for (const bias of out.biases) assert.ok(THREAD_KINDS.includes(bias.kind));
   });
 });
 
-describe("loadScoutFamiliarity", () => {
+await describe("loadScoutFamiliarity", async () => {
   function spy(backing: (userId: string) => ScoutProfile | null | undefined) {
     const calls: string[] = [];
     return {
@@ -463,7 +463,7 @@ describe("loadScoutFamiliarity", () => {
     };
   }
 
-  it("performs no read for a blank or missing identity", async () => {
+  await it("performs no read for a blank or missing identity", async () => {
     const loader = spy(() => emptyScoutProfile(USER));
     for (const id of [undefined, "", "   "]) {
       assert.equal(await loadScoutFamiliarity(id, loader.load), null);
@@ -471,7 +471,7 @@ describe("loadScoutFamiliarity", () => {
     assert.deepEqual(loader.calls, []);
   });
 
-  it("reads exactly once per call with the trimmed identity", async () => {
+  await it("reads exactly once per call with the trimmed identity", async () => {
     const loader = spy((id) => emptyScoutProfile(id));
     assert.deepEqual(await loadScoutFamiliarity(" u1 ", loader.load), EMPTY);
     assert.deepEqual(loader.calls, ["u1"]);
@@ -479,7 +479,7 @@ describe("loadScoutFamiliarity", () => {
     assert.deepEqual(loader.calls, ["u1", "u1"]);
   });
 
-  it("thrown read, absent result, foreign owner and unusable shape are null with no retry", async () => {
+  await it("thrown read, absent result, foreign owner and unusable shape are null with no retry", async () => {
     const thrower = spy(() => {
       throw new Error("profile dir unusable");
     });
@@ -488,15 +488,15 @@ describe("loadScoutFamiliarity", () => {
     assert.equal(await loadScoutFamiliarity(USER, spy(() => null).load), null);
     assert.equal(await loadScoutFamiliarity(USER, spy(() => undefined).load), null);
     assert.equal(await loadScoutFamiliarity(USER, spy(() => emptyScoutProfile(OTHER)).load), null);
-    const broken = { ...emptyScoutProfile(USER), familiarity: { state: "supported", score: 500 } };
+    const broken: ScoutProfile = { ...emptyScoutProfile(USER), familiarity: { state: "supported", score: 500 } };
     assert.equal(
-      await loadScoutFamiliarity(USER, spy(() => broken as ScoutProfile).load),
+      await loadScoutFamiliarity(USER, spy(() => broken).load),
       null,
     );
   });
 });
 
-describe("loadScoutFamiliarity with the real store", () => {
+await describe("loadScoutFamiliarity with the real store", async () => {
   const T0 = Date.parse("2026-09-20T10:00:00.000Z");
   let temp: TempPlatformDb | undefined;
   let profileDir: string | undefined;
@@ -520,14 +520,14 @@ describe("loadScoutFamiliarity with the real store", () => {
     };
   }
 
-  it("a no-evidence rebuild is the empty projection", async () => {
+  await it("a no-evidence rebuild is the empty projection", async () => {
     const { userId, load, dir } = open();
     assert.equal(existsSync(scoutProfilePathForUser(userId, dir)), false);
     assert.deepEqual(await loadScoutFamiliarity(userId, load), EMPTY);
     assert.equal(existsSync(scoutProfilePathForUser(userId, dir)), true);
   });
 
-  it("a missing projection rebuilds from temporary owned evidence; repeats are stable", async () => {
+  await it("a missing projection rebuilds from temporary owned evidence; repeats are stable", async () => {
     const { userId, load, dir } = open();
     let reads = 0;
     const counted = (id: string) => {
@@ -580,7 +580,7 @@ describe("loadScoutFamiliarity with the real store", () => {
     assert.deepEqual(second, first);
   });
 
-  it("fails soft when the store fails closed", async () => {
+  await it("fails soft when the store fails closed", async () => {
     const { userId } = open();
     const asFile = join(profileDir!, "not-a-dir");
     writeFileSync(asFile, "x");

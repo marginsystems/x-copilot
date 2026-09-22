@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Interacted store — mark engaged threads, 24h author cooldown, and durable
  * history for the Interacted feed. One row per (user, thread) in
@@ -129,10 +130,11 @@ type InteractionRow = {
   pending_mark_ats: string | null;
 };
 
-function parseJsonColumn<T>(raw: string | null): T | undefined {
+function parseJsonColumn(raw: string | null): unknown {
   if (!raw) return undefined;
   try {
-    return JSON.parse(raw) as T;
+    const value: unknown = JSON.parse(raw);
+    return value;
   } catch {
     return undefined;
   }
@@ -155,14 +157,14 @@ export function rowToInteraction(row: InteractionRow): Interaction {
   if (row.posted_at) item.postedAt = row.posted_at;
   if (row.conversation_id) item.conversationId = row.conversation_id;
   if (row.in_reply_to_id) item.inReplyToId = row.in_reply_to_id;
-  const stats = parseJsonColumn<InteractionStats>(row.stats);
-  if (stats && typeof stats === "object") item.stats = stats;
+  const stats = parseJsonColumn(row.stats);
+  if (isInteractionStats(stats)) item.stats = stats;
   if (row.memory_sync_failed) item.memorySyncFailed = true;
   if (row.mark_gamification_sync_failed) item.markGamificationSyncFailed = true;
   if (row.bonus_gamification_sync_failed) {
     item.bonusGamificationSyncFailed = true;
   }
-  const pending = parseJsonColumn<unknown>(row.pending_mark_ats);
+  const pending = parseJsonColumn(row.pending_mark_ats);
   if (Array.isArray(pending)) {
     const ats = pending.filter(
       (s): s is string => typeof s === "string" && s.trim() !== "",
@@ -256,11 +258,11 @@ export function readInteractionRow(
   userId: string,
   threadId: string,
 ): Interaction | null {
-  const row = getPlatformDb()
+  const row = parseInteractionRow(getPlatformDb()
     .prepare(
       `SELECT * FROM desk_interactions WHERE user_id = ? AND thread_id = ?`,
     )
-    .get(userId, threadId) as InteractionRow | undefined;
+    .get(userId, threadId));
   return row ? rowToInteraction(row) : null;
 }
 
@@ -395,14 +397,14 @@ export function listInteractionRowsPage(opts: {
     clauses.push("(at < ? OR (at = ? AND thread_id < ?))");
     params.push(opts.before.at, opts.before.at, opts.before.threadId);
   }
-  const rows = getPlatformDb()
+  const rows = parseInteractionRow2(getPlatformDb()
     .prepare(
       `SELECT * FROM desk_interactions
         WHERE ${clauses.join(" AND ")}
         ORDER BY at DESC, thread_id DESC
         LIMIT ?`,
     )
-    .all(...params, limit) as InteractionRow[];
+    .all(...params, limit));
   return rows.map(rowToInteraction);
 }
 
@@ -428,14 +430,14 @@ export async function listInteractionHistory(opts: {
 }): Promise<Interaction[]> {
   const userId = requireUserId(opts.userId);
   const limit = Math.max(0, opts.limit ?? MAX_INTERACTION_HISTORY);
-  const rows = getPlatformDb()
+  const rows = parseInteractionRow3(getPlatformDb()
     .prepare(
       `SELECT * FROM desk_interactions
         WHERE user_id = ?
         ORDER BY at DESC, thread_id DESC
         LIMIT ?`,
     )
-    .all(userId, limit) as InteractionRow[];
+    .all(userId, limit));
   return rows.map(rowToInteraction);
 }
 
@@ -453,13 +455,13 @@ export function listAllInteractionRows(opts?: {
       : Math.max(0, opts?.limit ?? MAX_INTERACTION_STORE);
   const where = opts?.where ? `WHERE ${opts.where}` : "";
   const limitClause = limit === null ? "" : " LIMIT ?";
-  const rows = getPlatformDb()
+  const rows = parseInteractionRow4(getPlatformDb()
     .prepare(
       `SELECT * FROM desk_interactions ${where}
         ORDER BY at DESC, user_id, thread_id
         ${limitClause}`,
     )
-    .all(...(limit === null ? [] : [limit])) as InteractionRow[];
+    .all(...(limit === null ? [] : [limit])));
   return rows.map(rowToInteraction);
 }
 
@@ -476,11 +478,11 @@ export async function getEverInteractedAuthorKeys(opts: {
   userId: string;
 }): Promise<Set<string>> {
   const userId = requireUserId(opts.userId);
-  const rows = getPlatformDb()
+  const rows = parseGetEverInteractedAuthorKeysRow(getPlatformDb()
     .prepare(
       `SELECT DISTINCT author_key FROM desk_interactions WHERE user_id = ?`,
     )
-    .all(userId) as Array<{ author_key: string }>;
+    .all(userId));
   return new Set(rows.map((r) => r.author_key).filter(Boolean));
 }
 
@@ -512,4 +514,129 @@ export async function getAuthorKeysForScoutFilter(opts: {
   const ever = await getEverInteractedAuthorKeys({ userId: opts.userId });
   if (!ever.size) return cooled;
   return new Set([...cooled, ...ever]);
+}
+
+function parseInteractionRow(value: unknown): InteractionRow | undefined {
+  const valid = (row: unknown): row is InteractionRow | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.user_id === "string" &&
+    typeof row.thread_id === "string" &&
+    typeof row.author === "string" &&
+    typeof row.author_key === "string" &&
+    typeof row.at === "string" &&
+    typeof row.source === "string" &&
+    (row.url === null || typeof row.url === "string") &&
+    (row.summary === null || typeof row.summary === "string") &&
+    (row.text === null || typeof row.text === "string") &&
+    (row.reply_id === null || typeof row.reply_id === "string") &&
+    (row.reply_url === null || typeof row.reply_url === "string") &&
+    (row.posted_at === null || typeof row.posted_at === "string") &&
+    (row.conversation_id === null || typeof row.conversation_id === "string") &&
+    (row.in_reply_to_id === null || typeof row.in_reply_to_id === "string") &&
+    (row.stats === null || typeof row.stats === "string") &&
+    typeof row.memory_sync_failed === "number" &&
+    typeof row.mark_gamification_sync_failed === "number" &&
+    typeof row.bonus_gamification_sync_failed === "number" &&
+    (row.pending_mark_ats === null || typeof row.pending_mark_ats === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseInteractionRow2(value: unknown): InteractionRow[] {
+  const valid = (row: unknown): row is InteractionRow[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.user_id === "string" &&
+    typeof item.thread_id === "string" &&
+    typeof item.author === "string" &&
+    typeof item.author_key === "string" &&
+    typeof item.at === "string" &&
+    typeof item.source === "string" &&
+    (item.url === null || typeof item.url === "string") &&
+    (item.summary === null || typeof item.summary === "string") &&
+    (item.text === null || typeof item.text === "string") &&
+    (item.reply_id === null || typeof item.reply_id === "string") &&
+    (item.reply_url === null || typeof item.reply_url === "string") &&
+    (item.posted_at === null || typeof item.posted_at === "string") &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.in_reply_to_id === null || typeof item.in_reply_to_id === "string") &&
+    (item.stats === null || typeof item.stats === "string") &&
+    typeof item.memory_sync_failed === "number" &&
+    typeof item.mark_gamification_sync_failed === "number" &&
+    typeof item.bonus_gamification_sync_failed === "number" &&
+    (item.pending_mark_ats === null || typeof item.pending_mark_ats === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseInteractionRow3(value: unknown): InteractionRow[] {
+  const valid = (row: unknown): row is InteractionRow[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.user_id === "string" &&
+    typeof item.thread_id === "string" &&
+    typeof item.author === "string" &&
+    typeof item.author_key === "string" &&
+    typeof item.at === "string" &&
+    typeof item.source === "string" &&
+    (item.url === null || typeof item.url === "string") &&
+    (item.summary === null || typeof item.summary === "string") &&
+    (item.text === null || typeof item.text === "string") &&
+    (item.reply_id === null || typeof item.reply_id === "string") &&
+    (item.reply_url === null || typeof item.reply_url === "string") &&
+    (item.posted_at === null || typeof item.posted_at === "string") &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.in_reply_to_id === null || typeof item.in_reply_to_id === "string") &&
+    (item.stats === null || typeof item.stats === "string") &&
+    typeof item.memory_sync_failed === "number" &&
+    typeof item.mark_gamification_sync_failed === "number" &&
+    typeof item.bonus_gamification_sync_failed === "number" &&
+    (item.pending_mark_ats === null || typeof item.pending_mark_ats === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseInteractionRow4(value: unknown): InteractionRow[] {
+  const valid = (row: unknown): row is InteractionRow[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.user_id === "string" &&
+    typeof item.thread_id === "string" &&
+    typeof item.author === "string" &&
+    typeof item.author_key === "string" &&
+    typeof item.at === "string" &&
+    typeof item.source === "string" &&
+    (item.url === null || typeof item.url === "string") &&
+    (item.summary === null || typeof item.summary === "string") &&
+    (item.text === null || typeof item.text === "string") &&
+    (item.reply_id === null || typeof item.reply_id === "string") &&
+    (item.reply_url === null || typeof item.reply_url === "string") &&
+    (item.posted_at === null || typeof item.posted_at === "string") &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.in_reply_to_id === null || typeof item.in_reply_to_id === "string") &&
+    (item.stats === null || typeof item.stats === "string") &&
+    typeof item.memory_sync_failed === "number" &&
+    typeof item.mark_gamification_sync_failed === "number" &&
+    typeof item.bonus_gamification_sync_failed === "number" &&
+    (item.pending_mark_ats === null || typeof item.pending_mark_ats === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseGetEverInteractedAuthorKeysRow(value: unknown): Array<{ author_key: string }> {
+  const valid = (row: unknown): row is Array<{ author_key: string }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.author_key === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function isReplyStatSnapshot(value: unknown): value is ReplyStatSnapshot {
+  return isRecord(value) && typeof value.sampledAt === "string" &&
+    ["views", "likes", "replies", "retweets"].every(
+      (key) => value[key] === undefined || typeof value[key] === "number",
+    );
+}
+
+function isInteractionStats(value: unknown): value is InteractionStats {
+  return isRecord(value) &&
+    (value.t1h === undefined || isReplyStatSnapshot(value.t1h)) &&
+    (value.t24h === undefined || isReplyStatSnapshot(value.t24h));
 }

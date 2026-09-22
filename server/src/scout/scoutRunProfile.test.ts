@@ -21,7 +21,7 @@ import {
   loadScoutRunProfile,
 } from "./scoutRunProfile.ts";
 
-function spy(backing: () => ScoutProfile | null | undefined) {
+function spy(backing: () => unknown) {
   const calls: string[] = [];
   return {
     calls,
@@ -32,8 +32,8 @@ function spy(backing: () => ScoutProfile | null | undefined) {
   };
 }
 
-describe("loadScoutRunProfile", () => {
-  it("performs no read for a blank or missing identity", async () => {
+await describe("loadScoutRunProfile", async () => {
+  await it("performs no read for a blank or missing identity", async () => {
     const loader = spy(() => emptyScoutProfile("user-a"));
     for (const userId of [undefined, "", "   "]) {
       assert.equal(await loadScoutRunProfile(userId, loader.load), null);
@@ -41,7 +41,7 @@ describe("loadScoutRunProfile", () => {
     assert.deepEqual(loader.calls, []);
   });
 
-  it("reads once with the trimmed identity and returns the same object", async () => {
+  await it("reads once with the trimmed identity and returns the same object", async () => {
     const profile = { ...emptyScoutProfile("user-a"), revision: 4 };
     const loader = spy(() => profile);
     const loaded = await loadScoutRunProfile(" user-a ", loader.load);
@@ -49,7 +49,7 @@ describe("loadScoutRunProfile", () => {
     assert.deepEqual(loader.calls, ["user-a"]);
   });
 
-  it("fails soft when the loader throws, with no retry", async () => {
+  await it("fails soft when the loader throws, with no retry", async () => {
     const loader = spy(() => {
       throw new Error("evidence db locked");
     });
@@ -57,12 +57,12 @@ describe("loadScoutRunProfile", () => {
     assert.deepEqual(loader.calls, ["user-a"]);
   });
 
-  it("treats an absent result as no profile", async () => {
+  await it("treats an absent result as no profile", async () => {
     assert.equal(await loadScoutRunProfile("user-a", spy(() => null).load), null);
     assert.equal(await loadScoutRunProfile("user-a", spy(() => undefined).load), null);
   });
 
-  it("drops a foreign owner's profile instead of substituting it", async () => {
+  await it("drops a foreign owner's profile instead of substituting it", async () => {
     const foreign = spy(() => emptyScoutProfile("user-b"));
     assert.equal(await loadScoutRunProfile("user-a", foreign.load), null);
     assert.deepEqual(foreign.calls, ["user-a"]);
@@ -71,7 +71,7 @@ describe("loadScoutRunProfile", () => {
     assert.equal(await loadScoutRunProfile("user-a", padded.load), null);
   });
 
-  it("drops unusable shapes", async () => {
+  await it("drops unusable shapes", async () => {
     const base = emptyScoutProfile("user-a");
     const unusable: unknown[] = [
       "user-a",
@@ -90,7 +90,7 @@ describe("loadScoutRunProfile", () => {
     for (const value of unusable) {
       assert.equal(isUsableScoutRunProfile(value, "user-a"), false);
       assert.equal(
-        await loadScoutRunProfile("user-a", spy(() => value as ScoutProfile).load),
+        await loadScoutRunProfile("user-a", spy(() => value).load),
         null,
       );
     }
@@ -99,7 +99,7 @@ describe("loadScoutRunProfile", () => {
   });
 });
 
-describe("loadScoutRunProfile with the real store", () => {
+await describe("loadScoutRunProfile with the real store", async () => {
   let temp: TempPlatformDb | undefined;
   let profileDir: string | undefined;
   afterEach(() => {
@@ -109,7 +109,7 @@ describe("loadScoutRunProfile with the real store", () => {
     profileDir = undefined;
   });
 
-  it("accepts the store's owner-safe read for a user with no evidence", async () => {
+  await it("accepts the store's owner-safe read for a user with no evidence", async () => {
     temp = openTempPlatformDb("x-run-profile-store-");
     profileDir = mkdtempSync(join(tmpdir(), "x-run-profile-dir-"));
     const userId = seedUser("run-profile-user");
@@ -123,7 +123,7 @@ describe("loadScoutRunProfile with the real store", () => {
     assert.equal(loaded.familiarity.state, "empty");
   });
 
-  it("returns null for a blank identity before touching the store", async () => {
+  await it("returns null for a blank identity before touching the store", async () => {
     let reads = 0;
     const loaded = await loadScoutRunProfile("", (id) => {
       reads += 1;

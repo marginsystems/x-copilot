@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * One cheap DeepSeek call: today's next desk action.
  * Cached per user; recomputed when the coaching snapshot hash changes.
@@ -66,8 +67,8 @@ export function parseNextActionJson(raw: string): {
   kind: NextActionKind;
   text: string;
 } | null {
-  const data = extractJsonObject(raw) as Record<string, unknown> | null;
-  if (!data || !isKind(data.kind)) return null;
+  const data = extractJsonObject(raw);
+  if (!isRecord(data) || !isKind(data.kind)) return null;
   const text = typeof data.text === "string" ? data.text.trim() : "";
   if (!text || text.length > 180) return null;
   return { kind: data.kind, text };
@@ -143,12 +144,12 @@ export function fallbackNextAction(snapshot: CoachingSnapshot): {
 }
 
 export function readNextActionCache(userId: string): NextAction | null {
-  const row = getPlatformDb()
+  const row = parseReadNextActionCacheRow(getPlatformDb()
     .prepare(
       `SELECT kind, text, inputs_hash, model, updated_at
          FROM next_action_cache WHERE user_id = ?`,
     )
-    .get(userId) as Record<string, unknown> | undefined;
+    .get(userId));
   if (!row || !isKind(row.kind)) return null;
   const text = String(row.text ?? "").trim();
   if (!text) return null;
@@ -245,4 +246,11 @@ export async function getOrRefreshNextAction(opts: {
     return write(fallback.kind, fallback.text, result.model);
   }
   return write(parsed.kind, parsed.text, result.model);
+}
+
+function parseReadNextActionCacheRow(value: unknown): Record<string, unknown> | undefined {
+  const valid = (row: unknown): row is Record<string, unknown> | undefined =>
+    (row === undefined || (isRecord(row)));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

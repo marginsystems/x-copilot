@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -21,15 +22,15 @@ import {
 } from "./scoutEvidenceContext.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
-describe("tokenizeScoutTopics", () => {
-  it("lowercases, drops urls/handles/stop words/numbers, dedupes, bounds", () => {
+await describe("tokenizeScoutTopics", async () => {
+  await it("lowercases, drops urls/handles/stop words/numbers, dedupes, bounds", () => {
     const tokens = tokenizeScoutTopics(
       "The Fed's RATE decision https://x.com/a/status/123 @jerome and inflation, inflation again 2026 via www.example.com/x ok",
     );
     assert.deepEqual(tokens, ["fed's", "rate", "decision", "inflation"]);
   });
 
-  it("is deterministic, order-preserving and capped at twelve tokens", () => {
+  await it("is deterministic, order-preserving and capped at twelve tokens", () => {
     const text = Array.from({ length: 30 }, (_, i) => `word${i}`).join(" ");
     const a = tokenizeScoutTopics(text);
     const b = tokenizeScoutTopics(text);
@@ -38,7 +39,7 @@ describe("tokenizeScoutTopics", () => {
     assert.equal(a[0], "word0");
   });
 
-  it("bounds input to 2,000 characters and token length to 3–32", () => {
+  await it("bounds input to 2,000 characters and token length to 3–32", () => {
     const filler = "aa ".repeat(700);
     const tokens = tokenizeScoutTopics(`${filler}zzz ${"y".repeat(40)} tail`);
     assert.equal(tokens.includes("tail"), false);
@@ -48,13 +49,13 @@ describe("tokenizeScoutTopics", () => {
     assert.deepEqual(tokenizeScoutTopics(null), []);
   });
 
-  it("keeps unicode words", () => {
+  await it("keeps unicode words", () => {
     assert.deepEqual(tokenizeScoutTopics("Zölle über Größe"), ["zölle", "über", "größe"]);
   });
 });
 
-describe("normalizeEvidenceAuthor", () => {
-  it("normalizes handles and rejects placeholders and numeric ids", () => {
+await describe("normalizeEvidenceAuthor", async () => {
+  await it("normalizes handles and rejects placeholders and numeric ids", () => {
     assert.equal(normalizeEvidenceAuthor("@Alice_X"), "alice_x");
     assert.equal(normalizeEvidenceAuthor("bob"), "bob");
     assert.equal(normalizeEvidenceAuthor("@unknown"), null);
@@ -74,7 +75,7 @@ function card(overrides: Partial<ThreadCard> & { id: string }): ThreadCard {
   };
 }
 
-describe("cardContextFromSnapshot", () => {
+await describe("cardContextFromSnapshot", async () => {
   const snapshot = {
     savedAt: "2026-09-20T00:00:00.000Z",
     queries: [],
@@ -85,7 +86,7 @@ describe("cardContextFromSnapshot", () => {
     ],
   };
 
-  it("prefers the exact card and keeps the actual target", () => {
+  await it("prefers the exact card and keeps the actual target", () => {
     const ctx = cardContextFromSnapshot(snapshot, { targetId: "c1" });
     assert.equal(ctx?.cardId, "c1");
     assert.equal(ctx?.targetId, "c1");
@@ -95,7 +96,7 @@ describe("cardContextFromSnapshot", () => {
     assert.equal(ctx?.contextSource, "scout_cache");
   });
 
-  it("falls back to an unambiguous conversation match only", () => {
+  await it("falls back to an unambiguous conversation match only", () => {
     const one = cardContextFromSnapshot(snapshot, {
       targetId: "reply-in-root1",
       conversationId: "root1",
@@ -112,7 +113,7 @@ describe("cardContextFromSnapshot", () => {
   });
 });
 
-describe("retained target context", () => {
+await describe("retained target context", async () => {
   let temp: TempPlatformDb;
   const userId = "user-a";
 
@@ -126,7 +127,7 @@ describe("retained target context", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("survives tank prune and does not replace a known kind", async () => {
+  await it("survives tank prune and does not replace a known kind", async () => {
     await saveScoutCache(
       {
         savedAt: "2026-09-20T00:00:00.000Z",
@@ -160,7 +161,7 @@ describe("retained target context", () => {
     assert.equal(readRetainedTargetContext("user-b", "c1"), null);
   });
 
-  it("keeps a missing kind unknown when the card was never in the tank", async () => {
+  await it("keeps a missing kind unknown when the card was never in the tank", async () => {
     const retained = await retainScoutContextForTarget({
       userId,
       targetId: "organic-1",
@@ -181,7 +182,7 @@ describe("retained target context", () => {
     assert.equal(direct?.threadKind, "other");
   });
 
-  it("uses conversation fallback only when one retained card matches", async () => {
+  await it("uses conversation fallback only when one retained card matches", async () => {
     retainScoutTargetContext({
       userId,
       targetId: "c1",
@@ -211,7 +212,7 @@ describe("retained target context", () => {
     assert.equal(captured, null);
   });
 
-  it("checks older retained cards before accepting a conversation fallback", () => {
+  await it("checks older retained cards before accepting a conversation fallback", () => {
     retainScoutTargetContext({
       userId,
       targetId: "new-1",
@@ -239,7 +240,7 @@ describe("retained target context", () => {
     assert.equal(readRetainedContextByConversation(userId, "root-many"), null);
   });
 
-  it("ignores retained targets without a card when resolving a conversation", () => {
+  await it("ignores retained targets without a card when resolving a conversation", () => {
     retainScoutTargetContext({
       userId,
       targetId: "card-a",
@@ -260,7 +261,7 @@ describe("retained target context", () => {
     );
   });
 
-  it("keeps old retained context available after more than 2,000 later targets", () => {
+  await it("keeps old retained context available after more than 2,000 later targets", () => {
     // C09: watch / lock context is durable across pruning and delayed
     // replies; retaining more targets never evicts an older one.
     const laterTargets = 2001;
@@ -292,15 +293,15 @@ describe("retained target context", () => {
       readRetainedContextByConversation(userId, "old-root")?.cardId,
       "old-card",
     );
-    const row = getPlatformDb()
+    const row = parseRowRow(getPlatformDb()
       .prepare(
         "SELECT COUNT(*) AS count FROM scout_target_context WHERE user_id = ?",
       )
-      .get(userId) as { count: number };
+      .get(userId));
     assert.equal(row.count, laterTargets + 1);
   });
 
-  it("falls back to the watch list for author only", async () => {
+  await it("falls back to the watch list for author only", async () => {
     watchThread({ userId, threadId: "w1", author: "@erin", text: "GPU pricing" });
     const captured = await captureScoutTargetContext({ userId, targetId: "w1" });
     assert.equal(captured?.threadKind, null);
@@ -310,3 +311,11 @@ describe("retained target context", () => {
     assert.equal(await captureScoutTargetContext({ userId, targetId: "none" }), null);
   });
 });
+
+function parseRowRow(value: unknown): { count: number } {
+  const valid = (row: unknown): row is { count: number } =>
+    (isRecord(row) &&
+    typeof row.count === "number");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

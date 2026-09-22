@@ -17,8 +17,8 @@ function card(partial: Partial<ThreadCard> & Pick<ThreadCard, "id" | "text">): T
   };
 }
 
-describe("isLeafReply", () => {
-  it("treats replies and nested conversation ids as leaves", () => {
+await describe("isLeafReply", async () => {
+  await it("treats replies and nested conversation ids as leaves", () => {
     assert.equal(isLeafReply(card({ id: "1", text: "op" })), false);
     assert.equal(isLeafReply(card({ id: "2", text: "r", isReply: true })), true);
     assert.equal(
@@ -32,8 +32,8 @@ describe("isLeafReply", () => {
   });
 });
 
-describe("retargetLeafToRoot", () => {
-  it("rewrites the card onto the OP", () => {
+await describe("retargetLeafToRoot", async () => {
+  await it("rewrites the card onto the OP", () => {
     const next = retargetLeafToRoot(
       card({
         id: "leaf",
@@ -59,7 +59,7 @@ describe("retargetLeafToRoot", () => {
     assert.equal(next.views, 655);
   });
 
-  it("drops a leaf with no OP text", () => {
+  await it("drops a leaf with no OP text", () => {
     assert.equal(
       retargetLeafToRoot(
         card({ id: "leaf", text: "yeah", isReply: true, inReplyToId: "1" }),
@@ -68,7 +68,7 @@ describe("retargetLeafToRoot", () => {
     );
   });
 
-  it("does not carry leaf views onto a hydrated root without OP views", () => {
+  await it("does not carry leaf views onto a hydrated root without OP views", () => {
     const next = retargetLeafToRoot(
       card({
         id: "leaf",
@@ -85,7 +85,7 @@ describe("retargetLeafToRoot", () => {
     assert.equal(next.views, undefined);
   });
 
-  it("does not preserve the unknown-view marker when OP views are known", () => {
+  await it("does not preserve the unknown-view marker when OP views are known", () => {
     const next = retargetLeafToRoot(
       card({
         id: "leaf",
@@ -103,7 +103,7 @@ describe("retargetLeafToRoot", () => {
     assert.equal(next.opParentDerived, undefined);
   });
 
-  it("keeps the OP timestamp for routing without changing the lead freshness timestamp", () => {
+  await it("keeps the OP timestamp for routing without changing the lead freshness timestamp", () => {
     const next = retargetLeafToRoot(
       card({
         id: "leaf",
@@ -121,7 +121,7 @@ describe("retargetLeafToRoot", () => {
     assert.equal(next.opCreatedAt, "2026-01-01T00:00:00.000Z");
   });
 
-  it("keeps a leaf timestamp when no OP timestamp is available", () => {
+  await it("keeps a leaf timestamp when no OP timestamp is available", () => {
     const next = retargetLeafToRoot(
       card({
         id: "leaf",
@@ -139,8 +139,8 @@ describe("retargetLeafToRoot", () => {
   });
 });
 
-describe("preferRootTargets", () => {
-  it("keeps roots, retargets leaves, and ranks by views", () => {
+await describe("preferRootTargets", async () => {
+  await it("keeps roots, retargets leaves, and ranks by views", () => {
     const ranked = preferRootTargets([
       card({
         id: "leaf",
@@ -162,8 +162,8 @@ describe("preferRootTargets", () => {
   });
 });
 
-describe("sortByAudience", () => {
-  it("puts missing views last", () => {
+await describe("sortByAudience", async () => {
+  await it("puts missing views last", () => {
     const ranked = sortByAudience([
       { views: undefined },
       { views: 3 },

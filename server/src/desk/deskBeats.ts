@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 import { getPlatformDb } from "../db.js";
 import { utcDayKey } from "./gamificationXp.js";
 
@@ -72,7 +73,7 @@ export function getDeskBeats(opts: {
   nowMs?: number;
 }): StoredDeskBeats {
   const dayUtc = utcDayKey(opts.nowMs ?? Date.now());
-  const row = getPlatformDb()
+  const row = parseDeskBeatsRow(getPlatformDb()
     .prepare(
       `SELECT
          scout_reply_done AS scoutReplyDone,
@@ -82,7 +83,7 @@ export function getDeskBeats(opts: {
        FROM desk_beats
        WHERE user_id = ? AND day_utc = ?`,
     )
-    .get(opts.userId, dayUtc) as DeskBeatsRow | undefined;
+    .get(opts.userId, dayUtc));
   if (!row) return emptyDeskBeats();
   return {
     scoutReplyDone: row.scoutReplyDone === 1,
@@ -153,4 +154,15 @@ export function chooseDeskFork(opts: {
     ...opts,
     advance: (beats) => setForkChoice(beats, opts.forkChoice),
   });
+}
+
+function parseDeskBeatsRow(value: unknown): DeskBeatsRow | undefined {
+  const valid = (row: unknown): row is DeskBeatsRow | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.scoutReplyDone === "number" &&
+    typeof row.organicReplyDone === "number" &&
+    (row.forkChoice === null || row.forkChoice === "original" || row.forkChoice === "reply") &&
+    typeof row.forkDone === "number"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }
