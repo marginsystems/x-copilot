@@ -617,6 +617,36 @@ await describe("v2 outbound links from official card_uri", async () => {
 });
 
 await describe("parseV2SearchPayload boundary validation", async () => {
+  await it("rejects results without string identity fields or users", () => {
+    const result = parseV2SearchPayload({
+      data: [
+        { id: 42, text: "valid text", author_id: "u1" },
+        { id: "43", text: 7, author_id: "u1" },
+        { id: "44", text: "valid text", author_id: "u2" },
+      ],
+      includes: { users: [{ id: "u1", username: 9 }] },
+    });
+    assert.deepEqual(result.threads, []);
+  });
+
+  await it("keeps valid results when optional values have off-type contents", () => {
+    const result = parseV2SearchPayload({
+      data: [
+        {
+          id: "45",
+          text: "A sparse result",
+          author_id: "u1",
+          entities: { urls: [{ url: 123 }] },
+          public_metrics: { impression_count: "5" },
+        },
+      ],
+      includes: { users: [{ id: "u1", username: "author" }] },
+    });
+    assert.equal(result.threads.length, 1);
+    assert.equal(result.threads[0]?.id, "45");
+    assert.equal(result.threads[0]?.views, undefined);
+  });
+
   await it("preserves sparse results, opaque article data, unknown fields and pagination", () => {
     const tweet = {
       id: "42",

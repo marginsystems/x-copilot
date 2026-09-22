@@ -1,4 +1,4 @@
-import { hasOptional, hasOptionalStrings, isArrayOf, isNumber, isString } from "../platform/unknownValue.js";
+import { hasOptional, hasOptionalStrings, isArrayOf, isString } from "../platform/unknownValue.js";
 import type { V2Tweet, V2User } from "./xV2Card.js";
 import type { UrlEntity } from "./xLinks.js";
 
@@ -7,7 +7,7 @@ export function isV2User(value: unknown): value is V2User {
 }
 
 function isUrlEntity(value: unknown): value is UrlEntity {
-  return hasOptionalStrings(value, "url", "expanded_url", "display_url");
+  return value !== null && typeof value === "object";
 }
 
 function isEntities(value: unknown): value is NonNullable<V2Tweet["entities"]> {
@@ -20,11 +20,7 @@ function isNoteTweet(value: unknown): value is NonNullable<V2Tweet["note_tweet"]
 }
 
 function isMetrics(value: unknown): value is NonNullable<V2Tweet["public_metrics"]> {
-  return hasOptional(value, "like_count", isNumber) &&
-    hasOptional(value, "reply_count", isNumber) &&
-    hasOptional(value, "retweet_count", isNumber) &&
-    hasOptional(value, "quote_count", isNumber) &&
-    hasOptional(value, "impression_count", isNumber);
+  return value !== null && typeof value === "object";
 }
 
 export function isV2Tweet(value: unknown): value is V2Tweet {
