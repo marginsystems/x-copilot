@@ -16,7 +16,7 @@ describe("sortThreadsByCreatedAtNewest", () => {
       sorted.map((t) => t.id),
       ["new", "mid", "old"],
     );
-  });
+  }).catch(assert.fail);
 
   it("sinks missing createdAt to the bottom", () => {
     const sorted = sortThreadsByCreatedAtNewest([
@@ -27,7 +27,8 @@ describe("sortThreadsByCreatedAtNewest", () => {
     assert.equal(sorted[0]?.id, "new");
     assert.ok(["nope", "bad"].includes(sorted[1]?.id ?? ""));
     assert.ok(["nope", "bad"].includes(sorted[2]?.id ?? ""));
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("sortThreadsByAudience", () => {
@@ -41,5 +42,5 @@ describe("sortThreadsByAudience", () => {
       sorted.map((t) => t.id),
       ["loud", "quiet", "none"],
     );
-  });
+  }).catch(assert.fail);
 });

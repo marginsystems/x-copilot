@@ -33,7 +33,7 @@ describe("flightSharePayload", () => {
       null,
     );
     assert.equal(flightSharePayload(null, emptyGamificationStats()), null);
-  });
+  }).catch(assert.fail);
 
   it("keeps streak, level, and a next goal when present", () => {
     const payload = flightSharePayload(week, {
@@ -57,7 +57,8 @@ describe("flightSharePayload", () => {
     assert.equal(payload?.nextGoal, "Ten marks — 6 to go");
     assert.equal(payload?.altitude[1]?.held, true);
     assert.equal(payload?.altitude[1]?.views, 40);
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("altitudeSeries", () => {
@@ -71,7 +72,8 @@ describe("altitudeSeries", () => {
         ["2026-W34", 0, false],
       ],
     );
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("flightShareFilename and caption", () => {
@@ -98,7 +100,8 @@ describe("flightShareFilename and caption", () => {
     assert.match(intent, /^https:\/\/x\.com\/intent\/tweet\?/);
     assert.match(intent, /text=/);
     assert.match(intent, /xcopilot/);
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("drawFlightShareImage", () => {
@@ -152,5 +155,5 @@ describe("drawFlightShareImage", () => {
     assert.match(joined, new RegExp(FLIGHT_SHARE_SITE));
     assert.match(joined, new RegExp(FLIGHT_SHARE_DISCLAIMER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.doesNotMatch(joined, /NEXT/);
-  });
+  }).catch(assert.fail);
 });

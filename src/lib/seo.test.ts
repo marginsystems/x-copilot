@@ -74,7 +74,7 @@ describe("seoForView", () => {
     );
     assert.doesNotMatch(home.title, /independent research desk/);
     assert.equal(home.image, "/og.png");
-  });
+  }).catch(assert.fail);
 
   it("gives privacy, terms, pricing, changelog, and learn their own titles", () => {
     assert.equal(seoForView("privacy").title, "Privacy Policy — x-copilot");
@@ -117,7 +117,7 @@ describe("seoForView", () => {
     assert.equal(ogTypeForView("learnFollow"), "article");
     assert.equal(ogTypeForView("learn"), "website");
     assert.equal(ogTypeForView("home"), "website");
-  });
+  }).catch(assert.fail);
 
   it("noindexes Privacy and Terms and keeps product pages indexable", () => {
     assert.equal(seoForView("privacy").robots, "noindex,follow");
@@ -132,12 +132,13 @@ describe("seoForView", () => {
     assert.equal(seoForView("learnGive").robots, "index,follow");
     assert.equal(seoForView("learnFollow").robots, "index,follow");
     assert.equal(seoForView("dashboard").robots, "index,follow");
-  });
+  }).catch(assert.fail);
 
   it("does not give desk panes a second tagline", () => {
     assert.equal(seoForView("dashboard").title, SITE_TITLE);
     assert.equal(seoForView("usage").title, SITE_TITLE);
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("changelog schema", () => {
@@ -155,7 +156,8 @@ describe("changelog schema", () => {
     assert.equal(list.itemListOrder, "https://schema.org/ItemListOrderDescending");
     assert.equal(list.itemListElement[0]?.item?.name, CHANGELOG[0]?.title);
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/changelog");
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("learn schema", () => {
@@ -190,7 +192,7 @@ describe("learn schema", () => {
       "https://xcopilot.dev/learn/likes-and-follows-you-give",
     );
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
-  });
+  }).catch(assert.fail);
 
   it("is a LearningResource for the weights lesson with a learn breadcrumb", () => {
     const graph = learnWeightsJsonLd()["@graph"];
@@ -212,7 +214,7 @@ describe("learn schema", () => {
       crumbs.itemListElement[2]?.item,
       "https://xcopilot.dev/learn/what-a-like-is-worth",
     );
-  });
+  }).catch(assert.fail);
 
   it("is a LearningResource for the reply lesson with a learn breadcrumb", () => {
     const graph = learnReplyJsonLd()["@graph"];
@@ -229,7 +231,7 @@ describe("learn schema", () => {
       crumbs.itemListElement[2]?.item,
       "https://xcopilot.dev/learn/posts-that-get-a-reply",
     );
-  });
+  }).catch(assert.fail);
 
   it("is a LearningResource for the volume lesson with a learn breadcrumb", () => {
     const graph = learnVolumeJsonLd()["@graph"];
@@ -247,7 +249,7 @@ describe("learn schema", () => {
       crumbs.itemListElement[2]?.item,
       "https://xcopilot.dev/learn/how-many-replies",
     );
-  });
+  }).catch(assert.fail);
 
   it("is a LearningResource for the give lesson with a learn breadcrumb", () => {
     const graph = learnGiveJsonLd()["@graph"];
@@ -265,7 +267,7 @@ describe("learn schema", () => {
       crumbs.itemListElement[2]?.item,
       "https://xcopilot.dev/learn/likes-and-follows-you-give",
     );
-  });
+  }).catch(assert.fail);
 
   it("is a LearningResource for /learn/follow with a learn breadcrumb", () => {
     const graph = learnFollowJsonLd()["@graph"];
@@ -277,7 +279,7 @@ describe("learn schema", () => {
     assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs#L252-L257/);
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
     assert.equal(crumbs.itemListElement[2]?.item, "https://xcopilot.dev/learn/follow");
-  });
+  }).catch(assert.fail);
 
   it("preserves every lesson graph's ids, citation, images, and breadcrumbs", () => {
     const lessons = [
@@ -335,7 +337,7 @@ describe("learn schema", () => {
 
     for (const lesson of lessons) {
       const pageUrl = `https://xcopilot.dev${lesson.path}`;
-      const graph = lesson.jsonLd()["@graph"] as Array<Record<string, unknown>>;
+      const graph = lesson.jsonLd()["@graph"];
       const app = graph.find((node) => node["@type"] === "SoftwareApplication");
       const resource = graph.find((node) => node["@type"] === "LearningResource");
       const breadcrumbs = graph.find(
@@ -395,7 +397,8 @@ describe("learn schema", () => {
         },
       );
     }
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("htmlWithSeo", () => {
@@ -410,7 +413,7 @@ describe("htmlWithSeo", () => {
     assert.match(html, /BreadcrumbList/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
     assert.match(source, /<title>x-copilot — the X copilot/);
-  });
+  }).catch(assert.fail);
 
   it("rewrites the SPA shell for /learn without touching the home copy", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
@@ -425,7 +428,7 @@ describe("htmlWithSeo", () => {
     assert.match(html, /og:type" content="website"/);
     assert.match(html, /d011592/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
-  });
+  }).catch(assert.fail);
 
   it("rewrites the SPA shell for the weights lesson", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
@@ -438,7 +441,7 @@ describe("htmlWithSeo", () => {
     assert.match(html, /og:type" content="article"/);
     assert.match(html, /d011592/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
-  });
+  }).catch(assert.fail);
 
   it("rewrites the SPA shell for the reply lesson", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
@@ -450,7 +453,7 @@ describe("htmlWithSeo", () => {
     assert.match(html, /"@type":"LearningResource"/);
     assert.match(html, /og:type" content="article"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
-  });
+  }).catch(assert.fail);
 
   it("rewrites the SPA shell for the volume lesson", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
@@ -461,7 +464,7 @@ describe("htmlWithSeo", () => {
     assert.match(html, /no daily/);
     assert.match(html, /"@type":"LearningResource"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
-  });
+  }).catch(assert.fail);
 
   it("rewrites the SPA shell for the give lesson", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
@@ -472,7 +475,7 @@ describe("htmlWithSeo", () => {
     assert.match(html, /not subtracted/);
     assert.match(html, /"@type":"LearningResource"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
-  });
+  }).catch(assert.fail);
 
   it("rewrites the SPA shell for /learn/follow without touching the home copy", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
@@ -483,7 +486,8 @@ describe("htmlWithSeo", () => {
     assert.match(html, /"@type":"LearningResource"/);
     assert.match(html, /og:type" content="article"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("public crawl files", () => {
@@ -506,7 +510,7 @@ describe("public crawl files", () => {
     );
     assert.doesNotMatch(xml, /\/privacy/);
     assert.doesNotMatch(xml, /\/terms/);
-  });
+  }).catch(assert.fail);
 
   it("sends X-Robots-Tag on Privacy and Terms without Disallowing them", () => {
     const headers = readFileSync(join(publicDir, "_headers"), "utf8");
@@ -515,27 +519,27 @@ describe("public crawl files", () => {
     assert.match(headers, /\/terms\n\s+X-Robots-Tag: noindex, follow/);
     assert.doesNotMatch(robots, /Disallow: \/privacy/);
     assert.doesNotMatch(robots, /Disallow: \/terms/);
-  });
+  }).catch(assert.fail);
 
   it("keeps the site OG image at the official size", () => {
     const size = pngSize(join(publicDir, "og.png"));
     assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
-  });
+  }).catch(assert.fail);
 
   it("keeps the changelog featured image at the OG size", () => {
     const size = pngSize(join(publicDir, "og-changelog.png"));
     assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
-  });
+  }).catch(assert.fail);
 
   it("keeps the learn featured image at the OG size", () => {
     const size = pngSize(join(publicDir, "og-learn.png"));
     assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
-  });
+  }).catch(assert.fail);
 
   it("keeps the give lesson featured image at the OG size", () => {
     const size = pngSize(join(publicDir, "og-learn-give.png"));
     assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
-  });
+  }).catch(assert.fail);
 
   it("keeps per-lesson featured images at the OG size", () => {
     for (const name of [
@@ -546,7 +550,7 @@ describe("public crawl files", () => {
       const size = pngSize(join(publicDir, name));
       assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });
     }
-  });
+  }).catch(assert.fail);
 
   it("keeps inline lesson figures at 1200x800", () => {
     for (const name of [
@@ -560,5 +564,5 @@ describe("public crawl files", () => {
       const size = pngSize(join(publicDir, name));
       assert.deepEqual(size, { width: 1200, height: 800 });
     }
-  });
+  }).catch(assert.fail);
 });

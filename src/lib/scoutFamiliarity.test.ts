@@ -69,7 +69,7 @@ describe("parseScoutFamiliarity", () => {
       assert.deepEqual(parsed, fixture);
       assert.deepEqual(Object.keys(parsed ?? {}).sort(), KEYS);
     }
-  });
+  }).catch(assert.fail);
 
   it("rejects absent, null and unusable values without throwing", () => {
     const bad: unknown[] = [
@@ -94,7 +94,7 @@ describe("parseScoutFamiliarity", () => {
     for (const value of bad) {
       assert.equal(parseScoutFamiliarity(value), null, JSON.stringify(value));
     }
-  });
+  }).catch(assert.fail);
 
   it("drops unknown and private keys at every level", () => {
     const parsed = parseScoutFamiliarity({
@@ -116,7 +116,7 @@ describe("parseScoutFamiliarity", () => {
     for (const forbidden of ["userId", "notes", "kinds", "counts", "smoothedTakeRate", "eventKey", "ids"]) {
       assert.equal(json.includes(forbidden), false, forbidden);
     }
-  });
+  }).catch(assert.fail);
 
   it("filters invalid list entries and caps the lists", () => {
     const parsed = parseScoutFamiliarity({
@@ -156,7 +156,7 @@ describe("parseScoutFamiliarity", () => {
       { category: "author", value: "alice", distinctTargets: 3 },
       { category: "author", value: "bob", distinctTargets: 3 },
     ]);
-  });
+  }).catch(assert.fail);
 
   it("never carries lists outside the supported state", () => {
     const parsed = parseScoutFamiliarity({ ...SUPPORTED, state: "learning" });
@@ -167,7 +167,7 @@ describe("parseScoutFamiliarity", () => {
     const empty = parseScoutFamiliarity({ ...SUPPORTED, state: "empty" });
     assert.deepEqual(empty?.biases, []);
     assert.deepEqual(empty?.hints, []);
-  });
+  }).catch(assert.fail);
 
   it("reads an unknown lastLearned kind as unknown, not as a claim", () => {
     const parsed = parseScoutFamiliarity({
@@ -179,5 +179,5 @@ describe("parseScoutFamiliarity", () => {
       action: "skip",
       threadKind: null,
     });
-  });
+  }).catch(assert.fail);
 });

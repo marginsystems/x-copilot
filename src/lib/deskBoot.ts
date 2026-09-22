@@ -123,7 +123,7 @@ function historyRow(raw: unknown): { threadId: string; author: string; at: strin
   ) {
     return null;
   }
-  return raw as { threadId: string; author: string; at: string };
+  return { ...raw, threadId: raw.threadId, author: raw.author, at: raw.at };
 }
 
 export function parseAuthSessionUser(raw: unknown): AuthSessionUser | null {
@@ -160,12 +160,40 @@ function parseScoutFlight(raw: unknown): ScoutFlightPayload | undefined {
   };
 }
 
+function isThreadCard(value: unknown): value is ThreadCard {
+  if (!isRecord(value)) return false;
+  if (!["id", "author", "text", "url"].every((key) => typeof value[key] === "string")) return false;
+  if (!["createdAt", "summary", "opAuthor", "opText", "conversationId", "inReplyToId", "inReplyToScreenName", "intent", "reason"].every(
+    (key) => value[key] === undefined || typeof value[key] === "string",
+  )) return false;
+  if (!["isReply", "isQuote", "hasNativeMedia", "opParentDerived"].every(
+    (key) => value[key] === undefined || typeof value[key] === "boolean",
+  )) return false;
+  if (!["baitScore", "score", "views", "opViews"].every(
+    (key) => value[key] === undefined || typeof value[key] === "number",
+  )) return false;
+  for (const key of ["mediaShortlinks", "flags"]) {
+    const items = value[key];
+    if (items !== undefined && (!Array.isArray(items) || !items.every((item: unknown) => typeof item === "string"))) return false;
+  }
+  return (value.surface === undefined || value.surface === "reply" || value.surface === "repost") &&
+    (value.engage === undefined || value.engage === "skip" || value.engage === "consider" || value.engage === "priority") &&
+    (value.threadKind === undefined || (typeof value.threadKind === "string" &&
+      ["timely_take", "fact_add", "sharp_opinion", "lived_answer", "hollow_ask", "promo_context", "bare_news", "closed_thread", "other"].includes(value.threadKind)));
+}
+
+function isPipelineCounts(value: unknown): value is NonNullable<LastScoutSnapshot["pipelineCounts"]> {
+  return isRecord(value) &&
+    ["raw", "afterDedupe", "afterCooldown", "afterLength", "afterTriage"].every((key) => typeof value[key] === "number") &&
+    ["afterSelfReply", "afterLinks"].every((key) => value[key] === undefined || typeof value[key] === "number");
+}
+
 function parseLastScout(raw: unknown): LastScoutPayload {
   if (!isRecord(raw)) return { ok: true, empty: true };
   const flight = parseScoutFlight(raw.flight);
   const snapshot = isRecord(raw.snapshot) ? raw.snapshot : null;
   const threads = Array.isArray(snapshot?.threads)
-    ? (snapshot.threads as ThreadCard[])
+    ? snapshot.threads.filter(isThreadCard)
     : [];
   if (!snapshot || raw.empty === true || threads.length === 0) {
     return { ok: raw.ok !== false, empty: true, flight };
@@ -181,8 +209,8 @@ function parseLastScout(raw: unknown): LastScoutPayload {
         : undefined,
       threads,
       message: typeof snapshot.message === "string" ? snapshot.message : undefined,
-      pipelineCounts: isRecord(snapshot.pipelineCounts)
-        ? (snapshot.pipelineCounts as LastScoutSnapshot["pipelineCounts"])
+      pipelineCounts: isPipelineCounts(snapshot.pipelineCounts)
+        ? snapshot.pipelineCounts
         : undefined,
     },
   };

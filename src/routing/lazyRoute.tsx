@@ -1,4 +1,4 @@
-import { Component, Suspense, lazy, useState, type ComponentType, type ComponentProps, type ReactNode } from "react";
+import { Component, Suspense, lazy, useState, type ComponentType, type ComponentProps, type JSX, type ReactNode } from "react";
 
 class RouteError extends Component<{
   children: ReactNode;
@@ -19,9 +19,9 @@ class RouteError extends Component<{
 }
 
 /** Recreate React's cached lazy promise on retry; reload also handles stale deploy URLs. */
-export function lazyRoute<T extends ComponentType<any>>(load: () => Promise<{ default: T }>) {
+export function lazyRoute<T extends ComponentType<ComponentProps<T>>>(load: () => Promise<{ default: T }>) {
   let current = lazy(load);
-  return function LazyRoute(props: ComponentProps<T>) {
+  return function LazyRoute(props: JSX.LibraryManagedAttributes<typeof current, ComponentProps<typeof current>> & JSX.IntrinsicAttributes) {
     const [{ Page, attempt }, setAttempt] = useState(() => ({ Page: current, attempt: 0 }));
     return <RouteError key={attempt} onRetry={() => {
       current = lazy(load);

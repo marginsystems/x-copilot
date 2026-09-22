@@ -5,6 +5,7 @@ import {
   type SetStateAction,
 } from "react";
 import { apiFetch, apiUrl } from "../lib/apiBase";
+import { isRecord } from "../lib/typeGuards";
 import { parseAuthSessionUser } from "../lib/deskBoot";
 import { useSession } from "./session";
 import type { AuthSessionUser } from "./types";
@@ -49,14 +50,11 @@ export function useAuthSession({
       const res = await apiFetch("/api/auth/me", {
         signal: AbortSignal.timeout(8000),
       });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        authRequired?: boolean;
-        user?: unknown;
-      };
+      const data: unknown = await res.json();
+      if (!isRecord(data)) throw new Error("Invalid auth response");
       const user =
         res.ok && data.ok ? parseAuthSessionUser(data.user) : null;
-      return applyAuthUser(user, data.authRequired ?? true);
+      return applyAuthUser(user, typeof data.authRequired === "boolean" ? data.authRequired : true);
     } catch {
       const current = session.getSnapshot();
       return applyAuthUser(current.user, current.user ? current.required : false);

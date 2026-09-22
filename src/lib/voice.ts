@@ -1,3 +1,5 @@
+import { isRecord, isOneOf } from "./typeGuards";
+
 /**
  * Assisted-reply client helpers: voice state types, loading-phase copy, and
  * the cheap local edit hint. The server + DeepSeek verify is the real gate —
@@ -45,28 +47,31 @@ export type VoiceState = {
   suggests: SuggestUsage;
 };
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item: unknown) => typeof item === "string");
+}
+
 export function parseVoiceState(raw: unknown): VoiceState | null {
-  const voice = (raw as { voice?: unknown })?.voice as
-    | Record<string, unknown>
-    | undefined;
-  if (!voice || typeof voice.status !== "string") return null;
-  const suggests = (voice.suggests ?? {}) as Record<string, unknown>;
-  const card = voice.card as VoiceCardData | null | undefined;
+  if (!isRecord(raw) || !isRecord(raw.voice)) return null;
+  const voice = raw.voice;
+  if (!isOneOf(voice.status, ["unlinked", "empty", "learning", "insufficient", "ready"] as const)) return null;
+  const suggests = isRecord(voice.suggests) ? voice.suggests : {};
+  const card = isRecord(voice.card) ? voice.card : null;
   return {
-    status: voice.status as VoiceStatus,
+    status: voice.status,
     handle: typeof voice.handle === "string" ? voice.handle : null,
     replyCount: Number(voice.replyCount) || 0,
     conversationCount: Number(voice.conversationCount) || 0,
     unlockAt: Number(voice.unlockAt) || 100,
     unlocked: voice.unlocked === true,
     card:
-      card && typeof card.tone === "string" && Array.isArray(card.examples)
+      card && typeof card.tone === "string" && isStringArray(card.examples)
         ? {
             tone: card.tone,
             typicalLength:
               typeof card.typicalLength === "string" ? card.typicalLength : "",
-            habits: Array.isArray(card.habits) ? card.habits : [],
-            neverDo: Array.isArray(card.neverDo) ? card.neverDo : [],
+            habits: isStringArray(card.habits) ? card.habits : [],
+            neverDo: isStringArray(card.neverDo) ? card.neverDo : [],
             examples: card.examples,
             starter: card.starter === true,
           }

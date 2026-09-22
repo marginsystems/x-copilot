@@ -6,5 +6,5 @@ describe("nextTheme", () => {
   it("flips dark to light and back", () => {
     assert.equal(nextTheme("dark"), "light");
     assert.equal(nextTheme("light"), "dark");
-  });
+  }).catch(assert.fail);
 });

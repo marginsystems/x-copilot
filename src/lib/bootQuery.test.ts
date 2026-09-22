@@ -9,7 +9,7 @@ describe("readBootQuery", () => {
     assert.equal(q.authError, null);
     assert.equal(q.authOk, false);
     assert.equal(q.checkout, null);
-  });
+  }).catch(assert.fail);
 
   it("strips callback flags and keeps the rest of the query and hash", () => {
     const q = readBootQuery({
@@ -19,7 +19,7 @@ describe("readBootQuery", () => {
     });
     assert.equal(q.authOk, true);
     assert.equal(q.cleanUrl, "/dashboard?tab=foryou#top");
-  });
+  }).catch(assert.fail);
 
   it("routes any checkout result to /usage", () => {
     const success = readBootQuery({
@@ -37,7 +37,7 @@ describe("readBootQuery", () => {
     });
     assert.equal(cancel.checkout, "cancel");
     assert.equal(cancel.cleanUrl, "/usage");
-  });
+  }).catch(assert.fail);
 
   it("maps auth_error codes to a message", () => {
     const q = readBootQuery({
@@ -47,5 +47,5 @@ describe("readBootQuery", () => {
     });
     assert.equal(q.authError, "Login was cancelled.");
     assert.equal(q.cleanUrl, "/");
-  });
+  }).catch(assert.fail);
 });

@@ -1,3 +1,4 @@
+import { isRecord, isOneOf } from "./typeGuards";
 /** Client types + fetch for GET /api/coaching. */
 
 import { apiFetch } from "./apiBase";
@@ -59,29 +60,27 @@ export type CoachingState = {
 
 export type CoachingFetchOptions = { lite?: boolean };
 
-const KINDS = new Set<string>(NEXT_ACTION_KINDS);
-
 function finiteNonNeg(n: unknown): number | null {
   if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return null;
   return Math.floor(n);
 }
 
 export function parseNextAction(raw: unknown): NextActionCard | null {
-  if (!raw || typeof raw !== "object") return null;
-  const row = raw as Record<string, unknown>;
-  if (typeof row.kind !== "string" || !KINDS.has(row.kind)) return null;
+  if (!isRecord(raw)) return null;
+  const row = raw;
+  if (!isOneOf(row.kind, NEXT_ACTION_KINDS)) return null;
   const text = typeof row.text === "string" ? row.text.trim() : "";
   if (!text) return null;
   return {
-    kind: row.kind as NextActionKind,
+    kind: row.kind,
     text,
     updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : "",
   };
 }
 
 export function parseDailyMission(raw: unknown): DailyMission | null {
-  if (!raw || typeof raw !== "object") return null;
-  const row = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const row = raw;
   const id = typeof row.id === "string" ? row.id.trim() : "";
   const label = typeof row.label === "string" ? row.label.trim() : "";
   const target = finiteNonNeg(row.target);
@@ -102,8 +101,8 @@ export function parseDailyMission(raw: unknown): DailyMission | null {
 }
 
 function parseOwnActivity(raw: unknown): OwnActivity | null {
-  if (!raw || typeof raw !== "object") return null;
-  const row = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const row = raw;
   if (
     typeof row.id !== "string" ||
     typeof row.url !== "string" ||
@@ -123,8 +122,8 @@ function parseOwnActivity(raw: unknown): OwnActivity | null {
 }
 
 export function parseDeskBeats(raw: unknown): DeskBeats {
-  if (!raw || typeof raw !== "object") return emptyDeskBeats();
-  const row = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return emptyDeskBeats();
+  const row = raw;
   const forkChoice =
     row.forkChoice === "original" || row.forkChoice === "reply"
       ? row.forkChoice
@@ -148,8 +147,8 @@ export function parseDeskBeats(raw: unknown): DeskBeats {
 }
 
 export function parseCoachingPayload(raw: unknown): CoachingState | null {
-  if (!raw || typeof raw !== "object") return null;
-  const row = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const row = raw;
   const dayUtc = typeof row.dayUtc === "string" ? row.dayUtc : "";
   const missions = Array.isArray(row.missions)
     ? row.missions

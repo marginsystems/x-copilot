@@ -12,38 +12,38 @@ const agenda =
 describe("agendaNeedsPersist", () => {
   it("returns the trimmed draft when it differs from saved", () => {
     assert.equal(agendaNeedsPersist(`  ${agenda}  `, "old agenda ".repeat(4)), agenda);
-  });
+  }).catch(assert.fail);
 
   it("skips a draft that is already saved", () => {
     assert.equal(agendaNeedsPersist(`  ${agenda}  `, agenda), null);
-  });
+  }).catch(assert.fail);
 
   it("skips a draft under 40 characters", () => {
     assert.equal(agendaNeedsPersist("too short", null), null);
-  });
+  }).catch(assert.fail);
 
   it("persists a first valid draft when nothing is saved yet", () => {
     assert.equal(agendaNeedsPersist(agenda, null), agenda);
-  });
+  }).catch(assert.fail);
 
   it("pins the client length bounds to the server contract", () => {
     assert.equal(AGENDA_MIN_CHARS, 40);
     assert.equal(AGENDA_MAX_CHARS, 5000);
-  });
+  }).catch(assert.fail);
 
   it("rejects a draft one char under the minimum", () => {
     assert.equal(agendaNeedsPersist("x".repeat(39), null), null);
-  });
+  }).catch(assert.fail);
 
   it("persists a draft exactly at the minimum", () => {
     assert.equal(agendaNeedsPersist("x".repeat(40), null), "x".repeat(40));
-  });
+  }).catch(assert.fail);
 
   it("skips a draft over 5000 characters", () => {
     assert.equal(agendaNeedsPersist("x".repeat(5001), null), null);
-  });
+  }).catch(assert.fail);
 
   it("persists a draft exactly at the maximum", () => {
     assert.equal(agendaNeedsPersist("x".repeat(5000), null), "x".repeat(5000));
-  });
+  }).catch(assert.fail);
 });
