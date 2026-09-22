@@ -648,6 +648,29 @@ await describe("parseV2SearchPayload boundary validation", async () => {
     assert.equal(result.threads[0]?.views, undefined);
   });
 
+  await it("drops malformed included tweets without dropping valid leaves", () => {
+    const result = parseV2SearchPayload({
+      data: [
+        {
+          id: "801",
+          text: "A valid reply",
+          author_id: "u-reply",
+          referenced_tweets: [{ type: "replied_to", id: "800" }],
+        },
+      ],
+      includes: {
+        users: [
+          { id: "u-reply", username: "reply" },
+          { id: "u-op", username: "op" },
+        ],
+        tweets: [{ id: "800", text: 7, author_id: "u-op" }],
+      },
+    });
+    assert.equal(result.threads.length, 1);
+    assert.equal(result.threads[0]?.id, "801");
+    assert.equal(result.threads[0]?.opText, undefined);
+  });
+
   await it("preserves sparse results, opaque article data, unknown fields and pagination", () => {
     const tweet = {
       id: "42",
