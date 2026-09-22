@@ -8,6 +8,7 @@ import {
 import { useSession } from "../auth/session";
 import { parseDeskBoot, type LastScoutPayload } from "../lib/deskBoot";
 import { apiFetch } from "../lib/apiBase";
+import { isRecord } from "../lib/typeGuards";
 import {
   isScoutStageId,
   scoutStageMessage,
@@ -47,7 +48,7 @@ export function useScoutRun({
     return `/api/scout/last?dedupeAccounts=${settings.dedupeAccounts}&autoStart=${autoStart ? 1 : 0}`;
   }
 
-  function applyServerFlight(data: LastScoutPayload) {
+  function applyServerFlight(data: LastScoutPayload, tankFull: boolean) {
     const flight = data.flight;
     setSearching(flight?.active === true);
     if (flight?.active) {
@@ -72,11 +73,14 @@ export function useScoutRun({
     } else {
       setStatus((prev) => (prev === SCOUT_INFRA_STATUS ? "" : prev));
     }
-    setWatchTank(data.empty === true || (data.snapshot?.threads.length ?? 0) <= 1);
+    setWatchTank(!tankFull);
   }
 
-  function applyLastScoutFromBoot(data: LastScoutPayload) {
-    applyServerFlight(data);
+  function applyLastScoutFromBoot(
+    data: LastScoutPayload,
+    tankFull = !data.empty && (data.snapshot?.threads.length ?? 0) > 1,
+  ) {
+    applyServerFlight(data, tankFull);
     if (!data.ok) return;
     if (data.empty || !data.snapshot) {
       setThreads([]);
@@ -104,7 +108,12 @@ export function useScoutRun({
       const raw: unknown = await res.json();
       const data = parseDeskBoot({ ok: true, desk: { lastScout: raw } })?.desk?.lastScout;
       if (!current()) return;
-      if (data) applyLastScoutFromBoot(data);
+      if (data) {
+        const tankFull = isRecord(raw) && raw.empty !== true &&
+          isRecord(raw.snapshot) && Array.isArray(raw.snapshot.threads) &&
+          raw.snapshot.threads.length > 1;
+        applyLastScoutFromBoot(data, tankFull);
+      }
     } catch {
       // Sidecar may be offline on first paint — ignore.
     }

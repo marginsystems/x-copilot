@@ -470,8 +470,31 @@ test("a full tank stops polling and aborts its effect", async () => {
   vi.stubGlobal("fetch", fetcher);
   const h = mountPoll();
   act(() => h.result.current.applyLastScoutFromBoot({ ok: true, empty: true }));
+  h.setThreads.mockClear();
   await act(async () => {});
   expect(fetcher).toHaveBeenCalledTimes(1);
   await act(async () => { vi.advanceTimersByTime(16000); });
   expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(h.setThreads).not.toHaveBeenCalled();
+});
+
+test.each([
+  { name: "active flight", empty: false, active: true, threads: [{ id: "a" }, { id: "b" }] },
+  { name: "explicitly empty tank", empty: true, active: false, threads: [{ id: "a" }, { id: "b" }] },
+  { name: "low tank", empty: false, active: false, threads: [{ id: "a" }] },
+])("$name keeps polling after card validation", async ({ empty, active, threads }) => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn(async () => Response.json({
+    ok: true, empty, flight: { active }, snapshot: { threads },
+  }));
+  vi.stubGlobal("fetch", fetcher);
+  const h = mountPoll();
+  act(() => h.result.current.applyLastScoutFromBoot({ ok: true, empty: true }));
+  h.setThreads.mockClear();
+  await act(async () => {});
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(h.result.current.searching).toBe(active);
+  await act(async () => { vi.advanceTimersByTime(4000); });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(h.setThreads).not.toHaveBeenCalled();
 });
