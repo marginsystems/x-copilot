@@ -95,7 +95,7 @@ function SessionApp() {
     onLoggedOut: () => closeMenu(),
     onOnboardingFinished: () => {
       ensureActivitySubscribe();
-      void hydrateVoice({ skipDaily: true });
+      hydrateVoice({ skipDaily: true }).catch((err) => setStatus(err instanceof Error ? err.message : String(err)));
     },
   });
   const verifiedOwnerId = authUser?.id ?? null;
@@ -126,7 +126,7 @@ function SessionApp() {
     setStatus,
     setActionBusy,
     settings,
-    onHydrated: () => void hydrateScoutFamiliarity(),
+    onHydrated: () => { hydrateScoutFamiliarity().catch((err) => setStatus(err instanceof Error ? err.message : String(err))); },
   }, verifiedOwnerId);
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const {
@@ -169,7 +169,7 @@ function SessionApp() {
     onSubscribe,
     onManageBilling,
   } = useBilling({
-    onUtcDay: () => void hydrateVoice(),
+    onUtcDay: () => { hydrateVoice().catch((err) => setStatus(err instanceof Error ? err.message : String(err))); },
   });
   const {
     adminTenants,
@@ -269,7 +269,7 @@ function SessionApp() {
     dismissedIdsRef,
     blockedConversationsRef,
     historyStaleRef,
-    onActionSucceeded: () => void hydrateScoutFamiliarity(),
+    onActionSucceeded: () => { hydrateScoutFamiliarity().catch((err) => setStatus(err instanceof Error ? err.message : String(err))); },
   });
   const curatedThreads = threads.filter((t) => keepInCurated(t));
 
@@ -315,8 +315,8 @@ function SessionApp() {
   function openUsage() {
     goToView("usage");
     closeMenu();
-    void loadUsage(usageWindow);
-    void loadBilling();
+    loadUsage(usageWindow).catch((err) => setStatus(err instanceof Error ? err.message : String(err)));
+    loadBilling().catch((err) => setStatus(err instanceof Error ? err.message : String(err)));
   }
 
   function openAnalytics() {
@@ -436,7 +436,7 @@ function SessionApp() {
             needsLogin={needsLogin}
             needsOnboarding={needsOnboarding || showOnboardingPreview}
             onTheme={() => setTheme((t) => nextTheme(t))}
-            onLogout={() => void onLogout()}
+            onLogout={() => { onLogout().catch((err) => setStatus(err instanceof Error ? err.message : String(err))); }}
             onSignIn={() => {
               closeMenu();
               setSignInOpen(true);
@@ -542,7 +542,7 @@ function SessionApp() {
             busy={adminBusy}
             error={adminError}
             onBack={() => goToView("dashboard")}
-            onRefresh={() => void loadAdmin()}
+            onRefresh={() => { loadAdmin().catch((err) => setStatus(err instanceof Error ? err.message : String(err))); }}
             onPreviewOnboarding={() => {
               setSimulateUnlinked(false);
               setOnboardingPreview(true);
@@ -618,13 +618,13 @@ function SessionApp() {
           checkoutPlan={checkoutPlan}
           portalBusy={portalBusy}
           onBack={() => goToView("dashboard")}
-          onLoad={(window) => void loadUsage(window)}
+          onLoad={(window) => { loadUsage(window).catch((err) => setStatus(err instanceof Error ? err.message : String(err))); }}
           onWindowChange={(window) => {
             setUsageWindow(window);
-            void loadUsage(window);
+            loadUsage(window).catch((err) => setStatus(err instanceof Error ? err.message : String(err)));
           }}
-          onSubscribe={(plan) => void onSubscribe(plan)}
-          onManageBilling={() => void onManageBilling()}
+          onSubscribe={(plan) => { onSubscribe(plan).catch((err) => setStatus(err instanceof Error ? err.message : String(err))); }}
+          onManageBilling={() => { onManageBilling().catch((err) => setStatus(err instanceof Error ? err.message : String(err))); }}
         />
       ) : null}
 
@@ -698,7 +698,7 @@ function SessionApp() {
             setVoice,
             actForYou: async (id, action) => {
               const succeeded = await actForYou(id, action);
-              void hydrateCoaching();
+              hydrateCoaching().catch((err) => setStatus(err instanceof Error ? err.message : String(err)));
               return succeeded;
             },
             onOpenVoice: openVoice,
@@ -719,7 +719,7 @@ function SessionApp() {
         reason={dismissReason}
         busy={actionBusy}
         setReason={setDismissReason}
-        onConfirm={() => void confirmDismiss()}
+        onConfirm={() => { confirmDismiss().catch((err) => setStatus(err instanceof Error ? err.message : String(err))); }}
         onClose={closeDismissModal}
       />
 
