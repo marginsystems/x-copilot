@@ -60,7 +60,10 @@ try {
   );
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<void> {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
   try {
@@ -188,6 +191,16 @@ const server = http.createServer(async (req, res) => {
       message: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch((err: unknown) => {
+    console.error(err);
+    send(req, res, 500, {
+      error: "internal_error",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  });
 });
 
 server.listen(PORT, bindHost(), () => {
