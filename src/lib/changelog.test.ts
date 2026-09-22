@@ -24,7 +24,7 @@ describe("CHANGELOG", () => {
         assert.match(entry.href, /^https:\/\/github.com\/marginsystems\/x-copilot\/pull\/\d+$/);
       }
     }
-  });
+  }).catch(assert.fail);
 
   it("opens with the /learn note", () => {
     assert.equal(CHANGELOG[0]?.title, "What a like is worth");
@@ -34,8 +34,8 @@ describe("CHANGELOG", () => {
     );
     assert.match(CHANGELOG[0]!.body, /P\(action\)/);
     assert.match(CHANGELOG[0]!.body, /\/learn/);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("changelogByDate", () => {
   it("groups consecutive same-day rows and keeps newest first", () => {
@@ -51,8 +51,8 @@ describe("changelogByDate", () => {
         ["2026-08-24", ["C"]],
       ],
     );
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("formatChangelogDate", () => {
   it("formats a UTC day without shifting the calendar date", () => {
@@ -61,5 +61,5 @@ describe("formatChangelogDate", () => {
     assert.equal(isChangelogDate("25-08-2026"), false);
     assert.equal(isChangelogDate("2026-13-01"), false);
     assert.equal(isChangelogDate("2026-02-31"), false);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

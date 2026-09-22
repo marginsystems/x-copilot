@@ -48,8 +48,8 @@ describe("emptyGamificationStats", () => {
       nextGoal: null,
       achievements: [],
     });
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("parseGamificationPayload", () => {
   it("keeps nextGoal and achievements and ignores hydrate progress", () => {
@@ -58,7 +58,7 @@ describe("parseGamificationPayload", () => {
     assert.deepEqual(parsed?.stats.nextGoal, nextGoal);
     assert.equal(parsed?.stats.achievements[0]?.id, "first_mark");
     assert.equal(parsed?.progress, null);
-  });
+  }).catch(assert.fail);
 
   it("reads mark progress without using it as a hydrate toast", () => {
     const parsed = parseGamificationPayload({
@@ -76,7 +76,7 @@ describe("parseGamificationPayload", () => {
       toastFromMarkProgress(parsed!.progress!, parsed!.stats.achievements),
       "Level 2 — First reply",
     );
-  });
+  }).catch(assert.fail);
 
   it("does not toast a mark that only awarded XP", () => {
     assert.equal(
@@ -92,9 +92,9 @@ describe("parseGamificationPayload", () => {
       ),
       null,
     );
-  });
+  }).catch(assert.fail);
 
   it("rejects a broken payload", () => {
     assert.equal(parseGamificationPayload({ level: 1 }), null);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

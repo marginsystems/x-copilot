@@ -1,3 +1,4 @@
+import { isRecord } from "./typeGuards";
 /** First-run questionnaire options and local completion flag. */
 
 export const ONBOARDING_STORAGE_KEY = "xc-onboarding-complete";
@@ -186,8 +187,8 @@ export function parseGeneratedAgendas(value: unknown): GeneratedAgenda[] | null 
   if (!Array.isArray(value) || value.length < 2) return null;
   const agendas: GeneratedAgenda[] = [];
   for (const item of value) {
-    if (!item || typeof item !== "object") continue;
-    const row = item as Record<string, unknown>;
+    if (!isRecord(item)) continue;
+    const row = item;
     const title = typeof row.title === "string" ? row.title.trim() : "";
     const body = typeof row.body === "string" ? row.body.trim() : "";
     if (!title || body.length < 40) continue;

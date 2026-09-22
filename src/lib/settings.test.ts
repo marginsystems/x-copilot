@@ -59,8 +59,8 @@ describe("clampMaxThreadChars", () => {
     assert.equal(clampMaxThreadChars(5000), 2000);
     assert.equal(clampMaxThreadChars(12.5), 480);
     assert.equal(clampMaxThreadChars("abc"), 480);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("clampTargetCoolThreads", () => {
   it("clamps to 1–20 and defaults invalid values", () => {
@@ -69,8 +69,8 @@ describe("clampTargetCoolThreads", () => {
     assert.equal(clampTargetCoolThreads(20), 20);
     assert.equal(clampTargetCoolThreads(21), 20);
     assert.equal(clampTargetCoolThreads(3.5), 5);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("normalizePreferredLanguage", () => {
   it("defaults unknown codes to en", () => {
@@ -78,8 +78,8 @@ describe("normalizePreferredLanguage", () => {
     assert.equal(normalizePreferredLanguage("FR"), "fr");
     assert.equal(normalizePreferredLanguage("zz"), "en");
     assert.equal(normalizePreferredLanguage(null), "en");
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("excludedTags settings", () => {
   it("strips trailing underscores (so Settings must draft raw text)", () => {
@@ -87,7 +87,7 @@ describe("excludedTags settings", () => {
     // typing `genuine_question` dies at the `_`.
     assert.equal(normalizeTagToken("genuine_"), "genuine");
     assert.equal(normalizeTagToken("genuine "), "genuine");
-  });
+  }).catch(assert.fail);
 
   it("normalizes tokens and flexible text parse", () => {
     assert.equal(
@@ -127,7 +127,7 @@ describe("excludedTags settings", () => {
       ),
       true,
     );
-  });
+  }).catch(assert.fail);
 
   it("defaults missing excludedTags key, preserves explicit list and empty", () => {
     assert.deepEqual(normalizeSettings({}).excludedTags, [
@@ -139,7 +139,7 @@ describe("excludedTags settings", () => {
       ["supportive_encouragement"],
     );
     assert.deepEqual(normalizeSettings({ excludedTags: [] }).excludedTags, []);
-  });
+  }).catch(assert.fail);
 
   it("defaults missing excludedAccounts and preserves an explicit empty list", () => {
     assert.deepEqual(normalizeSettings({}).excludedAccounts, [
@@ -152,8 +152,8 @@ describe("excludedTags settings", () => {
       ["grok"],
     );
     assert.deepEqual(normalizeSettings({ excludedAccounts: [] }).excludedAccounts, []);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("normalizeSettings", () => {
   it("fills defaults for bad input", () => {
@@ -211,7 +211,7 @@ describe("normalizeSettings", () => {
     const stored = { ...DEFAULT_SETTINGS } as Record<string, unknown>;
     delete stored.dropOutboundLinks;
     assert.equal(normalizeSettings(stored).dropOutboundLinks, true);
-  });
+  }).catch(assert.fail);
 
   it("settings copy says we drop posts with outbound links, not just website cards", () => {
     assert.equal(DROP_OUTBOUND_LINKS_LABEL, "Drop posts with outbound links");
@@ -219,7 +219,7 @@ describe("normalizeSettings", () => {
     assert.doesNotMatch(DROP_OUTBOUND_LINKS_LABEL, /website cards/i);
     assert.equal(DROP_NATIVE_MEDIA_LABEL, "Drop posts with photos or video");
     assert.equal(DROP_HASHTAGS_LABEL, "Drop posts with hashtags");
-  });
+  }).catch(assert.fail);
 
   it("defaults missing media and hashtag flags on so old storage stays text-only", () => {
     const stored = { ...DEFAULT_SETTINGS } as Record<string, unknown>;
@@ -227,8 +227,8 @@ describe("normalizeSettings", () => {
     delete stored.dropHashtags;
     assert.equal(normalizeSettings(stored).dropNativeMedia, true);
     assert.equal(normalizeSettings(stored).dropHashtags, true);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("plain-text filters", () => {
   it("detects native media from shortlinks or pic hosts", () => {
@@ -241,7 +241,7 @@ describe("plain-text filters", () => {
       true,
     );
     assert.equal(threadHasNativeMedia({ text: "plain take" }), false);
-  });
+  }).catch(assert.fail);
 
   it("detects hashtags and ignores #123", () => {
     assert.equal(textHasHashtag("Ship weekly. #buildinpublic"), true);
@@ -251,7 +251,7 @@ describe("plain-text filters", () => {
       threadHasHashtag({ text: "Agree.", opText: "Thread on #AI" }),
       true,
     );
-  });
+  }).catch(assert.fail);
 
   it("keepPlainTextThread honors each flag", () => {
     const media = { text: "photo", mediaShortlinks: ["t.co/x"] };
@@ -265,8 +265,8 @@ describe("plain-text filters", () => {
       keepPlainTextThread(media, { dropNativeMedia: false, dropHashtags: true }),
       true,
     );
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("loadSettings / saveSettings", () => {
   beforeEach(() => {
@@ -312,11 +312,11 @@ describe("loadSettings / saveSettings", () => {
     });
     assert.deepEqual(loadSettings(), saved);
     assert.ok(localStorage.getItem(SETTINGS_STORAGE_KEY));
-  });
+  }).catch(assert.fail);
 
   it("returns defaults when empty", () => {
     assert.deepEqual(loadSettings(), DEFAULT_SETTINGS);
-  });
+  }).catch(assert.fail);
 
   it("upgrades the legacy default list only when loading", () => {
     store.set(
@@ -327,7 +327,7 @@ describe("loadSettings / saveSettings", () => {
       }),
     );
     assert.deepEqual(loadSettings().excludedTags, [...DEFAULT_EXCLUDED_TAGS]);
-  });
+  }).catch(assert.fail);
 
   it("upgrades the pre-conflict default pair on load", () => {
     store.set(
@@ -338,7 +338,7 @@ describe("loadSettings / saveSettings", () => {
       }),
     );
     assert.deepEqual(loadSettings().excludedTags, [...DEFAULT_EXCLUDED_TAGS]);
-  });
+  }).catch(assert.fail);
 
   it("does not re-expand a legacy-shaped list when saving", () => {
     const saved = saveSettings({
@@ -350,7 +350,7 @@ describe("loadSettings / saveSettings", () => {
       JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY)!),
       saved,
     );
-  });
+  }).catch(assert.fail);
 
   it("does not re-add interpersonal_conflict on reload after an explicit save that removed it", () => {
     saveSettings({
@@ -360,7 +360,7 @@ describe("loadSettings / saveSettings", () => {
     assert.deepEqual(loadSettings().excludedTags, [
       "supportive_encouragement",
     ]);
-  });
+  }).catch(assert.fail);
 
   it("keeps a deliberate save that removed only the conflict chip", () => {
     saveSettings({
@@ -370,7 +370,7 @@ describe("loadSettings / saveSettings", () => {
     assert.deepEqual(loadSettings().excludedTags, [
       ...LEGACY_DEFAULT_EXCLUDED_TAGS_PRE_CONFLICT,
     ]);
-  });
+  }).catch(assert.fail);
 
   it("adds boardyai when stored accounts are still the previous default", () => {
     store.set(
@@ -383,7 +383,7 @@ describe("loadSettings / saveSettings", () => {
     assert.deepEqual(loadSettings().excludedAccounts, [
       ...DEFAULT_EXCLUDED_ACCOUNTS,
     ]);
-  });
+  }).catch(assert.fail);
 
   it("does not re-add boardyai after an explicit save without it", () => {
     saveSettings({
@@ -393,5 +393,5 @@ describe("loadSettings / saveSettings", () => {
     assert.deepEqual(loadSettings().excludedAccounts, [
       ...LEGACY_DEFAULT_EXCLUDED_ACCOUNTS,
     ]);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

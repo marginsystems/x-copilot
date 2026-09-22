@@ -12,7 +12,7 @@ describe("PUBLIC_PLANS", () => {
     assert.equal(Math.min(...prices), 0);
     assert.equal(Math.max(...prices), 99);
     assert.equal(PUBLIC_PLANS.length, 4);
-  });
+  }).catch(assert.fail);
 
   it("pins each plan's numbers to server/src/plans.ts", () => {
     assert.deepEqual(
@@ -31,5 +31,5 @@ describe("PUBLIC_PLANS", () => {
         { priceUsd: 99, priceLabel: "$99 / month", credits: 40_000, sorties: 25, watch: 250, suggests: 40 },
       ],
     );
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

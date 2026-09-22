@@ -94,8 +94,8 @@ describe("parseAuthSessionUser", () => {
     assert.equal(parsed?.xUsername, "Ada");
     assert.equal(parsed?.onboardingCompleted, true);
     assert.equal(parsed?.agenda, null);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("parseDeskBoot", () => {
   it("keeps a signed-in payload and parses Approach progress", () => {
@@ -111,7 +111,7 @@ describe("parseDeskBoot", () => {
     assert.equal(parsed.desk?.gamification.level, 2);
     assert.equal(parsed.desk?.coaching?.missions[0]?.id, "mark_2");
     assert.equal(parsed.desk?.lastScout.empty, true);
-  });
+  }).catch(assert.fail);
 
   it("keeps a persisted lastScout flight failure", () => {
     const parsed = parseDeskBoot({
@@ -128,14 +128,14 @@ describe("parseDeskBoot", () => {
       },
     });
     assert.equal(parsed?.desk?.lastScout.flight?.failure, true);
-  });
+  }).catch(assert.fail);
 
   it("rejects a payload that claims ok without a usable user id", () => {
     assert.equal(
       parseDeskBoot({ ok: true, user: { email: "no-id" }, desk }),
       null,
     );
-  });
+  }).catch(assert.fail);
 
   it("keeps an older boot payload that has no memory receipt", () => {
     const parsed = parseDeskBoot({
@@ -154,7 +154,7 @@ describe("parseDeskBoot", () => {
     });
     assert.equal(parsed?.desk?.interacted.interactions.length, 1);
     assert.equal(parsed?.desk?.interacted.interactions[0]?.memory, undefined);
-  });
+  }).catch(assert.fail);
 
   it("treats a missing familiarity field as absent and a present one as parsed", () => {
     const older = parseDeskBoot({ ok: true, authRequired: true, user, desk });
@@ -201,7 +201,7 @@ describe("parseDeskBoot", () => {
     assert.equal(malformed?.desk?.scoutFamiliarity, null);
     assert.equal(malformed?.desk?.coaching?.missions[0]?.id, "mark_2");
     assert.equal(malformed?.desk?.lastScout.empty, true);
-  });
+  }).catch(assert.fail);
 
   it("keeps a saved memory receipt and drops a malformed one", () => {
     const parsed = parseDeskBoot({
@@ -240,8 +240,8 @@ describe("parseDeskBoot", () => {
     assert.equal("memoryPath" in (rows[0]?.memory ?? {}), false);
     assert.deepEqual(rows[1]?.memory, { state: "no_reply_text" });
     assert.equal(rows[2]?.memory, undefined);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("desk boot cache", () => {
   it("round-trips a snapshot without scoutLog and drops signed-out writes", () => {
@@ -259,7 +259,7 @@ describe("desk boot cache", () => {
     writeDeskBootCache({ ...payload, user: null }, store);
     assert.equal(store.getItem(DESK_BOOT_KEY), null);
     clearDeskBootCache(store);
-  });
+  }).catch(assert.fail);
 
   it("caches familiarity only inside the owned envelope and never seeds another owner", () => {
     const store = memoryStore();
@@ -290,7 +290,7 @@ describe("desk boot cache", () => {
     assert.equal(peekDeskBootCache(null), null);
     clearDeskBootCache();
     clearDeskBootCache(store);
-  });
+  }).catch(assert.fail);
 
   it("persists a saved receipt and hides it from another account", () => {
     const store = memoryStore();
@@ -325,5 +325,22 @@ describe("desk boot cache", () => {
     assert.equal(peekDeskBootCache("other-user"), null);
     clearDeskBootCache();
     clearDeskBootCache(store);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
+
+it("keeps valid Scout cards intact and drops malformed cached fields", () => {
+  const card = { id: "t1", author: "ada", text: "hello", url: "https://x.com/ada/status/1", flags: ["question"], score: 5 };
+  const counts = { raw: 4, afterDedupe: 3, afterCooldown: 3, afterLength: 2, afterTriage: 1 };
+  const boot = (threads: unknown[], pipelineCounts: unknown) => parseDeskBoot({
+    ok: true, user, desk: { ...desk, lastScout: {
+      ok: true, empty: false, snapshot: { savedAt: "2026-09-22", threads, pipelineCounts },
+    } },
+  })?.desk?.lastScout;
+  const valid = boot([card], counts);
+  assert.equal(valid?.snapshot?.threads[0], card);
+  assert.equal(valid?.snapshot?.pipelineCounts, counts);
+  const mixed = boot([null, { id: "missing-fields" }, { ...card, flags: [1] }, card], { raw: "4" });
+  assert.deepEqual(mixed?.snapshot?.threads, [card]);
+  assert.equal(mixed?.snapshot?.pipelineCounts, undefined);
+  assert.equal(boot([null], counts)?.empty, true);
+}).catch(assert.fail);

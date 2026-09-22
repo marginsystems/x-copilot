@@ -10,5 +10,5 @@ describe("authErrorMessage", () => {
     );
     assert.match(authErrorMessage("mystery") ?? "", /mystery/);
     assert.equal(authErrorMessage(null), null);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

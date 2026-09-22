@@ -7,7 +7,7 @@ describe("scout tank brand", () => {
   it("keeps the product name on the scouted card", () => {
     assert.equal(SCOUT_TANK_LABEL, "Tank");
     assert.equal(SCOUT_TANK_TITLE, "Scout tank");
-  });
+  }).catch(assert.fail);
 
   it("uses a fuel bottle mark without battle-tank paths", () => {
     const source = readFileSync(
@@ -18,5 +18,5 @@ describe("scout tank brand", () => {
     assert.match(source, /<polyline points="8,8 8,5 14,5 16,8"/);
     assert.doesNotMatch(source, /<path\b/);
     assert.doesNotMatch(source, /M5 10\.5h12|M9\.5 10\.5V8|M9 8h6/);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

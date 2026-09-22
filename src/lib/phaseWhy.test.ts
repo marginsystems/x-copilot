@@ -49,14 +49,14 @@ describe("coachingMatchesCard", () => {
     assert.equal(coachingMatchesCard("scout_reply", "original"), false);
     assert.equal(coachingMatchesCard("scout_reply", "for_you"), false);
     assert.equal(coachingMatchesCard("scout_reply", "takeoff"), false);
-  });
+  }).catch(assert.fail);
 
   it("matches Suggested kinds", () => {
     assert.equal(coachingMatchesCard("organic_reply", "original", "post"), true);
     assert.equal(coachingMatchesCard("organic_reply", "quote", "quote"), true);
     assert.equal(coachingMatchesCard("organic_reply", "original", "reply"), false);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("phaseWhy", () => {
   it("keeps an empty Approach collecting for Scout", () => {
@@ -77,7 +77,7 @@ describe("phaseWhy", () => {
       }),
       "In the air… 4/20",
     );
-  });
+  }).catch(assert.fail);
 
   it("does not put original copy on a scouted reply", () => {
     assert.equal(
@@ -90,7 +90,7 @@ describe("phaseWhy", () => {
       ),
       FYP_DETECTING_COPY,
     );
-  });
+  }).catch(assert.fail);
 
   it("shows detecting while a scouted reply is locked", () => {
     assert.equal(
@@ -100,14 +100,14 @@ describe("phaseWhy", () => {
       ),
       FYP_DETECTING_COPY,
     );
-  });
+  }).catch(assert.fail);
 
   it("keeps compose copy on an original card", () => {
     assert.equal(
       phaseWhy("organic_reply", coaching("reply", "Mark a reply."), post),
       "Compose an original. Mark it here.",
     );
-  });
+  }).catch(assert.fail);
 
   it("detects a target-backed Suggested reply", () => {
     assert.equal(
@@ -123,7 +123,7 @@ describe("phaseWhy", () => {
       ),
       SCOUT_DETECTED_COPY,
     );
-  });
+  }).catch(assert.fail);
 
   it("never puts reply coaching on For You or Hold", () => {
     const reply = coaching("reply", "Reply coaching from another card.");
@@ -134,5 +134,5 @@ describe("phaseWhy", () => {
       false,
     );
     assert.equal(coachingMatchesCard("hold", "reply"), false);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

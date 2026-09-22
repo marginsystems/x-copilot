@@ -25,8 +25,8 @@ describe("isLeafReply", () => {
       isLeafReply(card({ id: "3", text: "r", inReplyToId: "1" })),
       true,
     );
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("retargetLeafToRoot", () => {
   it("rewrites a leftover last-scout leaf onto the OP", () => {
@@ -49,7 +49,7 @@ describe("retargetLeafToRoot", () => {
     assert.equal(next.author, "@gmkurtzer");
     assert.equal(next.url, "https://x.com/gmkurtzer/status/2094754837036707984");
     assert.equal(next.isReply, false);
-  });
+  }).catch(assert.fail);
 
   it("drops a leaf with no OP text", () => {
     assert.equal(
@@ -58,7 +58,7 @@ describe("retargetLeafToRoot", () => {
       ),
       null,
     );
-  });
+  }).catch(assert.fail);
 
   it("does not carry leaf views onto a derived root without OP views", () => {
     const next = retargetLeafToRoot(
@@ -77,8 +77,8 @@ describe("retargetLeafToRoot", () => {
     assert.ok(next);
     assert.equal(next.views, undefined);
     assert.equal(next.inReplyToScreenName, undefined);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("preferRootTargets", () => {
   it("keeps roots and ranks by views", () => {
@@ -98,5 +98,5 @@ describe("preferRootTargets", () => {
       ranked.map((t) => t.id),
       ["loud", "quiet"],
     );
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

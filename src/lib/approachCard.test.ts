@@ -30,7 +30,7 @@ describe("canServeApproachOriginal", () => {
       }),
       false,
     );
-  });
+  }).catch(assert.fail);
 
   it("is true after a scouted reply while original_1 is open", () => {
     assert.equal(
@@ -40,7 +40,7 @@ describe("canServeApproachOriginal", () => {
       }),
       true,
     );
-  });
+  }).catch(assert.fail);
 
   it("is true after For You while original_1 is open", () => {
     assert.equal(
@@ -51,7 +51,7 @@ describe("canServeApproachOriginal", () => {
       }),
       true,
     );
-  });
+  }).catch(assert.fail);
 
   it("is false once original_1 is in", () => {
     assert.equal(
@@ -61,15 +61,15 @@ describe("canServeApproachOriginal", () => {
       }),
       false,
     );
-  });
+  }).catch(assert.fail);
 
   it("is false when the mission is missing", () => {
     assert.equal(
       canServeApproachOriginal({ scoutReplyDone: true, originalMission: null }),
       false,
     );
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("pickApproachSuggestion", () => {
   it("prefers a reply over a parked post", () => {
@@ -78,14 +78,14 @@ describe("pickApproachSuggestion", () => {
         ?.kind,
       "reply",
     );
-  });
+  }).catch(assert.fail);
 
   it("prefers a quote over a parked post", () => {
     assert.equal(
       pickApproachSuggestion([row("post"), row("quote")])?.kind,
       "quote",
     );
-  });
+  }).catch(assert.fail);
 
   it("hides a parked post until it is earned", () => {
     assert.equal(pickApproachSuggestion([row("post")]), null);
@@ -93,7 +93,7 @@ describe("pickApproachSuggestion", () => {
       pickApproachSuggestion([row("post")], { allowPost: true })?.kind,
       "post",
     );
-  });
+  }).catch(assert.fail);
 
   it("skips marked targets except the locked card", () => {
     const marked = { ...row("reply", "marked"), targetId: "thread-1" };
@@ -111,5 +111,5 @@ describe("pickApproachSuggestion", () => {
       })?.id,
       "marked",
     );
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
