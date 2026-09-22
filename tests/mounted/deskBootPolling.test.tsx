@@ -187,6 +187,24 @@ test("poll 401 expires the session and stops autoStart requests", async () => {
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
+test("invalid empty snapshots still apply flight state and start polling", async () => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn(async () => ({ ok: true, status: 200, json: () => ({ ok: true, empty: true }) }));
+  vi.stubGlobal("fetch", fetcher);
+  const h = mountPoll(false);
+  act(() => h.result.current.applyLastScoutFromBoot({
+    ok: false,
+    empty: true,
+    flight: { active: true, stage: "searching" },
+  }));
+  expect(h.result.current.searching).toBe(true);
+  h.rerender({ enabled: true });
+  await act(async () => {});
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher.mock.calls[0][0]).toContain("autoStart=1");
+  h.unmount();
+});
+
 test("poll does not overlap while the response body is pending", async () => {
   vi.useFakeTimers();
   const body = deferred<unknown>();

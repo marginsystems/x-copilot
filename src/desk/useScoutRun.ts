@@ -76,8 +76,8 @@ export function useScoutRun({
   }
 
   function applyLastScoutFromBoot(data: LastScoutPayload) {
-    if (!data.ok) return;
     applyServerFlight(data);
+    if (!data.ok) return;
     if (data.empty || !data.snapshot) {
       setThreads([]);
       return;
