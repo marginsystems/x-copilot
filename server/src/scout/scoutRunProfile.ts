@@ -13,7 +13,7 @@ import { readScoutProfile } from "./scoutProfileStore.js";
 /** Narrow injectable loader (tests). Production uses `readScoutProfile`. */
 export type ScoutRunProfileLoader = (
   userId: string,
-) => Promise<ScoutProfile | null | undefined> | ScoutProfile | null | undefined;
+) => unknown;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -30,7 +30,7 @@ export function isUsableScoutRunProfile(
   if (!isRecord(value)) return false;
   if (value.version !== 1) return false;
   if (typeof value.userId !== "string" || value.userId !== userId) return false;
-  if (!Number.isSafeInteger(value.revision) || (value.revision as number) < 0) {
+  if (typeof value.revision !== "number" || !Number.isSafeInteger(value.revision) || value.revision < 0) {
     return false;
   }
   return (

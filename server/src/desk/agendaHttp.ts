@@ -1,3 +1,4 @@
+import { objectValue } from "../platform/unknownValue.js";
 /**
  * Live desk agenda: PUT /api/agenda writes users.agenda.
  */
@@ -62,11 +63,11 @@ export async function tryHandleAgenda(
 
   let body: Record<string, unknown>;
   try {
-    body = (await readBody(req, {
+    body = objectValue((await readBody(req, {
       maxBytes: BODY_CAP_16K,
       requireObject: true,
       rejectArray: true,
-    })) as Record<string, unknown>;
+    })));
   } catch (err) {
     const statusCode = err instanceof BodyError ? err.statusCode : 400;
     send(req, res, statusCode, {

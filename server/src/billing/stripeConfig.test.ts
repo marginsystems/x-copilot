@@ -12,7 +12,7 @@ import {
   stripeSecretPresent,
 } from "./stripeConfig.ts";
 
-describe("stripeConfig", () => {
+await describe("stripeConfig", async () => {
   const keys = [
     "NODE_ENV",
     "STRIPE_SECRET_KEY",
@@ -41,7 +41,7 @@ describe("stripeConfig", () => {
     }
   });
 
-  it("prefers _DEV prices outside production", () => {
+  await it("prefers _DEV prices outside production", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_PRICE_PULSE = "price_prod";
     process.env.STRIPE_PRICE_PULSE_DEV = "price_dev";
@@ -52,19 +52,19 @@ describe("stripeConfig", () => {
     assert.equal(planKeyFromStripePriceId("price_other"), null);
   });
 
-  it("uses prod prices when NODE_ENV=production", () => {
+  await it("uses prod prices when NODE_ENV=production", () => {
     process.env.NODE_ENV = "production";
     process.env.STRIPE_PRICE_PULSE = "price_prod";
     process.env.STRIPE_PRICE_PULSE_DEV = "price_dev";
     assert.equal(resolveStripePriceId("pulse"), "price_prod");
   });
 
-  it("does not treat missing secret as configured", () => {
+  await it("does not treat missing secret as configured", () => {
     delete process.env.STRIPE_SECRET_KEY;
     assert.equal(stripeSecretPresent(), false);
   });
 
-  it("resolves all three DEV prices off production and maps both ids", () => {
+  await it("resolves all three DEV prices off production and maps both ids", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_PRICE_PULSE = "price_live_pulse";
     process.env.STRIPE_PRICE_PULSE_DEV = "price_dev_pulse";
@@ -79,14 +79,14 @@ describe("stripeConfig", () => {
     assert.equal(planKeyFromStripePriceId("price_dev_horizon"), "horizon");
   });
 
-  it("falls back to live prices when _DEV is empty", () => {
+  await it("falls back to live prices when _DEV is empty", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_PRICE_PULSE = "price_live_pulse";
     delete process.env.STRIPE_PRICE_PULSE_DEV;
     assert.equal(resolveStripePriceId("pulse"), "price_live_pulse");
   });
 
-  it("prefers DEV webhook and portal ids off production", () => {
+  await it("prefers DEV webhook and portal ids off production", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_live";
     process.env.STRIPE_WEBHOOK_SECRET_DEV = "whsec_dev";
@@ -99,7 +99,7 @@ describe("stripeConfig", () => {
     assert.equal(resolvePortalConfigurationId(), "bpc_live");
   });
 
-  it("blocks a live secret outside production", () => {
+  await it("blocks a live secret outside production", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_SECRET_KEY = "sk_live_example";
     delete process.env.STRIPE_SECRET_KEY_DEV;
@@ -113,7 +113,7 @@ describe("stripeConfig", () => {
     assert.equal(liveStripeKeyBlockedInNonProduction(), false);
   });
 
-  it("prefers STRIPE_SECRET_KEY_DEV off production so a live key can stay in .env", () => {
+  await it("prefers STRIPE_SECRET_KEY_DEV off production so a live key can stay in .env", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_SECRET_KEY = "sk_live_example";
     process.env.STRIPE_SECRET_KEY_DEV = "sk_test_example";
@@ -123,7 +123,7 @@ describe("stripeConfig", () => {
     assert.equal(stripeSecretKind(), "live");
   });
 
-  it("classifies restricted rk_live_ keys as live and blocks them off production", () => {
+  await it("classifies restricted rk_live_ keys as live and blocks them off production", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_SECRET_KEY = "rk_live_example";
     delete process.env.STRIPE_SECRET_KEY_DEV;
@@ -133,7 +133,7 @@ describe("stripeConfig", () => {
     assert.equal(liveStripeKeyBlockedInNonProduction(), false);
   });
 
-  it("classifies rk_test_ keys as test so they are not blocked", () => {
+  await it("classifies rk_test_ keys as test so they are not blocked", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_SECRET_KEY = "rk_test_example";
     delete process.env.STRIPE_SECRET_KEY_DEV;
@@ -141,7 +141,7 @@ describe("stripeConfig", () => {
     assert.equal(liveStripeKeyBlockedInNonProduction(), false);
   });
 
-  it("fails closed for unrecognized non-empty keys off production", () => {
+  await it("fails closed for unrecognized non-empty keys off production", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_SECRET_KEY = "sk_malformed";
     delete process.env.STRIPE_SECRET_KEY_DEV;
@@ -151,7 +151,7 @@ describe("stripeConfig", () => {
     assert.equal(liveStripeKeyBlockedInNonProduction(), false);
   });
 
-  it("blocks a lone live webhook secret off production", () => {
+  await it("blocks a lone live webhook secret off production", () => {
     process.env.NODE_ENV = "development";
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_live_example";
     delete process.env.STRIPE_WEBHOOK_SECRET_DEV;

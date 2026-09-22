@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 import { ensureUserTenant } from "../billing/billingStore.js";
 import { getPlatformDb } from "../db.js";
 import { requireUserId } from "../desk/interactionStore.js";
@@ -79,11 +80,8 @@ export function addScoutRejectionCounts(
   dest: ScoutRejectionCounts,
   add: Partial<ScoutRejectionCounts>,
 ): void {
-  for (const [key, value] of Object.entries(add) as [
-    keyof ScoutRejectionCounts,
-    number | undefined,
-  ][]) {
-    if (typeof value === "number") dest[key] += value;
+  for (const [key, value] of Object.entries(add)) {
+    if (isRejectionKey(key) && typeof value === "number") dest[key] += value;
   }
 }
 
@@ -140,30 +138,14 @@ export function saveScoutRunRecord(input: ScoutRunRecordInput): void {
 }
 
 export function getScoutRunRecord(id: string): ScoutRunRecord | null {
-  const row = getPlatformDb()
+  const row = parseGetScoutRunRecordRow(getPlatformDb()
     .prepare(
       `SELECT id, user_id, tenant_id, sortie_id, started_at, finished_at,
               queries_json, unique_candidate_ids, rejection_counts_json,
               usable_additions, cool_additions, search_calls, stop_reason
          FROM scout_runs WHERE id = ?`,
     )
-    .get(id) as
-    | {
-        id: string;
-        user_id: string;
-        tenant_id: string;
-        sortie_id: string | null;
-        started_at: string;
-        finished_at: string;
-        queries_json: string;
-        unique_candidate_ids: number;
-        rejection_counts_json: string;
-        usable_additions: number;
-        cool_additions: number;
-        search_calls: number;
-        stop_reason: string;
-      }
-    | undefined;
+    .get(id));
   if (!row) return null;
   return {
     id: row.id,
@@ -172,11 +154,11 @@ export function getScoutRunRecord(id: string): ScoutRunRecord | null {
     sortieId: row.sortie_id ?? undefined,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
-    queries: JSON.parse(row.queries_json) as string[],
+    queries: parsestring(JSON.parse(row.queries_json)),
     uniqueCandidateIds: row.unique_candidate_ids,
-    rejectionCounts: JSON.parse(
+    rejectionCounts: parseScoutRejectionCounts(JSON.parse(
       row.rejection_counts_json,
-    ) as ScoutRejectionCounts,
+    )),
     usableAdditions: row.usable_additions,
     coolAdditions: row.cool_additions,
     searchCalls: row.search_calls,
@@ -190,7 +172,7 @@ export function listRecentScoutRuns(
 ): RecentScoutRun[] {
   const safeLimit = Math.max(0, Math.floor(limit));
   if (!userId.trim() || safeLimit === 0) return [];
-  const rows = getPlatformDb()
+  const rows = parseListRecentScoutRunsRow(getPlatformDb()
     .prepare(
       `SELECT queries_json, unique_candidate_ids, usable_additions,
               cool_additions, search_calls, stop_reason
@@ -199,14 +181,7 @@ export function listRecentScoutRuns(
         ORDER BY finished_at DESC, rowid DESC
         LIMIT ?`,
     )
-    .all(userId.trim(), safeLimit) as Array<{
-    queries_json: string;
-    unique_candidate_ids: number;
-    usable_additions: number;
-    cool_additions: number;
-    search_calls: number;
-    stop_reason: string;
-  }>;
+    .all(userId.trim(), safeLimit));
   return rows.flatMap((row) => {
     try {
       const queries: unknown = JSON.parse(row.queries_json);
@@ -232,4 +207,117 @@ export function listRecentScoutRuns(
       return [];
     }
   });
+}
+
+function parseGetScoutRunRecordRow(value: unknown): | {
+        id: string;
+        user_id: string;
+        tenant_id: string;
+        sortie_id: string | null;
+        started_at: string;
+        finished_at: string;
+        queries_json: string;
+        unique_candidate_ids: number;
+        rejection_counts_json: string;
+        usable_additions: number;
+        cool_additions: number;
+        search_calls: number;
+        stop_reason: string;
+      }
+    | undefined {
+  const valid = (row: unknown): row is | {
+        id: string;
+        user_id: string;
+        tenant_id: string;
+        sortie_id: string | null;
+        started_at: string;
+        finished_at: string;
+        queries_json: string;
+        unique_candidate_ids: number;
+        rejection_counts_json: string;
+        usable_additions: number;
+        cool_additions: number;
+        search_calls: number;
+        stop_reason: string;
+      }
+    | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.id === "string" &&
+    typeof row.user_id === "string" &&
+    typeof row.tenant_id === "string" &&
+    (row.sortie_id === null || typeof row.sortie_id === "string") &&
+    typeof row.started_at === "string" &&
+    typeof row.finished_at === "string" &&
+    typeof row.queries_json === "string" &&
+    typeof row.unique_candidate_ids === "number" &&
+    typeof row.rejection_counts_json === "string" &&
+    typeof row.usable_additions === "number" &&
+    typeof row.cool_additions === "number" &&
+    typeof row.search_calls === "number" &&
+    typeof row.stop_reason === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseListRecentScoutRunsRow(value: unknown): Array<{
+    queries_json: string;
+    unique_candidate_ids: number;
+    usable_additions: number;
+    cool_additions: number;
+    search_calls: number;
+    stop_reason: string;
+  }> {
+  const valid = (row: unknown): row is Array<{
+    queries_json: string;
+    unique_candidate_ids: number;
+    usable_additions: number;
+    cool_additions: number;
+    search_calls: number;
+    stop_reason: string;
+  }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.queries_json === "string" &&
+    typeof item.unique_candidate_ids === "number" &&
+    typeof item.usable_additions === "number" &&
+    typeof item.cool_additions === "number" &&
+    typeof item.search_calls === "number" &&
+    typeof item.stop_reason === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parsestring(value: unknown): string[] {
+  const valid = (row: unknown): row is string[] =>
+    (Array.isArray(row) && row.every((item: unknown) => typeof item === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseScoutRejectionCounts(value: unknown): ScoutRejectionCounts {
+  const valid = (row: unknown): row is ScoutRejectionCounts =>
+    (isRecord(row) &&
+    typeof row.duplicateOrMissingId === "number" &&
+    typeof row.cooldown === "number" &&
+    typeof row.selfReply === "number" &&
+    typeof row.links === "number" &&
+    typeof row.media === "number" &&
+    typeof row.hashtags === "number" &&
+    typeof row.language === "number" &&
+    typeof row.emDash === "number" &&
+    typeof row.profanity === "number" &&
+    typeof row.automatedAccount === "number" &&
+    typeof row.excludedAccount === "number" &&
+    typeof row.views === "number" &&
+    typeof row.articles === "number" &&
+    typeof row.length === "number" &&
+    typeof row.authorDedupe === "number" &&
+    typeof row.authorless === "number" &&
+    typeof row.reserved === "number" &&
+    typeof row.blocked === "number");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function isRejectionKey(key: string): key is keyof ScoutRejectionCounts {
+  return Object.hasOwn(emptyScoutRejectionCounts(), key);
 }

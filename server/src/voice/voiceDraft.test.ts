@@ -8,33 +8,33 @@ import {
   textUsesContrastCadence,
 } from "./voiceDraft.ts";
 
-describe("stripEmDashes", () => {
-  it("turns an em dash clause into a capitalized period", () => {
+await describe("stripEmDashes", async () => {
+  await it("turns an em dash clause into a capitalized period", () => {
     assert.equal(
       stripEmDashes("The tool was never the bottleneck \u2014 the loop is."),
       "The tool was never the bottleneck. The loop is.",
     );
   });
 
-  it("leaves clean text alone", () => {
+  await it("leaves clean text alone", () => {
     assert.equal(stripEmDashes("Ship it and ask what broke."), "Ship it and ask what broke.");
   });
 });
 
-describe("draftHasAiTropes", () => {
-  it("flags if-this-then-that", () => {
+await describe("draftHasAiTropes", async () => {
+  await it("flags if-this-then-that", () => {
     assert.equal(
       draftHasAiTropes("If you want speed, then you have to cut process."),
       true,
     );
   });
 
-  it("flags if-then where an em-dash strip turned the comma into a period", () => {
+  await it("flags if-then where an em-dash strip turned the comma into a period", () => {
     const raw = "If you want speed \u2014 then cut process.";
     assert.equal(draftHasAiTropes(stripEmDashes(raw), raw), true);
   });
 
-  it("flags this-isn-t-X-it-s-Y", () => {
+  await it("flags this-isn-t-X-it-s-Y", () => {
     assert.equal(
       draftHasAiTropes("This isn't a tooling problem. It's a loop problem."),
       true,
@@ -45,7 +45,7 @@ describe("draftHasAiTropes", () => {
     );
   });
 
-  it("keeps ordinary human takes", () => {
+  await it("keeps ordinary human takes", () => {
     assert.equal(
       draftHasAiTropes("The loop between research and shipping is the real tax."),
       false,
@@ -67,7 +67,7 @@ describe("draftHasAiTropes", () => {
     );
   });
 
-  it("lets the contrast cadence through when it is the operator's own voice", () => {
+  await it("lets the contrast cadence through when it is the operator's own voice", () => {
     assert.equal(
       draftHasAiTropes("It's not the model, it's the workflow.", undefined, {
         allowContrastCadence: true,
@@ -88,7 +88,7 @@ describe("draftHasAiTropes", () => {
     );
   });
 
-  it("detects the contrast cadence in a card exemplar", () => {
+  await it("detects the contrast cadence in a card exemplar", () => {
     assert.equal(
       textUsesContrastCadence("It's not the tool, it's the loop."),
       true,
@@ -101,8 +101,8 @@ describe("draftHasAiTropes", () => {
   });
 });
 
-describe("postNeedsStance", () => {
-  it("asks on every thread kind, including questions and fact-adds", () => {
+await describe("postNeedsStance", async () => {
+  await it("asks on every thread kind, including questions and fact-adds", () => {
     assert.equal(postNeedsStance({ threadKind: "sharp_opinion" }), true);
     assert.equal(postNeedsStance({ threadKind: "timely_take" }), true);
     assert.equal(postNeedsStance({ threadKind: "fact_add" }), true);
@@ -111,8 +111,8 @@ describe("postNeedsStance", () => {
   });
 });
 
-describe("sanitizeSuggestedDraft", () => {
-  it("strips em dashes so they never reach the pane", () => {
+await describe("sanitizeSuggestedDraft", async () => {
+  await it("strips em dashes so they never reach the pane", () => {
     const out = sanitizeSuggestedDraft(
       "Exactly. The bottleneck \u2014 the loop between research and shipping.",
     );

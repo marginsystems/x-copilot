@@ -1,6 +1,6 @@
+import { testRequest } from "../http/http.testHelpers.js";
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import type { IncomingMessage } from "node:http";
 import {
   allowRate,
   authRequired,
@@ -10,24 +10,24 @@ import {
   resetRateLimiterForTests,
 } from "./authGuard.ts";
 
-describe("authGuard", () => {
+await describe("authGuard", async () => {
   afterEach(() => {
     resetRateLimiterForTests();
   });
 
-  it("defaults bind to loopback", () => {
+  await it("defaults bind to loopback", () => {
     assert.equal(bindHost({}), "127.0.0.1");
     assert.equal(bindHost({ BIND_HOST: "0.0.0.0" }), "0.0.0.0");
   });
 
-  it("requires a session by default and on a public bind", () => {
+  await it("requires a session by default and on a public bind", () => {
     assert.equal(authRequired({}), true);
     assert.equal(authRequired({ BIND_HOST: "0.0.0.0" }), true);
     assert.equal(authRequired({ AUTH_REQUIRED: "1" }), true);
     assert.equal(authRequired({ BIND_HOST: "127.0.0.1", AUTH_REQUIRED: "0" }), false);
   });
 
-  it("never disables the gate on a public bind", () => {
+  await it("never disables the gate on a public bind", () => {
     assert.equal(
       authRequired({ BIND_HOST: "0.0.0.0", AUTH_REQUIRED: "0" }),
       true,
@@ -43,7 +43,7 @@ describe("authGuard", () => {
     assert.equal(authRequired({ BIND_HOST: "127.0.0.1", AUTH_REQUIRED: "0" }), false);
   });
 
-  it("treats health and auth as public", () => {
+  await it("treats health and auth as public", () => {
     assert.equal(isPublicApiPath("/api/health"), true);
     assert.equal(isPublicApiPath("/health"), true);
     assert.equal(isPublicApiPath("/api/auth/google"), true);
@@ -62,88 +62,88 @@ describe("authGuard", () => {
     assert.equal(isPublicApiPath("/api/watch"), false);
   });
 
-  it("trusts CF-Connecting-IP only from a Cloudflare peer", () => {
-    const req = {
+  await it("trusts CF-Connecting-IP only from a Cloudflare peer", () => {
+    const req = Object.assign(testRequest(), {
       headers: {
         "cf-connecting-ip": "1.2.3.4",
         "x-forwarded-for": "9.9.9.9, 8.8.8.8",
-      },
-      socket: { remoteAddress: "173.245.48.1" },
-    } as unknown as IncomingMessage;
+      }
+    });
+    Object.defineProperty(req.socket, "remoteAddress", { value: "173.245.48.1" });
     assert.equal(clientIp(req), "1.2.3.4");
   });
 
-  it("ignores forwarded headers from a non-Cloudflare peer", () => {
-    const req = {
+  await it("ignores forwarded headers from a non-Cloudflare peer", () => {
+    const req = Object.assign(testRequest(), {
       headers: {
         "cf-connecting-ip": "1.2.3.4",
         "x-forwarded-for": "9.9.9.9, 8.8.8.8",
-      },
-      socket: { remoteAddress: "10.0.0.1" },
-    } as unknown as IncomingMessage;
+      }
+    });
+    Object.defineProperty(req.socket, "remoteAddress", { value: "10.0.0.1" });
     assert.equal(clientIp(req), "10.0.0.1");
   });
 
-  it("ignores spoofable forwarded headers from a loopback peer", () => {
-    const req = {
+  await it("ignores spoofable forwarded headers from a loopback peer", () => {
+    const req = Object.assign(testRequest(), {
       headers: {
         "cf-connecting-ip": "1.2.3.4",
         "x-forwarded-for": "9.9.9.9, 8.8.8.8",
-      },
-      socket: { remoteAddress: "::1" },
-    } as unknown as IncomingMessage;
+      }
+    });
+    Object.defineProperty(req.socket, "remoteAddress", { value: "::1" });
     assert.equal(clientIp(req), "::1");
   });
 
-  it("trusts X-Real-IP from a loopback terminator", () => {
-    const req = {
+  await it("trusts X-Real-IP from a loopback terminator", () => {
+    const req = Object.assign(testRequest(), {
       headers: {
         "x-real-ip": "203.0.113.10",
         "x-forwarded-for": "9.9.9.9, 8.8.8.8",
         "cf-connecting-ip": "1.2.3.4",
-      },
-      socket: { remoteAddress: "127.0.0.1" },
-    } as unknown as IncomingMessage;
+      }
+    });
+    Object.defineProperty(req.socket, "remoteAddress", { value: "127.0.0.1" });
     assert.equal(clientIp(req), "203.0.113.10");
   });
 
-  it("rejects a list or junk X-Real-IP from loopback", () => {
-    const list = {
-      headers: { "x-real-ip": "203.0.113.10, 198.51.100.1" },
-      socket: { remoteAddress: "127.0.0.1" },
-    } as unknown as IncomingMessage;
+  await it("rejects a list or junk X-Real-IP from loopback", () => {
+    const list = Object.assign(testRequest(), {
+      headers: { "x-real-ip": "203.0.113.10, 198.51.100.1" }
+    });
+    Object.defineProperty(list.socket, "remoteAddress", { value: "127.0.0.1" });
     assert.equal(clientIp(list), "127.0.0.1");
-    const junk = {
-      headers: { "x-real-ip": "not-an-ip" },
-      socket: { remoteAddress: "::ffff:127.0.0.1" },
-    } as unknown as IncomingMessage;
+    const junk = Object.assign(testRequest(), {
+      headers: { "x-real-ip": "not-an-ip" }
+    });
+    Object.defineProperty(junk.socket, "remoteAddress", { value: "::ffff:127.0.0.1" });
     assert.equal(clientIp(junk), "::ffff:127.0.0.1");
   });
 
-  it("does not trust X-Real-IP from a non-loopback peer", () => {
-    const req = {
-      headers: { "x-real-ip": "203.0.113.10" },
-      socket: { remoteAddress: "10.0.0.1" },
-    } as unknown as IncomingMessage;
+  await it("does not trust X-Real-IP from a non-loopback peer", () => {
+    const req = Object.assign(testRequest(), {
+      headers: { "x-real-ip": "203.0.113.10" }
+    });
+    Object.defineProperty(req.socket, "remoteAddress", { value: "10.0.0.1" });
     assert.equal(clientIp(req), "10.0.0.1");
   });
 
-  it("falls back to the socket address without forwarded headers", () => {
-    const req = {
-      headers: {},
-      socket: { remoteAddress: "::1" },
-    } as unknown as IncomingMessage;
+  await it("falls back to the socket address without forwarded headers", () => {
+    const req = Object.assign(testRequest(), {
+      headers: {}
+    });
+    Object.defineProperty(req.socket, "remoteAddress", { value: "::1" });
     assert.equal(clientIp(req), "::1");
   });
 
-  it("rate-limits a key", () => {
+  await it("rate-limits a key", () => {
     assert.equal(allowRate("k", 2, 1000, 0), true);
     assert.equal(allowRate("k", 2, 1000, 1), true);
     assert.equal(allowRate("k", 2, 1000, 2), false);
     assert.equal(allowRate("k", 2, 1000, 1001), true);
   });
 
-  it("evicts keys whose window has fully expired", () => {
+  await it("evicts keys whose window has fully expired", () => {
     assert.equal(allowRate("old", 1, 1000, 0), true);
     assert.equal(allowRate("old", 1, 1000, 5), false);
     assert.equal(allowRate("other", 1, 1000, 1001), true);

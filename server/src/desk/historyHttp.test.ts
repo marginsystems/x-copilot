@@ -1,7 +1,9 @@
+import { isRecord } from "../platform/unknownValue.js";
+import { testRequest } from "../http/http.testHelpers.js";
+import { expectRecord } from "../http/http.testHelpers.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { type IncomingMessage, ServerResponse } from "node:http";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -46,7 +48,7 @@ async function call(
   body?: unknown,
   cookie?: string,
 ): Promise<{ handled: boolean; status: number; json: Record<string, unknown> }> {
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = testRequest();
   Object.assign(req, {
     method,
     headers: cookie ? { cookie } : {},
@@ -54,32 +56,32 @@ async function call(
   });
   let status = 0;
   let raw = "";
-  const res = {
+  const res = Object.assign(new ServerResponse(testRequest()), {
     writeHead: (code: number) => {
       status = code;
     },
     end: (chunk: string) => {
       raw = chunk;
     },
-  } as unknown as ServerResponse;
+  });
   const handledPromise = tryHandleHistory(
     req,
     res,
     new URL(`http://localhost${path}`),
   );
   if (body !== undefined) {
-    (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
+    (req).emit("data", Buffer.from(JSON.stringify(body)));
   }
-  (req as EventEmitter).emit("end");
+  (req).emit("end");
   const handled = await handledPromise;
   return {
     handled,
     status,
-    json: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+    json: raw ? (expectRecord(JSON.parse(raw))) : {},
   };
 }
 
-describe("historyHttp", () => {
+await describe("historyHttp", async () => {
   let temp: TempPlatformDb;
   let dir: string;
   let knowledgeRoot: string;
@@ -111,7 +113,7 @@ describe("historyHttp", () => {
     }
   }
 
-  it("POST /api/dismissed records the action first, then an owned note keyed by the durable time", async () => {
+  await it("POST /api/dismissed records the action first, then an owned note keyed by the durable time", async () => {
     const { status, json } = await call(
       "POST",
       "/api/dismissed",
@@ -121,7 +123,7 @@ describe("historyHttp", () => {
     assert.equal(status, 200);
     assert.equal(json.ok, true);
     assert.deepEqual(json.memory, { state: "saved" });
-    const dismissal = json.dismissal as { at: string; threadId: string };
+    const dismissal = parseDismissalRow(json.dismissal);
     const expectedPath = buildDismissalNotePath({
       userId: a.userId,
       threadId: "2081",
@@ -151,7 +153,7 @@ describe("historyHttp", () => {
     assert.match(readFileSync(expectedPath, "utf8"), /off topic/);
   });
 
-  it("POST /api/dismissed succeeds with memory unavailable when the note write fails", async () => {
+  await it("POST /api/dismissed succeeds with memory unavailable when the note write fails", async () => {
     resetHistoryHttpForTests({
       knowledgeRoot,
       writeDismissalNote: async () => {
@@ -173,7 +175,7 @@ describe("historyHttp", () => {
     assert.deepEqual(dismissalNotes(), []);
   });
 
-  it("POST /api/dismissed keeps saved when the index upsert fails", async () => {
+  await it("POST /api/dismissed keeps saved when the index upsert fails", async () => {
     resetHistoryHttpForTests({
       knowledgeRoot,
       scheduleUpsert: async () => {
@@ -192,7 +194,7 @@ describe("historyHttp", () => {
     assert.equal(dismissalNotes().length, 1);
   });
 
-  it("POST /api/dismissed fails without writing any note when the durable store fails", async () => {
+  await it("POST /api/dismissed fails without writing any note when the durable store fails", async () => {
     resetHistoryHttpForTests({
       knowledgeRoot,
       markDismissed: async () => {
@@ -211,7 +213,7 @@ describe("historyHttp", () => {
     assert.deepEqual(await listDismissalHistory({ userId: a.userId }), []);
   });
 
-  it("persists Scout actions when evidence context capture fails", async () => {
+  await it("persists Scout actions when evidence context capture fails", async () => {
     getPlatformDb().exec("DROP TABLE scout_target_context");
 
     const skipped = await call(
@@ -260,7 +262,7 @@ describe("historyHttp", () => {
     assert.equal(listScoutEvidence({ userId: a.userId }).length, 2);
   });
 
-  it("POST /api/skipped fails and records no evidence when the evidence table itself is gone", async () => {
+  await it("POST /api/skipped fails and records no evidence when the evidence table itself is gone", async () => {
     getPlatformDb().exec("DROP TABLE scout_evidence");
     const { status, json } = await call(
       "POST",
@@ -273,7 +275,7 @@ describe("historyHttp", () => {
     assert.deepEqual(await listSkipHistory({ userId: a.userId }), []);
   });
 
-  it("GET /api/expired returns expired + expiredIds", async () => {
+  await it("GET /api/expired returns expired + expiredIds", async () => {
     const { handled, status, json } = await call("GET", "/api/expired");
     assert.equal(handled, true);
     assert.equal(status, 200);
@@ -281,7 +283,7 @@ describe("historyHttp", () => {
     assert.ok(Array.isArray(json.expiredIds));
   });
 
-  it("GET /api/dismissed strips authorKey from the list", async () => {
+  await it("GET /api/dismissed strips authorKey from the list", async () => {
     await markDismissed({ threadId: "d1", author: "@d", userId: a.userId });
     const { handled, status, json } = await call(
       "GET",
@@ -291,14 +293,14 @@ describe("historyHttp", () => {
     );
     assert.equal(handled, true);
     assert.equal(status, 200);
-    assert.equal((json.dismissals as unknown[]).length, 1);
+    assert.equal((parseunknown(json.dismissals)).length, 1);
     assert.deepEqual(json.dismissedIds, ["d1"]);
-    for (const row of json.dismissals as Record<string, unknown>[]) {
+    for (const row of parseDatabaseRow(json.dismissals)) {
       assert.equal("authorKey" in row, false);
     }
   });
 
-  it("GET /api/skipped strips authorKey from the list", async () => {
+  await it("GET /api/skipped strips authorKey from the list", async () => {
     await markSkipped({ threadId: "s1", author: "@s", userId: a.userId });
     const { handled, status, json } = await call(
       "GET",
@@ -308,14 +310,14 @@ describe("historyHttp", () => {
     );
     assert.equal(handled, true);
     assert.equal(status, 200);
-    assert.equal((json.skipped as unknown[]).length, 1);
+    assert.equal((parseunknown(json.skipped)).length, 1);
     assert.deepEqual(json.skippedIds, ["s1"]);
-    for (const row of json.skipped as Record<string, unknown>[]) {
+    for (const row of parseDatabaseRow(json.skipped)) {
       assert.equal("authorKey" in row, false);
     }
   });
 
-  it("GET without a session returns empty lists, never another user's rows", async () => {
+  await it("GET without a session returns empty lists, never another user's rows", async () => {
     await markSkipped({ threadId: "s1", author: "@s", userId: a.userId });
     await markDismissed({ threadId: "d1", author: "@d", userId: a.userId });
     await markExpired({ threadId: "e1", author: "@e", userId: a.userId });
@@ -331,7 +333,7 @@ describe("historyHttp", () => {
     assert.deepEqual(expired.json.expiredIds, []);
   });
 
-  it("POST /api/skipped and /api/dismissed without a session return 401", async () => {
+  await it("POST /api/skipped and /api/dismissed without a session return 401", async () => {
     const body = { threadId: "t1", author: "@x" };
     for (const path of ["/api/skipped", "/api/dismissed"]) {
       const { handled, status, json } = await call("POST", path, body);
@@ -345,7 +347,7 @@ describe("historyHttp", () => {
     );
   });
 
-  it("POST writes to the session user only and does not hide the thread for B", async () => {
+  await it("POST writes to the session user only and does not hide the thread for B", async () => {
     const skip = await call(
       "POST",
       "/api/skipped",
@@ -372,7 +374,7 @@ describe("historyHttp", () => {
     assert.deepEqual(bDismissed.json.dismissedIds, []);
   });
 
-  it("POST /api/skipped stores conversation ancestry for the session user", async () => {
+  await it("POST /api/skipped stores conversation ancestry for the session user", async () => {
     const response = await call(
       "POST",
       "/api/skipped",
@@ -387,7 +389,7 @@ describe("historyHttp", () => {
     assert.equal(response.status, 200);
 
     const forA = await call("GET", "/api/skipped", undefined, a.cookie);
-    const [row] = forA.json.skipped as Record<string, unknown>[];
+    const [row] = parseSkippedRows(forA.json.skipped);
     assert.equal(row?.conversationId, "root-1");
     assert.equal(row?.inReplyToId, "parent-1");
 
@@ -395,7 +397,7 @@ describe("historyHttp", () => {
     assert.deepEqual(forB.json.skipped, []);
   });
 
-  it("POST /api/skipped prunes the consumed conversation from the tank", async () => {
+  await it("POST /api/skipped prunes the consumed conversation from the tank", async () => {
     await saveScoutCache(
       {
         savedAt: "2026-09-06T00:00:00.000Z",
@@ -456,7 +458,7 @@ describe("historyHttp", () => {
     );
   });
 
-  it("GET /api/expired returns only the session user's rows", async () => {
+  await it("GET /api/expired returns only the session user's rows", async () => {
     await markExpired({ threadId: "ea", author: "@a", userId: a.userId });
     await markExpired({ threadId: "eb", author: "@b", userId: b.userId });
     const forA = await call("GET", "/api/expired", undefined, a.cookie);
@@ -465,7 +467,7 @@ describe("historyHttp", () => {
     assert.deepEqual(forB.json.expiredIds, ["eb"]);
   });
 
-  it("POST /api/skipped rejects a missing threadId or author", async () => {
+  await it("POST /api/skipped rejects a missing threadId or author", async () => {
     const { handled, status, json } = await call(
       "POST",
       "/api/skipped",
@@ -477,7 +479,7 @@ describe("historyHttp", () => {
     assert.equal(json.error, "bad_request");
   });
 
-  it("POST /api/dismissed rejects a missing threadId or author", async () => {
+  await it("POST /api/dismissed rejects a missing threadId or author", async () => {
     const { handled, status, json } = await call(
       "POST",
       "/api/dismissed",
@@ -489,9 +491,39 @@ describe("historyHttp", () => {
     assert.equal(json.error, "bad_request");
   });
 
-  it("ignores unrelated paths", async () => {
+  await it("ignores unrelated paths", async () => {
     const { handled, status } = await call("GET", "/api/interacted");
     assert.equal(handled, false);
     assert.equal(status, 0);
   });
 });
+
+function parseDismissalRow(value: unknown): { at: string; threadId: string } {
+  const valid = (row: unknown): row is { at: string; threadId: string } =>
+    (isRecord(row) &&
+    typeof row.at === "string" &&
+    typeof row.threadId === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseunknown(value: unknown): unknown[] {
+  const valid = (row: unknown): row is unknown[] =>
+    (Array.isArray(row) && row.every((item: unknown) => true));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseDatabaseRow(value: unknown): Record<string, unknown>[] {
+  const valid = (row: unknown): row is Record<string, unknown>[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseSkippedRows(value: unknown): Record<string, unknown>[] {
+  const valid = (row: unknown): row is Record<string, unknown>[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

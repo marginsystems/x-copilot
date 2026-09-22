@@ -7,13 +7,13 @@ import { normalizeAuthorKey } from "../desk/interactionCooldown.ts";
 import type { PlanQueriesOpts } from "./queryPlan.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
-describe("runScoutCollect events", () => {
+await describe("runScoutCollect events", async () => {
   const session = {
     bearerToken: "t",
     configured: true,
   };
 
-  it("emits candidate progress events while filling", async () => {
+  await it("emits candidate progress events while filling", async () => {
     const events: ScoutCollectEvent[] = [];
     const id = { n: 0 };
 
@@ -52,7 +52,7 @@ describe("runScoutCollect events", () => {
     assert.ok(events.some((e) => /Cool \d+\/1/.test(e.message)));
   });
 
-  it("skips bare Cand. progress when a search adds zero", async () => {
+  await it("skips bare Cand. progress when a search adds zero", async () => {
     const events: ScoutCollectEvent[] = [];
     let searchCalls = 0;
 
@@ -106,7 +106,7 @@ describe("runScoutCollect events", () => {
     assert.equal(bareCand[0]?.message, "Cand. 5/5");
   });
 
-  it("replans with broaden yield opts when searches add zero", async () => {
+  await it("replans with broaden yield opts when searches add zero", async () => {
     const prevKey = process.env.DEEPSEEK_API_KEY;
     process.env.DEEPSEEK_API_KEY = "test-key";
     const planCalls: Array<{ agenda: string; opts?: PlanQueriesOpts }> = [];

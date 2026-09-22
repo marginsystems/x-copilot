@@ -1,3 +1,6 @@
+import { isRecord } from "../platform/unknownValue.js";
+import { testRequest } from "../http/http.testHelpers.js";
+import { expectRecord } from "../http/http.testHelpers.js";
 /**
  * C13: GET /api/scout/profile serves only the session user's familiarity,
  * keeps the boot auth policy, is never public-allowlisted, and marks every
@@ -5,11 +8,10 @@
  */
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { type IncomingMessage, ServerResponse } from "node:http";
 import { isPublicApiPath } from "../auth/authGuard.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
@@ -39,13 +41,13 @@ async function request(
   let status = 0;
   let headers: Record<string, unknown> = {};
   let raw = "";
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = testRequest();
   Object.assign(req, {
     method: opts.method ?? "GET",
     headers: opts.cookie ? { cookie: opts.cookie } : {},
     socket: { remoteAddress: "127.0.0.1" },
   });
-  const res = {
+  const res = Object.assign(new ServerResponse(testRequest()), {
     writeHead: (code: number, h: Record<string, unknown>) => {
       status = code;
       headers = h;
@@ -53,7 +55,7 @@ async function request(
     end: (chunk: string) => {
       raw = chunk;
     },
-  } as unknown as ServerResponse;
+  });
   const handled = await tryHandleScoutProfile(
     req,
     res,
@@ -64,7 +66,7 @@ async function request(
     handled,
     status,
     headers,
-    body: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+    body: raw ? (expectRecord(JSON.parse(raw))) : {},
   };
 }
 
@@ -102,7 +104,7 @@ function storedTake(userId: string, n: number): void {
   });
 }
 
-describe("GET /api/scout/profile", () => {
+await describe("GET /api/scout/profile", async () => {
   const prevAuth = process.env.AUTH_REQUIRED;
   let temp: TempPlatformDb;
   let profileDir: string;
@@ -135,12 +137,12 @@ describe("GET /api/scout/profile", () => {
     };
   }
 
-  it("is not on the public path allowlist", () => {
+  await it("is not on the public path allowlist", () => {
     assert.equal(isPublicApiPath("/api/scout/profile"), false);
     assert.equal(isPublicApiPath("/api/boot"), true);
   });
 
-  it("ignores unrelated paths and non-GET methods", async () => {
+  await it("ignores unrelated paths and non-GET methods", async () => {
     const loader = spy(() => emptyScoutProfile("x"));
     const u = user("method");
     for (const path of ["/api/scout/profiles", "/api/scout/last", "/api/scout", "/api/profile"]) {
@@ -159,7 +161,7 @@ describe("GET /api/scout/profile", () => {
     assert.deepEqual(loader.calls, []);
   });
 
-  it("returns the existing 401 without a session when auth is required, reading nothing", async () => {
+  await it("returns the existing 401 without a session when auth is required, reading nothing", async () => {
     const loader = spy(() => emptyScoutProfile("x"));
     const reply = await request("/api/scout/profile", { deps: loader.deps });
     assert.equal(reply.handled, true);
@@ -169,7 +171,7 @@ describe("GET /api/scout/profile", () => {
     assert.deepEqual(loader.calls, []);
   });
 
-  it("returns 200 with null and zero reads for an anonymous optional-auth request", async () => {
+  await it("returns 200 with null and zero reads for an anonymous optional-auth request", async () => {
     process.env.AUTH_REQUIRED = "0";
     const loader = spy(() => emptyScoutProfile("x"));
     const reply = await request("/api/scout/profile?userId=someone", { deps: loader.deps });
@@ -179,7 +181,7 @@ describe("GET /api/scout/profile", () => {
     assert.deepEqual(loader.calls, []);
   });
 
-  it("serves the session user's projection with one loader call and the envelope only", async () => {
+  await it("serves the session user's projection with one loader call and the envelope only", async () => {
     const u = user("owner");
     const loader = spy((id) => ({ ...emptyScoutProfile(id), revision: 3 }));
     const reply = await request("/api/scout/profile", {
@@ -203,7 +205,7 @@ describe("GET /api/scout/profile", () => {
     assert.deepEqual(loader.calls, [u.id]);
   });
 
-  it("resolves the owner from the session only; query selectors are ignored", async () => {
+  await it("resolves the owner from the session only; query selectors are ignored", async () => {
     const a = user("spoof-a");
     const b = user("spoof-b");
     const loader = spy((id) => emptyScoutProfile(id));
@@ -216,7 +218,7 @@ describe("GET /api/scout/profile", () => {
     assert.deepEqual(loader.calls, [a.id]);
   });
 
-  it("two session users sharing a tenant only ever see their own evidence", async () => {
+  await it("two session users sharing a tenant only ever see their own evidence", async () => {
     const a = user("tenant-a");
     const b = user("tenant-b");
     // Same tenant row for both desks; ownership is still per user id.
@@ -234,15 +236,15 @@ describe("GET /api/scout/profile", () => {
       cookie: cookieFor(b.id),
       deps: realStore(),
     });
-    const famA = forA.body.scoutFamiliarity as { coverage: { storedConfirmedReplies: number } };
-    const famB = forB.body.scoutFamiliarity as { coverage: { storedConfirmedReplies: number } };
+    const famA = parseFamARow(forA.body.scoutFamiliarity);
+    const famB = parseFamBRow(forB.body.scoutFamiliarity);
     assert.equal(famA.coverage.storedConfirmedReplies, 2);
     assert.equal(famB.coverage.storedConfirmedReplies, 1);
     assert.equal(JSON.stringify(forA.body).includes(a.id), false);
     assert.equal(JSON.stringify(forA.body).includes(b.id), false);
   });
 
-  it("a foreign-owner, absent or thrown loader result is 200/null with the private header", async () => {
+  await it("a foreign-owner, absent or thrown loader result is 200/null with the private header", async () => {
     const u = user("soft");
     const foreign = spy(() => emptyScoutProfile("someone-else"));
     let reply = await request("/api/scout/profile", { cookie: cookieFor(u.id), deps: foreign.deps });
@@ -267,14 +269,41 @@ describe("GET /api/scout/profile", () => {
     assert.deepEqual(reply.body, { ok: true, scoutFamiliarity: null });
   });
 
-  it("repeated reads at the same evidence revision preserve revision and times", async () => {
+  await it("repeated reads at the same evidence revision preserve revision and times", async () => {
     const u = user("stable");
     storedTake(u.id, 1);
     const first = await request("/api/scout/profile", { cookie: cookieFor(u.id), deps: realStore() });
     const second = await request("/api/scout/profile", { cookie: cookieFor(u.id), deps: realStore() });
     assert.deepEqual(second.body, first.body);
-    const fam = first.body.scoutFamiliarity as { revision: number; updatedAt: string | null };
+    const fam = parseFamRow(first.body.scoutFamiliarity);
     assert.ok(fam.revision >= 1);
     assert.equal(typeof fam.updatedAt, "string");
   });
 });
+
+function parseFamARow(value: unknown): { coverage: { storedConfirmedReplies: number } } {
+  const valid = (row: unknown): row is { coverage: { storedConfirmedReplies: number } } =>
+    (isRecord(row) &&
+    (isRecord(row.coverage) &&
+    typeof row.coverage.storedConfirmedReplies === "number"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseFamBRow(value: unknown): { coverage: { storedConfirmedReplies: number } } {
+  const valid = (row: unknown): row is { coverage: { storedConfirmedReplies: number } } =>
+    (isRecord(row) &&
+    (isRecord(row.coverage) &&
+    typeof row.coverage.storedConfirmedReplies === "number"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseFamRow(value: unknown): { revision: number; updatedAt: string | null } {
+  const valid = (row: unknown): row is { revision: number; updatedAt: string | null } =>
+    (isRecord(row) &&
+    typeof row.revision === "number" &&
+    (row.updatedAt === null || typeof row.updatedAt === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

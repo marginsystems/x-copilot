@@ -8,6 +8,7 @@
  * quotes all count. Retweets do not — those are someone else's words.
  * Initial onboarding is one page of 100. That is the spend cap.
  */
+import { objectValue } from "../platform/unknownValue.js";
 import { classifyPostKind } from "../x-api/xActivity.js";
 import { xApiGet, type XApiGetResult } from "../x-api/xApi.js";
 import type { VoiceReplyInput } from "./voiceStore.js";
@@ -45,7 +46,7 @@ export async function resolveXUser(
       message: result.message,
     };
   }
-  const data = (result.json as { data?: Record<string, unknown> })?.data;
+  const data = objectValue(objectValue(result.json).data);
   const id = typeof data?.id === "string" ? data.id : "";
   if (!id) {
     return {
@@ -75,7 +76,7 @@ type RawTweet = {
 function repliedToId(tweet: RawTweet): string | null {
   if (!Array.isArray(tweet.referenced_tweets)) return null;
   for (const ref of tweet.referenced_tweets) {
-    const r = ref as { type?: unknown; id?: unknown };
+    const r = objectValue(ref);
     if (r?.type === "replied_to" && typeof r.id === "string") return r.id;
   }
   return null;
@@ -84,7 +85,7 @@ function repliedToId(tweet: RawTweet): string | null {
 function isRetweet(tweet: RawTweet): boolean {
   if (!Array.isArray(tweet.referenced_tweets)) return false;
   return tweet.referenced_tweets.some((ref) => {
-    const r = ref as { type?: unknown };
+    const r = objectValue(ref);
     return r?.type === "retweeted";
   });
 }
@@ -97,14 +98,12 @@ export function parseUserTweetsPage(
   json: unknown,
   _ownXUserId: string,
 ): { replies: VoiceReplyInput[]; nextToken: string | null; newestId: string | null } {
-  const root = json as {
-    data?: unknown;
-    meta?: { next_token?: unknown; newest_id?: unknown };
-  };
+  const root = objectValue(json);
+  const meta = objectValue(root.meta);
   const replies: VoiceReplyInput[] = [];
   if (Array.isArray(root?.data)) {
     for (const item of root.data) {
-      const tweet = item as RawTweet;
+      const tweet = objectValue(item);
       if (typeof tweet.id !== "string" || typeof tweet.text !== "string") {
         continue;
       }
@@ -134,9 +133,9 @@ export function parseUserTweetsPage(
   return {
     replies,
     nextToken:
-      typeof root?.meta?.next_token === "string" ? root.meta.next_token : null,
+      typeof meta.next_token === "string" ? meta.next_token : null,
     newestId:
-      typeof root?.meta?.newest_id === "string" ? root.meta.newest_id : null,
+      typeof meta.newest_id === "string" ? meta.newest_id : null,
   };
 }
 

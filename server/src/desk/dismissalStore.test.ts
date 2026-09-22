@@ -18,7 +18,7 @@ import {
 } from "../platform/platformDb.testHelpers.ts";
 import type { ThreadCard } from "../scout/threadCard.ts";
 
-describe("markDismissed / listDismissalHistory", () => {
+await describe("markDismissed / listDismissalHistory", async () => {
   let temp: TempPlatformDb;
   const userId = "user-a";
 
@@ -32,7 +32,7 @@ describe("markDismissed / listDismissalHistory", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("persists reason and lists newest first", async () => {
+  await it("persists reason and lists newest first", async () => {
     const t1 = Date.parse("2026-07-28T10:00:00.000Z");
     const t2 = Date.parse("2026-07-28T11:00:00.000Z");
     await markDismissed({
@@ -56,14 +56,14 @@ describe("markDismissed / listDismissalHistory", () => {
     assert.equal(history[1]?.reason, "off topic");
   });
 
-  it("requires a userId", async () => {
+  await it("requires a userId", async () => {
     await assert.rejects(
       () => markDismissed({ threadId: "a", author: "@a", userId: "" }),
       /userId is required/,
     );
   });
 
-  it("persists conversation ancestry and blocks siblings", async () => {
+  await it("persists conversation ancestry and blocks siblings", async () => {
     await markDismissed({
       threadId: "reply-1",
       author: "@victim",
@@ -92,7 +92,7 @@ describe("markDismissed / listDismissalHistory", () => {
     assert.equal(threadMatchesConversationIds(sibling, blocked), true);
   });
 
-  it("keeps prior ancestry when re-dismissed without it", async () => {
+  await it("keeps prior ancestry when re-dismissed without it", async () => {
     await markDismissed({
       threadId: "reply-1",
       author: "@victim",
@@ -110,7 +110,7 @@ describe("markDismissed / listDismissalHistory", () => {
     assert.equal(row?.reason, "again");
   });
 
-  it("unions Marked + Not interested ancestry for one user only", async () => {
+  await it("unions Marked + Not interested ancestry for one user only", async () => {
     await markInteracted({
       threadId: "marked-reply",
       author: "@a",
@@ -144,7 +144,7 @@ describe("markDismissed / listDismissalHistory", () => {
     assert.equal(blockedB.has("convo-marked"), false);
   });
 
-  it("blocks a skipped reply's conversation for that user only", async () => {
+  await it("blocks a skipped reply's conversation for that user only", async () => {
     await markSkipped({
       threadId: "reply-1",
       author: "@a",
@@ -169,7 +169,7 @@ describe("markDismissed / listDismissalHistory", () => {
     assert.equal(threadMatchesConversationIds(sibling, blockedB), false);
   });
 
-  it("does not hide a thread A dismissed from B", async () => {
+  await it("does not hide a thread A dismissed from B", async () => {
     await markDismissed({ threadId: "shared", author: "@a", userId });
     assert.equal((await getDismissedThreadIds({ userId })).has("shared"), true);
     assert.equal(

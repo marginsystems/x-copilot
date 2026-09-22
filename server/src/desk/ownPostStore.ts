@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Durable own-post ingest + watch list for Activity API post.create.
  */
@@ -43,9 +44,9 @@ export function nextUtcMonthIso(now = new Date()): string {
 }
 
 export function seenActivityEvent(eventUuid: string): boolean {
-  const row = getPlatformDb()
+  const row = parseSeenActivityEventRow(getPlatformDb()
     .prepare(`SELECT event_uuid FROM activity_event_ids WHERE event_uuid = ?`)
-    .get(eventUuid) as { event_uuid: string } | undefined;
+    .get(eventUuid));
   return Boolean(row);
 }
 
@@ -86,21 +87,14 @@ export function listActivityOwnPosts(opts: {
   userId: string;
   sinceIso: string;
 }): ActivityOwnPost[] {
-  const rows = getPlatformDb()
+  const rows = parseListActivityOwnPostsRow(getPlatformDb()
     .prepare(
       `SELECT id, kind, posted_at, t24h_views, t1h_views, t0_views
          FROM own_posts
         WHERE user_id = ? AND posted_at >= ? AND kind != 'repost'
         ORDER BY posted_at DESC`,
     )
-    .all(opts.userId, opts.sinceIso) as Array<{
-    id: string;
-    kind: OwnPostKind;
-    posted_at: string;
-    t24h_views: number | null;
-    t1h_views: number | null;
-    t0_views: number | null;
-  }>;
+    .all(opts.userId, opts.sinceIso));
   return rows.map((row) => ({
     id: String(row.id),
     kind: row.kind,
@@ -123,13 +117,13 @@ export function listOwnPostedAt(opts: {
   if (kinds.length === 0) return [];
   const limit = Math.min(Math.max(opts.limit ?? 500, 1), 2000);
   const placeholders = kinds.map(() => "?").join(", ");
-  const rows = getPlatformDb()
+  const rows = parseListOwnPostedAtRow(getPlatformDb()
     .prepare(
       `SELECT posted_at FROM own_posts
         WHERE user_id = ? AND kind IN (${placeholders})
         ORDER BY posted_at DESC LIMIT ?`,
     )
-    .all(opts.userId, ...kinds, limit) as Array<{ posted_at: string }>;
+    .all(opts.userId, ...kinds, limit));
   return rows.map((row) => String(row.posted_at));
 }
 
@@ -137,13 +131,13 @@ export function listOwnOriginalsSince(
   userId: string,
   sinceIso: string,
 ): Array<{ tweetId: string; postedAt: string }> {
-  const rows = getPlatformDb()
+  const rows = parseListOwnOriginalsSinceRow(getPlatformDb()
     .prepare(
       `SELECT id AS tweetId, posted_at AS postedAt FROM own_posts
          WHERE user_id = ? AND kind = 'original' AND posted_at >= ?
          ORDER BY posted_at DESC LIMIT 2000`,
     )
-    .all(userId, sinceIso) as Array<{ tweetId: string; postedAt: string }>;
+    .all(userId, sinceIso));
   return rows;
 }
 
@@ -151,11 +145,11 @@ export function countOwnPostsSince(
   userId: string,
   sinceIso: string,
 ): number {
-  const row = getPlatformDb()
+  const row = parseCountOwnPostsSinceRow(getPlatformDb()
     .prepare(
       `SELECT COUNT(*) AS n FROM own_posts WHERE user_id = ? AND posted_at >= ?`,
     )
-    .get(userId, sinceIso) as { n: number };
+    .get(userId, sinceIso));
   return Number(row?.n ?? 0);
 }
 
@@ -175,7 +169,7 @@ export function listConfirmedOwnReplies(opts: {
   limit?: number;
 }): ConfirmedOwnReply[] {
   const limit = Math.min(Math.max(opts.limit ?? 80, 1), 200);
-  const rows = getPlatformDb()
+  const rows = parseListConfirmedOwnRepliesRow(getPlatformDb()
     .prepare(
       `SELECT id, user_id, text, posted_at, in_reply_to_id, conversation_id, url
          FROM own_posts
@@ -186,15 +180,7 @@ export function listConfirmedOwnReplies(opts: {
         ORDER BY posted_at DESC
         LIMIT ?`,
     )
-    .all(opts.userId, limit) as Array<{
-      id: string;
-      user_id: string;
-      text: string;
-      posted_at: string;
-      in_reply_to_id: string | null;
-      conversation_id: string | null;
-      url: string | null;
-    }>;
+    .all(opts.userId, limit));
   return rows.map((row) => ({
     id: String(row.id),
     userId: String(row.user_id),
@@ -243,7 +229,7 @@ export function listConfirmedOwnRepliesPage(opts: {
     clauses.push("(posted_at < ? OR (posted_at = ? AND id < ?))");
     params.push(opts.before.postedAt, opts.before.postedAt, opts.before.id);
   }
-  const rows = getPlatformDb()
+  const rows = parseListConfirmedOwnRepliesPageRow(getPlatformDb()
     .prepare(
       `SELECT id, user_id, text, posted_at, in_reply_to_id, conversation_id, url
          FROM own_posts
@@ -251,15 +237,7 @@ export function listConfirmedOwnRepliesPage(opts: {
         ORDER BY posted_at DESC, id DESC
         LIMIT ?`,
     )
-    .all(...params, limit) as Array<{
-      id: string;
-      user_id: string;
-      text: string;
-      posted_at: string;
-      in_reply_to_id: string | null;
-      conversation_id: string | null;
-      url: string | null;
-    }>;
+    .all(...params, limit));
   return rows.map((row) => ({
     id: String(row.id),
     userId: String(row.user_id),
@@ -277,9 +255,9 @@ export function upsertOwnPost(input: {
   tenantId: string;
 }): boolean {
   const db = getPlatformDb();
-  const existing = db
+  const existing = parseUpsertOwnPostRow(db
     .prepare(`SELECT id FROM own_posts WHERE id = ?`)
-    .get(input.parsed.postId) as { id: string } | undefined;
+    .get(input.parsed.postId));
   const url = postUrl(input.parsed.authorUsername, input.parsed.postId);
   const m = input.parsed.metrics;
   const now = new Date().toISOString();
@@ -390,7 +368,7 @@ export function listDueOwnPostSamples(opts?: {
   // Round-robin across tenants (ROW_NUMBER partitioned by tenant_id, ordered by
   // posted_at) so one high-volume tenant's oldest-first backlog cannot occupy
   // the whole oversample window and starve every other tenant's snapshots.
-  const rows = getPlatformDb()
+  const rows = parseListDueOwnPostSamplesRow(getPlatformDb()
     .prepare(
       `SELECT id, user_id, tenant_id, posted_at, t1h_at, t24h_at
        FROM (
@@ -406,14 +384,7 @@ export function listDueOwnPostSamples(opts?: {
        ORDER BY rn ASC, posted_at ASC
        LIMIT ?`,
     )
-    .all(t1hBefore, t24hBefore, limit, limit * 2) as Array<{
-    id: string;
-    user_id: string;
-    tenant_id: string;
-    posted_at: string;
-    t1h_at: string | null;
-    t24h_at: string | null;
-  }>;
+    .all(t1hBefore, t24hBefore, limit, limit * 2));
   const out: DueOwnPostSample[] = [];
   for (const row of rows) {
     if (!row.t1h_at && row.posted_at <= t1hBefore) {
@@ -480,20 +451,12 @@ export function getWatchedThread(
   text: string | null;
   conversationId: string | null;
 } | null {
-  const row = getPlatformDb()
+  const row = parseGetWatchedThreadRow(getPlatformDb()
     .prepare(
       `SELECT thread_id, author, url, text, conversation_id
        FROM watched_threads WHERE user_id = ? AND thread_id = ?`,
     )
-    .get(userId, threadId) as
-    | {
-        thread_id: string;
-        author: string | null;
-        url: string | null;
-        text: string | null;
-        conversation_id: string | null;
-      }
-    | undefined;
+    .get(userId, threadId));
   if (!row) return null;
   return {
     threadId: row.thread_id,
@@ -517,45 +480,45 @@ export function listAnalyticsPosts(opts: {
   limit?: number;
 }): OwnPostRow[] {
   const limit = Math.min(Math.max(opts.limit ?? 80, 1), 200);
-  const rows = getPlatformDb()
+  const rows = parseListAnalyticsPostsRow(getPlatformDb()
     .prepare(
       `SELECT * FROM own_posts WHERE user_id = ? ORDER BY posted_at DESC LIMIT ?`,
     )
-    .all(opts.userId, limit) as Array<Record<string, unknown>>;
+    .all(opts.userId, limit));
   return rows.map((row) => ({
     id: String(row.id),
     userId: String(row.user_id),
     tenantId: String(row.tenant_id),
     xUserId: String(row.x_user_id),
-    kind: row.kind as OwnPostKind,
-    text: (row.text as string | null) ?? null,
+    kind: row.kind,
+    text: (row.text) ?? null,
     postedAt: String(row.posted_at),
-    inReplyToId: (row.in_reply_to_id as string | null) ?? null,
-    url: (row.url as string | null) ?? null,
+    inReplyToId: (row.in_reply_to_id) ?? null,
+    url: (row.url) ?? null,
     views: pickLatest(
-      row.t24h_views as number | null,
-      row.t1h_views as number | null,
-      row.t0_views as number | null,
+      row.t24h_views,
+      row.t1h_views,
+      row.t0_views,
     ),
     likes: pickLatest(
-      row.t24h_likes as number | null,
-      row.t1h_likes as number | null,
-      row.t0_likes as number | null,
+      row.t24h_likes,
+      row.t1h_likes,
+      row.t0_likes,
     ),
     replies: pickLatest(
-      row.t24h_replies as number | null,
-      row.t1h_replies as number | null,
-      row.t0_replies as number | null,
+      row.t24h_replies,
+      row.t1h_replies,
+      row.t0_replies,
     ),
     retweets: pickLatest(
-      row.t24h_retweets as number | null,
-      row.t1h_retweets as number | null,
-      row.t0_retweets as number | null,
+      row.t24h_retweets,
+      row.t1h_retweets,
+      row.t0_retweets,
     ),
     bookmarks: pickLatest(
-      row.t24h_bookmarks as number | null,
-      row.t1h_bookmarks as number | null,
-      row.t0_bookmarks as number | null,
+      row.t24h_bookmarks,
+      row.t1h_bookmarks,
+      row.t0_bookmarks,
     ),
   }));
 }
@@ -590,7 +553,7 @@ export function analyticsSummary(userId: string, now = new Date()): {
   top: OwnPostRow[];
 } {
   const db = getPlatformDb();
-  const totalsRow = db
+  const totalsRow = parseAnalyticsSummaryRow(db
     .prepare(
       `SELECT
          COUNT(*) AS posts,
@@ -605,7 +568,7 @@ export function analyticsSummary(userId: string, now = new Date()): {
          COALESCE(SUM(COALESCE(t24h_bookmarks, t1h_bookmarks, t0_bookmarks, 0)), 0) AS bookmarks
        FROM own_posts WHERE user_id = ?`,
     )
-    .get(userId) as Record<string, number>;
+    .get(userId));
   const totals = {
     posts: Number(totalsRow.posts ?? 0),
     originals: Number(totalsRow.originals ?? 0),
@@ -618,7 +581,7 @@ export function analyticsSummary(userId: string, now = new Date()): {
     retweets: Number(totalsRow.retweets ?? 0),
     bookmarks: Number(totalsRow.bookmarks ?? 0),
   };
-  const dayRows = db
+  const dayRows = parseAnalyticsSummaryRow2(db
     .prepare(
       `SELECT substr(posted_at, 1, 10) AS day,
          COUNT(*) AS posts,
@@ -627,7 +590,7 @@ export function analyticsSummary(userId: string, now = new Date()): {
        FROM own_posts WHERE user_id = ?
        GROUP BY day ORDER BY day ASC`,
     )
-    .all(userId) as Array<{ day: string; posts: number; views: number; likes: number }>;
+    .all(userId));
   // A continuous 30-day UTC window (zero-filled) so the chart's x-axis is a
   // real calendar strip, not a sparse cluster of posting days.
   const byDay = new Map(dayRows.map((r) => [r.day, r]));
@@ -654,4 +617,251 @@ export function analyticsSummary(userId: string, now = new Date()): {
     .sort((a, b) => b.views - a.views)
     .slice(0, 8);
   return { totals, series, kinds, top };
+}
+
+function parseSeenActivityEventRow(value: unknown): { event_uuid: string } | undefined {
+  const valid = (row: unknown): row is { event_uuid: string } | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.event_uuid === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseListActivityOwnPostsRow(value: unknown): Array<{
+    id: string;
+    kind: OwnPostKind;
+    posted_at: string;
+    t24h_views: number | null;
+    t1h_views: number | null;
+    t0_views: number | null;
+  }> {
+  const valid = (row: unknown): row is Array<{
+    id: string;
+    kind: OwnPostKind;
+    posted_at: string;
+    t24h_views: number | null;
+    t1h_views: number | null;
+    t0_views: number | null;
+  }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.id === "string" &&
+    (item.kind === "original" || item.kind === "reply" || item.kind === "quote" || item.kind === "repost") &&
+    typeof item.posted_at === "string" &&
+    (item.t24h_views === null || typeof item.t24h_views === "number") &&
+    (item.t1h_views === null || typeof item.t1h_views === "number") &&
+    (item.t0_views === null || typeof item.t0_views === "number"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseListOwnPostedAtRow(value: unknown): Array<{ posted_at: string }> {
+  const valid = (row: unknown): row is Array<{ posted_at: string }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.posted_at === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseListOwnOriginalsSinceRow(value: unknown): Array<{ tweetId: string; postedAt: string }> {
+  const valid = (row: unknown): row is Array<{ tweetId: string; postedAt: string }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.tweetId === "string" &&
+    typeof item.postedAt === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseCountOwnPostsSinceRow(value: unknown): { n: number } {
+  const valid = (row: unknown): row is { n: number } =>
+    (isRecord(row) &&
+    typeof row.n === "number");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseListConfirmedOwnRepliesRow(value: unknown): Array<{
+      id: string;
+      user_id: string;
+      text: string;
+      posted_at: string;
+      in_reply_to_id: string | null;
+      conversation_id: string | null;
+      url: string | null;
+    }> {
+  const valid = (row: unknown): row is Array<{
+      id: string;
+      user_id: string;
+      text: string;
+      posted_at: string;
+      in_reply_to_id: string | null;
+      conversation_id: string | null;
+      url: string | null;
+    }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.id === "string" &&
+    typeof item.user_id === "string" &&
+    typeof item.text === "string" &&
+    typeof item.posted_at === "string" &&
+    (item.in_reply_to_id === null || typeof item.in_reply_to_id === "string") &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.url === null || typeof item.url === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseListConfirmedOwnRepliesPageRow(value: unknown): Array<{
+      id: string;
+      user_id: string;
+      text: string;
+      posted_at: string;
+      in_reply_to_id: string | null;
+      conversation_id: string | null;
+      url: string | null;
+    }> {
+  const valid = (row: unknown): row is Array<{
+      id: string;
+      user_id: string;
+      text: string;
+      posted_at: string;
+      in_reply_to_id: string | null;
+      conversation_id: string | null;
+      url: string | null;
+    }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.id === "string" &&
+    typeof item.user_id === "string" &&
+    typeof item.text === "string" &&
+    typeof item.posted_at === "string" &&
+    (item.in_reply_to_id === null || typeof item.in_reply_to_id === "string") &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.url === null || typeof item.url === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseUpsertOwnPostRow(value: unknown): { id: string } | undefined {
+  const valid = (row: unknown): row is { id: string } | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.id === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseListDueOwnPostSamplesRow(value: unknown): Array<{
+    id: string;
+    user_id: string;
+    tenant_id: string;
+    posted_at: string;
+    t1h_at: string | null;
+    t24h_at: string | null;
+  }> {
+  const valid = (row: unknown): row is Array<{
+    id: string;
+    user_id: string;
+    tenant_id: string;
+    posted_at: string;
+    t1h_at: string | null;
+    t24h_at: string | null;
+  }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.id === "string" &&
+    typeof item.user_id === "string" &&
+    typeof item.tenant_id === "string" &&
+    typeof item.posted_at === "string" &&
+    (item.t1h_at === null || typeof item.t1h_at === "string") &&
+    (item.t24h_at === null || typeof item.t24h_at === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseGetWatchedThreadRow(value: unknown): | {
+        thread_id: string;
+        author: string | null;
+        url: string | null;
+        text: string | null;
+        conversation_id: string | null;
+      }
+    | undefined {
+  const valid = (row: unknown): row is | {
+        thread_id: string;
+        author: string | null;
+        url: string | null;
+        text: string | null;
+        conversation_id: string | null;
+      }
+    | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.thread_id === "string" &&
+    (row.author === null || typeof row.author === "string") &&
+    (row.url === null || typeof row.url === "string") &&
+    (row.text === null || typeof row.text === "string") &&
+    (row.conversation_id === null || typeof row.conversation_id === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+type AnalyticsPostSqlRow = Record<string, unknown> & {
+  kind: OwnPostKind;
+  text: string | null;
+  in_reply_to_id: string | null;
+  url: string | null;
+  t0_views: number | null;
+  t0_likes: number | null;
+  t0_replies: number | null;
+  t0_retweets: number | null;
+  t0_bookmarks: number | null;
+  t1h_views: number | null;
+  t1h_likes: number | null;
+  t1h_replies: number | null;
+  t1h_retweets: number | null;
+  t1h_bookmarks: number | null;
+  t24h_views: number | null;
+  t24h_likes: number | null;
+  t24h_replies: number | null;
+  t24h_retweets: number | null;
+  t24h_bookmarks: number | null;
+};
+
+function parseListAnalyticsPostsRow(value: unknown): AnalyticsPostSqlRow[] {
+  const valid = (row: unknown): row is AnalyticsPostSqlRow =>
+    isRecord(row) &&
+    (row.kind === "original" || row.kind === "reply" || row.kind === "quote" || row.kind === "repost") &&
+    (row.text === null || typeof row.text === "string") &&
+    (row.in_reply_to_id === null || typeof row.in_reply_to_id === "string") &&
+    (row.url === null || typeof row.url === "string") &&
+    (row.t0_views === null || typeof row.t0_views === "number") &&
+    (row.t0_likes === null || typeof row.t0_likes === "number") &&
+    (row.t0_replies === null || typeof row.t0_replies === "number") &&
+    (row.t0_retweets === null || typeof row.t0_retweets === "number") &&
+    (row.t0_bookmarks === null || typeof row.t0_bookmarks === "number") &&
+    (row.t1h_views === null || typeof row.t1h_views === "number") &&
+    (row.t1h_likes === null || typeof row.t1h_likes === "number") &&
+    (row.t1h_replies === null || typeof row.t1h_replies === "number") &&
+    (row.t1h_retweets === null || typeof row.t1h_retweets === "number") &&
+    (row.t1h_bookmarks === null || typeof row.t1h_bookmarks === "number") &&
+    (row.t24h_views === null || typeof row.t24h_views === "number") &&
+    (row.t24h_likes === null || typeof row.t24h_likes === "number") &&
+    (row.t24h_replies === null || typeof row.t24h_replies === "number") &&
+    (row.t24h_retweets === null || typeof row.t24h_retweets === "number") &&
+    (row.t24h_bookmarks === null || typeof row.t24h_bookmarks === "number");
+  if (!Array.isArray(value) || !value.every(valid)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseAnalyticsSummaryRow(value: unknown): Record<string, number | null> {
+  const valid = (row: unknown): row is Record<string, number | null> =>
+    (isRecord(row) && Object.values(row).every((item: unknown) => item === null || typeof item === "number"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseAnalyticsSummaryRow2(value: unknown): Array<{ day: string; posts: number; views: number; likes: number }> {
+  const valid = (row: unknown): row is Array<{ day: string; posts: number; views: number; likes: number }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.day === "string" &&
+    typeof item.posts === "number" &&
+    typeof item.views === "number" &&
+    typeof item.likes === "number")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

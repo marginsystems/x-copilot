@@ -1,3 +1,4 @@
+import { objectValue } from "../platform/unknownValue.js";
 /**
  * Expired / skipped / dismissed history routes.
  */
@@ -137,7 +138,7 @@ export async function tryHandleHistory(
     }
     let body: Record<string, unknown>;
     try {
-      body = (await readBody(req)) as Record<string, unknown>;
+      body = objectValue((await readBody(req)));
     } catch (err) {
       const statusCode = err instanceof BodyError ? err.statusCode : 400;
       send(req, res, statusCode, {
@@ -199,7 +200,9 @@ export async function tryHandleHistory(
         [skip.threadId, skip.conversationId ?? "", skip.inReplyToId ?? ""],
         { userId: user.id },
       );
-      void maybeStartEmptyTankScout(user.id);
+      maybeStartEmptyTankScout(user.id).catch((err: unknown) => {
+        console.warn("Empty-tank scout soft-fail:", err);
+      });
       const { authorKey: _authorKey, ...skipRest } = skip;
       send(req, res, 200, {
         ok: true,
@@ -224,7 +227,7 @@ export async function tryHandleHistory(
     }
     let body: Record<string, unknown>;
     try {
-      body = (await readBody(req)) as Record<string, unknown>;
+      body = objectValue((await readBody(req)));
     } catch (err) {
       const statusCode = err instanceof BodyError ? err.statusCode : 400;
       send(req, res, statusCode, {
@@ -312,7 +315,9 @@ export async function tryHandleHistory(
         ],
         { userId: user.id },
       );
-      void maybeStartEmptyTankScout(user.id);
+      maybeStartEmptyTankScout(user.id).catch((err: unknown) => {
+        console.warn("Empty-tank scout soft-fail:", err);
+      });
       send(req, res, 200, {
         ok: true,
         dismissal,

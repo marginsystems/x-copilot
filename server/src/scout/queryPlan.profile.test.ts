@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * C11: query planning consumes the run's ScoutProfile snapshot.
  *
@@ -41,7 +42,7 @@ function stubDeepseek(respond: Responder): { requests: Message[][]; restore: () 
   const requests: Message[][] = [];
   const original = globalThis.fetch;
   globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body ?? "{}")) as { messages: Message[] };
+    const body = parseStubDeepseekRow(JSON.parse(String(init?.body ?? "{}")));
     requests.push(body.messages);
     const content = respond(body.messages, requests.length);
     return new Response(
@@ -117,7 +118,7 @@ const NO_SUPPORT_PROFILES: Array<[string, ScoutProfile | null | undefined]> = [
     "neutral-only",
     reduce([...takes(5, "fact_add"), ...skips(5, "fact_add"), ...takes(5, "timely_take"), ...skips(5, "timely_take")]),
   ],
-  ["unusable version", { ...supportedProfile(), version: 2 as unknown as 1 }],
+  ["unusable version", unsupportedVersionProfile(supportedProfile())],
 ];
 
 // ------------------------------------------------------- literal baselines
@@ -154,7 +155,7 @@ const sys = (): Message => ({ role: "system", content: SYSTEM });
 const user = (content: string): Message => ({ role: "user", content });
 const assistant = (content: string): Message => ({ role: "assistant", content });
 
-describe("queryPlan profile parity — literal current-HEAD baselines", () => {
+await describe("queryPlan profile parity — literal current-HEAD baselines", async () => {
   let restore: (() => void) | null = null;
   let prevKey: string | undefined;
   beforeEach(() => {
@@ -168,13 +169,13 @@ describe("queryPlan profile parity — literal current-HEAD baselines", () => {
     else process.env.DEEPSEEK_API_KEY = prevKey;
   });
 
-  it("SYSTEM is unchanged", () => {
+  await it("SYSTEM is unchanged", () => {
     assert.equal(SYSTEM.length, 1825);
     assert.equal(createHash("sha256").update(SYSTEM).digest("hex"), SYSTEM_SHA256);
   });
 
   for (const [label, profile] of NO_SUPPORT_PROFILES) {
-    it(`initial plan with ${label} profile`, async () => {
+    await it(`initial plan with ${label} profile`, async () => {
       const stub = stubDeepseek(queue(GOOD));
       restore = stub.restore;
       const result = await planQueriesFromAgenda(AGENDA, profile === undefined ? undefined : { profile });
@@ -182,14 +183,14 @@ describe("queryPlan profile parity — literal current-HEAD baselines", () => {
       assert.deepEqual(stub.requests, [[sys(), user(INITIAL_USER)]]);
     });
 
-    it(`history/yield plan with ${label} profile`, async () => {
+    await it(`history/yield plan with ${label} profile`, async () => {
       const stub = stubDeepseek(queue(GOOD));
       restore = stub.restore;
       await planQueriesFromAgenda(AGENDA, { ...HISTORY_OPTS, profile });
       assert.deepEqual(stub.requests, [[sys(), user(HISTORY_USER)]]);
     });
 
-    it(`invalid-JSON repair with ${label} profile`, async () => {
+    await it(`invalid-JSON repair with ${label} profile`, async () => {
       const stub = stubDeepseek(queue("not json at all", GOOD));
       restore = stub.restore;
       const result = await planQueriesFromAgenda(AGENDA, { ...HISTORY_OPTS, profile });
@@ -200,7 +201,7 @@ describe("queryPlan profile parity — literal current-HEAD baselines", () => {
       ]);
     });
 
-    it(`phrase-y broaden with ${label} profile`, async () => {
+    await it(`phrase-y broaden with ${label} profile`, async () => {
       const stub = stubDeepseek(queue(PHRASEY_FIRST, GOOD));
       restore = stub.restore;
       const result = await planQueriesFromAgenda(AGENDA, { profile });
@@ -211,7 +212,7 @@ describe("queryPlan profile parity — literal current-HEAD baselines", () => {
       ]);
     });
 
-    it(`missing-agenda-noun broaden with ${label} profile`, async () => {
+    await it(`missing-agenda-noun broaden with ${label} profile`, async () => {
       const stub = stubDeepseek(queue(NOUNLESS_FIRST, GOOD));
       restore = stub.restore;
       const result = await planQueriesFromAgenda(AGENDA, { profile });
@@ -224,7 +225,7 @@ describe("queryPlan profile parity — literal current-HEAD baselines", () => {
   }
 });
 
-describe("queryPlan profile — supported snapshot", () => {
+await describe("queryPlan profile — supported snapshot", async () => {
   let restore: (() => void) | null = null;
   let prevKey: string | undefined;
   beforeEach(() => {
@@ -248,7 +249,7 @@ describe("queryPlan profile — supported snapshot", () => {
 
   const occurrences = (text: string) => text.split(SCOUT_PROFILE_BLOCK_HEADER).length - 1;
 
-  it("adds exactly one bounded block before the JSON instruction and keeps SYSTEM", async () => {
+  await it("adds exactly one bounded block before the JSON instruction and keeps SYSTEM", async () => {
     assert.notEqual(block, "");
     const stub = stubDeepseek(queue(GOOD));
     restore = stub.restore;
@@ -259,7 +260,7 @@ describe("queryPlan profile — supported snapshot", () => {
     assert.doesNotMatch(INITIAL_WITH_PROFILE, /user-a/);
   });
 
-  it("carries the identical block into invalid-JSON repair and phrase-y broaden", async () => {
+  await it("carries the identical block into invalid-JSON repair and phrase-y broaden", async () => {
     const stub = stubDeepseek(queue("nope", PHRASEY_FIRST, GOOD));
     restore = stub.restore;
     const result = await planQueriesFromAgenda(AGENDA, { profile });
@@ -282,7 +283,7 @@ describe("queryPlan profile — supported snapshot", () => {
     assert.equal(bare.requests.length, stub.requests.length);
   });
 
-  it("a provider that inspects the block can choose different valid agenda-grounded queries", async () => {
+  await it("a provider that inspects the block can choose different valid agenda-grounded queries", async () => {
     const respond: Responder = (messages) => {
       const prompt = messages[1]!.content;
       if (
@@ -318,10 +319,25 @@ describe("queryPlan profile — supported snapshot", () => {
     assert.match(SYSTEM, /include 1–2 broad high-recall queries AND 1–2 tighter ones/);
   });
 
-  it("the block is data: it contains the guidance and no role or instruction lines", () => {
+  await it("the block is data: it contains the guidance and no role or instruction lines", () => {
     const lines = block.split("\n");
     assert.equal(lines.length, 3);
     assert.doesNotMatch(lines[1]!, /^(system|user|assistant):/i);
     assert.match(block, /never turn them into from: filters/);
   });
 });
+
+function parseStubDeepseekRow(value: unknown): { messages: Message[] } {
+  const valid = (row: unknown): row is { messages: Message[] } =>
+    (isRecord(row) &&
+    (Array.isArray(row.messages) && row.messages.every((item: unknown) => (isRecord(item) &&
+    typeof item.role === "string" &&
+    typeof item.content === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function unsupportedVersionProfile(profile: ScoutProfile): ScoutProfile {
+  Reflect.set(profile, "version", 2);
+  return profile;
+}

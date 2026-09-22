@@ -30,16 +30,16 @@ function ix(
   };
 }
 
-describe("parseActivityBucket", () => {
-  it("defaults to day", () => {
+await describe("parseActivityBucket", async () => {
+  await it("defaults to day", () => {
     assert.equal(parseActivityBucket(undefined), "day");
     assert.equal(parseActivityBucket("week"), "week");
     assert.equal(parseActivityBucket("nope"), "day");
   });
 });
 
-describe("viewsForInteraction", () => {
-  it("prefers t24h views over t1h", () => {
+await describe("viewsForInteraction", async () => {
+  await it("prefers t24h views over t1h", () => {
     assert.equal(
       viewsForInteraction(
         ix({
@@ -107,10 +107,10 @@ describe("viewsForInteraction", () => {
   });
 });
 
-describe("bucketInteractions", () => {
+await describe("bucketInteractions", async () => {
   const now = Date.parse("2026-08-04T15:00:00.000Z");
 
-  it("emits a full day window with zeros", () => {
+  await it("emits a full day window with zeros", () => {
     const result = bucketInteractions([], { bucket: "day", now });
     assert.equal(result.bucket, "day");
     assert.equal(result.series.length, ACTIVITY_DAY_WINDOW);
@@ -126,13 +126,13 @@ describe("bucketInteractions", () => {
     });
   });
 
-  it("emits a full week window", () => {
+  await it("emits a full week window", () => {
     const result = bucketInteractions([], { bucket: "week", now });
     assert.equal(result.series.length, ACTIVITY_WEEK_WINDOW);
     assert.equal(result.series[result.series.length - 1]?.period, utcWeekKey(now));
   });
 
-  it("counts marks without stats and prefers t24h views", () => {
+  await it("counts marks without stats and prefers t24h views", () => {
     const history = [
       ix({
         threadId: "a",
@@ -179,7 +179,7 @@ describe("bucketInteractions", () => {
     assert.equal(result.totals.withStats, 2);
   });
 
-  it("falls back to postedAt when at is unparseable", () => {
+  await it("falls back to postedAt when at is unparseable", () => {
     const history = [
       ix({
         threadId: "p",
@@ -194,7 +194,7 @@ describe("bucketInteractions", () => {
     assert.equal(aug4?.views, 3);
   });
 
-  it("plots a live view count on the reply day, above the 1h checkpoint", () => {
+  await it("plots a live view count on the reply day, above the 1h checkpoint", () => {
     const now = Date.parse("2026-09-22T10:09:00.000Z");
     const history = mergeLiveMetrics(
       [
@@ -222,7 +222,7 @@ describe("bucketInteractions", () => {
     );
   });
 
-  it("uses the shipped classified path for mark timestamps and kinds", () => {
+  await it("uses the shipped classified path for mark timestamps and kinds", () => {
     const result = bucketInteractions(
       [
         ix({
@@ -244,7 +244,7 @@ describe("bucketInteractions", () => {
     );
   });
 
-  it("classifies mark-only top-level replies and quote cards correctly", () => {
+  await it("classifies mark-only top-level replies and quote cards correctly", () => {
     const merged = mergeClassifiedActivity({
       ownPosts: [],
       history: [
@@ -266,8 +266,8 @@ describe("bucketInteractions", () => {
   });
 });
 
-describe("viewsLineAltitude", () => {
-  it("holds last sampled views when marks exist but samples do not", () => {
+await describe("viewsLineAltitude", async () => {
+  await it("holds last sampled views when marks exist but samples do not", () => {
     assert.deepEqual(
       viewsLineAltitude(
         { period: "2026-08-14", interactions: 2, originals: 0, quotes: 0, replies: 2, views: 0, withStats: 0 },
@@ -277,7 +277,7 @@ describe("viewsLineAltitude", () => {
     );
   });
 
-  it("drops to zero on a missed day", () => {
+  await it("drops to zero on a missed day", () => {
     assert.deepEqual(
       viewsLineAltitude(
         { period: "2026-08-14", interactions: 0, originals: 0, quotes: 0, replies: 0, views: 0, withStats: 0 },
@@ -287,7 +287,7 @@ describe("viewsLineAltitude", () => {
     );
   });
 
-  it("uses sampled views when present", () => {
+  await it("uses sampled views when present", () => {
     assert.deepEqual(
       viewsLineAltitude(
         { period: "2026-08-13", interactions: 1, originals: 0, quotes: 0, replies: 1, views: 80, withStats: 1 },
@@ -298,8 +298,8 @@ describe("viewsLineAltitude", () => {
   });
 });
 
-describe("pendingReplyIds / mergeLiveMetrics", () => {
-  it("lists unscored reply ids and merges live views in memory", () => {
+await describe("pendingReplyIds / mergeLiveMetrics", async () => {
+  await it("lists unscored reply ids and merges live views in memory", () => {
     const history = [
       ix({
         threadId: "a",
@@ -326,7 +326,7 @@ describe("pendingReplyIds / mergeLiveMetrics", () => {
     assert.equal(merged[1]?.stats?.t1h?.views, 9);
   });
 
-  it("skips writing a synthetic snapshot when live has likes but no views", () => {
+  await it("skips writing a synthetic snapshot when live has likes but no views", () => {
     const history = [
       ix({
         threadId: "c",
@@ -420,17 +420,17 @@ describe("applyLiveOwnPostViews", () => {
   });
 });
 
-describe("classified flight-path posts", () => {
+await describe("classified flight-path posts", async () => {
   const now = Date.parse("2026-08-04T15:00:00.000Z");
 
-  it("keeps a persisted original as OG, including a re-quote stored that way", () => {
+  await it("keeps a persisted original as OG, including a re-quote stored that way", () => {
     assert.equal(activityKindFromOwnPost("original"), "original");
     assert.equal(activityKindFromOwnPost("quote"), "quote");
     assert.equal(activityKindFromOwnPost("reply"), "reply");
     assert.equal(activityKindFromOwnPost("repost"), null);
   });
 
-  it("stacks originals, quotes, and replies and drops reposts", () => {
+  await it("stacks originals, quotes, and replies and drops reposts", () => {
     const result = bucketClassifiedPosts(
       [
         {
@@ -477,7 +477,7 @@ describe("classified flight-path posts", () => {
     assert.equal(result.totals.interactions, 3);
   });
 
-  it("drops reposts from own-post activity", () => {
+  await it("drops reposts from own-post activity", () => {
     const merged = mergeClassifiedActivity({
       ownPosts: [
         {
@@ -494,7 +494,7 @@ describe("classified flight-path posts", () => {
     assert.equal(merged.find((post) => post.id === "repost"), undefined);
   });
 
-  it("does not double-count a mark whose reply is already in own_posts", () => {
+  await it("does not double-count a mark whose reply is already in own_posts", () => {
     const merged = mergeClassifiedActivity({
       ownPosts: [
         {

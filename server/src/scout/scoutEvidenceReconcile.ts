@@ -1,3 +1,4 @@
+import { hasStrings } from "../platform/unknownValue.js";
 /**
  * Bounded, resumable Scout evidence reconciliation.
  *
@@ -211,6 +212,7 @@ async function reconcileInteractions(
   const cursor = readScoutEvidenceCursor<InteractionCursor>(
     state.userId,
     SCOPE_INTERACTIONS,
+    (value): value is InteractionCursor => hasStrings(value, "at", "threadId"),
   );
   const rows: Interaction[] = listInteractionRowsPage({
     userId: state.userId,
@@ -275,6 +277,7 @@ async function reconcileOwnReplies(
   const cursor = readScoutEvidenceCursor<OwnReplyCursor>(
     state.userId,
     SCOPE_OWN_REPLIES,
+    (value): value is OwnReplyCursor => hasStrings(value, "postedAt", "id"),
   );
   const posts = listConfirmedOwnRepliesPage({
     userId: state.userId,
@@ -326,7 +329,11 @@ function takesNeedingNoteCheck(
 }
 
 async function reconcileNotes(state: PassState, batch: number): Promise<boolean> {
-  const cursor = readScoutEvidenceCursor<NoteCursor>(state.userId, SCOPE_NOTES);
+  const cursor = readScoutEvidenceCursor<NoteCursor>(
+    state.userId,
+    SCOPE_NOTES,
+    (value): value is NoteCursor => hasStrings(value, "actedAt", "eventKey"),
+  );
   const rows = takesNeedingNoteCheck(state.userId, cursor, batch);
   state.result.scanned.notes += rows.length;
   for (const row of rows) {

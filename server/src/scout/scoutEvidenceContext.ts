@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Server-owned target context for Scout evidence.
  *
@@ -160,12 +161,12 @@ export function readRetainedTargetContext(
   const id = requireEvidenceUserId(userId);
   const target = optionalId(targetId);
   if (!target) return null;
-  const row = getPlatformDb()
+  const row = parseRetainedRow(getPlatformDb()
     .prepare(
       `SELECT ${RETAINED_COLUMNS} FROM scout_target_context
         WHERE user_id = ? AND target_id = ?`,
     )
-    .get(id, target) as RetainedRow | undefined;
+    .get(id, target));
   return row ? retainedFromRow(row) : null;
 }
 
@@ -177,7 +178,7 @@ export function readRetainedContextByConversation(
   const id = requireEvidenceUserId(userId);
   const conversation = optionalId(conversationId);
   if (!conversation) return null;
-  const rows = getPlatformDb()
+  const rows = parseRetainedRow2(getPlatformDb()
     .prepare(
       `WITH matching AS (
          SELECT ${RETAINED_COLUMNS} FROM scout_target_context
@@ -190,7 +191,7 @@ export function readRetainedContextByConversation(
         WHERE (SELECT COUNT(DISTINCT card_id) FROM matching) = 1
         ORDER BY retained_at DESC LIMIT 1`,
     )
-    .all(id, conversation, id, conversation) as RetainedRow[];
+    .all(id, conversation, id, conversation));
   if (rows.length === 0) return null;
   return retainedFromRow(rows[0]!);
 }
@@ -467,4 +468,36 @@ export function evidenceContextFields(
     topics: context.topics,
     contextSource: context.contextSource,
   };
+}
+
+function parseRetainedRow(value: unknown): RetainedRow | undefined {
+  const valid = (row: unknown): row is RetainedRow | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.target_id === "string" &&
+    (row.card_id === null || typeof row.card_id === "string") &&
+    (row.conversation_id === null || typeof row.conversation_id === "string") &&
+    (row.in_reply_to_id === null || typeof row.in_reply_to_id === "string") &&
+    (row.author === null || typeof row.author === "string") &&
+    (row.thread_kind === null || typeof row.thread_kind === "string") &&
+    (row.topics_json === null || typeof row.topics_json === "string") &&
+    typeof row.context_source === "string" &&
+    typeof row.retained_at === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseRetainedRow2(value: unknown): RetainedRow[] {
+  const valid = (row: unknown): row is RetainedRow[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.target_id === "string" &&
+    (item.card_id === null || typeof item.card_id === "string") &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.in_reply_to_id === null || typeof item.in_reply_to_id === "string") &&
+    (item.author === null || typeof item.author === "string") &&
+    (item.thread_kind === null || typeof item.thread_kind === "string") &&
+    (item.topics_json === null || typeof item.topics_json === "string") &&
+    typeof item.context_source === "string" &&
+    typeof item.retained_at === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

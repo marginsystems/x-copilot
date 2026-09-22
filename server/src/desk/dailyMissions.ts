@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Deterministic UTC-day missions. Progress is read from the coaching
  * snapshot; XP is awarded once when a mission first hits its target.
@@ -74,12 +75,12 @@ function claimedAt(
   dayUtc: string,
   missionId: string,
 ): string | null {
-  const row = getPlatformDb()
+  const row = parseClaimedAtRow(getPlatformDb()
     .prepare(
       `SELECT claimed_at AS claimedAt FROM daily_missions
         WHERE user_id = ? AND day_utc = ? AND mission_id = ?`,
     )
-    .get(userId, dayUtc, missionId) as { claimedAt: string | null } | undefined;
+    .get(userId, dayUtc, missionId));
   return row?.claimedAt ?? null;
 }
 
@@ -161,4 +162,12 @@ export async function listMissionsWithProgress(opts: {
     });
   }
   return out;
+}
+
+function parseClaimedAtRow(value: unknown): { claimedAt: string | null } | undefined {
+  const valid = (row: unknown): row is { claimedAt: string | null } | undefined =>
+    (row === undefined || (isRecord(row) &&
+    (row.claimedAt === null || typeof row.claimedAt === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

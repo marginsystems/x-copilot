@@ -568,9 +568,7 @@ export function normalizePreferredLanguageCode(
 ): PreferredLanguageCode {
   if (typeof value !== "string") return DEFAULT_PREFERRED_LANGUAGE;
   const code = value.trim().toLowerCase();
-  return (PREFERRED_LANGUAGE_CODES as readonly string[]).includes(code)
-    ? (code as PreferredLanguageCode)
-    : DEFAULT_PREFERRED_LANGUAGE;
+  return PREFERRED_LANGUAGE_CODES.find((value) => value === code) ?? DEFAULT_PREFERRED_LANGUAGE;
 }
 
 /** Normalize a flag/intent/exclude token to snake_case, or null if unusable. */

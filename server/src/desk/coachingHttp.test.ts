@@ -1,7 +1,8 @@
+import { testRequest } from "../http/http.testHelpers.js";
+import { expectRecord } from "../http/http.testHelpers.js";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { type IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -23,7 +24,7 @@ async function getCoaching(opts: {
   cookie?: string;
   chat?: ChatFn;
 }): Promise<{ status: number; body: Record<string, unknown> }> {
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = testRequest();
   Object.assign(req, {
     method: "GET",
     headers: opts.cookie ? { cookie: opts.cookie } : {},
@@ -31,14 +32,14 @@ async function getCoaching(opts: {
   });
   let status = 0;
   let raw = "";
-  const res = {
+  const res = Object.assign(new ServerResponse(testRequest()), {
     writeHead: (code: number) => {
       status = code;
     },
     end: (chunk: string) => {
       raw = chunk;
     },
-  } as unknown as ServerResponse;
+  });
   const path = opts.path ?? "/api/coaching";
   assert.equal(
     await tryHandleCoaching(req, res, new URL(`http://localhost${path}`), {
@@ -48,11 +49,11 @@ async function getCoaching(opts: {
   );
   return {
     status,
-    body: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+    body: raw ? (expectRecord(JSON.parse(raw))) : {},
   };
 }
 
-describe("GET /api/coaching", () => {
+await describe("GET /api/coaching", async () => {
   let dir: string;
   let cwd: string;
   let cookie: string;
@@ -85,13 +86,13 @@ describe("GET /api/coaching", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("returns 401 without a session", async () => {
+  await it("returns 401 without a session", async () => {
     const response = await getCoaching({});
     assert.equal(response.status, 401);
     assert.equal(response.body.error, "unauthenticated");
   });
 
-  it("serves lite instruments without calling the LLM", async () => {
+  await it("serves lite instruments without calling the LLM", async () => {
     const response = await getCoaching({
       path: "/api/coaching?lite=1",
       cookie,
@@ -112,7 +113,7 @@ describe("GET /api/coaching", () => {
     assert.equal("originalAt" in response.body, false);
   });
 
-  it("returns the newest in-window lite instruments", async () => {
+  await it("returns the newest in-window lite instruments", async () => {
     const nowMs = Date.now();
     const newestPost = new Date(nowMs - 2 * 24 * 60 * 60 * 1000).toISOString();
     const olderInWindowPost = new Date(nowMs - 5 * 24 * 60 * 60 * 1000).toISOString();
@@ -163,7 +164,7 @@ describe("GET /api/coaching", () => {
 
     const response = await getCoaching({ path: "/api/coaching?lite=1", cookie });
     assert.equal(response.status, 200);
-    assert.equal((response.body.replyAt as string[]).length, 1);
+    assert.equal((parsestring(response.body.replyAt)).length, 1);
     assert.deepEqual(response.body.replyAt, [newestPost]);
     assert.deepEqual(response.body.postAt, [newestPost]);
     assert.deepEqual(response.body.ownActivity, {
@@ -175,7 +176,7 @@ describe("GET /api/coaching", () => {
     });
   });
 
-  it("keeps the full coaching response and next-action refresh", async () => {
+  await it("keeps the full coaching response and next-action refresh", async () => {
     const postedAt = new Date().toISOString();
     upsertOwnPost({
       parsed: {
@@ -221,3 +222,10 @@ describe("GET /api/coaching", () => {
     });
   });
 });
+
+function parsestring(value: unknown): string[] {
+  const valid = (row: unknown): row is string[] =>
+    (Array.isArray(row) && row.every((item: unknown) => typeof item === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

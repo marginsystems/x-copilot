@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Compact activity snapshot for next-action + daily missions.
  * Reads stores the desk already has — no extra X fetches.
@@ -77,7 +78,7 @@ function withinInstrumentHistory(at: string, sinceMs: number): boolean {
 }
 
 export function loadNewestOwnActivity(userId: string): OwnActivity | null {
-  const row = getPlatformDb()
+  const row = parseLoadNewestOwnActivityRow(getPlatformDb()
     .prepare(
       `SELECT id, url, text, kind, posted_at AS postedAt
          FROM own_posts
@@ -85,15 +86,7 @@ export function loadNewestOwnActivity(userId: string): OwnActivity | null {
         ORDER BY posted_at DESC
         LIMIT 1`,
     )
-    .get(userId) as
-    | {
-        id: string;
-        url: string | null;
-        text: string | null;
-        kind: OwnActivity["kind"];
-        postedAt: string;
-      }
-    | undefined;
+    .get(userId));
   if (!row) return null;
   return {
     id: row.id,
@@ -211,7 +204,7 @@ export function originalsTodayCount(
 export function hashCoachingSnapshot(snapshot: CoachingSnapshot): string {
   return createHash("sha256")
     .update(
-      JSON.stringify(snapshot, (key, value) =>
+      JSON.stringify(snapshot, (key, value: unknown) =>
         key === "lifetimeXp" || key === "level" ? undefined : value,
       ),
     )
@@ -223,13 +216,13 @@ function countOwnKindsToday(
   userId: string,
   sinceIso: string,
 ): { originals: number; replies: number; quotes: number } {
-  const rows = getPlatformDb()
+  const rows = parseCountOwnKindsTodayRow(getPlatformDb()
     .prepare(
       `SELECT kind, COUNT(*) AS n FROM own_posts
         WHERE user_id = ? AND posted_at >= ?
         GROUP BY kind`,
     )
-    .all(userId, sinceIso) as Array<{ kind: string; n: number }>;
+    .all(userId, sinceIso));
   let originals = 0;
   let replies = 0;
   let quotes = 0;
@@ -306,4 +299,39 @@ export async function buildCoachingSnapshot(opts: {
     level: gamification.level,
     lifetimeXp: gamification.lifetimeXp,
   };
+}
+
+function parseLoadNewestOwnActivityRow(value: unknown): | {
+        id: string;
+        url: string | null;
+        text: string | null;
+        kind: OwnActivity["kind"];
+        postedAt: string;
+      }
+    | undefined {
+  const valid = (row: unknown): row is | {
+        id: string;
+        url: string | null;
+        text: string | null;
+        kind: OwnActivity["kind"];
+        postedAt: string;
+      }
+    | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.id === "string" &&
+    (row.url === null || typeof row.url === "string") &&
+    (row.text === null || typeof row.text === "string") &&
+    (row.kind === "original" || row.kind === "reply" || row.kind === "quote") &&
+    typeof row.postedAt === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseCountOwnKindsTodayRow(value: unknown): Array<{ kind: string; n: number }> {
+  const valid = (row: unknown): row is Array<{ kind: string; n: number }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.kind === "string" &&
+    typeof item.n === "number")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

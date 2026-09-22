@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * C08: Scout memory retrieval is scoped to the authenticated user at every
  * caller — both triage gather paths, invalid-JSON repair, the collector, and
@@ -27,9 +28,7 @@ function stubDeepseek(answers: string[]): { requests: ChatRequest[]; restore: ()
   const requests: ChatRequest[] = [];
   const original = globalThis.fetch;
   globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body ?? "{}")) as {
-      messages: Array<{ role: string; content: string }>;
-    };
+    const body = parseStubDeepseekRow(JSON.parse(String(init?.body ?? "{}")));
     requests.push({ messages: body.messages });
     // Consume the queue; the last answer repeats for any further calls.
     const content = answers.length > 1 ? answers.shift()! : (answers[0] ?? "");
@@ -86,14 +85,14 @@ function ownerScopedSearch(): { calls: Array<{ userId: string; types?: string[];
   return { calls, search };
 }
 
-describe("triageThreads memory scope", () => {
+await describe("triageThreads memory scope", async () => {
   let restore: (() => void) | null = null;
   afterEach(() => {
     restore?.();
     restore = null;
   });
 
-  it("passes the user to both memory types and quotes only owned excerpts", async () => {
+  await it("passes the user to both memory types and quotes only owned excerpts", async () => {
     const threads = [thread("1"), thread("2")];
     const stub = stubDeepseek([JSON.stringify({ items: [item("1"), item("2")] })]);
     restore = stub.restore;
@@ -129,7 +128,7 @@ describe("triageThreads memory scope", () => {
     assert.equal(prompt, expected);
   });
 
-  it("runs with no memory and never calls the search seam without a user", async () => {
+  await it("runs with no memory and never calls the search seam without a user", async () => {
     const threads = [thread("1")];
     const stub = stubDeepseek([JSON.stringify({ items: [item("1")] })]);
     restore = stub.restore;
@@ -153,7 +152,7 @@ describe("triageThreads memory scope", () => {
     assert.equal(stub.requests[0]!.messages[1]!.content, buildUserMessage("Find builders", threads, [], ""));
   });
 
-  it("another user's identity yields that user's (empty) memory, not A's", async () => {
+  await it("another user's identity yields that user's (empty) memory, not A's", async () => {
     const stub = stubDeepseek([JSON.stringify({ items: [item("1")] })]);
     restore = stub.restore;
     const { calls, search } = ownerScopedSearch();
@@ -162,7 +161,7 @@ describe("triageThreads memory scope", () => {
     assert.doesNotMatch(stub.requests[0]!.messages[1]!.content, /A's own shipping reply/);
   });
 
-  it("invalid-JSON repair reuses the already-scoped prompt without re-searching", async () => {
+  await it("invalid-JSON repair reuses the already-scoped prompt without re-searching", async () => {
     const threads = [thread("1")];
     const stub = stubDeepseek(["definitely not json", JSON.stringify({ items: [item("1")] })]);
     restore = stub.restore;
@@ -190,7 +189,7 @@ describe("triageThreads memory scope", () => {
     );
   });
 
-  it("missing-item gather is scoped to the same user", async () => {
+  await it("missing-item gather is scoped to the same user", async () => {
     const threads = [thread("1"), thread("2")];
     const stub = stubDeepseek([
       JSON.stringify({ items: [item("1")] }),
@@ -218,7 +217,7 @@ describe("triageThreads memory scope", () => {
     assert.doesNotMatch(calls[2]!.query, /post 1/);
   });
 
-  it("caps excerpts at 220 characters after scoping", async () => {
+  await it("caps excerpts at 220 characters after scoping", async () => {
     const stub = stubDeepseek([JSON.stringify({ items: [item("1")] })]);
     restore = stub.restore;
     const long = "L".repeat(500);
@@ -238,7 +237,7 @@ describe("triageThreads memory scope", () => {
   });
 });
 
-describe("runScoutCollect forwards its user to triage", () => {
+await describe("runScoutCollect forwards its user to triage", async () => {
   const session = { bearerToken: "t", configured: true };
 
   async function collect(userId: string | undefined): Promise<string | undefined> {
@@ -276,18 +275,18 @@ describe("runScoutCollect forwards its user to triage", () => {
     return seen ?? undefined;
   }
 
-  it("passes the run's userId", async () => {
+  await it("passes the run's userId", async () => {
     assert.equal(await collect(" user-a "), "user-a");
   });
 
-  it("passes a blank identity for a userless run so triage disables memory", async () => {
+  await it("passes a blank identity for a userless run so triage disables memory", async () => {
     assert.equal(await collect(undefined), "");
     assert.equal(await collect(""), "");
   });
 });
 
-describe("probe-triage-tags runs in memory-disabled mode", () => {
-  it("passes no identity and a seam that refuses retrieval", async () => {
+await describe("probe-triage-tags runs in memory-disabled mode", async () => {
+  await it("passes no identity and a seam that refuses retrieval", async () => {
     const source = await readFile(
       resolve(import.meta.dirname, "../../../scripts/probe-triage-tags.ts"),
       "utf8",
@@ -296,3 +295,17 @@ describe("probe-triage-tags runs in memory-disabled mode", () => {
     assert.match(source, /memory retrieval is disabled/);
   });
 });
+
+function parseStubDeepseekRow(value: unknown): {
+      messages: Array<{ role: string; content: string }>;
+    } {
+  const valid = (row: unknown): row is {
+      messages: Array<{ role: string; content: string }>;
+    } =>
+    (isRecord(row) &&
+    (Array.isArray(row.messages) && row.messages.every((item: unknown) => (isRecord(item) &&
+    typeof item.role === "string" &&
+    typeof item.content === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

@@ -1,3 +1,4 @@
+import { objectValue } from "../platform/unknownValue.js";
 /**
  * Post-search thread triage via DeepSeek (one batched call).
  * Only threads with a numeric baitScore are returned — never silent unscored rows.
@@ -202,7 +203,7 @@ export function isCoolSkipThreadKind(
   kind: string | undefined,
 ): boolean {
   if (!kind) return false;
-  return COOL_SKIP_THREAD_KINDS.has(kind as ThreadKind);
+  return [...COOL_SKIP_THREAD_KINDS].some((value) => value === kind);
 }
 
 /** Complete triage item: id + summary + baitScore + valid threadKind required. */
@@ -261,14 +262,14 @@ export function parseTriageJson(raw: string): TriageItem[] | null {
 
   // Direct parse handles {/} inside string values correctly
   try {
-    data = JSON.parse(text) as { items?: unknown };
+    data = objectValue(JSON.parse(text));
   } catch {
     // Fallback: extract outermost {...} block
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start === -1 || end === -1 || end <= start) return null;
     try {
-      data = JSON.parse(text.slice(start, end + 1)) as { items?: unknown };
+      data = objectValue(JSON.parse(text.slice(start, end + 1)));
     } catch {
       return null;
     }
@@ -279,7 +280,7 @@ export function parseTriageJson(raw: string): TriageItem[] | null {
   const items: TriageItem[] = [];
   for (const entry of data.items) {
     if (!entry || typeof entry !== "object") continue;
-    const row = entry as Record<string, unknown>;
+    const row = objectValue(entry);
     const id = typeof row.id === "string" ? row.id.trim() : "";
     if (!id || seen.has(id)) continue;
     seen.add(id);

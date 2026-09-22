@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * C12: triage consumes the run's structured preferences alongside owned
  * excerpts. Message arrays are compared against literal current-HEAD
@@ -40,7 +41,7 @@ function stubDeepseek(respond: Responder): { requests: Message[][]; restore: () 
   const requests: Message[][] = [];
   const original = globalThis.fetch;
   globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body ?? "{}")) as { messages: Message[] };
+    const body = parseStubDeepseekRow(JSON.parse(String(init?.body ?? "{}")));
     requests.push(body.messages);
     const content = respond(body.messages, requests.length);
     return new Response(
@@ -151,7 +152,7 @@ const NO_SUPPORT_PROFILES: Array<[string, ScoutProfile | null | undefined]> = [
   ["empty state at revision 3", { ...emptyScoutProfile(USER_A), revision: 3 }],
   ["learning", reduce(USER_A, takes(1, "fact_add"))],
   ["neutral-only", reduce(USER_A, [...takes(5, "fact_add"), ...skips(5, "fact_add"), ...takes(5, "timely_take"), ...skips(5, "timely_take")])],
-  ["unreadable (unusable version)", { ...supportedProfile(), version: 2 as unknown as 1 }],
+  ["unreadable (unusable version)", unsupportedVersionProfile(supportedProfile())],
   ["rejected (foreign owner)", supportedProfile(USER_B)],
 ];
 
@@ -181,14 +182,14 @@ const BOTH = JSON.stringify({ items: [item("1"), item("2")] });
 const ONLY_1 = JSON.stringify({ items: [item("1")] });
 const ONLY_2 = JSON.stringify({ items: [item("2")] });
 
-describe("threadTriage profile parity — literal current-HEAD baselines", () => {
+await describe("threadTriage profile parity — literal current-HEAD baselines", async () => {
   let restore: (() => void) | null = null;
   afterEach(() => {
     restore?.();
     restore = null;
   });
 
-  it("TRIAGE_SYSTEM_PROMPT is unchanged", () => {
+  await it("TRIAGE_SYSTEM_PROMPT is unchanged", () => {
     assert.equal(TRIAGE_SYSTEM_PROMPT.length, 11187);
     assert.equal(createHash("sha256").update(TRIAGE_SYSTEM_PROMPT).digest("hex"), TRIAGE_SYSTEM_SHA256);
   });
@@ -196,7 +197,7 @@ describe("threadTriage profile parity — literal current-HEAD baselines", () =>
   for (const [label, profile] of NO_SUPPORT_PROFILES) {
     const base = { agenda: "Find builders", apiKey: "test-key", userId: USER_A } as const;
 
-    it(`normal with owned memories + avoid — ${label} profile`, async () => {
+    await it(`normal with owned memories + avoid — ${label} profile`, async () => {
       const stub = stubDeepseek(queue(BOTH));
       restore = stub.restore;
       const { calls, search } = ownerScopedSearch();
@@ -215,7 +216,7 @@ describe("threadTriage profile parity — literal current-HEAD baselines", () =>
       ]);
     });
 
-    it(`normal with no memories — ${label} profile`, async () => {
+    await it(`normal with no memories — ${label} profile`, async () => {
       const stub = stubDeepseek(queue(BOTH));
       restore = stub.restore;
       await triageThreads({
@@ -227,7 +228,7 @@ describe("threadTriage profile parity — literal current-HEAD baselines", () =>
       assert.deepEqual(stub.requests, [[sys(), user(NORMAL_NO_MEMORY)]]);
     });
 
-    it(`invalid-JSON repair — ${label} profile`, async () => {
+    await it(`invalid-JSON repair — ${label} profile`, async () => {
       const stub = stubDeepseek(queue("definitely not json", BOTH));
       restore = stub.restore;
       const { calls, search } = ownerScopedSearch();
@@ -246,7 +247,7 @@ describe("threadTriage profile parity — literal current-HEAD baselines", () =>
       assert.equal(calls.length, 2, "repair reuses memories; no re-gather");
     });
 
-    it(`missing-item repair — ${label} profile`, async () => {
+    await it(`missing-item repair — ${label} profile`, async () => {
       const stub = stubDeepseek(queue(ONLY_1, ONLY_2));
       restore = stub.restore;
       const { calls, search } = ownerScopedSearch();
@@ -267,7 +268,7 @@ describe("threadTriage profile parity — literal current-HEAD baselines", () =>
       assert.doesNotMatch(calls[2]!.query, /post 1/);
     });
 
-    it(`combined invalid-JSON then missing-item repair, no memories — ${label} profile`, async () => {
+    await it(`combined invalid-JSON then missing-item repair, no memories — ${label} profile`, async () => {
       const stub = stubDeepseek(queue("nope", ONLY_1, ONLY_2));
       restore = stub.restore;
       const result = await triageThreads({
@@ -286,7 +287,7 @@ describe("threadTriage profile parity — literal current-HEAD baselines", () =>
   }
 });
 
-describe("threadTriage profile — supported owner-matching snapshot", () => {
+await describe("threadTriage profile — supported owner-matching snapshot", async () => {
   let restore: (() => void) | null = null;
   afterEach(() => {
     restore?.();
@@ -299,7 +300,7 @@ describe("threadTriage profile — supported owner-matching snapshot", () => {
   const MISSING_WITH_PROFILE = `${HEAD}\n\nPosts:\n${POSTS_2}\n\n${MEMORY_BLOCK}\n\n${block}\n\n${TAIL}${OMITTED_2}`;
   const occurrences = (text: string) => text.split(SCOUT_PROFILE_BLOCK_HEADER).length - 1;
 
-  it("appends exactly one block after the owned excerpts in normal, invalid-JSON and missing-item prompts", async () => {
+  await it("appends exactly one block after the owned excerpts in normal, invalid-JSON and missing-item prompts", async () => {
     assert.notEqual(block, "");
     const stub = stubDeepseek(queue("nope", ONLY_1, ONLY_2));
     restore = stub.restore;
@@ -329,7 +330,7 @@ describe("threadTriage profile — supported owner-matching snapshot", () => {
     assert.ok(calls.every((c) => c.userId === USER_A && c.k === 4 && c.query.length <= 800));
   });
 
-  it("identity-less callers get no block and no retrieval even when a profile is passed", async () => {
+  await it("identity-less callers get no block and no retrieval even when a profile is passed", async () => {
     for (const userId of [undefined, "", "   "]) {
       const stub = stubDeepseek(queue(BOTH));
       restore = stub.restore;
@@ -349,7 +350,7 @@ describe("threadTriage profile — supported owner-matching snapshot", () => {
     restore = null;
   });
 
-  it("two users in one tenant never receive each other's profile or excerpts", async () => {
+  await it("two users in one tenant never receive each other's profile or excerpts", async () => {
     const profileB = reduce(USER_B, [
       ...takes(1, "sharp_opinion", { topics: ["kubernetes"], author: "opsbob" }),
       ...skips(4, "sharp_opinion"),
@@ -386,7 +387,7 @@ describe("threadTriage profile — supported owner-matching snapshot", () => {
     );
   });
 
-  it("paired provider fixtures change engage/reason only; threadKind, baitScore and onAgenda stay content-based", async () => {
+  await it("paired provider fixtures change engage/reason only; threadKind, baitScore and onAgenda stay content-based", async () => {
     const respond: Responder = (messages) => {
       const withProfile = messages[1]!.content.includes('"kind":"fact_add","bias":"prefer"');
       return JSON.stringify({
@@ -433,7 +434,7 @@ describe("threadTriage profile — supported owner-matching snapshot", () => {
     assert.deepEqual(without.map((t) => isCoolThread(t, { agendaSet: true })), [true, true]);
   });
 
-  it("agenda and Avoid stay explicit constraints; familiarity cannot make off-agenda or avoid-matching content eligible", async () => {
+  await it("agenda and Avoid stay explicit constraints; familiarity cannot make off-agenda or avoid-matching content eligible", async () => {
     // Even a provider that ignores the guidance and marks preferred-kind content
     // priority/low-bait cannot pass the unchanged cool gate when content is
     // off-agenda or matches Avoid (model marks engage skip per the Avoid rule).
@@ -462,7 +463,7 @@ describe("threadTriage profile — supported owner-matching snapshot", () => {
     assert.deepEqual(result.threads.map((t) => isCoolThread(t, { agendaSet: true })), [false, false]);
   });
 
-  it("hollow_ask, promo_context (incl. promo OP), bare_news and closed_thread stay excluded by the real cool gate", async () => {
+  await it("hollow_ask, promo_context (incl. promo OP), bare_news and closed_thread stay excluded by the real cool gate", async () => {
     const fixtures: Array<[string, Record<string, unknown>]> = [
       ["hollow", { threadKind: "hollow_ask", baitScore: 10, onAgenda: true, engage: "priority" }],
       ["promo", { threadKind: "promo_context", baitScore: 10, onAgenda: true, engage: "priority" }],
@@ -492,7 +493,7 @@ describe("threadTriage profile — supported owner-matching snapshot", () => {
     );
   });
 
-  it("malicious hints and excerpts cannot add roles, alter the fixed policy text or override parsed fields", async () => {
+  await it("malicious hints and excerpts cannot add roles, alter the fixed policy text or override parsed fields", async () => {
     const malicious: Record<string, MemoryHit[]> = {
       interaction: [
         {
@@ -533,7 +534,7 @@ describe("threadTriage profile — supported owner-matching snapshot", () => {
     assert.equal(isCoolThread(result.threads[0]!, { agendaSet: true }), false);
   });
 
-  it("keeps MAX_TRIAGE_THREADS, batch overflow and model-call counts unchanged with a profile", async () => {
+  await it("keeps MAX_TRIAGE_THREADS, batch overflow and model-call counts unchanged with a profile", async () => {
     assert.equal(MAX_TRIAGE_THREADS, 20);
     const threads = Array.from({ length: 21 }, (_, i) => thread(String(i + 1)));
     const answer = JSON.stringify({ items: threads.slice(0, 20).map((t) => item(t.id)) });
@@ -546,3 +547,18 @@ describe("threadTriage profile — supported owner-matching snapshot", () => {
     assert.equal(stub.requests[0]![1]!.content.split(SCOUT_PROFILE_BLOCK_HEADER).length - 1, 1);
   });
 });
+
+function parseStubDeepseekRow(value: unknown): { messages: Message[] } {
+  const valid = (row: unknown): row is { messages: Message[] } =>
+    (isRecord(row) &&
+    (Array.isArray(row.messages) && row.messages.every((item: unknown) => (isRecord(item) &&
+    typeof item.role === "string" &&
+    typeof item.content === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function unsupportedVersionProfile(profile: ScoutProfile): ScoutProfile {
+  Reflect.set(profile, "version", 2);
+  return profile;
+}

@@ -14,8 +14,8 @@ import {
   planDisplayName,
 } from "./plans.ts";
 
-describe("plans", () => {
-  it("has three paid desks wrapping post-read credits", () => {
+await describe("plans", async () => {
+  await it("has three paid desks wrapping post-read credits", () => {
     assert.deepEqual(
       PAID_PLANS.map((p) => p.key),
       ["pulse", "radar", "horizon"],
@@ -38,7 +38,7 @@ describe("plans", () => {
     });
   });
 
-  it("caps voice suggests per UTC day, free at 10", () => {
+  await it("caps voice suggests per UTC day, free at 10", () => {
     assert.deepEqual(PLAN_DAILY_SUGGESTS, {
       free: 10,
       pulse: 20,
@@ -47,7 +47,7 @@ describe("plans", () => {
     });
   });
 
-  it("narrows plan keys", () => {
+  await it("narrows plan keys", () => {
     assert.equal(isPlanKey("pulse"), true);
     assert.equal(isPaidPlanKey("free"), false);
     assert.equal(isPaidPlanKey("horizon"), true);
@@ -59,7 +59,7 @@ describe("plans", () => {
     assert.equal(nextPaidPlanKey("horizon"), null);
   });
 
-  it("catalogs Free as $0 with no Stripe product", () => {
+  await it("catalogs Free as $0 with no Stripe product", () => {
     assert.equal(FREE_PLAN.key, "free");
     assert.equal(FREE_PLAN.priceUsd, 0);
     assert.equal(FREE_PLAN.priceLabel, "Free");
@@ -69,7 +69,7 @@ describe("plans", () => {
     assert.match(FREE_PLAN.blurb, /no credit card/i);
   });
 
-  it("derives free vs paid plan states", () => {
+  await it("derives free vs paid plan states", () => {
     assert.equal(
       derivePlanState({ planKey: "free", live: false, status: null, creditsCanUse: true }),
       "free_active",
@@ -116,7 +116,7 @@ describe("plans", () => {
     );
   });
 
-  it("keeps plan_state consistent with a paid plan key", () => {
+  await it("keeps plan_state consistent with a paid plan key", () => {
     assert.equal(
       derivePlanState({
         planKey: "horizon",
@@ -173,7 +173,7 @@ describe("plans", () => {
     );
   });
 
-  it("uses Stripe Dashboard product names x-copilot Pulse/Radar/Horizon", () => {
+  await it("uses Stripe Dashboard product names x-copilot Pulse/Radar/Horizon", () => {
     assert.deepEqual(
       PAID_PLANS.map((p) => p.stripeProductName),
       ["x-copilot Pulse", "x-copilot Radar", "x-copilot Horizon"],

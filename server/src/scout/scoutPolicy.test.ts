@@ -8,8 +8,8 @@ import {
 } from "./scoutPolicy.ts";
 import { card } from "./scoutCollect.testHelpers.ts";
 
-describe("isCoolThread", () => {
-  it("accepts priority/consider with bait <= 45", () => {
+await describe("isCoolThread", async () => {
+  await it("accepts priority/consider with bait <= 45", () => {
     assert.equal(
       isCoolThread(card({ id: "1", engage: "priority", baitScore: 45 })),
       true,
@@ -20,7 +20,7 @@ describe("isCoolThread", () => {
     );
   });
 
-  it("rejects skips and high bait", () => {
+  await it("rejects skips and high bait", () => {
     assert.equal(
       isCoolThread(card({ id: "1", engage: "skip", baitScore: 10 })),
       false,
@@ -31,7 +31,7 @@ describe("isCoolThread", () => {
     );
   });
 
-  it("falls back to thread.score when baitScore is undefined", () => {
+  await it("falls back to thread.score when baitScore is undefined", () => {
     assert.equal(
       isCoolThread(card({ id: "3", engage: "consider", score: 30 })),
       true,
@@ -42,7 +42,7 @@ describe("isCoolThread", () => {
     );
   });
 
-  it("rejects cool-skip threadKinds even with middling bait", () => {
+  await it("rejects cool-skip threadKinds even with middling bait", () => {
     assert.equal(
       isCoolThread(
         card({
@@ -78,7 +78,7 @@ describe("isCoolThread", () => {
     );
   });
 
-  it("rejects promo_op / bad_context / promo_context flags even when engage is cool", () => {
+  await it("rejects promo_op / bad_context / promo_context flags even when engage is cool", () => {
     assert.equal(
       isCoolThread(
         card({
@@ -129,7 +129,7 @@ describe("isCoolThread", () => {
     );
   });
 
-  it("rejects off-agenda sharp_opinion even when bait is low", () => {
+  await it("rejects off-agenda sharp_opinion even when bait is low", () => {
     assert.equal(
       isCoolThread(
         card({
@@ -170,15 +170,15 @@ describe("isCoolThread", () => {
   });
 });
 
-describe("clampTargetCool / clampBucketSize", () => {
-  it("clamps targetCool 1–20 with default 5", () => {
+await describe("clampTargetCool / clampBucketSize", async () => {
+  await it("clamps targetCool 1–20 with default 5", () => {
     assert.equal(clampTargetCool(undefined), 5);
     assert.equal(clampTargetCool(4), 4);
     assert.equal(clampTargetCool(20), 20);
     assert.equal(clampTargetCool(21), 20);
   });
 
-  it("allows bucket sizes 5, 10, or 20 (default 20)", () => {
+  await it("allows bucket sizes 5, 10, or 20 (default 20)", () => {
     assert.equal(clampBucketSize(undefined), 20);
     assert.equal(clampBucketSize(5), 5);
     assert.equal(clampBucketSize(10), 10);
@@ -187,8 +187,8 @@ describe("clampTargetCool / clampBucketSize", () => {
   });
 });
 
-describe("withScoutSearchExclusions", () => {
-  it("appends -is:retweet and -is:reply once", () => {
+await describe("withScoutSearchExclusions", async () => {
+  await it("appends -is:retweet and -is:reply once", () => {
     assert.equal(
       withScoutSearchExclusions("shipping AI"),
       "shipping AI -is:retweet -is:reply",

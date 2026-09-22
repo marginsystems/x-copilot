@@ -60,7 +60,7 @@ export async function withoutScoutProfileProjectionNotifications<T>(
 
 function runProjection(userId: string, state: PendingState): Promise<void> {
   return new Promise<void>((resolveDone) => {
-    setTimeout(async () => {
+    const rebuild = async () => {
       state.running = true;
       try {
         do {
@@ -82,6 +82,12 @@ function runProjection(userId: string, state: PendingState): Promise<void> {
         pending.delete(userId);
         resolveDone();
       }
+    };
+    setTimeout(() => {
+      rebuild().catch((err: unknown) => {
+        failures += 1;
+        console.warn(`[scout-profile] projection rebuild failed userId=${userId}:`, err);
+      });
     }, PROJECTION_DEBOUNCE_MS);
   });
 }

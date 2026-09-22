@@ -98,11 +98,16 @@ function skip(
   });
 }
 
-function readFileProfile(userId: string): unknown {
-  return JSON.parse(readFileSync(scoutProfilePathForUser(userId, profileDir), "utf8"));
+function readFileProfile(userId: string): ScoutProfile {
+  const profile = parseStoredScoutProfile(
+    readFileSync(scoutProfilePathForUser(userId, profileDir), "utf8"),
+    userId,
+  );
+  assert.ok(profile);
+  return profile;
 }
 
-describe("scoutProfileStore", () => {
+await describe("scoutProfileStore", async () => {
   beforeEach(() => {
     temp = openTempPlatformDb("x-scout-profile-");
     seedUser(USER);
@@ -120,12 +125,12 @@ describe("scoutProfileStore", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("rejects a blank identity", async () => {
+  await it("rejects a blank identity", async () => {
     await assert.rejects(() => noReconcile("  "), /userId is required/);
     assert.throws(() => scoutProfilePathForUser(""));
   });
 
-  it("stores beside gamification under a hashed owner key", () => {
+  await it("stores beside gamification under a hashed owner key", () => {
     const path = scoutProfilePathForUser(USER, profileDir);
     const hash = createHash("sha256").update(USER).digest("hex");
     assert.equal(path, join(profileDir, `u${hash}.json`));
@@ -136,7 +141,7 @@ describe("scoutProfileStore", () => {
     );
   });
 
-  it("returns and persists the deterministic empty profile for no evidence", async () => {
+  await it("returns and persists the deterministic empty profile for no evidence", async () => {
     const profile = await noReconcile(USER);
     assert.deepEqual(profile, emptyScoutProfile(USER));
     assert.deepEqual(readFileProfile(USER), profile);
@@ -146,7 +151,7 @@ describe("scoutProfileStore", () => {
     assert.equal(existsSync(join(root, "data", "gamification.json")), false);
   });
 
-  it("builds from evidence and reuses the file while the revision matches", async () => {
+  await it("builds from evidence and reuses the file while the revision matches", async () => {
     setScoutProfileRebuild(null); // sidecar wrote evidence, no projection ran
     take(USER, { noteState: "stored" });
     take(USER, { noteState: "stored" });
@@ -173,7 +178,7 @@ describe("scoutProfileStore", () => {
     assert.equal(statSync(path).mtimeMs, before);
   });
 
-  it("repairs a stale projection on read after out-of-process evidence", async () => {
+  await it("repairs a stale projection on read after out-of-process evidence", async () => {
     setScoutProfileRebuild(null);
     take(USER);
     const first = await noReconcile(USER);
@@ -185,7 +190,7 @@ describe("scoutProfileStore", () => {
     assert.deepEqual(readFileProfile(USER), second);
   });
 
-  it("repairs corrupt, foreign, and wrong-version files instead of serving them", async () => {
+  await it("repairs corrupt, foreign, and wrong-version files instead of serving them", async () => {
     setScoutProfileRebuild(null);
     take(USER, { noteState: "stored" });
     const expected = await noReconcile(USER);
@@ -213,7 +218,7 @@ describe("scoutProfileStore", () => {
     assert.deepEqual(await noReconcile(USER), expected);
   });
 
-  it("parseStoredScoutProfile drops unknown keys and keeps the frozen shape", () => {
+  await it("parseStoredScoutProfile drops unknown keys and keeps the frozen shape", () => {
     const profile = { ...emptyScoutProfile(USER), extra: "no" };
     const parsed = parseStoredScoutProfile(JSON.stringify(profile), USER);
     assert.deepEqual(parsed, emptyScoutProfile(USER));
@@ -223,7 +228,7 @@ describe("scoutProfileStore", () => {
     assert.equal(parseStoredScoutProfile(JSON.stringify(noKind), USER), null);
   });
 
-  it("keeps users isolated", async () => {
+  await it("keeps users isolated", async () => {
     setScoutProfileRebuild(null);
     take(USER, { noteState: "stored" });
     skip(OTHER);
@@ -241,7 +246,7 @@ describe("scoutProfileStore", () => {
     assert.equal(files.filter((f) => f.endsWith(".json")).length, 2);
   });
 
-  it("rebuilds the projection after a material evidence change via the hook", async () => {
+  await it("rebuilds the projection after a material evidence change via the hook", async () => {
     const path = scoutProfilePathForUser(USER, profileDir);
     // Seed an already-verified note state so revision 1 is exactly one
     // material evidence change; the hook's real reconciliation then has
@@ -249,7 +254,8 @@ describe("scoutProfileStore", () => {
     take(USER, { replyId: "r1", noteState: "missing" });
     await flushScoutProfileProjections();
     assert.equal(existsSync(path), true);
-    const stored = readFileProfile(USER) as ScoutProfile;
+    const stored = readFileProfile(USER);
+    assert.ok(stored);
     assert.equal(stored.revision, 1);
     assert.equal(stored.counts.takes, 1);
     assert.equal(stored.coverage.storedConfirmedReplies, 0);
@@ -269,7 +275,8 @@ describe("scoutProfileStore", () => {
       true,
     );
     await flushScoutProfileProjections();
-    const repaired = readFileProfile(USER) as ScoutProfile;
+    const repaired = readFileProfile(USER);
+    assert.ok(repaired);
     assert.equal(repaired.revision, 2);
     assert.equal(repaired.coverage.storedConfirmedReplies, 1);
     assert.equal(repaired.familiarity.state, "learning");
@@ -283,14 +290,15 @@ describe("scoutProfileStore", () => {
     assert.deepEqual(await noReconcile(USER), repaired);
   });
 
-  it("treats the hook's unknown→missing note repair as one material revision, then stays stable", async () => {
+  await it("treats the hook's unknown→missing note repair as one material revision, then stays stable", async () => {
     const path = scoutProfilePathForUser(USER, profileDir);
     // No noteState: the take is recorded as `unknown`, so the hook's
     // reconciliation verifies the (absent) note and records `missing`. That
     // is a real evidence change — revision 2 — not a second rebuild.
     take(USER, { replyId: "r-unknown" });
     await flushScoutProfileProjections();
-    const stored = readFileProfile(USER) as ScoutProfile;
+    const stored = readFileProfile(USER);
+    assert.ok(stored);
     assert.equal(stored.revision, 2);
     assert.equal(stored.counts.takes, 1);
     assert.equal(stored.coverage.storedConfirmedReplies, 0);
@@ -311,7 +319,7 @@ describe("scoutProfileStore", () => {
     assert.equal(readScoutEvidenceRevision(USER).revision, 2);
   });
 
-  it("reconciles legacy own replies before the hook publishes the profile", async () => {
+  await it("reconciles legacy own replies before the hook publishes the profile", async () => {
     upsertOwnPost({
       userId: USER,
       tenantId: ensureUserTenant(USER),
@@ -333,12 +341,13 @@ describe("scoutProfileStore", () => {
     take(USER);
     await flushScoutProfileProjections();
 
-    const profile = readFileProfile(USER) as ScoutProfile;
+    const profile = readFileProfile(USER);
+    assert.ok(profile);
     assert.equal(profile.counts.takes, 2);
     assert.equal(profile.revision, readScoutEvidenceRevision(USER).revision);
   });
 
-  it("bootstraps reconciliation only when no valid projection exists", async () => {
+  await it("bootstraps reconciliation only when no valid projection exists", async () => {
     setScoutProfileRebuild(null);
     let calls = 0;
     const reconcile = async (userId: string) => {
@@ -364,14 +373,14 @@ describe("scoutProfileStore", () => {
     assert.equal(calls, 2);
   });
 
-  it("runs the real bounded reconciliation pass against local facts only", async () => {
+  await it("runs the real bounded reconciliation pass against local facts only", async () => {
     setScoutProfileRebuild(null);
     const knowledgeRoot = join(root, "knowledge-missing");
     const profile = await readScoutProfile(USER, { profileDir, knowledgeRoot });
     assert.deepEqual(profile, emptyScoutProfile(USER));
   });
 
-  it("recovers from an interrupted atomic write and rebuilds identically after restart", async () => {
+  await it("recovers from an interrupted atomic write and rebuilds identically after restart", async () => {
     setScoutProfileRebuild(null);
     take(USER, { noteState: "stored", topics: ["rates"] });
     skip(USER, { topics: ["rates"] });
@@ -390,7 +399,7 @@ describe("scoutProfileStore", () => {
     assert.deepEqual(readFileProfile(USER), built);
   });
 
-  it("serializes concurrent server/sidecar rebuilds to one valid file", async () => {
+  await it("serializes concurrent server/sidecar rebuilds to one valid file", async () => {
     setScoutProfileRebuild(null);
     for (let i = 0; i < 6; i++) take(USER, { noteState: "stored" });
     const results = await Promise.all(
@@ -406,7 +415,7 @@ describe("scoutProfileStore", () => {
     assert.deepEqual(leftovers, []);
   });
 
-  it("fails closed when profile storage is unusable", async () => {
+  await it("fails closed when profile storage is unusable", async () => {
     setScoutProfileRebuild(null);
     take(USER);
     const asFile = join(root, "not-a-dir");
@@ -416,7 +425,7 @@ describe("scoutProfileStore", () => {
     );
   });
 
-  it("fails closed when evidence storage is unusable", async () => {
+  await it("fails closed when evidence storage is unusable", async () => {
     setScoutProfileRebuild(null);
     closeTempPlatformDb(temp);
     process.env.PLATFORM_DB_PATH = join(root, "not-a-dir", "platform.sqlite");

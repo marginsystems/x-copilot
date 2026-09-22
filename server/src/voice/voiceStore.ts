@@ -3,6 +3,7 @@
  * style card, and the UTC-day suggest ledger. Their writing only — other
  * people's feeds are never stored here.
  */
+import { objectValue, isRecord, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
 import { randomUUID } from "node:crypto";
 import { getPlatformDb } from "../db.js";
 import { startOfUtcDayIso } from "../desk/ownPostStore.js";
@@ -58,7 +59,7 @@ export function voiceUnlocked(postCount: number): boolean {
 export function voiceCardIsStarter(cardJson: string | null): boolean {
   if (!cardJson) return false;
   try {
-    return (JSON.parse(cardJson) as { starter?: unknown }).starter === true;
+    return objectValue(JSON.parse(cardJson)).starter === true;
   } catch {
     return false;
   }
@@ -99,31 +100,14 @@ export function ensureVoiceProfile(
 }
 
 export function getVoiceProfile(userId: string): VoiceProfileRow | null {
-  const row = getPlatformDb()
+  const row = readVoiceProfileRowOrUndefined(getPlatformDb()
     .prepare(
       `SELECT user_id, tenant_id, x_username, x_user_id, status, reply_count,
               conversation_count, card_json, card_model, card_updated_at,
               card_attempt_at, since_id, last_pull_at, last_error
        FROM voice_profiles WHERE user_id = ?`,
     )
-    .get(userId) as
-    | {
-        user_id: string;
-        tenant_id: string;
-        x_username: string | null;
-        x_user_id: string | null;
-        status: string;
-        reply_count: number;
-        conversation_count: number;
-        card_json: string | null;
-        card_model: string | null;
-        card_updated_at: string | null;
-        card_attempt_at: string | null;
-        since_id: string | null;
-        last_pull_at: string | null;
-        last_error: string | null;
-      }
-    | undefined;
+    .get(userId));
   if (!row) return null;
   const status: VoiceProfileStatus =
     row.status === "ready" || row.status === "learning" ? row.status : "empty";
@@ -184,9 +168,9 @@ export function upsertVoiceReplies(
 }
 
 export function countVoiceReplies(userId: string): number {
-  const row = getPlatformDb()
+  const row = readVoiceCountRow(getPlatformDb()
     .prepare(`SELECT COUNT(*) AS n FROM voice_replies WHERE user_id = ?`)
-    .get(userId) as { n: number };
+    .get(userId));
   return Number(row?.n ?? 0);
 }
 
@@ -195,12 +179,12 @@ export function countVoiceReplies(userId: string): number {
  * conversation id fall back to their own post id.
  */
 export function countDistinctConversations(userId: string): number {
-  const row = getPlatformDb()
+  const row = readVoiceCountRow(getPlatformDb()
     .prepare(
       `SELECT COUNT(DISTINCT COALESCE(conversation_id, id)) AS n
        FROM voice_replies WHERE user_id = ?`,
     )
-    .get(userId) as { n: number };
+    .get(userId));
   return Number(row?.n ?? 0);
 }
 
@@ -214,13 +198,7 @@ export function listVoiceReplies(
        FROM voice_replies WHERE user_id = ?
        ORDER BY posted_at DESC, id DESC LIMIT ?`,
     )
-    .all(userId, Math.min(Math.max(limit, 1), 200)) as Array<{
-    id: string;
-    text: string;
-    conversation_id: string | null;
-    posted_at: string | null;
-    source: string;
-  }>;
+    .all(userId, Math.min(Math.max(limit, 1), 200)).map(readVoiceReplyRow);
   return rows.map((r) => ({
     id: r.id,
     text: r.text,
@@ -242,13 +220,7 @@ export function foldDeskReplies(userId: string): number {
        FROM own_posts
        WHERE user_id = ? AND kind != 'repost' AND text IS NOT NULL AND text != ''`,
     )
-    .all(userId) as Array<{
-    id: string;
-    text: string;
-    conversation_id: string | null;
-    in_reply_to_id: string | null;
-    posted_at: string | null;
-  }>;
+    .all(userId).map(readDeskReplyRow);
   if (!rows.length) return 0;
   return upsertVoiceReplies(
     userId,
@@ -428,11 +400,11 @@ export function suggestLimitForPlan(plan: PlanKey): number {
 }
 
 export function countSuggestsToday(userId: string, now = new Date()): number {
-  const row = getPlatformDb()
+  const row = readVoiceCountRow(getPlatformDb()
     .prepare(
       `SELECT COUNT(*) AS n FROM voice_suggests WHERE user_id = ? AND at >= ?`,
     )
-    .get(userId, startOfUtcDayIso(now)) as { n: number };
+    .get(userId, startOfUtcDayIso(now)));
   return Number(row?.n ?? 0);
 }
 
@@ -489,4 +461,60 @@ export function getSuggestUsage(
   const limit = suggestLimitForPlan(planKey);
   const remaining = Math.max(0, limit - used);
   return { used, limit, remaining, canSuggest: remaining > 0, planKey };
+}
+
+function readVoiceProfileRow(value: unknown) {
+  if (!(
+    isRecord(value) &&
+    hasStrings(value, "user_id", "tenant_id", "status") &&
+    hasNullableStrings(value, "x_username", "x_user_id", "card_json", "card_model", "card_updated_at", "card_attempt_at", "since_id", "last_pull_at", "last_error") &&
+    ("reply_count" in value && typeof value.reply_count === "number") &&
+    ("conversation_count" in value && typeof value.conversation_count === "number")
+  )) throw new TypeError("Invalid database row");
+  return {
+    user_id: value.user_id,
+    tenant_id: value.tenant_id,
+    x_username: value.x_username,
+    x_user_id: value.x_user_id,
+    status: value.status,
+    reply_count: value.reply_count,
+    conversation_count: value.conversation_count,
+    card_json: value.card_json,
+    card_model: value.card_model,
+    card_updated_at: value.card_updated_at,
+    card_attempt_at: value.card_attempt_at,
+    since_id: value.since_id,
+    last_pull_at: value.last_pull_at,
+    last_error: value.last_error,
+  };
+}
+
+function readVoiceProfileRowOrUndefined(value: unknown) {
+  return value === undefined ? undefined : readVoiceProfileRow(value);
+}
+
+function readVoiceCountRow(value: unknown) {
+  if (!(
+    isRecord(value) &&
+    ("n" in value && typeof value.n === "number")
+  )) throw new TypeError("Invalid database row");
+  return {
+    n: value.n,
+  };
+}
+
+function readVoiceReplyRow(value: unknown) {
+  if (!(
+    hasStrings(value, "id", "text", "source") &&
+    hasNullableStrings(value, "conversation_id", "posted_at")
+  )) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function readDeskReplyRow(value: unknown) {
+  if (!(
+    hasStrings(value, "id", "text") &&
+    hasNullableStrings(value, "conversation_id", "in_reply_to_id", "posted_at")
+  )) throw new TypeError("Invalid database row");
+  return value;
 }

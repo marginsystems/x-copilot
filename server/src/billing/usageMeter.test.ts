@@ -1,3 +1,4 @@
+import { expectRecord } from "../http/http.testHelpers.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -21,8 +22,8 @@ import {
   toTenantUsageView,
 } from "./usageMeter.ts";
 
-describe("countPostsRead", () => {
-  it("counts search data arrays", () => {
+await describe("countPostsRead", async () => {
+  await it("counts search data arrays", () => {
     assert.equal(
       countPostsRead("/tweets/search/recent", {
         data: [{ id: "1" }, { id: "2" }],
@@ -31,7 +32,7 @@ describe("countPostsRead", () => {
     );
   });
 
-  it("counts includes.tweets for search payloads", () => {
+  await it("counts includes.tweets for search payloads", () => {
     assert.equal(
       countPostsRead("/tweets/search/recent", {
         data: [{ id: "1" }, { id: "2" }],
@@ -41,7 +42,7 @@ describe("countPostsRead", () => {
     );
   });
 
-  it("dedupes includes.tweets against data", () => {
+  await it("dedupes includes.tweets against data", () => {
     assert.equal(
       countPostsRead("/tweets/search/recent", {
         data: [{ id: "1" }],
@@ -51,7 +52,7 @@ describe("countPostsRead", () => {
     );
   });
 
-  it("counts single tweet lookup", () => {
+  await it("counts single tweet lookup", () => {
     assert.equal(
       countPostsRead("/tweets/123", { data: { id: "123", text: "hi" } }),
       1,
@@ -61,7 +62,7 @@ describe("countPostsRead", () => {
     ]);
   });
 
-  it("counts unique expansions for a single tweet lookup", () => {
+  await it("counts unique expansions for a single tweet lookup", () => {
     assert.deepEqual(
       countPostReadIds("/tweets/123", {
         data: { id: "123" },
@@ -71,7 +72,7 @@ describe("countPostsRead", () => {
     );
   });
 
-  it("ignores non-tweet paths", () => {
+  await it("ignores non-tweet paths", () => {
     assert.equal(
       countPostsRead("/users/by/username/x", { data: { id: "1" } }),
       0,
@@ -87,14 +88,14 @@ describe("countPostsRead", () => {
   });
 });
 
-describe("estimatePostReadCostMicros", () => {
-  it("uses $0.005 per post", () => {
+await describe("estimatePostReadCostMicros", async () => {
+  await it("uses $0.005 per post", () => {
     assert.equal(estimatePostReadCostMicros(1), POST_READ_USD_MICROS);
     assert.equal(estimatePostReadCostMicros(10), 10 * POST_READ_USD_MICROS);
   });
 });
 
-describe("usage ledger", () => {
+await describe("usage ledger", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -112,7 +113,7 @@ describe("usage ledger", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("charges a post once per UTC day", () => {
+  await it("charges a post once per UTC day", () => {
     const now = new Date("2026-09-19T23:59:59.999Z");
     assert.equal(
       chargeUniquePostReads(["a", "b", "a"], { tenantId: "t1", now }),
@@ -135,7 +136,7 @@ describe("usage ledger", () => {
     );
   });
 
-  it("rolls back all daily reads when a dedupe insert fails", () => {
+  await it("rolls back all daily reads when a dedupe insert fails", () => {
     getPlatformDb().exec(`
       CREATE TRIGGER fail_usage_post_read
       BEFORE INSERT ON usage_post_reads
@@ -152,14 +153,14 @@ describe("usage ledger", () => {
       }),
     );
     assert.equal(
-      (getPlatformDb()
+      (expectRecord(getPlatformDb()
         .prepare("SELECT COUNT(*) AS n FROM usage_post_reads")
-        .get() as { n: number }).n,
+        .get())).n,
       0,
     );
   });
 
-  it("logs only new daily reads and leaves failed/non-tweet requests uncharged", async (t) => {
+  await it("logs only new daily reads and leaves failed/non-tweet requests uncharged", async (t) => {
     const responses = [
       new Response(JSON.stringify({ data: [{ id: "1" }, { id: "2" }] })),
       new Response(JSON.stringify({
@@ -190,12 +191,12 @@ describe("usage ledger", () => {
       [2, 2, 1, 0, 0, 0, 2].map((posts_read) => ({ posts_read })),
     );
     assert.equal(
-      (getPlatformDb().prepare("SELECT COUNT(*) AS n FROM usage_post_reads").get() as { n: number }).n,
+      (expectRecord(getPlatformDb().prepare("SELECT COUNT(*) AS n FROM usage_post_reads").get())).n,
       7,
     );
   });
 
-  it("records events and summarizes estimated spend", () => {
+  await it("records events and summarizes estimated spend", () => {
     recordUsageEvent({
       path: "/tweets/search/recent",
       status: 200,
@@ -217,7 +218,7 @@ describe("usage ledger", () => {
     assert.equal(summary.tenantSlug, "local");
   });
 
-  it("excludes non-tweet probe calls from the summary", () => {
+  await it("excludes non-tweet probe calls from the summary", () => {
     recordUsageEvent({
       path: "/tweets/search/recent",
       status: 200,
@@ -233,7 +234,7 @@ describe("usage ledger", () => {
     assert.equal(summary.recent.length, 1);
   });
 
-  it("labels Scout search and post lookup", () => {
+  await it("labels Scout search and post lookup", () => {
     assert.equal(
       describeUsageActivity("/tweets/search/recent"),
       "Scout search",
@@ -249,7 +250,7 @@ describe("usage ledger", () => {
     );
   });
 
-  it("walks remaining credits newest-first for this UTC month", () => {
+  await it("walks remaining credits newest-first for this UTC month", () => {
     const older = new Date(Date.now() - 60_000).toISOString();
     const newer = new Date().toISOString();
     recordUsageEvent({
@@ -275,11 +276,11 @@ describe("usage ledger", () => {
     assert.equal(summary.recent[0]?.activity, "Scout search");
   });
 
-  it("labels post.create deliveries as Post watch", () => {
+  await it("labels post.create deliveries as Post watch", () => {
     assert.equal(describeUsageActivity("/activity/post.create"), "Post watch");
   });
 
-  it("omits remaining on events from a prior UTC month", () => {
+  await it("omits remaining on events from a prior UTC month", () => {
     const now = new Date();
     const prior = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15),
@@ -304,7 +305,7 @@ describe("usage ledger", () => {
     assert.equal(summary.recent[1]?.remaining, null);
   });
 
-  it("strips dollar amounts and raw paths from the tenant view", () => {
+  await it("strips dollar amounts and raw paths from the tenant view", () => {
     recordUsageEvent({
       path: "/tweets/search/recent",
       status: 200,

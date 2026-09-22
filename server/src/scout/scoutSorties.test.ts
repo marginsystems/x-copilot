@@ -22,7 +22,7 @@ import {
   sortieWasWasted,
 } from "./scoutSorties.ts";
 
-describe("scout takeoffs", () => {
+await describe("scout takeoffs", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -40,7 +40,7 @@ describe("scout takeoffs", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("grounds Free after one Take off today", () => {
+  await it("grounds Free after one Take off today", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-sortie-1",
@@ -68,7 +68,7 @@ describe("scout takeoffs", () => {
     assert.match(blocked?.message ?? "", /Usage & Billing/);
   });
 
-  it("refunds a wasted takeoff so Free can fly again", () => {
+  await it("refunds a wasted takeoff so Free can fly again", () => {
     const tenantId = "local";
     const id = recordSortie(tenantId);
     assert.equal(getSortieUsage(tenantId, "free").canFly, false);
@@ -77,21 +77,21 @@ describe("scout takeoffs", () => {
     assert.equal(refundSortie("missing"), false);
   });
 
-  it("treats zero cools as wasted and keeps a takeoff that found a thread", () => {
+  await it("treats zero cools as wasted and keeps a takeoff that found a thread", () => {
     assert.equal(sortieWasWasted({ ok: false, coolCount: 0 }), true);
     assert.equal(sortieWasWasted({ ok: true, coolCount: 0 }), true);
     assert.equal(sortieWasWasted({ ok: true, coolCount: 2 }), false);
     assert.equal(sortieWasWasted({ ok: false, coolCount: 1 }), false);
   });
 
-  it("names the next plan on Grounded, credits, and suggest-cap copy", () => {
+  await it("names the next plan on Grounded, credits, and suggest-cap copy", () => {
     assert.equal(upgradeHint("free"), "Pulse raises this — open Usage & Billing.");
     assert.equal(upgradeHint("horizon"), "Open Usage & Billing.");
     assert.match(suggestCapMessage("free", 10), /Pulse is 20\/day/);
     assert.match(suggestCapMessage("horizon", 40), /Open Usage & Billing/);
   });
 
-  it("lets Pulse take off five times", () => {
+  await it("lets Pulse take off five times", () => {
     const tenantId = "local";
     recordSortie(tenantId);
     recordSortie(tenantId);

@@ -27,13 +27,13 @@ function row(over: Partial<UserBillingRow> = {}): UserBillingRow {
   };
 }
 
-describe("stripeGuards", () => {
-  it("blocks portal for a pure free user", () => {
+await describe("stripeGuards", async () => {
+  await it("blocks portal for a pure free user", () => {
     const blocked = portalBlockedForPureFreeUser(row());
     assert.equal(blocked.blocked, true);
   });
 
-  it("blocks a second checkout while a live sub exists", () => {
+  await it("blocks a second checkout while a live sub exists", () => {
     const blocked = checkoutBlockedByExistingSubscription(
       row({
         planKey: "pulse",
@@ -44,7 +44,7 @@ describe("stripeGuards", () => {
     assert.equal(blocked.blocked, true);
   });
 
-  it("allows checkout after cancel", () => {
+  await it("allows checkout after cancel", () => {
     const blocked = checkoutBlockedByExistingSubscription(
       row({
         stripeSubscriptionId: "sub_old",
@@ -54,7 +54,7 @@ describe("stripeGuards", () => {
     assert.equal(blocked.blocked, false);
   });
 
-  it("blocks portal without a live subscription", () => {
+  await it("blocks portal without a live subscription", () => {
     const blocked = portalBlockedWithoutStripeSubscription(
       row({ stripeCustomerId: "cus_1", planKey: "pulse" }),
     );

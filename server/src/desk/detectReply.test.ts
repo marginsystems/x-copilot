@@ -29,8 +29,8 @@ function card(
   };
 }
 
-describe("buildDetectOwnReplyQuery", () => {
-  it("scopes to conversation + from + is:reply", () => {
+await describe("buildDetectOwnReplyQuery", async () => {
+  await it("scopes to conversation + from + is:reply", () => {
     const q = buildDetectOwnReplyQuery("@alice", "parent1");
     assert.match(q, /conversation_id:parent1/);
     assert.match(q, /from:alice/);
@@ -38,7 +38,7 @@ describe("buildDetectOwnReplyQuery", () => {
     assert.match(q, /within_time:24h/);
   });
 
-  it("prefers the conversation root id over the card id", () => {
+  await it("prefers the conversation root id over the card id", () => {
     const q = buildDetectOwnReplyQuery(
       "@alice",
       "card1",
@@ -50,14 +50,14 @@ describe("buildDetectOwnReplyQuery", () => {
   });
 });
 
-describe("pickOwnReplyInConversation", () => {
-  it("returns null when there are no hits", () => {
+await describe("pickOwnReplyInConversation", async () => {
+  await it("returns null when there are no hits", () => {
     assert.equal(pickOwnReplyInConversation([], "card1"), null);
   });
 });
 
-describe("findRecentInteractionReply", () => {
-  it("finds only the requested user's recent ledger reply", async () => {
+await describe("findRecentInteractionReply", async () => {
+  await it("finds only the requested user's recent ledger reply", async () => {
     const temp = openTempPlatformDb("x-detect-ledger-");
     seedUser("other-user");
     seedUser("session-user");
@@ -102,7 +102,7 @@ describe("findRecentInteractionReply", () => {
     }
   });
 
-  it("ignores replies older than one hour", () => {
+  await it("ignores replies older than one hour", () => {
     assert.equal(
       findRecentInteractionReply({
         threadId: "target",
@@ -124,8 +124,8 @@ describe("findRecentInteractionReply", () => {
   });
 });
 
-describe("detectOwnReplyToThread", () => {
-  it("returns the unique reply matching inReplyToId", async () => {
+await describe("detectOwnReplyToThread", async () => {
+  await it("returns the unique reply matching inReplyToId", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "parent1",
       screenName: "@alice",
@@ -162,7 +162,7 @@ describe("detectOwnReplyToThread", () => {
     assert.equal(result.matchCount, 1);
   });
 
-  it("returns none when the conversation search is empty", async () => {
+  await it("returns none when the conversation search is empty", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "parent1",
       screenName: "me",
@@ -182,7 +182,7 @@ describe("detectOwnReplyToThread", () => {
     });
   });
 
-  it("accepts a reply to the OP when the card is a later tweet", async () => {
+  await it("accepts a reply to the OP when the card is a later tweet", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "card-reply",
       conversationId: "root1",
@@ -208,7 +208,7 @@ describe("detectOwnReplyToThread", () => {
     assert.equal(result.matchCount, 1);
   });
 
-  it("accepts a reply to someone else in the same conversation", async () => {
+  await it("accepts a reply to someone else in the same conversation", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "card-reply",
       conversationId: "root1",
@@ -224,7 +224,7 @@ describe("detectOwnReplyToThread", () => {
     assert.equal(result.reply.replyId, "mine");
   });
 
-  it("prefers the exact card parent when both exist", async () => {
+  await it("prefers the exact card parent when both exist", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "card-reply",
       screenName: "me",
@@ -242,7 +242,7 @@ describe("detectOwnReplyToThread", () => {
     assert.equal(result.reply.replyId, "to-card");
   });
 
-  it("picks the newest when several replies share the card parent", async () => {
+  await it("picks the newest when several replies share the card parent", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "parent1",
       screenName: "me",
@@ -268,7 +268,7 @@ describe("detectOwnReplyToThread", () => {
     assert.equal(result.reply.replyId, "new");
   });
 
-  it("picks the newest when several replies target different tweets", async () => {
+  await it("picks the newest when several replies target different tweets", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "card-reply",
       conversationId: "root1",
@@ -295,7 +295,7 @@ describe("detectOwnReplyToThread", () => {
     assert.equal(result.reply.replyId, "to-third");
   });
 
-  it("compares createdAt and snowflake recency on one epoch", async () => {
+  await it("compares createdAt and snowflake recency on one epoch", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "card-reply",
       conversationId: "root1",
@@ -322,7 +322,7 @@ describe("detectOwnReplyToThread", () => {
     assert.equal(result.reply.replyId, "2089683728593846272");
   });
 
-  it("returns search_failed on search error", async () => {
+  await it("returns search_failed on search error", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "parent1",
       screenName: "me",
@@ -342,7 +342,7 @@ describe("detectOwnReplyToThread", () => {
     });
   });
 
-  it("returns search_failed for empty screen name", async () => {
+  await it("returns search_failed for empty screen name", async () => {
     const result = await detectOwnReplyToThread({
       threadId: "parent1",
       screenName: "",
@@ -360,8 +360,8 @@ describe("detectOwnReplyToThread", () => {
   });
 });
 
-describe("detectOwnReplyToThreadWithRetry", () => {
-  it("retries none then returns found on second attempt", async () => {
+await describe("detectOwnReplyToThreadWithRetry", async () => {
+  await it("retries none then returns found on second attempt", async () => {
     let calls = 0;
     const sleeps: number[] = [];
     const logs: string[] = [];
@@ -407,7 +407,7 @@ describe("detectOwnReplyToThreadWithRetry", () => {
     assert.match(logs[1]!, /attempt=2\/3 reason=found/);
   });
 
-  it("gives up after three none attempts", async () => {
+  await it("gives up after three none attempts", async () => {
     let calls = 0;
     const sleeps: number[] = [];
     const result = await detectOwnReplyToThreadWithRetry({
@@ -440,7 +440,7 @@ describe("detectOwnReplyToThreadWithRetry", () => {
     });
   });
 
-  it("does not retry once a conversation reply is found", async () => {
+  await it("does not retry once a conversation reply is found", async () => {
     let calls = 0;
     const result = await detectOwnReplyToThreadWithRetry({
       threadId: "parent1",
@@ -476,7 +476,7 @@ describe("detectOwnReplyToThreadWithRetry", () => {
     assert.equal(result.reply.replyId, "b");
   });
 
-  it("stops without further search when aborted mid-backoff", async () => {
+  await it("stops without further search when aborted mid-backoff", async () => {
     let calls = 0;
     const ac = new AbortController();
     const result = await detectOwnReplyToThreadWithRetry({

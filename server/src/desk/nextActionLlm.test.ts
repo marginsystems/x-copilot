@@ -42,7 +42,7 @@ function snapshot(
   };
 }
 
-describe("nextActionLlm", () => {
+await describe("nextActionLlm", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -60,7 +60,7 @@ describe("nextActionLlm", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("grounds reply counts on marksToday and the mark_2 target", () => {
+  await it("grounds reply counts on marksToday and the mark_2 target", () => {
     assert.equal(nextActionCacheHash("abc"), `${NEXT_ACTION_PROMPT_REV}:abc`);
     assert.match(NEXT_ACTION_SYSTEM, /replyTarget/);
     assert.match(NEXT_ACTION_SYSTEM, /Never say hit 5 replies/);
@@ -70,7 +70,7 @@ describe("nextActionLlm", () => {
     assert.match(NEXT_ACTION_SYSTEM, /Never offer takeoff/);
   });
 
-  it("rejects quote and repost unless those Suggested cards are waiting", () => {
+  await it("rejects quote and repost unless those Suggested cards are waiting", () => {
     const ogOnly = snapshot({
       suggestions: { total: 2, post: 2, quote: 0, repost: 0, reply: 0 },
     });
@@ -94,7 +94,7 @@ describe("nextActionLlm", () => {
     assert.equal(nextActionAllowed("takeoff", withQuote), false);
   });
 
-  it("rejects original once today's original mission is in", () => {
+  await it("rejects original once today's original mission is in", () => {
     const done = snapshot({
       originalsToday: 1,
       suggestions: { total: 2, post: 1, quote: 1, repost: 0, reply: 0 },
@@ -107,7 +107,7 @@ describe("nextActionLlm", () => {
     );
   });
 
-  it("parses a grounded next-action payload", () => {
+  await it("parses a grounded next-action payload", () => {
     const parsed = parseNextActionJson(
       '{"kind":"original","text":"You marked 3 replies and 0 originals — post one original."}',
     );
@@ -115,12 +115,12 @@ describe("nextActionLlm", () => {
     assert.match(parsed?.text ?? "", /0 originals/);
   });
 
-  it("rejects unknown kinds and empty text", () => {
+  await it("rejects unknown kinds and empty text", () => {
     assert.equal(parseNextActionJson('{"kind":"dance","text":"go"}'), null);
     assert.equal(parseNextActionJson('{"kind":"reply","text":""}'), null);
   });
 
-  it("falls back to streak, then first reply, then original", () => {
+  await it("falls back to streak, then first reply, then original", () => {
     assert.equal(
       fallbackNextAction(
         snapshot({ streak: 4, lastMarkUtcDay: "2026-08-25" }),
@@ -160,7 +160,7 @@ describe("nextActionLlm", () => {
     );
   });
 
-  it("reuses cache when the snapshot hash is unchanged", async () => {
+  await it("reuses cache when the snapshot hash is unchanged", async () => {
     let calls = 0;
     const snap = snapshot({ marksToday: 1 });
     const first = await getOrRefreshNextAction({
@@ -199,7 +199,7 @@ describe("nextActionLlm", () => {
     assert.equal(first.kind, "reply");
   });
 
-  it("calls DeepSeek again when the hash changes", async () => {
+  await it("calls DeepSeek again when the hash changes", async () => {
     let calls = 0;
     await getOrRefreshNextAction({
       userId: "u1",
@@ -236,7 +236,7 @@ describe("nextActionLlm", () => {
     assert.equal(next.kind, "original");
   });
 
-  it("refreshes instead of serving a stale rev-1 cache row", async () => {
+  await it("refreshes instead of serving a stale rev-1 cache row", async () => {
     getPlatformDb()
       .prepare(
         `INSERT INTO next_action_cache
@@ -272,7 +272,7 @@ describe("nextActionLlm", () => {
     assert.match(action.text, /first reply today/);
   });
 
-  it("drops an LLM quote when the tray is only OG posts", async () => {
+  await it("drops an LLM quote when the tray is only OG posts", async () => {
     const snap = snapshot({
       marksToday: 2,
       originalsToday: 1,
@@ -297,7 +297,7 @@ describe("nextActionLlm", () => {
     assert.match(action.text, /2 left/);
   });
 
-  it("refreshes a cached rev-2 quote instead of serving it for an OG-only tray", async () => {
+  await it("refreshes a cached rev-2 quote instead of serving it for an OG-only tray", async () => {
     getPlatformDb()
       .prepare(
         `INSERT INTO next_action_cache
@@ -341,7 +341,7 @@ describe("nextActionLlm", () => {
     assert.match(action.text, /2 left/);
   });
 
-  it("drops an LLM original when today's original mission is already in", async () => {
+  await it("drops an LLM original when today's original mission is already in", async () => {
     const snap = snapshot({
       marksToday: 13,
       originalsToday: 1,
@@ -366,7 +366,7 @@ describe("nextActionLlm", () => {
     assert.match(action.text, /Suggested quote/);
   });
 
-  it("keeps an LLM quote when a Suggested quote is waiting", async () => {
+  await it("keeps an LLM quote when a Suggested quote is waiting", async () => {
     const snap = snapshot({
       marksToday: 2,
       originalsToday: 1,

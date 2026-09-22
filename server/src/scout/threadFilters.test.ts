@@ -58,10 +58,10 @@ function thread(
   };
 }
 
-describe("filterMinViews", () => {
+await describe("filterMinViews", async () => {
   const nowMs = Date.parse("2026-09-07T12:00:00.000Z");
 
-  it("keeps the inclusive floor and drops lower views", () => {
+  await it("keeps the inclusive floor and drops lower views", () => {
     const result = filterMinViews([
       thread("at", "at", undefined, { views: 100 }),
       thread("below", "below", undefined, { views: 99 }),
@@ -70,7 +70,7 @@ describe("filterMinViews", () => {
     assert.equal(result.minViewsFilteredCount, 1);
   });
 
-  it("passes through when disabled", () => {
+  await it("passes through when disabled", () => {
     const items = [thread("missing", "missing")];
     assert.deepEqual(
       filterMinViews(items, { filterByMinViews: false }),
@@ -78,7 +78,7 @@ describe("filterMinViews", () => {
     );
   });
 
-  it("keeps replies with unknown OP views for hydration", () => {
+  await it("keeps replies with unknown OP views for hydration", () => {
     const reply = thread("reply", "reply", undefined, {
       isReply: true,
       views: 1,
@@ -93,7 +93,7 @@ describe("filterMinViews", () => {
     });
   });
 
-  it("keeps posts with unknown views", () => {
+  await it("keeps posts with unknown views", () => {
     const unknown = thread("unknown", "unknown");
     assert.deepEqual(filterMinViews([unknown]), {
       threads: [unknown],
@@ -101,7 +101,7 @@ describe("filterMinViews", () => {
     });
   });
 
-  it("keeps low-view posts younger than 60 minutes", () => {
+  await it("keeps low-view posts younger than 60 minutes", () => {
     const fresh = thread("fresh", "fresh", undefined, {
       views: 12,
       createdAt: new Date(nowMs - 10 * 60 * 1000).toISOString(),
@@ -112,7 +112,7 @@ describe("filterMinViews", () => {
     });
   });
 
-  it("drops low-view posts older than 60 minutes", () => {
+  await it("drops low-view posts older than 60 minutes", () => {
     const old = thread("old", "old", undefined, {
       views: 12,
       createdAt: new Date(nowMs - 2 * 60 * 60 * 1000).toISOString(),
@@ -123,7 +123,7 @@ describe("filterMinViews", () => {
     });
   });
 
-  it("does not grant fresh-card grace to low-view hydrated OPs", () => {
+  await it("does not grant fresh-card grace to low-view hydrated OPs", () => {
     const reply = thread("reply", "reply", undefined, {
       isReply: true,
       opParentDerived: true,
@@ -137,7 +137,7 @@ describe("filterMinViews", () => {
     });
   });
 
-  it("grants grace when the low-view hydrated OP is fresh", () => {
+  await it("grants grace when the low-view hydrated OP is fresh", () => {
     const reply = thread("reply", "reply", undefined, {
       isReply: true,
       opParentDerived: true,
@@ -153,8 +153,8 @@ describe("filterMinViews", () => {
   });
 });
 
-describe("isSelfReply / filterSelfReplies", () => {
-  it("detects same-author reply-to", () => {
+await describe("isSelfReply / filterSelfReplies", async () => {
+  await it("detects same-author reply-to", () => {
     assert.equal(
       isSelfReply({
         id: "1",
@@ -179,7 +179,7 @@ describe("isSelfReply / filterSelfReplies", () => {
     );
   });
 
-  it("keeps cross-account replies and roots", () => {
+  await it("keeps cross-account replies and roots", () => {
     assert.equal(
       isSelfReply({
         id: "1",
@@ -202,7 +202,7 @@ describe("isSelfReply / filterSelfReplies", () => {
     );
   });
 
-  it("detects same-author via hydrated opAuthor without inReplyToScreenName", () => {
+  await it("detects same-author via hydrated opAuthor without inReplyToScreenName", () => {
     assert.equal(
       isSelfReply({
         id: "1",
@@ -232,7 +232,7 @@ describe("isSelfReply / filterSelfReplies", () => {
     );
   });
 
-  it("keeps cross-account replies when only opAuthor is set", () => {
+  await it("keeps cross-account replies when only opAuthor is set", () => {
     assert.equal(
       isSelfReply({
         id: "1",
@@ -249,7 +249,7 @@ describe("isSelfReply / filterSelfReplies", () => {
     );
   });
 
-  it("keeps quote-derived opAuthor equal to author", () => {
+  await it("keeps quote-derived opAuthor equal to author", () => {
     assert.equal(
       isSelfReply({
         id: "1",
@@ -266,7 +266,7 @@ describe("isSelfReply / filterSelfReplies", () => {
     );
   });
 
-  it("filters self-replies from a batch", () => {
+  await it("filters self-replies from a batch", () => {
     const selfR: ThreadCard = {
       id: "1",
       author: "@a",
@@ -291,8 +291,8 @@ describe("isSelfReply / filterSelfReplies", () => {
   });
 });
 
-describe("resolveMaxThreadChars", () => {
-  it("defaults when empty or invalid", () => {
+await describe("resolveMaxThreadChars", async () => {
+  await it("defaults when empty or invalid", () => {
     assert.equal(resolveMaxThreadChars(), DEFAULT_MAX_THREAD_CHARS);
     assert.equal(resolveMaxThreadChars(""), DEFAULT_MAX_THREAD_CHARS);
     assert.equal(resolveMaxThreadChars("abc"), DEFAULT_MAX_THREAD_CHARS);
@@ -301,35 +301,35 @@ describe("resolveMaxThreadChars", () => {
     assert.equal(resolveMaxThreadChars("12.5"), DEFAULT_MAX_THREAD_CHARS);
   });
 
-  it("accepts a positive integer override", () => {
+  await it("accepts a positive integer override", () => {
     assert.equal(resolveMaxThreadChars("320"), 320);
     assert.equal(resolveMaxThreadChars(" 900 "), 900);
   });
 });
 
-describe("isOversizedThread", () => {
-  it("keeps exact max and drops max+1", () => {
+await describe("isOversizedThread", async () => {
+  await it("keeps exact max and drops max+1", () => {
     const max = 480;
     assert.equal(isOversizedThread("a".repeat(max), max), false);
     assert.equal(isOversizedThread("a".repeat(max + 1), max), true);
   });
 });
 
-describe("isThreadOpener", () => {
-  it("matches N/M openers that mention thread", () => {
+await describe("isThreadOpener", async () => {
+  await it("matches N/M openers that mention thread", () => {
     assert.equal(isThreadOpener("1/12 Starting a thread about AI"), true);
     assert.equal(isThreadOpener("  3 / 7  A thread about AI"), true);
     assert.equal(isThreadOpener("Here's a short take on AI tools"), false);
   });
 
-  it("rejects N/M-like patterns without thread keyword", () => {
+  await it("rejects N/M-like patterns without thread keyword", () => {
     assert.equal(isThreadOpener("2020/2021 in review — my top AI reads"), false);
     assert.equal(isThreadOpener("1/2 cup coffee then 1/2 coding"), false);
     assert.equal(isThreadOpener("42/42 test suite is green"), false);
   });
 });
 
-describe("filterByLanguage", () => {
+await describe("filterByLanguage", async () => {
   const spanish =
     "Ahora que todos están quejándose de build in public, voy yo: dejé de hacer build in public porque me copiaban todo, literalmente todo, hasta las publicaciones sobre qué roles contratábamos.";
   const english =
@@ -337,7 +337,7 @@ describe("filterByLanguage", () => {
   const french =
     "Ton article est full value ! On s'entête parfois dans le build in public, post etc alors qu'un commentaire sous un post viral peut te faire plus facilement avancer.";
 
-  it("drops Spanish for preferred en; keeps English BIP", () => {
+  await it("drops Spanish for preferred en; keeps English BIP", () => {
     const es = thread("es1", spanish, undefined, { author: "@ssebita_r" });
     const en = thread("en1", english);
     const result = filterByLanguage([es, en], "en");
@@ -350,7 +350,7 @@ describe("filterByLanguage", () => {
     assert.equal(isNonPreferredLanguage(en, "en"), false);
   });
 
-  it("drops a mixed Indonesian-English post for preferred en", () => {
+  await it("drops a mixed Indonesian-English post for preferred en", () => {
     const jaksel = thread(
       "jaksel1",
       `Hot take:
@@ -379,7 +379,7 @@ They'll expose how bad we already are at judging performance.`,
     });
   });
 
-  it("keeps short ambiguous text", () => {
+  await it("keeps short ambiguous text", () => {
     const short = thread("s1", "ok thanks");
     assert.equal(isNonPreferredLanguage(short, "en"), false);
     const result = filterByLanguage([short], "en");
@@ -387,7 +387,7 @@ They'll expose how bad we already are at judging performance.`,
     assert.equal(result.threads.length, 1);
   });
 
-  it("samples only the card's own text, ignoring OP/root text", () => {
+  await it("samples only the card's own text, ignoring OP/root text", () => {
     const englishReply = thread("en1", english, undefined, {
       opText: spanish,
     });
@@ -401,7 +401,7 @@ They'll expose how bad we already are at judging performance.`,
     );
   });
 
-  it("keeps French when preferred is fr", () => {
+  await it("keeps French when preferred is fr", () => {
     const fr = thread("fr1", french);
     const en = thread("en1", english);
     const result = filterByLanguage([fr, en], "fr");
@@ -409,14 +409,14 @@ They'll expose how bad we already are at judging performance.`,
     assert.ok(!result.threads.some((t) => t.id === "en1"));
   });
 
-  it("normalizePreferredLanguageCode defaults invalid to en", () => {
+  await it("normalizePreferredLanguageCode defaults invalid to en", () => {
     assert.equal(normalizePreferredLanguageCode("de"), "de");
     assert.equal(normalizePreferredLanguageCode("zz"), "en");
   });
 });
 
-describe("filterOutboundLinks", () => {
-  it("drops flagged cards and text-URL cards; keeps clean", () => {
+await describe("filterOutboundLinks", async () => {
+  await it("drops flagged cards and text-URL cards; keeps clean", () => {
     const flagged = thread("1", "no url in text", undefined, {
       hasOutboundLink: true,
     });
@@ -431,7 +431,7 @@ describe("filterOutboundLinks", () => {
     assert.equal(result.linkFilteredCount, 2);
   });
 
-  it("threadHasOutboundLink uses flag or text fallback", () => {
+  await it("threadHasOutboundLink uses flag or text fallback", () => {
     assert.equal(
       threadHasOutboundLink(thread("1", "hi", undefined, { hasOutboundLink: true })),
       true,
@@ -440,7 +440,7 @@ describe("filterOutboundLinks", () => {
     assert.equal(threadHasOutboundLink(thread("3", "no links here")), false);
   });
 
-  it("drops a clean reply when the OP has an off-platform link", () => {
+  await it("drops a clean reply when the OP has an off-platform link", () => {
     const reply = thread("r1", "Agree — ship the loop.", undefined, {
       isReply: true,
       inReplyToId: "op1",
@@ -460,7 +460,7 @@ describe("filterOutboundLinks", () => {
     assert.equal(result.linkFilteredCount, 1);
   });
 
-  it("keeps outbound-link posts when dropOutboundLinks is false", () => {
+  await it("keeps outbound-link posts when dropOutboundLinks is false", () => {
     const flagged = thread("1", "no url in text", undefined, {
       hasOutboundLink: true,
     });
@@ -470,8 +470,8 @@ describe("filterOutboundLinks", () => {
   });
 });
 
-describe("filterNativeMedia", () => {
-  it("drops cards with media shortlinks or pic hosts", () => {
+await describe("filterNativeMedia", async () => {
+  await it("drops cards with media shortlinks or pic hosts", () => {
     const photo = thread("1", "interview notes", undefined, {
       mediaShortlinks: ["t.co/zk5ziekdnn"],
     });
@@ -483,7 +483,7 @@ describe("filterNativeMedia", () => {
     assert.equal(threadHasNativeMedia(photo), true);
   });
 
-  it("drops a clean reply when the OP has native media", () => {
+  await it("drops a clean reply when the OP has native media", () => {
     const reply = thread("r1", "Agree, ship the loop.", undefined, {
       isReply: true,
       opText: "Thread dump pic.x.com/longshot",
@@ -492,7 +492,7 @@ describe("filterNativeMedia", () => {
     assert.equal(result.mediaFilteredCount, 1);
   });
 
-  it("keeps media posts when dropNativeMedia is false", () => {
+  await it("keeps media posts when dropNativeMedia is false", () => {
     const photo = thread("1", "photo", undefined, {
       mediaShortlinks: ["t.co/abc"],
     });
@@ -502,8 +502,8 @@ describe("filterNativeMedia", () => {
   });
 });
 
-describe("filterHashtags", () => {
-  it("drops hashtags and keeps #123, mentions, and clean text", () => {
+await describe("filterHashtags", async () => {
+  await it("drops hashtags and keeps #123, mentions, and clean text", () => {
     const tagged = thread("1", "Ship this #buildinpublic");
     const issue = thread("2", "See issue #123 tomorrow");
     const mention = thread("3", "Thanks @alice for the tip");
@@ -515,7 +515,7 @@ describe("filterHashtags", () => {
     assert.equal(threadHasHashtag(tagged), true);
   });
 
-  it("drops a clean reply when the OP has a hashtag", () => {
+  await it("drops a clean reply when the OP has a hashtag", () => {
     const reply = thread("r1", "Agree, ship the loop.", undefined, {
       opText: "Take on #AI hiring",
     });
@@ -523,7 +523,7 @@ describe("filterHashtags", () => {
     assert.equal(result.hashtagFilteredCount, 1);
   });
 
-  it("keeps hashtag posts when dropHashtags is false", () => {
+  await it("keeps hashtag posts when dropHashtags is false", () => {
     const tagged = thread("1", "Ship this #buildinpublic");
     const result = filterHashtags([tagged], { dropHashtags: false });
     assert.deepEqual(result.threads.map((t) => t.id), ["1"]);
@@ -531,14 +531,14 @@ describe("filterHashtags", () => {
   });
 });
 
-describe("filterEmDashes", () => {
-  it("detects U+2014 only (not hyphen or en dash)", () => {
+await describe("filterEmDashes", async () => {
+  await it("detects U+2014 only (not hyphen or en dash)", () => {
     assert.equal(textHasEmDash(`Not a benchmark ${EM_DASH} infrastructure`), true);
     assert.equal(textHasEmDash("plain hyphen - ok"), false);
     assert.equal(textHasEmDash("en dash \u2013 ok"), false);
   });
 
-  it("drops em-dash posts by default and keeps clean ones", () => {
+  await it("drops em-dash posts by default and keeps clean ones", () => {
     const slop = thread("1", `Not a benchmark ${EM_DASH} infrastructure`);
     const clean = thread("2", "Ship weekly. Concrete take.");
     const result = filterEmDashes([slop, clean]);
@@ -549,7 +549,7 @@ describe("filterEmDashes", () => {
     assert.equal(result.emDashFilteredCount, 1);
   });
 
-  it("keeps em-dash posts when dropEmDashes is false", () => {
+  await it("keeps em-dash posts when dropEmDashes is false", () => {
     const slop = thread("1", `Hello ${EM_DASH} world`);
     const result = filterEmDashes([slop], { dropEmDashes: false });
     assert.equal(result.threads.length, 1);
@@ -557,8 +557,8 @@ describe("filterEmDashes", () => {
   });
 });
 
-describe("filterProfanity", () => {
-  it("drops candidate or OP swears by default and keeps clean ones", () => {
+await describe("filterProfanity", async () => {
+  await it("drops candidate or OP swears by default and keeps clean ones", () => {
     const dirty = thread("1", "what the fuck happened to this deploy");
     const dirtyOp = thread("2", "Agree.", undefined, {
       opText: "this is shit",
@@ -572,7 +572,7 @@ describe("filterProfanity", () => {
     assert.equal(result.profanityFilteredCount, 2);
   });
 
-  it("keeps profane posts when dropProfanity is false", () => {
+  await it("keeps profane posts when dropProfanity is false", () => {
     const dirty = thread("1", "what the fuck happened");
     const result = filterProfanity([dirty], { dropProfanity: false });
     assert.equal(result.threads.length, 1);
@@ -580,8 +580,8 @@ describe("filterProfanity", () => {
   });
 });
 
-describe("filterAutomatedAccounts", () => {
-  it("drops isAutomated authors by default and keeps humans", () => {
+await describe("filterAutomatedAccounts", async () => {
+  await it("drops isAutomated authors by default and keeps humans", () => {
     const bot: ThreadCard = {
       ...thread("1", "AI take"),
       isAutomated: true,
@@ -595,7 +595,7 @@ describe("filterAutomatedAccounts", () => {
     assert.equal(result.automatedFilteredCount, 1);
   });
 
-  it("keeps automated authors when dropAutomatedAccounts is false", () => {
+  await it("keeps automated authors when dropAutomatedAccounts is false", () => {
     const bot: ThreadCard = {
       ...thread("1", "AI take"),
       isAutomated: true,
@@ -608,8 +608,8 @@ describe("filterAutomatedAccounts", () => {
   });
 });
 
-describe("filterExcludedAccounts", () => {
-  it("drops default chatbot authors including grok and boardyai", () => {
+await describe("filterExcludedAccounts", async () => {
+  await it("drops default chatbot authors including grok and boardyai", () => {
     const bot = thread("1", "YPP numbers", undefined, { author: "@grok" });
     const boardy = thread("3", "Boardy take", undefined, { author: "@boardyai" });
     const human = thread("2", "Human take", undefined, { author: "@alice" });
@@ -621,14 +621,14 @@ describe("filterExcludedAccounts", () => {
     assert.equal(result.excludedAccountFilteredCount, 2);
   });
 
-  it("keeps everyone when the exclude list is empty", () => {
+  await it("keeps everyone when the exclude list is empty", () => {
     const bot = thread("1", "YPP numbers", undefined, { author: "@grok" });
     const result = filterExcludedAccounts([bot], []);
     assert.equal(result.threads.length, 1);
     assert.equal(result.excludedAccountFilteredCount, 0);
   });
 
-  it("treats omit as the default chatbot list and [] as off", () => {
+  await it("treats omit as the default chatbot list and [] as off", () => {
     assert.ok(resolveExcludedAccounts().includes("grok"));
     assert.ok(resolveExcludedAccounts().includes("boardyai"));
     assert.deepEqual(resolveExcludedAccounts([]), []);
@@ -638,8 +638,8 @@ describe("filterExcludedAccounts", () => {
   });
 });
 
-describe("filterThreadsByLength", () => {
-  it("keeps 480-char posts and drops 481", () => {
+await describe("filterThreadsByLength", async () => {
+  await it("keeps 480-char posts and drops 481", () => {
     const ok = thread("1", "x".repeat(480));
     const long = thread("2", "y".repeat(481));
     const result = filterThreadsByLength([ok, long], 480);
@@ -652,7 +652,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.articleFilteredCount, 0);
   });
 
-  it("drops thread openers even under the char cap", () => {
+  await it("drops thread openers even under the char cap", () => {
     const opener = thread("1", "1/12 Starting a thread about shipping");
     const short = thread("2", "Concrete take: ship weekly.");
     const result = filterThreadsByLength([opener, short], 480);
@@ -665,7 +665,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.articleFilteredCount, 0);
   });
 
-  it("hard-drops Articles even when the teaser is under the char cap", () => {
+  await it("hard-drops Articles even when the teaser is under the char cap", () => {
     const article = thread("1", "Short article teaser", "article");
     const short = thread("2", "Concrete take: ship weekly.");
     const result = filterThreadsByLength([article, short], 480);
@@ -678,7 +678,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.openerFilteredCount, 0);
   });
 
-  it("drops long note_tweet body via char cap without article flag", () => {
+  await it("drops long note_tweet body via char cap without article flag", () => {
     const longNote = thread("1", "y".repeat(481), "note_tweet");
     const short = thread("2", "Punchy take.");
     const result = filterThreadsByLength([longNote, short], 480);
@@ -691,7 +691,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.openerFilteredCount, 0);
   });
 
-  it("keeps punchy note tweets under the cap", () => {
+  await it("keeps punchy note tweets under the cap", () => {
     const note = thread("1", "Shipped v2 — AMA", "note_tweet");
     const result = filterThreadsByLength([note], 480);
     assert.deepEqual(
@@ -701,7 +701,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.filteredCount, 0);
   });
 
-  it("keeps short Articles when dropArticles is false", () => {
+  await it("keeps short Articles when dropArticles is false", () => {
     const article = thread("1", "Short article teaser", "article");
     const result = filterThreadsByLength([article], 480, {
       dropArticles: false,
@@ -713,7 +713,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.articleFilteredCount, 0);
   });
 
-  it("still drops oversized Articles when dropArticles is false", () => {
+  await it("still drops oversized Articles when dropArticles is false", () => {
     const article = thread("1", "y".repeat(481), "article");
     const result = filterThreadsByLength([article], 480, {
       dropArticles: false,
@@ -722,7 +722,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.articleFilteredCount, 0);
   });
 
-  it("drops replies under a hydrated Article parent", () => {
+  await it("drops replies under a hydrated Article parent", () => {
     const reply = thread("2", "Short take on this", undefined, {
       isReply: true,
       inReplyToId: "1",
@@ -738,7 +738,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.articleFilteredCount, 1);
   });
 
-  it("drops replies whose conversation root is an Article in the same batch", () => {
+  await it("drops replies whose conversation root is an Article in the same batch", () => {
     const article = thread("1", "Short article teaser", "article");
     const reply = thread("2", "Nice writeup", undefined, {
       isReply: true,
@@ -750,7 +750,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.articleFilteredCount, 2);
   });
 
-  it("keeps article replies when dropArticles is false", () => {
+  await it("keeps article replies when dropArticles is false", () => {
     const reply = thread("2", "Short take", undefined, {
       isReply: true,
       inReplyToId: "1",
@@ -764,7 +764,7 @@ describe("filterThreadsByLength", () => {
     );
   });
 
-  it("drops replies under a parent over the char cap", () => {
+  await it("drops replies under a parent over the char cap", () => {
     const reply = thread("2", "Agree", undefined, {
       isReply: true,
       inReplyToId: "1",
@@ -777,7 +777,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.articleFilteredCount, 0);
   });
 
-  it("uses opCharCount instead of the sliced opText preview", () => {
+  await it("uses opCharCount instead of the sliced opText preview", () => {
     const reply = thread("2", "Agree", undefined, {
       isReply: true,
       inReplyToId: "1",
@@ -791,7 +791,7 @@ describe("filterThreadsByLength", () => {
     );
   });
 
-  it("does not treat quote-derived opText as the parent length", () => {
+  await it("does not treat quote-derived opText as the parent length", () => {
     const reply = thread("2", "Agree", undefined, {
       isReply: true,
       inReplyToId: "1",
@@ -806,7 +806,7 @@ describe("filterThreadsByLength", () => {
     );
   });
 
-  it("drops replies under a thread-opener parent", () => {
+  await it("drops replies under a thread-opener parent", () => {
     const reply = thread("2", "First point is strong", undefined, {
       isReply: true,
       inReplyToId: "1",
@@ -817,7 +817,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.openerFilteredCount, 1);
   });
 
-  it("keeps unhydrated replies when the parent is unknown", () => {
+  await it("keeps unhydrated replies when the parent is unknown", () => {
     const reply = thread("2", "Agree", undefined, {
       isReply: true,
       inReplyToId: "1",
@@ -829,7 +829,7 @@ describe("filterThreadsByLength", () => {
     );
   });
 
-  it("does not apply the parent cap to a quote of a long post", () => {
+  await it("does not apply the parent cap to a quote of a long post", () => {
     const quote = thread("2", "This bit", undefined, {
       isQuote: true,
       opText: "preview",
@@ -842,7 +842,7 @@ describe("filterThreadsByLength", () => {
     );
   });
 
-  it("drops a quote of an X Article", () => {
+  await it("drops a quote of an X Article", () => {
     const quote = thread(
       "2095418466593390838",
       "The real value of AI lies not in drawing conclusions for us.",
@@ -859,7 +859,7 @@ describe("filterThreadsByLength", () => {
     assert.equal(result.articleFilteredCount, 1);
   });
 
-  it("drops replies using article ids from an earlier page", () => {
+  await it("drops replies using article ids from an earlier page", () => {
     const reply = thread("9", "Nice writeup", undefined, {
       isReply: true,
       inReplyToId: "art1",
@@ -873,8 +873,8 @@ describe("filterThreadsByLength", () => {
   });
 });
 
-describe("resolveMaxThreadCharsFromFilters", () => {
-  it("prefers positive integer override over env", () => {
+await describe("resolveMaxThreadCharsFromFilters", async () => {
+  await it("prefers positive integer override over env", () => {
     assert.equal(resolveMaxThreadCharsFromFilters(320, "900"), 320);
     assert.equal(resolveMaxThreadCharsFromFilters(undefined, "900"), 900);
     assert.equal(resolveMaxThreadCharsFromFilters(-1, "900"), 900);
@@ -882,8 +882,8 @@ describe("resolveMaxThreadCharsFromFilters", () => {
   });
 });
 
-describe("excluded triage tags", () => {
-  it("normalizes intent-like phrases to snake_case tokens", () => {
+await describe("excluded triage tags", async () => {
+  await it("normalizes intent-like phrases to snake_case tokens", () => {
     assert.equal(
       normalizeTagToken("Supportive Encouragement"),
       "supportive_encouragement",
@@ -893,7 +893,7 @@ describe("excluded triage tags", () => {
     assert.equal(normalizeTagToken("!!!"), null);
   });
 
-  it("defaults missing exclude lists and preserves explicit empty", () => {
+  await it("defaults missing exclude lists and preserves explicit empty", () => {
     assert.deepEqual(DEFAULT_EXCLUDED_TAGS, [
       "supportive_encouragement",
       "political",
@@ -908,7 +908,7 @@ describe("excluded triage tags", () => {
     );
   });
 
-  it("matches normalized intent and flags exactly", () => {
+  await it("matches normalized intent and flags exactly", () => {
     assert.equal(
       threadHasExcludedTag(
         { intent: "supportive encouragement", flags: ["genuine_question"] },
@@ -940,8 +940,8 @@ describe("excluded triage tags", () => {
   });
 });
 
-describe("bait conversation suppress", () => {
-  it("tags high baitScore and bait flags", () => {
+await describe("bait conversation suppress", async () => {
+  await it("tags high baitScore and bait flags", () => {
     assert.equal(isBaitConversationTagged({ baitScore: 70 }), true);
     assert.equal(isBaitConversationTagged({ baitScore: 69 }), false);
     assert.equal(
@@ -960,7 +960,7 @@ describe("bait conversation suppress", () => {
     );
   });
 
-  it("collects conversation + card ids from bait-tagged rows", () => {
+  await it("collects conversation + card ids from bait-tagged rows", () => {
     const ids = collectBaitConversationIds([
       {
         id: "root1",
@@ -981,7 +981,7 @@ describe("bait conversation suppress", () => {
     assert.equal(ids.has("other"), false);
   });
 
-  it("drops replies under bait roots, keeps roots and unrelated", () => {
+  await it("drops replies under bait roots, keeps roots and unrelated", () => {
     const baitIds = new Set(["bait-root"]);
     assert.equal(
       replyUnderBaitConversation(

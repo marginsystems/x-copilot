@@ -2,6 +2,7 @@
  * Tenant-scoped X API usage ledger (shared platform credentials).
  * Tenants see credits; estimated $ is operator-only (/admin).
  */
+import { optionalStringRow, isRecord, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
 import { randomUUID } from "node:crypto";
 import {
   countPostsReadThisUtcMonth,
@@ -292,11 +293,11 @@ export function getUsageSummary(opts?: {
   const monthStartIso = startOfUtcMonthIso();
   const monthCreditsUsed = countPostsReadThisUtcMonth(tenantId);
 
-  const tenant = database
+  const tenant = optionalStringRow(database
     .prepare(`SELECT slug FROM tenants WHERE id = ?`)
-    .get(tenantId) as { slug: string } | undefined;
+    .get(tenantId), "slug");
 
-  const agg = (
+  const agg = readUsageTotalsRow((
     since
       ? database
           .prepare(
@@ -318,13 +319,9 @@ export function getUsageSummary(opts?: {
              WHERE tenant_id = ? AND ${CREDIT_EVENT_PATH_SQL}`,
           )
           .get(tenantId)
-  ) as {
-    calls: number;
-    posts_read: number;
-    cost_usd_micros: number;
-  };
+  ));
 
-  const depletedRow = (
+  const depletedRow = readDepletedCountRow((
     since
       ? database
           .prepare(
@@ -338,7 +335,7 @@ export function getUsageSummary(opts?: {
              WHERE tenant_id = ? AND error = 'credits_depleted'`,
           )
           .get(tenantId)
-  ) as { n: number };
+  ));
 
   const recentRaw = (
     since
@@ -360,16 +357,7 @@ export function getUsageSummary(opts?: {
              LIMIT ?`,
           )
           .all(tenantId, limit)
-  ) as Array<{
-    id: string;
-    at: string;
-    method: string;
-    path: string;
-    status: number;
-    error: string | null;
-    posts_read: number;
-    cost_usd_micros: number;
-  }>;
+  ).map(readUsageEventRow);
 
   const estimatedUsdMicros = Number(agg.cost_usd_micros) || 0;
   const remaining =
@@ -412,5 +400,50 @@ export function getUsageSummary(opts?: {
         remaining: rowRemaining,
       };
     }),
+  };
+}
+
+function readUsageTotalsRow(value: unknown) {
+  if (!(
+    isRecord(value) &&
+    ("calls" in value && typeof value.calls === "number") &&
+    ("posts_read" in value && typeof value.posts_read === "number") &&
+    ("cost_usd_micros" in value && typeof value.cost_usd_micros === "number")
+  )) throw new TypeError("Invalid database row");
+  return {
+    calls: value.calls,
+    posts_read: value.posts_read,
+    cost_usd_micros: value.cost_usd_micros,
+  };
+}
+
+function readDepletedCountRow(value: unknown) {
+  if (!(
+    isRecord(value) &&
+    ("n" in value && typeof value.n === "number")
+  )) throw new TypeError("Invalid database row");
+  return {
+    n: value.n,
+  };
+}
+
+function readUsageEventRow(value: unknown) {
+  if (!(
+    isRecord(value) &&
+    hasStrings(value, "id", "at", "method", "path") &&
+    hasNullableStrings(value, "error") &&
+    ("status" in value && typeof value.status === "number") &&
+    ("posts_read" in value && typeof value.posts_read === "number") &&
+    ("cost_usd_micros" in value && typeof value.cost_usd_micros === "number")
+  )) throw new TypeError("Invalid database row");
+  return {
+    id: value.id,
+    at: value.at,
+    method: value.method,
+    path: value.path,
+    status: value.status,
+    error: value.error,
+    posts_read: value.posts_read,
+    cost_usd_micros: value.cost_usd_micros,
   };
 }

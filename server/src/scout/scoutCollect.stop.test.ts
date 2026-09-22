@@ -7,13 +7,13 @@ import { normalizeAuthorKey } from "../desk/interactionCooldown.ts";
 import type { PlanQueriesOpts } from "./queryPlan.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
-describe("runScoutCollect stop", () => {
+await describe("runScoutCollect stop", async () => {
   const session = {
     bearerToken: "t",
     configured: true,
   };
 
-  it("stops mid-run with credits_exhausted when the credit gate closes", async () => {
+  await it("stops mid-run with credits_exhausted when the credit gate closes", async () => {
     let gateCalls = 0;
     const id = { n: 0 };
 
@@ -58,7 +58,7 @@ describe("runScoutCollect stop", () => {
     assert.match(result.event.message, /credits/);
   });
 
-  it("aborted flag short-circuits between steps", async () => {
+  await it("aborted flag short-circuits between steps", async () => {
     const abort = new AbortController();
     let searchCalls = 0;
 
@@ -102,7 +102,7 @@ describe("runScoutCollect stop", () => {
     assert.equal(searchCalls, 1);
   });
 
-  it("persists cools to cache on each cool partial", async () => {
+  await it("persists cools to cache on each cool partial", async () => {
     const cacheSnaps: Array<{ threads: ThreadCard[] }> = [];
     const id = { n: 0 };
     let triageCalls = 0;
@@ -156,7 +156,7 @@ describe("runScoutCollect stop", () => {
     );
   });
 
-  it("persists cools before abort tears down the run", async () => {
+  await it("persists cools before abort tears down the run", async () => {
     const abort = new AbortController();
     const cacheSnaps: Array<{ threads: ThreadCard[] }> = [];
     const id = { n: 0 };
@@ -210,7 +210,7 @@ describe("runScoutCollect stop", () => {
     assert.equal(result.event.coolCount, 1);
   });
 
-  it("persists qualified extras while stopping search at the target", async () => {
+  await it("persists qualified extras while stopping search at the target", async () => {
     const cacheSnaps: Array<{ threads: ThreadCard[] }> = [];
     let searchCalls = 0;
     const id = { n: 0 };

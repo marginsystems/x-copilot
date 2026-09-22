@@ -25,6 +25,7 @@ import {
 import { reconcileScoutEvidence } from "./scoutEvidenceReconcile.js";
 import {
   SCOUT_PROFILE_VERSION,
+  emptyScoutProfile,
   reduceScoutProfile,
   type ActionCounts,
   type ScoutKindProfile,
@@ -154,7 +155,7 @@ function parseKind(value: unknown): ScoutKindProfile | null {
     resolvedActions === null ||
     smoothedTakeRate === null ||
     typeof value.bias !== "string" ||
-    !BIASES.has(value.bias)
+    !isKindBias(value.bias)
   ) {
     return null;
   }
@@ -162,7 +163,7 @@ function parseKind(value: unknown): ScoutKindProfile | null {
     ...counts,
     resolvedActions,
     smoothedTakeRate,
-    bias: value.bias as ScoutKindProfile["bias"],
+    bias: value.bias,
   };
 }
 
@@ -217,7 +218,7 @@ export function parseStoredScoutProfile(
   }
 
   if (!isRecord(data.kinds)) return null;
-  const kinds = {} as Record<ThreadKind, ScoutKindProfile>;
+  const kinds = emptyScoutProfile(id).kinds;
   for (const kind of THREAD_KINDS) {
     const parsed = parseKind(data.kinds[kind]);
     if (!parsed) return null;
@@ -248,7 +249,7 @@ export function parseStoredScoutProfile(
     score === null ||
     score > 100 ||
     typeof data.familiarity.state !== "string" ||
-    !FAMILIARITY_STATES.has(data.familiarity.state)
+    !isFamiliarityState(data.familiarity.state)
   ) {
     return null;
   }
@@ -264,19 +265,19 @@ export function parseStoredScoutProfile(
     if (
       !at ||
       typeof action !== "string" ||
-      !ACTIONS.has(action) ||
+      !isProfileAction(action) ||
       !(
         threadKind === null ||
         (typeof threadKind === "string" &&
-          (THREAD_KINDS as readonly string[]).includes(threadKind))
+          isThreadKind(threadKind))
       )
     ) {
       return null;
     }
     lastLearned = {
       at,
-      action: action as "take" | "skip" | "dismiss",
-      threadKind: threadKind as ThreadKind | null,
+      action: action,
+      threadKind,
     };
   }
 
@@ -301,7 +302,7 @@ export function parseStoredScoutProfile(
     topics,
     authors,
     familiarity: {
-      state: data.familiarity.state as ScoutProfile["familiarity"]["state"],
+      state: data.familiarity.state,
       score,
     },
     lastLearned,
@@ -318,7 +319,7 @@ async function readStoredProfile(
   try {
     raw = await readFile(path, "utf8");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    if ((isRecord(err) ? err.code : undefined) === "ENOENT") return null;
     throw err;
   }
   return parseStoredScoutProfile(raw, userId);
@@ -429,3 +430,19 @@ export function installScoutProfileProjection(
 }
 
 installScoutProfileProjection();
+
+function isKindBias(value: string): value is ScoutKindProfile["bias"] {
+  return BIASES.has(value);
+}
+
+function isFamiliarityState(value: string): value is ScoutProfile["familiarity"]["state"] {
+  return FAMILIARITY_STATES.has(value);
+}
+
+function isProfileAction(value: string): value is "take" | "skip" | "dismiss" {
+  return ACTIONS.has(value);
+}
+
+function isThreadKind(value: string): value is ThreadKind {
+  return THREAD_KINDS.some((kind) => kind === value);
+}

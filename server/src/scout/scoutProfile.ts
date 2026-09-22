@@ -119,9 +119,17 @@ function emptyKindProfile(): ScoutKindProfile {
 }
 
 function emptyKinds(): Record<ThreadKind, ScoutKindProfile> {
-  const kinds = {} as Record<ThreadKind, ScoutKindProfile>;
-  for (const kind of THREAD_KINDS) kinds[kind] = emptyKindProfile();
-  return kinds;
+  return {
+    timely_take: emptyKindProfile(),
+    fact_add: emptyKindProfile(),
+    sharp_opinion: emptyKindProfile(),
+    lived_answer: emptyKindProfile(),
+    hollow_ask: emptyKindProfile(),
+    promo_context: emptyKindProfile(),
+    bare_news: emptyKindProfile(),
+    closed_thread: emptyKindProfile(),
+    other: emptyKindProfile(),
+  };
 }
 
 /** Frozen familiarity formula. Coverage only; not accuracy or affinity. */

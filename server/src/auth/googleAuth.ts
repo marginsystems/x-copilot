@@ -1,6 +1,7 @@
 /**
  * Google OAuth (openid email profile) — server-side code exchange.
  */
+import { objectValue } from "../platform/unknownValue.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AuthUser } from "./authStore.js";
 import { upsertOauthIdentity } from "./oauthAccountStore.js";
@@ -85,13 +86,13 @@ export async function exchangeGoogleCode(opts: {
   if (!tokenRes.ok) {
     return { ok: false, status: 502, error: "token_exchange_failed" };
   }
-  let tokenJson: { access_token?: string };
+  let tokenJson: Record<string, unknown>;
   try {
-    tokenJson = (await tokenRes.json()) as { access_token?: string };
+    tokenJson = objectValue(await tokenRes.json());
   } catch {
     return { ok: false, status: 502, error: "token_exchange_failed" };
   }
-  const accessToken = tokenJson.access_token?.trim();
+  const accessToken = typeof tokenJson.access_token === "string" ? tokenJson.access_token.trim() : "";
   if (!accessToken) {
     return { ok: false, status: 502, error: "missing_access_token" };
   }
@@ -111,35 +112,23 @@ export async function exchangeGoogleCode(opts: {
   if (!infoRes.ok) {
     return { ok: false, status: 502, error: "userinfo_failed" };
   }
-  let info: {
-    sub?: string;
-    email?: string;
-    email_verified?: boolean;
-    name?: string;
-    picture?: string;
-  };
+  let info: Record<string, unknown>;
   try {
-    info = (await infoRes.json()) as {
-      sub?: string;
-      email?: string;
-      email_verified?: boolean;
-      name?: string;
-      picture?: string;
-    };
+    info = objectValue(await infoRes.json());
   } catch {
     return { ok: false, status: 502, error: "userinfo_failed" };
   }
-  if (!info.sub) {
+  if (typeof info.sub !== "string" || !info.sub) {
     return { ok: false, status: 502, error: "missing_sub" };
   }
   return {
     ok: true,
     profile: {
       sub: info.sub,
-      email: info.email?.trim().toLowerCase() || null,
+      email: typeof info.email === "string" ? info.email.trim().toLowerCase() || null : null,
       emailVerified: Boolean(info.email_verified),
-      name: info.name?.trim() || null,
-      picture: info.picture?.trim() || null,
+      name: typeof info.name === "string" ? info.name.trim() || null : null,
+      picture: typeof info.picture === "string" ? info.picture.trim() || null : null,
     },
   };
 }

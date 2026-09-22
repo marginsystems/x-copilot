@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import {
@@ -24,8 +25,8 @@ afterEach(() => {
   temp = undefined;
 });
 
-describe("Scout run records", () => {
-  it("lists newest runs first and respects the limit", () => {
+await describe("Scout run records", async () => {
+  await it("lists newest runs first and respects the limit", () => {
     temp = openTempPlatformDb("x-scout-run-list-");
     const userId = seedUser("scout-run-list-user");
     for (const [index, query] of ["old", "middle", "new"].entries()) {
@@ -50,7 +51,7 @@ describe("Scout run records", () => {
     );
   });
 
-  it("skips malformed query history rows", () => {
+  await it("skips malformed query history rows", () => {
     temp = openTempPlatformDb("x-scout-run-malformed-");
     const userId = seedUser("scout-run-malformed-user");
     saveScoutRunRecord({
@@ -73,7 +74,7 @@ describe("Scout run records", () => {
     assert.deepEqual(listRecentScoutRuns(userId, 2), []);
   });
 
-  it("persists exclusive link, view-floor, and length drops", async () => {
+  await it("persists exclusive link, view-floor, and length drops", async () => {
     temp = openTempPlatformDb("x-scout-run-");
     const userId = seedUser("scout-run-user");
 
@@ -131,9 +132,9 @@ describe("Scout run records", () => {
     });
 
     assert.equal(result.ok, true);
-    const row = getPlatformDb()
+    const row = parseRowRow(getPlatformDb()
       .prepare("SELECT id FROM scout_runs")
-      .get() as { id: string };
+      .get());
     const record = getScoutRunRecord(row.id);
     assert.ok(record);
     assert.equal(record.userId, userId);
@@ -151,3 +152,11 @@ describe("Scout run records", () => {
     assert.equal(record.rejectionCounts.blocked, 0);
   });
 });
+
+function parseRowRow(value: unknown): { id: string } {
+  const valid = (row: unknown): row is { id: string } =>
+    (isRecord(row) &&
+    typeof row.id === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

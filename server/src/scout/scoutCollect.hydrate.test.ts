@@ -7,13 +7,13 @@ import { normalizeAuthorKey } from "../desk/interactionCooldown.ts";
 import type { PlanQueriesOpts } from "./queryPlan.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
-describe("runScoutCollect hydrate", () => {
+await describe("runScoutCollect hydrate", async () => {
   const session = {
     bearerToken: "t",
     configured: true,
   };
 
-  it("hydrates reply parents before triage", async () => {
+  await it("hydrates reply parents before triage", async () => {
     let hydrateCalls = 0;
     let sawOp = false;
     const id = { n: 0 };
@@ -83,7 +83,7 @@ describe("runScoutCollect hydrate", () => {
     assert.equal(sawOp, true);
   });
 
-  it("suppresses cool replies under a bait-tagged conversation root", async () => {
+  await it("suppresses cool replies under a bait-tagged conversation root", async () => {
     const result = await runScoutCollect({
       queries: ["q1"],
       bucketSize: 5,
@@ -158,11 +158,11 @@ describe("runScoutCollect hydrate", () => {
     );
   });
 
-  it("still triages when parent hydrate soft-fails", async () => {
+  await it("still triages when parent hydrate soft-fails", async () => {
     let triageCalls = 0;
     const origFetch = globalThis.fetch;
     globalThis.fetch = async () =>
-      ({ ok: false, status: 500, text: async () => { throw new Error("mock network error"); } }) as Response;
+      Object.assign(new Response(null, { status: 500 }), { text: async () => { throw new Error("mock network error"); } });
 
     try {
       const result = await runScoutCollect({
@@ -212,7 +212,7 @@ describe("runScoutCollect hydrate", () => {
     }
   });
 
-  it("drops self-replies revealed only after hydrate (missing inReplyToScreenName)", async () => {
+  await it("drops self-replies revealed only after hydrate (missing inReplyToScreenName)", async () => {
     let triageIds: string[] = [];
 
     const result = await runScoutCollect({
@@ -277,7 +277,7 @@ describe("runScoutCollect hydrate", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
-  it("drops replies under a hydrated Article parent before triage", async () => {
+  await it("drops replies under a hydrated Article parent before triage", async () => {
     let triageIds: string[] = [];
 
     const result = await runScoutCollect({
@@ -343,7 +343,7 @@ describe("runScoutCollect hydrate", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
-  it("drops replies under a parent over the char cap after hydrate", async () => {
+  await it("drops replies under a parent over the char cap after hydrate", async () => {
     let triageIds: string[] = [];
 
     const result = await runScoutCollect({
@@ -409,7 +409,7 @@ describe("runScoutCollect hydrate", () => {
     assert.equal(result.event.stopReason, "target");
   });
 
-  it("exhausts when the post-hydrate length filter empties a partial bucket", async () => {
+  await it("exhausts when the post-hydrate length filter empties a partial bucket", async () => {
     let triageCalls = 0;
     let searchCalls = 0;
 
@@ -472,7 +472,7 @@ describe("runScoutCollect hydrate", () => {
     assert.equal(result.event.stopReason, "exhausted");
   });
 
-  it("keeps searching when post-hydrate OP links empty a bucket", async () => {
+  await it("keeps searching when post-hydrate OP links empty a bucket", async () => {
     let searchCalls = 0;
     const triageIds: string[] = [];
 
@@ -562,7 +562,7 @@ describe("runScoutCollect hydrate", () => {
     assert.deepEqual(triageIds, ["kept"]);
   });
 
-  it("exhausts without refilling when post-hydrate self-replies empty a full bucket", async () => {
+  await it("exhausts without refilling when post-hydrate self-replies empty a full bucket", async () => {
     let searchCalls = 0;
     let triageCalls = 0;
 

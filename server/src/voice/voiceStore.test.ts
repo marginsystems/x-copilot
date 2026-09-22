@@ -47,7 +47,7 @@ function seedReplies(count: number, opts?: { conversation?: string }): void {
   );
 }
 
-describe("voiceStore", () => {
+await describe("voiceStore", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -65,7 +65,7 @@ describe("voiceStore", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("unlocks at 100 posts even when they share a conversation", () => {
+  await it("unlocks at 100 posts even when they share a conversation", () => {
     assert.equal(VOICE_UNLOCK_MIN_POSTS, 100);
     seedReplies(100, { conversation: "same-thread" });
     assert.equal(countVoiceReplies(USER), 100);
@@ -73,7 +73,7 @@ describe("voiceStore", () => {
     assert.equal(voiceUnlocked(countVoiceReplies(USER)), true);
   });
 
-  it("unlocks at exactly 100 posts", () => {
+  await it("unlocks at exactly 100 posts", () => {
     seedReplies(99);
     assert.equal(voiceUnlocked(countVoiceReplies(USER)), false);
     upsertVoiceReplies(USER, [
@@ -83,7 +83,7 @@ describe("voiceStore", () => {
     assert.equal(voiceUnlocked(countVoiceReplies(USER)), true);
   });
 
-  it("dedupes re-pulled replies so incremental never double-counts", () => {
+  await it("dedupes re-pulled replies so incremental never double-counts", () => {
     seedReplies(20);
     const added = upsertVoiceReplies(USER, [
       { id: "100001", text: "reply number 1 with some substance" },
@@ -93,7 +93,7 @@ describe("voiceStore", () => {
     assert.equal(countVoiceReplies(USER), 21);
   });
 
-  it("caps free suggests at 10 per UTC day and resets next day", () => {
+  await it("caps free suggests at 10 per UTC day and resets next day", () => {
     assert.equal(suggestLimitForPlan("free"), 10);
     const day = new Date("2026-08-15T09:00:00.000Z");
     for (let i = 0; i < 10; i += 1) {
@@ -110,7 +110,7 @@ describe("voiceStore", () => {
     assert.equal(getSuggestUsage(USER, "free", nextDay).canSuggest, true);
   });
 
-  it("reserves a suggest slot atomically up to the day's cap", () => {
+  await it("reserves a suggest slot atomically up to the day's cap", () => {
     const day = new Date("2026-08-15T09:00:00.000Z");
     for (let i = 0; i < 10; i += 1) {
       const id = reserveSuggestSlot(
@@ -125,7 +125,7 @@ describe("voiceStore", () => {
     assert.equal(countSuggestsToday(USER, day), 10);
   });
 
-  it("releases a reserved suggest slot when the generation fails", () => {
+  await it("releases a reserved suggest slot when the generation fails", () => {
     const id = reserveSuggestSlot(USER, 10, "t1");
     assert.ok(id);
     removeSuggestRecord(id!);
@@ -133,13 +133,13 @@ describe("voiceStore", () => {
     assert.equal(countSuggestsToday(USER), 1);
   });
 
-  it("gives paid plans a conservative bump", () => {
+  await it("gives paid plans a conservative bump", () => {
     assert.equal(suggestLimitForPlan("pulse"), 20);
     assert.equal(suggestLimitForPlan("radar"), 30);
     assert.equal(suggestLimitForPlan("horizon"), 40);
   });
 
-  it("persists the card and pull cursor on the profile", () => {
+  await it("persists the card and pull cursor on the profile", () => {
     ensureVoiceProfile(USER, TENANT);
     seedReplies(3);
     updateVoiceProfilePull({
@@ -157,7 +157,7 @@ describe("voiceStore", () => {
     assert.ok(profile?.cardUpdatedAt);
   });
 
-  it("persists a starter card without marking Suggest ready", () => {
+  await it("persists a starter card without marking Suggest ready", () => {
     ensureVoiceProfile(USER, TENANT);
     const cardJson = JSON.stringify({
       tone: "Brief and direct.",
@@ -176,7 +176,7 @@ describe("voiceStore", () => {
     assert.equal(voiceCardIsStarter('{"tone":"full"}'), false);
   });
 
-  it("folds desk-detected replies from own_posts into the corpus", () => {
+  await it("folds desk-detected replies from own_posts into the corpus", () => {
     getPlatformDb()
       .prepare(
         `INSERT INTO own_posts (id, user_id, tenant_id, x_user_id, kind, text, posted_at, conversation_id, created_at)
@@ -201,7 +201,7 @@ describe("voiceStore", () => {
     assert.equal(rows[0]?.source, "desk");
   });
 
-  it("folds desk-detected originals and quotes into the corpus too", () => {
+  await it("folds desk-detected originals and quotes into the corpus too", () => {
     const insert = (id: string, kind: string) =>
       getPlatformDb()
         .prepare(
@@ -233,7 +233,7 @@ describe("voiceStore", () => {
     assert.ok(rows.every((r) => r.source === "desk"));
   });
 
-  it("folds interacted-memory replies into the corpus", () => {
+  await it("folds interacted-memory replies into the corpus", () => {
     assert.equal(
       foldMemoryReplies(USER, [
         {
@@ -260,15 +260,15 @@ describe("voiceStore", () => {
   });
 });
 
-describe("voiceCardStale", () => {
+await describe("voiceCardStale", async () => {
   const NOW = Date.parse("2026-08-24T12:00:00.000Z");
 
-  it("treats a missing or unparseable stamp as stale", () => {
+  await it("treats a missing or unparseable stamp as stale", () => {
     assert.equal(voiceCardStale(null, NOW), true);
     assert.equal(voiceCardStale("not-a-date", NOW), true);
   });
 
-  it("flips stale exactly at the 24h refresh window", () => {
+  await it("flips stale exactly at the 24h refresh window", () => {
     const fresh = new Date(NOW - VOICE_CARD_REFRESH_MS + 60_000).toISOString();
     const stale = new Date(NOW - VOICE_CARD_REFRESH_MS).toISOString();
     assert.equal(voiceCardStale(fresh, NOW), false);

@@ -10,11 +10,11 @@ import {
   withoutScoutProfileProjectionNotifications,
 } from "./scoutProfileProjection.ts";
 
-describe("scoutProfileProjection", () => {
+await describe("scoutProfileProjection", async () => {
   beforeEach(() => resetScoutProfileProjectionForTests());
   afterEach(() => resetScoutProfileProjectionForTests());
 
-  it("drops notifications until a rebuild function is registered", async () => {
+  await it("drops notifications until a rebuild function is registered", async () => {
     assert.equal(hasScoutProfileRebuild(), false);
     notifyScoutEvidenceChanged({ userId: "u1", revision: 1 });
     await flushScoutProfileProjections();
@@ -25,7 +25,7 @@ describe("scoutProfileProjection", () => {
     });
   });
 
-  it("runs the rebuild after the current synchronous work, once per burst", async () => {
+  await it("runs the rebuild after the current synchronous work, once per burst", async () => {
     const calls: string[] = [];
     setScoutProfileRebuild(async (userId) => {
       calls.push(userId);
@@ -43,7 +43,7 @@ describe("scoutProfileProjection", () => {
     assert.equal(scoutProfileProjectionStats().pending, 0);
   });
 
-  it("re-runs when a change arrives while a rebuild is in flight", async () => {
+  await it("re-runs when a change arrives while a rebuild is in flight", async () => {
     let release: () => void = () => {};
     let calls = 0;
     setScoutProfileRebuild(async () => {
@@ -63,7 +63,7 @@ describe("scoutProfileProjection", () => {
     assert.equal(calls, 2);
   });
 
-  it("does not re-run for notifications from internal repair", async () => {
+  await it("does not re-run for notifications from internal repair", async () => {
     let calls = 0;
     setScoutProfileRebuild(async (userId) => {
       calls += 1;
@@ -76,7 +76,7 @@ describe("scoutProfileProjection", () => {
     assert.equal(calls, 1);
   });
 
-  it("swallows rebuild failures and keeps serving later changes", async () => {
+  await it("swallows rebuild failures and keeps serving later changes", async () => {
     let calls = 0;
     setScoutProfileRebuild(async () => {
       calls += 1;
@@ -100,7 +100,7 @@ describe("scoutProfileProjection", () => {
     assert.equal(warnings.length, 1);
   });
 
-  it("ignores blank identities", async () => {
+  await it("ignores blank identities", async () => {
     let calls = 0;
     setScoutProfileRebuild(async () => {
       calls += 1;

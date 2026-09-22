@@ -3,6 +3,7 @@
  * Persists user access tokens so the desk can POST /2/tweets as them.
  * Scout still uses the app-only bearer for reads.
  */
+import { objectValue } from "../platform/unknownValue.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHmac } from "node:crypto";
 import { getUserById, type AuthUser } from "./authStore.js";
@@ -73,10 +74,9 @@ export async function fetchXProfileAvatar(
       },
     );
     if (!res.ok) return null;
-    const json = (await res.json()) as {
-      data?: { profile_image_url?: string };
-    };
-    const raw = json.data?.profile_image_url?.trim() ?? "";
+    const json = objectValue(await res.json());
+    const data = objectValue(json.data);
+    const raw = typeof data.profile_image_url === "string" ? data.profile_image_url.trim() : "";
     if (!raw.startsWith("https://")) return null;
     return enlargeXAvatarUrl(raw);
   } catch {
@@ -139,9 +139,9 @@ function xOauthVerifyPayload(
   raw: string,
   key: string,
 ): { token: string; secret: string } | null {
-  let parsed: { token?: string; secret?: string; sig?: string } = {};
+  let parsed: Record<string, unknown> = {};
   try {
-    parsed = JSON.parse(raw) as typeof parsed;
+    parsed = objectValue(JSON.parse(raw));
   } catch {
     return null;
   }

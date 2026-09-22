@@ -1,6 +1,7 @@
 /**
  * Users in the platform SQLite DB.
  */
+import { stringRow, isRecord, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
 import { getPlatformDb } from "../db.js";
 import { parseXHandle } from "./xHandle.js";
 import { getXOauthUsername, hasXWriteCreds } from "./xIdentityStore.js";
@@ -64,9 +65,9 @@ export function setUserXUsername(
 
 /** Number of platform users — the single-user sidecar folds unowned notes. */
 export function countPlatformUsers(): number {
-  const row = getPlatformDb()
+  const row = readUserCountRowOrUndefined(getPlatformDb()
     .prepare(`SELECT COUNT(*) AS n FROM users`)
-    .get() as { n: number } | undefined;
+    .get());
   return Number(row?.n ?? 0);
 }
 
@@ -75,23 +76,23 @@ export function countPlatformUsers(): number {
 export function getSolePlatformUserId(): string | null {
   const rows = getPlatformDb()
     .prepare(`SELECT id FROM users LIMIT 2`)
-    .all() as Array<{ id: string }>;
+    .all().map((value) => stringRow(value, "id"));
   return rows.length === 1 ? rows[0]!.id : null;
 }
 
 export function getUserById(id: string): AuthUser | null {
-  const row = getPlatformDb()
+  const row = readUserRowOrUndefined(getPlatformDb()
     .prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`)
-    .get(id) as UserRow | undefined;
+    .get(id));
   return row ? mapUser(row) : null;
 }
 
 export function getUserByEmail(email: string): AuthUser | null {
   const normalized = email.trim().toLowerCase();
   if (!normalized) return null;
-  const row = getPlatformDb()
+  const row = readUserRowOrUndefined(getPlatformDb()
     .prepare(`SELECT ${USER_COLUMNS} FROM users WHERE email = ?`)
-    .get(normalized) as UserRow | undefined;
+    .get(normalized));
   return row ? mapUser(row) : null;
 }
 
@@ -160,6 +161,32 @@ export function listIngestUsers(): AuthUser[] {
           OR (vp.reply_count >= ? AND vp.card_json IS NULL)
        ORDER BY (vp.last_pull_at IS NULL) DESC, vp.last_pull_at ASC`,
     )
-    .all(VOICE_UNLOCK_MIN_POSTS) as UserRow[];
+    .all(VOICE_UNLOCK_MIN_POSTS).map(readUserRow);
   return rows.map(mapUser);
+}
+
+function readUserCountRow(value: unknown) {
+  if (!(
+    isRecord(value) &&
+    ("n" in value && typeof value.n === "number")
+  )) throw new TypeError("Invalid database row");
+  return {
+    n: value.n,
+  };
+}
+
+function readUserCountRowOrUndefined(value: unknown) {
+  return value === undefined ? undefined : readUserCountRow(value);
+}
+
+function readUserRow(value: unknown): UserRow {
+  if (!(
+    hasStrings(value, "id", "created_at") &&
+    hasNullableStrings(value, "email", "display_name", "avatar_url", "last_login_at", "onboarding_completed_at", "agenda", "x_username")
+  )) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function readUserRowOrUndefined(value: unknown) {
+  return value === undefined ? undefined : readUserRow(value);
 }

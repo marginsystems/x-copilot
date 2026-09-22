@@ -25,8 +25,8 @@ import { recordDeskPost } from "../x-api/xPostLimits.ts";
 
 const NOW_MS = Date.parse("2026-08-27T12:00:00.000Z");
 
-describe("originalsTodayCount", () => {
-  it("takes the strongest of own_posts, desk originals, and confirmed OG cards", () => {
+await describe("originalsTodayCount", async () => {
+  await it("takes the strongest of own_posts, desk originals, and confirmed OG cards", () => {
     assert.equal(originalsTodayCount(0, 0, 0), 0);
     assert.equal(originalsTodayCount(0, 0, 1), 1);
     assert.equal(originalsTodayCount(0, 1, 0), 1);
@@ -34,7 +34,7 @@ describe("originalsTodayCount", () => {
   });
 });
 
-describe("buildCoachingSnapshot", () => {
+await describe("buildCoachingSnapshot", async () => {
   let dir: string;
   let gamificationPath: string;
 
@@ -55,7 +55,7 @@ describe("buildCoachingSnapshot", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("counts a confirmed OG card today and completes original_1", async () => {
+  await it("counts a confirmed OG card today and completes original_1", async () => {
     const [card] = insertSuggestions({
       userId: "u1",
       tenantId: "local",
@@ -92,7 +92,7 @@ describe("buildCoachingSnapshot", () => {
     assert.equal(original?.completed, true);
   });
 
-  it("does not double count an OG posted from desk compose and its confirmed card", async () => {
+  await it("does not double count an OG posted from desk compose and its confirmed card", async () => {
     const [card] = insertSuggestions({
       userId: "u1",
       tenantId: "local",
@@ -135,7 +135,7 @@ describe("buildCoachingSnapshot", () => {
     assert.equal(original?.completed, true);
   });
 
-  it("counts a webhook-ingested own_posts original and does not double count its confirmed card", async () => {
+  await it("counts a webhook-ingested own_posts original and does not double count its confirmed card", async () => {
     const parsed: ParsedPostCreate = {
       eventUuid: "evt-w1",
       xUserId: "99",
@@ -186,7 +186,7 @@ describe("buildCoachingSnapshot", () => {
     assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
   });
 
-  it("counts a desk-composed original on its own", async () => {
+  await it("counts a desk-composed original on its own", async () => {
     recordDeskPost({
       userId: "u1",
       tweetId: "1900000003",
@@ -206,7 +206,7 @@ describe("buildCoachingSnapshot", () => {
     assert.deepEqual(times.originalAt, [new Date(NOW_MS).toISOString()]);
   });
 
-  it("keeps distinct desk originals posted within five seconds", async () => {
+  await it("keeps distinct desk originals posted within five seconds", async () => {
     recordDeskPost({
       userId: "u1",
       tweetId: "1900000010",
@@ -227,7 +227,7 @@ describe("buildCoachingSnapshot", () => {
     ]);
   });
 
-  it("counts a discovered reply dated today toward marksToday", async () => {
+  await it("counts a discovered reply dated today toward marksToday", async () => {
     await markInteracted({
       threadId: "p-manual",
       author: "@a",
@@ -278,7 +278,7 @@ describe("buildCoachingSnapshot", () => {
     assert.equal(missions.find((m) => m.id === "mark_2")?.progress, 1);
   });
 
-  it("counts own_posts originals and quotes on postsToday, not replies", async () => {
+  await it("counts own_posts originals and quotes on postsToday, not replies", async () => {
     upsertOwnPost({
       parsed: {
         eventUuid: "evt-og",
@@ -348,7 +348,7 @@ describe("buildCoachingSnapshot", () => {
     assert.equal(times.postAt.length, 2);
   });
 
-  it("caps reply and post instruments to the 14-day history window", async () => {
+  await it("caps reply and post instruments to the 14-day history window", async () => {
     const oldMs = NOW_MS - 15 * 24 * 60 * 60 * 1000;
     await markInteracted({
       threadId: "old-reply",
@@ -394,7 +394,7 @@ describe("buildCoachingSnapshot", () => {
     assert.deepEqual(times.postAt, [new Date(NOW_MS).toISOString()]);
   });
 
-  it("finds an in-window reply past a newer out-of-window mark", async () => {
+  await it("finds an in-window reply past a newer out-of-window mark", async () => {
     const oldPostedAt = new Date(
       NOW_MS - 16 * 24 * 60 * 60 * 1000,
     ).toISOString();
@@ -424,7 +424,7 @@ describe("buildCoachingSnapshot", () => {
     assert.deepEqual(times.replyAt, [inWindowPostedAt]);
   });
 
-  it("returns the newest own reply, original, or quote", () => {
+  await it("returns the newest own reply, original, or quote", () => {
     for (const [id, kind, postedAt] of [
       ["older-original", "original", "2026-08-27T10:00:00.000Z"],
       ["newest-reply", "reply", "2026-08-27T11:00:00.000Z"],

@@ -1,6 +1,7 @@
 /**
  * Desk POST /api/voice/post — X write, idempotency, and mark-after-post.
  */
+import { optionalNullableStringRow } from "../platform/unknownValue.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { trackAnalytics } from "../desk/analyticsClient.js";
 import { allowRate } from "../auth/authGuard.js";
@@ -141,15 +142,13 @@ async function savedOrCanonicalReply(opts: {
     | { text: string | null; postedAt: string | null }
     | undefined;
   try {
-    row = getPlatformDb()
+    row = optionalNullableStringRow(getPlatformDb()
       .prepare(
         `SELECT text, posted_at AS postedAt
            FROM own_posts
           WHERE user_id = ? AND id = ?`,
       )
-      .get(opts.userId, opts.tweetId) as
-      | { text: string | null; postedAt: string | null }
-      | undefined;
+      .get(opts.userId, opts.tweetId), "text", "postedAt");
   } catch {
     return undefined;
   }
