@@ -498,7 +498,9 @@ async function main(): Promise<void> {
 
   await tick();
   setInterval(() => {
-    void tick();
+    tick().catch((err: unknown) => {
+      console.error("[stats-worker] tick failed:", err);
+    });
   }, TICK_MS);
 }
 
@@ -522,5 +524,7 @@ export function shouldRunStatsMain(
 }
 
 if (shouldRunStatsMain(process.argv[1], process.env)) {
-  void main();
+  main().catch((err: unknown) => {
+    console.error("[stats-worker] startup failed:", err);
+  });
 }
