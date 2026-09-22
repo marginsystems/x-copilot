@@ -17,7 +17,7 @@ describe("apiBase", () => {
     assert.equal(apiBase("127.0.0.1"), LOCAL_API_ORIGIN);
     assert.equal(apiBase("xcopilot.dev"), PROD_API_ORIGIN);
     assert.equal(apiBase("www.xcopilot.dev"), PROD_API_ORIGIN);
-  });
+  }).catch(assert.fail);
 
   it("prefixes paths onto the API origin", () => {
     assert.equal(
@@ -28,5 +28,5 @@ describe("apiBase", () => {
       apiUrl("api/health", "127.0.0.1"),
       `${LOCAL_API_ORIGIN}/api/health`,
     );
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

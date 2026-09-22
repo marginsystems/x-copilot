@@ -9,7 +9,7 @@ describe("upgrade CTAs", () => {
     assert.equal(nextPlanLabel("pulse"), "Radar");
     assert.equal(nextPlanLabel("radar"), "Horizon");
     assert.equal(nextPlanLabel("horizon"), null);
-  });
+  }).catch(assert.fail);
 
   it("points Grounded copy at the next plan", () => {
     assert.match(
@@ -29,5 +29,5 @@ describe("upgrade CTAs", () => {
       groundedHint({ limit: 5, planKey: "pulse", firstWeek: true }),
       /Subscribe to Pulse to keep these limits/,
     );
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

@@ -1,3 +1,4 @@
+import { isRecord } from "./typeGuards";
 /** Client types + fetch for GET /api/gamification. */
 
 import { apiFetch } from "./apiBase";
@@ -46,8 +47,6 @@ export type ParsedGamification = {
   progress: MarkProgress | null;
 };
 
-const KINDS = new Set<AchievementKind>(["streak", "level", "marks"]);
-
 export function emptyGamificationStats(): GamificationStats {
   return {
     currentStreak: 0,
@@ -68,14 +67,14 @@ function finiteNonNeg(n: unknown): number | null {
 }
 
 function parseKind(value: unknown): AchievementKind | null {
-  return typeof value === "string" && KINDS.has(value as AchievementKind)
-    ? (value as AchievementKind)
+  return value === "streak" || value === "level" || value === "marks"
+    ? value
     : null;
 }
 
 export function parseNextGoal(raw: unknown): NextGoal | null {
-  if (!raw || typeof raw !== "object") return null;
-  const row = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const row = raw;
   const kind = parseKind(row.kind);
   const remaining = finiteNonNeg(row.remaining);
   if (
@@ -102,8 +101,8 @@ export function parseAchievements(raw: unknown): AchievementPublic[] {
   if (!Array.isArray(raw)) return [];
   const out: AchievementPublic[] = [];
   for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const row = item as Record<string, unknown>;
+    if (!isRecord(item)) continue;
+    const row = item;
     const kind = parseKind(row.kind);
     const threshold = finiteNonNeg(row.threshold);
     if (
@@ -130,8 +129,8 @@ export function parseAchievements(raw: unknown): AchievementPublic[] {
 }
 
 export function parseMarkProgress(raw: unknown): MarkProgress | null {
-  if (!raw || typeof raw !== "object") return null;
-  const row = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const row = raw;
   const markXp = finiteNonNeg(row.markXp);
   const streakMultiplier = finiteNonNeg(row.streakMultiplier);
   const previousLevel = finiteNonNeg(row.previousLevel);
@@ -158,8 +157,8 @@ export function parseMarkProgress(raw: unknown): MarkProgress | null {
 export function parseGamificationPayload(
   raw: unknown,
 ): ParsedGamification | null {
-  if (!raw || typeof raw !== "object") return null;
-  const data = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const data = raw;
   const currentStreak = finiteNonNeg(data.currentStreak);
   const longestStreak = finiteNonNeg(data.longestStreak);
   const lifetimeXp = finiteNonNeg(data.lifetimeXp);

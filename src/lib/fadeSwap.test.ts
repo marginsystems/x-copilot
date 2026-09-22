@@ -16,7 +16,7 @@ describe("fadeSwapShouldAnimate", () => {
       true,
     );
     assert.equal(fadeSwapShouldAnimate("In the air…", "Landed."), true);
-  });
+  }).catch(assert.fail);
 
   it("leaves hold-short seconds and live counts instant", () => {
     assert.equal(fadeSwapShouldAnimate("Hold short 12s.", "Hold short 11s."), false);
@@ -29,7 +29,7 @@ describe("fadeSwapShouldAnimate", () => {
       false,
     );
     assert.equal(fadeSwapShouldAnimate("In the air…", "In the air…"), false);
-  });
+  }).catch(assert.fail);
 
   it("strips only the trailing count so the swap key stays stable across ticks", () => {
     assert.equal(flightBase("Hold short 15s."), flightBase("Hold short 14s."));
@@ -39,5 +39,5 @@ describe("fadeSwapShouldAnimate", () => {
     );
     assert.equal(flightBase("Plotting the route… 4/20"), "Plotting the route…");
     assert.notEqual(flightBase("In the air… 1/20"), flightBase("Hold short 15s."));
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

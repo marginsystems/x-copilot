@@ -63,7 +63,7 @@ describe("latestActivityCursor", () => {
       }),
       { ...scoutReply, text: "" },
     );
-  });
+  }).catch(assert.fail);
 
   it("merges display fields when ownActivity and history share an id", () => {
     const merged = latestActivityCursor({
@@ -78,7 +78,7 @@ describe("latestActivityCursor", () => {
     });
     assert.equal(merged?.id, scoutReply.id);
     assert.equal(merged?.text, "from own posts");
-  });
+  }).catch(assert.fail);
 
   it("picks the newest postedAt regardless of history order", () => {
     const older = {
@@ -100,7 +100,7 @@ describe("latestActivityCursor", () => {
       latestActivityCursor({ history: [newer, older] })?.id,
       fypReply.id,
     );
-  });
+  }).catch(assert.fail);
 
   it("prefers own activity when timestamps tie", () => {
     const own = { ...fypReply, id: "own-tie" };
@@ -117,7 +117,7 @@ describe("latestActivityCursor", () => {
       })?.id,
       own.id,
     );
-  });
+  }).catch(assert.fail);
 
   it("does not treat parent thread text as the reply body", () => {
     const cursor = latestActivityCursor({
@@ -131,8 +131,8 @@ describe("latestActivityCursor", () => {
       ],
     });
     assert.equal(cursor?.text, "");
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("For You wait identity", () => {
   it("opens with an owner, entry time, cursor baseline, and no completion", () => {
@@ -146,7 +146,7 @@ describe("For You wait identity", () => {
       detectedAt: null,
       hit: null,
     });
-  });
+  }).catch(assert.fail);
 
   it("uses the entry time as the explicit baseline when the cursor is late", () => {
     const wait = openForYouWait({ owner: "u1", cursor: null, now: ENTERED });
@@ -154,7 +154,7 @@ describe("For You wait identity", () => {
     assert.equal(forYouWaitDetected(wait, null), false);
     assert.equal(forYouWaitDetected(wait, baseline), false);
     assert.equal(forYouWaitDetected(wait, fypReply), true);
-  });
+  }).catch(assert.fail);
 
   it("late cursor becomes the baseline only when it post-dates nothing", () => {
     const wait = openForYouWait({ owner: "u1", cursor: null, now: ENTERED });
@@ -162,7 +162,7 @@ describe("For You wait identity", () => {
     assert.deepEqual(settled.snapshot, snapshotForYouWait(baseline));
     assert.equal(settled.detectedAt, null);
     assert.equal(forYouWaitDetected(settled, baseline), false);
-  });
+  }).catch(assert.fail);
 
   it("late cursor that post-dates entry marks detection instead of absorbing it", () => {
     const wait = openForYouWait({ owner: "u1", cursor: null, now: ENTERED });
@@ -171,13 +171,13 @@ describe("For You wait identity", () => {
     assert.deepEqual(settled.hit, fypReply);
     assert.equal(forYouWaitDetected(settled, fypReply), true);
     assert.deepEqual(forYouDetectedActivity(settled, fypReply), fypReply);
-  });
+  }).catch(assert.fail);
 
   it("keeps the completing post after a later stale cursor arrives", () => {
     const wait = openForYouWait({ owner: "u1", cursor: null, now: ENTERED });
     const settled = settleForYouWait(wait, fypReply, ENTERED + 40_000);
     assert.deepEqual(forYouDetectedActivity(settled, baseline), fypReply);
-  });
+  }).catch(assert.fail);
 
   it("detection is monotonic once marked", () => {
     const wait = openForYouWait({ owner: "u1", cursor: baseline, now: ENTERED });
@@ -186,14 +186,14 @@ describe("For You wait identity", () => {
     const older = settleForYouWait(hit, baseline, ENTERED + 400_000);
     assert.equal(older, hit);
     assert.equal(forYouWaitDetected(older, baseline), true);
-  });
+  }).catch(assert.fail);
 
   it("returns the same object when a cursor changes nothing", () => {
     const wait = openForYouWait({ owner: "u1", cursor: baseline, now: ENTERED });
     assert.equal(settleForYouWait(wait, baseline), wait);
     assert.equal(settleForYouWait(wait, null), wait);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("For You wait detection", () => {
   it("does not treat an already-attributed scout reply as a For You post", () => {
@@ -206,7 +206,7 @@ describe("For You wait detection", () => {
     assert.equal(forYouDetectedActivity(wait, scoutReply), null);
     const settled = settleForYouWait(wait, scoutReply, ENTERED + 12_000);
     assert.equal(settled, wait);
-  });
+  }).catch(assert.fail);
 
   it("detects a newer post after the wait opened", () => {
     const wait = openForYouWait({
@@ -216,7 +216,7 @@ describe("For You wait detection", () => {
     });
     assert.equal(forYouWaitDetected(wait, fypReply), true);
     assert.deepEqual(forYouDetectedActivity(wait, fypReply), fypReply);
-  });
+  }).catch(assert.fail);
 
   it("does not detect the same id even when coaching timestamps catch up", () => {
     const wait = openForYouWait({
@@ -237,7 +237,7 @@ describe("For You wait detection", () => {
       false,
     );
     assert.equal(forYouWaitDetected(wait, reMarkedScoutReply), false);
-  });
+  }).catch(assert.fail);
 
   it("does not detect only a UTC day rollover of an older original", () => {
     const yesterday: ActivityCursor = {
@@ -257,7 +257,7 @@ describe("For You wait detection", () => {
       id: "og-repost",
     };
     assert.equal(forYouWaitDetected(wait, olderDistinctCursor), false);
-  });
+  }).catch(assert.fail);
 
   it("does not detect an older distinct cursor after absorbing a pre-entry cursor", () => {
     const wait = openForYouWait({ owner: "u1", cursor: null, now: ENTERED });
@@ -274,13 +274,13 @@ describe("For You wait detection", () => {
 
     assert.equal(forYouWaitDetected(absorbed, stale), false);
     assert.equal(settleForYouWait(absorbed, stale), absorbed);
-  });
+  }).catch(assert.fail);
 
   it("does not attach the baseline cursor as the detected post", () => {
     const wait = openForYouWait({ owner: "u1", cursor: baseline, now: ENTERED });
     assert.equal(forYouDetectedActivity(wait, baseline), null);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("For You wait storage", () => {
   function withSessionStorage(run: () => void) {
@@ -316,7 +316,7 @@ describe("For You wait storage", () => {
       clearForYouWait("u1");
       assert.equal(readForYouWait("u1"), null);
     });
-  });
+  }).catch(assert.fail);
 
   it("round-trips a held wait without a cursor snapshot", () => {
     withSessionStorage(() => {
@@ -328,7 +328,7 @@ describe("For You wait storage", () => {
       assert.equal(restored?.snapshot, null);
       assert.equal(restored?.detectedAt, null);
     });
-  });
+  }).catch(assert.fail);
 
   it("rejects a wait with a malformed persisted hit", () => {
     withSessionStorage(() => {
@@ -343,7 +343,7 @@ describe("For You wait storage", () => {
       );
       assert.equal(readForYouWait("u1"), null);
     });
-  });
+  }).catch(assert.fail);
 
   it("ignores the legacy timestamp snapshot and foreign owners", () => {
     assert.equal(
@@ -372,5 +372,5 @@ describe("For You wait storage", () => {
     assert.equal(parseForYouWait(JSON.stringify(wait), "u1"), null);
     assert.deepEqual(parseForYouWait(JSON.stringify(wait), "u2"), wait);
     assert.equal(parseForYouWait("not json", "u1"), null);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

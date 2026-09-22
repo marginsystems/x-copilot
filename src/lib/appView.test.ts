@@ -14,7 +14,7 @@ describe("desk routes", () => {
     assert.equal(pathFromView("account"), "/account");
     assert.equal(pathFromView("settings"), "/settings");
     assert.equal(pathFromView("usage"), "/usage");
-  });
+  }).catch(assert.fail);
 
   it("does not treat legal or scout panes as account", () => {
     assert.equal(viewFromPath("/privacy"), "privacy");
@@ -43,7 +43,7 @@ describe("desk routes", () => {
     assert.equal(viewFromPath("/dashboard"), "dashboard");
     assert.equal(pathFromView("home"), "/");
     assert.equal(pathFromView("dashboard"), "/dashboard");
-  });
+  }).catch(assert.fail);
 
   it("treats legal, pricing, changelog, and learn as public", () => {
     assert.equal(isPublicView("privacy"), true);
@@ -58,5 +58,5 @@ describe("desk routes", () => {
     assert.equal(isPublicView("learnFollow"), true);
     assert.equal(isPublicView("dashboard"), false);
     assert.equal(isPublicView("home"), false);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

@@ -63,7 +63,7 @@ describe("voiceSharePayload", () => {
       ),
       null,
     );
-  });
+  }).catch(assert.fail);
 
   it("keeps a full card and caps lists", () => {
     const payload = voiceSharePayload(
@@ -82,7 +82,7 @@ describe("voiceSharePayload", () => {
     assert.deepEqual(payload?.habits, ["a", "b", "c", "d", "e", "f"]);
     assert.deepEqual(payload?.neverDo, ["n1", "n2", "n3", "n4"]);
     assert.deepEqual(payload?.examples, ["e1", "e2", "e3"]);
-  });
+  }).catch(assert.fail);
 
   it("strips habits and examples from a starter card even if they are present", () => {
     const payload = voiceSharePayload(
@@ -106,7 +106,7 @@ describe("voiceSharePayload", () => {
     assert.deepEqual(payload?.habits, []);
     assert.deepEqual(payload?.neverDo, []);
     assert.deepEqual(payload?.examples, []);
-  });
+  }).catch(assert.fail);
 
   it("treats an unlocked=false card as starter even without the flag", () => {
     const payload = voiceSharePayload(
@@ -123,8 +123,8 @@ describe("voiceSharePayload", () => {
     );
     assert.equal(payload?.starter, true);
     assert.deepEqual(payload?.examples, []);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("voiceShareFilename and caption", () => {
   it("names the file after a sanitized handle", () => {
@@ -135,7 +135,7 @@ describe("voiceShareFilename and caption", () => {
       "xcopilot-voice-weirdname.png",
     );
     assert.equal(voiceShareFilename({ ...payload, handle: null }), "xcopilot-voice.png");
-  });
+  }).catch(assert.fail);
 
   it("writes a post caption with the site and affiliation line", () => {
     const full = voiceShareCaption(voiceSharePayload(voice())!);
@@ -163,8 +163,8 @@ describe("voiceShareFilename and caption", () => {
     );
     assert.match(starter, /Tone only until 100/);
     assert.match(starter, new RegExp(VOICE_SHARE_DISCLAIMER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("wrapLines and ellipsize", () => {
   const measure = (s: string) => s.length * 10;
@@ -173,13 +173,13 @@ describe("wrapLines and ellipsize", () => {
     assert.deepEqual(wrapLines("one two three", 50, measure), ["one", "two", "three"]);
     assert.deepEqual(wrapLines("abcdefghij", 40, measure), ["abcd", "efgh", "ij"]);
     assert.deepEqual(wrapLines("   ", 40, measure), []);
-  });
+  }).catch(assert.fail);
 
   it("adds an ellipsis when a line does not fit", () => {
     assert.equal(ellipsize("short", 100, measure), "short");
     assert.equal(ellipsize("toolongword", 50, measure), "tool…");
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
 
 describe("drawVoiceShareImage", () => {
   function recordCtx() {
@@ -223,7 +223,7 @@ describe("drawVoiceShareImage", () => {
     assert.match(joined, new RegExp(VOICE_SHARE_SITE));
     assert.match(joined, /Not affiliated with X Corp/);
     assert.doesNotMatch(joined, /remaining/);
-  });
+  }).catch(assert.fail);
 
   it("does not invent habits or examples on a starter card", () => {
     const { ctx, texts } = recordCtx();
@@ -251,5 +251,5 @@ describe("drawVoiceShareImage", () => {
     assert.doesNotMatch(joined, /secret never/);
     assert.doesNotMatch(joined, /secret example/);
     assert.match(joined, new RegExp(VOICE_SHARE_SITE));
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

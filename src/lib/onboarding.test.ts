@@ -41,20 +41,20 @@ describe("onboarding helpers", () => {
   it("toggles chip ids", () => {
     assert.deepEqual(toggleId(["ai"], "software"), ["ai", "software"]);
     assert.deepEqual(toggleId(["ai", "software"], "ai"), ["software"]);
-  });
+  }).catch(assert.fail);
 
   it("maps selected ids to labels", () => {
     assert.deepEqual(labelsFor(["ai", "nope"], TOPIC_OPTIONS), [
       "AI & machine learning",
     ]);
-  });
+  }).catch(assert.fail);
 
   it("persists a local completion flag", () => {
     assert.equal(readOnboardingComplete(), false);
     writeOnboardingComplete();
     assert.equal(readOnboardingComplete(), true);
     assert.equal(store.get(ONBOARDING_STORAGE_KEY), "1");
-  });
+  }).catch(assert.fail);
 
   it("scopes completion and agenda per user id", () => {
     writeOnboardingComplete("user A's agenda", "user-a");
@@ -65,7 +65,7 @@ describe("onboarding helpers", () => {
     writeOnboardingComplete("user B's agenda", "user-b");
     assert.equal(readOnboardingAgenda("user-a"), "user A's agenda");
     assert.equal(readOnboardingAgenda("user-b"), "user B's agenda");
-  });
+  }).catch(assert.fail);
 
   it("carries a landing agenda through sign-in without marking setup complete", () => {
     const agenda =
@@ -77,7 +77,7 @@ describe("onboarding helpers", () => {
     assert.equal(readOnboardingComplete("user-a"), false);
     assert.equal(store.has(ONBOARDING_AGENDA_KEY), false);
     assert.equal(store.get(`${ONBOARDING_AGENDA_KEY}:user-a`), agenda);
-  });
+  }).catch(assert.fail);
 
   it("clears a stale landing agenda when the signed-in user has a scoped one", () => {
     writeOnboardingComplete("user A's agenda", "user-a");
@@ -85,7 +85,7 @@ describe("onboarding helpers", () => {
     assert.equal(readOnboardingAgenda("user-a"), "user A's agenda");
     assert.equal(store.has(ONBOARDING_AGENDA_KEY), false);
     assert.equal(store.get(`${ONBOARDING_AGENDA_KEY}:user-a`), "user A's agenda");
-  });
+  }).catch(assert.fail);
 
   it("turns a carried agenda into the signed-in confirmation step", () => {
     const agenda =
@@ -96,7 +96,7 @@ describe("onboarding helpers", () => {
       recommended: true,
     });
     assert.equal(agendaSeedFromStored("too short"), null);
-  });
+  }).catch(assert.fail);
 
   it("migrates a prior local setup to the first signed-in account", () => {
     writeOnboardingComplete("local agenda");
@@ -107,7 +107,7 @@ describe("onboarding helpers", () => {
     assert.equal(store.has(ONBOARDING_AGENDA_KEY), false);
     assert.equal(readOnboardingComplete("user-b"), false);
     assert.equal(readOnboardingAgenda("user-b"), null);
-  });
+  }).catch(assert.fail);
 
   it("parses generated agenda cards", () => {
     const body =
@@ -120,7 +120,7 @@ describe("onboarding helpers", () => {
     assert.equal(parsed?.length, 2);
     assert.equal(parsed?.[1].recommended, true);
     assert.equal(parseGeneratedAgendas([{ title: "A", body }]), null);
-  });
+  }).catch(assert.fail);
 
   it("preview mode writes nothing — persist=false still would", () => {
     assert.equal(resolveOnboardingMode(undefined, false), "local");
@@ -132,7 +132,7 @@ describe("onboarding helpers", () => {
     assert.equal(onboardingWritesLocalStorage("real"), true);
     assert.equal(onboardingWritesLocalStorage("local"), true);
     assert.equal(onboardingWritesLocalStorage("preview"), false);
-  });
+  }).catch(assert.fail);
 
   it("uses the server onboarding flag when a session exists", () => {
     const base = {
@@ -184,7 +184,7 @@ describe("onboarding helpers", () => {
       }),
       false,
     );
-  });
+  }).catch(assert.fail);
 
   it("opens admin preview from the query and strips the flag so reload exits", () => {
     assert.deepEqual(
@@ -199,5 +199,5 @@ describe("onboarding helpers", () => {
       consumeOnboardingPreviewQuery("?onboarding=preview&tab=grants", true),
       { open: true, nextSearch: "?tab=grants" },
     );
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);

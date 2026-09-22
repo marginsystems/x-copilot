@@ -40,7 +40,7 @@ describe("Approach lock persistence", () => {
       ),
       null,
     );
-  });
+  }).catch(assert.fail);
 
   it("round-trips scout and organic reply locks per user", () => {
     const locks: ApproachLock[] = [
@@ -53,5 +53,5 @@ describe("Approach lock persistence", () => {
 
     assert.deepEqual(readApproachLock("scout-user"), locks[0]);
     assert.deepEqual(readApproachLock("organic-user"), locks[1]);
-  });
-});
+  }).catch(assert.fail);
+}).catch(assert.fail);
