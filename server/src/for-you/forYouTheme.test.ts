@@ -7,8 +7,8 @@ import {
   withoutSkippedThemes,
 } from "./forYouTheme.ts";
 
-describe("forYouTheme", () => {
-  it("treats remixes of the same original thesis as one theme", () => {
+await describe("forYouTheme", async () => {
+  await it("treats remixes of the same original thesis as one theme", () => {
     const first = {
       kind: "post",
       why: "Your 8.7k-view Claude refusal reply is your best shape—double down with an original take.",
@@ -30,7 +30,7 @@ describe("forYouTheme", () => {
     assert.ok(themeTokens(first.why).has("refusal"));
   });
 
-  it("matches quote and reply cards by target, not by why wording", () => {
+  await it("matches quote and reply cards by target, not by why wording", () => {
     const skipped = {
       kind: "quote",
       why: "weird requote",
@@ -71,7 +71,7 @@ describe("forYouTheme", () => {
     );
   });
 
-  it("drops inbox rows that match a recent skip", () => {
+  await it("drops inbox rows that match a recent skip", () => {
     const skipped = [
       {
         kind: "post",
@@ -113,7 +113,7 @@ describe("forYouTheme", () => {
     );
   });
 
-  it("does not bury a post sharing only generic cross-field tokens", () => {
+  await it("does not bury a post sharing only generic cross-field tokens", () => {
     assert.equal(
       sameSuggestionTheme(
         {

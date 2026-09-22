@@ -6,6 +6,7 @@
  * honored. Reindex stays an administrative, origin-gated rebuild that
  * returns counts only — never note contents.
  */
+import { objectValue } from "../platform/unknownValue.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { isLocalOrigin } from "../http/cors.js";
@@ -55,7 +56,7 @@ export async function tryHandleMemory(
     }
     let body: Record<string, unknown>;
     try {
-      body = (await readBody(req, { requireObject: true })) as Record<string, unknown>;
+      body = objectValue(await readBody(req, { requireObject: true }));
     } catch (err) {
       const statusCode = err instanceof BodyError ? err.statusCode : 400;
       send(req, res, statusCode, {

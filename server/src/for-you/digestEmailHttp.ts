@@ -1,6 +1,7 @@
 /**
  * Authenticated digest preference plus public signed unsubscribe.
  */
+import { objectValue } from "../platform/unknownValue.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { allowRate, clientIp } from "../auth/authGuard.js";
 import {
@@ -121,11 +122,11 @@ export async function tryHandleDigestEmail(
       return true;
     }
     try {
-      const body = (await readBody(req, {
+      const body = objectValue(await readBody(req, {
         maxBytes: BODY_CAP_16K,
         requireObject: true,
         rejectArray: true,
-      })) as Record<string, unknown>;
+      }));
       if (typeof body.digestEmailOptIn !== "boolean") {
         send(req, res, 400, {
           error: "invalid_preference",

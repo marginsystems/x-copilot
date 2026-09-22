@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { isOwnPostRemixCopy } from "./forYouRemix.ts";
 
-describe("isOwnPostRemixCopy", () => {
-  it("flags view-count hooks and double-downs", () => {
+await describe("isOwnPostRemixCopy", async () => {
+  await it("flags view-count hooks and double-downs", () => {
     assert.equal(
       isOwnPostRemixCopy(
         "Your 4k contributions post got 12 views—the agent-counting angle is worth a sharper hook.",
@@ -19,7 +19,7 @@ describe("isOwnPostRemixCopy", () => {
     assert.equal(isOwnPostRemixCopy("900 views on the recap", "Ship it."), true);
   });
 
-  it("lets a live Scout angle through", () => {
+  await it("lets a live Scout angle through", () => {
     assert.equal(
       isOwnPostRemixCopy(
         "Hiring thread is live. Take a side.",
@@ -29,7 +29,7 @@ describe("isOwnPostRemixCopy", () => {
     );
   });
 
-  it("does not flag remix phrases used in the draft", () => {
+  await it("does not flag remix phrases used in the draft", () => {
     assert.equal(
       isOwnPostRemixCopy(
         "AI hiring thread is live",

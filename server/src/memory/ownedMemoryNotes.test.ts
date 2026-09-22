@@ -50,8 +50,8 @@ function note(opts: {
   return `${lines.join("\n")}\n`;
 }
 
-describe("owned note identity", () => {
-  it("rejects blank owners and blank threads", () => {
+await describe("owned note identity", async () => {
+  await it("rejects blank owners and blank threads", () => {
     assert.throws(() => requireNoteOwner("   "), /userId is required/);
     assert.throws(() => requireNoteOwner(undefined), /userId is required/);
     assert.throws(() => threadKey("  "), /threadId is required/);
@@ -68,7 +68,7 @@ describe("owned note identity", () => {
     );
   });
 
-  it("uses the full SHA-256 owner hash and keeps numeric thread ids readable", () => {
+  await it("uses the full SHA-256 owner hash and keeps numeric thread ids readable", () => {
     assert.equal(ownerHash(" user-1 "), sha("user-1"));
     assert.equal(threadKey("2081314968155111817"), "2081314968155111817");
     assert.equal(
@@ -87,7 +87,7 @@ describe("owned note identity", () => {
     );
   });
 
-  it("hashes noncanonical thread ids so hostile or colliding strings cannot alias", () => {
+  await it("hashes noncanonical thread ids so hostile or colliding strings cannot alias", () => {
     const evil = threadKey("../evil/id!!");
     assert.match(evil, /^h[0-9a-f]{64}$/);
     assert.notEqual(threadKey("../evil/id!!"), threadKey("evil_id"));
@@ -109,7 +109,7 @@ describe("owned note identity", () => {
     assert.equal(parseOwnedNoteName(`2026-09-04-u${sha("u")}-x.md`), null);
   });
 
-  it("names one canonical note per owner/date/thread and never encodes a reply id", () => {
+  await it("names one canonical note per owner/date/thread and never encodes a reply id", () => {
     const canonical = `2026-09-04-u${sha("user-1")}-2081.md`;
     assert.equal(ownedNoteFilename({ userId: "user-1", threadId: "2081", at }), canonical);
     assert.doesNotMatch(canonical, /-r[0-9a-f]{16}\.md$/);
@@ -129,8 +129,8 @@ describe("owned note identity", () => {
   });
 });
 
-describe("parseOwnedNoteMetadata", () => {
-  it("reads owner, thread, time and reply from rendered notes", () => {
+await describe("parseOwnedNoteMetadata", async () => {
+  await it("reads owner, thread, time and reply from rendered notes", () => {
     const meta = parseOwnedNoteMetadata(
       note({ userId: "user-1", threadId: "2081", reply: "hi\nthere" }),
     );
@@ -146,7 +146,7 @@ describe("parseOwnedNoteMetadata", () => {
     assert.equal(noteVerifiedFor(meta, { userId: "user-1", threadId: "2082" }), false);
   });
 
-  it("unescapes quoted scalars and accepts single quotes", () => {
+  await it("unescapes quoted scalars and accepts single quotes", () => {
     const meta = parseOwnedNoteMetadata(
       `---\ntype: interaction\nthreadId: '2081'\nuserId: "we\\"ird\\\\user"\n---\n\n## Reply\n\nok\n`,
     );
@@ -154,7 +154,7 @@ describe("parseOwnedNoteMetadata", () => {
     assert.equal(meta?.threadId, "2081");
   });
 
-  it("treats duplicate or conflicting owner fields as unverifiable", () => {
+  await it("treats duplicate or conflicting owner fields as unverifiable", () => {
     const dup = parseOwnedNoteMetadata(note({ userId: ["user-1", "user-2"] }));
     assert.equal(dup?.ownerState, "conflict");
     assert.equal(dup?.userId, null);
@@ -168,7 +168,7 @@ describe("parseOwnedNoteMetadata", () => {
     assert.equal(threads?.threadId, null);
   });
 
-  it("reports unowned and blank owners, and null without frontmatter", () => {
+  await it("reports unowned and blank owners, and null without frontmatter", () => {
     assert.equal(parseOwnedNoteMetadata(note({}))?.ownerState, "unowned");
     assert.equal(
       parseOwnedNoteMetadata(`---\ntype: interaction\nuserId: ""\nthreadId: "1"\n---\n`)
@@ -179,7 +179,7 @@ describe("parseOwnedNoteMetadata", () => {
   });
 });
 
-describe("resolveOwnedNote", () => {
+await describe("resolveOwnedNote", async () => {
   let root: string;
   let dir: string;
 
@@ -203,7 +203,7 @@ describe("resolveOwnedNote", () => {
       ...extra,
     });
 
-  it("finds each owner's own note when two users saved the same thread and date", async () => {
+  await it("finds each owner's own note when two users saved the same thread and date", async () => {
     const a = await writeInteractionMemory({
       userId: "user-a",
       threadId: "2081",
@@ -234,7 +234,7 @@ describe("resolveOwnedNote", () => {
     assert.match(await readFile(b.path, "utf8"), /B's take/);
   });
 
-  it("verifies metadata even on an expected-path hit", async () => {
+  await it("verifies metadata even on an expected-path hit", async () => {
     const expected = buildOwnedNotePath({
       kind: "interaction",
       userId: "user-a",
@@ -252,7 +252,7 @@ describe("resolveOwnedNote", () => {
     assert.deepEqual(await resolveFor("user-a"), { state: "foreign" });
   });
 
-  it("resolves a metadata-verified legacy note and rejects unowned or foreign ones", async () => {
+  await it("resolves a metadata-verified legacy note and rejects unowned or foreign ones", async () => {
     await writeFile(
       join(dir, "2026-09-04-2081.md"),
       note({ userId: "user-a", reply: "legacy owned" }),
@@ -275,7 +275,7 @@ describe("resolveOwnedNote", () => {
     assert.deepEqual(await resolveFor("user-a"), { state: "foreign" });
   });
 
-  it("reports missing when nothing for that thread/date exists", async () => {
+  await it("reports missing when nothing for that thread/date exists", async () => {
     await writeFile(
       join(dir, "2026-09-04-7777.md"),
       note({ userId: "user-a", threadId: "7777", reply: "other" }),
@@ -294,7 +294,7 @@ describe("resolveOwnedNote", () => {
     );
   });
 
-  it("uses other dates only when allowed and never picks among ambiguous candidates", async () => {
+  await it("uses other dates only when allowed and never picks among ambiguous candidates", async () => {
     await writeFile(
       join(dir, "2026-09-01-2081.md"),
       note({ userId: "user-a", reply: "older", interactedAt: "2026-09-01T00:00:00.000Z" }),
@@ -325,7 +325,7 @@ describe("resolveOwnedNote", () => {
     );
   });
 
-  it("writes one canonical note per owner/date/thread whatever reply id the writes carry", async () => {
+  await it("writes one canonical note per owner/date/thread whatever reply id the writes carry", async () => {
     const first = await writeInteractionMemory({
       userId: "user-a",
       threadId: "2081",
@@ -373,7 +373,7 @@ describe("resolveOwnedNote", () => {
     }
   });
 
-  it("reads an existing reply-suffixed note as verified noncanonical fallback and prefers the canonical file", async () => {
+  await it("reads an existing reply-suffixed note as verified noncanonical fallback and prefers the canonical file", async () => {
     const suffixed = suffixedName("user-a", "2081", "reply-a");
     await writeFile(
       join(dir, suffixed),
@@ -421,7 +421,7 @@ describe("resolveOwnedNote", () => {
     assert.equal(preferred.meta.reply, "canonical take");
   });
 
-  it("never picks among several suffixed notes; a reply id narrows to the matching one", async () => {
+  await it("never picks among several suffixed notes; a reply id narrows to the matching one", async () => {
     await writeFile(
       join(dir, suffixedName("user-a", "2081", "reply-a")),
       note({ userId: "user-a", reply: "take A", replyId: "reply-a" }),
@@ -458,7 +458,7 @@ describe("resolveOwnedNote", () => {
     assert.equal(canonical.meta.reply, "fresh take");
   });
 
-  it("prefers a reply-matched suffix over a legacy alias", async () => {
+  await it("prefers a reply-matched suffix over a legacy alias", async () => {
     await writeFile(
       join(dir, "2026-09-04-2081.md"),
       note({ userId: "user-a", reply: "legacy take", replyId: "reply-a" }),
@@ -478,7 +478,7 @@ describe("resolveOwnedNote", () => {
     assert.equal(resolved.meta.reply, "reply-specific take");
   });
 
-  it("prefers a canonical note over a reply-matched suffix without an action time", async () => {
+  await it("prefers a canonical note over a reply-matched suffix without an action time", async () => {
     const canonical = ownedNoteFilename({ userId: "user-a", threadId: "2081", at });
     await writeFile(
       join(dir, canonical),
@@ -506,7 +506,7 @@ describe("resolveOwnedNote", () => {
     assert.equal(resolved.canonical, true);
   });
 
-  it("matches a legacy note by its metadata date when the filename date differs", async () => {
+  await it("matches a legacy note by its metadata date when the filename date differs", async () => {
     await writeFile(
       join(dir, "2026-09-03-2081.md"),
       note({ userId: "user-a", reply: "late file", interactedAt: at }),
@@ -516,7 +516,7 @@ describe("resolveOwnedNote", () => {
     assert.equal(found.state, "found");
   });
 
-  it("reuses a batch listing and cache, and reports unreadable notes", async () => {
+  await it("reuses a batch listing and cache, and reports unreadable notes", async () => {
     await writeFile(join(dir, "2026-09-04-2081.md"), "garbage", "utf8");
     const cache = new OwnedNoteCache();
     const names = await cache.list(dir);
@@ -529,7 +529,7 @@ describe("resolveOwnedNote", () => {
     });
   });
 
-  it("refreshes cached listings after a note is written", async () => {
+  await it("refreshes cached listings after a note is written", async () => {
     const cache = new OwnedNoteCache();
     assert.deepEqual(await cache.list(dir), []);
     await writeInteractionMemory({
@@ -545,7 +545,7 @@ describe("resolveOwnedNote", () => {
   });
 });
 
-describe("writeOwnedNoteAtomically", () => {
+await describe("writeOwnedNoteAtomically", async () => {
   let root: string;
 
   beforeEach(async () => {
@@ -556,7 +556,7 @@ describe("writeOwnedNoteAtomically", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it("publishes through a same-directory temp file and leaves no stragglers", async () => {
+  await it("publishes through a same-directory temp file and leaves no stragglers", async () => {
     const path = join(root, "interactions", "note.md");
     const first = await writeOwnedNoteAtomically({ path, merge: () => "one\n" });
     assert.equal(first.changed, true);
@@ -571,7 +571,7 @@ describe("writeOwnedNoteAtomically", () => {
     assert.deepEqual(await readdir(join(root, "interactions")), ["note.md"]);
   });
 
-  it("serializes concurrent in-process merges so no update is lost", async () => {
+  await it("serializes concurrent in-process merges so no update is lost", async () => {
     const path = join(root, "interactions", "counter.md");
     await Promise.all(
       Array.from({ length: 25 }, () =>
@@ -588,7 +588,7 @@ describe("writeOwnedNoteAtomically", () => {
   });
 });
 
-describe("cross-process reply and stats writes", () => {
+await describe("cross-process reply and stats writes", async () => {
   let root: string;
 
   beforeEach(async () => {
@@ -611,7 +611,7 @@ describe("cross-process reply and stats writes", () => {
     };
   }
 
-  it("keeps curated context and both checkpoints when a sibling process writes concurrently", async () => {
+  await it("keeps curated context and both checkpoints when a sibling process writes concurrently", async () => {
     await writeInteractionMemory({
       userId: "user-a",
       threadId: "2081",

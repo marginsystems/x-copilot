@@ -13,7 +13,7 @@ import { writeInteractionMemory } from "./knowledgeMemory.ts";
 
 const interactedAt = "2026-07-27T12:00:00.000Z";
 
-describe("lookupInteractionMemoryReceipts", () => {
+await describe("lookupInteractionMemoryReceipts", async () => {
   let root: string;
 
   beforeEach(async () => {
@@ -26,7 +26,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it("returns saved when the current user's matching note exists", async () => {
+  await it("returns saved when the current user's matching note exists", async () => {
     await writeInteractionMemory({
       threadId: "2081",
       author: "@Builder",
@@ -43,7 +43,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["saved"]);
   });
 
-  it("accepts single-quoted user IDs in hand-edited notes", async () => {
+  await it("accepts single-quoted user IDs in hand-edited notes", async () => {
     await mkdir(join(root, "interactions"), { recursive: true });
     await writeFile(
       join(root, "interactions", "2026-07-27-2081.md"),
@@ -58,7 +58,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["saved"]);
   });
 
-  it("uses the reply posted date when it differs from the interaction date", async () => {
+  await it("uses the reply posted date when it differs from the interaction date", async () => {
     const postedAt = "2026-07-27T23:00:00.000Z";
     const markedAt = "2026-07-28T00:05:00.000Z";
     await writeInteractionMemory({
@@ -77,7 +77,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["saved"]);
   });
 
-  it("returns no_reply_text when storage exists but the note does not", async () => {
+  await it("returns no_reply_text when storage exists but the note does not", async () => {
     await mkdir(join(root, "interactions"), { recursive: true });
     const states = await lookupInteractionMemoryReceipts({
       userId: "user-1",
@@ -87,7 +87,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["no_reply_text"]);
   });
 
-  it("returns unavailable for a matching note owned by someone else", async () => {
+  await it("returns unavailable for a matching note owned by someone else", async () => {
     await writeInteractionMemory({
       threadId: "2081",
       author: "@Builder",
@@ -104,7 +104,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["unavailable"]);
   });
 
-  it("returns unavailable for an unowned matching legacy note", async () => {
+  await it("returns unavailable for an unowned matching legacy note", async () => {
     await mkdir(join(root, "interactions"), { recursive: true });
     await writeFile(
       join(root, "interactions", "2026-07-27-2081.md"),
@@ -119,7 +119,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["unavailable"]);
   });
 
-  it("does not use an older note for a later interaction", async () => {
+  await it("does not use an older note for a later interaction", async () => {
     await writeInteractionMemory({
       threadId: "2081",
       author: "@Builder",
@@ -144,7 +144,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["no_reply_text"]);
   });
 
-  it("reports unavailable when the expected-date note belongs to another user", async () => {
+  await it("reports unavailable when the expected-date note belongs to another user", async () => {
     await writeInteractionMemory({
       threadId: "2081",
       author: "@Builder",
@@ -169,7 +169,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["unavailable"]);
   });
 
-  it("returns unavailable when interaction storage is missing", async () => {
+  await it("returns unavailable when interaction storage is missing", async () => {
     const states = await lookupInteractionMemoryReceipts({
       userId: "user-1",
       knowledgeRoot: join(root, "missing-vault"),
@@ -178,7 +178,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["unavailable"]);
   });
 
-  it("does not treat MiniLM or index files as saved", async () => {
+  await it("does not treat MiniLM or index files as saved", async () => {
     await mkdir(join(root, "interactions"), { recursive: true });
     await mkdir(join(root, "index"), { recursive: true });
     await writeFile(join(root, "index", "ready"), "minilm-ok", "utf8");
@@ -190,7 +190,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["no_reply_text"]);
   });
 
-  it("looks up only the returned interaction set", async () => {
+  await it("looks up only the returned interaction set", async () => {
     await writeInteractionMemory({
       threadId: "2081",
       author: "@A",
@@ -217,7 +217,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.equal("memoryPath" in attached[0]!.memory, false);
   });
 
-  it("refreshes cached receipts when notes are created", async () => {
+  await it("refreshes cached receipts when notes are created", async () => {
     const interaction = { threadId: "2081", at: interactedAt };
     await mkdir(join(root, "interactions"), { recursive: true });
     assert.deepEqual(
@@ -247,7 +247,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     );
   });
 
-  it("reports saved for a verified legacy note and each owner's own canonical note", async () => {
+  await it("reports saved for a verified legacy note and each owner's own canonical note", async () => {
     await mkdir(join(root, "interactions"), { recursive: true });
     await writeFile(
       join(root, "interactions", "2026-07-27-2081.md"),
@@ -284,7 +284,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     );
   });
 
-  it("keeps one canonical note for same-day replies and reports it saved for both", async () => {
+  await it("keeps one canonical note for same-day replies and reports it saved for both", async () => {
     const first = await writeInteractionMemory({
       threadId: "2081",
       author: "@A",
@@ -327,7 +327,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     assert.deepEqual(states, ["saved", "saved"]);
   });
 
-  it("never reports saved for a note without reply text or with conflicting owners", async () => {
+  await it("never reports saved for a note without reply text or with conflicting owners", async () => {
     await mkdir(join(root, "interactions"), { recursive: true });
     await writeFile(
       join(root, "interactions", "2026-07-27-2081.md"),
@@ -352,7 +352,7 @@ describe("lookupInteractionMemoryReceipts", () => {
     );
   });
 
-  it("never throws when a note file is unreadable", async () => {
+  await it("never throws when a note file is unreadable", async () => {
     await mkdir(join(root, "interactions"), { recursive: true });
     await writeFile(
       join(root, "interactions", "2026-07-27-2081.md"),

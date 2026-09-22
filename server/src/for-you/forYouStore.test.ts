@@ -22,7 +22,7 @@ import {
 } from "./forYouStore.ts";
 import { markInteracted } from "../desk/interactionStore.ts";
 
-describe("forYouStore", () => {
+await describe("forYouStore", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -40,7 +40,7 @@ describe("forYouStore", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("lists active rows and hides expired or acted ones", () => {
+  await it("lists active rows and hides expired or acted ones", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     insertSuggestions({
       userId: "u1",
@@ -57,7 +57,7 @@ describe("forYouStore", () => {
     );
   });
 
-  it("hides own-post quote/repost targets and remixes of every kind", () => {
+  await it("hides own-post quote/repost targets and remixes of every kind", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     getPlatformDb()
       .prepare(
@@ -96,7 +96,7 @@ describe("forYouStore", () => {
     );
   });
 
-  it("hides URL-only own-post quote/repost targets", () => {
+  await it("hides URL-only own-post quote/repost targets", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     getPlatformDb()
       .prepare(
@@ -136,7 +136,7 @@ describe("forYouStore", () => {
     assert.equal(listActiveSuggestions("u1", now + 1000).length, 0);
   });
 
-  it("hides marked engagement targets but keeps original posts", async () => {
+  await it("hides marked engagement targets but keeps original posts", async () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     const iso = new Date(now).toISOString();
     getPlatformDb()
@@ -170,7 +170,7 @@ describe("forYouStore", () => {
     );
   });
 
-  it("replaceDailySuggestions expires leftovers and records the UTC day", () => {
+  await it("replaceDailySuggestions expires leftovers and records the UTC day", () => {
     const morning = Date.parse("2026-08-20T01:00:00.000Z");
     const first = replaceDailySuggestions({
       userId: "u1",
@@ -193,7 +193,7 @@ describe("forYouStore", () => {
     assert.equal(active[0]?.why, "second");
   });
 
-  it("markSuggestion records distinct done, skipped, and dismissed statuses", () => {
+  await it("markSuggestion records distinct done, skipped, and dismissed statuses", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     const [row] = insertSuggestions({
       userId: "u1",
@@ -247,7 +247,7 @@ describe("forYouStore", () => {
     assert.equal(listActiveSuggestions("u1", now + 4000).length, 0);
   });
 
-  it("skip buries remixes of the same original and refuses a rewrite", () => {
+  await it("skip buries remixes of the same original and refuses a rewrite", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     const [first] = insertSuggestions({
       userId: "u1",
@@ -299,7 +299,7 @@ describe("forYouStore", () => {
     assert.equal(listActiveSuggestions("u1", now + 4000).length, 1);
   });
 
-  it("keeps the skipped card when sibling suppression fails", () => {
+  await it("keeps the skipped card when sibling suppression fails", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     const [seed] = insertSuggestions({
       userId: "u1",
@@ -331,7 +331,7 @@ describe("forYouStore", () => {
     assert.equal(getSuggestion(seed.id, "u1")?.status, "skipped");
   });
 
-  it("keeps paid extra originals through the daily expiry pass", () => {
+  await it("keeps paid extra originals through the daily expiry pass", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     insertSuggestions({
       userId: "u1",
@@ -353,7 +353,7 @@ describe("forYouStore", () => {
     assert.equal(active[0]?.draft, "Paid original.");
   });
 
-  it("counts done OG cards today and ignores quotes, skips, and yesterday", () => {
+  await it("counts done OG cards today and ignores quotes, skips, and yesterday", () => {
     const day = Date.parse("2026-08-27T12:00:00.000Z");
     const since = "2026-08-27T00:00:00.000Z";
     const [og] = insertSuggestions({
@@ -399,7 +399,7 @@ describe("forYouStore", () => {
     );
   });
 
-  it("getSuggestion is scoped to the owner", () => {
+  await it("getSuggestion is scoped to the owner", () => {
     const [row] = insertSuggestions({
       userId: "u1",
       tenantId: "local",
@@ -410,7 +410,7 @@ describe("forYouStore", () => {
     assert.equal(getSuggestion(row.id, "u2"), null);
   });
 
-  it("rewrites stored first-person why on read", () => {
+  await it("rewrites stored first-person why on read", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     getPlatformDb()
       .prepare(
@@ -442,7 +442,7 @@ describe("forYouStore", () => {
     assert.equal(read?.draft, "I shipped it.");
   });
 
-  it("returns a second-person why from insertSuggestions / replaceDailySuggestions", () => {
+  await it("returns a second-person why from insertSuggestions / replaceDailySuggestions", () => {
     const now = Date.parse("2026-08-20T12:00:00.000Z");
     const [inserted] = insertSuggestions({
       userId: "u1",
@@ -470,8 +470,8 @@ describe("forYouStore", () => {
   });
 });
 
-describe("secondPersonWhy", () => {
-  it("addresses the operator, not the copilot", () => {
+await describe("secondPersonWhy", async () => {
+  await it("addresses the operator, not the copilot", () => {
     assert.equal(
       secondPersonWhy(
         "My recent originals about AI model lineups got 18-23 views",
@@ -484,14 +484,14 @@ describe("secondPersonWhy", () => {
     );
   });
 
-  it("leaves already-second-person copy alone", () => {
+  await it("leaves already-second-person copy alone", () => {
     assert.equal(
       secondPersonWhy("Your reply hit 1588 views — double down"),
       "Your reply hit 1588 views — double down",
     );
   });
 
-  it("rewrites contractions and lowercase first-person variants", () => {
+  await it("rewrites contractions and lowercase first-person variants", () => {
     assert.equal(
       secondPersonWhy("I'm shipping, I've got it, I'd go, I'll try"),
       "You're shipping, You've got it, You'd go, You'll try",
@@ -519,7 +519,7 @@ describe("secondPersonWhy", () => {
     assert.equal(secondPersonWhy("Mine got 3"), "Yours got 3");
   });
 
-  it("handles uncontracted first-person slips", () => {
+  await it("handles uncontracted first-person slips", () => {
     assert.equal(
       secondPersonWhy("I am seeing 900 views on the recap"),
       "You're seeing 900 views on the recap",
@@ -534,7 +534,7 @@ describe("secondPersonWhy", () => {
     );
   });
 
-  it("is stable under a second pass", () => {
+  await it("is stable under a second pass", () => {
     const cases = [
       "I was the top performer this week",
       "My recent originals about shipping got 18 views",
