@@ -1,4 +1,4 @@
-import { StrictMode, type ReactNode } from "react";
+import { StrictMode, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { SessionBoundary, useSession } from "../../src/auth/session";
@@ -6,10 +6,10 @@ import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";
 import { useSkipDismiss } from "../../src/desk/useSkipDismiss";
 import type { ThreadCard } from "../../src/desk/types";
-import type { AppSettings } from "../../src/lib/settings";
-import type { DeskBootDesk } from "../../src/lib/deskBoot";
+import { DEFAULT_SETTINGS } from "../../src/lib/settings";
 import { emptyActivityStats } from "../../src/lib/activityStats";
 import { emptyGamificationStats } from "../../src/lib/gamification";
+import { authUser } from "./support/authUser";
 import { deferred } from "./support/deferred";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -30,10 +30,10 @@ function setup() {
   });
   vi.stubGlobal("fetch", fetch);
   const setStatus = vi.fn();
-  const setThreads = vi.fn();
+  const setThreads = vi.fn<Dispatch<SetStateAction<ThreadCard[]>>>();
   const onHydrated = vi.fn();
   const hook = renderHook(() => ({
-    history: useDeskHistory({ setStatus, setThreads, setActionBusy: vi.fn(), settings: {} as AppSettings, onHydrated }, null),
+    history: useDeskHistory({ setStatus, setThreads, setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS, onHydrated }, null),
     session: useSession(),
   }), { wrapper });
   return { ...hook, requests, fetch, setStatus, setThreads, onHydrated };
@@ -100,7 +100,7 @@ test("an interacted completion uses the latest hydrated callback", async () => {
   const latest = vi.fn();
   const hook = renderHook(({ onHydrated }) => useDeskHistory({
     setStatus: vi.fn(), setThreads: vi.fn(), setActionBusy: vi.fn(),
-    settings: {} as AppSettings, onHydrated,
+    settings: DEFAULT_SETTINGS, onHydrated,
   }, null), { wrapper, initialProps: { onHydrated: first } });
   let pending!: Promise<void>;
   act(() => { pending = hook.result.current.hydrateInteracted(); });
@@ -131,7 +131,7 @@ function setupSkipDismiss() {
   }), { wrapper });
   act(() => {
     const generation = hook.result.current.session.capture();
-    hook.result.current.session.verify({ id: "owner-a" } as never, true, generation);
+    hook.result.current.session.verify(authUser("owner-a"), true, generation);
   });
   return { ...hook, requests, onActionSucceeded, setStatus };
 }
@@ -174,7 +174,7 @@ test("an action acknowledged after an account switch does not refresh the new ac
   act(() => { skip = old.actions.onSkip(card); });
   act(() => {
     const generation = old.session.capture();
-    old.session.verify({ id: "owner-b" } as never, true, generation);
+    old.session.verify(authUser("owner-b"), true, generation);
   });
   await act(async () => { requests[0].resolve(response({ ok: true })); });
   expect(await skip).toBe(true);
@@ -240,7 +240,9 @@ test.each(["invalidate", "unmount"] as const)("drops a response during JSON pars
   const old = result.current;
   let pending!: Promise<void>;
   act(() => { pending = old.history.hydrateInteracted(); });
-  await act(async () => { requests[0].resolve({ ok: true, json: () => body.promise } as Response); });
+  const pendingResponse = new Response();
+  vi.spyOn(pendingResponse, "json").mockImplementation(() => body.promise);
+  await act(async () => { requests[0].resolve(pendingResponse); });
   act(() => { if (end === "invalidate") old.session.invalidate("", false); else unmount(); });
   await act(async () => { body.resolve({ interactions: [row("late")], activeIds: ["late"] }); await pending; });
   expect(old.history.interactedIdsRef.current.size).toBe(0);
@@ -256,7 +258,7 @@ test("applyStripFromBoot still applies gamification after StrictMode replay", ()
     result.current.applyStripFromBoot({
       gamification,
       activityStats: emptyActivityStats("day"),
-    } as DeskBootDesk);
+    });
   });
   expect(result.current.gamification).toEqual(gamification);
 });
@@ -422,8 +424,9 @@ test.each(["hydrateInteracted", "hydrateSkipped", "hydrateDismissed", "hydrateEx
     const old = result.current;
     let pending!: Promise<void>;
     act(() => { pending = old.history[hydrate](); old.session.invalidate("", false); });
-    const json = vi.fn();
-    await act(async () => { requests[0].resolve({ ok: true, json } as unknown as Response); await pending; await old.history[hydrate](); });
+    const pendingResponse = new Response();
+    const json = vi.spyOn(pendingResponse, "json");
+    await act(async () => { requests[0].resolve(pendingResponse); await pending; await old.history[hydrate](); });
     expect(json).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(1);
   },
@@ -490,8 +493,8 @@ test("chart and gamification ignore results after unmount", async () => {
 
 test("Scout lock transfers synchronously and stale refresh keeps the new preserved id", async () => {
   const { result, requests, setThreads } = setup();
-  let threads = [{ id: "A" }, { id: "B" }] as ThreadCard[];
-  setThreads.mockImplementation((update) => { threads = update(threads); });
+  let threads: ThreadCard[] = [{ ...card, id: "A" }, { ...card, id: "B" }];
+  setThreads.mockImplementation((update) => { threads = typeof update === "function" ? update(threads) : update; });
   let first!: Promise<void>, latest!: Promise<void>;
   act(() => {
     result.current.history.interactedIdsRef.current.add("A");

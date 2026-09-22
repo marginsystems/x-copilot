@@ -93,7 +93,7 @@ test("queued save stops when persistence is disabled", async () => {
   expect(result.current.authUser?.agenda).toBeNull();
 });
 
-test("logout cleanup does not send an agenda", () => {
+test("logout cleanup does not send an agenda", async () => {
   const fetchMock = vi.fn<typeof fetch>();
   vi.stubGlobal("fetch", fetchMock);
   const { result } = renderHook(useHarness, { wrapper: SessionBoundary });
@@ -102,7 +102,7 @@ test("logout cleanup does not send an agenda", () => {
     result.current.applyAuthUser(owner("a"));
     result.current.setAgenda(draft("private"));
   });
-  act(() => result.current.invalidateSession());
+  await act(() => result.current.invalidateSession());
   expect(fetchMock).not.toHaveBeenCalled();
 });
 

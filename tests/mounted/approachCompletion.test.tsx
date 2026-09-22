@@ -8,7 +8,7 @@ import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { readRetainedSuggestion } from "../../src/desk/approachRetained";
 import { readApproachLock, writeApproachLock } from "../../src/lib/approachLock";
 import type { ForYouSuggestion } from "../../src/lib/forYou";
-import type { AppSettings } from "../../src/lib/settings";
+import { DEFAULT_SETTINGS } from "../../src/lib/settings";
 import { deferred } from "./support/deferred";
 
 const user: AuthSessionUser = {
@@ -46,7 +46,7 @@ function setup() {
   const mount = () => renderHook(({ ready }) => {
     const session = useSession();
     const history = useDeskHistory({
-      setStatus, setThreads: vi.fn(), setActionBusy: vi.fn(), settings: {} as AppSettings,
+      setStatus, setThreads: vi.fn(), setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS,
     }, null);
     const approach = useApproachTask({
       authUser: user, deskBootReady: ready, agendaReady: true,
