@@ -428,6 +428,8 @@ describe("phase + meter helpers", () => {
     );
   }).catch(assert.fail);
 
+});
+
 it("rejects unknown voice statuses and non-string card lists", () => {
   assert.equal(parseVoiceState({ voice: { status: "unexpected" } }), null);
   assert.equal(parseVoiceState({ voice: { status: "ready", card: { tone: "dry", examples: [1] } } })?.card, null);

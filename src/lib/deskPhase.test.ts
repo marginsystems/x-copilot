@@ -201,7 +201,6 @@ describe("Approach lock", () => {
       { phase: "scout_reply", cardId: null, surface: null },
     );
   }).catch(assert.fail);
-});
 
   it("routes posted Suggested to the next scout, For You, or done_for_now", () => {
     const posted = {
