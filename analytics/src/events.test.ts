@@ -4,8 +4,8 @@ import { formatSlackText, parseAnalyticsEvent } from "./events.ts";
 
 const frozen = () => new Date("2026-08-19T12:00:00.000Z");
 
-describe("parseAnalyticsEvent", () => {
-  it("accepts an allowlisted signup", () => {
+await describe("parseAnalyticsEvent", async () => {
+  await it("accepts an allowlisted signup", () => {
     const parsed = parseAnalyticsEvent(
       {
         name: "user.signup",
@@ -24,13 +24,13 @@ describe("parseAnalyticsEvent", () => {
     assert.equal(parsed.event.email, "alice@example.com");
   });
 
-  it("rejects unknown names and non-objects", () => {
+  await it("rejects unknown names and non-objects", () => {
     assert.equal(parseAnalyticsEvent({ name: "drop.table" }).ok, false);
     assert.equal(parseAnalyticsEvent(null).ok, false);
     assert.equal(parseAnalyticsEvent("user.signup").ok, false);
   });
 
-  it("keeps a valid at and drops empty optional fields", () => {
+  await it("keeps a valid at and drops empty optional fields", () => {
     const parsed = parseAnalyticsEvent(
       {
         name: "scout.takeoff",
@@ -50,8 +50,8 @@ describe("parseAnalyticsEvent", () => {
   });
 });
 
-describe("formatSlackText", () => {
-  it("renders signup with identity", () => {
+await describe("formatSlackText", async () => {
+  await it("renders signup with identity", () => {
     const text = formatSlackText({
       name: "user.signup",
       at: "2026-08-19T12:00:00.000Z",
@@ -63,7 +63,7 @@ describe("formatSlackText", () => {
     assert.equal(text, "*signup* · alice@example.com · @alice · google\n`u-1`");
   });
 
-  it("escapes Slack control sequences in user fields", () => {
+  await it("escapes Slack control sequences in user fields", () => {
     const text = formatSlackText({
       name: "user.signup",
       at: "2026-08-19T12:00:00.000Z",
@@ -77,7 +77,7 @@ describe("formatSlackText", () => {
     );
   });
 
-  it("marks a failed takeoff", () => {
+  await it("marks a failed takeoff", () => {
     const text = formatSlackText({
       name: "scout.failed",
       at: "2026-08-19T12:00:00.000Z",
@@ -86,7 +86,7 @@ describe("formatSlackText", () => {
     });
     assert.equal(text, "*scout failed* · failed · x_rate_limit");
   });
-  it("escapes Slack markup in untrusted detail", () => {
+  await it("escapes Slack markup in untrusted detail", () => {
     const text = formatSlackText({
       name: "mark.interacted",
       at: "2026-08-19T12:00:00.000Z",
