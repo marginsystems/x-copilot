@@ -16,6 +16,7 @@ import {
   FYP_NEXT_TIP,
   FYP_OPEN_TIP,
   FYP_WAIT_COPY,
+  X_FOR_YOU_URL,
   X_INSPIRATION_URL,
   type ForYouSuggestion,
 } from "./forYou.ts";
@@ -87,14 +88,37 @@ describe("forYou helpers", () => {
       }),
       "https://x.com/a/status/77",
     );
-    const compose = forYouOpenUrl(base);
+  });
+
+  it("opens post rows on For You without the digest draft or target", () => {
+    for (const row of [
+      base,
+      { ...base, draft: null },
+      { ...base, targetUrl: "https://x.com/a/status/77", targetId: "77" },
+      { ...base, targetId: "77" },
+    ]) {
+      const url = forYouOpenUrl(row);
+      assert.equal(url, X_FOR_YOU_URL);
+      assert.ok(!decodeURIComponent(url!).includes(base.draft!));
+    }
+  });
+
+  it("keeps the draft fallback for a quote without a target", () => {
+    const compose = forYouOpenUrl({ ...base, kind: "quote" });
     assert.ok(compose?.includes("intent/tweet"));
     assert.ok(compose?.includes("Ship"));
     assert.equal(
-      forYouOpenUrl({ ...base, draft: null, targetUrl: null, targetId: null }),
+      forYouOpenUrl({ ...base, kind: "quote", draft: null }),
       null,
     );
   }).catch(assert.fail);
+
+  it("opens a reply intent with the draft when only a numeric target id is present", () => {
+    const url = new URL(forYouOpenUrl({ ...base, kind: "reply", targetId: "77" })!);
+    assert.equal(url.origin + url.pathname, "https://x.com/intent/tweet");
+    assert.equal(url.searchParams.get("in_reply_to"), "77");
+    assert.equal(url.searchParams.get("text"), base.draft);
+  });
 
   it("rejects non-http(s) targetUrl schemes and falls back", () => {
     for (const bad of [
@@ -102,20 +126,18 @@ describe("forYou helpers", () => {
       "data:text/html,x",
       "vbscript:msgbox(1)",
     ]) {
-      const url = forYouOpenUrl({ ...base, targetUrl: bad });
+      const url = forYouOpenUrl({ ...base, kind: "quote", targetUrl: bad });
       assert.ok(url);
       assert.ok(/^https?:\/\//i.test(url!), `got unsafe url ${url}`);
       assert.ok(!url?.includes(bad));
     }
-    assert.ok(
-      forYouOpenUrl({ ...base, targetUrl: "HTTPS://x.com/a/status/9" })?.startsWith(
-        "HTTPS://",
-      ),
+    assert.equal(
+      forYouOpenUrl({ ...base, kind: "quote", targetUrl: "HTTPS://x.com/a/status/9" }),
+      "HTTPS://x.com/a/status/9",
     );
-    assert.ok(
-      forYouOpenUrl({ ...base, targetUrl: "http://x.com/a/status/9" })?.startsWith(
-        "http://",
-      ),
+    assert.equal(
+      forYouOpenUrl({ ...base, kind: "quote", targetUrl: "http://x.com/a/status/9" }),
+      "http://x.com/a/status/9",
     );
   }).catch(assert.fail);
 
