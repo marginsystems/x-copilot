@@ -96,6 +96,8 @@ describe("parseAuthSessionUser", () => {
     assert.equal(parsed?.agenda, null);
   }).catch(assert.fail);
 
+});
+
 describe("parseDeskBoot", () => {
   it("keeps a signed-in payload and parses Approach progress", () => {
     const parsed = parseDeskBoot({
@@ -241,6 +243,8 @@ describe("parseDeskBoot", () => {
     assert.equal(rows[2]?.memory, undefined);
   }).catch(assert.fail);
 
+});
+
 describe("desk boot cache", () => {
   it("round-trips a snapshot without scoutLog and drops signed-out writes", () => {
     const store = memoryStore();
@@ -340,3 +344,4 @@ it("keeps valid Scout cards intact and drops malformed cached fields", () => {
   assert.deepEqual(mixed?.snapshot?.threads, [card]);
   assert.equal(mixed?.snapshot?.pipelineCounts, undefined);
   assert.equal(boot([null], counts)?.empty, true);
+});

@@ -61,6 +61,8 @@ describe("dailyPostCap", () => {
     );
   }).catch(assert.fail);
 
+});
+
 describe("trailingPerHour", () => {
   it("is zero with no marks", () => {
     assert.equal(trailingPerHour([], NOW), 0);
@@ -85,6 +87,8 @@ describe("trailingPerHour", () => {
     assert.equal(trailingPerHour([NOW, NOW], NOW), 120);
   }).catch(assert.fail);
 
+});
+
 describe("pctDelta / format", () => {
   it("returns null when the previous value is zero and current is not", () => {
     assert.equal(pctDelta(2, 0), null);
@@ -107,6 +111,8 @@ describe("pctDelta / format", () => {
     assert.equal(formatTankGauge(0), "0 / 10");
     assert.equal(formatTankGauge(3), "3 / 10");
   }).catch(assert.fail);
+
+});
 
 describe("readDeskInstruments", () => {
   it("returns empty gauges for an empty account", () => {
@@ -301,3 +307,4 @@ describe("readDeskInstruments", () => {
     assert.equal(got.repliesUtcDay, 15);
     assert.ok(Number(formatPerHour(got.repliesPerHour)) > 1);
   }).catch(assert.fail);
+});

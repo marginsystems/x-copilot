@@ -78,3 +78,4 @@ describe("vanishEvent", () => {
       "skip",
     );
   }).catch(assert.fail);
+});

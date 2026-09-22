@@ -29,6 +29,8 @@ describe("sortThreadsByCreatedAtNewest", () => {
     assert.ok(["nope", "bad"].includes(sorted[2]?.id ?? ""));
   }).catch(assert.fail);
 
+});
+
 describe("sortThreadsByAudience", () => {
   it("orders highest views first", () => {
     const sorted = sortThreadsByAudience([
@@ -41,3 +43,4 @@ describe("sortThreadsByAudience", () => {
       ["loud", "quiet", "none"],
     );
   }).catch(assert.fail);
+});

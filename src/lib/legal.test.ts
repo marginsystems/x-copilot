@@ -22,3 +22,4 @@ describe("legal", () => {
     assert.equal(isLegalKind("terms"), true);
     assert.equal(isLegalKind("usage"), false);
   }).catch(assert.fail);
+});

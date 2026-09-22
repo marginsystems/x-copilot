@@ -69,6 +69,8 @@ describe("shouldBackgroundScout", () => {
     );
   }).catch(assert.fail);
 
+});
+
 describe("Scout refill state", () => {
   it("arms after Mark consumes the last usable Scout card", () => {
     assert.equal(shouldArmScoutRefill(0), true);
@@ -87,6 +89,8 @@ describe("Scout refill state", () => {
     assert.equal(shouldArmScoutRefill(eligible.length), true);
     assert.equal(shouldArmScoutRefill(tank.length), false);
   }).catch(assert.fail);
+
+});
 
 describe("shouldArmScoutOnBoot", () => {
   it("arms an empty or low tank on a new opening", () => {
@@ -127,3 +131,4 @@ describe("shouldArmScoutOnBoot", () => {
     assert.equal(shouldArmScoutOnBoot({ ...boot, handledThisOpen: true }), false);
     assert.equal(shouldArmScoutOnBoot({ ...boot, usableScoutCount: 1 }), true);
   }).catch(assert.fail);
+});

@@ -32,3 +32,4 @@ describe("PUBLIC_PLANS", () => {
       ],
     );
   }).catch(assert.fail);
+});

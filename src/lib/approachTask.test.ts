@@ -74,6 +74,7 @@ describe("restored lock", () => {
     assert.equal(state.wait, storedWait);
     assert.equal(present(state).detector, "for_you");
   }).catch(assert.fail);
+});
 
   it("establishes a fresh baseline when no wait was stored, before claiming detection", () => {
     const state = restoreApproachTask({
@@ -124,6 +125,8 @@ describe("restored lock", () => {
     assert.equal(view.verb, "Collecting");
     assert.equal(view.forYou, null);
   }).catch(assert.fail);
+
+});
 
 describe("gate resolution", () => {
   const gated = { ...open, gate: "link_x", canOpenForYou: false } as const;
@@ -193,6 +196,8 @@ describe("gate resolution", () => {
     );
   }).catch(assert.fail);
 
+});
+
 describe("cooldown expiry", () => {
   it("a stored cooldown wait restores as For You with Open For You and Next", () => {
     const state = restoreApproachTask({
@@ -211,6 +216,8 @@ describe("cooldown expiry", () => {
     assert.equal(view.why, "");
     assert.equal(view.forYou?.status, FYP_DETECTING_COPY);
   }).catch(assert.fail);
+
+});
 
 describe("late baseline", () => {
   it("a cursor that arrives after entry cannot absorb a post made since entry", () => {
@@ -236,6 +243,8 @@ describe("late baseline", () => {
     assert.equal(view.forYou?.status, FYP_DETECTED_COPY);
     assert.equal(view.detector, null);
   }).catch(assert.fail);
+
+});
 
 describe("detection with a landing", () => {
   it("new stock updates inventory only; the detected wait keeps its card until Next", () => {
@@ -272,6 +281,8 @@ describe("detection with a landing", () => {
     });
     assert.equal(released.wait, null);
   }).catch(assert.fail);
+
+});
 
 describe("Next with an empty tank", () => {
   it("leaves a completed For You wait for collecting idle", () => {
@@ -328,6 +339,8 @@ describe("Next with an empty tank", () => {
       surface: null,
     });
   }).catch(assert.fail);
+
+});
 
 describe("same-phase Scout release", () => {
   it("keeps a mark on a live Scout lock without opening a wait", () => {
@@ -430,6 +443,8 @@ describe("same-phase Scout release", () => {
     assert.deepEqual(eligibleScoutCards(tank, new Set()), tank);
   }).catch(assert.fail);
 
+});
+
 describe("Reply minute destinations", () => {
   const hold: ApproachTaskState = {
     lock: { phase: "hold", cardId: null, surface: "for_you" },
@@ -490,6 +505,8 @@ describe("Reply minute destinations", () => {
     assert.equal(over.forYou, null);
   }).catch(assert.fail);
 
+});
+
 describe("Bypass", () => {
   it("clears the wait and stops its poll in the same transition", () => {
     const held: ApproachTaskState = {
@@ -535,6 +552,8 @@ describe("Bypass", () => {
     });
     assert.equal(next.wait, null);
   }).catch(assert.fail);
+
+});
 
 describe("Scout detection ownership", () => {
   const scout = { id: "A", author: "@a", text: "a", url: "https://x.com/a" };
@@ -651,6 +670,8 @@ describe("Scout detection ownership", () => {
     );
   }).catch(assert.fail);
 
+});
+
 describe("Suggested presentation", () => {
   it("does not add frame explanation copy", () => {
     const view = presentApproach({
@@ -673,6 +694,8 @@ describe("Suggested presentation", () => {
     });
     assert.equal(view.why, "");
   }).catch(assert.fail);
+
+});
 
 describe("Collecting refill handoff", () => {
   it("flies on hydrated empty boot before Next, then ignores extra Next and empty landings", () => {

@@ -180,3 +180,4 @@ describe("parseScoutFamiliarity", () => {
       threadKind: null,
     });
   }).catch(assert.fail);
+});

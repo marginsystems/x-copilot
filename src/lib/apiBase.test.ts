@@ -29,3 +29,4 @@ describe("apiBase", () => {
       `${LOCAL_API_ORIGIN}/api/health`,
     );
   }).catch(assert.fail);
+});

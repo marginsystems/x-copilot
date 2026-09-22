@@ -61,6 +61,8 @@ describe("clampMaxThreadChars", () => {
     assert.equal(clampMaxThreadChars("abc"), 480);
   }).catch(assert.fail);
 
+});
+
 describe("clampTargetCoolThreads", () => {
   it("clamps to 1–20 and defaults invalid values", () => {
     assert.equal(clampTargetCoolThreads(8), 8);
@@ -70,6 +72,8 @@ describe("clampTargetCoolThreads", () => {
     assert.equal(clampTargetCoolThreads(3.5), 5);
   }).catch(assert.fail);
 
+});
+
 describe("normalizePreferredLanguage", () => {
   it("defaults unknown codes to en", () => {
     assert.equal(normalizePreferredLanguage("en"), "en");
@@ -77,6 +81,8 @@ describe("normalizePreferredLanguage", () => {
     assert.equal(normalizePreferredLanguage("zz"), "en");
     assert.equal(normalizePreferredLanguage(null), "en");
   }).catch(assert.fail);
+
+});
 
 describe("excludedTags settings", () => {
   it("strips trailing underscores (so Settings must draft raw text)", () => {
@@ -150,6 +156,8 @@ describe("excludedTags settings", () => {
     );
     assert.deepEqual(normalizeSettings({ excludedAccounts: [] }).excludedAccounts, []);
   }).catch(assert.fail);
+
+});
 
 describe("normalizeSettings", () => {
   it("fills defaults for bad input", () => {
@@ -225,6 +233,8 @@ describe("normalizeSettings", () => {
     assert.equal(normalizeSettings(stored).dropHashtags, true);
   }).catch(assert.fail);
 
+});
+
 describe("plain-text filters", () => {
   it("detects native media from shortlinks or pic hosts", () => {
     assert.equal(
@@ -261,6 +271,8 @@ describe("plain-text filters", () => {
       true,
     );
   }).catch(assert.fail);
+
+});
 
 describe("loadSettings / saveSettings", () => {
   beforeEach(() => {
@@ -388,3 +400,4 @@ describe("loadSettings / saveSettings", () => {
       ...LEGACY_DEFAULT_EXCLUDED_ACCOUNTS,
     ]);
   }).catch(assert.fail);
+});

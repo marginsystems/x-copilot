@@ -43,3 +43,4 @@ describe("deskRow expand phase", () => {
     assert.equal(deskRowPhaseAfterEnter("open"), "open");
     assert.equal(deskRowPhaseAfterLeave("closed"), "closed");
   }).catch(assert.fail);
+});

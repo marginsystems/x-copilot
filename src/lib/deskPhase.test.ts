@@ -20,6 +20,8 @@ describe("emptyDeskBeats", () => {
     });
   }).catch(assert.fail);
 
+});
+
 describe("Approach lock", () => {
   const inventory = {
     scoutId: "scout-2",
@@ -199,6 +201,7 @@ describe("Approach lock", () => {
       { phase: "scout_reply", cardId: null, surface: null },
     );
   }).catch(assert.fail);
+});
 
   it("routes posted Suggested to the next scout, For You, or done_for_now", () => {
     const posted = {
@@ -273,6 +276,8 @@ describe("Approach lock", () => {
       { phase: "scout_reply", cardId: "scout-3", surface: null },
     );
   }).catch(assert.fail);
+
+});
 
 describe("normalizeApproachLock", () => {
   const open = {
@@ -431,6 +436,8 @@ describe("normalizeApproachLock", () => {
       false,
     );
   }).catch(assert.fail);
+
+});
 
 describe("S10 skip-next", () => {
   const firstScout = {

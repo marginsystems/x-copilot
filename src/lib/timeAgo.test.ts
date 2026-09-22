@@ -17,6 +17,8 @@ describe("parseCreatedAt", () => {
     assert.equal(parseCreatedAt(undefined), null);
   }).catch(assert.fail);
 
+});
+
 describe("formatTimeAgo", () => {
   const now = Date.parse("2026-07-25T15:00:00.000Z");
 
@@ -57,9 +59,12 @@ describe("formatTimeAgo", () => {
     assert.match(label!, /Jul/);
   }).catch(assert.fail);
 
+});
+
 describe("formatAbsoluteTime", () => {
   it("returns a locale string for valid dates", () => {
     const abs = formatAbsoluteTime(twitter);
     assert.ok(abs);
     assert.notEqual(abs, "Invalid Date");
   }).catch(assert.fail);
+});

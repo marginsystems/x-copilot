@@ -32,3 +32,4 @@ describe("deskLayout", () => {
     writeDeskTopOpen(false, store);
     assert.equal(readDeskTopOpen(store), false);
   }).catch(assert.fail);
+});
