@@ -504,3 +504,4 @@ describe("S10 skip-next", () => {
       { phase: "scout_reply", cardId: null, surface: null },
     );
   }).catch(assert.fail);
+});

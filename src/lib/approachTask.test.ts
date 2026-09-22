@@ -741,3 +741,4 @@ describe("Collecting refill handoff", () => {
     boot(true);
     assert.equal(searches, 2);
   }).catch(assert.fail);
+});
