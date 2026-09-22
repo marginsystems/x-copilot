@@ -344,5 +344,5 @@ it("keeps valid Scout cards intact and drops malformed cached fields", () => {
   assert.deepEqual(mixed?.snapshot?.threads, [card]);
   assert.equal(mixed?.snapshot?.pipelineCounts, undefined);
   assert.equal(boot([null], counts)?.empty, true);
-});
+}).catch(assert.fail);
 });
