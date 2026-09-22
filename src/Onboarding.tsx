@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { isRecord } from "./lib/typeGuards";
 import { apiFetch } from "./lib/apiBase";
 import {
   AUDIENCE_OPTIONS,
@@ -136,13 +137,11 @@ export function Onboarding(props: {
           audiences: labelsFor(audiences, AUDIENCE_OPTIONS),
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        agendas?: unknown;
-        message?: string;
-      };
+      const raw: unknown = await res.json().catch(() => ({}));
+      const data = isRecord(raw) ? raw : {};
       const parsed = parseGeneratedAgendas(data.agendas);
       if (!res.ok || !parsed) {
-        setNotice(data.message || "Could not write agendas. Try again.");
+        setNotice(typeof data.message === "string" && data.message || "Could not write agendas. Try again.");
         return false;
       }
       setAgendas(parsed);
@@ -189,8 +188,8 @@ export function Onboarding(props: {
           }),
         });
         if (!res.ok) {
-          const data = (await res.json()) as { message?: string };
-          setNotice(data.message || "Could not save your setup.");
+          const data: unknown = await res.json();
+          setNotice(isRecord(data) && typeof data.message === "string" && data.message || "Could not save your setup.");
           return;
         }
       }
@@ -355,7 +354,7 @@ export function Onboarding(props: {
             type="button"
             className="primary"
             disabled={busy}
-            onClick={() => void goNext()}
+            onClick={() => { goNext().catch(() => setNotice("Could not save your setup. Try again.")); }}
           >
             {busy && !onPick
               ? "Writing…"

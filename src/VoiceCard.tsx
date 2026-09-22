@@ -117,7 +117,7 @@ export function VoiceCardPanel({
               type="button"
               className="ghost voice-share"
               disabled={sharing}
-              onClick={() => void onShareCard()}
+              onClick={() => { onShareCard().catch(() => setShareNote("Could not save the card image.")); }}
             >
               {sharing ? "Saving…" : "Share card"}
             </button>
