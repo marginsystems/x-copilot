@@ -2,6 +2,7 @@
  * Authenticated watch / analytics routes. The public XAA webhook lives on
  * the isolated webhook process (127.0.0.1:8789), not this API.
  */
+import { objectValue } from "../platform/unknownValue.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { send } from "../http/httpJson.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
@@ -58,7 +59,7 @@ export async function tryHandleXActivityAuthed(
     let body: Record<string, unknown> = {};
     try {
       body = raw.length
-        ? (JSON.parse(raw.toString("utf8")) as Record<string, unknown>)
+        ? objectValue(JSON.parse(raw.toString("utf8")))
         : {};
     } catch {
       send(req, res, 400, { error: "invalid_json" });
@@ -74,7 +75,7 @@ export async function tryHandleXActivityAuthed(
     let n = 0;
     for (const item of batch.slice(0, 40)) {
       if (!item || typeof item !== "object") continue;
-      const row = item as Record<string, unknown>;
+      const row = objectValue(item);
       const threadId = String(row.threadId ?? "").trim();
       if (!threadId) continue;
       const author = typeof row.author === "string" ? row.author : undefined;

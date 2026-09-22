@@ -6,6 +6,7 @@
  * stay at /2/activity/subscriptions. /2/activity/webhooks does not exist
  * (prod logged 404 on every boot).
  */
+import { objectValue, isRecord, optionalStringRow, optionalNullableStringRow, stringRow } from "../platform/unknownValue.js";
 import { getPlatformDb } from "../db.js";
 import { X_API_BASE, getXApiCredsFromEnv } from "./xApi.js";
 import { getXOauthUsername } from "../auth/xIdentityStore.js";
@@ -82,13 +83,16 @@ async function deleteActivitySubscription(
 export function getStoredWebhookId(): string | null {
   const fromEnv = process.env.X_ACTIVITY_WEBHOOK_ID?.trim();
   if (fromEnv) return fromEnv;
-  const row = getPlatformDb()
-    .prepare(
-      `SELECT webhook_id FROM activity_subscriptions
-       WHERE webhook_id IS NOT NULL AND TRIM(webhook_id) != ''
-       LIMIT 1`,
-    )
-    .get() as { webhook_id: string } | undefined;
+  const row = optionalStringRow(
+    getPlatformDb()
+      .prepare(
+        `SELECT webhook_id FROM activity_subscriptions
+         WHERE webhook_id IS NOT NULL AND TRIM(webhook_id) != ''
+         LIMIT 1`,
+      )
+      .get(),
+    "webhook_id",
+  );
   return row?.webhook_id?.trim() || null;
 }
 
@@ -96,29 +100,21 @@ export function findListedWebhookId(
   json: unknown,
   url: string,
 ): string | null {
-  const data = (json as { data?: Array<{ id?: string; url?: string }> })?.data;
+  const data = objectValue(json).data;
   if (!Array.isArray(data)) return null;
-  const hit = data.find((w) => w.url === url && w.id);
+  const hit = data.filter(isRecord).find((w) => w.url === url && w.id);
   return hit?.id ? String(hit.id) : null;
 }
 
 export function webhookIdFromCreate(json: unknown): string | null {
-  const id = (json as { data?: { id?: string } })?.data?.id;
+  const id = objectValue(objectValue(json).data).id;
   return id ? String(id) : null;
 }
 
-type ActivitySubscriptionRow = {
-  subscription_id?: string;
-  event_type?: string;
-  filter?: { user_id?: string };
-  webhook_id?: string;
-};
-
 /** Official create returns `data` as an object or a one-item array. */
 export function subscriptionIdFromCreate(json: unknown): string | null {
-  const data = (json as { data?: ActivitySubscriptionRow | ActivitySubscriptionRow[] })
-    ?.data;
-  const row = Array.isArray(data) ? data[0] : data;
+  const data = objectValue(json).data;
+  const row = objectValue(Array.isArray(data) ? data[0] : data);
   return row?.subscription_id ? String(row.subscription_id) : null;
 }
 
@@ -128,13 +124,12 @@ export function findListedSubscriptionId(
   webhookId: string,
   eventType = "post.create",
 ): string | null {
-  const data = (json as { data?: ActivitySubscriptionRow | ActivitySubscriptionRow[] })
-    ?.data;
+  const data = objectValue(json).data;
   const rows = Array.isArray(data) ? data : data ? [data] : [];
-  const hit = rows.find(
+  const hit = rows.filter(isRecord).find(
     (row) =>
       row.event_type === eventType &&
-      row.filter?.user_id === xUserId &&
+      objectValue(row.filter).user_id === xUserId &&
       row.webhook_id === webhookId &&
       row.subscription_id,
   );
@@ -206,11 +201,9 @@ export async function registerActivityWebhook(opts: {
   request: XJsonFn;
 }): Promise<string | null> {
   const listed = await opts.request({ method: "GET", path: X_WEBHOOKS_PATH });
-  const listedData = (listed.json as {
-    data?: Array<{ id?: string; url?: string; valid?: boolean }>;
-  })?.data;
+  const listedData = objectValue(listed.json).data;
   const existingWebhook = Array.isArray(listedData)
-    ? listedData.find((w) => w.url === opts.url && w.id)
+    ? listedData.filter(isRecord).find((w) => w.url === opts.url && w.id)
     : undefined;
   if (existingWebhook?.id && existingWebhook.valid !== false) {
     return String(existingWebhook.id);
@@ -283,35 +276,48 @@ export async function lookupXUserId(username: string): Promise<string | null> {
     },
   );
   if (!res.ok) return null;
-  const json = (await res.json()) as { data?: { id?: string } };
-  return json.data?.id?.trim() || null;
+  const json: unknown = await res.json();
+  const id = objectValue(objectValue(json).data).id;
+  return typeof id === "string" ? id.trim() || null : null;
 }
 
 export function resolveStoredXUserId(userId: string): string | null {
-  const sub = getPlatformDb()
-    .prepare(`SELECT x_user_id FROM activity_subscriptions WHERE user_id = ?`)
-    .get(userId) as { x_user_id: string } | undefined;
+  const sub = optionalNullableStringRow(
+    getPlatformDb()
+      .prepare(`SELECT x_user_id FROM activity_subscriptions WHERE user_id = ?`)
+      .get(userId),
+    "x_user_id",
+  );
   if (sub?.x_user_id) return sub.x_user_id;
-  const oauth = getPlatformDb()
-    .prepare(
-      `SELECT provider_user_id FROM oauth_accounts
-       WHERE user_id = ? AND provider = 'x' LIMIT 1`,
-    )
-    .get(userId) as { provider_user_id: string } | undefined;
+  const oauth = optionalStringRow(
+    getPlatformDb()
+      .prepare(
+        `SELECT provider_user_id FROM oauth_accounts
+         WHERE user_id = ? AND provider = 'x' LIMIT 1`,
+      )
+      .get(userId),
+    "provider_user_id",
+  );
   return oauth?.provider_user_id?.trim() || null;
 }
 
 export function findUserIdByXUserId(xUserId: string): string | null {
-  const sub = getPlatformDb()
-    .prepare(`SELECT user_id FROM activity_subscriptions WHERE x_user_id = ?`)
-    .get(xUserId) as { user_id: string } | undefined;
+  const sub = optionalStringRow(
+    getPlatformDb()
+      .prepare(`SELECT user_id FROM activity_subscriptions WHERE x_user_id = ?`)
+      .get(xUserId),
+    "user_id",
+  );
   if (sub?.user_id) return sub.user_id;
-  const oauth = getPlatformDb()
-    .prepare(
-      `SELECT user_id FROM oauth_accounts
-       WHERE provider = 'x' AND provider_user_id = ? LIMIT 1`,
-    )
-    .get(xUserId) as { user_id: string } | undefined;
+  const oauth = optionalStringRow(
+    getPlatformDb()
+      .prepare(
+        `SELECT user_id FROM oauth_accounts
+         WHERE provider = 'x' AND provider_user_id = ? LIMIT 1`,
+      )
+      .get(xUserId),
+    "user_id",
+  );
   return oauth?.user_id ?? null;
 }
 
@@ -336,19 +342,18 @@ export async function subscribeUserToPostCreate(
   }
   if (!xUserId) return { ok: false, error: "x_user_id_unresolved" };
 
-  const existing = getPlatformDb()
-    .prepare(
-      `SELECT subscription_id, delete_subscription_id, x_user_id, paused_until
-       FROM activity_subscriptions WHERE user_id = ?`,
-    )
-    .get(userId) as
-    | {
-        subscription_id: string | null;
-        delete_subscription_id: string | null;
-        x_user_id: string | null;
-        paused_until: string | null;
-      }
-    | undefined;
+  const existing = optionalNullableStringRow(
+    getPlatformDb()
+      .prepare(
+        `SELECT subscription_id, delete_subscription_id, x_user_id, paused_until
+         FROM activity_subscriptions WHERE user_id = ?`,
+      )
+      .get(userId),
+    "subscription_id",
+    "delete_subscription_id",
+    "x_user_id",
+    "paused_until",
+  );
   const now = new Date().toISOString();
   if (
     existing?.x_user_id === xUserId &&
@@ -401,18 +406,17 @@ export async function subscribeUserToPostCreate(
     )
     .run(userId, xUserId, claimUntil, now, now, now);
   if (claim.changes === 0) {
-    const current = getPlatformDb()
-      .prepare(
-        `SELECT subscription_id, delete_subscription_id, x_user_id
-          FROM activity_subscriptions WHERE user_id = ?`,
-      )
-      .get(userId) as
-      | {
-          subscription_id: string | null;
-          delete_subscription_id: string | null;
-          x_user_id: string | null;
-        }
-      | undefined;
+    const current = optionalNullableStringRow(
+      getPlatformDb()
+        .prepare(
+          `SELECT subscription_id, delete_subscription_id, x_user_id
+            FROM activity_subscriptions WHERE user_id = ?`,
+        )
+        .get(userId),
+      "subscription_id",
+      "delete_subscription_id",
+      "x_user_id",
+    );
     if (
       current?.x_user_id === xUserId &&
       current.subscription_id &&
@@ -520,18 +524,17 @@ export async function subscribeUserToPostCreate(
 export async function removeUserPostCreateSubscription(
   userId: string,
 ): Promise<{ ok: boolean }> {
-  const row = getPlatformDb()
-    .prepare(
-      `SELECT subscription_id, delete_subscription_id, x_user_id
-       FROM activity_subscriptions WHERE user_id = ?`,
-    )
-    .get(userId) as
-    | {
-        subscription_id: string | null;
-        delete_subscription_id: string | null;
-        x_user_id: string | null;
-      }
-    | undefined;
+  const row = optionalNullableStringRow(
+    getPlatformDb()
+      .prepare(
+        `SELECT subscription_id, delete_subscription_id, x_user_id
+         FROM activity_subscriptions WHERE user_id = ?`,
+      )
+      .get(userId),
+    "subscription_id",
+    "delete_subscription_id",
+    "x_user_id",
+  );
   const createDeleteOk = await deleteActivitySubscription(row?.subscription_id);
   const deleteDeleteOk = await deleteActivitySubscription(
     row?.delete_subscription_id,
@@ -554,17 +557,16 @@ export async function removeUserPostCreateSubscription(
 }
 
 export async function pauseUserSubscription(userId: string, untilIso: string): Promise<void> {
-  const row = getPlatformDb()
-    .prepare(
-      `SELECT subscription_id, delete_subscription_id
-       FROM activity_subscriptions WHERE user_id = ?`,
-    )
-    .get(userId) as
-    | {
-        subscription_id: string | null;
-        delete_subscription_id: string | null;
-      }
-    | undefined;
+  const row = optionalNullableStringRow(
+    getPlatformDb()
+      .prepare(
+        `SELECT subscription_id, delete_subscription_id
+         FROM activity_subscriptions WHERE user_id = ?`,
+      )
+      .get(userId),
+    "subscription_id",
+    "delete_subscription_id",
+  );
   const createDeleteOk = await deleteActivitySubscription(row?.subscription_id);
   const deleteDeleteOk = await deleteActivitySubscription(
     row?.delete_subscription_id,
@@ -593,7 +595,7 @@ export async function resumeDueSubscriptions(): Promise<number> {
        WHERE (delete_subscription_id IS NULL AND x_user_id IS NOT NULL)
           OR (paused_until IS NOT NULL AND paused_until <= ?)`,
     )
-    .all(now) as Array<{ user_id: string }>;
+    .all(now).map((row) => stringRow(row, "user_id"));
   let n = 0;
   for (const row of rows) {
     const res = await subscribeUserToPostCreate(row.user_id);

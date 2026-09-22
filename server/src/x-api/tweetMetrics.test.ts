@@ -26,8 +26,8 @@ const metricsFixture = {
   },
 };
 
-describe("parseTweetMetrics", () => {
-  it("reads views and legacy engagement from TweetResultByRestId", () => {
+await describe("parseTweetMetrics", async () => {
+  await it("reads views and legacy engagement from TweetResultByRestId", () => {
     const m = parseTweetMetrics(metricsFixture);
     assert.ok(m);
     assert.equal(m.views, 12345);
@@ -36,7 +36,7 @@ describe("parseTweetMetrics", () => {
     assert.equal(m.retweets, 3);
   });
 
-  it("unwraps TweetWithVisibilityResults", () => {
+  await it("unwraps TweetWithVisibilityResults", () => {
     const m = parseTweetMetrics({
       data: {
         tweet_result: {
@@ -56,7 +56,7 @@ describe("parseTweetMetrics", () => {
     assert.equal(m.likes, 1);
   });
 
-  it("returns null for garbage / empty", () => {
+  await it("returns null for garbage / empty", () => {
     assert.equal(parseTweetMetrics(null), null);
     assert.equal(parseTweetMetrics({ data: {} }), null);
     assert.equal(parseTweetMetrics({ foo: 1 }), null);

@@ -12,8 +12,7 @@ export async function withFileLock<T>(
       await mkdir(lockPath);
       break;
     } catch (err) {
-      const error = err as NodeJS.ErrnoException;
-      if (error.code !== "EEXIST") throw err;
+      if (!(err instanceof Error) || !("code" in err) || err.code !== "EEXIST") throw err;
       if (retries > 200) {
         throw new Error("Could not acquire lock: " + filePath);
       }
