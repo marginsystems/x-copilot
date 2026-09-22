@@ -623,6 +623,7 @@ await describe("parseV2SearchPayload boundary validation", async () => {
         { id: 42, text: "valid text", author_id: "u1" },
         { id: "43", text: 7, author_id: "u1" },
         { id: "44", text: "valid text", author_id: "u2" },
+        { id: "46", text: "valid text", author_id: "u1" },
       ],
       includes: { users: [{ id: "u1", username: 9 }] },
     });
