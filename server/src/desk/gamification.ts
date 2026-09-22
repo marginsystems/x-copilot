@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Durable XP ledger for marked replies. Streak is consecutive UTC days
  * with an original, reply, or quote on the account — desk or off-desk.
@@ -88,8 +89,8 @@ export function legacyAdoptMarkerPath(): string {
 
 function parseGamificationState(raw: string): GamificationState | null {
   try {
-    const data = JSON.parse(raw) as Partial<GamificationState>;
-    if (!data || typeof data !== "object") return null;
+    const data: unknown = JSON.parse(raw);
+    if (!isRecord(data)) return null;
     const lifetimeXp =
       typeof data.lifetimeXp === "number" && Number.isFinite(data.lifetimeXp)
         ? Math.max(0, Math.floor(data.lifetimeXp))
@@ -148,7 +149,7 @@ async function readGamificationFile(
   try {
     raw = await readFile(path, "utf8");
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException)?.code;
+    const code = (isRecord(err) ? err.code : undefined);
     if (code === "ENOENT") return null;
     throw err;
   }

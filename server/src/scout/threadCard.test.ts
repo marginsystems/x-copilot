@@ -2,8 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { dedupeThreads, type ThreadCard } from "./threadCard.ts";
 
-describe("dedupeThreads", () => {
-  it("keeps first occurrence by id", () => {
+await describe("dedupeThreads", async () => {
+  await it("keeps first occurrence by id", () => {
     const input: ThreadCard[] = [
       {
         id: "1",

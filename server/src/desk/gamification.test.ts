@@ -39,16 +39,16 @@ import { seedUser } from "../platform/platformDb.testHelpers.ts";
 import type { Interaction } from "./interactionStore.ts";
 import type { ParsedPostCreate } from "../x-api/xActivity.ts";
 
-describe("utcDayKey / prevUtcDayKey", () => {
-  it("formats UTC calendar days", () => {
+await describe("utcDayKey / prevUtcDayKey", async () => {
+  await it("formats UTC calendar days", () => {
     assert.equal(utcDayKey(Date.parse("2026-08-05T23:30:00.000Z")), "2026-08-05");
     assert.equal(utcDayKey(Date.parse("2026-08-06T00:15:00.000Z")), "2026-08-06");
     assert.equal(prevUtcDayKey("2026-08-06"), "2026-08-05");
   });
 });
 
-describe("streakFromUtcDays", () => {
-  it("counts consecutive UTC days ending today or yesterday", () => {
+await describe("streakFromUtcDays", async () => {
+  await it("counts consecutive UTC days ending today or yesterday", () => {
     assert.deepEqual(
       streakFromUtcDays(
         ["2026-09-03", "2026-09-04", "2026-09-05"],
@@ -68,7 +68,7 @@ describe("streakFromUtcDays", () => {
     );
   });
 
-  it("keeps the longest run when the current run is shorter", () => {
+  await it("keeps the longest run when the current run is shorter", () => {
     const got = streakFromUtcDays(
       ["2026-08-01", "2026-08-02", "2026-08-03", "2026-09-04", "2026-09-05"],
       "2026-09-05",
@@ -78,8 +78,8 @@ describe("streakFromUtcDays", () => {
   });
 });
 
-describe("utcDaysFromHistory", () => {
-  it("prefers postedAt so an off-desk reply counts on the day it was posted", () => {
+await describe("utcDaysFromHistory", async () => {
+  await it("prefers postedAt so an off-desk reply counts on the day it was posted", () => {
     const days = utcDaysFromHistory([
       {
         userId: "u1",
@@ -95,8 +95,8 @@ describe("utcDaysFromHistory", () => {
   });
 });
 
-describe("levelFromXp / xpProgress", () => {
-  it("matches 1 + floor(sqrt(xp))", () => {
+await describe("levelFromXp / xpProgress", async () => {
+  await it("matches 1 + floor(sqrt(xp))", () => {
     assert.equal(levelFromXp(0), 1);
     assert.equal(levelFromXp(1), 2);
     assert.equal(levelFromXp(3), 2);
@@ -108,8 +108,8 @@ describe("levelFromXp / xpProgress", () => {
   });
 });
 
-describe("markXpForStreak", () => {
-  it("steps 1 / 2 / 3 / 4 / 5 at 1, 3, 7, 14, 30", () => {
+await describe("markXpForStreak", async () => {
+  await it("steps 1 / 2 / 3 / 4 / 5 at 1, 3, 7, 14, 30", () => {
     assert.equal(markXpForStreak(1), 1);
     assert.equal(markXpForStreak(2), 1);
     assert.equal(markXpForStreak(3), 2);
@@ -120,8 +120,8 @@ describe("markXpForStreak", () => {
   });
 });
 
-describe("bonusXpFromT24h", () => {
-  it("scales views/100 + likes capped at 5", () => {
+await describe("bonusXpFromT24h", async () => {
+  await it("scales views/100 + likes capped at 5", () => {
     assert.equal(bonusXpFromT24h({ views: 0, likes: 0 }), 0);
     assert.equal(bonusXpFromT24h({ views: 250, likes: 1 }), 3);
     assert.equal(bonusXpFromT24h({ views: 1000, likes: 10 }), 5);
@@ -129,8 +129,8 @@ describe("bonusXpFromT24h", () => {
   });
 });
 
-describe("applyMarkToGamification", () => {
-  it("starts streak at 1 and awards mark XP", () => {
+await describe("applyMarkToGamification", async () => {
+  await it("starts streak at 1 and awards mark XP", () => {
     const day = Date.parse("2026-08-06T12:00:00.000Z");
     const { state, awarded } = applyMarkToGamification(
       emptyGamificationState(day),
@@ -142,7 +142,7 @@ describe("applyMarkToGamification", () => {
     assert.equal(state.lastMarkUtcDay, "2026-08-06");
   });
 
-  it("keeps streak on same UTC day but still awards XP", () => {
+  await it("keeps streak on same UTC day but still awards XP", () => {
     const t1 = Date.parse("2026-08-06T01:00:00.000Z");
     const t2 = Date.parse("2026-08-06T20:00:00.000Z");
     let state = applyMarkToGamification(emptyGamificationState(t1), t1).state;
@@ -151,7 +151,7 @@ describe("applyMarkToGamification", () => {
     assert.equal(state.lifetimeXp, 2);
   });
 
-  it("increments streak on consecutive UTC days", () => {
+  await it("increments streak on consecutive UTC days", () => {
     const d1 = Date.parse("2026-08-05T12:00:00.000Z");
     const d2 = Date.parse("2026-08-06T12:00:00.000Z");
     let state = applyMarkToGamification(emptyGamificationState(d1), d1).state;
@@ -161,7 +161,7 @@ describe("applyMarkToGamification", () => {
     assert.equal(state.lifetimeXp, 2);
   });
 
-  it("resets streak after a missed UTC day", () => {
+  await it("resets streak after a missed UTC day", () => {
     const d1 = Date.parse("2026-08-04T12:00:00.000Z");
     const d3 = Date.parse("2026-08-06T12:00:00.000Z");
     let state = applyMarkToGamification(emptyGamificationState(d1), d1).state;
@@ -171,7 +171,7 @@ describe("applyMarkToGamification", () => {
     assert.equal(state.lifetimeXp, 2);
   });
 
-  it("re-marking the same thread on a later day awards XP and advances the streak", () => {
+  await it("re-marking the same thread on a later day awards XP and advances the streak", () => {
     const d1 = Date.parse("2026-08-05T12:00:00.000Z");
     const d2 = Date.parse("2026-08-06T12:00:00.000Z");
     let state = applyMarkToGamification(
@@ -191,7 +191,7 @@ describe("applyMarkToGamification", () => {
     assert.equal(replay.state.lifetimeXp, 2);
   });
 
-  it("awards 2 XP once the UTC streak hits 3", () => {
+  await it("awards 2 XP once the UTC streak hits 3", () => {
     let state = emptyGamificationState(Date.parse("2026-08-04T12:00:00.000Z"));
     state = applyMarkToGamification(state, Date.parse("2026-08-04T12:00:00.000Z")).state;
     state = applyMarkToGamification(state, Date.parse("2026-08-05T12:00:00.000Z")).state;
@@ -204,7 +204,7 @@ describe("applyMarkToGamification", () => {
     assert.equal(third.state.lifetimeXp, 4);
   });
 
-  it("credits XP only for a backdated mark without regressing the cursor", () => {
+  await it("credits XP only for a backdated mark without regressing the cursor", () => {
     const d1 = Date.parse("2026-08-05T12:00:00.000Z");
     const d3 = Date.parse("2026-08-07T12:00:00.000Z");
     // Ledger already advanced to D2 via thread "b"; thread "a"'s D1 mark
@@ -235,7 +235,7 @@ describe("applyMarkToGamification", () => {
     assert.equal(state.lifetimeXp, 3);
   });
 
-  it("credits a backdated mark at the tier its own day earned, not the current streak's", () => {
+  await it("credits a backdated mark at the tier its own day earned, not the current streak's", () => {
     // Seven consecutive days of marks push the ledger to streak 7; the D1
     // mark (thread "a") soft-failed and is replayed now.
     const d1 = Date.parse("2026-08-05T12:00:00.000Z");
@@ -259,7 +259,7 @@ describe("applyMarkToGamification", () => {
     assert.equal(replay.state.lastMarkUtcDay, "2026-08-11");
   });
 
-  it("credits a backdated mark at the recovered streak tier even after the streak breaks", () => {
+  await it("credits a backdated mark at the recovered streak tier even after the streak breaks", () => {
     // D1..D3 are consecutive (streak 3); the ledger then breaks to D6 (streak 1).
     let state = emptyGamificationState(
       Date.parse("2026-08-05T12:00:00.000Z"),
@@ -286,8 +286,8 @@ describe("applyMarkToGamification", () => {
   });
 });
 
-describe("applyT24hBonus", () => {
-  it("awards once per threadId", () => {
+await describe("applyT24hBonus", async () => {
+  await it("awards once per threadId", () => {
     const now = Date.parse("2026-08-06T12:00:00.000Z");
     let state = emptyGamificationState(now);
     const first = applyT24hBonus(
@@ -309,8 +309,8 @@ describe("applyT24hBonus", () => {
   });
 });
 
-describe("seedGamificationFromHistory", () => {
-  it("replays marks and t24h bonuses oldest-first", () => {
+await describe("seedGamificationFromHistory", async () => {
+  await it("replays marks and t24h bonuses oldest-first", () => {
     const rows: Interaction[] = [
       {
         userId: "u1",
@@ -346,7 +346,7 @@ describe("seedGamificationFromHistory", () => {
     assert.deepEqual(state.bonusAwardedThreadIds, ["a"]);
   });
 
-  it("seeds discovered replies into streak and XP", () => {
+  await it("seeds discovered replies into streak and XP", () => {
     const state = seedGamificationFromHistory(
       [
         {
@@ -372,7 +372,7 @@ describe("seedGamificationFromHistory", () => {
     assert.equal(state.lifetimeXp, 2);
   });
 
-  it("does not seed t24h bonus XP for discovered replies", () => {
+  await it("does not seed t24h bonus XP for discovered replies", () => {
     const state = seedGamificationFromHistory([
       {
         userId: "u1",
@@ -390,7 +390,7 @@ describe("seedGamificationFromHistory", () => {
     assert.deepEqual(state.bonusAwardedThreadIds, []);
   });
 
-  it("rebuilds streak from discovered history without backfilling XP", () => {
+  await it("rebuilds streak from discovered history without backfilling XP", () => {
     const broken = {
       ...emptyGamificationState(Date.parse("2026-08-06T12:00:00.000Z")),
       currentStreak: 1,
@@ -433,7 +433,7 @@ describe("seedGamificationFromHistory", () => {
     assert.equal(next.lifetimeXp, 40);
   });
 
-  it("adopts a newer, shorter retained streak and cursor", () => {
+  await it("adopts a newer, shorter retained streak and cursor", () => {
     const state: GamificationState = {
       ...emptyGamificationState(Date.parse("2026-08-02T12:00:00.000Z")),
       currentStreak: 50,
@@ -467,8 +467,8 @@ describe("seedGamificationFromHistory", () => {
   });
 });
 
-describe("pickNextGoal / achievements", () => {
-  it("keeps streak badges after the streak breaks", () => {
+await describe("pickNextGoal / achievements", async () => {
+  await it("keeps streak badges after the streak breaks", () => {
     let state = emptyGamificationState(Date.parse("2026-08-01T12:00:00.000Z"));
     for (let i = 0; i < 7; i++) {
       state = applyMarkToGamification(
@@ -487,7 +487,7 @@ describe("pickNextGoal / achievements", () => {
     assert.ok(unlockedAchievementIds(state).includes("streak_7"));
   });
 
-  it("points at the next streak badge while a run is live", () => {
+  await it("points at the next streak badge while a run is live", () => {
     let state = emptyGamificationState(Date.parse("2026-08-05T12:00:00.000Z"));
     state = applyMarkToGamification(
       state,
@@ -499,7 +499,7 @@ describe("pickNextGoal / achievements", () => {
     assert.equal(goal.remaining, 2);
   });
 
-  it("resolves nextGoal.id against the achievements catalog", () => {
+  await it("resolves nextGoal.id against the achievements catalog", () => {
     const catalogIds = new Set(ACHIEVEMENTS.map((def) => def.id));
     // A fresh ledger (xp 0) must not emit a dangling `level_2` id.
     const fresh = emptyGamificationState(Date.parse("2026-08-05T12:00:00.000Z"));
@@ -520,8 +520,8 @@ describe("pickNextGoal / achievements", () => {
   });
 });
 
-describe("toLeaderboardRow", () => {
-  it("exports a stable row for a later board", () => {
+await describe("toLeaderboardRow", async () => {
+  await it("exports a stable row for a later board", () => {
     const now = Date.parse("2026-08-06T12:00:00.000Z");
     const state = applyMarkToGamification(emptyGamificationState(now), now, "t1")
       .state;
@@ -536,7 +536,7 @@ describe("toLeaderboardRow", () => {
   });
 });
 
-describe("recordMarkGamification / getGamification", () => {
+await describe("recordMarkGamification / getGamification", async () => {
   let dir: string;
   let gamificationPath: string;
 
@@ -558,7 +558,7 @@ describe("recordMarkGamification / getGamification", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("persists mark XP and serves GET snapshot", async () => {
+  await it("persists mark XP and serves GET snapshot", async () => {
     const now = Date.parse("2026-08-06T12:00:00.000Z");
     await markInteracted({
       threadId: "t1",
@@ -594,7 +594,7 @@ describe("recordMarkGamification / getGamification", () => {
     ]);
   });
 
-  it("advances the streak when re-marking a retained thread on the next day", async () => {
+  await it("advances the streak when re-marking a retained thread on the next day", async () => {
     const d1 = Date.parse("2026-08-01T12:00:00.000Z");
     const d2 = Date.parse("2026-08-02T12:00:00.000Z");
     await markInteracted({
@@ -625,7 +625,7 @@ describe("recordMarkGamification / getGamification", () => {
     assert.equal(after.longestStreak, 2);
   });
 
-  it("GET rebuilds streak from discovered history and leaves XP", async () => {
+  await it("GET rebuilds streak from discovered history and leaves XP", async () => {
     const d1 = Date.parse("2026-08-04T12:00:00.000Z");
     const d2 = Date.parse("2026-08-05T12:00:00.000Z");
     const d3 = Date.parse("2026-08-06T12:00:00.000Z");
@@ -673,7 +673,7 @@ describe("recordMarkGamification / getGamification", () => {
     assert.equal(snap.lifetimeXp, 40);
   });
 
-  it("GET counts own original, reply, and quote posts but not reposts", async () => {
+  await it("GET counts own original, reply, and quote posts but not reposts", async () => {
     const posts: Array<{ day: string; kind: ParsedPostCreate["kind"] }> = [
       { day: "2026-08-01", kind: "original" },
       { day: "2026-08-02", kind: "reply" },
@@ -709,7 +709,7 @@ describe("recordMarkGamification / getGamification", () => {
     assert.equal(snap.longestStreak, 3);
   });
 
-  it("GET counts only the requested user's replies toward the streak", async () => {
+  await it("GET counts only the requested user's replies toward the streak", async () => {
     const day = "2026-08-05";
     await markInteracted({
       threadId: "u2-reply",
@@ -737,7 +737,7 @@ describe("recordMarkGamification / getGamification", () => {
     assert.equal(other.longestStreak, 1);
   });
 
-  it("celebrates an older soft-failed mark replayed before newer retained rows", async () => {
+  await it("celebrates an older soft-failed mark replayed before newer retained rows", async () => {
     const d1 = Date.parse("2026-08-05T12:00:00.000Z");
     const d2 = Date.parse("2026-08-06T12:00:00.000Z");
     await markInteracted({
@@ -772,7 +772,7 @@ describe("recordMarkGamification / getGamification", () => {
     assert.deepEqual(after.progress?.unlockedAchievementIds, ["first_mark"]);
   });
 
-  it("credits a replayed older mark at its own tier, not the seed's final streak tier", async () => {
+  await it("credits a replayed older mark at its own tier, not the seed's final streak tier", async () => {
     const d1 = Date.parse("2026-08-05T12:00:00.000Z");
     const d2 = Date.parse("2026-08-06T12:00:00.000Z");
     const d3 = Date.parse("2026-08-07T12:00:00.000Z");
@@ -808,7 +808,7 @@ describe("recordMarkGamification / getGamification", () => {
     assert.deepEqual(after.progress?.unlockedAchievementIds, ["first_mark"]);
   });
 
-  it("does not celebrate seeded history as fresh unlocks on the first ledger write", async () => {
+  await it("does not celebrate seeded history as fresh unlocks on the first ledger write", async () => {
     const now = Date.parse("2026-08-06T12:00:00.000Z");
     const d1 = Date.parse("2026-07-01T12:00:00.000Z");
     for (let i = 0; i < 10; i += 1) {
@@ -840,7 +840,7 @@ describe("recordMarkGamification / getGamification", () => {
     assert.deepEqual(after.progress?.unlockedAchievementIds, []);
   });
 
-  it("adopts the legacy ledger once onto the first user file", async () => {
+  await it("adopts the legacy ledger once onto the first user file", async () => {
     const now = Date.parse("2026-08-06T12:00:00.000Z");
     const cwd = process.cwd();
     process.chdir(dir);
@@ -873,7 +873,7 @@ describe("recordMarkGamification / getGamification", () => {
     }
   });
 
-  it("records idempotent t24h bonus", async () => {
+  await it("records idempotent t24h bonus", async () => {
     const now = Date.parse("2026-08-06T12:00:00.000Z");
     await recordMarkGamification({
       userId: "u1",

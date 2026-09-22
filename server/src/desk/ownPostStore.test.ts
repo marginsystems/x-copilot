@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -52,7 +53,7 @@ function post(partial: Partial<ParsedPostCreate> & { postId: string }): ParsedPo
   };
 }
 
-describe("ownPostStore", () => {
+await describe("ownPostStore", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -70,7 +71,7 @@ describe("ownPostStore", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("upserts originals and replies the same and snapshots later metrics", () => {
+  await it("upserts originals and replies the same and snapshots later metrics", () => {
     const userId = "user-1";
     const tenantId = "tenant-1";
     assert.equal(
@@ -139,7 +140,7 @@ describe("ownPostStore", () => {
     );
   });
 
-  it("excludes replies to the operator's own X account", () => {
+  await it("excludes replies to the operator's own X account", () => {
     const userId = "user-self-reply";
     const tenantId = "tenant-1";
     getPlatformDb()
@@ -249,7 +250,7 @@ describe("ownPostStore", () => {
     );
   });
 
-  it("lists flight-path own posts and excludes reposts", () => {
+  await it("lists flight-path own posts and excludes reposts", () => {
     const userId = "user-flight";
     const tenantId = "tenant-1";
     upsertOwnPost({
@@ -297,7 +298,7 @@ describe("ownPostStore", () => {
     assert.equal(rows.every((row) => row.views === 10), true);
   });
 
-  it("removes an own post only for its mapped user and X account", () => {
+  await it("removes an own post only for its mapped user and X account", () => {
     upsertOwnPost({
       parsed: post({ postId: "delete-me" }),
       userId: "user-1",
@@ -322,7 +323,7 @@ describe("ownPostStore", () => {
     assert.equal(countOwnPostsSince("user-1", "2000-01-01T00:00:00.000Z"), 0);
   });
 
-  it("plots a continuous zero-filled 30-day UTC window, not just posting days", () => {
+  await it("plots a continuous zero-filled 30-day UTC window, not just posting days", () => {
     const userId = "user-series";
     const now = new Date("2026-08-24T15:00:00.000Z");
     upsertOwnPost({
@@ -356,12 +357,12 @@ describe("ownPostStore", () => {
     assert.equal(byDay.has("2026-06-01"), false);
   });
 
-  it("lastUtcDays spans month boundaries in UTC", () => {
+  await it("lastUtcDays spans month boundaries in UTC", () => {
     const days = lastUtcDays(3, new Date("2026-08-01T00:30:00.000Z"));
     assert.deepEqual(days, ["2026-07-30", "2026-07-31", "2026-08-01"]);
   });
 
-  it("lists due 1h then 24h samples", () => {
+  await it("lists due 1h then 24h samples", () => {
     const postedAt = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
     upsertOwnPost({
       parsed: post({ postId: "old", postedAt }),
@@ -376,7 +377,7 @@ describe("ownPostStore", () => {
     assert.equal(due24[0]?.checkpoint, "t24h");
   });
 
-  it("round-robins due samples across tenants so a high-volume tenant cannot starve others", () => {
+  await it("round-robins due samples across tenants so a high-volume tenant cannot starve others", () => {
     const now = Date.now();
     // Heavy tenant backlogs many oldest rows; light tenant has a newer due row.
     for (let i = 0; i < 20; i++) {
@@ -404,7 +405,7 @@ describe("ownPostStore", () => {
     );
   });
 
-  it("backfills legacy raw created_at posted_at rows to ISO so they become due", () => {
+  await it("backfills legacy raw created_at posted_at rows to ISO so they become due", () => {
     const db = getPlatformDb();
     db.prepare(
       `INSERT INTO own_posts (
@@ -425,16 +426,16 @@ describe("ownPostStore", () => {
       false,
     );
     backfillOwnPostPostedAt(db);
-    const row = db
+    const row = parseRowRow(db
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("legacy") as { posted_at: string };
+      .get("legacy"));
     assert.equal(row.posted_at, "2026-07-25T00:00:00.000Z");
     assert.ok(
       listDueOwnPostSamples({ limit: 10 }).some((d) => d.postId === "legacy"),
     );
   });
 
-  it("leaves unparseable posted_at rows unchanged during backfill", () => {
+  await it("leaves unparseable posted_at rows unchanged during backfill", () => {
     const db = getPlatformDb();
     db.prepare(
       `INSERT INTO own_posts (
@@ -451,13 +452,13 @@ describe("ownPostStore", () => {
       "2026-08-01T00:00:00.000Z",
     );
     backfillOwnPostPostedAt(db);
-    const row = db
+    const row = parseRowRow(db
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("unparseable") as { posted_at: string };
+      .get("unparseable"));
     assert.equal(row.posted_at, "not-a-real-timestamp");
   });
 
-  it("rejects non-string posted_at rows during backfill", () => {
+  await it("rejects non-string posted_at rows during backfill", () => {
     const db = getPlatformDb();
     db.prepare(
       `INSERT INTO own_posts (
@@ -479,7 +480,7 @@ describe("ownPostStore", () => {
     });
   });
 
-  it("keeps a correct stored posted_at and only repairs non-ISO values on re-ingest", () => {
+  await it("keeps a correct stored posted_at and only repairs non-ISO values on re-ingest", () => {
     // A re-ingest must not clobber a good ISO timestamp with a fallback "now"
     // (parsePostCreateEvent / replyToOwnPost emit `now` when created_at is unknown).
     assert.equal(
@@ -502,9 +503,9 @@ describe("ownPostStore", () => {
       }),
       false,
     );
-    const kept = getPlatformDb()
+    const kept = parseKeptRow(getPlatformDb()
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("kept") as { posted_at: string };
+      .get("kept"));
     assert.equal(kept.posted_at, "2026-07-25T00:00:00.000Z");
 
     // A legacy raw stored value is still repaired to the incoming ISO value.
@@ -535,13 +536,13 @@ describe("ownPostStore", () => {
       }),
       false,
     );
-    const repaired = getPlatformDb()
+    const repaired = parseRepairedRow(getPlatformDb()
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("legacy-conflict") as { posted_at: string };
+      .get("legacy-conflict"));
     assert.equal(repaired.posted_at, "2026-07-25T00:00:00.000Z");
   });
 
-  it("lets a real created_at correct a stored fallback now on re-ingest", () => {
+  await it("lets a real created_at correct a stored fallback now on re-ingest", () => {
     // A row first inserted with the fallback timestamp (created_at unknown) must
     // not keep that `now` forever once the true created_at arrives.
     assert.equal(
@@ -567,13 +568,13 @@ describe("ownPostStore", () => {
       }),
       false,
     );
-    const row = getPlatformDb()
+    const row = parseRowRow(getPlatformDb()
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("corrected") as { posted_at: string };
+      .get("corrected"));
     assert.equal(row.posted_at, "2026-07-25T00:00:00.000Z");
   });
 
-  it("dedupes activity event ids and watches threads", () => {
+  await it("dedupes activity event ids and watches threads", () => {
     assert.equal(seenActivityEvent("e1"), false);
     rememberActivityEvent("e1");
     assert.equal(seenActivityEvent("e1"), true);
@@ -587,3 +588,27 @@ describe("ownPostStore", () => {
     assert.equal(watched?.author, "alice");
   });
 });
+
+function parseRowRow(value: unknown): { posted_at: string } {
+  const valid = (row: unknown): row is { posted_at: string } =>
+    (isRecord(row) &&
+    typeof row.posted_at === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseKeptRow(value: unknown): { posted_at: string } {
+  const valid = (row: unknown): row is { posted_at: string } =>
+    (isRecord(row) &&
+    typeof row.posted_at === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseRepairedRow(value: unknown): { posted_at: string } {
+  const valid = (row: unknown): row is { posted_at: string } =>
+    (isRecord(row) &&
+    typeof row.posted_at === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

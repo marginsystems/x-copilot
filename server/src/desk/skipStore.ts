@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Skips — "pass on this thread" without dismissal memory.
  * One row per (user, thread) in platform.sqlite `desk_skips`.
@@ -72,14 +73,14 @@ function rowToSkip(row: SkipRow): Skip {
 }
 
 function readSkipRow(userId: string, threadId: string): Skip | null {
-  const row = getPlatformDb()
+  const row = parseSkipRow(getPlatformDb()
     .prepare(
       `SELECT thread_id, author, author_key, at, url, summary, text,
               conversation_id, in_reply_to_id
          FROM desk_skips
         WHERE user_id = ? AND thread_id = ?`,
     )
-    .get(userId, threadId) as SkipRow | undefined;
+    .get(userId, threadId));
   return row ? rowToSkip(row) : null;
 }
 
@@ -196,7 +197,7 @@ export async function listSkipHistory(opts: {
   limit?: number;
 }): Promise<Skip[]> {
   const userId = requireUserId(opts.userId);
-  const rows = getPlatformDb()
+  const rows = parseSkipRow2(getPlatformDb()
     .prepare(
       `SELECT thread_id, author, author_key, at, url, summary, text,
               conversation_id, in_reply_to_id
@@ -205,7 +206,7 @@ export async function listSkipHistory(opts: {
         ORDER BY at DESC, thread_id DESC
         LIMIT ?`,
     )
-    .all(userId, Math.max(0, opts.limit ?? MAX_SKIP_HISTORY)) as SkipRow[];
+    .all(userId, Math.max(0, opts.limit ?? MAX_SKIP_HISTORY)));
   return rows.map(rowToSkip);
 }
 
@@ -225,4 +226,36 @@ export async function getSkippedThreadIds(opts: {
 }): Promise<Set<string>> {
   const history = await listSkipHistory(opts);
   return new Set(history.map((d) => d.threadId).filter(Boolean));
+}
+
+function parseSkipRow(value: unknown): SkipRow | undefined {
+  const valid = (row: unknown): row is SkipRow | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.thread_id === "string" &&
+    typeof row.author === "string" &&
+    typeof row.author_key === "string" &&
+    typeof row.at === "string" &&
+    (row.url === null || typeof row.url === "string") &&
+    (row.summary === null || typeof row.summary === "string") &&
+    (row.text === null || typeof row.text === "string") &&
+    (row.conversation_id === null || typeof row.conversation_id === "string") &&
+    (row.in_reply_to_id === null || typeof row.in_reply_to_id === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseSkipRow2(value: unknown): SkipRow[] {
+  const valid = (row: unknown): row is SkipRow[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.thread_id === "string" &&
+    typeof item.author === "string" &&
+    typeof item.author_key === "string" &&
+    typeof item.at === "string" &&
+    (item.url === null || typeof item.url === "string") &&
+    (item.summary === null || typeof item.summary === "string") &&
+    (item.text === null || typeof item.text === "string") &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.in_reply_to_id === null || typeof item.in_reply_to_id === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

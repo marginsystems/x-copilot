@@ -10,10 +10,10 @@ import {
 } from "./scoutCollectReserve.ts";
 import { card } from "./scoutCollect.testHelpers.ts";
 
-describe("Scout survivor reserve", () => {
-  it("reserves overflow instead of counting it as a rejection", () => {
-    const reserve = [];
-    const bucket = [];
+await describe("Scout survivor reserve", async () => {
+  await it("reserves overflow instead of counting it as a rejection", () => {
+    const reserve: ReturnType<typeof card>[] = [];
+    const bucket: ReturnType<typeof card>[] = [];
     const acceptedIds = new Set<string>();
     const result = admitScoutPage({
       candidates: [
@@ -36,8 +36,8 @@ describe("Scout survivor reserve", () => {
     assert.equal(result.authorDedupe, 0);
   });
 
-  it("keeps a bounded FIFO and drops the oldest overflow", () => {
-    const reserve = [];
+  await it("keeps a bounded FIFO and drops the oldest overflow", () => {
+    const reserve: ReturnType<typeof card>[] = [];
     const candidates = Array.from(
       { length: SCOUT_RESERVE_CAPACITY + 2 },
       (_, index) => card({ id: `t${index + 1}`, author: `@u${index + 1}` }),
@@ -49,14 +49,14 @@ describe("Scout survivor reserve", () => {
     assert.equal(reserve.at(-1)?.id, `t${SCOUT_RESERVE_CAPACITY + 2}`);
   });
 
-  it("drains oldest eligible survivors into the next bucket", () => {
+  await it("drains oldest eligible survivors into the next bucket", () => {
     const reserve = [
       card({ id: "blocked", author: "@blocked" }),
       card({ id: "duplicate-author", author: "@seen" }),
       card({ id: "first", author: "@first" }),
       card({ id: "second", author: "@second" }),
     ];
-    const bucket = [];
+    const bucket: ReturnType<typeof card>[] = [];
     const acceptedIds = new Set<string>();
 
     const result = drainScoutReserve({
@@ -76,9 +76,9 @@ describe("Scout survivor reserve", () => {
   });
 });
 
-describe("Scout qualified tank", () => {
-  it("keeps qualified extras up to tank capacity", () => {
-    const tank = [];
+await describe("Scout qualified tank", async () => {
+  await it("keeps qualified extras up to tank capacity", () => {
+    const tank: ReturnType<typeof card>[] = [];
     const candidates = Array.from(
       { length: SCOUT_TANK_CAPACITY + 3 },
       (_, index) => card({ id: `t${index + 1}`, author: `@u${index + 1}` }),

@@ -1,3 +1,5 @@
+import { objectValue } from "../platform/unknownValue.js";
+import { isRecord } from "../platform/unknownValue.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getPlatformDb } from "../db.js";
 import {
@@ -31,23 +33,12 @@ export function getScoutApproachLock(
   userId: string,
   nowMs: number = Date.now(),
 ): ScoutApproachLock | null {
-  const row = getPlatformDb()
+  const row = parseGetScoutApproachLockRow(getPlatformDb()
     .prepare(
       `SELECT card_id, conversation_id, in_reply_to_id, surface, author, url, text, updated_at
        FROM scout_approach_locks WHERE user_id = ?`,
     )
-    .get(userId) as
-    | {
-        card_id: string;
-        conversation_id: string | null;
-        in_reply_to_id: string | null;
-        surface: "reply" | "repost" | null;
-        author: string | null;
-        url: string | null;
-        text: string | null;
-        updated_at: string;
-      }
-    | undefined;
+    .get(userId));
   if (!row) return null;
   const updatedAt = Date.parse(row.updated_at);
   if (
@@ -129,11 +120,11 @@ export async function tryHandleScoutApproachLock(
 
   let body: Record<string, unknown>;
   try {
-    body = (await readBody(req, {
+    body = objectValue((await readBody(req, {
       maxBytes: BODY_CAP_16K,
       requireObject: true,
       rejectArray: true,
-    })) as Record<string, unknown>;
+    })));
   } catch (err) {
     send(req, res, err instanceof BodyError ? err.statusCode : 400, {
       error: "bad_request",
@@ -150,7 +141,7 @@ export async function tryHandleScoutApproachLock(
     send(req, res, 400, { error: "card_required" });
     return true;
   }
-  const raw = body.card as Record<string, unknown>;
+  const raw = objectValue(body.card);
   const id = optionalText(raw.id);
   if (!id) {
     send(req, res, 400, { error: "card_id_required" });
@@ -184,4 +175,39 @@ export async function tryHandleScoutApproachLock(
   }
   send(req, res, 200, { ok: true });
   return true;
+}
+
+function parseGetScoutApproachLockRow(value: unknown): | {
+        card_id: string;
+        conversation_id: string | null;
+        in_reply_to_id: string | null;
+        surface: "reply" | "repost" | null;
+        author: string | null;
+        url: string | null;
+        text: string | null;
+        updated_at: string;
+      }
+    | undefined {
+  const valid = (row: unknown): row is | {
+        card_id: string;
+        conversation_id: string | null;
+        in_reply_to_id: string | null;
+        surface: "reply" | "repost" | null;
+        author: string | null;
+        url: string | null;
+        text: string | null;
+        updated_at: string;
+      }
+    | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.card_id === "string" &&
+    (row.conversation_id === null || typeof row.conversation_id === "string") &&
+    (row.in_reply_to_id === null || typeof row.in_reply_to_id === "string") &&
+    (row.surface === null || row.surface === "reply" || row.surface === "repost") &&
+    (row.author === null || typeof row.author === "string") &&
+    (row.url === null || typeof row.url === "string") &&
+    (row.text === null || typeof row.text === "string") &&
+    typeof row.updated_at === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

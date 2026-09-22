@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Dismissals — "not interested" curated leads.
  * One row per (user, thread) in platform.sqlite `desk_dismissals`.
@@ -79,14 +80,14 @@ function rowToDismissal(row: DismissalRow): Dismissal {
 }
 
 function readDismissalRow(userId: string, threadId: string): Dismissal | null {
-  const row = getPlatformDb()
+  const row = parseDismissalRow(getPlatformDb()
     .prepare(
       `SELECT thread_id, author, author_key, at, url, summary, text, reason,
               conversation_id, in_reply_to_id
          FROM desk_dismissals
         WHERE user_id = ? AND thread_id = ?`,
     )
-    .get(userId, threadId) as DismissalRow | undefined;
+    .get(userId, threadId));
   return row ? rowToDismissal(row) : null;
 }
 
@@ -208,7 +209,7 @@ export async function listDismissalHistory(opts: {
   limit?: number;
 }): Promise<Dismissal[]> {
   const userId = requireUserId(opts.userId);
-  const rows = getPlatformDb()
+  const rows = parseDismissalRow2(getPlatformDb()
     .prepare(
       `SELECT thread_id, author, author_key, at, url, summary, text, reason,
               conversation_id, in_reply_to_id
@@ -220,7 +221,7 @@ export async function listDismissalHistory(opts: {
     .all(
       userId,
       Math.max(0, opts.limit ?? MAX_DISMISSAL_HISTORY),
-    ) as DismissalRow[];
+    ));
   return rows.map(rowToDismissal);
 }
 
@@ -255,4 +256,38 @@ export async function getDismissedThreadIds(opts: {
 }): Promise<Set<string>> {
   const history = await listDismissalHistory(opts);
   return new Set(history.map((d) => d.threadId).filter(Boolean));
+}
+
+function parseDismissalRow(value: unknown): DismissalRow | undefined {
+  const valid = (row: unknown): row is DismissalRow | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.thread_id === "string" &&
+    typeof row.author === "string" &&
+    typeof row.author_key === "string" &&
+    typeof row.at === "string" &&
+    (row.url === null || typeof row.url === "string") &&
+    (row.summary === null || typeof row.summary === "string") &&
+    (row.text === null || typeof row.text === "string") &&
+    (row.reason === null || typeof row.reason === "string") &&
+    (row.conversation_id === null || typeof row.conversation_id === "string") &&
+    (row.in_reply_to_id === null || typeof row.in_reply_to_id === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseDismissalRow2(value: unknown): DismissalRow[] {
+  const valid = (row: unknown): row is DismissalRow[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.thread_id === "string" &&
+    typeof item.author === "string" &&
+    typeof item.author_key === "string" &&
+    typeof item.at === "string" &&
+    (item.url === null || typeof item.url === "string") &&
+    (item.summary === null || typeof item.summary === "string") &&
+    (item.text === null || typeof item.text === "string") &&
+    (item.reason === null || typeof item.reason === "string") &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.in_reply_to_id === null || typeof item.in_reply_to_id === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

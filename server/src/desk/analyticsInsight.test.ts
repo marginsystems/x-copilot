@@ -44,7 +44,7 @@ const okChat = (content: string) => async () => ({
   provider: "deepseek" as const,
 });
 
-describe("analyticsInsight", () => {
+await describe("analyticsInsight", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -62,7 +62,7 @@ describe("analyticsInsight", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("writes one grounded note per UTC day and returns it as the latest", async () => {
+  await it("writes one grounded note per UTC day and returns it as the latest", async () => {
     upsertOwnPost({ parsed: post({ postId: "1" }), userId: "u1", tenantId: "t1" });
     const result = await runAnalyticsInsightForUser({
       userId: "u1",
@@ -80,7 +80,7 @@ describe("analyticsInsight", () => {
     assert.equal(insight?.day, "2026-08-24");
   });
 
-  it("skips when it already wrote today — one LLM call per UTC day", async () => {
+  await it("skips when it already wrote today — one LLM call per UTC day", async () => {
     upsertOwnPost({ parsed: post({ postId: "1" }), userId: "u1", tenantId: "t1" });
     saveAnalyticsInsight({
       userId: "u1",
@@ -112,7 +112,7 @@ describe("analyticsInsight", () => {
     assert.equal(latestAnalyticsInsight("u1")?.headline, "Fresh note.");
   });
 
-  it("skips a user with no watched posts without calling the LLM", async () => {
+  await it("skips a user with no watched posts without calling the LLM", async () => {
     let chatCalls = 0;
     const result = await runAnalyticsInsightForUser({
       userId: "u-empty",
@@ -128,7 +128,7 @@ describe("analyticsInsight", () => {
     assert.equal(latestAnalyticsInsight("u-empty"), null);
   });
 
-  it("a failed generation still consumes the day's single LLM call", async () => {
+  await it("a failed generation still consumes the day's single LLM call", async () => {
     upsertOwnPost({ parsed: post({ postId: "1" }), userId: "u1", tenantId: "t1" });
     let chatCalls = 0;
     const result = await runAnalyticsInsightForUser({
@@ -166,7 +166,7 @@ describe("analyticsInsight", () => {
     assert.equal(tomorrow.wrote, true);
   });
 
-  it("an LLM error also records the attempt so the day is not retried", async () => {
+  await it("an LLM error also records the attempt so the day is not retried", async () => {
     upsertOwnPost({ parsed: post({ postId: "1" }), userId: "u1", tenantId: "t1" });
     let chatCalls = 0;
     const result = await runAnalyticsInsightForUser({
@@ -198,7 +198,7 @@ describe("analyticsInsight", () => {
     assert.equal(chatCalls, 1);
   });
 
-  it("runAnalyticsInsights sweeps every own-post user and soft-fails per user", async () => {
+  await it("runAnalyticsInsights sweeps every own-post user and soft-fails per user", async () => {
     upsertOwnPost({ parsed: post({ postId: "1" }), userId: "u1", tenantId: "t1" });
     upsertOwnPost({ parsed: post({ postId: "2" }), userId: "u2", tenantId: "t2" });
     saveAnalyticsInsight({
@@ -218,7 +218,7 @@ describe("analyticsInsight", () => {
     assert.equal(latestAnalyticsInsight("u2")?.headline, "Already there.");
   });
 
-  it("parseInsightJson enforces the headline + 2..4 bullets contract", () => {
+  await it("parseInsightJson enforces the headline + 2..4 bullets contract", () => {
     assert.equal(parseInsightJson("not json"), null);
     assert.equal(parseInsightJson('{"headline":"","bullets":["a","b"]}'), null);
     assert.equal(parseInsightJson('{"headline":"h","bullets":["a"]}'), null);

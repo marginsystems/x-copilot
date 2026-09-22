@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Once-per-UTC-day desk analytics note. One DeepSeek pass over the existing
  * analytics summary — same shape as the For You run: skip when already
@@ -27,7 +28,7 @@ export function utcDayKey(nowMs: number = Date.now()): string {
 function mapInsightRow(row: Record<string, unknown>): AnalyticsInsight | null {
   let bullets: string[] = [];
   try {
-    const parsed = JSON.parse(String(row.bullets_json ?? "[]"));
+    const parsed: unknown = JSON.parse(String(row.bullets_json ?? "[]"));
     if (Array.isArray(parsed)) {
       bullets = parsed.filter((b): b is string => typeof b === "string");
     }
@@ -45,13 +46,13 @@ function mapInsightRow(row: Record<string, unknown>): AnalyticsInsight | null {
 }
 
 export function latestAnalyticsInsight(userId: string): AnalyticsInsight | null {
-  const row = getPlatformDb()
+  const row = parseLatestAnalyticsInsightRow(getPlatformDb()
     .prepare(
       `SELECT day_utc, headline, bullets_json, created_at
        FROM analytics_insights WHERE user_id = ? AND headline != ''
        ORDER BY day_utc DESC LIMIT 1`,
     )
-    .get(userId) as Record<string, unknown> | undefined;
+    .get(userId));
   return row ? mapInsightRow(row) : null;
 }
 
@@ -59,12 +60,12 @@ export function hasInsightToday(
   userId: string,
   nowMs: number = Date.now(),
 ): boolean {
-  const row = getPlatformDb()
+  const row = parseHasInsightTodayRow(getPlatformDb()
     .prepare(
       `SELECT COUNT(*) AS n FROM analytics_insights
        WHERE user_id = ? AND day_utc = ?`,
     )
-    .get(userId, utcDayKey(nowMs)) as { n: number };
+    .get(userId, utcDayKey(nowMs)));
   return (Number(row.n) || 0) > 0;
 }
 
@@ -112,9 +113,9 @@ function recordInsightAttempt(userId: string, nowMs: number, model: string): voi
 
 /** Every user with at least one watched post — the note reads own_posts only. */
 export function listInsightUsers(): string[] {
-  const rows = getPlatformDb()
+  const rows = parseListInsightUsersRow(getPlatformDb()
     .prepare(`SELECT DISTINCT user_id AS userId FROM own_posts`)
-    .all() as Array<{ userId: string }>;
+    .all());
   return rows.map((r) => r.userId);
 }
 
@@ -128,8 +129,8 @@ Rules:
 export function parseInsightJson(
   raw: string,
 ): { headline: string; bullets: string[] } | null {
-  const data = extractJsonObject(raw) as Record<string, unknown> | null;
-  if (!data) return null;
+  const data = extractJsonObject(raw);
+  if (!isRecord(data)) return null;
   const headline =
     typeof data.headline === "string" ? data.headline.trim() : "";
   const bullets = Array.isArray(data.bullets)
@@ -242,4 +243,27 @@ export async function runAnalyticsInsights(opts?: {
     }
   }
   return { wrote, skipped };
+}
+
+function parseLatestAnalyticsInsightRow(value: unknown): Record<string, unknown> | undefined {
+  const valid = (row: unknown): row is Record<string, unknown> | undefined =>
+    (row === undefined || (isRecord(row)));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseHasInsightTodayRow(value: unknown): { n: number } {
+  const valid = (row: unknown): row is { n: number } =>
+    (isRecord(row) &&
+    typeof row.n === "number");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseListInsightUsersRow(value: unknown): Array<{ userId: string }> {
+  const valid = (row: unknown): row is Array<{ userId: string }> =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.userId === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

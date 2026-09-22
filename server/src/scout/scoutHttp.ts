@@ -1,3 +1,4 @@
+import { objectValue } from "../platform/unknownValue.js";
 /**
  * Scout NDJSON run / last-snapshot routes.
  *
@@ -61,7 +62,7 @@ import { getSkippedThreadIds } from "../desk/skipStore.js";
 
 export function parseScoutFilters(raw: unknown): ScoutFilters | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const obj = raw as Record<string, unknown>;
+  const obj = objectValue(raw);
   const filters: ScoutFilters = {};
   if (typeof obj.maxThreadChars === "number" && Number.isInteger(obj.maxThreadChars)) {
     filters.maxThreadChars = obj.maxThreadChars;
@@ -173,7 +174,9 @@ export async function readLastScoutPayload(opts: {
   const snapshot = await getLastScout({ userId });
   if (!snapshot) {
     if (opts.allowAutoStart !== false) {
-      void startEmptyTankScout(userId, undefined, opts.deps);
+      startEmptyTankScout(userId, undefined, opts.deps).catch((err: unknown) => {
+        console.warn("Empty-tank scout soft-fail:", err);
+      });
     }
     return withFlight({ ok: true, empty: true });
   }
@@ -217,7 +220,9 @@ export async function readLastScoutPayload(opts: {
     }),
   );
   if (threads.length <= 1 && opts.allowAutoStart !== false) {
-    void startEmptyTankScout(userId, snapshot.filters, opts.deps);
+    startEmptyTankScout(userId, snapshot.filters, opts.deps).catch((err: unknown) => {
+        console.warn("Empty-tank scout soft-fail:", err);
+      });
   }
   if (threads.length === 0) {
     return withFlight({ ok: true, empty: true });
@@ -254,13 +259,7 @@ export async function tryHandleScout(
       bucketSize?: unknown;
     };
     try {
-      body = (await readBody(req)) as {
-        queries?: unknown;
-        agenda?: unknown;
-        filters?: unknown;
-        targetCool?: unknown;
-        bucketSize?: unknown;
-      };
+      body = objectValue(await readBody(req));
     } catch (err) {
       const statusCode = err instanceof BodyError ? err.statusCode : 400;
       send(req, res, statusCode, {

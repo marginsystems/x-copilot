@@ -61,8 +61,8 @@ function skips(n: number, kind: ThreadKind | null) {
   return Array.from({ length: n }, () => obs({ action: "skip", threadKind: kind }));
 }
 
-describe("familiarityScore (frozen formula)", () => {
-  it("matches the brief's worked examples", () => {
+await describe("familiarityScore (frozen formula)", async () => {
+  await it("matches the brief's worked examples", () => {
     assert.equal(familiarityScore(0, 0), 0);
     assert.equal(familiarityScore(1, 1), 0);
     assert.equal(familiarityScore(10, 10), 25);
@@ -73,8 +73,8 @@ describe("familiarityScore (frozen formula)", () => {
   });
 });
 
-describe("reduceScoutProfile — empty and shape", () => {
-  it("returns the deterministic empty profile for no evidence", () => {
+await describe("reduceScoutProfile — empty and shape", async () => {
+  await it("returns the deterministic empty profile for no evidence", () => {
     const profile = reduceScoutProfile({
       userId: "u1",
       revision: 0,
@@ -99,7 +99,7 @@ describe("reduceScoutProfile — empty and shape", () => {
     }
   });
 
-  it("rejects a blank user id", () => {
+  await it("rejects a blank user id", () => {
     assert.throws(() =>
       reduceScoutProfile({
         userId: "  ",
@@ -110,7 +110,7 @@ describe("reduceScoutProfile — empty and shape", () => {
     );
   });
 
-  it("keeps the frozen top-level key set", () => {
+  await it("keeps the frozen top-level key set", () => {
     const profile = reduce([obs({ action: "take", threadKind: "fact_add" })]);
     assert.deepEqual(Object.keys(profile).sort(), [
       "authors",
@@ -130,8 +130,8 @@ describe("reduceScoutProfile — empty and shape", () => {
   });
 });
 
-describe("reduceScoutProfile — kind rates and bias floors", () => {
-  it("4 takes / 1 skip is 5/7 and prefers against a 5/5 known overall", () => {
+await describe("reduceScoutProfile — kind rates and bias floors", async () => {
+  await it("4 takes / 1 skip is 5/7 and prefers against a 5/5 known overall", () => {
     const observations = [
       ...takes(4, "fact_add"),
       ...skips(1, "fact_add"),
@@ -151,7 +151,7 @@ describe("reduceScoutProfile — kind rates and bias floors", () => {
     assert.equal(smoothedTakeRate(4, 1), 5 / 7);
   });
 
-  it("a kind with 4 resolved stays learning even when overall has 10", () => {
+  await it("a kind with 4 resolved stays learning even when overall has 10", () => {
     const profile = reduce([
       ...takes(4, "fact_add"),
       ...takes(3, "timely_take"),
@@ -164,14 +164,14 @@ describe("reduceScoutProfile — kind rates and bias floors", () => {
     assert.equal(profile.kinds.timely_take.bias, "avoid");
   });
 
-  it("overall with 9 resolved keeps every kind learning", () => {
+  await it("overall with 9 resolved keeps every kind learning", () => {
     const profile = reduce([...takes(5, "fact_add"), ...skips(4, "timely_take")]);
     assert.equal(profile.overall.resolvedActions, 9);
     assert.equal(profile.kinds.fact_add.resolvedActions, 5);
     assert.equal(profile.kinds.fact_add.bias, "learning");
   });
 
-  it("equal rate is neutral", () => {
+  await it("equal rate is neutral", () => {
     // Both kinds 3 takes / 2 skips → 4/7 each; overall 6/4 → 7/12 ≠ 4/7.
     // Build one kind equal to overall instead: kind A 5/5 (6/12), kind B 5/5.
     const profile = reduce([
@@ -184,7 +184,7 @@ describe("reduceScoutProfile — kind rates and bias floors", () => {
     assert.equal(profile.kinds.timely_take.bias, "neutral");
   });
 
-  it("unknown-kind rows and dismissals do not inflate rate denominators", () => {
+  await it("unknown-kind rows and dismissals do not inflate rate denominators", () => {
     const profile = reduce([
       ...takes(4, "fact_add"),
       ...skips(1, "fact_add"),
@@ -209,7 +209,7 @@ describe("reduceScoutProfile — kind rates and bias floors", () => {
     assert.equal(profile.counts.dismissals, 3);
   });
 
-  it("known `other` is a real kind", () => {
+  await it("known `other` is a real kind", () => {
     const profile = reduce([...takes(3, "other")]);
     assert.equal(profile.kinds.other.takes, 3);
     assert.equal(profile.coverage.knownKindResolvedActions, 3);
@@ -217,8 +217,8 @@ describe("reduceScoutProfile — kind rates and bias floors", () => {
   });
 });
 
-describe("reduceScoutProfile — dedupe and supersession", () => {
-  it("does not count repeated deliveries of one reply as multiple takes", () => {
+await describe("reduceScoutProfile — dedupe and supersession", async () => {
+  await it("does not count repeated deliveries of one reply as multiple takes", () => {
     const first = obs({
       action: "take",
       eventKey: "reply:r1",
@@ -234,7 +234,7 @@ describe("reduceScoutProfile — dedupe and supersession", () => {
     assert.equal(profile.coverage.storedConfirmedReplies, 1);
   });
 
-  it("a later take supersedes an earlier skip on the same target but keeps raw counts", () => {
+  await it("a later take supersedes an earlier skip on the same target but keeps raw counts", () => {
     const skip = obs({
       action: "skip",
       targetId: "T",
@@ -254,7 +254,7 @@ describe("reduceScoutProfile — dedupe and supersession", () => {
     assert.equal(profile.kinds.fact_add.resolvedActions, 1);
   });
 
-  it("supersession matches captured card aliases, not authors", () => {
+  await it("supersession matches captured card aliases, not authors", () => {
     const skipByCard = obs({
       action: "skip",
       targetId: null,
@@ -283,7 +283,7 @@ describe("reduceScoutProfile — dedupe and supersession", () => {
     assert.equal(profile.kinds.fact_add.takes, 1);
   });
 
-  it("a skip after the take is not superseded", () => {
+  await it("a skip after the take is not superseded", () => {
     const take = obs({
       action: "take",
       targetId: "T",
@@ -300,7 +300,7 @@ describe("reduceScoutProfile — dedupe and supersession", () => {
     assert.equal(profile.kinds.fact_add.skips, 1);
   });
 
-  it("dismissals stay separate even after a take on the same target", () => {
+  await it("dismissals stay separate even after a take on the same target", () => {
     const dismiss = obs({
       action: "dismiss",
       targetId: "T",
@@ -320,7 +320,7 @@ describe("reduceScoutProfile — dedupe and supersession", () => {
     assert.equal(profile.counts.dismissals, 1);
   });
 
-  it("is order independent", () => {
+  await it("is order independent", () => {
     const observations = [
       ...takes(4, "fact_add"),
       ...skips(3, "timely_take"),
@@ -334,8 +334,8 @@ describe("reduceScoutProfile — dedupe and supersession", () => {
   });
 });
 
-describe("reduceScoutProfile — topic and author hints", () => {
-  it("three events on one target do not satisfy the distinct-target floor", () => {
+await describe("reduceScoutProfile — topic and author hints", async () => {
+  await it("three events on one target do not satisfy the distinct-target floor", () => {
     const profile = reduce([
       obs({ action: "skip", targetId: "T", topics: ["ai"], author: "alice", at: "2026-09-01T00:00:00.000Z" }),
       obs({ action: "dismiss", targetId: "T", topics: ["ai"], author: "alice", at: "2026-09-01T00:01:00.000Z" }),
@@ -345,7 +345,7 @@ describe("reduceScoutProfile — topic and author hints", () => {
     assert.deepEqual(profile.authors, []);
   });
 
-  it("three distinct targets support a hint with resolved and dismissal counts", () => {
+  await it("three distinct targets support a hint with resolved and dismissal counts", () => {
     const profile = reduce([
       obs({ action: "take", targetId: "A", topics: ["ai", "ai"], author: "alice" }),
       obs({ action: "skip", targetId: "B", topics: ["ai"], author: "alice" }),
@@ -359,7 +359,7 @@ describe("reduceScoutProfile — topic and author hints", () => {
     ]);
   });
 
-  it("caps at three hints ordered by distinctTargets then value", () => {
+  await it("caps at three hints ordered by distinctTargets then value", () => {
     const observations: ScoutProfileObservation[] = [];
     const spread = (topic: string, n: number) => {
       for (let i = 0; i < n; i++) {
@@ -379,7 +379,7 @@ describe("reduceScoutProfile — topic and author hints", () => {
     assert.equal(profile.topics.length, 3);
   });
 
-  it("a superseded skip does not add skip credit but its target counts once", () => {
+  await it("a superseded skip does not add skip credit but its target counts once", () => {
     const profile = reduce([
       obs({ action: "skip", targetId: "A", topics: ["ai"], at: "2026-09-01T00:00:00.000Z" }),
       obs({ action: "take", targetId: "A", topics: ["ai"], at: "2026-09-01T01:00:00.000Z" }),
@@ -392,21 +392,21 @@ describe("reduceScoutProfile — topic and author hints", () => {
   });
 });
 
-describe("reduceScoutProfile — familiarity and lastLearned", () => {
-  it("0 stored replies is empty even with known actions", () => {
+await describe("reduceScoutProfile — familiarity and lastLearned", async () => {
+  await it("0 stored replies is empty even with known actions", () => {
     const profile = reduce([...takes(6, "fact_add", false), ...skips(6, "fact_add")]);
     assert.equal(profile.coverage.storedConfirmedReplies, 0);
     assert.equal(profile.familiarity.state, "empty");
     assert.equal(profile.familiarity.score, 0);
   });
 
-  it("1 stored / 1 known resolved rounds to 0 and is learning", () => {
+  await it("1 stored / 1 known resolved rounds to 0 and is learning", () => {
     const profile = reduce([...takes(1, "fact_add", true)]);
     assert.equal(profile.familiarity.score, 0);
     assert.equal(profile.familiarity.state, "learning");
   });
 
-  it("stored replies with only unknown kinds is learning with score 0, not empty", () => {
+  await it("stored replies with only unknown kinds is learning with score 0, not empty", () => {
     const profile = reduce([...takes(5, null, true)]);
     assert.equal(profile.coverage.storedConfirmedReplies, 5);
     assert.equal(profile.coverage.knownKindResolvedActions, 0);
@@ -414,19 +414,19 @@ describe("reduceScoutProfile — familiarity and lastLearned", () => {
     assert.equal(profile.familiarity.state, "learning");
   });
 
-  it("10 stored / 10 known → 25, supported once a kind meets both floors", () => {
+  await it("10 stored / 10 known → 25, supported once a kind meets both floors", () => {
     const profile = reduce([...takes(10, "fact_add", true)]);
     assert.equal(profile.familiarity.score, 25);
     assert.equal(profile.kinds.fact_add.bias, "neutral");
     assert.equal(profile.familiarity.state, "supported");
   });
 
-  it("20 stored / 20 known → 100", () => {
+  await it("20 stored / 20 known → 100", () => {
     const profile = reduce([...takes(20, "fact_add", true)]);
     assert.equal(profile.familiarity.score, 100);
   });
 
-  it("a supported topic hint alone makes a sparse profile supported", () => {
+  await it("a supported topic hint alone makes a sparse profile supported", () => {
     const profile = reduce([
       obs({ action: "take", targetId: "A", topics: ["ai"], storedReplyVerified: true }),
       obs({ action: "skip", targetId: "B", topics: ["ai"] }),
@@ -436,7 +436,7 @@ describe("reduceScoutProfile — familiarity and lastLearned", () => {
     assert.equal(profile.familiarity.score, 0);
   });
 
-  it("a confirmed take without a saved note earns no stored-reply credit", () => {
+  await it("a confirmed take without a saved note earns no stored-reply credit", () => {
     const profile = reduce([
       obs({ action: "take", replyId: "r1", storedReplyVerified: false }),
       obs({ action: "take", replyId: "r2", storedReplyVerified: true }),
@@ -445,7 +445,7 @@ describe("reduceScoutProfile — familiarity and lastLearned", () => {
     assert.equal(profile.coverage.storedConfirmedReplies, 1);
   });
 
-  it("lastLearned uses the latest material change time, not read time", () => {
+  await it("lastLearned uses the latest material change time, not read time", () => {
     const profile = reduce(
       [
         obs({ action: "take", threadKind: "fact_add", at: "2026-09-01T00:00:00.000Z", changedAt: "2026-09-03T00:00:00.000Z" }),

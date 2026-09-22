@@ -13,8 +13,8 @@ import {
 import { resolveFlashModel, DEEPSEEK_FLASH_MODEL } from "../platform/deepseek.ts";
 import { emptyScoutProfile } from "./scoutProfile.ts";
 
-describe("parseQueryPlanJson", () => {
-  it("parses raw JSON", () => {
+await describe("parseQueryPlanJson", async () => {
+  await it("parses raw JSON", () => {
     const q = parseQueryPlanJson(
       '{"queries":["AI tools","building in public","is:reply AI"]}',
     );
@@ -25,38 +25,38 @@ describe("parseQueryPlanJson", () => {
     ]);
   });
 
-  it("strips markdown fences", () => {
+  await it("strips markdown fences", () => {
     const q = parseQueryPlanJson(
       '```json\n{"queries":["one","two"]}\n```',
     );
     assert.deepEqual(q, ["one", "two"]);
   });
 
-  it("rejects fewer than 2 queries", () => {
+  await it("rejects fewer than 2 queries", () => {
     assert.equal(parseQueryPlanJson('{"queries":["only"]}'), null);
   });
 
-  it("rejects non-json", () => {
+  await it("rejects non-json", () => {
     assert.equal(parseQueryPlanJson("just text"), null);
   });
 });
 
-describe("validateQueries", () => {
-  it("dedupes and caps at 4", () => {
+await describe("validateQueries", async () => {
+  await it("dedupes and caps at 4", () => {
     const q = validateQueries(["a", "a", "b", "c", "d", "e"]);
     assert.deepEqual(q, ["a", "b", "c", "d"]);
   });
 });
 
-describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
-  it("counts whitespace tokens", () => {
+await describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", async () => {
+  await it("counts whitespace tokens", () => {
     assert.equal(queryWordCount("building in public AI"), 4);
     assert.equal(queryWordCount("  shipped my AI  "), 3);
     assert.equal(queryWordCount("shipping AI tool in public"), 5);
     assert.equal(queryWordCount("just shipped"), 2);
   });
 
-  it("flags single queries over 3 words as phrase-y (4+)", () => {
+  await it("flags single queries over 3 words as phrase-y (4+)", () => {
     assert.equal(isPhraseyQuery("just shipped"), false);
     assert.equal(isPhraseyQuery("shipped my AI"), false);
     assert.equal(isPhraseyQuery("AI tool launch question"), true);
@@ -64,7 +64,7 @@ describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
     assert.equal(isPhraseyQuery("shipping AI tool in public"), true);
   });
 
-  it("accepts mostly 2-word high-recall plans", () => {
+  await it("accepts mostly 2-word high-recall plans", () => {
     assert.equal(
       isPhraseyPlan([
         "just shipped",
@@ -76,7 +76,7 @@ describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
     );
   });
 
-  it("flags all-3-word plans as phrase-y (prefer 2-word)", () => {
+  await it("flags all-3-word plans as phrase-y (prefer 2-word)", () => {
     assert.equal(
       isPhraseyPlan([
         "shipping AI tool",
@@ -88,7 +88,7 @@ describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
     );
   });
 
-  it("flags agenda-echo / long plans as phrase-y", () => {
+  await it("flags agenda-echo / long plans as phrase-y", () => {
     assert.equal(
       isPhraseyPlan([
         "shipping AI tool in public",
@@ -100,7 +100,7 @@ describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
     );
   });
 
-  it("allows a minority of 3-word queries in a 2-word-heavy plan", () => {
+  await it("allows a minority of 3-word queries in a 2-word-heavy plan", () => {
     assert.equal(
       isPhraseyPlan([
         "just shipped",
@@ -113,7 +113,7 @@ describe("queryWordCount / isPhraseyQuery / isPhraseyPlan", () => {
   });
 });
 
-describe("hasAgendaNounQueries", () => {
+await describe("hasAgendaNounQueries", async () => {
   const genericPlan = [
     "just shipped",
     "AI launch",
@@ -121,7 +121,7 @@ describe("hasAgendaNounQueries", () => {
     "shipping soon",
   ];
 
-  it("rejects a generic plan against a specific agenda", () => {
+  await it("rejects a generic plan against a specific agenda", () => {
     assert.equal(
       hasAgendaNounQueries(genericPlan, "B2B freight OS"),
       false,
@@ -135,7 +135,7 @@ describe("hasAgendaNounQueries", () => {
     );
   });
 
-  it("accepts a 2-word plan with two agenda-noun queries", () => {
+  await it("accepts a 2-word plan with two agenda-noun queries", () => {
     assert.equal(
       hasAgendaNounQueries(
         [
@@ -150,21 +150,21 @@ describe("hasAgendaNounQueries", () => {
     );
   });
 
-  it("drops stopwords and tiny agenda words", () => {
+  await it("drops stopwords and tiny agenda words", () => {
     assert.deepEqual(
       [...agendaContentWords("Building a B2B freight OS for carriers")],
       ["building", "b2b", "freight", "carriers"],
     );
   });
 
-  it("does not require grounding when the agenda has no content words", () => {
+  await it("does not require grounding when the agenda has no content words", () => {
     assert.equal(
       hasAgendaNounQueries(["just shipped", "shipping soon"], "AI"),
       true,
     );
   });
 
-  it("does not count search operators as agenda nouns", () => {
+  await it("does not count search operators as agenda nouns", () => {
     assert.equal(
       hasAgendaNounQueries(
         ["min_faves launch", "-is:reply shipped", "just freight"],
@@ -174,7 +174,7 @@ describe("hasAgendaNounQueries", () => {
     );
   });
 
-  it("keeps the agenda-noun gate when history is supplied", () => {
+  await it("keeps the agenda-noun gate when history is supplied", () => {
     const agenda = "B2B freight OS";
     const genericPlan = ["just shipped", "startup claims"];
     const prompt = formatPlanUserPrompt(agenda, {
@@ -187,7 +187,7 @@ describe("hasAgendaNounQueries", () => {
     assert.equal(isPhraseyPlan(["shipping AI tool in public", "freight"]), true);
   });
 
-  it("scopes broaden guidance to the agenda topic family", () => {
+  await it("scopes broaden guidance to the agenda topic family", () => {
     const prompt = formatPlanUserPrompt("B2B freight OS", {
       broaden: true,
       yieldNote: "unique=0 cool=0",
@@ -196,7 +196,7 @@ describe("hasAgendaNounQueries", () => {
     assert.match(prompt, /at least two queries must contain agenda content words/);
   });
 
-  it("renders byte-identical prompts for absent, null and empty profiles", () => {
+  await it("renders byte-identical prompts for absent, null and empty profiles", () => {
     const opts = {
       priorQueries: ["freight software"],
       yieldNote: "unique=75 usable=0 cool=0 calls=8",
@@ -214,8 +214,8 @@ describe("hasAgendaNounQueries", () => {
   });
 });
 
-describe("resolveFlashModel", () => {
-  it("returns DeepSeek v4-flash", () => {
+await describe("resolveFlashModel", async () => {
+  await it("returns DeepSeek v4-flash", () => {
     const prev = process.env.DEEPSEEK_MODEL;
     delete process.env.DEEPSEEK_MODEL;
     try {

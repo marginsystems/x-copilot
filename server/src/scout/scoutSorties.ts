@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Daily takeoff cap — UTC day, per tenant.
  */
@@ -20,12 +21,12 @@ export function countSortiesToday(
   tenantId: string,
   now = new Date(),
 ): number {
-  const row = getPlatformDb()
+  const row = parseCountSortiesTodayRow(getPlatformDb()
     .prepare(
       `SELECT COUNT(*) AS n FROM scout_sorties
        WHERE tenant_id = ? AND at >= ?`,
     )
-    .get(tenantId, startOfUtcDayIso(now)) as { n: number };
+    .get(tenantId, startOfUtcDayIso(now)));
   return Number(row.n) || 0;
 }
 
@@ -72,12 +73,12 @@ export function countDeliveredSortiesToday(
   tenantId: string,
   now = new Date(),
 ): number {
-  const row = getPlatformDb()
+  const row = parseCountDeliveredSortiesTodayRow(getPlatformDb()
     .prepare(
       `SELECT COUNT(*) AS n FROM scout_sorties
        WHERE tenant_id = ? AND at >= ? AND delivered = 1`,
     )
-    .get(tenantId, startOfUtcDayIso(now)) as { n: number };
+    .get(tenantId, startOfUtcDayIso(now)));
   return Number(row.n) || 0;
 }
 
@@ -110,4 +111,20 @@ export function getSortieUsage(
   const limit = dailySortieLimit(planKey);
   const remaining = Math.max(0, limit - used);
   return { used, limit, remaining, canFly: remaining > 0 };
+}
+
+function parseCountSortiesTodayRow(value: unknown): { n: number } {
+  const valid = (row: unknown): row is { n: number } =>
+    (isRecord(row) &&
+    typeof row.n === "number");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseCountDeliveredSortiesTodayRow(value: unknown): { n: number } {
+  const valid = (row: unknown): row is { n: number } =>
+    (isRecord(row) &&
+    typeof row.n === "number");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

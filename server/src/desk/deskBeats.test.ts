@@ -1,8 +1,9 @@
+import { isRecord } from "../platform/unknownValue.js";
+import { testRequest } from "../http/http.testHelpers.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { type IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -24,7 +25,7 @@ import { createSession } from "../auth/sessionStore.ts";
 const DAY_ONE = Date.parse("2026-08-31T23:59:59.000Z");
 const DAY_TWO = Date.parse("2026-09-01T00:00:00.000Z");
 
-describe("deskBeats", () => {
+await describe("deskBeats", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -42,7 +43,7 @@ describe("deskBeats", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("isolates progress by UTC day and user", () => {
+  await it("isolates progress by UTC day and user", () => {
     recordDeskReplyMarked({ userId: "u1", source: "scout", nowMs: DAY_ONE });
 
     assert.equal(getDeskBeats({ userId: "u1", nowMs: DAY_ONE }).scoutReplyDone, true);
@@ -50,7 +51,7 @@ describe("deskBeats", () => {
     assert.equal(getDeskBeats({ userId: "u2", nowMs: DAY_ONE }).scoutReplyDone, false);
   });
 
-  it("persists reply and original forks through done", () => {
+  await it("persists reply and original forks through done", () => {
     recordDeskReplyMarked({ userId: "reply", source: "scout", nowMs: DAY_ONE });
     recordDeskReplyMarked({ userId: "reply", source: "organic", nowMs: DAY_ONE });
     assert.equal(
@@ -79,7 +80,7 @@ describe("deskBeats", () => {
     );
   });
 
-  it("persists an organic mark made before the scout mark", () => {
+  await it("persists an organic mark made before the scout mark", () => {
     recordDeskReplyMarked({ userId: "u1", source: "organic", nowMs: DAY_ONE });
     const beats = recordDeskReplyMarked({
       userId: "u1",
@@ -91,7 +92,7 @@ describe("deskBeats", () => {
     assert.equal(beats.organicReplyDone, true);
   });
 
-  it("persists the source of the reply fork completion", () => {
+  await it("persists the source of the reply fork completion", () => {
     recordDeskReplyMarked({ userId: "u1", source: "organic", nowMs: DAY_ONE });
     chooseDeskFork({ userId: "u1", forkChoice: "reply", nowMs: DAY_ONE });
 
@@ -107,7 +108,7 @@ describe("deskBeats", () => {
     assert.equal(getDeskBeats({ userId: "u1", nowMs: DAY_ONE }).scoutReplyDone, true);
   });
 
-  it("rejects an early fork and ignores an early original", () => {
+  await it("rejects an early fork and ignores an early original", () => {
     assert.equal(
       chooseDeskFork({
         userId: "u1",
@@ -122,7 +123,7 @@ describe("deskBeats", () => {
     );
   });
 
-  it("accepts an authenticated fork choice write", async () => {
+  await it("accepts an authenticated fork choice write", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "desk-beats-user",
@@ -132,7 +133,7 @@ describe("deskBeats", () => {
     recordDeskReplyMarked({ userId: user.id, source: "scout" });
     recordDeskReplyMarked({ userId: user.id, source: "organic" });
     const { token } = createSession(user.id);
-    const req = new EventEmitter() as unknown as IncomingMessage;
+    const req = testRequest();
     Object.assign(req, {
       method: "POST",
       headers: {
@@ -142,14 +143,14 @@ describe("deskBeats", () => {
     });
     let status = 0;
     let raw = "";
-    const res = {
+    const res = Object.assign(new ServerResponse(testRequest()), {
       writeHead: (code: number) => {
         status = code;
       },
       end: (chunk: string) => {
         raw = chunk;
       },
-    } as unknown as ServerResponse;
+    });
     const handledPromise = tryHandleDeskBeats(
       req,
       res,
@@ -160,9 +161,20 @@ describe("deskBeats", () => {
 
     assert.equal(await handledPromise, true);
     assert.equal(status, 200);
-    const json = JSON.parse(raw) as {
-      beats?: { forkChoice?: string };
-    };
+    const json = parseJsonRow(JSON.parse(raw));
     assert.equal(json.beats?.forkChoice, "original");
   });
 });
+
+function parseJsonRow(value: unknown): {
+      beats?: { forkChoice?: string };
+    } {
+  const valid = (row: unknown): row is {
+      beats?: { forkChoice?: string };
+    } =>
+    (isRecord(row) &&
+    (row.beats === undefined || (isRecord(row.beats) &&
+    (row.beats.forkChoice === undefined || typeof row.beats.forkChoice === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

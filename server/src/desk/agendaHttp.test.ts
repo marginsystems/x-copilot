@@ -1,10 +1,12 @@
+import { isRecord } from "../platform/unknownValue.js";
+import { testRequest } from "../http/http.testHelpers.js";
+import { expectRecord } from "../http/http.testHelpers.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EventEmitter } from "node:events";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { type IncomingMessage, ServerResponse } from "node:http";
 import {
   defaultMigrationsDir,
   getPlatformDb,
@@ -20,7 +22,7 @@ import { tryHandleAgenda } from "./agendaHttp.ts";
 const AGENDA =
   "Find founders sharing concrete takes on shipping AI tools in public. Prefer a clear point of view. Skip empty engagement bait.";
 
-describe("PUT /api/agenda", () => {
+await describe("PUT /api/agenda", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -53,7 +55,7 @@ describe("PUT /api/agenda", () => {
     });
     completeOnboarding(actor.id, AGENDA);
     const { token } = createSession(actor.id);
-    const req = new EventEmitter() as unknown as IncomingMessage;
+    const req = testRequest();
     const headers: Record<string, string> = {};
     if (opts.cookie !== false) {
       headers.cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
@@ -69,44 +71,44 @@ describe("PUT /api/agenda", () => {
     });
     let status = 0;
     let raw = "";
-    const res = {
+    const res = Object.assign(new ServerResponse(testRequest()), {
       writeHead: (code: number) => {
         status = code;
       },
       end: (chunk: string) => {
         raw = chunk;
       },
-    } as unknown as ServerResponse;
+    });
     const handledPromise = tryHandleAgenda(
       req,
       res,
       new URL("http://localhost/api/agenda"),
     );
     if (opts.body !== undefined) {
-      (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(opts.body)));
+      (req).emit("data", Buffer.from(JSON.stringify(opts.body)));
     }
-    (req as EventEmitter).emit("end");
+    (req).emit("end");
     assert.equal(await handledPromise, true);
-    return { status, json: JSON.parse(raw || "{}") as Record<string, unknown> };
+    return { status, json: expectRecord(JSON.parse(raw || "{}")) };
   }
 
-  it("writes users.agenda for the signed-in user", async () => {
+  await it("writes users.agenda for the signed-in user", async () => {
     const next =
       "Meet researchers arguing about evaluation, not model drops. Prefer lived results. Skip launch-day hype threads.";
     const { status, json } = await putAgenda({ body: { agenda: `  ${next}  ` } });
     assert.equal(status, 200);
     assert.equal(json.ok, true);
-    const user = json.user as { agenda?: string };
+    const user = parseUserRow(json.user);
     assert.equal(user.agenda, next);
   });
 
-  it("rejects a short agenda", async () => {
+  await it("rejects a short agenda", async () => {
     const { status, json } = await putAgenda({ body: { agenda: "too short" } });
     assert.equal(status, 400);
     assert.equal(json.error, "agenda_too_short");
   });
 
-  it("rejects a signed-out request", async () => {
+  await it("rejects a signed-out request", async () => {
     const { status, json } = await putAgenda({
       cookie: false,
       body: { agenda: AGENDA },
@@ -115,7 +117,7 @@ describe("PUT /api/agenda", () => {
     assert.equal(json.error, "unauthenticated");
   });
 
-  it("rejects a non-local Origin", async () => {
+  await it("rejects a non-local Origin", async () => {
     const { status, json } = await putAgenda({
       origin: "https://evil.example",
       body: { agenda: AGENDA },
@@ -124,16 +126,24 @@ describe("PUT /api/agenda", () => {
     assert.equal(json.error, "forbidden");
   });
 
-  it("ignores unrelated paths", async () => {
-    const req = new EventEmitter() as unknown as IncomingMessage;
+  await it("ignores unrelated paths", async () => {
+    const req = testRequest();
     Object.assign(req, { method: "PUT", headers: {} });
-    const res = {
+    const res = Object.assign(new ServerResponse(testRequest()), {
       writeHead: () => {},
       end: () => {},
-    } as unknown as ServerResponse;
+    });
     assert.equal(
       await tryHandleAgenda(req, res, new URL("http://localhost/api/usage")),
       false,
     );
   });
 });
+
+function parseUserRow(value: unknown): { agenda?: string } {
+  const valid = (row: unknown): row is { agenda?: string } =>
+    (isRecord(row) &&
+    (row.agenda === undefined || typeof row.agenda === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}

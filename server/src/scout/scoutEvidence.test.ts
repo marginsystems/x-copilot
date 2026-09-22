@@ -22,8 +22,8 @@ import {
 
 const T0 = Date.parse("2026-09-20T10:00:00.000Z");
 
-describe("scoutEvidence identities", () => {
-  it("builds stable take and explicit keys", () => {
+await describe("scoutEvidence identities", async () => {
+  await it("builds stable take and explicit keys", () => {
     assert.equal(takeEventKey(" 555 "), "reply:555");
     assert.equal(explicitEventKey("skip", "scout", "card-1"), "skip:scout:card-1");
     assert.equal(
@@ -35,7 +35,7 @@ describe("scoutEvidence identities", () => {
   });
 });
 
-describe("recordScoutEvidence", () => {
+await describe("recordScoutEvidence", async () => {
   let temp: TempPlatformDb;
   const userId = "user-a";
 
@@ -49,7 +49,7 @@ describe("recordScoutEvidence", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("one confirmed reply across adapters yields one take and one revision bump", () => {
+  await it("one confirmed reply across adapters yields one take and one revision bump", () => {
     const first = recordScoutEvidence({
       userId,
       eventKey: takeEventKey("r1"),
@@ -101,7 +101,7 @@ describe("recordScoutEvidence", () => {
     assert.equal(findScoutTakeByReplyId(userId, "r1")?.eventKey, "reply:r1");
   });
 
-  it("requires a confirmed reply id for a take and a matching key", () => {
+  await it("requires a confirmed reply id for a take and a matching key", () => {
     assert.throws(() =>
       recordScoutEvidence({
         userId,
@@ -135,7 +135,7 @@ describe("recordScoutEvidence", () => {
     );
   });
 
-  it("isolates the same target for different users", () => {
+  await it("isolates the same target for different users", () => {
     for (const id of [userId, "user-b"]) {
       recordScoutEvidence({
         userId: id,
@@ -156,7 +156,7 @@ describe("recordScoutEvidence", () => {
     assert.equal(readScoutEvidenceRevision("user-b").revision, 1);
   });
 
-  it("enrichment fills unknown facts but never replaces a known kind or the action time", () => {
+  await it("enrichment fills unknown facts but never replaces a known kind or the action time", () => {
     const key = explicitEventKey("dismiss", "scout", "c1");
     recordScoutEvidence({
       userId,
@@ -217,16 +217,18 @@ describe("recordScoutEvidence", () => {
     assert.equal(readScoutEvidenceRevision(userId).revision, 2);
   });
 
-  it("stores unknown kinds as null, never as other", () => {
-    const row = recordScoutEvidence({
+  await it("stores unknown kinds as null, never as other", () => {
+    const input: Parameters<typeof recordScoutEvidence>[0] = {
       userId,
       eventKey: explicitEventKey("skip", "scout", "c2"),
       action: "skip",
       source: "scout",
       targetId: "c2",
       actedAt: new Date(T0).toISOString(),
-      threadKind: "nonsense" as unknown as "other",
-    }).row;
+      threadKind: "other",
+    };
+    Reflect.set(input, "threadKind", "nonsense");
+    const row = recordScoutEvidence(input).row;
     assert.equal(row.threadKind, null);
     const other = recordScoutEvidence({
       userId,
@@ -240,7 +242,7 @@ describe("recordScoutEvidence", () => {
     assert.equal(other.threadKind, "other");
   });
 
-  it("keeps raw skip evidence when a later take arrives for the same target", () => {
+  await it("keeps raw skip evidence when a later take arrives for the same target", () => {
     recordScoutEvidence({
       userId,
       eventKey: explicitEventKey("skip", "scout", "c4"),
@@ -272,7 +274,7 @@ describe("recordScoutEvidence", () => {
     assert.equal(readScoutEvidenceRevision(userId).lastEventKey, "reply:r4");
   });
 
-  it("bounds topics to twelve deduped tokens", () => {
+  await it("bounds topics to twelve deduped tokens", () => {
     const topics = Array.from({ length: 20 }, (_, i) => `topic${i}`);
     const row = recordScoutEvidence({
       userId,
@@ -287,7 +289,7 @@ describe("recordScoutEvidence", () => {
     assert.equal(new Set(row.topics).size, 12);
   });
 
-  it("persists context-source-only enrichment", () => {
+  await it("persists context-source-only enrichment", () => {
     recordScoutEvidence({
       userId,
       eventKey: takeEventKey("r-context"),
@@ -314,7 +316,7 @@ describe("recordScoutEvidence", () => {
     assert.equal(result.row.contextSource, "watch");
   });
 
-  it("note verification advances the revision only when the state changes", () => {
+  await it("note verification advances the revision only when the state changes", () => {
     recordScoutEvidence({
       userId,
       eventKey: takeEventKey("r6"),
@@ -357,7 +359,7 @@ describe("recordScoutEvidence", () => {
     assert.equal(again.row.noteState, "stored");
   });
 
-  it("rolls back with the caller's transaction", () => {
+  await it("rolls back with the caller's transaction", () => {
     const db = getPlatformDb();
     assert.throws(() =>
       db.transaction(() => {
@@ -376,7 +378,7 @@ describe("recordScoutEvidence", () => {
     assert.equal(readScoutEvidenceRevision(userId).revision, 0);
   });
 
-  it("stores and clears reconciliation cursors per scope", () => {
+  await it("stores and clears reconciliation cursors per scope", () => {
     assert.equal(readScoutEvidenceCursor(userId, "interactions"), null);
     writeScoutEvidenceCursor(userId, "interactions", { at: "x", id: "y" });
     assert.deepEqual(readScoutEvidenceCursor(userId, "interactions"), {

@@ -48,16 +48,16 @@ function thread(id: string, author: string): ThreadCard {
   };
 }
 
-describe("normalizeAuthorKey", () => {
-  it("strips @, trims, lowercases", () => {
+await describe("normalizeAuthorKey", async () => {
+  await it("strips @, trims, lowercases", () => {
     assert.equal(normalizeAuthorKey("@Foo"), "foo");
     assert.equal(normalizeAuthorKey("  Foo  "), "foo");
     assert.equal(normalizeAuthorKey("@@Bar"), "bar");
   });
 });
 
-describe("parseStatusIdFromUrl", () => {
-  it("parses x.com and twitter.com status URLs", () => {
+await describe("parseStatusIdFromUrl", async () => {
+  await it("parses x.com and twitter.com status URLs", () => {
     assert.equal(
       parseStatusIdFromUrl("https://x.com/me/status/1234567890"),
       "1234567890",
@@ -72,28 +72,28 @@ describe("parseStatusIdFromUrl", () => {
     );
   });
 
-  it("rejects non-status URLs", () => {
+  await it("rejects non-status URLs", () => {
     assert.equal(parseStatusIdFromUrl("https://x.com/home"), null);
     assert.equal(parseStatusIdFromUrl("not a url"), null);
     assert.equal(parseStatusIdFromUrl(""), null);
   });
 });
 
-describe("isWithinCooldown", () => {
+await describe("isWithinCooldown", async () => {
   const now = Date.parse("2026-07-26T12:00:00.000Z");
 
-  it("is true just after interaction", () => {
+  await it("is true just after interaction", () => {
     assert.equal(isWithinCooldown(new Date(now - 1000).toISOString(), now), true);
   });
 
-  it("is true just under 24h", () => {
+  await it("is true just under 24h", () => {
     assert.equal(
       isWithinCooldown(new Date(now - COOLDOWN_MS + 1).toISOString(), now),
       true,
     );
   });
 
-  it("is false at and after 24h", () => {
+  await it("is false at and after 24h", () => {
     assert.equal(
       isWithinCooldown(new Date(now - COOLDOWN_MS).toISOString(), now),
       false,
@@ -104,15 +104,15 @@ describe("isWithinCooldown", () => {
     );
   });
 
-  it("rejects invalid dates", () => {
+  await it("rejects invalid dates", () => {
     assert.equal(isWithinCooldown("not-a-date", now), false);
   });
 });
 
-describe("pruneExpired", () => {
+await describe("pruneExpired", async () => {
   const now = Date.parse("2026-07-26T12:00:00.000Z");
 
-  it("drops expired and keeps active", () => {
+  await it("drops expired and keeps active", () => {
     const items: Interaction[] = [
       {
         threadId: "1",
@@ -139,8 +139,8 @@ describe("pruneExpired", () => {
   });
 });
 
-describe("filterThreadsByCooldown", () => {
-  it("removes matching authors and reports counts", () => {
+await describe("filterThreadsByCooldown", async () => {
+  await it("removes matching authors and reports counts", () => {
     const cooled = new Set(["alice", "bob"]);
     const result = filterThreadsByCooldown(
       [
@@ -159,14 +159,14 @@ describe("filterThreadsByCooldown", () => {
     assert.deepEqual(new Set(result.filteredAuthors), new Set(["alice", "bob"]));
   });
 
-  it("returns threads unchanged when no cooled keys", () => {
+  await it("returns threads unchanged when no cooled keys", () => {
     const threads = [thread("1", "@a")];
     const result = filterThreadsByCooldown(threads, new Set());
     assert.equal(result.filteredCount, 0);
     assert.deepEqual(result.threads, threads);
   });
 
-  it("drops sibling replies in an interacted conversation", () => {
+  await it("drops sibling replies in an interacted conversation", () => {
     const root = "2084956842325635442";
     const hyped: ThreadCard = {
       ...thread("2085111070436602119", "@HypedTaktix"),
@@ -211,7 +211,7 @@ describe("filterThreadsByCooldown", () => {
   });
 });
 
-describe("markInteracted", () => {
+await describe("markInteracted", async () => {
   let temp: TempPlatformDb;
   const userId = "user-a";
 
@@ -225,7 +225,7 @@ describe("markInteracted", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("upserts by user and threadId and refreshes at/source", async () => {
+  await it("upserts by user and threadId and refreshes at/source", async () => {
     const t1 = Date.parse("2026-07-26T10:00:00.000Z");
     const t2 = Date.parse("2026-07-26T11:00:00.000Z");
     await markInteracted({
@@ -252,7 +252,7 @@ describe("markInteracted", () => {
     assert.equal((await listInteractionHistory({ userId })).length, 1);
   });
 
-  it("rejects a mark without a userId", async () => {
+  await it("rejects a mark without a userId", async () => {
     await assert.rejects(
       () =>
         markInteracted({
@@ -268,7 +268,7 @@ describe("markInteracted", () => {
     );
   });
 
-  it("rejects a mark for a user the platform does not know", async () => {
+  await it("rejects a mark for a user the platform does not know", async () => {
     await assert.rejects(
       () =>
         markInteracted({
@@ -280,7 +280,7 @@ describe("markInteracted", () => {
     );
   });
 
-  it("keeps the same thread marked by different users", async () => {
+  await it("keeps the same thread marked by different users", async () => {
     const now = Date.parse("2026-07-26T12:00:00.000Z");
     await markInteracted({
       threadId: "shared-thread",
@@ -303,7 +303,7 @@ describe("markInteracted", () => {
     assert.equal(userB[0]?.at, new Date(now + 1000).toISOString());
   });
 
-  it("persists replyId / replyUrl / postedAt", async () => {
+  await it("persists replyId / replyUrl / postedAt", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     const row = await markInteracted({
       threadId: "parent1",
@@ -321,7 +321,7 @@ describe("markInteracted", () => {
     assert.equal(history[0]?.postedAt, new Date(now).toISOString());
   });
 
-  it("persists discovered source", async () => {
+  await it("persists discovered source", async () => {
     const row = await markInteracted({
       threadId: "parent2",
       author: "@target",
@@ -336,7 +336,7 @@ describe("markInteracted", () => {
     assert.equal(history[0]?.source, "discovered");
   });
 
-  it("persists conversationId for ancestry dedupe", async () => {
+  await it("persists conversationId for ancestry dedupe", async () => {
     const now = Date.parse("2026-08-05T21:25:22.077Z");
     const row = await markInteracted({
       threadId: "2085111070436602119",
@@ -355,7 +355,7 @@ describe("markInteracted", () => {
     assert.equal(stored?.inReplyToId, "2084956842325635442");
   });
 
-  it("keeps expired rows in history but not in cooldown keys", async () => {
+  await it("keeps expired rows in history but not in cooldown keys", async () => {
     const now = Date.parse("2026-07-26T12:00:00.000Z");
     await markInteracted({
       threadId: "old",
@@ -382,7 +382,7 @@ describe("markInteracted", () => {
     assert.equal(history[1]?.summary, "old lead");
   });
 
-  it("retains beyond the feed cap for activity windows and trims per user", async () => {
+  await it("retains beyond the feed cap for activity windows and trims per user", async () => {
     const base = Date.parse("2026-07-26T12:00:00.000Z");
     const n = MAX_INTERACTION_HISTORY + 50;
     for (let i = 0; i < n; i++) {
@@ -412,7 +412,7 @@ describe("markInteracted", () => {
     );
   });
 
-  it("drops the oldest rows past the durable retain", async () => {
+  await it("drops the oldest rows past the durable retain", async () => {
     const base = Date.parse("2026-07-26T12:00:00.000Z");
     const n = MAX_INTERACTION_STORE + 5;
     for (let i = 0; i < n; i++) {
@@ -432,7 +432,7 @@ describe("markInteracted", () => {
   });
 });
 
-describe("listInteractionHistory", () => {
+await describe("listInteractionHistory", async () => {
   let temp: TempPlatformDb;
 
   beforeEach(() => {
@@ -445,7 +445,7 @@ describe("listInteractionHistory", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("returns newest first", async () => {
+  await it("returns newest first", async () => {
     const t1 = Date.parse("2026-07-26T10:00:00.000Z");
     const t2 = Date.parse("2026-07-26T11:00:00.000Z");
     await markInteracted({
@@ -467,7 +467,7 @@ describe("listInteractionHistory", () => {
     );
   });
 
-  it("scopes history and active interactions to one user", async () => {
+  await it("scopes history and active interactions to one user", async () => {
     const now = Date.parse("2026-07-26T12:00:00.000Z");
     await markInteracted({
       threadId: "thread-a",
@@ -493,7 +493,7 @@ describe("listInteractionHistory", () => {
     assert.deepEqual(historyB.map((row) => row.threadId), ["thread-b"]);
   });
 
-  it("does not leak cooldown or lifetime authors across users", async () => {
+  await it("does not leak cooldown or lifetime authors across users", async () => {
     const now = Date.parse("2026-07-26T12:00:00.000Z");
     await markInteracted({
       threadId: "thread-a",
@@ -519,7 +519,7 @@ describe("listInteractionHistory", () => {
   });
 });
 
-describe("memory sync retry flag", () => {
+await describe("memory sync retry flag", async () => {
   let temp: TempPlatformDb;
   const userId = "user-a";
 
@@ -533,7 +533,7 @@ describe("memory sync retry flag", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("persists the flag and clears it on success", async () => {
+  await it("persists the flag and clears it on success", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
       threadId: "parent",
@@ -563,7 +563,7 @@ describe("memory sync retry flag", () => {
   });
 });
 
-describe("gamification sync retry flag", () => {
+await describe("gamification sync retry flag", async () => {
   let temp: TempPlatformDb;
   const userId = "user-a";
 
@@ -576,7 +576,7 @@ describe("gamification sync retry flag", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("persists mark/t24h flags and clears them on success", async () => {
+  await it("persists mark/t24h flags and clears them on success", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
       threadId: "parent",
@@ -626,7 +626,7 @@ describe("gamification sync retry flag", () => {
     assert.equal((await listGamificationSyncRetries()).length, 0);
   });
 
-  it("keeps pending ats appended by a concurrent soft-fail when clearing the mark flag", async () => {
+  await it("keeps pending ats appended by a concurrent soft-fail when clearing the mark flag", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     const d1 = new Date(now).toISOString();
     const d2 = new Date(now + 1000).toISOString();
@@ -676,7 +676,7 @@ describe("gamification sync retry flag", () => {
     assert.equal((await listGamificationSyncRetries()).length, 0);
   });
 
-  it("re-marking a thread preserves stats and pending flags", async () => {
+  await it("re-marking a thread preserves stats and pending flags", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
       threadId: "parent",
@@ -755,7 +755,7 @@ describe("gamification sync retry flag", () => {
   });
 });
 
-describe("getAuthorKeysForScoutFilter", () => {
+await describe("getAuthorKeysForScoutFilter", async () => {
   let temp: TempPlatformDb;
   const userId = "user-a";
 
@@ -768,7 +768,7 @@ describe("getAuthorKeysForScoutFilter", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("lifetime dedupe scans beyond the 200-row feed cap", async () => {
+  await it("lifetime dedupe scans beyond the 200-row feed cap", async () => {
     const base = Date.parse("2026-07-28T12:00:00.000Z");
     const n = MAX_INTERACTION_HISTORY + 25;
     for (let i = 0; i < n; i++) {
@@ -785,7 +785,7 @@ describe("getAuthorKeysForScoutFilter", () => {
     assert.ok(ever.has(`author${n - 1}`));
   });
 
-  it("keeps lifetime authors when dedupe on after 24h", async () => {
+  await it("keeps lifetime authors when dedupe on after 24h", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
       threadId: "old",

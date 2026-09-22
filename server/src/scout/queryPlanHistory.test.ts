@@ -23,14 +23,14 @@ afterEach(() => {
   temp = undefined;
 });
 
-describe("scoutPlanHistoryOpts", () => {
-  it("returns undefined for an empty user or no runs", () => {
+await describe("scoutPlanHistoryOpts", async () => {
+  await it("returns undefined for an empty user or no runs", () => {
     assert.equal(scoutPlanHistoryOpts(""), undefined);
     temp = openTempPlatformDb("x-plan-history-empty-");
     assert.equal(scoutPlanHistoryOpts(seedUser("history-empty")), undefined);
   });
 
-  it("formats yield and dedupes prior queries", () => {
+  await it("formats yield and dedupes prior queries", () => {
     temp = openTempPlatformDb("x-plan-history-");
     const userId = seedUser("history-user");
     const save = (
@@ -70,8 +70,8 @@ describe("scoutPlanHistoryOpts", () => {
   });
 });
 
-describe("mergeScoutPlanHistoryOpts", () => {
-  it("keeps the run's profile snapshot and other opts while deduping history", () => {
+await describe("mergeScoutPlanHistoryOpts", async () => {
+  await it("keeps the run's profile snapshot and other opts while deduping history", () => {
     temp = openTempPlatformDb("x-plan-history-merge-");
     const userId = seedUser("history-merge-user");
     saveScoutRunRecord({

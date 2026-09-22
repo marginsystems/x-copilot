@@ -4,13 +4,13 @@ import { runScoutCollect } from "./scoutCollect.ts";
 import { card, fillBucket } from "./scoutCollect.testHelpers.ts";
 import { MAX_SEARCH_CALLS } from "./scoutPolicy.ts";
 
-describe("runScoutCollect query cursors", () => {
+await describe("runScoutCollect query cursors", async () => {
   const session = {
     bearerToken: "t",
     configured: true,
   };
 
-  it("resumes the same query with its cursor and stable start time", async () => {
+  await it("resumes the same query with its cursor and stable start time", async () => {
     const seen: Array<{ cursor?: string; startTime?: string }> = [];
     const id = { n: 0 };
 
@@ -54,7 +54,7 @@ describe("runScoutCollect query cursors", () => {
     assert.equal(seen[1]?.startTime, seen[0]?.startTime);
   });
 
-  it("does not search an exhausted query from page one again", async () => {
+  await it("does not search an exhausted query from page one again", async () => {
     const calls: string[] = [];
 
     const result = await runScoutCollect({
@@ -95,7 +95,7 @@ describe("runScoutCollect query cursors", () => {
     assert.equal(calls.filter((query) => query.startsWith("q2 ")).length, 1);
   });
 
-  it("scores the partial bucket after one replan and bounded stall", async () => {
+  await it("scores the partial bucket after one replan and bounded stall", async () => {
     const priorKey = process.env.DEEPSEEK_API_KEY;
     process.env.DEEPSEEK_API_KEY = "test";
     const calls: Array<{ query: string; cursor?: string; startTime?: string }> = [];
@@ -173,7 +173,7 @@ describe("runScoutCollect query cursors", () => {
     }
   });
 
-  it("keeps the Scout search budget at 48", () => {
+  await it("keeps the Scout search budget at 48", () => {
     assert.equal(MAX_SEARCH_CALLS, 48);
   });
 });

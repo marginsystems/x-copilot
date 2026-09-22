@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { filterPostHydrateThreads } from "./scoutPipeline.ts";
 import { card } from "./scoutCollect.testHelpers.ts";
 
-describe("filterPostHydrateThreads", () => {
-  it("keeps replies without a root view count for hydration", () => {
+await describe("filterPostHydrateThreads", async () => {
+  await it("keeps replies without a root view count for hydration", () => {
     const unknown = card({
       id: "unknown",
       isReply: true,
@@ -31,7 +31,7 @@ describe("filterPostHydrateThreads", () => {
     assert.equal(result.afterMinViews.minViewsFilteredCount, 1);
   });
 
-  it("preserves the shared self-reply, language, and length order", () => {
+  await it("preserves the shared self-reply, language, and length order", () => {
     const spanish =
       "Ahora que todos están quejándose de build in public, dejé de hacerlo porque copiaban literalmente todo lo que publicábamos.";
     const result = filterPostHydrateThreads({
@@ -82,7 +82,7 @@ describe("filterPostHydrateThreads", () => {
     assert.equal(result.afterLength.articleFilteredCount, 1);
   });
 
-  it("drops replies whose hydrated OP has native media or a hashtag", () => {
+  await it("drops replies whose hydrated OP has native media or a hashtag", () => {
     const result = filterPostHydrateThreads({
       threads: [
         card({
@@ -114,7 +114,7 @@ describe("filterPostHydrateThreads", () => {
     assert.equal(result.afterHashtags.hashtagFilteredCount, 1);
   });
 
-  it("drops replies whose hydrated OP has an off-platform link", () => {
+  await it("drops replies whose hydrated OP has an off-platform link", () => {
     const result = filterPostHydrateThreads({
       threads: [
         card({
@@ -138,7 +138,7 @@ describe("filterPostHydrateThreads", () => {
     assert.equal(result.afterLinks.linkFilteredCount, 1);
   });
 
-  it("drops replies whose hydrated OP has profanity", () => {
+  await it("drops replies whose hydrated OP has profanity", () => {
     const result = filterPostHydrateThreads({
       threads: [
         card({

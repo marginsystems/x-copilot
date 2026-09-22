@@ -38,7 +38,7 @@ function snapshot(
   };
 }
 
-describe("dailyMissions", () => {
+await describe("dailyMissions", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -56,7 +56,7 @@ describe("dailyMissions", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("maps snapshot counters onto mission metrics", () => {
+  await it("maps snapshot counters onto mission metrics", () => {
     const snap = snapshot({
       marksToday: 2,
       originalsToday: 1,
@@ -66,7 +66,7 @@ describe("dailyMissions", () => {
     assert.equal(progressForMetric(snap, "originals"), 1);
   });
 
-  it("seeds today and awards XP once when a mission completes", async () => {
+  await it("seeds today and awards XP once when a mission completes", async () => {
     const gamificationPath = join(dir, "g.json");
     const first = await listMissionsWithProgress({
       userId: "u1",

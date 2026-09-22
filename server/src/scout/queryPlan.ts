@@ -1,3 +1,4 @@
+import { objectValue } from "../platform/unknownValue.js";
 /**
  * Agenda → short, high-recall X Latest search queries via the selected LLM.
  */
@@ -189,9 +190,7 @@ export function parseQueryPlanJson(raw: string): string[] | null {
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) return null;
   try {
-    const data = JSON.parse(text.slice(start, end + 1)) as {
-      queries?: unknown;
-    };
+    const data = objectValue(JSON.parse(text.slice(start, end + 1)));
     return validateQueries(data.queries);
   } catch {
     return null;

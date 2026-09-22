@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Expired cool leads — auto-moved when tweet age ≥ 24h without
  * interact/dismiss. One row per (user, thread) in platform.sqlite
@@ -175,7 +176,7 @@ export async function listExpiredHistory(opts: {
   limit?: number;
 }): Promise<ExpiredThread[]> {
   const userId = requireUserId(opts.userId);
-  const rows = getPlatformDb()
+  const rows = parseExpiredRow(getPlatformDb()
     .prepare(
       `SELECT thread_id, author, author_key, at, created_at, url, summary, text
          FROM desk_expired
@@ -183,7 +184,7 @@ export async function listExpiredHistory(opts: {
         ORDER BY at DESC, thread_id DESC
         LIMIT ?`,
     )
-    .all(userId, Math.max(0, opts.limit ?? MAX_EXPIRED_HISTORY)) as ExpiredRow[];
+    .all(userId, Math.max(0, opts.limit ?? MAX_EXPIRED_HISTORY)));
   return rows.map(rowToExpired);
 }
 
@@ -192,4 +193,19 @@ export async function getExpiredThreadIds(opts: {
 }): Promise<Set<string>> {
   const history = await listExpiredHistory(opts);
   return new Set(history.map((d) => d.threadId).filter(Boolean));
+}
+
+function parseExpiredRow(value: unknown): ExpiredRow[] {
+  const valid = (row: unknown): row is ExpiredRow[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.thread_id === "string" &&
+    typeof item.author === "string" &&
+    typeof item.author_key === "string" &&
+    typeof item.at === "string" &&
+    (item.created_at === null || typeof item.created_at === "string") &&
+    (item.url === null || typeof item.url === "string") &&
+    (item.summary === null || typeof item.summary === "string") &&
+    (item.text === null || typeof item.text === "string"))));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
 }

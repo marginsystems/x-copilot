@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 /**
  * Durable Scout evidence — SQL identity, per-user revision, read and write.
  *
@@ -147,9 +148,7 @@ function optionalId(value: unknown): string | null {
 export function normalizeEvidenceKind(value: unknown): ThreadKind | null {
   if (typeof value !== "string") return null;
   const t = value.trim();
-  return (THREAD_KINDS as readonly string[]).includes(t)
-    ? (t as ThreadKind)
-    : null;
+  return THREAD_KINDS.find((kind) => kind === t) ?? null;
 }
 
 function normalizeTopics(topics: readonly string[] | undefined): string[] {
@@ -201,10 +200,10 @@ function rowFromSql(row: EvidenceSqlRow): ScoutEvidenceRow {
   return {
     userId: row.user_id,
     eventKey: row.event_key,
-    action: (ACTIONS.has(row.action) ? row.action : "skip") as ScoutEvidenceAction,
-    source: (SOURCES.has(row.source)
+    action: (isEvidenceAction(row.action) ? row.action : "skip"),
+    source: (isEvidenceSource(row.source)
       ? row.source
-      : "reconcile") as ScoutEvidenceSource,
+      : "reconcile"),
     targetId: row.target_id,
     cardId: row.card_id,
     conversationId: row.conversation_id,
@@ -215,9 +214,9 @@ function rowFromSql(row: EvidenceSqlRow): ScoutEvidenceRow {
     targetAuthor: row.target_author,
     topics: parseTopics(row.topics_json),
     contextSource: row.context_source,
-    noteState: (NOTE_STATES.has(row.note_state)
+    noteState: (isEvidenceNoteState(row.note_state)
       ? row.note_state
-      : "unknown") as ScoutEvidenceNoteState,
+      : "unknown"),
     noteVerifiedAt: row.note_verified_at,
     revision: Number(row.revision) || 0,
     createdAt: row.created_at,
@@ -235,12 +234,12 @@ export function getScoutEvidence(
   eventKey: string,
 ): ScoutEvidenceRow | null {
   const id = requireEvidenceUserId(userId);
-  const row = getPlatformDb()
+  const row = parseEvidenceSqlRow(getPlatformDb()
     .prepare(
       `SELECT ${SELECT_COLUMNS} FROM scout_evidence
         WHERE user_id = ? AND event_key = ?`,
     )
-    .get(id, eventKey) as EvidenceSqlRow | undefined;
+    .get(id, eventKey));
   return row ? rowFromSql(row) : null;
 }
 
@@ -251,12 +250,12 @@ export function findScoutTakeByReplyId(
   const id = requireEvidenceUserId(userId);
   const reply = optionalId(replyId);
   if (!reply) return null;
-  const row = getPlatformDb()
+  const row = parseEvidenceSqlRow(getPlatformDb()
     .prepare(
       `SELECT ${SELECT_COLUMNS} FROM scout_evidence
         WHERE user_id = ? AND action = 'take' AND reply_id = ?`,
     )
-    .get(id, reply) as EvidenceSqlRow | undefined;
+    .get(id, reply));
   return row ? rowFromSql(row) : null;
 }
 
@@ -267,14 +266,14 @@ export function listScoutEvidence(opts: {
 }): ScoutEvidenceRow[] {
   const id = requireEvidenceUserId(opts.userId);
   const limit = opts.limit ?? null;
-  const rows = getPlatformDb()
+  const rows = parseEvidenceSqlRow2(getPlatformDb()
     .prepare(
       `SELECT ${SELECT_COLUMNS} FROM scout_evidence
         WHERE user_id = ?
         ORDER BY acted_at ASC, event_key ASC
         ${limit === null ? "" : "LIMIT ?"}`,
     )
-    .all(...(limit === null ? [id] : [id, Math.max(0, limit)])) as EvidenceSqlRow[];
+    .all(...(limit === null ? [id] : [id, Math.max(0, limit)])));
   return rows.map(rowFromSql);
 }
 
@@ -295,27 +294,25 @@ export function listScoutEvidenceNeedingNoteCheck(opts: {
     clauses.push("(acted_at < ? OR (acted_at = ? AND event_key < ?))");
     params.push(opts.before.actedAt, opts.before.actedAt, opts.before.eventKey);
   }
-  const rows = getPlatformDb()
+  const rows = parseEvidenceSqlRow3(getPlatformDb()
     .prepare(
       `SELECT ${SELECT_COLUMNS} FROM scout_evidence
        WHERE ${clauses.join(" AND ")}
        ORDER BY acted_at DESC, event_key DESC
        LIMIT ?`,
     )
-    .all(...params, Math.max(1, opts.limit)) as EvidenceSqlRow[];
+    .all(...params, Math.max(1, opts.limit)));
   return rows.map(rowFromSql);
 }
 
 export function readScoutEvidenceRevision(userId: string): ScoutEvidenceRevision {
   const id = requireEvidenceUserId(userId);
-  const row = getPlatformDb()
+  const row = parseReadScoutEvidenceRevisionRow(getPlatformDb()
     .prepare(
       `SELECT revision, updated_at, last_event_key
          FROM scout_evidence_revisions WHERE user_id = ?`,
     )
-    .get(id) as
-    | { revision: number; updated_at: string | null; last_event_key: string | null }
-    | undefined;
+    .get(id));
   return {
     revision: Number(row?.revision ?? 0) || 0,
     updatedAt: row?.updated_at ?? null,
@@ -347,8 +344,8 @@ function validateInput(input: ScoutEvidenceInput): {
   const userId = requireEvidenceUserId(input.userId);
   const eventKey = optionalId(input.eventKey);
   if (!eventKey) throw new Error("eventKey is required");
-  if (!ACTIONS.has(input.action)) throw new Error("invalid evidence action");
-  if (!SOURCES.has(input.source)) throw new Error("invalid evidence source");
+  if (!isEvidenceAction(input.action)) throw new Error("invalid evidence action");
+  if (!isEvidenceSource(input.source)) throw new Error("invalid evidence source");
   const replyId = optionalId(input.replyId);
   if (input.action === "take" && !replyId) {
     throw new Error("a take requires a confirmed replyId");
@@ -392,7 +389,7 @@ export function recordScoutEvidence(input: ScoutEvidenceInput): {
     topics: normalizeTopics(input.topics),
     contextSource: optionalId(input.contextSource),
     noteState:
-      input.noteState && NOTE_STATES.has(input.noteState)
+      input.noteState && isEvidenceNoteState(input.noteState)
         ? input.noteState
         : "unknown",
   };
@@ -554,17 +551,25 @@ export function setScoutEvidenceNoteState(opts: {
 export function readScoutEvidenceCursor<T>(
   userId: string,
   scope: string,
-): T | null {
+  isCursor: (value: unknown) => value is T,
+): T | null;
+export function readScoutEvidenceCursor(userId: string, scope: string): unknown;
+export function readScoutEvidenceCursor(
+  userId: string,
+  scope: string,
+  isCursor?: (value: unknown) => boolean,
+): unknown {
   const id = requireEvidenceUserId(userId);
-  const row = getPlatformDb()
+  const row = parseReadScoutEvidenceCursorRow(getPlatformDb()
     .prepare(
       `SELECT cursor_json FROM scout_evidence_cursors
         WHERE user_id = ? AND scope = ?`,
     )
-    .get(id, scope) as { cursor_json: string | null } | undefined;
+    .get(id, scope));
   if (!row?.cursor_json) return null;
   try {
-    return JSON.parse(row.cursor_json) as T;
+    const cursor: unknown = JSON.parse(row.cursor_json);
+    return !isCursor || isCursor(cursor) ? cursor : null;
   } catch {
     return null;
   }
@@ -591,4 +596,114 @@ export function writeScoutEvidenceCursor(
       cursor === null || cursor === undefined ? null : JSON.stringify(cursor),
       new Date(nowMs).toISOString(),
     );
+}
+
+function parseEvidenceSqlRow(value: unknown): EvidenceSqlRow | undefined {
+  const valid = (row: unknown): row is EvidenceSqlRow | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.user_id === "string" &&
+    typeof row.event_key === "string" &&
+    typeof row.action === "string" &&
+    typeof row.source === "string" &&
+    (row.target_id === null || typeof row.target_id === "string") &&
+    (row.card_id === null || typeof row.card_id === "string") &&
+    (row.conversation_id === null || typeof row.conversation_id === "string") &&
+    (row.parent_id === null || typeof row.parent_id === "string") &&
+    (row.reply_id === null || typeof row.reply_id === "string") &&
+    typeof row.acted_at === "string" &&
+    (row.thread_kind === null || typeof row.thread_kind === "string") &&
+    (row.target_author === null || typeof row.target_author === "string") &&
+    (row.topics_json === null || typeof row.topics_json === "string") &&
+    (row.context_source === null || typeof row.context_source === "string") &&
+    typeof row.note_state === "string" &&
+    (row.note_verified_at === null || typeof row.note_verified_at === "string") &&
+    typeof row.revision === "number" &&
+    typeof row.created_at === "string" &&
+    typeof row.updated_at === "string"));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseEvidenceSqlRow2(value: unknown): EvidenceSqlRow[] {
+  const valid = (row: unknown): row is EvidenceSqlRow[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.user_id === "string" &&
+    typeof item.event_key === "string" &&
+    typeof item.action === "string" &&
+    typeof item.source === "string" &&
+    (item.target_id === null || typeof item.target_id === "string") &&
+    (item.card_id === null || typeof item.card_id === "string") &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.parent_id === null || typeof item.parent_id === "string") &&
+    (item.reply_id === null || typeof item.reply_id === "string") &&
+    typeof item.acted_at === "string" &&
+    (item.thread_kind === null || typeof item.thread_kind === "string") &&
+    (item.target_author === null || typeof item.target_author === "string") &&
+    (item.topics_json === null || typeof item.topics_json === "string") &&
+    (item.context_source === null || typeof item.context_source === "string") &&
+    typeof item.note_state === "string" &&
+    (item.note_verified_at === null || typeof item.note_verified_at === "string") &&
+    typeof item.revision === "number" &&
+    typeof item.created_at === "string" &&
+    typeof item.updated_at === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseEvidenceSqlRow3(value: unknown): EvidenceSqlRow[] {
+  const valid = (row: unknown): row is EvidenceSqlRow[] =>
+    (Array.isArray(row) && row.every((item: unknown) => (isRecord(item) &&
+    typeof item.user_id === "string" &&
+    typeof item.event_key === "string" &&
+    typeof item.action === "string" &&
+    typeof item.source === "string" &&
+    (item.target_id === null || typeof item.target_id === "string") &&
+    (item.card_id === null || typeof item.card_id === "string") &&
+    (item.conversation_id === null || typeof item.conversation_id === "string") &&
+    (item.parent_id === null || typeof item.parent_id === "string") &&
+    (item.reply_id === null || typeof item.reply_id === "string") &&
+    typeof item.acted_at === "string" &&
+    (item.thread_kind === null || typeof item.thread_kind === "string") &&
+    (item.target_author === null || typeof item.target_author === "string") &&
+    (item.topics_json === null || typeof item.topics_json === "string") &&
+    (item.context_source === null || typeof item.context_source === "string") &&
+    typeof item.note_state === "string" &&
+    (item.note_verified_at === null || typeof item.note_verified_at === "string") &&
+    typeof item.revision === "number" &&
+    typeof item.created_at === "string" &&
+    typeof item.updated_at === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseReadScoutEvidenceRevisionRow(value: unknown): | { revision: number; updated_at: string | null; last_event_key: string | null }
+    | undefined {
+  const valid = (row: unknown): row is | { revision: number; updated_at: string | null; last_event_key: string | null }
+    | undefined =>
+    (row === undefined || (isRecord(row) &&
+    typeof row.revision === "number" &&
+    (row.updated_at === null || typeof row.updated_at === "string") &&
+    (row.last_event_key === null || typeof row.last_event_key === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseReadScoutEvidenceCursorRow(value: unknown): { cursor_json: string | null } | undefined {
+  const valid = (row: unknown): row is { cursor_json: string | null } | undefined =>
+    (row === undefined || (isRecord(row) &&
+    (row.cursor_json === null || typeof row.cursor_json === "string")));
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function isEvidenceAction(value: string): value is ScoutEvidenceAction {
+  return ACTIONS.has(value);
+}
+
+function isEvidenceSource(value: string): value is ScoutEvidenceSource {
+  return SOURCES.has(value);
+}
+
+function isEvidenceNoteState(value: string): value is ScoutEvidenceNoteState {
+  return NOTE_STATES.has(value);
 }

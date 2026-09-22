@@ -1,3 +1,4 @@
+import { isRecord } from "../platform/unknownValue.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readdir, rm, readFile, stat, writeFile } from "node:fs/promises";
@@ -69,23 +70,23 @@ function card(
   };
 }
 
-describe("buildOwnPostsQuery", () => {
-  it("builds from: with within_time, excludes retweets, and no is:reply", () => {
+await describe("buildOwnPostsQuery", async () => {
+  await it("builds from: with within_time, excludes retweets, and no is:reply", () => {
     const q = buildOwnPostsQuery("@alice", "24h");
     assert.match(q, /^from:alice -is:retweet within_time:24h$/);
     assert.doesNotMatch(q, /is:reply/);
   });
 });
 
-describe("buildOwnRepliesQuery", () => {
-  it("builds from: + is:reply with within_time", () => {
+await describe("buildOwnRepliesQuery", async () => {
+  await it("builds from: + is:reply with within_time", () => {
     const q = buildOwnRepliesQuery("@alice", "24h");
     assert.match(q, /^from:alice is:reply within_time:24h$/);
   });
 });
 
-describe("ownPostKindFromCard", () => {
-  it("treats inReplyToId as a reply, quotes as quotes, and bare posts as originals", () => {
+await describe("ownPostKindFromCard", async () => {
+  await it("treats inReplyToId as a reply, quotes as quotes, and bare posts as originals", () => {
     assert.equal(
       ownPostKindFromCard(card({ id: "1", inReplyToId: "p" })),
       "reply",
@@ -95,8 +96,8 @@ describe("ownPostKindFromCard", () => {
   });
 });
 
-describe("cardToOwnPostParsed", () => {
-  it("flags absent/garbage createdAt as a fallback with postedAt ≈ now", () => {
+await describe("cardToOwnPostParsed", async () => {
+  await it("flags absent/garbage createdAt as a fallback with postedAt ≈ now", () => {
     const nowMs = Date.parse("2026-08-16T12:00:00.000Z");
     const absent = cardToOwnPostParsed(card({ id: "n1", text: "no date" }), {
       xUserId: "99",
@@ -118,7 +119,7 @@ describe("cardToOwnPostParsed", () => {
     assert.equal(garbage.postedAt, "2026-08-16T12:00:00.000Z");
   });
 
-  it("parses a real createdAt into ISO postedAt without the fallback flag", () => {
+  await it("parses a real createdAt into ISO postedAt without the fallback flag", () => {
     const parsed = cardToOwnPostParsed(
       card({ id: "n3", text: "dated", createdAt: "2026-08-16T11:00:00.000Z" }),
       {
@@ -132,12 +133,12 @@ describe("cardToOwnPostParsed", () => {
   });
 });
 
-describe("shouldImportDiscoveredReply", () => {
+await describe("shouldImportDiscoveredReply", async () => {
   const own = "me";
   const knownReplyIds = new Set<string>(["already"]);
   const knownThreadIds = new Set<string>(["parent-known"]);
 
-  it("imports a fresh reply to someone else", () => {
+  await it("imports a fresh reply to someone else", () => {
     assert.equal(
       shouldImportDiscoveredReply({
         card: card({
@@ -153,7 +154,7 @@ describe("shouldImportDiscoveredReply", () => {
     );
   });
 
-  it("skips missing parent fields", () => {
+  await it("skips missing parent fields", () => {
     assert.equal(
       shouldImportDiscoveredReply({
         card: card({ id: "r1" }),
@@ -165,7 +166,7 @@ describe("shouldImportDiscoveredReply", () => {
     );
   });
 
-  it("skips self-replies", () => {
+  await it("skips self-replies", () => {
     assert.equal(
       shouldImportDiscoveredReply({
         card: card({
@@ -181,7 +182,7 @@ describe("shouldImportDiscoveredReply", () => {
     );
   });
 
-  it("skips known replyId / threadId", () => {
+  await it("skips known replyId / threadId", () => {
     assert.equal(
       shouldImportDiscoveredReply({
         card: card({
@@ -211,7 +212,7 @@ describe("shouldImportDiscoveredReply", () => {
   });
 });
 
-describe("discoverOwnReplies", () => {
+await describe("discoverOwnReplies", async () => {
   let dir: string;
   let temp: TempPlatformDb;
   let gamificationPath: string;
@@ -234,7 +235,7 @@ describe("discoverOwnReplies", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("persists discovered replies when evidence context capture fails", async () => {
+  await it("persists discovered replies when evidence context capture fails", async () => {
     getPlatformDb().exec("DROP TABLE scout_target_context");
 
     const result = await discoverOwnReplies({
@@ -286,7 +287,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(take?.targetAuthor, "builder");
   });
 
-  it("upserts new replies and writes knowledge; skips dupes/self", async () => {
+  await it("upserts new replies and writes knowledge; skips dupes/self", async () => {
     await markInteracted({
       threadId: "already-parent",
       author: "@prior",
@@ -383,7 +384,7 @@ describe("discoverOwnReplies", () => {
     assert.match(note, /off-app take/);
   });
 
-  it("normalizes X's real created_at format to ISO postedAt", async () => {
+  await it("normalizes X's real created_at format to ISO postedAt", async () => {
     const result = await discoverOwnReplies({
       nowMs: Date.parse("2026-08-02T12:00:00.000Z"),
       userId,
@@ -419,7 +420,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(row.postedAt, "2026-07-25T00:00:00.000Z");
   });
 
-  it("is idempotent across ticks", async () => {
+  await it("is idempotent across ticks", async () => {
     const search = async () => ({
       ok: true as const,
       threads: [
@@ -455,7 +456,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(history.filter((h) => h.threadId === "p1").length, 1);
   });
 
-  it("refreshes memory for a known webhook reply without re-marking it", async () => {
+  await it("refreshes memory for a known webhook reply without re-marking it", async () => {
     const postedAt = "2026-08-02T11:30:00.000Z";
     const now = Date.parse("2026-08-02T12:00:00.000Z");
     await markInteracted({
@@ -506,7 +507,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(history[0]?.replyId, "webhook-reply");
   });
 
-  it("continues when a known reply note belongs to another user", async () => {
+  await it("continues when a known reply note belongs to another user", async () => {
     await markInteracted({
       threadId: "owned-parent",
       author: "@builder",
@@ -552,7 +553,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(result.skipped, 1);
   });
 
-  it("repairs a local confirmed own_posts reply without a new X read or XP", async () => {
+  await it("repairs a local confirmed own_posts reply without a new X read or XP", async () => {
     const postedAt = "2026-08-02T11:30:00.000Z";
     const markedAt = Date.parse("2026-08-02T18:00:00.000Z");
     let embedCalls = 0;
@@ -647,7 +648,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(after.lifetimeMarks, before.lifetimeMarks);
   });
 
-  it("does not overwrite a loop projection with differing own_posts text", async () => {
+  await it("does not overwrite a loop projection with differing own_posts text", async () => {
     const postedAt = "2026-08-02T11:30:00.000Z";
     await markInteracted({
       threadId: "projected-parent",
@@ -707,7 +708,7 @@ describe("discoverOwnReplies", () => {
     assert.doesNotMatch(note, /stale own_posts text/);
   });
 
-  it("repairs a known reply when the loop projection has no text", async () => {
+  await it("repairs a known reply when the loop projection has no text", async () => {
     const postedAt = "2026-08-02T11:30:00.000Z";
     await markInteracted({
       threadId: "empty-projection-parent",
@@ -769,7 +770,7 @@ describe("discoverOwnReplies", () => {
     assert.match(note, /confirmed text/);
   });
 
-  it("reconciles a known reply when the loop projection is unavailable", async () => {
+  await it("reconciles a known reply when the loop projection is unavailable", async () => {
     const postedAt = "2026-08-02T11:30:00.000Z";
     await markInteracted({
       threadId: "unavailable-projection-parent",
@@ -841,7 +842,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(writes, 2);
   });
 
-  it("uses watched-thread context when the interaction has no context", async () => {
+  await it("uses watched-thread context when the interaction has no context", async () => {
     const postedAt = "2026-08-02T11:30:00.000Z";
     await markInteracted({
       threadId: "watched-parent",
@@ -898,7 +899,7 @@ describe("discoverOwnReplies", () => {
     assert.doesNotMatch(note, /\(no thread text\)/);
   });
 
-  it("repairs a missing own note even when a foreign or unowned file shares the thread and date", async () => {
+  await it("repairs a missing own note even when a foreign or unowned file shares the thread and date", async () => {
     const postedAt = "2026-08-02T11:30:00.000Z";
     await markInteracted({
       threadId: "shared-parent",
@@ -971,7 +972,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(await readFile(ownPath, "utf8"), beforeContent);
   });
 
-  it("indexes a note repaired from own_posts", async () => {
+  await it("indexes a note repaired from own_posts", async () => {
     const interactedAt = "2026-08-02T11:30:00.000Z";
     await markInteracted({
       threadId: "reconcile-parent",
@@ -1029,7 +1030,7 @@ describe("discoverOwnReplies", () => {
     assert.ok(embedded > 0);
   });
 
-  it("leaves unknown parent context absent when no matching interaction exists", async () => {
+  await it("leaves unknown parent context absent when no matching interaction exists", async () => {
     upsertOwnPost({
       parsed: {
         eventUuid: "evt-orphan-reply",
@@ -1068,7 +1069,7 @@ describe("discoverOwnReplies", () => {
     try {
       interactionNames = await readdir(interactionDir);
     } catch (error) {
-      assert.equal((error as NodeJS.ErrnoException).code, "ENOENT");
+      assert.equal((isRecord(error) ? error.code : undefined), "ENOENT");
     }
     assert.deepEqual(
       interactionNames.filter((name) => name.endsWith(".md")),
@@ -1077,7 +1078,7 @@ describe("discoverOwnReplies", () => {
     assert.equal((await listInteractionHistory({ userId })).length, 0);
   });
 
-  it("keeps curated context and outcome when a known reply is rediscovered", async () => {
+  await it("keeps curated context and outcome when a known reply is rediscovered", async () => {
     const interactedAt = "2026-08-02T11:30:00.000Z";
     await markInteracted({
       threadId: "curated-parent",
@@ -1170,7 +1171,7 @@ describe("discoverOwnReplies", () => {
     );
   });
 
-  it("keeps the saved note when MiniLM upsert is unavailable", async () => {
+  await it("keeps the saved note when MiniLM upsert is unavailable", async () => {
     const warns: string[] = [];
     const origWarn = console.warn;
     console.warn = (...args: unknown[]) => {
@@ -1226,7 +1227,7 @@ describe("discoverOwnReplies", () => {
     );
   });
 
-  it("soft-fails when no desk handle is provided", async () => {
+  await it("soft-fails when no desk handle is provided", async () => {
     const result = await discoverOwnReplies({
       session: {
         configured: true,
@@ -1240,7 +1241,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(result.discovered, 0);
   });
 
-  it("soft-fails when credentials missing", async () => {
+  await it("soft-fails when credentials missing", async () => {
     const result = await discoverOwnReplies({
       session: {
         configured: false,
@@ -1254,7 +1255,7 @@ describe("discoverOwnReplies", () => {
     assert.equal(result.discovered, 0);
   });
 
-  it("folds the own-posts page and the is:reply page into own_posts", async () => {
+  await it("folds the own-posts page and the is:reply page into own_posts", async () => {
     const folded: string[] = [];
     const result = await discoverOwnReplies({
       userId,
@@ -1303,7 +1304,7 @@ describe("discoverOwnReplies", () => {
   });
 });
 
-describe("discoverOwnReplies desk beats", () => {
+await describe("discoverOwnReplies desk beats", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -1322,7 +1323,7 @@ describe("discoverOwnReplies desk beats", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("stamps userId and records scout for a watched parent, organic otherwise", async () => {
+  await it("stamps userId and records scout for a watched parent, organic otherwise", async () => {
     const now = Date.parse("2026-08-02T12:00:00.000Z");
     const gamificationPath = join(dir, "gamification.json");
     watchThread({ userId: "u1", threadId: "scouted-parent", author: "@lead" });
@@ -1371,7 +1372,7 @@ describe("discoverOwnReplies desk beats", () => {
     assert.equal(beats.organicReplyDone, true);
   });
 
-  it("dates an organic beat by discovery time, not the reply timestamp", async () => {
+  await it("dates an organic beat by discovery time, not the reply timestamp", async () => {
     const postedAt = Date.parse("2026-08-02T23:50:00.000Z");
     const discoveredAt = Date.parse("2026-08-03T00:10:00.000Z");
     const gamificationPath = join(dir, "gamification.json");
@@ -1406,7 +1407,7 @@ describe("discoverOwnReplies desk beats", () => {
   });
 });
 
-describe("foldDiscoveredOwnPosts", () => {
+await describe("foldDiscoveredOwnPosts", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -1424,7 +1425,7 @@ describe("foldDiscoveredOwnPosts", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("writes originals and replies for the matching handle", async () => {
+  await it("writes originals and replies for the matching handle", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -1456,7 +1457,7 @@ describe("foldDiscoveredOwnPosts", () => {
     assert.equal(summary.totals.replies, 1);
   });
 
-  it("writes nothing when no desk user owns the handle", async () => {
+  await it("writes nothing when no desk user owns the handle", async () => {
     const n = await foldDiscoveredOwnPosts({
       screenName: "nobody",
       nowMs: Date.now(),
@@ -1466,7 +1467,7 @@ describe("foldDiscoveredOwnPosts", () => {
     assert.equal(n, 0);
   });
 
-  it("dedups a re-fold of the same threads by post id", async () => {
+  await it("dedups a re-fold of the same threads by post id", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -1501,7 +1502,7 @@ describe("foldDiscoveredOwnPosts", () => {
     assert.equal(summary.totals.replies, 1);
   });
 
-  it("folds cards without a parseable createdAt via a repairable fallback timestamp", async () => {
+  await it("folds cards without a parseable createdAt via a repairable fallback timestamp", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -1519,9 +1520,9 @@ describe("foldDiscoveredOwnPosts", () => {
       ],
     });
     assert.equal(n, 2);
-    const fallbackRow = getPlatformDb()
+    const fallbackRow = parseFallbackRowRow(getPlatformDb()
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("no-created") as { posted_at: string };
+      .get("no-created"));
     assert.equal(fallbackRow.posted_at, "2026-08-16T12:00:00.000Z");
 
     // A re-fold that finally carries the real created_at repairs the stored
@@ -1539,9 +1540,9 @@ describe("foldDiscoveredOwnPosts", () => {
       ],
     });
     assert.equal(reFold, 0);
-    const repaired = getPlatformDb()
+    const repaired = parseRepairedRow(getPlatformDb()
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("no-created") as { posted_at: string };
+      .get("no-created"));
     assert.equal(repaired.posted_at, "2026-08-16T10:00:00.000Z");
 
     // A later fold that again lacks the timestamp must not clobber the real
@@ -1553,13 +1554,13 @@ describe("foldDiscoveredOwnPosts", () => {
       threads: [card({ id: "no-created", text: "timestampless take" })],
     });
     assert.equal(fallbackReFold, 0);
-    const stillReal = getPlatformDb()
+    const stillReal = parseStillRealRow(getPlatformDb()
       .prepare(`SELECT posted_at FROM own_posts WHERE id = ?`)
-      .get("no-created") as { posted_at: string };
+      .get("no-created"));
     assert.equal(stillReal.posted_at, "2026-08-16T10:00:00.000Z");
   });
 
-  it("stops the fold once the daily watch cap is reached", async () => {
+  await it("stops the fold once the daily watch cap is reached", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -1604,7 +1605,7 @@ describe("foldDiscoveredOwnPosts", () => {
     assert.equal(analyticsSummary(user.id).totals.posts, 15);
   });
 
-  it("truncates a page mid-way at the daily cap", async () => {
+  await it("truncates a page mid-way at the daily cap", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -1655,7 +1656,7 @@ describe("foldDiscoveredOwnPosts", () => {
     assert.equal(summary.totals.posts, 15);
   });
 
-  it("does not match a Google user who never linked X", async () => {
+  await it("does not match a Google user who never linked X", async () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-1",
@@ -1679,7 +1680,7 @@ describe("foldDiscoveredOwnPosts", () => {
     assert.equal(analyticsSummary(user.id).totals.posts, 0);
   });
 
-  it("resolves xUserId from the stored X oauth via the default chain", async () => {
+  await it("resolves xUserId from the stored X oauth via the default chain", async () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "99",
@@ -1701,7 +1702,7 @@ describe("foldDiscoveredOwnPosts", () => {
     assert.equal(analyticsSummary(user.id).totals.posts, 1);
   });
 
-  it("attributes the fold to the X oauth owner, not a handle claimed in onboarding", async () => {
+  await it("attributes the fold to the X oauth owner, not a handle claimed in onboarding", async () => {
     const claimant = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-claim",
@@ -1733,7 +1734,7 @@ describe("foldDiscoveredOwnPosts", () => {
   });
 });
 
-describe("runStatsTick discovery wiring", () => {
+await describe("runStatsTick discovery wiring", async () => {
   let temp: TempPlatformDb;
 
   beforeEach(() => {
@@ -1745,7 +1746,7 @@ describe("runStatsTick discovery wiring", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("runs discovery before metrics and reports counts", async () => {
+  await it("runs discovery before metrics and reports counts", async () => {
     let discoverCalls = 0;
     const result = await runStatsTick({
       delayMs: 0,
@@ -1776,3 +1777,27 @@ describe("runStatsTick discovery wiring", () => {
     assert.equal(history[0]?.source, "discovered");
   });
 });
+
+function parseFallbackRowRow(value: unknown): { posted_at: string } {
+  const valid = (row: unknown): row is { posted_at: string } =>
+    (isRecord(row) &&
+    typeof row.posted_at === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseRepairedRow(value: unknown): { posted_at: string } {
+  const valid = (row: unknown): row is { posted_at: string } =>
+    (isRecord(row) &&
+    typeof row.posted_at === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
+
+function parseStillRealRow(value: unknown): { posted_at: string } {
+  const valid = (row: unknown): row is { posted_at: string } =>
+    (isRecord(row) &&
+    typeof row.posted_at === "string");
+  if (!valid(value)) throw new TypeError("Invalid database row");
+  return value;
+}
