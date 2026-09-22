@@ -440,4 +440,4 @@ it("rejects unknown voice statuses and non-string card lists", () => {
   assert.deepEqual(parsed?.card, {
     tone: "dry", typicalLength: "", examples: ["hello"], habits: [], neverDo: [], starter: false,
   });
-});
+}).catch(assert.fail);
