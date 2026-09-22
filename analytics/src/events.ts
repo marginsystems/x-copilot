@@ -46,6 +46,10 @@ export function isAnalyticsEventName(value: string): value is AnalyticsEventName
   return NAME_SET.has(value);
 }
 
+function isEventBody(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function clip(value: unknown, max: number): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -66,10 +70,10 @@ export function parseAnalyticsEvent(
   raw: unknown,
   now: () => Date = () => new Date(),
 ): { ok: true; event: AnalyticsEvent } | { ok: false; error: string } {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+  if (!isEventBody(raw)) {
     return { ok: false, error: "expected_object" };
   }
-  const body = raw as Record<string, unknown>;
+  const body = raw;
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!isAnalyticsEventName(name)) {
     return { ok: false, error: "unknown_event" };

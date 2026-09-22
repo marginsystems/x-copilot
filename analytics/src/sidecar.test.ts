@@ -1,6 +1,5 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { AddressInfo } from "node:net";
 import {
   createAnalyticsServer,
   resolveAnalyticsPort,
@@ -8,9 +7,14 @@ import {
 } from "./sidecar.ts";
 
 function listen(server: ReturnType<typeof createAnalyticsServer>): Promise<string> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address() as AddressInfo;
+      const address = server.address();
+      if (address === null || typeof address === "string") {
+        reject(new Error("Expected a TCP server address"));
+        return;
+      }
+      const { port } = address;
       resolve(`http://127.0.0.1:${port}`);
     });
   });
@@ -22,8 +26,8 @@ async function close(server: ReturnType<typeof createAnalyticsServer>): Promise<
   });
 }
 
-describe("shouldRunAnalyticsMain", () => {
-  it("returns true for the analytics entry file", () => {
+await describe("shouldRunAnalyticsMain", async () => {
+  await it("returns true for the analytics entry file", () => {
     assert.equal(
       shouldRunAnalyticsMain("/root/x-copilot/analytics/dist/sidecar.js"),
       true,
@@ -34,7 +38,7 @@ describe("shouldRunAnalyticsMain", () => {
     );
   });
 
-  it("returns true under PM2 when XCOPILOT_ROLE=analytics", () => {
+  await it("returns true under PM2 when XCOPILOT_ROLE=analytics", () => {
     assert.equal(
       shouldRunAnalyticsMain(
         "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
@@ -44,7 +48,7 @@ describe("shouldRunAnalyticsMain", () => {
     );
   });
 
-  it("returns false for ProcessContainerFork without the analytics role", () => {
+  await it("returns false for ProcessContainerFork without the analytics role", () => {
     assert.equal(
       shouldRunAnalyticsMain(
         "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
@@ -61,7 +65,7 @@ describe("shouldRunAnalyticsMain", () => {
     );
   });
 
-  it("returns false for the API entry and test-runner argv", () => {
+  await it("returns false for the API entry and test-runner argv", () => {
     assert.equal(
       shouldRunAnalyticsMain("/root/x-copilot/server/dist/index.js", {}),
       false,
@@ -73,16 +77,16 @@ describe("shouldRunAnalyticsMain", () => {
   });
 });
 
-describe("resolveAnalyticsPort", () => {
-  it("defaults to 8788 and ignores PORT", () => {
+await describe("resolveAnalyticsPort", async () => {
+  await it("defaults to 8788 and ignores PORT", () => {
     assert.equal(resolveAnalyticsPort({}), 8788);
     assert.equal(resolveAnalyticsPort({ PORT: "8787" }), 8788);
     assert.equal(resolveAnalyticsPort({ ANALYTICS_PORT: "9000" }), 9000);
   });
 });
 
-describe("analytics HTTP", () => {
-  it("serves health and accepts a signed event", async () => {
+await describe("analytics HTTP", async () => {
+  await it("serves health and accepts a signed event", async () => {
     const slack: { url: string; body: string }[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       slack.push({ url: String(input), body: String(init?.body ?? "") });
@@ -123,7 +127,46 @@ describe("analytics HTTP", () => {
     }
   });
 
-  it("rejects a bad name and a missing bearer", async () => {
+  await it("accepts an event before Slack finishes and logs delivery failure", async () => {
+    let finishSlack: (response: Response) => void = () => {};
+    const slackResponse = new Promise<Response>((resolve) => {
+      finishSlack = resolve;
+    });
+    const logs: string[] = [];
+    let deliveryLogged: () => void = () => {};
+    const logged = new Promise<void>((resolve) => {
+      deliveryLogged = resolve;
+    });
+    const server = createAnalyticsServer({
+      secret: "s3cret",
+      slackWebhookUrl: "https://hooks.slack.com/services/T/B/xxx",
+      fetchImpl: () => slackResponse,
+      log: (msg) => {
+        logs.push(msg);
+        deliveryLogged();
+      },
+    });
+    const base = await listen(server);
+    try {
+      const res = await fetch(`${base}/event`, {
+        method: "POST",
+        headers: { Authorization: "Bearer s3cret" },
+        body: JSON.stringify({ name: "user.signin" }),
+        signal: AbortSignal.timeout(5_000),
+      });
+      assert.equal(res.status, 202);
+      assert.deepEqual(await res.json(), { ok: true });
+      assert.deepEqual(logs, []);
+      finishSlack(new Response("nope", { status: 500 }));
+      await logged;
+      assert.deepEqual(logs, ["[analytics] slack post failed"]);
+    } finally {
+      finishSlack(new Response("ok"));
+      await close(server);
+    }
+  });
+
+  await it("rejects a bad name and a missing bearer", async () => {
     const server = createAnalyticsServer({ secret: "s3cret" });
     const base = await listen(server);
     try {
@@ -149,7 +192,7 @@ describe("analytics HTTP", () => {
     }
   });
 
-  it("rejects browser-originated events when no secret is set", async () => {
+  await it("rejects browser-originated events when no secret is set", async () => {
     const server = createAnalyticsServer({ log: () => {} });
     const base = await listen(server);
     try {
@@ -178,7 +221,7 @@ describe("analytics HTTP", () => {
     }
   });
 
-  it("accepts an event and logs when Slack is unset", async () => {
+  await it("accepts an event and logs when Slack is unset", async () => {
     const logs: string[] = [];
     const server = createAnalyticsServer({
       secret: "s3cret",
