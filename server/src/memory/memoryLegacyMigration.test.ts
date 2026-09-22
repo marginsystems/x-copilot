@@ -32,7 +32,7 @@ function legacy(opts: {
   return `---\ntype: ${type}\n${thread}${owner}${timeKey}: "${opts.at ?? "2026-07-27T12:00:00.000Z"}"\n---\n\n## Post\n\nparent\n\n${opts.body ?? "## Reply\n\nlegacy reply\n"}`;
 }
 
-describe("memoryLegacyMigration", () => {
+await describe("memoryLegacyMigration", async () => {
   let root: string;
   let interactions: string;
   let dismissals: string;
@@ -55,7 +55,7 @@ describe("memoryLegacyMigration", () => {
   const listMd = async (dir: string) =>
     (await readdir(dir)).filter((n) => n.endsWith(".md")).sort();
 
-  it("copies verifiably owned legacy notes, keeps originals, and is idempotent", async () => {
+  await it("copies verifiably owned legacy notes, keeps originals, and is idempotent", async () => {
     const owned = legacy({ userId: "user-a", body: "## Reply\n\nkept\n\n## Outcome\n\n1h: 10 views\n" });
     await writeFile(join(interactions, "2026-07-27-2081.md"), owned, "utf8");
     await writeFile(
@@ -124,7 +124,7 @@ describe("memoryLegacyMigration", () => {
     assert.equal(logs.filter((l) => /unmigrated/.test(l)).length, 0);
   });
 
-  it("does not use a lone installed user or a thread id as proof of ownership", async () => {
+  await it("does not use a lone installed user or a thread id as proof of ownership", async () => {
     await writeFile(join(interactions, "2026-07-27-2081.md"), legacy({}), "utf8");
     const [report] = await migrateLegacyNotes({ knowledgeRoot: root, log: () => {} });
     assert.equal(report?.copied, 0);
@@ -132,7 +132,7 @@ describe("memoryLegacyMigration", () => {
     assert.deepEqual(await listMd(interactions), ["2026-07-27-2081.md"]);
   });
 
-  it("places the canonical copy by metadata time and treats a missing thread as unplaceable", () => {
+  await it("places the canonical copy by metadata time and treats a missing thread as unplaceable", () => {
     const shifted = parseOwnedNoteMetadata(
       legacy({ userId: "user-a", at: "2026-07-28T00:30:00.000Z" }),
     );
@@ -147,7 +147,7 @@ describe("memoryLegacyMigration", () => {
     assert.equal(canonicalAliasFor("2026-07-27-2081.md", parseOwnedNoteMetadata(legacy({}))), null);
   });
 
-  it("enumerates each migrated note once and keeps unmigrated legacy notes visible", async () => {
+  await it("enumerates each migrated note once and keeps unmigrated legacy notes visible", async () => {
     await writeFile(join(interactions, "2026-07-27-2081.md"), legacy({ userId: "user-a" }), "utf8");
     await writeFile(join(interactions, "2026-07-27-2082.md"), legacy({ threadId: "2082" }), "utf8");
     await writeInteractionMemory({
@@ -183,7 +183,7 @@ describe("memoryLegacyMigration", () => {
     assert.deepEqual(await enumerateMemoryNotes({ knowledgeRoot: join(root, "missing"), kind: "interaction" }), []);
   });
 
-  it("keeps existing reply-suffixed notes, never bulk-converts them, and prefers the canonical alias", async () => {
+  await it("keeps existing reply-suffixed notes, never bulk-converts them, and prefers the canonical alias", async () => {
     const canonical = `2026-07-27-u${sha("user-a")}-2081.md`;
     const suffixed = (replyId: string) =>
       `${canonical.slice(0, -3)}-r${sha(replyId).slice(0, 16)}.md`;

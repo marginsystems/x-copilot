@@ -12,6 +12,7 @@
  * their metadata verifies; both are noncanonical fallback input and are
  * never deleted.
  */
+import { objectValue } from "../platform/unknownValue.js";
 import { createHash, randomBytes } from "node:crypto";
 import {
   mkdir,
@@ -510,7 +511,7 @@ export async function writeOwnedNoteAtomically(opts: {
     try {
       existing = await readFile(path, "utf8");
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+      if (objectValue(err).code !== "ENOENT") throw err;
     }
     const next = await opts.merge(existing);
     if (next === null || next === existing) {

@@ -1,3 +1,4 @@
+import { stringRow, objectValue } from "../platform/unknownValue.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
@@ -44,8 +45,8 @@ function note(opts: {
   return `${fm.join("\n")}\n${body}`;
 }
 
-describe("parseKnowledgeNote", () => {
-  it("extracts type, verified owner and section chunk", () => {
+await describe("parseKnowledgeNote", async () => {
+  await it("extracts type, verified owner and section chunk", () => {
     const md = `---
 type: interaction
 threadId: "1"
@@ -74,7 +75,7 @@ Ship a tiny loop first.
     assert.match(parsed.excerpt, /Asking about shipping/);
   });
 
-  it("parses dismissals with reason", () => {
+  await it("parses dismissals with reason", () => {
     const md = `---
 type: dismissal
 userId: "user-a"
@@ -93,7 +94,7 @@ Engagement bait listicle.
     assert.match(parsed.chunk, /Reason: Engagement bait/);
   });
 
-  it("reports unowned, blank and conflicting owners without a userId", () => {
+  await it("reports unowned, blank and conflicting owners without a userId", () => {
     const unowned = parseKnowledgeNote(
       note({ type: "interaction", sections: { Post: "x" } }),
     );
@@ -118,7 +119,7 @@ Engagement bait listicle.
     assert.match(noFrontmatter.chunk, /Post: no frontmatter/);
   });
 
-  it("includes Outcome in interaction chunk and excerpt", () => {
+  await it("includes Outcome in interaction chunk and excerpt", () => {
     const md = `---
 type: interaction
 userId: "user-a"
@@ -147,7 +148,7 @@ Ship weekly.
     assert.match(parsed.excerpt, /420 views/);
   });
 
-  it("keeps Outcome in chunk when Reply saturates MAX_CHUNK_CHARS", () => {
+  await it("keeps Outcome in chunk when Reply saturates MAX_CHUNK_CHARS", () => {
     const md = `---
 type: interaction
 ---
@@ -174,14 +175,14 @@ ${"long reply ".repeat(600)}
   });
 });
 
-describe("cosineSimilarity", () => {
-  it("returns 1 for identical vectors", () => {
+await describe("cosineSimilarity", async () => {
+  await it("returns 1 for identical vectors", () => {
     const a = Float32Array.from([1, 0, 0]);
     assert.equal(cosineSimilarity(a, a), 1);
   });
 });
 
-describe("memoryIndex with injectable embedder", () => {
+await describe("memoryIndex with injectable embedder", async () => {
   let knowledgeRoot: string;
   let indexDir: string;
   const embedder = createHashEmbedder(32);
@@ -220,7 +221,7 @@ describe("memoryIndex with injectable embedder", () => {
     await rm(join(knowledgeRoot, ".."), { recursive: true, force: true });
   });
 
-  it("reindexes empty vault and marks it ready under the current schema", async () => {
+  await it("reindexes empty vault and marks it ready under the current schema", async () => {
     const result = await reindexMemory({ knowledgeRoot, indexDir, embedder });
     assert.equal(result.ok, true);
     assert.equal(result.indexed, 0);
@@ -230,7 +231,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal(status.schemaVersion, MEMORY_INDEX_SCHEMA_VERSION);
   });
 
-  it("search returns the owner's neighbors for a similar query", async () => {
+  await it("search returns the owner's neighbors for a similar query", async () => {
     await write(
       "interactions",
       "2026-07-30-ship.md",
@@ -270,7 +271,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.ok(hits[0]!.excerpt.length > 0);
   });
 
-  it("never returns another user's note even when it is the top match", async () => {
+  await it("never returns another user's note even when it is the top match", async () => {
     const foreignPost = "Exactly the text the query will use.";
     await write(
       "interactions",
@@ -314,7 +315,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal(stranger.error, undefined);
   });
 
-  it("excludes unowned, blank-owner, conflicting and frontmatter-less notes", async () => {
+  await it("excludes unowned, blank-owner, conflicting and frontmatter-less notes", async () => {
     await write(
       "interactions",
       "2026-07-30-unowned.md",
@@ -354,7 +355,7 @@ describe("memoryIndex with injectable embedder", () => {
     }
   });
 
-  it("fails closed without identity before touching the embedder or database", async () => {
+  await it("fails closed without identity before touching the embedder or database", async () => {
     let embeds = 0;
     const counting: Embedder = {
       dimensions: 8,
@@ -378,7 +379,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal(existsSync(join(indexDir, "index.sqlite")), false);
   });
 
-  it("drops a pre-owner (v1) index and refuses to treat it as ready", async () => {
+  await it("drops a pre-owner (v1) index and refuses to treat it as ready", async () => {
     await mkdir(indexDir, { recursive: true });
     const dbPath = join(indexDir, "index.sqlite");
     const legacy = new Database(dbPath);
@@ -407,11 +408,11 @@ describe("memoryIndex with injectable embedder", () => {
     assert.deepEqual(asA.hits, []);
     assert.equal(asA.error, undefined);
     const db = new Database(dbPath, { readonly: true });
-    const cols = (db.prepare("PRAGMA table_info(memories)").all() as { name: string }[]).map(
+    const cols = (db.prepare("PRAGMA table_info(memories)").all().map((row) => stringRow(row, "name"))).map(
       (c) => c.name,
     );
     assert.ok(cols.includes("user_id"));
-    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM memories").get() as { n: number }).n, 0);
+    assert.equal((objectValue(db.prepare("SELECT COUNT(*) AS n FROM memories").get())).n, 0);
     assert.equal(db.prepare("SELECT 1 FROM meta WHERE key = 'indexed_at'").get(), undefined);
     db.close();
 
@@ -426,7 +427,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal((await memoryIndexStatus({ knowledgeRoot, indexDir })).dbIndexed, true);
   });
 
-  it("serves upserted owned rows from an incomplete index without marking it ready", async () => {
+  await it("serves upserted owned rows from an incomplete index without marking it ready", async () => {
     const path = await write(
       "interactions",
       "2026-07-30-only.md",
@@ -439,7 +440,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal((await search(B, "upsert only")).hits.length, 0);
   });
 
-  it("does not publish or mark ready when a rebuild fails part-way", async () => {
+  await it("does not publish or mark ready when a rebuild fails part-way", async () => {
     await write(
       "interactions",
       "2026-07-30-keep.md",
@@ -472,7 +473,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal((await memoryIndexStatus({ knowledgeRoot, indexDir })).dbIndexed, true);
   });
 
-  it("upsert after Outcome patch changes excerpt and content", async () => {
+  await it("upsert after Outcome patch changes excerpt and content", async () => {
     const notePath = join(knowledgeRoot, "interactions", "2026-07-30-outcome.md");
     await writeFile(
       notePath,
@@ -519,7 +520,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.ok(hits.some((h) => /420 views/.test(h.excerpt)));
   });
 
-  it("owner-only edit with an unchanged chunk moves the row to the new owner", async () => {
+  await it("owner-only edit with an unchanged chunk moves the row to the new owner", async () => {
     const body = { Post: "Same words, different owner.", Reason: "reason" };
     const path = await write(
       "dismissals",
@@ -552,7 +553,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal((await search(A, "Same words")).hits.length, 1);
   });
 
-  it("does not remove a fresher owned row when an older read loses its owner", async () => {
+  await it("does not remove a fresher owned row when an older read loses its owner", async () => {
     const body = { Post: "Fresher owned content." };
     const path = await write(
       "dismissals",
@@ -574,7 +575,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal((await search(A, "Fresher owned content")).hits.length, 1);
   });
 
-  it("indexes a migrated legacy note once, at its canonical path", async () => {
+  await it("indexes a migrated legacy note once, at its canonical path", async () => {
     const legacy = await write(
       "interactions",
       "2026-07-30-123.md",
@@ -596,7 +597,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.ok(hits[0]!.path.endsWith(canonicalName));
   });
 
-  it("upsert and rebuild produce the same owned row", async () => {
+  await it("upsert and rebuild produce the same owned row", async () => {
     const path = await write(
       "interactions",
       canonical(A, "1"),
@@ -610,7 +611,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal((await search(B, "parity")).hits.length, 0);
   });
 
-  it("upsert adds a note without full reindex", async () => {
+  await it("upsert adds a note without full reindex", async () => {
     await reindexMemory({ knowledgeRoot, indexDir, embedder });
     const notePath = await write(
       "dismissals",
@@ -639,7 +640,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.ok(hits.some((h) => h.path === notePath || h.path.endsWith("2026-07-31-new.md")));
   });
 
-  it("a completed rebuild keeps rows upserted while it ran and their newer content", async () => {
+  await it("a completed rebuild keeps rows upserted while it ran and their newer content", async () => {
     const existing = await write(
       "interactions",
       canonical(A, "1"),
@@ -685,7 +686,7 @@ describe("memoryIndex with injectable embedder", () => {
     assert.equal((await memoryIndexStatus({ knowledgeRoot, indexDir })).dbIndexed, true);
   });
 
-  it("indexes one row per migrated legacy note and keeps the original file", async () => {
+  await it("indexes one row per migrated legacy note and keeps the original file", async () => {
     const legacyPath = join(knowledgeRoot, "interactions", "2026-07-30-2081.md");
     const legacyNote = `---
 type: interaction
@@ -724,7 +725,7 @@ Ship weekly.
     assert.match(legacyHits[0]!.path, /-u[0-9a-f]{64}-2081\.md$/);
   });
 
-  it("a slow upsert cannot overwrite a fresher row a rebuild published meanwhile", async () => {
+  await it("a slow upsert cannot overwrite a fresher row a rebuild published meanwhile", async () => {
     const path = await write(
       "interactions",
       canonical(A, "1"),
@@ -756,7 +757,7 @@ Ship weekly.
     assert.match(hits[0]!.excerpt, /version two/);
   });
 
-  it("a rebuild cannot resurrect a row removed by a newer owner-loss upsert", async () => {
+  await it("a rebuild cannot resurrect a row removed by a newer owner-loss upsert", async () => {
     const path = await write(
       "interactions",
       canonical(A, "owner-loss"),
@@ -787,7 +788,7 @@ Ship weekly.
     assert.equal((await search(A, "must disappear")).hits.length, 0);
   });
 
-  it("keeps an owner-loss tombstone when a stale upsert finishes after rebuild", async () => {
+  await it("keeps an owner-loss tombstone when a stale upsert finishes after rebuild", async () => {
     const path = await write(
       "interactions",
       canonical(A, "stale-owner-loss"),
@@ -822,7 +823,7 @@ Ship weekly.
     assert.equal((await search(A, "must stay gone")).hits.length, 0);
   });
 
-  it("keeps an equal-mtime tombstone when rebuild cannot insert its row", async () => {
+  await it("keeps an equal-mtime tombstone when rebuild cannot insert its row", async () => {
     const path = await write(
       "interactions",
       canonical(A, "equal-mtime-tombstone"),
@@ -851,16 +852,40 @@ Ship weekly.
 
     const db = new Database(join(indexDir, "index.sqlite"));
     try {
-      const tombstone = db
+      const tombstone = objectValue(db
         .prepare("SELECT mtime_ms FROM memory_deletions WHERE path = ?")
-        .get(path) as { mtime_ms: number } | undefined;
+        .get(path));
       assert.equal(tombstone?.mtime_ms, Math.round(mtime));
     } finally {
       db.close();
     }
   });
 
-  it("search surfaces embedder failure as unavailable, never old rows", async () => {
+  await it("search skips corrupt embeddings and keeps valid owned rows", async () => {
+    const validPath = await write(
+      "interactions",
+      "valid.md",
+      note({ type: "interaction", userId: A, sections: { Post: "shipping tools" } }),
+    );
+    const corruptPath = await write(
+      "interactions",
+      "corrupt.md",
+      note({ type: "interaction", userId: A, sections: { Post: "shipping tools" } }),
+    );
+    const indexed = await reindexMemory({ knowledgeRoot, indexDir, embedder });
+    assert.equal(indexed.ok, true);
+    const db = new Database(join(indexDir, "index.sqlite"));
+    try {
+      db.prepare("UPDATE memories SET embedding = ? WHERE path = ?").run(42, corruptPath);
+    } finally {
+      db.close();
+    }
+    const result = await search(A, "shipping tools");
+    assert.equal(result.error, undefined);
+    assert.deepEqual(result.hits.map((hit) => hit.path), [validPath]);
+  });
+
+  await it("search surfaces embedder failure as unavailable, never old rows", async () => {
     await write(
       "interactions",
       "2026-07-30-x.md",

@@ -23,7 +23,7 @@ function ownedNote(threadId: string, post: string): string {
   return `---\ntype: interaction\nthreadId: "${threadId}"\nuserId: "${A}"\n---\n\n## Post\n\n${post}\n`;
 }
 
-describe("memoryReindex", () => {
+await describe("memoryReindex", async () => {
   let knowledgeRoot: string;
   let indexDir: string;
   const embedder = createHashEmbedder(16);
@@ -43,7 +43,7 @@ describe("memoryReindex", () => {
     await rm(join(knowledgeRoot, ".."), { recursive: true, force: true });
   });
 
-  it("ensureMemoryIndex rebuilds once when no complete owned rebuild exists", async () => {
+  await it("ensureMemoryIndex rebuilds once when no complete owned rebuild exists", async () => {
     await writeFile(
       join(knowledgeRoot, "interactions", ownedNoteFilename({ userId: A, threadId: "1", at: "2026-07-30" })),
       ownedNote("1", "first"),
@@ -67,7 +67,7 @@ describe("memoryReindex", () => {
     assert.equal(embeds, 1);
   });
 
-  it("scheduleMemoryUpsert waits for the in-flight rebuild so its row survives", async () => {
+  await it("scheduleMemoryUpsert waits for the in-flight rebuild so its row survives", async () => {
     const existing = join(
       knowledgeRoot,
       "interactions",
@@ -117,7 +117,7 @@ describe("memoryReindex", () => {
     assert.ok(hits.some((h) => h.excerpt === "already there"));
   });
 
-  it("runMemoryReindex shares one in-flight rebuild", async () => {
+  await it("runMemoryReindex shares one in-flight rebuild", async () => {
     let embeds = 0;
     await writeFile(
       join(knowledgeRoot, "interactions", ownedNoteFilename({ userId: A, threadId: "1", at: "2026-07-30" })),
@@ -140,7 +140,7 @@ describe("memoryReindex", () => {
     assert.equal(embeds, 1);
   });
 
-  it("parseMemoryTypes keeps only known types", () => {
+  await it("parseMemoryTypes keeps only known types", () => {
     assert.deepEqual(parseMemoryTypes(["dismissal", "bogus", "dismissal"]), ["dismissal"]);
     assert.equal(parseMemoryTypes(["bogus"]), undefined);
     assert.equal(parseMemoryTypes("interaction"), undefined);
