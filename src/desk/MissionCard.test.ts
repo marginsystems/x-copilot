@@ -430,6 +430,12 @@ describe("Gate cards", () => {
     );
 
     assert.doesNotMatch(html, />I posted on X</);
+    const openLink = html.match(/<a\b[^>]*href="([^"]*)"[^>]*>Open on X<\/a>/);
+    assert.ok(openLink);
+    assert.equal(openLink[1], "https://x.com/home");
+    assert.ok(!decodeURIComponent(openLink[1]).includes("A desk post."));
+    assert.doesNotMatch(html, /<button[^>]*>Open on X<\/button>/);
+    assert.match(html, /Opens your real X For You page\./);
   });
 
   it("no longer paints usage or wait gates: the feed is open", () => {

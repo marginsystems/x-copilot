@@ -1,4 +1,5 @@
 import {
+  FYP_OPEN_TIP,
   forYouComposeSeed,
   forYouKindClass,
   forYouKindLabel,
@@ -86,7 +87,7 @@ export function SuggestedRow({
       onToggle={onToggle}
       openHref={openUrl}
       openLabel="Open on X"
-      openTip="Open the target on X."
+      openTip={row.kind === "post" ? FYP_OPEN_TIP : "Open the target on X."}
       onNext={detectsReply ? onNext : undefined}
       nextTip="Continue to the next Approach card."
       nextDisabled={!interacted}

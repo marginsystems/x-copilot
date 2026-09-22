@@ -154,8 +154,8 @@ export function forYouComposeSeed(row: ForYouSuggestion): string {
   return [row.why, row.draft].filter(Boolean).join("\n\n");
 }
 
-/** Open on X — target post, reply intent, or a compose intent with the draft. */
 export function forYouOpenUrl(row: ForYouSuggestion): string | null {
+  if (row.kind === "post") return X_FOR_YOU_URL;
   if (row.targetUrl && /^https?:\/\//i.test(row.targetUrl)) {
     return row.targetUrl;
   }
