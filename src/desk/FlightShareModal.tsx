@@ -94,7 +94,7 @@ export function FlightShareModal({
             aria-label="Download PNG"
             title="Download PNG"
             onClick={() => {
-              downloadFlightSharePng(payload).catch(() => setSrc(null));
+              downloadFlightSharePng(payload).catch(() => undefined);
             }}
           >
             <DownloadIcon />

@@ -136,26 +136,22 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         return onboarded;
       };
 
-      const refreshFailed = () => {
-        if (current()) setAuthNotice("Desk could not load. Reload to try again.");
-      };
-
       const refreshAfterPaint = (
         user: AuthSessionUser | null,
         refreshActivityStats = true,
       ) => {
-        hydrateCoaching().catch(refreshFailed);
-        if (refreshActivityStats) hydrateActivityStats().catch(refreshFailed);
-        loadBilling().catch(refreshFailed);
+        hydrateCoaching().catch(() => undefined);
+        if (refreshActivityStats) hydrateActivityStats().catch(() => undefined);
+        loadBilling().catch(() => undefined);
         if (user) {
           ensureActivitySubscribe();
-          hydrateVoice().catch(refreshFailed);
+          hydrateVoice().catch(() => undefined);
         }
         if (viewFromPath(window.location.pathname) === "usage" || checkout) {
-          loadUsage().catch(refreshFailed);
+          loadUsage().catch(() => undefined);
         }
         if (viewFromPath(window.location.pathname) === "admin" && user?.isAdmin) {
-          loadAdmin().catch(refreshFailed);
+          loadAdmin().catch(() => undefined);
         }
       };
 
@@ -183,7 +179,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         // An older boot payload has no familiarity slice: one optional
         // refresh after paint, no retry, never blocking readiness.
         if (user && boot.payload.desk && boot.payload.desk.scoutFamiliarity === undefined) {
-          hydrateScoutFamiliarity?.().catch(refreshFailed);
+          hydrateScoutFamiliarity?.().catch(() => undefined);
         }
         return;
       }

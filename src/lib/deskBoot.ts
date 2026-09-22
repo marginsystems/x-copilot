@@ -195,6 +195,9 @@ function parseLastScout(raw: unknown): LastScoutPayload {
   const threads = Array.isArray(snapshot?.threads)
     ? snapshot.threads.filter(isThreadCard)
     : [];
+  if (Array.isArray(snapshot?.threads) && snapshot.threads.length > 0 && threads.length === 0) {
+    return { ok: false, empty: true, flight };
+  }
   if (!snapshot || raw.empty === true || threads.length === 0) {
     return { ok: raw.ok !== false, empty: true, flight };
   }
