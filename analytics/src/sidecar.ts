@@ -140,8 +140,6 @@ export async function handleAnalyticsRequest(
   }
   postSlackWebhook(webhook, text, deps.fetchImpl ?? fetch).then((ok) => {
     if (!ok) log("[analytics] slack post failed");
-  }).catch(() => {
-    log("[analytics] slack post failed");
   });
 }
 
