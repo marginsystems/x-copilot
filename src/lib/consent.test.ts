@@ -9,7 +9,8 @@ describe("parseConsent", () => {
     assert.equal(parseConsent("rejected"), "rejected");
     assert.equal(parseConsent(null), null);
     assert.equal(parseConsent("granted"), null);
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("applyAnalyticsConsent", () => {
@@ -17,16 +18,16 @@ describe("applyAnalyticsConsent", () => {
     const calls: unknown[][] = [];
     const gtag = (...args: unknown[]) => calls.push(args);
     const prevWindow = globalThis.window;
-    (globalThis as unknown as { window: unknown }).window = { gtag };
+    Object.defineProperty(globalThis, "window", { configurable: true, writable: true, value: { gtag } });
     try {
       applyAnalyticsConsent("accepted");
       applyAnalyticsConsent("rejected");
     } finally {
-      (globalThis as unknown as { window: unknown }).window = prevWindow;
+      Object.defineProperty(globalThis, "window", { configurable: true, writable: true, value: prevWindow });
     }
     assert.deepEqual(calls, [
       ["consent", "update", { analytics_storage: "granted" }],
       ["consent", "update", { analytics_storage: "denied" }],
     ]);
-  });
+  }).catch(assert.fail);
 });

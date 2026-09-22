@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { afterEach, describe, it } from "node:test";
-import type { AddressInfo } from "node:net";
 import {
   createWebhookServer,
   shouldRunWebhookMain,
@@ -19,8 +18,8 @@ afterEach(async () => {
   servers.clear();
 });
 
-describe("shouldRunWebhookMain", () => {
-  it("returns true for the webhook entry file", () => {
+await describe("shouldRunWebhookMain", async () => {
+  await it("returns true for the webhook entry file", () => {
     assert.equal(
       shouldRunWebhookMain("/root/x-copilot/webhook/src/sidecar.ts"),
       true,
@@ -33,7 +32,7 @@ describe("shouldRunWebhookMain", () => {
     );
   });
 
-  it("returns true under PM2 when XCOPILOT_ROLE=webhook", () => {
+  await it("returns true under PM2 when XCOPILOT_ROLE=webhook", () => {
     assert.equal(
       shouldRunWebhookMain(
         "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
@@ -43,7 +42,7 @@ describe("shouldRunWebhookMain", () => {
     );
   });
 
-  it("returns false for ProcessContainerFork without the webhook role", () => {
+  await it("returns false for ProcessContainerFork without the webhook role", () => {
     assert.equal(
       shouldRunWebhookMain(
         "/usr/lib/node_modules/pm2/lib/ProcessContainerFork.js",
@@ -61,13 +60,15 @@ describe("shouldRunWebhookMain", () => {
   });
 });
 
-describe("webhook process", () => {
-  it("answers the loopback health check", async () => {
+await describe("webhook process", async () => {
+  await it("answers the loopback health check", async () => {
     const server = createWebhookServer();
     servers.add(server);
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const port = (server.address() as AddressInfo).port;
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const port = address.port;
 
     const response = await fetch(`http://127.0.0.1:${port}/health`);
 

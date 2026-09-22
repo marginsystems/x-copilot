@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.analytics.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["analytics/src/**/*.ts"],
+  "exclude": []
+}

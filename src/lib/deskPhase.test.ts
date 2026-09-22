@@ -18,7 +18,8 @@ describe("emptyDeskBeats", () => {
       forkChoice: null,
       forkDone: false,
     });
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("Approach lock", () => {
@@ -38,7 +39,7 @@ describe("Approach lock", () => {
       }),
       { phase: "silent_refuel", cardId: null, surface: "for_you" },
     );
-  });
+  }).catch(assert.fail);
 
   it("locks a boot Scout card, otherwise For You", () => {
     assert.deepEqual(
@@ -68,7 +69,7 @@ describe("Approach lock", () => {
       }),
       { phase: "scout_reply", cardId: "scout-1", surface: null },
     );
-  });
+  }).catch(assert.fail);
 
   it("locks the first-paint gate surface", () => {
     assert.deepEqual(
@@ -80,7 +81,7 @@ describe("Approach lock", () => {
       }),
       { phase: "silent_refuel", cardId: null, surface: "link_x" },
     );
-  });
+  }).catch(assert.fail);
 
   it("changes only for legal buttons and picks inventory once", () => {
     const scout = {
@@ -121,7 +122,7 @@ describe("Approach lock", () => {
       ),
       { phase: "scout_reply", cardId: "scout-2", surface: null },
     );
-  });
+  }).catch(assert.fail);
 
   it("For You Next with no stock collects instead of opening another wait", () => {
     const inventoryWithoutCards = {
@@ -139,7 +140,7 @@ describe("Approach lock", () => {
         { phase: "done_for_now", cardId: null, surface: null },
       );
     }
-  });
+  }).catch(assert.fail);
 
   it("For You Next hands off to an unused suggestion when Scout is empty", () => {
     assert.deepEqual(
@@ -154,7 +155,7 @@ describe("Approach lock", () => {
       ),
       { phase: "organic_reply", cardId: "original-1", surface: null },
     );
-  });
+  }).catch(assert.fail);
 
   it("Next selects inventory during the minute for For You and Scout", () => {
     const paced = { ...inventory, paceLocked: true };
@@ -183,7 +184,7 @@ describe("Approach lock", () => {
       advanceApproach(forYou, { type: "bypass" }, paced),
       { phase: "scout_reply", cardId: "scout-2", surface: null },
     );
-  });
+  }).catch(assert.fail);
 
   it("keeps last Skip in flight even when the feed is closed", () => {
     assert.deepEqual(
@@ -199,7 +200,7 @@ describe("Approach lock", () => {
       ),
       { phase: "scout_reply", cardId: null, surface: null },
     );
-  });
+  }).catch(assert.fail);
 
   it("routes posted Suggested to the next scout, For You, or done_for_now", () => {
     const posted = {
@@ -243,7 +244,7 @@ describe("Approach lock", () => {
       ),
       { phase: "done_for_now", cardId: null, surface: null },
     );
-  });
+  }).catch(assert.fail);
 
   it("bypasses a hold into the next card or collecting idle", () => {
     assert.deepEqual(
@@ -262,7 +263,7 @@ describe("Approach lock", () => {
       ),
       { phase: "done_for_now", cardId: null, surface: null },
     );
-  });
+  }).catch(assert.fail);
 
   it("reopens a completed lock when new inventory lands", () => {
     assert.deepEqual(
@@ -273,7 +274,8 @@ describe("Approach lock", () => {
       ),
       { phase: "scout_reply", cardId: "scout-3", surface: null },
     );
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("normalizeApproachLock", () => {
@@ -296,7 +298,7 @@ describe("normalizeApproachLock", () => {
       assert.equal(normalizeApproachLock(lock, open), lock);
       assert.equal(normalizeApproachLock(lock, empty), lock);
     }
-  });
+  }).catch(assert.fail);
 
   it("keeps Collecting on restore until Scout or a leftover lands", () => {
     const done = {
@@ -313,7 +315,7 @@ describe("normalizeApproachLock", () => {
     assert.deepEqual(normalizeApproachLock(done, { ...empty, suggestionId: "leftover" }), {
       phase: "organic_reply", cardId: "leftover", surface: null,
     });
-  });
+  }).catch(assert.fail);
 
   it("turns legacy usage and wait surfaces into the For You task", () => {
     for (const surface of ["usage", "wait"] as const) {
@@ -325,7 +327,7 @@ describe("normalizeApproachLock", () => {
         { phase: "silent_refuel", cardId: null, surface: "for_you" },
       );
     }
-  });
+  }).catch(assert.fail);
 
   it("resolves a cleared gate into the available task", () => {
     const linkX = {
@@ -343,7 +345,7 @@ describe("normalizeApproachLock", () => {
       cardId: null,
       surface: "for_you",
     });
-  });
+  }).catch(assert.fail);
 
   it("replaces a For You task with the gate when a prerequisite appears", () => {
     const gated = { ...empty, gate: "link_x", canOpenForYou: false } as const;
@@ -382,7 +384,7 @@ describe("normalizeApproachLock", () => {
       cardId: null,
       surface: "link_x",
     });
-  });
+  }).catch(assert.fail);
 
   it("repairs legacy needs_onboarding and malformed combos", () => {
     const malformed: ApproachLock[] = [
@@ -404,7 +406,7 @@ describe("normalizeApproachLock", () => {
       ),
       { phase: "hold", cardId: null, surface: "for_you" },
     );
-  });
+  }).catch(assert.fail);
 
   it("names the gate from the prerequisites, never from Scout state", () => {
     assert.equal(approachGate({ needsXLink: true, hasAgenda: false }), "link_x");
@@ -413,7 +415,7 @@ describe("normalizeApproachLock", () => {
       "settings",
     );
     assert.equal(approachGate({ needsXLink: false, hasAgenda: true }), null);
-  });
+  }).catch(assert.fail);
 
   it("treats hold and silent_refuel/for_you as one For You task", () => {
     assert.equal(
@@ -432,7 +434,8 @@ describe("normalizeApproachLock", () => {
       isForYouTask({ phase: "scout_reply", cardId: "s", surface: null }),
       false,
     );
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("S10 skip-next", () => {
@@ -453,7 +456,7 @@ describe("S10 skip-next", () => {
           { phase: "scout_reply", cardId: "scout-2", surface: null },
         );
       }
-    });
+    }).catch(assert.fail);
 
     it(`last ${type} stays in flight, excluding the current scout`, () => {
       for (const scoutId of [null, "scout-1"]) {
@@ -466,7 +469,7 @@ describe("S10 skip-next", () => {
           );
         }
       }
-    });
+    }).catch(assert.fail);
   }
 
   it("in-flight Next and normalize accept only a new scout, even during the minute", () => {
@@ -480,7 +483,7 @@ describe("S10 skip-next", () => {
         scoutId, suggestionId: "original-1", gate: null, canOpenForYou: true,
       }), expected);
     }
-  });
+  }).catch(assert.fail);
 
   it("Mark on a scout lock preserves the scout lock", () => {
     assert.equal(
@@ -500,5 +503,5 @@ describe("S10 skip-next", () => {
       ),
       { phase: "scout_reply", cardId: null, surface: null },
     );
-  });
+  }).catch(assert.fail);
 });

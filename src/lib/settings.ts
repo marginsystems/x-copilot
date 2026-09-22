@@ -1,3 +1,4 @@
+import { isRecord, isOneOf } from "./typeGuards";
 /** Client-side Scout filter prefs (persisted in localStorage). */
 
 export const SETTINGS_STORAGE_KEY = "x-copilot-settings";
@@ -246,8 +247,8 @@ export function clampMinViews(value: unknown): number {
 export function normalizePreferredLanguage(value: unknown): PreferredLanguage {
   if (typeof value !== "string") return DEFAULT_PREFERRED_LANGUAGE;
   const code = value.trim().toLowerCase();
-  return (PREFERRED_LANGUAGES as readonly string[]).includes(code)
-    ? (code as PreferredLanguage)
+  return isOneOf(code, PREFERRED_LANGUAGES)
+    ? code
     : DEFAULT_PREFERRED_LANGUAGE;
 }
 
@@ -368,8 +369,8 @@ export function normalizeExcludedAccounts(raw: unknown): string[] {
 }
 
 export function normalizeSettings(raw: unknown): AppSettings {
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
-  const obj = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return { ...DEFAULT_SETTINGS };
+  const obj = raw;
   const excludedTags =
     "excludedTags" in obj
       ? normalizeExcludedTags(obj.excludedTags)

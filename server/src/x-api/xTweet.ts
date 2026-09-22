@@ -1,6 +1,7 @@
 /**
  * User-context tweet create (OAuth 1.0a). App bearer cannot post.
  */
+import { objectValue } from "../platform/unknownValue.js";
 import { recordUsageEvent } from "../billing/usageMeter.js";
 import { buildSignedAuthHeader } from "../auth/oauth1.js";
 import { X_API_BASE } from "./xApi.js";
@@ -133,18 +134,19 @@ async function createUserTweet(opts: {
     postsRead: 0,
   });
   if (!res.ok) {
-    const body = json as { title?: string; detail?: string; status?: number };
+    const body = objectValue(json);
     return {
       ok: false,
       status: res.status,
       error: "tweet_create_failed",
       message:
-        body.detail ||
-        body.title ||
+        (typeof body.detail === "string" && body.detail) ||
+        (typeof body.title === "string" && body.title) ||
         "X refused the post. Re-link X if the app is still read-only.",
     };
   }
-  const id = (json as { data?: { id?: string } })?.data?.id?.trim() ?? "";
+  const rawId = objectValue(objectValue(json).data).id;
+  const id = typeof rawId === "string" ? rawId.trim() : "";
   if (!/^\d+$/.test(id)) {
     return {
       ok: false,

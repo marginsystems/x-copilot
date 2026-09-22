@@ -1,7 +1,7 @@
+import { isRecord, isOneOf } from "./typeGuards";
 import {
   DESK_PHASES,
   type ApproachLock,
-  type DeskPhase,
 } from "./deskPhase";
 
 export const APPROACH_LOCK_STORAGE_KEY = "x-copilot-approach-lock";
@@ -18,22 +18,20 @@ export function parseApproachLock(raw: string | null): ApproachLock | null {
   if (raw === null) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-    const lock = parsed as Record<string, unknown>;
-    if (!DESK_PHASES.includes(lock.phase as DeskPhase)) return null;
+    if (!isRecord(parsed)) return null;
+    const lock = parsed;
+    if (!isOneOf(lock.phase, DESK_PHASES)) return null;
     if (lock.cardId !== null && typeof lock.cardId !== "string") return null;
     if (
       lock.surface !== null &&
-      !APPROACH_SURFACES.includes(
-        lock.surface as (typeof APPROACH_SURFACES)[number],
-      )
+      !isOneOf(lock.surface, APPROACH_SURFACES)
     ) {
       return null;
     }
     return {
-      phase: lock.phase as DeskPhase,
-      cardId: lock.cardId as string | null,
-      surface: lock.surface as ApproachLock["surface"],
+      phase: lock.phase,
+      cardId: lock.cardId,
+      surface: lock.surface,
     };
   } catch {
     return null;

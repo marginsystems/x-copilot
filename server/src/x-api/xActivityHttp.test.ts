@@ -1,7 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { testRequest, testResponse, expectRecord } from "../http/http.testHelpers.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import {
   closeTempPlatformDb,
@@ -35,40 +34,31 @@ async function call(
   body?: unknown,
   cookie?: string,
 ): Promise<{ handled: boolean; status: number; json: Record<string, unknown> }> {
-  const req = new EventEmitter() as unknown as IncomingMessage;
+  const req = testRequest();
   Object.assign(req, {
     method,
     headers: cookie ? { cookie } : {},
     socket: { remoteAddress: "127.0.0.1" },
   });
-  let status = 0;
-  let raw = "";
-  const res = {
-    writeHead: (code: number) => {
-      status = code;
-    },
-    end: (chunk: string) => {
-      raw = chunk;
-    },
-  } as unknown as ServerResponse;
+  const { res, captured } = testResponse(req);
   const handledPromise = tryHandleXActivityAuthed(
     req,
     res,
     new URL(`http://localhost${path}`),
   );
   if (body !== undefined) {
-    (req as EventEmitter).emit("data", Buffer.from(JSON.stringify(body)));
+    req.emit("data", Buffer.from(JSON.stringify(body)));
   }
-  (req as EventEmitter).emit("end");
+  req.emit("end");
   const handled = await handledPromise;
   return {
     handled,
-    status,
-    json: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+    status: captured.status,
+    json: captured.raw ? expectRecord(JSON.parse(captured.raw)) : {},
   };
 }
 
-describe("POST /api/watch", () => {
+await describe("POST /api/watch", async () => {
   let temp: TempPlatformDb;
   let a: { userId: string; cookie: string };
   let b: { userId: string; cookie: string };
@@ -83,7 +73,7 @@ describe("POST /api/watch", () => {
     closeTempPlatformDb(temp);
   });
 
-  it("requires a session and a thread id", async () => {
+  await it("requires a session and a thread id", async () => {
     assert.equal((await call("POST", "/api/watch", { threadId: "t" })).status, 401);
     const empty = await call("POST", "/api/watch", { threads: [{}] }, a.cookie);
     assert.equal(empty.status, 400);
@@ -91,7 +81,7 @@ describe("POST /api/watch", () => {
     assert.equal((await call("GET", "/api/nope")).handled, false);
   });
 
-  it("watches threads and retains the tank card's kind, not the body's", async () => {
+  await it("watches threads and retains the tank card's kind, not the body's", async () => {
     await saveScoutCache(
       {
         savedAt: "2026-09-20T00:00:00.000Z",

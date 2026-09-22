@@ -57,7 +57,7 @@ describe("coaching parsers", () => {
       forkChoice: "reply",
       forkDone: false,
     });
-  });
+  }).catch(assert.fail);
 
   it("falls back to empty beats without rejecting coaching", () => {
     const empty = {
@@ -80,14 +80,14 @@ describe("coaching parsers", () => {
     assert.equal(parseCoachingPayload({ dayUtc: "2026-08-26" })?.postsToday, 0);
     assert.equal(parseCoachingPayload({ dayUtc: "2026-08-26" })?.originalsToday, 0);
     assert.deepEqual(parseCoachingPayload({ dayUtc: "2026-08-26" })?.replyAt, []);
-  });
+  }).catch(assert.fail);
 
   it("drops unknown next-action kinds", () => {
     assert.equal(
       parseNextAction({ kind: "dance", text: "go" }),
       null,
     );
-  });
+  }).catch(assert.fail);
 
   it("merges lite coaching without dropping full coaching fields", () => {
     const full = parseCoachingPayload({
@@ -133,7 +133,7 @@ describe("coaching parsers", () => {
     assert.equal(merged.postsToday, 2);
     assert.deepEqual(merged.postAt, lite.postAt);
     assert.equal(merged.ownActivity?.id, "1900");
-  });
+  }).catch(assert.fail);
 
   it("folds lite timestamps into full histories and detects newer activity", () => {
     const full = parseCoachingPayload({
@@ -160,7 +160,8 @@ describe("coaching parsers", () => {
       "2026-08-26T11:30:00.000Z",
       "2026-08-26T10:30:00.000Z",
     ]);
-  });
+  }).catch(assert.fail);
+
 
 });
 
@@ -184,5 +185,5 @@ describe("parseDeskBeats", () => {
       }).forkChoice,
       null,
     );
-  });
+  }).catch(assert.fail);
 });

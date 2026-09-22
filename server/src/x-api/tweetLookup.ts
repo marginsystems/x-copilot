@@ -1,6 +1,8 @@
 /**
  * Official X API v2 tweet lookup (parent OP hydrate + engagement metrics).
  */
+import { objectValue, isRecord } from "../platform/unknownValue.js";
+import { isV2Tweet, isV2User } from "./xPayload.js";
 import { normalizeAuthorKey } from "../desk/interactionCooldown.js";
 import { xApiGet } from "./xApi.js";
 import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
@@ -84,13 +86,8 @@ export function clearParentTweetCache(): void {
 }
 
 function tweetResultFromPayload(data: unknown): unknown {
-  const root = data as {
-    data?: {
-      tweetResult?: { result?: unknown };
-      tweet_result?: { result?: unknown };
-    };
-  };
-  return root?.data?.tweetResult?.result ?? root?.data?.tweet_result?.result;
+  const payload = objectValue(objectValue(data).data);
+  return objectValue(payload.tweetResult).result ?? objectValue(payload.tweet_result).result;
 }
 
 function asFiniteNumber(value: unknown): number | undefined {
@@ -111,18 +108,9 @@ export function parseTweetMetrics(data: unknown): TweetMetrics | null {
   if (!data || typeof data !== "object") return null;
 
   // v2 tweet object
-  const maybeV2 = data as {
-    data?: {
-      public_metrics?: Record<string, unknown>;
-      id?: string;
-    };
-    public_metrics?: Record<string, unknown>;
-  };
-  const v2Metrics =
-    maybeV2.data?.public_metrics ??
-    (maybeV2.public_metrics && typeof maybeV2.public_metrics === "object"
-      ? maybeV2.public_metrics
-      : null);
+  const maybeV2 = objectValue(data);
+  const rawMetrics = objectValue(maybeV2.data).public_metrics ?? maybeV2.public_metrics;
+  const v2Metrics = isRecord(rawMetrics) ? rawMetrics : null;
   if (v2Metrics) {
     const likes = asFiniteNumber(v2Metrics.like_count);
     const replies = asFiniteNumber(v2Metrics.reply_count);
@@ -150,17 +138,17 @@ export function parseTweetMetrics(data: unknown): TweetMetrics | null {
   const maybeWrapped = tweetResultFromPayload(data);
   let node: Record<string, unknown> | null = null;
   if (maybeWrapped && typeof maybeWrapped === "object") {
-    node = maybeWrapped as Record<string, unknown>;
+    node = objectValue(maybeWrapped);
   } else {
-    node = data as Record<string, unknown>;
+    node = objectValue(data);
   }
   if (node.tweet && typeof node.tweet === "object") {
-    node = node.tweet as Record<string, unknown>;
+    node = objectValue(node.tweet);
   }
 
-  const viewsObj = node.views as { count?: unknown } | undefined;
+  const viewsObj = objectValue(node.views);
   const views = asFiniteNumber(viewsObj?.count);
-  const legacy = (node.legacy ?? {}) as Record<string, unknown>;
+  const legacy = objectValue(node.legacy);
   const likes = asFiniteNumber(legacy.favorite_count);
   const replies = asFiniteNumber(legacy.reply_count);
   const retweets = asFiniteNumber(legacy.retweet_count);
@@ -188,46 +176,20 @@ function parseTweetResultPayload(data: unknown): ParentTweet | null {
   return parentFromCard(card);
 }
 
-type V2LookupJson = {
-  data?: {
-    id?: string;
-    text?: string;
-    author_id?: string;
-    note_tweet?: { text?: string };
-    article?: unknown;
-    card_uri?: string;
-    entities?: {
-      urls?: Array<{
-        url?: string;
-        expanded_url?: string;
-        display_url?: string;
-      }>;
-      media?: Array<{
-        url?: string;
-        expanded_url?: string;
-        display_url?: string;
-      }>;
-    };
-    attachments?: { media_keys?: string[] };
-    public_metrics?: Record<string, unknown>;
-  };
-  includes?: {
-    users?: Array<{ id?: string; username?: string; name?: string }>;
-    media?: Array<{ media_key?: string }>;
-  };
-};
-
 function parentFromV2(json: unknown): ParentTweet | null {
-  const root = json as V2LookupJson;
+  const root = objectValue(json);
   const tw = root.data;
-  if (!tw?.id) return null;
+  if (!isV2Tweet(tw) || !tw.id) return null;
+  const includes = objectValue(root.includes);
+  const users = Array.isArray(includes.users) ? includes.users.filter(isV2User) : [];
+  const media = Array.isArray(includes.media) ? includes.media.map(objectValue) : [];
   const usersById = new Map(
-    (root.includes?.users ?? [])
+    users
       .filter((u) => u.id)
       .map((u) => [u.id!, u] as const),
   );
   const mediaKeys = new Set(
-    (root.includes?.media ?? [])
+    media
       .map((m) => m.media_key)
       .filter((key): key is string => typeof key === "string"),
   );
@@ -284,7 +246,7 @@ export async function fetchParentTweet(opts: {
   // Only cache a genuine miss (no tweet data in the payload). A 200 whose
   // data maps to no parent (e.g. suspended author missing from includes.users)
   // stays uncached so a later run can retry instead of poisoning the cache.
-  const envelope = res.json as { data?: unknown } | null;
+  const envelope = objectValue(res.json);
   if (envelope?.data === undefined || envelope.data === null) {
     parentCache.set(tweetId, null);
   }
@@ -331,7 +293,7 @@ export function parseTweetsMetricsMap(json: unknown): Map<string, TweetMetrics> 
   const rows = Array.isArray(data) ? data : [];
   for (const row of rows) {
     if (!row || typeof row !== "object") continue;
-    const id = String((row as { id?: unknown }).id ?? "").trim();
+    const id = String(objectValue(row).id ?? "").trim();
     if (!id) continue;
     const metrics = parseTweetMetrics(row);
     if (metrics) out.set(id, metrics);

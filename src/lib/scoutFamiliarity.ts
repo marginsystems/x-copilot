@@ -8,6 +8,7 @@
  * No gamification data lives here and none of this feeds XP.
  */
 import type { ThreadKind } from "../desk/types";
+import { isOneOf } from "./typeGuards";
 import { apiFetch } from "./apiBase";
 
 export type ScoutFamiliarityState = "empty" | "learning" | "supported";
@@ -59,8 +60,8 @@ const THREAD_KINDS: ReadonlySet<string> = new Set<ThreadKind>([
   "closed_thread",
   "other",
 ]);
-const STATES: ReadonlySet<string> = new Set(["empty", "learning", "supported"]);
-const ACTIONS: ReadonlySet<string> = new Set(["take", "skip", "dismiss"]);
+const STATES = ["empty", "learning", "supported"] as const;
+const ACTIONS = ["take", "skip", "dismiss"] as const;
 
 function isRecord(raw: unknown): raw is Record<string, unknown> {
   return typeof raw === "object" && raw !== null && !Array.isArray(raw);
@@ -128,7 +129,7 @@ function parseHints(raw: unknown): ScoutFamiliarityHint[] {
 export function parseScoutFamiliarity(raw: unknown): ScoutFamiliarity | null {
   if (!isRecord(raw)) return null;
   const { state, version, revision, score, coverage, updatedAt } = raw;
-  if (typeof state !== "string" || !STATES.has(state)) return null;
+  if (!isOneOf(state, STATES)) return null;
   if (version !== 1 || !isCount(revision)) return null;
   if (!isCount(score) || score > 100) return null;
   if (!isRecord(coverage)) return null;
@@ -142,17 +143,17 @@ export function parseScoutFamiliarity(raw: unknown): ScoutFamiliarity | null {
   if (raw.lastLearned !== null) {
     if (!isRecord(raw.lastLearned)) return null;
     const { at, action, threadKind } = raw.lastLearned;
-    if (!isIso(at) || typeof action !== "string" || !ACTIONS.has(action)) return null;
+    if (!isIso(at) || !isOneOf(action, ACTIONS)) return null;
     lastLearned = {
       at,
-      action: action as "take" | "skip" | "dismiss",
+      action,
       threadKind: isKind(threadKind) ? threadKind : null,
     };
   }
 
   const supported = state === "supported";
   return {
-    state: state as ScoutFamiliarityState,
+    state,
     version: 1,
     revision,
     score,

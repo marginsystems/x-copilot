@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { parseV2SearchPayload, v2TweetToCard } from "./xV2Card.ts";
 import { filterOutboundLinks } from "../scout/threadFilters.ts";
 
-describe("v2TweetToCard replied_to includes", () => {
+await describe("v2TweetToCard replied_to includes", async () => {
   const usersById = new Map([
     ["u-reply", { id: "u-reply", username: "asker", name: "Asker" }],
     ["u-op", { id: "u-op", username: "hustler", name: "Hustler" }],
     ["u-mid", { id: "u-mid", username: "middler", name: "Middler" }],
   ]);
 
-  it("fills OP from includes.tweets and marks opParentDerived", () => {
+  await it("fills OP from includes.tweets and marks opParentDerived", () => {
     const tweetsById = new Map([
       [
         "800",
@@ -40,7 +40,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.opParentDerived, true);
   });
 
-  it("copies impression counts onto the leaf and the OP", () => {
+  await it("copies impression counts onto the leaf and the OP", () => {
     const tweetsById = new Map([
       [
         "800",
@@ -71,7 +71,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.opCreatedAt, "2026-09-05T05:00:00.000Z");
   });
 
-  it("flags a clean reply when the included OP has an off-platform link", () => {
+  await it("flags a clean reply when the included OP has an off-platform link", () => {
     const tweetsById = new Map([
       [
         "800",
@@ -106,7 +106,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.match(card.opText ?? "", /New essay/);
   });
 
-  it("flags a reply when the included OP is a note_tweet with an off-platform note link", () => {
+  await it("flags a reply when the included OP is a note_tweet with an off-platform note link", () => {
     const tweetsById = new Map([
       [
         "800",
@@ -144,7 +144,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.match(card.opText ?? "", /Long essay/);
   });
 
-  it("flags a note_tweet candidate with an off-platform note entity link", () => {
+  await it("flags a note_tweet candidate with an off-platform note entity link", () => {
     const card = v2TweetToCard(
       {
         id: "777",
@@ -168,7 +168,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.hasOutboundLink, true);
   });
 
-  it("does not crash when a quoted tweet is missing from includes.tweets", () => {
+  await it("does not crash when a quoted tweet is missing from includes.tweets", () => {
     const card = v2TweetToCard(
       {
         id: "999",
@@ -183,7 +183,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.hasOutboundLink, undefined);
   });
 
-  it("flags a quote when the quoted tweet has an off-platform link", () => {
+  await it("flags a quote when the quoted tweet has an off-platform link", () => {
     const tweetsById = new Map([
       [
         "800",
@@ -218,7 +218,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(filterOutboundLinks([card]).linkFilteredCount, 1);
   });
 
-  it("flags a quote when the quoted tweet has included native media", () => {
+  await it("flags a quote when the quoted tweet has included native media", () => {
     const tweetsById = new Map([
       [
         "800",
@@ -245,7 +245,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.opHasNativeMedia, true);
   });
 
-  it("marks v2 article payload as longform article", () => {
+  await it("marks v2 article payload as longform article", () => {
     const card = v2TweetToCard(
       {
         id: "444",
@@ -259,7 +259,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.longform, "article");
   });
 
-  it("marks /i/article/ entity URLs as articles", () => {
+  await it("marks /i/article/ entity URLs as articles", () => {
     const card = v2TweetToCard(
       {
         id: "445",
@@ -275,7 +275,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.longform, "article");
   });
 
-  it("does not treat a third-party /i/article/ link as an article", () => {
+  await it("does not treat a third-party /i/article/ link as an article", () => {
     const card = v2TweetToCard(
       {
         id: "446",
@@ -291,7 +291,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.longform, undefined);
   });
 
-  it("copies opLongform when the quoted tweet is an X Article", () => {
+  await it("copies opLongform when the quoted tweet is an X Article", () => {
     const tweetsById = new Map([
       [
         "2095331355039285605",
@@ -330,7 +330,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.opAuthor, "@hustler");
   });
 
-  it("copies parent article longform and full char count from includes", () => {
+  await it("copies parent article longform and full char count from includes", () => {
     const tweetsById = new Map([
       [
         "800",
@@ -360,7 +360,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.opText?.length, 500);
   });
 
-  it("prefers conversation root from includes when nested", () => {
+  await it("prefers conversation root from includes when nested", () => {
     const tweetsById = new Map([
       [
         "850",
@@ -396,7 +396,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.opParentDerived, true);
   });
 
-  it("leaves opParentDerived unset when nested root is missing", () => {
+  await it("leaves opParentDerived unset when nested root is missing", () => {
     const tweetsById = new Map([
       [
         "850",
@@ -424,7 +424,7 @@ describe("v2TweetToCard replied_to includes", () => {
     assert.equal(card.opParentDerived, undefined);
   });
 
-  it("does not set self-authored root as OP when parent is in data", () => {
+  await it("does not set self-authored root as OP when parent is in data", () => {
     const replyUsers = new Map([
       ["u-reply", { id: "u-reply", username: "rooter", name: "Rooter" }],
       [
@@ -468,7 +468,7 @@ describe("v2TweetToCard replied_to includes", () => {
  * (https://x.com/sergey_nog/status/2091161452241354978) rewrites Substack
  * through t.co — X entities.expanded_url is the follow-through.
  */
-describe("v2 outbound links from real t.co entities", () => {
+await describe("v2 outbound links from real t.co entities", async () => {
   const replyId = "2092650080306119014";
   const opId = "2091161452241354978";
   const users = [
@@ -516,7 +516,7 @@ describe("v2 outbound links from real t.co entities", () => {
     },
   };
 
-  it("does not treat the reply's own image t.co as outbound", () => {
+  await it("does not treat the reply's own image t.co as outbound", () => {
     const { threads } = parseV2SearchPayload({
       data: [replyTweet],
       includes: { users },
@@ -527,7 +527,7 @@ describe("v2 outbound links from real t.co entities", () => {
     assert.equal(filterOutboundLinks(threads).linkFilteredCount, 0);
   });
 
-  it("follows the OP t.co via expanded_url and drops the reply", () => {
+  await it("follows the OP t.co via expanded_url and drops the reply", () => {
     const { threads } = parseV2SearchPayload({
       data: [replyTweet],
       includes: { users, tweets: [opTweet] },
@@ -547,7 +547,7 @@ describe("v2 outbound links from real t.co entities", () => {
  * has no entities.urls — only tweet.fields=card_uri → card://2087820143858499584
  * (website card “From daventys.com”). v2 never returns that landing URL.
  */
-describe("v2 outbound links from official card_uri", () => {
+await describe("v2 outbound links from official card_uri", async () => {
   const replyId = "2093404586795262199";
   const opId = "2087820145578103161";
   const cardUri = "card://2087820143858499584";
@@ -580,7 +580,7 @@ describe("v2 outbound links from official card_uri", () => {
     entities: { urls: [] as { expanded_url?: string }[] },
   };
 
-  it("does not treat the clean reply as outbound on its own", () => {
+  await it("does not treat the clean reply as outbound on its own", () => {
     const { threads } = parseV2SearchPayload({
       data: [replyTweet],
       includes: { users },
@@ -591,7 +591,7 @@ describe("v2 outbound links from official card_uri", () => {
     assert.equal(filterOutboundLinks(threads).linkFilteredCount, 0);
   });
 
-  it("drops the reply when the OP has a card_uri and no URL entities", () => {
+  await it("drops the reply when the OP has a card_uri and no URL entities", () => {
     const { threads } = parseV2SearchPayload({
       data: [replyTweet],
       includes: { users, tweets: [opTweet] },
@@ -604,7 +604,7 @@ describe("v2 outbound links from official card_uri", () => {
     assert.equal(filtered.linkFilteredCount, 1);
   });
 
-  it("keeps the card OP when dropOutboundLinks is off", () => {
+  await it("keeps the card OP when dropOutboundLinks is off", () => {
     const { threads } = parseV2SearchPayload({
       data: [replyTweet],
       includes: { users, tweets: [opTweet] },
@@ -613,5 +613,80 @@ describe("v2 outbound links from official card_uri", () => {
     assert.equal(kept.threads.length, 1);
     assert.equal(kept.linkFilteredCount, 0);
     assert.equal(kept.threads[0]?.id, replyId);
+  });
+});
+
+await describe("parseV2SearchPayload boundary validation", async () => {
+  await it("rejects results without string identity fields or users", () => {
+    const result = parseV2SearchPayload({
+      data: [
+        { id: 42, text: "valid text", author_id: "u1" },
+        { id: "43", text: 7, author_id: "u1" },
+        { id: "44", text: "valid text", author_id: "u2" },
+        { id: "46", text: "valid text", author_id: "u1" },
+      ],
+      includes: { users: [{ id: "u1", username: 9 }] },
+    });
+    assert.deepEqual(result.threads, []);
+  });
+
+  await it("keeps valid results when optional values have off-type contents", () => {
+    const result = parseV2SearchPayload({
+      data: [
+        {
+          id: "45",
+          text: "A sparse result",
+          author_id: "u1",
+          entities: { urls: [{ url: 123 }] },
+          public_metrics: { impression_count: "5" },
+        },
+      ],
+      includes: { users: [{ id: "u1", username: "author" }] },
+    });
+    assert.equal(result.threads.length, 1);
+    assert.equal(result.threads[0]?.id, "45");
+    assert.equal(result.threads[0]?.views, undefined);
+  });
+
+  await it("drops malformed included tweets without dropping valid leaves", () => {
+    const result = parseV2SearchPayload({
+      data: [
+        {
+          id: "801",
+          text: "A valid reply",
+          author_id: "u-reply",
+          referenced_tweets: [{ type: "replied_to", id: "800" }],
+        },
+      ],
+      includes: {
+        users: [
+          { id: "u-reply", username: "reply" },
+          { id: "u-op", username: "op" },
+        ],
+        tweets: [{ id: "800", text: 7, author_id: "u-op" }],
+      },
+    });
+    assert.equal(result.threads.length, 1);
+    assert.equal(result.threads[0]?.id, "801");
+    assert.equal(result.threads[0]?.opText, undefined);
+  });
+
+  await it("preserves sparse results, opaque article data, unknown fields and pagination", () => {
+    const tweet = {
+      id: "42",
+      text: "An article",
+      author_id: "u1",
+      article: { title: "An article", futureField: [1, 2] },
+      futureField: { enabled: true },
+    };
+    const user = { id: "u1", username: "author", futureField: true };
+    const result = parseV2SearchPayload({
+      data: [tweet],
+      includes: { users: [user] },
+      meta: { next_token: " next-page " },
+    });
+    assert.deepEqual(result.threads, [v2TweetToCard(tweet, new Map([["u1", user]]))]);
+    assert.equal(result.nextToken, "next-page");
+    assert.deepEqual(parseV2SearchPayload({ meta: {} }), { threads: [], nextToken: null });
   });
 });

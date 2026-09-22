@@ -45,7 +45,7 @@ describe("forYou helpers", () => {
     });
     assert.equal(row?.kind, "quote");
     assert.equal(row?.targetId, "10");
-  });
+  }).catch(assert.fail);
 
   it("only post and quote cards with a numeric target use the desk compose path", () => {
     assert.equal(forYouUsesDeskCompose(base), true);
@@ -69,7 +69,7 @@ describe("forYou helpers", () => {
       forYouComposeSeed({ ...base, draft: null }),
       "900 views",
     );
-  });
+  }).catch(assert.fail);
 
   it("labels kinds and picks an Open on X url", () => {
     assert.equal(forYouKindLabel("repost"), "Repost");
@@ -111,7 +111,7 @@ describe("forYou helpers", () => {
       forYouOpenUrl({ ...base, kind: "quote", draft: null }),
       null,
     );
-  });
+  }).catch(assert.fail);
 
   it("opens a reply intent with the draft when only a numeric target id is present", () => {
     const url = new URL(forYouOpenUrl({ ...base, kind: "reply", targetId: "77" })!);
@@ -139,7 +139,7 @@ describe("forYou helpers", () => {
       forYouOpenUrl({ ...base, kind: "quote", targetUrl: "http://x.com/a/status/9" }),
       "http://x.com/a/status/9",
     );
-  });
+  }).catch(assert.fail);
 
   it("parses digest progress", () => {
     assert.equal(APPROACH_TAB_LABEL, "Approach");
@@ -148,7 +148,7 @@ describe("forYou helpers", () => {
       tracked: 3,
       needed: 5,
     });
-  });
+  }).catch(assert.fail);
 
   it("names the For You row buttons", () => {
     assert.match(FYP_OPEN_TIP, /For You page/);
@@ -158,7 +158,7 @@ describe("forYou helpers", () => {
       X_INSPIRATION_URL,
       "https://x.com/i/jf/creators/inspiration/top_posts",
     );
-  });
+  }).catch(assert.fail);
 
   it("keeps the collapsed wait short and names the expanded action", () => {
     assert.equal(FYP_WAIT_COPY.includes("Like"), false);
@@ -166,7 +166,7 @@ describe("forYou helpers", () => {
     assert.match(FYP_ACTION_COPY, /Reply, original, or quote/);
     assert.match(FYP_ACTION_COPY, /For You or Inspiration/);
     assert.match(FYP_ACTION_COPY, /Likes do not count/);
-  });
+  }).catch(assert.fail);
 
   it("parses extra usage from GET /api/for-you", () => {
     assert.equal(parseForYouExtra(null), null);
@@ -191,5 +191,5 @@ describe("forYou helpers", () => {
       creditsRemaining: 80,
       canExtra: true,
     });
-  });
+  }).catch(assert.fail);
 });

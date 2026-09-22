@@ -1,3 +1,4 @@
+import { isRecord, isOneOf } from "./typeGuards";
 export const FOR_YOU_KINDS = ["post", "quote", "repost", "reply"] as const;
 export type ForYouKind = (typeof FOR_YOU_KINDS)[number];
 
@@ -34,11 +35,11 @@ export type ForYouExtraUsage = {
 };
 
 export function parseForYouExtra(raw: unknown): ForYouExtraUsage | null {
-  if (!raw || typeof raw !== "object") return null;
-  const row = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const row = raw;
   const extra =
-    row.extra && typeof row.extra === "object"
-      ? (row.extra as Record<string, unknown>)
+    isRecord(row.extra)
+      ? row.extra
       : row;
   const num = (value: unknown): number | null =>
     typeof value === "number" && Number.isFinite(value)
@@ -72,8 +73,8 @@ export function parseForYouExtra(raw: unknown): ForYouExtraUsage | null {
 }
 
 export function parseForYouProgress(raw: unknown): ForYouProgress | null {
-  if (!raw || typeof raw !== "object") return null;
-  const row = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const row = raw;
   const tracked =
     typeof row.tracked === "number" && Number.isFinite(row.tracked)
       ? Math.max(0, Math.floor(row.tracked))
@@ -97,10 +98,10 @@ export type ForYouSuggestion = {
 };
 
 export function parseForYouSuggestion(raw: unknown): ForYouSuggestion | null {
-  if (!raw || typeof raw !== "object") return null;
-  const row = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const row = raw;
   const kind = typeof row.kind === "string" ? row.kind : "";
-  if (!(FOR_YOU_KINDS as readonly string[]).includes(kind)) return null;
+  if (!isOneOf(kind, FOR_YOU_KINDS)) return null;
   const id = typeof row.id === "string" ? row.id.trim() : "";
   const why = typeof row.why === "string" ? row.why.trim() : "";
   if (!id || !why) return null;
@@ -108,7 +109,7 @@ export function parseForYouSuggestion(raw: unknown): ForYouSuggestion | null {
     typeof value === "string" && value.trim() ? value.trim() : null;
   return {
     id,
-    kind: kind as ForYouKind,
+    kind,
     why,
     draft: optional(row.draft),
     targetId: optional(row.targetId),

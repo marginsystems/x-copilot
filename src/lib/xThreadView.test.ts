@@ -14,14 +14,14 @@ describe("xThreadView helpers", () => {
     assert.equal(displayHandle("  "), "unknown");
     assert.equal(handleInitial("@chris"), "C");
     assert.equal(handleInitial(""), "?");
-  });
+  }).catch(assert.fail);
 
   it("requires both parent author and text", () => {
     assert.equal(hasParentContext({}), false);
     assert.equal(hasParentContext({ opAuthor: "@a" }), false);
     assert.equal(hasParentContext({ opText: "hello" }), false);
     assert.equal(hasParentContext({ opAuthor: "@a", opText: "hello" }), true);
-  });
+  }).catch(assert.fail);
 
   it("labels quote vs reply", () => {
     assert.equal(parentKind({ isQuote: true }), "quote");
@@ -30,5 +30,5 @@ describe("xThreadView helpers", () => {
     assert.equal(parentKind({ isQuote: true, isReply: true }), "reply");
     assert.equal(parentKind({ isQuote: true, inReplyToId: "1" }), "reply");
     assert.equal(parentKind({}), "reply");
-  });
+  }).catch(assert.fail);
 });

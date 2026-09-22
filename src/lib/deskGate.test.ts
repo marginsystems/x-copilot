@@ -9,7 +9,8 @@ describe("deskNeedsXLink", () => {
     assert.equal(deskNeedsXLink({ xLinked: true }), false);
     assert.equal(deskNeedsXLink({ xLinked: false }), true);
     assert.equal(deskNeedsXLink({}), true);
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("showDeskXGate", () => {
@@ -27,13 +28,13 @@ describe("showDeskXGate", () => {
     assert.equal(showDeskXGate({ ...base, view: "settings" }), true);
     assert.equal(showDeskXGate({ ...base, view: "voice" }), true);
     assert.equal(showDeskXGate({ ...base, view: "analytics" }), true);
-  });
+  }).catch(assert.fail);
 
   it("keeps Account, Usage, and Admin reachable", () => {
     assert.equal(showDeskXGate({ ...base, view: "account" }), false);
     assert.equal(showDeskXGate({ ...base, view: "usage" }), false);
     assert.equal(showDeskXGate({ ...base, view: "admin" }), false);
-  });
+  }).catch(assert.fail);
 
   it("does not replace landing, legal, login, or first-run onboarding", () => {
     assert.equal(showDeskXGate({ ...base, showLanding: true }), false);
@@ -49,5 +50,5 @@ describe("showDeskXGate", () => {
     assert.equal(showDeskXGate({ ...base, needsLogin: true }), false);
     assert.equal(showDeskXGate({ ...base, needsOnboarding: true }), false);
     assert.equal(showDeskXGate({ ...base, needsXLink: false }), false);
-  });
+  }).catch(assert.fail);
 });

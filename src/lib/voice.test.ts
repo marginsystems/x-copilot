@@ -25,11 +25,11 @@ describe("localEditHint", () => {
     assert.ok(localEditHint(draft, `${draft}.`));
     assert.ok(localEditHint(draft, draft.toUpperCase()));
     assert.ok(localEditHint(draft, draft.replace("big", "bag")));
-  });
+  }).catch(assert.fail);
 
   it("flags over-length replies", () => {
     assert.match(localEditHint(draft, "x".repeat(300)) ?? "", /280/);
-  });
+  }).catch(assert.fail);
 
   it("clears on a real rewrite", () => {
     assert.equal(
@@ -39,7 +39,8 @@ describe("localEditHint", () => {
       ),
       null,
     );
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("suggestNoteSlot", () => {
@@ -60,7 +61,7 @@ describe("suggestNoteSlot", () => {
       verifying: true,
     });
     assert.equal(scanning.kind, "reserved");
-  });
+  }).catch(assert.fail);
 
   it("fills the same slot with the verdict instead of mounting a new line", () => {
     const pass = suggestNoteSlot({
@@ -72,7 +73,7 @@ describe("suggestNoteSlot", () => {
     assert.equal(pass.kind, "ok");
     assert.equal(suggestNoteClassName(pass.kind), "suggest-note is-ok");
     assert.match(pass.text, /reworked/);
-  });
+  }).catch(assert.fail);
 
   it("shows the hint while editing and reserves the slot while verifying", () => {
     const editing = suggestNoteSlot({
@@ -93,7 +94,7 @@ describe("suggestNoteSlot", () => {
     });
     assert.equal(scanning.kind, "reserved");
     assert.equal(suggestNoteClassName(scanning.kind), "suggest-note is-reserved");
-  });
+  }).catch(assert.fail);
 
   it("shows a fail verdict and lets the verdict outrank the hint", () => {
     const fail = suggestNoteSlot({
@@ -115,7 +116,8 @@ describe("suggestNoteSlot", () => {
     assert.equal(noteWins.kind, "ok");
     assert.match(noteWins.text, /reworked/);
     assert.doesNotMatch(noteWins.text, /very small touch/);
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("voice state parsing", () => {
@@ -142,7 +144,7 @@ describe("voice state parsing", () => {
     assert.equal(state?.suggests.remaining, 7);
     assert.equal(state?.needsLearn, false);
     assert.equal(parseVoiceState({}), null);
-  });
+  }).catch(assert.fail);
 
   it("parses a tone-only starter card without examples", () => {
     const state = parseVoiceState({
@@ -157,14 +159,15 @@ describe("voice state parsing", () => {
     assert.equal(state?.card?.starter, true);
     assert.equal(state?.card?.tone, "Brief and matter-of-fact.");
     assert.deepEqual(state?.card?.examples, []);
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("voiceUnlockCopy", () => {
   it("explains the 100-post bar when state has not loaded", () => {
     assert.match(voiceUnlockCopy(null), /100 public posts/);
     assert.match(voiceUnlockCopy(null), /hourly/);
-  });
+  }).catch(assert.fail);
 
   it("asks to link X when the API says unlinked", () => {
     assert.equal(
@@ -191,7 +194,8 @@ describe("voiceUnlockCopy", () => {
       }),
       VOICE_LINK_X_COPY,
     );
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("shouldShowVoiceUnlockToast", () => {
@@ -226,7 +230,7 @@ describe("shouldShowVoiceUnlockToast", () => {
       }),
       false,
     );
-  });
+  }).catch(assert.fail);
 
   it("stays hidden without a session", () => {
     assert.equal(
@@ -237,7 +241,7 @@ describe("shouldShowVoiceUnlockToast", () => {
       }),
       false,
     );
-  });
+  }).catch(assert.fail);
 
   it("stays hidden when Suggest is already unlocked", () => {
     assert.equal(
@@ -248,7 +252,7 @@ describe("shouldShowVoiceUnlockToast", () => {
       }),
       false,
     );
-  });
+  }).catch(assert.fail);
 
   it("stays hidden on the impossible ready-but-not-unlocked state", () => {
     assert.equal(
@@ -259,7 +263,7 @@ describe("shouldShowVoiceUnlockToast", () => {
       }),
       false,
     );
-  });
+  }).catch(assert.fail);
 
   it("stays hidden for an already-unlocked user mid-ingest", () => {
     assert.equal(
@@ -270,7 +274,7 @@ describe("shouldShowVoiceUnlockToast", () => {
       }),
       false,
     );
-  });
+  }).catch(assert.fail);
 
   it("shows when a locked user's corpus meaningfully grows", () => {
     assert.equal(
@@ -286,7 +290,7 @@ describe("shouldShowVoiceUnlockToast", () => {
       }),
       true,
     );
-  });
+  }).catch(assert.fail);
 
   it("does not fire merely because locked Voice hydrated", () => {
     assert.equal(
@@ -297,14 +301,15 @@ describe("shouldShowVoiceUnlockToast", () => {
       }),
       false,
     );
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("voiceNeedsXLink", () => {
   it("is true with no official X link and no voice payload yet", () => {
     assert.equal(voiceNeedsXLink(null, null), true);
     assert.equal(voiceNeedsXLink(null, false), true);
-  });
+  }).catch(assert.fail);
 
   it("is false once official X is linked or a voice handle exists", () => {
     assert.equal(voiceNeedsXLink(null, true), false);
@@ -335,7 +340,7 @@ describe("voiceNeedsXLink", () => {
       ),
       false,
     );
-  });
+  }).catch(assert.fail);
 
   it("is true when the API says unlinked with no handle", () => {
     assert.equal(
@@ -365,7 +370,7 @@ describe("voiceNeedsXLink", () => {
       ),
       true,
     );
-  });
+  }).catch(assert.fail);
 
   it("stays true without official X even when a stale corpus exists", () => {
     assert.equal(
@@ -395,7 +400,8 @@ describe("voiceNeedsXLink", () => {
       ),
       true,
     );
-  });
+  }).catch(assert.fail);
+
 });
 
 describe("phase + meter helpers", () => {
@@ -403,13 +409,13 @@ describe("phase + meter helpers", () => {
     assert.equal(phaseIndexAt(LEARN_PHASES, 0), 0);
     assert.equal(phaseIndexAt(LEARN_PHASES, 1900), 1);
     assert.equal(phaseIndexAt(LEARN_PHASES, 60_000), LEARN_PHASES.length - 1);
-  });
+  }).catch(assert.fail);
 
   it("clamps unlock progress", () => {
     assert.equal(unlockProgress({ replyCount: 50, unlockAt: 100 }), 0.5);
     assert.equal(unlockProgress({ replyCount: 300, unlockAt: 100 }), 1);
     assert.equal(unlockProgress({ replyCount: 0, unlockAt: 0 }), 0);
-  });
+  }).catch(assert.fail);
 
   it("labels suggests left", () => {
     assert.match(
@@ -420,5 +426,18 @@ describe("phase + meter helpers", () => {
       suggestsLeftLabel({ used: 10, limit: 10, remaining: 0, canSuggest: false, planKey: "free" }),
       /00:00 UTC/,
     );
-  });
+  }).catch(assert.fail);
+
 });
+
+it("rejects unknown voice statuses and non-string card lists", () => {
+  assert.equal(parseVoiceState({ voice: { status: "unexpected" } }), null);
+  assert.equal(parseVoiceState({ voice: { status: "ready", card: { tone: "dry", examples: [1] } } })?.card, null);
+  const parsed = parseVoiceState({ voice: {
+    status: "ready",
+    card: { tone: "dry", examples: ["hello"], habits: [1], neverDo: [false] },
+  } });
+  assert.deepEqual(parsed?.card, {
+    tone: "dry", typicalLength: "", examples: ["hello"], habits: [], neverDo: [], starter: false,
+  });
+}).catch(assert.fail);

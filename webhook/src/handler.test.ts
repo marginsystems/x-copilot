@@ -9,7 +9,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import { readFile } from "node:fs/promises";
-import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -114,7 +113,7 @@ function listedNotes(dir: string): string[] {
   }
 }
 
-describe("own reply interaction capture", () => {
+await describe("own reply interaction capture", async () => {
   let dir: string;
   const userId = "user-1";
   const nowMs = Date.parse("2026-09-04T03:00:00.000Z");
@@ -155,7 +154,7 @@ describe("own reply interaction capture", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("marks a watched parent and stamps the scout beat", async () => {
+  await it("marks a watched parent and stamps the scout beat", async () => {
     watchThread({
       userId,
       threadId: "parent-1",
@@ -186,7 +185,7 @@ describe("own reply interaction capture", () => {
     assert.match(note, /## Reply[\s\S]*\nreply\n/);
   });
 
-  it("marks a reply to a locked Suggested target as scout", async () => {
+  await it("marks a reply to a locked Suggested target as scout", async () => {
     setScoutApproachLock(userId, {
       id: "parent-1",
       conversationId: "parent-1",
@@ -211,7 +210,7 @@ describe("own reply interaction capture", () => {
     assert.match(note, /## Reply[\s\S]*\nreply\n/);
   });
 
-  it("prunes a matching Scout card but keeps the Approach lock", async () => {
+  await it("prunes a matching Scout card but keeps the Approach lock", async () => {
     watchThread({
       userId,
       threadId: "parent-1",
@@ -250,7 +249,7 @@ describe("own reply interaction capture", () => {
     assert.equal(getScoutApproachLock(userId)?.id, "parent-1");
   });
 
-  it("does not complete a reply lock from a repost", async () => {
+  await it("does not complete a reply lock from a repost", async () => {
     setScoutApproachLock(userId, {
       id: "card-1",
       conversationId: "root-1",
@@ -278,7 +277,7 @@ describe("own reply interaction capture", () => {
     assert.deepEqual(await listInteractionHistory({ userId }), []);
   });
 
-  it("completes a stale repost lock from a reply", async () => {
+  await it("completes a stale repost lock from a reply", async () => {
     const now = new Date(nowMs).toISOString();
     getPlatformDb()
       .prepare(
@@ -311,7 +310,7 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.replyId, "reply-1");
   });
 
-  it("defaults a surface-less lock to reply", () => {
+  await it("defaults a surface-less lock to reply", () => {
     setScoutApproachLock(userId, {
       id: "card-1",
       conversationId: "card-1",
@@ -325,7 +324,7 @@ describe("own reply interaction capture", () => {
     assert.equal(getScoutApproachLock(userId)?.surface, "reply");
   });
 
-  it("completes a legacy reply lock using the migration default", async () => {
+  await it("completes a legacy reply lock using the migration default", async () => {
     const now = new Date(nowMs).toISOString();
     getPlatformDb()
       .prepare(
@@ -356,7 +355,7 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.threadId, "card-1");
   });
 
-  it("marks an unwatched reply and stamps the organic beat", async () => {
+  await it("marks an unwatched reply and stamps the organic beat", async () => {
     assert.equal(
       await markOwnReplyInteracted(post(), userId, { nowMs }),
       "organic",
@@ -372,7 +371,7 @@ describe("own reply interaction capture", () => {
     assert.match(note, /## Reply[\s\S]*\nreply\n/);
   });
 
-  it("attributes an OG reply to the locked Scout card", async () => {
+  await it("attributes an OG reply to the locked Scout card", async () => {
     setScoutApproachLock(userId, {
       id: "card-1",
       conversationId: "card-1",
@@ -396,7 +395,7 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.author, "@scout");
   });
 
-  it("keeps an unrelated reply in the locked Scout conversation organic", async () => {
+  await it("keeps an unrelated reply in the locked Scout conversation organic", async () => {
     setScoutApproachLock(userId, {
       id: "card-1",
       conversationId: "root-1",
@@ -423,7 +422,7 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.threadId, "other-child");
   });
 
-  it("does not steal a reply from a foreign conversation", async () => {
+  await it("does not steal a reply from a foreign conversation", async () => {
     setScoutApproachLock(userId, {
       id: "card-1",
       conversationId: "root-1",
@@ -451,7 +450,7 @@ describe("own reply interaction capture", () => {
     assert.notEqual(row?.threadId, "card-1");
   });
 
-  it("keeps originals out of Interacted", async () => {
+  await it("keeps originals out of Interacted", async () => {
     assert.equal(
       await markOwnReplyInteracted(
         post({ kind: "original", inReplyToId: null, conversationId: null }),
@@ -463,7 +462,7 @@ describe("own reply interaction capture", () => {
     assert.deepEqual(await listInteractionHistory({ userId }), []);
   });
 
-  it("skips a known reply and records another reply in the same thread", async () => {
+  await it("skips a known reply and records another reply in the same thread", async () => {
     await markInteracted({
       threadId: "parent-1",
       author: "@target",
@@ -501,7 +500,7 @@ describe("own reply interaction capture", () => {
     assert.equal(xpAfter.lifetimeXp, xpBefore.lifetimeXp);
   });
 
-  it("keys webhook memory by reply time across a UTC date boundary", async () => {
+  await it("keys webhook memory by reply time across a UTC date boundary", async () => {
     const postedAt = "2026-09-04T23:59:55.000Z";
     const deliveredAt = Date.parse("2026-09-05T00:00:05.000Z");
 
@@ -518,7 +517,7 @@ describe("own reply interaction capture", () => {
     assert.match(listedNotes(dir)[0]!, /^2026-09-04-u[0-9a-f]{64}-h[0-9a-f]{64}\.md$/);
   });
 
-  it("does not overwrite an existing manual note on the known path", async () => {
+  await it("does not overwrite an existing manual note on the known path", async () => {
     await markInteracted({
       threadId: "parent-1",
       author: "@target",
@@ -562,7 +561,7 @@ describe("own reply interaction capture", () => {
     assert.doesNotMatch(note, /webhook retry/);
   });
 
-  it("repairs its own note when another user's note shares the thread and date", async () => {
+  await it("repairs its own note when another user's note shares the thread and date", async () => {
     await markInteracted({
       threadId: "parent-1",
       author: "@target",
@@ -604,7 +603,7 @@ describe("own reply interaction capture", () => {
     assert.equal(listedNotes(dir).length, 2);
   });
 
-  it("repairs when the known path holds an unowned legacy note or a note without reply text", async () => {
+  await it("repairs when the known path holds an unowned legacy note or a note without reply text", async () => {
     await markInteracted({
       threadId: "parent-1",
       author: "@target",
@@ -658,7 +657,7 @@ describe("own reply interaction capture", () => {
     assert.match(await readNote(dir, "parent-1"), /## Reply[\s\S]*\nreply\n/);
   });
 
-  it("repairs one note for a known watched reply without extra XP", async () => {
+  await it("repairs one note for a known watched reply without extra XP", async () => {
     watchThread({
       userId,
       threadId: "parent-1",
@@ -684,7 +683,7 @@ describe("own reply interaction capture", () => {
     assert.equal(xpAfterRepair.lifetimeXp, xpAfterFirst.lifetimeXp);
   });
 
-  it("keeps the mark when confirmed-reply memory cannot be saved", async () => {
+  await it("keeps the mark when confirmed-reply memory cannot be saved", async () => {
     resetInteractionMemoryProjectionForTests({
       writeNote: async () => {
         throw new Error("EACCES: injected filesystem failure");
@@ -707,7 +706,7 @@ describe("own reply interaction capture", () => {
     await assert.rejects(() => readNote(dir, "parent-1"), /ENOENT/);
   });
 
-  it("keeps the mark when scout evidence context cannot be read", async () => {
+  await it("keeps the mark when scout evidence context cannot be read", async () => {
     getPlatformDb().prepare("DROP TABLE scout_target_context").run();
     watchThread({
       userId,
@@ -725,7 +724,7 @@ describe("own reply interaction capture", () => {
     assert.equal(row?.replyId, "reply-1");
   });
 
-  it("keeps a saved note when MiniLM upsert is unavailable", async () => {
+  await it("keeps a saved note when MiniLM upsert is unavailable", async () => {
     resetWebhookMemoryProjectionForTests({
       knowledgeRoot: knowledgeRootFor(dir),
       awaitUpsert: true,
@@ -754,11 +753,13 @@ describe("own reply interaction capture", () => {
     assert.equal((await listInteractionHistory({ userId })).length, 1);
   });
 
-  it("ignores a duplicate event_uuid", async () => {
+  await it("ignores a duplicate event_uuid", async () => {
     const server = createWebhookServer();
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const port = (server.address() as AddressInfo).port;
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const port = address.port;
     const body = JSON.stringify({
       data: {
         event_uuid: "duplicate-event",
@@ -792,7 +793,7 @@ describe("own reply interaction capture", () => {
     }
   });
 
-  it("does not remake or reaward a duplicate reply event", async () => {
+  await it("does not remake or reaward a duplicate reply event", async () => {
     watchThread({
       userId,
       threadId: "parent-1",
@@ -803,7 +804,9 @@ describe("own reply interaction capture", () => {
     const server = createWebhookServer();
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const port = (server.address() as AddressInfo).port;
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const port = address.port;
     const body = JSON.stringify({
       data: {
         event_uuid: "reply-duplicate-event",
@@ -860,7 +863,7 @@ describe("own reply interaction capture", () => {
     }
   });
 
-  it("removes an own post on signed delete and ignores unknown events", async () => {
+  await it("removes an own post on signed delete and ignores unknown events", async () => {
     upsertOwnPost({
       parsed: post({ postId: "delete-me", kind: "original", inReplyToId: null }),
       userId,
@@ -869,7 +872,9 @@ describe("own reply interaction capture", () => {
     const server = createWebhookServer();
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const port = (server.address() as AddressInfo).port;
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const port = address.port;
     const send = (body: string) =>
       fetch(`http://127.0.0.1:${port}/api/x/activity`, {
         method: "POST",
@@ -912,7 +917,7 @@ describe("own reply interaction capture", () => {
     }
   });
 
-  it("does not deduplicate a delete against a create without event_uuid", async () => {
+  await it("does not deduplicate a delete against a create without event_uuid", async () => {
     upsertOwnPost({
       parsed: post({ postId: "fallback-delete", kind: "original", inReplyToId: null }),
       userId,
@@ -921,7 +926,9 @@ describe("own reply interaction capture", () => {
     const server = createWebhookServer();
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const port = (server.address() as AddressInfo).port;
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const port = address.port;
     const send = (body: string) =>
       fetch(`http://127.0.0.1:${port}/api/x/activity`, {
         method: "POST",
@@ -955,7 +962,7 @@ describe("own reply interaction capture", () => {
     }
   });
 
-  it("still 200s when the desk wake fetch throws", async () => {
+  await it("still 200s when the desk wake fetch throws", async () => {
     const original = globalThis.fetch;
     globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
       const url = String(input);
@@ -967,7 +974,9 @@ describe("own reply interaction capture", () => {
     const server = createWebhookServer();
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    const port = (server.address() as AddressInfo).port;
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const port = address.port;
     const body = JSON.stringify({
       data: {
         event_uuid: "wake-fail",

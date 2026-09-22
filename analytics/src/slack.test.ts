@@ -2,8 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { postSlackWebhook } from "./slack.ts";
 
-describe("postSlackWebhook", () => {
-  it("POSTs text JSON to the webhook", async () => {
+await describe("postSlackWebhook", async () => {
+  await it("POSTs text JSON to the webhook", async () => {
     const calls: { url: string; body: string }[] = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       calls.push({ url: String(input), body: String(init?.body ?? "") });
@@ -23,7 +23,7 @@ describe("postSlackWebhook", () => {
     );
   });
 
-  it("returns false on empty url, HTTP error, or throw", async () => {
+  await it("returns false on empty url, HTTP error, or throw", async () => {
     assert.equal(await postSlackWebhook("", "hi"), false);
     const fail: typeof fetch = async () => new Response("nope", { status: 500 });
     assert.equal(

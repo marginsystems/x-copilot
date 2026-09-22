@@ -16,6 +16,8 @@ function fields(v: Record<string, unknown>, keys: string, check: (v: unknown) =>
 function optional(v: Record<string, unknown>, keys: string, check: (v: unknown) => boolean) {
   return fields(v, keys, (value) => value === undefined || check(value));
 }
+function rows<T>(v: unknown, check: (v: unknown) => v is T): v is T[];
+function rows(v: unknown, check: (v: unknown) => boolean): boolean;
 function rows(v: unknown, check: (v: unknown) => boolean) {
   return Array.isArray(v) && v.every(check);
 }
@@ -27,18 +29,23 @@ export function payloadError(v: unknown, fallback: string): string {
   return object(v) && typeof v.message === "string" ? v.message :
     object(v) && typeof v.error === "string" ? v.error : fallback;
 }
-function session(v: unknown) {
+function session(v: unknown): v is PublicSession {
   return object(v) && fields(v, "id createdAt lastSeenAt browser os", string) &&
     nullableString(v.ip) && boolean(v.current);
 }
+function isSessions(v: unknown): v is { sessions: PublicSession[]; signedOut?: boolean } {
+  return envelope(v) && v.ok === true && rows(v.sessions, session) &&
+    optional(v, "signedOut", boolean);
+}
 export function parseSessions(v: unknown): { sessions: PublicSession[]; signedOut?: boolean } | null {
   if (envelope(v) && v.ok === true && v.signedOut === true) return { signedOut: true, sessions: [] };
-  return envelope(v) && v.ok === true && rows(v.sessions, session) &&
-    optional(v, "signedOut", boolean) ? v as { sessions: PublicSession[]; signedOut?: boolean } : null;
+  return isSessions(v) ? v : null;
+}
+function isMail(v: unknown): v is { digestEmailOptIn: boolean; digestEmailAvailable: boolean } {
+  return envelope(v) && fields(v, "digestEmailOptIn digestEmailAvailable", boolean);
 }
 export function parseMail(v: unknown): { digestEmailOptIn: boolean; digestEmailAvailable: boolean } | null {
-  return envelope(v) && fields(v, "digestEmailOptIn digestEmailAvailable", boolean) ?
-    v as { digestEmailOptIn: boolean; digestEmailAvailable: boolean } : null;
+  return isMail(v) ? v : null;
 }
 export function parseAccount(v: unknown): AccountPayload | null {
   return envelope(v) && v.ok === true && object(v.user) &&
@@ -51,7 +58,7 @@ export function parseAccount(v: unknown): AccountPayload | null {
 function activity(v: unknown) {
   return object(v) && fields(v, "used limit remaining", number) && boolean(v.can_watch) && string(v.planKey);
 }
-const kind = (v: unknown) => ["original", "reply", "quote", "repost"].includes(v as string);
+const kind = (v: unknown) => typeof v === "string" && ["original", "reply", "quote", "repost"].includes(v);
 export function parseAnalytics(v: unknown): AnalyticsPayload | null {
   return envelope(v) && object(v.totals) &&
     fields(v.totals, "posts originals replies quotes reposts views likes replyCount retweets bookmarks", number) &&
@@ -64,13 +71,16 @@ export function parseAnalytics(v: unknown): AnalyticsPayload | null {
       fields(r, "text url", nullableString) && kind(r.kind) &&
       fields(r, "views likes replies retweets bookmarks", number)) ? v as AnalyticsPayload : null;
 }
-export function parseUsage(v: unknown): UsageSummaryResponse | null {
-  return envelope(v) && v.ok === true && ["24h", "7d", "all"].includes(v.window as string) &&
+function isUsage(v: unknown): v is UsageSummaryResponse {
+  return envelope(v) && v.ok === true && typeof v.window === "string" && ["24h", "7d", "all"].includes(v.window) &&
     fields(v, "calls creditsUsed creditLimit remaining", number) &&
     optional(v, "tenantSlug note", string) && optional(v, "creditsDepletedRecent", boolean) &&
     rows(v.recent, (r) => object(r) && fields(r, "id at activity", string) &&
       fields(r, "status credits", number) && nullableString(r.error) &&
-      (r.remaining === null || number(r.remaining))) ? v as UsageSummaryResponse : null;
+      (r.remaining === null || number(r.remaining)));
+}
+export function parseUsage(v: unknown): UsageSummaryResponse | null {
+  return isUsage(v) ? v : null;
 }
 export function parseBilling(v: unknown): BillingMe | null {
   if (!envelope(v) || !string(v.plan_key) || !optional(v, "plan_state", string) ||

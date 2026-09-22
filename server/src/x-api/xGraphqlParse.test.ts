@@ -9,8 +9,8 @@ import {
   tweetCardFixtures,
 } from "./xGraphqlParse.test.fixtures.ts";
 
-describe("tweetResultToCard", () => {
-  it("builds author and URL fields from raw tweets", () => {
+await describe("tweetResultToCard", async () => {
+  await it("builds author and URL fields from raw tweets", () => {
     assert.deepEqual(tweetResultToCard(tweetCardFixtures.standard), {
       id: "111",
       author: "@alice",
@@ -24,7 +24,7 @@ describe("tweetResultToCard", () => {
     assert.equal(visible?.url, "https://x.com/bob/status/222");
   });
 
-  it("prefers note_tweet body over short full_text teaser", () => {
+  await it("prefers note_tweet body over short full_text teaser", () => {
     const note = tweetResultToCard(tweetCardFixtures.note);
     assert.ok(note);
     assert.equal(note.longform, "note_tweet");
@@ -32,14 +32,14 @@ describe("tweetResultToCard", () => {
     assert.equal(note.author, "@carol");
   });
 
-  it("marks article payload as longform article", () => {
+  await it("marks article payload as longform article", () => {
     const article = tweetResultToCard(tweetCardFixtures.article);
     assert.ok(article);
     assert.equal(article.longform, "article");
     assert.equal(article.text, "Article teaser only");
   });
 
-  it("marks AutomatedLabel authors as isAutomated", () => {
+  await it("marks AutomatedLabel authors as isAutomated", () => {
     const automated = {
       __typename: "Tweet",
       rest_id: "555",
@@ -125,7 +125,7 @@ describe("tweetResultToCard", () => {
     assert.equal(userIsAutomated(automatedNoType), true);
   });
 
-  it("parses reply metadata and quoted OP context", () => {
+  await it("parses reply metadata and quoted OP context", () => {
     const reply = tweetResultToCard(replyQuoteFixtures.reply);
     assert.ok(reply);
     assert.equal(reply.isReply, true);
@@ -140,7 +140,7 @@ describe("tweetResultToCard", () => {
     assert.match(quote.opText ?? "", /\$632/);
   });
 
-  it("marks a quote of an X Article with opLongform", () => {
+  await it("marks a quote of an X Article with opLongform", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "901",
@@ -169,7 +169,7 @@ describe("tweetResultToCard", () => {
     assert.equal(card.opAuthor, "@qtdevlop");
   });
 
-  it("flags a quote when the quoted tweet has an off-platform link", () => {
+  await it("flags a quote when the quoted tweet has an off-platform link", () => {
     const card = tweetResultToCard({
       __typename: "Tweet",
       rest_id: "901",
