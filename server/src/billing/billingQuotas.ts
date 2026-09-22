@@ -1,6 +1,7 @@
 /**
  * Credit and daily-activity quota gates.
  */
+import { isRecord } from "../platform/unknownValue.js";
 import {
   ensureUserBillingRow,
   ensureUserTenant,
@@ -44,13 +45,13 @@ export const POSTS_READ_EXCLUDING_EXTRA_SQL =
 
 export function countPostsReadThisUtcMonth(tenantId: string): number {
   const since = startOfUtcMonthIso();
-  const row = getPlatformDb()
+  const row = readPostReadCountRow(getPlatformDb()
     .prepare(
       `SELECT COALESCE(SUM(posts_read), 0) AS n
        FROM x_api_usage_events
        WHERE tenant_id = ? AND at >= ? AND ${CREDIT_EVENT_PATH_SQL}`,
     )
-    .get(tenantId, since) as { n: number };
+    .get(tenantId, since));
   return Number(row.n) || 0;
 }
 
@@ -184,4 +185,14 @@ export function suggestCapMessage(
   const next = nextPaidPlanKey(planKey);
   if (!next) return `${base} ${upgradeHint(planKey, reason)}`;
   return `${base} ${planDisplayName(next)} is ${PLAN_DAILY_SUGGESTS[next]}/day — open Usage & Billing.`;
+}
+
+function readPostReadCountRow(value: unknown) {
+  if (!(
+    isRecord(value) &&
+    ("n" in value && typeof value.n === "number")
+  )) throw new TypeError("Invalid database row");
+  return {
+    n: value.n,
+  };
 }

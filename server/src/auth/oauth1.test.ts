@@ -7,8 +7,8 @@ import {
   signatureBaseString,
 } from "./oauth1.ts";
 
-describe("oauth1", () => {
-  it("matches the RFC 5849 photo-print signature", () => {
+await describe("oauth1", async () => {
+  await it("matches the RFC 5849 photo-print signature", () => {
     // https://www.rfc-editor.org/rfc/rfc5849#section-3.4.1
     const params = {
       oauth_consumer_key: "dpf43f3p2l4k3l03",
@@ -39,12 +39,12 @@ describe("oauth1", () => {
     assert.equal(sig, "tR3+Ty81lMeYAr/Fid0kMTYa/WM=");
   });
 
-  it("percent-encodes reserved characters", () => {
+  await it("percent-encodes reserved characters", () => {
     assert.equal(percentEncode("a b"), "a%20b");
     assert.equal(percentEncode("a+b"), "a%2Bb");
   });
 
-  it("parses form-encoded OAuth replies", () => {
+  await it("parses form-encoded OAuth replies", () => {
     const got = parseFormEncoded(
       "oauth_token=abc&oauth_token_secret=s%2Fcret&oauth_callback_confirmed=true",
     );

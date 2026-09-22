@@ -35,7 +35,7 @@ import {
 } from "./sessionStore.ts";
 import { toPublicSession } from "./sessionView.ts";
 
-describe("authStore", () => {
+await describe("authStore", async () => {
   let dir: string;
 
   beforeEach(() => {
@@ -53,7 +53,7 @@ describe("authStore", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("creates a user from google oauth and issues a session", () => {
+  await it("creates a user from google oauth and issues a session", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-1",
@@ -68,7 +68,7 @@ describe("authStore", () => {
     assert.equal(loaded?.email, "alice@example.com");
   });
 
-  it("flags created only for a new users row", () => {
+  await it("flags created only for a new users row", () => {
     const first = upsertOauthIdentity({
       provider: "google",
       providerUserId: "gid-new",
@@ -96,7 +96,7 @@ describe("authStore", () => {
     assert.equal(linked.user.id, first.user.id);
   });
 
-  it("links a second provider onto the same email user", () => {
+  await it("links a second provider onto the same email user", () => {
     const google = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-2",
@@ -115,7 +115,7 @@ describe("authStore", () => {
     assert.equal(x.email, "bob@example.com");
   });
 
-  it("does not link a new provider onto an existing user without a verified email", () => {
+  await it("does not link a new provider onto an existing user without a verified email", () => {
     const google = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-4",
@@ -132,7 +132,7 @@ describe("authStore", () => {
     assert.equal(google.email, "dave@example.com");
   });
 
-  it("links X onto an existing Google user without sharing email", () => {
+  await it("links X onto an existing Google user without sharing email", () => {
     const google = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-link",
@@ -163,7 +163,7 @@ describe("authStore", () => {
     assert.equal(clash.ok, false);
   });
 
-  it("adopts an email-less X-only user when linking X to a Google user", () => {
+  await it("adopts an email-less X-only user when linking X to a Google user", () => {
     const xOnly = upsertOauthUser({
       provider: "x",
       providerUserId: "xid-anon",
@@ -191,7 +191,7 @@ describe("authStore", () => {
     assert.equal(getUserForSessionToken(token), null);
   });
 
-  it("does not adopt an email-less X-only user with a live Stripe subscription", () => {
+  await it("does not adopt an email-less X-only user with a live Stripe subscription", () => {
     const xOnly = upsertOauthUser({
       provider: "x",
       providerUserId: "xid-paid",
@@ -230,7 +230,7 @@ describe("authStore", () => {
     );
   });
 
-  it("revokes sessions", () => {
+  await it("revokes sessions", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-3",
@@ -242,7 +242,7 @@ describe("authStore", () => {
     assert.equal(getUserForSessionToken(token), null);
   });
 
-  it("leaves new users unonboarded until they complete setup", () => {
+  await it("leaves new users unonboarded until they complete setup", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-onboard-1",
@@ -253,7 +253,7 @@ describe("authStore", () => {
     assert.equal(user.agenda, null);
   });
 
-  it("persists agenda and completion timestamp", () => {
+  await it("persists agenda and completion timestamp", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-onboard-2",
@@ -274,7 +274,7 @@ describe("authStore", () => {
     assert.match(again?.agenda ?? "", /evaluation/);
   });
 
-  it("updates agenda without changing onboarding completion", () => {
+  await it("updates agenda without changing onboarding completion", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-agenda-put",
@@ -295,7 +295,7 @@ describe("authStore", () => {
     );
   });
 
-  it("returns null when updating agenda for a missing user", () => {
+  await it("returns null when updating agenda for a missing user", () => {
     assert.equal(
       updateUserAgenda(
         "missing",
@@ -305,14 +305,14 @@ describe("authStore", () => {
     );
   });
 
-  it("returns null when completing onboarding for a missing user", () => {
+  await it("returns null when completing onboarding for a missing user", () => {
     assert.equal(
       completeOnboarding("missing", "Find builders sharing opinions on shipping."),
       null,
     );
   });
 
-  it("stamps X username from X login and skips the handle step", () => {
+  await it("stamps X username from X login and skips the handle step", () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "xid-handle",
@@ -324,7 +324,7 @@ describe("authStore", () => {
     assert.equal(userNeedsXHandle(user), false);
   });
 
-  it("requires official X OAuth for Google-only users", () => {
+  await it("requires official X OAuth for Google-only users", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-handle",
@@ -348,7 +348,7 @@ describe("authStore", () => {
     assert.equal(userNeedsXHandle(getUserById(user.id)!), false);
   });
 
-  it("can stamp a public handle from official X identity helpers", () => {
+  await it("can stamp a public handle from official X identity helpers", () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "xid-settings",
@@ -361,7 +361,7 @@ describe("authStore", () => {
     assert.equal(setUserXUsername("missing", "still_here"), null);
   });
 
-  it("records created IP/UA once and only bumps last-seen on use", () => {
+  await it("records created IP/UA once and only bumps last-seen on use", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-meta",
@@ -400,7 +400,7 @@ describe("authStore", () => {
     assert.equal(after.lastSeenUserAgent, "RefreshUA/2.0");
   });
 
-  it("does not backfill created IP/UA for sessions missing a meta row", () => {
+  await it("does not backfill created IP/UA for sessions missing a meta row", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-meta-fallback",
@@ -425,7 +425,7 @@ describe("authStore", () => {
     assert.equal(listed.lastSeenUserAgent, "RefreshUA/2.0");
   });
 
-  it("lists only this user's sessions and never exposes a token hash", () => {
+  await it("lists only this user's sessions and never exposes a token hash", () => {
     const alice = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-alice-sess",
@@ -450,7 +450,7 @@ describe("authStore", () => {
     assert.equal("tokenHash" in listed[0], false);
   });
 
-  it("revokes by id only when the session belongs to that user", () => {
+  await it("revokes by id only when the session belongs to that user", () => {
     const alice = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-alice-rev",
@@ -472,7 +472,7 @@ describe("authStore", () => {
     assert.ok(getUserForSessionToken(eveSess.token));
   });
 
-  it("revokes other sessions and keeps this device", () => {
+  await it("revokes other sessions and keeps this device", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-keep",
@@ -489,7 +489,7 @@ describe("authStore", () => {
     assert.equal(listed[0].id, keep.id);
   });
 
-  it("lists linked providers without provider user ids", () => {
+  await it("lists linked providers without provider user ids", () => {
     const user = upsertOauthUser({
       provider: "google",
       providerUserId: "gid-providers",
@@ -519,7 +519,7 @@ describe("authStore", () => {
     );
   });
 
-  it("exposes xCanPost only after X write tokens are saved", () => {
+  await it("exposes xCanPost only after X write tokens are saved", () => {
     const user = upsertOauthUser({
       provider: "x",
       providerUserId: "xid-write",

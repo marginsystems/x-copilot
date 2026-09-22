@@ -33,8 +33,8 @@ const created = "2026-08-25T00:00:00.000Z";
 const day6 = new Date("2026-08-30T23:59:59.000Z");
 const day7 = new Date("2026-09-01T00:00:00.000Z");
 
-describe("first-week Pulse", () => {
-  it("is active until the 7th UTC day, then Free", () => {
+await describe("first-week Pulse", async () => {
+  await it("is active until the 7th UTC day, then Free", () => {
     assert.equal(firstWeekPulseActive(created, day6), true);
     assert.equal(firstWeekPulseActive(created, day7), false);
     assert.equal(firstWeekPulseActive(null, day6), false);
@@ -42,7 +42,7 @@ describe("first-week Pulse", () => {
     assert.equal(FIRST_WEEK_MS, 7 * 24 * 60 * 60 * 1000);
   });
 
-  it("gives Pulse limits to a new free account", () => {
+  await it("gives Pulse limits to a new free account", () => {
     const resolved = resolvePlan(row({ userCreatedAt: created }), "a@b.com", day6);
     assert.equal(resolved.planKey, "pulse");
     assert.equal(resolved.reason, "first_week");
@@ -50,14 +50,14 @@ describe("first-week Pulse", () => {
     assert.match(firstWeekPulseNotice(resolved.firstWeekEndsAt!), /September 1, 2026/);
   });
 
-  it("drops to Free after the week", () => {
+  await it("drops to Free after the week", () => {
     assert.equal(
       effectivePlanKey(row({ userCreatedAt: created }), "a@b.com", day7),
       "free",
     );
   });
 
-  it("lets live Stripe, admin, and grants win", () => {
+  await it("lets live Stripe, admin, and grants win", () => {
     assert.equal(
       resolvePlan(
         row({

@@ -1,6 +1,7 @@
 /**
  * OAuth account identities in the platform SQLite DB.
  */
+import { isRecord, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
 import { randomUUID } from "node:crypto";
 import {
   getUserByEmail,
@@ -36,22 +37,12 @@ export function findOauthAccount(
   provider: "google" | "x",
   providerUserId: string,
 ): OauthAccount | null {
-  const row = getPlatformDb()
+  const row = readOauthAccountRowOrUndefined(getPlatformDb()
     .prepare(
       `SELECT id, user_id, provider, provider_user_id, email, username, created_at
        FROM oauth_accounts WHERE provider = ? AND provider_user_id = ?`,
     )
-    .get(provider, providerUserId) as
-    | {
-        id: string;
-        user_id: string;
-        provider: "google" | "x";
-        provider_user_id: string;
-        email: string | null;
-        username: string | null;
-        created_at: string;
-      }
-    | undefined;
+    .get(provider, providerUserId));
   if (!row) return null;
   return {
     id: row.id,
@@ -276,7 +267,7 @@ export function linkOauthToUser(opts: {
   } catch (err) {
     // A concurrent callback can win the UNIQUE(provider, provider_user_id)
     // race after our existence check. Surface it as already_linked, not a 500.
-    const code = err instanceof Error ? (err as { code?: unknown }).code : undefined;
+    const code = err instanceof Error && "code" in err ? err.code : undefined;
     if (typeof code !== "string" || !code.startsWith("SQLITE_CONSTRAINT")) {
       throw err;
     }
@@ -292,16 +283,50 @@ export function listOauthProviders(userId: string): LinkedOauthProvider[] {
        WHERE user_id = ?
        ORDER BY created_at ASC`,
     )
-    .all(userId) as Array<{
-    provider: string;
-    username: string | null;
-    email: string | null;
-  }>;
+    .all(userId).map(readOauthProvidersRow);
   return rows
-    .filter((row) => row.provider === "google" || row.provider === "x")
+    .filter((row): row is typeof row & { provider: "google" | "x" } => row.provider === "google" || row.provider === "x")
     .map((row) => ({
-      provider: row.provider as "google" | "x",
+      provider: row.provider,
       username: row.username,
       email: row.email,
     }));
+}
+
+function readOauthAccountRow(value: unknown): {
+  id: string;
+  user_id: string;
+  provider: "google" | "x";
+  provider_user_id: string;
+  email: string | null;
+  username: string | null;
+  created_at: string;
+} {
+  if (!(
+    isRecord(value) &&
+    hasStrings(value, "id", "user_id", "provider_user_id", "created_at") &&
+    hasNullableStrings(value, "email", "username") &&
+    ("provider" in value && (value.provider === "google" || value.provider === "x"))
+  )) throw new TypeError("Invalid database row");
+  return {
+    id: value.id,
+    user_id: value.user_id,
+    provider: value.provider,
+    provider_user_id: value.provider_user_id,
+    email: value.email,
+    username: value.username,
+    created_at: value.created_at,
+  };
+}
+
+function readOauthAccountRowOrUndefined(value: unknown) {
+  return value === undefined ? undefined : readOauthAccountRow(value);
+}
+
+function readOauthProvidersRow(value: unknown) {
+  if (!(
+    hasStrings(value, "provider") &&
+    hasNullableStrings(value, "username", "email")
+  )) throw new TypeError("Invalid database row");
+  return value;
 }

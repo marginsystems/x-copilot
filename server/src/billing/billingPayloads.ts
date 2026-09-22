@@ -1,6 +1,7 @@
 /**
  * Billing view payloads for /api/billing/me and the admin tenant table.
  */
+import { isRecord, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
 import { isAdminEmail } from "./adminEmails.js";
 import {
   CREDIT_EVENT_PATH_SQL,
@@ -181,32 +182,16 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
        ) agg ON agg.tenant_id = t.id
        ORDER BY posts_read DESC, t.created_at ASC`,
     )
-    .all(since) as Array<{
-    tenant_id: string;
-    slug: string;
-    name: string;
-    created_at: string;
-    user_id: string | null;
-    email: string | null;
-    user_created_at: string | null;
-    plan_key: string | null;
-    subscription_status: string | null;
-    stripe_subscription_id: string | null;
-    grant_plan_key: string | null;
-    grant_created_at: string | null;
-    grant_created_by: string | null;
-    posts_read: number;
-    cost_usd_micros: number;
-  }>;
+    .all(since).map(readAdminTenantUsageRow);
 
   return rows.map((r) => {
-    const grantPlanKey = isPaidPlanKey(r.grant_plan_key ?? "")
-      ? (r.grant_plan_key as PaidPlanKey)
+    const grantPlanKey = r.grant_plan_key !== null && isPaidPlanKey(r.grant_plan_key)
+      ? r.grant_plan_key
       : null;
     const billing: UserBillingRow = {
       userId: r.user_id ?? "",
       tenantId: r.tenant_id,
-      planKey: isPaidPlanKey(r.plan_key ?? "") ? (r.plan_key as PaidPlanKey) : "free",
+      planKey: r.plan_key !== null && isPaidPlanKey(r.plan_key) ? r.plan_key : "free",
       stripeCustomerId: null,
       stripeSubscriptionId: r.stripe_subscription_id,
       subscriptionStatus: r.subscription_status,
@@ -241,4 +226,31 @@ export function listAdminTenantUsage(): AdminTenantUsage[] {
       creditLimit: creditLimitForPlan(planKey),
     };
   });
+}
+
+function readAdminTenantUsageRow(value: unknown) {
+  if (!(
+    isRecord(value) &&
+    hasStrings(value, "tenant_id", "slug", "name", "created_at") &&
+    hasNullableStrings(value, "user_id", "email", "user_created_at", "plan_key", "subscription_status", "stripe_subscription_id", "grant_plan_key", "grant_created_at", "grant_created_by") &&
+    ("posts_read" in value && typeof value.posts_read === "number") &&
+    ("cost_usd_micros" in value && typeof value.cost_usd_micros === "number")
+  )) throw new TypeError("Invalid database row");
+  return {
+    tenant_id: value.tenant_id,
+    slug: value.slug,
+    name: value.name,
+    created_at: value.created_at,
+    user_id: value.user_id,
+    email: value.email,
+    user_created_at: value.user_created_at,
+    plan_key: value.plan_key,
+    subscription_status: value.subscription_status,
+    stripe_subscription_id: value.stripe_subscription_id,
+    grant_plan_key: value.grant_plan_key,
+    grant_created_at: value.grant_created_at,
+    grant_created_by: value.grant_created_by,
+    posts_read: value.posts_read,
+    cost_usd_micros: value.cost_usd_micros,
+  };
 }

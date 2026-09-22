@@ -2,6 +2,7 @@
  * Stripe Checkout, Customer Portal, webhook, and GET /api/billing/me.
  * Missing Stripe env → 503 stripe_not_configured (API still boots).
  */
+import { objectValue } from "../platform/unknownValue.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import Stripe from "stripe";
 import { frontendOrigin } from "../auth/authConfig.js";
@@ -61,10 +62,10 @@ function readRawBody(req: IncomingMessage, max = BODY_CAP_1MB): Promise<Buffer> 
 }
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
-  return (await readBody(req, {
+  return objectValue(await readBody(req, {
     maxBytes: BODY_CAP_1MB,
     requireObject: true,
-  })) as Record<string, unknown>;
+  }));
 }
 
 function stripeClient(): Stripe | null {
@@ -94,11 +95,12 @@ function periodFieldsFromSubscription(subscription: Stripe.Subscription): {
 } {
   const topLevel = (subscription as { current_period_end?: number })
     .current_period_end;
-  const item = subscription.items?.data?.[0] as
-    | { current_period_end?: number }
-    | undefined;
+  const item = subscription.items?.data?.[0];
+  const itemPeriodEnd = item && "current_period_end" in item && typeof item.current_period_end === "number"
+    ? item.current_period_end
+    : undefined;
   return {
-    currentPeriodEnd: stripeUnixToIso(topLevel ?? item?.current_period_end),
+    currentPeriodEnd: stripeUnixToIso(topLevel ?? itemPeriodEnd),
     cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
   };
 }

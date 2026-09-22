@@ -1,6 +1,7 @@
 /**
  * First-run onboarding: answers → 2–3 Scout agendas, then persist the pick.
  */
+import { objectValue, isRecord } from "../platform/unknownValue.js";
 import {
   addTokenUsage,
   chatCompletions,
@@ -121,9 +122,7 @@ export function parseOnboardingAgendasJson(
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) return null;
   try {
-    const data = JSON.parse(text.slice(start, end + 1)) as {
-      agendas?: unknown;
-    };
+    const data = objectValue(JSON.parse(text.slice(start, end + 1)));
     return validateOnboardingAgendas(data.agendas);
   } catch {
     return null;
@@ -136,8 +135,8 @@ export function validateOnboardingAgendas(
   if (!Array.isArray(value)) return null;
   const cleaned: OnboardingAgenda[] = [];
   for (const item of value) {
-    if (!item || typeof item !== "object") continue;
-    const row = item as Record<string, unknown>;
+    if (!isRecord(item)) continue;
+    const row = item;
     const title =
       typeof row.title === "string" ? row.title.trim().slice(0, 80) : "";
     const body = typeof row.body === "string" ? row.body.trim() : "";

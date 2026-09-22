@@ -52,13 +52,13 @@ function isTrustedProxyPeer(address: string | undefined): boolean {
 }
 
 function forwardedProto(req: IncomingMessage): string {
-  const socket = req.socket as { encrypted?: boolean };
+  const socket = req.socket;
   if (isTrustedProxyPeer(req.socket.remoteAddress)) {
     const raw = req.headers["x-forwarded-proto"];
     const first = (Array.isArray(raw) ? raw[0] : raw)?.split(",")[0]?.trim();
     if (first) return first.toLowerCase();
   }
-  return socket.encrypted ? "https" : "http";
+  return "encrypted" in socket && socket.encrypted ? "https" : "http";
 }
 
 function requestHost(req: IncomingMessage): string {

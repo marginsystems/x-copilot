@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { resolveDetectScreenName } from "../desk/detectReply.ts";
 import { normalizeXHandle, parseXHandle } from "./xHandle.ts";
 
-describe("parseXHandle", () => {
-  it("strips @ and accepts legal handles", () => {
+await describe("parseXHandle", async () => {
+  await it("strips @ and accepts legal handles", () => {
     assert.equal(parseXHandle("@MarginSystems"), "MarginSystems");
     assert.equal(parseXHandle("  a_b1  "), "a_b1");
     assert.equal(normalizeXHandle("@@foo"), "foo");
   });
 
-  it("rejects empty, overlong, or illegal characters", () => {
+  await it("rejects empty, overlong, or illegal characters", () => {
     assert.equal(parseXHandle(""), null);
     assert.equal(parseXHandle("@"), null);
     assert.equal(parseXHandle("thisnameistoolong1"), null);
@@ -20,8 +20,8 @@ describe("parseXHandle", () => {
   });
 });
 
-describe("resolveDetectScreenName", () => {
-  it("uses only the signed-in user's handle", () => {
+await describe("resolveDetectScreenName", async () => {
+  await it("uses only the signed-in user's handle", () => {
     assert.equal(resolveDetectScreenName("@alice"), "alice");
     assert.equal(resolveDetectScreenName(null), null);
     assert.equal(resolveDetectScreenName(""), null);

@@ -1,32 +1,33 @@
 /**
  * Verified X identity and write credentials on oauth_accounts.
  */
+import { optionalNullableStringRow, optionalStringRow } from "../platform/unknownValue.js";
 import type { AuthUser } from "./authStore.js";
 import { getPlatformDb } from "../db.js";
 import { parseXHandle } from "./xHandle.js";
 
 export function getXOauthUsername(userId: string): string | null {
-  const row = getPlatformDb()
+  const row = optionalNullableStringRow(getPlatformDb()
     .prepare(
       `SELECT username FROM oauth_accounts
        WHERE user_id = ? AND provider = 'x' AND username IS NOT NULL
        ORDER BY created_at DESC
        LIMIT 1`,
     )
-    .get(userId) as { username: string | null } | undefined;
+    .get(userId), "username");
   return parseXHandle(row?.username ?? "") ?? null;
 }
 
 /** The X user id the user actually proved via OAuth (oauth_accounts row). */
 export function getXOauthXUserId(userId: string): string | null {
-  const row = getPlatformDb()
+  const row = optionalStringRow(getPlatformDb()
     .prepare(
       `SELECT provider_user_id FROM oauth_accounts
        WHERE user_id = ? AND provider = 'x' AND provider_user_id IS NOT NULL
        ORDER BY created_at DESC
        LIMIT 1`,
     )
-    .get(userId) as { provider_user_id: string } | undefined;
+    .get(userId), "provider_user_id");
   return row?.provider_user_id?.trim() || null;
 }
 
@@ -39,7 +40,7 @@ export function findUserIdByXUsername(username: string): string | null {
   const handle = parseXHandle(username);
   if (!handle) return null;
   const key = handle.toLowerCase();
-  const oauth = getPlatformDb()
+  const oauth = optionalStringRow(getPlatformDb()
     .prepare(
       `SELECT user_id FROM oauth_accounts
        WHERE provider = 'x'
@@ -47,7 +48,7 @@ export function findUserIdByXUsername(username: string): string | null {
          AND (lower(TRIM(username)) = ? OR lower(TRIM(username)) = '@' || ?)
        LIMIT 1`,
     )
-    .get(key, key) as { user_id: string } | undefined;
+    .get(key, key), "user_id");
   return oauth?.user_id ?? null;
 }
 
@@ -58,9 +59,9 @@ export function stampXUsername(
 ): void {
   const handle = parseXHandle(username ?? "");
   if (!handle) return;
-  const row = database
+  const row = optionalNullableStringRow(database
     .prepare(`SELECT x_username FROM users WHERE id = ?`)
-    .get(userId) as { x_username: string | null } | undefined;
+    .get(userId), "x_username");
   const current = parseXHandle(row?.x_username ?? "") ?? "";
   if (current && current.toLowerCase() !== handle.toLowerCase()) {
     return;
@@ -76,7 +77,7 @@ export type XWriteCreds = {
 };
 
 export function getXWriteCreds(userId: string): XWriteCreds | null {
-  const row = getPlatformDb()
+  const row = optionalStringRow(getPlatformDb()
     .prepare(
       `SELECT access_token AS token, access_token_secret AS secret
          FROM oauth_accounts
@@ -86,7 +87,7 @@ export function getXWriteCreds(userId: string): XWriteCreds | null {
         ORDER BY created_at DESC
         LIMIT 1`,
     )
-    .get(userId) as { token: string; secret: string } | undefined;
+    .get(userId), "token", "secret");
   if (!row?.token?.trim() || !row.secret?.trim()) return null;
   return { token: row.token, secret: row.secret };
 }

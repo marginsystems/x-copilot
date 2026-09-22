@@ -11,33 +11,33 @@ import {
   validateOnboardingAnswers,
 } from "./onboarding.ts";
 
-describe("validateAgendaText", () => {
-  it("accepts a trimmed agenda in range", () => {
+await describe("validateAgendaText", async () => {
+  await it("accepts a trimmed agenda in range", () => {
     const agenda = "Find builders sharing opinions on shipping AI tools in public.";
     const parsed = validateAgendaText(`  ${agenda}  `);
     assert.deepEqual(parsed, { ok: true, agenda });
   });
 
-  it("rejects short or missing text", () => {
+  await it("rejects short or missing text", () => {
     assert.equal(validateAgendaText("too short").ok, false);
     assert.equal(validateAgendaText("   ").ok, false);
     assert.equal(validateAgendaText(null).ok, false);
     assert.equal(validateAgendaText(1).ok, false);
   });
 
-  it("rejects overlong text", () => {
+  await it("rejects overlong text", () => {
     const parsed = validateAgendaText("x".repeat(MAX_AGENDA_CHARS + 1));
     assert.equal(parsed.ok, false);
     if (!parsed.ok) assert.equal(parsed.error, "agenda_too_long");
   });
 
-  it("documents the minimum length", () => {
+  await it("documents the minimum length", () => {
     assert.equal(MIN_AGENDA_CHARS, 40);
   });
 });
 
-describe("validateOnboardingAnswers", () => {
-  it("trims, dedupes, and requires all three lists", () => {
+await describe("validateOnboardingAnswers", async () => {
+  await it("trims, dedupes, and requires all three lists", () => {
     const parsed = validateOnboardingAnswers({
       topics: ["  AI  ", "AI", "startups"],
       goals: ["Find threads worth a reply"],
@@ -52,11 +52,11 @@ describe("validateOnboardingAnswers", () => {
   });
 });
 
-describe("parseOnboardingAgendasJson", () => {
+await describe("parseOnboardingAgendasJson", async () => {
   const longEnough =
     "Find founders sharing concrete takes on shipping. Prefer a point of view. Skip empty polls.";
 
-  it("parses fenced JSON and forces exactly one recommended", () => {
+  await it("parses fenced JSON and forces exactly one recommended", () => {
     const parsed = parseOnboardingAgendasJson(
       `\`\`\`json
 {"agendas":[
@@ -71,7 +71,7 @@ describe("parseOnboardingAgendasJson", () => {
     assert.equal(parsed?.[0].recommended, true);
   });
 
-  it("defaults the first card when none are recommended", () => {
+  await it("defaults the first card when none are recommended", () => {
     const parsed = validateOnboardingAgendas([
       { title: "A", body: longEnough },
       { title: "B", body: longEnough },
@@ -80,7 +80,7 @@ describe("parseOnboardingAgendasJson", () => {
     assert.equal(parsed?.[1].recommended, false);
   });
 
-  it("rejects fewer than two valid agendas", () => {
+  await it("rejects fewer than two valid agendas", () => {
     assert.equal(
       parseOnboardingAgendasJson(`{"agendas":[{"title":"Only","body":"${longEnough}"}]}`),
       null,
@@ -88,8 +88,8 @@ describe("parseOnboardingAgendasJson", () => {
   });
 });
 
-describe("fallbackAgendas", () => {
-  it("returns three distinct Scout-ready agendas", () => {
+await describe("fallbackAgendas", async () => {
+  await it("returns three distinct Scout-ready agendas", () => {
     const agendas = fallbackAgendas({
       topics: ["AI"],
       goals: ["Find threads worth a reply"],

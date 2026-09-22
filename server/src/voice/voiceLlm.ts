@@ -2,6 +2,7 @@
  * DeepSeek v4-flash voice work: style card, one reply draft, and the
  * edit-verify sign-off. Prompts see the user's own public posts only.
  */
+import { isRecord, objectValue, isArrayOf, isString } from "../platform/unknownValue.js";
 import {
   chatCompletions,
   resolveFlashModel,
@@ -56,8 +57,8 @@ function stringList(value: unknown, max: number): string[] {
 }
 
 export function parseVoiceCardJson(raw: string): VoiceCard | null {
-  const data = extractJsonObject(raw) as Record<string, unknown> | null;
-  if (!data) return null;
+  const data = extractJsonObject(raw);
+  if (!isRecord(data)) return null;
   const tone = typeof data.tone === "string" ? data.tone.trim() : "";
   const typicalLength =
     typeof data.typicalLength === "string"
@@ -73,8 +74,8 @@ export function parseVoiceCardJson(raw: string): VoiceCard | null {
 }
 
 export function parseStarterVoiceCardJson(raw: string): VoiceCard | null {
-  const data = extractJsonObject(raw) as Record<string, unknown> | null;
-  if (!data) return null;
+  const data = extractJsonObject(raw);
+  if (!isRecord(data)) return null;
   const tone = typeof data.tone === "string" ? data.tone.trim() : "";
   if (!tone) return null;
   return {
@@ -173,8 +174,8 @@ const SLOP_RETRY_COMPOSE = `Rewrite that post. Stay in the voice card. No em das
 
 function cardAllowsContrastCadence(cardJson: string): boolean {
   try {
-    const card = JSON.parse(cardJson) as VoiceCard;
-    return (card.examples ?? []).some((example) =>
+    const card = objectValue(JSON.parse(cardJson));
+    return isArrayOf(card.examples, isString) && card.examples.some((example) =>
       textUsesContrastCadence(example),
     );
   } catch {
@@ -284,8 +285,8 @@ export async function suggestReply(opts: {
 export type VerifyVerdict = { ok: boolean; reason: string };
 
 export function parseVerifyJson(raw: string): VerifyVerdict | null {
-  const data = extractJsonObject(raw) as Record<string, unknown> | null;
-  if (!data || typeof data.ok !== "boolean") return null;
+  const data = extractJsonObject(raw);
+  if (!isRecord(data) || typeof data.ok !== "boolean") return null;
   const reason = typeof data.reason === "string" ? data.reason.trim() : "";
   return { ok: data.ok, reason };
 }
@@ -341,8 +342,8 @@ Return ONLY JSON: {"options":["short side 1","short side 2","short side 3"]}
 Rules: each option is under 8 words, names a real take (lean in harder, push back, a sharper claim, a different example), no em dashes, no "this isn't X" templates. Always return at least two options.`;
 
 export function parseStanceOptions(raw: string): string[] {
-  const data = extractJsonObject(raw) as { options?: unknown } | null;
-  if (!data || !Array.isArray(data.options)) return [];
+  const data = extractJsonObject(raw);
+  if (!isRecord(data) || !Array.isArray(data.options)) return [];
   const seen = new Set<string>();
   const out: string[] = [];
   for (const item of data.options) {

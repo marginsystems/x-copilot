@@ -32,8 +32,8 @@ function tweet(
   };
 }
 
-describe("parseUserTweetsPage", () => {
-  it("keeps originals, self-replies, and replies; drops retweets", () => {
+await describe("parseUserTweetsPage", async () => {
+  await it("keeps originals, self-replies, and replies; drops retweets", () => {
     const page = parseUserTweetsPage(
       {
         data: [
@@ -66,7 +66,7 @@ describe("parseUserTweetsPage", () => {
     assert.equal(page.replies[0]?.kind, "reply");
   });
 
-  it("labels a quote as quote, not original", () => {
+  await it("labels a quote as quote, not original", () => {
     const page = parseUserTweetsPage(
       {
         data: [
@@ -84,15 +84,15 @@ describe("parseUserTweetsPage", () => {
     assert.equal(page.replies[0]?.inReplyToId, null);
   });
 
-  it("tolerates an empty timeline", () => {
+  await it("tolerates an empty timeline", () => {
     const page = parseUserTweetsPage({ meta: { result_count: 0 } }, OWN_ID);
     assert.deepEqual(page.replies, []);
     assert.equal(page.nextToken, null);
   });
 });
 
-describe("pullOwnReplies", () => {
-  it("takes one page of posts and passes since_id", async () => {
+await describe("pullOwnReplies", async () => {
+  await it("takes one page of posts and passes since_id", async () => {
     const calls: Array<Record<string, string | undefined>> = [];
     const get: XApiGetFn = async (opts) => {
       calls.push(opts.query ?? {});
@@ -122,7 +122,7 @@ describe("pullOwnReplies", () => {
     assert.equal(calls[0]?.max_results, "100");
   });
 
-  it("asks X for five tweets when the confirm target is five", async () => {
+  await it("asks X for five tweets when the confirm target is five", async () => {
     const calls: Array<Record<string, string | undefined>> = [];
     const get: XApiGetFn = async (opts) => {
       calls.push(opts.query ?? {});
@@ -141,7 +141,7 @@ describe("pullOwnReplies", () => {
     assert.equal(calls[0]?.max_results, "5");
   });
 
-  it("does not walk a second page even when the first is short", async () => {
+  await it("does not walk a second page even when the first is short", async () => {
     let n = 0;
     const get: XApiGetFn = async () => {
       n += 1;
@@ -166,7 +166,7 @@ describe("pullOwnReplies", () => {
     }
   });
 
-  it("marks completed when the timeline is exhausted below target", async () => {
+  await it("marks completed when the timeline is exhausted below target", async () => {
     const get: XApiGetFn = async () => ({
       ok: true,
       status: 200,
@@ -182,7 +182,7 @@ describe("pullOwnReplies", () => {
     }
   });
 
-  it("surfaces a first-page failure", async () => {
+  await it("surfaces a first-page failure", async () => {
     const get: XApiGetFn = async () => ({
       ok: false,
       status: 429,
@@ -194,7 +194,7 @@ describe("pullOwnReplies", () => {
     if (!result.ok) assert.equal(result.error, "rate_limited");
   });
 
-  it("never requests a later page so a mid-walk 429 cannot happen", async () => {
+  await it("never requests a later page so a mid-walk 429 cannot happen", async () => {
     let n = 0;
     const get: XApiGetFn = async () => {
       n += 1;
@@ -220,8 +220,8 @@ describe("pullOwnReplies", () => {
   });
 });
 
-describe("resolveXUser", () => {
-  it("returns id and protected flag", async () => {
+await describe("resolveXUser", async () => {
+  await it("returns id and protected flag", async () => {
     const get: XApiGetFn = async () => ({
       ok: true,
       status: 200,
@@ -236,7 +236,7 @@ describe("resolveXUser", () => {
     });
   });
 
-  it("maps a missing user to x_user_not_found", async () => {
+  await it("maps a missing user to x_user_not_found", async () => {
     const get: XApiGetFn = async () => ({
       ok: true,
       status: 200,

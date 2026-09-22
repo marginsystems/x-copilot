@@ -6,8 +6,8 @@ import {
   googleClientConfig,
 } from "./authConfig.ts";
 
-describe("authConfig", () => {
-  it("picks FRONTEND_ORIGIN then first https allowed origin", () => {
+await describe("authConfig", async () => {
+  await it("picks FRONTEND_ORIGIN then first https allowed origin", () => {
     assert.equal(
       frontendOrigin({ FRONTEND_ORIGIN: "https://xcopilot.dev/" }),
       "https://xcopilot.dev",
@@ -21,14 +21,14 @@ describe("authConfig", () => {
     assert.equal(frontendOrigin({}), "http://127.0.0.1:5173");
   });
 
-  it("sends a successful login to the desk, not the landing page", () => {
+  await it("sends a successful login to the desk, not the landing page", () => {
     assert.equal(
       authSuccessRedirect({ FRONTEND_ORIGIN: "https://xcopilot.dev" }),
       "https://xcopilot.dev/dashboard?auth=ok",
     );
   });
 
-  it("defaults the Google redirect URI to the API host (loopback, like X)", () => {
+  await it("defaults the Google redirect URI to the API host (loopback, like X)", () => {
     const local = googleClientConfig({
       GOOGLE_CLIENT_ID: "cid",
       GOOGLE_CLIENT_SECRET: "sec",

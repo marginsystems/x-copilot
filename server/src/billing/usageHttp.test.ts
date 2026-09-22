@@ -1,9 +1,10 @@
+import { testRequest, testResponse, expectRecord } from "../http/http.testHelpers.js";
+
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { authRequired, isPublicApiPath } from "../auth/authGuard.ts";
 import {
   defaultMigrationsDir,
@@ -15,21 +16,12 @@ import { tryHandleUsage } from "./usageHttp.ts";
 async function get(
   path: string,
 ): Promise<{ handled: boolean; status: number; body: Record<string, unknown> }> {
-  let status = 0;
-  let raw = "";
-  const req = {
+  const req = Object.assign(testRequest(), {
     method: "GET",
-    headers: {},
-    socket: { remoteAddress: "127.0.0.1" },
-  } as unknown as IncomingMessage;
-  const res = {
-    writeHead: (code: number) => {
-      status = code;
-    },
-    end: (chunk: string) => {
-      raw = chunk;
-    },
-  } as unknown as ServerResponse;
+    headers: {}
+  });
+  Object.defineProperty(req.socket, "remoteAddress", { value: "127.0.0.1" });
+  const { res, captured } = testResponse(req);
   const handled = await tryHandleUsage(
     req,
     res,
@@ -37,12 +29,12 @@ async function get(
   );
   return {
     handled,
-    status,
-    body: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+    status: captured.status,
+    body: captured.raw ? (expectRecord(JSON.parse(captured.raw))) : {},
   };
 }
 
-describe("usageHttp", () => {
+await describe("usageHttp", async () => {
   const prevAuth = process.env.AUTH_REQUIRED;
   let dir: string;
 
@@ -64,7 +56,7 @@ describe("usageHttp", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("GET /api/health without a cookie is 200 when AUTH_REQUIRED is on", async () => {
+  await it("GET /api/health without a cookie is 200 when AUTH_REQUIRED is on", async () => {
     assert.equal(authRequired(), true);
     assert.equal(isPublicApiPath("/api/health"), true);
     const { handled, status, body } = await get("/api/health");
@@ -75,7 +67,7 @@ describe("usageHttp", () => {
     assert.equal(typeof body.deepseekConfigured, "boolean");
   });
 
-  it("GET /health without a cookie is 200 when AUTH_REQUIRED is on", async () => {
+  await it("GET /health without a cookie is 200 when AUTH_REQUIRED is on", async () => {
     assert.equal(authRequired(), true);
     assert.equal(isPublicApiPath("/health"), true);
     const { handled, status, body } = await get("/health");
@@ -84,14 +76,14 @@ describe("usageHttp", () => {
     assert.equal(body.ok, true);
   });
 
-  it("GET /api/usage returns the tenant view", async () => {
+  await it("GET /api/usage returns the tenant view", async () => {
     const { handled, status, body } = await get("/api/usage");
     assert.equal(handled, true);
     assert.equal(status, 200);
     assert.equal(body.ok, true);
   });
 
-  it("ignores unrelated paths", async () => {
+  await it("ignores unrelated paths", async () => {
     const { handled, status } = await get("/api/scout/run");
     assert.equal(handled, false);
     assert.equal(status, 0);
