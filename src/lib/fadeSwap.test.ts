@@ -40,4 +40,3 @@ describe("fadeSwapShouldAnimate", () => {
     assert.equal(flightBase("Plotting the route… 4/20"), "Plotting the route…");
     assert.notEqual(flightBase("In the air… 1/20"), flightBase("Hold short 15s."));
   }).catch(assert.fail);
-}).catch(assert.fail);

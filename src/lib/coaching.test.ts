@@ -162,7 +162,6 @@ describe("coaching parsers", () => {
     ]);
   }).catch(assert.fail);
 
-}).catch(assert.fail);
 
 describe("parseDeskBeats", () => {
   it("keeps a valid fork choice and rejects a bad one", () => {
@@ -185,4 +184,3 @@ describe("parseDeskBeats", () => {
       null,
     );
   }).catch(assert.fail);
-}).catch(assert.fail);

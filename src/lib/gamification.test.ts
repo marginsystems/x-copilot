@@ -49,7 +49,6 @@ describe("emptyGamificationStats", () => {
       achievements: [],
     });
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("parseGamificationPayload", () => {
   it("keeps nextGoal and achievements and ignores hydrate progress", () => {
@@ -97,4 +96,3 @@ describe("parseGamificationPayload", () => {
   it("rejects a broken payload", () => {
     assert.equal(parseGamificationPayload({ level: 1 }), null);
   }).catch(assert.fail);
-}).catch(assert.fail);

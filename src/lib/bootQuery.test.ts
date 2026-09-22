@@ -48,4 +48,3 @@ describe("readBootQuery", () => {
     assert.equal(q.authError, "Login was cancelled.");
     assert.equal(q.cleanUrl, "/");
   }).catch(assert.fail);
-}).catch(assert.fail);

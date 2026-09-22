@@ -54,4 +54,3 @@ describe("Approach lock persistence", () => {
     assert.deepEqual(readApproachLock("scout-user"), locks[0]);
     assert.deepEqual(readApproachLock("organic-user"), locks[1]);
   }).catch(assert.fail);
-}).catch(assert.fail);

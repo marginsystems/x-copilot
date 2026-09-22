@@ -69,7 +69,6 @@ describe("canServeApproachOriginal", () => {
       false,
     );
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("pickApproachSuggestion", () => {
   it("prefers a reply over a parked post", () => {
@@ -112,4 +111,3 @@ describe("pickApproachSuggestion", () => {
       "marked",
     );
   }).catch(assert.fail);
-}).catch(assert.fail);

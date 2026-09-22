@@ -138,7 +138,6 @@ describe("seoForView", () => {
     assert.equal(seoForView("dashboard").title, SITE_TITLE);
     assert.equal(seoForView("usage").title, SITE_TITLE);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("changelog schema", () => {
   it("is a CollectionPage with breadcrumbs and newest-first ships", () => {
@@ -156,7 +155,6 @@ describe("changelog schema", () => {
     assert.equal(list.itemListElement[0]?.item?.name, CHANGELOG[0]?.title);
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/changelog");
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("learn schema", () => {
   it("is a CollectionPage of the published lessons", () => {
@@ -396,7 +394,6 @@ describe("learn schema", () => {
       );
     }
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("htmlWithSeo", () => {
   it("rewrites the SPA shell for /changelog without touching the home copy", () => {
@@ -484,7 +481,6 @@ describe("htmlWithSeo", () => {
     assert.match(html, /og:type" content="article"/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("public crawl files", () => {
   it("keeps Privacy and Terms out of the sitemap", () => {
@@ -561,4 +557,3 @@ describe("public crawl files", () => {
       assert.deepEqual(size, { width: 1200, height: 800 });
     }
   }).catch(assert.fail);
-}).catch(assert.fail);

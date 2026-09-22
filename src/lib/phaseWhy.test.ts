@@ -56,7 +56,6 @@ describe("coachingMatchesCard", () => {
     assert.equal(coachingMatchesCard("organic_reply", "quote", "quote"), true);
     assert.equal(coachingMatchesCard("organic_reply", "original", "reply"), false);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("phaseWhy", () => {
   it("keeps an empty Approach collecting for Scout", () => {
@@ -135,4 +134,3 @@ describe("phaseWhy", () => {
     );
     assert.equal(coachingMatchesCard("hold", "reply"), false);
   }).catch(assert.fail);
-}).catch(assert.fail);

@@ -58,7 +58,6 @@ describe("flightSharePayload", () => {
     assert.equal(payload?.altitude[1]?.held, true);
     assert.equal(payload?.altitude[1]?.views, 40);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("altitudeSeries", () => {
   it("holds last sampled views on a marked day with no sample", () => {
@@ -72,7 +71,6 @@ describe("altitudeSeries", () => {
       ],
     );
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("flightShareFilename and caption", () => {
   it("names the file after the bucket and writes a post caption", () => {
@@ -99,7 +97,6 @@ describe("flightShareFilename and caption", () => {
     assert.match(intent, /text=/);
     assert.match(intent, /xcopilot/);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("drawFlightShareImage", () => {
   function recordCtx() {
@@ -153,4 +150,3 @@ describe("drawFlightShareImage", () => {
     assert.match(joined, new RegExp(FLIGHT_SHARE_DISCLAIMER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.doesNotMatch(joined, /NEXT/);
   }).catch(assert.fail);
-}).catch(assert.fail);

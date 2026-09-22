@@ -40,7 +40,6 @@ describe("localEditHint", () => {
       null,
     );
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("suggestNoteSlot", () => {
   it("keeps a reserved slot when there is no hint or verdict", () => {
@@ -116,7 +115,6 @@ describe("suggestNoteSlot", () => {
     assert.match(noteWins.text, /reworked/);
     assert.doesNotMatch(noteWins.text, /very small touch/);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("voice state parsing", () => {
   it("parses the /api/voice payload", () => {
@@ -158,7 +156,6 @@ describe("voice state parsing", () => {
     assert.equal(state?.card?.tone, "Brief and matter-of-fact.");
     assert.deepEqual(state?.card?.examples, []);
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("voiceUnlockCopy", () => {
   it("explains the 100-post bar when state has not loaded", () => {
@@ -192,7 +189,6 @@ describe("voiceUnlockCopy", () => {
       VOICE_LINK_X_COPY,
     );
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("shouldShowVoiceUnlockToast", () => {
   const locked: VoiceState = {
@@ -298,7 +294,6 @@ describe("shouldShowVoiceUnlockToast", () => {
       false,
     );
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("voiceNeedsXLink", () => {
   it("is true with no official X link and no voice payload yet", () => {
@@ -396,7 +391,6 @@ describe("voiceNeedsXLink", () => {
       true,
     );
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 describe("phase + meter helpers", () => {
   it("advances phases and holds on the last", () => {
@@ -421,7 +415,6 @@ describe("phase + meter helpers", () => {
       /00:00 UTC/,
     );
   }).catch(assert.fail);
-}).catch(assert.fail);
 
 it("rejects unknown voice statuses and non-string card lists", () => {
   assert.equal(parseVoiceState({ voice: { status: "unexpected" } }), null);
@@ -433,4 +426,3 @@ it("rejects unknown voice statuses and non-string card lists", () => {
   assert.deepEqual(parsed?.card, {
     tone: "dry", typicalLength: "", examples: ["hello"], habits: [], neverDo: [], starter: false,
   });
-}).catch(assert.fail);
