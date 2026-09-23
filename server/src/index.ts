@@ -209,7 +209,7 @@ server.listen(PORT, bindHost(), () => {
   console.log(`x-copilot sidecar on http://${host}:${PORT}`);
   if (host !== "127.0.0.1" && host !== "localhost") {
     console.log(
-      "Public bind — put TLS in front (Cloudflare proxy). See docs/PUBLIC_DEPLOY.md",
+      "Public bind — put TLS in front (Cloudflare proxy).",
     );
   }
   console.log(

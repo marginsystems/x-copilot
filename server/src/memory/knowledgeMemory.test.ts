@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   buildDismissalNotePath,
+  defaultKnowledgeRoot,
   buildInteractionNotePath,
   findInteractionNotePath,
   formatOutcomeSection,
@@ -20,10 +21,17 @@ import {
   upsertOutcomeSection,
   writeDismissalMemory,
   writeInteractionMemory,
+  projectRoot,
 } from "./knowledgeMemory.ts";
 import type { Interaction } from "../desk/interactionStore.ts";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+await describe("defaultKnowledgeRoot", async () => {
+  await it("keeps notes beside the other local data", () => {
+    assert.equal(defaultKnowledgeRoot(), resolve(projectRoot, "data", "knowledge"));
+  });
+});
 
 /** Pre-C07 note at the legacy `<date>-<threadId>.md` path (never written by code now). */
 async function writeLegacyNote(

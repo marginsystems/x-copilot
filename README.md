@@ -35,7 +35,7 @@ The agenda is passed along, so a specific on-agenda question scores low even tho
 
 **Mark interacted** records the thread + author in `data/platform.sqlite` (`desk_interactions`; `data/` is gitignored). For the next **24 hours**, later searches drop other posts from that same `@handle` *before* triage, so we do not keep hammering the same account or waste DeepSeek tokens on them. The search status line reports how many posts were filtered. Restarting the sidecar keeps the cooldown (SQLite persist).
 
-The same action also writes an Obsidian-friendly Markdown note under **`knowledge/interactions/`** (gitignored) that includes the thread context and the **reply you typed on X** (`POST /api/interacted` requires `reply`). Point Obsidian at the `knowledge/` folder to browse agent memories locally — never commit that directory.
+The same action also writes an Obsidian-friendly Markdown note under **`data/knowledge/interactions/`** (gitignored with the rest of `data/`) that includes the thread context and the **reply you typed on X** (`POST /api/interacted` requires `reply`). Point Obsidian at `data/knowledge/` to browse agent memories locally — never commit that directory.
 
 The last successful Scout run is cached per user in `scout_tanks` in the same SQLite file (not `data/last-scout.json`). On dashboard load, `GET /api/scout/last` restores Threads / queries (cooled-down authors filtered out) so a reload or API restart does not wipe the list.
 
@@ -62,7 +62,7 @@ Vite UI  →  local Node sidecar  →  X API v2 (app-only bearer)
               DeepSeek v4-flash
 ```
 
-Bearer token and LLM keys stay in `.env` on the sidecar. The browser never stores credentials. Public DNS + bind notes: [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md).
+Bearer token and LLM keys stay in `.env` on the sidecar. The browser never stores credentials.
 
 ### Server source map
 
@@ -153,7 +153,7 @@ Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only 
 
 | Path | Role |
 |------|------|
-| `src/` | Vite dashboard (agenda, Scout, threads) |
+| `frontend/` | Vite dashboard (agenda, Scout, threads) |
 | `server/src/` | TypeScript sidecar — 237 files in ownership folders (see Server source map) |
 | `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
 | `scripts/test-x-api.ts` | CLI X API bearer smoke test |
@@ -161,10 +161,6 @@ Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only 
 | `pm2-manager.sh` | start/stop/restart/status/logs/setup-logrotate |
 | `ecosystem.config.example.cjs` | PM2 template (copy → local `ecosystem.config.cjs`) |
 | `.cursor/rules/` | Agent rules (e.g. Graphite stack PRs) |
-| `docs/MVP_PLAN.md` | Stream 1 scope |
-| `docs/src-operating-guide.md` | Live `src/` owners, boot/session, failure states, and test commands |
-| `docs/src-architecture.md` | Wave 0 snapshot only — do not treat Proposed rows as current |
-| `docs/PUBLIC_DEPLOY.md` | `api.xcopilot.dev` DNS, bind, TLS |
 | `wrangler.toml` | Cloudflare Workers static SPA (`xcopilot.dev`) |
 | `.env.example` | Required secrets (no real values) |
 
@@ -197,13 +193,13 @@ npm i -g pm2                                           # if needed
 
 ## Cloudflare Workers (SPA)
 
-The dashboard is a static Vite build. Workers holds **no secrets** — the browser picks `http://127.0.0.1:8787` on localhost and `https://api.xcopilot.dev` otherwise (`src/lib/apiBase.ts`).
+The dashboard is a static Vite build. Workers holds **no secrets** — the browser picks `http://127.0.0.1:8787` on localhost and `https://api.xcopilot.dev` otherwise (`frontend/src/lib/apiBase.ts`).
 
 ```bash
 npm run deploy:workers   # vite build && npx wrangler deploy
 ```
 
-Then attach the custom domain `xcopilot.dev` in the Cloudflare dashboard (or `wrangler.toml` `[[routes]]`). There is no `www`. DNS for `api` is a grey-cloud A record to the VPS — see [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md).
+Then attach the custom domain `xcopilot.dev` in the Cloudflare dashboard (or `wrangler.toml` `[[routes]]`). There is no `www`. DNS for `api` is a grey-cloud A record to the VPS.
 
 Sign-in: hamburger menu → **Continue with Google** or **Continue with X**. New accounts land on Free. OAuth redirects hit the API host, then bounce back to this SPA.
 
