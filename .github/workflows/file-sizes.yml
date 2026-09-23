@@ -5,7 +5,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - "src/**"
+      - "frontend/src/**"
       - "server/src/**"
       - "webhook/src/**"
       - "analytics/src/**"
@@ -14,7 +14,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/**"
+      - "frontend/src/**"
       - "server/src/**"
       - "webhook/src/**"
       - "analytics/src/**"
