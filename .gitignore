@@ -12,11 +12,8 @@ analytics/dist/
 # PM2 (machine-local copy of ecosystem.config.example.cjs)
 /ecosystem.config.cjs
 
-# Local interaction / cooldown store (Mark interacted)
+# Local interaction store, SQLite, and Obsidian notes — never commit
 data/
-
-# Obsidian knowledge memories (Mark interacted reply notes) — never commit
-knowledge/
 
 # Local clones of third-party sources (never commit)
 references/
