@@ -63,12 +63,12 @@ export default [
     ],
   },
   typed(
-    ["src/**/*.{ts,tsx,mts,cts}"],
+    ["frontend/src/**/*.{ts,tsx,mts,cts}"],
     ["./tsconfig.json"],
   ),
   typed(
-    ["tests/mounted/**/*.{ts,tsx,mts,cts}", "vitest.mounted.config.ts"],
-    ["./tsconfig.mounted.json"],
+    ["frontend/tests/mounted/**/*.{ts,tsx,mts,cts}", "frontend/vitest.mounted.config.ts"],
+    ["./frontend/tsconfig.mounted.json"],
   ),
   typed(
     ["server/src/**/*.{ts,tsx,mts,cts}"],
@@ -87,7 +87,7 @@ export default [
     ["./tsconfig.eslint.scripts.json"],
   ),
   typed(
-    ["vite.config.ts"],
-    ["./tsconfig.eslint.vite.json"],
+    ["frontend/vite.config.ts"],
+    ["./frontend/tsconfig.eslint.vite.json"],
   ),
 ];

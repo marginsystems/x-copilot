@@ -5,7 +5,7 @@ Run from the repository root after `npm ci` (Node 22, matching CI):
 | Command | Scope |
 | --- | --- |
 | `npm test` / `npm run test:unit` | Existing `tsx --test` node suite, with its original discovery patterns unchanged |
-| `npm run test:mounted` | Only `tests/mounted/**/*.test.{ts,tsx}`, recursively |
+| `npm run test:mounted` | Only `frontend/tests/mounted/**/*.test.{ts,tsx}`, recursively |
 | `npm run test:mounted:list` | List mounted tests without executing them |
 | `npm run typecheck:mounted` | Strict typecheck of mounted tests, support, and configuration |
 
