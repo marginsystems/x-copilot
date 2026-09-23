@@ -374,7 +374,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     const current = stateRef.current;
     if (!current) return;
     const next = adoptEmptyScoutCollecting(current, scoutPick?.id ?? null);
-    if (next !== current) commit(next);
+    if (next !== current) commit(next, pace.overlayArmed);
   }, [lock?.cardId, lock?.phase, scoutPick?.id]);
 
   useEffect(() => {
