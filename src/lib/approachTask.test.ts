@@ -60,7 +60,7 @@ function present(
   });
 }
 
-describe("restored lock", () => {
+await describe("restored lock", () => {
   it("recovers the stored For You wait together with its lock", () => {
     const storedWait = openForYouWait({ owner: OWNER, cursor, now: T0 });
     const state = restoreApproachTask({
@@ -127,7 +127,7 @@ describe("restored lock", () => {
 
 });
 
-describe("gate resolution", () => {
+await describe("gate resolution", () => {
   const gated = { ...open, gate: "link_x", canOpenForYou: false } as const;
 
   it("shows the gate while X is unlinked, then the task once it clears", () => {
@@ -197,7 +197,7 @@ describe("gate resolution", () => {
 
 });
 
-describe("cooldown expiry", () => {
+await describe("cooldown expiry", () => {
   it("a stored cooldown wait restores as For You with Open For You and Next", () => {
     const state = restoreApproachTask({
       stored: { phase: "silent_refuel", cardId: null, surface: "wait" },
@@ -218,7 +218,7 @@ describe("cooldown expiry", () => {
 
 });
 
-describe("late baseline", () => {
+await describe("late baseline", () => {
   it("a cursor that arrives after entry cannot absorb a post made since entry", () => {
     const state = restoreApproachTask({
       stored: FOR_YOU,
@@ -245,7 +245,7 @@ describe("late baseline", () => {
 
 });
 
-describe("detection with a landing", () => {
+await describe("detection with a landing", () => {
   it("new stock updates inventory only; the detected wait keeps its card until Next", () => {
     const wait = settleForYouWait(
       openForYouWait({ owner: OWNER, cursor, now: T0 }),
@@ -283,7 +283,7 @@ describe("detection with a landing", () => {
 
 });
 
-describe("Next with an empty tank", () => {
+await describe("Next with an empty tank", () => {
   it("leaves a completed For You wait for collecting idle", () => {
     const first = restoreApproachTask({
       stored: FOR_YOU,
@@ -341,7 +341,7 @@ describe("Next with an empty tank", () => {
 
 });
 
-describe("same-phase Scout release", () => {
+await describe("same-phase Scout release", () => {
   it("keeps a mark on a live Scout lock without opening a wait", () => {
     const state: ApproachTaskState = {
       lock: { phase: "scout_reply", cardId: "A", surface: null },
@@ -444,7 +444,7 @@ describe("same-phase Scout release", () => {
 
 });
 
-describe("Reply minute destinations", () => {
+await describe("Reply minute destinations", () => {
   const hold: ApproachTaskState = {
     lock: { phase: "hold", cardId: null, surface: "for_you" },
     wait: openForYouWait({ owner: OWNER, cursor, now: T0 }),
@@ -506,7 +506,7 @@ describe("Reply minute destinations", () => {
 
 });
 
-describe("Bypass", () => {
+await describe("Bypass", () => {
   it("clears the wait and stops its poll in the same transition", () => {
     const held: ApproachTaskState = {
       lock: { phase: "hold", cardId: null, surface: "for_you" },
@@ -554,7 +554,7 @@ describe("Bypass", () => {
 
 });
 
-describe("Scout detection ownership", () => {
+await describe("Scout detection ownership", () => {
   const scout = { id: "A", author: "@a", text: "a", url: "https://x.com/a" };
 
   it("says detected and stops the poll once the reply is recorded", () => {
@@ -671,7 +671,7 @@ describe("Scout detection ownership", () => {
 
 });
 
-describe("Suggested presentation", () => {
+await describe("Suggested presentation", () => {
   it("does not add frame explanation copy", () => {
     const view = presentApproach({
       phase: "organic_reply",
@@ -696,7 +696,7 @@ describe("Suggested presentation", () => {
 
 });
 
-describe("Collecting refill handoff", () => {
+await describe("Collecting refill handoff", () => {
   it("flies on hydrated empty boot before Next, then ignores extra Next and empty landings", () => {
     let state: ApproachTaskState = {
       lock: FOR_YOU,

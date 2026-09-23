@@ -42,7 +42,7 @@ const reply: ForYouSuggestion = {
   targetAuthor: "@target",
 };
 
-describe("coachingMatchesCard", () => {
+await describe("coachingMatchesCard", () => {
   it("keeps reply and streak on a scouted card", () => {
     assert.equal(coachingMatchesCard("scout_reply", "reply"), true);
     assert.equal(coachingMatchesCard("scout_reply", "streak"), true);
@@ -59,7 +59,7 @@ describe("coachingMatchesCard", () => {
 
 });
 
-describe("phaseWhy", () => {
+await describe("phaseWhy", () => {
   it("keeps an empty Approach collecting for Scout", () => {
     assert.equal(phaseWhy("done_for_now"), APPROACH_COLLECTING_IDLE);
     assert.equal(

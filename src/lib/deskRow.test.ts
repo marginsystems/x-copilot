@@ -10,7 +10,7 @@ import {
   deskRowPhaseOnOpenChange,
 } from "./deskRow.ts";
 
-describe("deskRow expand phase", () => {
+await describe("deskRow expand phase", () => {
   it("starts closed or already open so first paint does not animate in", () => {
     assert.equal(deskRowInitialPhase(false), "closed");
     assert.equal(deskRowInitialPhase(true), "open");

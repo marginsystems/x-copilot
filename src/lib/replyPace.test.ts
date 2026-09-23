@@ -20,7 +20,7 @@ import {
   readReplyPaceOverlay,
 } from "../desk/replyPaceStore.ts";
 
-describe("reply pace overlay storage", () => {
+await describe("reply pace overlay storage", () => {
   it("persists until expiry or Bypass clears it", (t) => {
     const stored = new Map<string, string>();
     const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
@@ -77,7 +77,7 @@ describe("reply pace overlay storage", () => {
 
 });
 
-describe("replyPace", () => {
+await describe("replyPace", () => {
   it("arms 60 seconds from now", () => {
     assert.equal(REPLY_PACE_MS, 60_000);
     assert.equal(nextReplyPaceUntil(1_000), 61_000);

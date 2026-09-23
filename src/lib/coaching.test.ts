@@ -7,7 +7,7 @@ import {
   parseNextAction,
 } from "./coaching.ts";
 
-describe("coaching parsers", () => {
+await describe("coaching parsers", () => {
   it("accepts a next-action card and daily missions", () => {
     const parsed = parseCoachingPayload({
       dayUtc: "2026-08-26",
@@ -165,7 +165,7 @@ describe("coaching parsers", () => {
 
 });
 
-describe("parseDeskBeats", () => {
+await describe("parseDeskBeats", () => {
   it("keeps a valid fork choice and rejects a bad one", () => {
     assert.equal(
       parseDeskBeats({

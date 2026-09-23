@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { groundedHint, nextPlanLabel } from "./upgradeCta.ts";
 
-describe("upgrade CTAs", () => {
+await describe("upgrade CTAs", () => {
   it("names the next paid desk", () => {
     assert.equal(nextPlanLabel(undefined), "Pulse");
     assert.equal(nextPlanLabel("free"), "Pulse");

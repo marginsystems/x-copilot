@@ -713,7 +713,7 @@ await describe("gamification sync retry flag", async () => {
     assert.deepEqual(stored?.pendingMarkAts, [new Date(now).toISOString()]);
   });
 
-  it("does not persist the live stats overlay", async () => {
+  await it("does not persist the live stats overlay", async () => {
     const now = Date.parse("2026-07-28T12:00:00.000Z");
     await markInteracted({
       threadId: "parent",

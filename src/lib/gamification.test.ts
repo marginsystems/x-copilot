@@ -35,7 +35,7 @@ const payload = {
   ],
 };
 
-describe("emptyGamificationStats", () => {
+await describe("emptyGamificationStats", () => {
   it("starts at level 1 with zero streak", () => {
     assert.deepEqual(emptyGamificationStats(), {
       currentStreak: 0,
@@ -52,7 +52,7 @@ describe("emptyGamificationStats", () => {
 
 });
 
-describe("parseGamificationPayload", () => {
+await describe("parseGamificationPayload", () => {
   it("keeps nextGoal and achievements and ignores hydrate progress", () => {
     const parsed = parseGamificationPayload(payload);
     assert.equal(parsed?.stats.level, 2);

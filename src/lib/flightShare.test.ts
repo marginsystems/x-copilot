@@ -23,7 +23,7 @@ const week: ActivityStats = {
   totals: { interactions: 5, originals: 1, quotes: 1, replies: 3, views: 40, withStats: 1 },
 };
 
-describe("flightSharePayload", () => {
+await describe("flightSharePayload", () => {
   it("returns null without marks", () => {
     assert.equal(
       flightSharePayload(
@@ -61,7 +61,7 @@ describe("flightSharePayload", () => {
 
 });
 
-describe("altitudeSeries", () => {
+await describe("altitudeSeries", () => {
   it("holds last sampled views on a marked day with no sample", () => {
     const alt = altitudeSeries(week.series);
     assert.deepEqual(
@@ -76,7 +76,7 @@ describe("altitudeSeries", () => {
 
 });
 
-describe("flightShareFilename and caption", () => {
+await describe("flightShareFilename and caption", () => {
   it("names the file after the bucket and writes a post caption", () => {
     const payload = flightSharePayload(week, {
       ...emptyGamificationStats(),
@@ -104,7 +104,7 @@ describe("flightShareFilename and caption", () => {
 
 });
 
-describe("drawFlightShareImage", () => {
+await describe("drawFlightShareImage", () => {
   function recordCtx() {
     const texts: string[] = [];
     const ctx = {

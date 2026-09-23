@@ -4,7 +4,7 @@ import { formatAbsoluteTime, formatTimeAgo, parseCreatedAt } from "./timeAgo.ts"
 
 const twitter = "Sat Jul 25 12:00:00 +0000 2026";
 
-describe("parseCreatedAt", () => {
+await describe("parseCreatedAt", () => {
   it("parses twitter created_at", () => {
     const d = parseCreatedAt(twitter);
     assert.ok(d);
@@ -19,7 +19,7 @@ describe("parseCreatedAt", () => {
 
 });
 
-describe("formatTimeAgo", () => {
+await describe("formatTimeAgo", () => {
   const now = Date.parse("2026-07-25T15:00:00.000Z");
 
   it("returns Now / minutes / hours / days", () => {
@@ -61,7 +61,7 @@ describe("formatTimeAgo", () => {
 
 });
 
-describe("formatAbsoluteTime", () => {
+await describe("formatAbsoluteTime", () => {
   it("returns a locale string for valid dates", () => {
     const abs = formatAbsoluteTime(twitter);
     assert.ok(abs);

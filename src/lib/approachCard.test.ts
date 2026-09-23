@@ -21,7 +21,7 @@ function row(
   };
 }
 
-describe("canServeApproachOriginal", () => {
+await describe("canServeApproachOriginal", () => {
   it("is false before a scouted reply today", () => {
     assert.equal(
       canServeApproachOriginal({
@@ -72,7 +72,7 @@ describe("canServeApproachOriginal", () => {
 
 });
 
-describe("pickApproachSuggestion", () => {
+await describe("pickApproachSuggestion", () => {
   it("prefers a reply over a parked post", () => {
     assert.equal(
       pickApproachSuggestion([row("post"), row("reply")], { allowPost: true })

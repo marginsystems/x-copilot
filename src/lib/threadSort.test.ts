@@ -5,7 +5,7 @@ import {
   sortThreadsByCreatedAtNewest,
 } from "./threadSort.ts";
 
-describe("sortThreadsByCreatedAtNewest", () => {
+await describe("sortThreadsByCreatedAtNewest", () => {
   it("orders newest first", () => {
     const sorted = sortThreadsByCreatedAtNewest([
       { id: "old", createdAt: "2026-07-20T12:00:00.000Z" },
@@ -31,7 +31,7 @@ describe("sortThreadsByCreatedAtNewest", () => {
 
 });
 
-describe("sortThreadsByAudience", () => {
+await describe("sortThreadsByAudience", () => {
   it("orders highest views first", () => {
     const sorted = sortThreadsByAudience([
       { id: "quiet", views: 3 },

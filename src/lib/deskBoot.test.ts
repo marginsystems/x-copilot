@@ -83,7 +83,7 @@ const desk = {
   },
 };
 
-describe("parseAuthSessionUser", () => {
+await describe("parseAuthSessionUser", () => {
   it("strips @ from the handle and treats a missing onboarding flag as done", () => {
     const parsed = parseAuthSessionUser({
       id: "u1",
@@ -98,7 +98,7 @@ describe("parseAuthSessionUser", () => {
 
 });
 
-describe("parseDeskBoot", () => {
+await describe("parseDeskBoot", () => {
   it("keeps a signed-in payload and parses Approach progress", () => {
     const parsed = parseDeskBoot({
       ok: true,
@@ -245,7 +245,7 @@ describe("parseDeskBoot", () => {
 
 });
 
-describe("desk boot cache", () => {
+await describe("desk boot cache", async () => {
   it("round-trips a snapshot without scoutLog and drops signed-out writes", () => {
     const store = memoryStore();
     const payload = parseDeskBoot({ ok: true, authRequired: true, user, desk });
@@ -346,7 +346,7 @@ it("keeps valid Scout cards intact and drops malformed cached fields", () => {
   assert.equal(boot([null], counts)?.empty, true);
 }).catch(assert.fail);
 
-it("rejects a non-empty lastScout snapshot when every card is malformed", () => {
+await it("rejects a non-empty lastScout snapshot when every card is malformed", () => {
   const parsed = parseDeskBoot({
     ok: true,
     user,

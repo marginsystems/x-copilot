@@ -35,7 +35,7 @@ Object.defineProperty(globalThis, "localStorage", {
   },
 });
 
-describe("onboarding helpers", () => {
+await describe("onboarding helpers", () => {
   beforeEach(() => store.clear());
 
   it("toggles chip ids", () => {

@@ -17,7 +17,7 @@ function card(
   };
 }
 
-describe("isLeafReply", () => {
+await describe("isLeafReply", () => {
   it("treats replies and nested conversation ids as leaves", () => {
     assert.equal(isLeafReply(card({ id: "1", text: "op" })), false);
     assert.equal(isLeafReply(card({ id: "2", text: "r", isReply: true })), true);
@@ -29,7 +29,7 @@ describe("isLeafReply", () => {
 
 });
 
-describe("retargetLeafToRoot", () => {
+await describe("retargetLeafToRoot", () => {
   it("rewrites a leftover last-scout leaf onto the OP", () => {
     const next = retargetLeafToRoot(
       card({
@@ -82,7 +82,7 @@ describe("retargetLeafToRoot", () => {
 
 });
 
-describe("preferRootTargets", () => {
+await describe("preferRootTargets", () => {
   it("keeps roots and ranks by views", () => {
     const ranked = preferRootTargets([
       card({

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { parseConsent } from "./consent.ts";
 import { applyAnalyticsConsent } from "./analytics.ts";
 
-describe("parseConsent", () => {
+await describe("parseConsent", () => {
   it("accepts only explicit choices", () => {
     assert.equal(parseConsent("accepted"), "accepted");
     assert.equal(parseConsent("rejected"), "rejected");
@@ -13,7 +13,7 @@ describe("parseConsent", () => {
 
 });
 
-describe("applyAnalyticsConsent", () => {
+await describe("applyAnalyticsConsent", () => {
   it("maps accepted to granted and rejected to denied", () => {
     const calls: unknown[][] = [];
     const gtag = (...args: unknown[]) => calls.push(args);

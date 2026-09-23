@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { fadeSwapShouldAnimate, flightBase } from "./fadeSwap.ts";
 
-describe("fadeSwapShouldAnimate", () => {
+await describe("fadeSwapShouldAnimate", () => {
   it("animates takeoff stage copy", () => {
     assert.equal(
       fadeSwapShouldAnimate("Plotting the route…", "In the air…"),

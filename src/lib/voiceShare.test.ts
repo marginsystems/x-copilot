@@ -45,7 +45,7 @@ function voice(over: Partial<VoiceState> = {}): VoiceState {
   };
 }
 
-describe("voiceSharePayload", () => {
+await describe("voiceSharePayload", () => {
   it("returns null without a tone card", () => {
     assert.equal(voiceSharePayload(null), null);
     assert.equal(voiceSharePayload(voice({ card: null })), null);
@@ -127,7 +127,7 @@ describe("voiceSharePayload", () => {
 
 });
 
-describe("voiceShareFilename and caption", () => {
+await describe("voiceShareFilename and caption", () => {
   it("names the file after a sanitized handle", () => {
     const payload = voiceSharePayload(voice())!;
     assert.equal(voiceShareFilename(payload), "xcopilot-voice-margin.png");
@@ -168,7 +168,7 @@ describe("voiceShareFilename and caption", () => {
 
 });
 
-describe("wrapLines and ellipsize", () => {
+await describe("wrapLines and ellipsize", () => {
   const measure = (s: string) => s.length * 10;
 
   it("wraps on width and hard-breaks a long token", () => {
@@ -184,7 +184,7 @@ describe("wrapLines and ellipsize", () => {
 
 });
 
-describe("drawVoiceShareImage", () => {
+await describe("drawVoiceShareImage", () => {
   function recordCtx() {
     const texts: string[] = [];
     const ctx = {

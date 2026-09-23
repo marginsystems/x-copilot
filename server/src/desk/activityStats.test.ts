@@ -73,7 +73,7 @@ await describe("viewsForInteraction", async () => {
     );
   });
 
-  it("uses the stored 24h count even when the 1h and live counts are higher", () => {
+  await it("uses the stored 24h count even when the 1h and live counts are higher", () => {
     assert.equal(
       viewsForInteraction(
         ix({
@@ -90,7 +90,7 @@ await describe("viewsForInteraction", async () => {
     );
   });
 
-  it("uses a live impression count above the 1h checkpoint while 24h is pending", () => {
+  await it("uses a live impression count above the 1h checkpoint while 24h is pending", () => {
     assert.equal(
       viewsForInteraction(
         ix({
@@ -342,7 +342,7 @@ await describe("pendingReplyIds / mergeLiveMetrics", async () => {
     assert.equal(merged[0]?.stats?.t1h, undefined);
   });
 
-  it("overlays a live count without replacing a stored 1h checkpoint", () => {
+  await it("overlays a live count without replacing a stored 1h checkpoint", () => {
     const history = [
       ix({
         threadId: "oreva",
@@ -362,7 +362,7 @@ await describe("pendingReplyIds / mergeLiveMetrics", async () => {
     assert.equal(history[0]?.stats?.live, undefined);
   });
 
-  it("refreshes newest replies that already have a checkpoint, then own posts", () => {
+  await it("refreshes newest replies that already have a checkpoint, then own posts", () => {
     const history = [
       ix({
         threadId: "new",
@@ -391,8 +391,8 @@ await describe("pendingReplyIds / mergeLiveMetrics", async () => {
   });
 });
 
-describe("applyLiveOwnPostViews", () => {
-  it("raises a checkpoint to the live count and leaves a lower live count alone", () => {
+await describe("applyLiveOwnPostViews", async () => {
+  await it("raises a checkpoint to the live count and leaves a lower live count alone", () => {
     const posts = applyLiveOwnPostViews(
       [
         {
@@ -539,13 +539,13 @@ await describe("classified flight-path posts", async () => {
   });
 });
 
-describe("stored 24h views in the flight path", () => {
+await describe("stored 24h views in the flight path", async () => {
   const postedAt = "2026-09-21T23:30:00.000Z";
   const sampledAt = "2026-09-22T23:30:00.000Z";
   const now = Date.parse(sampledAt);
 
   for (const snapshotSource of ["interaction", "own post"] as const) {
-    it(`uses the ${snapshotSource} 24h snapshot over the other ledger's higher pending count`, () => {
+    await it(`uses the ${snapshotSource} 24h snapshot over the other ledger's higher pending count`, () => {
       const history = [ix({
         threadId: "parent",
         replyId: "reply",
@@ -584,7 +584,7 @@ describe("stored 24h views in the flight path", () => {
     });
   }
 
-  it("retains a stored snapshot on an unmatched reply and excludes posts outside the UTC window", () => {
+  await it("retains a stored snapshot on an unmatched reply and excludes posts outside the UTC window", () => {
     const history = [ix({
       threadId: "parent",
       replyId: "unmatched",
@@ -606,7 +606,7 @@ describe("stored 24h views in the flight path", () => {
     assert.equal(result.totals.interactions, 1);
   });
 
-  it("treats zero as a mature count and refreshes missing or invalid 24h views within the cap", () => {
+  await it("treats zero as a mature count and refreshes missing or invalid 24h views within the cap", () => {
     const history = [0, undefined, NaN].map((views, i) => ix({
       threadId: `parent-${i}`,
       replyId: `reply-${i}`,

@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { isPublicView, pathFromView, viewFromPath } from "./appView.ts";
 
-describe("desk routes", () => {
+await describe("desk routes", () => {
   it("keeps Account, Settings, and Usage on separate paths", () => {
     assert.equal(viewFromPath("/account"), "account");
     assert.equal(viewFromPath("/settings"), "settings");

@@ -65,7 +65,7 @@ function pngSize(path: string): { width: number; height: number } {
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
 }
 
-describe("seoForView", () => {
+await describe("seoForView", () => {
   it("keeps the homepage on the index.html tagline", () => {
     const home = seoForView("home");
     assert.equal(
@@ -141,7 +141,7 @@ describe("seoForView", () => {
 
 });
 
-describe("changelog schema", () => {
+await describe("changelog schema", () => {
   it("is a CollectionPage with breadcrumbs and newest-first ships", () => {
     const graph = changelogJsonLd()["@graph"];
     assert.ok(Array.isArray(graph));
@@ -160,7 +160,7 @@ describe("changelog schema", () => {
 
 });
 
-describe("learn schema", () => {
+await describe("learn schema", () => {
   it("is a CollectionPage of the published lessons", () => {
     const graph = learnJsonLd()["@graph"];
     assert.ok(Array.isArray(graph));
@@ -401,7 +401,7 @@ describe("learn schema", () => {
 
 });
 
-describe("htmlWithSeo", () => {
+await describe("htmlWithSeo", () => {
   it("rewrites the SPA shell for /changelog without touching the home copy", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
     const html = htmlWithSeo(source, "changelog");
@@ -490,7 +490,7 @@ describe("htmlWithSeo", () => {
 
 });
 
-describe("public crawl files", () => {
+await describe("public crawl files", () => {
   it("keeps Privacy and Terms out of the sitemap", () => {
     const xml = readFileSync(join(publicDir, "sitemap.xml"), "utf8");
     assert.match(xml, /https:\/\/xcopilot\.dev\/</);

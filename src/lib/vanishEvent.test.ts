@@ -8,7 +8,7 @@ const base = {
   history: [],
 };
 
-describe("vanishEvent", () => {
+await describe("vanishEvent", () => {
   it("marks a directly interacted card", () => {
     assert.equal(
       vanishEvent({ ...base, interactedIds: new Set(["card"]) }),

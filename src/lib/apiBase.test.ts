@@ -8,7 +8,7 @@ import {
   isLocalHostname,
 } from "./apiBase.ts";
 
-describe("apiBase", () => {
+await describe("apiBase", () => {
   it("uses loopback API on localhost / 127.0.0.1", () => {
     assert.equal(isLocalHostname("localhost"), true);
     assert.equal(isLocalHostname("127.0.0.1"), true);

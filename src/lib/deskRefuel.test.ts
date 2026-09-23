@@ -18,7 +18,7 @@ const ready = {
   alreadyTried: false,
 };
 
-describe("shouldBackgroundScout", () => {
+await describe("shouldBackgroundScout", () => {
   it("fires only after the caller arms an idle low tank", () => {
     assert.equal(shouldBackgroundScout(ready), true);
     assert.equal(shouldBackgroundScout({ ...ready, phase: "hold" }), true);
@@ -71,7 +71,7 @@ describe("shouldBackgroundScout", () => {
 
 });
 
-describe("Scout refill state", () => {
+await describe("Scout refill state", () => {
   it("arms after Mark consumes the last usable Scout card", () => {
     assert.equal(shouldArmScoutRefill(0), true);
     assert.equal(shouldArmScoutRefill(1), true);
@@ -92,7 +92,7 @@ describe("Scout refill state", () => {
 
 });
 
-describe("shouldArmScoutOnBoot", () => {
+await describe("shouldArmScoutOnBoot", () => {
   it("arms an empty or low tank on a new opening", () => {
     assert.equal(
       shouldArmScoutOnBoot({

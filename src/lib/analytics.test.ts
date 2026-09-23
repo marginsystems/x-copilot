@@ -6,14 +6,14 @@ import {
   trackPageView,
 } from "./analytics.ts";
 
-describe("gaMeasurementId", () => {
+await describe("gaMeasurementId", () => {
   it("defaults to the xcopilot.dev stream", () => {
     assert.equal(gaMeasurementId(), DEFAULT_GA_MEASUREMENT_ID);
   }).catch(assert.fail);
 
 });
 
-describe("trackPageView", () => {
+await describe("trackPageView", () => {
   it("no-ops when gtag is missing", () => {
     const prevWindow = globalThis.window;
     Object.defineProperty(globalThis, "window", { configurable: true, writable: true, value: {} });

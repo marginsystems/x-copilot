@@ -71,7 +71,7 @@ import {
   weightPermalink,
 } from "./learn.ts";
 
-describe("learn citations", () => {
+await describe("learn citations", () => {
   it("pins every permalink to the cited SHA", () => {
     assert.equal(LEARN_SOURCE_SHA, "d011592");
     assert.match(LEARN_PARAM_COMMENT_HREF, /\/blob\/d011592\/home-mixer\/params\/param\.rs/);
