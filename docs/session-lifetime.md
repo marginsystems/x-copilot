@@ -61,7 +61,7 @@ enablement, PR-07 owns history ordering, and PR-09 owns queued agenda saves.
 
 ## Regression coverage
 
-`tests/mounted/session.test.tsx` and `sessionApp.test.tsx` cover untrusted cached identity, immediate logout
+`frontend/tests/mounted/session.test.tsx` and `sessionApp.test.tsx` cover untrusted cached identity, immediate logout
 reset, HTTP/network failure reporting, owner replacement with late auth/setters,
 cross-tab memo invalidation without echo, late boot suppression, and unavailable
 storage. Run `npm run test:mounted` and `npm run typecheck:mounted` alongside the

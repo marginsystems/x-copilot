@@ -68,7 +68,7 @@ Bearer token and LLM keys stay in `.env` on the sidecar. The browser never store
 
 `server/src/` is **237 files across ten ownership folders and five root files**: 130 production modules, 103 `*.test.ts` files, 3 test-support files (`platform/platformDb.testHelpers.ts`, `scout/scoutCollect.testHelpers.ts`, `x-api/xGraphqlParse.test.fixtures.ts`), and 1 declaration (`xenova-transformers.d.ts`).
 
-`scripts/test-inventory.ts` already walks nested paths under `server/src`, `src`, `analytics/src`, and `webhook/src` for `*.test.ts` / `*.test.tsx`. `npm test` and `npm run test:unit` run that inventory; `npm run test:unit:list` prints it. Tests stay adjacent to their owners. No barrels.
+`scripts/test-inventory.ts` already walks nested paths under `server/src`, `frontend/src`, `analytics/src`, and `webhook/src` for `*.test.ts` / `*.test.tsx`. `npm test` and `npm run test:unit` run that inventory; `npm run test:unit:list` prints it. Tests stay adjacent to their owners. No barrels.
 
 D5 (unused Voice helpers) and D6 (batch Scout/log) already landed. Those deleted helpers and batch/log routes are not current APIs. Live Scout HTTP is `POST /api/scout/run` (NDJSON) and `GET /api/scout/last`.
 
@@ -117,7 +117,7 @@ Health: `curl http://127.0.0.1:8787/api/health`
 | `npm run test:unit:list` | Print the same inventory |
 | `npm run test:search -- "query"` | Live recent-search smoke |
 
-UI typecheck stays on root `tsconfig.json` (`noEmit`); the API uses `tsconfig.server.json` (NodeNext emit).
+UI typecheck stays on root `tsconfig.json` (`noEmit`, include `frontend/src`); the API uses `tsconfig.server.json` (NodeNext emit).
 
 ## Official X API
 

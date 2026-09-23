@@ -16,7 +16,7 @@ import {
   viewsForInteraction,
   type ActivityBucket,
 } from "./activityStats.ts";
-import { viewsLineAltitude } from "../../../src/lib/activityStats.ts";
+import { viewsLineAltitude } from "../../../frontend/src/lib/activityStats.ts";
 import type { Interaction } from "./interactionStore.ts";
 
 function ix(

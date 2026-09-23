@@ -9,7 +9,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = join(import.meta.dirname, "..");
-const SCAN_DIRS = ["src", "server/src", "webhook/src", "analytics/src"];
+const SCAN_DIRS = ["frontend/src", "server/src", "webhook/src", "analytics/src"];
 const FAIL_LINES = 1000;
 const EXTS = new Set([".ts", ".tsx", ".css"]);
 

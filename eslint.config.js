@@ -3,7 +3,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["frontend/src/**/*.{ts,tsx}"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {

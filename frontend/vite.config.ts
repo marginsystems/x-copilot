@@ -1,9 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
 import { htmlWithSeo } from "./src/lib/seo";
+
+const frontendRoot = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(frontendRoot, "..");
 
 /** Emit public-route HTML so crawlers that skip JS still see the tags. */
 function seoRouteHtml(): Plugin {
@@ -11,7 +15,7 @@ function seoRouteHtml(): Plugin {
     name: "seo-route-html",
     apply: "build",
     closeBundle() {
-      const dist = join(process.cwd(), "dist");
+      const dist = join(frontendRoot, "dist");
       const index = readFileSync(join(dist, "index.html"), "utf8");
       const routes = [
         { view: "changelog" as const, dir: "changelog" },
@@ -50,8 +54,10 @@ function gscVerificationMeta(verification: string): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+  const env = loadEnv(mode, repoRoot, "");
   return {
+    root: frontendRoot,
+    envDir: repoRoot,
     plugins: [
       react(),
       gscVerificationMeta(env.VITE_GSC_VERIFICATION ?? ""),
