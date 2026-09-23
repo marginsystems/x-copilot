@@ -138,13 +138,13 @@ scripts exist on this branch:
 
 | Command | What it is |
 |---|---|
-| `npm run test:unit` | Recursive inventory (`scripts/test-inventory.ts`) of `*.test.ts` / `*.test.tsx` under `server/src`, `src`, `analytics/src`, and `webhook/src`, then `tsx --test` on that list. `npm test` is this command. |
+| `npm run test:unit` | Recursive inventory (`scripts/test-inventory.ts`) of `*.test.ts` / `*.test.tsx` under `server/src`, `frontend/src`, `analytics/src`, and `webhook/src`, then `tsx --test` on that list. `npm test` is this command. |
 | `npm run test:unit:list` | Print the same list without running. |
-| `npm run test:mounted` | Vitest 3 + jsdom, only `tests/mounted/**/*.test.{ts,tsx}`. |
+| `npm run test:mounted` | Vitest 3 + jsdom, only `frontend/tests/mounted/**/*.test.{ts,tsx}`. |
 | `npm run test:mounted:list` | List mounted tests without executing them. |
-| `npm run typecheck:mounted` | `tsc --noEmit -p tsconfig.mounted.json` (mounted tests, support, and `vitest.mounted.config.ts`). |
+| `npm run typecheck:mounted` | `tsc --noEmit -p frontend/tsconfig.mounted.json` (mounted tests, support, and `vitest.mounted.config.ts`). |
 | `npm run build` | webhook / server / analytics emit, root `tsc --noEmit`, then `vite build`. |
-| `npm run check:file-sizes` | 1,000-line ratchet over `src`, `server/src`, `webhook/src`, and `analytics/src`. |
+| `npm run check:file-sizes` | 1,000-line ratchet over `frontend/src`, `server/src`, `webhook/src`, and `analytics/src`. |
 
 `npm run lint:hooks` is the Wave 5 hook-lint ratchet (PR-15). It is **not** a
 script on this branch; do not run it here.
@@ -175,8 +175,8 @@ How to add coverage:
 
 - Pure / node contracts stay next to the source as `*.test.ts` or `*.test.tsx`
   so `test:unit` discovers them.
-- Mounted effect and interaction tests go under `tests/mounted/`. Follow
-  `tests/mounted/README.md`. Do not import `node:test` into that suite.
+- Mounted effect and interaction tests go under `frontend/tests/mounted/`. Follow
+  `frontend/tests/mounted/README.md`. Do not import `node:test` into that suite.
 
 ## Out of scope
 

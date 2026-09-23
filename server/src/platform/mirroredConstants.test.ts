@@ -5,9 +5,9 @@ import { createRequire } from "node:module";
 import {
   normalizeTcoKey as spaNormalizeTcoKey,
   stripMediaShortlinksFromText as spaStripMediaShortlinksFromText,
-} from "../../../src/lib/mediaText.ts";
-import { NEXT_ACTION_KINDS as spaNextActionKinds } from "../../../src/lib/coaching.ts";
-import { emptyDeskBeats as spaEmptyDeskBeats } from "../../../src/lib/deskPhase.ts";
+} from "../../../frontend/src/lib/mediaText.ts";
+import { NEXT_ACTION_KINDS as spaNextActionKinds } from "../../../frontend/src/lib/coaching.ts";
+import { emptyDeskBeats as spaEmptyDeskBeats } from "../../../frontend/src/lib/deskPhase.ts";
 import {
   normalizeTcoKey as apiNormalizeTcoKey,
   stripMediaShortlinksFromText as apiStripMediaShortlinksFromText,
