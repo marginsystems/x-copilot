@@ -1,5 +1,5 @@
 /**
- * Obsidian-friendly interaction and dismissal note storage under knowledge/
+ * Obsidian-friendly interaction and dismissal note storage under data/knowledge/
  * (gitignored). This module renders and updates notes; identity, resolution
  * and atomic persistence live in ownedMemoryNotes, legacy adoption in
  * memoryLegacyMigration, and MiniLM retrieval in memoryIndex / Scout triage.
@@ -53,7 +53,7 @@ export type InteractionMemoryInput = {
   replyId?: string;
   /** Platform user who marked this thread — required for every new note. */
   userId: string;
-  /** Override root for tests. Default: <projectRoot>/knowledge */
+  /** Override root for tests. Default: <projectRoot>/data/knowledge */
   knowledgeRoot?: string;
 };
 
@@ -72,7 +72,7 @@ function resolveProjectRoot(): string {
 export const projectRoot = resolveProjectRoot();
 
 export function defaultKnowledgeRoot(): string {
-  return resolve(projectRoot, "knowledge");
+  return resolve(projectRoot, "data", "knowledge");
 }
 
 /**

@@ -55,7 +55,7 @@ module.exports = {
         PORT: "8787",
         XCOPILOT_ROLE: "api",
         ANALYTICS_URL: "http://127.0.0.1:8788",
-        // BIND_HOST: "0.0.0.0", // only behind Cloudflare TLS; see docs/PUBLIC_DEPLOY.md
+        // BIND_HOST: "0.0.0.0", // only behind Cloudflare TLS
       },
       out_file: path.join(root, "logs", "x-copilot-api.out.log"),
       error_file: path.join(root, "logs", "x-copilot-api.err.log"),
