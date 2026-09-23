@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readBootQuery } from "./bootQuery.ts";
 
-describe("readBootQuery", () => {
+await describe("readBootQuery", () => {
   it("leaves a plain URL alone", () => {
     const q = readBootQuery({ search: "?tab=foryou", pathname: "/", hash: "" });
     assert.equal(q.cleanUrl, null);

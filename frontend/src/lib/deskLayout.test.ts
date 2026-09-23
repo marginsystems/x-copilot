@@ -18,7 +18,7 @@ function memoryStore(seed: Record<string, string> = {}) {
   };
 }
 
-describe("deskLayout", () => {
+await describe("deskLayout", () => {
   it("defaults collapsed when nothing is stored", () => {
     assert.equal(readDeskTopOpen(memoryStore()), false);
     assert.equal(readDeskTopOpen(null), false);

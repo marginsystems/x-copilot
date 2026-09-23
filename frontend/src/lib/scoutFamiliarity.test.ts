@@ -62,7 +62,7 @@ const KEYS = [
   "version",
 ];
 
-describe("parseScoutFamiliarity", () => {
+await describe("parseScoutFamiliarity", () => {
   it("round-trips the C13 fixtures exactly", () => {
     for (const fixture of [EMPTY, SKIP_ONLY, LEARNING, SUPPORTED]) {
       const parsed = parseScoutFamiliarity(JSON.parse(JSON.stringify(fixture)));

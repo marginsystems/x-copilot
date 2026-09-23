@@ -9,7 +9,7 @@ import {
   scoutStageVerb,
 } from "./scoutStages.ts";
 
-describe("scoutStages", () => {
+await describe("scoutStages", () => {
   it("returns flight-style stage copy", () => {
     assert.match(scoutStageMessage("planning"), /route/i);
     assert.match(scoutStageMessage("searching"), /air/i);

@@ -31,7 +31,7 @@ const base: ForYouSuggestion = {
   targetAuthor: null,
 };
 
-describe("forYou helpers", () => {
+await describe("forYou helpers", async () => {
   it("parses API rows and rejects junk", () => {
     assert.equal(parseForYouSuggestion(null), null);
     assert.equal(parseForYouSuggestion({ id: "1", kind: "nope", why: "x" }), null);
@@ -71,7 +71,7 @@ describe("forYou helpers", () => {
     );
   }).catch(assert.fail);
 
-  it("labels kinds and picks an Open on X url", () => {
+  await it("labels kinds and picks an Open on X url", () => {
     assert.equal(forYouKindLabel("repost"), "Repost");
     assert.equal(forYouKindShort("post"), "OG");
     assert.equal(forYouKindShort("quote"), "QT");
@@ -90,7 +90,7 @@ describe("forYou helpers", () => {
     );
   });
 
-  it("opens post rows on For You without the digest draft or target", () => {
+  await it("opens post rows on For You without the digest draft or target", () => {
     for (const row of [
       base,
       { ...base, draft: null },
@@ -113,7 +113,7 @@ describe("forYou helpers", () => {
     );
   }).catch(assert.fail);
 
-  it("opens a reply intent with the draft when only a numeric target id is present", () => {
+  await it("opens a reply intent with the draft when only a numeric target id is present", () => {
     const url = new URL(forYouOpenUrl({ ...base, kind: "reply", targetId: "77" })!);
     assert.equal(url.origin + url.pathname, "https://x.com/intent/tweet");
     assert.equal(url.searchParams.get("in_reply_to"), "77");

@@ -10,7 +10,7 @@ import {
   type ApproachLock,
 } from "./deskPhase.ts";
 
-describe("emptyDeskBeats", () => {
+await describe("emptyDeskBeats", () => {
   it("returns all-false beats with no fork choice", () => {
     assert.deepEqual(emptyDeskBeats(), {
       scoutReplyDone: false,
@@ -22,7 +22,7 @@ describe("emptyDeskBeats", () => {
 
 });
 
-describe("Approach lock", () => {
+await describe("Approach lock", () => {
   const inventory = {
     scoutId: "scout-2",
     suggestionId: "suggested-1",
@@ -278,7 +278,7 @@ describe("Approach lock", () => {
 
 });
 
-describe("normalizeApproachLock", () => {
+await describe("normalizeApproachLock", () => {
   const open = {
     gate: null,
     scoutId: "scout-1",
@@ -438,7 +438,7 @@ describe("normalizeApproachLock", () => {
 
 });
 
-describe("S10 skip-next", () => {
+await describe("S10 skip-next", () => {
   const firstScout = {
     phase: "scout_reply",
     cardId: "scout-1",

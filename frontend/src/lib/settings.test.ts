@@ -52,7 +52,7 @@ Object.defineProperty(globalThis, "localStorage", {
   configurable: true,
 });
 
-describe("clampMaxThreadChars", () => {
+await describe("clampMaxThreadChars", () => {
   it("clamps to range and rejects non-integers", () => {
     assert.equal(clampMaxThreadChars(480), 480);
     assert.equal(clampMaxThreadChars(50), 120);
@@ -63,7 +63,7 @@ describe("clampMaxThreadChars", () => {
 
 });
 
-describe("clampTargetCoolThreads", () => {
+await describe("clampTargetCoolThreads", () => {
   it("clamps to 1–20 and defaults invalid values", () => {
     assert.equal(clampTargetCoolThreads(8), 8);
     assert.equal(clampTargetCoolThreads(0), 1);
@@ -74,7 +74,7 @@ describe("clampTargetCoolThreads", () => {
 
 });
 
-describe("normalizePreferredLanguage", () => {
+await describe("normalizePreferredLanguage", () => {
   it("defaults unknown codes to en", () => {
     assert.equal(normalizePreferredLanguage("en"), "en");
     assert.equal(normalizePreferredLanguage("FR"), "fr");
@@ -84,7 +84,7 @@ describe("normalizePreferredLanguage", () => {
 
 });
 
-describe("excludedTags settings", () => {
+await describe("excludedTags settings", () => {
   it("strips trailing underscores (so Settings must draft raw text)", () => {
     // Controlled textarea must not re-normalize on every keystroke — otherwise
     // typing `genuine_question` dies at the `_`.
@@ -159,7 +159,7 @@ describe("excludedTags settings", () => {
 
 });
 
-describe("normalizeSettings", () => {
+await describe("normalizeSettings", () => {
   it("fills defaults for bad input", () => {
     assert.deepEqual(normalizeSettings(null), DEFAULT_SETTINGS);
     assert.deepEqual(
@@ -235,7 +235,7 @@ describe("normalizeSettings", () => {
 
 });
 
-describe("plain-text filters", () => {
+await describe("plain-text filters", () => {
   it("detects native media from shortlinks or pic hosts", () => {
     assert.equal(
       threadHasNativeMedia({ mediaShortlinks: ["t.co/abc"] }),
@@ -274,7 +274,7 @@ describe("plain-text filters", () => {
 
 });
 
-describe("loadSettings / saveSettings", () => {
+await describe("loadSettings / saveSettings", () => {
   beforeEach(() => {
     store.clear();
   });

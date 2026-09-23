@@ -45,7 +45,7 @@ function marksAt(
   }));
 }
 
-describe("dailyPostCap", () => {
+await describe("dailyPostCap", () => {
   it("matches the server formula fixtures", () => {
     assert.equal(dailyPostCap({ level: 1, currentStreak: 0 }), 5);
     assert.equal(dailyPostCap({ level: 3, currentStreak: 0 }), 6);
@@ -63,7 +63,7 @@ describe("dailyPostCap", () => {
 
 });
 
-describe("trailingPerHour", () => {
+await describe("trailingPerHour", () => {
   it("is zero with no marks", () => {
     assert.equal(trailingPerHour([], NOW), 0);
   }).catch(assert.fail);
@@ -89,7 +89,7 @@ describe("trailingPerHour", () => {
 
 });
 
-describe("pctDelta / format", () => {
+await describe("pctDelta / format", () => {
   it("returns null when the previous value is zero and current is not", () => {
     assert.equal(pctDelta(2, 0), null);
     assert.equal(pctDelta(0, 0), 0);
@@ -114,7 +114,7 @@ describe("pctDelta / format", () => {
 
 });
 
-describe("readDeskInstruments", () => {
+await describe("readDeskInstruments", () => {
   it("returns empty gauges for an empty account", () => {
     const got = read({ postsToday: 4, originalsToday: 1, dailyPostCap: 5 });
     assert.equal(got.windowSize, 0);

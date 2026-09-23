@@ -7,7 +7,7 @@ import {
   parentKind,
 } from "./xThreadView.ts";
 
-describe("xThreadView helpers", () => {
+await describe("xThreadView helpers", () => {
   it("normalizes handles and initials", () => {
     assert.equal(displayHandle("@chris_southgate"), "chris_southgate");
     assert.equal(displayHandle("chris_southgate"), "chris_southgate");

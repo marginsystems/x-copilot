@@ -7,7 +7,7 @@ import {
   LEGAL_UPDATED,
 } from "./legal.ts";
 
-describe("legal", () => {
+await describe("legal", () => {
   it("names Mergestorm and the shared contact inbox", () => {
     assert.equal(LEGAL_ENTITY, "Mergestorm, Inc.");
     assert.equal(LEGAL_CONTACT_EMAIL, "contact@mergestorm.ai");

@@ -11,7 +11,7 @@ import {
   stackBarSegments,
 } from "./activityStats.ts";
 
-describe("formatPeriodTip", () => {
+await describe("formatPeriodTip", () => {
   it("writes a day as M/D", () => {
     assert.equal(formatPeriodTip("2026-08-11", "day"), "8/11");
   }).catch(assert.fail);
@@ -22,7 +22,7 @@ describe("formatPeriodTip", () => {
 
 });
 
-describe("formatCount", () => {
+await describe("formatCount", () => {
   it("keeps small numbers intact", () => {
     assert.equal(formatCount(12), "12");
   }).catch(assert.fail);
@@ -33,7 +33,7 @@ describe("formatCount", () => {
 
 });
 
-describe("activityChartTipDetail", () => {
+await describe("activityChartTipDetail", () => {
   it("names posts and views", () => {
     assert.equal(activityChartTipDetail(12, 4210, false), "12 posts · 4.2k views");
   }).catch(assert.fail);
@@ -66,7 +66,7 @@ describe("activityChartTipDetail", () => {
 
 });
 
-describe("postKindCounts / stackBarSegments", () => {
+await describe("postKindCounts / stackBarSegments", () => {
   it("treats a legacy interactions-only point as replies", () => {
     assert.deepEqual(
       postKindCounts({
@@ -97,7 +97,7 @@ describe("postKindCounts / stackBarSegments", () => {
 
 });
 
-describe("parseActivityStats", () => {
+await describe("parseActivityStats", () => {
   it("defaults missing kind fields on an old boot snapshot", () => {
     const parsed = parseActivityStats({
       bucket: "day",

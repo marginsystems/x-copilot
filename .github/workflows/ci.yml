@@ -56,4 +56,6 @@ jobs:
         run: npm run test:mounted
       - name: Report hook dependency backlog
         run: npm run lint:hooks
+      - name: TypeScript safety lint
+        run: npm run lint:types
       - run: npm run build

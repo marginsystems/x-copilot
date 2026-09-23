@@ -17,7 +17,7 @@ Object.defineProperty(globalThis, "localStorage", {
   },
 });
 
-describe("Approach lock persistence", () => {
+await describe("Approach lock persistence", () => {
   beforeEach(() => {
     store.clear();
   });

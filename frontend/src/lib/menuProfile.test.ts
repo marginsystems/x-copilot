@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { menuAvatarUrl, menuInitials } from "./menuProfile.ts";
 
-describe("menuInitials", () => {
+await describe("menuInitials", () => {
   it("uses first letters of a two-word name", () => {
     assert.equal(menuInitials("Mark Argin", "m@x.com", "marginsystems"), "MA");
   }).catch(assert.fail);
@@ -18,7 +18,7 @@ describe("menuInitials", () => {
 
 });
 
-describe("menuAvatarUrl", () => {
+await describe("menuAvatarUrl", () => {
   it("accepts https photos only", () => {
     assert.equal(
       menuAvatarUrl("https://lh3.googleusercontent.com/a/photo"),

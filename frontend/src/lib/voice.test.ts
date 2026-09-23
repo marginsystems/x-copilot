@@ -16,7 +16,7 @@ import {
   type VoiceState,
 } from "./voice.ts";
 
-describe("localEditHint", () => {
+await describe("localEditHint", () => {
   const draft = "Shipping small every day beats one big launch. What made you switch?";
 
   it("flags empty, unchanged, and cosmetic edits", () => {
@@ -43,7 +43,7 @@ describe("localEditHint", () => {
 
 });
 
-describe("suggestNoteSlot", () => {
+await describe("suggestNoteSlot", () => {
   it("keeps a reserved slot when there is no hint or verdict", () => {
     const empty = suggestNoteSlot({
       note: null,
@@ -120,7 +120,7 @@ describe("suggestNoteSlot", () => {
 
 });
 
-describe("voice state parsing", () => {
+await describe("voice state parsing", () => {
   it("parses the /api/voice payload", () => {
     const state = parseVoiceState({
       voice: {
@@ -163,7 +163,7 @@ describe("voice state parsing", () => {
 
 });
 
-describe("voiceUnlockCopy", () => {
+await describe("voiceUnlockCopy", () => {
   it("explains the 100-post bar when state has not loaded", () => {
     assert.match(voiceUnlockCopy(null), /100 public posts/);
     assert.match(voiceUnlockCopy(null), /hourly/);
@@ -198,7 +198,7 @@ describe("voiceUnlockCopy", () => {
 
 });
 
-describe("shouldShowVoiceUnlockToast", () => {
+await describe("shouldShowVoiceUnlockToast", () => {
   const locked: VoiceState = {
     status: "insufficient",
     handle: "margin",
@@ -305,7 +305,7 @@ describe("shouldShowVoiceUnlockToast", () => {
 
 });
 
-describe("voiceNeedsXLink", () => {
+await describe("voiceNeedsXLink", () => {
   it("is true with no official X link and no voice payload yet", () => {
     assert.equal(voiceNeedsXLink(null, null), true);
     assert.equal(voiceNeedsXLink(null, false), true);
@@ -404,7 +404,7 @@ describe("voiceNeedsXLink", () => {
 
 });
 
-describe("phase + meter helpers", () => {
+await describe("phase + meter helpers", () => {
   it("advances phases and holds on the last", () => {
     assert.equal(phaseIndexAt(LEARN_PHASES, 0), 0);
     assert.equal(phaseIndexAt(LEARN_PHASES, 1900), 1);

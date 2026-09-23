@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { deskNeedsXLink, showDeskXGate } from "./deskGate.ts";
 
-describe("deskNeedsXLink", () => {
+await describe("deskNeedsXLink", () => {
   it("is true only for a signed-in user without official X OAuth", () => {
     assert.equal(deskNeedsXLink(null), false);
     assert.equal(deskNeedsXLink(undefined), false);
@@ -13,7 +13,7 @@ describe("deskNeedsXLink", () => {
 
 });
 
-describe("showDeskXGate", () => {
+await describe("showDeskXGate", () => {
   const base = {
     needsXLink: true,
     needsLogin: false,

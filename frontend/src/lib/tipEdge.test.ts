@@ -8,7 +8,7 @@ import {
   tipFlipBelow,
 } from "./tipEdge.ts";
 
-describe("tipEdge", () => {
+await describe("tipEdge", () => {
   it("stays centered when the panel fits", () => {
     assert.equal(tipEdge(400, 256, 800), "center");
   }).catch(assert.fail);
@@ -46,7 +46,7 @@ describe("tipEdge", () => {
 
 });
 
-describe("tipAlignClass", () => {
+await describe("tipAlignClass", () => {
   it("names the CSS class for each edge", () => {
     assert.equal(tipAlignClass("start"), "is-tip-start");
     assert.equal(tipAlignClass("center"), "is-tip-center");
@@ -55,7 +55,7 @@ describe("tipAlignClass", () => {
 
 });
 
-describe("estimateTipWidth", () => {
+await describe("estimateTipWidth", () => {
   it("uses 16rem until 76vw is smaller", () => {
     assert.equal(estimateTipWidth(1200), 240);
     assert.equal(estimateTipWidth(300), 228);
@@ -63,7 +63,7 @@ describe("estimateTipWidth", () => {
 
 });
 
-describe("tipFlipBelow", () => {
+await describe("tipFlipBelow", () => {
   it("flips when the tip would clip the top of the viewport", () => {
     assert.equal(tipFlipBelow(40, 44), true);
   }).catch(assert.fail);
@@ -74,7 +74,7 @@ describe("tipFlipBelow", () => {
 
 });
 
-describe("tipAnchor", () => {
+await describe("tipAnchor", () => {
   it("maps a point from chart viewBox coordinates to fixed viewport coordinates", () => {
     assert.deepEqual(
       tipAnchor(40, 20, 300, 60, 150, 30, 600, 120),

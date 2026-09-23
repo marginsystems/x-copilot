@@ -7,7 +7,7 @@ import {
   isChangelogDate,
 } from "./changelog.ts";
 
-describe("CHANGELOG", () => {
+await describe("CHANGELOG", () => {
   it("lists newest ships first with a title, body, and date", () => {
     assert.ok(CHANGELOG.length >= 1);
     for (let i = 1; i < CHANGELOG.length; i += 1) {
@@ -38,7 +38,7 @@ describe("CHANGELOG", () => {
 
 });
 
-describe("changelogByDate", () => {
+await describe("changelogByDate", () => {
   it("groups consecutive same-day rows and keeps newest first", () => {
     const days = changelogByDate([
       { date: "2026-08-25", title: "A", body: "a" },
@@ -56,7 +56,7 @@ describe("changelogByDate", () => {
 
 });
 
-describe("formatChangelogDate", () => {
+await describe("formatChangelogDate", () => {
   it("formats a UTC day without shifting the calendar date", () => {
     assert.equal(formatChangelogDate("2026-08-25"), "August 25, 2026");
     assert.equal(isChangelogDate("2026-08-25"), true);

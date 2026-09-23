@@ -42,7 +42,7 @@ const fypReply: ActivityCursor = {
   text: "for you reply",
 };
 
-describe("latestActivityCursor", () => {
+await describe("latestActivityCursor", () => {
   it("folds ownActivity and history and keeps the newest id", () => {
     assert.equal(latestActivityCursor({}), null);
     assert.equal(
@@ -135,7 +135,7 @@ describe("latestActivityCursor", () => {
 
 });
 
-describe("For You wait identity", () => {
+await describe("For You wait identity", () => {
   it("opens with an owner, entry time, cursor baseline, and no completion", () => {
     const wait = openForYouWait({ owner: "u1", cursor: baseline, now: ENTERED });
     assert.deepEqual(wait, {
@@ -197,7 +197,7 @@ describe("For You wait identity", () => {
 
 });
 
-describe("For You wait detection", () => {
+await describe("For You wait detection", () => {
   it("does not treat an already-attributed scout reply as a For You post", () => {
     const wait = openForYouWait({
       owner: "u1",
@@ -285,7 +285,7 @@ describe("For You wait detection", () => {
 
 });
 
-describe("For You wait storage", () => {
+await describe("For You wait storage", () => {
   function withSessionStorage(run: () => void) {
     const values = new Map<string, string>();
     Object.defineProperty(globalThis, "sessionStorage", {

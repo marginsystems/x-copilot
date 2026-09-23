@@ -9,7 +9,7 @@ import {
 const agenda =
   "Find founders sharing concrete takes on shipping AI tools in public. Prefer a clear point of view.";
 
-describe("agendaNeedsPersist", () => {
+await describe("agendaNeedsPersist", () => {
   it("returns the trimmed draft when it differs from saved", () => {
     assert.equal(agendaNeedsPersist(`  ${agenda}  `, "old agenda ".repeat(4)), agenda);
   }).catch(assert.fail);
