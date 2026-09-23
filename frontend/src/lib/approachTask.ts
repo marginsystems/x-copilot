@@ -90,6 +90,37 @@ export function transitionApproachTask(
   };
 }
 
+/**
+ * The empty Collecting card is not a post the operator is reading. When the
+ * first eligible Scout arrives, lock it. A card already on screen, and a
+ * suggestion-only tank, stay until a card button.
+ */
+export function adoptEmptyScoutCollecting(
+  state: ApproachTaskState,
+  scoutId: string | null,
+): ApproachTaskState {
+  if (!scoutId) return state;
+  const { lock } = state;
+  const emptyTank =
+    lock.phase === "done_for_now" ||
+    (lock.phase === "scout_reply" && lock.cardId === null);
+  if (!emptyTank) return state;
+  const nextLock = normalizeApproachLock(lock, {
+    gate: null,
+    scoutId,
+    suggestionId: null,
+    canOpenForYou: false,
+  });
+  if (
+    nextLock === lock ||
+    nextLock.phase !== "scout_reply" ||
+    nextLock.cardId !== scoutId
+  ) {
+    return state;
+  }
+  return { lock: nextLock, wait: null };
+}
+
 /** A prerequisite changed. Active tasks keep their identity and wait. */
 export function reconcileApproachGate(
   state: ApproachTaskState,

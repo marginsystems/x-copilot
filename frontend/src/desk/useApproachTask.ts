@@ -1,7 +1,8 @@
 /**
  * The Approach task machine. One locked card, its For You wait, the refill arm,
  * and the detector it owns. Active cards stay locked until a card button.
- * Collecting Next fills an empty lock. Detection marks the same card.
+ * An empty Collecting card adopts the first Scout that arrives.
+ * Collecting Next still fills a suggestion-only tank. Detection marks the same card.
  */
 import {
   useEffect,
@@ -20,6 +21,7 @@ import {
 } from "../lib/approachCard";
 import { readApproachLock, writeApproachLock } from "../lib/approachLock";
 import {
+  adoptEmptyScoutCollecting,
   reconcileApproachGate,
   restoreApproachTask,
   transitionApproachTask,
@@ -367,6 +369,13 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     });
     if (next !== current) commit(next);
   }, [agendaReady, deskBootReady, gate, owner]);
+
+  useEffect(() => {
+    const current = stateRef.current;
+    if (!current) return;
+    const next = adoptEmptyScoutCollecting(current, scoutPick?.id ?? null);
+    if (next !== current) commit(next, pace.overlayArmed);
+  }, [lock?.cardId, lock?.phase, scoutPick?.id]);
 
   useEffect(() => {
     const current = stateRef.current;

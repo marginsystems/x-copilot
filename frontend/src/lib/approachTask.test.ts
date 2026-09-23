@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  adoptEmptyScoutCollecting,
   reconcileApproachGate,
   restoreApproachTask,
   transitionApproachTask,
@@ -337,6 +338,42 @@ describe("Next with an empty tank", () => {
       cardId: "original_1",
       surface: null,
     });
+  }).catch(assert.fail);
+
+  it("locks the first Scout onto an empty Collecting card without a Next click", () => {
+    const done: ApproachTaskState = {
+      lock: { phase: "done_for_now", cardId: null, surface: null },
+      wait: null,
+    };
+    const flying: ApproachTaskState = {
+      lock: { phase: "scout_reply", cardId: null, surface: null },
+      wait: null,
+    };
+    for (const state of [done, flying]) {
+      assert.equal(adoptEmptyScoutCollecting(state, null), state);
+      const adopted = adoptEmptyScoutCollecting(state, "landed-1");
+      assert.deepEqual(adopted.lock, {
+        phase: "scout_reply",
+        cardId: "landed-1",
+        surface: null,
+      });
+      assert.equal(adopted.wait, null);
+      assert.equal(present(adopted, {
+        scout: { id: "landed-1", author: "@a", text: "landed", url: "https://x.com/a" },
+      }).kind, "scout");
+    }
+  }).catch(assert.fail);
+
+  it("does not replace a card the operator is already reading", () => {
+    const reading: ApproachTaskState[] = [
+      { lock: { phase: "scout_reply", cardId: "A", surface: null }, wait: null },
+      { lock: { phase: "organic_reply", cardId: "original-1", surface: null }, wait: null },
+      { lock: FOR_YOU, wait: openForYouWait({ owner: OWNER, cursor, now: T0 }) },
+      { lock: { phase: "hold", cardId: null, surface: "for_you" }, wait: null },
+    ];
+    for (const state of reading) {
+      assert.equal(adoptEmptyScoutCollecting(state, "landed-1"), state);
+    }
   }).catch(assert.fail);
 
 });
