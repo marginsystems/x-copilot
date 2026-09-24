@@ -60,6 +60,7 @@ import {
   writeRetainedSuggestion,
 } from "./approachRetained";
 import { pickApproachScout } from "./approachScout";
+import { approachDetectorSchedule, approachDetectorRefresh } from "./approachDetector";
 import { clearReplyPaceOverlay } from "./replyPaceStore";
 import type {
   DismissalHistoryEntry,
@@ -329,6 +330,13 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     commit(next, armOverlay);
   }
 
+  const commitRef = useRef(commit);
+  commitRef.current = commit;
+  const advanceCardRef = useRef(advanceCard);
+  advanceCardRef.current = advanceCard;
+  const paceLockedRef = useRef(pace.locked);
+  paceLockedRef.current = pace.locked;
+
   useEffect(() => {
     if (ownerRef.current === owner) return;
     ownerRef.current = owner;
@@ -349,12 +357,12 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     if (retainedSuggestion && stored?.cardId === retainedSuggestion.id) {
       suggestionCardsRef.current.set(retainedSuggestion.id, retainedSuggestion);
     }
-    commit(
+    commitRef.current(
       restoreApproachTask({
         stored,
         storedWait: readForYouWait(owner),
         normalize: normalizeRef.current,
-        paceLocked: livePaceLocked(),
+        paceLocked: paceLockedRef.current,
         task: { owner, cursor: cursorRef.current },
       }),
     );
@@ -367,21 +375,21 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       owner,
       cursor: cursorRef.current,
     });
-    if (next !== current) commit(next);
+    if (next !== current) commitRef.current(next);
   }, [agendaReady, deskBootReady, gate, owner]);
 
   useEffect(() => {
     const current = stateRef.current;
     if (!current) return;
     const next = adoptEmptyScoutCollecting(current, scoutPick?.id ?? null);
-    if (next !== current) commit(next, pace.overlayArmed);
-  }, [lock?.cardId, lock?.phase, scoutPick?.id]);
+    if (next !== current) commitRef.current(next, pace.overlayArmed);
+  }, [lock?.cardId, lock?.phase, scoutPick?.id, pace.overlayArmed]);
 
   useEffect(() => {
     const current = stateRef.current;
     if (!current?.wait) return;
     const settled = settleForYouWait(current.wait, cursorRef.current);
-    if (settled !== current.wait) commit({ lock: current.lock, wait: settled });
+    if (settled !== current.wait) commitRef.current({ lock: current.lock, wait: settled });
   }, [activityCursor?.id, activityCursor?.postedAt, wait]);
 
   const cardInput: ApproachCardInput = {
@@ -411,29 +419,57 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const presentation = presentApproach(cardInput);
   const detector = lock ? presentation.detector : null;
 
+  const lockedCardId = lock?.cardId ?? null;
+  const detectorPendingRef = useRef({ for_you: false, scout: false });
   useEffect(() => {
-    if (detector !== "for_you") return;
+    const schedule = approachDetectorSchedule(detector, lockedCardId);
+    if (!schedule) return;
+    let stopped = false;
+    let retryTimer: number | undefined;
+    const pending = detectorPendingRef.current;
+    const refresh = async () => {
+      if (stopped) return;
+      const target = approachDetectorRefresh(schedule, pending[schedule.target.detector]);
+      if (!target) return;
+      pending[target.detector] = true;
+      try {
+        if (target.detector === "for_you") {
+          await refreshCoachingRef.current({ lite: true });
+        } else {
+          await hydrateInteractedRef.current(target.cardId);
+        }
+      } finally {
+        pending[target.detector] = false;
+      }
+    };
+    const tick = () => {
+      refresh().catch((err: unknown) => console.error(err));
+    };
+    const ownPost = () => {
+      tick();
+      if (schedule.ownPostRetryMs !== null) {
+        window.clearTimeout(retryTimer);
+        retryTimer = window.setTimeout(tick, schedule.ownPostRetryMs);
+      }
+    };
+    const visible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
     const source = new EventSource(apiUrl("/api/desk/events"), { withCredentials: true });
-    source.addEventListener("own_post", () => {
-      Promise.resolve(refreshCoachingRef.current({ lite: true })).catch((err: unknown) => console.error(err));
-    });
-    const interval = window.setInterval(() => {
-      Promise.resolve(refreshCoachingRef.current({ lite: true })).catch((err: unknown) => console.error(err));
-    }, 12_000);
+    source.addEventListener("own_post", ownPost);
+    source.addEventListener("ready", tick);
+    window.addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", visible);
+    const interval = window.setInterval(tick, schedule.intervalMs);
     return () => {
+      stopped = true;
       source.close();
       window.clearInterval(interval);
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("focus", tick);
+      document.removeEventListener("visibilitychange", visible);
     };
-  }, [detector, owner]);
-
-  const lockedCardId = lock?.cardId ?? null;
-  useEffect(() => {
-    if (detector !== "scout" || !lockedCardId) return;
-    const interval = window.setInterval(() => {
-      Promise.resolve(hydrateInteractedRef.current(lockedCardId)).catch((err: unknown) => console.error(err));
-    }, 5_000);
-    return () => window.clearInterval(interval);
-  }, [detector, lockedCardId]);
+  }, [detector, lockedCardId, owner]);
 
   const ready = lock !== null;
   useEffect(() => {
@@ -506,7 +542,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     const id = pendingDismissIdRef.current;
     if (!id || !dismissedHistory.some((entry) => entry.threadId === id)) return;
     pendingDismissIdRef.current = null;
-    advanceCard({ type: "dismiss" });
+    advanceCardRef.current({ type: "dismiss" });
   }, [dismissedHistory]);
   function exitRow(
     id: string,
