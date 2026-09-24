@@ -1,11 +1,41 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { beginCoachingRequest } from "../desk/useCoaching.ts";
 import {
   mergeCoachingState,
   parseCoachingPayload,
   parseDeskBeats,
   parseNextAction,
 } from "./coaching.ts";
+
+await describe("coaching request sequences", () => {
+  it("keeps a pending lite activity response when a full refresh starts", () => {
+    const lite = beginCoachingRequest({ full: 0, lite: 0 }, { lite: true });
+    const full = beginCoachingRequest(lite.sequences);
+    assert.equal(lite.isCurrent(full.sequences), true);
+    assert.equal(full.isCurrent(full.sequences), true);
+  }).catch(assert.fail);
+
+  it("keeps a pending full response when lite polling starts", () => {
+    const full = beginCoachingRequest({ full: 0, lite: 0 });
+    const lite = beginCoachingRequest(full.sequences, { lite: true });
+    assert.equal(full.isCurrent(lite.sequences), true);
+    assert.equal(lite.isCurrent(lite.sequences), true);
+  }).catch(assert.fail);
+
+  it("rejects older responses only within the same request kind", () => {
+    const full = beginCoachingRequest({ full: 0, lite: 0 });
+    const lite = beginCoachingRequest(full.sequences, { lite: true });
+    const newerFull = beginCoachingRequest(lite.sequences, { lite: false });
+    assert.equal(full.isCurrent(newerFull.sequences), false);
+    assert.equal(lite.isCurrent(newerFull.sequences), true);
+    const newerLite = beginCoachingRequest(newerFull.sequences, { lite: true });
+    assert.equal(lite.isCurrent(newerLite.sequences), false);
+    assert.equal(newerFull.isCurrent(newerLite.sequences), true);
+    assert.equal(newerLite.isCurrent(newerLite.sequences), true);
+    assert.deepEqual(full.sequences, { full: 1, lite: 0 });
+  }).catch(assert.fail);
+});
 
 await describe("coaching parsers", () => {
   it("accepts a next-action card and daily missions", () => {
