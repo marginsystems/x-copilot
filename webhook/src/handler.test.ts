@@ -45,6 +45,7 @@ import {
 } from "../../server/src/scout/scoutCache.ts";
 import {
   markOwnReplyInteracted,
+  resetDeskWakeWarningForTests,
   resetWebhookMemoryProjectionForTests,
 } from "./handler.ts";
 import { createWebhookServer } from "./sidecar.ts";
@@ -121,6 +122,7 @@ await describe("own reply interaction capture", async () => {
   beforeEach(() => {
     resetPlatformDbForTests();
     resetInteractionMemoryProjectionForTests();
+    resetDeskWakeWarningForTests();
     dir = mkdtempSync(join(tmpdir(), "x-webhook-interacted-"));
     resetWebhookMemoryProjectionForTests({
       knowledgeRoot: knowledgeRootFor(dir),
@@ -146,6 +148,7 @@ await describe("own reply interaction capture", async () => {
   afterEach(() => {
     resetPlatformDbForTests();
     resetInteractionMemoryProjectionForTests();
+    resetDeskWakeWarningForTests();
     resetWebhookMemoryProjectionForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
@@ -751,6 +754,110 @@ await describe("own reply interaction capture", async () => {
     assert.match(note, /Watched parent post/);
     assert.match(note, /## Reply[\s\S]*\nreply\n/);
     assert.equal((await listInteractionHistory({ userId })).length, 1);
+  });
+
+  await it("explains only the first forbidden desk wake without retrying", async (t) => {
+    const original = globalThis.fetch;
+    let wakeCalls = 0;
+    t.mock.method(globalThis, "fetch", async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if (String(input).includes("/api/desk/events/wake")) {
+        wakeCalls += 1;
+        return new Response(null, { status: 403 });
+      }
+      return original(input, init);
+    });
+    const warn = t.mock.method(console, "warn", () => {});
+    const server = createWebhookServer();
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    try {
+      for (const id of ["wake-forbidden-1", "wake-forbidden-2"]) {
+        const body = JSON.stringify({
+          data: {
+            event_uuid: id,
+            event_type: "post.create",
+            filter: { user_id: "x-user" },
+            payload: {
+              id,
+              author_id: "x-user",
+              text: "original",
+              created_at: "2026-09-04T03:00:00.000Z",
+            },
+          },
+        });
+        const res = await fetch(`http://127.0.0.1:${address.port}/api/x/activity`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-twitter-webhooks-signature": crcResponseToken(body, "secret"),
+          },
+          body,
+        });
+        assert.equal(res.status, 200);
+        assert.deepEqual(await res.json(), { ok: true });
+      }
+      assert.equal(wakeCalls, 2);
+      assert.deepEqual(warn.mock.calls.map((call) => call.arguments), [
+        ["[xaa] desk wake soft-fail", 403,
+          "API and webhook DESK_EVENTS_SECRET values disagree or are empty."],
+        ["[xaa] desk wake soft-fail", 403],
+      ]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  await it("lets a slow desk wake finish before soft-failing", async (t) => {
+    const original = globalThis.fetch;
+    t.mock.method(globalThis, "fetch", async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if (String(input).includes("/api/desk/events/wake")) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 400);
+          init?.signal?.addEventListener("abort", () => {
+            clearTimeout(timer);
+            reject(new DOMException("aborted", "AbortError"));
+          }, { once: true });
+        });
+        return new Response(null, { status: 200 });
+      }
+      return original(input, init);
+    });
+    const warn = t.mock.method(console, "warn", () => {});
+    const server = createWebhookServer();
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const body = JSON.stringify({
+      data: {
+        event_uuid: "wake-slow",
+        event_type: "post.create",
+        filter: { user_id: "x-user" },
+        payload: {
+          id: "wake-slow",
+          author_id: "x-user",
+          text: "original",
+          created_at: "2026-09-04T03:00:00.000Z",
+        },
+      },
+    });
+    try {
+      const res = await fetch(`http://127.0.0.1:${address.port}/api/x/activity`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-twitter-webhooks-signature": crcResponseToken(body, "secret"),
+        },
+        body,
+      });
+      assert.equal(res.status, 200);
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      assert.deepEqual(warn.mock.calls, []);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 
   await it("ignores a duplicate event_uuid", async () => {

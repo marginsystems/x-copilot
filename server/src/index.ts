@@ -23,7 +23,7 @@ import { tryHandleXActivityAuthed } from "./x-api/xActivityHttp.js";
 import { tryHandleVoice } from "./voice/voiceHttp.js";
 import { tryHandleForYou } from "./for-you/forYouHttp.js";
 import { tryHandleCoaching } from "./desk/coachingHttp.js";
-import { tryHandleDeskEvents, tryHandleDeskEventsWake } from "./desk/deskEvents.js";
+import { tryHandleDeskEvents, tryHandleDeskEventsWake, warnIfDeskEventsSecretMissing } from "./desk/deskEvents.js";
 import { tryHandleDeskBeats } from "./desk/deskBeatsHttp.js";
 import { tryHandleDigestEmail } from "./for-you/digestEmailHttp.js";
 import { tryHandleMemory } from "./memory/memoryHttp.js";
@@ -48,6 +48,8 @@ if (
   );
   process.exit(1);
 }
+
+warnIfDeskEventsSecretMissing();
 
 const PORT = Number(process.env.PORT || 8787);
 

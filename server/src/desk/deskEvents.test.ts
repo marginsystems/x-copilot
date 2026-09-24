@@ -15,6 +15,7 @@ import {
   resetDeskEventsForTests,
   tryHandleDeskEvents,
   tryHandleDeskEventsWake,
+  warnIfDeskEventsSecretMissing,
 } from "./deskEvents.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
@@ -89,6 +90,26 @@ await describe("desk events", async () => {
     delete process.env.PLATFORM_MIGRATIONS_DIR;
     delete process.env.DESK_EVENTS_SECRET;
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  for (const secret of [undefined, "", "  \t "]) {
+    await it(`warns once when the desk event secret is ${JSON.stringify(secret)}`, (t) => {
+      if (secret === undefined) delete process.env.DESK_EVENTS_SECRET;
+      else process.env.DESK_EVENTS_SECRET = secret;
+      const warn = t.mock.method(console, "warn", () => {});
+      warnIfDeskEventsSecretMissing();
+      warnIfDeskEventsSecretMissing();
+      assert.equal(warn.mock.callCount(), 1);
+      assert.deepEqual(warn.mock.calls[0]?.arguments, [
+        "[desk] DESK_EVENTS_SECRET is empty; desk wakes will be rejected (403).",
+      ]);
+    });
+  }
+
+  await it("does not warn when the desk event secret is configured", (t) => {
+    const warn = t.mock.method(console, "warn", () => {});
+    warnIfDeskEventsSecretMissing();
+    assert.equal(warn.mock.callCount(), 0);
   });
 
   await it("GET /api/desk/events without a session is 401", () => {

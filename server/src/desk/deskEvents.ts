@@ -5,9 +5,17 @@ import { BODY_CAP_16K, readJsonBody, send } from "../http/httpJson.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 
 const subscribers = new Map<string, Set<ServerResponse>>();
+let warnedMissingSecret = false;
+
+export function warnIfDeskEventsSecretMissing(): void {
+  if (process.env.DESK_EVENTS_SECRET?.trim() || warnedMissingSecret) return;
+  warnedMissingSecret = true;
+  console.warn("[desk] DESK_EVENTS_SECRET is empty; desk wakes will be rejected (403).");
+}
 
 export function resetDeskEventsForTests(): void {
   subscribers.clear();
+  warnedMissingSecret = false;
 }
 
 /** Runs before the cookie gate; the webhook sidecar must present the shared secret. */
