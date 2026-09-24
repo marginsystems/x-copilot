@@ -32,11 +32,19 @@ export function useCoaching(verifiedOwnerId: string | null) {
 
   async function hydrateCoaching(opts?: CoachingFetchOptions) {
     const request = beginCoachingRequest(requestSeqRef.current, opts);
+    const liteSeqAtStart = request.sequences.lite;
     requestSeqRef.current = request.sequences;
     const next = await fetchCoaching(opts);
     if (!request.isCurrent(requestSeqRef.current)) return;
     if (!next) return;
-    setCoaching((current) => mergeCoachingState(current, next, opts));
+    setCoaching((current) => {
+      const liteWonWhileFullWasPending =
+        !opts?.lite && requestSeqRef.current.lite > liteSeqAtStart;
+      if (liteWonWhileFullWasPending && current) {
+        return mergeCoachingState(next, current, { lite: true });
+      }
+      return mergeCoachingState(current, next, opts);
+    });
   }
 
   useRehydrateOnVisible(hydrateCoaching);
