@@ -302,6 +302,10 @@ export async function markOwnReplyInteracted(
 
 let warnedWakeForbidden = false;
 
+export function resetDeskWakeWarningForTests(): void {
+  warnedWakeForbidden = false;
+}
+
 async function wakeDesk(parsed: ParsedPostCreate, userId: string): Promise<void> {
   if (parsed.kind === "repost") return;
   try {
