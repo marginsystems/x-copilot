@@ -117,6 +117,31 @@ function ThreadsFeedTab(props: {
   );
 }
 
+const INTERACTED_PAGE_SIZE = 10;
+
+/** Lives in the tab row so it stays put while the rows scroll. */
+function InteractedPager(props: {
+  page: number;
+  total: number;
+  onChange: (page: number) => Promise<void>;
+}) {
+  const pages = Math.ceil(props.total / INTERACTED_PAGE_SIZE);
+  if (pages <= 1) return null;
+  return (
+    <nav className="interacted-pagination" aria-label="Interacted pages">
+      <button type="button" className="ghost" disabled={props.page <= 1}
+        onClick={() => { props.onChange(props.page - 1).catch(console.error); }}>
+        Previous
+      </button>
+      <span aria-live="polite">Page {props.page} of {pages}</span>
+      <button type="button" className="ghost" disabled={props.page >= pages}
+        onClick={() => { props.onChange(props.page + 1).catch(console.error); }}>
+        Next
+      </button>
+    </nav>
+  );
+}
+
 export function ThreadsTabs({
   threadsTab,
   setThreadsTab,
@@ -220,6 +245,13 @@ export function ThreadsTabs({
             onSelect={setThreadsTab}
           />
         </div>
+        {threadsTab === "interacted" ? (
+          <InteractedPager
+            page={interactedPage}
+            total={interactedTotal}
+            onChange={onInteractedPageChange}
+          />
+        ) : null}
       </div>
       {THREAD_TABS.filter((tab) => tab !== threadsTab).map((tab) => (
         <div
@@ -273,19 +305,6 @@ export function ThreadsTabs({
             </p>
           ) : (
             <div className="history-list">
-              {interactedTotal > 10 ? (
-                <nav className="interacted-pagination" aria-label="Interacted pages">
-                  <button type="button" className="ghost" disabled={interactedPage <= 1}
-                    onClick={() => { onInteractedPageChange(interactedPage - 1).catch(console.error); }}>
-                    Previous
-                  </button>
-                  <span aria-live="polite">Page {interactedPage} of {Math.ceil(interactedTotal / 10)}</span>
-                  <button type="button" className="ghost" disabled={interactedPage >= Math.ceil(interactedTotal / 10)}
-                    onClick={() => { onInteractedPageChange(interactedPage + 1).catch(console.error); }}>
-                    Next
-                  </button>
-                </nav>
-              ) : null}
               {interactedHistory.map((entry, i) => (
                 <InteractedRow
                   key={entry.threadId}

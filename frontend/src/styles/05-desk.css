@@ -218,6 +218,24 @@ button.primary.scout-run.desk-top-takeoff {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
+.interacted-pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.interacted-pagination button.ghost {
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
 .threads-scroll {
   flex: 1;
   min-width: 0;
