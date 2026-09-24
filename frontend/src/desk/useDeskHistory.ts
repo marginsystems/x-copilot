@@ -500,7 +500,7 @@ export function useDeskHistory(
     interactedRetainedHistory,
     interactedTotal,
     interactedPage,
-    changeInteractedPage: (page: number) => hydrateInteracted(undefined, page),
+    changeInteractedPage: (page: number) => hydrateInteracted(preservedIdRef.current, page),
     setInteractedHistory,
     dismissedHistory,
     // Local mutations supersede any snapshot already in flight.
