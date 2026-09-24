@@ -23,7 +23,7 @@ const row = (threadId: string) => ({ threadId, author: "author", at: "2026-09-16
 const response = (data: unknown) => new Response(JSON.stringify(data));
 function setup() {
   const requests: ReturnType<typeof deferred<Response>>[] = [];
-  const fetch = vi.fn(() => {
+  const fetch = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => {
     const request = deferred<Response>();
     requests.push(request);
     return request.promise;
@@ -435,7 +435,7 @@ test.each(["hydrateInteracted", "hydrateSkipped", "hydrateDismissed", "hydrateEx
 test("chart and gamification ignore session-expired results and subsequent refreshes", async () => {
   sessionStorage.setItem("x-copilot-flight-path-open", "1");
   const requests: ReturnType<typeof deferred<Response>>[] = [];
-  const fetch = vi.fn(() => {
+  const fetch = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => {
     const request = deferred<Response>();
     requests.push(request);
     return request.promise;
@@ -507,4 +507,34 @@ test("Scout lock transfers synchronously and stale refresh keeps the new preserv
   await act(async () => { requests[0].resolve(response({ activeIds: ["A"], interactions: [row("A")] })); await first; });
   expect(result.current.history.interactedIdsRef.current).toEqual(new Set(["B"]));
   expect(threads.map((t) => t.id)).toEqual(["B"]);
+});
+
+
+test("page navigation preserves retained blocking and a mark refresh returns to page one", async () => {
+  const { result, requests, fetch, onHydrated } = setup();
+  let pending!: Promise<void>;
+  act(() => { pending = result.current.history.changeInteractedPage(22); });
+  await act(async () => {
+    requests[0].resolve(response({ interactions: [row("old")], total: 215, page: 22, pageSize: 10,
+      activeIds: ["recent"], blockedIds: ["recent", "old-root", "old-parent"] }));
+    await pending;
+  });
+  expect(fetch.mock.calls[0]?.[0]).toContain("/api/interacted?page=22");
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(onHydrated).not.toHaveBeenCalled();
+  expect(result.current.history.interactedTotal).toBe(215);
+  expect(result.current.history.interactedPage).toBe(22);
+  expect(result.current.history.interactedHistory.map((entry) => entry.threadId)).toEqual(["old"]);
+  expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);
+  expect(result.current.history.keepInCurated({ ...card, id: "child", inReplyToId: "old-parent" })).toBe(false);
+  act(() => { pending = result.current.history.hydrateInteracted(); });
+  await act(async () => {
+    requests[1].resolve(response({ interactions: [row("newest")], total: 216, page: 1, pageSize: 10,
+      activeIds: ["newest"], blockedIds: ["newest", "old-root", "old-parent"] }));
+    await pending;
+  });
+  expect(result.current.history.interactedPage).toBe(1);
+  expect(result.current.history.interactedTotal).toBe(216);
+  expect(result.current.history.interactedHistory.map((entry) => entry.threadId)).toEqual(["newest"]);
+  expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);
 });

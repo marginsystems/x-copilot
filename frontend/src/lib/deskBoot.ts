@@ -66,6 +66,10 @@ export type DeskBootDesk = {
   interacted: {
     interactions: InteractionHistoryEntry[];
     activeIds: string[];
+    blockedIds: string[];
+    total: number;
+    page: number;
+    pageSize: number;
   };
   dismissed: {
     dismissals: DismissalHistoryEntry[];
@@ -267,6 +271,10 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
     desk: {
       interacted: {
         interactions,
+        total: typeof interacted.total === "number" ? interacted.total : interactions.length,
+        page: typeof interacted.page === "number" ? interacted.page : 1,
+        pageSize: 10,
+        blockedIds: parseIdList(interacted.blockedIds, []),
         activeIds: parseIdList(
           interacted.activeIds,
           interactions.map((i) => i.threadId),

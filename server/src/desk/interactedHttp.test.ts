@@ -130,6 +130,46 @@ await describe("interactedHttp", async () => {
     assert.deepEqual(json.activeIds, ["thread-a"]);
   });
 
+  await it("pages stored history while preserving retained cooldown and blocked ids", async () => {
+    const user = upsertOauthUser({
+      provider: "google", providerUserId: "pages", email: "pages@example.com", emailVerified: true,
+    });
+    const now = Date.now();
+    for (let i = 0; i < 215; i++) {
+      await markInteracted({
+        threadId: `page-${i}`, author: "@pages", userId: user.id,
+        nowMs: i === 0 ? now - 2 * 86400000 : now - 215 + i,
+        conversationId: `root-${i}`, inReplyToId: `parent-${i}`,
+      });
+    }
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    for (const query of ["", "?page=1", "?page=0", "?page=-1", "?page=1.5", "?page=no", "?page=Infinity", "?page=9007199254740992"]) {
+      const { json } = await call("GET", `/api/interacted${query}`, undefined, cookie);
+      assert.equal(json.total, 215);
+      assert.equal(json.page, 1);
+      assert.equal(json.pageSize, 10);
+      assert.deepEqual(parseDatabaseRow(json.interactions).map((row) => row.threadId),
+        Array.from({ length: 10 }, (_, i) => `page-${214 - i}`));
+      assert.ok(Array.isArray(json.activeIds));
+      assert.equal(json.activeIds.length, 214);
+      assert.ok(json.activeIds.includes("page-1"));
+      assert.ok(!json.activeIds.includes("page-0"));
+      assert.ok(Array.isArray(json.blockedIds));
+      assert.equal(json.blockedIds.length, 645);
+      for (const id of ["page-0", "root-0", "parent-0"]) assert.ok(json.blockedIds.includes(id));
+    }
+    const { json: last } = await call("GET", "/api/interacted?page=22", undefined, cookie);
+    assert.equal(last.page, 22);
+    assert.equal(last.total, 215);
+    assert.deepEqual(parseDatabaseRow(last.interactions).map((row) => row.threadId),
+      ["page-4", "page-3", "page-2", "page-1", "page-0"]);
+    const { json: past } = await call("GET", "/api/interacted?page=23", undefined, cookie);
+    assert.equal(past.page, 23);
+    assert.equal(past.total, 215);
+    assert.deepEqual(past.interactions, []);
+  });
+
   await it("GET /api/interacted returns empty data without a session", async () => {
     const user = upsertOauthUser({
       provider: "google",
@@ -146,6 +186,10 @@ await describe("interactedHttp", async () => {
     assert.equal(status, 200);
     assert.deepEqual(json.interactions, []);
     assert.deepEqual(json.activeIds, []);
+    assert.deepEqual(json.blockedIds, []);
+    assert.equal(json.total, 0);
+    assert.equal(json.page, 1);
+    assert.equal(json.pageSize, 10);
   });
 
   await it("a mark without a userId is refused at the store", async () => {
