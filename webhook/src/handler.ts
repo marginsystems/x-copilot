@@ -300,6 +300,8 @@ export async function markOwnReplyInteracted(
   return source;
 }
 
+let warnedWakeForbidden = false;
+
 async function wakeDesk(parsed: ParsedPostCreate, userId: string): Promise<void> {
   if (parsed.kind === "repost") return;
   try {
@@ -310,10 +312,16 @@ async function wakeDesk(parsed: ParsedPostCreate, userId: string): Promise<void>
         Authorization: `Bearer ${process.env.DESK_EVENTS_SECRET?.trim() ?? ""}`,
       },
       body: JSON.stringify({ userId, id: parsed.postId, kind: parsed.kind, postedAt: parsed.postedAt }),
-      signal: AbortSignal.timeout(250),
+      signal: AbortSignal.timeout(2_000),
     });
     await response.body?.cancel();
-    if (!response.ok) console.warn("[xaa] desk wake soft-fail", response.status);
+    if (response.status === 403 && !warnedWakeForbidden) {
+      warnedWakeForbidden = true;
+      console.warn("[xaa] desk wake soft-fail", response.status,
+        "API and webhook DESK_EVENTS_SECRET values disagree or are empty.");
+    } else if (!response.ok) {
+      console.warn("[xaa] desk wake soft-fail", response.status);
+    }
   } catch {
     console.warn("[xaa] desk wake soft-fail");
   }

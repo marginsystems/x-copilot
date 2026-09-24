@@ -7,6 +7,7 @@
 import http from "node:http";
 import { resolve } from "node:path";
 import { loadEnv } from "../../server/src/platform/loadEnv.js";
+import { warnIfDeskEventsSecretMissing } from "../../server/src/desk/deskEvents.js";
 import { tryHandleXActivityWebhook } from "./handler.js";
 
 const DEFAULT_PORT = 8789;
@@ -74,6 +75,7 @@ function main(): void {
   ) {
     console.warn("[webhook] .env not found — X webhook credentials unavailable");
   }
+  warnIfDeskEventsSecretMissing();
   const port = resolveWebhookPort(process.env);
   if (!Number.isFinite(port) || port <= 0 || port > 65535) {
     console.error("[webhook] invalid port");
