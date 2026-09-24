@@ -140,6 +140,7 @@ export function useDeskHistory(
   >(() => seed?.interacted.retainedInteractions ?? seed?.interacted.interactions ?? []);
   const [interactedTotal, setInteractedTotal] = useState(seed?.interacted.total ?? 0);
   const [interactedPage, setInteractedPage] = useState(seed?.interacted.page ?? 1);
+  const interactedPageRef = useRef(seed?.interacted.page ?? 1);
   const [interactedHydrated, setInteractedHydrated] = useState(false);
   const [dismissedHistory, setDismissedHistory] = useState<
     DismissalHistoryEntry[]
@@ -191,6 +192,7 @@ export function useDeskHistory(
       setInteractedRetainedHistory(desk.interacted.retainedInteractions);
       setInteractedTotal(desk.interacted.total);
       setInteractedPage(desk.interacted.page);
+      interactedPageRef.current = desk.interacted.page;
       const ids = new Set(desk.interacted.activeIds);
       interactedIdsRef.current = ids;
       setInteractedIds(ids);
@@ -238,6 +240,7 @@ export function useDeskHistory(
   async function hydrateInteracted(preservedId?: string | null, page?: number) {
     const isCurrent = beginRefresh("interacted");
     if (!isCurrent()) return;
+    if (page !== undefined) interactedPageRef.current = page;
     setInteractedHydrated(false);
     if (preservedId !== undefined) {
       const changed = preservedIdRef.current !== preservedId;
@@ -257,11 +260,15 @@ export function useDeskHistory(
       const retainedHistory = Array.isArray(data.retainedInteractions)
         ? parseInteractedHistory(data.retainedInteractions)
         : history;
-      if (page !== undefined) setInteractedHistory(history);
       setInteractedRetainedHistory(retainedHistory);
       setInteractedTotal(typeof data.total === "number" ? data.total : history.length);
       if (page !== undefined) {
-        setInteractedPage(typeof data.page === "number" ? data.page : 1);
+        const nextPage = typeof data.page === "number" ? data.page : page;
+        interactedPageRef.current = nextPage;
+        setInteractedPage(nextPage);
+        setInteractedHistory(history);
+      } else if (interactedPageRef.current === 1) {
+        setInteractedHistory(history);
       }
       const ids = new Set(
         (Array.isArray(data.activeIds) ? data.activeIds : []).filter(
