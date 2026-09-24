@@ -558,7 +558,7 @@ test("a page click commits when an unpaged refresh is in flight or starts right 
     unpagedRequest = result.current.history.hydrateInteracted();
   });
   await act(async () => {
-    requests[2].resolve(response({ interactions: [row("poll-page-1")], page: 1, total: 12 }));
+    requests[2].resolve(response({ interactions: [row("poll-page-1")], retainedInteractions: [row("poll-page-1")], page: 1, total: 13 }));
     await unpagedRequest;
   });
   expect(result.current.history.interactedPage).toBe(2);
@@ -569,6 +569,8 @@ test("a page click commits when an unpaged refresh is in flight or starts right 
   });
   expect(result.current.history.interactedPage).toBe(1);
   expect(result.current.history.interactedHistory).toEqual([row("page-1")]);
+  expect(result.current.history.interactedTotal).toBe(13);
+  expect(result.current.history.interactedRetainedHistory).toEqual([row("poll-page-1")]);
 
   // Scout poll already in flight when the click lands; it resolves last.
   act(() => {
