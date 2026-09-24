@@ -254,11 +254,12 @@ export function useDeskHistory(
       const data = isRecord(raw) ? raw : {};
       if (!isCurrent()) return;
       const history = parseInteractedHistory(data.interactions);
+      const retainedHistory = Array.isArray(data.retainedInteractions)
+        ? parseInteractedHistory(data.retainedInteractions)
+        : history;
       setInteractedHistory(history);
-      if (Array.isArray(data.retainedInteractions)) {
-        setInteractedRetainedHistory(parseInteractedHistory(data.retainedInteractions));
-      }
-      setInteractedTotal(typeof data.total === "number" ? data.total : 0);
+      setInteractedRetainedHistory(retainedHistory);
+      setInteractedTotal(typeof data.total === "number" ? data.total : history.length);
       setInteractedPage(typeof data.page === "number" ? data.page : 1);
       const ids = new Set(
         (Array.isArray(data.activeIds) ? data.activeIds : []).filter(
@@ -268,7 +269,10 @@ export function useDeskHistory(
       interactedIdsRef.current = ids;
       setInteractedIds(ids);
       const blocked = new Set(blockedConversationsRef.current);
-      for (const id of Array.isArray(data.blockedIds) ? data.blockedIds : []) {
+      const blockedIds = Array.isArray(data.blockedIds)
+        ? data.blockedIds
+        : blockedFromHistory(retainedHistory);
+      for (const id of blockedIds) {
         if (typeof id === "string" && id.trim()) blocked.add(id.trim());
       }
       blockedConversationsRef.current = blocked;

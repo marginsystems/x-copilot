@@ -52,7 +52,7 @@ function setup() {
       authUser: user, deskBootReady: ready, agendaReady: true,
       agenda: "Help developers build reliable software and share useful engineering ideas.",
       curatedThreads: [], forYouSuggestions: history.forYouSuggestions,
-      interactedIds: new Set(["123"]), interactedHistory: [],
+      interactedIds: new Set(), interactedRetainedHistory: [{ threadId: "123", author: "author", at: "2026-09-16" }],
       dismissedHistory: [], dismissThread: null, searching: false,
       setExpandedId: vi.fn(), actForYou: history.actForYou,
       onSkip: vi.fn(), onDismiss: vi.fn(), onRefreshCoaching, onHydrateInteracted: vi.fn(),

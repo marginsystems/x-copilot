@@ -539,3 +539,20 @@ test("page navigation preserves retained blocking and a mark refresh returns to 
   expect(result.current.history.interactedHistory.map((entry) => entry.threadId)).toEqual(["newest"]);
   expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);
 });
+
+test("legacy interacted payload falls back to history count and conversation blocking", async () => {
+  const { result, requests } = setup();
+  let pending!: Promise<void>;
+  act(() => { pending = result.current.history.hydrateInteracted(); });
+  await act(async () => {
+    requests[0].resolve(response({
+      interactions: [{ ...row("reply"), conversationId: "root", inReplyToId: "parent" }],
+      activeIds: ["reply"],
+    }));
+    await pending;
+  });
+  expect(result.current.history.interactedTotal).toBe(1);
+  expect(result.current.history.interactedRetainedHistory.map((entry) => entry.threadId)).toEqual(["reply"]);
+  expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "root" })).toBe(false);
+  expect(result.current.history.keepInCurated({ ...card, id: "child", inReplyToId: "parent" })).toBe(false);
+});
