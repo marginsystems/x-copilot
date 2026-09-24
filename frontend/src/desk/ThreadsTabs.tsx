@@ -30,6 +30,7 @@ type ThreadsTabsProps = {
   forYouSuggestions: ForYouSuggestion[];
   coaching?: CoachingState | null;
   interactedHistory: InteractionHistoryEntry[];
+  interactedRetainedHistory: InteractionHistoryEntry[];
   interactedTotal: number;
   interactedPage: number;
   onInteractedPageChange: (page: number) => Promise<void>;
@@ -123,6 +124,7 @@ export function ThreadsTabs({
   forYouSuggestions,
   coaching,
   interactedHistory,
+  interactedRetainedHistory,
   interactedTotal,
   interactedPage,
   onInteractedPageChange,
@@ -162,6 +164,7 @@ export function ThreadsTabs({
     coaching,
     interactedIds,
     interactedHistory,
+    interactedRetainedHistory,
     dismissedHistory,
     dismissThread,
     searching,

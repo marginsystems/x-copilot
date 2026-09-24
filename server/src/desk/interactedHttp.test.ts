@@ -151,6 +151,7 @@ await describe("interactedHttp", async () => {
       assert.equal(json.pageSize, 10);
       assert.deepEqual(parseDatabaseRow(json.interactions).map((row) => row.threadId),
         Array.from({ length: 10 }, (_, i) => `page-${214 - i}`));
+      assert.equal(parseDatabaseRow(json.retainedInteractions).length, 215);
       assert.ok(Array.isArray(json.activeIds));
       assert.equal(json.activeIds.length, 214);
       assert.ok(json.activeIds.includes("page-1"));

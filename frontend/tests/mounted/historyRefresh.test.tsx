@@ -515,7 +515,7 @@ test("page navigation preserves retained blocking and a mark refresh returns to 
   let pending!: Promise<void>;
   act(() => { pending = result.current.history.changeInteractedPage(22); });
   await act(async () => {
-    requests[0].resolve(response({ interactions: [row("old")], total: 215, page: 22, pageSize: 10,
+    requests[0].resolve(response({ interactions: [row("old")], retainedInteractions: [row("newest"), row("old")], total: 215, page: 22, pageSize: 10,
       activeIds: ["recent"], blockedIds: ["recent", "old-root", "old-parent"] }));
     await pending;
   });
@@ -525,6 +525,7 @@ test("page navigation preserves retained blocking and a mark refresh returns to 
   expect(result.current.history.interactedTotal).toBe(215);
   expect(result.current.history.interactedPage).toBe(22);
   expect(result.current.history.interactedHistory.map((entry) => entry.threadId)).toEqual(["old"]);
+  expect(result.current.history.interactedRetainedHistory.map((entry) => entry.threadId)).toEqual(["newest", "old"]);
   expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);
   expect(result.current.history.keepInCurated({ ...card, id: "child", inReplyToId: "old-parent" })).toBe(false);
   act(() => { pending = result.current.history.hydrateInteracted(); });

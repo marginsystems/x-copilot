@@ -85,6 +85,7 @@ export async function tryHandleInteracted(
     send(req, res, 200, {
       ...result,
       interactions: history,
+      retainedInteractions: interactions,
       activeIds: active.map((i) => i.threadId),
     });
     return true;

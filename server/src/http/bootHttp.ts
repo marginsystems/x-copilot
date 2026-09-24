@@ -204,6 +204,7 @@ export async function tryHandleBoot(
           interacted: {
             ...interactionPage,
             interactions,
+            retainedInteractions: interactionHistory,
             activeIds: active.map((i) => i.threadId),
           },
           dismissed: {

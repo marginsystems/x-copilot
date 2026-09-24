@@ -395,6 +395,7 @@ await describe("GET /api/boot", async () => {
       assert.equal(interacted.pageSize, 10);
       assert.equal(interacted.total, 21);
       assert.equal(expectRecords(interacted.interactions).length, count);
+      assert.equal(expectRecords(interacted.retainedInteractions).length, 21);
       assert.ok(Array.isArray(interacted.activeIds));
       assert.equal(interacted.activeIds.length, 21);
       assert.ok(Array.isArray(interacted.blockedIds));

@@ -107,6 +107,7 @@ function SessionApp() {
   const {
     interactedIds,
     interactedHistory,
+    interactedRetainedHistory,
     interactedTotal,
     interactedPage,
     changeInteractedPage,
@@ -666,7 +667,7 @@ function SessionApp() {
             activityStats,
             gamification,
             scoutFamiliarity,
-            interactedHistory,
+            interactedRetainedHistory,
             usableScoutCount: curatedThreads.filter(
               (thread) => !interactedIds.has(thread.id),
             ).length,
@@ -682,6 +683,7 @@ function SessionApp() {
             forYouSuggestions,
             coaching,
             interactedHistory,
+            interactedRetainedHistory,
             interactedTotal,
             interactedPage,
             onInteractedPageChange: changeInteractedPage,

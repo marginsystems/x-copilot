@@ -65,6 +65,7 @@ export type LastScoutPayload = {
 export type DeskBootDesk = {
   interacted: {
     interactions: InteractionHistoryEntry[];
+    retainedInteractions: InteractionHistoryEntry[];
     activeIds: string[];
     blockedIds: string[];
     total: number;
@@ -247,6 +248,12 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
   )
     .map(parseInteractionHistoryEntry)
     .filter((row): row is InteractionHistoryEntry => Boolean(row));
+  const retainedInteractions = (Array.isArray(interacted.retainedInteractions)
+    ? interacted.retainedInteractions
+    : interactions
+  )
+    .map(parseInteractionHistoryEntry)
+    .filter((row): row is InteractionHistoryEntry => Boolean(row));
   const dismissals = (Array.isArray(dismissed.dismissals)
     ? dismissed.dismissals
     : []
@@ -271,10 +278,18 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
     desk: {
       interacted: {
         interactions,
+        retainedInteractions,
         total: typeof interacted.total === "number" ? interacted.total : interactions.length,
         page: typeof interacted.page === "number" ? interacted.page : 1,
         pageSize: 10,
-        blockedIds: parseIdList(interacted.blockedIds, []),
+        blockedIds: parseIdList(
+          interacted.blockedIds,
+          retainedInteractions.flatMap((i) =>
+            [i.threadId, i.conversationId, i.inReplyToId].filter(
+              (id): id is string => Boolean(id?.trim()),
+            ),
+          ),
+        ),
         activeIds: parseIdList(
           interacted.activeIds,
           interactions.map((i) => i.threadId),

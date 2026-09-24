@@ -135,6 +135,9 @@ export function useDeskHistory(
   const [interactedHistory, setInteractedHistory] = useState<
     InteractionHistoryEntry[]
   >(() => seed?.interacted.interactions ?? []);
+  const [interactedRetainedHistory, setInteractedRetainedHistory] = useState<
+    InteractionHistoryEntry[]
+  >(() => seed?.interacted.retainedInteractions ?? seed?.interacted.interactions ?? []);
   const [interactedTotal, setInteractedTotal] = useState(seed?.interacted.total ?? 0);
   const [interactedPage, setInteractedPage] = useState(seed?.interacted.page ?? 1);
   const [interactedHydrated, setInteractedHydrated] = useState(false);
@@ -185,6 +188,7 @@ export function useDeskHistory(
     if (desk.interacted) {
       setInteractedHydrated(true);
       setInteractedHistory(desk.interacted.interactions);
+      setInteractedRetainedHistory(desk.interacted.retainedInteractions);
       setInteractedTotal(desk.interacted.total);
       setInteractedPage(desk.interacted.page);
       const ids = new Set(desk.interacted.activeIds);
@@ -251,6 +255,9 @@ export function useDeskHistory(
       if (!isCurrent()) return;
       const history = parseInteractedHistory(data.interactions);
       setInteractedHistory(history);
+      if (Array.isArray(data.retainedInteractions)) {
+        setInteractedRetainedHistory(parseInteractedHistory(data.retainedInteractions));
+      }
       setInteractedTotal(typeof data.total === "number" ? data.total : 0);
       setInteractedPage(typeof data.page === "number" ? data.page : 1);
       const ids = new Set(
@@ -486,6 +493,7 @@ export function useDeskHistory(
     interactedHydrated,
     setInteractedIds,
     interactedHistory,
+    interactedRetainedHistory,
     interactedTotal,
     interactedPage,
     changeInteractedPage: (page: number) => hydrateInteracted(undefined, page),
