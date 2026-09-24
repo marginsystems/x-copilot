@@ -1,11 +1,41 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { beginCoachingRequest } from "../desk/useCoaching.ts";
 import {
   mergeCoachingState,
   parseCoachingPayload,
   parseDeskBeats,
   parseNextAction,
 } from "./coaching.ts";
+
+await describe("coaching request sequences", () => {
+  it("keeps a pending lite activity response when a full refresh starts", () => {
+    const lite = beginCoachingRequest({ full: 0, lite: 0 }, { lite: true });
+    const full = beginCoachingRequest(lite.sequences);
+    assert.equal(lite.isCurrent(full.sequences), true);
+    assert.equal(full.isCurrent(full.sequences), true);
+  }).catch(assert.fail);
+
+  it("keeps a pending full response when lite polling starts", () => {
+    const full = beginCoachingRequest({ full: 0, lite: 0 });
+    const lite = beginCoachingRequest(full.sequences, { lite: true });
+    assert.equal(full.isCurrent(lite.sequences), true);
+    assert.equal(lite.isCurrent(lite.sequences), true);
+  }).catch(assert.fail);
+
+  it("rejects older responses only within the same request kind", () => {
+    const full = beginCoachingRequest({ full: 0, lite: 0 });
+    const lite = beginCoachingRequest(full.sequences, { lite: true });
+    const newerFull = beginCoachingRequest(lite.sequences, { lite: false });
+    assert.equal(full.isCurrent(newerFull.sequences), false);
+    assert.equal(lite.isCurrent(newerFull.sequences), true);
+    const newerLite = beginCoachingRequest(newerFull.sequences, { lite: true });
+    assert.equal(lite.isCurrent(newerLite.sequences), false);
+    assert.equal(newerFull.isCurrent(newerLite.sequences), true);
+    assert.equal(newerLite.isCurrent(newerLite.sequences), true);
+    assert.deepEqual(full.sequences, { full: 1, lite: 0 });
+  }).catch(assert.fail);
+});
 
 await describe("coaching parsers", () => {
   it("accepts a next-action card and daily missions", () => {
@@ -160,6 +190,50 @@ await describe("coaching parsers", () => {
       "2026-08-26T11:30:00.000Z",
       "2026-08-26T10:30:00.000Z",
     ]);
+  }).catch(assert.fail);
+
+  it("keeps newer lite fields when a full response arrives late", () => {
+    const full = parseCoachingPayload({
+      dayUtc: "2026-08-26",
+      postsToday: 1,
+      originalsToday: 1,
+      beats: {
+        scoutReplyDone: false,
+        organicReplyDone: false,
+        forkChoice: null,
+        forkDone: false,
+      },
+      missions: [
+        {
+          id: "original_1",
+          label: "Post 1 original",
+          target: 1,
+          progress: 0,
+          xpReward: 3,
+          completed: false,
+          claimed: false,
+        },
+      ],
+    });
+    const lite = parseCoachingPayload({
+      dayUtc: "2026-08-26",
+      postsToday: 3,
+      originalsToday: 2,
+      beats: {
+        scoutReplyDone: true,
+        organicReplyDone: true,
+        forkChoice: "reply",
+        forkDone: true,
+      },
+    });
+    assert.ok(full);
+    assert.ok(lite);
+    const merged = mergeCoachingState(full, lite, { lite: true });
+    const lateFull = mergeCoachingState(full, merged, { lite: true });
+    assert.equal(lateFull.postsToday, 3);
+    assert.equal(lateFull.originalsToday, 2);
+    assert.deepEqual(lateFull.beats, merged.beats);
+    assert.deepEqual(lateFull.missions, full.missions);
   }).catch(assert.fail);
 
 
