@@ -813,7 +813,13 @@ await describe("own reply interaction capture", async () => {
     const original = globalThis.fetch;
     t.mock.method(globalThis, "fetch", async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
       if (String(input).includes("/api/desk/events/wake")) {
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 400);
+          init?.signal?.addEventListener("abort", () => {
+            clearTimeout(timer);
+            reject(new DOMException("aborted", "AbortError"));
+          }, { once: true });
+        });
         return new Response(null, { status: 200 });
       }
       return original(input, init);
