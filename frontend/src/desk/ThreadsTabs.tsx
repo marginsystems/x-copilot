@@ -163,7 +163,6 @@ export function ThreadsTabs({
     forYouSuggestions,
     coaching,
     interactedIds,
-    interactedHistory,
     interactedRetainedHistory,
     dismissedHistory,
     dismissThread,
