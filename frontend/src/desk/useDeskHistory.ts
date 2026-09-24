@@ -257,10 +257,12 @@ export function useDeskHistory(
       const retainedHistory = Array.isArray(data.retainedInteractions)
         ? parseInteractedHistory(data.retainedInteractions)
         : history;
-      setInteractedHistory(history);
+      if (page !== undefined) setInteractedHistory(history);
       setInteractedRetainedHistory(retainedHistory);
       setInteractedTotal(typeof data.total === "number" ? data.total : history.length);
-      setInteractedPage(typeof data.page === "number" ? data.page : 1);
+      if (page !== undefined) {
+        setInteractedPage(typeof data.page === "number" ? data.page : 1);
+      }
       const ids = new Set(
         (Array.isArray(data.activeIds) ? data.activeIds : []).filter(
           (id): id is string => typeof id === "string" && id.length > 0,

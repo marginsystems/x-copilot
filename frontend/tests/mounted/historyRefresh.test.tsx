@@ -510,7 +510,7 @@ test("Scout lock transfers synchronously and stale refresh keeps the new preserv
 });
 
 
-test("page navigation preserves retained blocking and a mark refresh returns to page one", async () => {
+test("page navigation preserves retained blocking across an unpaged refresh", async () => {
   const { result, requests, fetch, onHydrated } = setup();
   result.current.history.interactedIdsRef.current.add("locked");
   let pending!: Promise<void>;
@@ -536,9 +536,9 @@ test("page navigation preserves retained blocking and a mark refresh returns to 
       activeIds: ["newest"], blockedIds: ["newest", "old-root", "old-parent"] }));
     await pending;
   });
-  expect(result.current.history.interactedPage).toBe(1);
+  expect(result.current.history.interactedPage).toBe(22);
   expect(result.current.history.interactedTotal).toBe(216);
-  expect(result.current.history.interactedHistory.map((entry) => entry.threadId)).toEqual(["newest"]);
+  expect(result.current.history.interactedHistory.map((entry) => entry.threadId)).toEqual(["old"]);
   expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);
 });
 
