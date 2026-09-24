@@ -377,6 +377,34 @@ await describe("GET /api/boot", async () => {
     assert.deepEqual(expectRecord(desk.interacted).activeIds, ["thread-a"]);
   });
 
+  await it("boot returns one page with retained totals and blocked ids", async () => {
+    const user = upsertOauthUser({
+      provider: "google", providerUserId: "boot-pages", email: "boot-pages@example.com", emailVerified: true,
+    });
+    for (let i = 0; i < 21; i++) {
+      await markInteracted({ threadId: `boot-${i}`, author: "@pages", userId: user.id,
+        conversationId: `root-${i}`, inReplyToId: `parent-${i}`, nowMs: Date.now() - 1000 + i });
+    }
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    for (const [path, page, count] of [["/api/boot", 1, 10], ["/api/boot?page=3", 3, 1], ["/api/boot?page=4", 4, 0]] as const) {
+      const { status, body } = await get(path, cookie);
+      assert.equal(status, 200);
+      const interacted = expectRecord(expectRecord(body.desk).interacted);
+      assert.equal(interacted.page, page);
+      assert.equal(interacted.pageSize, 10);
+      assert.equal(interacted.total, 21);
+      assert.equal(expectRecords(interacted.interactions).length, count);
+      assert.equal(expectRecords(interacted.retainedInteractions).length, 21);
+      assert.ok(Array.isArray(interacted.activeIds));
+      assert.equal(interacted.activeIds.length, 21);
+      assert.ok(Array.isArray(interacted.blockedIds));
+      assert.equal(interacted.blockedIds.length, 63);
+      assert.ok(interacted.blockedIds.includes("root-0"));
+      assert.ok(interacted.blockedIds.includes("parent-0"));
+    }
+  });
+
   await it("does not expose another user's skip, dismiss, expired, or tank", async () => {
     const userA = upsertOauthUser({
       provider: "google",

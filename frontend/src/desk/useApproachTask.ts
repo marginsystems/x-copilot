@@ -79,7 +79,7 @@ export type UseApproachTaskOpts = {
   forYouSuggestions: ForYouSuggestion[];
   coaching?: CoachingState | null;
   interactedIds: Set<string>;
-  interactedHistory: InteractionHistoryEntry[];
+  interactedRetainedHistory: InteractionHistoryEntry[];
   dismissedHistory: DismissalHistoryEntry[];
   dismissThread: ThreadCard | null;
   searching: boolean;
@@ -121,7 +121,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     forYouSuggestions,
     coaching,
     interactedIds,
-    interactedHistory,
+    interactedRetainedHistory,
     dismissedHistory,
     dismissThread,
     searching,
@@ -184,7 +184,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           conversationId: lockedScout?.conversationId,
           inReplyToId: lockedScout?.inReplyToId,
           interactedIds,
-          history: interactedHistory,
+          history: interactedRetainedHistory,
         }) === "mark"
       : false;
   const suggestionDetected =
@@ -197,7 +197,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           conversationId: lockedSuggestion.targetId,
           inReplyToId: lockedSuggestion.targetId,
           interactedIds,
-          history: interactedHistory,
+          history: interactedRetainedHistory,
         }) === "mark"
       : false;
 
@@ -222,7 +222,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
             ) ?? null,
         }),
         interactedIds,
-        history: interactedHistory,
+        history: interactedRetainedHistory,
         lockedId: excludeId,
       },
     );
@@ -258,7 +258,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   };
   const activityCursor = latestActivityCursor({
     ownActivity: coaching?.ownActivity ?? null,
-    history: interactedHistory,
+    history: interactedRetainedHistory,
   });
   const cursorRef = useRef(activityCursor);
   cursorRef.current = activityCursor;

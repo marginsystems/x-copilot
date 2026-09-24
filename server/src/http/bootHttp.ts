@@ -33,7 +33,7 @@ import { send } from "./httpJson.js";
 import {
   listActiveInteractions,
   listInteractionHistory,
-  MAX_INTERACTION_HISTORY,
+  paginateInteractions,
   MAX_INTERACTION_STORE,
 } from "../desk/interactionStore.js";
 import { resolvePlan } from "../billing/planResolution.js";
@@ -126,7 +126,8 @@ export async function tryHandleBoot(
       user ? loadScoutFamiliarity(user.id, deps.loadScoutProfile) : null,
     ]);
 
-    const historySlice = interactionHistory.slice(0, MAX_INTERACTION_HISTORY);
+    const interactionPage = paginateInteractions(interactionHistory, url.searchParams.get("page"));
+    const historySlice = interactionPage.interactions;
     const interactions = user
       ? await attachInteractionMemoryReceipts(historySlice, { userId: user.id })
       : historySlice;
@@ -201,7 +202,9 @@ export async function tryHandleBoot(
         user: user ? publicUser(user) : null,
         desk: {
           interacted: {
+            ...interactionPage,
             interactions,
+            retainedInteractions: interactionHistory,
             activeIds: active.map((i) => i.threadId),
           },
           dismissed: {

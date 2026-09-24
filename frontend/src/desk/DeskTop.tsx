@@ -20,7 +20,7 @@ type DeskTopProps = {
   gamification: GamificationStats;
   /** Owned Scout familiarity; null renders no meter (kept apart from XP). */
   scoutFamiliarity?: ScoutFamiliarityData | null;
-  interactedHistory: InteractionHistoryEntry[];
+  interactedRetainedHistory: InteractionHistoryEntry[];
   usableScoutCount: number;
   coaching?: CoachingState | null;
   status?: string;
@@ -36,7 +36,7 @@ export function DeskTop({
   activityStats,
   gamification,
   scoutFamiliarity = null,
-  interactedHistory,
+  interactedRetainedHistory,
   usableScoutCount,
   coaching,
   status,
@@ -133,7 +133,7 @@ export function DeskTop({
             ) : (
               <InstrumentsPanel
                 expanded={flightPathOpen}
-                interactedHistory={interactedHistory}
+                interactedHistory={interactedRetainedHistory}
                 gamification={gamification}
                 coaching={coaching}
                 usableScoutCount={usableScoutCount}

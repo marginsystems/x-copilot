@@ -21,6 +21,7 @@ import {
   listActiveInteractions,
   listInteractionHistory,
   markInteracted,
+  paginateInteractions,
   MAX_INTERACTION_STORE,
 } from "./interactionStore.js";
 import { setGamificationSyncFailed } from "./interactionSync.js";
@@ -71,17 +72,20 @@ export async function tryHandleInteracted(
     const sessionUser = getSessionUser(req);
     const [interactions, active] = sessionUser
       ? await Promise.all([
-          listInteractionHistory({ userId: sessionUser.id }),
+          listInteractionHistory({ userId: sessionUser.id, limit: MAX_INTERACTION_STORE }),
           listActiveInteractions({ userId: sessionUser.id }),
         ])
       : [[], []];
+    const result = paginateInteractions(interactions, url.searchParams.get("page"));
     const history = sessionUser
-      ? await attachInteractionMemoryReceipts(interactions, {
+      ? await attachInteractionMemoryReceipts(result.interactions, {
           userId: sessionUser.id,
         })
-      : interactions;
+      : result.interactions;
     send(req, res, 200, {
+      ...result,
       interactions: history,
+      retainedInteractions: interactions,
       activeIds: active.map((i) => i.threadId),
     });
     return true;

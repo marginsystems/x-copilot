@@ -30,6 +30,10 @@ type ThreadsTabsProps = {
   forYouSuggestions: ForYouSuggestion[];
   coaching?: CoachingState | null;
   interactedHistory: InteractionHistoryEntry[];
+  interactedRetainedHistory: InteractionHistoryEntry[];
+  interactedTotal: number;
+  interactedPage: number;
+  onInteractedPageChange: (page: number) => Promise<void>;
   skippedHistory: SkipHistoryEntry[];
   dismissedHistory: DismissalHistoryEntry[];
   expiredHistory: ExpiredHistoryEntry[];
@@ -120,6 +124,10 @@ export function ThreadsTabs({
   forYouSuggestions,
   coaching,
   interactedHistory,
+  interactedRetainedHistory,
+  interactedTotal,
+  interactedPage,
+  onInteractedPageChange,
   skippedHistory,
   dismissedHistory,
   expiredHistory,
@@ -155,7 +163,7 @@ export function ThreadsTabs({
     forYouSuggestions,
     coaching,
     interactedIds,
-    interactedHistory,
+    interactedRetainedHistory,
     dismissedHistory,
     dismissThread,
     searching,
@@ -187,7 +195,7 @@ export function ThreadsTabs({
             tab="interacted"
             active={threadsTab}
             label="Interacted"
-            count={interactedHistory.length}
+            count={interactedTotal}
             onSelect={setThreadsTab}
           />
           <ThreadsFeedTab
@@ -258,13 +266,26 @@ export function ThreadsTabs({
             />
           )
         ) : threadsTab === "interacted" ? (
-          interactedHistory.length === 0 ? (
+          interactedTotal === 0 ? (
             <p className="empty">
               No interacted threads yet. Scout replies appear here after you
               post on X.
             </p>
           ) : (
             <div className="history-list">
+              {interactedTotal > 10 ? (
+                <nav className="interacted-pagination" aria-label="Interacted pages">
+                  <button type="button" className="ghost" disabled={interactedPage <= 1}
+                    onClick={() => { onInteractedPageChange(interactedPage - 1).catch(console.error); }}>
+                    Previous
+                  </button>
+                  <span aria-live="polite">Page {interactedPage} of {Math.ceil(interactedTotal / 10)}</span>
+                  <button type="button" className="ghost" disabled={interactedPage >= Math.ceil(interactedTotal / 10)}
+                    onClick={() => { onInteractedPageChange(interactedPage + 1).catch(console.error); }}>
+                    Next
+                  </button>
+                </nav>
+              ) : null}
               {interactedHistory.map((entry, i) => (
                 <InteractedRow
                   key={entry.threadId}

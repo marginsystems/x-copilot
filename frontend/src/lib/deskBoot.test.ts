@@ -155,6 +155,7 @@ await describe("parseDeskBoot", () => {
     });
     assert.equal(parsed?.desk?.interacted.interactions.length, 1);
     assert.equal(parsed?.desk?.interacted.interactions[0]?.memory, undefined);
+    assert.deepEqual(parsed?.desk?.interacted.blockedIds, ["t1"]);
   }).catch(assert.fail);
 
   it("treats a missing familiarity field as absent and a present one as parsed", () => {

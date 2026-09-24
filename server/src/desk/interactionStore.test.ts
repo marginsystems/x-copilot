@@ -7,6 +7,7 @@ import {
   listActiveInteractions,
   listInteractionHistory,
   MAX_INTERACTION_HISTORY,
+  paginateInteractions,
   MAX_INTERACTION_STORE,
   markInteracted,
   readInteractionRow,
@@ -406,6 +407,18 @@ await describe("markInteracted", async () => {
       limit: MAX_INTERACTION_STORE,
     });
     assert.equal(retained.length, n);
+    const first = paginateInteractions(retained, null);
+    assert.equal(first.interactions.length, 10);
+    assert.equal(first.total, n);
+    assert.equal(first.page, 1);
+    assert.equal(first.pageSize, 10);
+    assert.equal(first.interactions[0]?.threadId, `t${n - 1}`);
+    const last = paginateInteractions(retained, "25");
+    assert.deepEqual(last.interactions.map((row) => row.threadId),
+      Array.from({ length: 10 }, (_, i) => `t${9 - i}`));
+    assert.equal(last.total, n);
+    assert.equal(last.blockedIds.length, n);
+    assert.deepEqual(paginateInteractions(retained, "26").interactions, []);
     assert.equal(
       (await listInteractionHistory({ userId: "user-b" })).length,
       1,
@@ -428,6 +441,9 @@ await describe("markInteracted", async () => {
       limit: MAX_INTERACTION_STORE + 100,
     });
     assert.equal(retained.length, MAX_INTERACTION_STORE);
+    assert.equal(paginateInteractions(retained, "200").interactions.length, 10);
+    assert.equal(paginateInteractions(retained, "201").total, MAX_INTERACTION_STORE);
+    assert.deepEqual(paginateInteractions(retained, "201").interactions, []);
     assert.equal(retained.at(-1)?.threadId, "t5");
   });
 });

@@ -107,6 +107,10 @@ function SessionApp() {
   const {
     interactedIds,
     interactedHistory,
+    interactedRetainedHistory,
+    interactedTotal,
+    interactedPage,
+    changeInteractedPage,
     dismissedHistory,
     setDismissedHistory,
     skippedHistory,
@@ -347,7 +351,7 @@ function SessionApp() {
     setSimulateUnlinked(false);
     setPreviewReachedLink(false);
     setOnboardingDoneLocal(false);
-  }, [authUser]);
+  }, [authUser, setOnboardingDoneLocal]);
 
   function exitOnboardingPreview() {
     setOnboardingPreview(false);
@@ -373,7 +377,7 @@ function SessionApp() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [dismissThread, signInOpen, onboardingPreview, actionBusy]);
+  }, [dismissThread, signInOpen, onboardingPreview, actionBusy, closeDismissModal, setAuthNotice]);
 
   const needsXLink = deskNeedsXLink(authUser);
   const booting = !localUi && !authChecked;
@@ -663,7 +667,7 @@ function SessionApp() {
             activityStats,
             gamification,
             scoutFamiliarity,
-            interactedHistory,
+            interactedRetainedHistory,
             usableScoutCount: curatedThreads.filter(
               (thread) => !interactedIds.has(thread.id),
             ).length,
@@ -679,6 +683,10 @@ function SessionApp() {
             forYouSuggestions,
             coaching,
             interactedHistory,
+            interactedRetainedHistory,
+            interactedTotal,
+            interactedPage,
+            onInteractedPageChange: changeInteractedPage,
             skippedHistory,
             dismissedHistory,
             expiredHistory,

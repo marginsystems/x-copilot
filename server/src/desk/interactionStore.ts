@@ -89,6 +89,29 @@ export const MAX_INTERACTION_HISTORY = 200;
  * `GET /api/interacted/stats` can bucket the full window before any count trim.
  */
 export const MAX_INTERACTION_STORE = 2000;
+export const INTERACTION_PAGE_SIZE = 10;
+
+export function paginateInteractions(history: Interaction[], rawPage: unknown) {
+  const parsed = typeof rawPage === "string" && /^[1-9]\d*$/.test(rawPage)
+    ? Number(rawPage)
+    : 1;
+  const page = Number.isSafeInteger(parsed) ? parsed : 1;
+  const blockedIds = new Set<string>();
+  for (const row of history) {
+    for (const value of [row.threadId, row.conversationId, row.inReplyToId]) {
+      const id = value?.trim();
+      if (id) blockedIds.add(id);
+    }
+  }
+  return {
+    interactions: history.slice((page - 1) * INTERACTION_PAGE_SIZE, page * INTERACTION_PAGE_SIZE),
+    total: history.length,
+    page,
+    pageSize: INTERACTION_PAGE_SIZE,
+    blockedIds: [...blockedIds],
+  };
+}
+
 const MAX_TEXT_CHARS = 280;
 
 function optionalString(value: unknown, maxLen?: number): string | undefined {
@@ -360,8 +383,6 @@ export async function markInteracted(opts: {
       next.inReplyToId = prior.inReplyToId;
     }
     writeInteractionRow(next, tenantId);
-    // Retain enough history for the activity dashboard window; feed UI still
-    // lists at MAX_INTERACTION_HISTORY via listInteractionHistory().
     trimUserRows(userId, MAX_INTERACTION_STORE);
     if (opts.evidence) {
       recordScoutEvidence({

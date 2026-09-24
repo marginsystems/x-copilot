@@ -12,7 +12,7 @@ vi.mock("../../src/desk/useApproachTask", () => ({
 
 import { ThreadsTabs } from "../../src/desk/ThreadsTabs";
 
-function Harness() {
+function Harness({ total = 0, page = 1, onPage = async (_page: number) => {} }: { total?: number; page?: number; onPage?: (page: number) => Promise<void> }) {
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [, setVoice] = useState<VoiceState | null>(null);
@@ -23,6 +23,9 @@ function Harness() {
       curatedThreads={[]}
       forYouSuggestions={[]}
       interactedHistory={[]}
+      interactedTotal={total}
+      interactedPage={page}
+      onInteractedPageChange={onPage}
       skippedHistory={[]}
       dismissedHistory={[]}
       expiredHistory={[]}
@@ -86,4 +89,27 @@ test("uses roving focus and links keyboard-selected tabs to their panel", async 
   expect(document.activeElement).toBe(
     screen.getByRole("tab", { name: /Expired/ }),
   );
+});
+
+
+test("uses stored count and previous/next controls for Interacted", async () => {
+  const user = userEvent.setup();
+  const onPage = vi.fn(async (_page: number) => {});
+  render(<Harness total={215} page={2} onPage={onPage} />);
+  await user.click(screen.getByRole("tab", { name: /Interacted/ }));
+  expect(screen.getByRole("tab", { name: /Interacted/ }).textContent).toContain("215");
+  expect(screen.queryByText(/No interacted threads yet/)).toBeNull();
+  expect(screen.getByText("Page 2 of 22")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Previous" }));
+  expect(onPage).toHaveBeenLastCalledWith(1);
+  await user.click(screen.getByRole("button", { name: "Next" }));
+  expect(onPage).toHaveBeenLastCalledWith(3);
+});
+
+test.each([0, 10])("hides pagination for %i stored rows", async (total) => {
+  const user = userEvent.setup();
+  render(<Harness total={total} />);
+  await user.click(screen.getByRole("tab", { name: /Interacted/ }));
+  expect(screen.queryByRole("navigation", { name: "Interacted pages" })).toBeNull();
+  expect(Boolean(screen.queryByText(/No interacted threads yet/))).toBe(total === 0);
 });
