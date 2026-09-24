@@ -542,6 +542,31 @@ test("page navigation preserves retained blocking across an unpaged refresh", as
   expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);
 });
 
+test("a superseded page request cannot move the page ref ahead of committed state", async () => {
+  const { result, requests } = setup();
+  let pending!: Promise<void>;
+  act(() => { pending = result.current.history.changeInteractedPage(2); });
+  await act(async () => {
+    requests[0].resolve(response({ interactions: [row("page-2")], page: 2, total: 2 }));
+    await pending;
+  });
+
+  let pageRequest!: Promise<void>, unpagedRequest!: Promise<void>;
+  act(() => {
+    pageRequest = result.current.history.changeInteractedPage(1);
+    unpagedRequest = result.current.history.hydrateInteracted();
+  });
+  await act(async () => {
+    requests[2].resolve(response({ interactions: [row("page-1")], page: 1, total: 2 }));
+    await unpagedRequest;
+    requests[1].resolve(response({ interactions: [row("late-page-1")], page: 1, total: 2 }));
+    await pageRequest;
+  });
+
+  expect(result.current.history.interactedPage).toBe(2);
+  expect(result.current.history.interactedHistory).toEqual([row("page-2")]);
+});
+
 test("legacy interacted payload falls back to history count and conversation blocking", async () => {
   const { result, requests } = setup();
   let pending!: Promise<void>;

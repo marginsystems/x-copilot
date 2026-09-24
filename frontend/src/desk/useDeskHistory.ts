@@ -240,7 +240,6 @@ export function useDeskHistory(
   async function hydrateInteracted(preservedId?: string | null, page?: number) {
     const isCurrent = beginRefresh("interacted");
     if (!isCurrent()) return;
-    if (page !== undefined) interactedPageRef.current = page;
     setInteractedHydrated(false);
     if (preservedId !== undefined) {
       const changed = preservedIdRef.current !== preservedId;
