@@ -512,6 +512,7 @@ test("Scout lock transfers synchronously and stale refresh keeps the new preserv
 
 test("page navigation preserves retained blocking and a mark refresh returns to page one", async () => {
   const { result, requests, fetch, onHydrated } = setup();
+  result.current.history.interactedIdsRef.current.add("locked");
   let pending!: Promise<void>;
   act(() => { pending = result.current.history.changeInteractedPage(22); });
   await act(async () => {
@@ -524,6 +525,7 @@ test("page navigation preserves retained blocking and a mark refresh returns to 
   expect(onHydrated).not.toHaveBeenCalled();
   expect(result.current.history.interactedTotal).toBe(215);
   expect(result.current.history.interactedPage).toBe(22);
+  expect(result.current.history.interactedIdsRef.current).toEqual(new Set(["locked"]));
   expect(result.current.history.interactedHistory.map((entry) => entry.threadId)).toEqual(["old"]);
   expect(result.current.history.interactedRetainedHistory.map((entry) => entry.threadId)).toEqual(["newest", "old"]);
   expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);

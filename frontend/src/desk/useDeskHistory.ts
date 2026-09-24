@@ -266,8 +266,10 @@ export function useDeskHistory(
           (id): id is string => typeof id === "string" && id.length > 0,
         ),
       );
-      interactedIdsRef.current = ids;
-      setInteractedIds(ids);
+      if (page === undefined) {
+        interactedIdsRef.current = ids;
+        setInteractedIds(ids);
+      }
       const blocked = new Set(blockedConversationsRef.current);
       const blockedIds = Array.isArray(data.blockedIds)
         ? data.blockedIds
