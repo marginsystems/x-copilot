@@ -23,6 +23,7 @@ function Harness({ total = 0, page = 1, onPage = async (_page: number) => {} }: 
       curatedThreads={[]}
       forYouSuggestions={[]}
       interactedHistory={[]}
+      interactedRetainedHistory={[]}
       interactedTotal={total}
       interactedPage={page}
       onInteractedPageChange={onPage}
@@ -100,10 +101,16 @@ test("uses stored count and previous/next controls for Interacted", async () => 
   expect(screen.getByRole("tab", { name: /Interacted/ }).textContent).toContain("215");
   expect(screen.queryByText(/No interacted threads yet/)).toBeNull();
   expect(screen.getByText("Page 2 of 22")).toBeTruthy();
+  // The pager sits in the tab row, so scrolling the rows cannot hide it.
+  const pager = screen.getByRole("navigation", { name: "Interacted pages" });
+  expect(pager.closest(".threads-pane-head")).toBeTruthy();
+  expect(pager.closest(".threads-scroll, .history-list")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Previous" }));
   expect(onPage).toHaveBeenLastCalledWith(1);
   await user.click(screen.getByRole("button", { name: "Next" }));
   expect(onPage).toHaveBeenLastCalledWith(3);
+  await user.click(screen.getByRole("tab", { name: /Skipped/ }));
+  expect(screen.queryByRole("navigation", { name: "Interacted pages" })).toBeNull();
 });
 
 test.each([0, 10])("hides pagination for %i stored rows", async (total) => {

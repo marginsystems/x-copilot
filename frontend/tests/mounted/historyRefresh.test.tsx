@@ -542,29 +542,50 @@ test("page navigation preserves retained blocking across an unpaged refresh", as
   expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);
 });
 
-test("a superseded page request cannot move the page ref ahead of committed state", async () => {
+test("a page click commits when an unpaged refresh is in flight or starts right after", async () => {
   const { result, requests } = setup();
   let pending!: Promise<void>;
   act(() => { pending = result.current.history.changeInteractedPage(2); });
   await act(async () => {
-    requests[0].resolve(response({ interactions: [row("page-2")], page: 2, total: 2 }));
+    requests[0].resolve(response({ interactions: [row("page-2")], page: 2, total: 12 }));
     await pending;
   });
 
+  // Scout poll starts right after the click and lands first.
   let pageRequest!: Promise<void>, unpagedRequest!: Promise<void>;
   act(() => {
     pageRequest = result.current.history.changeInteractedPage(1);
     unpagedRequest = result.current.history.hydrateInteracted();
   });
   await act(async () => {
-    requests[2].resolve(response({ interactions: [row("page-1")], page: 1, total: 2 }));
+    requests[2].resolve(response({ interactions: [row("poll-page-1")], retainedInteractions: [row("poll-page-1")], page: 1, total: 13 }));
     await unpagedRequest;
-    requests[1].resolve(response({ interactions: [row("late-page-1")], page: 1, total: 2 }));
-    await pageRequest;
   });
-
   expect(result.current.history.interactedPage).toBe(2);
   expect(result.current.history.interactedHistory).toEqual([row("page-2")]);
+  await act(async () => {
+    requests[1].resolve(response({ interactions: [row("page-1")], page: 1, total: 12 }));
+    await pageRequest;
+  });
+  expect(result.current.history.interactedPage).toBe(1);
+  expect(result.current.history.interactedHistory).toEqual([row("page-1")]);
+  expect(result.current.history.interactedTotal).toBe(13);
+  expect(result.current.history.interactedRetainedHistory).toEqual([row("poll-page-1")]);
+
+  // Scout poll already in flight when the click lands; it resolves last.
+  act(() => {
+    unpagedRequest = result.current.history.hydrateInteracted();
+    pageRequest = result.current.history.changeInteractedPage(2);
+  });
+  await act(async () => {
+    requests[4].resolve(response({ interactions: [row("page-2")], page: 2, total: 12 }));
+    await pageRequest;
+    requests[3].resolve(response({ interactions: [row("poll-page-1")], page: 1, total: 13 }));
+    await unpagedRequest;
+  });
+  expect(result.current.history.interactedPage).toBe(2);
+  expect(result.current.history.interactedHistory).toEqual([row("page-2")]);
+  expect(result.current.history.interactedTotal).toBe(13);
 });
 
 test("legacy interacted payload falls back to history count and conversation blocking", async () => {

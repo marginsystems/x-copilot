@@ -113,8 +113,10 @@ export function useDeskHistory(
   const onHydratedRef = useRef(onHydrated);
   onHydratedRef.current = onHydrated;
   const session = useSession();
+  // Page clicks have their own sequence: Scout polls and visibility refreshes
+  // call the unpaged endpoint constantly and must not discard the user's page.
   const requestSeq = useRef({
-    interacted: 0, skipped: 0, dismissed: 0, expired: 0, forYou: 0,
+    interacted: 0, interactedPage: 0, skipped: 0, dismissed: 0, expired: 0, forYou: 0,
   });
   const lifetime = useRef(0);
   useEffect(() => () => { lifetime.current++; }, []);
@@ -238,9 +240,13 @@ export function useDeskHistory(
    * any later selection, not after the next network round trip.
    */
   async function hydrateInteracted(preservedId?: string | null, page?: number) {
-    const isCurrent = beginRefresh("interacted");
+    const paged = page !== undefined;
+    const isCurrent = beginRefresh(paged ? "interactedPage" : "interacted");
     if (!isCurrent()) return;
-    setInteractedHydrated(false);
+    // A page response is older than any unpaged refresh started after it.
+    const unpagedSeq = requestSeq.current.interacted;
+    const newestSnapshot = () => !paged || unpagedSeq === requestSeq.current.interacted;
+    if (!paged) setInteractedHydrated(false);
     if (preservedId !== undefined) {
       const changed = preservedIdRef.current !== preservedId;
       preservedIdRef.current = preservedId;
@@ -259,9 +265,11 @@ export function useDeskHistory(
       const retainedHistory = Array.isArray(data.retainedInteractions)
         ? parseInteractedHistory(data.retainedInteractions)
         : history;
-      setInteractedRetainedHistory(retainedHistory);
-      setInteractedTotal(typeof data.total === "number" ? data.total : history.length);
-      if (page !== undefined) {
+      if (newestSnapshot()) {
+        setInteractedRetainedHistory(retainedHistory);
+        setInteractedTotal(typeof data.total === "number" ? data.total : history.length);
+      }
+      if (paged) {
         const nextPage = typeof data.page === "number" ? data.page : page;
         interactedPageRef.current = nextPage;
         setInteractedPage(nextPage);
@@ -274,7 +282,7 @@ export function useDeskHistory(
           (id): id is string => typeof id === "string" && id.length > 0,
         ),
       );
-      if (page === undefined) {
+      if (!paged) {
         interactedIdsRef.current = ids;
         setInteractedIds(ids);
       }
@@ -298,11 +306,11 @@ export function useDeskHistory(
           ),
         );
       }
-      if (page === undefined) onHydratedRef.current?.("interacted");
+      if (!paged) onHydratedRef.current?.("interacted");
     } catch {
       if (isCurrent()) setStatus("Could not refresh interacted history. Try again.");
     } finally {
-      if (isCurrent()) setInteractedHydrated(true);
+      if (!paged && isCurrent()) setInteractedHydrated(true);
     }
   }
 
