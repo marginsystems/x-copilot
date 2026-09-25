@@ -421,7 +421,7 @@ test.each([404, 500, "malformed"] as const)("fallback profile %s does not block 
         ? Response.json({ ok: true, scoutFamiliarity: { state: "supported", score: 500 } })
         : new Response(null, { status: outcome });
     }
-    if (url.endsWith("/api/interacted")) {
+    if (url.endsWith("/api/interacted?includeRetained=1")) {
       return Response.json({ ok: true, interactions: [{ threadId: "kept", author: "a", at: "now" }], activeIds: ["kept"] });
     }
     return Response.json({ ok: true });

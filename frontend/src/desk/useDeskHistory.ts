@@ -291,7 +291,7 @@ export function useDeskHistory(
       ...blockedFromHistory([entry]),
     ]);
     setThreads((prev) => prev.filter((t) => keepInCurated(t)));
-    pollInteracted().catch((err: unknown) => console.error(err));
+    hydrateInteracted().catch((err: unknown) => console.error(err));
   }
 
   async function loadInteracted(preservedId?: string | null, page?: number) {

@@ -726,6 +726,31 @@ test("a post-mark event keeps a later Interacted page and still updates the tota
   expect(result.current.history.interactedTotal).toBe(26);
 });
 
+test("a post-mark event replaces an in-flight interacted poll", async () => {
+  const { result, requests, fetch } = setupDeskStream();
+  let stale!: Promise<void>, reconcile!: Promise<void>;
+  act(() => { stale = result.current.history.pollInteracted(); });
+  act(() => {
+    liveStream().emit("interacted", posted, "boot.3");
+    reconcile = result.current.history.pollInteracted();
+  });
+  expect(fetch).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    requests[0].resolve(response({ interactions: [], total: 0, page: 1, activeIds: [] }));
+    await stale;
+  });
+  expect(result.current.history.interactedHistory).toEqual([posted]);
+  expect(result.current.history.interactedIds.has("parent-1")).toBe(true);
+  expect(result.current.history.interactedTotal).toBe(1);
+  await act(async () => {
+    requests[1].resolve(response({ interactions: [posted], total: 1, page: 1, activeIds: ["parent-1"] }));
+    await reconcile;
+  });
+  expect(result.current.history.interactedHistory).toEqual([posted]);
+  expect(result.current.history.interactedIds).toEqual(new Set(["parent-1"]));
+  expect(result.current.history.interactedTotal).toBe(1);
+});
+
 test("the fallback poll keeps one request in flight and uses the paged endpoint", async () => {
   vi.useFakeTimers();
   const { result, requests, fetch, onHydrated } = setupDeskStream();
