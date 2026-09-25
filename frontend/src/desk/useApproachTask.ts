@@ -49,7 +49,7 @@ import {
   writeForYouWait,
 } from "../lib/forYouTask";
 import { vanishEvent } from "../lib/vanishEvent";
-import { apiFetch, apiUrl } from "../lib/apiBase";
+import { apiFetch } from "../lib/apiBase";
 import { presentApproach, type ApproachCardInput } from "./approachPresenter";
 import {
   clearRetainedScout,
@@ -61,6 +61,7 @@ import {
 } from "./approachRetained";
 import { pickApproachScout } from "./approachScout";
 import { approachDetectorSchedule, approachDetectorRefresh } from "./approachDetector";
+import { onDeskEvent } from "./deskEventStream";
 import { clearReplyPaceOverlay } from "./replyPaceStore";
 import type {
   DismissalHistoryEntry,
@@ -95,6 +96,7 @@ export type UseApproachTaskOpts = {
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
   onHydrateInteracted: (preservedId?: string | null) => void | Promise<void>;
+  onPollInteracted: () => void | Promise<void>;
 };
 
 export function bypassApproachPace(
@@ -134,6 +136,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     onDismiss,
     onRefreshCoaching,
     onHydrateInteracted,
+    onPollInteracted,
   } = opts;
   const replyPaceSeed = replyPaceSeedIso({
     replyAtIso: coaching?.replyAt?.[0],
@@ -267,6 +270,8 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   refreshCoachingRef.current = onRefreshCoaching;
   const hydrateInteractedRef = useRef(onHydrateInteracted);
   hydrateInteractedRef.current = onHydrateInteracted;
+  const pollInteractedRef = useRef(onPollInteracted);
+  pollInteractedRef.current = onPollInteracted;
 
   /** Persist and publish one task state; transfer Scout preservation atomically. */
   function commit(next: ApproachTaskState, preserveOverlay = false) {
@@ -425,7 +430,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     const schedule = approachDetectorSchedule(detector, lockedCardId);
     if (!schedule) return;
     let stopped = false;
-    let retryTimer: number | undefined;
     const pending = detectorPendingRef.current;
     const refresh = async () => {
       if (stopped) return;
@@ -436,7 +440,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         if (target.detector === "for_you") {
           await refreshCoachingRef.current({ lite: true });
         } else {
-          await hydrateInteractedRef.current(target.cardId);
+          await pollInteractedRef.current();
         }
       } finally {
         pending[target.detector] = false;
@@ -445,27 +449,19 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     const tick = () => {
       refresh().catch((err: unknown) => console.error(err));
     };
-    const ownPost = () => {
-      tick();
-      if (schedule.ownPostRetryMs !== null) {
-        window.clearTimeout(retryTimer);
-        retryTimer = window.setTimeout(tick, schedule.ownPostRetryMs);
-      }
-    };
     const visible = () => {
       if (document.visibilityState === "visible") tick();
     };
-    const source = new EventSource(apiUrl("/api/desk/events"), { withCredentials: true });
-    source.addEventListener("own_post", ownPost);
-    source.addEventListener("ready", tick);
+    const offOwnPost = schedule.refreshOnOwnPost ? onDeskEvent("own_post", tick) : null;
+    const offReady = onDeskEvent("ready", tick);
     window.addEventListener("focus", tick);
     document.addEventListener("visibilitychange", visible);
     const interval = window.setInterval(tick, schedule.intervalMs);
     return () => {
       stopped = true;
-      source.close();
+      offOwnPost?.();
+      offReady();
       window.clearInterval(interval);
-      window.clearTimeout(retryTimer);
       window.removeEventListener("focus", tick);
       document.removeEventListener("visibilitychange", visible);
     };

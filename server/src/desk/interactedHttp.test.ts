@@ -18,6 +18,7 @@ import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { tryHandleInteracted } from "./interactedHttp.ts";
+import { resetDeskEventsForTests, tryHandleDeskEvents } from "./deskEvents.ts";
 import { resetInteractionMemoryProjectionForTests } from "../memory/interactionMemoryProjection.ts";
 import { resetInteractionMemoryReceiptForTests } from "../memory/interactionMemoryReceipt.ts";
 import { writeInteractionMemory } from "../memory/knowledgeMemory.ts";
@@ -27,21 +28,30 @@ async function call(
   path: string,
   body?: unknown,
   cookie?: string,
-): Promise<{ handled: boolean; status: number; json: Record<string, unknown> }> {
+  requestHeaders: Record<string, string> = {},
+): Promise<{
+  handled: boolean;
+  status: number;
+  json: Record<string, unknown>;
+  raw: string;
+  headers: Record<string, string>;
+}> {
   const req = testRequest();
   Object.assign(req, {
     method,
-    headers: cookie ? { cookie } : {},
+    headers: { ...(cookie ? { cookie } : {}), ...requestHeaders },
     socket: { remoteAddress: "127.0.0.1" },
   });
   let status = 0;
   let raw = "";
+  let headers: Record<string, string> = {};
   const res = Object.assign(new ServerResponse(testRequest()), {
-    writeHead: (code: number) => {
+    writeHead: (code: number, written?: Record<string, string>) => {
       status = code;
+      headers = written ?? {};
     },
-    end: (chunk: string) => {
-      raw = chunk;
+    end: (chunk?: string) => {
+      raw = chunk ?? "";
     },
   });
   const handledPromise = tryHandleInteracted(
@@ -58,6 +68,8 @@ async function call(
     handled,
     status,
     json: raw ? (expectRecord(JSON.parse(raw))) : {},
+    raw,
+    headers,
   };
 }
 
@@ -80,6 +92,7 @@ await describe("interactedHttp", async () => {
   });
 
   afterEach(() => {
+    resetDeskEventsForTests();
     resetInteractionMemoryProjectionForTests();
     resetInteractionMemoryReceiptForTests();
     resetPlatformDbForTests();
@@ -151,7 +164,7 @@ await describe("interactedHttp", async () => {
       assert.equal(json.pageSize, 10);
       assert.deepEqual(parseDatabaseRow(json.interactions).map((row) => row.threadId),
         Array.from({ length: 10 }, (_, i) => `page-${214 - i}`));
-      assert.equal(parseDatabaseRow(json.retainedInteractions).length, 215);
+      assert.equal(json.retainedInteractions, undefined);
       assert.ok(Array.isArray(json.activeIds));
       assert.equal(json.activeIds.length, 214);
       assert.ok(json.activeIds.includes("page-1"));
@@ -169,6 +182,59 @@ await describe("interactedHttp", async () => {
     assert.equal(past.page, 23);
     assert.equal(past.total, 215);
     assert.deepEqual(past.interactions, []);
+  });
+
+  await it("GET /api/interacted does not send the full store", async () => {
+    const user = upsertOauthUser({
+      provider: "google", providerUserId: "no-store", email: "no-store@example.com", emailVerified: true,
+    });
+    const now = Date.now();
+    for (let i = 0; i < 40; i++) {
+      await markInteracted({
+        threadId: `row-${i}`, author: "@rows", userId: user.id, nowMs: now - 40 + i,
+        text: "x".repeat(200), conversationId: `root-${i}`, inReplyToId: `parent-${i}`,
+      });
+    }
+    const { token } = createSession(user.id);
+    const { json, raw } = await call("GET", "/api/interacted", undefined, `${SESSION_COOKIE}=${encodeURIComponent(token)}`);
+    assert.deepEqual(Object.keys(json).sort(), ["activeIds", "blockedIds", "interactions", "page", "pageSize", "total"]);
+    assert.equal(parseDatabaseRow(json.interactions).length, 10);
+    assert.equal(json.total, 40);
+    assert.equal((raw.match(/"threadId"/g) ?? []).length, 10);
+    assert.equal((raw.match(/x{200}/g) ?? []).length, 10);
+    assert.ok(Array.isArray(json.blockedIds));
+    for (const id of ["row-0", "root-0", "parent-0"]) assert.ok(json.blockedIds.includes(id));
+  });
+
+  await it("GET /api/interacted answers 304 from its ETag until the history changes", async () => {
+    const user = upsertOauthUser({
+      provider: "google", providerUserId: "etag", email: "etag@example.com", emailVerified: true,
+    });
+    await markInteracted({ threadId: "first", author: "@etag", userId: user.id });
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    const first = await call("GET", "/api/interacted", undefined, cookie);
+    assert.equal(first.status, 200);
+    const etag = first.headers.ETag;
+    assert.match(etag ?? "", /^".+"$/);
+    assert.equal(first.headers["Cache-Control"], "private, no-cache");
+
+    const unchanged = await call("GET", "/api/interacted", undefined, cookie, { "if-none-match": etag ?? "" });
+    assert.equal(unchanged.status, 304);
+    assert.equal(unchanged.raw, "");
+    assert.equal(unchanged.headers.ETag, etag);
+    const weak = await call("GET", "/api/interacted", undefined, cookie, { "if-none-match": `"other", W/${etag ?? ""}` });
+    assert.equal(weak.status, 304);
+
+    const paged = await call("GET", "/api/interacted?page=2", undefined, cookie, { "if-none-match": etag ?? "" });
+    assert.equal(paged.status, 200);
+    assert.notEqual(paged.headers.ETag, etag);
+
+    await markInteracted({ threadId: "second", author: "@etag", userId: user.id });
+    const changed = await call("GET", "/api/interacted", undefined, cookie, { "if-none-match": etag ?? "" });
+    assert.equal(changed.status, 200);
+    assert.notEqual(changed.headers.ETag, etag);
+    assert.deepEqual(parseDatabaseRow(changed.json.interactions).map((row) => row.threadId), ["second", "first"]);
   });
 
   await it("GET /api/interacted returns empty data without a session", async () => {
@@ -323,6 +389,53 @@ await describe("interactedHttp", async () => {
     assert.equal(handled, true);
     assert.equal(status, 400);
     assert.equal(json.error, "bad_request");
+  });
+
+  await it("POST /api/interacted publishes the mark to the desk event stream", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-interacted-event",
+      email: "event@example.com",
+      emailVerified: true,
+    });
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    const chunks: string[] = [];
+    const eventsReq = Object.assign(testRequest(), {
+      method: "GET",
+      headers: { cookie },
+      socket: { remoteAddress: "127.0.0.1" },
+    });
+    const eventsRes = Object.assign(new ServerResponse(testRequest()), {
+      writeHead: () => eventsRes,
+      write: (chunk: string) => {
+        chunks.push(chunk);
+        return true;
+      },
+      once: () => eventsRes,
+    });
+    assert.equal(tryHandleDeskEvents(eventsReq, eventsRes, new URL("http://localhost/api/desk/events")), true);
+    const { status } = await call(
+      "POST",
+      "/api/interacted",
+      {
+        threadId: "2082",
+        author: "@x",
+        replyUrl: "https://x.com/me/status/9002",
+        conversationId: "root-2082",
+        inReplyToId: "parent-2082",
+      },
+      cookie,
+    );
+    assert.equal(status, 200);
+    const frame = chunks.join("").split("\n\n").find((chunk) => chunk.includes("event: interacted"));
+    assert.ok(frame);
+    const data = expectRecord(JSON.parse(frame.split("data: ")[1] ?? ""));
+    assert.equal(data.threadId, "2082");
+    assert.equal(data.replyId, "9002");
+    assert.equal(data.conversationId, "root-2082");
+    assert.equal(data.inReplyToId, "parent-2082");
+    assert.equal(data.userId, undefined);
   });
 
   await it("POST /api/interacted without reply text stays 200 and awards XP", async () => {

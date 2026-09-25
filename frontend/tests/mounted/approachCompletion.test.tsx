@@ -55,7 +55,7 @@ function setup() {
       interactedIds: new Set(), interactedRetainedHistory: [{ threadId: "123", author: "author", at: "2026-09-16" }],
       dismissedHistory: [], dismissThread: null, searching: false,
       setExpandedId: vi.fn(), actForYou: history.actForYou,
-      onSkip: vi.fn(), onDismiss: vi.fn(), onRefreshCoaching, onHydrateInteracted: vi.fn(),
+      onSkip: vi.fn(), onDismiss: vi.fn(), onRefreshCoaching, onHydrateInteracted: vi.fn(), onPollInteracted: vi.fn(),
     });
     return { approach, history, session };
   }, { wrapper, initialProps: { ready: false } });

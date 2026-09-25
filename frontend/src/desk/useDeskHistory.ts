@@ -19,6 +19,7 @@ import {
   type ForYouSuggestion,
 } from "../lib/forYou";
 import type { AppSettings } from "../lib/settings";
+import { onDeskEvent, useDeskEventStream } from "./deskEventStream";
 import { armReplyPace } from "./replyPaceStore";
 import {
   parseInteractionHistoryEntry,
@@ -28,6 +29,9 @@ import {
   type SkipHistoryEntry,
   type ThreadCard,
 } from "./types";
+
+export const INTERACTED_PAGE_SIZE = 10;
+export const INTERACTED_FALLBACK_POLL_MS = 30_000;
 
 export function parseInteractedHistory(
   raw: unknown,
@@ -140,6 +144,9 @@ export function useDeskHistory(
   const [interactedRetainedHistory, setInteractedRetainedHistory] = useState<
     InteractionHistoryEntry[]
   >(() => seed?.interacted.retainedInteractions ?? seed?.interacted.interactions ?? []);
+  const interactedRetainedRef = useRef(interactedRetainedHistory);
+  const unpagedInFlightRef = useRef<Promise<void> | null>(null);
+  const appliedUnpagedBodyRef = useRef<string | null>(null);
   const [interactedTotal, setInteractedTotal] = useState(seed?.interacted.total ?? 0);
   const [interactedPage, setInteractedPage] = useState(seed?.interacted.page ?? 1);
   const interactedPageRef = useRef(seed?.interacted.page ?? 1);
@@ -186,12 +193,18 @@ export function useDeskHistory(
   const historyStaleRef = useRef(false);
   const preservedIdRef = useRef<string | null>(null);
 
+  function commitRetained(rows: InteractionHistoryEntry[]) {
+    interactedRetainedRef.current = rows;
+    setInteractedRetainedHistory(rows);
+  }
+
   function applyHistoryFromBoot(desk: DeskBootDeskPatch) {
     if (historyStaleRef.current) return;
     if (desk.interacted) {
+      appliedUnpagedBodyRef.current = null;
       setInteractedHydrated(true);
       setInteractedHistory(desk.interacted.interactions);
-      setInteractedRetainedHistory(desk.interacted.retainedInteractions);
+      commitRetained(desk.interacted.retainedInteractions);
       setInteractedTotal(desk.interacted.total);
       setInteractedPage(desk.interacted.page);
       interactedPageRef.current = desk.interacted.page;
@@ -239,7 +252,49 @@ export function useDeskHistory(
    * it synchronously, so a card released a moment ago leaves inventory before
    * any later selection, not after the next network round trip.
    */
-  async function hydrateInteracted(preservedId?: string | null, page?: number) {
+  function hydrateInteracted(preservedId?: string | null, page?: number): Promise<void> {
+    const run = loadInteracted(preservedId, page);
+    if (page !== undefined) return run;
+    unpagedInFlightRef.current = run;
+    const settle = () => {
+      if (unpagedInFlightRef.current === run) unpagedInFlightRef.current = null;
+    };
+    run.then(settle, settle);
+    return run;
+  }
+
+  function pollInteracted(): Promise<void> {
+    return unpagedInFlightRef.current ?? hydrateInteracted();
+  }
+
+  function applyInteractedEvent(raw: unknown) {
+    const entry = parseInteractionHistoryEntry(raw);
+    if (!entry) return;
+    appliedUnpagedBodyRef.current = null;
+    const known = interactedRetainedRef.current.some((row) => row.threadId === entry.threadId);
+    commitRetained([
+      entry,
+      ...interactedRetainedRef.current.filter((row) => row.threadId !== entry.threadId),
+    ]);
+    if (!known) setInteractedTotal((total) => total + 1);
+    if (interactedPageRef.current === 1) {
+      setInteractedHistory((rows) =>
+        [entry, ...rows.filter((row) => row.threadId !== entry.threadId)].slice(0, INTERACTED_PAGE_SIZE),
+      );
+    }
+    const ids = new Set(interactedIdsRef.current);
+    ids.add(entry.threadId);
+    interactedIdsRef.current = ids;
+    setInteractedIds(ids);
+    blockedConversationsRef.current = new Set([
+      ...blockedConversationsRef.current,
+      ...blockedFromHistory([entry]),
+    ]);
+    setThreads((prev) => prev.filter((t) => keepInCurated(t)));
+    hydrateInteracted().catch((err: unknown) => console.error(err));
+  }
+
+  async function loadInteracted(preservedId?: string | null, page?: number) {
     const paged = page !== undefined;
     const isCurrent = beginRefresh(paged ? "interactedPage" : "interacted");
     if (!isCurrent()) return;
@@ -258,15 +313,28 @@ export function useDeskHistory(
       const res = await apiFetch(page === undefined ? "/api/interacted" : `/api/interacted?page=${page}`);
       if (!isCurrent()) return;
       if (!res.ok) throw new Error("Refresh failed");
-      const raw: unknown = await res.json();
-      const data = isRecord(raw) ? raw : {};
+      const body = await res.text();
       if (!isCurrent()) return;
+      if (!paged && body === appliedUnpagedBodyRef.current) return;
+      const raw: unknown = JSON.parse(body);
+      const data = isRecord(raw) ? raw : {};
       const history = parseInteractedHistory(data.interactions);
-      const retainedHistory = Array.isArray(data.retainedInteractions)
-        ? parseInteractedHistory(data.retainedInteractions)
-        : history;
+      const serverBlocked = Array.isArray(data.blockedIds)
+        ? new Set(data.blockedIds.filter((id): id is string => typeof id === "string"))
+        : null;
+      if (!paged) {
+        const pageIds = new Set(history.map((row) => row.threadId));
+        commitRetained([
+          ...history,
+          ...interactedRetainedRef.current.filter(
+            (row) => !pageIds.has(row.threadId) && (!serverBlocked || serverBlocked.has(row.threadId)),
+          ),
+        ]);
+        appliedUnpagedBodyRef.current = body;
+      } else {
+        appliedUnpagedBodyRef.current = null;
+      }
       if (newestSnapshot()) {
-        setInteractedRetainedHistory(retainedHistory);
         setInteractedTotal(typeof data.total === "number" ? data.total : history.length);
       }
       if (paged) {
@@ -289,7 +357,7 @@ export function useDeskHistory(
       const blocked = new Set(blockedConversationsRef.current);
       const blockedIds = Array.isArray(data.blockedIds)
         ? data.blockedIds
-        : blockedFromHistory(retainedHistory);
+        : blockedFromHistory(paged ? history : interactedRetainedRef.current);
       for (const id of blockedIds) {
         if (typeof id === "string" && id.trim()) blocked.add(id.trim());
       }
@@ -315,6 +383,25 @@ export function useDeskHistory(
   }
 
   useRehydrateOnVisible(hydrateInteracted);
+  useDeskEventStream(verifiedOwnerId);
+  const deskEventHandlersRef = useRef({ applyInteractedEvent, pollInteracted });
+  deskEventHandlersRef.current = { applyInteractedEvent, pollInteracted };
+  useEffect(() => {
+    if (!verifiedOwnerId) return;
+    const poll = () => {
+      deskEventHandlersRef.current.pollInteracted().catch((err: unknown) => console.error(err));
+    };
+    const offInteracted = onDeskEvent("interacted", (data) => {
+      deskEventHandlersRef.current.applyInteractedEvent(data);
+    });
+    const offReady = onDeskEvent("ready", poll);
+    const interval = window.setInterval(poll, INTERACTED_FALLBACK_POLL_MS);
+    return () => {
+      offInteracted();
+      offReady();
+      window.clearInterval(interval);
+    };
+  }, [verifiedOwnerId]);
 
   function isHiddenFromCurated(id: string): boolean {
     return (
@@ -519,6 +606,8 @@ export function useDeskHistory(
     interactedTotal,
     interactedPage,
     changeInteractedPage: (page: number) => hydrateInteracted(preservedIdRef.current, page),
+    pollInteracted,
+    applyInteractedEvent,
     setInteractedHistory,
     dismissedHistory,
     // Local mutations supersede any snapshot already in flight.

@@ -12,6 +12,8 @@ import {
   resetPlatformDbForTests,
 } from "../db.ts";
 import {
+  DESK_EVENT_BUFFER_MS,
+  publishDeskEvent,
   resetDeskEventsForTests,
   tryHandleDeskEvents,
   tryHandleDeskEventsWake,
@@ -21,8 +23,9 @@ import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 
-function mockRes() {
+function mockRes(opts: { slow?: boolean } = {}) {
   let status = 0;
+  let destroyed = false;
   const chunks: string[] = [];
   const res = Object.assign(new ServerResponse(testRequest()), {
     writeHead(code: number) {
@@ -30,18 +33,66 @@ function mockRes() {
     },
     write(chunk: string) {
       chunks.push(chunk);
-      return true;
+      return !opts.slow;
     },
     end(chunk?: string) {
       if (chunk) chunks.push(chunk);
     },
-    destroy() {},
+    destroy() {
+      destroyed = true;
+    },
     once() {
       return res;
     },
   });
-  return { res, status: () => status, chunks };
+  return { res, status: () => status, chunks, destroyed: () => destroyed };
 }
+
+function subscribe(
+  cookie: string,
+  opts: { lastEventId?: string; query?: string; slow?: boolean } = {},
+) {
+  const req = Object.assign(testRequest(), {
+    method: "GET",
+    headers: {
+      cookie,
+      ...(opts.lastEventId ? { "last-event-id": opts.lastEventId } : {}),
+    },
+    socket: { remoteAddress: "127.0.0.1" },
+  });
+  const mock = mockRes({ slow: opts.slow });
+  assert.equal(
+    tryHandleDeskEvents(req, mock.res, new URL(`http://localhost/api/desk/events${opts.query ?? ""}`)),
+    true,
+  );
+  return mock;
+}
+
+function eventIds(raw: string): string[] {
+  return [...raw.matchAll(/^id: (.+)$/gm)].map((match) => match[1] ?? "");
+}
+
+function signedInCookie(providerUserId: string): { userId: string; cookie: string } {
+  const user = upsertOauthUser({
+    provider: "google",
+    providerUserId,
+    email: `${providerUserId}@example.com`,
+    emailVerified: true,
+  });
+  const { token } = createSession(user.id);
+  return { userId: user.id, cookie: `${SESSION_COOKIE}=${token}` };
+}
+
+const interacted = {
+  threadId: "thread-1",
+  author: "@target",
+  at: "2026-09-15T00:00:02.000Z",
+  replyId: "reply-1",
+  replyUrl: "https://x.com/pilot/status/reply-1",
+  postedAt: "2026-09-15T00:00:01.000Z",
+  conversationId: "root-1",
+  inReplyToId: "parent-1",
+};
 
 async function wake(
   body: unknown,
@@ -194,5 +245,90 @@ await describe("desk events", async () => {
     assert.equal(mine.status, 200);
     assert.match(chunks.join(""), /event: own_post/);
     assert.match(chunks.join(""), /"id":"post-1"/);
+  });
+
+  await it("publishes the post-mark interacted event with the ids the card matches on", async () => {
+    const { userId, cookie } = signedInCookie("desk-interacted");
+    const desk = subscribe(cookie);
+    const out = await wake({
+      userId,
+      type: "interacted",
+      interaction: { ...interacted, source: "discovered", authorKey: "target", userId, stats: {} },
+    });
+    assert.equal(out.status, 200);
+    const frame = desk.chunks.join("").split("\n\n").find((chunk) => chunk.includes("event: interacted"));
+    assert.ok(frame);
+    const data = frame.split("\n").find((line) => line.startsWith("data: "))?.slice("data: ".length);
+    assert.deepEqual(JSON.parse(data ?? ""), interacted);
+    assert.equal(eventIds(desk.chunks.join("")).length, 1);
+  });
+
+  await it("rejects an interacted wake without a thread, author, or time", async () => {
+    const { userId } = signedInCookie("desk-interacted-bad");
+    for (const interaction of [
+      { ...interacted, threadId: "" },
+      { ...interacted, author: undefined },
+      { ...interacted, at: "never" },
+      null,
+    ]) {
+      const out = await wake({ userId, type: "interacted", interaction });
+      assert.equal(out.status, 400);
+    }
+  });
+
+  await it("gives each event an increasing id and replays missed events after Last-Event-ID", () => {
+    const { userId, cookie } = signedInCookie("desk-replay");
+    const first = subscribe(cookie);
+    publishDeskEvent(userId, "own_post", { id: "post-1", kind: "reply", postedAt: "2026-09-15T00:00:00.000Z" });
+    publishDeskEvent(userId, "interacted", interacted);
+    const ids = eventIds(first.chunks.join(""));
+    assert.equal(ids.length, 2);
+    assert.notEqual(ids[0], ids[1]);
+
+    publishDeskEvent(userId, "interacted", { ...interacted, threadId: "thread-2" });
+    const header = subscribe(cookie, { lastEventId: ids[0] });
+    const replayed = header.chunks.join("");
+    assert.equal(eventIds(replayed).length, 2);
+    assert.match(replayed, /"threadId":"thread-1"/);
+    assert.match(replayed, /"threadId":"thread-2"/);
+    assert.doesNotMatch(replayed, /own_post/);
+    assert.ok(replayed.indexOf("event: ready") > replayed.lastIndexOf("event: interacted"));
+
+    const query = subscribe(cookie, { query: `?lastEventId=${encodeURIComponent(ids[1] ?? "")}` });
+    assert.equal(eventIds(query.chunks.join("")).length, 1);
+    assert.match(query.chunks.join(""), /"threadId":"thread-2"/);
+
+    const fresh = subscribe(cookie);
+    assert.deepEqual(eventIds(fresh.chunks.join("")), []);
+  });
+
+  await it("replays the whole buffer to a desk that last heard a previous server boot", () => {
+    const { userId, cookie } = signedInCookie("desk-reboot");
+    publishDeskEvent(userId, "interacted", interacted);
+    const desk = subscribe(cookie, { lastEventId: "previous-boot.99" });
+    assert.equal(eventIds(desk.chunks.join("")).length, 1);
+  });
+
+  await it("drops events older than the buffer window", () => {
+    const { userId, cookie } = signedInCookie("desk-stale");
+    const now = Date.now();
+    publishDeskEvent(userId, "interacted", interacted, now - DESK_EVENT_BUFFER_MS - 1);
+    publishDeskEvent(userId, "interacted", { ...interacted, threadId: "thread-2" }, now);
+    const desk = subscribe(cookie, { lastEventId: "previous-boot.0" });
+    const replayed = desk.chunks.join("");
+    assert.equal(eventIds(replayed).length, 1);
+    assert.match(replayed, /"threadId":"thread-2"/);
+  });
+
+  await it("drops a slow desk and replays the missed event when it reconnects", () => {
+    const { userId, cookie } = signedInCookie("desk-slow");
+    const slow = subscribe(cookie, { slow: true });
+    publishDeskEvent(userId, "own_post", { id: "post-1", kind: "reply", postedAt: "2026-09-15T00:00:00.000Z" });
+    const lastEventId = eventIds(slow.chunks.join(""))[0] ?? "";
+    assert.equal(slow.destroyed(), true);
+    publishDeskEvent(userId, "interacted", interacted);
+    const reconnected = subscribe(cookie, { lastEventId });
+    assert.equal(eventIds(reconnected.chunks.join("")).length, 1);
+    assert.match(reconnected.chunks.join(""), /event: interacted/);
   });
 });
