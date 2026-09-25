@@ -462,10 +462,6 @@ export async function listInteractionHistory(opts: {
   return rows.map(rowToInteraction);
 }
 
-/**
- * Every user's rows (worker sweeps: stats due queue, projection retries).
- * Newest first, capped per call. Not for desk reads.
- */
 export function newestInteractionPostedAtSince(opts: {
   userId: string;
   sinceIso: string;
@@ -488,6 +484,10 @@ export function newestInteractionPostedAtSince(opts: {
   return row.postedAt;
 }
 
+/**
+ * Every user's rows (worker sweeps: stats due queue, projection retries).
+ * Newest first, capped per call. Not for desk reads.
+ */
 export function listAllInteractionRows(opts?: {
   limit?: number | null;
   where?: string;
