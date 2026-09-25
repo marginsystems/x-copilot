@@ -7,7 +7,10 @@ import { createHash } from "node:crypto";
 import { getPlatformDb } from "../db.js";
 import { getGamification } from "./gamification.js";
 import { utcDayKey } from "./gamificationXp.js";
-import { listInteractionHistory } from "./interactionStore.js";
+import {
+  listInteractionHistory,
+  newestInteractionPostedAtSince,
+} from "./interactionStore.js";
 import {
   countDoneSuggestionsSince,
   listDonePostActedAtSince,
@@ -102,15 +105,12 @@ export async function loadNewestInstrumentTimes(opts: {
   nowMs?: number;
 }): Promise<Pick<InstrumentTimes, "replyAt" | "postAt">> {
   const sinceMs = instrumentSinceMs(opts.nowMs);
-  const history = await listInteractionHistory({
+  const newestReplyAt = newestInteractionPostedAtSince({
     userId: opts.userId,
-    limit: INSTRUMENT_WINDOW,
+    sinceIso: new Date(sinceMs).toISOString(),
   });
   return {
-    replyAt: history
-      .map((row) => row.postedAt ?? row.at)
-      .filter((at) => withinInstrumentHistory(at, sinceMs))
-      .slice(0, 1),
+    replyAt: newestReplyAt === null ? [] : [newestReplyAt],
     postAt: listOwnPostedAt({
       userId: opts.userId,
       kinds: ["original", "quote"],
@@ -235,6 +235,38 @@ function countOwnKindsToday(
   return { originals, replies, quotes };
 }
 
+function countPostsToday(
+  userId: string,
+  sinceIso: string,
+): {
+  kinds: { originals: number; replies: number; quotes: number };
+  originalsToday: number;
+  postsToday: number;
+} {
+  const kinds = countOwnKindsToday(userId, sinceIso);
+  return {
+    kinds,
+    originalsToday: originalsTodayCount(
+      kinds.originals,
+      countDeskOriginalsSince(userId, sinceIso),
+      countDoneSuggestionsSince({ userId, kind: "post", sinceIso }),
+    ),
+    postsToday: kinds.originals + kinds.quotes,
+  };
+}
+
+export function buildLiteCoachingCounts(opts: {
+  userId: string;
+  nowMs?: number;
+}): Pick<CoachingSnapshot, "dayUtc" | "postsToday" | "originalsToday"> {
+  const nowMs = opts.nowMs ?? Date.now();
+  const { originalsToday, postsToday } = countPostsToday(
+    opts.userId,
+    startOfUtcDayIso(new Date(nowMs)),
+  );
+  return { dayUtc: utcDayKey(nowMs), postsToday, originalsToday };
+}
+
 export async function buildCoachingSnapshot(opts: {
   userId: string;
   tenantId: string;
@@ -267,13 +299,10 @@ export async function buildCoachingSnapshot(opts: {
       if (row.source === "manual") manualMarksToday += 1;
     }
   }
-  const kinds = countOwnKindsToday(opts.userId, sinceIso);
-  const deskOriginals = countDeskOriginalsSince(opts.userId, sinceIso);
-  const doneForYouPosts = countDoneSuggestionsSince({
-    userId: opts.userId,
-    kind: "post",
+  const { kinds, originalsToday, postsToday } = countPostsToday(
+    opts.userId,
     sinceIso,
-  });
+  );
   const suggestions = listActiveSuggestions(opts.userId, nowMs);
   const counts = { post: 0, quote: 0, repost: 0, reply: 0 };
   for (const row of suggestions) {
@@ -283,14 +312,10 @@ export async function buildCoachingSnapshot(opts: {
     dayUtc,
     marksToday,
     manualMarksToday,
-    originalsToday: originalsTodayCount(
-      kinds.originals,
-      deskOriginals,
-      doneForYouPosts,
-    ),
+    originalsToday,
     repliesPostedToday: kinds.replies,
     quotesToday: kinds.quotes,
-    postsToday: kinds.originals + kinds.quotes,
+    postsToday,
     deskPostsToday: listDeskPostsSince(opts.userId, sinceIso).length,
     takeoffsToday: countDeliveredSortiesToday(opts.tenantId, new Date(nowMs)),
     suggestions: { total: suggestions.length, ...counts },
