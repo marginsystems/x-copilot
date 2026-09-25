@@ -315,7 +315,10 @@ export function useDeskHistory(
       if (!res.ok) throw new Error("Refresh failed");
       const body = await res.text();
       if (!isCurrent()) return;
-      if (!paged && body === appliedUnpagedBodyRef.current) return;
+      if (!paged && body === appliedUnpagedBodyRef.current) {
+        onHydratedRef.current?.("interacted");
+        return;
+      }
       const raw: unknown = JSON.parse(body);
       const data = isRecord(raw) ? raw : {};
       const history = parseInteractedHistory(data.interactions);

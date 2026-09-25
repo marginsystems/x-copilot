@@ -674,7 +674,11 @@ test("a hidden document applies the post-mark event to interacted state as it ar
   const stream = liveStream();
   expect(stream.url).toContain("/api/desk/events");
   expect(stream.init).toEqual({ withCredentials: true });
-  act(() => { stream.emit("interacted", posted, "boot.1"); });
+  let first!: Promise<void>;
+  act(() => {
+    stream.emit("interacted", posted, "boot.1");
+    first = result.current.history.pollInteracted();
+  });
   const history = result.current.history;
   expect(history.interactedIds.has("parent-1")).toBe(true);
   expect(history.interactedIdsRef.current.has("parent-1")).toBe(true);
@@ -690,14 +694,21 @@ test("a hidden document applies the post-mark event to interacted state as it ar
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(fetch.mock.calls[0]?.[0]).toMatch(/\/api\/interacted$/);
 
-  act(() => { stream.emit("interacted", posted, "boot.1"); });
+  let duplicate!: Promise<void>;
+  act(() => {
+    stream.emit("interacted", posted, "boot.1");
+    duplicate = result.current.history.pollInteracted();
+  });
   expect(result.current.history.interactedTotal).toBe(1);
   expect(result.current.history.interactedRetainedHistory).toEqual([posted]);
-  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch).toHaveBeenCalledTimes(2);
   await act(async () => {
     requests[0].resolve(response({ interactions: [posted], total: 1, page: 1, pageSize: 10,
       activeIds: ["parent-1"], blockedIds: ["parent-1", "root-1"] }));
-    await Promise.resolve();
+    await first;
+    requests[1].resolve(response({ interactions: [posted], total: 1, page: 1, pageSize: 10,
+      activeIds: ["parent-1"], blockedIds: ["parent-1", "root-1"] }));
+    await duplicate;
   });
   expect(result.current.history.interactedIds).toEqual(new Set(["parent-1"]));
   expect(result.current.history.interactedRetainedHistory).toEqual([posted]);
@@ -770,7 +781,7 @@ test("the fallback poll keeps one request in flight and uses the paged endpoint"
   act(() => { vi.advanceTimersByTime(INTERACTED_FALLBACK_POLL_MS); });
   expect(fetch).toHaveBeenCalledTimes(2);
   await act(async () => { requests[1].resolve(response(body)); await Promise.resolve(); });
-  expect(onHydrated).toHaveBeenCalledTimes(1);
+  expect(onHydrated).toHaveBeenCalledTimes(2);
   expect(result.current.history.interactedHistory).toEqual([row("a")]);
 });
 
