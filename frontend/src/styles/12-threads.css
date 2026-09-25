@@ -193,12 +193,22 @@
   background: color-mix(in srgb, var(--accent) 5%, var(--panel));
 }
 
+/* One line from detecting to detected: the status text and post id take the
+   ellipsis, so the head keeps its height when the caret and id arrive. */
 .for-you-status,
 .for-you-detected-summary {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.for-you-status > span:first-child,
+.for-you-detected-id {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .for-you-status .approach-panel-loader-mark {
@@ -233,6 +243,7 @@
 
 .for-you-post-link {
   display: inline-flex;
+  flex: none;
   width: 16px;
   height: 16px;
   align-items: center;
@@ -459,6 +470,21 @@
 .row-meta > .desk-meter,
 .daily-mission .desk-meter-count {
   overflow-wrap: normal;
+}
+
+/* Approach cards swap meta in place when a post lands. Keep it one line:
+   chips hold their size, short text fills first, long text takes the ellipsis. */
+.approach-frame .row-meta {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(auto, max-content);
+  white-space: nowrap;
+}
+
+.approach-frame .row-meta > span:not(.chip):not(.for-you-status) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .caret {

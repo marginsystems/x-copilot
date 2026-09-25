@@ -159,7 +159,9 @@ export function DeskRow({
   exiting?: boolean;
   children?: ReactNode;
 }) {
-  const presence = useDeskRowExpand(Boolean(expandable && open));
+  // A row that cannot expand always shows its detail, so count it as open. A row
+  // that becomes expandable while open then keeps `open` instead of replaying the enter.
+  const presence = useDeskRowExpand(open || !expandable);
   const expanded = !expandable || presence.expanded;
   const detailVisible = !expandable || expanded;
   const classes = ["thread-row"];
@@ -309,7 +311,7 @@ export function DeskRow({
           </ActionSlot>
         </div>
       ) : null}
-      {presence.mount || (!expandable && children) ? (
+      {(expandable ? presence.mount : Boolean(children)) ? (
         <div
           className="row-detail-slot"
           aria-hidden={!detailVisible}

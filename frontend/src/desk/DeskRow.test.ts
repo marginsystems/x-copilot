@@ -69,6 +69,46 @@ await describe("DeskRow card chrome", async () => {
     assert.match(buttons, /button\.has-tip:disabled\s*\{[^}]*opacity:\s*1/);
   });
 
+  await it("clips a departing action on one line instead of stacking its label", () => {
+    const css = readFileSync(
+      new URL("../styles/10-scout.css", import.meta.url),
+      "utf8",
+    );
+    const motion = readFileSync(
+      new URL("../styles/99-motion.css", import.meta.url),
+      "utf8",
+    );
+
+    assert.match(css, /\.row-action\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+    assert.match(css, /\.row-action\s*\{[^}]*white-space:\s*nowrap/);
+    assert.match(
+      css,
+      /\.row-action\.is-collapsed\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*0fr\)/,
+    );
+    assert.doesNotMatch(
+      css,
+      /\.row-action(?:\.is-collapsed)?\s*\{[^}]*grid-template-columns:\s*[01]fr/,
+    );
+    assert.match(css, /\.row-action-clip\s*\{[^}]*overflow:\s*hidden/);
+    assert.match(css, /\.row-action \.has-tip::after\s*\{[^}]*white-space:\s*normal/);
+    assert.match(motion, /\.row-action\s*\{\s*transition:\s*none/);
+  });
+
+  await it("keeps the Approach head on one line when detection lands", () => {
+    const css = readFileSync(
+      new URL("../styles/12-threads.css", import.meta.url),
+      "utf8",
+    );
+    const status = /\.for-you-status,\s*\.for-you-detected-summary\s*\{[^}]*\}/.exec(css)?.[0];
+
+    assert.ok(status);
+    assert.match(status, /white-space:\s*nowrap/);
+    assert.doesNotMatch(status, /flex-wrap:\s*wrap/);
+    assert.match(css, /\.for-you-detected-id\s*\{[^}]*text-overflow:\s*ellipsis/);
+    assert.match(css, /\.approach-frame \.row-meta\s*\{[^}]*grid-auto-flow:\s*column/);
+    assert.match(css, /\.approach-frame \.row-meta\s*\{[^}]*white-space:\s*nowrap/);
+  });
+
   await it("uses full-card collapsed hover without head hover overrides", () => {
     const css = readFileSync(
       new URL("../styles/12-threads.css", import.meta.url),
