@@ -204,6 +204,12 @@ await describe("interactedHttp", async () => {
     assert.equal((raw.match(/x{200}/g) ?? []).length, 10);
     assert.ok(Array.isArray(json.blockedIds));
     for (const id of ["row-0", "root-0", "parent-0"]) assert.ok(json.blockedIds.includes(id));
+
+    const { json: retained } = await call("GET", "/api/interacted?includeRetained=1", undefined, `${SESSION_COOKIE}=${encodeURIComponent(token)}`);
+    const retainedRows = retained.retainedInteractions;
+    assert.ok(Array.isArray(retainedRows));
+    assert.equal(retainedRows.length, 40);
+    assert.equal(parseDatabaseRow(retainedRows).length, 40);
   });
 
   await it("GET /api/interacted answers 304 from its ETag until the history changes", async () => {

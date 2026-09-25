@@ -693,9 +693,9 @@ test("a hidden document applies the post-mark event to interacted state as it ar
   act(() => { stream.emit("interacted", posted, "boot.1"); });
   expect(result.current.history.interactedTotal).toBe(1);
   expect(result.current.history.interactedRetainedHistory).toEqual([posted]);
+  expect(fetch).toHaveBeenCalledTimes(1);
   await act(async () => {
-    requests[0].resolve(response({ interactions: [row("stale")], total: 0, activeIds: [], blockedIds: [] }));
-    requests[1].resolve(response({ interactions: [posted], total: 1, page: 1, pageSize: 10,
+    requests[0].resolve(response({ interactions: [posted], total: 1, page: 1, pageSize: 10,
       activeIds: ["parent-1"], blockedIds: ["parent-1", "root-1"] }));
     await Promise.resolve();
   });

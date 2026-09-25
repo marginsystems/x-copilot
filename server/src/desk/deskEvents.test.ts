@@ -320,6 +320,15 @@ await describe("desk events", async () => {
     assert.match(replayed, /"threadId":"thread-2"/);
   });
 
+  await it("expires buffered events for idle users", (t) => {
+    t.mock.timers.enable({ apis: ["setInterval", "Date"], now: 0 });
+    const idle = signedInCookie("desk-idle-buffer");
+    publishDeskEvent(idle.userId, "interacted", interacted, 0);
+    t.mock.timers.tick(DESK_EVENT_BUFFER_MS);
+    const desk = subscribe(idle.cookie, { lastEventId: "previous-boot.0" });
+    assert.equal(eventIds(desk.chunks.join("")).length, 0);
+  });
+
   await it("drops a slow desk and replays the missed event when it reconnects", () => {
     const { userId, cookie } = signedInCookie("desk-slow");
     const slow = subscribe(cookie, { slow: true });

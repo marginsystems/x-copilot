@@ -13,6 +13,7 @@ export const DESK_EVENT_BUFFER_MS = 10 * 60_000;
 
 const subscribers = new Map<string, Set<ServerResponse>>();
 const buffers = new Map<string, BufferedDeskEvent[]>();
+let bufferSweep: ReturnType<typeof setInterval> | null = null;
 let bootId = randomUUID().slice(0, 8);
 let seq = 0;
 let warnedMissingSecret = false;
@@ -49,6 +50,10 @@ function liveBuffer(userId: string, nowMs: number): BufferedDeskEvent[] {
   return buffer;
 }
 
+function pruneBuffers(nowMs: number): void {
+  for (const userId of buffers.keys()) liveBuffer(userId, nowMs);
+}
+
 function eventFrame(event: BufferedDeskEvent): string {
   return `id: ${bootId}.${event.seq}\nevent: ${event.type}\ndata: ${event.data}\n\n`;
 }
@@ -68,6 +73,10 @@ export function publishDeskEvent(
   payload: Record<string, unknown>,
   nowMs = Date.now(),
 ): void {
+  if (!bufferSweep) {
+    bufferSweep = setInterval(() => pruneBuffers(Date.now()), DESK_EVENT_BUFFER_MS);
+    bufferSweep.unref();
+  }
   const event: BufferedDeskEvent = { seq: ++seq, type, data: JSON.stringify(payload), atMs: nowMs };
   buffers.set(userId, [...liveBuffer(userId, nowMs), event].slice(-DESK_EVENT_BUFFER_SIZE));
   const frame = eventFrame(event);
@@ -83,6 +92,8 @@ export function warnIfDeskEventsSecretMissing(): void {
 }
 
 export function resetDeskEventsForTests(): void {
+  if (bufferSweep) clearInterval(bufferSweep);
+  bufferSweep = null;
   subscribers.clear();
   buffers.clear();
   bootId = randomUUID().slice(0, 8);

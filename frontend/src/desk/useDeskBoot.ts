@@ -231,7 +231,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       if (err && !user) setSignInOpen(true);
       const onboarded = applyUser(user);
       const [dismissed, skipped, interacted, expired, forYou, gamification, lastScout, scoutProfile] = await Promise.all([
-        read("/api/dismissed"), read("/api/skipped"), read("/api/interacted"),
+        read("/api/dismissed"), read("/api/skipped"), read("/api/interacted?includeRetained=1"),
         read("/api/expired"), read("/api/for-you"), read("/api/gamification"),
         onboarded ? read(`/api/scout/last?dedupeAccounts=${opts.dedupeAccounts}&autoStart=0`) : null,
         // Optional: an older API (404) or failed read leaves the slice absent.

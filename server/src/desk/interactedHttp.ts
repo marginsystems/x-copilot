@@ -93,6 +93,7 @@ export async function tryHandleInteracted(
     const json = JSON.stringify({
       ...result,
       interactions,
+      ...(url.searchParams.get("includeRetained") === "1" ? { retainedInteractions: history } : {}),
       activeIds: pruneExpired(history).map((i) => i.threadId),
     });
     const etag = `"${createHash("sha1").update(sessionUser?.id ?? "").update("\0").update(json).digest("base64url")}"`;
