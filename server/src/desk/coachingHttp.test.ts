@@ -1,11 +1,11 @@
 import { testRequest } from "../http/http.testHelpers.js";
 import { expectRecord } from "../http/http.testHelpers.js";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { type IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import { tryHandleCoaching } from "./coachingHttp.ts";
 import {
   defaultMigrationsDir,
@@ -174,6 +174,61 @@ await describe("GET /api/coaching", async () => {
       kind: "original",
       postedAt: newestPost,
     });
+  });
+
+  await it("serves lite without the gamification file or the interaction history list", async () => {
+    const nowMs = Date.now();
+    const postedToday = new Date(nowMs).toISOString();
+    const replyAt = new Date(nowMs - 60 * 60 * 1000).toISOString();
+    await markInteracted({
+      threadId: "lite-reply",
+      author: "@lite",
+      source: "manual",
+      userId,
+      replyId: "lite-reply",
+      postedAt: replyAt,
+      nowMs,
+    });
+    for (const [postId, kind] of [["lite-original", "original"], ["lite-quote", "quote"]] as const) {
+      upsertOwnPost({
+        parsed: {
+          eventUuid: `evt-${postId}`,
+          xUserId: "99",
+          postId,
+          kind,
+          text: postId,
+          postedAt: postedToday,
+          inReplyToId: null,
+          inReplyToUserId: null,
+          conversationId: null,
+          authorUsername: "desk",
+          metrics: {},
+        },
+        userId,
+        tenantId: "local",
+      });
+    }
+    mkdirSync(join(dir, "data", "gamification"), { recursive: true });
+    writeFileSync(join(dir, "data", "gamification", `${userId}.json`), "not json");
+    const prepare = mock.method(getPlatformDb(), "prepare");
+    try {
+      const response = await getCoaching({ path: "/api/coaching?lite=1", cookie });
+      assert.equal(response.status, 200);
+      assert.equal(response.body.postsToday, 2);
+      assert.equal(response.body.originalsToday, 1);
+      assert.deepEqual(response.body.replyAt, [replyAt]);
+      assert.deepEqual(response.body.postAt, [postedToday]);
+      const statements = prepare.mock.calls.map((call) => String(call.arguments[0]));
+      assert.equal(
+        statements.some((sql) => /SELECT \*\s+FROM desk_interactions/.test(sql)),
+        false,
+      );
+    } finally {
+      prepare.mock.restore();
+    }
+
+    const full = await getCoaching({ cookie });
+    assert.equal(full.status, 500);
   });
 
   await it("keeps the full coaching response and next-action refresh", async () => {

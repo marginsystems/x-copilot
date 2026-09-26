@@ -6,6 +6,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ensureUserTenant } from "../billing/billingStore.js";
 import {
   buildCoachingSnapshot,
+  buildLiteCoachingCounts,
   coachingInstrumentFields,
   hashCoachingSnapshot,
   loadInstrumentTimes,
@@ -40,13 +41,9 @@ export async function tryHandleCoaching(
   const tenantId = ensureUserTenant(user.id);
   const nowMs = Date.now();
   try {
-    const snapshot = await buildCoachingSnapshot({
-      userId: user.id,
-      tenantId,
-      nowMs,
-    });
-    const beats = getDeskBeats({ userId: user.id, nowMs });
     if (url.searchParams.get("lite") === "1") {
+      const counts = buildLiteCoachingCounts({ userId: user.id, nowMs });
+      const beats = getDeskBeats({ userId: user.id, nowMs });
       const times = await loadNewestInstrumentTimes({
         userId: user.id,
         nowMs,
@@ -54,16 +51,22 @@ export async function tryHandleCoaching(
       const ownActivity = loadNewestOwnActivity(user.id);
       send(req, res, 200, {
         ok: true,
-        dayUtc: snapshot.dayUtc,
+        dayUtc: counts.dayUtc,
         beats,
-        postsToday: snapshot.postsToday,
-        originalsToday: snapshot.originalsToday,
+        postsToday: counts.postsToday,
+        originalsToday: counts.originalsToday,
         replyAt: times.replyAt,
         postAt: times.postAt,
         ownActivity,
       });
       return true;
     }
+    const snapshot = await buildCoachingSnapshot({
+      userId: user.id,
+      tenantId,
+      nowMs,
+    });
+    const beats = getDeskBeats({ userId: user.id, nowMs });
     const inputsHash = hashCoachingSnapshot(snapshot);
     const [nextAction, missions, times] = await Promise.all([
       getOrRefreshNextAction({

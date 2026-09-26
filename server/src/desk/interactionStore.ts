@@ -462,6 +462,28 @@ export async function listInteractionHistory(opts: {
   return rows.map(rowToInteraction);
 }
 
+export function newestInteractionPostedAtSince(opts: {
+  userId: string;
+  sinceIso: string;
+}): string | null {
+  const userId = requireUserId(opts.userId);
+  const row: unknown = getPlatformDb()
+    .prepare(
+      `SELECT COALESCE(NULLIF(posted_at, ''), at) AS postedAt
+         FROM desk_interactions
+        WHERE user_id = ?
+          AND julianday(COALESCE(NULLIF(posted_at, ''), at)) >= julianday(?)
+        ORDER BY at DESC, thread_id DESC
+        LIMIT 1`,
+    )
+    .get(userId, opts.sinceIso);
+  if (row === undefined) return null;
+  if (!isRecord(row) || typeof row.postedAt !== "string") {
+    throw new TypeError("Invalid database row");
+  }
+  return row.postedAt;
+}
+
 /**
  * Every user's rows (worker sweeps: stats due queue, projection retries).
  * Newest first, capped per call. Not for desk reads.
