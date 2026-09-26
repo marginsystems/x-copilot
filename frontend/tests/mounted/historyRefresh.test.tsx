@@ -2,7 +2,9 @@ import { StrictMode, type ReactNode, type Dispatch, type SetStateAction } from "
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { SessionBoundary, useSession } from "../../src/auth/session";
-import { useDeskHistory } from "../../src/desk/useDeskHistory";
+import { INTERACTED_FALLBACK_POLL_MS, useDeskHistory } from "../../src/desk/useDeskHistory";
+import { vanishEvent } from "../../src/lib/vanishEvent";
+import { latestActivityCursor } from "../../src/lib/forYouTask";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";
 import { useSkipDismiss } from "../../src/desk/useSkipDismiss";
 import type { ThreadCard } from "../../src/desk/types";
@@ -70,7 +72,7 @@ test.each([
   // Same ids again (a later revision from a note repair or webhook) still refreshes.
   let second!: Promise<void>;
   act(() => { second = result.current.history[hydrate](); });
-  await act(async () => { requests[1].resolve(response({ [field]: [row("same")] })); await second; });
+  await act(async () => { requests[1].resolve(response({ [field]: [{ ...row("same"), summary: "repaired" }] })); await second; });
   expect(onHydrated).toHaveBeenCalledTimes(2);
   // A failed refresh does not.
   let failed!: Promise<void>;
@@ -241,7 +243,7 @@ test.each(["invalidate", "unmount"] as const)("drops a response during JSON pars
   let pending!: Promise<void>;
   act(() => { pending = old.history.hydrateInteracted(); });
   const pendingResponse = new Response();
-  vi.spyOn(pendingResponse, "json").mockImplementation(() => body.promise);
+  vi.spyOn(pendingResponse, "text").mockImplementation(() => body.promise.then((data) => JSON.stringify(data)));
   await act(async () => { requests[0].resolve(pendingResponse); });
   act(() => { if (end === "invalidate") old.session.invalidate("", false); else unmount(); });
   await act(async () => { body.resolve({ interactions: [row("late")], activeIds: ["late"] }); await pending; });
@@ -516,7 +518,7 @@ test("page navigation preserves retained blocking across an unpaged refresh", as
   let pending!: Promise<void>;
   act(() => { pending = result.current.history.changeInteractedPage(22); });
   await act(async () => {
-    requests[0].resolve(response({ interactions: [row("old")], retainedInteractions: [row("newest"), row("old")], total: 215, page: 22, pageSize: 10,
+    requests[0].resolve(response({ interactions: [row("old")], total: 215, page: 22, pageSize: 10,
       activeIds: ["recent"], blockedIds: ["recent", "old-root", "old-parent"] }));
     await pending;
   });
@@ -527,7 +529,7 @@ test("page navigation preserves retained blocking across an unpaged refresh", as
   expect(result.current.history.interactedPage).toBe(22);
   expect(result.current.history.interactedIdsRef.current).toEqual(new Set(["locked"]));
   expect(result.current.history.interactedHistory.map((entry) => entry.threadId)).toEqual(["old"]);
-  expect(result.current.history.interactedRetainedHistory.map((entry) => entry.threadId)).toEqual(["newest", "old"]);
+  expect(result.current.history.interactedRetainedHistory).toEqual([]);
   expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);
   expect(result.current.history.keepInCurated({ ...card, id: "child", inReplyToId: "old-parent" })).toBe(false);
   act(() => { pending = result.current.history.hydrateInteracted(); });
@@ -539,6 +541,7 @@ test("page navigation preserves retained blocking across an unpaged refresh", as
   expect(result.current.history.interactedPage).toBe(22);
   expect(result.current.history.interactedTotal).toBe(216);
   expect(result.current.history.interactedHistory.map((entry) => entry.threadId)).toEqual(["old"]);
+  expect(result.current.history.interactedRetainedHistory.map((entry) => entry.threadId)).toEqual(["newest"]);
   expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);
 });
 
@@ -558,7 +561,7 @@ test("a page click commits when an unpaged refresh is in flight or starts right 
     unpagedRequest = result.current.history.hydrateInteracted();
   });
   await act(async () => {
-    requests[2].resolve(response({ interactions: [row("poll-page-1")], retainedInteractions: [row("poll-page-1")], page: 1, total: 13 }));
+    requests[2].resolve(response({ interactions: [row("poll-page-1")], page: 1, total: 13 }));
     await unpagedRequest;
   });
   expect(result.current.history.interactedPage).toBe(2);
@@ -603,4 +606,196 @@ test("legacy interacted payload falls back to history count and conversation blo
   expect(result.current.history.interactedRetainedHistory.map((entry) => entry.threadId)).toEqual(["reply"]);
   expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "root" })).toBe(false);
   expect(result.current.history.keepInCurated({ ...card, id: "child", inReplyToId: "parent" })).toBe(false);
+});
+
+class FakeEventSource extends EventTarget {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSED = 2;
+  static instances: FakeEventSource[] = [];
+  readyState = FakeEventSource.OPEN;
+  constructor(readonly url: string, readonly init?: EventSourceInit) {
+    super();
+    FakeEventSource.instances.push(this);
+  }
+  close() {
+    this.readyState = FakeEventSource.CLOSED;
+  }
+  emit(type: string, data: unknown, lastEventId = "") {
+    this.dispatchEvent(new MessageEvent(type, { data: JSON.stringify(data), lastEventId }));
+  }
+  drop() {
+    this.readyState = FakeEventSource.CLOSED;
+    this.dispatchEvent(new Event("error"));
+  }
+}
+
+function liveStream(): FakeEventSource {
+  const open = FakeEventSource.instances.filter((source) => source.readyState !== FakeEventSource.CLOSED);
+  expect(open).toHaveLength(1);
+  return open[0]!;
+}
+
+function setupDeskStream() {
+  FakeEventSource.instances = [];
+  vi.stubGlobal("EventSource", FakeEventSource);
+  const requests: ReturnType<typeof deferred<Response>>[] = [];
+  const fetch = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => {
+    const request = deferred<Response>();
+    requests.push(request);
+    return request.promise;
+  });
+  vi.stubGlobal("fetch", fetch);
+  const setThreads = vi.fn<Dispatch<SetStateAction<ThreadCard[]>>>();
+  const onHydrated = vi.fn();
+  const hook = renderHook(() => ({
+    history: useDeskHistory({
+      setStatus: vi.fn(), setThreads, setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS, onHydrated,
+    }, "owner-a"),
+  }), { wrapper });
+  return { ...hook, requests, fetch, onHydrated };
+}
+
+const posted = {
+  threadId: "parent-1",
+  author: "@target",
+  at: "2026-09-25T10:00:02.000Z",
+  replyId: "reply-1",
+  replyUrl: "https://x.com/pilot/status/reply-1",
+  postedAt: "2026-09-25T10:00:01.000Z",
+  conversationId: "root-1",
+  inReplyToId: "parent-1",
+};
+
+test("a hidden document applies the post-mark event to interacted state as it arrives", async () => {
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+  vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+  const { result, requests, fetch } = setupDeskStream();
+  const stream = liveStream();
+  expect(stream.url).toContain("/api/desk/events");
+  expect(stream.init).toEqual({ withCredentials: true });
+  let first!: Promise<void>;
+  act(() => {
+    stream.emit("interacted", posted, "boot.1");
+    first = result.current.history.pollInteracted();
+  });
+  const history = result.current.history;
+  expect(history.interactedIds.has("parent-1")).toBe(true);
+  expect(history.interactedIdsRef.current.has("parent-1")).toBe(true);
+  expect(history.interactedRetainedHistory).toEqual([posted]);
+  expect(history.interactedHistory).toEqual([posted]);
+  expect(history.interactedTotal).toBe(1);
+  expect(vanishEvent({
+    cardId: "scout-card", conversationId: "root-1", interactedIds: history.interactedIds,
+    history: history.interactedRetainedHistory,
+  })).toBe("mark");
+  expect(latestActivityCursor({ history: history.interactedRetainedHistory })?.id).toBe("reply-1");
+  expect(history.keepInCurated({ ...card, id: "sibling", conversationId: "root-1" })).toBe(false);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch.mock.calls[0]?.[0]).toMatch(/\/api\/interacted$/);
+
+  let duplicate!: Promise<void>;
+  act(() => {
+    stream.emit("interacted", posted, "boot.1");
+    duplicate = result.current.history.pollInteracted();
+  });
+  expect(result.current.history.interactedTotal).toBe(1);
+  expect(result.current.history.interactedRetainedHistory).toEqual([posted]);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    requests[0].resolve(response({ interactions: [posted], total: 1, page: 1, pageSize: 10,
+      activeIds: ["parent-1"], blockedIds: ["parent-1", "root-1"] }));
+    await first;
+    requests[1].resolve(response({ interactions: [posted], total: 1, page: 1, pageSize: 10,
+      activeIds: ["parent-1"], blockedIds: ["parent-1", "root-1"] }));
+    await duplicate;
+  });
+  expect(result.current.history.interactedIds).toEqual(new Set(["parent-1"]));
+  expect(result.current.history.interactedRetainedHistory).toEqual([posted]);
+});
+
+test("a post-mark event keeps a later Interacted page and still updates the total and ids", async () => {
+  const { result, requests } = setupDeskStream();
+  let pending!: Promise<void>;
+  act(() => { pending = result.current.history.changeInteractedPage(3); });
+  await act(async () => {
+    requests[0].resolve(response({ interactions: [row("page-3")], page: 3, total: 25, blockedIds: ["page-3"] }));
+    await pending;
+  });
+  act(() => { liveStream().emit("interacted", posted, "boot.2"); });
+  expect(result.current.history.interactedPage).toBe(3);
+  expect(result.current.history.interactedHistory).toEqual([row("page-3")]);
+  expect(result.current.history.interactedTotal).toBe(26);
+  expect(result.current.history.interactedIds.has("parent-1")).toBe(true);
+  await act(async () => {
+    requests[1].resolve(response({ interactions: [posted], page: 1, total: 26, activeIds: ["parent-1"],
+      blockedIds: ["parent-1", "root-1", "page-3"] }));
+    await Promise.resolve();
+  });
+  expect(result.current.history.interactedPage).toBe(3);
+  expect(result.current.history.interactedHistory).toEqual([row("page-3")]);
+  expect(result.current.history.interactedTotal).toBe(26);
+});
+
+test("a post-mark event replaces an in-flight interacted poll", async () => {
+  const { result, requests, fetch } = setupDeskStream();
+  let stale!: Promise<void>, reconcile!: Promise<void>;
+  act(() => { stale = result.current.history.pollInteracted(); });
+  act(() => {
+    liveStream().emit("interacted", posted, "boot.3");
+    reconcile = result.current.history.pollInteracted();
+  });
+  expect(fetch).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    requests[0].resolve(response({ interactions: [], total: 0, page: 1, activeIds: [] }));
+    await stale;
+  });
+  expect(result.current.history.interactedHistory).toEqual([posted]);
+  expect(result.current.history.interactedIds.has("parent-1")).toBe(true);
+  expect(result.current.history.interactedTotal).toBe(1);
+  await act(async () => {
+    requests[1].resolve(response({ interactions: [posted], total: 1, page: 1, activeIds: ["parent-1"] }));
+    await reconcile;
+  });
+  expect(result.current.history.interactedHistory).toEqual([posted]);
+  expect(result.current.history.interactedIds).toEqual(new Set(["parent-1"]));
+  expect(result.current.history.interactedTotal).toBe(1);
+});
+
+test("the fallback poll keeps one request in flight and uses the paged endpoint", async () => {
+  vi.useFakeTimers();
+  const { result, requests, fetch, onHydrated } = setupDeskStream();
+  act(() => { vi.advanceTimersByTime(INTERACTED_FALLBACK_POLL_MS); });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch.mock.calls[0]?.[0]).toMatch(/\/api\/interacted$/);
+  act(() => {
+    vi.advanceTimersByTime(INTERACTED_FALLBACK_POLL_MS);
+    liveStream().emit("ready", {});
+    result.current.history.pollInteracted().catch(() => {});
+  });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  const body = { interactions: [row("a")], total: 1, page: 1, pageSize: 10, activeIds: ["a"], blockedIds: ["a"] };
+  await act(async () => { requests[0].resolve(response(body)); await Promise.resolve(); });
+  expect(result.current.history.interactedHistory).toEqual([row("a")]);
+  expect(onHydrated).toHaveBeenCalledTimes(1);
+  act(() => { vi.advanceTimersByTime(INTERACTED_FALLBACK_POLL_MS); });
+  expect(fetch).toHaveBeenCalledTimes(2);
+  await act(async () => { requests[1].resolve(response(body)); await Promise.resolve(); });
+  expect(onHydrated).toHaveBeenCalledTimes(2);
+  expect(result.current.history.interactedHistory).toEqual([row("a")]);
+});
+
+test("the desk stream reconnects with the last event id and ignores own posts for history", () => {
+  vi.useFakeTimers();
+  const { result, fetch } = setupDeskStream();
+  const first = liveStream();
+  act(() => { first.emit("own_post", { id: "post-1", kind: "original", postedAt: posted.postedAt }, "boot.7"); });
+  expect(fetch).not.toHaveBeenCalled();
+  act(() => { first.drop(); });
+  act(() => { vi.advanceTimersByTime(1_000); });
+  const second = liveStream();
+  expect(second).not.toBe(first);
+  expect(second.url).toContain("/api/desk/events?lastEventId=boot.7");
+  act(() => { second.emit("interacted", posted, "boot.8"); });
+  expect(result.current.history.interactedIds.has("parent-1")).toBe(true);
 });

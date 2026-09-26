@@ -50,6 +50,7 @@ function Harness({ total = 0, page = 1, onPage = async (_page: number) => {} }: 
       onDismiss={vi.fn()}
       onRefreshCoaching={vi.fn()}
       onHydrateInteracted={vi.fn()}
+      onPollInteracted={vi.fn()}
     />
   );
 }

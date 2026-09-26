@@ -2,6 +2,7 @@ import { objectValue } from "../platform/unknownValue.js";
 /**
  * Interacted list, stats, mark-detect, and mark.
  */
+import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { bucketInteractionsWithLive } from "./activityLive.js";
 import { parseActivityBucket } from "./activityStats.js";
@@ -16,9 +17,9 @@ import {
 } from "./detectReply.js";
 import { recordMarkGamification } from "./gamification.js";
 import { sendCreditsExhausted } from "../http/httpGates.js";
+import { corsHeaders } from "../http/cors.js";
 import { BodyError, readBody, send } from "../http/httpJson.js";
 import {
-  listActiveInteractions,
   listInteractionHistory,
   markInteracted,
   paginateInteractions,
@@ -28,7 +29,9 @@ import { setGamificationSyncFailed } from "./interactionSync.js";
 import {
   normalizeAuthorKey,
   parseStatusIdFromUrl,
+  pruneExpired,
 } from "./interactionCooldown.js";
+import { deskInteractedPayload, publishDeskEvent } from "./deskEvents.js";
 import {
   normalizeReply,
   type InteractionMemoryInput,
@@ -42,6 +45,14 @@ import { attachInteractionMemoryReceipts } from "../memory/interactionMemoryRece
 import { pruneThreadsFromScoutCache } from "../scout/scoutCache.js";
 import { maybeStartEmptyTankScout } from "../scout/scoutEmptyTank.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
+
+function etagMatches(header: string | string[] | undefined, etag: string): boolean {
+  const raw = Array.isArray(header) ? header.join(",") : header ?? "";
+  return raw.split(",").some((tag) => {
+    const value = tag.trim();
+    return value === "*" || value.replace(/^W\//, "") === etag;
+  });
+}
 
 export async function tryHandleInteracted(
   req: IncomingMessage,
@@ -70,24 +81,34 @@ export async function tryHandleInteracted(
 
   if (req.method === "GET" && url.pathname === "/api/interacted") {
     const sessionUser = getSessionUser(req);
-    const [interactions, active] = sessionUser
-      ? await Promise.all([
-          listInteractionHistory({ userId: sessionUser.id, limit: MAX_INTERACTION_STORE }),
-          listActiveInteractions({ userId: sessionUser.id }),
-        ])
-      : [[], []];
-    const result = paginateInteractions(interactions, url.searchParams.get("page"));
     const history = sessionUser
+      ? await listInteractionHistory({ userId: sessionUser.id, limit: MAX_INTERACTION_STORE })
+      : [];
+    const result = paginateInteractions(history, url.searchParams.get("page"));
+    const interactions = sessionUser
       ? await attachInteractionMemoryReceipts(result.interactions, {
           userId: sessionUser.id,
         })
       : result.interactions;
-    send(req, res, 200, {
+    const json = JSON.stringify({
       ...result,
-      interactions: history,
-      retainedInteractions: interactions,
-      activeIds: active.map((i) => i.threadId),
+      interactions,
+      ...(url.searchParams.get("includeRetained") === "1" ? { retainedInteractions: history } : {}),
+      activeIds: pruneExpired(history).map((i) => i.threadId),
     });
+    const etag = `"${createHash("sha1").update(sessionUser?.id ?? "").update("\0").update(json).digest("base64url")}"`;
+    const headers = {
+      ...corsHeaders(req),
+      ETag: etag,
+      "Cache-Control": "private, no-cache",
+    };
+    if (etagMatches(req.headers["if-none-match"], etag)) {
+      res.writeHead(304, headers);
+      res.end();
+      return true;
+    }
+    res.writeHead(200, { "Content-Type": "application/json", ...headers });
+    res.end(json);
     return true;
   }
 
@@ -276,6 +297,8 @@ export async function tryHandleInteracted(
         inReplyToId,
         evidence,
       });
+      const deskEvent = deskInteractedPayload(interaction);
+      if (deskEvent) publishDeskEvent(sessionUser.id, "interacted", deskEvent);
       await pruneThreadsFromScoutCache(
         [
           interaction.threadId,

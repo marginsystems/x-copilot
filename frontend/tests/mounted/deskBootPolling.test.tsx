@@ -330,16 +330,22 @@ test("fallback auth failure releases readiness after the session was checked", a
   setItem.mockRestore();
 });
 
-test("fallback keeps history when one later slice is down", async () => {
+test("fallback keeps retained interacted history when one later slice is down", async () => {
+  const interactions = Array.from({ length: 215 }, (_, index) => ({
+    threadId: `kept-${index}`,
+    author: "a",
+    at: "now",
+  }));
   const fetcher = vi.fn(async (url: string) => {
     if (url.includes("/api/boot?")) return new Response(null, { status: 404 });
     if (url.endsWith("/api/auth/me")) return Response.json(boot);
     if (url.endsWith("/api/gamification")) return new Response(null, { status: 500 });
-    if (url.endsWith("/api/interacted")) {
+    if (url.endsWith("/api/interacted?includeRetained=1")) {
       return Response.json({
         ok: true,
-        interactions: [{ threadId: "kept", author: "a", at: "now" }],
-        activeIds: ["kept"],
+        interactions: interactions.slice(0, 10),
+        retainedInteractions: interactions,
+        activeIds: interactions.map((entry) => entry.threadId),
       });
     }
     return Response.json({ ok: true });
@@ -349,7 +355,8 @@ test("fallback keeps history when one later slice is down", async () => {
   await act(async () => {});
   expect(h.result.current.deskBootReady).toBe(true);
   expect(h.applyDesk).toHaveBeenCalledTimes(1);
-  expect(h.applyDesk.mock.calls[0][0].interacted?.activeIds).toEqual(["kept"]);
+  expect(h.applyDesk.mock.calls[0][0].interacted?.retainedInteractions).toHaveLength(215);
+  expect(h.applyDesk.mock.calls[0][0].interacted?.retainedInteractions.at(-1)?.threadId).toBe("kept-214");
   expect(h.applyDesk.mock.calls[0][0].gamification).toBeUndefined();
   expect(h.applyDesk.mock.calls[0][0].activityStats).toBeUndefined();
   expect(h.applyDesk.mock.calls[0][0].coaching).toBeUndefined();
@@ -414,7 +421,7 @@ test.each([404, 500, "malformed"] as const)("fallback profile %s does not block 
         ? Response.json({ ok: true, scoutFamiliarity: { state: "supported", score: 500 } })
         : new Response(null, { status: outcome });
     }
-    if (url.endsWith("/api/interacted")) {
+    if (url.endsWith("/api/interacted?includeRetained=1")) {
       return Response.json({ ok: true, interactions: [{ threadId: "kept", author: "a", at: "now" }], activeIds: ["kept"] });
     }
     return Response.json({ ok: true });

@@ -49,6 +49,7 @@ import {
   resetWebhookMemoryProjectionForTests,
 } from "./handler.ts";
 import { createWebhookServer } from "./sidecar.ts";
+import { isRecord } from "../../server/src/platform/unknownValue.ts";
 
 function post(
   partial: Partial<ParsedPostCreate> = {},
@@ -118,8 +119,30 @@ await describe("own reply interaction capture", async () => {
   let dir: string;
   const userId = "user-1";
   const nowMs = Date.parse("2026-09-04T03:00:00.000Z");
+  const originalFetch = globalThis.fetch;
+  let wakes: Array<{
+    body: Record<string, unknown>;
+    rows: unknown[];
+    notes: string[];
+    scoutReplyDone: boolean;
+  }> = [];
 
   beforeEach(() => {
+    wakes = [];
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if (!String(input).includes("/api/desk/events/wake")) return originalFetch(input, init);
+      const body: unknown = JSON.parse(String(init?.body));
+      assert.ok(isRecord(body));
+      wakes.push({
+        body,
+        rows: getPlatformDb()
+          .prepare("SELECT thread_id FROM desk_interactions WHERE user_id = ?")
+          .all(userId),
+        notes: listedNotes(dir),
+        scoutReplyDone: getDeskBeats({ userId, nowMs }).scoutReplyDone,
+      });
+      return new Response(null, { status: 200 });
+    }) as typeof fetch;
     resetPlatformDbForTests();
     resetInteractionMemoryProjectionForTests();
     resetDeskWakeWarningForTests();
@@ -146,6 +169,7 @@ await describe("own reply interaction capture", async () => {
   });
 
   afterEach(() => {
+    globalThis.fetch = originalFetch;
     resetPlatformDbForTests();
     resetInteractionMemoryProjectionForTests();
     resetDeskWakeWarningForTests();
@@ -186,6 +210,46 @@ await describe("own reply interaction capture", async () => {
     assert.match(note, /source: discovered/);
     assert.match(note, /Watched parent post/);
     assert.match(note, /## Reply[\s\S]*\nreply\n/);
+  });
+
+  await it("wakes the desk with the watched thread ids after the mark and before gamification or memory", async () => {
+    watchThread({
+      userId,
+      threadId: "parent-1",
+      author: "@watched",
+      url: "https://x.com/watched/status/parent-1",
+      text: "Watched parent post",
+    });
+
+    assert.equal(
+      await markOwnReplyInteracted(post({ conversationId: "root-1" }), userId, { nowMs }),
+      "scout",
+    );
+    assert.equal(wakes.length, 1);
+    const [wake] = wakes;
+    assert.deepEqual(wake?.rows, [{ thread_id: "parent-1" }]);
+    assert.deepEqual(wake?.notes, []);
+    assert.equal(wake?.scoutReplyDone, false);
+    assert.equal(wake?.body.userId, userId);
+    assert.equal(wake?.body.type, "interacted");
+    const interaction = wake?.body.interaction;
+    assert.ok(isRecord(interaction));
+    assert.equal(interaction.threadId, "parent-1");
+    assert.equal(interaction.conversationId, "root-1");
+    assert.equal(interaction.inReplyToId, "parent-1");
+    assert.equal(interaction.replyId, "reply-1");
+    assert.equal(interaction.postedAt, "2026-09-04T03:00:00.000Z");
+    assert.equal(interaction.author, "@watched");
+    assert.equal(interaction.userId, undefined);
+    assert.equal(listedNotes(dir).length, 1);
+  });
+
+  await it("does not wake the desk when the reply was already marked or is skipped", async () => {
+    await markOwnReplyInteracted(post(), userId, { nowMs });
+    assert.equal(wakes.length, 1);
+    await markOwnReplyInteracted(post(), userId, { nowMs: nowMs + 1 });
+    await markOwnReplyInteracted(post({ postId: "original", kind: "original", inReplyToId: null }), userId, { nowMs });
+    assert.equal(wakes.length, 1);
   });
 
   await it("marks a reply to a locked Suggested target as scout", async () => {

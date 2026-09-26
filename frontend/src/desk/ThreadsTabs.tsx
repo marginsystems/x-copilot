@@ -62,6 +62,7 @@ type ThreadsTabsProps = {
   onDismiss: (thread: ThreadCard) => void;
   onRefreshCoaching: (opts?: { lite?: boolean }) => void | Promise<void>;
   onHydrateInteracted: (preservedId?: string | null) => void | Promise<void>;
+  onPollInteracted: () => void | Promise<void>;
 };
 
 const THREAD_TABS: ThreadsTab[] = [
@@ -178,6 +179,7 @@ export function ThreadsTabs({
   onDismiss,
   onRefreshCoaching,
   onHydrateInteracted,
+  onPollInteracted,
 }: ThreadsTabsProps) {
   const task = useApproachTask({
     authUser,
@@ -200,6 +202,7 @@ export function ThreadsTabs({
     onDismiss,
     onRefreshCoaching,
     onHydrateInteracted,
+    onPollInteracted,
   });
   return (
     <>

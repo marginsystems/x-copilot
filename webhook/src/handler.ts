@@ -40,6 +40,7 @@ import {
   MAX_INTERACTION_STORE,
 } from "../../server/src/desk/interactionStore.js";
 import { recordDeskReplyMarked } from "../../server/src/desk/deskBeats.js";
+import { deskInteractedPayload } from "../../server/src/desk/deskEvents.js";
 import { recordMarkGamification } from "../../server/src/desk/gamification.js";
 import { setGamificationSyncFailed } from "../../server/src/desk/interactionSync.js";
 import { allowRate, clientIp } from "../../server/src/auth/authGuard.js";
@@ -251,6 +252,10 @@ export async function markOwnReplyInteracted(
     console.warn("[xaa] mark after post soft-fail (post already on X):", err);
     throw err;
   }
+  const deskEvent = deskInteractedPayload(interaction);
+  if (deskEvent) {
+    postDeskWake({ userId, type: "interacted", interaction: deskEvent }).catch(() => {});
+  }
   try {
     await pruneConsumedScoutThread(userId, [
       interaction.threadId,
@@ -308,6 +313,10 @@ export function resetDeskWakeWarningForTests(): void {
 
 async function wakeDesk(parsed: ParsedPostCreate, userId: string): Promise<void> {
   if (parsed.kind === "repost") return;
+  await postDeskWake({ userId, id: parsed.postId, kind: parsed.kind, postedAt: parsed.postedAt });
+}
+
+async function postDeskWake(body: Record<string, unknown>): Promise<void> {
   try {
     const response = await fetch("http://127.0.0.1:8787/api/desk/events/wake", {
       method: "POST",
@@ -315,7 +324,7 @@ async function wakeDesk(parsed: ParsedPostCreate, userId: string): Promise<void>
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.DESK_EVENTS_SECRET?.trim() ?? ""}`,
       },
-      body: JSON.stringify({ userId, id: parsed.postId, kind: parsed.kind, postedAt: parsed.postedAt }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(2_000),
     });
     await response.body?.cancel();

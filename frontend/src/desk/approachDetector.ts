@@ -5,7 +5,7 @@ type DetectorTarget =
 type DetectorSchedule = {
   target: DetectorTarget;
   intervalMs: number;
-  ownPostRetryMs: number | null;
+  refreshOnOwnPost: boolean;
 };
 
 export function approachDetectorSchedule(
@@ -16,14 +16,14 @@ export function approachDetectorSchedule(
     return {
       target: { detector },
       intervalMs: 5_000,
-      ownPostRetryMs: null,
+      refreshOnOwnPost: true,
     };
   }
   if (detector === "scout" && lockedCardId) {
     return {
       target: { detector, cardId: lockedCardId },
       intervalMs: 5_000,
-      ownPostRetryMs: 1_000,
+      refreshOnOwnPost: false,
     };
   }
   return null;

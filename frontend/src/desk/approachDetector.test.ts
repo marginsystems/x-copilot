@@ -9,18 +9,18 @@ await describe("Approach detector scheduling", async () => {
       assert.deepEqual(schedule, {
         target: { detector: "for_you" },
         intervalMs: 5_000,
-        ownPostRetryMs: null,
+        refreshOnOwnPost: true,
       });
       assert.deepEqual(approachDetectorRefresh(schedule, false), { detector: "for_you" });
     }
   });
 
-  await it("hydrates the locked Scout and retries an own-post wake after one second", () => {
+  await it("polls the locked Scout without refetching on an own-post wake", () => {
     const schedule = approachDetectorSchedule("scout", "scout-1");
     assert.deepEqual(schedule, {
       target: { detector: "scout", cardId: "scout-1" },
       intervalMs: 5_000,
-      ownPostRetryMs: 1_000,
+      refreshOnOwnPost: false,
     });
     assert.deepEqual(approachDetectorRefresh(schedule, false), {
       detector: "scout", cardId: "scout-1",

@@ -123,6 +123,7 @@ function SessionApp() {
     historyStaleRef,
     applyHistoryFromBoot,
     hydrateInteracted,
+    pollInteracted,
     keepInCurated,
     actForYou,
   } = useDeskHistory({
@@ -716,6 +717,7 @@ function SessionApp() {
             onDismiss: openDismissModal,
             onRefreshCoaching: hydrateCoaching,
             onHydrateInteracted: hydrateInteracted,
+            onPollInteracted: pollInteracted,
           }}
         />
       )}
