@@ -1,7 +1,7 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { corsHeaders } from "../http/cors.js";
-import { BODY_CAP_16K, readJsonBody, send } from "../http/httpJson.js";
+import { BODY_CAP_256K, readJsonBody, send } from "../http/httpJson.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { isRecord } from "../platform/unknownValue.js";
 import { postUrl } from "../x-api/xActivity.js";
@@ -133,7 +133,7 @@ export async function tryHandleDeskEventsWake(
     send(req, res, 405, { error: "method_not_allowed" });
     return true;
   }
-  const body = await readJsonBody(req, { maxBytes: BODY_CAP_16K });
+  const body = await readJsonBody(req, { maxBytes: BODY_CAP_256K });
   if (body?.type === "interacted") {
     const interaction = deskInteractedPayload(body.interaction);
     if (typeof body.userId !== "string" || !body.userId || !interaction) {

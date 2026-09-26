@@ -638,7 +638,7 @@ function liveStream(): FakeEventSource {
   return open[0]!;
 }
 
-function setupDeskStream() {
+function setupDeskStream(ownerId: string | null = "owner-a") {
   FakeEventSource.instances = [];
   vi.stubGlobal("EventSource", FakeEventSource);
   const requests: ReturnType<typeof deferred<Response>>[] = [];
@@ -653,7 +653,7 @@ function setupDeskStream() {
   const hook = renderHook(() => ({
     history: useDeskHistory({
       setStatus: vi.fn(), setThreads, setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS, onHydrated,
-    }, "owner-a"),
+    }, ownerId),
   }), { wrapper });
   return { ...hook, requests, fetch, onHydrated };
 }
@@ -851,4 +851,19 @@ test("the stream owner routes focus and visibility to the locked Scout and skips
   unroute();
   act(() => { window.dispatchEvent(new Event("focus")); });
   expect(check.scout).toHaveBeenCalledTimes(2);
+});
+
+test("the fallback poll checks the local detector without an authenticated owner", async () => {
+  vi.useFakeTimers();
+  setupDeskStream(null);
+  const check = { for_you: vi.fn(), scout: vi.fn() };
+  const unroute = routeDeskDetector({ active: "for_you", check, forYouOwnPost: vi.fn() });
+
+  expect(FakeEventSource.instances).toHaveLength(0);
+  await act(async () => {
+    vi.advanceTimersByTime(DESK_DETECTOR_FALLBACK_MS);
+    await Promise.resolve();
+  });
+  expect(check.for_you).toHaveBeenCalledTimes(1);
+  unroute();
 });

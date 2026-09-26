@@ -256,6 +256,27 @@ await describe("desk events", async () => {
     });
   });
 
+  await it("publishes a long own_post wake instead of rejecting its body", async () => {
+    const { userId, cookie } = signedInCookie("desk-long-own-post");
+    const desk = subscribe(cookie);
+    const text = "😀".repeat(25_000);
+
+    const out = await wake({
+      userId,
+      id: "long-post",
+      kind: "original",
+      postedAt: "2026-09-15T00:00:01.000Z",
+      url: "https://x.com/pilot/status/long-post",
+      text,
+    });
+
+    assert.equal(out.status, 200);
+    const frame = desk.chunks.join("").split("\n\n").find((chunk) => chunk.includes("event: own_post"));
+    assert.ok(frame);
+    const data = frame.split("\n").find((line) => line.startsWith("data: "))?.slice("data: ".length);
+    assert.equal(JSON.parse(data ?? "").text, text);
+  });
+
   await it("publishes the post-mark interacted event with the ids the card matches on", async () => {
     const { userId, cookie } = signedInCookie("desk-interacted");
     const desk = subscribe(cookie);

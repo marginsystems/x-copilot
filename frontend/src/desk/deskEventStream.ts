@@ -89,7 +89,6 @@ function openDeskEventSource(): () => void {
 
 export function useDeskEventStream(ownerId: string | null): void {
   useEffect(() => {
-    if (!ownerId) return;
     let checking = false;
     const runCheck = async (run: () => void | Promise<void>) => {
       checking = true;
@@ -115,7 +114,7 @@ export function useDeskEventStream(ownerId: string | null): void {
     window.addEventListener("focus", check);
     document.addEventListener("visibilitychange", visible);
     const fallback = window.setInterval(check, DESK_DETECTOR_FALLBACK_MS);
-    const close = typeof EventSource === "undefined" ? null : openDeskEventSource();
+    const close = ownerId && typeof EventSource !== "undefined" ? openDeskEventSource() : null;
     return () => {
       close?.();
       offReady();
