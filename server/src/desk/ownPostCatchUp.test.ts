@@ -4,11 +4,12 @@ import { ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { defaultMigrationsDir, getPlatformDb, resetPlatformDbForTests } from "../db.ts";
+import { resetRateLimiterForTests } from "../auth/authGuard.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
-import { testRequest } from "../http/http.testHelpers.ts";
+import { defaultMigrationsDir, getPlatformDb, resetPlatformDbForTests } from "../db.ts";
+import { testRequest, testResponse } from "../http/http.testHelpers.ts";
 import { isRecord } from "../platform/unknownValue.ts";
 import { resetDeskEventsForTests, tryHandleDeskEvents } from "./deskEvents.ts";
 import { listInteractionHistory } from "./interactionStore.ts";
@@ -16,7 +17,9 @@ import {
   catchUpOwnPosts,
   OWN_POST_CATCH_UP_PATH,
   tryHandleOwnPostCatchUp,
+  tryHandleOwnPostCatchUpBeforeAuth,
 } from "./ownPostCatchUp.ts";
+import { seenActivityEvent } from "./ownPostStore.ts";
 
 const X_USER_ID = "111";
 
@@ -112,6 +115,7 @@ await describe("own post catch-up on a visible return", async () => {
 
   beforeEach(() => {
     resetPlatformDbForTests();
+    resetRateLimiterForTests();
     resetDeskEventsForTests();
     dir = mkdtempSync(join(tmpdir(), "x-own-post-catch-up-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
@@ -148,6 +152,7 @@ await describe("own post catch-up on a visible return", async () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
     resetDeskEventsForTests();
+    resetRateLimiterForTests();
     resetPlatformDbForTests();
     delete process.env.PLATFORM_DB_PATH;
     delete process.env.PLATFORM_MIGRATIONS_DIR;
@@ -173,6 +178,7 @@ await describe("own post catch-up on a visible return", async () => {
       .prepare(`SELECT path, posts_read FROM x_api_usage_events`)
       .all();
     assert.deepEqual(usage, [{ path: `/users/${X_USER_ID}/tweets`, posts_read: 1 }]);
+    assert.equal(seenActivityEvent("post.create:2001"), true);
   });
 
   await it("publishes own_post with url and text for a new id and the interacted mark for a new reply", async () => {
@@ -237,6 +243,16 @@ await describe("own post catch-up on a visible return", async () => {
     assert.equal(xReads.length, 2);
   });
 
+  await it("limits repeated metered reads to 40 per user per minute", async () => {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      assert.equal((await post(cookie)).status, 200);
+    }
+    const limited = await post(cookie);
+    assert.equal(limited.status, 429);
+    assert.deepEqual(limited.json, { error: "rate_limited" });
+    assert.equal(xReads.length, 40);
+  });
+
   await it("stores and publishes nothing for a paused account", async () => {
     getPlatformDb()
       .prepare(`UPDATE activity_subscriptions SET paused_until = ? WHERE user_id = ?`)
@@ -257,7 +273,21 @@ await describe("own post catch-up on a visible return", async () => {
 
   await it("requires a signed-in POST", async () => {
     assert.equal((await post(undefined)).status, 401);
-    assert.equal((await post(cookie, "GET")).status, 405);
+    const req = Object.assign(testRequest(), {
+      method: "GET",
+      headers: {},
+      socket: { remoteAddress: "127.0.0.1" },
+    });
+    const { res, captured } = testResponse(req);
+    assert.equal(
+      await tryHandleOwnPostCatchUpBeforeAuth(
+        req,
+        res,
+        new URL(`http://localhost${OWN_POST_CATCH_UP_PATH}`),
+      ),
+      true,
+    );
+    assert.equal(captured.status, 405);
     assert.deepEqual(xReads, []);
   });
 });

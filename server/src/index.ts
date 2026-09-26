@@ -30,7 +30,10 @@ import { tryHandleMemory } from "./memory/memoryHttp.js";
 import { tryHandleUsage } from "./billing/usageHttp.js";
 import { tryHandleHistory } from "./desk/historyHttp.js";
 import { tryHandleInteracted } from "./desk/interactedHttp.js";
-import { tryHandleOwnPostCatchUp } from "./desk/ownPostCatchUp.js";
+import {
+  tryHandleOwnPostCatchUp,
+  tryHandleOwnPostCatchUpBeforeAuth,
+} from "./desk/ownPostCatchUp.js";
 import { tryHandleScout } from "./scout/scoutHttp.js";
 import { tryHandleScoutProfile } from "./scout/scoutProfileHttp.js";
 import { tryHandleBoot } from "./http/bootHttp.js";
@@ -87,6 +90,8 @@ async function handleRequest(
     }
 
     if (await tryHandleDeskEventsWake(req, res, url)) return;
+
+    if (await tryHandleOwnPostCatchUpBeforeAuth(req, res, url)) return;
 
     if (authRequired() && !isPublicApiPath(url.pathname)) {
       if (

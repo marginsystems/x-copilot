@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { send } from "../http/httpJson.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
+import { allowRate } from "../auth/authGuard.js";
 import { getUserById } from "../auth/authStore.js";
 import {
   creditsExhaustedResponse,
@@ -19,7 +20,7 @@ import {
   resolveStoredXUserId,
 } from "../x-api/xActivitySubscribe.js";
 import { publishDeskEvent } from "./deskEvents.js";
-import { upsertOwnPost } from "./ownPostStore.js";
+import { rememberActivityEvent, upsertOwnPost } from "./ownPostStore.js";
 import { markOwnReplyInteracted, type OwnReplyMemoryOpts } from "./ownReplyMark.js";
 
 export const OWN_POST_CATCH_UP_PATH = "/api/desk/own-posts/catch-up";
@@ -93,6 +94,7 @@ export async function catchUpOwnPosts(
   for (const parsed of catchUpPostsFromUserTweets(read.json, xUserId)) {
     if (used >= gate.limit) return { ok: true, stored, hold: "daily_cap" };
     if (!upsertOwnPost({ parsed, userId, tenantId: gate.tenantId })) continue;
+    rememberActivityEvent(`post.create:${parsed.postId}`, parsed.postedAt);
     used += 1;
     stored += 1;
     publishDeskEvent(userId, "own_post", {
@@ -131,6 +133,10 @@ export async function tryHandleOwnPostCatchUp(
     send(req, res, 401, { error: "unauthenticated", message: "Sign in required" });
     return true;
   }
+  if (!allowRate(`own-post-catch-up:${user.id}`, 40, 60_000)) {
+    send(req, res, 429, { error: "rate_limited" });
+    return true;
+  }
   const result = await catchUpOwnPosts(user.id);
   if (!result.ok) {
     send(req, res, result.status, { error: result.error });
@@ -138,4 +144,13 @@ export async function tryHandleOwnPostCatchUp(
   }
   send(req, res, 200, result);
   return true;
+}
+
+export async function tryHandleOwnPostCatchUpBeforeAuth(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): Promise<boolean> {
+  if (req.method === "POST") return false;
+  return tryHandleOwnPostCatchUp(req, res, url);
 }

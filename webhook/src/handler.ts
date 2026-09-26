@@ -207,6 +207,11 @@ async function handleActivityPost(
     send(req, res, 200, { ok: true, duplicate: true });
     return;
   }
+  const postEventKey = `post.create:${parsed.postId}`;
+  if (seenActivityEvent(postEventKey)) {
+    send(req, res, 200, { ok: true, duplicate: true });
+    return;
+  }
   const userId = findUserIdByXUserId(parsed.xUserId);
   if (!userId) {
     send(req, res, 200, { ok: true, unmatched: true });
@@ -227,6 +232,7 @@ async function handleActivityPost(
     return;
   }
   rememberActivityEvent(parsed.eventUuid, parsed.postedAt);
+  rememberActivityEvent(postEventKey, parsed.postedAt);
   upsertOwnPost({ parsed, userId, tenantId });
   wakeDesk(parsed, userId).catch((err) => {
     console.warn("[xaa] desk wake soft-fail", err);
