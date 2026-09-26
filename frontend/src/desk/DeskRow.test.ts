@@ -163,24 +163,42 @@ await describe("DeskRow card chrome", async () => {
     assert.match(motion, /\.row-action-track\s*\{\s*transition:\s*none/);
   });
 
-  await it("brings the interacted chip in on the same timeline as the departing unit", () => {
+  await it("fades the interacted chip in only while a unit is leaving the same row", () => {
     const css = readFileSync(
       new URL("../styles/10-scout.css", import.meta.url),
+      "utf8",
+    );
+    const threads = readFileSync(
+      new URL("../styles/12-threads.css", import.meta.url),
       "utf8",
     );
     const motion = readFileSync(
       new URL("../styles/99-motion.css", import.meta.url),
       "utf8",
     );
+    const leavingGate = ".thread-row:has(> .row > .row-action.is-leaving)";
+    const arrivals = [
+      ...(css + threads).replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g),
+    ]
+      .map(([, selector, body]) => ({ selector: selector.trim(), body }))
+      .filter(
+        (rule) =>
+          /chip-interacted|for-you-detected-summary/.test(rule.selector) &&
+          /animation/.test(rule.body),
+      );
 
+    assert.equal(arrivals.length, 1);
+    for (const part of arrivals[0].selector.split(",")) {
+      assert.ok(part.trim().startsWith(leavingGate), part);
+    }
     assert.match(
-      css,
-      /\.thread-row:not\(\.history-row\) \.row-meta \.chip-interacted,\s*\.thread-row \.for-you-detected-summary\s*\{[^}]*animation:\s*row-action-arrive var\(--row-action-exit\) var\(--ease-out\) both/,
+      arrivals[0].body,
+      /animation:\s*row-action-arrive var\(--row-action-exit\) var\(--ease-out\) both/,
     );
     assert.match(css, /@keyframes row-action-arrive\s*\{\s*from\s*\{\s*opacity:\s*0;?\s*\}\s*\}/);
     assert.match(
       motion,
-      /\.thread-row:not\(\.history-row\) \.row-meta \.chip-interacted,\s*\.thread-row \.for-you-detected-summary,[^{]*\{\s*animation:\s*none/,
+      /\.thread-row:has\(> \.row > \.row-action\.is-leaving\) \.row-meta \.chip-interacted,\s*\.thread-row:has\(> \.row > \.row-action\.is-leaving\) \.for-you-detected-summary,[^{]*\{\s*animation:\s*none/,
     );
   });
 

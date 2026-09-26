@@ -84,8 +84,8 @@
   transform: translateX(100%);
 }
 
-.thread-row:not(.history-row) .row-meta .chip-interacted,
-.thread-row .for-you-detected-summary {
+.thread-row:has(> .row > .row-action.is-leaving) .row-meta .chip-interacted,
+.thread-row:has(> .row > .row-action.is-leaving) .for-you-detected-summary {
   animation: row-action-arrive var(--row-action-exit) var(--ease-out) both;
 }
 

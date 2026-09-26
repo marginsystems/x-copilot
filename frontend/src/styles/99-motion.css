@@ -77,8 +77,8 @@
     transition: none;
   }
 
-  .thread-row:not(.history-row) .row-meta .chip-interacted,
-  .thread-row .for-you-detected-summary,
+  .thread-row:has(> .row > .row-action.is-leaving) .row-meta .chip-interacted,
+  .thread-row:has(> .row > .row-action.is-leaving) .for-you-detected-summary,
   .threads .thread-row,
   .threads .thread-row.is-exiting,
   .fade-swap-in,
