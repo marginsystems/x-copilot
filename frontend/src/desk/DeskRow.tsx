@@ -30,6 +30,7 @@ function useActionExit(shown: boolean) {
       setMounted(true);
       return;
     }
+    if (!mounted) return;
     if (prefersReducedMotion()) {
       setMounted(false);
       return;
@@ -39,7 +40,7 @@ function useActionExit(shown: boolean) {
       ACTION_EXIT_FALLBACK_MS,
     );
     return () => window.clearTimeout(timer);
-  }, [shown]);
+  }, [shown, mounted]);
 
   return { mounted, finish: () => setMounted(false) };
 }
@@ -198,6 +199,16 @@ export function DeskRow({
     index != null
       ? ({ ["--i" as string]: index } as CSSProperties)
       : undefined;
+  const hasActions =
+    openHref != null ||
+    openLabel != null ||
+    secondaryOpenHref != null ||
+    onNext ||
+    (onPrimary && primaryLabel) ||
+    onBypass ||
+    onSkip ||
+    onDismiss;
+  const actionRowExit = useActionExit(Boolean(hasActions));
 
   const head = (
     <>
@@ -238,14 +249,7 @@ export function DeskRow({
       ) : (
         <div className="row-head">{head}</div>
       )}
-      {openHref != null ||
-      openLabel != null ||
-      secondaryOpenHref != null ||
-      onNext ||
-      (onPrimary && primaryLabel) ||
-      onBypass ||
-      onSkip ||
-      onDismiss ? (
+      {hasActions || actionRowExit.mounted ? (
         <div
           className="row"
           onClick={(event) => event.stopPropagation()}
