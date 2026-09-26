@@ -274,7 +274,7 @@ await describe("desk events", async () => {
     const frame = desk.chunks.join("").split("\n\n").find((chunk) => chunk.includes("event: own_post"));
     assert.ok(frame);
     const data = frame.split("\n").find((line) => line.startsWith("data: "))?.slice("data: ".length);
-    assert.equal(JSON.parse(data ?? "").text, text);
+    assert.equal(expectRecord(JSON.parse(data ?? "")).text, text);
   });
 
   await it("publishes the post-mark interacted event with the ids the card matches on", async () => {
