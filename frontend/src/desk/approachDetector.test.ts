@@ -4,6 +4,7 @@ import type { OwnActivity } from "../lib/coaching.ts";
 import {
   approachDetector,
   DESK_DETECTOR_FALLBACK_MS,
+  deskCatchUpDue,
   deskDetectorCheck,
   routeOwnPostWake,
 } from "./approachDetector.ts";
@@ -37,6 +38,16 @@ await describe("Approach detector routing", async () => {
       assert.equal(deskDetectorCheck({ active }, true), null);
       assert.equal(deskDetectorCheck({ active }, false), active);
     }
+  });
+
+  await it("reads own posts only on a visible return with an active detector and none in flight", () => {
+    for (const active of ["for_you", "scout"] as const) {
+      assert.equal(deskCatchUpDue({ active }, "visible", false), true);
+      assert.equal(deskCatchUpDue({ active }, "visible", true), false);
+      assert.equal(deskCatchUpDue({ active }, "hidden", false), false);
+    }
+    assert.equal(deskCatchUpDue({ active: null }, "visible", false), false);
+    assert.equal(deskCatchUpDue(null, "visible", false), false);
   });
 
   await it("routes an own_post wake to the For You cursor whatever detector is active", () => {

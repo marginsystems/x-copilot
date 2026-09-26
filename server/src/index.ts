@@ -30,6 +30,7 @@ import { tryHandleMemory } from "./memory/memoryHttp.js";
 import { tryHandleUsage } from "./billing/usageHttp.js";
 import { tryHandleHistory } from "./desk/historyHttp.js";
 import { tryHandleInteracted } from "./desk/interactedHttp.js";
+import { tryHandleOwnPostCatchUp } from "./desk/ownPostCatchUp.js";
 import { tryHandleScout } from "./scout/scoutHttp.js";
 import { tryHandleScoutProfile } from "./scout/scoutProfileHttp.js";
 import { tryHandleBoot } from "./http/bootHttp.js";
@@ -171,6 +172,9 @@ async function handleRequest(
         return;
       }
       if (await tryHandleInteracted(req, res, url)) {
+        return;
+      }
+      if (await tryHandleOwnPostCatchUp(req, res, url)) {
         return;
       }
       if (await tryHandleScoutApproachLock(req, res, url)) {

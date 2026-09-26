@@ -11,11 +11,11 @@ import {
   parsePostCreateEvent,
   parsePostDeleteEvent,
   postUrl,
+  type ParsedPostCreate,
   verifyWebhookSignature,
 } from "../../server/src/x-api/xActivity.js";
 import {
   countOwnPostsSince,
-  getWatchedThread,
   nextUtcDayIso,
   nextUtcMonthIso,
   rememberActivityEvent,
@@ -35,274 +35,36 @@ import {
 import { ensureUserTenant } from "../../server/src/billing/billingStore.js";
 import { recordUsageEvent } from "../../server/src/billing/usageMeter.js";
 import {
-  listInteractionHistory,
-  markInteracted,
-  MAX_INTERACTION_STORE,
-} from "../../server/src/desk/interactionStore.js";
-import { recordDeskReplyMarked } from "../../server/src/desk/deskBeats.js";
-import { deskInteractedPayload } from "../../server/src/desk/deskEvents.js";
-import { recordMarkGamification } from "../../server/src/desk/gamification.js";
-import { setGamificationSyncFailed } from "../../server/src/desk/interactionSync.js";
+  markOwnReplyInteracted as markOwnReply,
+  type MarkOwnReplyOpts,
+  type OwnReplyMemoryOpts,
+} from "../../server/src/desk/ownReplyMark.js";
 import { allowRate, clientIp } from "../../server/src/auth/authGuard.js";
-import type { ParsedPostCreate } from "../../server/src/x-api/xActivity.js";
-import { replyMatchesLockedScout } from "../../server/src/scout/replyMatchScout.js";
-import { getScoutApproachLock } from "../../server/src/scout/scoutApproachLock.js";
-import { pruneConsumedScoutThread } from "../../server/src/scout/scoutCache.js";
-import {
-  projectConfirmedReplyMemory,
-  type ProjectConfirmedReplyMemoryInput,
-} from "../../server/src/memory/interactionMemoryProjection.js";
-import { defaultKnowledgeRoot } from "../../server/src/memory/knowledgeMemory.js";
-import { resolveOwnedNote } from "../../server/src/memory/ownedMemoryNotes.js";
-import { confirmedTakeEvidence } from "../../server/src/scout/scoutEvidenceRecord.js";
 
-type WebhookMemoryOpts = Pick<
-  ProjectConfirmedReplyMemoryInput,
-  "knowledgeRoot" | "indexDir" | "awaitUpsert" | "upsertMemory"
->;
-
-let testMemoryOpts: WebhookMemoryOpts = {};
+let testMemoryOpts: OwnReplyMemoryOpts = {};
 
 /** Test seam so webhook notes land in an isolated knowledge root. */
 export function resetWebhookMemoryProjectionForTests(
-  overrides?: WebhookMemoryOpts,
+  overrides?: OwnReplyMemoryOpts,
 ): void {
   testMemoryOpts = { ...overrides };
-}
-
-function optionalContext(
-  value: string | null | undefined,
-): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed || undefined;
-}
-
-function memoryOpts(
-  opts?: { nowMs?: number } & WebhookMemoryOpts,
-): WebhookMemoryOpts {
-  return {
-    knowledgeRoot: opts?.knowledgeRoot ?? testMemoryOpts.knowledgeRoot,
-    indexDir: opts?.indexDir ?? testMemoryOpts.indexDir,
-    awaitUpsert: opts?.awaitUpsert ?? testMemoryOpts.awaitUpsert,
-    upsertMemory: opts?.upsertMemory ?? testMemoryOpts.upsertMemory,
-  };
-}
-
-async function projectWebhookReplyMemory(
-  input: {
-    userId: string;
-    reply: string;
-    threadId: string;
-    author: string;
-    interactedAt: string;
-    replyId?: string;
-    url?: string;
-    text?: string;
-    summary?: string;
-  } & WebhookMemoryOpts,
-): Promise<void> {
-  try {
-    await projectConfirmedReplyMemory({
-      userId: input.userId,
-      reply: input.reply,
-      threadId: input.threadId,
-      author: input.author,
-      interactedAt: input.interactedAt,
-      replyId: input.replyId,
-      source: "discovered",
-      url: input.url,
-      text: input.text,
-      summary: input.summary,
-      knowledgeRoot: input.knowledgeRoot,
-      indexDir: input.indexDir,
-      awaitUpsert: input.awaitUpsert,
-      upsertMemory: input.upsertMemory,
-    });
-  } catch (err) {
-    console.warn("[xaa] confirmed-reply memory soft-fail", err);
-  }
 }
 
 export async function markOwnReplyInteracted(
   parsed: ParsedPostCreate,
   userId: string,
-  opts?: { nowMs?: number } & WebhookMemoryOpts,
+  opts?: Omit<MarkOwnReplyOpts, "publishInteracted">,
 ): Promise<"scout" | "organic" | "skipped"> {
-  const isReply = parsed.kind === "reply" && Boolean(parsed.inReplyToId);
-  if (!isReply) return "skipped";
-  if (parsed.inReplyToUserId === parsed.xUserId) return "skipped";
-  const targetId = parsed.inReplyToId!;
-  const locked = getScoutApproachLock(userId, opts?.nowMs);
-  const watched =
-    getWatchedThread(userId, targetId) ??
-    (parsed.conversationId
-      ? getWatchedThread(userId, parsed.conversationId)
-      : null);
-  const matchedLock =
-    !watched &&
-    locked &&
-    replyMatchesLockedScout(
-      {
-        inReplyToId: targetId,
-        conversationId: parsed.conversationId,
-      },
-      locked,
-    )
-      ? locked
-      : null;
-  const scoutCard = watched ?? matchedLock;
-  const threadId =
-    watched?.threadId ??
-    matchedLock?.id ??
-    targetId ??
-    parsed.conversationId ??
-    parsed.postId;
-  const author =
-    scoutCard?.author ??
-    (parsed.inReplyToUsername
-      ? `@${parsed.inReplyToUsername.replace(/^@+/, "")}`
-      : parsed.inReplyToUserId
-        ? `@${parsed.inReplyToUserId}`
-        : "@unknown");
-  const contextUrl =
-    optionalContext(scoutCard?.url) ??
-    (parsed.inReplyToUsername
-      ? postUrl(parsed.inReplyToUsername, targetId)
-      : undefined);
-  const contextText = optionalContext(scoutCard?.text);
-  const history = await listInteractionHistory({
-    limit: MAX_INTERACTION_STORE,
-    userId,
-  });
-  const known = history.find((row) => row.replyId === parsed.postId) ??
-    history.find(
-      (row) =>
-        !row.replyId &&
-        (parsed.inReplyToId === row.threadId ||
-          parsed.conversationId === row.threadId),
-    );
-  if (known) {
-    // Owner/thread/reply-verified lookup: a foreign, unowned, unreadable or
-    // reply-less note on the same thread/date cannot suppress repair.
-    let noteOwned = false;
-    try {
-      const resolved = await resolveOwnedNote({
-        kind: "interaction",
-        userId,
-        threadId: known.threadId,
-        at: known.postedAt ?? known.at,
-        replyId: parsed.postId,
-        knowledgeRoot: memoryOpts(opts).knowledgeRoot ?? defaultKnowledgeRoot(),
-      });
-      noteOwned = resolved.state === "found" && resolved.meta.reply.length > 0;
-    } catch {
-      // A missing or unreadable note needs the same repair attempt.
-    }
-    if (!noteOwned) {
-      await projectWebhookReplyMemory({
-        userId,
-        reply: parsed.text,
-        threadId: known.threadId,
-        author: known.author || author,
-        interactedAt: known.postedAt ?? known.at,
-        replyId: parsed.postId,
-        url: contextUrl ?? known.url,
-        text: contextText ?? known.text,
-        summary: known.summary,
-        ...memoryOpts(opts),
-      });
-    }
-    return "skipped";
-  }
-  const source = scoutCard ? "scout" : "organic";
-  let evidence: Awaited<ReturnType<typeof confirmedTakeEvidence>> | undefined;
-  try {
-    evidence = await confirmedTakeEvidence({
-      userId,
-      replyId: parsed.postId,
-      targetId: threadId,
-      source: "webhook",
-      conversationId: parsed.conversationId ?? scoutCard?.conversationId ?? null,
-      inReplyToId: targetId,
-      fallbackText: contextText ?? parsed.text,
-      fallbackAuthor: author,
-    });
-  } catch (err) {
-    console.warn("[xaa] scout evidence capture soft-fail", err);
-  }
-  let interaction;
-  try {
-    interaction = await markInteracted({
-      threadId,
-      author,
-      source: "discovered",
-      userId,
-      url: contextUrl,
-      text: contextText,
-      replyId: parsed.postId,
-      replyUrl: postUrl(parsed.authorUsername, parsed.postId),
-      postedAt: parsed.postedAt,
-      conversationId:
-        parsed.conversationId ?? scoutCard?.conversationId ?? undefined,
-      inReplyToId: targetId,
-      nowMs: opts?.nowMs,
-      evidence,
-    });
-  } catch (err) {
-    console.warn("[xaa] mark after post soft-fail (post already on X):", err);
-    throw err;
-  }
-  const deskEvent = deskInteractedPayload(interaction);
-  if (deskEvent) {
-    postDeskWake({ userId, type: "interacted", interaction: deskEvent }).catch(() => {});
-  }
-  try {
-    await pruneConsumedScoutThread(userId, [
-      interaction.threadId,
-      interaction.conversationId,
-      interaction.inReplyToId,
-    ]);
-  } catch (err) {
-    console.warn("[xaa] scout tank prune soft-fail", err);
-  }
-  recordDeskReplyMarked({
-    userId,
-    source,
+  return markOwnReply(parsed, userId, {
     nowMs: opts?.nowMs,
+    knowledgeRoot: opts?.knowledgeRoot ?? testMemoryOpts.knowledgeRoot,
+    indexDir: opts?.indexDir ?? testMemoryOpts.indexDir,
+    awaitUpsert: opts?.awaitUpsert ?? testMemoryOpts.awaitUpsert,
+    upsertMemory: opts?.upsertMemory ?? testMemoryOpts.upsertMemory,
+    publishInteracted: (interaction) => {
+      postDeskWake({ userId, type: "interacted", interaction }).catch(() => {});
+    },
   });
-  // #656 landed on main against the old in-process handler. Keep that streak
-  // increment on the sidecar so a webhook-discovered reply still counts.
-  if (scoutCard) {
-    try {
-      await recordMarkGamification({
-        threadId,
-        userId,
-        nowMs: opts?.nowMs ?? Date.parse(interaction.at),
-      });
-    } catch (err) {
-      console.warn("[xaa] streak mark soft-fail", err);
-      await setGamificationSyncFailed({
-        threadId,
-        userId,
-        checkpoint: "mark",
-        failed: true,
-        pendingAt: interaction.at,
-      }).catch(() => {});
-    }
-  }
-  await projectWebhookReplyMemory({
-    userId,
-    reply: parsed.text,
-    threadId: interaction.threadId,
-    author: interaction.author || author,
-    interactedAt: interaction.postedAt ?? interaction.at,
-    replyId: parsed.postId,
-    url: interaction.url ?? contextUrl,
-    text: contextText ?? interaction.text,
-    summary: interaction.summary,
-    ...memoryOpts(opts),
-  });
-  return source;
 }
 
 let warnedWakeForbidden = false;
