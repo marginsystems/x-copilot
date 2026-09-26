@@ -73,6 +73,7 @@
 
 .row-action.is-leaving {
   overflow: hidden;
+  margin-right: 0;
   pointer-events: none;
 }
 
@@ -463,4 +464,3 @@ a.usage-cta {
   place-items: center;
   min-height: 100%;
 }
-

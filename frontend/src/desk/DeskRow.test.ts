@@ -137,11 +137,12 @@ await describe("DeskRow card chrome", async () => {
     for (const rule of rules.filter((r) => r.selector.includes(".is-leaving"))) {
       assert.doesNotMatch(
         rule.body,
-        /(?:^|[;\s])(?:(?:min-|max-)?width|flex(?:-basis)?|margin(?:-\w+)?|padding(?:-\w+)?|opacity)\s*:/,
+        /(?:^|[;\s])(?:(?:min-|max-)?width|flex(?:-basis)?|padding(?:-\w+)?|opacity)\s*:/,
         rule.selector,
       );
     }
 
+    assert.match(css, /\.row-action\.is-leaving\s*\{[^}]*margin-right:\s*0/);
     assert.match(css, /\.row-action\s*\{[^}]*white-space:\s*nowrap/);
     assert.match(css, /\.row-action\s*\{[^}]*flex:\s*none/);
     assert.match(css, /\.row-action-track\s*\{[^}]*flex:\s*none/);
