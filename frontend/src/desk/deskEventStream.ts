@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { apiUrl } from "../lib/apiBase";
+import { apiFetch, apiUrl } from "../lib/apiBase";
 import {
   DESK_DETECTOR_FALLBACK_MS,
+  deskCatchUpDue,
   deskDetectorCheck,
   routeOwnPostWake,
   type DeskDetectorRoute,
@@ -12,6 +13,8 @@ export type DeskEventName = "ready" | "own_post" | "interacted";
 const DESK_EVENT_NAMES: DeskEventName[] = ["ready", "own_post", "interacted"];
 const RECONNECT_MIN_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
+
+export const DESK_CATCH_UP_PATH = "/api/desk/own-posts/catch-up";
 
 type DeskEventListener = (data: unknown) => void;
 
@@ -104,8 +107,20 @@ export function useDeskEventStream(ownerId: string | null): void {
       if (!route || !target) return;
       runCheck(route.check[target]).catch((err: unknown) => console.error(err));
     };
+    let catchingUp = false;
+    const catchUp = () => {
+      if (!ownerId || !deskCatchUpDue(detectorRoute, document.visibilityState, catchingUp)) return;
+      catchingUp = true;
+      apiFetch(DESK_CATCH_UP_PATH, { method: "POST" })
+        .finally(() => {
+          catchingUp = false;
+        })
+        .catch(() => undefined);
+    };
     const visible = () => {
-      if (document.visibilityState === "visible") check();
+      if (document.visibilityState !== "visible") return;
+      catchUp();
+      check();
     };
     const offReady = onDeskEvent("ready", check);
     const offOwnPost = onDeskEvent("own_post", (data) => {

@@ -19,6 +19,7 @@ import {
 } from "../../server/src/db.ts";
 import { getDeskBeats } from "../../server/src/desk/deskBeats.ts";
 import { getGamification } from "../../server/src/desk/gamification.ts";
+import { catchUpOwnPosts } from "../../server/src/desk/ownPostCatchUp.ts";
 import {
   listInteractionHistory,
   markInteracted,
@@ -178,6 +179,7 @@ await describe("own reply interaction capture", async () => {
     delete process.env.PLATFORM_MIGRATIONS_DIR;
     delete process.env.X_API_KEY;
     delete process.env.X_API_SECRET;
+    delete process.env.X_API_BEARER_TOKEN;
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -1004,6 +1006,72 @@ await describe("own reply interaction capture", async () => {
       assert.deepEqual(await first.json(), { ok: true });
       const duplicate = await send();
       assert.deepEqual(await duplicate.json(), { ok: true, duplicate: true });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  await it("skips a webhook create already ingested by catch-up", async (t) => {
+    process.env.X_API_BEARER_TOKEN = "bearer";
+    const fetchBeforeCatchUp = globalThis.fetch;
+    t.mock.method(globalThis, "fetch", async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if (String(input).includes("api.x.com/2/users/x-user/tweets")) {
+        return new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: "catch-up-post",
+                text: "fresh original",
+                created_at: "2026-09-04T03:00:00.000Z",
+                author_id: "x-user",
+                conversation_id: "catch-up-post",
+              },
+            ],
+            includes: { users: [{ id: "x-user", username: "pilot" }] },
+          }),
+          { status: 200 },
+        );
+      }
+      return fetchBeforeCatchUp(input, init);
+    });
+    assert.deepEqual(await catchUpOwnPosts(userId), { ok: true, stored: 1 });
+    const server = createWebhookServer();
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const body = JSON.stringify({
+      data: {
+        event_uuid: "different-webhook-event-id",
+        event_type: "post.create",
+        filter: { user_id: "x-user" },
+        payload: {
+          id: "catch-up-post",
+          author_id: "x-user",
+          text: "fresh original",
+          created_at: "2026-09-04T03:00:00.000Z",
+          conversation_id: "catch-up-post",
+        },
+      },
+    });
+    try {
+      const res = await fetch(`http://127.0.0.1:${address.port}/api/x/activity`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-twitter-webhooks-signature": crcResponseToken(body, "secret"),
+        },
+        body,
+      });
+      assert.deepEqual(await res.json(), { ok: true, duplicate: true });
+      assert.deepEqual(
+        getPlatformDb().prepare("SELECT path FROM x_api_usage_events").all(),
+        [{ path: "/users/x-user/tweets" }],
+      );
+      assert.deepEqual(
+        getPlatformDb().prepare("SELECT COUNT(*) AS count FROM own_posts").get(),
+        { count: 1 },
+      );
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

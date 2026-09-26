@@ -4,7 +4,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { SessionBoundary, useSession } from "../../src/auth/session";
 import { INTERACTED_FALLBACK_POLL_MS, useDeskHistory } from "../../src/desk/useDeskHistory";
 import { DESK_DETECTOR_FALLBACK_MS } from "../../src/desk/approachDetector";
-import { routeDeskDetector } from "../../src/desk/deskEventStream";
+import { DESK_CATCH_UP_PATH, routeDeskDetector } from "../../src/desk/deskEventStream";
 import { vanishEvent } from "../../src/lib/vanishEvent";
 import { latestActivityCursor } from "../../src/lib/forYouTask";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";
@@ -851,6 +851,47 @@ test("the stream owner routes focus and visibility to the locked Scout and skips
   unroute();
   act(() => { window.dispatchEvent(new Event("focus")); });
   expect(check.scout).toHaveBeenCalledTimes(2);
+});
+
+test("a visible return with an active detector reads own posts once and nothing else does", async () => {
+  vi.useFakeTimers();
+  const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+  const { fetch, requests } = setupDeskStream();
+  const catchUps = () => fetch.mock.calls.filter(([url]) => String(url).endsWith(DESK_CATCH_UP_PATH));
+  const check = { for_you: vi.fn(), scout: vi.fn() };
+  const unroute = routeDeskDetector({ active: null, check, forYouOwnPost: vi.fn() });
+  visibility.mockReturnValue("visible");
+  act(() => { document.dispatchEvent(new Event("visibilitychange")); });
+  expect(catchUps()).toHaveLength(0);
+  unroute();
+
+  const unrouteActive = routeDeskDetector({ active: "for_you", check, forYouOwnPost: vi.fn() });
+  visibility.mockReturnValue("hidden");
+  act(() => { document.dispatchEvent(new Event("visibilitychange")); });
+  expect(catchUps()).toHaveLength(0);
+  visibility.mockReturnValue("visible");
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+    liveStream().emit("ready", {});
+    vi.advanceTimersByTime(DESK_DETECTOR_FALLBACK_MS * 3);
+    await Promise.resolve();
+  });
+  expect(catchUps()).toHaveLength(0);
+
+  act(() => { document.dispatchEvent(new Event("visibilitychange")); });
+  expect(catchUps()).toHaveLength(1);
+  const [url, init] = catchUps()[0]!;
+  expect(String(url)).toContain(DESK_CATCH_UP_PATH);
+  expect(init).toMatchObject({ method: "POST", credentials: "include" });
+  act(() => { document.dispatchEvent(new Event("visibilitychange")); });
+  expect(catchUps()).toHaveLength(1);
+
+  const inFlight = requests[fetch.mock.calls.findIndex(([called]) => String(called).endsWith(DESK_CATCH_UP_PATH))]!;
+  await act(async () => { inFlight.resolve(new Response("{}")); await inFlight.promise; });
+  await act(async () => { await Promise.resolve(); });
+  act(() => { document.dispatchEvent(new Event("visibilitychange")); });
+  expect(catchUps()).toHaveLength(2);
+  unrouteActive();
 });
 
 test("the fallback poll checks the local detector without an authenticated owner", async () => {

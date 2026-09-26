@@ -301,6 +301,19 @@ export function resolveStoredXUserId(userId: string): string | null {
   return oauth?.provider_user_id?.trim() || null;
 }
 
+export function activitySubscriptionPaused(
+  userId: string,
+  nowIso = new Date().toISOString(),
+): boolean {
+  const row = optionalNullableStringRow(
+    getPlatformDb()
+      .prepare(`SELECT paused_until FROM activity_subscriptions WHERE user_id = ?`)
+      .get(userId),
+    "paused_until",
+  );
+  return Boolean(row?.paused_until && row.paused_until > nowIso);
+}
+
 export function findUserIdByXUserId(xUserId: string): string | null {
   const sub = optionalStringRow(
     getPlatformDb()
