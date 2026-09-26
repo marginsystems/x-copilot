@@ -7,6 +7,7 @@ import {
   forYouWaitDetected,
   hasDetectedForYouPost,
   latestActivityCursor,
+  newestOwnActivity,
   openForYouWait,
   parseForYouWait,
   readForYouWait,
@@ -283,6 +284,60 @@ await describe("For You wait detection", () => {
     assert.equal(forYouDetectedActivity(wait, baseline), null);
   }).catch(assert.fail);
 
+});
+
+await describe("own_post wake cursor", () => {
+  const ownPost: ActivityCursor = {
+    id: "post-wake",
+    postedAt: "2026-09-05T13:04:00.000Z",
+    kind: "original",
+    url: "https://x.com/pilot/status/post-wake",
+    text: "posted from the For You card",
+  };
+
+  it("becomes the cursor with its url and text while coaching is still stale", () => {
+    const cursor = latestActivityCursor({
+      ownActivity: baseline,
+      ownPost,
+      history: [
+        {
+          replyId: scoutReply.id,
+          replyUrl: scoutReply.url,
+          postedAt: scoutReply.postedAt,
+          at: scoutReply.postedAt,
+        },
+      ],
+    });
+    assert.deepEqual(cursor, ownPost);
+    const wait = openForYouWait({ owner: "u1", cursor: baseline, now: ENTERED });
+    assert.equal(forYouWaitDetected(wait, latestActivityCursor({ ownActivity: baseline })), false);
+    assert.equal(forYouWaitDetected(wait, cursor), true);
+    const settled = settleForYouWait(wait, cursor, ENTERED + 5_000);
+    assert.deepEqual(settled.hit, ownPost);
+    assert.deepEqual(forYouDetectedActivity(settled, cursor), ownPost);
+  }).catch(assert.fail);
+
+  it("does not count the post already on screen or an older late post", () => {
+    const onScreen = openForYouWait({ owner: "u1", cursor: baseline, now: ENTERED });
+    const replayed = latestActivityCursor({ ownActivity: baseline, ownPost: baseline });
+    assert.equal(forYouWaitDetected(onScreen, replayed), false);
+    assert.equal(settleForYouWait(onScreen, replayed), onScreen);
+
+    const lateWait = openForYouWait({ owner: "u1", cursor: null, now: ENTERED });
+    const latePost = { ...ownPost, id: "post-late", postedAt: "2026-09-05T12:55:00.000Z" };
+    const lateCursor = latestActivityCursor({ ownPost: latePost });
+    assert.equal(forYouWaitDetected(lateWait, lateCursor), false);
+    const absorbed = settleForYouWait(lateWait, lateCursor, ENTERED + 5_000);
+    assert.equal(absorbed.detectedAt, null);
+    assert.deepEqual(absorbed.snapshot, snapshotForYouWait(latePost));
+  }).catch(assert.fail);
+
+  it("keeps the newest wake when an older one is replayed", () => {
+    assert.equal(newestOwnActivity(null, ownPost), ownPost);
+    assert.equal(newestOwnActivity(ownPost, baseline), ownPost);
+    assert.equal(newestOwnActivity(baseline, ownPost), ownPost);
+    assert.equal(newestOwnActivity(ownPost, { ...ownPost, id: " " }), ownPost);
+  }).catch(assert.fail);
 });
 
 await describe("For You wait storage", () => {

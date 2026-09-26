@@ -241,10 +241,19 @@ await describe("desk events", async () => {
       id: "post-1",
       kind: "reply",
       postedAt: "2026-09-15T00:00:01.000Z",
+      url: "https://x.com/pilot/status/post-1",
+      text: "my reply",
     });
     assert.equal(mine.status, 200);
-    assert.match(chunks.join(""), /event: own_post/);
-    assert.match(chunks.join(""), /"id":"post-1"/);
+    const frame = chunks.join("").split("\n\n").find((chunk) => chunk.includes("event: own_post"));
+    assert.ok(frame);
+    assert.deepEqual(JSON.parse(frame.split("data: ")[1] ?? ""), {
+      id: "post-1",
+      kind: "reply",
+      postedAt: "2026-09-15T00:00:01.000Z",
+      url: "https://x.com/pilot/status/post-1",
+      text: "my reply",
+    });
   });
 
   await it("publishes the post-mark interacted event with the ids the card matches on", async () => {
