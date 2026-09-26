@@ -100,7 +100,7 @@ export function parseDailyMission(raw: unknown): DailyMission | null {
   };
 }
 
-function parseOwnActivity(raw: unknown): OwnActivity | null {
+export function parseOwnActivity(raw: unknown): OwnActivity | null {
   if (!isRecord(raw)) return null;
   const row = raw;
   if (

@@ -3,6 +3,8 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 import { SessionBoundary, useSession } from "../../src/auth/session";
 import { INTERACTED_FALLBACK_POLL_MS, useDeskHistory } from "../../src/desk/useDeskHistory";
+import { DESK_DETECTOR_FALLBACK_MS } from "../../src/desk/approachDetector";
+import { routeDeskDetector } from "../../src/desk/deskEventStream";
 import { vanishEvent } from "../../src/lib/vanishEvent";
 import { latestActivityCursor } from "../../src/lib/forYouTask";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";
@@ -636,7 +638,7 @@ function liveStream(): FakeEventSource {
   return open[0]!;
 }
 
-function setupDeskStream() {
+function setupDeskStream(ownerId: string | null = "owner-a") {
   FakeEventSource.instances = [];
   vi.stubGlobal("EventSource", FakeEventSource);
   const requests: ReturnType<typeof deferred<Response>>[] = [];
@@ -651,7 +653,7 @@ function setupDeskStream() {
   const hook = renderHook(() => ({
     history: useDeskHistory({
       setStatus: vi.fn(), setThreads, setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS, onHydrated,
-    }, "owner-a"),
+    }, ownerId),
   }), { wrapper });
   return { ...hook, requests, fetch, onHydrated };
 }
@@ -798,4 +800,70 @@ test("the desk stream reconnects with the last event id and ignores own posts fo
   expect(second.url).toContain("/api/desk/events?lastEventId=boot.7");
   act(() => { second.emit("interacted", posted, "boot.8"); });
   expect(result.current.history.interactedIds.has("parent-1")).toBe(true);
+});
+
+test("the stream owner applies an own_post wake to the For You cursor without a coaching request", async () => {
+  vi.useFakeTimers();
+  const { fetch } = setupDeskStream();
+  const forYouCheck = deferred<void>();
+  const check = { for_you: vi.fn(() => forYouCheck.promise), scout: vi.fn() };
+  const forYouOwnPost = vi.fn();
+  const unroute = routeDeskDetector({ active: "for_you", check, forYouOwnPost });
+  const wake = {
+    id: "post-1", kind: "original", postedAt: posted.postedAt,
+    url: "https://x.com/pilot/status/post-1", text: "fresh original",
+  };
+  act(() => { liveStream().emit("own_post", wake, "boot.9"); });
+  expect(forYouOwnPost).toHaveBeenCalledExactlyOnceWith(wake);
+  expect(check.for_you).not.toHaveBeenCalled();
+  expect(fetch).not.toHaveBeenCalled();
+
+  act(() => {
+    window.dispatchEvent(new Event("focus"));
+    liveStream().emit("ready", {});
+    vi.advanceTimersByTime(DESK_DETECTOR_FALLBACK_MS);
+  });
+  expect(check.for_you).toHaveBeenCalledTimes(1);
+  await act(async () => { forYouCheck.resolve(); await forYouCheck.promise; });
+  act(() => { vi.advanceTimersByTime(DESK_DETECTOR_FALLBACK_MS); });
+  expect(check.for_you).toHaveBeenCalledTimes(2);
+  expect(check.scout).not.toHaveBeenCalled();
+  unroute();
+});
+
+test("the stream owner routes focus and visibility to the locked Scout and skips a hidden tab", async () => {
+  const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+  setupDeskStream();
+  const check = { for_you: vi.fn(), scout: vi.fn(async () => {}) };
+  const forYouOwnPost = vi.fn();
+  const unroute = routeDeskDetector({ active: "scout", check, forYouOwnPost });
+  act(() => { document.dispatchEvent(new Event("visibilitychange")); });
+  expect(check.scout).not.toHaveBeenCalled();
+  visibility.mockReturnValue("visible");
+  await act(async () => { document.dispatchEvent(new Event("visibilitychange")); await Promise.resolve(); });
+  expect(check.scout).toHaveBeenCalledTimes(1);
+  await act(async () => { window.dispatchEvent(new Event("focus")); await Promise.resolve(); });
+  expect(check.scout).toHaveBeenCalledTimes(2);
+  act(() => { liveStream().emit("interacted", posted, "boot.10"); });
+  expect(check.scout).toHaveBeenCalledTimes(2);
+  expect(check.for_you).not.toHaveBeenCalled();
+  expect(forYouOwnPost).not.toHaveBeenCalled();
+  unroute();
+  act(() => { window.dispatchEvent(new Event("focus")); });
+  expect(check.scout).toHaveBeenCalledTimes(2);
+});
+
+test("the fallback poll checks the local detector without an authenticated owner", async () => {
+  vi.useFakeTimers();
+  setupDeskStream(null);
+  const check = { for_you: vi.fn(), scout: vi.fn() };
+  const unroute = routeDeskDetector({ active: "for_you", check, forYouOwnPost: vi.fn() });
+
+  expect(FakeEventSource.instances).toHaveLength(0);
+  await act(async () => {
+    vi.advanceTimersByTime(DESK_DETECTOR_FALLBACK_MS);
+    await Promise.resolve();
+  });
+  expect(check.for_you).toHaveBeenCalledTimes(1);
+  unroute();
 });

@@ -70,19 +70,29 @@ function historyCursor(
   return best;
 }
 
+export function newestOwnActivity(
+  current?: ActivityCursor | null,
+  next?: ActivityCursor | null,
+): ActivityCursor | null {
+  const kept = current?.id?.trim() ? current : null;
+  const incoming = next?.id?.trim() ? next : null;
+  if (!kept) return incoming;
+  if (!incoming) return kept;
+  return cursorTime(incoming) > cursorTime(kept) ? incoming : kept;
+}
+
 /**
  * Newest own activity the desk already has. Prefers the later postedAt; same
  * id keeps ownActivity display fields (url / text).
  */
 export function latestActivityCursor(opts: {
   ownActivity?: ActivityCursor | null;
+  ownPost?: ActivityCursor | null;
   history?: Array<
     Pick<InteractionHistoryEntry, "replyId" | "replyUrl" | "postedAt" | "at">
   >;
 }): ActivityCursor | null {
-  const fromOwn = opts.ownActivity?.id?.trim()
-    ? opts.ownActivity
-    : null;
+  const fromOwn = newestOwnActivity(opts.ownActivity, opts.ownPost);
   const fromHistory = historyCursor(opts.history);
   if (!fromOwn) return fromHistory;
   if (!fromHistory) return fromOwn;

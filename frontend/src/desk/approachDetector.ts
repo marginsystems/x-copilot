@@ -1,37 +1,39 @@
-type DetectorTarget =
-  | { detector: "for_you" }
-  | { detector: "scout"; cardId: string };
+import { parseOwnActivity, type OwnActivity } from "../lib/coaching";
 
-type DetectorSchedule = {
-  target: DetectorTarget;
-  intervalMs: number;
-  refreshOnOwnPost: boolean;
+export type DeskDetector = "for_you" | "scout";
+
+export const DESK_DETECTOR_FALLBACK_MS = 5_000;
+
+export type DeskDetectorRoute = {
+  active: DeskDetector | null;
+  check: Record<DeskDetector, () => void | Promise<void>>;
+  forYouOwnPost: (activity: OwnActivity) => void;
 };
 
-export function approachDetectorSchedule(
-  detector: "for_you" | "scout" | null,
+export function approachDetector(
+  detector: DeskDetector | null,
   lockedCardId: string | null,
-): DetectorSchedule | null {
-  if (detector === "for_you") {
-    return {
-      target: { detector },
-      intervalMs: 5_000,
-      refreshOnOwnPost: true,
-    };
-  }
-  if (detector === "scout" && lockedCardId) {
-    return {
-      target: { detector, cardId: lockedCardId },
-      intervalMs: 5_000,
-      refreshOnOwnPost: false,
-    };
-  }
+): DeskDetector | null {
+  if (detector === "for_you") return detector;
+  if (detector === "scout" && lockedCardId) return detector;
   return null;
 }
 
-export function approachDetectorRefresh(
-  schedule: DetectorSchedule | null,
+export function deskDetectorCheck(
+  route: Pick<DeskDetectorRoute, "active"> | null,
   pending: boolean,
-): DetectorTarget | null {
-  return pending ? null : schedule?.target ?? null;
+): DeskDetector | null {
+  return pending ? null : route?.active ?? null;
+}
+
+export function routeOwnPostWake(
+  route: Pick<DeskDetectorRoute, "forYouOwnPost"> | null,
+  data: unknown,
+): OwnActivity | null {
+  const activity = parseOwnActivity(data);
+  if (!route || !activity?.id.trim() || !Number.isFinite(Date.parse(activity.postedAt))) {
+    return null;
+  }
+  route.forYouOwnPost(activity);
+  return activity;
 }

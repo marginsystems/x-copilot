@@ -28,7 +28,7 @@ import {
   type ApproachNormalizeContext,
   type ApproachTaskState,
 } from "../lib/approachTask";
-import type { CoachingState } from "../lib/coaching";
+import type { CoachingState, OwnActivity } from "../lib/coaching";
 import { deskNeedsXLink } from "../lib/deskGate";
 import {
   approachGate,
@@ -44,6 +44,7 @@ import {
   forYouDetectedActivity,
   forYouWaitDetected,
   latestActivityCursor,
+  newestOwnActivity,
   readForYouWait,
   settleForYouWait,
   writeForYouWait,
@@ -60,8 +61,8 @@ import {
   writeRetainedSuggestion,
 } from "./approachRetained";
 import { pickApproachScout } from "./approachScout";
-import { approachDetectorSchedule, approachDetectorRefresh } from "./approachDetector";
-import { onDeskEvent } from "./deskEventStream";
+import { approachDetector } from "./approachDetector";
+import { routeDeskDetector } from "./deskEventStream";
 import { clearReplyPaceOverlay } from "./replyPaceStore";
 import type {
   DismissalHistoryEntry,
@@ -152,6 +153,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const canOpenForYou = gate === null;
 
   const [state, setState] = useState<ApproachTaskState | null>(null);
+  const [ownPostActivity, setOwnPostActivity] = useState<OwnActivity | null>(null);
   const stateRef = useRef<ApproachTaskState | null>(null);
   const ownerRef = useRef(owner);
   const lock = state?.lock ?? null;
@@ -262,6 +264,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   };
   const activityCursor = latestActivityCursor({
     ownActivity: coaching?.ownActivity ?? null,
+    ownPost: ownPostActivity,
     history: interactedRetainedHistory,
   });
   const cursorRef = useRef(activityCursor);
@@ -349,6 +352,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     stateRef.current = null;
     releasedIdsRef.current = new Set();
     setState(null);
+    setOwnPostActivity(null);
   }, [owner]);
 
   useEffect(() => {
@@ -424,48 +428,17 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const presentation = presentApproach(cardInput);
   const detector = lock ? presentation.detector : null;
 
-  const lockedCardId = lock?.cardId ?? null;
-  const detectorPendingRef = useRef({ for_you: false, scout: false });
-  useEffect(() => {
-    const schedule = approachDetectorSchedule(detector, lockedCardId);
-    if (!schedule) return;
-    let stopped = false;
-    const pending = detectorPendingRef.current;
-    const refresh = async () => {
-      if (stopped) return;
-      const target = approachDetectorRefresh(schedule, pending[schedule.target.detector]);
-      if (!target) return;
-      pending[target.detector] = true;
-      try {
-        if (target.detector === "for_you") {
-          await refreshCoachingRef.current({ lite: true });
-        } else {
-          await pollInteractedRef.current();
-        }
-      } finally {
-        pending[target.detector] = false;
-      }
-    };
-    const tick = () => {
-      refresh().catch((err: unknown) => console.error(err));
-    };
-    const visible = () => {
-      if (document.visibilityState === "visible") tick();
-    };
-    const offOwnPost = schedule.refreshOnOwnPost ? onDeskEvent("own_post", tick) : null;
-    const offReady = onDeskEvent("ready", tick);
-    window.addEventListener("focus", tick);
-    document.addEventListener("visibilitychange", visible);
-    const interval = window.setInterval(tick, schedule.intervalMs);
-    return () => {
-      stopped = true;
-      offOwnPost?.();
-      offReady();
-      window.clearInterval(interval);
-      window.removeEventListener("focus", tick);
-      document.removeEventListener("visibilitychange", visible);
-    };
-  }, [detector, lockedCardId, owner]);
+  const activeDetector = approachDetector(detector, lock?.cardId ?? null);
+  useEffect(() => routeDeskDetector({
+    active: activeDetector,
+    check: {
+      for_you: () => refreshCoachingRef.current({ lite: true }),
+      scout: () => pollInteractedRef.current(),
+    },
+    forYouOwnPost: (activity) => {
+      setOwnPostActivity((current) => newestOwnActivity(current, activity));
+    },
+  }), [activeDetector, owner]);
 
   const ready = lock !== null;
   useEffect(() => {

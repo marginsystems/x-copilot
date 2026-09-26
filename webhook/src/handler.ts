@@ -313,7 +313,14 @@ export function resetDeskWakeWarningForTests(): void {
 
 async function wakeDesk(parsed: ParsedPostCreate, userId: string): Promise<void> {
   if (parsed.kind === "repost") return;
-  await postDeskWake({ userId, id: parsed.postId, kind: parsed.kind, postedAt: parsed.postedAt });
+  await postDeskWake({
+    userId,
+    id: parsed.postId,
+    kind: parsed.kind,
+    postedAt: parsed.postedAt,
+    url: postUrl(parsed.authorUsername, parsed.postId),
+    text: parsed.text,
+  });
 }
 
 async function postDeskWake(body: Record<string, unknown>): Promise<void> {

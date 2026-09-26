@@ -873,6 +873,51 @@ await describe("own reply interaction capture", async () => {
     }
   });
 
+  await it("wakes the desk with the own post url and text the For You cursor needs", async () => {
+    const server = createWebhookServer();
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const body = JSON.stringify({
+      data: {
+        event_uuid: "wake-cursor",
+        event_type: "post.create",
+        filter: { user_id: "x-user" },
+        payload: {
+          id: "wake-cursor-post",
+          author_id: "x-user",
+          text: "fresh original",
+          created_at: "2026-09-04T03:00:00.000Z",
+        },
+        includes: { users: [{ id: "x-user", username: "pilot" }] },
+      },
+    });
+    try {
+      const res = await fetch(`http://127.0.0.1:${address.port}/api/x/activity`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-twitter-webhooks-signature": crcResponseToken(body, "secret"),
+        },
+        body,
+      });
+      assert.equal(res.status, 200);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      assert.equal(wakes.length, 1);
+      assert.deepEqual(wakes[0]?.body, {
+        userId,
+        id: "wake-cursor-post",
+        kind: "original",
+        postedAt: "2026-09-04T03:00:00.000Z",
+        url: "https://x.com/pilot/status/wake-cursor-post",
+        text: "fresh original",
+      });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   await it("lets a slow desk wake finish before soft-failing", async (t) => {
     const original = globalThis.fetch;
     t.mock.method(globalThis, "fetch", async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {

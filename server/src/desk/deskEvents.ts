@@ -1,9 +1,10 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { corsHeaders } from "../http/cors.js";
-import { BODY_CAP_16K, readJsonBody, send } from "../http/httpJson.js";
+import { BODY_CAP_256K, readJsonBody, send } from "../http/httpJson.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { isRecord } from "../platform/unknownValue.js";
+import { postUrl } from "../x-api/xActivity.js";
 
 type BufferedDeskEvent = { seq: number; type: DeskEventType; data: string; atMs: number };
 type DeskEventType = "own_post" | "interacted";
@@ -132,7 +133,7 @@ export async function tryHandleDeskEventsWake(
     send(req, res, 405, { error: "method_not_allowed" });
     return true;
   }
-  const body = await readJsonBody(req, { maxBytes: BODY_CAP_16K });
+  const body = await readJsonBody(req, { maxBytes: BODY_CAP_256K });
   if (body?.type === "interacted") {
     const interaction = deskInteractedPayload(body.interaction);
     if (typeof body.userId !== "string" || !body.userId || !interaction) {
@@ -143,7 +144,7 @@ export async function tryHandleDeskEventsWake(
     send(req, res, 200, { ok: true });
     return true;
   }
-  const { userId, id, kind, postedAt } = body ?? {};
+  const { userId, id, kind, postedAt, url: postLink, text } = body ?? {};
   if (
     typeof userId !== "string" || !userId ||
     typeof id !== "string" || !id ||
@@ -153,7 +154,13 @@ export async function tryHandleDeskEventsWake(
     send(req, res, 400, { error: "bad_request" });
     return true;
   }
-  publishDeskEvent(userId, "own_post", { id, kind, postedAt });
+  publishDeskEvent(userId, "own_post", {
+    id,
+    kind,
+    postedAt,
+    url: typeof postLink === "string" && postLink.trim() ? postLink : postUrl(null, id),
+    text: typeof text === "string" ? text : "",
+  });
   send(req, res, 200, { ok: true });
   return true;
 }

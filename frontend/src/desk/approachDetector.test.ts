@@ -1,49 +1,76 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { approachDetectorRefresh, approachDetectorSchedule } from "./approachDetector.ts";
+import type { OwnActivity } from "../lib/coaching.ts";
+import {
+  approachDetector,
+  DESK_DETECTOR_FALLBACK_MS,
+  deskDetectorCheck,
+  routeOwnPostWake,
+} from "./approachDetector.ts";
 
-await describe("Approach detector scheduling", async () => {
-  await it("listens for For You even without a locked card and polls every five seconds", () => {
+await describe("Approach detector routing", async () => {
+  await it("detects For You even without a locked card and falls back every five seconds", () => {
+    assert.equal(DESK_DETECTOR_FALLBACK_MS, 5_000);
     for (const cardId of [null, "suggestion-1"]) {
-      const schedule = approachDetectorSchedule("for_you", cardId);
-      assert.deepEqual(schedule, {
-        target: { detector: "for_you" },
-        intervalMs: 5_000,
-        refreshOnOwnPost: true,
-      });
-      assert.deepEqual(approachDetectorRefresh(schedule, false), { detector: "for_you" });
+      assert.equal(approachDetector("for_you", cardId), "for_you");
+      assert.equal(deskDetectorCheck({ active: "for_you" }, false), "for_you");
     }
   });
 
-  await it("polls the locked Scout without refetching on an own-post wake", () => {
-    const schedule = approachDetectorSchedule("scout", "scout-1");
-    assert.deepEqual(schedule, {
-      target: { detector: "scout", cardId: "scout-1" },
-      intervalMs: 5_000,
-      refreshOnOwnPost: false,
-    });
-    assert.deepEqual(approachDetectorRefresh(schedule, false), {
-      detector: "scout", cardId: "scout-1",
-    });
+  await it("detects the locked Scout", () => {
+    const active = approachDetector("scout", "scout-1");
+    assert.equal(active, "scout");
+    assert.equal(deskDetectorCheck({ active }, false), "scout");
   });
 
-  await it("does not listen or refresh for inactive detectors or Scout without a card", () => {
-    assert.equal(approachDetectorSchedule(null, null), null);
-    assert.equal(approachDetectorSchedule(null, "card-1"), null);
-    assert.equal(approachDetectorSchedule("scout", null), null);
-    assert.equal(approachDetectorSchedule("scout", ""), null);
-    assert.equal(approachDetectorRefresh(null, false), null);
+  await it("does not check inactive detectors or Scout without a card", () => {
+    assert.equal(approachDetector(null, null), null);
+    assert.equal(approachDetector(null, "card-1"), null);
+    assert.equal(approachDetector("scout", null), null);
+    assert.equal(approachDetector("scout", ""), null);
+    assert.equal(deskDetectorCheck(null, false), null);
+    assert.equal(deskDetectorCheck({ active: null }, false), null);
   });
 
-  await it("skips pending ticks for either detector and allows the next settled tick", () => {
-    for (const detector of ["for_you", "scout"] as const) {
-      const schedule = approachDetectorSchedule(detector, "card-1");
-      assert.ok(schedule);
-      const target = approachDetectorRefresh(schedule, false);
-      assert.equal(target, schedule.target);
-      assert.equal(approachDetectorRefresh(schedule, true), null);
-      assert.equal(approachDetectorRefresh(schedule, true), null);
-      assert.equal(approachDetectorRefresh(schedule, false), target);
+  await it("keeps one fallback in flight across both detectors", () => {
+    for (const active of ["for_you", "scout"] as const) {
+      assert.equal(deskDetectorCheck({ active }, true), null);
+      assert.equal(deskDetectorCheck({ active }, false), active);
     }
+  });
+
+  await it("routes an own_post wake to the For You cursor whatever detector is active", () => {
+    const payload = {
+      id: "post-1",
+      kind: "reply",
+      postedAt: "2026-09-25T10:00:01.000Z",
+      url: "https://x.com/pilot/status/post-1",
+      text: "my reply",
+    };
+    for (const active of ["for_you", "scout", null] as const) {
+      const applied: OwnActivity[] = [];
+      const route = { active, forYouOwnPost: (activity: OwnActivity) => applied.push(activity) };
+      assert.deepEqual(routeOwnPostWake(route, payload), payload);
+      assert.deepEqual(applied, [payload]);
+    }
+  });
+
+  await it("drops an own_post wake without url and text, id, or a valid time", () => {
+    const applied: OwnActivity[] = [];
+    const route = { forYouOwnPost: (activity: OwnActivity) => applied.push(activity) };
+    const base = {
+      id: "post-1",
+      kind: "original",
+      postedAt: "2026-09-25T10:00:01.000Z",
+      url: "https://x.com/pilot/status/post-1",
+      text: "original",
+    };
+    assert.equal(routeOwnPostWake(route, { id: "post-1", kind: "reply", postedAt: base.postedAt }), null);
+    assert.equal(routeOwnPostWake(route, { ...base, id: " " }), null);
+    assert.equal(routeOwnPostWake(route, { ...base, postedAt: "soon" }), null);
+    assert.equal(routeOwnPostWake(route, { ...base, kind: "repost" }), null);
+    assert.equal(routeOwnPostWake(route, null), null);
+    assert.equal(routeOwnPostWake(null, base), null);
+    assert.deepEqual(applied, []);
   });
 });
