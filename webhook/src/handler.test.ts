@@ -1068,7 +1068,7 @@ await describe("own reply interaction capture", async () => {
         getPlatformDb().prepare("SELECT path FROM x_api_usage_events").all(),
         [{ path: "/users/x-user/tweets" }],
       );
-      assert.equal(
+      assert.deepEqual(
         getPlatformDb().prepare("SELECT COUNT(*) AS count FROM own_posts").get(),
         { count: 1 },
       );
