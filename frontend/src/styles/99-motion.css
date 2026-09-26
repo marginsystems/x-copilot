@@ -73,10 +73,12 @@
   .desk-meter-fill,
   .row-detail-slot,
   .row-detail-inner,
-  .row-action {
+  .row-action-track {
     transition: none;
   }
 
+  .thread-row:not(.history-row) .row-meta .chip-interacted,
+  .thread-row .for-you-detected-summary,
   .threads .thread-row,
   .threads .thread-row.is-exiting,
   .fade-swap-in,

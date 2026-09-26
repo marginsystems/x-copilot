@@ -5,55 +5,80 @@ import {
   type CSSProperties,
   type MouseEventHandler,
   type ReactNode,
+  type TransitionEvent,
 } from "react";
 import { HasTipButton, HasTipLink } from "./HasTip";
 import { useDeskRowExpand } from "./useDeskRowExpand";
 
-const ACTION_COLLAPSE_MS = 240;
+const ACTION_EXIT_MS = 240;
+const ACTION_EXIT_FALLBACK_MS = ACTION_EXIT_MS + 80;
 
-/** Keep a departing action mounted so the row can collapse it instead of popping. */
-function useActionPresence(active: boolean) {
-  const [mounted, setMounted] = useState(active);
-  const [open, setOpen] = useState(active);
+type ActionEdge = "start" | "end";
 
-  useEffect(() => {
-    if (active) {
-      setMounted(true);
-      const frame = requestAnimationFrame(() => setOpen(true));
-      return () => cancelAnimationFrame(frame);
-    }
-    setOpen(false);
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(
-      () => setMounted(false),
-      reduce ? 0 : ACTION_COLLAPSE_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [active]);
-
-  return { mounted, open };
+function prefersReducedMotion() {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
-function ActionSlot({
+function useActionExit(shown: boolean) {
+  const [mounted, setMounted] = useState(shown);
+
+  useEffect(() => {
+    if (shown) {
+      setMounted(true);
+      return;
+    }
+    if (prefersReducedMotion()) {
+      setMounted(false);
+      return;
+    }
+    const timer = window.setTimeout(
+      () => setMounted(false),
+      ACTION_EXIT_FALLBACK_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [shown]);
+
+  return { mounted, finish: () => setMounted(false) };
+}
+
+function ActionUnit({
   shown,
+  edge,
   children,
 }: {
   shown: boolean;
+  edge: ActionEdge;
   children: ReactNode;
 }) {
   const cached = useRef<ReactNode>(null);
-  if (children != null) cached.current = children;
-  const presence = useActionPresence(shown && cached.current != null);
-  if (!presence.mounted || cached.current == null) return null;
+  if (shown) cached.current = children;
+  const exit = useActionExit(shown);
+  const leaving = !shown;
+  if (leaving && (!exit.mounted || prefersReducedMotion())) return null;
+  if (cached.current == null) return null;
+
+  const onTransitionEnd = (event: TransitionEvent<HTMLSpanElement>) => {
+    if (event.target === event.currentTarget && event.propertyName === "transform") {
+      exit.finish();
+    }
+  };
+
   return (
     <span
-      className={presence.open ? "row-action" : "row-action is-collapsed"}
-      aria-hidden={presence.open ? undefined : true}
-      {...(!presence.open
-        ? { inert: "" }
-        : {})}
+      className={leaving ? "row-action is-leaving" : "row-action"}
+      data-edge={edge}
+      aria-hidden={leaving || undefined}
+      {...(leaving ? { inert: "" } : {})}
     >
-      <span className="row-action-clip">{cached.current}</span>
+      <span
+        className="row-action-track"
+        onTransitionEnd={leaving ? onTransitionEnd : undefined}
+      >
+        {cached.current}
+      </span>
     </span>
   );
 }
@@ -225,7 +250,10 @@ export function DeskRow({
           className="row"
           onClick={(event) => event.stopPropagation()}
         >
-          <ActionSlot shown={openLabel != null}>
+          <ActionUnit
+            shown={Boolean(openLabel || (secondaryOpenHref && secondaryOpenLabel))}
+            edge="end"
+          >
             {openLabel ? (
               openHref ? (
                 <HasTipLink
@@ -244,8 +272,6 @@ export function DeskRow({
                 </button>
               )
             ) : null}
-          </ActionSlot>
-          <ActionSlot shown={Boolean(secondaryOpenHref && secondaryOpenLabel)}>
             {secondaryOpenHref && secondaryOpenLabel ? (
               <HasTipLink
                 className="ghost"
@@ -257,8 +283,8 @@ export function DeskRow({
                 {secondaryOpenLabel}
               </HasTipLink>
             ) : null}
-          </ActionSlot>
-          <ActionSlot shown={Boolean(onPrimary && primaryLabel)}>
+          </ActionUnit>
+          <ActionUnit shown={Boolean(onPrimary && primaryLabel)} edge="start">
             {onPrimary && primaryLabel ? (
               <ActionButton
                 className="primary"
@@ -268,8 +294,8 @@ export function DeskRow({
                 tip={primaryTip}
               />
             ) : null}
-          </ActionSlot>
-          <ActionSlot shown={Boolean(onNext)}>
+          </ActionUnit>
+          <ActionUnit shown={Boolean(onNext)} edge="start">
             {onNext ? (
               <ActionButton
                 className="primary"
@@ -279,8 +305,8 @@ export function DeskRow({
                 tip={nextTip}
               />
             ) : null}
-          </ActionSlot>
-          <ActionSlot shown={Boolean(onBypass)}>
+          </ActionUnit>
+          <ActionUnit shown={Boolean(onBypass)} edge="start">
             {onBypass ? (
               <ActionButton
                 className="ghost"
@@ -288,8 +314,8 @@ export function DeskRow({
                 onClick={onBypass}
               />
             ) : null}
-          </ActionSlot>
-          <ActionSlot shown={Boolean(onSkip)}>
+          </ActionUnit>
+          <ActionUnit shown={Boolean(onSkip || onDismiss)} edge="start">
             {onSkip ? (
               <ActionButton
                 className="ghost"
@@ -298,8 +324,6 @@ export function DeskRow({
                 onClick={onSkip}
               />
             ) : null}
-          </ActionSlot>
-          <ActionSlot shown={Boolean(onDismiss)}>
             {onDismiss ? (
               <ActionButton
                 className="ghost"
@@ -308,7 +332,7 @@ export function DeskRow({
                 onClick={onDismiss}
               />
             ) : null}
-          </ActionSlot>
+          </ActionUnit>
         </div>
       ) : null}
       {(expandable ? presence.mount : Boolean(children)) ? (
