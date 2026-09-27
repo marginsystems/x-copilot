@@ -135,7 +135,18 @@ export function DeskRowActions({ actions }: { actions: DeskRowAction[] }) {
     for (const [key, spot] of spots) {
       const was = prev.spots.get(key);
       const el = units.current.get(key);
-      if (!was || !el) continue;
+      if (!el) continue;
+      if (!was) {
+        if (prev.spots.size > 0) {
+          el.animate([{ opacity: 0 }, { opacity: 1 }], {
+            duration: ACTION_SLIDE_MS,
+            delay: ACTION_FADE_MS / 2,
+            easing: EASE_OUT,
+            fill: "backwards",
+          });
+        }
+        continue;
+      }
       const dx = was.left - spot.left;
       const dy = was.top - spot.top;
       if (dx === 0 && dy === 0) continue;

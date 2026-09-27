@@ -5,6 +5,7 @@ import {
 } from "react";
 import { DeskRowActions } from "./DeskRowActions";
 import { HasTipButton, HasTipLink } from "./HasTip";
+import { PacedOpenButton, ReadyOpenLink, type OpenPace } from "./RowOpen";
 import { useDeskRowExpand } from "./useDeskRowExpand";
 
 function ActionButton({
@@ -57,6 +58,7 @@ export function DeskRow({
   secondaryOpenHref,
   secondaryOpenLabel,
   secondaryOpenTip,
+  openPace,
   onNext,
   nextTip,
   nextDisabled = false,
@@ -90,6 +92,7 @@ export function DeskRow({
   secondaryOpenHref?: string | null;
   secondaryOpenLabel?: string;
   secondaryOpenTip?: string;
+  openPace?: OpenPace | null;
   onNext?: () => void;
   nextTip?: string;
   nextDisabled?: boolean;
@@ -165,39 +168,55 @@ export function DeskRow({
         actions={[
           {
             key: "open",
+            node: openPace && openLabel && openHref ? (
+              <PacedOpenButton label={openLabel} pace={openPace} />
+            ) : openPace !== undefined && openLabel && openHref ? (
+              <ReadyOpenLink
+                href={openHref}
+                label={openLabel}
+                tip={openTip ?? openLabel}
+                onClick={onOpen}
+              />
+            ) : openLabel ? (
+              openHref ? (
+                <HasTipLink
+                  className="ghost"
+                  href={openHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  tip={openTip ?? openLabel}
+                  onClick={onOpen}
+                >
+                  {openLabel}
+                </HasTipLink>
+              ) : (
+                <button type="button" className="ghost" disabled>
+                  {openLabel}
+                </button>
+              )
+            ) : null,
+          },
+          {
+            key: "open-secondary",
             node:
-              openLabel || (secondaryOpenHref && secondaryOpenLabel) ? (
-                <>
-                  {openLabel ? (
-                    openHref ? (
-                      <HasTipLink
-                        className="ghost"
-                        href={openHref}
-                        target="_blank"
-                        rel="noreferrer"
-                        tip={openTip ?? openLabel}
-                        onClick={onOpen}
-                      >
-                        {openLabel}
-                      </HasTipLink>
-                    ) : (
-                      <button type="button" className="ghost" disabled>
-                        {openLabel}
-                      </button>
-                    )
-                  ) : null}
-                  {secondaryOpenHref && secondaryOpenLabel ? (
-                    <HasTipLink
-                      className="ghost"
-                      href={secondaryOpenHref}
-                      target="_blank"
-                      rel="noreferrer"
-                      tip={secondaryOpenTip ?? secondaryOpenLabel}
-                    >
-                      {secondaryOpenLabel}
-                    </HasTipLink>
-                  ) : null}
-                </>
+              secondaryOpenHref && secondaryOpenLabel && !openPace ? (
+                openPace === null ? (
+                  <ReadyOpenLink
+                    href={secondaryOpenHref}
+                    label={secondaryOpenLabel}
+                    tip={secondaryOpenTip ?? secondaryOpenLabel}
+                  />
+                ) : (
+                  <HasTipLink
+                    className="ghost"
+                    href={secondaryOpenHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    tip={secondaryOpenTip ?? secondaryOpenLabel}
+                  >
+                    {secondaryOpenLabel}
+                  </HasTipLink>
+                )
               ) : null,
           },
           {

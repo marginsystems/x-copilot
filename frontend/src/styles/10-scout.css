@@ -87,6 +87,44 @@
   }
 }
 
+.thread-row .row .row-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.row-open-icon {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.row-open-arrow {
+  fill: currentColor;
+  opacity: 0.7;
+}
+
+.row-open-ring-track,
+.row-open-ring-fill {
+  fill: none;
+  stroke-width: 2;
+}
+
+.row-open-ring-track {
+  stroke: var(--border-strong);
+}
+
+.row-open-ring-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 250ms linear;
+}
+
+.thread-row .row button.ghost.row-open.is-paced {
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
 /* The tip panel still wraps under a one-line label. */
 .row-action .has-tip::after {
   white-space: normal;

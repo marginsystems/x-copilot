@@ -5,9 +5,9 @@ export const REPLY_PACE_STORAGE_KEY = "x-copilot-reply-pace-until";
 export const REPLY_PACE_CLEARED_KEY = "x-copilot-reply-pace-cleared";
 export const REPLY_PACE_EVENT = "x-copilot-reply-pace";
 
-export const REPLY_PACE_LEAD = "One reply a minute.";
-export const REPLY_PACE_HELP =
-  "After Next, Approach waits out any remaining minute before the next reply card. That is a desk gate, not a published X number. An original or quote during the minute still counts. Bypass if you must.";
+export function replyPaceTip(clock: string): string {
+  return `Waiting between replies: ${clock} left. One reply a minute keeps the account from looking automated. Read the card while you wait.`;
+}
 
 export function nextReplyPaceUntil(now: number): number {
   return now + REPLY_PACE_MS;

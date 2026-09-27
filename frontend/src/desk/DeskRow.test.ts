@@ -99,9 +99,9 @@ await describe("DeskRow card chrome", async () => {
     );
     assert.match(
       wait,
-      /<span class="row-action" data-action="open">(?:(?!row-action).)*>Open For You<(?:(?!row-action).)*>Open Inspiration</,
+      /<span class="row-action" data-action="open">(?:(?!row-action).)*>Open For You<\/a><\/span><span class="row-action" data-action="open-secondary">(?:(?!row-action).)*>Open Inspiration</,
     );
-    assert.equal(wait.match(/class="row-action"/g)?.length, 2);
+    assert.equal(wait.match(/class="row-action"/g)?.length, 3);
     assert.doesNotMatch(scout + wait, /is-leaving|row-action-track/);
   });
 
@@ -202,20 +202,6 @@ await describe("DeskRow card chrome", async () => {
     );
     assert.doesNotMatch(css, /\.row-head:hover|\.next-action-head:hover/);
     assert.doesNotMatch(css, /\.approach-card-actions|justify-content:\s*flex-end/);
-  });
-
-  await it("anchors the pace help panel under the question chip", () => {
-    const css = readFileSync(
-      new URL("../styles/12-threads.css", import.meta.url),
-      "utf8",
-    );
-
-    assert.match(
-      css,
-      /\.reply-pace-help\s*\{[^}]*align-self:\s*flex-start/,
-    );
-    assert.match(css, /\.reply-pace-help-panel\s*\{[^}]*left:\s*0/);
-    assert.doesNotMatch(css, /\.reply-pace-help-panel\s*\{[^}]*right:\s*0/);
   });
 
   await it("keeps non-expandable details visible", () => {

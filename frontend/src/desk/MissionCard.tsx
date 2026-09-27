@@ -11,7 +11,7 @@ import {
   type ApproachPresentation,
 } from "./approachPresenter";
 import { ForYouFeedRow } from "./ForYouFeedRow";
-import { ReplyPaceBar } from "./ReplyPaceBar";
+import type { OpenPace } from "./RowOpen";
 import { SuggestedRow } from "./SuggestedRow";
 import { ThreadRow } from "./ThreadRow";
 import type { ThreadCard } from "./types";
@@ -35,7 +35,6 @@ export function ApproachLoadingCard() {
 
 export type MissionCardProps = ApproachCardInput & {
   clock: string;
-  onBypass: () => void;
   onOpenSettings?: () => void;
   actionBusy: boolean;
   expandedId: string | null;
@@ -57,7 +56,9 @@ export type MissionCardProps = ApproachCardInput & {
   onLinkX: () => void;
 };
 
-function ScoutRow(props: MissionCardProps & { thread: ThreadCard }) {
+function ScoutRow(
+  props: MissionCardProps & { thread: ThreadCard; openPace: OpenPace | null },
+) {
   const { thread } = props;
   return (
     <ThreadRow
@@ -72,6 +73,7 @@ function ScoutRow(props: MissionCardProps & { thread: ThreadCard }) {
         props.setExpandedId((id) => (id === thread.id ? null : thread.id))
       }
       onWatch={() => watchDeskThreads([thread])}
+      openPace={props.openPace}
       onSkip={() => props.onScoutSkip(thread)}
       onDismiss={() => props.onScoutDismiss(thread)}
       onNext={props.onScoutNext}
@@ -133,7 +135,10 @@ function GateCard(props: MissionCardProps & { view: ApproachPresentation }) {
 }
 
 function SuggestedCard(
-  props: MissionCardProps & { view: ApproachPresentation },
+  props: MissionCardProps & {
+    view: ApproachPresentation;
+    openPace: OpenPace | null;
+  },
 ) {
   const row = props.suggestion;
   const key = row ? `suggest:${row.id}` : null;
@@ -150,6 +155,7 @@ function SuggestedCard(
             busy={props.actionBusy}
             interacted={props.suggestionDetected}
             detecting={props.view.detector === "scout"}
+            openPace={props.openPace}
             voice={props.voice}
             agenda={props.agenda}
             xLinked={props.authUser?.xLinked}
@@ -181,15 +187,9 @@ export function MissionCard(props: MissionCardProps) {
   const view = presentApproach(props);
   if (view.kind === "blank") return null;
 
-  if (view.showPace && view.kind !== "gate") {
-    return (
-      <ReplyPaceBar
-        clock={props.clock}
-        remainingMs={props.remainingMs}
-        onBypass={props.onBypass}
-      />
-    );
-  }
+  const openPace: OpenPace | null = view.showPace
+    ? { remainingMs: props.remainingMs, clock: props.clock }
+    : null;
 
   if (view.kind === "gate") {
     return <GateCard {...props} view={view} />;
@@ -205,6 +205,7 @@ export function MissionCard(props: MissionCardProps) {
           actionCopy={view.forYou.actionCopy}
           onNext={view.forYou.showNext ? props.onForYouNext : undefined}
           expandable={view.forYou.detected}
+          openPace={openPace}
         />
       </ApproachFrame>
     );
@@ -213,7 +214,7 @@ export function MissionCard(props: MissionCardProps) {
   if (view.kind === "scout" && props.scout) {
     return (
       <ApproachFrame>
-        <ScoutRow {...props} thread={props.scout} />
+        <ScoutRow {...props} thread={props.scout} openPace={openPace} />
       </ApproachFrame>
     );
   }
@@ -231,5 +232,5 @@ export function MissionCard(props: MissionCardProps) {
     );
   }
 
-  return <SuggestedCard {...props} view={view} />;
+  return <SuggestedCard {...props} view={view} openPace={openPace} />;
 }

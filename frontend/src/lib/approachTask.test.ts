@@ -487,7 +487,7 @@ await describe("Reply minute destinations", () => {
     wait: openForYouWait({ owner: OWNER, cursor, now: T0 }),
   };
 
-  it("Scout Next selects For You under the overlay and reveals it at zero", () => {
+  it("Scout Next selects For You under the reply minute with Next still usable", () => {
     const state = transitionApproachTask(
       { lock: { phase: "scout_reply", cardId: "A", surface: null }, wait: null },
       { type: "next" },
@@ -498,7 +498,7 @@ await describe("Reply minute destinations", () => {
     const running = present(state, { remainingMs: 30_000, paceOverlayArmed: true });
     assert.equal(running.verb, "Hold");
     assert.equal(running.forYou?.holding, true);
-    assert.equal(running.forYou?.showNext, false);
+    assert.equal(running.forYou?.showNext, true);
     assert.equal(running.showPace, true);
     const over = present(state, { remainingMs: 0, paceOverlayArmed: false });
     assert.equal(over.verb, "For You");

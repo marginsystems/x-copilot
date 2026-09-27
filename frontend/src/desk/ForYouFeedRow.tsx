@@ -13,6 +13,7 @@ import {
 import type { OwnActivity } from "../lib/coaching";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
+import type { OpenPace } from "./RowOpen";
 
 /**
  * The real X wait: post on For You or Inspiration. Detection stays in this
@@ -26,6 +27,7 @@ export function ForYouFeedRow(props: {
   onNext?: () => void;
   expandable?: boolean;
   defaultOpen?: boolean;
+  openPace?: OpenPace | null;
 }) {
   const [open, setOpen] = useState(props.defaultOpen ?? true);
   const detected = props.detected === true;
@@ -88,6 +90,7 @@ export function ForYouFeedRow(props: {
       secondaryOpenHref={detected ? null : X_INSPIRATION_URL}
       secondaryOpenLabel={detected ? undefined : "Open Inspiration"}
       secondaryOpenTip={FYP_INSPIRATION_TIP}
+      openPace={props.openPace ?? null}
       onNext={props.onNext}
       nextTip={FYP_NEXT_TIP}
     >

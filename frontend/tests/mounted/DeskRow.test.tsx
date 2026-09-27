@@ -2,6 +2,7 @@ import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { DeskRow } from "../../src/desk/DeskRow";
 import { ForYouFeedRow } from "../../src/desk/ForYouFeedRow";
+import { ThreadRow } from "../../src/desk/ThreadRow";
 
 type Played = {
   target: HTMLElement;
@@ -104,7 +105,9 @@ test("detection lifts the open buttons out of flow at their old spot and glides 
   expect(ghost?.style.left).toBe("250px");
   expect(ghost?.getAttribute("aria-hidden")).toBe("true");
   expect(ghost?.hasAttribute("inert")).toBe(true);
-  expect(ghost?.textContent).toBe("Open For YouOpen Inspiration");
+  expect(ghost?.textContent).toBe("Open For You");
+  const secondary = container.querySelector<HTMLElement>('.row-action.is-leaving[data-action="open-secondary"]');
+  expect(secondary?.textContent).toBe("Open Inspiration");
   expect(container.querySelector(".for-you-detected-summary")).not.toBeNull();
 
   const inFlow = [...container.querySelectorAll<HTMLElement>(".row-action:not(.is-leaving)")];
@@ -115,8 +118,11 @@ test("detection lifts the open buttons out of flow at their old spot and glides 
   expect(glide?.keyframes.at(-1)).toEqual({ transform: "translate(0, 0)" });
   expect(played.some((entry) => /width|margin|grid/.test(JSON.stringify(entry.keyframes)))).toBe(false);
 
-  const fade = played.find((entry) => entry.target === ghost);
-  act(() => fade?.animation.onfinish?.());
+  act(() => {
+    for (const entry of played) {
+      if (entry.target.classList.contains("is-leaving")) entry.animation.onfinish?.();
+    }
+  });
   expect(container.querySelector(".row-action.is-leaving")).toBeNull();
 });
 
@@ -222,4 +228,107 @@ test("reduced motion drops departing actions at once", () => {
 
   expect(container.querySelector(".row-action.is-leaving")).toBeNull();
   expect(played).toHaveLength(0);
+});
+
+const scoutThread = {
+  id: "S",
+  author: "@S",
+  text: "incoming Scout",
+  url: "https://x.com/S/status/S",
+};
+
+function scoutRow(openPace: { remainingMs: number; clock: string } | null) {
+  return (
+    <ThreadRow
+      thread={scoutThread}
+      open={false}
+      busy={false}
+      interacted={false}
+      onToggle={vi.fn()}
+      onSkip={vi.fn()}
+      onDismiss={vi.fn()}
+      onNext={vi.fn()}
+      openPace={openPace}
+    />
+  );
+}
+
+test("a paced Scout card gates Open on X in place and keeps the card usable", () => {
+  const { container, rerender } = render(scoutRow({ remainingMs: 34_000, clock: "0:34" }));
+
+  const gated = container.querySelector<HTMLButtonElement>('[data-action="open"] button.row-open');
+  expect(gated?.classList.contains("is-paced")).toBe(true);
+  expect(gated?.getAttribute("aria-disabled")).toBe("true");
+  expect(gated?.disabled).toBe(false);
+  expect(gated?.dataset.tip).toContain("0:34 left");
+  expect(gated?.querySelector(".row-open-label")?.textContent).toBe("Open on X");
+  expect(gated?.querySelector(".row-open-ring")).not.toBeNull();
+  expect(gated?.getAttribute("aria-label")).toContain("0:34 left");
+  const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+  gated?.dispatchEvent(click);
+  expect(click.defaultPrevented).toBe(true);
+  expect(container.textContent).toContain("Skip");
+  expect(container.textContent).toContain("Not interested");
+  expect(container.textContent).toContain("Next");
+
+  rerender(scoutRow(null));
+
+  const ready = container.querySelector<HTMLAnchorElement>('[data-action="open"] a.row-open');
+  expect(ready?.getAttribute("href")).toBe(scoutThread.url);
+  expect(ready?.querySelector(".row-open-label")?.textContent).toBe("Open on X");
+  expect(ready?.querySelector(".row-open-arrow")).not.toBeNull();
+  expect(container.querySelector(".row-action.is-leaving")).toBeNull();
+  expect(played).toHaveLength(0);
+});
+
+test("the pace ring drains with the remaining minute", () => {
+  const { container, rerender } = render(scoutRow({ remainingMs: 60_000, clock: "1:00" }));
+  const offset = () =>
+    Number(container.querySelector(".row-open-ring-fill")?.getAttribute("stroke-dashoffset"));
+  const full = offset();
+
+  rerender(scoutRow({ remainingMs: 30_000, clock: "0:30" }));
+  const half = offset();
+  rerender(scoutRow({ remainingMs: 1_000, clock: "0:01" }));
+
+  expect(full).toBe(0);
+  expect(half).toBeGreaterThan(full);
+  expect(offset()).toBeGreaterThan(half);
+});
+
+test("a paced For You card collapses to one gated button and splits back when the minute ends", () => {
+  lefts.next = 150;
+  const { container, rerender } = render(
+    <ForYouFeedRow
+      status="Detecting"
+      detected={false}
+      onNext={vi.fn()}
+      openPace={{ remainingMs: 20_000, clock: "0:20" }}
+    />,
+  );
+
+  const units = () =>
+    [...container.querySelectorAll<HTMLElement>(".row-action:not(.is-leaving)")].map(
+      (unit) => unit.dataset.action,
+    );
+  expect(units()).toEqual(["open", "next"]);
+  expect(container.querySelector('[data-action="open"] button.is-paced')?.textContent).toBe(
+    "Open For You",
+  );
+  expect(container.textContent).not.toContain("Open Inspiration");
+
+  lefts.next = 330;
+  rerender(
+    <ForYouFeedRow status="Detecting" detected={false} onNext={vi.fn()} openPace={null} />,
+  );
+
+  expect(units()).toEqual(["open", "open-secondary", "next"]);
+  expect(container.querySelector('[data-action="open"] a.row-open')?.textContent).toBe(
+    "Open For You",
+  );
+  const arrive = played.find((entry) => entry.target.dataset.action === "open-secondary");
+  expect(arrive?.keyframes).toEqual([{ opacity: 0 }, { opacity: 1 }]);
+  const glide = played.find((entry) => entry.target.dataset.action === "next");
+  expect(glide?.keyframes[0]).toEqual({ transform: "translate(-180px, 0px)" });
+  expect(container.querySelector(".row-action.is-leaving")).toBeNull();
 });
