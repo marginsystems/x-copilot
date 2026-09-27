@@ -407,6 +407,7 @@ They'll expose how bad we already are at judging performance.`,
     assert.equal(isNonPreferredLanguage(thread("en2", english, undefined, { lang: "en" }), "en"), false);
     assert.equal(isNonPreferredLanguage(thread("en3", english, undefined, { lang: "en-GB" }), "en"), false);
     assert.equal(isNonPreferredLanguage(thread("es4", spanish, undefined, { lang: "es" }), "en"), true);
+    assert.equal(isNonPreferredLanguage(thread("en5", english, undefined, { lang: "es" }), "en"), true);
   });
 
   await it("does not let an X tag alone drop a short Latin-script post", () => {
