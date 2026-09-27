@@ -119,6 +119,7 @@ export function SuggestedRow({
           usage={voice.suggests}
           onUsage={onUsage}
           onDeskPosted={onPosted}
+          openPace={openPace}
         />
       ) : compose ? (
         <SuggestLocked

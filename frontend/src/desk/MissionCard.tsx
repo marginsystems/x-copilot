@@ -94,6 +94,7 @@ function ScoutRow(
                   props.setVoice((v) => (v ? { ...v, suggests: u } : v))
                 }
                 onOpenIntent={() => watchDeskThreads([thread])}
+                openPace={props.openPace}
               />
             )
           : (

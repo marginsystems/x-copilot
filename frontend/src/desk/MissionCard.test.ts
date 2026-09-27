@@ -101,7 +101,8 @@ const detectedActivity = {
 await describe("Reply pace", async () => {
   await it("shows the destination chosen by each paced Next at once, gating only its open", () => {
     const cases: { from: ApproachLock; scoutId: string | null; suggestionId: string | null;
-      expected: ApproachLock; visible: RegExp; departed: RegExp; gated: boolean }[] = [
+      expected: ApproachLock; visible: RegExp; departed: RegExp; gated: boolean;
+      pacedHref?: RegExp }[] = [
       { from: { phase: "scout_reply", cardId: "departed-scout", surface: null },
         scoutId: "incoming-scout", suggestionId: null,
         expected: { phase: "silent_refuel", cardId: null, surface: "for_you" },
@@ -110,6 +111,11 @@ await describe("Reply pace", async () => {
         scoutId: null, suggestionId: suggestedReply.id,
         expected: { phase: "organic_reply", cardId: suggestedReply.id, surface: null },
         visible: /A suggested reply/, departed: /departed-suggestion/, gated: false },
+      { from: { phase: "organic_reply", cardId: "departed-suggestion", surface: null },
+        scoutId: null, suggestionId: detectedSuggestedReply.id,
+        expected: { phase: "organic_reply", cardId: detectedSuggestedReply.id, surface: null },
+        visible: /A suggested reply/, departed: /departed-suggestion/, gated: true,
+        pacedHref: /href="https:\/\/x\.com\/target\/status\/123456"/ },
       { from: { phase: "silent_refuel", cardId: null, surface: "for_you" },
         scoutId: "incoming-scout", suggestionId: null,
         expected: { phase: "scout_reply", cardId: "incoming-scout", surface: null },
@@ -123,7 +129,9 @@ await describe("Reply pace", async () => {
       assert.deepEqual(lock, row.expected);
       const props = missionProps({
         ...lock, scout: lock.phase === "scout_reply" ? thread(lock.cardId!, 100) : null,
-        suggestion: lock.phase === "organic_reply" ? suggestedReply : null,
+        suggestion: lock.phase === "organic_reply"
+          ? [suggestedReply, detectedSuggestedReply].find((r) => r.id === lock.cardId) ?? null
+          : null,
         forYou: lock.surface === "for_you" ? { detected: false } : null,
         paceOverlayArmed: true, remainingMs: 42_000, clock: "0:42",
         onForYouNext() {}, onScoutNext() {},
@@ -133,12 +141,14 @@ await describe("Reply pace", async () => {
       assert.doesNotMatch(running, row.departed);
       assert.doesNotMatch(running, /reply-pace|>Bypass</);
       assert.equal(/is-paced/.test(running), row.gated);
+      if (row.pacedHref) assert.doesNotMatch(running, row.pacedHref);
       const over = renderToStaticMarkup(MissionCard({
         ...props, paceOverlayArmed: false, remainingMs: 0,
       }));
       assert.match(over, row.visible);
       assert.doesNotMatch(over, row.departed);
       assert.doesNotMatch(over, /is-paced|row-open-ring/);
+      if (row.pacedHref) assert.match(over, row.pacedHref);
     }
   });
   await it("shows the already-selected Scout with a gated Open on X, then opens it at zero", () => {

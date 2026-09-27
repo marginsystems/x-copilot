@@ -120,7 +120,7 @@
   transition: stroke-dashoffset 250ms linear;
 }
 
-.thread-row .row button.ghost.row-open.is-paced {
+.thread-row button.ghost.is-paced {
   cursor: not-allowed;
   color: var(--muted);
 }

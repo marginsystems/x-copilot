@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSuggestPane, type SuggestPaneProps } from "./useSuggestPane";
+import { PacedIntentButton } from "./desk/RowOpen";
 import {
   COMPOSE_SUGGEST_PHASES,
   SUGGEST_PHASES,
@@ -53,7 +54,7 @@ function PhaseLine({
 }
 
 export function SuggestPane(props: SuggestPaneProps) {
-  const { usage, onOpenIntent } = props;
+  const { usage, onOpenIntent, openPace } = props;
   const {
     stage,
     draft,
@@ -275,7 +276,9 @@ export function SuggestPane(props: SuggestPaneProps) {
             >
               {copied ? "Copied" : "Copy"}
             </button>
-            {verified && intentUrl ? (
+            {verified && intentUrl && openPace ? (
+              <PacedIntentButton pace={openPace} />
+            ) : verified && intentUrl ? (
               <a
                 className="primary suggest-open"
                 href={intentUrl}

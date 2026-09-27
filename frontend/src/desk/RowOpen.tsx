@@ -47,6 +47,20 @@ export function PacedOpenButton({ label, pace }: { label: string; pace: OpenPace
   );
 }
 
+export function PacedIntentButton({ pace }: { pace: OpenPace }) {
+  return (
+    <HasTipButton
+      className="ghost is-paced"
+      aria-disabled="true"
+      aria-label={`Open on X, waiting between replies, ${pace.clock} left`}
+      tip={replyPaceTip(pace.clock)}
+      onClick={(event) => event.preventDefault()}
+    >
+      Open on X
+    </HasTipButton>
+  );
+}
+
 export function ReadyOpenLink({
   href,
   label,
