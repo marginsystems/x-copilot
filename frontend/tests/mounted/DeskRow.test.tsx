@@ -103,7 +103,7 @@ test("detection lifts the open buttons out of flow at their old spot and glides 
   expect(ghost?.dataset.action).toBe("open");
   expect(ghost?.style.left).toBe("250px");
   expect(ghost?.getAttribute("aria-hidden")).toBe("true");
-  expect(ghost?.inert).toBe(true);
+  expect(ghost?.hasAttribute("inert")).toBe(true);
   expect(ghost?.textContent).toBe("Open For YouOpen Inspiration");
   expect(container.querySelector(".for-you-detected-summary")).not.toBeNull();
 
