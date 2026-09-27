@@ -69,7 +69,7 @@ await describe("DeskRow card chrome", async () => {
     assert.match(buttons, /button\.has-tip:disabled\s*\{[^}]*opacity:\s*1/);
   });
 
-  await it("groups the departing actions into one unit per side of Next", () => {
+  await it("renders each action group as one keyed unit", () => {
     const scout = renderToStaticMarkup(
       createElement(DeskRow, {
         lead: "7",
@@ -95,22 +95,19 @@ await describe("DeskRow card chrome", async () => {
 
     assert.match(
       scout,
-      /<span class="row-action" data-edge="start"><span class="row-action-track"><button[^>]*>Skip<\/button><button[^>]*>Not interested<\/button><\/span><\/span>/,
+      /<span class="row-action" data-action="skip"><button[^>]*>Skip<\/button><button[^>]*>Not interested<\/button><\/span>/,
     );
     assert.match(
       wait,
-      /<span class="row-action" data-edge="end"><span class="row-action-track">(?:(?!row-action).)*>Open For You<(?:(?!row-action).)*>Open Inspiration</,
+      /<span class="row-action" data-action="open">(?:(?!row-action).)*>Open For You<(?:(?!row-action).)*>Open Inspiration</,
     );
     assert.equal(wait.match(/class="row-action"/g)?.length, 2);
+    assert.doesNotMatch(scout + wait, /is-leaving|row-action-track/);
   });
 
-  await it("slides a departing unit away without resizing its buttons", () => {
+  await it("never animates a button's box while an action leaves", () => {
     const css = readFileSync(
       new URL("../styles/10-scout.css", import.meta.url),
-      "utf8",
-    );
-    const motion = readFileSync(
-      new URL("../styles/99-motion.css", import.meta.url),
       "utf8",
     );
     const tokens = readFileSync(
@@ -121,47 +118,22 @@ await describe("DeskRow card chrome", async () => {
       ...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g),
     ]
       .map(([, selector, body]) => ({ selector: selector.trim(), body }))
-      .filter((rule) => rule.selector.includes(".row-action"));
+      .filter((rule) => /\.row-action(?![\w-])/.test(rule.selector) && !rule.selector.startsWith(".thread-row:has"));
 
     assert.ok(rules.length > 0);
     for (const rule of rules) {
-      assert.doesNotMatch(rule.body, /grid-template-columns/, rule.selector);
-      for (const motionDecl of rule.body.match(/(?:transition|animation)[\w-]*\s*:[^;]*/g) ?? []) {
-        assert.doesNotMatch(
-          motionDecl,
-          /width|flex-basis|margin|padding|grid-template-columns|\ball\b/,
-          rule.selector,
-        );
-      }
-    }
-    for (const rule of rules.filter((r) => r.selector.includes(".is-leaving"))) {
-      assert.doesNotMatch(
-        rule.body,
-        /(?:^|[;\s])(?:(?:min-|max-)?width|flex(?:-basis)?|padding(?:-\w+)?|opacity)\s*:/,
-        rule.selector,
-      );
+      assert.doesNotMatch(rule.body, /grid-template-columns|transition|animation|overflow/, rule.selector);
     }
 
-    assert.match(css, /\.row-action\.is-leaving\s*\{[^}]*margin-right:\s*0/);
+    assert.match(css, /\.thread-row > \.row\s*\{[^}]*position:\s*relative/);
     assert.match(css, /\.row-action\s*\{[^}]*white-space:\s*nowrap/);
     assert.match(css, /\.row-action\s*\{[^}]*flex:\s*none/);
-    assert.match(css, /\.row-action-track\s*\{[^}]*flex:\s*none/);
-    assert.match(
-      css,
-      /\.row-action-track\s*\{[^}]*transition:\s*transform var\(--row-action-exit\) var\(--ease-out\);/,
-    );
-    assert.match(css, /\.row-action\.is-leaving\s*\{[^}]*overflow:\s*hidden/);
-    assert.match(
-      css,
-      /\.row-action\.is-leaving\[data-edge="start"\] \.row-action-track\s*\{[^}]*transform:\s*translateX\(-100%\)/,
-    );
-    assert.match(
-      css,
-      /\.row-action\.is-leaving\[data-edge="end"\] \.row-action-track\s*\{[^}]*transform:\s*translateX\(100%\)/,
-    );
+    assert.match(css, /\.row-action\.is-leaving\s*\{[^}]*position:\s*absolute/);
+    assert.match(css, /\.row-action\.is-leaving\s*\{[^}]*pointer-events:\s*none/);
+    assert.match(css, /\.thread-row > \.row\.is-draining\s*\{[^}]*overflow:\s*hidden/);
+    assert.doesNotMatch(css, /row-action-track|translateX\(-?100%\)/);
     assert.match(css, /\.row-action \.has-tip::after\s*\{[^}]*white-space:\s*normal/);
-    assert.match(tokens, /--row-action-exit:\s*240ms/);
-    assert.match(motion, /\.row-action-track\s*\{\s*transition:\s*none/);
+    assert.match(tokens, /--row-action-exit:\s*280ms/);
   });
 
   await it("fades the interacted chip in only while a unit is leaving the same row", () => {
