@@ -414,6 +414,16 @@ They'll expose how bad we already are at judging performance.`,
     assert.equal(isNonPreferredLanguage(thread("in1", "gm builders, lfg", undefined, { lang: "in" }), "en"), false);
   });
 
+  await it("keeps short Latin-script posts with enough emoji to exceed 40 UTF-16 units", () => {
+    const emojiHeavy = thread("emoji1", `ship it ${"🚀".repeat(18)}`, undefined, { lang: "es" });
+    assert.ok(emojiHeavy.text.length >= LANGUAGE_MIN_CHARS);
+    assert.ok([...emojiHeavy.text].length < LANGUAGE_MIN_CHARS);
+    assert.deepEqual(filterByLanguage([emojiHeavy], "en"), {
+      threads: [emojiHeavy],
+      languageFilteredCount: 0,
+    });
+  });
+
   await it("falls through to franc when X has no real language tag", () => {
     for (const lang of ["und", "zxx", "art", "qme", "qht", "qam", ""]) {
       assert.equal(xLanguageTag(lang), null, lang);

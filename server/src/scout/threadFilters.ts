@@ -755,15 +755,16 @@ export function isNonPreferredLanguage(
   preferred: PreferredLanguageCode = DEFAULT_PREFERRED_LANGUAGE,
 ): boolean {
   const sample = languageSampleText(thread);
+  const sampleLength = [...sample].length;
   const tagged = xLanguageTag(thread.lang);
   if (
     tagged &&
     tagged !== preferred &&
-    (sample.length >= LANGUAGE_MIN_CHARS || !mostlyLatinLetters(sample))
+    (sampleLength >= LANGUAGE_MIN_CHARS || !mostlyLatinLetters(sample))
   ) {
     return true;
   }
-  if (sample.length < LANGUAGE_MIN_CHARS) return false;
+  if (sampleLength < LANGUAGE_MIN_CHARS) return false;
   try {
     const preferredRankings = francAll(sample, {
       only: FRANC_ONLY,
