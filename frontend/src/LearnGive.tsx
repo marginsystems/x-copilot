@@ -219,11 +219,12 @@ export function LearnGivePage(props: {
 
       <h2>The desk holds one minute</h2>
       <p>
-        After you click Next, Approach waits out any remaining minute before
-        the next reply card. That is our gate, not a published X number.
+        After you click Next, the next card shows at once, but its Open on X
+        waits out any remaining minute. That is our gate, not a published X
+        number.
         Burstiness is in the features. Five replies a minute is the shape
         we do not want. An original or quote during the minute still
-        counts. Bypass if you must. The hold is there to keep you on notice.
+        counts. The hold is there to keep you on notice.
         Hour and day gauges on Instruments are the same family — see Part
         2.
       </p>

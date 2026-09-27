@@ -13,6 +13,7 @@ import { SuggestPane } from "../SuggestPane";
 import { SuggestLocked } from "../VoiceCard";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
+import type { OpenPace } from "./RowOpen";
 
 export function SuggestedRow({
   row,
@@ -34,6 +35,7 @@ export function SuggestedRow({
   onUsage,
   index,
   exiting,
+  openPace = null,
 }: {
   row: ForYouSuggestion;
   open: boolean;
@@ -54,6 +56,7 @@ export function SuggestedRow({
   onUsage: (usage: VoiceState["suggests"]) => void;
   index?: number;
   exiting?: boolean;
+  openPace?: OpenPace | null;
 }) {
   const openUrl = forYouOpenUrl(row);
   const compose = forYouUsesDeskCompose(row);
@@ -86,6 +89,7 @@ export function SuggestedRow({
       }
       onToggle={onToggle}
       openHref={openUrl}
+      openPace={openPace}
       openLabel="Open on X"
       openTip={row.kind === "post" ? FYP_OPEN_TIP : "Open the target on X."}
       onNext={detectsReply ? onNext : undefined}
@@ -115,6 +119,7 @@ export function SuggestedRow({
           usage={voice.suggests}
           onUsage={onUsage}
           onDeskPosted={onPosted}
+          openPace={openPace}
         />
       ) : compose ? (
         <SuggestLocked

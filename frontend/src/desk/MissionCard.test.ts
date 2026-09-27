@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { advanceApproach, type ApproachLock } from "../lib/deskPhase";
-import { bypassApproachPace } from "./useApproachTask";
 import { pickApproachScout } from "./approachScout";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
 import { ForYouFeedRow } from "./ForYouFeedRow";
@@ -50,7 +49,6 @@ function missionProps(
     clock: "",
     remainingMs: 0,
     paceOverlayArmed: false,
-    onBypass() {},
     scout: null,
     scoutDetected: false,
     suggestion: null,
@@ -101,21 +99,27 @@ const detectedActivity = {
 };
 
 await describe("Reply pace", async () => {
-  await it("reveals the destination chosen by each paced Next after expiry or Bypass", () => {
+  await it("shows the destination chosen by each paced Next at once, gating only its open", () => {
     const cases: { from: ApproachLock; scoutId: string | null; suggestionId: string | null;
-      expected: ApproachLock; visible: RegExp; departed: RegExp }[] = [
+      expected: ApproachLock; visible: RegExp; departed: RegExp; gated: boolean;
+      pacedHref?: RegExp }[] = [
       { from: { phase: "scout_reply", cardId: "departed-scout", surface: null },
         scoutId: "incoming-scout", suggestionId: null,
         expected: { phase: "silent_refuel", cardId: null, surface: "for_you" },
-        visible: />For You</, departed: /departed-scout/ },
+        visible: />For You</, departed: /departed-scout/, gated: true },
       { from: { phase: "organic_reply", cardId: "departed-suggestion", surface: null },
         scoutId: null, suggestionId: suggestedReply.id,
         expected: { phase: "organic_reply", cardId: suggestedReply.id, surface: null },
-        visible: /A suggested reply/, departed: /departed-suggestion/ },
+        visible: /A suggested reply/, departed: /departed-suggestion/, gated: false },
+      { from: { phase: "organic_reply", cardId: "departed-suggestion", surface: null },
+        scoutId: null, suggestionId: detectedSuggestedReply.id,
+        expected: { phase: "organic_reply", cardId: detectedSuggestedReply.id, surface: null },
+        visible: /A suggested reply/, departed: /departed-suggestion/, gated: true,
+        pacedHref: /href="https:\/\/x\.com\/target\/status\/123456"/ },
       { from: { phase: "silent_refuel", cardId: null, surface: "for_you" },
         scoutId: "incoming-scout", suggestionId: null,
         expected: { phase: "scout_reply", cardId: "incoming-scout", surface: null },
-        visible: /incoming-scout/, departed: />For You</ },
+        visible: /incoming-scout/, departed: />For You</, gated: true },
     ];
     for (const row of cases) {
       const lock = advanceApproach(row.from, { type: "next" }, {
@@ -125,60 +129,58 @@ await describe("Reply pace", async () => {
       assert.deepEqual(lock, row.expected);
       const props = missionProps({
         ...lock, scout: lock.phase === "scout_reply" ? thread(lock.cardId!, 100) : null,
-        suggestion: lock.phase === "organic_reply" ? suggestedReply : null,
+        suggestion: lock.phase === "organic_reply"
+          ? [suggestedReply, detectedSuggestedReply].find((r) => r.id === lock.cardId) ?? null
+          : null,
         forYou: lock.surface === "for_you" ? { detected: false } : null,
         paceOverlayArmed: true, remainingMs: 42_000, clock: "0:42",
         onForYouNext() {}, onScoutNext() {},
       });
       const running = renderToStaticMarkup(MissionCard(props));
-      assert.match(running, /reply-pace/);
-      assert.doesNotMatch(running, row.visible);
-      for (const bypass of [false, true]) {
-        let advances = 0;
-        if (bypass) bypassApproachPace({
-          overlayArmed: true, bypass() {},
-        }, () => { advances++; });
-        assert.equal(advances, 0);
-        const revealed = renderToStaticMarkup(MissionCard({
-          ...props, paceOverlayArmed: false, remainingMs: 0,
-        }));
-        assert.match(revealed, row.visible);
-        assert.doesNotMatch(revealed, row.departed);
-        assert.doesNotMatch(revealed, /reply-pace/);
-      }
+      assert.match(running, row.visible);
+      assert.doesNotMatch(running, row.departed);
+      assert.doesNotMatch(running, /reply-pace|>Bypass</);
+      assert.equal(/is-paced/.test(running), row.gated);
+      if (row.pacedHref) assert.doesNotMatch(running, row.pacedHref);
+      const over = renderToStaticMarkup(MissionCard({
+        ...props, paceOverlayArmed: false, remainingMs: 0,
+      }));
+      assert.match(over, row.visible);
+      assert.doesNotMatch(over, row.departed);
+      assert.doesNotMatch(over, /is-paced|row-open-ring/);
+      if (row.pacedHref) assert.match(over, row.pacedHref);
     }
   });
-
-  await it("covers the already-selected Scout, then reveals that Scout at zero", () => {
+  await it("shows the already-selected Scout with a gated Open on X, then opens it at zero", () => {
     const props = missionProps({
       phase: "scout_reply", scout: thread("incoming-scout", 100),
       paceOverlayArmed: true, remainingMs: 42_000, clock: "0:42",
       onScoutNext() {},
     });
     const running = renderToStaticMarkup(MissionCard(props));
-    assert.match(running, /reply-pace/);
-    assert.match(running, /0:42/);
-    assert.doesNotMatch(running, /incoming-scout|>Next<|>Skip<|>Dismiss</);
+    assert.match(running, /incoming-scout/);
+    assert.match(running, /<button[^>]*aria-disabled="true"[^>]*class="ghost row-open is-paced/);
+    assert.match(running, /data-tip="Waiting between replies: 0:42 left/);
+    assert.match(running, /row-open-ring/);
+    assert.match(running, />Skip</);
+    assert.match(running, />Not interested</);
+    assert.match(running, />Next</);
+    assert.doesNotMatch(running, /href="https:\/\/x\.com\/incoming-scout/);
     const over = renderToStaticMarkup(MissionCard({ ...props, remainingMs: 0 }));
     assert.match(over, /incoming-scout/);
-    assert.doesNotMatch(over, /reply-pace|>For You</);
+    assert.match(over, /<a[^>]*href="https:\/\/x\.com\/incoming-scout[^"]*"[^>]*class="ghost row-open/);
+    assert.match(over, /row-open-arrow/);
+    assert.doesNotMatch(over, /is-paced|>For You</);
   });
-
-  await it("Bypass clears the overlay without advancing the already-chosen card", () => {
-    let overlayArmed = true;
-    let advances = 0;
-    bypassApproachPace({
-      overlayArmed,
-      bypass() { overlayArmed = false; },
-    }, () => { advances++; });
-    assert.equal(overlayArmed, false);
-    assert.equal(advances, 0);
-    bypassApproachPace({
-      overlayArmed: false, bypass() {},
-    }, () => { advances++; });
-    assert.equal(advances, 1);
+  await it("never gates the open button before Next arms the minute", () => {
+    const html = renderToStaticMarkup(MissionCard(missionProps({
+      phase: "scout_reply", scout: thread("current-scout", 100), scoutDetected: true,
+      paceOverlayArmed: false, remainingMs: 42_000, clock: "0:42",
+      onScoutNext() {},
+    })));
+    assert.match(html, /<a[^>]*class="ghost row-open/);
+    assert.doesNotMatch(html, /is-paced|row-open-ring|0:42/);
   });
-
   await it("keeps a legacy hold visible with Next when a live clock has no overlay", () => {
     for (const detected of [false, true]) {
       const html = renderToStaticMarkup(MissionCard(missionProps({
@@ -340,7 +342,7 @@ await describe("Reply pace", async () => {
 });
 
 await describe("For You overlay presentation", async () => {
-  await it("replaces the selected For You card only when Next armed the overlay", () => {
+  await it("collapses For You into one gated button only when Next armed the minute", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -350,19 +352,18 @@ await describe("For You overlay presentation", async () => {
           forYou: { detected: false },
           clock: "0:42",
           remainingMs: 42_000,
+          onForYouNext() {},
         }),
       ),
     );
-    assert.match(html, /reply-pace/);
-    assert.match(html, /0:42/);
-    assert.match(html, />Bypass</);
-    assert.doesNotMatch(html, /for-you-status/);
-    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
-    assert.doesNotMatch(html, />Open For You</);
-    assert.doesNotMatch(html, />Open Inspiration</);
-    assert.doesNotMatch(html, />Next</);
+    assert.doesNotMatch(html, /reply-pace|>Bypass</);
+    assert.match(html, escapeRe(FYP_DETECTING_COPY));
+    assert.match(html, /<button[^>]*class="ghost row-open is-paced[^"]*"[^>]*><span class="row-open-label">Open For You</);
+    assert.doesNotMatch(html, /Open Inspiration/);
+    assert.doesNotMatch(html, /href="https:\/\/x\.com\/home"/);
+    assert.match(html, /data-tip="Waiting between replies: 0:42 left/);
+    assert.match(html, />Next</);
   });
-
   await it("becomes For You on the same card when the minute is over", () => {
     const html = renderToStaticMarkup(
       MissionCard(
@@ -430,11 +431,11 @@ await describe("Gate cards", async () => {
     );
 
     assert.doesNotMatch(html, />I posted on X</);
-    const openLink = html.match(/<a\b[^>]*href="([^"]*)"[^>]*>Open on X<\/a>/);
+    const openLink = html.match(/<a\b[^>]*href="([^"]*)"[^>]*><span class="row-open-label">Open on X<\/span>/);
     assert.ok(openLink);
     assert.equal(openLink[1], "https://x.com/home");
     assert.ok(!decodeURIComponent(openLink[1]).includes("A desk post."));
-    assert.doesNotMatch(html, /<button[^>]*>Open on X<\/button>/);
+    assert.doesNotMatch(html, /<button[^>]*>(?:<span[^>]*>)?Open on X</);
     assert.match(html, /Opens your real X For You page\./);
   });
 
@@ -732,7 +733,7 @@ await describe("Approach flight frame", async () => {
     assert.doesNotMatch(html, /You&#x27;re clean/);
   });
 
-  await it("covers a detected For You card when Next armed the overlay", () => {
+  await it("shows a detected For You card with Next when Next armed the minute", () => {
     const running = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -746,13 +747,11 @@ await describe("Approach flight frame", async () => {
         }),
       ),
     );
-    assert.match(running, /reply-pace/);
-    assert.match(running, />Bypass</);
-    assert.doesNotMatch(running, escapeRe(FYP_DETECTED_COPY));
-    assert.doesNotMatch(running, /196504221778/);
-    assert.doesNotMatch(running, />Next</);
-    assert.doesNotMatch(running, />Open For You</);
-    assert.doesNotMatch(running, />Open Inspiration</);
+    assert.doesNotMatch(running, /reply-pace|>Bypass</);
+    assert.match(running, escapeRe(FYP_DETECTED_COPY));
+    assert.match(running, /196504221778/);
+    assert.match(running, />Next</);
+    assert.doesNotMatch(running, /Open For You|Open Inspiration|is-paced/);
 
     const html = renderToStaticMarkup(
       MissionCard(
@@ -779,7 +778,6 @@ await describe("Approach flight frame", async () => {
     assert.doesNotMatch(html, /Likes do not count/);
     assert.doesNotMatch(html, /reply-pace/);
   });
-
   await it("paints the same For You presenter for both For You phases", () => {
     const entries = [
       { phase: "silent_refuel", surface: "for_you" },

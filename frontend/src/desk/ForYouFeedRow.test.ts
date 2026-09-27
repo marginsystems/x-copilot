@@ -22,12 +22,12 @@ await describe("ForYouFeedRow outbound doors", async () => {
 
     assert.match(
       html,
-      new RegExp(`href="${X_FOR_YOU_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*>Open For You<`),
+      new RegExp(`href="${X_FOR_YOU_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*><span class="row-open-label">Open For You<`),
     );
     assert.match(
       html,
       new RegExp(
-        `href="${X_INSPIRATION_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*>Open Inspiration<`,
+        `href="${X_INSPIRATION_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*><span class="row-open-label">Open Inspiration<`,
       ),
     );
     assert.match(html, new RegExp(FYP_ACTION_COPY.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

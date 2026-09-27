@@ -4,6 +4,7 @@ import { formatAbsoluteTime, formatTimeAgo } from "../lib/timeAgo";
 import { XThreadView } from "../XThreadView";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
+import type { OpenPace } from "./RowOpen";
 import { ScoutTankMark } from "./ScoutTankMark";
 import { baitClass, baitRisk } from "./threadHelpers";
 import type { ThreadCard } from "./types";
@@ -19,6 +20,7 @@ export function ThreadRow({
   onDismiss,
   onNext,
   onWatch,
+  openPace = null,
   suggest,
   index,
   exiting,
@@ -33,6 +35,7 @@ export function ThreadRow({
   onDismiss: () => void;
   onNext?: () => void;
   onWatch?: () => void;
+  openPace?: OpenPace | null;
   suggest?: ReactNode;
   index?: number;
   exiting?: boolean;
@@ -88,6 +91,7 @@ export function ThreadRow({
       openLabel="Open on X"
       openTip="Open this reply on X."
       onOpen={onWatch}
+      openPace={openPace}
       onNext={onNext}
       nextTip="Continue to the next Approach card."
       nextDisabled={!interacted}

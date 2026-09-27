@@ -278,7 +278,6 @@ export function ThreadsTabs({
             <MissionCard
               {...task.cardInput}
               clock={task.clock}
-              onBypass={task.onBypass}
               onOpenSettings={onOpenSettings}
               actionBusy={actionBusy}
               expandedId={expandedId}

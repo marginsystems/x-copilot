@@ -3,6 +3,7 @@ import { useSession } from "./auth/session";
 import { apiFetch } from "./lib/apiBase";
 import { isRecord } from "./lib/typeGuards";
 import { localEditHint, type SuggestUsage } from "./lib/voice";
+import type { OpenPace } from "./desk/RowOpen";
 
 type PaneStage =
   | "idle"
@@ -13,6 +14,7 @@ type PaneStage =
   | "ready";
 
 export type SuggestPaneProps = {
+  openPace?: OpenPace | null;
   threadId: string;
   author: string;
   text: string;

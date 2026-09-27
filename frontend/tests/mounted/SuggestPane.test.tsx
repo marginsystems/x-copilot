@@ -10,7 +10,7 @@ import { deferred } from "./support/deferred";
 const usage = { used: 0, limit: 10, remaining: 10, canSuggest: true, planKey: "free" };
 const draft = "A useful reference draft about building software.";
 const edited = "I learned this the hard way: small experiments make debugging much easier for my team.";
-function setup(compose = false) {
+function setup(compose = false, openPace: { remainingMs: number; clock: string } | null = null) {
   const requests: { url: string; body: Record<string, unknown>; pending: ReturnType<typeof deferred<Response>> }[] = [];
   vi.stubGlobal("fetch", vi.fn((url: string, init: RequestInit) => {
     const pending = deferred<Response>();
@@ -23,11 +23,15 @@ function setup(compose = false) {
   const onUsage = vi.fn();
   const onDeskPosted = vi.fn();
   const onOpenIntent = vi.fn();
-  const view = render(<StrictMode><SessionContext.Provider value={session}>
-    <SuggestPane threadId="thread" author="author" text="Original text" usage={usage}
-      variant={compose ? "compose" : "reply"} suggestionId={compose ? "suggestion" : undefined}
-      onUsage={onUsage} onDeskPosted={onDeskPosted} onOpenIntent={onOpenIntent} />
-  </SessionContext.Provider></StrictMode>);
+  const tree = (pace: { remainingMs: number; clock: string } | null) => (
+    <StrictMode><SessionContext.Provider value={session}>
+      <SuggestPane threadId="thread" author="author" text="Original text" usage={usage}
+        variant={compose ? "compose" : "reply"} suggestionId={compose ? "suggestion" : undefined}
+        onUsage={onUsage} onDeskPosted={onDeskPosted} onOpenIntent={onOpenIntent} openPace={pace} />
+    </SessionContext.Provider></StrictMode>
+  );
+  const view = render(tree(openPace));
+  const setPace = (pace: { remainingMs: number; clock: string } | null) => view.rerender(tree(pace));
   const user = userEvent.setup();
   const respond = async (index: number, body: unknown, status = 200) => {
     await act(async () => { requests[index].pending.resolve(Response.json(body, { status })); });
@@ -43,7 +47,7 @@ function setup(compose = false) {
   };
   const verify = async () => { await user.click(screen.getByRole("button", { name: "Check my edit" })); };
   const pass = { ok: true, pass: true, canPost: true, intentUrl: "https://x.com/intent/post?text=edited" };
-  return { ...view, session, requests, respond, start, editing, verify, pass, user, onUsage, onDeskPosted, onOpenIntent };
+  return { ...view, session, requests, respond, start, editing, verify, pass, user, onUsage, onDeskPosted, onOpenIntent, setPace };
 }
 
 test("stance selection and close/reopen cannot spend twice while suggest is pending", async () => {
@@ -176,4 +180,23 @@ test("unmount ignores a delayed suggest and its usage callback", async () => {
   h.unmount();
   await h.respond(1, { ok: true, draft, suggests: usage });
   expect(h.onUsage).not.toHaveBeenCalled();
+});
+
+test("a verified reply waits out the reply minute before its Open on X link appears", async () => {
+  const h = setup(false, { remainingMs: 30_000, clock: "0:30" });
+  await h.editing();
+  await h.verify();
+  await h.respond(2, h.pass);
+
+  expect(screen.queryByRole("link", { name: /Open on X/ })).toBeNull();
+  const gated = screen.getByRole("button", { name: "Open on X, waiting between replies, 0:30 left" });
+  expect(gated.getAttribute("aria-disabled")).toBe("true");
+  expect(gated.dataset.tip).toContain("0:30 left");
+  fireEvent.click(gated);
+  expect(h.onOpenIntent).not.toHaveBeenCalled();
+
+  h.setPace(null);
+
+  expect(screen.getByRole("link", { name: "Open on X" }).getAttribute("href")).toBe(h.pass.intentUrl);
+  expect(screen.queryByRole("button", { name: /waiting between replies/ })).toBeNull();
 });

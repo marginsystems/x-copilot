@@ -100,14 +100,6 @@ export type UseApproachTaskOpts = {
   onPollInteracted: () => void | Promise<void>;
 };
 
-export function bypassApproachPace(
-  pace: Pick<ReturnType<typeof useReplyPace>, "bypass" | "overlayArmed">,
-  advance: () => void,
-) {
-  pace.bypass();
-  if (!pace.overlayArmed) advance();
-}
-
 export function useApproachTask(opts: UseApproachTaskOpts) {
   const session = useSession();
   const mountedRef = useRef(false);
@@ -548,11 +540,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     badge,
     clock: pace.clock,
     exitingIds,
-    onBypass() {
-      bypassApproachPace(pace, () => {
-        advanceCard({ type: "bypass" });
-      });
-    },
     onScoutSkip(thread: ThreadCard) {
       exitRow(thread.id, thread.id, async () => {
         const skipped = await onSkip(thread);

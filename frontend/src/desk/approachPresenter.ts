@@ -65,7 +65,7 @@ export type ApproachPresentation = {
     status: string;
     actionCopy: string;
     activity: OwnActivity | null;
-    /** Next armed the running reply minute overlay: Bypass is the exit. */
+    /** Next armed the running reply minute: the open button waits it out. */
     holding: boolean;
     showNext: boolean;
   } | null;
@@ -102,7 +102,7 @@ function forYouPresentation(input: ApproachCardInput, holding: boolean): Approac
       actionCopy: FYP_ACTION_COPY,
       activity,
       holding,
-      showNext: !holding,
+      showNext: true,
     },
     showPace: holding,
     showNext: false,
