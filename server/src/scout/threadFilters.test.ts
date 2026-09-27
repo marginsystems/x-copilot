@@ -406,6 +406,12 @@ They'll expose how bad we already are at judging performance.`,
     assert.equal(isNonPreferredLanguage(thread("es2", spanish, undefined, { lang: "es" }), "es"), false);
     assert.equal(isNonPreferredLanguage(thread("en2", english, undefined, { lang: "en" }), "en"), false);
     assert.equal(isNonPreferredLanguage(thread("en3", english, undefined, { lang: "en-GB" }), "en"), false);
+    assert.equal(isNonPreferredLanguage(thread("es4", spanish, undefined, { lang: "es" }), "en"), true);
+  });
+
+  await it("does not let an X tag alone drop a short Latin-script post", () => {
+    assert.equal(isNonPreferredLanguage(thread("tl1", "ship it 🚀 @sama", undefined, { lang: "tl" }), "en"), false);
+    assert.equal(isNonPreferredLanguage(thread("in1", "gm builders, lfg", undefined, { lang: "in" }), "en"), false);
   });
 
   await it("falls through to franc when X has no real language tag", () => {

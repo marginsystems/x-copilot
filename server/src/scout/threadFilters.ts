@@ -103,6 +103,14 @@ export function xLanguageTag(lang: string | undefined): string | null {
   if (!tag || X_NON_LANGUAGE_TAGS.has(tag) || /^q[a-z]{2}$/.test(tag)) return null;
   return tag;
 }
+
+function mostlyLatinLetters(text: string): boolean {
+  const letters = text.match(/\p{L}/gu)?.length ?? 0;
+  if (letters === 0) return true;
+  const latin = text.match(/\p{Script=Latin}/gu)?.length ?? 0;
+  return latin / letters >= 0.5;
+}
+
 /** Below this, franc is unreliable — keep the card. */
 export const LANGUAGE_MIN_CHARS = 40;
 
@@ -746,9 +754,15 @@ export function isNonPreferredLanguage(
   thread: ThreadCard,
   preferred: PreferredLanguageCode = DEFAULT_PREFERRED_LANGUAGE,
 ): boolean {
-  const tagged = xLanguageTag(thread.lang);
-  if (tagged && tagged !== preferred) return true;
   const sample = languageSampleText(thread);
+  const tagged = xLanguageTag(thread.lang);
+  if (
+    tagged &&
+    tagged !== preferred &&
+    (sample.length >= LANGUAGE_MIN_CHARS || !mostlyLatinLetters(sample))
+  ) {
+    return true;
+  }
   if (sample.length < LANGUAGE_MIN_CHARS) return false;
   try {
     const preferredRankings = francAll(sample, {
