@@ -273,9 +273,13 @@ test("a paced Scout card gates Open on X in place and keeps the card usable", ()
   const click = new MouseEvent("click", { bubbles: true, cancelable: true });
   gated?.dispatchEvent(click);
   expect(click.defaultPrevented).toBe(true);
-  expect(container.textContent).toContain("Skip");
-  expect(container.textContent).toContain("Not interested");
-  expect(container.textContent).toContain("Next");
+  const skipButtons = container.querySelectorAll<HTMLButtonElement>(
+    '[data-action="skip"] button',
+  );
+  expect([...skipButtons].map((button) => [button.textContent, button.disabled])).toEqual([
+    ["Skip", false],
+    ["Not interested", false],
+  ]);
 
   rerender(scoutRow(null));
 
@@ -318,6 +322,9 @@ test("a paced For You card collapses to one gated button and splits back when th
       (unit) => unit.dataset.action,
     );
   expect(units()).toEqual(["open", "next"]);
+  expect(container.querySelector<HTMLButtonElement>('[data-action="next"] button')?.disabled).toBe(
+    false,
+  );
   expect(container.querySelector('[data-action="open"] button.is-paced')?.textContent).toBe(
     "Open For You",
   );
