@@ -61,10 +61,10 @@ afterEach(() => {
   for (const key of Object.keys(lefts)) delete lefts[key];
 });
 
-test("a row with no actions keeps its spacing wrapper", () => {
+test("a card that never had actions renders no action row", () => {
   const { container } = render(<DeskRow lead="Skipped" summary="No actions" />);
 
-  expect(container.querySelector(".thread-row > .row")).not.toBeNull();
+  expect(container.querySelector(".thread-row > .row")).toBeNull();
 });
 
 test("a For You row that turns expandable on detection stays open in the same frame", () => {

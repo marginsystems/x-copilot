@@ -177,13 +177,7 @@ export function DeskRowActions({ actions }: { actions: DeskRowAction[] }) {
     }
   });
 
-  if (
-    empty &&
-    ghosts.length === 0 &&
-    (draining.current || (snapshot.current?.spots.size ?? 0) > 0)
-  ) {
-    return null;
-  }
+  if (empty && ghosts.length === 0) return null;
 
   return (
     <div
