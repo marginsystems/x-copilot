@@ -50,12 +50,18 @@
 }
 
 .thread-row > .row {
+  position: relative;
   gap: 0;
+}
+
+.thread-row > .row.is-draining {
+  overflow: hidden;
 }
 
 .row-action {
   display: flex;
   flex: none;
+  gap: 8px;
   margin-right: 8px;
   white-space: nowrap;
 }
@@ -64,25 +70,10 @@
   margin-right: 0;
 }
 
-.row-action-track {
-  display: flex;
-  flex: none;
-  gap: 8px;
-  transition: transform var(--row-action-exit) var(--ease-out);
-}
-
 .row-action.is-leaving {
-  overflow: hidden;
-  margin-right: 0;
+  position: absolute;
+  margin: 0;
   pointer-events: none;
-}
-
-.row-action.is-leaving[data-edge="start"] .row-action-track {
-  transform: translateX(-100%);
-}
-
-.row-action.is-leaving[data-edge="end"] .row-action-track {
-  transform: translateX(100%);
 }
 
 .thread-row:has(> .row > .row-action.is-leaving) .row-meta .chip-interacted,

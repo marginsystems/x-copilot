@@ -1,7 +1,46 @@
-import { render } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { act, render } from "@testing-library/react";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { DeskRow } from "../../src/desk/DeskRow";
 import { ForYouFeedRow } from "../../src/desk/ForYouFeedRow";
+
+type Played = {
+  target: HTMLElement;
+  keyframes: Keyframe[];
+  animation: { onfinish: (() => void) | null; cancel: () => void };
+};
+
+const played: Played[] = [];
+const lefts: Record<string, number> = {};
+
+beforeEach(() => {
+  played.length = 0;
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
+  Object.defineProperty(Element.prototype, "animate", {
+    configurable: true,
+    value: function (this: HTMLElement, keyframes: Keyframe[]) {
+      const animation = { onfinish: null, cancel: vi.fn() };
+      played.push({ target: this, keyframes, animation });
+      return animation;
+    },
+  });
+  Object.defineProperty(Element.prototype, "getAnimations", {
+    configurable: true,
+    value: () => [],
+  });
+  vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    return lefts[this.dataset.action ?? ""] ?? 0;
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  delete (Element.prototype as { animate?: unknown }).animate;
+  delete (Element.prototype as { getAnimations?: unknown }).getAnimations;
+  for (const key of Object.keys(lefts)) delete lefts[key];
+});
 
 test("a For You row that turns expandable on detection stays open in the same frame", () => {
   const { container, rerender } = render(
@@ -24,14 +63,77 @@ test("a For You row that turns expandable on detection stays open in the same fr
   ).toBe("false");
 });
 
-test("a detected For You row retains departing actions beside its arriving chip", () => {
-  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false })));
+test("detection lifts the open buttons out of flow at their old spot and glides Next from there", () => {
+  lefts.open = 0;
+  lefts.next = 290;
+  const { container, rerender } = render(
+    <ForYouFeedRow status="Detecting" detected={false} onNext={vi.fn()} />,
+  );
+
+  lefts.next = 0;
+  rerender(<ForYouFeedRow detected activity={null} onNext={vi.fn()} />);
+
+  const ghost = container.querySelector<HTMLElement>(".row-action.is-leaving");
+  expect(ghost?.dataset.action).toBe("open");
+  expect(ghost?.style.left).toBe("0px");
+  expect(ghost?.getAttribute("aria-hidden")).toBe("true");
+  expect(ghost?.textContent).toBe("Open For YouOpen Inspiration");
+  expect(container.querySelector(".for-you-detected-summary")).not.toBeNull();
+
+  const inFlow = [...container.querySelectorAll<HTMLElement>(".row-action:not(.is-leaving)")];
+  expect(inFlow.map((unit) => unit.dataset.action)).toEqual(["next"]);
+
+  const glide = played.find((entry) => entry.target.dataset.action === "next");
+  expect(glide?.keyframes[0]).toEqual({ transform: "translate(290px, 0px)" });
+  expect(glide?.keyframes.at(-1)).toEqual({ transform: "translate(0, 0)" });
+  expect(played.some((entry) => /width|margin|grid/.test(JSON.stringify(entry.keyframes)))).toBe(false);
+
+  const fade = played.find((entry) => entry.target === ghost);
+  act(() => fade?.animation.onfinish?.());
+  expect(container.querySelector(".row-action.is-leaving")).toBeNull();
+});
+
+test("a Scout card keeps Open on X and Next still while Skip and Not interested fade", () => {
+  lefts.open = 0;
+  lefts.next = 120;
+  lefts.skip = 200;
+  const props = { lead: "7", summary: "Thread", openHref: "https://x.com/a/status/1", openLabel: "Open on X", onNext: vi.fn() };
+  const { container, rerender } = render(
+    <DeskRow {...props} onSkip={vi.fn()} onDismiss={vi.fn()} />,
+  );
+
+  rerender(<DeskRow {...props} />);
+
+  expect(container.querySelector<HTMLElement>(".row-action.is-leaving")?.dataset.action).toBe("skip");
+  expect(played.some((entry) => /transform/.test(JSON.stringify(entry.keyframes)))).toBe(false);
+});
+
+test("a row that loses every action eases its height shut before it unmounts", () => {
   const { container, rerender } = render(
     <ForYouFeedRow status="Detecting" detected={false} onNext={vi.fn()} />,
   );
 
   rerender(<ForYouFeedRow detected activity={null} />);
 
-  expect(container.querySelector(".for-you-detected-summary")).not.toBeNull();
-  expect(container.querySelector(".row-action.is-leaving")).not.toBeNull();
+  const row = container.querySelector<HTMLElement>(".thread-row > .row");
+  expect(row?.classList.contains("is-draining")).toBe(true);
+  const drain = played.find((entry) => entry.target === row);
+  expect(drain?.keyframes.at(-1)).toEqual({ height: "0px", paddingBottom: "0px" });
+
+  act(() => {
+    for (const entry of played) entry.animation.onfinish?.();
+  });
+  expect(container.querySelector(".thread-row > .row")).toBeNull();
+});
+
+test("reduced motion drops departing actions at once", () => {
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+  const { container, rerender } = render(
+    <ForYouFeedRow status="Detecting" detected={false} onNext={vi.fn()} />,
+  );
+
+  rerender(<ForYouFeedRow detected activity={null} onNext={vi.fn()} />);
+
+  expect(container.querySelector(".row-action.is-leaving")).toBeNull();
+  expect(played).toHaveLength(0);
 });
