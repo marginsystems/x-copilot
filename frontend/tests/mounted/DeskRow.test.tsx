@@ -6,7 +6,7 @@ import { ForYouFeedRow } from "../../src/desk/ForYouFeedRow";
 type Played = {
   target: HTMLElement;
   keyframes: Keyframe[];
-  animation: { onfinish: (() => void) | null; cancel: () => void };
+  animation: { onfinish: (() => void) | null; cancel: ReturnType<typeof vi.fn> };
 };
 
 const played: Played[] = [];
@@ -27,7 +27,11 @@ beforeEach(() => {
   });
   Object.defineProperty(Element.prototype, "getAnimations", {
     configurable: true,
-    value: () => [],
+    value: function (this: HTMLElement) {
+      return played
+        .filter((entry) => entry.target === this)
+        .map((entry) => entry.animation);
+    },
   });
   vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(function (
     this: HTMLElement,
@@ -35,7 +39,17 @@ beforeEach(() => {
     return lefts[this.dataset.action ?? ""] ?? 0;
   });
   vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(
-    () => rowHeight,
+    function (this: HTMLElement) {
+      const draining = played.find(
+        (entry) =>
+          entry.target === this &&
+          entry.keyframes.some(
+            (frame) => "height" in frame && frame.height === "0px",
+          ) &&
+          entry.animation.cancel.mock.calls.length === 0,
+      );
+      return draining ? 0 : rowHeight;
+    },
   );
 });
 
@@ -45,6 +59,12 @@ afterEach(() => {
   delete (Element.prototype as { animate?: unknown }).animate;
   delete (Element.prototype as { getAnimations?: unknown }).getAnimations;
   for (const key of Object.keys(lefts)) delete lefts[key];
+});
+
+test("a row with no actions keeps its spacing wrapper", () => {
+  const { container } = render(<DeskRow lead="Skipped" summary="No actions" />);
+
+  expect(container.querySelector(".thread-row > .row")).not.toBeNull();
 });
 
 test("a For You row that turns expandable on detection stays open in the same frame", () => {
@@ -75,6 +95,7 @@ test("detection lifts the open buttons out of flow at their old spot and glides 
     <ForYouFeedRow status="Detecting" detected={false} onNext={vi.fn()} />,
   );
 
+  lefts.open = 0;
   lefts.next = 0;
   rerender(<ForYouFeedRow detected activity={null} onNext={vi.fn()} />);
 
@@ -158,6 +179,37 @@ test("a row that loses every action eases its height shut before it unmounts", (
     for (const entry of played) entry.animation.onfinish?.();
   });
   expect(container.querySelector(".thread-row > .row")).toBeNull();
+});
+
+test("a row revived during its drain cancels the collapse and measures its restored height", () => {
+  rowHeight = 96;
+  const { container, rerender } = render(
+    <DeskRow lead="Approach" onNext={vi.fn()} />,
+  );
+  const row = container.querySelector<HTMLElement>(".thread-row > .row");
+  expect(row).not.toBeNull();
+
+  rerender(<DeskRow lead="Approach" />);
+  const drain = played.find(
+    (entry) => entry.target === row && entry.keyframes.at(-1)?.height === "0px",
+  );
+  expect(drain).toBeDefined();
+
+  rowHeight = 64;
+  rerender(<DeskRow lead="Approach" onNext={vi.fn()} />);
+
+  expect(drain?.animation.cancel).toHaveBeenCalled();
+  expect(row?.classList.contains("is-draining")).toBe(false);
+  expect(row?.querySelector("[data-action='next']")).not.toBeNull();
+  expect(row?.offsetHeight).toBe(64);
+
+  rowHeight = 72;
+  rerender(<DeskRow lead="Approach" onNext={vi.fn()} />);
+  const rowAnimations = played.filter((entry) => entry.target === row);
+  expect(rowAnimations.at(-1)?.keyframes).toEqual([
+    { height: "64px" },
+    { height: "72px" },
+  ]);
 });
 
 test("reduced motion drops departing actions at once", () => {
