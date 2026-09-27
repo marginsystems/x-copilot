@@ -87,22 +87,20 @@ export function DeskRowActions({ actions }: { actions: DeskRowAction[] }) {
 
   if (seenKey !== shownKey) {
     setSeenKey(shownKey);
+    const stay = new Set(shown.map((action) => action.key));
+    const leaving: Departing[] = [];
     const prev = snapshot.current;
     if (prev && canAnimate()) {
-      const stay = new Set(shown.map((action) => action.key));
-      const leaving: Departing[] = [];
       for (const [key, spot] of prev.spots) {
         if (stay.has(key)) continue;
         if (departing.some((item) => item.key === key)) continue;
         leaving.push({ key, spot, node: prev.nodes.get(key) });
       }
-      if (leaving.length > 0) {
-        setDeparting((current) => [
-          ...current.filter((item) => !stay.has(item.key)),
-          ...leaving,
-        ]);
-      }
     }
+    setDeparting((current) => [
+      ...current.filter((item) => !stay.has(item.key)),
+      ...leaving,
+    ]);
   }
 
   const ghosts = departing.filter(
