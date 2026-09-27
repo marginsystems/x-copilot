@@ -690,3 +690,14 @@ await describe("parseV2SearchPayload boundary validation", async () => {
     assert.deepEqual(parseV2SearchPayload({ meta: {} }), { threads: [], nextToken: null });
   });
 });
+
+await describe("v2TweetToCard language tag", async () => {
+  const usersById = new Map([["u1", { id: "u1", username: "tvytlx", name: "Xiao Tan" }]]);
+
+  await it("carries X's lang onto the card only when present", () => {
+    const tagged = v2TweetToCard({ id: "1", text: "漏洞不会报错。", author_id: "u1", lang: "zh" }, usersById);
+    const untagged = v2TweetToCard({ id: "2", text: "No tag here.", author_id: "u1" }, usersById);
+    assert.equal(tagged?.lang, "zh");
+    assert.equal(untagged && "lang" in untagged, false);
+  });
+});

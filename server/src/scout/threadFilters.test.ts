@@ -18,6 +18,7 @@ import {
   filterSelfReplies,
   filterThreadsByLength,
   isNonPreferredLanguage,
+  xLanguageTag,
   languageSampleText,
   isOversizedThread,
   isSelfReply,
@@ -377,6 +378,60 @@ They'll expose how bad we already are at judging performance.`,
       threads: [],
       languageFilteredCount: 1,
     });
+  });
+
+  await it("drops non-Latin-script posts that the Latin-only ranking calls und", () => {
+    const chinese = thread(
+      "zh1",
+      "有篇论文专门测了一件事：AI 写出来、能跑通的代码，到底安不安全。论文标题很直接：《Is Vibe Coding Safe?》他们拿了 12 个很强的 AI 编程 agent。",
+    );
+    const japanese = thread(
+      "ja1",
+      "AIが書いたコードは本当に安全なのか、という論文が出ました。とても興味深い内容です。",
+    );
+    const russian = thread(
+      "ru1",
+      "Это очень интересная статья о безопасности кода, написанного искусственным интеллектом.",
+    );
+    for (const card of [chinese, japanese, russian]) {
+      assert.equal(isNonPreferredLanguage(card, "en"), true, card.id);
+    }
+    const result = filterByLanguage([chinese, japanese, russian, thread("en1", english)], "en");
+    assert.deepEqual(result.threads.map((t) => t.id), ["en1"]);
+    assert.equal(result.languageFilteredCount, 3);
+  });
+
+  await it("drops a card X tags with another language, even when it is short", () => {
+    assert.equal(isNonPreferredLanguage(thread("zh2", "漏洞不会报错。", undefined, { lang: "zh" }), "en"), true);
+    assert.equal(isNonPreferredLanguage(thread("es2", spanish, undefined, { lang: "es" }), "es"), false);
+    assert.equal(isNonPreferredLanguage(thread("en2", english, undefined, { lang: "en" }), "en"), false);
+    assert.equal(isNonPreferredLanguage(thread("en3", english, undefined, { lang: "en-GB" }), "en"), false);
+    assert.equal(isNonPreferredLanguage(thread("es4", spanish, undefined, { lang: "es" }), "en"), true);
+    assert.equal(isNonPreferredLanguage(thread("en5", english, undefined, { lang: "es" }), "en"), true);
+  });
+
+  await it("does not let an X tag alone drop a short Latin-script post", () => {
+    assert.equal(isNonPreferredLanguage(thread("tl1", "ship it 🚀 @sama", undefined, { lang: "tl" }), "en"), false);
+    assert.equal(isNonPreferredLanguage(thread("in1", "gm builders, lfg", undefined, { lang: "in" }), "en"), false);
+  });
+
+  await it("keeps short Latin-script posts with enough emoji to exceed 40 UTF-16 units", () => {
+    const emojiHeavy = thread("emoji1", `ship it ${"🚀".repeat(18)}`, undefined, { lang: "es" });
+    assert.ok(emojiHeavy.text.length >= LANGUAGE_MIN_CHARS);
+    assert.ok([...emojiHeavy.text].length < LANGUAGE_MIN_CHARS);
+    assert.deepEqual(filterByLanguage([emojiHeavy], "en"), {
+      threads: [emojiHeavy],
+      languageFilteredCount: 0,
+    });
+  });
+
+  await it("falls through to franc when X has no real language tag", () => {
+    for (const lang of ["und", "zxx", "art", "qme", "qht", "qam", ""]) {
+      assert.equal(xLanguageTag(lang), null, lang);
+      assert.equal(isNonPreferredLanguage(thread("en4", english, undefined, { lang }), "en"), false, lang);
+    }
+    assert.equal(isNonPreferredLanguage(thread("es3", spanish, undefined, { lang: "und" }), "en"), true);
+    assert.equal(xLanguageTag(" ZH-cn "), "zh");
   });
 
   await it("keeps short ambiguous text", () => {

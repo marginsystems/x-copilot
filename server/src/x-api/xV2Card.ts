@@ -25,6 +25,7 @@ export type V2Tweet = {
   text?: string;
   author_id?: string;
   created_at?: string;
+  lang?: string;
   conversation_id?: string;
   in_reply_to_user_id?: string;
   referenced_tweets?: Array<{ type?: string; id?: string }>;
@@ -221,6 +222,8 @@ export function v2TweetToCard(
     url: `https://x.com/${handle.replace(/^@/, "")}/status/${id}`,
     createdAt: tweet.created_at,
   };
+  const lang = tweet.lang?.trim();
+  if (lang) card.lang = lang;
   const views = tweet.public_metrics?.impression_count;
   if (typeof views === "number" && Number.isFinite(views) && views >= 0) {
     card.views = views;

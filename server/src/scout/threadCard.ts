@@ -12,6 +12,7 @@ export type ThreadCard = {
   url: string;
   surface?: "reply" | "repost";
   createdAt?: string;
+  lang?: string;
   /**
    * Set when search/lookup exposed longform / Article payload.
    * Articles are hard-dropped before triage; note_tweet body feeds the char cap.
