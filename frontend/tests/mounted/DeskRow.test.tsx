@@ -204,6 +204,12 @@ test("a row revived during its drain cancels the collapse and measures its resto
   rowHeight = 64;
   rerender(<DeskRow lead="Approach" onNext={vi.fn()} />);
 
+  const arrival = played.find(
+    (entry) =>
+      entry.target.dataset.action === "next" &&
+      entry.keyframes[0]?.opacity === 0,
+  );
+  expect(arrival?.keyframes).toEqual([{ opacity: 0 }, { opacity: 1 }]);
   expect(drain?.animation.cancel).toHaveBeenCalled();
   expect(row?.classList.contains("is-draining")).toBe(false);
   expect(row?.querySelector("[data-action='next']")).not.toBeNull();
