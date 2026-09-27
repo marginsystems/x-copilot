@@ -96,6 +96,13 @@ const LANG1_TO_3: Record<PreferredLanguageCode, string> = {
 const FRANC_ONLY = Object.values(LANG1_TO_3);
 const MIXED_LANGUAGE_CODES = new Set(["ind", "zlm", "jav", "tgl", "sun", "mad"]);
 const MIXED_LANGUAGE_MIN_SCORE = 0.97;
+const X_NON_LANGUAGE_TAGS = new Set(["und", "zxx", "art"]);
+
+export function xLanguageTag(lang: string | undefined): string | null {
+  const tag = lang?.trim().toLowerCase().split("-")[0];
+  if (!tag || X_NON_LANGUAGE_TAGS.has(tag) || /^q[a-z]{2}$/.test(tag)) return null;
+  return tag;
+}
 /** Below this, franc is unreliable — keep the card. */
 export const LANGUAGE_MIN_CHARS = 40;
 
@@ -739,6 +746,8 @@ export function isNonPreferredLanguage(
   thread: ThreadCard,
   preferred: PreferredLanguageCode = DEFAULT_PREFERRED_LANGUAGE,
 ): boolean {
+  const tagged = xLanguageTag(thread.lang);
+  if (tagged && tagged !== preferred) return true;
   const sample = languageSampleText(thread);
   if (sample.length < LANGUAGE_MIN_CHARS) return false;
   try {
@@ -747,7 +756,10 @@ export function isNonPreferredLanguage(
       minLength: LANGUAGE_MIN_CHARS,
     });
     const detected = preferredRankings[0]?.[0];
-    if (!detected || detected === "und") return false;
+    if (!detected || detected === "und") {
+      const unrestricted = francAll(sample, { minLength: LANGUAGE_MIN_CHARS })[0]?.[0];
+      return Boolean(unrestricted && unrestricted !== "und" && unrestricted !== LANG1_TO_3[preferred]);
+    }
     if (detected !== LANG1_TO_3[preferred]) return true;
     return francAll(sample, { minLength: LANGUAGE_MIN_CHARS }).some(
       ([language, score]) =>
