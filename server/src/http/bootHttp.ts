@@ -1,6 +1,5 @@
 /**
  * GET /api/boot — one first-paint payload for the desk.
- * Store reads only: no X lookup and no DeepSeek. Live chart metrics load after paint.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { bucketInteractionsStored } from "../desk/activityLive.js";
