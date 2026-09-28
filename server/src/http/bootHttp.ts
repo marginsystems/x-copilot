@@ -1,9 +1,9 @@
 /**
  * GET /api/boot — one first-paint payload for the desk.
- * Store reads in parallel, then one batched live X metrics lookup. No DeepSeek.
+ * Store reads only: no X lookup and no DeepSeek. Live chart metrics load after paint.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { bucketInteractionsWithLive } from "../desk/activityLive.js";
+import { bucketInteractionsStored } from "../desk/activityLive.js";
 import { isAdminEmail } from "../billing/adminEmails.js";
 import { toPublicUser } from "../auth/authStore.js";
 import { authRequired } from "../auth/authGuard.js";
@@ -54,7 +54,6 @@ const NO_STORE = { "Cache-Control": "private, no-store" };
 export type BootHttpDeps = {
   /** Injectable owned-profile read (tests). Production uses the store. */
   loadScoutProfile?: ScoutFamiliarityLoader;
-  liveMetricsWaitMs?: number;
 };
 
 function publicUser(user: NonNullable<ReturnType<typeof getSessionUser>>) {
@@ -133,22 +132,11 @@ export async function tryHandleBoot(
     const interactions = user
       ? await attachInteractionMemoryReceipts(historySlice, { userId: user.id })
       : historySlice;
-    const disconnect = new AbortController();
-    const onClose = () => {
-      if (!res.writableEnded) disconnect.abort();
-    };
-    req.on("close", onClose);
-    let activityStats: Awaited<ReturnType<typeof bucketInteractionsWithLive>>;
-    try {
-      activityStats = await bucketInteractionsWithLive(
-        interactionHistory,
-        "day",
-        user?.id,
-        { signal: disconnect.signal, waitMs: deps.liveMetricsWaitMs },
-      );
-    } finally {
-      req.off("close", onClose);
-    }
+    const activityStats = bucketInteractionsStored(
+      interactionHistory,
+      "day",
+      user?.id,
+    );
 
     let forYou: {
       ok: true;
