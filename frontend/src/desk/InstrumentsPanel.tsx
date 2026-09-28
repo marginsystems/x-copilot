@@ -14,11 +14,11 @@ import {
 } from "../lib/deskInstruments";
 import type { GamificationStats } from "../lib/gamification";
 import { readReplyPaceUntil } from "./replyPaceStore";
-import type { InteractionHistoryEntry } from "./types";
+import type { RetainedInteractionEntry } from "./types";
 
 type InstrumentsPanelProps = {
   expanded: boolean;
-  interactedHistory: InteractionHistoryEntry[];
+  interactedHistory: RetainedInteractionEntry[];
   gamification: GamificationStats;
   coaching?: CoachingState | null;
   usableScoutCount: number;

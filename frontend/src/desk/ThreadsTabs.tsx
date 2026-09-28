@@ -18,6 +18,7 @@ import type {
   DismissalHistoryEntry,
   ExpiredHistoryEntry,
   InteractionHistoryEntry,
+  RetainedInteractionEntry,
   SkipHistoryEntry,
   ThreadCard,
   ThreadsTab,
@@ -30,7 +31,7 @@ type ThreadsTabsProps = {
   forYouSuggestions: ForYouSuggestion[];
   coaching?: CoachingState | null;
   interactedHistory: InteractionHistoryEntry[];
-  interactedRetainedHistory: InteractionHistoryEntry[];
+  interactedRetainedHistory: RetainedInteractionEntry[];
   interactedTotal: number;
   interactedPage: number;
   onInteractedPageChange: (page: number) => Promise<void>;

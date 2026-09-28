@@ -1,4 +1,4 @@
-/* 09-billing.css: .billing-* / .credit-meter* / .plan-* */
+/* 09-billing.css: .billing-* / .credit-meter* / .plan-* / .x-credits-toast* */
 
 .billing-block {
   display: grid;
@@ -109,3 +109,52 @@
   margin-top: 6px;
 }
 
+
+.x-credits-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 36;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(26rem, calc(100% - 32px));
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--danger) 10%, transparent),
+      transparent 55%
+    ),
+    var(--raised);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.x-credits-toast-copy {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: min(100%, 30ch);
+}
+
+.x-credits-toast-title {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
+.x-credits-toast-body {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}

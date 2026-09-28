@@ -3,9 +3,11 @@
 import type { AuthSessionUser } from "../auth/types";
 import {
   parseInteractionHistoryEntry,
+  parseRetainedInteractionEntry,
   type DismissalHistoryEntry,
   type ExpiredHistoryEntry,
   type InteractionHistoryEntry,
+  type RetainedInteractionEntry,
   type SkipHistoryEntry,
   type ThreadCard,
 } from "../desk/types";
@@ -65,7 +67,7 @@ export type LastScoutPayload = {
 export type DeskBootDesk = {
   interacted: {
     interactions: InteractionHistoryEntry[];
-    retainedInteractions: InteractionHistoryEntry[];
+    retainedInteractions: RetainedInteractionEntry[];
     activeIds: string[];
     blockedIds: string[];
     total: number;
@@ -252,8 +254,8 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
     ? interacted.retainedInteractions
     : interactions
   )
-    .map(parseInteractionHistoryEntry)
-    .filter((row): row is InteractionHistoryEntry => Boolean(row));
+    .map(parseRetainedInteractionEntry)
+    .filter((row): row is RetainedInteractionEntry => Boolean(row));
   const dismissals = (Array.isArray(dismissed.dismissals)
     ? dismissed.dismissals
     : []
