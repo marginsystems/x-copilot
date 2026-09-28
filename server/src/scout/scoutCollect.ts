@@ -437,7 +437,7 @@ export async function runScoutCollect(opts: {
             queryIndex = 0; // cycle existing queries
             if (
               !queryCursors.hasAvailable(
-                queries.map((query) => withScoutSearchExclusions(query)),
+                queries.map((query) => withScoutSearchExclusions(query, opts.filters)),
               )
             ) {
               break;
@@ -451,7 +451,7 @@ export async function runScoutCollect(opts: {
 
         const query = queries[queryIndex];
         queryIndex += 1;
-        const searchQuery = withScoutSearchExclusions(query);
+        const searchQuery = withScoutSearchExclusions(query, opts.filters);
         const resume = queryCursors.resume(searchQuery);
         if (!resume) continue;
 
