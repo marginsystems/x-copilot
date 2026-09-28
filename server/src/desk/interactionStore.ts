@@ -91,11 +91,15 @@ export const MAX_INTERACTION_HISTORY = 200;
 export const MAX_INTERACTION_STORE = 2000;
 export const INTERACTION_PAGE_SIZE = 10;
 
-export function paginateInteractions(history: Interaction[], rawPage: unknown) {
+export function parseInteractionPage(rawPage: unknown): number {
   const parsed = typeof rawPage === "string" && /^[1-9]\d*$/.test(rawPage)
     ? Number(rawPage)
     : 1;
-  const page = Number.isSafeInteger(parsed) ? parsed : 1;
+  return Number.isSafeInteger(parsed) ? parsed : 1;
+}
+
+export function paginateInteractions(history: Interaction[], rawPage: unknown) {
+  const page = parseInteractionPage(rawPage);
   const blockedIds = new Set<string>();
   for (const row of history) {
     for (const value of [row.threadId, row.conversationId, row.inReplyToId]) {
@@ -242,6 +246,95 @@ export function writeInteractionRow(
   interaction: Interaction,
   tenantId: string,
 ): void {
+  const db = getPlatformDb();
+  db.transaction(() => {
+    upsertInteractionRow(interaction, tenantId);
+    bumpInteractionVersion(interaction.userId);
+  })();
+}
+
+const BUMP_VERSION_SQL = `INSERT INTO desk_interaction_versions (user_id, version)
+  VALUES (?, 1)
+  ON CONFLICT (user_id) DO UPDATE SET
+    version = desk_interaction_versions.version + 1`;
+
+function bumpInteractionVersion(userId: string): void {
+  getPlatformDb().prepare(BUMP_VERSION_SQL).run(userId);
+}
+
+export function readInteractionVersion(userId: string): number {
+  const row: unknown = getPlatformDb()
+    .prepare(`SELECT version FROM desk_interaction_versions WHERE user_id = ?`)
+    .get(requireUserId(userId));
+  if (row === undefined) return 0;
+  if (!isRecord(row) || typeof row.version !== "number") {
+    throw new TypeError("Invalid database row");
+  }
+  return row.version;
+}
+
+export function listInteractionAts(userId: string): string[] {
+  const rows: unknown = getPlatformDb()
+    .prepare(
+      `SELECT at FROM desk_interactions
+        WHERE user_id = ?
+        ORDER BY at DESC, thread_id DESC
+        LIMIT ?`,
+    )
+    .all(requireUserId(userId), MAX_INTERACTION_STORE);
+  if (!Array.isArray(rows)) throw new TypeError("Invalid database row");
+  return rows.map((row: unknown) => {
+    if (!isRecord(row) || typeof row.at !== "string") {
+      throw new TypeError("Invalid database row");
+    }
+    return row.at;
+  });
+}
+
+export type InteractionPageKey = {
+  threadId: string;
+  at: string;
+  postedAt?: string;
+  replyId?: string;
+};
+
+export function listInteractionPageKeys(
+  userId: string,
+  page: number,
+): InteractionPageKey[] {
+  const offset = (page - 1) * INTERACTION_PAGE_SIZE;
+  if (!(offset >= 0) || offset >= MAX_INTERACTION_STORE) return [];
+  const limit = Math.min(INTERACTION_PAGE_SIZE, MAX_INTERACTION_STORE - offset);
+  const rows: unknown = getPlatformDb()
+    .prepare(
+      `SELECT thread_id, at, posted_at, reply_id FROM desk_interactions
+        WHERE user_id = ?
+        ORDER BY at DESC, thread_id DESC
+        LIMIT ? OFFSET ?`,
+    )
+    .all(requireUserId(userId), limit, offset);
+  if (!Array.isArray(rows)) throw new TypeError("Invalid database row");
+  return rows.map((row: unknown) => {
+    if (
+      !isRecord(row) ||
+      typeof row.thread_id !== "string" ||
+      typeof row.at !== "string" ||
+      (row.posted_at !== null && typeof row.posted_at !== "string") ||
+      (row.reply_id !== null && typeof row.reply_id !== "string")
+    ) {
+      throw new TypeError("Invalid database row");
+    }
+    const key: InteractionPageKey = { threadId: row.thread_id, at: row.at };
+    if (row.posted_at) key.postedAt = row.posted_at;
+    if (row.reply_id) key.replyId = row.reply_id;
+    return key;
+  });
+}
+
+function upsertInteractionRow(
+  interaction: Interaction,
+  tenantId: string,
+): void {
   getPlatformDb()
     .prepare(UPSERT_SQL)
     .run({
@@ -291,7 +384,7 @@ export function readInteractionRow(
 
 /** Drop rows past the durable retain for one user (newest first survive). */
 function trimUserRows(userId: string, max: number = MAX_INTERACTION_STORE): void {
-  getPlatformDb()
+  const trimmed = getPlatformDb()
     .prepare(
       `DELETE FROM desk_interactions
         WHERE user_id = ? AND thread_id IN (
@@ -302,6 +395,7 @@ function trimUserRows(userId: string, max: number = MAX_INTERACTION_STORE): void
         )`,
     )
     .run(userId, userId, max);
+  if (trimmed.changes > 0) bumpInteractionVersion(userId);
 }
 
 /** Upsert by user and threadId; keep durable history (cap); persist. */

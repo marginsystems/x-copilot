@@ -2,7 +2,6 @@ import { objectValue } from "../platform/unknownValue.js";
 /**
  * Interacted list, stats, mark-detect, and mark.
  */
-import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { bucketInteractionsWithLive } from "./activityLive.js";
 import { parseActivityBucket } from "./activityStats.js";
@@ -23,8 +22,10 @@ import {
   listInteractionHistory,
   markInteracted,
   paginateInteractions,
+  parseInteractionPage,
   MAX_INTERACTION_STORE,
 } from "./interactionStore.js";
+import { interactedEtag } from "./interactedVersion.js";
 import { toRetainedInteractions } from "./retainedInteraction.js";
 import { setGamificationSyncFailed } from "./interactionSync.js";
 import {
@@ -93,6 +94,24 @@ export async function tryHandleInteracted(
 
   if (req.method === "GET" && url.pathname === "/api/interacted") {
     const sessionUser = getSessionUser(req);
+    const includeRetained = url.searchParams.get("includeRetained") === "1";
+    const nowMs = Date.now();
+    const etag = await interactedEtag({
+      userId: sessionUser?.id,
+      page: parseInteractionPage(url.searchParams.get("page")),
+      includeRetained,
+      nowMs,
+    });
+    const headers = {
+      ...corsHeaders(req),
+      ETag: etag,
+      "Cache-Control": "private, no-cache",
+    };
+    if (etagMatches(req.headers["if-none-match"], etag)) {
+      res.writeHead(304, headers);
+      res.end();
+      return true;
+    }
     const history = sessionUser
       ? await listInteractionHistory({ userId: sessionUser.id, limit: MAX_INTERACTION_STORE })
       : [];
@@ -105,20 +124,9 @@ export async function tryHandleInteracted(
     const json = JSON.stringify({
       ...result,
       interactions,
-      ...(url.searchParams.get("includeRetained") === "1" ? { retainedInteractions: toRetainedInteractions(history) } : {}),
-      activeIds: pruneExpired(history).map((i) => i.threadId),
+      ...(includeRetained ? { retainedInteractions: toRetainedInteractions(history) } : {}),
+      activeIds: pruneExpired(history, nowMs).map((i) => i.threadId),
     });
-    const etag = `"${createHash("sha1").update(sessionUser?.id ?? "").update("\0").update(json).digest("base64url")}"`;
-    const headers = {
-      ...corsHeaders(req),
-      ETag: etag,
-      "Cache-Control": "private, no-cache",
-    };
-    if (etagMatches(req.headers["if-none-match"], etag)) {
-      res.writeHead(304, headers);
-      res.end();
-      return true;
-    }
     res.writeHead(200, { "Content-Type": "application/json", ...headers });
     res.end(json);
     return true;

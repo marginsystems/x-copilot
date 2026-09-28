@@ -9,7 +9,7 @@ import { UserMenu } from "./UserMenu";
 import { BootScreen, Landing } from "./Landing";
 import { SignInModal } from "./SignInModal";
 import { CookieConsent } from "./CookieConsent";
-import { isPublicView } from "./lib/appView";
+import { isPublicView, viewFromPath } from "./lib/appView";
 import { Onboarding } from "./Onboarding";
 import { LinkXGate } from "./LinkXGate";
 import { deskNeedsXLink, showDeskXGate } from "./lib/deskGate";
@@ -56,6 +56,10 @@ const AdminPanel = lazyRoute(() => import("./AdminPanel").then((m) => ({ default
 const Analytics = lazyRoute(() => import("./Analytics").then((m) => ({ default: m.Analytics })));
 const Account = lazyRoute(() => import("./Account").then((m) => ({ default: m.Account })));
 const DeskView = lazyRoute(() => import("./desk/DeskView"));
+
+if (typeof window !== "undefined" && viewFromPath(window.location.pathname) === "dashboard") {
+  DeskView.preload();
+}
 
 export default function App() {
   return (
