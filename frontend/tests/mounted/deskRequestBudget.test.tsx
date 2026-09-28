@@ -20,6 +20,10 @@ const bootCoaching = {
   postsToday: 1, originalsToday: 0, replyAt: [], originalAt: [], postAt: [],
 };
 const nextAction = { kind: "reply", text: "Reply to one useful thread.", updatedAt: "2026-09-28T01:00:00.000Z" };
+const ownActivity = {
+  id: "1900", url: "https://x.com/i/status/1900", text: "Latest post",
+  kind: "reply", postedAt: "2026-09-28T01:30:00.000Z",
+};
 const user = { id: "owner", onboardingCompleted: true };
 
 function coachingUrls(fetcher: ReturnType<typeof vi.fn>): string[] {
@@ -53,7 +57,7 @@ function mountDesk() {
 test("a successful boot fetches only the next action, not the full coaching payload", async () => {
   const fetcher = vi.fn(async (url: string) => {
     if (url.includes("/api/boot?")) return Response.json({ ok: true, user, desk: { coaching: bootCoaching } });
-    if (url.includes("/api/coaching")) return Response.json({ ok: true, dayUtc: "2026-09-28", nextAction });
+    if (url.includes("/api/coaching")) return Response.json({ ok: true, dayUtc: "2026-09-28", nextAction, ownActivity });
     return Response.json({ ok: true });
   });
   vi.stubGlobal("fetch", fetcher);
@@ -61,8 +65,29 @@ test("a successful boot fetches only the next action, not the full coaching payl
   await act(async () => {});
   expect(coachingUrls(fetcher)).toEqual(["/api/coaching?nextAction=1"]);
   expect(h.result.current?.nextAction).toEqual(nextAction);
+  expect(h.result.current?.ownActivity).toEqual(ownActivity);
   expect(h.result.current?.missions).toEqual([mission]);
   expect(h.result.current?.postsToday).toBe(1);
+});
+
+test("a next action from a new UTC day triggers one full coaching refresh instead of mixing days", async () => {
+  const nextDayMission = { ...mission, progress: 0 };
+  const fetcher = vi.fn(async (url: string) => {
+    if (url.includes("/api/boot?")) return Response.json({ ok: true, user, desk: { coaching: bootCoaching } });
+    if (url.includes("/api/coaching?nextAction=1")) return Response.json({ ok: true, dayUtc: "2026-09-29", nextAction });
+    if (url.includes("/api/coaching")) {
+      return Response.json({ ...bootCoaching, ok: true, dayUtc: "2026-09-29", missions: [nextDayMission], postsToday: 0, nextAction });
+    }
+    return Response.json({ ok: true });
+  });
+  vi.stubGlobal("fetch", fetcher);
+  const h = mountDesk();
+  await act(async () => {});
+  expect(coachingUrls(fetcher)).toEqual(["/api/coaching?nextAction=1", "/api/coaching"]);
+  expect(h.result.current?.dayUtc).toBe("2026-09-29");
+  expect(h.result.current?.missions).toEqual([nextDayMission]);
+  expect(h.result.current?.postsToday).toBe(0);
+  expect(h.result.current?.nextAction).toEqual(nextAction);
 });
 
 test("fallback boot still hydrates the full coaching payload once", async () => {

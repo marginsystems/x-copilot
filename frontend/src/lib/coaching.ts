@@ -207,7 +207,15 @@ export function mergeNextAction(
   current: CoachingState | null,
   next: CoachingState,
 ): CoachingState | null {
-  return current && { ...current, nextAction: next.nextAction };
+  if (!current || !nextActionDayMatches(current, next)) return current;
+  return { ...current, nextAction: next.nextAction, ownActivity: next.ownActivity };
+}
+
+export function nextActionDayMatches(
+  current: CoachingState | null,
+  next: CoachingState,
+): boolean {
+  return !current || current.dayUtc === next.dayUtc;
 }
 
 export async function fetchCoaching(

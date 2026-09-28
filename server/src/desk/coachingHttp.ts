@@ -83,6 +83,7 @@ export async function tryHandleCoaching(
           text: nextAction.text,
           updatedAt: nextAction.updatedAt,
         },
+        ownActivity: loadNewestOwnActivity(user.id),
       });
       return true;
     }
