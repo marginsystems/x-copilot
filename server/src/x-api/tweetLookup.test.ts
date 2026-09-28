@@ -10,6 +10,11 @@ import {
   parseTweetsMetricsMap,
 } from "./tweetLookup.ts";
 import type { ThreadCard } from "../scout/threadCard.ts";
+import {
+  closeTempPlatformDb,
+  openTempPlatformDb,
+  type TempPlatformDb,
+} from "../platform/platformDb.testHelpers.ts";
 
 function withSession(fn: () => Promise<void>): Promise<void> {
   const prev = process.env.X_API_BEARER_TOKEN;
@@ -579,13 +584,16 @@ await describe("fetchTweetMetricsMany budget, failure cache and abort", async ()
   const origFetch = globalThis.fetch;
   const prevToken = process.env.X_API_BEARER_TOKEN;
   let warn: ReturnType<typeof mock.method<Console, "warn">>;
+  let temp: TempPlatformDb;
 
   before(() => {
+    temp = openTempPlatformDb("x-live-metrics-");
     warn = mock.method(console, "warn", () => {});
   });
 
   after(() => {
     warn.mock.restore();
+    closeTempPlatformDb(temp);
   });
 
   beforeEach(() => {
