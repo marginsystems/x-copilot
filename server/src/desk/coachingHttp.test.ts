@@ -231,6 +231,33 @@ await describe("GET /api/coaching", async () => {
     assert.equal(full.status, 500);
   });
 
+  await it("serves only the next action for the post-boot refresh", async () => {
+    let calls = 0;
+    const response = await getCoaching({
+      path: "/api/coaching?nextAction=1",
+      cookie,
+      chat: async () => {
+        calls += 1;
+        return {
+          ok: true as const,
+          content: '{"kind":"reply","text":"Reply to one useful thread."}',
+          model: "test-model",
+          provider: "deepseek" as const,
+        };
+      },
+    });
+    assert.equal(response.status, 200);
+    assert.equal(calls, 1);
+    assert.equal(typeof response.body.dayUtc, "string");
+    const nextAction = expectRecord(response.body.nextAction);
+    assert.equal(nextAction.kind, "reply");
+    assert.equal(nextAction.text, "Reply to one useful thread.");
+    assert.equal(typeof nextAction.updatedAt, "string");
+    for (const key of ["missions", "beats", "ownActivity", "replyAt", "originalAt", "postAt", "postsToday"]) {
+      assert.equal(key in response.body, false, key);
+    }
+  });
+
   await it("keeps the full coaching response and next-action refresh", async () => {
     const postedAt = new Date().toISOString();
     upsertOwnPost({

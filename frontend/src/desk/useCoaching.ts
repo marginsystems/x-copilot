@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import {
   fetchCoaching,
   mergeCoachingState,
+  mergeNextAction,
   type CoachingFetchOptions,
   type CoachingState,
 } from "../lib/coaching";
@@ -38,6 +39,7 @@ export function useCoaching(verifiedOwnerId: string | null) {
     if (!request.isCurrent(requestSeqRef.current)) return;
     if (!next) return;
     setCoaching((current) => {
+      if (opts?.nextAction) return mergeNextAction(current, next);
       const liteWonWhileFullWasPending =
         !opts?.lite && requestSeqRef.current.lite > liteSeqAtStart;
       if (liteWonWhileFullWasPending && current) {

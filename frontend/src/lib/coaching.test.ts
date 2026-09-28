@@ -2,7 +2,9 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { beginCoachingRequest } from "../desk/useCoaching.ts";
 import {
+  coachingPath,
   mergeCoachingState,
+  mergeNextAction,
   parseCoachingPayload,
   parseDeskBeats,
   parseNextAction,
@@ -259,5 +261,35 @@ await describe("parseDeskBeats", () => {
       }).forkChoice,
       null,
     );
+  }).catch(assert.fail);
+});
+
+await describe("post-boot next action refresh", () => {
+  it("requests the next-action path and never the full payload", () => {
+    assert.equal(coachingPath(), "/api/coaching");
+    assert.equal(coachingPath({ lite: true }), "/api/coaching?lite=1");
+    assert.equal(coachingPath({ nextAction: true }), "/api/coaching?nextAction=1");
+  }).catch(assert.fail);
+
+  it("replaces only nextAction on the boot coaching", () => {
+    const boot = parseCoachingPayload({
+      dayUtc: "2026-09-28",
+      nextAction: null,
+      missions: [{ id: "reply_2", label: "Mark two replies", target: 2, progress: 1, xpReward: 10 }],
+      postsToday: 3,
+      replyAt: ["2026-09-28T01:00:00.000Z"],
+    });
+    const next = parseCoachingPayload({
+      dayUtc: "2026-09-28",
+      nextAction: { kind: "reply", text: "Reply to one thread.", updatedAt: "2026-09-28T02:00:00.000Z" },
+    });
+    assert.ok(boot);
+    assert.ok(next);
+    const merged = mergeNextAction(boot, next);
+    assert.equal(merged?.nextAction?.text, "Reply to one thread.");
+    assert.deepEqual(merged?.missions, boot.missions);
+    assert.equal(merged?.postsToday, 3);
+    assert.deepEqual(merged?.replyAt, boot.replyAt);
+    assert.equal(mergeNextAction(null, next), null);
   }).catch(assert.fail);
 });

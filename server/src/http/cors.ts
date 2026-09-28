@@ -46,6 +46,8 @@ export function isLocalOrigin(origin: string | undefined): boolean {
   }
 }
 
+export const CORS_PREFLIGHT_MAX_AGE_SECONDS = "7200";
+
 export function corsHeaders(
   req: IncomingMessage,
   allowed: string[] = parseAllowedOrigins(),
@@ -57,6 +59,9 @@ export function corsHeaders(
     "Access-Control-Allow-Credentials": "true",
     Vary: "Origin",
   };
+  if (req.method === "OPTIONS") {
+    headers["Access-Control-Max-Age"] = CORS_PREFLIGHT_MAX_AGE_SECONDS;
+  }
   if (origin && allowed.includes(origin)) {
     headers["Access-Control-Allow-Origin"] = origin;
   }
