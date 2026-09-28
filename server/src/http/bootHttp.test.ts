@@ -28,10 +28,7 @@ import { markSkipped } from "../desk/skipStore.ts";
 import { resetInteractionMemoryReceiptForTests } from "../memory/interactionMemoryReceipt.ts";
 import { writeInteractionMemory } from "../memory/knowledgeMemory.ts";
 import { tryHandleInteracted } from "../desk/interactedHttp.ts";
-import {
-  clearLiveMetricsCacheForTests,
-  fetchTweetMetricsMany,
-} from "../x-api/tweetLookup.ts";
+import { clearLiveMetricsCacheForTests } from "../x-api/tweetLookup.ts";
 
 async function get(
   path: string,
@@ -677,28 +674,11 @@ await describe("GET /api/boot", async () => {
       return `${SESSION_COOKIE}=${encodeURIComponent(createSession(user.id).token)}`;
     }
 
-    function startBoot(cookie: string, deps: BootHttpDeps) {
-      const req = testRequest();
-      Object.assign(req, {
-        method: "GET",
-        headers: { cookie },
-        socket: { remoteAddress: "127.0.0.1" },
-      });
-      const { res, captured } = testResponse(req);
-      const done = tryHandleBoot(req, res, new URL("http://localhost/api/boot"), deps);
-      return { req, captured, done };
-    }
-
-    await it("serves boot within the budget and lets the lookup warm the cache", async () => {
-      const cookie = await userWithPendingReply("gid-boot-live-budget");
-      let release: () => void = () => {};
-      const gate = new Promise<void>((resolve) => {
-        release = resolve;
-      });
+    await it("builds activity stats from stored data without calling X", async () => {
+      const cookie = await userWithPendingReply("gid-boot-no-x");
       let calls = 0;
       globalThis.fetch = async () => {
         calls += 1;
-        await gate;
         return new Response(
           JSON.stringify({
             data: [{ id: "reply-live", public_metrics: { impression_count: 321 } }],
@@ -706,39 +686,14 @@ await describe("GET /api/boot", async () => {
           { status: 200 },
         );
       };
-      const { captured, done } = startBoot(cookie, { liveMetricsWaitMs: 25 });
-      const startedAt = Date.now();
-      await done;
-      assert.ok(Date.now() - startedAt < 2000);
-      assert.equal(captured.status, 200);
-      assert.equal(calls, 1);
-
-      release();
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      const warm = await fetchTweetMetricsMany({ tweetIds: ["reply-live"], waitMs: 0 });
-      assert.equal(calls, 1);
-      assert.equal(warm.get("reply-live")?.views, 321);
-    });
-
-    await it("aborts the X lookup when the boot client disconnects", async () => {
-      const cookie = await userWithPendingReply("gid-boot-live-abort");
-      let fetchSignal: AbortSignal | undefined;
-      let called: () => void = () => {};
-      const fetchStarted = new Promise<void>((resolve) => {
-        called = resolve;
-      });
-      globalThis.fetch = (_input, init) => {
-        fetchSignal = init?.signal ?? undefined;
-        called();
-        return new Promise<Response>((_resolve, reject) => {
-          fetchSignal?.addEventListener("abort", () => reject(new Error("aborted")));
-        });
-      };
-      const { req, done } = startBoot(cookie, { liveMetricsWaitMs: 60_000 });
-      await fetchStarted;
-      req.emit("close");
-      await done;
-      assert.equal(fetchSignal?.aborted, true);
+      const { status, body } = await get("/api/boot", cookie);
+      assert.equal(status, 200);
+      assert.equal(calls, 0);
+      const stats = expectRecord(expectRecord(body.desk).activityStats);
+      assert.equal(stats.bucket, "day");
+      const totals = expectRecord(stats.totals);
+      assert.equal(totals.interactions, 1);
+      assert.equal(totals.views, 0);
     });
   });
 });
