@@ -7,7 +7,7 @@ import { ActivityStrip } from "./ActivityStrip";
 import { FadeSwap } from "./FadeSwap";
 import { InstrumentsPanel } from "./InstrumentsPanel";
 import { ScoutFamiliarity } from "./ScoutFamiliarity";
-import type { InteractionHistoryEntry } from "./types";
+import type { RetainedInteractionEntry } from "./types";
 
 type DeskTab = "path" | "instruments";
 
@@ -20,7 +20,7 @@ type DeskTopProps = {
   gamification: GamificationStats;
   /** Owned Scout familiarity; null renders no meter (kept apart from XP). */
   scoutFamiliarity?: ScoutFamiliarityData | null;
-  interactedRetainedHistory: InteractionHistoryEntry[];
+  interactedRetainedHistory: RetainedInteractionEntry[];
   usableScoutCount: number;
   coaching?: CoachingState | null;
   status?: string;

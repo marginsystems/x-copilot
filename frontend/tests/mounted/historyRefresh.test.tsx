@@ -7,6 +7,8 @@ import { DESK_DETECTOR_FALLBACK_MS } from "../../src/desk/approachDetector";
 import { DESK_CATCH_UP_PATH, routeDeskDetector } from "../../src/desk/deskEventStream";
 import { vanishEvent } from "../../src/lib/vanishEvent";
 import { latestActivityCursor } from "../../src/lib/forYouTask";
+import { parseDeskBoot } from "../../src/lib/deskBoot";
+import { markFromHistory } from "../../src/lib/deskInstruments";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";
 import { useSkipDismiss } from "../../src/desk/useSkipDismiss";
 import type { ThreadCard } from "../../src/desk/types";
@@ -714,6 +716,31 @@ test("a hidden document applies the post-mark event to interacted state as it ar
   });
   expect(result.current.history.interactedIds).toEqual(new Set(["parent-1"]));
   expect(result.current.history.interactedRetainedHistory).toEqual([posted]);
+});
+
+test("slim retained rows from boot drive vanish, cursor and instruments, and accept a full marked row", () => {
+  const { result } = setupDeskStream();
+  const slim = {
+    threadId: "old", at: "2026-09-20T10:00:00.000Z", conversationId: "old-root",
+    replyId: "reply-0", replyUrl: "https://x.com/pilot/status/reply-0", postedAt: "2026-09-20T10:00:01.000Z",
+    stats: { t24h: { views: 12, likes: 2 } },
+  };
+  const desk = parseDeskBoot({ ok: true, user: null, desk: {
+    interacted: { interactions: [], retainedInteractions: [slim], activeIds: [], total: 1 },
+  } })!.desk!;
+  act(() => { result.current.history.applyHistoryFromBoot({ interacted: desk.interacted }); });
+  expect(result.current.history.interactedRetainedHistory).toEqual([slim]);
+  expect(vanishEvent({
+    cardId: "scout-card", conversationId: "old-root", interactedIds: [],
+    history: result.current.history.interactedRetainedHistory,
+  })).toBe("mark");
+  expect(latestActivityCursor({ history: result.current.history.interactedRetainedHistory })?.id).toBe("reply-0");
+  expect(result.current.history.interactedRetainedHistory.map(markFromHistory)[0]).toMatchObject({ t24hViews: 12, t24hLikes: 2 });
+  expect(result.current.history.keepInCurated({ ...card, id: "sibling", conversationId: "old-root" })).toBe(false);
+
+  act(() => { liveStream().emit("interacted", posted, "boot.1"); });
+  expect(result.current.history.interactedRetainedHistory.map((row) => row.threadId)).toEqual(["parent-1", "old"]);
+  expect(latestActivityCursor({ history: result.current.history.interactedRetainedHistory })?.id).toBe("reply-1");
 });
 
 test("a post-mark event keeps a later Interacted page and still updates the total and ids", async () => {

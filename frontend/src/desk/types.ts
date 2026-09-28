@@ -158,6 +158,36 @@ export function parseInteractionHistoryEntry(
   return memory ? { ...entry, memory } : entry;
 }
 
+export type RetainedInteractionEntry = Pick<
+  InteractionHistoryEntry,
+  "threadId" | "at" | "url" | "replyId" | "replyUrl" | "postedAt" | "conversationId" | "inReplyToId"
+> & {
+  stats?: { t24h?: { views?: number; likes?: number } };
+};
+
+const RETAINED_STRING_KEYS = [
+  "url", "replyId", "replyUrl", "postedAt", "conversationId", "inReplyToId",
+] as const;
+
+export function parseRetainedInteractionEntry(raw: unknown): RetainedInteractionEntry | null {
+  if (!isRecord(raw) || typeof raw.threadId !== "string" || typeof raw.at !== "string") return null;
+  const entry: RetainedInteractionEntry = { threadId: raw.threadId, at: raw.at };
+  for (const key of RETAINED_STRING_KEYS) {
+    const value = raw[key];
+    if (value === undefined || value === null) continue;
+    if (typeof value !== "string") return null;
+    if (value) entry[key] = value;
+  }
+  const t24h = isRecord(raw.stats) && isRecord(raw.stats.t24h) ? raw.stats.t24h : null;
+  if (t24h) {
+    const stats: { views?: number; likes?: number } = {};
+    if (typeof t24h.views === "number") stats.views = t24h.views;
+    if (typeof t24h.likes === "number") stats.likes = t24h.likes;
+    if (stats.views !== undefined || stats.likes !== undefined) entry.stats = { t24h: stats };
+  }
+  return entry;
+}
+
 export function hasSavedInteractionMemory(
   entry: Pick<InteractionHistoryEntry, "memory">,
 ): boolean {

@@ -66,7 +66,7 @@ import { routeDeskDetector } from "./deskEventStream";
 import { clearReplyPaceOverlay } from "./replyPaceStore";
 import type {
   DismissalHistoryEntry,
-  InteractionHistoryEntry,
+  RetainedInteractionEntry,
   ThreadCard,
 } from "./types";
 import { useDeskRowExit } from "./useDeskRowExit";
@@ -82,7 +82,7 @@ export type UseApproachTaskOpts = {
   forYouSuggestions: ForYouSuggestion[];
   coaching?: CoachingState | null;
   interactedIds: Set<string>;
-  interactedRetainedHistory: InteractionHistoryEntry[];
+  interactedRetainedHistory: RetainedInteractionEntry[];
   dismissedHistory: DismissalHistoryEntry[];
   dismissThread: ThreadCard | null;
   searching: boolean;

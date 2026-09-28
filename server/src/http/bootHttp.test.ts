@@ -18,7 +18,8 @@ import {
 } from "../db.ts";
 import { markDismissed } from "../desk/dismissalStore.ts";
 import { markExpired } from "../desk/expiredStore.ts";
-import { markInteracted } from "../desk/interactionStore.ts";
+import { markInteracted, writeInteractionRow } from "../desk/interactionStore.ts";
+import { ensureUserTenant } from "../billing/billingStore.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { saveScoutCache } from "../scout/scoutCache.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
@@ -407,6 +408,42 @@ await describe("GET /api/boot", async () => {
       assert.ok(interacted.blockedIds.includes("root-0"));
       assert.ok(interacted.blockedIds.includes("parent-0"));
     }
+  });
+
+  await it("boot retained rows carry only the slim keys the desk reads", async () => {
+    const user = upsertOauthUser({
+      provider: "google", providerUserId: "boot-slim", email: "boot-slim@example.com", emailVerified: true,
+    });
+    const marked = await markInteracted({
+      threadId: "slim-1", author: "@slim", userId: user.id, url: "https://x.com/op/status/slim-1",
+      text: "x".repeat(200), summary: "summary text", conversationId: "root-1", inReplyToId: "parent-1",
+      replyId: "900", replyUrl: "https://x.com/me/status/900",
+    });
+    writeInteractionRow({
+      ...marked,
+      postedAt: marked.at,
+      stats: {
+        t1h: { views: 5, likes: 1, sampledAt: marked.at },
+        t24h: { views: 40, likes: 3, replies: 2, retweets: 1, sampledAt: marked.at },
+      },
+      memorySyncFailed: true,
+    }, ensureUserTenant(user.id));
+    await markInteracted({ threadId: "slim-2", author: "@slim", userId: user.id });
+    const { status, body } = await get("/api/boot", `${SESSION_COOKIE}=${encodeURIComponent(createSession(user.id).token)}`);
+    assert.equal(status, 200);
+    const interacted = expectRecord(expectRecord(body.desk).interacted);
+    const retained = expectRecords(interacted.retainedInteractions);
+    const full = retained.find((row) => row.threadId === "slim-1");
+    assert.deepEqual(full, {
+      threadId: "slim-1", at: marked.at, url: "https://x.com/op/status/slim-1",
+      replyId: "900", replyUrl: "https://x.com/me/status/900", postedAt: marked.at,
+      conversationId: "root-1", inReplyToId: "parent-1", stats: { t24h: { views: 40, likes: 3 } },
+    });
+    const bare = retained.find((row) => row.threadId === "slim-2");
+    assert.deepEqual(Object.keys(bare ?? {}).sort(), ["at", "threadId"]);
+    const page = expectRecords(interacted.interactions).find((row) => row.threadId === "slim-1");
+    assert.equal(page?.author, "@slim");
+    assert.equal(page?.text, "x".repeat(200));
   });
 
   await it("does not expose another user's skip, dismiss, expired, or tank", async () => {

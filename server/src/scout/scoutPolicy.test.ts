@@ -4,6 +4,7 @@ import {
   clampBucketSize,
   clampTargetCool,
   isCoolThread,
+  SCOUT_MIN_LIKES,
   withScoutSearchExclusions,
 } from "./scoutPolicy.ts";
 import { card } from "./scoutCollect.testHelpers.ts";
@@ -187,19 +188,100 @@ await describe("clampTargetCool / clampBucketSize", async () => {
   });
 });
 
+const NO_X_FILTERS = {
+  dropNativeMedia: false,
+  dropHashtags: false,
+  filterByMinViews: false,
+};
+
 await describe("withScoutSearchExclusions", async () => {
   await it("appends -is:retweet and -is:reply once", () => {
     assert.equal(
-      withScoutSearchExclusions("shipping AI"),
+      withScoutSearchExclusions("shipping AI", NO_X_FILTERS),
       "shipping AI -is:retweet -is:reply",
     );
     assert.equal(
-      withScoutSearchExclusions("shipping AI -is:retweet"),
+      withScoutSearchExclusions("shipping AI -is:retweet", NO_X_FILTERS),
       "shipping AI -is:retweet -is:reply",
     );
     assert.equal(
-      withScoutSearchExclusions("is:reply AI"),
+      withScoutSearchExclusions("is:reply AI", NO_X_FILTERS),
       "AI -is:retweet -is:reply",
     );
+  });
+
+  await it("filters media, hashtags, and low likes on X by default so rejected posts are never billed", () => {
+    const expected = `shipping AI -is:retweet -is:reply -has:media -has:hashtags min_likes:${SCOUT_MIN_LIKES}`;
+    assert.equal(withScoutSearchExclusions("shipping AI"), expected);
+    assert.equal(withScoutSearchExclusions("shipping AI", {}), expected);
+  });
+
+  await it("leaves each X-side filter off when its Scout setting is off", () => {
+    assert.equal(
+      withScoutSearchExclusions("shipping AI", { dropNativeMedia: false }),
+      `shipping AI -is:retweet -is:reply -has:hashtags min_likes:${SCOUT_MIN_LIKES}`,
+    );
+    assert.equal(
+      withScoutSearchExclusions("shipping AI", { dropHashtags: false }),
+      `shipping AI -is:retweet -is:reply -has:media min_likes:${SCOUT_MIN_LIKES}`,
+    );
+    assert.equal(
+      withScoutSearchExclusions("shipping AI", { filterByMinViews: false }),
+      "shipping AI -is:retweet -is:reply -has:media -has:hashtags",
+    );
+  });
+
+  await it("keeps a planner-chosen like floor and does not repeat operators", () => {
+    assert.equal(
+      withScoutSearchExclusions("launch min_likes:20 -has:media"),
+      "launch min_likes:20 -has:media -is:retweet -is:reply -has:hashtags",
+    );
+  });
+
+  await it("rewrites min_faves, which the X API rejects with a 400, to min_likes", () => {
+    assert.equal(
+      withScoutSearchExclusions("launch min_faves:10", NO_X_FILTERS),
+      "launch min_likes:10 -is:retweet -is:reply",
+    );
+    assert.equal(
+      withScoutSearchExclusions("launch min_faves:10"),
+      "launch min_likes:10 -is:retweet -is:reply -has:media -has:hashtags",
+    );
+  });
+
+  await it("groups OR queries so every exclusion applies to each branch", () => {
+    assert.equal(
+      withScoutSearchExclusions("freight OR logistics", NO_X_FILTERS),
+      "(freight OR logistics) -is:retweet -is:reply",
+    );
+    assert.equal(
+      withScoutSearchExclusions("oregon ORbit", NO_X_FILTERS),
+      "oregon ORbit -is:retweet -is:reply",
+    );
+  });
+
+  await it("applies existing like and content filters to every OR branch", () => {
+    assert.equal(
+      withScoutSearchExclusions("freight OR logistics min_likes:20 -has:media"),
+      "(freight OR logistics) min_likes:20 -has:media -is:retweet -is:reply -has:hashtags",
+    );
+  });
+
+  await it("does not append a second floor after a negated like operator", () => {
+    assert.equal(
+      withScoutSearchExclusions("launch -min_faves:10"),
+      "launch -min_likes:10 -is:retweet -is:reply -has:media -has:hashtags",
+    );
+  });
+
+  await it("skips the like floor when the view floor is zero", () => {
+    assert.equal(
+      withScoutSearchExclusions("shipping AI", { minViews: 0 }),
+      "shipping AI -is:retweet -is:reply -has:media -has:hashtags",
+    );
+  });
+
+  await it("does not turn an operator-only query into a catch-all search", () => {
+    assert.equal(withScoutSearchExclusions("is:reply"), "-is:retweet -is:reply");
   });
 });
