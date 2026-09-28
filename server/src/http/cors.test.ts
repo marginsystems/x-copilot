@@ -4,8 +4,9 @@ import type { IncomingMessage } from "node:http";
 import { testRequest } from "./http.testHelpers.ts";
 import { corsHeaders, isLocalOrigin, isOriginAllowed, parseAllowedOrigins } from "./cors.ts";
 
-function fakeReq(origin?: string): IncomingMessage {
+function fakeReq(origin?: string, method = "GET"): IncomingMessage {
   const req = testRequest();
+  req.method = method;
   req.headers = origin ? { origin } : {};
   return req;
 }
@@ -61,6 +62,17 @@ await describe("cors", async () => {
       (headers["Access-Control-Allow-Methods"] ?? "").includes("PATCH"),
     );
     assert.notEqual(headers["Access-Control-Allow-Origin"], "*");
+  });
+
+  await it("caches preflights for two hours and only on OPTIONS", () => {
+    const allowed = parseAllowedOrigins("https://xcopilot.dev");
+    const preflight = corsHeaders(fakeReq("https://xcopilot.dev", "OPTIONS"), allowed);
+    assert.equal(preflight["Access-Control-Max-Age"], "7200");
+    assert.equal(preflight["Access-Control-Allow-Origin"], "https://xcopilot.dev");
+    for (const method of ["GET", "POST", "DELETE"]) {
+      const headers = corsHeaders(fakeReq("https://xcopilot.dev", method), allowed);
+      assert.equal(headers["Access-Control-Max-Age"], undefined, method);
+    }
   });
 
   await it("omits Allow-Origin for unknown origins", () => {

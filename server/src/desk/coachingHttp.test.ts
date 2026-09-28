@@ -231,6 +231,58 @@ await describe("GET /api/coaching", async () => {
     assert.equal(full.status, 500);
   });
 
+  await it("serves only the next action and own activity for the post-boot refresh", async () => {
+    const postedAt = new Date().toISOString();
+    upsertOwnPost({
+      parsed: {
+        eventUuid: "evt-next-action-own-post",
+        xUserId: "99",
+        postId: "next-action-own-post",
+        kind: "reply",
+        text: "post-boot activity",
+        postedAt,
+        inReplyToId: null,
+        inReplyToUserId: null,
+        conversationId: null,
+        authorUsername: "desk",
+        metrics: {},
+      },
+      userId,
+      tenantId: "local",
+    });
+    let calls = 0;
+    const response = await getCoaching({
+      path: "/api/coaching?nextAction=1",
+      cookie,
+      chat: async () => {
+        calls += 1;
+        return {
+          ok: true as const,
+          content: '{"kind":"reply","text":"Reply to one useful thread."}',
+          model: "test-model",
+          provider: "deepseek" as const,
+        };
+      },
+    });
+    assert.equal(response.status, 200);
+    assert.equal(calls, 1);
+    assert.equal(typeof response.body.dayUtc, "string");
+    const nextAction = expectRecord(response.body.nextAction);
+    assert.equal(nextAction.kind, "reply");
+    assert.equal(nextAction.text, "Reply to one useful thread.");
+    assert.equal(typeof nextAction.updatedAt, "string");
+    assert.deepEqual(response.body.ownActivity, {
+      id: "next-action-own-post",
+      url: "https://x.com/desk/status/next-action-own-post",
+      text: "post-boot activity",
+      kind: "reply",
+      postedAt,
+    });
+    for (const key of ["missions", "beats", "replyAt", "originalAt", "postAt", "postsToday"]) {
+      assert.equal(key in response.body, false, key);
+    }
+  });
+
   await it("keeps the full coaching response and next-action refresh", async () => {
     const postedAt = new Date().toISOString();
     upsertOwnPost({

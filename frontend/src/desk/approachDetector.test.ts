@@ -6,6 +6,7 @@ import {
   DESK_DETECTOR_FALLBACK_MS,
   deskCatchUpDue,
   deskDetectorCheck,
+  deskFallbackTickDue,
   routeOwnPostWake,
 } from "./approachDetector.ts";
 
@@ -38,6 +39,11 @@ await describe("Approach detector routing", async () => {
       assert.equal(deskDetectorCheck({ active }, true), null);
       assert.equal(deskDetectorCheck({ active }, false), active);
     }
+  });
+
+  await it("skips fallback ticks unless the tab is visible", () => {
+    assert.equal(deskFallbackTickDue("visible"), true);
+    assert.equal(deskFallbackTickDue("hidden"), false);
   });
 
   await it("reads own posts only on a visible return with an active detector and none in flight", () => {

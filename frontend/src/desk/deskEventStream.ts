@@ -4,6 +4,7 @@ import {
   DESK_DETECTOR_FALLBACK_MS,
   deskCatchUpDue,
   deskDetectorCheck,
+  deskFallbackTickDue,
   routeOwnPostWake,
   type DeskDetectorRoute,
 } from "./approachDetector";
@@ -128,7 +129,9 @@ export function useDeskEventStream(ownerId: string | null): void {
     });
     window.addEventListener("focus", check);
     document.addEventListener("visibilitychange", visible);
-    const fallback = window.setInterval(check, DESK_DETECTOR_FALLBACK_MS);
+    const fallback = window.setInterval(() => {
+      if (deskFallbackTickDue(document.visibilityState)) check();
+    }, DESK_DETECTOR_FALLBACK_MS);
     const close = ownerId && typeof EventSource !== "undefined" ? openDeskEventSource() : null;
     return () => {
       close?.();

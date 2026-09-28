@@ -58,7 +58,7 @@ export type CoachingState = {
   ownActivity?: OwnActivity | null;
 };
 
-export type CoachingFetchOptions = { lite?: boolean };
+export type CoachingFetchOptions = { lite?: boolean; nextAction?: boolean };
 
 function finiteNonNeg(n: unknown): number | null {
   if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return null;
@@ -197,11 +197,32 @@ export function mergeCoachingState(
   };
 }
 
+export function coachingPath(opts?: CoachingFetchOptions): string {
+  if (opts?.lite) return "/api/coaching?lite=1";
+  if (opts?.nextAction) return "/api/coaching?nextAction=1";
+  return "/api/coaching";
+}
+
+export function mergeNextAction(
+  current: CoachingState | null,
+  next: CoachingState,
+): CoachingState | null {
+  if (!current || !nextActionDayMatches(current, next)) return current;
+  return { ...current, nextAction: next.nextAction, ownActivity: next.ownActivity };
+}
+
+export function nextActionDayMatches(
+  current: CoachingState | null,
+  next: CoachingState,
+): boolean {
+  return !current || current.dayUtc === next.dayUtc;
+}
+
 export async function fetchCoaching(
   opts?: CoachingFetchOptions,
 ): Promise<CoachingState | null> {
   try {
-    const res = await apiFetch(`/api/coaching${opts?.lite ? "?lite=1" : ""}`);
+    const res = await apiFetch(coachingPath(opts));
     if (!res.ok) return null;
     return parseCoachingPayload(await res.json());
   } catch {
