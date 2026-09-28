@@ -7,6 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import { apiFetch } from "../lib/apiBase";
+import type { CoachingFetchOptions } from "../lib/coaching";
 import { useSession } from "../auth/session";
 import type { AuthSessionUser } from "../auth/types";
 import { viewFromPath, type AppView } from "../lib/appView";
@@ -39,7 +40,7 @@ type UseDeskBootOpts = {
   /** Seed every desk slice from the one-shot boot payload. */
   applyDesk: (desk: DeskBootDeskPatch) => void;
   confirmCheckout: (sessionId: string) => Promise<void>;
-  hydrateCoaching: () => Promise<void>;
+  hydrateCoaching: (opts?: CoachingFetchOptions) => Promise<void>;
   hydrateActivityStats: () => Promise<void>;
   loadBilling: () => Promise<void>;
   hydrateVoice: () => Promise<void>;
@@ -139,8 +140,9 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       const refreshAfterPaint = (
         user: AuthSessionUser | null,
         refreshActivityStats = true,
+        coachingOpts?: CoachingFetchOptions,
       ) => {
-        hydrateCoaching().catch(() => undefined);
+        hydrateCoaching(coachingOpts).catch(() => undefined);
         if (refreshActivityStats) hydrateActivityStats().catch(() => undefined);
         loadBilling().catch(() => undefined);
         if (user) {
@@ -174,7 +176,11 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
           await confirmCheckout(sessionId);
         }
         if (!current()) return;
-        refreshAfterPaint(user, false);
+        refreshAfterPaint(
+          user,
+          false,
+          boot.payload.desk?.coaching ? { nextAction: true } : undefined,
+        );
         setDeskBootReady(true);
         // An older boot payload has no familiarity slice: one optional
         // refresh after paint, no retry, never blocking readiness.

@@ -66,8 +66,28 @@ export async function tryHandleCoaching(
       tenantId,
       nowMs,
     });
-    const beats = getDeskBeats({ userId: user.id, nowMs });
     const inputsHash = hashCoachingSnapshot(snapshot);
+    if (url.searchParams.get("nextAction") === "1") {
+      const nextAction = await getOrRefreshNextAction({
+        userId: user.id,
+        snapshot,
+        inputsHash,
+        nowMs,
+        chat: opts?.chat,
+      });
+      send(req, res, 200, {
+        ok: true,
+        dayUtc: snapshot.dayUtc,
+        nextAction: {
+          kind: nextAction.kind,
+          text: nextAction.text,
+          updatedAt: nextAction.updatedAt,
+        },
+        ownActivity: loadNewestOwnActivity(user.id),
+      });
+      return true;
+    }
+    const beats = getDeskBeats({ userId: user.id, nowMs });
     const [nextAction, missions, times] = await Promise.all([
       getOrRefreshNextAction({
         userId: user.id,

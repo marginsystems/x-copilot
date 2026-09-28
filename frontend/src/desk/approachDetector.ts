@@ -26,12 +26,16 @@ export function deskDetectorCheck(
   return pending ? null : route?.active ?? null;
 }
 
+export function deskFallbackTickDue(visibility: DocumentVisibilityState): boolean {
+  return visibility === "visible";
+}
+
 export function deskCatchUpDue(
   route: Pick<DeskDetectorRoute, "active"> | null,
   visibility: DocumentVisibilityState,
   inFlight: boolean,
 ): boolean {
-  return visibility === "visible" && !inFlight && deskDetectorCheck(route, false) !== null;
+  return deskFallbackTickDue(visibility) && !inFlight && deskDetectorCheck(route, false) !== null;
 }
 
 export function routeOwnPostWake(

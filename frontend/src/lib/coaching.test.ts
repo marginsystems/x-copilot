@@ -1,8 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { beginCoachingRequest } from "../desk/useCoaching.ts";
+import { beginCoachingRequest, isNextActionRefresh } from "../desk/useCoaching.ts";
 import {
+  coachingPath,
   mergeCoachingState,
+  mergeNextAction,
+  nextActionDayMatches,
   parseCoachingPayload,
   parseDeskBeats,
   parseNextAction,
@@ -259,5 +262,64 @@ await describe("parseDeskBeats", () => {
       }).forkChoice,
       null,
     );
+  }).catch(assert.fail);
+});
+
+await describe("post-boot next action refresh", () => {
+  it("requests the next-action path and never the full payload", () => {
+    assert.equal(coachingPath(), "/api/coaching");
+    assert.equal(coachingPath({ lite: true }), "/api/coaching?lite=1");
+    assert.equal(coachingPath({ nextAction: true }), "/api/coaching?nextAction=1");
+  }).catch(assert.fail);
+
+  it("replaces only nextAction on the boot coaching", () => {
+    const boot = parseCoachingPayload({
+      dayUtc: "2026-09-28",
+      nextAction: null,
+      missions: [{ id: "reply_2", label: "Mark two replies", target: 2, progress: 1, xpReward: 10 }],
+      postsToday: 3,
+      replyAt: ["2026-09-28T01:00:00.000Z"],
+    });
+    const ownActivity = {
+      id: "1900",
+      url: "https://x.com/i/status/1900",
+      text: "Latest post",
+      kind: "original",
+      postedAt: "2026-09-28T01:30:00.000Z",
+    };
+    const next = parseCoachingPayload({
+      dayUtc: "2026-09-28",
+      nextAction: { kind: "reply", text: "Reply to one thread.", updatedAt: "2026-09-28T02:00:00.000Z" },
+      ownActivity,
+    });
+    assert.ok(boot);
+    assert.ok(next);
+    const merged = mergeNextAction(boot, next);
+    assert.equal(merged?.nextAction?.text, "Reply to one thread.");
+    assert.deepEqual(merged?.ownActivity, ownActivity);
+    assert.deepEqual(merged?.missions, boot.missions);
+    assert.equal(merged?.postsToday, 3);
+    assert.deepEqual(merged?.replyAt, boot.replyAt);
+    assert.equal(mergeNextAction(null, next), null);
+  }).catch(assert.fail);
+
+  it("does not mix a next action from a different UTC day", () => {
+    const boot = parseCoachingPayload({ dayUtc: "2026-09-28", nextAction: null, postsToday: 3 });
+    const next = parseCoachingPayload({
+      dayUtc: "2026-09-29",
+      nextAction: { kind: "reply", text: "Reply to one thread.", updatedAt: "2026-09-29T00:00:01.000Z" },
+    });
+    assert.ok(boot);
+    assert.ok(next);
+    assert.equal(nextActionDayMatches(boot, next), false);
+    assert.equal(nextActionDayMatches(null, next), true);
+    assert.equal(mergeNextAction(boot, next), boot);
+  }).catch(assert.fail);
+
+  it("treats a lite request as lite even when nextAction is also set", () => {
+    assert.equal(isNextActionRefresh({ nextAction: true }), true);
+    assert.equal(isNextActionRefresh({ nextAction: true, lite: true }), false);
+    assert.equal(isNextActionRefresh(), false);
+    assert.equal(coachingPath({ nextAction: true, lite: true }), "/api/coaching?lite=1");
   }).catch(assert.fail);
 });
