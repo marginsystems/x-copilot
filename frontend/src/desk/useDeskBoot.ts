@@ -139,11 +139,10 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
 
       const refreshAfterPaint = (
         user: AuthSessionUser | null,
-        refreshActivityStats = true,
         coachingOpts?: CoachingFetchOptions,
       ) => {
         hydrateCoaching(coachingOpts).catch(() => undefined);
-        if (refreshActivityStats) hydrateActivityStats().catch(() => undefined);
+        hydrateActivityStats().catch(() => undefined);
         loadBilling().catch(() => undefined);
         if (user) {
           ensureActivitySubscribe();
@@ -178,7 +177,6 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         if (!current()) return;
         refreshAfterPaint(
           user,
-          false,
           boot.payload.desk?.coaching ? { nextAction: true } : undefined,
         );
         setDeskBootReady(true);
