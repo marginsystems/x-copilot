@@ -26,6 +26,7 @@ import {
   type DismissalHistoryEntry,
   type ExpiredHistoryEntry,
   type InteractionHistoryEntry,
+  type RetainedInteractionEntry,
   type SkipHistoryEntry,
   type ThreadCard,
 } from "./types";
@@ -142,7 +143,7 @@ export function useDeskHistory(
     InteractionHistoryEntry[]
   >(() => seed?.interacted.interactions ?? []);
   const [interactedRetainedHistory, setInteractedRetainedHistory] = useState<
-    InteractionHistoryEntry[]
+    RetainedInteractionEntry[]
   >(() => seed?.interacted.retainedInteractions ?? seed?.interacted.interactions ?? []);
   const interactedRetainedRef = useRef(interactedRetainedHistory);
   const unpagedInFlightRef = useRef<Promise<void> | null>(null);
@@ -193,7 +194,7 @@ export function useDeskHistory(
   const historyStaleRef = useRef(false);
   const preservedIdRef = useRef<string | null>(null);
 
-  function commitRetained(rows: InteractionHistoryEntry[]) {
+  function commitRetained(rows: RetainedInteractionEntry[]) {
     interactedRetainedRef.current = rows;
     setInteractedRetainedHistory(rows);
   }
