@@ -1,8 +1,11 @@
-import { describe, it, beforeEach } from "node:test";
+import { describe, it, before, beforeEach, after, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import {
+  LIVE_METRICS_FAILURE_TTL_MS,
+  clearLiveMetricsCacheForTests,
   clearParentTweetCache,
   fetchParentTweet,
+  fetchTweetMetricsMany,
   hydrateReplyParents,
   parseTweetsMetricsMap,
 } from "./tweetLookup.ts";
@@ -555,5 +558,190 @@ await describe("parseTweetsMetricsMap", async () => {
     assert.equal(map.get("11")?.views, 40);
     assert.equal(map.get("11")?.likes, 2);
     assert.equal(map.get("12")?.likes, 0);
+  });
+});
+
+function metricsBody(ids: string[]): unknown {
+  return {
+    data: ids.map((id) => ({
+      id,
+      public_metrics: { impression_count: 100, like_count: 3 },
+    })),
+  };
+}
+
+function requestedIds(input: string | URL | Request): string[] {
+  const url = new URL(input instanceof Request ? input.url : String(input));
+  return (url.searchParams.get("ids") ?? "").split(",");
+}
+
+await describe("fetchTweetMetricsMany budget, failure cache and abort", async () => {
+  const origFetch = globalThis.fetch;
+  const prevToken = process.env.X_API_BEARER_TOKEN;
+  let warn: ReturnType<typeof mock.method<Console, "warn">>;
+
+  before(() => {
+    warn = mock.method(console, "warn", () => {});
+  });
+
+  after(() => {
+    warn.mock.restore();
+  });
+
+  beforeEach(() => {
+    clearLiveMetricsCacheForTests();
+    process.env.X_API_BEARER_TOKEN = "test-bearer";
+    warn.mock.resetCalls();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = origFetch;
+    mock.timers.reset();
+    if (prevToken === undefined) delete process.env.X_API_BEARER_TOKEN;
+    else process.env.X_API_BEARER_TOKEN = prevToken;
+  });
+
+  await it("returns cached-only metrics when the budget elapses and warms the cache in the background", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    let finished: () => void = () => {};
+    const done = new Promise<void>((resolve) => {
+      finished = resolve;
+    });
+    globalThis.fetch = async (input) => {
+      calls += 1;
+      await gate;
+      queueMicrotask(finished);
+      return jsonResponse(metricsBody(requestedIds(input)), 200);
+    };
+
+    const startedAt = Date.now();
+    const first = await fetchTweetMetricsMany({ tweetIds: ["1", "2"], waitMs: 20 });
+    assert.ok(Date.now() - startedAt < 1000);
+    assert.equal(first.size, 0);
+    assert.equal(calls, 1);
+
+    release();
+    await done;
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const second = await fetchTweetMetricsMany({ tweetIds: ["1", "2"], waitMs: 20 });
+    assert.equal(calls, 1);
+    assert.equal(second.get("1")?.views, 100);
+    assert.equal(second.get("2")?.likes, 3);
+  });
+
+  await it("negative-caches a failed lookup for the failure TTL, then retries", async () => {
+    mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return jsonResponse({ errors: [{ message: "server error" }] }, 503);
+    };
+
+    assert.equal((await fetchTweetMetricsMany({ tweetIds: ["7"] })).size, 0);
+    assert.equal(calls, 1);
+    assert.equal(warn.mock.callCount(), 1);
+    assert.match(String(warn.mock.calls[0]?.arguments[0]), /\[live-metrics\].*ids=1/);
+
+    assert.equal((await fetchTweetMetricsMany({ tweetIds: ["7"] })).size, 0);
+    assert.equal(calls, 1);
+
+    mock.timers.tick(LIVE_METRICS_FAILURE_TTL_MS);
+    globalThis.fetch = async (input) => {
+      calls += 1;
+      return jsonResponse(metricsBody(requestedIds(input)), 200);
+    };
+    const retried = await fetchTweetMetricsMany({ tweetIds: ["7"] });
+    assert.equal(calls, 2);
+    assert.equal(retried.get("7")?.views, 100);
+  });
+
+  await it("keeps caching confirmed absence from a successful batch", async () => {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return jsonResponse(metricsBody(["1"]), 200);
+    };
+    const first = await fetchTweetMetricsMany({ tweetIds: ["1", "gone"] });
+    assert.deepEqual([...first.keys()], ["1"]);
+    const second = await fetchTweetMetricsMany({ tweetIds: ["1", "gone"] });
+    assert.deepEqual([...second.keys()], ["1"]);
+    assert.equal(calls, 1);
+    assert.equal(warn.mock.callCount(), 0);
+  });
+
+  await it("shares one in-flight lookup between concurrent callers", async () => {
+    let calls = 0;
+    globalThis.fetch = async (input) => {
+      calls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return jsonResponse(metricsBody(requestedIds(input)), 200);
+    };
+    const [a, b] = await Promise.all([
+      fetchTweetMetricsMany({ tweetIds: ["1", "2"] }),
+      fetchTweetMetricsMany({ tweetIds: ["2", "1"] }),
+    ]);
+    assert.equal(calls, 1);
+    assert.equal(a.get("1")?.views, 100);
+    assert.equal(b.get("2")?.views, 100);
+  });
+
+  await it("aborts the X call when the only caller disconnects and does not negative-cache it", async () => {
+    let fetchSignal: AbortSignal | undefined;
+    let calls = 0;
+    globalThis.fetch = (_input, init) => {
+      calls += 1;
+      fetchSignal = init?.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        fetchSignal?.addEventListener("abort", () => reject(new Error("aborted")));
+      });
+    };
+    const client = new AbortController();
+    const pending = fetchTweetMetricsMany({
+      tweetIds: ["5"],
+      signal: client.signal,
+      waitMs: 60_000,
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    client.abort();
+    assert.equal((await pending).size, 0);
+    assert.equal(fetchSignal?.aborted, true);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(warn.mock.callCount(), 0);
+
+    globalThis.fetch = async (input) => {
+      calls += 1;
+      return jsonResponse(metricsBody(requestedIds(input)), 200);
+    };
+    const retried = await fetchTweetMetricsMany({ tweetIds: ["5"] });
+    assert.equal(calls, 2);
+    assert.equal(retried.get("5")?.views, 100);
+  });
+
+  await it("keeps a shared lookup running while another caller still waits", async () => {
+    let fetchSignal: AbortSignal | undefined;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    globalThis.fetch = async (input, init) => {
+      fetchSignal = init?.signal ?? undefined;
+      await gate;
+      return jsonResponse(metricsBody(requestedIds(input)), 200);
+    };
+    const leaving = new AbortController();
+    const staying = new AbortController();
+    const left = fetchTweetMetricsMany({ tweetIds: ["9"], signal: leaving.signal });
+    const stayed = fetchTweetMetricsMany({ tweetIds: ["9"], signal: staying.signal });
+    await new Promise((resolve) => setImmediate(resolve));
+    leaving.abort();
+    assert.equal((await left).size, 0);
+    assert.equal(fetchSignal?.aborted, false);
+    release();
+    assert.equal((await stayed).get("9")?.views, 100);
   });
 });

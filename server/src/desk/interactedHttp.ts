@@ -70,12 +70,23 @@ export async function tryHandleInteracted(
           userId: sessionUser.id,
         })
       : [];
-    send(
-      req,
-      res,
-      200,
-      await bucketInteractionsWithLive(history, bucket, sessionUser?.id),
-    );
+    const disconnect = new AbortController();
+    const onClose = () => {
+      if (!res.writableEnded) disconnect.abort();
+    };
+    req.on("close", onClose);
+    try {
+      send(
+        req,
+        res,
+        200,
+        await bucketInteractionsWithLive(history, bucket, sessionUser?.id, {
+          signal: disconnect.signal,
+        }),
+      );
+    } finally {
+      req.off("close", onClose);
+    }
     return true;
   }
 

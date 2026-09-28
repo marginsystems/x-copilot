@@ -304,10 +304,126 @@ export function parseTweetsMetricsMap(json: unknown): Map<string, TweetMetrics> 
 /** How long a batch live-metrics result stays cached before a re-fetch. */
 const LIVE_METRICS_TTL_MS = 15 * 60 * 1000;
 
+export const LIVE_METRICS_WAIT_BUDGET_MS = 1500;
+
+export const LIVE_METRICS_FAILURE_TTL_MS = 60 * 1000;
+
 const liveMetricsCache = new Map<
   string,
   { metrics: TweetMetrics | null; at: number }
 >();
+
+const liveMetricsFailedAt = new Map<string, number>();
+
+type LiveMetricsLookup = {
+  promise: Promise<Map<string, TweetMetrics>>;
+  controller: AbortController;
+  waiters: number;
+};
+
+const liveMetricsInflight = new Map<string, LiveMetricsLookup>();
+
+export function clearLiveMetricsCacheForTests(): void {
+  liveMetricsCache.clear();
+  liveMetricsFailedAt.clear();
+  liveMetricsInflight.clear();
+}
+
+function logLiveMetricsLookup(
+  outcome: string,
+  idCount: number,
+  durationMs: number,
+): void {
+  console.warn(
+    `[live-metrics] lookup ${outcome} ids=${idCount} durationMs=${durationMs}`,
+  );
+}
+
+async function runLiveMetricsLookup(
+  ids: string[],
+  session: XApiCreds,
+  signal: AbortSignal,
+): Promise<Map<string, TweetMetrics>> {
+  const startedAt = Date.now();
+  const res = await xApiGet({
+    path: "/tweets",
+    query: {
+      ids: ids.join(","),
+      "tweet.fields": "public_metrics",
+    },
+    creds: session,
+    signal,
+    timeoutMs: 12000,
+    skipUsage: true,
+  });
+  const finishedAt = Date.now();
+  const durationMs = finishedAt - startedAt;
+  if (!res.ok) {
+    if (res.error === "client_disconnected") return new Map();
+    for (const id of ids) liveMetricsFailedAt.set(id, finishedAt);
+    logLiveMetricsLookup(res.error, ids.length, durationMs);
+    return new Map();
+  }
+  if (durationMs > LIVE_METRICS_WAIT_BUDGET_MS) {
+    logLiveMetricsLookup("slow", ids.length, durationMs);
+  }
+
+  const fetched = parseTweetsMetricsMap(res.json);
+  for (const [id, metrics] of fetched) {
+    liveMetricsCache.set(id, { metrics, at: finishedAt });
+  }
+  // Cache confirmed absence (deleted/private tweets left out of the batch) so
+  // ids that can never resolve stop being re-fetched on every stats request.
+  for (const id of ids) {
+    liveMetricsFailedAt.delete(id);
+    if (!fetched.has(id)) liveMetricsCache.set(id, { metrics: null, at: finishedAt });
+  }
+  return fetched;
+}
+
+function joinLiveMetricsLookup(
+  ids: string[],
+  session: XApiCreds,
+): LiveMetricsLookup {
+  const key = [...ids].sort().join(",");
+  const existing = liveMetricsInflight.get(key);
+  if (existing && !existing.controller.signal.aborted) return existing;
+  const controller = new AbortController();
+  const lookup: LiveMetricsLookup = {
+    promise: runLiveMetricsLookup(ids, session, controller.signal).finally(() => {
+      liveMetricsInflight.delete(key);
+    }),
+    controller,
+    waiters: 0,
+  };
+  liveMetricsInflight.set(key, lookup);
+  return lookup;
+}
+
+function awaitLiveMetricsLookup(
+  lookup: LiveMetricsLookup,
+  signal: AbortSignal | undefined,
+  waitMs: number | undefined,
+): Promise<Map<string, TweetMetrics>> {
+  return new Promise((resolve) => {
+    const timer =
+      waitMs === undefined ? undefined : setTimeout(() => resolve(new Map()), waitMs);
+    const onAbort = () => {
+      clearTimeout(timer);
+      lookup.waiters -= 1;
+      if (lookup.waiters <= 0) lookup.controller.abort();
+      resolve(new Map());
+    };
+    const settle = (fetched: Map<string, TweetMetrics>) => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      resolve(fetched);
+    };
+    lookup.waiters += 1;
+    signal?.addEventListener("abort", onAbort, { once: true });
+    lookup.promise.then(settle, () => settle(new Map()));
+  });
+}
 
 /**
  * One request for many tweet ids (X cap 100). Soft-fails to an empty map.
@@ -319,6 +435,7 @@ export async function fetchTweetMetricsMany(opts: {
   tweetIds: string[];
   session?: XApiCreds;
   signal?: AbortSignal;
+  waitMs?: number;
 }): Promise<Map<string, TweetMetrics>> {
   const ids = [...new Set(opts.tweetIds.map((id) => id.trim()).filter(Boolean))];
   if (!ids.length) return new Map();
@@ -333,40 +450,27 @@ export async function fetchTweetMetricsMany(opts: {
       if (cached.metrics) out.set(id, cached.metrics);
       continue;
     }
+    const failedAt = liveMetricsFailedAt.get(id);
+    if (failedAt !== undefined && now - failedAt < LIVE_METRICS_FAILURE_TTL_MS) continue;
     toFetch.push(id);
   }
   if (!toFetch.length) return out;
   for (const [id, entry] of liveMetricsCache) {
     if (now - entry.at >= LIVE_METRICS_TTL_MS) liveMetricsCache.delete(id);
   }
+  for (const [id, failedAt] of liveMetricsFailedAt) {
+    if (now - failedAt >= LIVE_METRICS_FAILURE_TTL_MS) liveMetricsFailedAt.delete(id);
+  }
 
   const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.configured) return out;
 
-  const res = await xApiGet({
-    path: "/tweets",
-    query: {
-      ids: toFetch.join(","),
-      "tweet.fields": "public_metrics",
-    },
-    creds: session,
-    signal: opts.signal,
-    timeoutMs: 12000,
-    skipUsage: true,
-  });
-  if (!res.ok) return out;
-
-  const fetched = parseTweetsMetricsMap(res.json);
-  const fetchedAt = Date.now();
-  for (const [id, metrics] of fetched) {
-    liveMetricsCache.set(id, { metrics, at: fetchedAt });
-    out.set(id, metrics);
-  }
-  // Cache confirmed absence (deleted/private tweets left out of the batch) so
-  // ids that can never resolve stop being re-fetched on every stats request.
-  for (const id of toFetch) {
-    if (!out.has(id)) liveMetricsCache.set(id, { metrics: null, at: fetchedAt });
-  }
+  const fetched = await awaitLiveMetricsLookup(
+    joinLiveMetricsLookup(toFetch, session),
+    opts.signal,
+    opts.waitMs,
+  );
+  for (const [id, metrics] of fetched) out.set(id, metrics);
   return out;
 }
 

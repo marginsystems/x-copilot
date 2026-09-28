@@ -53,6 +53,7 @@ const NO_STORE = { "Cache-Control": "private, no-store" };
 export type BootHttpDeps = {
   /** Injectable owned-profile read (tests). Production uses the store. */
   loadScoutProfile?: ScoutFamiliarityLoader;
+  liveMetricsWaitMs?: number;
 };
 
 function publicUser(user: NonNullable<ReturnType<typeof getSessionUser>>) {
@@ -131,11 +132,22 @@ export async function tryHandleBoot(
     const interactions = user
       ? await attachInteractionMemoryReceipts(historySlice, { userId: user.id })
       : historySlice;
-    const activityStats = await bucketInteractionsWithLive(
-      interactionHistory,
-      "day",
-      user?.id,
-    );
+    const disconnect = new AbortController();
+    const onClose = () => {
+      if (!res.writableEnded) disconnect.abort();
+    };
+    req.on("close", onClose);
+    let activityStats: Awaited<ReturnType<typeof bucketInteractionsWithLive>>;
+    try {
+      activityStats = await bucketInteractionsWithLive(
+        interactionHistory,
+        "day",
+        user?.id,
+        { signal: disconnect.signal, waitMs: deps.liveMetricsWaitMs },
+      );
+    } finally {
+      req.off("close", onClose);
+    }
 
     let forYou: {
       ok: true;
