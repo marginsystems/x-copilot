@@ -25,7 +25,8 @@ await describe("scoutProfileProjection", async () => {
     });
   });
 
-  await it("runs the rebuild after the current synchronous work, once per burst", async () => {
+  await it("runs the rebuild after the current synchronous work, once per burst", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
     const calls: string[] = [];
     setScoutProfileRebuild(async (userId) => {
       calls.push(userId);
@@ -36,6 +37,7 @@ await describe("scoutProfileProjection", async () => {
     notifyScoutEvidenceChanged({ userId: "u2", revision: 1 });
     // Nothing has run yet: the caller's transaction is still "open".
     assert.deepEqual(calls, []);
+    t.mock.timers.runAll();
     await flushScoutProfileProjections();
     // Two notifications for u1 arrived before it started → one rebuild,
     // plus one for u2.
@@ -43,7 +45,8 @@ await describe("scoutProfileProjection", async () => {
     assert.equal(scoutProfileProjectionStats().pending, 0);
   });
 
-  await it("re-runs when a change arrives while a rebuild is in flight", async () => {
+  await it("re-runs when a change arrives while a rebuild is in flight", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
     let release: () => void = () => {};
     let calls = 0;
     setScoutProfileRebuild(async () => {
@@ -55,7 +58,7 @@ await describe("scoutProfileProjection", async () => {
       }
     });
     notifyScoutEvidenceChanged({ userId: "u1", revision: 1 });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    t.mock.timers.runAll();
     assert.equal(calls, 1);
     notifyScoutEvidenceChanged({ userId: "u1", revision: 2 });
     release();
