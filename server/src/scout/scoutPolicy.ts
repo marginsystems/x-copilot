@@ -24,7 +24,15 @@ export function withScoutSearchExclusions(
   q = q.replace(/(?:^|\s)is:reply\b/gi, " ").replace(/\s+/g, " ").trim();
   q = q.replace(/(^|\s)(-?)min_faves:/gi, "$1$2min_likes:");
   if (!q) return "-is:retweet -is:reply";
-  if (/(?:^|\s)OR(?:\s|$)/.test(q)) q = `(${q})`;
+  if (/(?:^|\s)OR(?:\s|$)/.test(q)) {
+    const operators =
+      q.match(/(?:^|\s)(-?min_likes:\d+|-has:(?:media|hashtags))\b/gi) ?? [];
+    q = q
+      .replace(/(?:^|\s)(-?min_likes:\d+|-has:(?:media|hashtags))\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    q = `(${q})${operators.map((operator) => ` ${operator.trim()}`).join("")}`;
+  }
   if (!/(?:^|\s)-is:retweet\b/i.test(q)) q = `${q} -is:retweet`;
   if (!/(?:^|\s)-is:reply\b/i.test(q)) q = `${q} -is:reply`;
   if (filters.dropNativeMedia !== false && !/(?:^|\s)-has:media\b/i.test(q)) {
@@ -36,7 +44,7 @@ export function withScoutSearchExclusions(
   if (
     filters.filterByMinViews !== false &&
     filters.minViews !== 0 &&
-    !/(?:^|\s)min_likes:\d+/i.test(q)
+    !/(?:^|\s)-?min_likes:\d+/i.test(q)
   ) {
     q = `${q} min_likes:${SCOUT_MIN_LIKES}`;
   }

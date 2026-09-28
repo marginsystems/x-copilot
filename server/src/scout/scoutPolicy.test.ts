@@ -260,6 +260,20 @@ await describe("withScoutSearchExclusions", async () => {
     );
   });
 
+  await it("applies existing like and content filters to every OR branch", () => {
+    assert.equal(
+      withScoutSearchExclusions("freight OR logistics min_likes:20 -has:media"),
+      "(freight OR logistics) min_likes:20 -has:media -is:retweet -is:reply -has:hashtags",
+    );
+  });
+
+  await it("does not append a second floor after a negated like operator", () => {
+    assert.equal(
+      withScoutSearchExclusions("launch -min_faves:10"),
+      "launch -min_likes:10 -is:retweet -is:reply -has:media -has:hashtags",
+    );
+  });
+
   await it("skips the like floor when the view floor is zero", () => {
     assert.equal(
       withScoutSearchExclusions("shipping AI", { minViews: 0 }),
