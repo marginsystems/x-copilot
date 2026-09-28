@@ -143,6 +143,7 @@ await describe("voiceShareFilename and caption", () => {
     assert.match(full, /@margin/);
     assert.match(full, /140 public posts/);
     assert.match(full, new RegExp(VOICE_SHARE_SITE));
+    assert.ok(full.endsWith("Built by Mergestorm, Inc. Not affiliated with X Corp."));
     assert.match(full, /Not affiliated with X Corp/);
     assert.doesNotMatch(full, /remaining/);
     assert.doesNotMatch(full, /7/);

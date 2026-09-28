@@ -9,7 +9,7 @@ import type { VoiceState } from "./voice";
 export const VOICE_SHARE_WIDTH = 1080;
 export const VOICE_SHARE_HEIGHT = 1350;
 export const VOICE_SHARE_SITE = "xcopilot.dev";
-export const VOICE_SHARE_DISCLAIMER = `Built by ${LEGAL_ENTITY}. Not affiliated with X Corp.`;
+export const VOICE_SHARE_DISCLAIMER = `Built by ${LEGAL_ENTITY.replace(/\.$/, "")}. Not affiliated with X Corp.`;
 
 const MAX_HABITS = 6;
 const MAX_NEVER = 4;
