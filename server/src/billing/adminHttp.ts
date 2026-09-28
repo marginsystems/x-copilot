@@ -95,7 +95,7 @@ export async function tryHandleAdmin(
   if (req.method === "GET" && url.pathname === "/api/admin/x-credits") {
     const balance = await readXCreditBalance();
     if (!balance.ok) {
-      send(req, res, balance.status, { error: balance.error });
+      send(req, res, 502, { error: balance.error });
       return true;
     }
     send(req, res, 200, balance);

@@ -24,9 +24,9 @@ function readDismissedLevel(): XCreditsAlertLevel | null {
 }
 
 function writeDismissedLevel(level: XCreditsAlertLevel | null): void {
-  if (!level) return;
   try {
-    sessionStorage.setItem(X_CREDITS_TOAST_DISMISS_KEY, level);
+    if (level) sessionStorage.setItem(X_CREDITS_TOAST_DISMISS_KEY, level);
+    else sessionStorage.removeItem(X_CREDITS_TOAST_DISMISS_KEY);
   } catch {
     return;
   }
@@ -62,6 +62,11 @@ export function XCreditsToast({ enabled }: { enabled: boolean }) {
   const balance = useXCreditBalance(enabled);
   const [dismissed, setDismissed] = useState(readDismissedLevel);
   const level = xCreditsAlertLevel(balance);
+  useEffect(() => {
+    if (!balance || level) return;
+    writeDismissedLevel(null);
+    setDismissed(null);
+  }, [balance, level]);
   if (!enabled || !balance || !shouldShowXCreditsToast(level, dismissed)) {
     return null;
   }

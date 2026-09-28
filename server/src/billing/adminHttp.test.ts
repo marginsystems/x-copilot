@@ -324,4 +324,15 @@ await describe("GET /api/admin/x-credits", async () => {
     assert.equal(json.totalBalance, 4.2);
     assert.equal(json.low, true);
   });
+
+  await it("reports an X-side failure as a 502 so it never looks like a signed-out session", async () => {
+    await readXCreditBalance({
+      lowThreshold: 10,
+      get: () =>
+        Promise.resolve({ ok: false, status: 401, error: "unauthorized", message: "X API HTTP 401" }),
+    });
+    const { status, json } = await getCredits("margin707@gmail.com");
+    assert.equal(status, 502);
+    assert.equal(json.error, "unauthorized");
+  });
 });

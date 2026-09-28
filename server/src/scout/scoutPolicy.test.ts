@@ -248,4 +248,26 @@ await describe("withScoutSearchExclusions", async () => {
       "launch min_likes:10 -is:retweet -is:reply -has:media -has:hashtags",
     );
   });
+
+  await it("groups OR queries so every exclusion applies to each branch", () => {
+    assert.equal(
+      withScoutSearchExclusions("freight OR logistics", NO_X_FILTERS),
+      "(freight OR logistics) -is:retweet -is:reply",
+    );
+    assert.equal(
+      withScoutSearchExclusions("oregon ORbit", NO_X_FILTERS),
+      "oregon ORbit -is:retweet -is:reply",
+    );
+  });
+
+  await it("skips the like floor when the view floor is zero", () => {
+    assert.equal(
+      withScoutSearchExclusions("shipping AI", { minViews: 0 }),
+      "shipping AI -is:retweet -is:reply -has:media -has:hashtags",
+    );
+  });
+
+  await it("does not turn an operator-only query into a catch-all search", () => {
+    assert.equal(withScoutSearchExclusions("is:reply"), "-is:retweet -is:reply");
+  });
 });
