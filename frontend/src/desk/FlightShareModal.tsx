@@ -113,8 +113,8 @@ function ShareIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
-      width="16"
-      height="16"
+      width="18"
+      height="18"
       aria-hidden="true"
       fill="none"
       stroke="currentColor"
@@ -133,8 +133,8 @@ function DownloadIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
-      width="16"
-      height="16"
+      width="18"
+      height="18"
       aria-hidden="true"
       fill="none"
       stroke="currentColor"
@@ -142,9 +142,9 @@ function DownloadIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M12 3v12" />
-      <path d="M8 11l4 4 4-4" />
-      <path d="M5 19h14" />
+      <path d="M12 4v11" />
+      <path d="M7.5 10.5 12 15l4.5-4.5" />
+      <path d="M5 20h14" />
     </svg>
   );
 }
