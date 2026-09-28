@@ -210,6 +210,12 @@ await describe("interactedHttp", async () => {
     assert.ok(Array.isArray(retainedRows));
     assert.equal(retainedRows.length, 40);
     assert.equal(parseDatabaseRow(retainedRows).length, 40);
+    for (const row of parseDatabaseRow(retainedRows)) {
+      assert.deepEqual(Object.keys(row).sort(), ["at", "conversationId", "inReplyToId", "threadId"]);
+    }
+    const firstPageRow = expectRecord(parseDatabaseRow(retained.interactions)[0]);
+    assert.equal(firstPageRow.text, "x".repeat(200));
+    assert.equal(firstPageRow.author, "@rows");
   });
 
   await it("GET /api/interacted answers 304 from its ETag until the history changes", async () => {

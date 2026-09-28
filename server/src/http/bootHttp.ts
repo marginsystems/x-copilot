@@ -36,6 +36,7 @@ import {
   paginateInteractions,
   MAX_INTERACTION_STORE,
 } from "../desk/interactionStore.js";
+import { toRetainedInteractions } from "../desk/retainedInteraction.js";
 import { resolvePlan } from "../billing/planResolution.js";
 import { getRequestTenantId } from "./requestContext.js";
 import { readLastScoutPayload } from "../scout/scoutHttp.js";
@@ -204,7 +205,7 @@ export async function tryHandleBoot(
           interacted: {
             ...interactionPage,
             interactions,
-            retainedInteractions: interactionHistory,
+            retainedInteractions: toRetainedInteractions(interactionHistory),
             activeIds: active.map((i) => i.threadId),
           },
           dismissed: {

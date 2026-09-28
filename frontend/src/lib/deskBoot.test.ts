@@ -295,6 +295,71 @@ await describe("desk boot cache", async () => {
     clearDeskBootCache(store);
   }).catch(assert.fail);
 
+  it("parses slim retained rows and projects full legacy rows", () => {
+    const store = memoryStore();
+    const payload = parseDeskBoot({
+      ok: true,
+      authRequired: true,
+      user,
+      desk: {
+        ...desk,
+        interacted: {
+          interactions: [],
+          activeIds: [],
+          retainedInteractions: [
+            { threadId: "slim", at: "2026-09-19T12:00:00.000Z", conversationId: "root", stats: { t24h: { views: 9 } } },
+            {
+              threadId: "full", author: "@ada", at: "2026-09-18T12:00:00.000Z",
+              url: "https://x.com/op/status/full", text: "long reply text", summary: "s",
+              replyId: "77", replyUrl: "https://x.com/ada/status/77", postedAt: "2026-09-18T12:01:00.000Z",
+              inReplyToId: "parent", memory: { state: "saved" },
+              stats: {
+                t1h: { views: 1, sampledAt: "2026-09-18T13:00:00.000Z" },
+                t24h: { views: 50, likes: 4, replies: 1, sampledAt: "2026-09-19T12:00:00.000Z" },
+              },
+            },
+            { threadId: "bad", at: "2026-09-18T12:00:00.000Z", replyId: 5 },
+            { at: "2026-09-18T12:00:00.000Z" },
+          ],
+        },
+      },
+    });
+    const expected = [
+      { threadId: "slim", at: "2026-09-19T12:00:00.000Z", conversationId: "root", stats: { t24h: { views: 9 } } },
+      {
+        threadId: "full", at: "2026-09-18T12:00:00.000Z", url: "https://x.com/op/status/full",
+        replyId: "77", replyUrl: "https://x.com/ada/status/77", postedAt: "2026-09-18T12:01:00.000Z",
+        inReplyToId: "parent", stats: { t24h: { views: 50, likes: 4 } },
+      },
+    ];
+    assert.deepEqual(payload?.desk?.interacted.retainedInteractions, expected);
+    assert.deepEqual(payload?.desk?.interacted.blockedIds, ["slim", "root", "full", "parent"]);
+    assert.ok(payload);
+    writeDeskBootCache(payload, store);
+    assert.deepEqual(readDeskBootCache(store)?.desk?.interacted.retainedInteractions, expected);
+  }).catch(assert.fail);
+
+  it("falls back to projected page rows when retained rows are absent", () => {
+    const parsed = parseDeskBoot({
+      ok: true,
+      authRequired: true,
+      user,
+      desk: {
+        ...desk,
+        interacted: {
+          interactions: [
+            { threadId: "t1", author: "@ada", at: "2026-09-19T12:00:00.000Z", text: "hi", memory: { state: "saved" } },
+          ],
+          activeIds: ["t1"],
+        },
+      },
+    });
+    assert.deepEqual(parsed?.desk?.interacted.retainedInteractions, [
+      { threadId: "t1", at: "2026-09-19T12:00:00.000Z" },
+    ]);
+    assert.equal(parsed?.desk?.interacted.interactions[0]?.text, "hi");
+  }).catch(assert.fail);
+
   it("persists a saved receipt and hides it from another account", () => {
     const store = memoryStore();
     const payload = parseDeskBoot({
