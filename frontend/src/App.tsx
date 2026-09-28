@@ -39,6 +39,7 @@ import { useSettingsDraft } from "./settings/useSettingsDraft";
 import { UsagePage } from "./usage/UsagePage";
 import { useUsage } from "./usage/useUsage";
 import { useAdmin } from "./admin/useAdmin";
+import { XCreditsToast } from "./admin/XCreditsToast";
 import { useAuthSession } from "./auth/useAuthSession";
 import { useBilling } from "./billing/useBilling";
 import { useViewRouting } from "./routing/useViewRouting";
@@ -427,6 +428,8 @@ function SessionApp() {
         }}
         menuToggleRef={menuToggleRef}
       />
+
+      <XCreditsToast enabled={Boolean(authUser?.isAdmin) && !publicView} />
 
       {menuOpen ? (
         <MenuDrawer

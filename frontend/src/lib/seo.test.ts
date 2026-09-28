@@ -415,6 +415,24 @@ await describe("htmlWithSeo", () => {
     assert.match(source, /<title>x-copilot — the X copilot/);
   }).catch(assert.fail);
 
+  it("preconnects to the API once on every emitted page", () => {
+    const source = readFileSync(join(root, "index.html"), "utf8");
+    const tag = '<link rel="preconnect" href="https://api.xcopilot.dev" />';
+    const views = [
+      "changelog",
+      "learn",
+      "learnWeights",
+      "learnReply",
+      "learnVolume",
+      "learnGive",
+      "learnFollow",
+    ] as const;
+    for (const html of [source, ...views.map((v) => htmlWithSeo(source, v))]) {
+      assert.equal(html.split(tag).length - 1, 1);
+      assert.ok(html.indexOf(tag) < html.indexOf('rel="stylesheet"'));
+    }
+  }).catch(assert.fail);
+
   it("rewrites the SPA shell for /learn without touching the home copy", () => {
     const source = readFileSync(join(root, "index.html"), "utf8");
     const html = htmlWithSeo(source, "learn");
@@ -519,6 +537,14 @@ await describe("public crawl files", () => {
     assert.match(headers, /\/terms\n\s+X-Robots-Tag: noindex, follow/);
     assert.doesNotMatch(robots, /Disallow: \/privacy/);
     assert.doesNotMatch(robots, /Disallow: \/terms/);
+  }).catch(assert.fail);
+
+  it("caches hashed build assets as immutable", () => {
+    const headers = readFileSync(join(publicDir, "_headers"), "utf8");
+    assert.match(
+      headers,
+      /\/assets\/\*\n\s+Cache-Control: public, max-age=31536000, immutable/,
+    );
   }).catch(assert.fail);
 
   it("keeps the site OG image at the official size", () => {

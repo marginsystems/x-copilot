@@ -17,6 +17,10 @@ import { ensureUserTenant, getUserBilling } from "./billingStore.ts";
 import { activateSubscription } from "./stripeSubscriptionStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { tryHandleAdmin } from "./adminHttp.ts";
+import {
+  readXCreditBalance,
+  resetXCreditBalanceCacheForTests,
+} from "../x-api/xCredits.ts";
 
 await describe("POST /api/admin/grants", async () => {
   let dir: string;
@@ -246,5 +250,89 @@ await describe("POST /api/admin/grants", async () => {
     assert.equal(json.grant, null);
     assert.equal(getUserBilling(target.id)?.grantPlanKey, "pulse");
     assert.match(String(json.notice), /admin accounts always run on/);
+  });
+});
+
+await describe("GET /api/admin/x-credits", async () => {
+  let dir: string;
+  const prevAdmin = process.env.ADMIN_EMAILS;
+
+  beforeEach(() => {
+    resetPlatformDbForTests();
+    resetXCreditBalanceCacheForTests();
+    dir = mkdtempSync(join(tmpdir(), "x-admin-credits-"));
+    process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
+    process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
+    process.env.ADMIN_EMAILS = "margin707@gmail.com";
+    getPlatformDb();
+  });
+
+  afterEach(() => {
+    resetPlatformDbForTests();
+    resetXCreditBalanceCacheForTests();
+    delete process.env.PLATFORM_DB_PATH;
+    delete process.env.PLATFORM_MIGRATIONS_DIR;
+    if (prevAdmin === undefined) delete process.env.ADMIN_EMAILS;
+    else process.env.ADMIN_EMAILS = prevAdmin;
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  async function getCredits(
+    cookieEmail: string,
+  ): Promise<{ status: number; json: Record<string, unknown> }> {
+    const actor = upsertOauthUser({
+      provider: "google",
+      providerUserId: `gid-${cookieEmail}`,
+      email: cookieEmail,
+      emailVerified: true,
+    });
+    const { token } = createSession(actor.id);
+    const req = testRequest();
+    Object.assign(req, {
+      method: "GET",
+      headers: { cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}` },
+      socket: { remoteAddress: "127.0.0.1" },
+      destroy: () => {},
+    });
+    const { res, captured } = testResponse(req);
+    assert.equal(
+      await tryHandleAdmin(req, res, new URL("http://localhost/api/admin/x-credits")),
+      true,
+    );
+    return { status: captured.status, json: expectRecord(JSON.parse(captured.raw || "{}")) };
+  }
+
+  await it("hides the X credit balance from non-admins", async () => {
+    const { status, json } = await getCredits("eve@example.com");
+    assert.equal(status, 403);
+    assert.equal(json.error, "forbidden");
+    assert.equal("totalBalance" in json, false);
+  });
+
+  await it("returns the X credit balance to the admin", async () => {
+    await readXCreditBalance({
+      lowThreshold: 10,
+      get: () =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: { data: { total_balance: 4.2, prepaid_balance: 4.2, free_balance: 0, free_grants: [] } },
+        }),
+    });
+    const { status, json } = await getCredits("margin707@gmail.com");
+    assert.equal(status, 200);
+    assert.equal(json.totalBalance, 4.2);
+    assert.equal(json.low, true);
+  });
+
+  await it("reports an X-side failure as a 502 so it never looks like a signed-out session", async () => {
+    await readXCreditBalance({
+      lowThreshold: 10,
+      get: () =>
+        Promise.resolve({ ok: false, status: 401, error: "unauthorized", message: "X API HTTP 401" }),
+    });
+    const { status, json } = await getCredits("margin707@gmail.com");
+    assert.equal(status, 502);
+    assert.equal(json.error, "unauthorized");
   });
 });

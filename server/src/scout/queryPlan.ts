@@ -51,7 +51,7 @@ Return ONLY valid JSON: {"queries":["..."]} with 2 to 4 queries.
 
 Rules:
 - Prefer 2-word queries (highest recall on Latest). 3 words only when needed. Avoid 4+ words.
-- Optional operators ok (-is:reply, min_faves, from:) — they do not count against the 2-word preference when the keyword part is short. Do not emit is:reply. Scout wants original posts, not nested leaves.
+- Optional operators ok (-is:reply, min_likes:, from:) — they do not count against the 2-word preference when the keyword part is short. Do not emit is:reply. Scout wants original posts, not nested leaves.
 - At least two queries must contain a content word from the agenda. Match the agenda topic with keywords; do not copy the agenda sentence.
 - Infer related subjects, products, organizations, and claims from the agenda; do not rely only on words copied from it.
 - Do not repeat already-flown query strings. If unique/cool was 0, use different keywords within the agenda topic family while keeping at least two queries grounded in agenda content words. If unique was positive but cool was 0, stay in the topic family but change the keywords.

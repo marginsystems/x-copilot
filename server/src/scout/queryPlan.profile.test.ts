@@ -124,7 +124,7 @@ const NO_SUPPORT_PROFILES: Array<[string, ScoutProfile | null | undefined]> = [
 // ------------------------------------------------------- literal baselines
 
 const AGENDA = "B2B freight OS";
-const SYSTEM_SHA256 = "4bee7a9c7251b981435d6977c70a26fda1e17757efd731a7a5af8d3db948c50f";
+const SYSTEM_SHA256 = "a60661c4ed05ac9db0d85b21f5d223e693f91d7ee653e8cb55b35f659d3b960d";
 const BROADEN_LINE =
   "Broaden within the agenda topic family: prefer shorter high-recall 2-word Latest keywords (3 ok when needed); mix broad + tighter; do not copy the agenda sentence; at least two queries must contain agenda content words.";
 const REPAIR_LINE =
@@ -170,7 +170,7 @@ await describe("queryPlan profile parity — literal current-HEAD baselines", as
   });
 
   await it("SYSTEM is unchanged", () => {
-    assert.equal(SYSTEM.length, 1825);
+    assert.equal(SYSTEM.length, 1826);
     assert.equal(createHash("sha256").update(SYSTEM).digest("hex"), SYSTEM_SHA256);
   });
 
