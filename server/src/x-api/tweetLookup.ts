@@ -9,6 +9,12 @@ import { getXApiCredsFromEnv, type XApiCreds } from "./xApi.js";
 import { MAX_OP_TEXT_CHARS, type ThreadCard } from "../scout/threadCard.js";
 import { tweetResultToCard } from "./xGraphqlParse.js";
 import { v2TweetToCard } from "./xV2Card.js";
+import {
+  clearLiveMetricsRowsForTests,
+  readLiveMetricsRows,
+  writeLiveMetricsRows,
+  type LiveMetricsRow,
+} from "./liveMetricsStore.js";
 
 const parentCache = new Map<string, ParentTweet | null>();
 
@@ -323,10 +329,36 @@ type LiveMetricsLookup = {
 
 const liveMetricsInflight = new Map<string, LiveMetricsLookup>();
 
-export function clearLiveMetricsCacheForTests(): void {
+export function forgetLiveMetricsMemoryForTests(): void {
   liveMetricsCache.clear();
   liveMetricsFailedAt.clear();
   liveMetricsInflight.clear();
+}
+
+export function clearLiveMetricsCacheForTests(): void {
+  forgetLiveMetricsMemoryForTests();
+  clearLiveMetricsRowsForTests();
+}
+
+function restoreLiveMetricsFromStore(
+  ids: string[],
+  now: number,
+  out: Map<string, TweetMetrics>,
+): string[] {
+  const restored = new Set<string>();
+  for (const row of readLiveMetricsRows(ids, now - LIVE_METRICS_TTL_MS)) {
+    const age = now - row.fetchedAt;
+    if (row.status === "failed") {
+      if (age >= LIVE_METRICS_FAILURE_TTL_MS) continue;
+      liveMetricsFailedAt.set(row.tweetId, row.fetchedAt);
+    } else {
+      if (age >= LIVE_METRICS_TTL_MS) continue;
+      liveMetricsCache.set(row.tweetId, { metrics: row.metrics, at: row.fetchedAt });
+      if (row.metrics) out.set(row.tweetId, row.metrics);
+    }
+    restored.add(row.tweetId);
+  }
+  return restored.size ? ids.filter((id) => !restored.has(id)) : ids;
 }
 
 function logLiveMetricsLookup(
@@ -361,6 +393,9 @@ async function runLiveMetricsLookup(
   if (!res.ok) {
     if (res.error === "client_disconnected") return new Map();
     for (const id of ids) liveMetricsFailedAt.set(id, finishedAt);
+    writeLiveMetricsRows(
+      ids.map((tweetId) => ({ tweetId, status: "failed", metrics: null, fetchedAt: finishedAt })),
+    );
     logLiveMetricsLookup(res.error, ids.length, durationMs);
     return new Map();
   }
@@ -369,15 +404,20 @@ async function runLiveMetricsLookup(
   }
 
   const fetched = parseTweetsMetricsMap(res.json);
+  const rows: LiveMetricsRow[] = [];
   for (const [id, metrics] of fetched) {
     liveMetricsCache.set(id, { metrics, at: finishedAt });
+    rows.push({ tweetId: id, status: "ok", metrics, fetchedAt: finishedAt });
   }
   // Cache confirmed absence (deleted/private tweets left out of the batch) so
   // ids that can never resolve stop being re-fetched on every stats request.
   for (const id of ids) {
     liveMetricsFailedAt.delete(id);
-    if (!fetched.has(id)) liveMetricsCache.set(id, { metrics: null, at: finishedAt });
+    if (fetched.has(id)) continue;
+    liveMetricsCache.set(id, { metrics: null, at: finishedAt });
+    rows.push({ tweetId: id, status: "absent", metrics: null, fetchedAt: finishedAt });
   }
+  writeLiveMetricsRows(rows);
   return fetched;
 }
 
@@ -465,8 +505,11 @@ export async function fetchTweetMetricsMany(opts: {
   const session = opts.session ?? getXApiCredsFromEnv();
   if (!session.configured) return out;
 
+  const pending = restoreLiveMetricsFromStore(toFetch, now, out);
+  if (!pending.length) return out;
+
   const fetched = await awaitLiveMetricsLookup(
-    joinLiveMetricsLookup(toFetch, session),
+    joinLiveMetricsLookup(pending, session),
     opts.signal,
     opts.waitMs,
   );
