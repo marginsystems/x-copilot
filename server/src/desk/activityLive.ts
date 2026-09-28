@@ -16,6 +16,20 @@ import {
   fetchTweetMetricsMany,
 } from "../x-api/tweetLookup.js";
 
+export function bucketInteractionsStored(
+  history: readonly Interaction[],
+  bucket: ActivityBucket,
+  userId?: string,
+): ActivityStatsResult {
+  const ownPosts = userId
+    ? listActivityOwnPosts({ userId, sinceIso: activityWindowStartIso() })
+    : [];
+  return bucketClassifiedPosts(
+    mergeClassifiedActivity({ ownPosts, history }),
+    { bucket },
+  );
+}
+
 export async function bucketInteractionsWithLive(
   history: readonly Interaction[],
   bucket: ActivityBucket,
