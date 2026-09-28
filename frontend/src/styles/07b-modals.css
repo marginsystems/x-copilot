@@ -60,16 +60,29 @@
 }
 
 .flight-share-actions {
-  align-items: center;
+  align-items: stretch;
+  --flight-share-btn-h: 34px;
 }
 
-.flight-share-icon-btn {
-  width: 40px;
-  min-width: 40px;
-  padding: 0;
+.row.flight-share-actions > a,
+.row.flight-share-actions > button {
+  height: var(--flight-share-btn-h);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  line-height: 1;
+  margin: 0;
+}
+
+.row.flight-share-actions > .flight-share-icon-btn {
+  width: var(--flight-share-btn-h);
+  min-width: var(--flight-share-btn-h);
+  padding: 0;
+}
+
+.flight-share-icon-btn > svg {
+  display: block;
+  flex: none;
 }
 
 .mark-reply-text {
