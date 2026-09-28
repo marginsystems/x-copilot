@@ -1,4 +1,5 @@
 import type { ThreadCard } from "./threadCard.js";
+import type { ScoutFilters } from "./scoutTypes.js";
 import { threadHasCoolSkipPromoFlag } from "./threadFilters.js";
 import { isCoolSkipThreadKind } from "./threadTriage.js";
 
@@ -6,15 +7,34 @@ export const DEFAULT_TARGET_COOL = 5;
 export const DEFAULT_BUCKET_SIZE = 20;
 export const COLLECT_COUNT_PER_QUERY = 20;
 export const COLLECT_QUERY_DELAY_MS = 500;
+export const SCOUT_MIN_LIKES = 5;
+
+export type ScoutSearchFilters = Pick<
+  ScoutFilters,
+  "dropNativeMedia" | "dropHashtags" | "filterByMinViews"
+>;
 
 /** Avoid billing retweets and reply leaves. Scout aims at original posts. */
-export function withScoutSearchExclusions(query: string): string {
+export function withScoutSearchExclusions(
+  query: string,
+  filters: ScoutSearchFilters = {},
+): string {
   let q = query.trim();
   if (!q) return q;
   q = q.replace(/(?:^|\s)is:reply\b/gi, " ").replace(/\s+/g, " ").trim();
+  q = q.replace(/(^|\s)(-?)min_faves:/gi, "$1$2min_likes:");
   if (!q) q = "-is:retweet -is:reply";
   if (!/(?:^|\s)-is:retweet\b/i.test(q)) q = `${q} -is:retweet`;
   if (!/(?:^|\s)-is:reply\b/i.test(q)) q = `${q} -is:reply`;
+  if (filters.dropNativeMedia !== false && !/(?:^|\s)-has:media\b/i.test(q)) {
+    q = `${q} -has:media`;
+  }
+  if (filters.dropHashtags !== false && !/(?:^|\s)-has:hashtags\b/i.test(q)) {
+    q = `${q} -has:hashtags`;
+  }
+  if (filters.filterByMinViews !== false && !/(?:^|\s)min_likes:\d+/i.test(q)) {
+    q = `${q} min_likes:${SCOUT_MIN_LIKES}`;
+  }
   return q;
 }
 export const MAX_SEARCH_CALLS = 48;

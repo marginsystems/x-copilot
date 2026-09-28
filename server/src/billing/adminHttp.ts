@@ -26,6 +26,7 @@ import { getSessionUser } from "../auth/sessionCookie.js";
 import { isPaidPlanKey, isPlanKey } from "./plans.js";
 import { getUsageSummary } from "./usageMeter.js";
 import { allowRate } from "../auth/authGuard.js";
+import { readXCreditBalance } from "../x-api/xCredits.js";
 
 function requireOrigin(req: IncomingMessage, res: ServerResponse): boolean {
   const origin = requestOrigin(req);
@@ -88,6 +89,16 @@ export async function tryHandleAdmin(
       console.error("[GET /api/admin/tenants]", err);
       send(req, res, 500, { error: "admin_unavailable" });
     }
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin/x-credits") {
+    const balance = await readXCreditBalance();
+    if (!balance.ok) {
+      send(req, res, balance.status, { error: balance.error });
+      return true;
+    }
+    send(req, res, 200, balance);
     return true;
   }
 
