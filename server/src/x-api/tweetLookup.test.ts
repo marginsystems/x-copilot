@@ -744,4 +744,43 @@ await describe("fetchTweetMetricsMany budget, failure cache and abort", async ()
     release();
     assert.equal((await stayed).get("9")?.views, 100);
   });
+
+  await it("keeps a replacement lookup shared after an abandoned one settles", async () => {
+    let releaseAbandoned: () => void = () => {};
+    const abandonedGate = new Promise<void>((resolve) => {
+      releaseAbandoned = resolve;
+    });
+    let releaseReplacement: () => void = () => {};
+    const replacementGate = new Promise<void>((resolve) => {
+      releaseReplacement = resolve;
+    });
+    let calls = 0;
+    globalThis.fetch = async (input) => {
+      calls += 1;
+      if (calls === 1) {
+        await abandonedGate;
+        throw new Error("aborted");
+      }
+      await replacementGate;
+      return jsonResponse(metricsBody(requestedIds(input)), 200);
+    };
+    const leaving = new AbortController();
+    const abandoned = fetchTweetMetricsMany({ tweetIds: ["4"], signal: leaving.signal });
+    await new Promise((resolve) => setImmediate(resolve));
+    leaving.abort();
+    assert.equal((await abandoned).size, 0);
+
+    const replacement = fetchTweetMetricsMany({ tweetIds: ["4"] });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls, 2);
+    releaseAbandoned();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const joined = fetchTweetMetricsMany({ tweetIds: ["4"] });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls, 2);
+    releaseReplacement();
+    assert.equal((await replacement).get("4")?.views, 100);
+    assert.equal((await joined).get("4")?.views, 100);
+  });
 });

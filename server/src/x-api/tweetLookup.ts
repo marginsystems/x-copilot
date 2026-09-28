@@ -391,7 +391,7 @@ function joinLiveMetricsLookup(
   const controller = new AbortController();
   const lookup: LiveMetricsLookup = {
     promise: runLiveMetricsLookup(ids, session, controller.signal).finally(() => {
-      liveMetricsInflight.delete(key);
+      if (liveMetricsInflight.get(key) === lookup) liveMetricsInflight.delete(key);
     }),
     controller,
     waiters: 0,
