@@ -10,6 +10,7 @@ import { MAX_OP_TEXT_CHARS, type ThreadCard } from "../scout/threadCard.js";
 import { tweetResultToCard } from "./xGraphqlParse.js";
 import { v2TweetToCard } from "./xV2Card.js";
 import {
+  LIVE_METRICS_TTL_MS,
   clearLiveMetricsRowsForTests,
   readLiveMetricsRows,
   writeLiveMetricsRows,
@@ -308,7 +309,6 @@ export function parseTweetsMetricsMap(json: unknown): Map<string, TweetMetrics> 
 }
 
 /** How long a batch live-metrics result stays cached before a re-fetch. */
-const LIVE_METRICS_TTL_MS = 15 * 60 * 1000;
 
 export const LIVE_METRICS_WAIT_BUDGET_MS = 1500;
 

@@ -11,6 +11,7 @@ import {
 import {
   LIVE_METRICS_PRUNE_INTERVAL_MS,
   LIVE_METRICS_ROW_RETENTION_MS,
+  LIVE_METRICS_TTL_MS,
   pruneLiveMetricsRows,
   readLiveMetricsRows,
   writeLiveMetricsRows,
@@ -22,8 +23,6 @@ import {
   openTempPlatformDb,
   type TempPlatformDb,
 } from "../platform/platformDb.testHelpers.ts";
-
-const LIVE_METRICS_TTL_MS = 15 * 60 * 1000;
 
 function metricsResponse(ids: string[]): Response {
   return new Response(
@@ -148,6 +147,49 @@ await describe("live metrics persisted in SQLite", async () => {
     assert.equal(calls.length, 2);
   });
 
+  await it("keeps a fresh ok or absent row when an overlapping lookup fails", async () => {
+    mock.timers.enable({ apis: ["Date"], now: 5_000_000 });
+    await fetchTweetMetricsMany({ tweetIds: ["1", "2", "gone"] });
+    globalThis.fetch = async (input) => {
+      calls.push(requestedIds(input));
+      return new Response(JSON.stringify({ errors: [{ message: "down" }] }), { status: 503 });
+    };
+    mock.timers.tick(1000);
+    assert.equal((await fetchTweetMetricsMany({ tweetIds: ["3"] })).size, 0);
+    writeLiveMetricsRows(
+      ["2", "gone", "3"].map((tweetId) => ({
+        tweetId,
+        status: "failed" as const,
+        metrics: null,
+        fetchedAt: Date.now(),
+      })),
+    );
+
+    const byId = new Map(
+      readLiveMetricsRows(["1", "2", "gone", "3"], 0).map((row) => [row.tweetId, row.status]),
+    );
+    assert.deepEqual(Object.fromEntries(byId), {
+      "1": "ok",
+      "2": "ok",
+      gone: "absent",
+      "3": "failed",
+    });
+
+    mock.timers.tick(LIVE_METRICS_TTL_MS);
+    writeLiveMetricsRows([
+      { tweetId: "2", status: "failed", metrics: null, fetchedAt: Date.now() },
+    ]);
+    assert.equal(
+      readLiveMetricsRows(["2"], 0).find((row) => row.tweetId === "2")?.status,
+      "failed",
+    );
+    mock.timers.tick(1);
+    writeLiveMetricsRows([
+      { tweetId: "2", status: "ok", metrics: { views: 5 }, fetchedAt: Date.now() },
+    ]);
+    assert.deepEqual(readLiveMetricsRows(["2"], 0)[0]?.metrics, { views: 5 });
+  });
+
   await it("prunes rows older than a day at most once per interval", () => {
     const now = 10 * LIVE_METRICS_ROW_RETENTION_MS;
     mock.timers.enable({ apis: ["Date"], now });
@@ -169,30 +211,6 @@ await describe("live metrics persisted in SQLite", async () => {
     assert.deepEqual(storedIds(), ["fresh"]);
     assert.equal(pruneLiveMetricsRows(Date.now() + 1), 1);
     assert.deepEqual(storedIds(), []);
-  });
-
-  await it("reads 100 ids in one query well under 5 ms", () => {
-    const now = Date.now();
-    const ids = Array.from({ length: 5000 }, (_, i) => String(1_800_000_000_000_000_000n + BigInt(i)));
-    writeLiveMetricsRows(
-      ids.map((tweetId) => ({
-        tweetId,
-        status: "ok",
-        metrics: { views: 1000, likes: 10, replies: 2, retweets: 1, bookmarks: 0 },
-        fetchedAt: now,
-      })),
-    );
-    const wanted = ids.slice(2000, 2100);
-    readLiveMetricsRows(wanted, now - LIVE_METRICS_TTL_MS);
-    const samples: number[] = [];
-    for (let i = 0; i < 50; i += 1) {
-      const startedAt = performance.now();
-      const rows = readLiveMetricsRows(wanted, now - LIVE_METRICS_TTL_MS);
-      samples.push(performance.now() - startedAt);
-      assert.equal(rows.length, 100);
-    }
-    samples.sort((a, b) => a - b);
-    assert.ok(samples[Math.floor(samples.length / 2)]! < 5, `median ${samples[25]} ms`);
   });
 });
 

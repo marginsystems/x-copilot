@@ -12,6 +12,7 @@ export type LiveMetricsRow = {
   fetchedAt: number;
 };
 
+export const LIVE_METRICS_TTL_MS = 15 * 60 * 1000;
 export const LIVE_METRICS_ROW_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const LIVE_METRICS_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 const LIVE_METRICS_STORE_RETRY_MS = 60 * 1000;
@@ -43,7 +44,10 @@ function statements(): Statements {
        ON CONFLICT (tweet_id) DO UPDATE SET
          status = excluded.status,
          metrics_json = excluded.metrics_json,
-         fetched_at = excluded.fetched_at`,
+         fetched_at = excluded.fetched_at
+       WHERE excluded.status <> 'failed'
+         OR live_tweet_metrics.status = 'failed'
+         OR excluded.fetched_at - live_tweet_metrics.fetched_at >= ?`,
     ),
     prune: db.prepare(`DELETE FROM live_tweet_metrics WHERE fetched_at < ?`),
   };
@@ -127,6 +131,7 @@ export function writeLiveMetricsRows(rows: readonly LiveMetricsRow[]): void {
           row.status,
           row.metrics ? JSON.stringify(row.metrics) : null,
           row.fetchedAt,
+          LIVE_METRICS_TTL_MS,
         );
       }
     })();
