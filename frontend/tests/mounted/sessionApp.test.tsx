@@ -332,6 +332,23 @@ test("a cross-tab session reset during the provisional phase invalidates the des
   await act(async () => { pending.resolve(Response.json({ ok: false }, { status: 401 })); await pending.promise; });
 });
 
+test("a changed owner cookie on focus during the provisional phase invalidates the desk and the cache", async () => {
+  window.history.replaceState({}, "", "/dashboard");
+  seedCache(cachedDesk("Cached scout text"));
+  const pending = deferred<Response>();
+  recordFetch((url) => (url.includes("/api/boot?") ? pending.promise : Response.json({ ok: true, empty: true })));
+  render(<App />);
+  expect(await screen.findByText("Cached scout text")).toBeTruthy();
+  act(() => {
+    setOwnerCookie(OTHER_OWNER_HINT);
+    window.dispatchEvent(new Event("focus"));
+  });
+  await waitFor(() => expect(screen.queryByText("Cached scout text")).toBeNull());
+  expect(screen.getByText("Your session changed. Reload to continue.")).toBeTruthy();
+  expect(localStorage.getItem(DESK_BOOT_KEY)).toBeNull();
+  await act(async () => { pending.resolve(Response.json({ ok: false }, { status: 401 })); await pending.promise; });
+});
+
 test("a provisional session on a non-dashboard path paints only the boot screen", async () => {
   window.history.replaceState({}, "", "/settings");
   seedCache(cachedDesk("Cached scout text"));
