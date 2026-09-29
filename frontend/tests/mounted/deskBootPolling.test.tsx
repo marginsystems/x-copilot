@@ -8,12 +8,13 @@ import { useScoutRun } from "../../src/desk/useScoutRun";
 import { parseDeskBoot, peekDeskBootCache, type DeskBootDeskPatch } from "../../src/lib/deskBoot";
 import { DEFAULT_SETTINGS } from "../../src/lib/settings";
 import { deferred } from "./support/deferred";
+import { OWNER_HINT } from "./support/ownerHint";
 
 vi.mock("../../src/desk/watch", () => ({
   ensureActivitySubscribe: vi.fn(), watchDeskThreads: vi.fn(),
 }));
 
-const boot = parseDeskBoot({ ok: true, user: { id: "owner", onboardingCompleted: true }, desk: {} })!;
+const boot = parseDeskBoot({ ok: true, ownerHint: OWNER_HINT, user: { id: "owner", onboardingCompleted: true }, desk: {} })!;
 const wrapper = ({ children }: { children: ReactNode }) => <StrictMode><SessionBoundary>{children}</SessionBoundary></StrictMode>;
 const threadCard = (id: string) => ({ id, author: "@author", text: "text", url: `https://x.com/author/status/${id}` });
 afterEach(() => window.history.replaceState({}, "", "/"));

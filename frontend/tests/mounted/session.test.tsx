@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { act, render, renderHook, screen } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { createSession, SessionBoundary, SESSION_RESET_KEY, useSession } from "../../src/auth/session";
 import { useAuthSession } from "../../src/auth/useAuthSession";
@@ -7,9 +7,10 @@ import { useDeskBoot } from "../../src/desk/useDeskBoot";
 import { peekDeskBootCache, writeDeskBootCache, type DeskBootPayload } from "../../src/lib/deskBoot";
 import type { AuthSessionUser } from "../../src/auth/types";
 import { deferred } from "./support/deferred";
+import { OTHER_OWNER_HINT, OWNER_HINT, clearOwnerCookie, setOwnerCookie } from "./support/ownerHint";
 
 const owner = (id: string): AuthSessionUser => ({ id, email: null, displayName: id, avatarUrl: null, onboardingCompleted: true, agenda: null, xUsername: null, xLinked: true, xCanPost: true, isAdmin: false });
-const payload = (id: string): DeskBootPayload => ({ ok: true, user: owner(id), authRequired: true, desk: null });
+const payload = (id: string): DeskBootPayload => ({ ok: true, user: owner(id), authRequired: true, ownerHint: OWNER_HINT, desk: null });
 function useHarness() {
   const [agenda, setAgenda] = useState("");
   const auth = useAuthSession({ setAgenda, onLoggedOut: vi.fn(), onOnboardingFinished: vi.fn() });
@@ -151,4 +152,61 @@ test("generation contract expires synchronously, even if storage is unavailable"
   expect(session.isCurrent(token)).toBe(false);
   expect(session.verify(owner("a"), true, token)).toBeNull();
   expect(session.getSnapshot().user).toBeNull();
+});
+
+test("verify keeps a hint that matches the cookie and drops one that does not", () => {
+  setOwnerCookie(OWNER_HINT);
+  const matching = renderHook(useHarness, { wrapper: SessionBoundary });
+  act(() => { matching.result.current.applyAuthUser(owner("a"), true, OWNER_HINT); });
+  expect(matching.result.current.session.getSnapshot().ownerHint).toBe(OWNER_HINT);
+  const mismatching = renderHook(useHarness, { wrapper: SessionBoundary });
+  act(() => { mismatching.result.current.applyAuthUser(owner("a"), true, OTHER_OWNER_HINT); });
+  expect(mismatching.result.current.session.getSnapshot().ownerHint).toBeNull();
+});
+
+test("an omitted hint keeps the verified hint across hydrateAuth failure and hint-less /me", async () => {
+  setOwnerCookie(OWNER_HINT);
+  const { result } = renderHook(useHarness, { wrapper: SessionBoundary });
+  act(() => { result.current.applyAuthUser(owner("a"), true, OWNER_HINT); });
+  vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("offline"))));
+  await act(async () => { await result.current.hydrateAuth(); });
+  expect(result.current.session.getSnapshot().ownerHint).toBe(OWNER_HINT);
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ok: true, user: owner("a"), authRequired: true })));
+  await act(async () => { await result.current.hydrateAuth(); });
+  expect(result.current.session.getSnapshot().ownerHint).toBe(OWNER_HINT);
+});
+
+test.each(["boot", "legacy /api/auth/me"])("the verified hint is stored after %s", async (path) => {
+  setOwnerCookie(OWNER_HINT);
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/api/boot?")) {
+      return path === "boot" ? Response.json(payload("a")) : new Response(null, { status: 404 });
+    }
+    if (url.endsWith("/api/auth/me")) return Response.json({ ok: true, user: owner("a"), authRequired: true, ownerHint: OWNER_HINT });
+    return Response.json({ ok: true });
+  }));
+  const followup = vi.fn(async () => {});
+  let current!: ReturnType<typeof useHarness>;
+  function Boot() {
+    current = useHarness();
+    useDeskBoot({
+      dedupeAccounts: false, setAgenda: current.setAgenda, setAuthNotice: current.setAuthNotice,
+      setBillingNotice: vi.fn(), setView: vi.fn(), setSignInOpen: vi.fn(),
+      applyAuthUser: current.applyAuthUser, applyDesk: vi.fn(),
+      confirmCheckout: followup, hydrateCoaching: followup,
+      hydrateActivityStats: followup, loadBilling: followup, hydrateVoice: followup, loadUsage: followup, loadAdmin: followup,
+    });
+    return <span>{current.authUser?.id ?? "anonymous"}</span>;
+  }
+  render(<SessionBoundary><Boot /></SessionBoundary>);
+  await waitFor(() => expect(screen.getByText("a")).toBeTruthy());
+  expect(current.session.getSnapshot().ownerHint).toBe(OWNER_HINT);
+});
+
+test("clearOwnerCookie removes the cookie entirely", () => {
+  setOwnerCookie(OWNER_HINT);
+  expect(document.cookie).toContain("xc_owner=");
+  clearOwnerCookie();
+  expect(document.cookie).not.toContain("xc_owner");
 });

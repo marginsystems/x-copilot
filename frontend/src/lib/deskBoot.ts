@@ -16,7 +16,9 @@ import {
   parseActivityStats,
   type ActivityStats,
 } from "./activityStats";
+import { viewFromPath } from "./appView";
 import { apiFetch } from "./apiBase";
+import { isOwnerHint, readOwnerHint } from "./ownerHint";
 import { parseCoachingPayload, type CoachingState } from "./coaching";
 import {
   parseForYouExtra,
@@ -33,7 +35,11 @@ import {
 } from "./gamification";
 import { parseScoutFamiliarity, type ScoutFamiliarity } from "./scoutFamiliarity";
 
-export const DESK_BOOT_KEY = "x-copilot-desk-boot-v1";
+export const DESK_BOOT_KEY = "x-copilot-desk-boot-v2";
+const LEGACY_DESK_BOOT_KEY = "x-copilot-desk-boot-v1";
+const MAX_CACHE_CHARS = 1_000_000;
+const CACHE_WRITE_IDLE_MS = 2000;
+const PROVISIONAL_BLOCKING_PARAMS = ["auth", "auth_error", "checkout"];
 
 export type LastScoutSnapshot = {
   savedAt: string;
@@ -108,6 +114,7 @@ export type DeskBootPayload = {
   ok: true;
   authRequired: boolean;
   user: AuthSessionUser | null;
+  ownerHint: string | null;
   desk: DeskBootDesk | null;
 };
 
@@ -230,11 +237,13 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
   if (!isRecord(raw) || raw.ok !== true) return null;
   const user = raw.user == null ? null : parseAuthSessionUser(raw.user);
   if (raw.user != null && !user) return null;
+  const ownerHint = isOwnerHint(raw.ownerHint) ? raw.ownerHint : null;
   if (!isRecord(raw.desk)) {
     return {
       ok: true,
       authRequired: raw.authRequired !== false,
       user,
+      ownerHint,
       desk: null,
     };
   }
@@ -277,6 +286,7 @@ export function parseDeskBoot(raw: unknown): DeskBootPayload | null {
     ok: true,
     authRequired: raw.authRequired !== false,
     user,
+    ownerHint,
     desk: {
       interacted: {
         interactions,
@@ -350,6 +360,8 @@ function defaultStore(): Storage | null {
 }
 
 let peekMemo: DeskBootPayload | null | undefined;
+let pendingWrite: { serialized: string; ownerHint: string; cancel: () => void } | null = null;
+let flushListenersInstalled = false;
 
 export function readDeskBootCache(
   store: Pick<Storage, "getItem"> | null = defaultStore(),
@@ -357,10 +369,39 @@ export function readDeskBootCache(
   if (!store) return null;
   try {
     const parsed = parseDeskBoot(JSON.parse(store.getItem(DESK_BOOT_KEY) ?? "null"));
-    return parsed?.user ? parsed : null;
+    return parsed?.user && parsed.ownerHint && parsed.desk ? parsed : null;
   } catch {
     return null;
   }
+}
+
+type ProvisionalReadOptions = {
+  hint?: string | null;
+  store?: Pick<Storage, "getItem"> | null;
+  location?: Pick<Location, "pathname" | "search"> | null;
+};
+
+export function readProvisionalDeskBoot(
+  options: ProvisionalReadOptions = {},
+): DeskBootPayload | null {
+  const hint = options.hint === undefined ? readOwnerHint() : options.hint;
+  const location =
+    options.location === undefined
+      ? typeof window === "undefined"
+        ? null
+        : window.location
+      : options.location;
+  if (!hint || !location) return null;
+  if (viewFromPath(location.pathname) !== "dashboard") return null;
+  const params = new URLSearchParams(location.search);
+  if (PROVISIONAL_BLOCKING_PARAMS.some((key) => params.has(key))) return null;
+  const store = options.store === undefined ? defaultStore() : options.store;
+  const cached = readDeskBootCache(store);
+  if (!cached || cached.ownerHint !== hint) return null;
+  const user = cached.user;
+  if (!user || !user.onboardingCompleted || !user.xLinked) return null;
+  if (options.store === undefined) peekMemo = cached;
+  return cached;
 }
 
 /** Display data only. Callers must supply an owner verified by the server.
@@ -384,19 +425,92 @@ export function peekDeskBootCache(
   return peekMemo?.user?.id === verifiedOwnerId ? peekMemo : null;
 }
 
+function cancelPendingWrite(): void {
+  pendingWrite?.cancel();
+  pendingWrite = null;
+}
+
+function commitWrite(serialized: string, ownerHint: string): void {
+  const target = defaultStore();
+  if (!target) return;
+  try {
+    if (readOwnerHint() !== ownerHint) {
+      removeCacheKeys(target);
+      return;
+    }
+    if (target.getItem(DESK_BOOT_KEY) === serialized) return;
+    target.removeItem(LEGACY_DESK_BOOT_KEY);
+    target.setItem(DESK_BOOT_KEY, serialized);
+  } catch {
+    return;
+  }
+}
+
+export function flushDeskBootWrite(): void {
+  const pending = pendingWrite;
+  if (!pending) return;
+  cancelPendingWrite();
+  commitWrite(pending.serialized, pending.ownerHint);
+}
+
+function installFlushListeners(): void {
+  if (flushListenersInstalled || typeof window === "undefined") return;
+  flushListenersInstalled = true;
+  window.addEventListener("pagehide", flushDeskBootWrite);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushDeskBootWrite();
+  });
+}
+
+function scheduleWrite(serialized: string, ownerHint: string): void {
+  cancelPendingWrite();
+  installFlushListeners();
+  const run = () => {
+    pendingWrite = null;
+    commitWrite(serialized, ownerHint);
+  };
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    const handle = window.requestIdleCallback(run, { timeout: CACHE_WRITE_IDLE_MS });
+    pendingWrite = { serialized, ownerHint, cancel: () => window.cancelIdleCallback(handle) };
+    return;
+  }
+  const handle = setTimeout(run, 0);
+  pendingWrite = { serialized, ownerHint, cancel: () => clearTimeout(handle) };
+}
+
+function removeCacheKeys(target: Pick<Storage, "removeItem">): void {
+  target.removeItem(DESK_BOOT_KEY);
+  target.removeItem(LEGACY_DESK_BOOT_KEY);
+}
+
 export function writeDeskBootCache(
   payload: DeskBootPayload,
   store?: Pick<Storage, "setItem" | "removeItem"> | null,
 ): void {
-  const target = store === undefined ? defaultStore() : store;
-  if (store === undefined) peekMemo = payload.user ? payload : null;
+  const deferred = store === undefined;
+  const target = deferred ? defaultStore() : store;
+  if (deferred) {
+    cancelPendingWrite();
+    peekMemo = payload.user && payload.ownerHint ? payload : null;
+  }
   if (!target) return;
   try {
-    if (!payload.user) {
-      target.removeItem(DESK_BOOT_KEY);
+    const serialized =
+      payload.user && payload.ownerHint ? JSON.stringify(payload) : null;
+    if (
+      serialized === null ||
+      serialized.length > MAX_CACHE_CHARS ||
+      (deferred && payload.ownerHint !== readOwnerHint())
+    ) {
+      removeCacheKeys(target);
       return;
     }
-    target.setItem(DESK_BOOT_KEY, JSON.stringify(payload));
+    if (deferred && payload.ownerHint) {
+      scheduleWrite(serialized, payload.ownerHint);
+      return;
+    }
+    target.removeItem(LEGACY_DESK_BOOT_KEY);
+    target.setItem(DESK_BOOT_KEY, serialized);
   } catch {
     /* private mode / quota */
   }
@@ -405,11 +519,15 @@ export function writeDeskBootCache(
 export function clearDeskBootCache(
   store?: Pick<Storage, "removeItem"> | null,
 ): void {
-  const target = store === undefined ? defaultStore() : store;
-  if (store === undefined) peekMemo = null;
+  const deferred = store === undefined;
+  const target = deferred ? defaultStore() : store;
+  if (deferred) {
+    cancelPendingWrite();
+    peekMemo = null;
+  }
   if (!target) return;
   try {
-    target.removeItem(DESK_BOOT_KEY);
+    removeCacheKeys(target);
   } catch {
     /* private mode */
   }

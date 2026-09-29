@@ -73,9 +73,16 @@ function PrivacyBody() {
       <p>
         Strictly necessary cookies keep you signed in (
         <code>xc_session</code>, <code>xc_oauth_state</code>, and{" "}
-        <code>xc_x_oauth</code> for X sign-in). We also store preferences in
-        your browser: <code>xc-theme</code>, <code>xc-cookie-consent</code>,
-        onboarding flags (<code>xc-onboarding-complete</code>,{" "}
+        <code>xc_x_oauth</code> for X sign-in). A companion cookie,{" "}
+        <code>xc_owner</code>, holds a one-way hash of your current session
+        identifier. It is readable by the page and lets the site check that a
+        desk cached in your browser belongs to the session that is signed in
+        before showing it; it is cleared when you sign out. We also store
+        preferences in your browser: <code>xc-theme</code>,{" "}
+        <code>xc-cookie-consent</code>, a local copy of your last desk (
+        <code>x-copilot-desk-boot-v2</code>) that lets the dashboard appear
+        instantly while your session is verified and is deleted when you sign
+        out, onboarding flags (<code>xc-onboarding-complete</code>,{" "}
         <code>xc-onboarding-agenda</code>, scoped per account), and Scout
         filters (<code>x-copilot-settings</code> and a one-time excluded-tags
         migration key). The service cannot function without the session

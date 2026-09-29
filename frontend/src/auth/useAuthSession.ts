@@ -25,6 +25,10 @@ export function useAuthSession({
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const generation = snapshot.generation;
   const authUser = snapshot.user;
+  const provisionalUser = snapshot.provisional;
+  const paintUser = authUser ?? provisionalUser;
+  const sessionPhase = snapshot.phase;
+  const sessionOffline = snapshot.offline;
   const authChecked = snapshot.checked;
   const authRequired = snapshot.required;
   const authNotice = snapshot.notice;
@@ -36,8 +40,12 @@ export function useAuthSession({
     if (user === null) session.clearUser(generation);
     else session.updateUser(user, generation);
   };
-  function applyAuthUser(user: AuthSessionUser | null, required = true) {
-    return session.verify(user, required, generation);
+  function applyAuthUser(
+    user: AuthSessionUser | null,
+    required = true,
+    ownerHint?: string | null,
+  ) {
+    return session.verify(user, required, generation, ownerHint);
   }
   function invalidateSession() {
     if (!session.isCurrent(generation)) return false;
@@ -54,9 +62,16 @@ export function useAuthSession({
       if (!isRecord(data)) throw new Error("Invalid auth response");
       const user =
         res.ok && data.ok ? parseAuthSessionUser(data.user) : null;
-      return applyAuthUser(user, typeof data.authRequired === "boolean" ? data.authRequired : true);
+      return applyAuthUser(
+        user,
+        typeof data.authRequired === "boolean" ? data.authRequired : true,
+        "ownerHint" in data
+          ? typeof data.ownerHint === "string" ? data.ownerHint : null
+          : undefined,
+      );
     } catch {
       const current = session.getSnapshot();
+      if (current.phase === "provisional") return null;
       return applyAuthUser(current.user, current.user ? current.required : false);
     }
   }
@@ -105,6 +120,10 @@ export function useAuthSession({
 
   return {
     authUser,
+    provisionalUser,
+    paintUser,
+    sessionPhase,
+    sessionOffline,
     invalidateSession,
     setAuthUser,
     onboardingDoneLocal,

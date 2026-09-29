@@ -69,7 +69,7 @@ function setup(nowMs: number) {
       setStatus: vi.fn(), setThreads: vi.fn(), setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS,
     }, user.id);
     return useApproachTask({
-      authUser: user, deskBootReady: true, agendaReady: true,
+      authUser: user, writesEnabled: true, deskBootReady: true, agendaReady: true,
       agenda: "Help developers build reliable software and share useful engineering ideas.",
       curatedThreads: [], forYouSuggestions: [], coaching,
       interactedIds: history.interactedIds, interactedRetainedHistory: history.interactedRetainedHistory,

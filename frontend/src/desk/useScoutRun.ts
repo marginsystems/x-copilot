@@ -79,6 +79,7 @@ export function useScoutRun({
   function applyLastScoutFromBoot(
     data: LastScoutPayload,
     tankFull = !data.empty && (data.snapshot?.threads.length ?? 0) > 1,
+    options: { watch?: boolean } = {},
   ) {
     applyServerFlight(data, tankFull);
     if (!data.ok) return;
@@ -91,7 +92,7 @@ export function useScoutRun({
       : [];
     const filtered = list.filter((t) => keepInCurated(t));
     setThreads(filtered);
-    watchDeskThreads(filtered);
+    if (options.watch !== false) watchDeskThreads(filtered);
   }
 
   async function hydrateLastScout(autoStart = false, signal?: AbortSignal, generation = session.capture()) {

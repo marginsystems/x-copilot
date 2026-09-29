@@ -6,23 +6,51 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { clearDeskBootCache } from "../lib/deskBoot";
+import {
+  clearDeskBootCache,
+  readProvisionalDeskBoot,
+  type DeskBootPayload,
+} from "../lib/deskBoot";
+import { setMutationGate } from "../lib/apiBase";
+import { readOwnerHint } from "../lib/ownerHint";
 import type { AuthSessionUser } from "./types";
 
 export const SESSION_RESET_KEY = "x-copilot:session-reset";
 
+export type SessionPhase = "unchecked" | "provisional" | "verified" | "rejected";
+
+type SessionSnapshot = {
+  generation: number;
+  user: AuthSessionUser | null;
+  provisional: AuthSessionUser | null;
+  phase: SessionPhase;
+  checked: boolean;
+  required: boolean;
+  active: boolean;
+  notice: string;
+  offline: boolean;
+  ownerHint: string | null;
+};
+
+type CreateSessionOptions = { provisional?: DeskBootPayload | null };
+
 /** A token belongs to one client session lifetime, including its initial verification. */
-export function createSession() {
-  let snapshot = {
+export function createSession({ provisional = null }: CreateSessionOptions = {}) {
+  const provisionalUser = provisional?.user ?? null;
+  let snapshot: SessionSnapshot = {
     generation: 0,
-    user: null as AuthSessionUser | null,
+    user: null,
+    provisional: provisionalUser,
+    phase: provisionalUser ? "provisional" : "unchecked",
     checked: false,
     required: true,
     active: true,
     notice: "",
+    offline: false,
+    ownerHint: provisionalUser ? provisional?.ownerHint ?? null : null,
   };
   const listeners = new Set<() => void>();
-  const publish = (next: typeof snapshot) => {
+  const publish = (next: SessionSnapshot) => {
     snapshot = next;
     listeners.forEach((listener) => listener());
   };
@@ -44,37 +72,74 @@ export function createSession() {
     capture: () => snapshot.generation,
     isCurrent: (generation: number) =>
       snapshot.active && generation === snapshot.generation,
-    invalidate(notice = "Signed out.", notifyTabs = true) {
-      clearDeskBootCache();
+    writesAllowed: () => snapshot.phase !== "provisional",
+    invalidate(
+      notice = "Signed out.",
+      notifyTabs = true,
+      { clearCache = true }: { clearCache?: boolean } = {},
+    ) {
+      if (clearCache) clearDeskBootCache();
       publish({
         ...snapshot,
         generation: snapshot.generation + 1,
         user: null,
+        provisional: null,
+        phase: "rejected",
         checked: true,
         required: true,
         active: false,
         notice,
+        offline: false,
+        ownerHint: null,
       });
       if (notifyTabs) broadcast();
       return snapshot.generation;
     },
-    verify(user: AuthSessionUser | null, required: boolean, generation: number) {
+    verify(
+      user: AuthSessionUser | null,
+      required: boolean,
+      generation: number,
+      ownerHint?: string | null,
+    ) {
       if (!session.isCurrent(generation)) return null;
+      const priorOwner = snapshot.user?.id ?? snapshot.provisional?.id ?? null;
       if (!user && required) {
-        session.invalidate(snapshot.user ? "Your session has ended." : snapshot.notice);
+        session.invalidate(priorOwner ? "Your session has ended." : snapshot.notice);
         return null;
       }
-      const changedOwner = snapshot.user !== null && snapshot.user.id !== user?.id;
+      const changedOwner = priorOwner !== null && priorOwner !== user?.id;
       if (changedOwner) clearDeskBootCache();
       publish({
         ...snapshot,
         user,
+        provisional: null,
+        phase: "verified",
         required,
         checked: true,
+        offline: false,
+        ownerHint: !user
+          ? null
+          : ownerHint === undefined
+            ? snapshot.ownerHint
+            : ownerHint && ownerHint === readOwnerHint()
+              ? ownerHint
+              : null,
         generation: snapshot.generation + Number(changedOwner),
       });
       if (changedOwner) broadcast();
       return user;
+    },
+    fail(notice: string, generation: number) {
+      if (!session.isCurrent(generation)) return;
+      if (snapshot.phase === "provisional") {
+        publish({ ...snapshot, notice, offline: true });
+        return;
+      }
+      if (snapshot.phase === "unchecked") {
+        session.invalidate(notice, false, { clearCache: false });
+        return;
+      }
+      publish({ ...snapshot, notice });
     },
     updateUser(user: AuthSessionUser | null, generation: number) {
       if (!session.isCurrent(generation)) return;
@@ -87,6 +152,11 @@ export function createSession() {
     },
     setNotice(notice: string, generation: number) {
       if (generation === snapshot.generation) publish({ ...snapshot, notice });
+    },
+    checkOwnerHint(cookieHint: string | null = readOwnerHint()) {
+      if (!snapshot.active || !snapshot.ownerHint) return;
+      if (cookieHint === snapshot.ownerHint) return;
+      session.invalidate("Your session changed. Reload to continue.", false);
     },
   };
   return session;
@@ -103,8 +173,28 @@ export function useSession() {
 
 /** Reset all App-owned slices together; old component setters cannot reach the new tree. */
 export function SessionBoundary({ children }: { children: ReactNode }) {
-  const [session] = useState(createSession);
+  const [session] = useState(() => {
+    const created = createSession({ provisional: readProvisionalDeskBoot() });
+    setMutationGate(() => created.writesAllowed());
+    return created;
+  });
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
+  useEffect(() => {
+    setMutationGate(() => session.writesAllowed());
+    return () => setMutationGate(null);
+  }, [session]);
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") session.checkOwnerHint();
+    };
+    const onFocus = () => session.checkOwnerHint();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [session]);
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key === SESSION_RESET_KEY || event.key === null) {

@@ -49,7 +49,7 @@ function setup() {
       setStatus, setThreads: vi.fn(), setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS,
     }, null);
     const approach = useApproachTask({
-      authUser: user, deskBootReady: ready, agendaReady: true,
+      authUser: user, writesEnabled: true, deskBootReady: ready, agendaReady: true,
       agenda: "Help developers build reliable software and share useful engineering ideas.",
       curatedThreads: [], forYouSuggestions: history.forYouSuggestions,
       interactedIds: new Set(), interactedRetainedHistory: [{ threadId: "123", at: "2026-09-16" }],

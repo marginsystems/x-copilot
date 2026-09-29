@@ -13,6 +13,7 @@ import {
 } from "../../src/lib/deskBoot";
 import type { ScoutFamiliarity as Familiarity } from "../../src/lib/scoutFamiliarity";
 import { authUser } from "./support/authUser";
+import { OWNER_HINT } from "./support/ownerHint";
 import { deferred } from "./support/deferred";
 
 const EMPTY: Familiarity = {
@@ -51,7 +52,7 @@ const HINTS: Familiarity = {
 const userA = authUser("owner-a");
 const userB = authUser("owner-b");
 const bootFor = (user: { id: string }, scoutFamiliarity?: Familiarity | null) =>
-  parseDeskBoot({ ok: true, user, desk: scoutFamiliarity === undefined ? {} : { scoutFamiliarity } })!;
+  parseDeskBoot({ ok: true, ownerHint: OWNER_HINT, user, desk: scoutFamiliarity === undefined ? {} : { scoutFamiliarity } })!;
 const profile = (scoutFamiliarity: Familiarity | null) => Response.json({ ok: true, scoutFamiliarity });
 
 beforeEach(() => {

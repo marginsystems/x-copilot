@@ -82,6 +82,9 @@ function SessionApp() {
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const {
     authUser,
+    paintUser,
+    sessionPhase,
+    sessionOffline,
     invalidateSession,
     setAuthUser,
     onboardingDoneLocal,
@@ -104,11 +107,13 @@ function SessionApp() {
     },
   });
   const verifiedOwnerId = authUser?.id ?? null;
+  const paintOwnerId = paintUser?.id ?? null;
+  const provisional = sessionPhase === "provisional";
   const {
     scoutFamiliarity,
     applyScoutFamiliarityFromBoot,
     hydrateScoutFamiliarity,
-  } = useScoutFamiliarity(verifiedOwnerId);
+  } = useScoutFamiliarity(paintOwnerId);
   const {
     interactedIds,
     interactedHistory,
@@ -137,7 +142,7 @@ function SessionApp() {
     setActionBusy,
     settings,
     onHydrated: () => { hydrateScoutFamiliarity().catch((err) => setStatus(err instanceof Error ? err.message : String(err))); },
-  }, verifiedOwnerId);
+  }, verifiedOwnerId, paintOwnerId);
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const {
     activityBucket,
@@ -150,8 +155,8 @@ function SessionApp() {
     onActivityBucket,
     onToggleFlightPath,
     onToggleDeskTop,
-  } = useActivityStrip(verifiedOwnerId);
-  const { coaching, applyCoaching, hydrateCoaching } = useCoaching(verifiedOwnerId);
+  } = useActivityStrip(paintOwnerId);
+  const { coaching, applyCoaching, hydrateCoaching } = useCoaching(paintOwnerId);
   const {
     view,
     setView,
@@ -231,6 +236,11 @@ function SessionApp() {
     setView,
     setSignInOpen,
     applyAuthUser,
+    applyProvisionalDesk: (desk) => {
+      applyLastScoutFromBoot({ ...desk.lastScout, flight: undefined }, undefined, {
+        watch: false,
+      });
+    },
     applyDesk: (desk) => {
       applyHistoryFromBoot(desk);
       applyStripFromBoot(desk);
@@ -251,7 +261,7 @@ function SessionApp() {
   const needsOnboarding = needsOnboardingWizard({
     needsLogin,
     onboardingDoneLocal,
-    authUser,
+    authUser: paintUser,
     localComplete: readOnboardingComplete(),
   });
   const { onAgendaBlur } = useAgendaPersist({
@@ -385,8 +395,11 @@ function SessionApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [dismissThread, signInOpen, onboardingPreview, actionBusy, closeDismissModal, setAuthNotice]);
 
-  const needsXLink = deskNeedsXLink(authUser);
-  const booting = !localUi && !authChecked;
+  const needsXLink = deskNeedsXLink(paintUser);
+  const booting =
+    !localUi &&
+    (sessionPhase === "unchecked" ||
+      (provisional && !sessionOffline && view !== "dashboard"));
   const publicView = isPublicView(view);
   const showOnboardingPreview =
     onboardingPreview && Boolean(authUser?.isAdmin) && !publicView;
@@ -421,7 +434,7 @@ function SessionApp() {
         gate={showGateChrome}
         menuOpen={menuOpen}
         menuEntered={menuEntered}
-        authUser={authUser}
+        authUser={paintUser}
         onHome={() => {
           closeMenu();
           goToView("home");
@@ -444,7 +457,7 @@ function SessionApp() {
           <UserMenu
             view={view}
             theme={theme}
-            authUser={authUser}
+            authUser={paintUser}
             needsLogin={needsLogin}
             needsOnboarding={needsOnboarding || showOnboardingPreview}
             onTheme={() => setTheme((t) => nextTheme(t))}
@@ -701,7 +714,8 @@ function SessionApp() {
             searching,
             scoutStage,
             scoutLine,
-            actionBusy,
+            actionBusy: actionBusy || provisional,
+            writesEnabled: !provisional,
             expandedId,
             setExpandedId,
             interactedIds,
@@ -709,7 +723,7 @@ function SessionApp() {
             agenda,
             agendaReady,
             deskBootReady,
-            authUser,
+            authUser: paintUser,
             dismissThread,
             setVoice,
             actForYou: async (id, action) => {
