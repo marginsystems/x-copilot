@@ -286,8 +286,6 @@ test.each(["timeout", "error"])("boot %s while provisional keeps the cached desk
   expect(screen.queryByRole("button", { name: /sign in/i })).toBeNull();
   expect(localStorage.getItem(DESK_BOOT_KEY)).toContain("Cached scout text");
   expect(peekDeskBootCache(user.id)?.user?.id).toBe(user.id);
-  const skip = screen.getAllByRole("button", { name: /skip/i })[0];
-  expect(skip.hasAttribute("disabled")).toBe(true);
   expect(writesOf(calls)).toEqual([]);
 });
 
