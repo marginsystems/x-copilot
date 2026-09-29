@@ -2,15 +2,17 @@
  * HttpOnly session + OAuth state cookies.
  */
 import type { IncomingMessage, OutgoingHttpHeaders } from "node:http";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { AuthUser } from "./authStore.js";
 import { clientIp, isCloudflarePeer } from "./authGuard.js";
+import { frontendOrigin } from "./authConfig.js";
 import { getSessionForToken, touchSessionMeta } from "./sessionStore.js";
 
 export const SESSION_COOKIE = "xc_session";
 export const OAUTH_STATE_COOKIE = "xc_oauth_state";
+export const OWNER_HINT_COOKIE = "xc_owner";
 
-const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60;
+export const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60;
 const OAUTH_STATE_MAX_AGE_SEC = 10 * 60;
 
 export function parseCookies(
@@ -90,6 +92,7 @@ export function serializeCookie(
     secure?: boolean;
     sameSite?: "None" | "Lax" | "Strict";
     path?: string;
+    domain?: string;
     clear?: boolean;
   },
 ): string {
@@ -102,6 +105,7 @@ export function serializeCookie(
   } else if (opts.maxAgeSec != null) {
     parts.push(`Max-Age=${Math.max(0, Math.floor(opts.maxAgeSec))}`);
   }
+  if (opts.domain) parts.push(`Domain=${opts.domain}`);
   if (opts.httpOnly !== false) parts.push("HttpOnly");
   if (opts.secure) parts.push("Secure");
   if (opts.sameSite) parts.push(`SameSite=${opts.sameSite}`);
@@ -126,6 +130,101 @@ export function sessionClearCookie(req: IncomingMessage): string {
     secure: flags.secure,
     sameSite: flags.sameSite,
   });
+}
+
+export function ownerHintForSession(sessionId: string): string {
+  return createHash("sha256")
+    .update(`xc-owner-hint:v1:${sessionId}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+export function ownerHintDomain(req: IncomingMessage): string | undefined | null {
+  const host = requestHost(req);
+  if (host === "127.0.0.1" || host === "localhost") return undefined;
+  let frontendHost: string;
+  try {
+    frontendHost = new URL(frontendOrigin()).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  if (!frontendHost) return null;
+  if (host === frontendHost || host.endsWith(`.${frontendHost}`)) {
+    return frontendHost;
+  }
+  return null;
+}
+
+export function sessionRemainingSec(expiresAt: string): number {
+  const ms = Date.parse(expiresAt) - Date.now();
+  if (!Number.isFinite(ms)) return 0;
+  return Math.max(0, Math.floor(ms / 1000));
+}
+
+export function ownerHintSetCookie(
+  req: IncomingMessage,
+  sessionId: string,
+  maxAgeSec: number,
+): string | null {
+  const domain = ownerHintDomain(req);
+  if (domain === null) return null;
+  return serializeCookie(OWNER_HINT_COOKIE, ownerHintForSession(sessionId), {
+    maxAgeSec,
+    httpOnly: false,
+    secure: cookieFlags(req).secure,
+    sameSite: "Lax",
+    domain,
+  });
+}
+
+export function ownerHintClearCookie(req: IncomingMessage): string | null {
+  const domain = ownerHintDomain(req);
+  if (domain === null) return null;
+  return serializeCookie(OWNER_HINT_COOKIE, "", {
+    clear: true,
+    httpOnly: false,
+    secure: cookieFlags(req).secure,
+    sameSite: "Lax",
+    domain,
+  });
+}
+
+export function ownerHintRefresh(
+  req: IncomingMessage,
+  session: { sessionId: string; expiresAt: string },
+): { ownerHint: string | null; cookies: string[] } {
+  const cookie = ownerHintSetCookie(
+    req,
+    session.sessionId,
+    sessionRemainingSec(session.expiresAt),
+  );
+  if (!cookie) return { ownerHint: null, cookies: [] };
+  return {
+    ownerHint: ownerHintForSession(session.sessionId),
+    cookies: [cookie],
+  };
+}
+
+export function ownerHintSetCookies(
+  req: IncomingMessage,
+  sessionId: string,
+): string[] {
+  const cookie = ownerHintSetCookie(req, sessionId, SESSION_MAX_AGE_SEC);
+  return cookie ? [cookie] : [];
+}
+
+export function isSessionStillLive(
+  req: IncomingMessage,
+  sessionId: string,
+): boolean {
+  const token = requestCookies(req)[SESSION_COOKIE];
+  if (!token) return false;
+  return getSessionForToken(token)?.sessionId === sessionId;
+}
+
+export function ownerHintClearCookies(req: IncomingMessage): string[] {
+  const cookie = ownerHintClearCookie(req);
+  return cookie ? [cookie] : [];
 }
 
 export function oauthStateSetCookie(req: IncomingMessage, state: string): string {
@@ -154,7 +253,7 @@ export function newOauthState(): string {
 
 export function getRequestSession(
   req: IncomingMessage,
-): { user: AuthUser; sessionId: string } | null {
+): { user: AuthUser; sessionId: string; expiresAt: string } | null {
   const token = requestCookies(req)[SESSION_COOKIE];
   if (!token) return null;
   const session = getSessionForToken(token);

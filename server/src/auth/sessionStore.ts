@@ -95,7 +95,7 @@ export function createSession(
 
 export function getSessionForToken(
   token: string,
-): { user: AuthUser; sessionId: string } | null {
+): { user: AuthUser; sessionId: string; expiresAt: string } | null {
   const hash = hashSessionToken(token);
   const row = readSessionForTokenRowOrUndefined(getPlatformDb()
     .prepare(
@@ -107,7 +107,7 @@ export function getSessionForToken(
   if (Date.parse(row.expires_at) <= Date.now()) return null;
   const user = getUserById(row.user_id);
   if (!user) return null;
-  return { user, sessionId: row.id };
+  return { user, sessionId: row.id, expiresAt: row.expires_at };
 }
 
 export function getUserForSessionToken(token: string): AuthUser | null {

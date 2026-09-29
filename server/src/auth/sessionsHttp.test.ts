@@ -14,7 +14,7 @@ import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { createSession } from "./sessionStore.ts";
 import { resetRateLimiterForTests } from "./authGuard.ts";
 import { tryHandleAuth } from "./authHttp.ts";
-import { SESSION_COOKIE } from "./sessionCookie.ts";
+import { ownerHintForSession, SESSION_COOKIE } from "./sessionCookie.ts";
 
 const LOCAL_ORIGIN = "http://127.0.0.1:5173";
 
@@ -31,6 +31,7 @@ async function call(opts: {
   }
   if (opts.origin) headers.origin = opts.origin;
   if (opts.ua) headers["user-agent"] = opts.ua;
+  headers.host = "127.0.0.1:8787";
   const req = Object.assign(testRequest(), {
     method: opts.method,
     headers
@@ -201,6 +202,55 @@ await describe("sessions HTTP", async () => {
     assert.equal(res.body.signedOut, true);
     assert.match(res.setCookie, /xc_session=/);
     assert.match(res.setCookie, /Max-Age=0/);
+    assert.match(res.setCookie, /xc_owner=;/);
+  });
+
+  await it("does not touch the owner hint when another device is revoked", async () => {
+    const alice = user("other-device");
+    const keep = createSession(alice.id);
+    const other = createSession(alice.id);
+    const res = await call({
+      method: "DELETE",
+      path: `/api/auth/sessions/${other.id}`,
+      token: keep.token,
+      origin: LOCAL_ORIGIN,
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.signedOut, false);
+    assert.doesNotMatch(res.setCookie, /xc_owner=/);
+  });
+
+  await it("clears the owner hint on the unauthenticated branch", async () => {
+    const res = await call({ method: "GET", path: "/api/auth/sessions" });
+    assert.equal(res.status, 401);
+    assert.match(res.setCookie, /xc_owner=;/);
+  });
+
+  await it("/me refreshes the owner hint and 401 clears it", async () => {
+    const alice = user("me-hint");
+    const sess = createSession(alice.id);
+    const ok = await call({ method: "GET", path: "/api/auth/me", token: sess.token });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.ownerHint, ownerHintForSession(sess.id));
+    assert.match(ok.setCookie, new RegExp(`xc_owner=${ownerHintForSession(sess.id)};`));
+    const anon = await call({ method: "GET", path: "/api/auth/me" });
+    assert.equal(anon.status, 401);
+    assert.match(anon.setCookie, /xc_owner=;/);
+    assert.match(anon.setCookie, /Max-Age=0/);
+  });
+
+  await it("logout clears both cookies", async () => {
+    const alice = user("logout-hint");
+    const sess = createSession(alice.id);
+    const res = await call({
+      method: "POST",
+      path: "/api/auth/logout",
+      token: sess.token,
+      origin: LOCAL_ORIGIN,
+    });
+    assert.equal(res.status, 200);
+    assert.match(res.setCookie, /xc_session=;/);
+    assert.match(res.setCookie, /xc_owner=;/);
   });
 
   await it("rate-limits revoke tightly", async () => {

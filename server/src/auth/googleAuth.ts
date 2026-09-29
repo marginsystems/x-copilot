@@ -21,6 +21,7 @@ import {
   requestCookies,
   OAUTH_STATE_COOKIE,
   sessionSetCookie,
+  ownerHintSetCookies,
 } from "./sessionCookie.js";
 import {
   createSession,
@@ -141,6 +142,7 @@ export function completeGoogleLogin(
       ok: true;
       user: AuthUser;
       token: string;
+      sessionId: string;
       expiresAt: string;
       created: boolean;
     }
@@ -165,6 +167,7 @@ export function completeGoogleLogin(
     ok: true,
     user,
     token: session.token,
+    sessionId: session.id,
     expiresAt: session.expiresAt,
     created,
   };
@@ -253,5 +256,6 @@ export async function handleGoogleCallback(
   return redirect(req, res, authSuccessRedirect(), [
     oauthStateClearCookie(req),
     sessionSetCookie(req, login.token),
+    ...ownerHintSetCookies(req, login.sessionId),
   ]);
 }
