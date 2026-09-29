@@ -141,7 +141,7 @@ await describe("session phases", () => {
     assert.equal(session.getSnapshot().phase, "provisional");
     session.checkOwnerHint("fedcba9876543210fedcba9876543210");
     assert.equal(session.getSnapshot().phase, "rejected");
-    assert.equal(session.getSnapshot().notice, "Your session changed in another tab. Sign in again to continue.");
+    assert.equal(session.getSnapshot().notice, "Your session changed. Reload to continue.");
     assert.equal(peekDeskBootCache("a"), null);
   }).catch(assert.fail);
 

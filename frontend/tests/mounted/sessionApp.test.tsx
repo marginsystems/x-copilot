@@ -179,7 +179,7 @@ const scoutCard = (id: string, text: string) => ({
 
 const cachedUser = { ...user, agenda: "Find builders sharing opinions and concrete technical takes about shipping AI tools." };
 
-function cachedDesk(text: string, owner = cachedUser, hint = OWNER_HINT) {
+function cachedDesk(text: string, owner: Omit<typeof cachedUser, "agenda"> & { agenda: string | null } = cachedUser, hint = OWNER_HINT) {
   return parseDeskBoot({
     ok: true,
     ownerHint: hint,
@@ -380,4 +380,18 @@ test.each(["logout", "storage reset"])("a boot that resolves with a user after %
   expect(screen.queryByText("Late boot text")).toBeNull();
   expect(screen.queryByText("Cached scout text")).toBeNull();
   expect(writesOf(calls).every((call) => call.url.endsWith("/api/auth/logout"))).toBe(true);
+});
+
+test("the provisional phase does not migrate an unscoped onboarding draft under the unverified id", async () => {
+  window.history.replaceState({}, "", "/dashboard");
+  const noAgenda = { ...cachedUser, agenda: null };
+  seedCache(cachedDesk("Cached scout text", noAgenda));
+  localStorage.setItem("xc-onboarding-agenda", "Unscoped onboarding draft");
+  const pending = deferred<Response>();
+  recordFetch((url) => (url.includes("/api/boot?") ? pending.promise : Response.json({ ok: true, empty: true })));
+  render(<App />);
+  expect(await screen.findByText("Cached scout text")).toBeTruthy();
+  expect(localStorage.getItem("xc-onboarding-agenda")).toBe("Unscoped onboarding draft");
+  expect(localStorage.getItem(`xc-onboarding-agenda:${user.id}`)).toBeNull();
+  await act(async () => { pending.resolve(Response.json({ ok: false }, { status: 401 })); await pending.promise; });
 });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   DESK_BOOT_KEY,
   clearDeskBootCache,
+  flushDeskBootWrite,
   readProvisionalDeskBoot,
   parseAuthSessionUser,
   parseDeskBoot,
@@ -560,5 +561,64 @@ await describe("readProvisionalDeskBoot", () => {
     const target = seededStore();
     assert.ok(readProvisionalDeskBoot({ hint: HINT, store: target, location: dashboard }));
     assert.equal(peekDeskBootCache("u1"), null);
+  }).catch(assert.fail);
+});
+
+await describe("deferred cache write and the owner cookie", () => {
+  function withBrowserGlobals(cookie: { value: string }, run: (storage: ReturnType<typeof memoryStore>) => void) {
+    const storage = memoryStore();
+    const saved = {
+      localStorage: Reflect.get(globalThis, "localStorage"),
+      document: Reflect.get(globalThis, "document"),
+    };
+    Reflect.set(globalThis, "localStorage", storage);
+    Reflect.set(globalThis, "document", {
+      get cookie() {
+        return cookie.value;
+      },
+    });
+    try {
+      run(storage);
+    } finally {
+      clearDeskBootCache();
+      Reflect.set(globalThis, "localStorage", saved.localStorage);
+      Reflect.set(globalThis, "document", saved.document);
+    }
+  }
+
+  const payload = () => {
+    const parsed = parseDeskBoot({ ok: true, authRequired: true, ownerHint: HINT, user, desk });
+    assert.ok(parsed);
+    return parsed;
+  };
+
+  it("schedules and commits when the cookie matches", () => {
+    withBrowserGlobals({ value: `xc_owner=${HINT}` }, (storage) => {
+      writeDeskBootCache(payload());
+      assert.equal(storage.getItem(DESK_BOOT_KEY), null);
+      flushDeskBootWrite();
+      assert.ok(storage.getItem(DESK_BOOT_KEY));
+    });
+  }).catch(assert.fail);
+
+  it("removes the cache instead of scheduling when the cookie differs at schedule time", () => {
+    withBrowserGlobals({ value: `xc_owner=${OTHER_HINT}` }, (storage) => {
+      storage.setItem(DESK_BOOT_KEY, "stale");
+      writeDeskBootCache(payload());
+      assert.equal(storage.getItem(DESK_BOOT_KEY), null);
+      flushDeskBootWrite();
+      assert.equal(storage.getItem(DESK_BOOT_KEY), null);
+    });
+  }).catch(assert.fail);
+
+  it("removes the cache when the cookie changes between schedule and commit", () => {
+    const cookie = { value: `xc_owner=${HINT}` };
+    withBrowserGlobals(cookie, (storage) => {
+      writeDeskBootCache(payload());
+      cookie.value = `xc_owner=${OTHER_HINT}`;
+      storage.setItem(DESK_BOOT_KEY, "stale");
+      flushDeskBootWrite();
+      assert.equal(storage.getItem(DESK_BOOT_KEY), null);
+    });
   }).catch(assert.fail);
 });

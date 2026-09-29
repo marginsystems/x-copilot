@@ -55,14 +55,14 @@ type UseDeskBootOpts = {
   hydrateScoutFamiliarity?: () => Promise<void>;
 };
 
+const OFFLINE_DESK_NOTICE =
+  "Showing your last desk — couldn't reach x-copilot. Reload to retry.";
+
 /**
  * One-shot desk boot: consume callback query flags, fetch `/api/boot`,
  * write the paint cache, then fall back to per-endpoint hydrate when boot is
  * unavailable. Owns the readiness flags the desk waits on.
  */
-const OFFLINE_DESK_NOTICE =
-  "Showing your last desk — couldn't reach x-copilot. Reload to retry.";
-
 export function useDeskBoot(opts: UseDeskBootOpts) {
   const session = useSession();
   const [agendaReady, setAgendaReady] = useState(false);
@@ -92,13 +92,21 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
     return onboarded;
   };
 
+  const applyProvisionalUser = (user: AuthSessionUser) => {
+    if (user.agenda) {
+      opts.setAgenda(user.agenda);
+      setOnboardingSeedAgenda(null);
+    }
+    setAgendaReady(true);
+  };
+
   useLayoutEffect(() => {
     const snapshot = session.getSnapshot();
     const provisional = snapshot.provisional;
     if (snapshot.phase !== "provisional" || !provisional) return;
     const desk = peekDeskBootCache(provisional.id)?.desk;
     if (!desk) return;
-    applyUser(provisional);
+    applyProvisionalUser(provisional);
     opts.applyProvisionalDesk?.(desk);
     setDeskBootReady(true);
   }, []);

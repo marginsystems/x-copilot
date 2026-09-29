@@ -360,7 +360,7 @@ function defaultStore(): Storage | null {
 }
 
 let peekMemo: DeskBootPayload | null | undefined;
-let pendingWrite: { serialized: string; cancel: () => void } | null = null;
+let pendingWrite: { serialized: string; ownerHint: string; cancel: () => void } | null = null;
 let flushListenersInstalled = false;
 
 export function readDeskBootCache(
@@ -430,15 +430,19 @@ function cancelPendingWrite(): void {
   pendingWrite = null;
 }
 
-function commitWrite(serialized: string): void {
+function commitWrite(serialized: string, ownerHint: string): void {
   const target = defaultStore();
   if (!target) return;
   try {
+    if (readOwnerHint() !== ownerHint) {
+      removeCacheKeys(target);
+      return;
+    }
     if (target.getItem(DESK_BOOT_KEY) === serialized) return;
     target.removeItem(LEGACY_DESK_BOOT_KEY);
     target.setItem(DESK_BOOT_KEY, serialized);
   } catch {
-    /* private mode / quota */
+    return;
   }
 }
 
@@ -446,7 +450,7 @@ export function flushDeskBootWrite(): void {
   const pending = pendingWrite;
   if (!pending) return;
   cancelPendingWrite();
-  commitWrite(pending.serialized);
+  commitWrite(pending.serialized, pending.ownerHint);
 }
 
 function installFlushListeners(): void {
@@ -458,20 +462,20 @@ function installFlushListeners(): void {
   });
 }
 
-function scheduleWrite(serialized: string): void {
+function scheduleWrite(serialized: string, ownerHint: string): void {
   cancelPendingWrite();
   installFlushListeners();
   const run = () => {
     pendingWrite = null;
-    commitWrite(serialized);
+    commitWrite(serialized, ownerHint);
   };
   if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
     const handle = window.requestIdleCallback(run, { timeout: CACHE_WRITE_IDLE_MS });
-    pendingWrite = { serialized, cancel: () => window.cancelIdleCallback(handle) };
+    pendingWrite = { serialized, ownerHint, cancel: () => window.cancelIdleCallback(handle) };
     return;
   }
   const handle = setTimeout(run, 0);
-  pendingWrite = { serialized, cancel: () => clearTimeout(handle) };
+  pendingWrite = { serialized, ownerHint, cancel: () => clearTimeout(handle) };
 }
 
 function removeCacheKeys(target: Pick<Storage, "removeItem">): void {
@@ -493,12 +497,16 @@ export function writeDeskBootCache(
   try {
     const serialized =
       payload.user && payload.ownerHint ? JSON.stringify(payload) : null;
-    if (serialized === null || serialized.length > MAX_CACHE_CHARS) {
+    if (
+      serialized === null ||
+      serialized.length > MAX_CACHE_CHARS ||
+      (deferred && payload.ownerHint !== readOwnerHint())
+    ) {
       removeCacheKeys(target);
       return;
     }
-    if (deferred) {
-      scheduleWrite(serialized);
+    if (deferred && payload.ownerHint) {
+      scheduleWrite(serialized, payload.ownerHint);
       return;
     }
     target.removeItem(LEGACY_DESK_BOOT_KEY);

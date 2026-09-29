@@ -156,10 +156,7 @@ export function createSession({ provisional = null }: CreateSessionOptions = {})
     checkOwnerHint(cookieHint: string | null = readOwnerHint()) {
       if (!snapshot.active || !snapshot.ownerHint) return;
       if (cookieHint === snapshot.ownerHint) return;
-      session.invalidate(
-        "Your session changed in another tab. Sign in again to continue.",
-        false,
-      );
+      session.invalidate("Your session changed. Reload to continue.", false);
     },
   };
   return session;
