@@ -349,7 +349,7 @@ test("a provisional session on a non-dashboard path paints only the boot screen"
 test("a provisional desk that fails boot after navigating away shows the cached view and notice", async () => {
   window.history.replaceState({}, "", "/dashboard");
   seedCache(cachedDesk("Cached scout text"));
-  const pending = deferred<unknown>();
+  const pending = deferred<Response>();
   recordFetch((url) => (url.includes("/api/boot?") ? pending.promise : Response.json({ ok: false }, { status: 503 })));
   render(<App />);
   expect(await screen.findByText("Cached scout text")).toBeTruthy();
