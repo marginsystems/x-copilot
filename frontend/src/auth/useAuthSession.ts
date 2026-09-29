@@ -43,7 +43,7 @@ export function useAuthSession({
   function applyAuthUser(
     user: AuthSessionUser | null,
     required = true,
-    ownerHint: string | null = null,
+    ownerHint?: string | null,
   ) {
     return session.verify(user, required, generation, ownerHint);
   }
@@ -65,7 +65,9 @@ export function useAuthSession({
       return applyAuthUser(
         user,
         typeof data.authRequired === "boolean" ? data.authRequired : true,
-        typeof data.ownerHint === "string" ? data.ownerHint : null,
+        "ownerHint" in data
+          ? typeof data.ownerHint === "string" ? data.ownerHint : null
+          : undefined,
       );
     } catch {
       const current = session.getSnapshot();

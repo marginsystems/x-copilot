@@ -435,8 +435,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }), [activeDetector, owner]);
 
   const ready = lock !== null;
+  const lockGeneration = session.capture();
   useEffect(() => {
     if (!authUser?.id || !ready || !writesEnabled) return;
+    if (!session.isCurrent(lockGeneration)) return;
     if (phase === "scout_reply" && !lockedScout) return;
     const suggestedTarget =
       phase === "organic_reply" &&
@@ -480,7 +482,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           : suggestedTarget,
       }),
     }).catch(() => {});
-  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready, writesEnabled]);
+  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready, writesEnabled, lockGeneration, session]);
 
   const pendingDismissIdRef = useRef<string | null>(null);
 

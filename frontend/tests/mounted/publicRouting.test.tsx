@@ -2,9 +2,9 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import App from "../../src/App";
-import { parseDeskBoot, writeDeskBootCache } from "../../src/lib/deskBoot";
+import { DESK_BOOT_KEY, parseDeskBoot, writeDeskBootCache } from "../../src/lib/deskBoot";
 import { PRICING_TITLE } from "../../src/lib/seo";
-import { OWNER_HINT } from "./support/ownerHint";
+import { OWNER_HINT, setOwnerCookie } from "./support/ownerHint";
 import { deferred } from "./support/deferred";
 
 vi.mock("../../src/lib/apiBase", async (importOriginal) => ({
@@ -27,6 +27,7 @@ afterEach(() => {
 
 test("a public deep link paints anonymously while boot is stalled", async () => {
   window.history.replaceState({}, "", "/pricing");
+  setOwnerCookie(OWNER_HINT);
   writeDeskBootCache(parseDeskBoot({
     ok: true,
     ownerHint: OWNER_HINT,
@@ -34,9 +35,11 @@ test("a public deep link paints anonymously while boot is stalled", async () => 
       id: "cached-owner",
       displayName: "Cached Owner",
       onboardingCompleted: true,
+      xLinked: true,
     },
     desk: {},
-  })!);
+  })!, localStorage);
+  expect(localStorage.getItem(DESK_BOOT_KEY)).toContain("Cached Owner");
   const pending = deferred<Response>();
   const fetchMock = vi.fn(() => pending.promise);
   vi.stubGlobal("fetch", fetchMock);

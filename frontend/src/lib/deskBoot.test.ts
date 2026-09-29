@@ -621,4 +621,38 @@ await describe("deferred cache write and the owner cookie", () => {
       assert.equal(storage.getItem(DESK_BOOT_KEY), null);
     });
   }).catch(assert.fail);
+
+  it("removes the key instead of writing a payload over 1 MB", () => {
+    withBrowserGlobals({ value: `xc_owner=${HINT}` }, (storage) => {
+      storage.setItem(DESK_BOOT_KEY, "stale");
+      const huge = parseDeskBoot({
+        ok: true,
+        authRequired: true,
+        ownerHint: HINT,
+        user: { ...user, agenda: "x".repeat(1_100_000) },
+        desk,
+      });
+      assert.ok(huge);
+      writeDeskBootCache(huge);
+      flushDeskBootWrite();
+      assert.equal(storage.getItem(DESK_BOOT_KEY), null);
+    });
+  }).catch(assert.fail);
+
+  it("does not call setItem again for an identical serialized value", () => {
+    withBrowserGlobals({ value: `xc_owner=${HINT}` }, (storage) => {
+      let writes = 0;
+      const setItem = storage.setItem;
+      storage.setItem = (key: string, value: string) => {
+        writes += 1;
+        setItem(key, value);
+      };
+      writeDeskBootCache(payload());
+      flushDeskBootWrite();
+      assert.equal(writes, 1);
+      writeDeskBootCache(payload());
+      flushDeskBootWrite();
+      assert.equal(writes, 1);
+    });
+  }).catch(assert.fail);
 });

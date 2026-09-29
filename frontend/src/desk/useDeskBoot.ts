@@ -262,7 +262,10 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       const user = optionalAnonymous
         ? applyAuthUser(null, false)
         : applyAuthUser(parseAuthSessionUser(isRecord(auth) ? auth.user : null),
-            isRecord(auth) && typeof auth.authRequired === "boolean" ? auth.authRequired : true);
+            isRecord(auth) && typeof auth.authRequired === "boolean" ? auth.authRequired : true,
+            isRecord(auth) && "ownerHint" in auth
+              ? typeof auth.ownerHint === "string" ? auth.ownerHint : null
+              : undefined);
       if (!current()) return;
       if (err && !user) setSignInOpen(true);
       const onboarded = applyUser(user);
