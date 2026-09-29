@@ -144,6 +144,37 @@ await describe("searchTimelinePages", async () => {
     if (result.ok) assert.equal(result.pages, 1);
   });
 
+  await it("returns the failed page token when a later page fails", async () => {
+    let call = 0;
+    const result = await searchTimelinePages({
+      query: "q",
+      pageDelayMs: 0,
+      fetchPage: async (opts) => {
+        call += 1;
+        if (call === 1) {
+          return {
+            ok: true as const,
+            queryId: "qid",
+            threads: [card("a")],
+            bottomCursor: "tok-2",
+          };
+        }
+        assert.equal(opts.cursor, "tok-2");
+        return {
+          ok: false as const,
+          status: 402,
+          error: "credits_depleted",
+          message: "no credits",
+        };
+      },
+    });
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.threads.length, 1);
+      assert.equal(result.bottomCursor, "tok-2");
+    }
+  });
+
   await it("aborts when signal is aborted", async () => {
     const ac = new AbortController();
     ac.abort();

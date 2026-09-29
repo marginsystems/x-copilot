@@ -247,7 +247,7 @@ export async function searchTimelinePages(opts: {
           ok: true,
           threads: dedupeThreads(all),
           queryId,
-          bottomCursor: null,
+          bottomCursor: cursor ?? null,
           pages,
         };
       }

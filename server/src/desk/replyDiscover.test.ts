@@ -339,6 +339,79 @@ await describe("discoverOwnReplies", async () => {
     assert.equal(store.value, NOW + 3 * HOUR);
   });
 
+  await it("checkpoints at the oldest returned post when the window was not fully read", async () => {
+    const starts: (string | undefined)[] = [];
+    const store = memoryCheckpoints();
+    const oldest = "2026-08-02T09:00:00.000Z";
+    await runDiscover(
+      async () => ({
+        ...okPage([
+          card({ id: "n1", createdAt: "2026-08-02T11:00:00.000Z" }),
+          card({ id: "n2", createdAt: oldest }),
+        ]),
+        bottomCursor: "more",
+      }),
+      store,
+      NOW,
+    );
+    assert.equal(store.value, Date.parse(oldest));
+    await runDiscover(
+      async (opts) => {
+        starts.push(opts.startTime);
+        return okPage([]);
+      },
+      store,
+      NOW + HOUR,
+    );
+    assert.equal(
+      starts[0],
+      new Date(Date.parse(oldest) - 10 * 60 * 1000).toISOString(),
+    );
+  });
+
+  await it("does not advance a truncated window without any parseable createdAt", async () => {
+    const store = memoryCheckpoints();
+    store.value = NOW - HOUR;
+    await runDiscover(
+      async () => ({
+        ...okPage([card({ id: "n1" })]),
+        bottomCursor: "more",
+      }),
+      store,
+      NOW,
+    );
+    assert.equal(store.value, NOW - HOUR);
+  });
+
+  await it("does not advance the checkpoint when the import stage throws", async () => {
+    const store = memoryCheckpoints();
+    store.value = NOW - HOUR;
+    await assert.rejects(
+      discoverOwnReplies({
+        nowMs: NOW,
+        userId: "",
+        gamificationPath,
+        knowledgeRoot,
+        upsertMemory: false,
+        session: { configured: true, bearerToken: "t" },
+        resolveScreenName: async () => "me",
+        searchTimelinePages: async () => okPage([]),
+        foldOwnPosts: async () => 0,
+        checkpointStore: store,
+      }),
+    );
+    assert.equal(store.value, NOW - HOUR);
+  });
+
+  await it("keeps checkpoints isolated per user", () => {
+    scoutCursorCheckpointStore.write(userId, NOW);
+    seedUser("u2");
+    assert.equal(scoutCursorCheckpointStore.read("u2"), null);
+    scoutCursorCheckpointStore.write("u2", NOW + HOUR);
+    assert.equal(scoutCursorCheckpointStore.read(userId), NOW);
+    assert.equal(scoutCursorCheckpointStore.read("u2"), NOW + HOUR);
+  });
+
   await it("never looks back more than 24 hours", async () => {
     const starts: (string | undefined)[] = [];
     const store = memoryCheckpoints();
