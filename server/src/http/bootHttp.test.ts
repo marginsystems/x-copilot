@@ -23,7 +23,7 @@ import { ensureUserTenant } from "../billing/billingStore.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { saveScoutCache } from "../scout/scoutCache.ts";
 import { ownerHintForSession, SESSION_COOKIE } from "../auth/sessionCookie.ts";
-import { createSession } from "../auth/sessionStore.ts";
+import { createSession, revokeSessionToken } from "../auth/sessionStore.ts";
 import { markSkipped } from "../desk/skipStore.ts";
 import { resetInteractionMemoryReceiptForTests } from "../memory/interactionMemoryReceipt.ts";
 import { writeInteractionMemory } from "../memory/knowledgeMemory.ts";
@@ -227,6 +227,34 @@ await describe("GET /api/boot", async () => {
     assert.equal(status, 200);
     assert.equal(body.ownerHint, null);
     assert.equal("Set-Cookie" in headers, false);
+  });
+
+  await it("boot does not re-set the hint when the session is revoked mid-request", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-boot-race",
+      email: "boot-race@example.com",
+      emailVerified: true,
+    });
+    const session = createSession(user.id);
+    const { status, headers, body } = await get(
+      "/api/boot",
+      `${SESSION_COOKIE}=${encodeURIComponent(session.token)}`,
+      {
+        loadScoutProfile: (id) => {
+          revokeSessionToken(session.token);
+          return emptyScoutProfile(id);
+        },
+      },
+      "127.0.0.1:8787",
+    );
+    assert.equal(status, 200);
+    assert.equal(body.ownerHint, null);
+    const setCookie = headers["Set-Cookie"];
+    assert.ok(Array.isArray(setCookie));
+    const owners = setCookie.map(String).filter((c) => c.startsWith("xc_owner="));
+    assert.equal(owners.length, 1);
+    assert.match(owners[0] ?? "", /^xc_owner=;.*Max-Age=0/);
   });
 
   await it("boot 401 clears the owner hint cookie", async () => {

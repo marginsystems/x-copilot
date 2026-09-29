@@ -213,6 +213,15 @@ export function ownerHintSetCookies(
   return cookie ? [cookie] : [];
 }
 
+export function isSessionStillLive(
+  req: IncomingMessage,
+  sessionId: string,
+): boolean {
+  const token = requestCookies(req)[SESSION_COOKIE];
+  if (!token) return false;
+  return getSessionForToken(token)?.sessionId === sessionId;
+}
+
 export function ownerHintClearCookies(req: IncomingMessage): string[] {
   const cookie = ownerHintClearCookie(req);
   return cookie ? [cookie] : [];

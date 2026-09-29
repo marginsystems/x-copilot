@@ -46,6 +46,7 @@ import {
 } from "../scout/scoutFamiliarity.js";
 import {
   getRequestSession,
+  isSessionStillLive,
   ownerHintClearCookies,
   ownerHintRefresh,
 } from "../auth/sessionCookie.js";
@@ -201,9 +202,14 @@ export async function tryHandleBoot(
       };
     }
 
-    const hint = session
-      ? ownerHintRefresh(req, session)
-      : { ownerHint: null, cookies: [] };
+    const sessionLive = session ? isSessionStillLive(req, session.sessionId) : true;
+    const hint =
+      session && sessionLive
+        ? ownerHintRefresh(req, session)
+        : {
+            ownerHint: null,
+            cookies: session ? ownerHintClearCookies(req) : [],
+          };
     send(
       req,
       res,
