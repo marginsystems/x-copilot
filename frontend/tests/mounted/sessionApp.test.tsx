@@ -25,7 +25,6 @@ const boot = parseDeskBoot({ ok: true, ownerHint: OWNER_HINT, user, desk: {} })!
 
 test("dashboard reload with cached identity paints only verification until server rejection", async () => {
   window.history.replaceState({}, "", "/dashboard");
-  setOwnerCookie(boot.ownerHint);
   writeDeskBootCache(boot, localStorage);
   const pending = deferred<Response>();
   const fetchMock = vi.fn(() => pending.promise);
