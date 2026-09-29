@@ -189,6 +189,7 @@ await describe("GET /api/boot", async () => {
       emailVerified: true,
     });
     const session = createSession(user.id);
+    const remaining = Math.floor((Date.parse(session.expiresAt) - Date.now()) / 1000);
     const { status, headers, body } = await get(
       "/api/boot",
       `${SESSION_COOKIE}=${encodeURIComponent(session.token)}`,
@@ -205,7 +206,6 @@ await describe("GET /api/boot", async () => {
     assert.ok(owner);
     assert.ok(owner.startsWith(`xc_owner=${hint};`));
     const maxAge = Number(/Max-Age=(\d+)/.exec(owner)?.[1]);
-    const remaining = Math.floor((Date.parse(session.expiresAt) - Date.now()) / 1000);
     assert.ok(maxAge > 0 && maxAge <= remaining);
     assert.doesNotMatch(owner, /HttpOnly/);
   });
