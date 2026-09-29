@@ -22,7 +22,7 @@ import { markInteracted, writeInteractionRow } from "../desk/interactionStore.ts
 import { ensureUserTenant } from "../billing/billingStore.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { saveScoutCache } from "../scout/scoutCache.ts";
-import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
+import { ownerHintForSession, SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { markSkipped } from "../desk/skipStore.ts";
 import { resetInteractionMemoryReceiptForTests } from "../memory/interactionMemoryReceipt.ts";
@@ -34,6 +34,7 @@ async function get(
   path: string,
   cookie?: string,
   deps?: BootHttpDeps,
+  host?: string,
 ): Promise<{
   handled: boolean;
   status: number;
@@ -43,7 +44,7 @@ async function get(
   const req = testRequest();
   Object.assign(req, {
     method: "GET",
-    headers: cookie ? { cookie } : {},
+    headers: { ...(cookie ? { cookie } : {}), ...(host ? { host } : {}) },
     socket: { remoteAddress: "127.0.0.1" },
   });
   const { res, captured } = testResponse(req);
@@ -178,6 +179,72 @@ await describe("GET /api/boot", async () => {
     assert.equal(body.authRequired, true);
     assert.equal(headers["Cache-Control"], "private, no-store");
     assert.equal(reads, 0);
+  });
+
+  await it("boot 200 carries the owner hint in the body and a matching cookie", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-boot-hint",
+      email: "boot-hint@example.com",
+      emailVerified: true,
+    });
+    const session = createSession(user.id);
+    const { status, headers, body } = await get(
+      "/api/boot",
+      `${SESSION_COOKIE}=${encodeURIComponent(session.token)}`,
+      undefined,
+      "127.0.0.1:8787",
+    );
+    assert.equal(status, 200);
+    const hint = ownerHintForSession(session.id);
+    assert.equal(body.ownerHint, hint);
+    assert.equal(headers["Cache-Control"], "private, no-store");
+    const setCookie = headers["Set-Cookie"];
+    assert.ok(Array.isArray(setCookie));
+    const owner = setCookie.map(String).find((c) => c.startsWith("xc_owner="));
+    assert.ok(owner);
+    assert.ok(owner.startsWith(`xc_owner=${hint};`));
+    const maxAge = Number(/Max-Age=(\d+)/.exec(owner)?.[1]);
+    const remaining = Math.floor((Date.parse(session.expiresAt) - Date.now()) / 1000);
+    assert.ok(maxAge > 0 && maxAge <= remaining);
+    assert.doesNotMatch(owner, /HttpOnly/);
+  });
+
+  await it("boot 200 has a null hint and no cookie when the host cannot carry it", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-boot-nohint",
+      email: "boot-nohint@example.com",
+      emailVerified: true,
+    });
+    const session = createSession(user.id);
+    const { status, headers, body } = await get(
+      "/api/boot",
+      `${SESSION_COOKIE}=${encodeURIComponent(session.token)}`,
+      undefined,
+      "api.elsewhere.example",
+    );
+    assert.equal(status, 200);
+    assert.equal(body.ownerHint, null);
+    assert.equal("Set-Cookie" in headers, false);
+  });
+
+  await it("boot 401 clears the owner hint cookie", async () => {
+    const { status, headers } = await get("/api/boot", undefined, undefined, "127.0.0.1:8787");
+    assert.equal(status, 401);
+    const setCookie = headers["Set-Cookie"];
+    assert.ok(Array.isArray(setCookie));
+    const owner = setCookie.map(String).find((c) => c.startsWith("xc_owner="));
+    assert.ok(owner);
+    assert.match(owner, /Max-Age=0/);
+  });
+
+  await it("anonymous optional-auth boot has a null hint and sets no cookie", async () => {
+    process.env.AUTH_REQUIRED = "0";
+    const { status, headers, body } = await get("/api/boot", undefined, undefined, "127.0.0.1:8787");
+    assert.equal(status, 200);
+    assert.equal(body.ownerHint, null);
+    assert.equal("Set-Cookie" in headers, false);
   });
 
   await it("anonymous optional-auth boot has null familiarity and performs no profile read", async () => {

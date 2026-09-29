@@ -11,7 +11,7 @@ import { tryHandleAgenda } from "./desk/agendaHttp.js";
 import { tryHandleOnboarding } from "./auth/onboardingHttp.js";
 import { isOriginAllowed, requestOrigin } from "./http/cors.js";
 import { authRequired, bindHost, isPublicApiPath } from "./auth/authGuard.js";
-import { getSessionUser } from "./auth/sessionCookie.js";
+import { getSessionUser, ownerHintClearCookies } from "./auth/sessionCookie.js";
 import { tryHandleAdmin } from "./billing/adminHttp.js";
 import { ensureUserTenant } from "./billing/billingStore.js";
 import { runWithRequestContext } from "./http/requestContext.js";
@@ -105,10 +105,17 @@ async function handleRequest(
         });
       }
       if (!getSessionUser(req)) {
-        return send(req, res, 401, {
-          error: "unauthenticated",
-          message: "Sign in required",
-        });
+        const clearCookies = ownerHintClearCookies(req);
+        return send(
+          req,
+          res,
+          401,
+          {
+            error: "unauthenticated",
+            message: "Sign in required",
+          },
+          clearCookies.length > 0 ? { "Set-Cookie": clearCookies } : undefined,
+        );
       }
       // State-changing requests with a session must come from an allowed origin;
       // otherwise a cross-site fetch would ride the same-site-session cookie.

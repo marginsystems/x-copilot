@@ -4,7 +4,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { bucketInteractionsStored } from "../desk/activityLive.js";
 import { isAdminEmail } from "../billing/adminEmails.js";
-import { toPublicUser } from "../auth/authStore.js";
+import { toPublicUser, type AuthUser } from "../auth/authStore.js";
 import { authRequired } from "../auth/authGuard.js";
 import { isOriginAllowed, requestOrigin } from "./cors.js";
 import {
@@ -44,18 +44,26 @@ import {
   loadScoutFamiliarity,
   type ScoutFamiliarityLoader,
 } from "../scout/scoutFamiliarity.js";
-import { getSessionUser } from "../auth/sessionCookie.js";
+import {
+  getRequestSession,
+  ownerHintClearCookies,
+  ownerHintRefresh,
+} from "../auth/sessionCookie.js";
 import { listSkipHistory } from "../desk/skipStore.js";
 
 // Per-user payload: never cacheable by a shared cache or a later reload.
 const NO_STORE = { "Cache-Control": "private, no-store" };
+
+function withCookies(cookies: string[]): Record<string, string | string[]> {
+  return cookies.length > 0 ? { ...NO_STORE, "Set-Cookie": cookies } : NO_STORE;
+}
 
 export type BootHttpDeps = {
   /** Injectable owned-profile read (tests). Production uses the store. */
   loadScoutProfile?: ScoutFamiliarityLoader;
 };
 
-function publicUser(user: NonNullable<ReturnType<typeof getSessionUser>>) {
+function publicUser(user: AuthUser) {
   return {
     ...toPublicUser(user),
     isAdmin: isAdminEmail(user.email),
@@ -72,14 +80,15 @@ export async function tryHandleBoot(
   if (req.method !== "GET") return false;
 
   const required = authRequired();
-  const user = getSessionUser(req);
+  const session = getRequestSession(req);
+  const user = session?.user ?? null;
   if (!user && required) {
     send(
       req,
       res,
       401,
       { ok: false, error: "unauthenticated", authRequired: required },
-      NO_STORE,
+      withCookies(ownerHintClearCookies(req)),
     );
     return true;
   }
@@ -192,6 +201,9 @@ export async function tryHandleBoot(
       };
     }
 
+    const hint = session
+      ? ownerHintRefresh(req, session)
+      : { ownerHint: null, cookies: [] };
     send(
       req,
       res,
@@ -200,6 +212,7 @@ export async function tryHandleBoot(
         ok: true,
         authRequired: required,
         user: user ? publicUser(user) : null,
+        ownerHint: hint.ownerHint,
         desk: {
           interacted: {
             ...interactionPage,
@@ -227,7 +240,7 @@ export async function tryHandleBoot(
           scoutFamiliarity,
         },
       },
-      NO_STORE,
+      withCookies(hint.cookies),
     );
   } catch (err) {
     console.error("boot read failed:", err);
