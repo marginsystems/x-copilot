@@ -97,6 +97,15 @@ export const scoutCursorCheckpointStore: DiscoverCheckpointStore = {
     ),
 };
 
+export function oldestCreatedAtMs(threads: ThreadCard[]): number | null {
+  let oldest: number | null = null;
+  for (const card of threads) {
+    const ms = card.createdAt ? Date.parse(card.createdAt) : NaN;
+    if (Number.isFinite(ms) && (oldest === null || ms < oldest)) oldest = ms;
+  }
+  return oldest;
+}
+
 export function ownPostDiscoverStartMs(opts: {
   lastCheckedAtMs: number | null;
   nowMs: number;
@@ -556,12 +565,6 @@ export async function discoverOwnReplies(opts: {
     };
   }
 
-  try {
-    checkpoints?.write(opts.userId, nowMs);
-  } catch (err) {
-    console.warn("[reply-discover] checkpoint write soft-fail:", err);
-  }
-
   const replyCards = result.threads.filter(
     (card) => card.isReply || card.inReplyToId,
   );
@@ -774,6 +777,17 @@ export async function discoverOwnReplies(opts: {
     });
   } catch (err) {
     console.warn("[reply-discover] scout evidence reconcile soft-fail:", err);
+  }
+
+  const checkpointMs = result.bottomCursor
+    ? oldestCreatedAtMs(result.threads)
+    : nowMs;
+  if (checkpointMs !== null) {
+    try {
+      checkpoints?.write(opts.userId, checkpointMs);
+    } catch (err) {
+      console.warn("[reply-discover] checkpoint write soft-fail:", err);
+    }
   }
 
   return {
