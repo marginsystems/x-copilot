@@ -265,15 +265,25 @@ test("boot 401 while provisional shows the sign-in gate and empties the cache", 
   expect(peekDeskBootCache(user.id)).toBeNull();
 });
 
-test("boot timeout while provisional keeps the cached desk, shows a notice, keeps the cache, and stays read-only", async () => {
+test.each(["timeout", "error"])("boot %s while provisional keeps the cached desk, shows the offline notice, keeps the cache, and stays read-only", async (mode) => {
   window.history.replaceState({}, "", "/dashboard");
   seedCache(cachedDesk("Cached scout text"));
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  const calls = recordFetch((url) => (url.includes("/api/boot?") ? new Promise<Response>(() => {}) : Response.json({ ok: true, empty: true })));
-  render(<App />);
-  await act(async () => { await vi.advanceTimersByTimeAsync(24000); });
-  expect(screen.getByText(/Showing your last desk/)).toBeTruthy();
+  const calls = recordFetch((url) => {
+    if (mode === "error") return Promise.reject(new Error("offline"));
+    return url.includes("/api/boot?") ? new Promise<Response>(() => {}) : Response.json({ ok: true, empty: true });
+  });
+  if (mode === "timeout") {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    render(<App />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(24000); });
+  } else {
+    render(<App />);
+    await screen.findByText("Showing your last desk — couldn't reach x-copilot. Reload to retry.");
+  }
+  expect(screen.getByText("Showing your last desk — couldn't reach x-copilot. Reload to retry.")).toBeTruthy();
   expect(screen.getByText("Cached scout text")).toBeTruthy();
+  expect(screen.queryByText("Checking your session…")).toBeNull();
+  expect(screen.queryByRole("button", { name: /sign in/i })).toBeNull();
   expect(localStorage.getItem(DESK_BOOT_KEY)).toContain("Cached scout text");
   expect(peekDeskBootCache(user.id)?.user?.id).toBe(user.id);
   const skip = screen.getAllByRole("button", { name: /skip/i })[0];
