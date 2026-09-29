@@ -6,12 +6,17 @@ import { join } from "node:path";
 import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "../db.ts";
 import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { getUserForSessionToken } from "./sessionStore.ts";
+import { createHmac } from "node:crypto";
+import { expectRecord, testRequest, testResponse } from "../http/http.testHelpers.ts";
+import { ownerHintForSession } from "./sessionCookie.ts";
 import {
   completeXLogin,
   enlargeXAvatarUrl,
   fetchXAccessToken,
   fetchXProfileAvatar,
   fetchXRequestToken,
+  handleXCallback,
+  X_OAUTH_COOKIE,
 } from "./xAuth.ts";
 
 await describe("xAuth", async () => {
@@ -207,5 +212,61 @@ await describe("xAuth", async () => {
       getUserForSessionToken(login.token)?.avatarUrl,
       "https://google.example.com/alice.jpg",
     );
+  });
+
+  await it("callback redirect sets the session and owner hint cookies together", async () => {
+    const prev = {
+      key: process.env.X_API_KEY,
+      secret: process.env.X_API_SECRET,
+    };
+    process.env.X_API_KEY = "k";
+    process.env.X_API_SECRET = "s";
+    try {
+      const body = JSON.stringify({ token: "rt", secret: "rs" });
+      const sig = createHmac("sha256", "s").update(body).digest("hex");
+      const cookie = `${X_OAUTH_COOKIE}=${encodeURIComponent(
+        JSON.stringify({ token: "rt", secret: "rs", sig }),
+      )}`;
+      const fetchImpl: typeof fetch = async () =>
+        new Response(
+          "oauth_token=at&oauth_token_secret=as&user_id=77&screen_name=bob",
+          { status: 200 },
+        );
+      const req = Object.assign(testRequest(), {
+        method: "GET",
+        headers: { host: "127.0.0.1:8787", cookie },
+      });
+      Object.defineProperty(req.socket, "remoteAddress", { value: "127.0.0.1" });
+      const { res, captured } = testResponse(req);
+      await handleXCallback(
+        req,
+        res,
+        new URL("http://127.0.0.1:8787/api/auth/x/callback?oauth_token=rt&oauth_verifier=vv"),
+        fetchImpl,
+      );
+      assert.equal(captured.status, 302);
+      const rawCookies = captured.headers["Set-Cookie"];
+      assert.ok(Array.isArray(rawCookies));
+      const cookies = rawCookies.map(String);
+      const session = cookies.find((c) => c.startsWith("xc_session="));
+      const owner = cookies.find((c) => c.startsWith("xc_owner="));
+      assert.ok(session);
+      assert.ok(owner);
+      const token = decodeURIComponent(session.split(";")[0]!.slice("xc_session=".length));
+      const user = getUserForSessionToken(token);
+      assert.ok(user);
+      const sessionRow = expectRecord(
+        getPlatformDb()
+          .prepare(`SELECT id FROM sessions WHERE user_id = ?`)
+          .get(user.id),
+      );
+      assert.ok(owner.startsWith(`xc_owner=${ownerHintForSession(String(sessionRow.id))};`));
+      assert.match(owner, /Max-Age=2592000/);
+    } finally {
+      if (prev.key === undefined) delete process.env.X_API_KEY;
+      else process.env.X_API_KEY = prev.key;
+      if (prev.secret === undefined) delete process.env.X_API_SECRET;
+      else process.env.X_API_SECRET = prev.secret;
+    }
   });
 });

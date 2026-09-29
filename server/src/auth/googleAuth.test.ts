@@ -5,10 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "../db.ts";
 import { getUserForSessionToken } from "./sessionStore.ts";
+import { expectRecord, testRequest, testResponse } from "../http/http.testHelpers.ts";
+import { ownerHintForSession } from "./sessionCookie.ts";
 import {
   buildGoogleAuthorizeUrl,
   completeGoogleLogin,
   exchangeGoogleCode,
+  handleGoogleCallback,
   type GoogleProfile,
 } from "./googleAuth.ts";
 
@@ -200,5 +203,64 @@ await describe("googleAuth", async () => {
       emailVerified: false,
     });
     assert.equal(unverified.ok, false);
+  });
+
+  await it("callback redirect sets the session and owner hint cookies together", async () => {
+    const prev = {
+      id: process.env.GOOGLE_CLIENT_ID,
+      secret: process.env.GOOGLE_CLIENT_SECRET,
+    };
+    process.env.GOOGLE_CLIENT_ID = "cid";
+    process.env.GOOGLE_CLIENT_SECRET = "sec";
+    try {
+      const fetchImpl: typeof fetch = async (input) =>
+        String(input).includes("/token")
+          ? new Response(JSON.stringify({ access_token: "at" }), { status: 200 })
+          : new Response(
+              JSON.stringify({
+                sub: "gid-cb",
+                email: "cb@example.com",
+                email_verified: true,
+                name: "Cb",
+              }),
+              { status: 200 },
+            );
+      const req = Object.assign(testRequest(), {
+        method: "GET",
+        headers: { host: "127.0.0.1:8787", cookie: "xc_oauth_state=st1" },
+      });
+      Object.defineProperty(req.socket, "remoteAddress", { value: "127.0.0.1" });
+      const { res, captured } = testResponse(req);
+      await handleGoogleCallback(
+        req,
+        res,
+        new URL("http://127.0.0.1:8787/api/auth/google/callback?code=c&state=st1"),
+        fetchImpl,
+      );
+      assert.equal(captured.status, 302);
+      const rawCookies = captured.headers["Set-Cookie"];
+      assert.ok(Array.isArray(rawCookies));
+      const cookies = rawCookies.map(String);
+      const session = cookies.find((c) => c.startsWith("xc_session="));
+      const owner = cookies.find((c) => c.startsWith("xc_owner="));
+      assert.ok(session);
+      assert.ok(owner);
+      const token = decodeURIComponent(session.split(";")[0]!.slice("xc_session=".length));
+      const user = getUserForSessionToken(token);
+      assert.ok(user);
+      const sessionRow = expectRecord(
+        getPlatformDb()
+          .prepare(`SELECT id FROM sessions WHERE user_id = ?`)
+          .get(user.id),
+      );
+      assert.ok(owner.startsWith(`xc_owner=${ownerHintForSession(String(sessionRow.id))};`));
+      assert.match(owner, /Max-Age=2592000/);
+      assert.doesNotMatch(owner, /HttpOnly/);
+    } finally {
+      if (prev.id === undefined) delete process.env.GOOGLE_CLIENT_ID;
+      else process.env.GOOGLE_CLIENT_ID = prev.id;
+      if (prev.secret === undefined) delete process.env.GOOGLE_CLIENT_SECRET;
+      else process.env.GOOGLE_CLIENT_SECRET = prev.secret;
+    }
   });
 });

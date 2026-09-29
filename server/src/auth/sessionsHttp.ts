@@ -9,7 +9,11 @@ import { allowRate } from "./authGuard.js";
 import { isOriginAllowed, requestOrigin } from "../http/cors.js";
 import { digestEmailPreferencePayload } from "../for-you/digestEmailHttp.js";
 import { send } from "../http/httpJson.js";
-import { getRequestSession, sessionClearCookie } from "./sessionCookie.js";
+import {
+  getRequestSession,
+  ownerHintClearCookies,
+  sessionClearCookie,
+} from "./sessionCookie.js";
 import {
   listSessionsForUser,
   revokeOtherSessions,
@@ -66,7 +70,13 @@ export async function tryHandleSessions(
   if (req.method === "GET" && url.pathname === "/api/auth/account") {
     const session = getRequestSession(req);
     if (!session) {
-      sendJson(req, res, 401, { ok: false, error: "unauthenticated" });
+      sendJson(
+        req,
+        res,
+        401,
+        { ok: false, error: "unauthenticated" },
+        ownerHintClearCookies(req),
+      );
       return true;
     }
     if (
@@ -98,7 +108,13 @@ export async function tryHandleSessions(
   if (req.method === "GET" && url.pathname === "/api/auth/sessions") {
     const session = getRequestSession(req);
     if (!session) {
-      sendJson(req, res, 401, { ok: false, error: "unauthenticated" });
+      sendJson(
+        req,
+        res,
+        401,
+        { ok: false, error: "unauthenticated" },
+        ownerHintClearCookies(req),
+      );
       return true;
     }
     if (
@@ -125,7 +141,13 @@ export async function tryHandleSessions(
     if (!requireOrigin(req, res)) return true;
     const session = getRequestSession(req);
     if (!session) {
-      sendJson(req, res, 401, { ok: false, error: "unauthenticated" });
+      sendJson(
+        req,
+        res,
+        401,
+        { ok: false, error: "unauthenticated" },
+        ownerHintClearCookies(req),
+      );
       return true;
     }
     if (
@@ -159,7 +181,13 @@ export async function tryHandleSessions(
     }
     const session = getRequestSession(req);
     if (!session) {
-      sendJson(req, res, 401, { ok: false, error: "unauthenticated" });
+      sendJson(
+        req,
+        res,
+        401,
+        { ok: false, error: "unauthenticated" },
+        ownerHintClearCookies(req),
+      );
       return true;
     }
     if (
@@ -192,7 +220,9 @@ export async function tryHandleSessions(
           ? []
           : publicSessions(session.user.id, session.sessionId),
       },
-      signedOut ? [sessionClearCookie(req)] : [],
+      signedOut
+        ? [sessionClearCookie(req), ...ownerHintClearCookies(req)]
+        : [],
     );
     return true;
   }

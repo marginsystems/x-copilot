@@ -11,9 +11,12 @@ import {
 } from "./interactionStore.ts";
 import {
   buildOwnPostsQuery,
-  buildOwnRepliesQuery,
   cardToOwnPostParsed,
   discoverOwnReplies,
+  ownPostDiscoverStartMs,
+  scoutCursorCheckpointStore,
+  type DiscoverCheckpointStore,
+  type SearchTimelinePagesFn,
   foldDiscoveredOwnPosts,
   ownPostKindFromCard,
   shouldImportDiscoveredReply,
@@ -71,17 +74,9 @@ function card(
 }
 
 await describe("buildOwnPostsQuery", async () => {
-  await it("builds from: with within_time, excludes retweets, and no is:reply", () => {
-    const q = buildOwnPostsQuery("@alice", "24h");
-    assert.match(q, /^from:alice -is:retweet within_time:24h$/);
-    assert.doesNotMatch(q, /is:reply/);
-  });
-});
-
-await describe("buildOwnRepliesQuery", async () => {
-  await it("builds from: + is:reply with within_time", () => {
-    const q = buildOwnRepliesQuery("@alice", "24h");
-    assert.match(q, /^from:alice is:reply within_time:24h$/);
+  await it("builds from: excluding retweets with no time operator and no is:reply", () => {
+    const q = buildOwnPostsQuery("@alice");
+    assert.equal(q, "from:alice -is:retweet");
   });
 });
 
@@ -235,6 +230,254 @@ await describe("discoverOwnReplies", async () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  const HOUR = 60 * 60 * 1000;
+  const NOW = Date.parse("2026-08-02T12:00:00.000Z");
+  const okPage = (threads: ThreadCard[]) => ({
+    ok: true as const,
+    threads,
+    queryId: "q",
+    bottomCursor: null,
+    pages: 1,
+  });
+  const memoryCheckpoints = (): DiscoverCheckpointStore & {
+    value: number | null;
+  } => {
+    const store = {
+      value: null as number | null,
+      read: () => store.value,
+      write: (_userId: string, at: number) => {
+        store.value = at;
+      },
+    };
+    return store;
+  };
+  const runDiscover = (
+    search: SearchTimelinePagesFn,
+    checkpointStore: DiscoverCheckpointStore,
+    nowMs: number,
+  ) =>
+    discoverOwnReplies({
+      nowMs,
+      userId,
+      gamificationPath,
+      knowledgeRoot,
+      upsertMemory: false,
+      session: { configured: true, bearerToken: "t" },
+      resolveScreenName: async () => "me",
+      searchTimelinePages: search,
+      checkpointStore,
+    });
+
+  await it("runs exactly one unexpanded search with a start time and no within_time", async () => {
+    const calls: Parameters<SearchTimelinePagesFn>[0][] = [];
+    const store = memoryCheckpoints();
+    await runDiscover(
+      async (opts) => {
+        calls.push(opts);
+        return okPage([]);
+      },
+      store,
+      NOW,
+    );
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].query, "from:me -is:retweet");
+    assert.doesNotMatch(calls[0].query, /within_time|is:reply/);
+    assert.equal(calls[0].expandReferenced, false);
+    assert.equal(calls[0].count, 100);
+    assert.equal(calls[0].maxPages, 3);
+    assert.equal(calls[0].startTime, new Date(NOW - 2 * HOUR).toISOString());
+    assert.equal(store.value, NOW);
+  });
+
+  await it("starts the next window at the last success minus the overlap", async () => {
+    const starts: (string | undefined)[] = [];
+    const store = memoryCheckpoints();
+    const search: SearchTimelinePagesFn = async (opts) => {
+      starts.push(opts.startTime);
+      return okPage([]);
+    };
+    await runDiscover(search, store, NOW);
+    await runDiscover(search, store, NOW + HOUR);
+    assert.equal(starts[1], new Date(NOW - 10 * 60 * 1000).toISOString());
+    assert.equal(store.value, NOW + HOUR);
+  });
+
+  await it("does not advance the checkpoint when the search fails", async () => {
+    const starts: (string | undefined)[] = [];
+    const store = memoryCheckpoints();
+    store.value = NOW;
+    const failing: SearchTimelinePagesFn = async (opts) => {
+      starts.push(opts.startTime);
+      return {
+        ok: false as const,
+        status: 402,
+        error: "credits_depleted",
+        message: "credits depleted",
+      };
+    };
+    const first = await runDiscover(failing, store, NOW + HOUR);
+    assert.equal(first.ok, false);
+    assert.equal(store.value, NOW);
+    const thrown = await runDiscover(
+      async () => {
+        throw new Error("network");
+      },
+      store,
+      NOW + 2 * HOUR,
+    );
+    assert.equal(thrown.ok, false);
+    assert.equal(store.value, NOW);
+    await runDiscover(
+      async (opts) => {
+        starts.push(opts.startTime);
+        return okPage([]);
+      },
+      store,
+      NOW + 3 * HOUR,
+    );
+    assert.equal(starts[1], new Date(NOW - 10 * 60 * 1000).toISOString());
+    assert.equal(store.value, NOW + 3 * HOUR);
+  });
+
+  await it("checkpoints at the oldest returned post when the window was not fully read", async () => {
+    const starts: (string | undefined)[] = [];
+    const store = memoryCheckpoints();
+    const oldest = "2026-08-02T09:00:00.000Z";
+    await runDiscover(
+      async () => ({
+        ...okPage([
+          card({ id: "n1", createdAt: "2026-08-02T11:00:00.000Z" }),
+          card({ id: "n2", createdAt: oldest }),
+        ]),
+        bottomCursor: "more",
+      }),
+      store,
+      NOW,
+    );
+    assert.equal(store.value, Date.parse(oldest));
+    await runDiscover(
+      async (opts) => {
+        starts.push(opts.startTime);
+        return okPage([]);
+      },
+      store,
+      NOW + HOUR,
+    );
+    assert.equal(
+      starts[0],
+      new Date(Date.parse(oldest) - 10 * 60 * 1000).toISOString(),
+    );
+  });
+
+  await it("does not advance a truncated window without any parseable createdAt", async () => {
+    const store = memoryCheckpoints();
+    store.value = NOW - HOUR;
+    await runDiscover(
+      async () => ({
+        ...okPage([card({ id: "n1" })]),
+        bottomCursor: "more",
+      }),
+      store,
+      NOW,
+    );
+    assert.equal(store.value, NOW - HOUR);
+  });
+
+  await it("does not advance the checkpoint when the import stage throws", async () => {
+    const store = memoryCheckpoints();
+    store.value = NOW - HOUR;
+    await assert.rejects(
+      discoverOwnReplies({
+        nowMs: NOW,
+        userId: "",
+        gamificationPath,
+        knowledgeRoot,
+        upsertMemory: false,
+        session: { configured: true, bearerToken: "t" },
+        resolveScreenName: async () => "me",
+        searchTimelinePages: async () => okPage([]),
+        foldOwnPosts: async () => 0,
+        checkpointStore: store,
+      }),
+    );
+    assert.equal(store.value, NOW - HOUR);
+  });
+
+  await it("keeps checkpoints isolated per user", () => {
+    scoutCursorCheckpointStore.write(userId, NOW);
+    seedUser("u2");
+    assert.equal(scoutCursorCheckpointStore.read("u2"), null);
+    scoutCursorCheckpointStore.write("u2", NOW + HOUR);
+    assert.equal(scoutCursorCheckpointStore.read(userId), NOW);
+    assert.equal(scoutCursorCheckpointStore.read("u2"), NOW + HOUR);
+  });
+
+  await it("never looks back more than 24 hours", async () => {
+    const starts: (string | undefined)[] = [];
+    const store = memoryCheckpoints();
+    store.value = NOW - 72 * HOUR;
+    await runDiscover(
+      async (opts) => {
+        starts.push(opts.startTime);
+        return okPage([]);
+      },
+      store,
+      NOW,
+    );
+    assert.equal(starts[0], new Date(NOW - 24 * HOUR).toISOString());
+  });
+
+  await it("clamps the window from a checkpoint in the future to the first-run default", () => {
+    assert.equal(
+      ownPostDiscoverStartMs({ lastCheckedAtMs: NOW + HOUR, nowMs: NOW }),
+      NOW - 2 * HOUR,
+    );
+    assert.equal(
+      ownPostDiscoverStartMs({ lastCheckedAtMs: null, nowMs: NOW }),
+      NOW - 2 * HOUR,
+    );
+  });
+
+  await it("persists the checkpoint per user in the platform DB", () => {
+    assert.equal(scoutCursorCheckpointStore.read(userId), null);
+    scoutCursorCheckpointStore.write(userId, NOW);
+    assert.equal(scoutCursorCheckpointStore.read(userId), NOW);
+  });
+
+  await it("imports replies without opText and never writes an undefined string", async () => {
+    const result = await runDiscover(
+      async () =>
+        okPage([
+          card({
+            id: "bare-reply",
+            text: "my take",
+            inReplyToId: "bare-parent",
+            inReplyToScreenName: "@builder",
+            createdAt: "2026-08-02T11:30:00.000Z",
+          }),
+          card({ id: "plain-post", text: "an original" }),
+        ]),
+      memoryCheckpoints(),
+      NOW,
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.searched, 2);
+    assert.equal(result.discovered, 1);
+    const row = (await listInteractionHistory({ userId })).find(
+      (h) => h.replyId === "bare-reply",
+    );
+    assert.ok(row);
+    assert.equal(row.threadId, "bare-parent");
+    assert.equal(row.text, undefined);
+    assert.equal(row.url, "https://x.com/builder/status/bare-parent");
+    const note = await readFile(
+      notePath("bare-parent", "2026-08-02T11:30:00.000Z"),
+      "utf8",
+    );
+    assert.match(note, /my take/);
+    assert.doesNotMatch(note, /undefined/);
+  });
+
   await it("persists discovered replies when evidence context capture fails", async () => {
     getPlatformDb().exec("DROP TABLE scout_target_context");
 
@@ -246,28 +489,19 @@ await describe("discoverOwnReplies", async () => {
       upsertMemory: false,
       session: { configured: true, bearerToken: "t" },
       resolveScreenName: async () => "me",
-      searchTimelinePages: async (opts) =>
-        /is:reply/.test(opts.query)
-          ? {
-              ok: true as const,
-              threads: [
-                card({
-                  id: "capture-failed-reply",
-                  inReplyToId: "capture-failed-parent",
-                  inReplyToScreenName: "@builder",
-                }),
-              ],
-              queryId: "q",
-              bottomCursor: null,
-              pages: 1,
-            }
-          : {
-              ok: true as const,
-              threads: [],
-              queryId: "q",
-              bottomCursor: null,
-              pages: 1,
-            },
+      searchTimelinePages: async () => ({
+        ok: true as const,
+        threads: [
+          card({
+            id: "capture-failed-reply",
+            inReplyToId: "capture-failed-parent",
+            inReplyToScreenName: "@builder",
+          }),
+        ],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
     });
 
     assert.equal(result.discovered, 1);
@@ -312,11 +546,12 @@ await describe("discoverOwnReplies", async () => {
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => {
         assert.equal(opts.product, "Latest");
-        assert.equal(opts.maxPages, 1);
-        if (/is:reply/.test(opts.query)) {
-          assert.match(opts.query, /^from:me is:reply within_time:24h$/);
-          return {
-            ok: true,
+        assert.equal(opts.maxPages, 3);
+        assert.equal(opts.count, 100);
+        assert.equal(opts.expandReferenced, false);
+        assert.equal(opts.query, "from:me -is:retweet");
+        return {
+          ok: true,
             threads: [
               card({
                 id: "new-reply",
@@ -338,24 +573,14 @@ await describe("discoverOwnReplies", async () => {
                 inReplyToScreenName: "@me",
               }),
               card({
-                id: "no-parent",
-                text: "not a reply card",
+                id: "orphan-reply",
+                inReplyToId: "orphan-parent",
               }),
             ],
             queryId: "q",
             bottomCursor: null,
             pages: 1,
           };
-        }
-        assert.match(opts.query, /^from:me -is:retweet within_time:24h$/);
-        assert.doesNotMatch(opts.query, /is:reply/);
-        return {
-          ok: true,
-          threads: [],
-          queryId: "q",
-          bottomCursor: null,
-          pages: 1,
-        };
       },
     });
 
@@ -479,8 +704,7 @@ await describe("discoverOwnReplies", async () => {
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => ({
         ok: true as const,
-        threads: /is:reply/.test(opts.query)
-          ? [
+        threads: [
               card({
                 id: "webhook-reply",
                 text: "updated reply",
@@ -488,8 +712,7 @@ await describe("discoverOwnReplies", async () => {
                 inReplyToScreenName: "@builder",
                 opText: "updated parent",
               }),
-            ]
-          : [],
+            ],
         queryId: "q",
         bottomCursor: null,
         pages: 1,
@@ -533,16 +756,14 @@ await describe("discoverOwnReplies", async () => {
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => ({
         ok: true as const,
-        threads: /is:reply/.test(opts.query)
-          ? [
+        threads: [
               card({
                 id: "owned-reply",
                 text: "known reply",
                 inReplyToId: "owned-parent",
                 inReplyToScreenName: "@builder",
               }),
-            ]
-          : [],
+            ],
         queryId: "q",
         bottomCursor: null,
         pages: 1,
@@ -687,16 +908,14 @@ await describe("discoverOwnReplies", async () => {
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => ({
         ok: true as const,
-        threads: /is:reply/.test(opts.query)
-          ? [
+        threads: [
               card({
                 id: "projected-reply",
                 text: "fresh loop projection",
                 inReplyToId: "projected-parent",
                 inReplyToScreenName: "@builder",
               }),
-            ]
-          : [],
+            ],
         queryId: "q",
         bottomCursor: null,
         pages: 1,
@@ -747,16 +966,14 @@ await describe("discoverOwnReplies", async () => {
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => ({
         ok: true as const,
-        threads: /is:reply/.test(opts.query)
-          ? [
+        threads: [
               card({
                 id: "empty-projection-reply",
                 text: "",
                 inReplyToId: "empty-projection-parent",
                 inReplyToScreenName: "@builder",
               }),
-            ]
-          : [],
+            ],
         queryId: "q",
         bottomCursor: null,
         pages: 1,
@@ -818,16 +1035,14 @@ await describe("discoverOwnReplies", async () => {
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => ({
         ok: true as const,
-        threads: /is:reply/.test(opts.query)
-          ? [
+        threads: [
               card({
                 id: "unavailable-projection-reply",
                 text: "loop reply text",
                 inReplyToId: "unavailable-projection-parent",
                 inReplyToScreenName: "@builder",
               }),
-            ]
-          : [],
+            ],
         queryId: "q",
         bottomCursor: null,
         pages: 1,
@@ -1134,8 +1349,7 @@ await describe("discoverOwnReplies", async () => {
       resolveScreenName: async () => "me",
       searchTimelinePages: async (opts) => ({
         ok: true as const,
-        threads: /is:reply/.test(opts.query)
-          ? [
+        threads: [
               card({
                 id: "curated-reply",
                 text: "kept reply",
@@ -1143,8 +1357,7 @@ await describe("discoverOwnReplies", async () => {
                 inReplyToScreenName: "@builder",
                 opText: "Fresh search result",
               }),
-            ]
-          : [],
+            ],
         queryId: "q",
         bottomCursor: null,
         pages: 1,
@@ -1195,8 +1408,7 @@ await describe("discoverOwnReplies", async () => {
         resolveScreenName: async () => "me",
         searchTimelinePages: async (opts) => ({
           ok: true as const,
-          threads: /is:reply/.test(opts.query)
-            ? [
+          threads: [
                 card({
                   id: "idx-reply",
                   text: "indexed later",
@@ -1204,8 +1416,7 @@ await describe("discoverOwnReplies", async () => {
                   inReplyToScreenName: "@other",
                   createdAt: "2026-08-02T11:30:00.000Z",
                 }),
-              ]
-            : [],
+              ],
           queryId: "q",
           bottomCursor: null,
           pages: 1,
@@ -1255,7 +1466,7 @@ await describe("discoverOwnReplies", async () => {
     assert.equal(result.discovered, 0);
   });
 
-  await it("folds the own-posts page and the is:reply page into own_posts", async () => {
+  await it("folds the single own-posts page, replies included, into own_posts", async () => {
     const folded: string[] = [];
     const result = await discoverOwnReplies({
       userId,
@@ -1272,33 +1483,23 @@ await describe("discoverOwnReplies", async () => {
         for (const row of threads) folded.push(row.id);
         return threads.length;
       },
-      searchTimelinePages: async (opts) => {
-        if (/is:reply/.test(opts.query)) {
-          return {
-            ok: true,
-            threads: [
-              card({
-                id: "r-fold",
-                text: "reply take",
-                inReplyToId: "p-fold",
-                inReplyToScreenName: "@other",
-              }),
-            ],
-            queryId: "q",
-            bottomCursor: null,
-            pages: 1,
-          };
-        }
-        return {
-          ok: true,
-          threads: [card({ id: "orig-1", text: "shipping note" })],
-          queryId: "q",
-          bottomCursor: null,
-          pages: 1,
-        };
-      },
+      searchTimelinePages: async () => ({
+        ok: true,
+        threads: [
+          card({
+            id: "r-fold",
+            text: "reply take",
+            inReplyToId: "p-fold",
+            inReplyToScreenName: "@other",
+          }),
+          card({ id: "orig-1", text: "shipping note" }),
+        ],
+        queryId: "q",
+        bottomCursor: null,
+        pages: 1,
+      }),
     });
-    assert.deepEqual(folded, ["orig-1", "r-fold"]);
+    assert.deepEqual(folded, ["r-fold", "orig-1"]);
     assert.equal(result.ownPostsIngested, 2);
     assert.equal(result.discovered, 1);
   });
@@ -1330,8 +1531,7 @@ await describe("discoverOwnReplies desk beats", async () => {
 
     const search = async (opts: { query: string }) => ({
       ok: true as const,
-      threads: /is:reply/.test(opts.query)
-        ? [
+      threads: [
             card({
               id: "r-scout",
               inReplyToId: "scouted-parent",
@@ -1344,8 +1544,7 @@ await describe("discoverOwnReplies desk beats", async () => {
               inReplyToScreenName: "@stranger",
               createdAt: "2026-08-02T11:40:00.000Z",
             }),
-          ]
-        : [],
+          ],
       queryId: "q",
       bottomCursor: null,
       pages: 1,

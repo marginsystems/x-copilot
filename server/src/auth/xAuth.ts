@@ -25,6 +25,7 @@ import {
   requestCookies,
   serializeCookie,
   sessionSetCookie,
+  ownerHintSetCookies,
 } from "./sessionCookie.js";
 import {
   createSession,
@@ -282,6 +283,7 @@ export function completeXLogin(opts: {
       ok: true;
       user: AuthUser;
       token: string;
+      sessionId: string;
       expiresAt: string;
       created: boolean;
     }
@@ -322,6 +324,7 @@ export function completeXLogin(opts: {
     ok: true,
     user,
     token: session.token,
+    sessionId: session.id,
     expiresAt: session.expiresAt,
     created,
   };
@@ -426,5 +429,6 @@ export async function handleXCallback(
   return redirect(req, res, authSuccessRedirect(), [
     xOauthClearCookie(req),
     sessionSetCookie(req, login.token),
+    ...ownerHintSetCookies(req, login.sessionId),
   ]);
 }

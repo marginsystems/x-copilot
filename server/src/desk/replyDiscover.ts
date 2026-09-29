@@ -21,9 +21,12 @@ import { confirmedTakeEvidence } from "../scout/scoutEvidenceRecord.js";
 import { reconcileScoutEvidence } from "../scout/scoutEvidenceReconcile.js";
 import {
   searchTimelinePages,
-  withSearchRecency,
   type SearchTimelineResult,
 } from "../x-api/xSearch.js";
+import {
+  readScoutEvidenceCursor,
+  writeScoutEvidenceCursor,
+} from "../scout/scoutEvidence.js";
 import { getXApiCredsFromEnv, type XApiCreds } from "../x-api/xApi.js";
 import { getUserById, listIngestUsers } from "../auth/authStore.js";
 import { findUserIdByXUsername } from "../auth/xIdentityStore.js";
@@ -51,8 +54,71 @@ export type SearchTimelinePagesFn = (opts: {
   product?: "Latest" | "Top";
   count?: number;
   maxPages?: number;
+  startTime?: string;
+  expandReferenced?: boolean;
   signal?: AbortSignal;
 }) => Promise<SearchTimelineResult>;
+
+export const OWN_POST_DISCOVER_CURSOR_SCOPE = "own_post_discover";
+export const OWN_POST_DISCOVER_OVERLAP_MS = 10 * 60 * 1000;
+export const OWN_POST_DISCOVER_MAX_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+export const OWN_POST_DISCOVER_DEFAULT_LOOKBACK_MS = 2 * 60 * 60 * 1000;
+export const OWN_POST_DISCOVER_COUNT = 100;
+export const OWN_POST_DISCOVER_MAX_PAGES = 3;
+
+export type DiscoverCheckpointStore = {
+  read: (userId: string) => number | null;
+  write: (userId: string, checkedAtMs: number) => void;
+};
+
+function isCheckpointCursor(value: unknown): value is { checkedAtMs: number } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "checkedAtMs" in value &&
+    typeof value.checkedAtMs === "number" &&
+    Number.isFinite(value.checkedAtMs)
+  );
+}
+
+export const scoutCursorCheckpointStore: DiscoverCheckpointStore = {
+  read: (userId) =>
+    readScoutEvidenceCursor(
+      userId,
+      OWN_POST_DISCOVER_CURSOR_SCOPE,
+      isCheckpointCursor,
+    )?.checkedAtMs ?? null,
+  write: (userId, checkedAtMs) =>
+    writeScoutEvidenceCursor(
+      userId,
+      OWN_POST_DISCOVER_CURSOR_SCOPE,
+      { checkedAtMs },
+      checkedAtMs,
+    ),
+};
+
+export function oldestCreatedAtMs(threads: ThreadCard[]): number | null {
+  let oldest: number | null = null;
+  for (const card of threads) {
+    const ms = card.createdAt ? Date.parse(card.createdAt) : NaN;
+    if (Number.isFinite(ms) && (oldest === null || ms < oldest)) oldest = ms;
+  }
+  return oldest;
+}
+
+export function ownPostDiscoverStartMs(opts: {
+  lastCheckedAtMs: number | null;
+  nowMs: number;
+}): number {
+  const earliest = opts.nowMs - OWN_POST_DISCOVER_MAX_LOOKBACK_MS;
+  const wanted =
+    opts.lastCheckedAtMs === null ||
+    !Number.isFinite(opts.lastCheckedAtMs) ||
+    opts.lastCheckedAtMs > opts.nowMs
+      ? opts.nowMs - OWN_POST_DISCOVER_DEFAULT_LOOKBACK_MS
+      : opts.lastCheckedAtMs - OWN_POST_DISCOVER_OVERLAP_MS;
+  return Math.max(wanted, earliest);
+}
 
 export type DiscoverSkipReason =
   | "missing_parent"
@@ -74,24 +140,9 @@ function normalizeScreenName(screenName: string): string {
   return screenName.trim().replace(/^@+/, "");
 }
 
-/** Latest own-posts query used by the hourly stats tick for the Analytics fold. */
-export function buildOwnPostsQuery(
-  screenName: string,
-  withinTime = "24h",
-): string {
+export function buildOwnPostsQuery(screenName: string): string {
   const name = normalizeScreenName(screenName);
-  // Exclude retweets: they are someone else's post re-posted by the operator and
-  // must not be folded into own_posts as originals (matches scoutCollect).
-  return withSearchRecency(`from:${name} -is:retweet`, withinTime);
-}
-
-/** Latest own-replies query used by the hourly stats tick for the Interacted import. */
-export function buildOwnRepliesQuery(
-  screenName: string,
-  withinTime = "24h",
-): string {
-  const name = normalizeScreenName(screenName);
-  return withSearchRecency(`from:${name} is:reply`, withinTime);
+  return `from:${name} -is:retweet`;
 }
 
 export function ownPostKindFromCard(card: ThreadCard): OwnPostKind {
@@ -402,13 +453,7 @@ async function reconcileConfirmedOwnReplies(opts: {
   }
 }
 
-/**
- * One Latest page of our own posts and one Latest page of our own replies
- * (~24h each). Writes replies into the interaction store and every own-post
- * card into own_posts (Analytics).
- */
 export async function discoverOwnReplies(opts: {
-  withinTime?: string;
   count?: number;
   maxPages?: number;
   nowMs?: number;
@@ -429,6 +474,7 @@ export async function discoverOwnReplies(opts: {
   resolveScreenName?: () => Promise<string | null>;
   /** Override Analytics fold. Tests omit this so the platform DB is untouched. */
   foldOwnPosts?: FoldOwnPostsFn | null;
+  checkpointStore?: DiscoverCheckpointStore | null;
 }): Promise<DiscoverRepliesResult> {
   const session = opts?.session ?? getXApiCredsFromEnv();
   if (!session.bearerToken) {
@@ -468,18 +514,35 @@ export async function discoverOwnReplies(opts: {
     };
   }
 
-  const query = buildOwnPostsQuery(screenName, opts?.withinTime ?? "24h");
-  const search = opts?.searchTimelinePages ?? searchTimelinePages;
-  const searchOpts = {
-    product: "Latest" as const,
-    count: opts?.count ?? 20,
-    maxPages: opts?.maxPages ?? 1,
-    signal: opts?.signal,
-  };
+  const nowMs = opts?.nowMs ?? Date.now();
+  const checkpoints =
+    opts?.checkpointStore === undefined
+      ? process.env.NODE_TEST_CONTEXT
+        ? null
+        : scoutCursorCheckpointStore
+      : opts.checkpointStore;
+  let lastCheckedAtMs: number | null = null;
+  try {
+    lastCheckedAtMs = checkpoints?.read(opts.userId) ?? null;
+  } catch (err) {
+    console.warn("[reply-discover] checkpoint read soft-fail:", err);
+  }
+  const startTime = new Date(
+    ownPostDiscoverStartMs({ lastCheckedAtMs, nowMs }),
+  ).toISOString();
 
+  const search = opts?.searchTimelinePages ?? searchTimelinePages;
   let result: SearchTimelineResult;
   try {
-    result = await search({ query, ...searchOpts });
+    result = await search({
+      query: buildOwnPostsQuery(screenName),
+      product: "Latest",
+      count: opts?.count ?? OWN_POST_DISCOVER_COUNT,
+      maxPages: opts?.maxPages ?? OWN_POST_DISCOVER_MAX_PAGES,
+      startTime,
+      expandReferenced: false,
+      signal: opts?.signal,
+    });
   } catch (err) {
     return {
       ok: false,
@@ -502,35 +565,10 @@ export async function discoverOwnReplies(opts: {
     };
   }
 
-  let replyResult: SearchTimelineResult;
-  try {
-    replyResult = await search({
-      query: buildOwnRepliesQuery(screenName, opts?.withinTime ?? "24h"),
-      ...searchOpts,
-    });
-  } catch (err) {
-    return {
-      ok: false,
-      screenName,
-      searched: 0,
-      discovered: 0,
-      skipped: 0,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
+  const replyCards = result.threads.filter(
+    (card) => card.isReply || card.inReplyToId,
+  );
 
-  if (!replyResult.ok) {
-    return {
-      ok: false,
-      screenName,
-      searched: 0,
-      discovered: 0,
-      skipped: 0,
-      error: replyResult.message || replyResult.error || "reply_search_failed",
-    };
-  }
-
-  const nowMs = opts?.nowMs ?? Date.now();
   let ownPostsIngested = 0;
   const fold =
     opts?.foldOwnPosts === undefined
@@ -541,7 +579,7 @@ export async function discoverOwnReplies(opts: {
   if (fold) {
     try {
       ownPostsIngested = await fold({
-        threads: [...result.threads, ...replyResult.threads],
+        threads: result.threads,
         screenName,
         nowMs,
       });
@@ -562,7 +600,7 @@ export async function discoverOwnReplies(opts: {
   let discovered = 0;
   let skipped = 0;
 
-  for (const card of replyResult.threads) {
+  for (const card of replyCards) {
     const verdict = shouldImportDiscoveredReply({
       card,
       ownScreenName: screenName,
@@ -581,7 +619,7 @@ export async function discoverOwnReplies(opts: {
               reply: card.text,
               replyId: card.id.trim(),
               url: known.url ?? parentStatusUrl(known.author, known.threadId),
-              text: card.opText,
+              text: known.text ?? card.opText,
               opAuthor: card.opAuthor,
               opText: card.opText,
               interactedAt: canonicalNoteTime(known),
@@ -741,10 +779,21 @@ export async function discoverOwnReplies(opts: {
     console.warn("[reply-discover] scout evidence reconcile soft-fail:", err);
   }
 
+  const checkpointMs = result.bottomCursor
+    ? oldestCreatedAtMs(result.threads)
+    : nowMs;
+  if (checkpointMs !== null) {
+    try {
+      checkpoints?.write(opts.userId, checkpointMs);
+    } catch (err) {
+      console.warn("[reply-discover] checkpoint write soft-fail:", err);
+    }
+  }
+
   return {
     ok: true,
     screenName,
-    searched: replyResult.threads.length,
+    searched: result.threads.length,
     discovered,
     skipped,
     ownPostsIngested,
