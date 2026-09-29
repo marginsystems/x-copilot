@@ -177,6 +177,43 @@ await describe("drawFlightShareImage", () => {
     assert.ok(texts.includes("NEXT"));
     assert.ok(texts.includes("Level 37 — 52 XP to go"));
   }).catch(assert.fail);
+
+  it("labels a day-bucket card with its date range, per-day scale, and day axis", () => {
+    const series = Array.from({ length: 28 }, (_, i) => {
+      const replies = i === 14 ? 6 : i % 3;
+      return {
+        period: `2026-09-${String(i + 1).padStart(2, "0")}`,
+        interactions: replies,
+        originals: 0,
+        quotes: 0,
+        replies,
+        views: replies * 10,
+        withStats: replies > 0 ? 1 : 0,
+      };
+    });
+    const day: ActivityStats = {
+      bucket: "day",
+      series,
+      totals: series.reduce(
+        (t, p) => ({
+          interactions: t.interactions + p.interactions,
+          originals: 0,
+          quotes: 0,
+          replies: t.replies + p.replies,
+          views: t.views + p.views,
+          withStats: t.withStats + p.withStats,
+        }),
+        { interactions: 0, originals: 0, quotes: 0, replies: 0, views: 0, withStats: 0 },
+      ),
+    };
+    const { ctx, texts } = recordCtx();
+    drawFlightShareImage(ctx, flightSharePayload(day, emptyGamificationStats())!);
+    assert.ok(texts.includes("LAST 28 DAYS · SEP 1 – SEP 28"));
+    assert.ok(texts.includes("6 posts / day"));
+    assert.ok(texts.includes("Sep 1"));
+    assert.ok(texts.includes("Sep 28"));
+    assert.ok(!texts.some((t) => t.includes("/ week")));
+  }).catch(assert.fail);
 });
 
 await describe("FLIGHT_SHARE_DISCLAIMER", () => {
