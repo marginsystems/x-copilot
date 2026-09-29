@@ -3,12 +3,16 @@ import assert from "node:assert/strict";
 import {
   DESK_BOOT_KEY,
   clearDeskBootCache,
+  readProvisionalDeskBoot,
   parseAuthSessionUser,
   parseDeskBoot,
   peekDeskBootCache,
   readDeskBootCache,
   writeDeskBootCache,
 } from "./deskBoot.ts";
+
+const HINT = "0123456789abcdef0123456789abcdef";
+const OTHER_HINT = "fedcba9876543210fedcba9876543210";
 
 function memoryStore(seed: Record<string, string> = {}) {
   const data = { ...seed };
@@ -249,7 +253,7 @@ await describe("parseDeskBoot", () => {
 await describe("desk boot cache", async () => {
   it("round-trips a snapshot without scoutLog and drops signed-out writes", () => {
     const store = memoryStore();
-    const payload = parseDeskBoot({ ok: true, authRequired: true, user, desk });
+    const payload = parseDeskBoot({ ok: true, authRequired: true, ownerHint: HINT, user, desk });
     assert.ok(payload);
     writeDeskBootCache(payload, store);
     assert.ok(store.getItem(DESK_BOOT_KEY));
@@ -280,6 +284,7 @@ await describe("desk boot cache", async () => {
     const payload = parseDeskBoot({
       ok: true,
       authRequired: true,
+      ownerHint: HINT,
       user,
       desk: { ...desk, scoutFamiliarity: familiarity },
     });
@@ -300,6 +305,7 @@ await describe("desk boot cache", async () => {
     const payload = parseDeskBoot({
       ok: true,
       authRequired: true,
+      ownerHint: HINT,
       user,
       desk: {
         ...desk,
@@ -343,6 +349,7 @@ await describe("desk boot cache", async () => {
     const parsed = parseDeskBoot({
       ok: true,
       authRequired: true,
+      ownerHint: HINT,
       user,
       desk: {
         ...desk,
@@ -365,6 +372,7 @@ await describe("desk boot cache", async () => {
     const payload = parseDeskBoot({
       ok: true,
       authRequired: true,
+      ownerHint: HINT,
       user,
       desk: {
         ...desk,
@@ -399,7 +407,7 @@ it("keeps valid Scout cards intact and drops malformed cached fields", () => {
   const card = { id: "t1", author: "ada", text: "hello", url: "https://x.com/ada/status/1", flags: ["question"], score: 5 };
   const counts = { raw: 4, afterDedupe: 3, afterCooldown: 3, afterLength: 2, afterTriage: 1 };
   const boot = (threads: unknown[], pipelineCounts: unknown) => parseDeskBoot({
-    ok: true, user, desk: { ...desk, lastScout: {
+    ok: true, ownerHint: HINT, user, desk: { ...desk, lastScout: {
       ok: true, empty: false, snapshot: { savedAt: "2026-09-22", threads, pipelineCounts },
     } },
   })?.desk?.lastScout;
@@ -431,4 +439,126 @@ await it("rejects a non-empty lastScout snapshot when every card is malformed", 
   assert.equal(parsed?.desk?.lastScout.ok, false);
   assert.equal(parsed?.desk?.lastScout.empty, true);
 });
+});
+
+const store = () => memoryStore();
+const dashboard = { pathname: "/dashboard", search: "" };
+
+function seededStore(overrides: Record<string, unknown> = {}, userOverrides: Record<string, unknown> = {}) {
+  const target = store();
+  const payload = parseDeskBoot({
+    ok: true,
+    authRequired: true,
+    ownerHint: HINT,
+    user: { ...user, ...userOverrides },
+    desk,
+    ...overrides,
+  });
+  assert.ok(payload);
+  writeDeskBootCache(payload, target);
+  return target;
+}
+
+await describe("owner hint in the desk cache", () => {
+  it("parses a valid ownerHint and drops a malformed one", () => {
+    assert.equal(parseDeskBoot({ ok: true, user, ownerHint: HINT, desk })?.ownerHint, HINT);
+    assert.equal(parseDeskBoot({ ok: true, user, desk })?.ownerHint, null);
+    assert.equal(parseDeskBoot({ ok: true, user, ownerHint: "ABC", desk })?.ownerHint, null);
+    assert.equal(parseDeskBoot({ ok: true, user, ownerHint: 7, desk })?.ownerHint, null);
+  }).catch(assert.fail);
+
+  it("removes the cache instead of writing a payload without an owner hint", () => {
+    const target = seededStore();
+    assert.ok(target.getItem(DESK_BOOT_KEY));
+    const noHint = parseDeskBoot({ ok: true, user, desk });
+    assert.ok(noHint);
+    writeDeskBootCache(noHint, target);
+    assert.equal(target.getItem(DESK_BOOT_KEY), null);
+  }).catch(assert.fail);
+
+  it("writes under the v2 key and removes the legacy v1 key", () => {
+    const target = memoryStore({ "x-copilot-desk-boot-v1": "{}" });
+    const payload = parseDeskBoot({ ok: true, user, ownerHint: HINT, desk });
+    assert.ok(payload);
+    writeDeskBootCache(payload, target);
+    assert.equal(DESK_BOOT_KEY, "x-copilot-desk-boot-v2");
+    assert.equal(target.getItem("x-copilot-desk-boot-v1"), null);
+    clearDeskBootCache(target);
+    assert.equal(target.getItem(DESK_BOOT_KEY), null);
+  }).catch(assert.fail);
+
+  it("ignores a cache entry that has no hint or no desk", () => {
+    const noHint = memoryStore({ [DESK_BOOT_KEY]: JSON.stringify({ ok: true, user, desk }) });
+    assert.equal(readDeskBootCache(noHint), null);
+    const noDesk = memoryStore({ [DESK_BOOT_KEY]: JSON.stringify({ ok: true, user, ownerHint: HINT }) });
+    assert.equal(readDeskBootCache(noDesk), null);
+  }).catch(assert.fail);
+});
+
+await describe("readProvisionalDeskBoot", () => {
+  it("accepts a matching hint on the dashboard", () => {
+    const target = seededStore();
+    const result = readProvisionalDeskBoot({ hint: HINT, store: target, location: dashboard });
+    assert.equal(result?.user?.id, "u1");
+    assert.equal(result?.ownerHint, HINT);
+  }).catch(assert.fail);
+
+  it("accepts the /play alias of the dashboard", () => {
+    const target = seededStore();
+    assert.ok(readProvisionalDeskBoot({ hint: HINT, store: target, location: { pathname: "/play", search: "" } }));
+  }).catch(assert.fail);
+
+  it("rejects a missing or different cookie hint", () => {
+    const target = seededStore();
+    assert.equal(readProvisionalDeskBoot({ hint: null, store: target, location: dashboard }), null);
+    assert.equal(readProvisionalDeskBoot({ hint: OTHER_HINT, store: target, location: dashboard }), null);
+  }).catch(assert.fail);
+
+  it("rejects a cache without a hint or without a store", () => {
+    const noHint = memoryStore({ [DESK_BOOT_KEY]: JSON.stringify({ ok: true, user, desk }) });
+    assert.equal(readProvisionalDeskBoot({ hint: HINT, store: noHint, location: dashboard }), null);
+    assert.equal(readProvisionalDeskBoot({ hint: HINT, store: null, location: dashboard }), null);
+    assert.equal(readProvisionalDeskBoot({ hint: HINT, store: memoryStore(), location: dashboard }), null);
+  }).catch(assert.fail);
+
+  it("rejects users who are not onboarded or not X-linked", () => {
+    const unonboarded = seededStore({}, { onboardingCompleted: false });
+    assert.equal(readProvisionalDeskBoot({ hint: HINT, store: unonboarded, location: dashboard }), null);
+    const unlinked = seededStore({}, { xLinked: false });
+    assert.equal(readProvisionalDeskBoot({ hint: HINT, store: unlinked, location: dashboard }), null);
+  }).catch(assert.fail);
+
+  it("rejects every path that is not a dashboard view", () => {
+    const target = seededStore();
+    for (const pathname of ["/", "/settings", "/account", "/usage", "/voice", "/admin", "/pricing", "/privacy"]) {
+      assert.equal(
+        readProvisionalDeskBoot({ hint: HINT, store: target, location: { pathname, search: "" } }),
+        null,
+        pathname,
+      );
+    }
+  }).catch(assert.fail);
+
+  it("rejects auth, auth_error, and checkout callback queries", () => {
+    const target = seededStore();
+    for (const search of ["?auth=ok", "?auth_error=denied", "?checkout=success", "?checkout=cancel&session_id=s"]) {
+      assert.equal(
+        readProvisionalDeskBoot({ hint: HINT, store: target, location: { pathname: "/dashboard", search } }),
+        null,
+        search,
+      );
+    }
+    assert.ok(readProvisionalDeskBoot({
+      hint: HINT,
+      store: target,
+      location: { pathname: "/dashboard", search: "?utm_source=x" },
+    }));
+  }).catch(assert.fail);
+
+  it("does not seed the peek memo for an injected store", () => {
+    clearDeskBootCache();
+    const target = seededStore();
+    assert.ok(readProvisionalDeskBoot({ hint: HINT, store: target, location: dashboard }));
+    assert.equal(peekDeskBootCache("u1"), null);
+  }).catch(assert.fail);
 });

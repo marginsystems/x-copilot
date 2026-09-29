@@ -7,9 +7,10 @@ import { useDeskBoot } from "../../src/desk/useDeskBoot";
 import { peekDeskBootCache, writeDeskBootCache, type DeskBootPayload } from "../../src/lib/deskBoot";
 import type { AuthSessionUser } from "../../src/auth/types";
 import { deferred } from "./support/deferred";
+import { OWNER_HINT } from "./support/ownerHint";
 
 const owner = (id: string): AuthSessionUser => ({ id, email: null, displayName: id, avatarUrl: null, onboardingCompleted: true, agenda: null, xUsername: null, xLinked: true, xCanPost: true, isAdmin: false });
-const payload = (id: string): DeskBootPayload => ({ ok: true, user: owner(id), authRequired: true, desk: null });
+const payload = (id: string): DeskBootPayload => ({ ok: true, user: owner(id), authRequired: true, ownerHint: OWNER_HINT, desk: null });
 function useHarness() {
   const [agenda, setAgenda] = useState("");
   const auth = useAuthSession({ setAgenda, onLoggedOut: vi.fn(), onOnboardingFinished: vi.fn() });

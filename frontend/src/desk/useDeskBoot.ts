@@ -1,6 +1,7 @@
 import { isRecord } from "../lib/typeGuards";
 import {
   useEffect,
+  useLayoutEffect,
   useState,
   useRef,
   type Dispatch,
@@ -17,7 +18,9 @@ import {
   fetchDeskBoot,
   parseDeskBoot,
   parseAuthSessionUser,
+  peekDeskBootCache,
   writeDeskBootCache,
+  type DeskBootDesk,
   type DeskBootDeskPatch,
 } from "../lib/deskBoot";
 import {
@@ -36,7 +39,9 @@ type UseDeskBootOpts = {
   applyAuthUser: (
     user: AuthSessionUser | null,
     required?: boolean,
+    ownerHint?: string | null,
   ) => AuthSessionUser | null;
+  applyProvisionalDesk?: (desk: DeskBootDesk) => void;
   /** Seed every desk slice from the one-shot boot payload. */
   applyDesk: (desk: DeskBootDeskPatch) => void;
   confirmCheckout: (sessionId: string) => Promise<void>;
@@ -55,6 +60,9 @@ type UseDeskBootOpts = {
  * write the paint cache, then fall back to per-endpoint hydrate when boot is
  * unavailable. Owns the readiness flags the desk waits on.
  */
+const OFFLINE_DESK_NOTICE =
+  "Showing your last desk — couldn't reach x-copilot. Reload to retry.";
+
 export function useDeskBoot(opts: UseDeskBootOpts) {
   const session = useSession();
   const [agendaReady, setAgendaReady] = useState(false);
@@ -65,6 +73,36 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
 
   const queryRef = useRef(readBootQuery(window.location));
 
+  const applyUser = (user: AuthSessionUser | null) => {
+    const onboarded = user
+      ? user.onboardingCompleted
+      : readOnboardingComplete();
+    if (user?.agenda) {
+      opts.setAgenda(user.agenda);
+      setOnboardingSeedAgenda(null);
+      readOnboardingAgenda(user.id);
+    } else {
+      const storedAgenda = readOnboardingAgenda(user?.id);
+      if (storedAgenda) {
+        opts.setAgenda(storedAgenda);
+        if (!onboarded) setOnboardingSeedAgenda(storedAgenda);
+      }
+    }
+    setAgendaReady(true);
+    return onboarded;
+  };
+
+  useLayoutEffect(() => {
+    const snapshot = session.getSnapshot();
+    const provisional = snapshot.provisional;
+    if (snapshot.phase !== "provisional" || !provisional) return;
+    const desk = peekDeskBootCache(provisional.id)?.desk;
+    if (!desk) return;
+    applyUser(provisional);
+    opts.applyProvisionalDesk?.(desk);
+    setDeskBootReady(true);
+  }, []);
+
   useEffect(() => {
     const generation = session.capture();
     if (!session.isCurrent(generation)) return;
@@ -74,7 +112,6 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       if (!session.isCurrent(generation)) controller.abort();
     });
     const {
-      setAgenda,
       setAuthNotice,
       setBillingNotice,
       setView,
@@ -106,37 +143,21 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
     if (query.cleanUrl) {
       window.history.replaceState({}, "", query.cleanUrl);
     }
-    const deadline = window.setTimeout(() => {
-      if (!current()) return;
-      if (!session.getSnapshot().checked) {
-        session.invalidate("Desk loading timed out. Reload to try again.", false);
-        return;
-      }
-      setAuthNotice("Desk loading timed out. Reload to try again.");
+    const giveUp = (message: string) => {
+      const phase = session.getSnapshot().phase;
+      const notice = phase === "provisional" ? OFFLINE_DESK_NOTICE : message;
+      session.fail(notice, generation);
+      if (phase === "unchecked") return;
+      if (phase !== "provisional") setAuthNotice(notice);
       setAgendaReady(true);
       setDeskBootReady(true);
       controller.abort();
+    };
+    const deadline = window.setTimeout(() => {
+      if (!current()) return;
+      giveUp("Desk loading timed out. Reload to try again.");
     }, 24000);
     void (async () => {
-      const applyUser = (user: AuthSessionUser | null) => {
-        const onboarded = user
-          ? user.onboardingCompleted
-          : readOnboardingComplete();
-        if (user?.agenda) {
-          setAgenda(user.agenda);
-          setOnboardingSeedAgenda(null);
-          readOnboardingAgenda(user.id);
-        } else {
-          const storedAgenda = readOnboardingAgenda(user?.id);
-          if (storedAgenda) {
-            setAgenda(storedAgenda);
-            if (!onboarded) setOnboardingSeedAgenda(storedAgenda);
-          }
-        }
-        setAgendaReady(true);
-        return onboarded;
-      };
-
       const refreshAfterPaint = (
         user: AuthSessionUser | null,
         coachingOpts?: CoachingFetchOptions,
@@ -159,7 +180,11 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       const boot = await fetchDeskBoot(opts.dedupeAccounts, controller.signal);
       if (!current()) return;
       if (boot.status === "ok") {
-        const user = applyAuthUser(boot.payload.user, boot.payload.authRequired);
+        const user = applyAuthUser(
+          boot.payload.user,
+          boot.payload.authRequired,
+          boot.payload.ownerHint,
+        );
         if (!current()) return;
         if (err && !user) setSignInOpen(true);
         applyUser(user);
@@ -198,7 +223,6 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         return;
       }
 
-      clearDeskBootCache();
       // Read first, commit together: legacy hydrators commit internally and cannot
       // be canceled at this call site during StrictMode replay or session reset.
       const read = async (path: string) => {
@@ -268,14 +292,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       setDeskBootReady(true);
     })().catch(() => {
       if (!current()) return;
-      if (!session.getSnapshot().checked) {
-        session.invalidate("Desk could not load. Reload to try again.", false);
-        return;
-      }
-      setAuthNotice("Desk could not load. Reload to try again.");
-      setAgendaReady(true);
-      setDeskBootReady(true);
-      controller.abort();
+      giveUp("Desk could not load. Reload to try again.");
     }).finally(() => window.clearTimeout(deadline));
     return () => {
       controller.abort();

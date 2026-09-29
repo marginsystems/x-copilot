@@ -32,6 +32,7 @@ function Harness({ total = 0, page = 1, onPage = async (_page: number) => {} }: 
       expiredHistory={[]}
       searching={false}
       actionBusy={false}
+      writesEnabled
       expandedId={expandedId}
       setExpandedId={setExpandedId}
       interactedIds={new Set()}

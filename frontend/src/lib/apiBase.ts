@@ -21,6 +21,27 @@ export function apiUrl(path: string, hostname?: string): string {
   return `${apiBase(hostname)}${p}`;
 }
 
+export class ProvisionalSessionError extends Error {
+  constructor() {
+    super("Writes are paused until the session is verified.");
+    this.name = "ProvisionalSessionError";
+  }
+}
+
+let mutationGate: (() => boolean) | null = null;
+
+export function setMutationGate(gate: (() => boolean) | null): void {
+  mutationGate = gate;
+}
+
+function isReadMethod(init?: RequestInit): boolean {
+  const method = (init?.method ?? "GET").toUpperCase();
+  return method === "GET" || method === "HEAD";
+}
+
 export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  if (!isReadMethod(init) && mutationGate && !mutationGate()) {
+    return Promise.reject(new ProvisionalSessionError());
+  }
   return fetch(apiUrl(path), { ...init, credentials: "include" });
 }

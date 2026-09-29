@@ -1,5 +1,6 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
+import { clearOwnerCookie } from "./ownerHint";
 
 beforeEach(() => {
   // Mounted tests must explicitly supply their network fixtures.
@@ -19,5 +20,6 @@ afterEach(() => {
     vi.unstubAllGlobals();
     localStorage.clear();
     sessionStorage.clear();
+    clearOwnerCookie();
   }
 });

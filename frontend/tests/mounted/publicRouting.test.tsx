@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import App from "../../src/App";
 import { parseDeskBoot, writeDeskBootCache } from "../../src/lib/deskBoot";
 import { PRICING_TITLE } from "../../src/lib/seo";
+import { OWNER_HINT } from "./support/ownerHint";
 import { deferred } from "./support/deferred";
 
 vi.mock("../../src/lib/apiBase", async (importOriginal) => ({
@@ -28,6 +29,7 @@ test("a public deep link paints anonymously while boot is stalled", async () => 
   window.history.replaceState({}, "", "/pricing");
   writeDeskBootCache(parseDeskBoot({
     ok: true,
+    ownerHint: OWNER_HINT,
     user: {
       id: "cached-owner",
       displayName: "Cached Owner",

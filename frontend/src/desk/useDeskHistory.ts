@@ -113,6 +113,7 @@ export function keepCuratedByHistory(
 export function useDeskHistory(
   deps: DeskHistoryDeps,
   verifiedOwnerId: string | null,
+  paintOwnerId: string | null = verifiedOwnerId,
 ) {
   const { setThreads, setStatus, setActionBusy, onHydrated } = deps;
   const onHydratedRef = useRef(onHydrated);
@@ -135,7 +136,7 @@ export function useDeskHistory(
       seq === requestSeq.current[key];
   }
 
-  const seed = peekDeskBootCache(verifiedOwnerId)?.desk ?? null;
+  const seed = peekDeskBootCache(paintOwnerId)?.desk ?? null;
   const [interactedIds, setInteractedIds] = useState<Set<string>>(
     () => new Set(seed?.interacted.activeIds ?? []),
   );

@@ -42,6 +42,7 @@ type ThreadsTabsProps = {
   scoutStage?: ScoutStageId | null;
   scoutLine?: string | null;
   actionBusy: boolean;
+  writesEnabled: boolean;
   expandedId: string | null;
   setExpandedId: Dispatch<SetStateAction<string | null>>;
   interactedIds: Set<string>;
@@ -162,6 +163,7 @@ export function ThreadsTabs({
   scoutStage,
   scoutLine,
   actionBusy,
+  writesEnabled,
   expandedId,
   setExpandedId,
   interactedIds,
@@ -184,6 +186,7 @@ export function ThreadsTabs({
 }: ThreadsTabsProps) {
   const task = useApproachTask({
     authUser,
+    writesEnabled,
     deskBootReady,
     agendaReady,
     agenda,
