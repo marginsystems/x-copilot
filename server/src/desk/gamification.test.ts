@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir } from "node:fs/promises";
@@ -541,7 +541,7 @@ await describe("recordMarkGamification / getGamification", async () => {
   let gamificationPath: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "x-copilot-game-"));
+    dir = await mkdtemp(join(await realpath(tmpdir()), "x-copilot-game-"));
     gamificationPath = join(dir, "gamification.json");
     resetPlatformDbForTests();
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
