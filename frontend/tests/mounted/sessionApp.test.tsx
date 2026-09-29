@@ -336,18 +336,26 @@ test("a provisional session on a non-dashboard path paints only the boot screen"
   await act(async () => { pending.resolve(Response.json({ ok: false }, { status: 401 })); await pending.promise; });
 });
 
-test("a provisional desk that navigates away from the dashboard falls back to the boot screen", async () => {
+test("a provisional desk that fails boot after navigating away shows the cached view and notice", async () => {
   window.history.replaceState({}, "", "/dashboard");
   seedCache(cachedDesk("Cached scout text"));
-  const pending = deferred<Response>();
-  recordFetch((url) => (url.includes("/api/boot?") ? pending.promise : Response.json({ ok: true, empty: true })));
+  const pending = deferred<unknown>();
+  recordFetch((url) => (url.includes("/api/boot?") ? pending.promise : Response.json({ ok: false }, { status: 503 })));
   render(<App />);
   expect(await screen.findByText("Cached scout text")).toBeTruthy();
   const interaction = userEvent.setup();
   await interaction.click(screen.getByRole("button", { name: /menu/i }));
   await interaction.click(await screen.findByRole("button", { name: /^settings$/i }));
   expect(await screen.findByText("Checking your session…")).toBeTruthy();
-  await act(async () => { pending.resolve(Response.json({ ok: false }, { status: 401 })); await pending.promise; });
+  await act(async () => {
+    pending.reject(new Error("offline"));
+    await pending.promise.catch(() => undefined);
+  });
+  await waitFor(() => {
+    expect(screen.queryByText("Checking your session…")).toBeNull();
+    expect(screen.getByText(/Showing your last desk/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
+  });
 });
 
 test.each(["logout", "storage reset"])("a boot that resolves with a user after %s is dropped without writing the cache or painting", async (mode) => {

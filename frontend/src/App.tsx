@@ -84,6 +84,7 @@ function SessionApp() {
     authUser,
     paintUser,
     sessionPhase,
+    sessionOffline,
     invalidateSession,
     setAuthUser,
     onboardingDoneLocal,
@@ -397,7 +398,8 @@ function SessionApp() {
   const needsXLink = deskNeedsXLink(paintUser);
   const booting =
     !localUi &&
-    (sessionPhase === "unchecked" || (provisional && view !== "dashboard"));
+    (sessionPhase === "unchecked" ||
+      (provisional && !sessionOffline && view !== "dashboard"));
   const publicView = isPublicView(view);
   const showOnboardingPreview =
     onboardingPreview && Boolean(authUser?.isAdmin) && !publicView;
