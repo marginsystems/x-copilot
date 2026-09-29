@@ -15,7 +15,10 @@ import {
   clientIp,
 } from "./authGuard.js";
 import {
+  getRequestSession,
   getSessionUser,
+  ownerHintClearCookies,
+  ownerHintRefresh,
   requestCookies,
   SESSION_COOKIE,
   sessionClearCookie,
@@ -84,9 +87,16 @@ export async function tryHandleAuth(
   }
   if (req.method === "GET" && url.pathname === "/api/auth/me") {
     const required = authRequired();
-    const user = getSessionUser(req);
-    if (!user) {
-      sendJson(req, res, 401, { ok: false, error: "unauthenticated", authRequired: required });
+    const session = getRequestSession(req);
+    const user = session?.user ?? null;
+    if (!session || !user) {
+      sendJson(
+        req,
+        res,
+        401,
+        { ok: false, error: "unauthenticated", authRequired: required },
+        ownerHintClearCookies(req),
+      );
       return true;
     }
     try {
@@ -94,7 +104,19 @@ export async function tryHandleAuth(
     } catch (err) {
       console.error("[GET /api/auth/me] tenant", err);
     }
-    sendJson(req, res, 200, { ok: true, authRequired: required, user: publicUser(user) });
+    const hint = ownerHintRefresh(req, session);
+    sendJson(
+      req,
+      res,
+      200,
+      {
+        ok: true,
+        authRequired: required,
+        user: publicUser(user),
+        ownerHint: hint.ownerHint,
+      },
+      hint.cookies,
+    );
     return true;
   }
   if (await tryHandleSessions(req, res, url)) return true;
@@ -107,7 +129,7 @@ export async function tryHandleAuth(
       res,
       200,
       { ok: true },
-      [sessionClearCookie(req)],
+      [sessionClearCookie(req), ...ownerHintClearCookies(req)],
     );
     return true;
   }
