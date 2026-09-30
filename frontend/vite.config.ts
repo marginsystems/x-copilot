@@ -5,6 +5,7 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
 import { htmlWithSeo } from "./src/lib/seo";
+import { deskPreviewPlugin } from "./devPreview";
 
 const frontendRoot = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(frontendRoot, "..");
@@ -53,7 +54,7 @@ function gscVerificationMeta(verification: string): Plugin {
   };
 }
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, repoRoot, "");
   return {
     root: frontendRoot,
@@ -62,6 +63,9 @@ export default defineConfig(({ mode }) => {
       react(),
       gscVerificationMeta(env.VITE_GSC_VERIFICATION ?? ""),
       seoRouteHtml(),
+      ...(command === "serve" && env.NODE_ENV !== "production"
+        ? [deskPreviewPlugin(repoRoot)]
+        : []),
     ],
     server: {
       port: 5173,

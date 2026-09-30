@@ -3,23 +3,24 @@ import { ActivityChart } from "../ActivityChart";
 import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import type { GamificationStats } from "../lib/gamification";
 import { flightSharePayload } from "../lib/flightShare";
+import {
+  levelBarPercent,
+  levelXpLabel,
+  postsViewsLabel,
+} from "../lib/flightStats";
 import { FlightShareModal } from "./FlightShareModal";
 
 type ActivityStripProps = {
-  flightPathOpen: boolean;
   activityBucket: ActivityBucket;
   activityStats: ActivityStats;
   gamification: GamificationStats;
-  onToggleFlightPath: () => void;
   onActivityBucket: (bucket: ActivityBucket) => void;
 };
 
 export function ActivityStrip({
-  flightPathOpen,
   activityBucket,
   activityStats,
   gamification,
-  onToggleFlightPath,
   onActivityBucket,
 }: ActivityStripProps) {
   const sharePayload = useMemo(
@@ -29,32 +30,15 @@ export function ActivityStrip({
   const [shareOpen, setShareOpen] = useState(false);
 
   return (
-    <div
-      className={
-        flightPathOpen
-          ? "threads-activity"
-          : "threads-activity is-collapsed"
-      }
+    <section
+      className="threads-activity"
       aria-label="Flight path"
+      title="Bars stack originals, quotes, and replies. Altitude is 24h views, refreshed live while pending; posts without a count hold the last altitude."
     >
       <div className="threads-activity-head">
         <div className="threads-activity-copy">
           <div className="threads-activity-title-row">
-            <button
-              type="button"
-              className="threads-activity-toggle-path"
-              aria-expanded={flightPathOpen}
-              aria-label={
-                flightPathOpen
-                  ? "Collapse flight path"
-                  : "Expand flight path"
-              }
-              onClick={onToggleFlightPath}
-            >
-              <span className="threads-activity-caret" aria-hidden="true">
-                {flightPathOpen ? "–" : "+"}
-              </span>
-            </button>
+            <h3 className="cockpit-title">Flight path</h3>
             <span className="threads-activity-share-slot">
               {sharePayload ? (
                 <button
@@ -69,43 +53,52 @@ export function ActivityStrip({
               ) : null}
             </span>
           </div>
-          {flightPathOpen ? (
-            <span className="threads-activity-sub">
-              Bars stack originals, quotes, and replies. Altitude is
-              24h views, refreshed live while pending; posts without a
-              count hold the last altitude.
-            </span>
-          ) : null}
         </div>
-        <div
-          className="threads-activity-toggle"
-          role="group"
-          aria-label="Activity bucket"
-        >
-          <button
-            type="button"
-            className={
-              activityBucket === "day"
-                ? "threads-tab active"
-                : "threads-tab"
-            }
-            aria-pressed={activityBucket === "day"}
-            onClick={() => onActivityBucket("day")}
+        <div className="threads-activity-controls">
+          <span className="activity-chart-legend" aria-label="Post kinds">
+            <span className="activity-chart-legend-item">
+              <span className="activity-chart-swatch is-original" />
+              Original
+            </span>
+            <span className="activity-chart-legend-item">
+              <span className="activity-chart-swatch is-quote" />
+              Quote
+            </span>
+            <span className="activity-chart-legend-item">
+              <span className="activity-chart-swatch is-reply" />
+              Reply
+            </span>
+          </span>
+          <div
+            className="threads-activity-toggle"
+            role="group"
+            aria-label="Activity bucket"
           >
-            Day
-          </button>
-          <button
-            type="button"
-            className={
-              activityBucket === "week"
-                ? "threads-tab active"
-                : "threads-tab"
-            }
-            aria-pressed={activityBucket === "week"}
-            onClick={() => onActivityBucket("week")}
-          >
-            Week
-          </button>
+            <button
+              type="button"
+              className={
+                activityBucket === "day"
+                  ? "threads-tab active"
+                  : "threads-tab"
+              }
+              aria-pressed={activityBucket === "day"}
+              onClick={() => onActivityBucket("day")}
+            >
+              Day
+            </button>
+            <button
+              type="button"
+              className={
+                activityBucket === "week"
+                  ? "threads-tab active"
+                  : "threads-tab"
+              }
+              aria-pressed={activityBucket === "week"}
+              onClick={() => onActivityBucket("week")}
+            >
+              Week
+            </button>
+          </div>
         </div>
       </div>
       <div className="threads-activity-meta">
@@ -113,8 +106,10 @@ export function ActivityStrip({
           className="chip chip-muted"
           title={`${activityStats.totals.originals} original · ${activityStats.totals.quotes} quote · ${activityStats.totals.replies} reply`}
         >
-          {activityStats.totals.interactions} posts ·{" "}
-          {activityStats.totals.views} views
+          {postsViewsLabel(
+            activityStats.totals.interactions,
+            activityStats.totals.views,
+          )}
         </span>
         <span
           className="chip"
@@ -127,48 +122,22 @@ export function ActivityStrip({
         </span>
         <span
           className="chip threads-activity-level"
-          title="XP from marks (+1) and 24h engagement bonuses"
+          title={
+            gamification.nextGoal
+              ? `Next: ${gamification.nextGoal.title} — ${gamification.nextGoal.detail}. XP from marks (+1) and 24h engagement bonuses`
+              : "XP from marks (+1) and 24h engagement bonuses"
+          }
         >
-          Lv {gamification.level} · {gamification.lifetimeXp} XP
-          <span
-            className="threads-activity-xp-bar"
-            aria-hidden="true"
-          >
+          Lv {gamification.level}
+          <span className="threads-activity-xp-bar" aria-hidden="true">
             <span
               className="threads-activity-xp-fill"
-              style={{
-                width: `${Math.min(
-                  100,
-                  (gamification.xpIntoLevel / gamification.xpToNext) *
-                    100,
-                )}%`,
-              }}
+              style={{ width: `${levelBarPercent(gamification)}%` }}
             />
           </span>
-        </span>
-        <span className="activity-chart-legend" aria-label="Post kinds">
-          <span className="activity-chart-legend-item">
-            <span className="activity-chart-swatch is-original" />
-            Original
-          </span>
-          <span className="activity-chart-legend-item">
-            <span className="activity-chart-swatch is-quote" />
-            Quote
-          </span>
-          <span className="activity-chart-legend-item">
-            <span className="activity-chart-swatch is-reply" />
-            Reply
-          </span>
+          {levelXpLabel(gamification)}
         </span>
       </div>
-      <p
-        className="threads-activity-next"
-        aria-hidden={!gamification.nextGoal}
-      >
-        {flightPathOpen && gamification.nextGoal
-          ? `Next: ${gamification.nextGoal.title} — ${gamification.nextGoal.detail}`
-          : "\u00a0"}
-      </p>
       <div className="threads-activity-chart">
         {activityStats.totals.interactions === 0 ? (
           <p className="threads-activity-empty">
@@ -178,7 +147,6 @@ export function ActivityStrip({
           <ActivityChart
             series={activityStats.series}
             bucket={activityStats.bucket}
-            compact={!flightPathOpen}
           />
         )}
       </div>
@@ -188,7 +156,7 @@ export function ActivityStrip({
           onClose={() => setShareOpen(false)}
         />
       ) : null}
-    </div>
+    </section>
   );
 }
 

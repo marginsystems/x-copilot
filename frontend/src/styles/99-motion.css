@@ -91,3 +91,14 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .dial-needle,
+  .dial-fill {
+    transition: none;
+  }
+
+  .desk-circle-thumb.is-skeleton,
+  .desk-circle-skeleton-row::before {
+    animation: none;
+  }
+}

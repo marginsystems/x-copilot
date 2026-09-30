@@ -110,16 +110,16 @@ test("dashboard shows owned familiarity beside the flight path and hides it afte
   render(<App />);
   await waitFor(() => {
     expect(
-      screen.queryByRole("button", { name: "Expand desk panel" })
+      screen.queryByRole("button", { name: "Show cockpit" })
       ?? screen.queryByRole("meter", { name: "Scout familiarity" }),
     ).toBeTruthy();
   }, { timeout: 4000 });
-  const expand = screen.queryByRole("button", { name: "Expand desk panel" });
+  const expand = screen.queryByRole("button", { name: "Show cockpit" });
   if (expand) await userEvent.setup().click(expand);
   await waitFor(() => expect(screen.getByRole("meter", { name: "Scout familiarity" })).toBeTruthy());
   expect(screen.getByText("Learning.")).toBeTruthy();
   expect(screen.getByText(/Streak 0/)).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Flight path" })).toBeTruthy();
+  expect(screen.getByRole("region", { name: "Flight path" })).toBeTruthy();
   expect(screen.getByRole("group", { name: "Activity bucket" })).toBeTruthy();
   expect(urls.some((url) => url.endsWith("/api/scout/profile"))).toBe(false);
   expect(peekDeskBootCache(user.id)?.desk?.scoutFamiliarity?.revision).toBe(2);

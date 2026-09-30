@@ -1,45 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CoachingState } from "../lib/coaching";
+import { deskGaugeSpecs } from "../lib/deskGaugeSpecs";
 import {
   dailyPostCap,
-  DESK_GAUGE_LABEL,
-  formatPerHour,
-  formatPctDelta,
-  formatTankGauge,
   markFromHistory,
   parseInstrumentTimes,
   readDeskInstruments,
-  type DeskGaugeBand,
-  type InstrumentDelta,
 } from "../lib/deskInstruments";
 import type { GamificationStats } from "../lib/gamification";
+import { DialGauge } from "./DialGauge";
 import { readReplyPaceUntil } from "./replyPaceStore";
 import type { RetainedInteractionEntry } from "./types";
 
 type InstrumentsPanelProps = {
-  expanded: boolean;
   interactedHistory: RetainedInteractionEntry[];
   gamification: GamificationStats;
   coaching?: CoachingState | null;
   usableScoutCount: number;
-  onToggleExpand: () => void;
 };
 
 const TICK_MS = 15_000;
 
-const INBOUND_WORD: Record<DeskGaugeBand, string> = {
-  cool: "Clear",
-  warm: "Mixed",
-  hot: "Quiet",
-};
-
 export function InstrumentsPanel({
-  expanded,
   interactedHistory,
   gamification,
   coaching,
   usableScoutCount,
-  onToggleExpand,
 }: InstrumentsPanelProps) {
   const marks = useMemo(
     () => interactedHistory.map(markFromHistory),
@@ -68,159 +54,19 @@ export function InstrumentsPanel({
     usableScoutCount,
   });
 
+  const specs = deskGaugeSpecs(gauges);
+
   return (
-    <div
-      className={
-        expanded ? "desk-instruments" : "desk-instruments is-collapsed"
-      }
+    <section
+      className="desk-instruments"
       aria-label="Instruments"
+      title="Last 500 marks. Arrows are 24h and 7d."
     >
-      <div className="desk-instruments-head">
-        <button
-          type="button"
-          className="threads-activity-toggle-path"
-          aria-expanded={expanded}
-          aria-label={
-            expanded ? "Collapse instruments" : "Expand instruments"
-          }
-          onClick={onToggleExpand}
-        >
-          <span className="desk-instruments-kicker">
-            {DESK_GAUGE_LABEL}s
-          </span>
-          <span className="threads-activity-caret" aria-hidden="true">
-            {expanded ? "–" : "+"}
-          </span>
-        </button>
-        {expanded ? (
-          <span className="threads-activity-sub">
-            Last 500 marks. Arrows are 24h and 7d.
-          </span>
-        ) : null}
-      </div>
       <div className="desk-gauges">
-        <Gauge
-          label="Replies / hour"
-          value={formatPerHour(gauges.repliesPerHour)}
-          delta={gauges.repliesPerHourDelta}
-          band={null}
-          note="Last 500 marks on this desk, as a real hourly rate."
-        />
-        <Gauge
-          label="Replies today"
-          value={gauges.repliesUtcDay}
-          delta={gauges.repliesUtcDayDelta}
-          band={null}
-          note="Marks this UTC day."
-        />
-        <Gauge
-          label="OG today"
-          value={gauges.originalsToday}
-          delta={gauges.originalsTodayDelta}
-          band={null}
-          note="Originals this UTC day. Not quotes, not replies."
-        />
-        <Gauge
-          label="Posts / day"
-          value={`${gauges.postsToday} / ${gauges.dailyPostCap}`}
-          delta={gauges.postsTodayDelta}
-          band={gauges.postsBand}
-          note="Cap comes from level and streak. Streak is a UTC day with an original, reply, or quote — on or off the desk. Likes and follows do not count."
-        />
-        <Gauge
-          label="Tank"
-          value={formatTankGauge(gauges.tankCount)}
-          band={null}
-          note="Usable scouted replies on this desk."
-          fillPercent={gauges.tankFillPercent}
-        />
-        {gauges.inboundBand !== null ? (
-          <Gauge
-            label="Inbound quiet"
-            value={INBOUND_WORD[gauges.inboundBand]}
-            band={gauges.inboundBand}
-            note="Desk theory from sampled reply stats, not an official X signal."
-          />
-        ) : null}
+        {specs.map((spec) => (
+          <DialGauge key={spec.id} spec={spec} />
+        ))}
       </div>
-    </div>
-  );
-}
-
-function Gauge({
-  label,
-  value,
-  band,
-  note,
-  delta,
-  fillPercent,
-}: {
-  label: string;
-  value: string | number;
-  band: DeskGaugeBand | null;
-  note: string;
-  delta?: InstrumentDelta;
-  fillPercent?: number;
-}) {
-  const className =
-    band === "hot"
-      ? "desk-gauge is-hot"
-      : band === "warm"
-        ? "desk-gauge is-warm"
-        : "desk-gauge";
-  return (
-    <div className={className}>
-      <span className="desk-gauge-label">{label}</span>
-      <span className="desk-gauge-value-row">
-        <span className="desk-gauge-value">{value}</span>
-        {delta ? <DeltaPair delta={delta} /> : null}
-      </span>
-      {fillPercent !== undefined ? (
-        <span className="desk-gauge-track" aria-hidden="true">
-          <span
-            className="desk-gauge-fill"
-            style={{ width: `${fillPercent}%` }}
-          />
-        </span>
-      ) : null}
-      <span className="desk-gauge-note">{note}</span>
-    </div>
-  );
-}
-
-function DeltaPair({ delta }: { delta: InstrumentDelta }) {
-  return (
-    <span className="desk-gauge-deltas">
-      <DeltaChip pct={delta.pct24h} label="24h" />
-      <DeltaChip pct={delta.pct7d} label="7d" />
-    </span>
-  );
-}
-
-function DeltaChip({
-  pct,
-  label,
-}: {
-  pct: number | null;
-  label: string;
-}) {
-  const dir =
-    pct === null ? "new" : pct > 0 ? "up" : pct < 0 ? "down" : "flat";
-  const arrow =
-    dir === "down" ? "↓" : dir === "flat" ? "–" : "↑";
-  const text = formatPctDelta(pct);
-  const spoken =
-    dir === "up"
-      ? `up ${text} over ${label}`
-      : dir === "down"
-        ? `down ${text} over ${label}`
-        : dir === "new"
-          ? `new over ${label}`
-          : `unchanged over ${label}`;
-  return (
-    <span className={`desk-delta is-${dir}`} aria-label={spoken}>
-      <span aria-hidden="true">{arrow}</span>
-      {text ? ` ${text}` : dir === "new" ? " new" : " 0%"} {label}
-    </span>
+    </section>
   );
 }

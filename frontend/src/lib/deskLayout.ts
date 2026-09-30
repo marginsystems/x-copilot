@@ -1,11 +1,23 @@
-/** Persist whether the agenda / flight-path bar is open. Default: collapsed. */
-
 export const DESK_TOP_OPEN_KEY = "x-copilot-desk-top-open";
+export const DESK_TOP_DEFAULT_OPEN_MIN_WIDTH_PX = 1100;
+
+export function deskTopDefaultOpen(): boolean {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      window.matchMedia(`(min-width: ${DESK_TOP_DEFAULT_OPEN_MIN_WIDTH_PX}px)`)
+        .matches
+    );
+  } catch {
+    return false;
+  }
+}
 
 export function readDeskTopOpen(
   store: Pick<Storage, "getItem"> | null = defaultStore(),
+  defaultOpen: boolean = deskTopDefaultOpen(),
 ): boolean {
-  if (!store) return false;
+  if (!store) return defaultOpen;
   try {
     const stored = store.getItem(DESK_TOP_OPEN_KEY);
     if (stored === "1") return true;
@@ -13,7 +25,7 @@ export function readDeskTopOpen(
   } catch {
     /* private mode */
   }
-  return false;
+  return defaultOpen;
 }
 
 export function writeDeskTopOpen(

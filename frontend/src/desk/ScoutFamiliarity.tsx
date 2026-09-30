@@ -61,7 +61,17 @@ export function ScoutFamiliarity({ familiarity }: ScoutFamiliarityProps) {
       >
         <span className="scout-familiarity-fill" style={{ width: `${score}%` }} />
       </div>
-      <p className="scout-familiarity-coverage">{coverageText}</p>
+      <p className="scout-familiarity-coverage" title={coverageText}>
+        <span className="scout-familiarity-score">{score}/100</span>
+        <span className="scout-familiarity-stat">
+          {coverage.storedConfirmedReplies}{" "}
+          {coverage.storedConfirmedReplies === 1 ? "reply" : "replies"}
+        </span>
+        <span className="scout-familiarity-stat">
+          {coverage.knownKindResolvedActions}{" "}
+          {coverage.knownKindResolvedActions === 1 ? "action" : "actions"}
+        </span>
+      </p>
       <p id={helpId} className="scout-familiarity-help">
         Resolved actions are takes and skips with a known thread kind. This
         measures evidence coverage, not accuracy or XP.

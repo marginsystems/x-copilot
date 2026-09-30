@@ -1,6 +1,6 @@
 import { StrictMode, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, expect, test, vi } from "vitest";
+import { expect, test, vi } from "vitest";
 import { SessionBoundary, useSession } from "../../src/auth/session";
 import { INTERACTED_FALLBACK_POLL_MS, useDeskHistory } from "../../src/desk/useDeskHistory";
 import { DESK_DETECTOR_FALLBACK_MS } from "../../src/desk/approachDetector";
@@ -22,9 +22,6 @@ function wrapper({ children }: { children: ReactNode }) {
   return <StrictMode><SessionBoundary>{children}</SessionBoundary></StrictMode>;
 }
 
-beforeEach(() => {
-  sessionStorage.setItem("x-copilot-flight-path-open", "1");
-});
 const row = (threadId: string) => ({ threadId, author: "author", at: "2026-09-16" });
 const response = (data: unknown) => new Response(JSON.stringify(data));
 function setup() {
@@ -257,7 +254,6 @@ test.each(["invalidate", "unmount"] as const)("drops a response during JSON pars
 });
 
 test("applyStripFromBoot still applies gamification after StrictMode replay", () => {
-  sessionStorage.setItem("x-copilot-flight-path-open", "1");
   const { result } = renderHook(() => useActivityStrip(null), { wrapper });
   const gamification = { ...emptyGamificationStats(), lifetimeXp: 40 };
   act(() => {
@@ -270,7 +266,6 @@ test("applyStripFromBoot still applies gamification after StrictMode replay", ()
 });
 
 test("day/week/day and gamification retain the newest response", async () => {
-  sessionStorage.setItem("x-copilot-flight-path-open", "1");
   const requests: ReturnType<typeof deferred<Response>>[] = [];
   vi.stubGlobal("fetch", vi.fn(() => { const d = deferred<Response>(); requests.push(d); return d.promise; }));
   const commits: unknown[] = [];
@@ -439,7 +434,6 @@ test.each(["hydrateInteracted", "hydrateSkipped", "hydrateDismissed", "hydrateEx
 );
 
 test("chart and gamification ignore session-expired results and subsequent refreshes", async () => {
-  sessionStorage.setItem("x-copilot-flight-path-open", "1");
   const requests: ReturnType<typeof deferred<Response>>[] = [];
   const fetch = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => {
     const request = deferred<Response>();
@@ -473,7 +467,6 @@ test("chart and gamification ignore session-expired results and subsequent refre
 });
 
 test("chart and gamification ignore results after unmount", async () => {
-  sessionStorage.setItem("x-copilot-flight-path-open", "1");
   const requests: ReturnType<typeof deferred<Response>>[] = [];
   vi.stubGlobal("fetch", vi.fn(() => { const d = deferred<Response>(); requests.push(d); return d.promise; }));
   const commits: unknown[] = [];

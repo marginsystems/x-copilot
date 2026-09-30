@@ -54,16 +54,31 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   margin: 0 0 0 auto;
-  padding: 0;
+  padding: 0 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--raised);
   color: var(--text);
   cursor: pointer;
   flex: 0 0 auto;
-  width: 2rem;
   height: 2rem;
+  font-family: var(--font-head);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.desk-top-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.desk-top-toggle-icon {
+  flex: none;
 }
 
 .desk-top-body {
@@ -84,21 +99,6 @@
   transition: opacity 280ms var(--ease-out);
 }
 
-.desk-top-body-content {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
-  padding-top: 12px;
-}
-
-.desk-top-tabs {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
 .desk-top.is-collapsed .desk-top-body-inner {
   opacity: 0;
 }
@@ -106,13 +106,6 @@
 .desk-top-toggle:hover {
   border-color: var(--accent-dim);
   color: var(--text);
-}
-
-.desk-top-caret {
-  font-family: var(--font-mono);
-  font-size: 1.35rem;
-  font-weight: 600;
-  line-height: 1;
 }
 
 button.primary.scout-run.desk-top-takeoff {
@@ -182,16 +175,16 @@ button.primary.scout-run.desk-top-takeoff {
   justify-content: center;
   gap: 3px;
   flex-shrink: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: transparent;
-  color: var(--muted);
+  color: var(--text);
   font-family: var(--font-head);
   font-size: 0.68rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: var(--radius);
   cursor: pointer;
 }
@@ -208,14 +201,19 @@ button.primary.scout-run.desk-top-takeoff {
 }
 
 .threads-tab:hover {
-  color: var(--text);
-  border-color: var(--border-strong);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.threads-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .threads-tab.active {
-  color: var(--text);
-  border-color: var(--accent-dim);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+  background: var(--accent);
 }
 
 .interacted-pagination {
@@ -273,58 +271,6 @@ button.primary.scout-run.desk-top-takeoff {
   background: color-mix(in srgb, var(--muted) 45%, transparent);
 }
 
-.threads-activity {
-  position: relative;
-  min-width: 0;
-  height: 220px;
-  min-height: 220px;
-  max-height: 220px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  background: var(--raised);
-  padding: 10px 12px;
-}
-
-.threads-activity.is-collapsed {
-  height: 72px;
-  min-height: 72px;
-  max-height: 72px;
-  align-self: start;
-}
-
-.threads-activity.is-collapsed .threads-activity-meta,
-.threads-activity.is-collapsed .threads-activity-next,
-.threads-activity.is-collapsed .threads-activity-toggle {
-  display: none;
-}
-
-.threads-activity-toggle-path {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.threads-activity-toggle-path:hover .threads-activity-caret {
-  color: var(--accent);
-}
-
-.threads-activity-caret {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1;
-}
-
 .threads-activity-head {
   display: flex;
   flex-wrap: wrap;
@@ -370,12 +316,6 @@ button.primary.scout-run.desk-top-takeoff {
 
 .threads-activity-share:hover {
   color: var(--accent);
-}
-
-.threads-activity-sub {
-  font-size: 0.7rem;
-  color: var(--muted);
-  line-height: 1.3;
 }
 
 .threads-activity-toggle {
@@ -472,15 +412,15 @@ button.primary.scout-run.desk-top-takeoff {
 }
 
 .activity-chart-bar-original {
-  fill: color-mix(in srgb, var(--accent) 55%, transparent);
+  fill: color-mix(in srgb, var(--accent) 75%, transparent);
 }
 
 .activity-chart-bar-quote {
-  fill: color-mix(in srgb, #7ea88f 70%, transparent);
+  fill: color-mix(in srgb, var(--chart-quote) 85%, transparent);
 }
 
 .activity-chart-bar-reply {
-  fill: color-mix(in srgb, #d4a574 70%, transparent);
+  fill: color-mix(in srgb, var(--chart-reply) 85%, transparent);
 }
 
 .activity-chart-bar-original.is-active {
@@ -488,11 +428,11 @@ button.primary.scout-run.desk-top-takeoff {
 }
 
 .activity-chart-bar-quote.is-active {
-  fill: #7ea88f;
+  fill: var(--chart-quote);
 }
 
 .activity-chart-bar-reply.is-active {
-  fill: #d4a574;
+  fill: var(--chart-reply);
 }
 
 .activity-chart-bar.is-active {
@@ -527,11 +467,11 @@ button.primary.scout-run.desk-top-takeoff {
 }
 
 .activity-chart-swatch.is-quote {
-  background: #7ea88f;
+  background: var(--chart-quote);
 }
 
 .activity-chart-swatch.is-reply {
-  background: #d4a574;
+  background: var(--chart-reply);
 }
 
 .activity-chart-area {
@@ -618,174 +558,6 @@ button.primary.scout-run.desk-top-takeoff {
   font-size: 8px;
 }
 
-.desk-instruments {
-  min-width: 0;
-  height: 220px;
-  min-height: 220px;
-  max-height: 220px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow: auto;
-  border: 1px solid var(--border);
-  background: var(--raised);
-  padding: 10px 12px;
-}
-
-.desk-instruments.is-collapsed {
-  height: 72px;
-  min-height: 72px;
-  max-height: 72px;
-  overflow: hidden;
-  align-self: start;
-  justify-content: center;
-}
-
-.desk-instruments-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 0 0 auto;
-}
-
-.desk-instruments-kicker {
-  font-family: var(--font-head);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.desk-gauges {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 8px;
-  min-width: 0;
-}
-
-.desk-gauge {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px 10px;
-}
-
-.desk-gauge.is-warm {
-  border-color: var(--accent-dim);
-  background: color-mix(in srgb, var(--accent) 8%, var(--raised));
-}
-
-/* Same tint as the Learn 04 scout-yes rows. */
-.desk-gauge.is-hot {
-  border-color: var(--danger-dim);
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-}
-
-.desk-gauge-label {
-  font-family: var(--font-head);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.desk-gauge-value-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 10px;
-  min-width: 0;
-}
-
-.desk-gauge-value {
-  font-family: var(--font-mono);
-  font-size: 1.05rem;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-
-.desk-gauge-track {
-  width: 100%;
-  height: 3px;
-  overflow: hidden;
-  border-radius: var(--radius);
-  background: var(--border);
-}
-
-.desk-gauge-fill {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-}
-
-.desk-gauge-deltas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 8px;
-  min-width: 0;
-}
-
-.desk-delta {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.desk-delta.is-up,
-.desk-delta.is-new {
-  color: var(--gain);
-}
-
-.desk-delta.is-down {
-  color: var(--danger);
-}
-
-.desk-gauge-note {
-  font-size: 0.7rem;
-  color: var(--muted);
-  line-height: 1.3;
-}
-
-/* Collapsed strip: one thin row of gauges, no captions. */
-.desk-instruments.is-collapsed .desk-gauge-note,
-.desk-instruments.is-collapsed .desk-instruments-head .threads-activity-sub {
-  display: none;
-}
-
-.desk-instruments.is-collapsed .desk-gauges {
-  display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.desk-instruments.is-collapsed .desk-gauge {
-  flex: 0 0 auto;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 6px;
-  padding: 3px 8px;
-}
-
-.desk-instruments.is-collapsed .desk-gauge-value-row {
-  gap: 6px;
-}
-
-.desk-instruments.is-collapsed .desk-delta {
-  font-size: 0.62rem;
-}
-
 .row-head.static {
   cursor: default;
   text-align: left;
@@ -861,17 +633,8 @@ button.primary.scout-run.desk-top-takeoff {
 }
 
 
-/* Scout familiarity: a compact meter beside the flight path (C14). */
-.desk-top-path {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
-  min-width: 0;
-}
-
 .scout-familiarity {
   min-width: 0;
-  align-self: start;
   border: 1px solid var(--border);
   background: var(--raised);
   padding: 10px 12px;
@@ -922,11 +685,4 @@ button.primary.scout-run.desk-top-takeoff {
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-@media (min-width: 1100px) {
-  .desk-top-path.has-familiarity {
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
-    align-items: start;
-  }
 }
