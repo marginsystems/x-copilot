@@ -8,7 +8,9 @@ import {
   hitBody,
   overlapDepth,
   packBubbles,
+  rescaleBodies,
   retargetBodies,
+  shouldRepack,
   settleSteps,
   snapToHome,
   stepBodies,
@@ -132,5 +134,25 @@ await describe("bubbleLayout", () => {
     const target = bodies[2]!;
     assert.equal(hitBody(bodies, target.x, target.y), 2);
     assert.equal(hitBody(bodies, -50, -50), -1);
+  }).catch(assert.fail);
+
+  it("repacks only when the aspect ratio changes a lot", () => {
+    assert.equal(shouldRepack({ width: 222, height: 278 }, { width: 240, height: 300 }), false);
+    assert.equal(shouldRepack({ width: 222, height: 278 }, { width: 148, height: 278 }), true);
+    assert.equal(shouldRepack({ width: 222, height: 278 }, { width: 640, height: 270 }), true);
+    assert.equal(shouldRepack({ width: 0, height: 0 }, { width: 222, height: 278 }), true);
+  }).catch(assert.fail);
+
+  it("rescales homes and radii without overlaps or a new solve", () => {
+    const from = { width: 222, height: 278 };
+    const to = { width: 240, height: 300 };
+    const bodies = packBubbles(scores(14), from);
+    rescaleBodies(bodies, from, to);
+    snapToHome(bodies);
+    assert.ok(overlapDepth(bodies) < 0.6);
+    for (const b of bodies) {
+      assert.ok(b.x - b.r >= -0.6 && b.x + b.r <= to.width + 0.6);
+      assert.ok(b.y - b.r >= -0.6 && b.y + b.r <= to.height + 0.6);
+    }
   }).catch(assert.fail);
 });

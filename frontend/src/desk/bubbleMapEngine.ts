@@ -4,7 +4,9 @@ import {
   hitBody,
   isSettled,
   packBubbles,
+  rescaleBodies,
   retargetBodies,
+  shouldRepack,
   snapToHome,
   stepBodies,
   type Body,
@@ -153,6 +155,7 @@ export function createBubbleMap(
   let running = false;
   let raf = 0;
   let drawRaf = 0;
+  let measureRaf = 0;
   let lastTime = 0;
   let accumulator = 0;
   let lastFastest = Infinity;
@@ -321,12 +324,16 @@ export function createBubbleMap(
     drawRaf = 0;
   }
 
-  function layout(previous: BubbleBox | null): void {
+  function layout(previous: BubbleBox | null, membersChanged: boolean): void {
     if (!hasBox()) return;
     const source = ghost ? GHOST_SCORES : scores;
     const count = source.length + 1;
     const reuse = previous !== null && previous.width > 0 && bodies.length === count;
-    bodies = reuse ? retargetBodies(bodies, source, previous, box) : packBubbles(source, box);
+    if (reuse && !membersChanged && !shouldRepack(previous, box)) {
+      rescaleBodies(bodies, previous, box);
+    } else {
+      bodies = reuse ? retargetBodies(bodies, source, previous, box) : packBubbles(source, box);
+    }
     if (!reuse || reduced()) snapToHome(bodies);
     else wake();
     if (hovered >= bodies.length) hovered = -1;
@@ -334,16 +341,33 @@ export function createBubbleMap(
     scheduleDraw();
   }
 
-  function measure(): void {
+  function sync(): { changed: boolean; previous: BubbleBox | null } {
     const width = host.clientWidth;
     const height = host.clientHeight;
-    if (width === box.width && height === box.height) return;
+    if (width === box.width && height === box.height) return { changed: false, previous: null };
     const previous = hasBox() ? box : null;
     box = { width, height };
     dpr = window.devicePixelRatio || 1;
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
-    layout(previous);
+    return { changed: true, previous };
+  }
+
+  function measure(): void {
+    measureRaf = 0;
+    const { changed, previous } = sync();
+    if (changed) layout(previous, false);
+  }
+
+  function queueMeasure(): void {
+    if (!measureRaf && !destroyed) measureRaf = requestAnimationFrame(measure);
+  }
+
+  function cancelDrag(): void {
+    if (!drag) return;
+    if (canvas.hasPointerCapture(drag.id)) canvas.releasePointerCapture(drag.id);
+    drag = null;
+    setCursor();
   }
 
   function setHover(index: number): void {
@@ -395,7 +419,11 @@ export function createBubbleMap(
         setCursor();
       }
       if (drag.moved) {
-        const body = bodies[drag.index]!;
+        const body = bodies[drag.index];
+        if (!body) {
+          cancelDrag();
+          return;
+        }
         body.x = clamp(x - drag.offsetX, body.r, box.width - body.r);
         body.y = clamp(y - drag.offsetY, body.r, box.height - body.r);
         body.vx = 0;
@@ -465,7 +493,7 @@ export function createBubbleMap(
   schemeQuery?.addEventListener("change", applyTheme);
 
   const resizeObserver =
-    typeof ResizeObserver === "function" ? new ResizeObserver(() => measure()) : null;
+    typeof ResizeObserver === "function" ? new ResizeObserver(queueMeasure) : null;
   resizeObserver?.observe(host);
 
   const intersection =
@@ -491,12 +519,13 @@ export function createBubbleMap(
     attributeFilter: ["data-theme", "class"],
   });
 
-  measure();
-
   return {
     setData(payload, images) {
       if (destroyed) return;
       const previousCount = bodies.length;
+      const wasGhost = ghost;
+      cancelDrag();
+      if (hovered >= 0) hooks.onHover(null);
       hovered = -1;
       linked = -1;
       tip.hidden = true;
@@ -510,9 +539,12 @@ export function createBubbleMap(
         people = built.people;
         scores = built.scores;
       }
+      const { changed, previous } = sync();
       if (!hasBox()) return;
+      if (ghost && wasGhost && previousCount > 0 && !changed) return;
       const expected = (ghost ? GHOST_SCORES.length : scores.length) + 1;
-      layout(previousCount === expected && !ghost ? { ...box } : null);
+      const same = previousCount === expected && ghost === wasGhost;
+      layout(same ? (changed ? previous : { ...box }) : null, !ghost);
     },
     setHighlight(handle) {
       const index = indexOfHandle(handle);
@@ -523,6 +555,7 @@ export function createBubbleMap(
     destroy() {
       destroyed = true;
       halt();
+      if (measureRaf) cancelAnimationFrame(measureRaf);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", onPointerUp);

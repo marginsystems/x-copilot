@@ -278,6 +278,27 @@ export function adoptRest(bodies: Body[]): void {
   }
 }
 
+export const REPACK_ASPECT_CHANGE = 0.2;
+
+export function shouldRepack(from: BubbleBox, to: BubbleBox): boolean {
+  if (from.width <= 0 || from.height <= 0 || to.width <= 0 || to.height <= 0) return true;
+  const change = Math.abs(Math.log(to.width / to.height / (from.width / from.height)));
+  return change > REPACK_ASPECT_CHANGE;
+}
+
+export function rescaleBodies(bodies: Body[], from: BubbleBox, to: BubbleBox): void {
+  const kx = to.width / from.width;
+  const ky = to.height / from.height;
+  const k = Math.min(kx, ky);
+  for (const body of bodies) {
+    body.x *= kx;
+    body.y *= ky;
+    body.hx *= kx;
+    body.hy *= ky;
+    body.tr *= k;
+  }
+}
+
 export function snapToHome(bodies: Body[]): void {
   for (const body of bodies) {
     body.x = body.hx;
