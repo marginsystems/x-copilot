@@ -12,6 +12,9 @@ import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { markInteracted } from "../desk/interactionStore.ts";
+import { ensureUserTenant } from "../billing/billingStore.ts";
+import { recordUsageEvent } from "../billing/usageMeter.ts";
+import { runWithRequestContext } from "../http/requestContext.ts";
 import type { xApiGet } from "../x-api/xApi.ts";
 import {
   hydrateCircleProfiles,
@@ -196,6 +199,41 @@ await describe("circleHttp", async () => {
       assert.equal(expectRecord(second.json.members[0]).avatarUrl, null);
       assert.equal(usersBy.length, 1);
       assert.equal(usersBy[0]?.searchParams.get("usernames"), "alice");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  await it("GET /api/circle skips the PFP lookup without burning the window when credits are exhausted", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-circle-broke",
+      email: "broke@example.com",
+      emailVerified: true,
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const agedAt = new Date(Date.now() - 8 * 24 * 60 * 60_000).toISOString();
+    getPlatformDb().prepare(`UPDATE users SET created_at = ? WHERE id = ?`).run(agedAt, user.id);
+    recordUsageEvent({ tenantId, path: "/2/tweets/search/recent", status: 200, postsRead: 1500 });
+    await markInteracted({ threadId: "t1", author: "@alice", userId: user.id, replyId: "r1" });
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    process.env.X_API_BEARER_TOKEN = "test-bearer";
+    const originalFetch = globalThis.fetch;
+    let usersBy = 0;
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+      if (new URL(String(input)).pathname.endsWith("/users/by")) usersBy += 1;
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const broke = await runWithRequestContext({ tenantId, userId: user.id }, () =>
+        call("/api/circle", cookie),
+      );
+      assert.equal(broke.status, 200);
+      assert.equal(usersBy, 0);
+      const funded = await call("/api/circle", cookie);
+      assert.equal(funded.status, 200);
+      assert.equal(usersBy, 1);
     } finally {
       globalThis.fetch = originalFetch;
     }
