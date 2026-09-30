@@ -1,5 +1,6 @@
 import {
   FYP_COMPOSE_TIP,
+  FYP_NEXT_TIP,
   forYouKindClass,
   forYouKindLabel,
   forYouKindShort,
@@ -63,9 +64,9 @@ export function SuggestedRow({
       openHref={openUrl}
       openPace={openPace}
       openLabel="Open on X"
-      openTip={row.kind === "post" ? FYP_COMPOSE_TIP : "Open the target on X."}
+      openTip={row.kind === "post" ? FYP_COMPOSE_TIP : "Open this post on X."}
       onNext={detectsReply ? onNext : undefined}
-      nextTip="Continue to the next Approach card."
+      nextTip={FYP_NEXT_TIP}
       nextDisabled={!interacted}
       onPrimary={!interacted && !detectsReply && !busy ? onPosted : undefined}
       primaryLabel="I posted on X"

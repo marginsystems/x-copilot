@@ -1,3 +1,4 @@
+import { FYP_NEXT_TIP } from "../lib/forYou";
 import { stripMediaShortlinksFromText } from "../lib/mediaText";
 import { formatAbsoluteTime, formatTimeAgo } from "../lib/timeAgo";
 import { ApproachDetectingMark } from "./ApproachFrame";
@@ -75,7 +76,7 @@ export function ThreadRow({
       onOpen={onWatch}
       openPace={openPace}
       onNext={onNext}
-      nextTip="Continue to the next Approach card."
+      nextTip={FYP_NEXT_TIP}
       nextDisabled={!interacted}
       onSkip={!interacted ? onSkip : undefined}
       onDismiss={!interacted ? onDismiss : undefined}

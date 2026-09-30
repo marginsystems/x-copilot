@@ -13,11 +13,10 @@ export const FYP_WAIT_COPY =
   "Open For You or Inspiration. Come back and tap Next.";
 export const FYP_DETECTING_COPY = "Detection in progress.";
 export const FYP_DETECTED_COPY = "Post detected";
-export const FYP_OPEN_TIP = "Opens your real X For You page.";
-export const FYP_COMPOSE_TIP = "Opens a blank post on X. You write it.";
-export const FYP_INSPIRATION_TIP = "Opens X Inspiration top posts.";
-export const FYP_NEXT_TIP =
-  "Leave this wait. Take the next Approach card.";
+export const FYP_OPEN_TIP = "Open your For You page on X.";
+export const FYP_COMPOSE_TIP = "Open a blank post on X. You write it.";
+export const FYP_INSPIRATION_TIP = "Open Inspiration top posts on X.";
+export const FYP_NEXT_TIP = "Go to the next Approach card.";
 
 export type ForYouProgress = {
   tracked: number;

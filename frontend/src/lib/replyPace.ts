@@ -6,7 +6,7 @@ export const REPLY_PACE_CLEARED_KEY = "x-copilot-reply-pace-cleared";
 export const REPLY_PACE_EVENT = "x-copilot-reply-pace";
 
 export function replyPaceTip(clock: string): string {
-  return `Waiting between replies: ${clock} left. One reply a minute keeps the account from looking automated. Read the card while you wait.`;
+  return `Next reply in ${clock}. One reply a minute keeps the account from looking automated.`;
 }
 
 export function nextReplyPaceUntil(now: number): number {
