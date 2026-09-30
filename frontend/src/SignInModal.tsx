@@ -57,8 +57,8 @@ export function SignInModal(props: {
         </div>
         <h2 id="signin-title">Sign in to your desk</h2>
         <p className="signin-lede">
-          Free plan — 1,500 credits every month. No credit card. X is
-          identity-only until you post from the desk.
+          Free plan — 1,500 credits every month. No credit card. The desk
+          never posts for you.
         </p>
         {props.notice ? (
           <p className="status auth-notice" role="status">

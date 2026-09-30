@@ -11,9 +11,8 @@ test("UTC-day effect survives rerenders and cancels its next refresh on unmount"
   const response = deferred<Response>();
   const fetchMock = vi.fn<typeof fetch>().mockReturnValue(response.promise);
   vi.stubGlobal("fetch", fetchMock);
-  const onUtcDay = vi.fn();
   const { result, rerender, unmount } = renderHook(
-    () => useBilling({ onUtcDay }),
+    () => useBilling(),
     { wrapper: ({ children }) => <StrictMode><SessionBoundary>{children}</SessionBoundary></StrictMode> },
   );
 
@@ -32,7 +31,6 @@ test("UTC-day effect survives rerenders and cancels its next refresh on unmount"
     "http://localhost:8787/api/billing/me",
     { credentials: "include" },
   );
-  expect(onUtcDay).toHaveBeenCalledTimes(1);
   expect(result.current.billing).toBeNull();
 
   const billing = {
@@ -52,5 +50,4 @@ test("UTC-day effect survives rerenders and cancels its next refresh on unmount"
     await vi.advanceTimersByTimeAsync(86_400_000);
   });
   expect(fetchMock).toHaveBeenCalledTimes(1);
-  expect(onUtcDay).toHaveBeenCalledTimes(1);
 });

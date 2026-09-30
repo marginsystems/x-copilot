@@ -17,6 +17,12 @@ export type ChangelogDay = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-01",
+    title: "We don't write your replies",
+    body: "Suggest, the Voice card and desk posting are gone. AI still finds threads and picks your next move. You open X and write every word yourself. Desk cards no longer expand.",
+    href: "https://github.com/marginsystems/x-copilot/pull/1053",
+  },
+  {
     date: "2026-08-25",
     title: "What a like is worth",
     body: "A public /learn note on X For You ranking weights. They multiply P(action), not raw counts. Cited from the Aug 13-14 xai-org/x-algorithm drop. Not a blog.",

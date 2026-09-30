@@ -9,7 +9,7 @@ import type { AuthSessionUser } from "../../src/auth/types";
 import { deferred } from "./support/deferred";
 import { OTHER_OWNER_HINT, OWNER_HINT, clearOwnerCookie, setOwnerCookie } from "./support/ownerHint";
 
-const owner = (id: string): AuthSessionUser => ({ id, email: null, displayName: id, avatarUrl: null, onboardingCompleted: true, agenda: null, xUsername: null, xLinked: true, xCanPost: true, isAdmin: false });
+const owner = (id: string): AuthSessionUser => ({ id, email: null, displayName: id, avatarUrl: null, onboardingCompleted: true, agenda: null, xUsername: null, xLinked: true, isAdmin: false });
 const payload = (id: string): DeskBootPayload => ({ ok: true, user: owner(id), authRequired: true, ownerHint: OWNER_HINT, desk: null });
 function useHarness() {
   const [agenda, setAgenda] = useState("");
@@ -128,7 +128,7 @@ test("late boot after invalidation cannot restore identity, desk, or cache", asy
       setBillingNotice: vi.fn(), setView: vi.fn(), setSignInOpen: vi.fn(),
       applyAuthUser: current.applyAuthUser, applyDesk,
       confirmCheckout: followup, hydrateCoaching: followup,
-      hydrateActivityStats: followup, loadBilling: followup, hydrateVoice: followup, loadUsage: followup, loadAdmin: followup,
+      hydrateActivityStats: followup, loadBilling: followup, loadUsage: followup, loadAdmin: followup,
     });
     return <span>{current.authUser?.id ?? "anonymous"}</span>;
   }
@@ -195,7 +195,7 @@ test.each(["boot", "legacy /api/auth/me"])("the verified hint is stored after %s
       setBillingNotice: vi.fn(), setView: vi.fn(), setSignInOpen: vi.fn(),
       applyAuthUser: current.applyAuthUser, applyDesk: vi.fn(),
       confirmCheckout: followup, hydrateCoaching: followup,
-      hydrateActivityStats: followup, loadBilling: followup, hydrateVoice: followup, loadUsage: followup, loadAdmin: followup,
+      hydrateActivityStats: followup, loadBilling: followup, loadUsage: followup, loadAdmin: followup,
     });
     return <span>{current.authUser?.id ?? "anonymous"}</span>;
   }

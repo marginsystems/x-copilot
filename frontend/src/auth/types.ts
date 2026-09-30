@@ -7,6 +7,5 @@ export type AuthSessionUser = {
   agenda: string | null;
   xUsername: string | null;
   xLinked: boolean;
-  xCanPost: boolean;
   isAdmin: boolean;
 };

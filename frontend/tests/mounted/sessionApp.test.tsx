@@ -20,7 +20,7 @@ beforeAll(async () => { await import("../../src/desk/DeskView"); }, 60000);
 beforeEach(() => { clearDeskBootCache(); });
 afterEach(() => { window.history.replaceState({}, "", "/"); });
 
-const user = { id: "private-owner", displayName: "Private Owner", email: null, avatarUrl: null, agenda: "Private agenda", onboardingCompleted: true, xUsername: "private_handle", xLinked: true, xCanPost: true, isAdmin: false };
+const user = { id: "private-owner", displayName: "Private Owner", email: null, avatarUrl: null, agenda: "Private agenda", onboardingCompleted: true, xUsername: "private_handle", xLinked: true, isAdmin: false };
 const boot = parseDeskBoot({ ok: true, ownerHint: OWNER_HINT, user, desk: {} })!;
 
 test("dashboard reload with cached identity paints only verification until server rejection", async () => {

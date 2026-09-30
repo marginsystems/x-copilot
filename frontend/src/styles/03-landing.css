@@ -192,12 +192,6 @@
   margin-top: 4px;
 }
 
-.landing-demo-hint {
-  color: var(--muted);
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-}
-
 .landing-list {
   margin: 0;
   padding: 0;

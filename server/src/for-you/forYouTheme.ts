@@ -4,7 +4,6 @@ export const SKIPPED_THEME_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 export type ForYouThemeCard = {
   kind: string;
   why: string;
-  draft?: string | null;
   targetId?: string | null;
   targetUrl?: string | null;
 };
@@ -62,27 +61,15 @@ function targetKeys(row: ForYouThemeCard): Set<string> {
 }
 
 function postThemeOverlap(a: ForYouThemeCard, b: ForYouThemeCard): boolean {
-  const leftWhy = themeTokens(a.why);
-  const rightWhy = themeTokens(b.why);
-  const leftDraft = themeTokens(a.draft ?? "");
-  const rightDraft = themeTokens(b.draft ?? "");
-  if (leftWhy.size === 0 || rightWhy.size === 0) return false;
-  let whyHit = 0;
-  for (const token of leftWhy) {
-    if (rightWhy.has(token)) whyHit += 1;
-  }
-  let draftHit = 0;
-  for (const token of leftDraft) {
-    if (rightDraft.has(token)) draftHit += 1;
-  }
-  const left = new Set([...leftWhy, ...leftDraft]);
-  const right = new Set([...rightWhy, ...rightDraft]);
+  const left = themeTokens(a.why);
+  const right = themeTokens(b.why);
+  if (left.size === 0 || right.size === 0) return false;
   let hit = 0;
   for (const token of left) {
     if (right.has(token)) hit += 1;
   }
   const denom = Math.min(left.size, right.size);
-  return hit >= 2 && hit / denom >= 0.4 && (whyHit >= 2 || draftHit >= 2);
+  return hit >= 2 && hit / denom >= 0.4;
 }
 
 /** Same target, or the same original thesis. Skip one, bury the remixes. */

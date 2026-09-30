@@ -1,22 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  draftForYouActions,
   FOR_YOU_DIGEST_SYSTEM,
   FOR_YOU_SCOUT_ORIGINAL_SYSTEM,
+  pickForYouActions,
+  pickForYouScoutOriginal,
 } from "./forYouLlm.ts";
 import type { ForYouDigest } from "./forYouDigest.ts";
-import type { ChatFn } from "../voice/voiceLlm.ts";
+import type { ChatFn } from "../platform/llmJson.ts";
 
 const digest: ForYouDigest = {
   agenda: "Find builders",
-  voice: {
-    tone: "short and dry",
-    typicalLength: "one sentence",
-    habits: ["lowercase"],
-    neverDo: ["hype"],
-    examples: ["shipped", "shipped it", "ok"],
-  },
   best: [
     {
       id: "10",
@@ -71,12 +65,17 @@ function fakeChat(
   };
 }
 
-await describe("draftForYouActions", async () => {
-  await it("asks for at least one original that invites a reply", () => {
+await describe("pickForYouActions", async () => {
+  await it("asks for at least one original angle and never for post text", () => {
     assert.match(FOR_YOU_DIGEST_SYSTEM, /At least one kind=post/);
-    assert.match(FOR_YOU_DIGEST_SYSTEM, /invite a reply/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /invite replies/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /names that angle or topic/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /never write post text/i);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /Never write a draft/);
+    assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /"draft"/);
+    assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /voice card/i);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /max 90 characters/);
-    assert.match(FOR_YOU_DIGEST_SYSTEM, /named other side/);
+    assert.match(FOR_YOU_DIGEST_SYSTEM, /second person/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /younger than 1 hour/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /AVOID_24H/);
     assert.match(FOR_YOU_DIGEST_SYSTEM, /100\+ views only/);
@@ -88,17 +87,20 @@ await describe("draftForYouActions", async () => {
     assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /reply farm/i);
     assert.doesNotMatch(FOR_YOU_DIGEST_SYSTEM, /echoing BEST_24H/);
     assert.match(FOR_YOU_SCOUT_ORIGINAL_SYSTEM, /Topic from the agenda only/);
+    assert.match(FOR_YOU_SCOUT_ORIGINAL_SYSTEM, /named other side/);
+    assert.match(FOR_YOU_SCOUT_ORIGINAL_SYSTEM, /never write the post/i);
+    assert.doesNotMatch(FOR_YOU_SCOUT_ORIGINAL_SYSTEM, /"draft"/);
     assert.doesNotMatch(FOR_YOU_SCOUT_ORIGINAL_SYSTEM, /LIVE_SCOUT/);
   });
 
   await it("parses a valid first pass", async () => {
     const capture = { purposes: [] as string[], prompts: [] as string[] };
-    const result = await draftForYouActions({
+    const result = await pickForYouActions({
       digest,
       chat: fakeChat(
         JSON.stringify({
           actions: [
-            { kind: "post", why: "builder agenda has an open question", draft: "Another recap." },
+            { kind: "post", why: "builder agenda has an open question" },
             {
               kind: "reply",
               why: "builder memory earned attention",
@@ -111,10 +113,40 @@ await describe("draftForYouActions", async () => {
       ),
     });
     assert.equal(result.ok, true);
-    assert.equal(result.ok && result.drafts.length, 2);
+    assert.equal(result.ok && result.actions.length, 2);
     assert.deepEqual(capture.purposes, ["for_you_digest"]);
     assert.doesNotMatch(capture.prompts[0] ?? "", /LIVE_SCOUT/);
     assert.doesNotMatch(capture.prompts[0] ?? "", /who is hiring/);
+    assert.doesNotMatch(capture.prompts[0] ?? "", /\nVOICE\n/);
+  });
+
+  await it("drops draft text the model returns anyway", async () => {
+    const result = await pickForYouActions({
+      digest,
+      chat: fakeChat(
+        JSON.stringify({
+          actions: [
+            {
+              kind: "post",
+              why: "builder agenda has an open question",
+              draft: "Who is hiring builders this week?",
+            },
+            {
+              kind: "reply",
+              why: "builder memory earned attention",
+              draft: "Still true.",
+              targetId: "mem-hit",
+              targetUrl: "https://x.com/builder/status/88",
+            },
+          ],
+        }),
+      ),
+    });
+    assert.equal(result.ok, true);
+    assert.equal(
+      result.ok && result.actions.some((a) => Object.hasOwn(a, "draft")),
+      false,
+    );
   });
 
   await it("repairs invalid JSON", async () => {
@@ -135,7 +167,7 @@ await describe("draftForYouActions", async () => {
         ok: true,
         content: JSON.stringify({
           actions: [
-            { kind: "post", why: "builder agenda has an open question", draft: "Recap." },
+            { kind: "post", why: "builder agenda has an open question" },
             {
               kind: "reply",
               why: "builder memory earned attention",
@@ -148,9 +180,9 @@ await describe("draftForYouActions", async () => {
         provider: "deepseek",
       };
     };
-    const result = await draftForYouActions({ digest, chat });
+    const result = await pickForYouActions({ digest, chat });
     assert.equal(result.ok, true);
-    assert.equal(result.ok && result.drafts.length, 2);
+    assert.equal(result.ok && result.actions.length, 2);
     assert.deepEqual(capture.purposes, [
       "for_you_digest",
       "for_you_digest_repair",
@@ -170,7 +202,6 @@ await describe("draftForYouActions", async () => {
         {
           kind: "quote",
           why: "quote the winner",
-          draft: "still true",
           targetId: "10",
           targetUrl: "https://x.com/desk/status/10",
         },
@@ -192,7 +223,7 @@ await describe("draftForYouActions", async () => {
         ok: true,
         content: JSON.stringify({
           actions: [
-            { kind: "post", why: "builder agenda has an open question", draft: "Another recap." },
+            { kind: "post", why: "builder agenda has an open question" },
             {
               kind: "reply",
               why: "builder memory earned attention",
@@ -205,10 +236,10 @@ await describe("draftForYouActions", async () => {
         provider: "deepseek",
       };
     };
-    const result = await draftForYouActions({ digest, chat });
+    const result = await pickForYouActions({ digest, chat });
     assert.equal(result.ok, true);
     assert.equal(
-      result.ok && result.drafts.some((a) => a.kind === "post"),
+      result.ok && result.actions.some((a) => a.kind === "post"),
       true,
     );
     assert.deepEqual(capture.purposes, [
@@ -230,7 +261,6 @@ await describe("draftForYouActions", async () => {
         {
           kind: "quote",
           why: "quote the winner",
-          draft: "still true",
           targetId: "10",
           targetUrl: "https://x.com/desk/status/10",
         },
@@ -245,7 +275,7 @@ await describe("draftForYouActions", async () => {
         provider: "deepseek",
       };
     };
-    const result = await draftForYouActions({ digest, chat });
+    const result = await pickForYouActions({ digest, chat });
     assert.equal(result.ok, false);
     assert.deepEqual(capture.purposes, [
       "for_you_digest",
@@ -271,14 +301,14 @@ await describe("draftForYouActions", async () => {
         ok: true,
         content: JSON.stringify({
           actions: [
-            { kind: "post", why: "builder agenda has an open question", draft: "Another recap." },
+            { kind: "post", why: "builder agenda has an open question" },
           ],
         }),
         model: "deepseek-v4-flash",
         provider: "deepseek",
       };
     };
-    const result = await draftForYouActions({ digest, chat });
+    const result = await pickForYouActions({ digest, chat });
     assert.equal(result.ok, false);
     assert.deepEqual(capture.purposes, [
       "for_you_digest",
@@ -286,14 +316,14 @@ await describe("draftForYouActions", async () => {
     ]);
   });
 
-  await it("reports an LLM failure without drafts", async () => {
+  await it("reports an LLM failure without actions", async () => {
     const chat: ChatFn = async () => ({
       ok: false,
       status: 429,
       error: "rate_limited",
       message: "Too many requests",
     });
-    const result = await draftForYouActions({ digest, chat });
+    const result = await pickForYouActions({ digest, chat });
     assert.equal(result.ok, false);
   });
 
@@ -318,12 +348,38 @@ await describe("draftForYouActions", async () => {
         message: "Upstream blew up",
       };
     };
-    const result = await draftForYouActions({ digest, chat });
+    const result = await pickForYouActions({ digest, chat });
     assert.equal(result.ok, false);
     assert.equal(result.ok || result.error, "Upstream blew up");
     assert.deepEqual(capture.purposes, [
       "for_you_digest",
       "for_you_digest_repair",
     ]);
+  });
+});
+
+await describe("pickForYouScoutOriginal", async () => {
+  await it("returns one post angle with no draft text", async () => {
+    const capture = { purposes: [] as string[] };
+    const result = await pickForYouScoutOriginal({
+      digest,
+      chat: fakeChat(
+        JSON.stringify({
+          actions: [
+            {
+              kind: "post",
+              why: "Ask builders what they cut first this week",
+              draft: "What did you cut first?",
+            },
+          ],
+        }),
+        capture,
+      ),
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.ok && result.actions, [
+      { kind: "post", why: "Ask builders what they cut first this week" },
+    ]);
+    assert.deepEqual(capture.purposes, ["for_you_scout_original"]);
   });
 });

@@ -19,7 +19,7 @@ function PrivacyBody() {
 
       <h2>Who we are</h2>
       <p>
-        {PRODUCT_NAME} is a research and triage desk for posting on X.{" "}
+        {PRODUCT_NAME} is a research and triage desk for replying on X.{" "}
         {LEGAL_ENTITY} operates the service. We are not affiliated with X Corp.
       </p>
 
@@ -38,10 +38,9 @@ function PrivacyBody() {
         <li>
           <strong>X data we read for you.</strong> Public posts, author handles,
           and public metrics returned by the X API so Scout can search and score
-          threads. If you post a reply from the desk, we send that text to X
-          with the official X tokens from your X login. We do not like, follow,
-          or auto-reply. Suggest drafts are shown for you to rewrite — we do
-          not publish an AI draft unless you send it.
+          threads, and to notice when you have posted. We never write, post,
+          like, follow, or reply on X for you — you write and post on X
+          yourself.
         </li>
         <li>
           <strong>Billing.</strong> If you subscribe, Stripe processes the card.
@@ -160,11 +159,10 @@ function TermsBody() {
       <h2>The service</h2>
       <p>
         {PRODUCT_NAME} helps you find public X threads worth a human reply.
-        Scout searches X and scores candidates. Suggest may show a
-        Voice-matched draft that you must rewrite before Copy / Open on X.
-        You may post that reply from the desk with your official X login. We
-        do not auto-engage, auto-like, auto-follow, or post without your
-        click. You are responsible for complying with X’s terms and
+        Scout searches X and scores candidates, and the desk uses AI to pick
+        your next move. It never writes your replies or posts: you open X and
+        write them yourself. We do not auto-engage, auto-like, auto-follow, or
+        post for you. You are responsible for complying with X’s terms and
         applicable law in anything you post.
       </p>
 

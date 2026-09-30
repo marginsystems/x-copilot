@@ -14,7 +14,6 @@ function row(
     id,
     kind,
     why: "why",
-    draft: null,
     targetId: null,
     targetUrl: null,
     targetAuthor: null,

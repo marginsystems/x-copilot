@@ -14,7 +14,6 @@ type UseSkipDismissDeps = {
   setActionBusy: (busy: boolean) => void;
   setStatus: (status: string) => void;
   setThreads: Dispatch<SetStateAction<ThreadCard[]>>;
-  setExpandedId: Dispatch<SetStateAction<string | null>>;
   setSkippedHistory: Dispatch<SetStateAction<SkipHistoryEntry[]>>;
   setDismissedHistory: Dispatch<SetStateAction<DismissalHistoryEntry[]>>;
   skippedIdsRef: MutableRefObject<Set<string>>;
@@ -33,7 +32,6 @@ export function useSkipDismiss({
   setActionBusy,
   setStatus,
   setThreads,
-  setExpandedId,
   setSkippedHistory,
   setDismissedHistory,
   skippedIdsRef,
@@ -129,7 +127,6 @@ export function useSkipDismiss({
           return true;
         }),
       );
-      setExpandedId((id) => (id === thread.id ? null : id));
       setStatus(`Skipped ${thread.author}`);
       afterSuccess();
       return true;
@@ -210,7 +207,6 @@ export function useSkipDismiss({
           return true;
         }),
       );
-      setExpandedId((id) => (id === thread.id ? null : id));
       afterSuccess();
       return true;
     } catch {

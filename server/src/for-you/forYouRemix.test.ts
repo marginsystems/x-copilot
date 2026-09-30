@@ -16,25 +16,12 @@ await describe("isOwnPostRemixCopy", async () => {
       ),
       true,
     );
-    assert.equal(isOwnPostRemixCopy("900 views on the recap", "Ship it."), true);
+    assert.equal(isOwnPostRemixCopy("900 views on the recap"), true);
   });
 
   await it("lets a live Scout angle through", () => {
     assert.equal(
-      isOwnPostRemixCopy(
-        "Hiring thread is live. Take a side.",
-        "Who is actually hiring this week?",
-      ),
-      false,
-    );
-  });
-
-  await it("does not flag remix phrases used in the draft", () => {
-    assert.equal(
-      isOwnPostRemixCopy(
-        "AI hiring thread is live",
-        "Should builders double down on reasoning models?",
-      ),
+      isOwnPostRemixCopy("Hiring thread is live. Take a side."),
       false,
     );
   });

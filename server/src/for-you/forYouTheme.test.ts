@@ -12,17 +12,14 @@ await describe("forYouTheme", async () => {
     const first = {
       kind: "post",
       why: "Your 8.7k-view Claude refusal reply is your best shape—double down with an original take.",
-      draft: "Refusal is a feature, not a bug.",
     };
     const remix = {
       kind: "post",
       why: "Your 8.7k Claude refusal still leads. Write the next original.",
-      draft: "Your prompts are the real problem.",
     };
     const other = {
       kind: "post",
       why: "Your 2k shipping recap landed. Write the next builder note.",
-      draft: "What did you ship this week?",
     };
     assert.equal(sameSuggestionTheme(first, remix), true);
     assert.equal(sameSuggestionTheme(first, other), false);
@@ -76,7 +73,6 @@ await describe("forYouTheme", async () => {
       {
         kind: "post",
         why: "Your 8.7k-view Claude refusal reply is your best shape.",
-        draft: "Refusal is a feature.",
       },
     ];
     const rows = withoutSkippedThemes(
@@ -91,7 +87,6 @@ await describe("forYouTheme", async () => {
           id: "bury",
           kind: "post",
           why: "Your 8.7k Claude refusal still leads.",
-          draft: "Limits are your creativity.",
         },
       ],
       skipped,
@@ -105,7 +100,6 @@ await describe("forYouTheme", async () => {
         {
           kind: "post",
           why: "Your 8.7k Claude refusal still leads.",
-          draft: "Another remix.",
         },
         skipped,
       ),
@@ -113,18 +107,16 @@ await describe("forYouTheme", async () => {
     );
   });
 
-  await it("does not bury a post sharing only generic cross-field tokens", () => {
+  await it("does not bury a post sharing only one theme token", () => {
     assert.equal(
       sameSuggestionTheme(
         {
           kind: "post",
           why: "Your Claude reply on product launches failed.",
-          draft: "Launch notes are a feature.",
         },
         {
           kind: "post",
           why: "Your 8.7k Claude refusal reply is your best shape.",
-          draft: "Refusal is a feature, not a bug.",
         },
       ),
       false,

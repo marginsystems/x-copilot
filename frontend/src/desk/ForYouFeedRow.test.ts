@@ -4,7 +4,6 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ForYouFeedRow } from "./ForYouFeedRow";
 import {
-  FYP_ACTION_COPY,
   FYP_DETECTING_COPY,
   X_FOR_YOU_URL,
   X_INSPIRATION_URL,
@@ -30,7 +29,7 @@ await describe("ForYouFeedRow outbound doors", async () => {
         `href="${X_INSPIRATION_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*><span class="row-open-label">Open Inspiration<`,
       ),
     );
-    assert.match(html, new RegExp(FYP_ACTION_COPY.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.doesNotMatch(html, /row-detail/);
     assert.match(html, />Next</);
   });
 

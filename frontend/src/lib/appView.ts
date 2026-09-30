@@ -4,7 +4,6 @@ import type { LegalKind } from "./legal";
 export type AppView =
   | "home"
   | "dashboard"
-  | "voice"
   | "settings"
   | "account"
   | "usage"
@@ -74,7 +73,6 @@ export function viewFromPath(pathname: string): AppView {
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   if (pathname === "/usage" || pathname === "/billing") return "usage";
   if (pathname === "/analytics") return "analytics";
-  if (pathname === "/voice") return "voice";
   if (pathname === "/play" || pathname.startsWith("/play/")) return "dashboard";
   if (pathname === "/account") return "account";
   if (pathname === "/settings") return "settings";
@@ -98,7 +96,6 @@ export function pathFromView(view: AppView): string {
   if (view === "admin") return "/admin";
   if (view === "usage") return "/usage";
   if (view === "analytics") return "/analytics";
-  if (view === "voice") return "/voice";
   if (view === "account") return "/account";
   if (view === "settings") return "/settings";
   if (view === "dashboard") return "/dashboard";

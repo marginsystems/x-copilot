@@ -146,8 +146,6 @@ await describe("billingStore", async () => {
     assert.equal(expectRecord(plans.free).credits, 1500);
     assert.equal(expectRecord(plans.free).available, true);
     assert.equal(expectRecord(plans.pulse).name, "Pulse");
-    assert.equal(expectRecord(plans.free).daily_suggests, 10);
-    assert.equal(expectRecord(plans.pulse).daily_suggests, 20);
   });
 
   await it("marks free_limit_reached when the monthly pool is empty", () => {

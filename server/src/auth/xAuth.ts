@@ -12,7 +12,6 @@ import {
   linkOauthToUser,
   upsertOauthIdentity,
 } from "./oauthAccountStore.js";
-import { saveXWriteCreds } from "./xIdentityStore.js";
 import { clientIp } from "./authGuard.js";
 import { authErrorRedirect, authSuccessRedirect } from "./authConfig.js";
 import { trackAuthAnalytics } from "../desk/analyticsClient.js";
@@ -411,12 +410,6 @@ export async function handleXCallback(
   // callback would otherwise wait on the timeline pull,
   // and a proxy timeout would strand a logged-out user whose OAuth verifier
   // was already consumed. The ingest soft-fails on its own.
-  if (access.token && access.secret) {
-    saveXWriteCreds(login.user.id, access.profile.providerUserId, {
-      token: access.token,
-      secret: access.secret,
-    });
-  }
   void beginVoiceCorpus({ user: login.user, reason: "x_oauth" }).catch((err) =>
     console.warn("[corpus] fire-and-forget ingest after X login", err),
   );

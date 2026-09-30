@@ -25,7 +25,6 @@ type AccountUser = {
   email: string | null;
   avatarUrl: string | null;
   xUsername: string | null;
-  xCanPost?: boolean;
 };
 
 export type AccountPayload = {

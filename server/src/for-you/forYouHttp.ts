@@ -15,7 +15,7 @@ import {
   MIN_T24H_SNAPSHOTS,
 } from "./forYouDigest.js";
 import { getExtraUsage } from "./forYouExtra.js";
-import { draftForYouScoutOriginal } from "./forYouLlm.js";
+import { pickForYouScoutOriginal } from "./forYouLlm.js";
 import {
   getSuggestion,
   insertSuggestions,
@@ -27,7 +27,7 @@ import type { ForYouSuggestion } from "./forYouStore.js";
 import { BODY_CAP_256K, readJsonBody, send } from "../http/httpJson.js";
 import { resolvePlan } from "../billing/planResolution.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
-import type { ChatFn } from "../voice/voiceLlm.js";
+import type { ChatFn } from "../platform/llmJson.js";
 
 export async function tryHandleForYou(
   req: IncomingMessage,
@@ -197,15 +197,15 @@ async function refillScoutOriginal(opts: {
   }
   const digest = await buildForYouDigest({ userId: opts.userId });
   if (digest.leftoverScout.length === 0 && !digest.agenda) return null;
-  const result = await draftForYouScoutOriginal({
+  const result = await pickForYouScoutOriginal({
     digest,
     chat: opts.chat,
   });
-  if (!result.ok || !result.drafts[0]) return null;
+  if (!result.ok || !result.actions[0]) return null;
   const rows = insertSuggestions({
     userId: opts.userId,
     tenantId: opts.tenantId,
-    drafts: result.drafts.slice(0, 1),
+    actions: result.actions.slice(0, 1),
   });
   return rows[0] ?? null;
 }

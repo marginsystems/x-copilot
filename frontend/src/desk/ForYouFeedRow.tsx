@@ -1,6 +1,4 @@
-import { useState } from "react";
 import {
-  FYP_ACTION_COPY,
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
   FYP_INSPIRATION_TIP,
@@ -15,23 +13,14 @@ import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 import type { OpenPace } from "./RowOpen";
 
-/**
- * The real X wait: post on For You or Inspiration. Detection stays in this
- * row; expanding a detected row reveals the activity that completed the wait.
- */
 export function ForYouFeedRow(props: {
   status?: string;
   detected?: boolean;
   activity?: OwnActivity | null;
-  actionCopy?: string;
   onNext?: () => void;
-  expandable?: boolean;
-  defaultOpen?: boolean;
   openPace?: OpenPace | null;
 }) {
-  const [open, setOpen] = useState(props.defaultOpen ?? true);
   const detected = props.detected === true;
-  const expandable = props.expandable ?? true;
   const detecting = !detected && props.status === FYP_DETECTING_COPY;
   const summary = detected ? (
     <span className="for-you-detected-summary">
@@ -68,9 +57,6 @@ export function ForYouFeedRow(props: {
   return (
     <DeskRow
       className="for-you-row next-action-row kind-reply"
-      open={open}
-      expandable={expandable}
-      onToggle={expandable ? () => setOpen((current) => !current) : undefined}
       lead="FY"
       leadTitle="Real X For You"
       leadClassName="bait kind-reply"
@@ -93,15 +79,6 @@ export function ForYouFeedRow(props: {
       openPace={props.openPace ?? null}
       onNext={props.onNext}
       nextTip={FYP_NEXT_TIP}
-    >
-      {detected ? (
-        <p className="reason">
-          {props.activity?.text.trim() || "Post text unavailable."}
-        </p>
-      ) : null}
-      {!detected ? (
-        <p className="reason">{props.actionCopy ?? FYP_ACTION_COPY}</p>
-      ) : null}
-    </DeskRow>
+    />
   );
 }

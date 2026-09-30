@@ -32,7 +32,7 @@ function mountBoot(strict = false) {
       setBillingNotice: vi.fn(), setView: vi.fn(), setSignInOpen: vi.fn(),
       applyAuthUser: (user, required = true) => session.verify(user, required, generation),
       applyDesk, confirmCheckout: followup, hydrateCoaching: followup,
-      hydrateActivityStats: followup, loadBilling: followup, hydrateVoice: followup,
+      hydrateActivityStats: followup, loadBilling: followup,
       loadUsage: followup, loadAdmin: followup, hydrateScoutFamiliarity: familiarity,
     });
     return { ...state, session };

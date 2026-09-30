@@ -10,7 +10,6 @@ import { getPlatformDb } from "../db.js";
 import { countOwnPostsSince, startOfUtcDayIso } from "../desk/ownPostStore.js";
 import {
   PLAN_DAILY_ACTIVITY_EVENTS,
-  PLAN_DAILY_SUGGESTS,
   nextPaidPlanKey,
   planDisplayName,
   type PlanKey,
@@ -173,18 +172,6 @@ export function upgradeHint(
   const next = nextPaidPlanKey(planKey);
   if (!next) return "Open Usage & Billing.";
   return `${planDisplayName(next)} raises this — open Usage & Billing.`;
-}
-
-export function suggestCapMessage(
-  planKey: PlanKey,
-  limit: number,
-  reason: PlanResolveReason = "free",
-): string {
-  const base = `That's ${limit} suggested drafts today — the well refills at 00:00 UTC.`;
-  if (reason === "first_week") return `${base} ${upgradeHint(planKey, reason)}`;
-  const next = nextPaidPlanKey(planKey);
-  if (!next) return `${base} ${upgradeHint(planKey, reason)}`;
-  return `${base} ${planDisplayName(next)} is ${PLAN_DAILY_SUGGESTS[next]}/day — open Usage & Billing.`;
 }
 
 function readPostReadCountRow(value: unknown) {

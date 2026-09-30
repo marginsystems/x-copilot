@@ -6,12 +6,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { DeskRow } from "./DeskRow";
 
 await describe("DeskRow card chrome", async () => {
-  await it("owns one left-aligned button row on the collapsed article", () => {
+  await it("owns one left-aligned button row on the article", () => {
     const html = renderToStaticMarkup(
       createElement(DeskRow, {
         lead: "FY",
         summary: "Waiting",
-        expandable: true,
         openHref: "https://x.com/home",
         openLabel: "Open For You",
         onNext() {},
@@ -190,7 +189,7 @@ await describe("DeskRow card chrome", async () => {
     assert.match(css, /\.approach-frame \.row-meta\s*\{[^}]*white-space:\s*nowrap/);
   });
 
-  await it("uses full-card collapsed hover without head hover overrides", () => {
+  await it("uses full-card hover without head hover overrides", () => {
     const css = readFileSync(
       new URL("../styles/12-threads.css", import.meta.url),
       "utf8",
@@ -198,23 +197,23 @@ await describe("DeskRow card chrome", async () => {
 
     assert.match(
       css,
-      /\.thread-row:not\(\.open\):hover\s*,\s*\.thread-row\.open:not\(:has\(> \.row-head:is\(button\)\)\):hover\s*\{\s*background: var\(--raised\)/,
+      /\.thread-row:hover\s*\{\s*background: var\(--raised\)/,
     );
     assert.doesNotMatch(css, /\.row-head:hover|\.next-action-head:hover/);
     assert.doesNotMatch(css, /\.approach-card-actions|justify-content:\s*flex-end/);
   });
 
-  await it("keeps non-expandable details visible", () => {
+  await it("renders a flat card with no expansion chrome", () => {
     const html = renderToStaticMarkup(
-      createElement(
-        DeskRow,
-        { lead: "PACE", summary: "Waiting" },
-        createElement("span", null, "Help"),
-      ),
+      createElement(DeskRow, { lead: "PACE", summary: "Waiting" }),
+    );
+    const css = readFileSync(
+      new URL("../styles/12-threads.css", import.meta.url),
+      "utf8",
     );
 
-    assert.match(html, /^<article class="thread-row open">/);
-    assert.match(html, /class="row-detail-inner"/);
-    assert.match(html, />Help</);
+    assert.match(html, /^<article class="thread-row"><div class="row-head">/);
+    assert.doesNotMatch(html, /row-detail|caret|aria-expanded/);
+    assert.doesNotMatch(css, /row-detail|\.caret|\.thread-row\.open|\.thread-row:not\(\.open\)/);
   });
 });

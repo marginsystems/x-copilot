@@ -17,7 +17,7 @@ import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { markInteracted } from "./interactionStore.ts";
 import { upsertOwnPost } from "./ownPostStore.ts";
-import type { ChatFn } from "../voice/voiceLlm.ts";
+import type { ChatFn } from "../platform/llmJson.ts";
 
 async function getCoaching(opts: {
   path?: string;

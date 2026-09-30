@@ -1,8 +1,5 @@
 /** Ledger remix: view-count brag, sharper-hook, or double-down on an old own post. */
-export function isOwnPostRemixCopy(
-  why: string,
-  _draft?: string | null,
-): boolean {
+export function isOwnPostRemixCopy(why: string): boolean {
   const whyText = why.toLowerCase();
   if (/sharper hook|double down|best shape/.test(whyText)) return true;
   if (/\b\d+(?:\.\d+)?k\s*-?\s*views?\b/.test(whyText)) return true;

@@ -45,7 +45,6 @@ function post(
 function emptyDigest(overrides: Partial<ForYouDigest> = {}): ForYouDigest {
   return {
     agenda: "Find builders",
-    voice: null,
     best: [],
     worst: [],
     recentOriginals: [],
@@ -194,11 +193,10 @@ await describe("forYouDigest", async () => {
     const kept = filterDigestActions(
       {
         actions: [
-          { kind: "post", why: "hiring thread is live", draft: "Who is hiring this week?" },
+          { kind: "post", why: "hiring thread is live" },
           {
             kind: "quote",
             why: "that 900-view post",
-            draft: "Still true.",
             targetId: "10",
             targetUrl: "https://x.com/desk/status/10",
           },
@@ -212,7 +210,6 @@ await describe("forYouDigest", async () => {
           {
             kind: "quote",
             why: "leftover Scout quote",
-            draft: "Still true.",
             targetId: "77",
             targetUrl: "https://x.com/a/status/77",
           },
@@ -238,7 +235,7 @@ await describe("forYouDigest", async () => {
     );
   });
 
-  await it("rewrites first-person why and leaves the draft in their voice", () => {
+  await it("rewrites first-person why and carries no draft text", () => {
     const digest = emptyDigest({
       best: [
         {
@@ -260,12 +257,10 @@ await describe("forYouDigest", async () => {
           {
             kind: "post",
             why: "My hiring thread is live",
-            draft: "I shipped the recap.",
           },
           {
             kind: "quote",
             why: "I got 900 views on this one",
-            draft: "Still true.",
             targetId: "10",
             targetUrl: "https://x.com/desk/status/10",
           },
@@ -277,7 +272,7 @@ await describe("forYouDigest", async () => {
       kept.map((a) => a.why),
       ["Your hiring thread is live"],
     );
-    assert.equal(kept[0]?.draft, "I shipped the recap.");
+    assert.equal(Object.hasOwn(kept[0] ?? {}, "draft"), false);
   });
 
   await it("does not let worst posts or memories be engagement targets", () => {
@@ -340,7 +335,6 @@ await describe("forYouDigest", async () => {
           {
             kind: "quote",
             why: "boost the 2-view flop",
-            draft: "More of this.",
             targetId: "2",
             targetUrl: "https://x.com/desk/status/2",
           },
@@ -371,14 +365,12 @@ await describe("forYouDigest", async () => {
           {
             kind: "quote",
             why: "140 views on a memory worth another take",
-            draft: "Same shape.",
             targetId: "mem-hit",
             targetUrl: "https://x.com/hit/status/6",
           },
           {
             kind: "quote",
             why: "900 views — write the next one like this",
-            draft: "Same shape.",
             targetId: "10",
             targetUrl: "https://x.com/desk/status/10",
           },
@@ -464,14 +456,12 @@ await describe("forYouDigest", async () => {
           {
             kind: "quote",
             why: "double down on the 2-view best post",
-            draft: "No.",
             targetId: "10",
             targetUrl: "https://x.com/desk/status/10",
           },
           {
             kind: "quote",
             why: "900 views on the winner",
-            draft: "Yes.",
             targetId: "11",
             targetUrl: "https://x.com/desk/status/11",
           },
@@ -544,14 +534,12 @@ await describe("forYouDigest", async () => {
           {
             kind: "quote",
             why: "revive the worst via recent",
-            draft: "No.",
             targetId: "2",
             targetUrl: "https://x.com/desk/status/2",
           },
           {
             kind: "quote",
             why: "2-view new post",
-            draft: "No.",
             targetId: "3",
             targetUrl: "https://x.com/desk/status/3",
           },
@@ -564,7 +552,6 @@ await describe("forYouDigest", async () => {
           {
             kind: "quote",
             why: "900 views — keep the winner",
-            draft: "Yes.",
             targetId: "10",
             targetUrl: "https://x.com/desk/status/10",
           },
@@ -581,21 +568,17 @@ await describe("forYouDigest", async () => {
   await it("keeps three unique extra originals and drops other kinds", () => {
     const kept = filterExtraPosts({
       actions: [
-        { kind: "reply", why: "scout", draft: "hey", targetId: "77" },
-        { kind: "post", why: "hiring thread is live", draft: "What would you cut?" },
-        { kind: "post", why: "hiring thread is live", draft: "What would you cut?" },
-        { kind: "post", why: "4 replies", draft: "Is the other side wrong?" },
-        { kind: "post", why: "20 likes", draft: "I'll take the under." },
-        { kind: "post", why: "extra", draft: "Fourth should drop." },
+        { kind: "reply", why: "scout", targetId: "77" },
+        { kind: "post", why: "hiring thread is live" },
+        { kind: "post", why: "hiring thread is live" },
+        { kind: "post", why: "4 replies" },
+        { kind: "post", why: "20 likes" },
+        { kind: "post", why: "extra" },
       ],
     });
     assert.deepEqual(
-      kept.map((a) => a.draft),
-      [
-        "What would you cut?",
-        "Is the other side wrong?",
-        "I'll take the under.",
-      ],
+      kept.map((a) => a.why),
+      ["hiring thread is live", "4 replies", "20 likes"],
     );
   });
 
@@ -609,40 +592,38 @@ await describe("forYouDigest", async () => {
       }],
     });
     const kept = filterDigestActions({ actions: [
-      { kind: "post", why: "Your 4k contributions post got 12 views—sharper hook.", draft: "Count the agents again." },
-      { kind: "post", why: "Your 8.7k-view Claude refusal is your best shape—double down.", draft: "Refusal is a feature." },
-      { kind: "post", why: "Hiring thread is live. Take a side.", draft: "Who is actually hiring this week?" },
+      { kind: "post", why: "Your 4k contributions post got 12 views—sharper hook." },
+      { kind: "post", why: "Your 8.7k-view Claude refusal is your best shape—double down." },
+      { kind: "post", why: "Hiring thread is live. Take a side." },
     ] }, digest);
-    assert.deepEqual(kept.map((a) => a.draft), ["Who is actually hiring this week?"]);
+    assert.deepEqual(kept.map((a) => a.why), ["Hiring thread is live. Take a side."]);
   });
 
-  await it("drops digest and extra drafts that match a skipped theme", () => {
+  await it("drops digest and extra actions that match a skipped theme", () => {
     const digest = emptyDigest({ skipped: [{
       kind: "post",
       why: "Your 8.7k-view Claude refusal reply is your best shape.",
-      draft: "Refusal is a feature, not a bug.",
     }] });
     const kept = filterDigestActions({ actions: [
-      { kind: "post", why: "Your 8.7k Claude refusal still leads.", draft: "Your prompts are the real problem." },
-      { kind: "post", why: "Your 2k shipping recap landed.", draft: "What did you ship this week?" },
+      { kind: "post", why: "Your 8.7k Claude refusal still leads." },
+      { kind: "post", why: "Your 2k shipping recap landed." },
     ] }, digest);
-    assert.deepEqual(kept.map((a) => a.draft), ["What did you ship this week?"]);
+    assert.deepEqual(kept.map((a) => a.why), ["Your 2k shipping recap landed."]);
     const extras = filterExtraPosts({ actions: [
-      { kind: "post", why: "Your 8.7k Claude refusal still leads.", draft: "Limits are your creativity." },
-      { kind: "post", why: "Builder week.", draft: "What did you ship?" },
+      { kind: "post", why: "Your 8.7k Claude refusal still leads." },
+      { kind: "post", why: "Builder week." },
     ] }, digest.skipped);
-    assert.deepEqual(extras.map((a) => a.draft), ["What did you ship?"]);
+    assert.deepEqual(extras.map((a) => a.why), ["Builder week."]);
   });
 
-  await it("refills digest and extra caps after skipped drafts are removed", () => {
+  await it("refills digest and extra caps after skipped actions are removed", () => {
     const skipped = [
-      { kind: "post", why: "Your Claude refusal leads", draft: "Refusal is a feature." },
+      { kind: "post" as const, why: "Your Claude refusal leads" },
     ];
     const digest = emptyDigest({ skipped });
     const actions = Array.from({ length: 5 }, (_, i) => ({
-      kind: "post",
+      kind: "post" as const,
       why: i === 0 ? "Your Claude refusal leads" : `Your builder habit ${i}`,
-      draft: i === 0 ? "Another refusal feature." : `Question for builder ${i}?`,
     }));
     assert.equal(filterDigestActions({ actions }, digest).length, 4);
     assert.equal(filterExtraPosts({ actions }, skipped).length, 3);

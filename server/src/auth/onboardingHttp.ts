@@ -18,7 +18,6 @@ import {
 import { getSessionUser } from "./sessionCookie.js";
 import { allowRate, clientIp } from "./authGuard.js";
 import { beginVoiceCorpus } from "../voice/userIngest.js";
-import { VOICE_UNLOCK_MIN_POSTS } from "../voice/voiceStore.js";
 
 const ONBOARDING_GENERATE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
 const ONBOARDING_COMPLETE_RATE = { max: 20, windowMs: 10 * 60 * 1000 };
@@ -136,7 +135,7 @@ export async function tryHandleOnboarding(
       });
       return true;
     }
-    const ingest = await beginVoiceCorpus({
+    await beginVoiceCorpus({
       user: updated,
       reason: "onboarding",
     });
@@ -144,15 +143,6 @@ export async function tryHandleOnboarding(
       ok: true,
       persisted: true,
       user: toPublicUser(updated),
-      ingest: ingest
-        ? {
-            conversationCount: ingest.conversationCount,
-            unlockAt: VOICE_UNLOCK_MIN_POSTS,
-            unlocked: ingest.unlocked,
-            ok: ingest.ok,
-            message: ingest.message ?? null,
-          }
-        : null,
     });
     return true;
   }

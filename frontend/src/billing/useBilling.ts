@@ -8,11 +8,7 @@ import {
 } from "../BillingPanel";
 import { apiFetch } from "../lib/apiBase";
 
-type UseBillingOptions = {
-  onUtcDay?: () => void;
-};
-
-export function useBilling({ onUtcDay }: UseBillingOptions = {}) {
+export function useBilling() {
   const session = useSession();
   const [billing, setBilling] = useState<BillingMe | null>(null);
   const [billingNotice, setBillingNotice] = useState("");
@@ -141,7 +137,6 @@ export function useBilling({ onUtcDay }: UseBillingOptions = {}) {
           if (!session.isCurrent(generation)) return;
           setBillingNotice(err instanceof Error ? err.message : String(err));
         });
-        onUtcDay?.();
         arm();
       }, Math.max(0, nextUtcDay - Date.now()) + 500);
     };

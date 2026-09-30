@@ -9,6 +9,5 @@ export const authUser = (id: string): AuthSessionUser => ({
   agenda: null,
   xUsername: null,
   xLinked: false,
-  xCanPost: false,
   isAdmin: false,
 });

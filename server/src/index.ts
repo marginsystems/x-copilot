@@ -20,7 +20,6 @@ import {
   tryHandleStripeWebhook,
 } from "./billing/stripeHttp.js";
 import { tryHandleXActivityAuthed } from "./x-api/xActivityHttp.js";
-import { tryHandleVoice } from "./voice/voiceHttp.js";
 import { tryHandleForYou } from "./for-you/forYouHttp.js";
 import { tryHandleCoaching } from "./desk/coachingHttp.js";
 import { tryHandleDeskEvents, tryHandleDeskEventsWake, warnIfDeskEventsSecretMissing } from "./desk/deskEvents.js";
@@ -163,9 +162,6 @@ async function handleRequest(
         return;
       }
 
-      if (await tryHandleVoice(req, res, url)) {
-        return;
-      }
       if (await tryHandleForYou(req, res, url)) {
         return;
       }

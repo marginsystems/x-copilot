@@ -18,7 +18,7 @@ await describe("trackPageView", () => {
     const prevWindow = globalThis.window;
     Object.defineProperty(globalThis, "window", { configurable: true, writable: true, value: {} });
     try {
-      trackPageView("/voice");
+      trackPageView("/usage");
     } finally {
       Object.defineProperty(globalThis, "window", { configurable: true, writable: true, value: prevWindow });
     }
@@ -33,7 +33,7 @@ await describe("trackPageView", () => {
       location: { origin: "https://xcopilot.dev" },
     } });
     try {
-      trackPageView("/voice");
+      trackPageView("/usage");
     } finally {
       Object.defineProperty(globalThis, "window", { configurable: true, writable: true, value: prevWindow });
     }
@@ -42,8 +42,8 @@ await describe("trackPageView", () => {
         "event",
         "page_view",
         {
-          page_path: "/voice",
-          page_location: "https://xcopilot.dev/voice",
+          page_path: "/usage",
+          page_location: "https://xcopilot.dev/usage",
           send_to: DEFAULT_GA_MEASUREMENT_ID,
         },
       ],

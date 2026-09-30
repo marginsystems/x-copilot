@@ -12,7 +12,6 @@ type MenuUser = {
 type MenuView =
   | "home"
   | "dashboard"
-  | "voice"
   | "settings"
   | "account"
   | "usage"
@@ -164,7 +163,6 @@ export function UserMenu(props: {
   onSignIn: () => void;
   onDesk: () => void;
   onAnalytics: () => void;
-  onVoice: () => void;
   needsXLink?: boolean;
   onUsage: () => void;
   onAccount: () => void;
@@ -199,8 +197,7 @@ export function UserMenu(props: {
               <p className="menu-profile-name">Not signed in</p>
               {props.needsLogin ? null : (
                 <p className="menu-profile-email">
-                  Sign in with Google or X. X is identity-only until you post
-                  from the desk.
+                  Sign in with Google or X. The desk never posts for you.
                 </p>
               )}
             </>
@@ -265,23 +262,12 @@ export function UserMenu(props: {
                 type="button"
                 className="menu-item"
                 onClick={props.onX}
-                title="Voice needs your X account so we can read your public posts."
+                title="Link X so the desk can see what you post."
               >
                 <MenuIcon d="M4 4h16v16H4zM8 12h8M12 8v8" />
                 Link X
               </button>
-            ) : (
-              <button
-                type="button"
-                className={
-                  props.view === "voice" ? "menu-item is-current" : "menu-item"
-                }
-                onClick={props.onVoice}
-              >
-                <MenuIcon d="M4 14c2-4 4-6 8-6s6 2 8 6M12 14v6M9 17h6" />
-                Voice
-              </button>
-            )}
+            ) : null}
             <button
               type="button"
               className={

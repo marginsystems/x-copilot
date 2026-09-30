@@ -12,7 +12,6 @@ import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { ensureUserTenant } from "../billing/billingStore.ts";
 import {
   sortiesExhaustedResponse,
-  suggestCapMessage,
   upgradeHint,
 } from "../billing/billingQuotas.ts";
 import {
@@ -84,11 +83,9 @@ await describe("scout takeoffs", async () => {
     assert.equal(sortieWasWasted({ ok: false, coolCount: 1 }), false);
   });
 
-  await it("names the next plan on Grounded, credits, and suggest-cap copy", () => {
+  await it("names the next plan on Grounded and credits copy", () => {
     assert.equal(upgradeHint("free"), "Pulse raises this — open Usage & Billing.");
     assert.equal(upgradeHint("horizon"), "Open Usage & Billing.");
-    assert.match(suggestCapMessage("free", 10), /Pulse is 20\/day/);
-    assert.match(suggestCapMessage("horizon", 40), /Open Usage & Billing/);
   });
 
   await it("lets Pulse take off five times", () => {

@@ -13,7 +13,7 @@ export function LinkXGate(props: {
         <h1 className="gate-title">{props.title ?? "Link X to continue"}</h1>
         <p className="gate-lede">
           {props.lede ??
-            "Take off, Voice, and replies need the account you log into. Sign in with X — you cannot type a handle."}
+            "Take off and replies need the account you log into. Sign in with X — you cannot type a handle."}
         </p>
         <div className="onboarding-nav">
           <button
