@@ -119,7 +119,9 @@ export function parseQuoteTargets(
   for (const post of posts) {
     const quoted = post.quotedPostId ?? quotedByPost.get(post.postId);
     if (!quoted) {
-      if (unavailable.has(quoteLookupId(post))) checkedPostIds.push(post.postId);
+      if (post.quotedPostId === null || unavailable.has(quoteLookupId(post))) {
+        checkedPostIds.push(post.postId);
+      }
       continue;
     }
     const authorId = tweetAuthors.get(quoted);
