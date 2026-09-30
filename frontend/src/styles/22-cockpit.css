@@ -1,6 +1,6 @@
 .cockpit {
   --cockpit-gauges-h: 152px;
-  --cockpit-row-h: 296px;
+  --cockpit-row-h: 328px;
   --cockpit-gap: 8px;
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
@@ -145,7 +145,7 @@
 .dial-tick-label {
   fill: var(--muted);
   font-family: var(--font-mono);
-  font-size: 6.2px;
+  font-size: 6.4px;
 }
 
 .dial-needle {
@@ -345,7 +345,7 @@
 @media (width < 1100px) {
   .cockpit {
     --cockpit-gauges-h: 312px;
-    --cockpit-row-h: 296px;
+    --cockpit-row-h: 328px;
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "gauges"
@@ -362,7 +362,7 @@
 @media (width < 768px) {
   .cockpit {
     --cockpit-gauges-h: 428px;
-    grid-template-rows: var(--cockpit-gauges-h) 336px 360px;
+    grid-template-rows: var(--cockpit-gauges-h) 496px 360px;
   }
 
   .desk-gauges {

@@ -77,7 +77,7 @@ test("the circle keeps one frame from skeleton to loaded card", async () => {
   const loaded = screen.getByRole("region", { name: "Circle" });
   expect(loaded).toBe(frame);
   expect(loaded.getAttribute("aria-busy")).toBe("false");
-  expect(screen.getByText("5 people")).toBeTruthy();
+  expect(screen.getByText("5 people · 35 replies")).toBeTruthy();
 });
 
 test("a collapsed cockpit mounts nothing until it is first opened", async () => {

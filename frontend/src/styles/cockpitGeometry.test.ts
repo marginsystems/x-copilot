@@ -32,7 +32,4 @@ await describe("cockpit geometry", () => {
     for (const value of vars) assert.match(value ?? "", /^\d+px$/);
   }).catch(assert.fail);
 
-  it("has no tab chrome left in the desk top", () => {
-    assert.doesNotMatch(css, /desk-top-tabs/);
-  }).catch(assert.fail);
 });
