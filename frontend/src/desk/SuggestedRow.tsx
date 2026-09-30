@@ -4,6 +4,7 @@ import {
   forYouKindLabel,
   forYouKindShort,
   forYouOpenUrl,
+  forYouTargetId,
   type ForYouSuggestion,
 } from "../lib/forYou";
 import { ApproachDetectingMark } from "./ApproachFrame";
@@ -37,7 +38,7 @@ export function SuggestedRow({
 }) {
   const openUrl = forYouOpenUrl(row);
   const kindClass = forYouKindClass(row.kind);
-  const detectsReply = row.kind === "reply" && Boolean(row.targetId);
+  const detectsReply = row.kind === "reply" && Boolean(forYouTargetId(row));
 
   return (
     <DeskRow

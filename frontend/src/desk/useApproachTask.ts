@@ -31,7 +31,7 @@ import {
   type ApproachInventory,
 } from "../lib/deskPhase";
 import { eligibleScoutCards } from "../lib/deskRefuel";
-import type { ForYouSuggestion } from "../lib/forYou";
+import { forYouTargetId, type ForYouSuggestion } from "../lib/forYou";
 import { replyPaceSeedIso } from "../lib/replyPace";
 import {
   clearForYouWait,
@@ -169,6 +169,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     lock?.phase === "organic_reply" && lock.cardId
       ? suggestionCardsRef.current.get(lock.cardId) ?? null
       : null;
+  const lockedSuggestionTargetId =
+    lockedSuggestion?.kind === "reply"
+      ? forYouTargetId(lockedSuggestion)
+      : null;
   const scoutDetected =
     lock?.phase === "scout_reply" && lock.cardId
       ? vanishEvent({
@@ -182,12 +186,11 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const suggestionDetected =
     lock?.phase === "organic_reply" &&
     lock.cardId &&
-    lockedSuggestion?.kind === "reply" &&
-    lockedSuggestion.targetId
+    lockedSuggestionTargetId
       ? vanishEvent({
           cardId: lock.cardId,
-          conversationId: lockedSuggestion.targetId,
-          inReplyToId: lockedSuggestion.targetId,
+          conversationId: lockedSuggestionTargetId,
+          inReplyToId: lockedSuggestionTargetId,
           interactedIds,
           history: interactedRetainedHistory,
         }) === "mark"
@@ -435,11 +438,11 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     const suggestedTarget =
       phase === "organic_reply" &&
       lockedSuggestion?.kind === "reply" &&
-      lockedSuggestion.targetId
+      lockedSuggestionTargetId
         ? {
-            id: lockedSuggestion.targetId,
-            conversationId: lockedSuggestion.targetId,
-            inReplyToId: lockedSuggestion.targetId,
+            id: lockedSuggestionTargetId,
+            conversationId: lockedSuggestionTargetId,
+            inReplyToId: lockedSuggestionTargetId,
             surface: "reply" as const,
             author: lockedSuggestion.targetAuthor,
             url: lockedSuggestion.targetUrl,
@@ -549,7 +552,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       if (
         suggestionDetected &&
         row?.kind === "reply" &&
-        row.targetId
+        forYouTargetId(row)
       ) {
         onSuggestionNext(id).catch((err: unknown) => console.error(err));
         return;

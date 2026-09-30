@@ -92,6 +92,27 @@ const suggestedPost: ForYouSuggestion = {
   targetUrl: null,
   targetAuthor: null,
 };
+const suggestedQuote: ForYouSuggestion = {
+  ...suggestedPost,
+  id: "suggested-quote",
+  kind: "quote",
+  why: "Quote a useful post",
+  targetId: "234567",
+  targetUrl: "https://x.com/target/status/234567",
+};
+const suggestedRepost: ForYouSuggestion = {
+  ...suggestedPost,
+  id: "suggested-repost",
+  kind: "repost",
+  why: "Repost a useful post",
+  targetId: "345678",
+  targetUrl: "https://x.com/target/status/345678",
+};
+const urlOnlySuggestedReply: ForYouSuggestion = {
+  ...suggestedReply,
+  id: "url-only-suggested-reply",
+  targetUrl: "https://x.com/target/status/456789",
+};
 const detectedActivity = {
   id: "196504221778",
   url: "https://x.com/desk/status/196504221778",
@@ -441,6 +462,42 @@ await describe("Gate cards", async () => {
     assert.match(html, />Skip</);
     assert.match(html, />Not interested</);
     assert.doesNotMatch(html, /row-detail|caret|aria-expanded|textarea/);
+  });
+
+  await it("marks Suggested quote and repost rows without showing Next", () => {
+    for (const suggestion of [suggestedQuote, suggestedRepost]) {
+      const html = renderToStaticMarkup(
+        MissionCard(missionProps({ phase: "organic_reply", suggestion })),
+      );
+      assert.match(html, />I posted on X</);
+      assert.doesNotMatch(html, />Next</);
+    }
+  });
+
+  await it("detects a Suggested reply using its target URL when targetId is missing", () => {
+    const waiting = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: urlOnlySuggestedReply,
+        }),
+      ),
+    );
+    assert.match(waiting, escapeRe(FYP_DETECTING_COPY));
+    assert.match(waiting, /<button[^>]*disabled=""[^>]*>Next/);
+    assert.doesNotMatch(waiting, /I posted on X/);
+
+    const detected = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: urlOnlySuggestedReply,
+          suggestionDetected: true,
+        }),
+      ),
+    );
+    assert.match(detected, />Next</);
+    assert.doesNotMatch(detected, /I posted on X/);
   });
 
   await it("no longer paints usage or wait gates: the feed is open", () => {
