@@ -183,7 +183,7 @@ await describe("Reply pace", async () => {
     const running = renderToStaticMarkup(MissionCard(props));
     assert.match(running, /incoming-scout/);
     assert.match(running, /<button[^>]*aria-disabled="true"[^>]*class="ghost row-open is-paced/);
-    assert.match(running, /data-tip="Waiting between replies: 0:42 left/);
+    assert.match(running, /data-tip="Next reply in 0:42\./);
     assert.match(running, /row-open-ring/);
     assert.match(running, />Skip</);
     assert.match(running, />Not interested</);
@@ -380,7 +380,7 @@ await describe("For You overlay presentation", async () => {
     assert.match(html, /<button[^>]*class="ghost row-open is-paced[^"]*"[^>]*><span class="row-open-label">Open For You</);
     assert.doesNotMatch(html, /Open Inspiration/);
     assert.doesNotMatch(html, /href="https:\/\/x\.com\/home"/);
-    assert.match(html, /data-tip="Waiting between replies: 0:42 left/);
+    assert.match(html, /data-tip="Next reply in 0:42\./);
     assert.match(html, />Next</);
   });
   await it("becomes For You on the same card when the minute is over", () => {
