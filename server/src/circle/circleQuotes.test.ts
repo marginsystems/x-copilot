@@ -161,6 +161,41 @@ await describe("circleQuotes", async () => {
     assert.deepEqual(listPendingQuotePosts(userId, 10), []);
   });
 
+  await it("leaves an unresolved quote pending when the lookup has no target data", async () => {
+    const tenantId = ensureUserTenant(userId);
+    upsertOwnPost({ parsed: quotePost({ quotedPostId: "missing" }), userId, tenantId });
+    const fetchTweets: typeof xApiGet = () =>
+      Promise.resolve({ ok: true, status: 200, json: {} });
+    const result = await resolveQuoteTargets({ userId, nowMs: 0, fetchTweets });
+    assert.deepEqual(result, { checked: 0, linked: 0, failed: false });
+    assert.deepEqual(listPendingQuotePosts(userId, 10).map((post) => post.postId), ["q1"]);
+  });
+
+  await it("permanently checks self-quotes and targets without included users", async () => {
+    const tenantId = ensureUserTenant(userId);
+    upsertOwnPost({ parsed: quotePost({ quotedPostId: "self" }), userId, tenantId });
+    upsertOwnPost({
+      parsed: quotePost({ postId: "q2", eventUuid: "evt-q2", quotedPostId: "unknown-user" }),
+      userId,
+      tenantId,
+    });
+    const fetchTweets: typeof xApiGet = () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: {
+          data: [
+            { id: "self", author_id: "99" },
+            { id: "unknown-user", author_id: "7" },
+          ],
+          includes: { users: [{ id: "99", username: "me" }] },
+        },
+      });
+    const result = await resolveQuoteTargets({ userId, nowMs: 0, fetchTweets });
+    assert.deepEqual(result, { checked: 2, linked: 0, failed: false });
+    assert.deepEqual(listPendingQuotePosts(userId, 10), []);
+  });
+
   await it("leaves quotes pending when the lookup fails", async () => {
     const tenantId = ensureUserTenant(userId);
     upsertOwnPost({ parsed: quotePost({}), userId, tenantId });

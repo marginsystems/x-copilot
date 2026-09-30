@@ -58,11 +58,11 @@ async function resolveCircleQuotes(
   if (!getXApiCredsFromEnv().configured) return;
   if (listPendingQuotePosts(userId, 1).length === 0) return;
   if (requestCreditsExhausted(req)) return;
-  lastQuoteResolveAt.set(userId, nowMs);
   try {
-    await withDisconnectSignal(req, res, (signal) =>
+    const result = await withDisconnectSignal(req, res, (signal) =>
       resolveQuoteTargets({ userId, nowMs, signal }),
     );
+    if (!result.failed) lastQuoteResolveAt.set(userId, nowMs);
   } catch (err) {
     console.warn("circle quote resolve soft-fail:", err);
   }

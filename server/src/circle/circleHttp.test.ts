@@ -307,6 +307,46 @@ await describe("circleHttp", async () => {
     }
   });
 
+  await it("retries the quote backfill on the next request after an X lookup failure", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-circle-quotes-retry",
+      email: "quotes-retry@example.com",
+      emailVerified: true,
+    });
+    seedQuotePost(user.id, ensureUserTenant(user.id));
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    process.env.X_API_BEARER_TOKEN = "test-bearer";
+    const originalFetch = globalThis.fetch;
+    let lookups = 0;
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+      if (new URL(String(input)).pathname.endsWith("/tweets")) {
+        lookups += 1;
+        if (lookups === 1) {
+          return new Response(JSON.stringify({ title: "slow down" }), { status: 429 });
+        }
+        return new Response(
+          JSON.stringify({
+            data: [{ id: "t1", author_id: "7" }],
+            includes: { users: [{ id: "7", username: "bob", name: "Bob B" }] },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      assert.equal((await call("/api/circle", cookie)).status, 200);
+      const retried = await call("/api/circle", cookie);
+      assert.equal(retried.status, 200);
+      assert.deepEqual(retried.json.totals, { replies: 0, quotes: 1, people: 1 });
+      assert.equal(lookups, 2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   await it("GET /api/circle skips the quote backfill when credits are exhausted", async () => {
     const user = upsertOauthUser({
       provider: "google",
