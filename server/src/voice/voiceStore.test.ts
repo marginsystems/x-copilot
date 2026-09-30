@@ -9,27 +9,13 @@ import {
   resetPlatformDbForTests,
 } from "../db.ts";
 import {
-  VOICE_CARD_REFRESH_MS,
-  VOICE_UNLOCK_MIN_POSTS,
   countDistinctConversations,
-  countSuggestsToday,
   countVoiceReplies,
   ensureVoiceProfile,
-  foldDeskReplies,
-  foldMemoryReplies,
-  getSuggestUsage,
   getVoiceProfile,
-  listVoiceReplies,
-  recordSuggest,
-  removeSuggestRecord,
-  reserveSuggestSlot,
-  saveVoiceCard,
-  suggestLimitForPlan,
+  resetUserVoiceCorpus,
   updateVoiceProfilePull,
   upsertVoiceReplies,
-  voiceCardIsStarter,
-  voiceCardStale,
-  voiceUnlocked,
 } from "./voiceStore.ts";
 
 const USER = "user-voice-1";
@@ -65,22 +51,10 @@ await describe("voiceStore", async () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  await it("unlocks at 100 posts even when they share a conversation", () => {
-    assert.equal(VOICE_UNLOCK_MIN_POSTS, 100);
+  await it("counts posts separately from the conversations they share", () => {
     seedReplies(100, { conversation: "same-thread" });
     assert.equal(countVoiceReplies(USER), 100);
     assert.equal(countDistinctConversations(USER), 1);
-    assert.equal(voiceUnlocked(countVoiceReplies(USER)), true);
-  });
-
-  await it("unlocks at exactly 100 posts", () => {
-    seedReplies(99);
-    assert.equal(voiceUnlocked(countVoiceReplies(USER)), false);
-    upsertVoiceReplies(USER, [
-      { id: "999999", text: "the hundredth", conversationId: "conv-100th" },
-    ]);
-    assert.equal(countVoiceReplies(USER), 100);
-    assert.equal(voiceUnlocked(countVoiceReplies(USER)), true);
   });
 
   await it("dedupes re-pulled replies so incremental never double-counts", () => {
@@ -93,53 +67,39 @@ await describe("voiceStore", async () => {
     assert.equal(countVoiceReplies(USER), 21);
   });
 
-  await it("caps free suggests at 10 per UTC day and resets next day", () => {
-    assert.equal(suggestLimitForPlan("free"), 10);
-    const day = new Date("2026-08-15T09:00:00.000Z");
-    for (let i = 0; i < 10; i += 1) {
-      recordSuggest(USER, `t${i}`, new Date(day.getTime() + i * 1000).toISOString());
-    }
-    const usage = getSuggestUsage(USER, "free", day);
-    assert.equal(usage.used, 10);
-    assert.equal(usage.remaining, 0);
-    assert.equal(usage.canSuggest, false);
-
-    // 00:00 UTC refill.
-    const nextDay = new Date("2026-08-16T00:00:01.000Z");
-    assert.equal(countSuggestsToday(USER, nextDay), 0);
-    assert.equal(getSuggestUsage(USER, "free", nextDay).canSuggest, true);
+  await it("persists the pull cursor and counts on the profile", () => {
+    ensureVoiceProfile(USER, TENANT);
+    seedReplies(3);
+    updateVoiceProfilePull({
+      userId: USER,
+      xUsername: "margin",
+      xUserId: "42",
+      sinceId: "100002",
+      lastPullAt: "2026-08-15T09:00:00.000Z",
+    });
+    const profile = getVoiceProfile(USER);
+    assert.equal(profile?.xUsername, "margin");
+    assert.equal(profile?.xUserId, "42");
+    assert.equal(profile?.sinceId, "100002");
+    assert.equal(profile?.lastPullAt, "2026-08-15T09:00:00.000Z");
+    assert.equal(profile?.replyCount, 3);
+    assert.equal(profile?.conversationCount, 3);
+    assert.equal(profile?.lastError, null);
   });
 
-  await it("reserves a suggest slot atomically up to the day's cap", () => {
-    const day = new Date("2026-08-15T09:00:00.000Z");
-    for (let i = 0; i < 10; i += 1) {
-      const id = reserveSuggestSlot(
-        USER,
-        10,
-        `t${i}`,
-        new Date(day.getTime() + i * 1000),
-      );
-      assert.ok(id);
-    }
-    assert.equal(reserveSuggestSlot(USER, 10, "t-late", day), null);
-    assert.equal(countSuggestsToday(USER, day), 10);
+  await it("records a pull error and clears it on the next clean pull", () => {
+    ensureVoiceProfile(USER, TENANT);
+    updateVoiceProfilePull({
+      userId: USER,
+      xUsername: "margin",
+      lastError: "X is down",
+    });
+    assert.equal(getVoiceProfile(USER)?.lastError, "X is down");
+    updateVoiceProfilePull({ userId: USER, xUsername: "margin" });
+    assert.equal(getVoiceProfile(USER)?.lastError, null);
   });
 
-  await it("releases a reserved suggest slot when the generation fails", () => {
-    const id = reserveSuggestSlot(USER, 10, "t1");
-    assert.ok(id);
-    removeSuggestRecord(id!);
-    assert.ok(reserveSuggestSlot(USER, 10, "t2"));
-    assert.equal(countSuggestsToday(USER), 1);
-  });
-
-  await it("gives paid plans a conservative bump", () => {
-    assert.equal(suggestLimitForPlan("pulse"), 20);
-    assert.equal(suggestLimitForPlan("radar"), 30);
-    assert.equal(suggestLimitForPlan("horizon"), 40);
-  });
-
-  await it("persists the card and pull cursor on the profile", () => {
+  await it("resets the corpus and pull cursor for a new account", () => {
     ensureVoiceProfile(USER, TENANT);
     seedReplies(3);
     updateVoiceProfilePull({
@@ -148,130 +108,11 @@ await describe("voiceStore", async () => {
       xUserId: "42",
       sinceId: "100002",
     });
-    saveVoiceCard({ userId: USER, cardJson: '{"tone":"dry"}', model: "deepseek-v4-flash" });
+    resetUserVoiceCorpus(USER, "42");
     const profile = getVoiceProfile(USER);
-    assert.equal(profile?.status, "ready");
-    assert.equal(profile?.sinceId, "100002");
-    assert.equal(profile?.replyCount, 3);
-    assert.equal(profile?.conversationCount, 3);
-    assert.ok(profile?.cardUpdatedAt);
-  });
-
-  await it("persists a starter card without marking Suggest ready", () => {
-    ensureVoiceProfile(USER, TENANT);
-    const cardJson = JSON.stringify({
-      tone: "Brief and direct.",
-      starter: true,
-    });
-    saveVoiceCard({
-      userId: USER,
-      cardJson,
-      model: "deepseek-v4-flash",
-      starter: true,
-    });
-    const profile = getVoiceProfile(USER);
-    assert.equal(profile?.status, "empty");
-    assert.equal(profile?.cardJson, cardJson);
-    assert.equal(voiceCardIsStarter(profile?.cardJson ?? null), true);
-    assert.equal(voiceCardIsStarter('{"tone":"full"}'), false);
-  });
-
-  await it("folds desk-detected replies from own_posts into the corpus", () => {
-    getPlatformDb()
-      .prepare(
-        `INSERT INTO own_posts (id, user_id, tenant_id, x_user_id, kind, text, posted_at, conversation_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        "555001",
-        USER,
-        TENANT,
-        "42",
-        "reply",
-        "posted from the desk after a suggest",
-        "2026-08-14T10:00:00.000Z",
-        "conv-desk",
-        "2026-08-14T10:00:00.000Z",
-      );
-    assert.equal(foldDeskReplies(USER), 1);
-    // Idempotent on the second fold.
-    assert.equal(foldDeskReplies(USER), 0);
-    const rows = listVoiceReplies(USER, 10);
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0]?.source, "desk");
-  });
-
-  await it("folds desk-detected originals and quotes into the corpus too", () => {
-    const insert = (id: string, kind: string) =>
-      getPlatformDb()
-        .prepare(
-          `INSERT INTO own_posts (id, user_id, tenant_id, x_user_id, kind, text, posted_at, conversation_id, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          id,
-          USER,
-          TENANT,
-          "42",
-          kind,
-          `post ${id} from the desk`,
-          "2026-08-14T10:00:00.000Z",
-          `conv-${id}`,
-          "2026-08-14T10:00:00.000Z",
-        );
-    insert("555101", "original");
-    insert("555102", "quote");
-    assert.equal(foldDeskReplies(USER), 2);
-    // Reposts stay excluded — they are someone else's words.
-    insert("555103", "repost");
-    assert.equal(foldDeskReplies(USER), 0);
-    const rows = listVoiceReplies(USER, 10);
-    assert.deepEqual(
-      new Set(rows.map((r) => r.id)),
-      new Set(["555101", "555102"]),
-    );
-    assert.ok(rows.every((r) => r.source === "desk"));
-  });
-
-  await it("folds interacted-memory replies into the corpus", () => {
-    assert.equal(
-      foldMemoryReplies(USER, [
-        {
-          id: "mem:1",
-          text: "marked reply from a memory note",
-          conversationId: "conv-mem",
-        },
-      ]),
-      1,
-    );
-    assert.equal(
-      foldMemoryReplies(USER, [
-        {
-          id: "mem:1",
-          text: "marked reply from a memory note",
-          conversationId: "conv-mem",
-        },
-      ]),
-      0,
-    );
-    const rows = listVoiceReplies(USER, 10);
-    assert.equal(rows[0]?.source, "memory");
-    assert.equal(rows[0]?.conversationId, "conv-mem");
-  });
-});
-
-await describe("voiceCardStale", async () => {
-  const NOW = Date.parse("2026-08-24T12:00:00.000Z");
-
-  await it("treats a missing or unparseable stamp as stale", () => {
-    assert.equal(voiceCardStale(null, NOW), true);
-    assert.equal(voiceCardStale("not-a-date", NOW), true);
-  });
-
-  await it("flips stale exactly at the 24h refresh window", () => {
-    const fresh = new Date(NOW - VOICE_CARD_REFRESH_MS + 60_000).toISOString();
-    const stale = new Date(NOW - VOICE_CARD_REFRESH_MS).toISOString();
-    assert.equal(voiceCardStale(fresh, NOW), false);
-    assert.equal(voiceCardStale(stale, NOW), true);
+    assert.equal(countVoiceReplies(USER), 0);
+    assert.equal(profile?.xUserId, null);
+    assert.equal(profile?.sinceId, null);
+    assert.equal(profile?.replyCount, 0);
   });
 });

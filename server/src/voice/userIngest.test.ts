@@ -26,7 +26,6 @@ import {
 import {
   ensureVoiceProfile,
   getVoiceProfile,
-  saveVoiceCard,
   updateVoiceProfilePull,
   upsertVoiceReplies,
 } from "./voiceStore.ts";
@@ -64,7 +63,6 @@ await describe("runUserIngest", async () => {
       user,
       mode: "initial",
       deps: {
-        foldLocal: async () => {},
         resolveUser: async () => ({
           ok: true,
           id: "99",
@@ -91,16 +89,10 @@ await describe("runUserIngest", async () => {
             completed: true,
           };
         },
-        generateCard: async () => ({
-          ok: false,
-          error: "skip",
-          message: "under bar",
-        }),
       },
     });
     assert.equal(result.ok, true);
     assert.equal(result.pulled, 1);
-    assert.equal(result.unlocked, false);
     const profile = getVoiceProfile(user.id);
     assert.equal(profile?.sinceId, "r1");
     assert.equal(profile?.xUserId, "99");
@@ -117,7 +109,6 @@ await describe("runUserIngest", async () => {
       user,
       mode: "initial",
       deps: {
-        foldLocal: async () => 0,
         resolveUser: async () => ({ ok: true, id: "99", username: "me", protected: false }),
         pullReplies: async () => ({
           ok: true,
@@ -164,7 +155,6 @@ await describe("runUserIngest", async () => {
           pages: 1,
           completed: true,
         }),
-        generateCard: async () => ({ ok: false, error: "skip", message: "under bar" }),
       },
     });
     assert.deepEqual(listCircleLinks(user.id), [
@@ -190,7 +180,6 @@ await describe("runUserIngest", async () => {
         user,
         mode: "initial",
         deps: {
-          foldLocal: async () => {},
           resolveUser: async () => ({
             ok: true,
             id: "99",
@@ -214,11 +203,6 @@ await describe("runUserIngest", async () => {
             newestId: "existing-reply",
             pages: 1,
             completed: true,
-          }),
-          generateCard: async () => ({
-            ok: false as const,
-            error: "skip",
-            message: "under bar",
           }),
         },
       });
@@ -261,7 +245,6 @@ await describe("runUserIngest", async () => {
       user,
       mode: "initial",
       deps: {
-        foldLocal: async () => {},
         resolveUser: async () => ({
           ok: true,
           id: "99",
@@ -285,11 +268,6 @@ await describe("runUserIngest", async () => {
           pages: 1,
           completed: true,
         }),
-        generateCard: async () => ({
-          ok: false,
-          error: "skip",
-          message: "under bar",
-        }),
       },
     });
     let seenSince: string | null | undefined;
@@ -297,7 +275,6 @@ await describe("runUserIngest", async () => {
       user,
       mode: "hourly",
       deps: {
-        foldLocal: async () => {},
         resolveUser: async () => ({
           ok: true,
           id: "99",
@@ -315,11 +292,6 @@ await describe("runUserIngest", async () => {
             completed: true,
           };
         },
-        generateCard: async () => ({
-          ok: false,
-          error: "skip",
-          message: "under bar",
-        }),
       },
     });
     assert.equal(seenSince, "r1");
@@ -337,7 +309,6 @@ await describe("runUserIngest", async () => {
       user,
       mode: "hourly",
       deps: {
-        foldLocal: async () => {},
         resolveUser: async () => ({
           ok: true,
           id: "99",
@@ -355,584 +326,9 @@ await describe("runUserIngest", async () => {
             completed: true,
           };
         },
-        generateCard: async () => ({
-          ok: false,
-          error: "skip",
-          message: "under bar",
-        }),
       },
     });
     assert.equal(target, VOICE_TARGET_REPLIES);
-  });
-
-  await it("writes a tone-only starter card below the Suggest threshold", async () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "99",
-      emailVerified: false,
-      username: "me",
-    });
-    let starter: boolean | undefined;
-    const result = await runUserIngest({
-      user,
-      mode: "initial",
-      deps: {
-        foldLocal: async () => {},
-        resolveUser: async () => ({
-          ok: true,
-          id: "99",
-          username: "me",
-          protected: false,
-        }),
-        pullReplies: async () => ({
-          ok: true,
-          replies: Array.from({ length: 12 }, (_, i) => ({
-            id: `starter-${i}`,
-            text: `short public post ${i}`,
-            conversationId: `starter-c${i}`,
-            inReplyToId: null,
-            postedAt: "2026-08-16T10:00:00.000Z",
-            source: "api" as const,
-          })),
-          profiles: [],
-          newestId: "starter-11",
-          pages: 1,
-          completed: true,
-        }),
-        generateCard: async (opts) => {
-          starter = opts.starter;
-          const card = {
-            tone: "Brief and direct.",
-            typicalLength: "",
-            habits: [],
-            neverDo: [],
-            examples: [],
-            starter: true,
-          };
-          return {
-            ok: true,
-            card,
-            cardJson: JSON.stringify(card),
-            model: "test-model",
-          };
-        },
-      },
-    });
-    assert.equal(result.unlocked, false);
-    assert.equal(starter, true);
-    const profile = getVoiceProfile(user.id);
-    assert.equal(profile?.status, "empty");
-    assert.equal(
-      (expectRecord(JSON.parse(profile?.cardJson ?? "{}"))).starter,
-      true,
-    );
-  });
-
-  await it("replaces a starter with a full card at 100 posts", async () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "99",
-      emailVerified: false,
-      username: "me",
-    });
-    ensureVoiceProfile(user.id, "local");
-    upsertVoiceReplies(
-      user.id,
-      Array.from({ length: 99 }, (_, i) => ({
-        id: `seed-${i}`,
-        text: `seed post ${i}`,
-      })),
-    );
-    updateVoiceProfilePull({
-      userId: user.id,
-      xUsername: "me",
-      xUserId: "99",
-      sinceId: "seed-98",
-    });
-    saveVoiceCard({
-      userId: user.id,
-      cardJson: '{"tone":"Starter.","starter":true}',
-      model: "test-model",
-      starter: true,
-    });
-    // The card attempt is still fresh (<24h) — the starter→full transition
-    // must bypass the attempt-staleness gate so the unlock is not deferred.
-    let starter: boolean | undefined;
-    const result = await runUserIngest({
-      user,
-      mode: "hourly",
-      deps: {
-        foldLocal: async () => {},
-        resolveUser: async () => ({
-          ok: true,
-          id: "99",
-          username: "me",
-          protected: false,
-        }),
-        pullReplies: async () => ({
-          ok: true,
-          replies: [{ id: "post-100", text: "the hundredth post" }],
-          profiles: [],
-          newestId: "post-100",
-          pages: 1,
-          completed: true,
-        }),
-        generateCard: async (opts) => {
-          starter = opts.starter;
-          return {
-            ok: true,
-            card: {
-              tone: "Dry and direct.",
-              typicalLength: "short",
-              habits: [],
-              neverDo: [],
-              examples: ["one", "two", "three"],
-            },
-            cardJson:
-              '{"tone":"Dry and direct.","typicalLength":"short","habits":[],"neverDo":[],"examples":["one","two","three"]}',
-            model: "test-model",
-          };
-        },
-      },
-    });
-    assert.equal(result.unlocked, true);
-    assert.equal(starter, false);
-    const profile = getVoiceProfile(user.id);
-    assert.equal(profile?.status, "ready");
-    assert.equal(
-      (expectRecord(JSON.parse(profile?.cardJson ?? "{}"))).starter,
-      undefined,
-    );
-  });
-
-  await it("initial pull that unlocks writes the voice card so Suggest opens", async () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "99",
-      emailVerified: false,
-      username: "me",
-    });
-    const replies = Array.from({ length: 100 }, (_, i) => ({
-      id: `r${i}`,
-      text: `public reply ${i}`,
-      conversationId: `c${i}`,
-      inReplyToId: `p${i}`,
-      postedAt: "2026-08-16T10:00:00.000Z",
-      source: "api" as const,
-    }));
-    let cardCalls = 0;
-    const result = await runUserIngest({
-      user,
-      mode: "initial",
-      deps: {
-        foldLocal: async () => {},
-        resolveUser: async () => ({
-          ok: true,
-          id: "99",
-          username: "me",
-          protected: false,
-        }),
-        pullReplies: async () => ({
-          ok: true,
-          replies,
-          profiles: [],
-          newestId: "r99",
-          pages: 1,
-          completed: true,
-        }),
-        generateCard: async () => {
-          cardCalls += 1;
-          return {
-            ok: true,
-            card: {
-              tone: "dry",
-              typicalLength: "short",
-              habits: [],
-              neverDo: [],
-              examples: ["a", "b", "c"],
-            },
-            cardJson: JSON.stringify({ tone: "dry" }),
-            model: "test-model",
-          };
-        },
-      },
-    });
-    assert.equal(result.unlocked, true);
-    assert.equal(cardCalls, 1);
-    const profile = getVoiceProfile(user.id);
-    assert.equal(profile?.status, "ready");
-    assert.notEqual(profile?.cardJson, null);
-  });
-
-  await it("a slower concurrent run cannot wedge a card-holder back to empty", async () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "99",
-      emailVerified: false,
-      username: "me",
-    });
-    const replies = Array.from({ length: 100 }, (_, i) => ({
-      id: `r${i}`,
-      text: `public reply ${i}`,
-      conversationId: `c${i}`,
-      inReplyToId: `p${i}`,
-      postedAt: "2026-08-16T10:00:00.000Z",
-      source: "api" as const,
-    }));
-    const cardOk = {
-      ok: true as const,
-      card: {
-        tone: "dry",
-        typicalLength: "short",
-        habits: [],
-        neverDo: [],
-        examples: ["a", "b", "c"],
-      },
-      cardJson: JSON.stringify({ tone: "dry" }),
-      model: "test-model",
-    };
-    let releaseSlow: (() => void) | null = null;
-    const slowGate = new Promise<void>((resolve) => {
-      releaseSlow = resolve;
-    });
-    const common = {
-      foldLocal: async () => {},
-      resolveUser: async () => ({
-        ok: true as const,
-        id: "99",
-        username: "me",
-        protected: false,
-      }),
-      generateCard: async () => cardOk,
-    };
-    const slowRun = runUserIngest({
-      user,
-      mode: "initial",
-      deps: {
-        ...common,
-        pullReplies: async () => {
-          await slowGate;
-          return {
-            ok: true,
-            replies: [],
-            profiles: [],
-            newestId: "r0",
-            pages: 1,
-            completed: true,
-          };
-        },
-      },
-    });
-    const fastRun = runUserIngest({
-      user,
-      mode: "initial",
-      deps: {
-        ...common,
-        pullReplies: async () => ({
-          ok: true,
-          replies,
-          profiles: [],
-          newestId: "r99",
-          pages: 1,
-          completed: true,
-        }),
-      },
-    });
-    await fastRun;
-    releaseSlow?.();
-    await slowRun;
-    const profile = getVoiceProfile(user.id);
-    assert.equal(profile?.status, "ready");
-    assert.notEqual(profile?.cardJson, null);
-  });
-
-  /** An unlocked profile whose card was written at `cardUpdatedAt`. */
-  function seedUnlockedCard(userId: string, cardUpdatedAt?: string) {
-    ensureVoiceProfile(userId, "local");
-    upsertVoiceReplies(
-      userId,
-      Array.from({ length: 100 }, (_, i) => ({
-        id: `seed-${i}`,
-        text: `seed post ${i}`,
-        conversationId: `c${i}`,
-        postedAt: "2026-08-10T10:00:00.000Z",
-        source: "api" as const,
-      })),
-    );
-    updateVoiceProfilePull({
-      userId,
-      xUsername: "me",
-      xUserId: "99",
-      sinceId: "seed-99",
-      lastPullAt: "2026-08-10T10:00:00.000Z",
-    });
-    saveVoiceCard({ userId, cardJson: '{"tone":"old"}', model: "m" });
-    if (cardUpdatedAt) {
-      getPlatformDb()
-        .prepare(
-          `UPDATE voice_profiles SET card_updated_at = ?, card_attempt_at = ?
-           WHERE user_id = ?`,
-        )
-        .run(cardUpdatedAt, cardUpdatedAt, userId);
-    }
-  }
-
-  type CardResult =
-    | {
-        ok: true;
-        card: {
-          tone: string;
-          typicalLength: string;
-          habits: string[];
-          neverDo: string[];
-          examples: string[];
-        };
-        cardJson: string;
-        model: string;
-      }
-    | { ok: false; error: string; message: string };
-
-  function hourlyDeps(opts: {
-    replies: Array<{ id: string; text: string }>;
-    onCard: () => CardResult;
-  }) {
-    return {
-      foldLocal: async () => {},
-      resolveUser: async () => ({
-        ok: true as const,
-        id: "99",
-        username: "me",
-        protected: false,
-      }),
-      pullReplies: async () => ({
-        ok: true as const,
-        replies: opts.replies.map((r) => ({
-          ...r,
-          conversationId: `c-${r.id}`,
-          inReplyToId: null,
-          postedAt: "2026-08-24T10:00:00.000Z",
-          source: "api" as const,
-        })),
-        profiles: [],
-        newestId: opts.replies[0]?.id ?? "seed-99",
-        pages: 1,
-        completed: true,
-      }),
-      generateCard: async () => opts.onCard(),
-    };
-  }
-
-  const staleIso = () =>
-    new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-
-  const newCard = () => ({
-    ok: true as const,
-    card: {
-      tone: "new",
-      typicalLength: "short",
-      habits: [],
-      neverDo: [],
-      examples: ["a", "b", "c"],
-    },
-    cardJson: '{"tone":"new"}',
-    model: "test-model",
-  });
-
-  await it("hourly ingest rewrites a >24h-old card when the pull adds posts", async () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "99",
-      emailVerified: false,
-      username: "me",
-    });
-    seedUnlockedCard(user.id, staleIso());
-    let cardCalls = 0;
-    const result = await runUserIngest({
-      user,
-      mode: "hourly",
-      deps: hourlyDeps({
-        replies: [{ id: "new-1", text: "fresh post" }],
-        onCard: () => {
-          cardCalls += 1;
-          return newCard();
-        },
-      }),
-    });
-    assert.equal(result.ok, true);
-    assert.equal(cardCalls, 1);
-    const profile = getVoiceProfile(user.id);
-    assert.equal(profile?.cardJson, '{"tone":"new"}');
-    assert.equal(profile?.status, "ready");
-    assert.ok(
-      Date.now() - Date.parse(profile?.cardUpdatedAt ?? "") < 60_000,
-      "the rewrite must stamp a fresh card_updated_at",
-    );
-  });
-
-  await it("hourly ingest leaves a fresh card alone even when posts arrive", async () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "99",
-      emailVerified: false,
-      username: "me",
-    });
-    seedUnlockedCard(user.id);
-    let cardCalls = 0;
-    await runUserIngest({
-      user,
-      mode: "hourly",
-      deps: hourlyDeps({
-        replies: [{ id: "new-1", text: "fresh post" }],
-        onCard: () => {
-          cardCalls += 1;
-          return newCard();
-        },
-      }),
-    });
-    assert.equal(cardCalls, 0);
-    assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
-  });
-
-  await it("hourly ingest does not rewrite a stale card when nothing new arrived", async () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "99",
-      emailVerified: false,
-      username: "me",
-    });
-    seedUnlockedCard(user.id, staleIso());
-    let cardCalls = 0;
-    await runUserIngest({
-      user,
-      mode: "hourly",
-      deps: hourlyDeps({
-        replies: [],
-        onCard: () => {
-          cardCalls += 1;
-          return newCard();
-        },
-      }),
-    });
-    assert.equal(cardCalls, 0);
-    assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
-  });
-
-  await it("hourly ingest does not rewrite a stale card when a pull returns only duplicates", async () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "99",
-      emailVerified: false,
-      username: "me",
-    });
-    seedUnlockedCard(user.id, staleIso());
-    let cardCalls = 0;
-    const result = await runUserIngest({
-      user,
-      mode: "hourly",
-      deps: {
-        foldLocal: async () => {},
-        resolveUser: async () => ({
-          ok: true,
-          id: "99",
-          username: "me",
-          protected: false,
-        }),
-        pullReplies: async () => ({
-          ok: true,
-          // The truncated pull re-returns already-stored posts and does not
-          // advance the cursor — the realistic no-growth shape.
-          replies: Array.from({ length: 100 }, (_, i) => ({
-            id: `seed-${i}`,
-            text: `seed post ${i}`,
-            conversationId: `c${i}`,
-            inReplyToId: null,
-            postedAt: "2026-08-10T10:00:00.000Z",
-            source: "api" as const,
-          })),
-          profiles: [],
-          newestId: "seed-99",
-          pages: 1,
-          completed: false,
-        }),
-        generateCard: async () => {
-          cardCalls += 1;
-          return newCard();
-        },
-      },
-    });
-    assert.equal(result.ok, true);
-    assert.equal(cardCalls, 0);
-    assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
-  });
-
-  await it("a failed hourly rewrite is stamped so the next pass does not retry the same day", async () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "99",
-      emailVerified: false,
-      username: "me",
-    });
-    seedUnlockedCard(user.id, staleIso());
-    let cardCalls = 0;
-    const first = await runUserIngest({
-      user,
-      mode: "hourly",
-      deps: hourlyDeps({
-        replies: [{ id: "new-1", text: "fresh post" }],
-        onCard: () => {
-          cardCalls += 1;
-          return {
-            ok: false as const,
-            error: "llm_down",
-            message: "model unavailable",
-          };
-        },
-      }),
-    });
-    assert.equal(first.ok, true);
-    assert.equal(cardCalls, 1);
-    assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
-    // The next hourly pass finds new posts again, but the failed attempt was
-    // stamped, so the once-per-UTC-day generation budget is not spent twice.
-    await runUserIngest({
-      user,
-      mode: "hourly",
-      deps: hourlyDeps({
-        replies: [{ id: "new-2", text: "another fresh post" }],
-        onCard: () => {
-          cardCalls += 1;
-          return newCard();
-        },
-      }),
-    });
-    assert.equal(cardCalls, 1);
-    assert.equal(getVoiceProfile(user.id)?.cardJson, '{"tone":"old"}');
-  });
-
-  await it("a failed hourly rewrite keeps the old card and stays ready", async () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "99",
-      emailVerified: false,
-      username: "me",
-    });
-    seedUnlockedCard(user.id, staleIso());
-    const result = await runUserIngest({
-      user,
-      mode: "hourly",
-      deps: hourlyDeps({
-        replies: [{ id: "new-1", text: "fresh post" }],
-        onCard: () => ({
-          ok: false as const,
-          error: "llm_down",
-          message: "model unavailable",
-        }),
-      }),
-    });
-    assert.equal(result.ok, true);
-    const profile = getVoiceProfile(user.id);
-    assert.equal(profile?.cardJson, '{"tone":"old"}');
-    assert.equal(profile?.status, "ready");
   });
 
   await it("listIngestUsers prepares and returns rotation-eligible users", () => {
@@ -948,6 +344,47 @@ await describe("runUserIngest", async () => {
     assert.equal(users[0].xUsername, "me");
   });
 
+  await it("listIngestUsers skips users without a linked X account", () => {
+    const google = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-memory-only",
+      email: "memory-only@example.com",
+      emailVerified: true,
+    });
+    ensureVoiceProfile(google.id, "local");
+    upsertVoiceReplies(
+      google.id,
+      Array.from({ length: 120 }, (_, i) => ({
+        id: `mem-${i}`,
+        text: `memory reply ${i}`,
+      })),
+    );
+    updateVoiceProfilePull({ userId: google.id, xUsername: null });
+    assert.deepEqual(listIngestUsers(), []);
+  });
+
+  await it("listIngestUsers serves never-pulled users first, then the oldest pull", () => {
+    const users = ["a", "b", "c"].map((handle, i) =>
+      upsertOauthUser({
+        provider: "x",
+        providerUserId: String(100 + i),
+        emailVerified: false,
+        username: handle,
+      }),
+    );
+    for (const [user, lastPullAt] of [
+      [users[0]!, "2026-08-16T12:00:00.000Z"],
+      [users[1]!, "2026-08-16T09:00:00.000Z"],
+    ] as const) {
+      ensureVoiceProfile(user.id, "local");
+      updateVoiceProfilePull({ userId: user.id, xUsername: null, lastPullAt });
+    }
+    assert.deepEqual(
+      listIngestUsers().map((user) => user.id),
+      [users[2]!.id, users[1]!.id, users[0]!.id],
+    );
+  });
+
   await it("fail path stamps last_pull_at so failing users demote in rotation", async () => {
     const user = upsertOauthUser({
       provider: "x",
@@ -959,7 +396,6 @@ await describe("runUserIngest", async () => {
       user,
       mode: "hourly",
       deps: {
-        foldLocal: async () => {},
         resolveUser: async () => ({
           ok: true,
           id: "99",
@@ -982,7 +418,6 @@ await describe("runUserIngest", async () => {
     const deps = (
       replies: Array<{ id: string; text: string; postedAt?: string | null }>,
     ) => ({
-      foldLocal: async () => {},
       resolveUser: async () => ({
         ok: true as const,
         id: "99",
@@ -990,7 +425,7 @@ await describe("runUserIngest", async () => {
         protected: false,
       }),
       pullReplies: async () => ({
-        ok: true,
+        ok: true as const,
         replies: replies.map((r) => ({
           ...r,
           conversationId: "c1",
@@ -1000,11 +435,6 @@ await describe("runUserIngest", async () => {
         newestId: replies[0]?.id ?? "r1",
         pages: 1,
         completed: true,
-      }),
-      generateCard: async () => ({
-        ok: false as const,
-        error: "skip",
-        message: "under bar",
       }),
     });
 
@@ -1076,8 +506,6 @@ await describe("beginVoiceCorpus", async () => {
           return {
             ok: true,
             userId: user.id,
-            conversationCount: 12,
-            unlocked: false,
             pulled: 12,
             ownPostsIngested: 0,
           };
@@ -1104,7 +532,6 @@ await describe("beginVoiceCorpus", async () => {
       user,
       mode: "initial",
       deps: {
-        foldLocal: async () => {},
         resolveUser: async () => ({
           ok: true,
           id: "99",
@@ -1127,11 +554,6 @@ await describe("beginVoiceCorpus", async () => {
           pages: 1,
           completed: true,
         }),
-        generateCard: async () => ({
-          ok: false,
-          error: "skip",
-          message: "under bar",
-        }),
       },
     });
     assert.equal(getVoiceProfile(user.id)?.sinceId, "1");
@@ -1146,8 +568,6 @@ await describe("beginVoiceCorpus", async () => {
           return {
             ok: true,
             userId: user.id,
-            conversationCount: 1,
-            unlocked: false,
             pulled: 0,
             ownPostsIngested: 0,
           };
@@ -1190,8 +610,6 @@ await describe("beginVoiceCorpus", async () => {
           return {
             ok: true,
             userId: user.id,
-            conversationCount: 5,
-            unlocked: false,
             pulled: 5,
             ownPostsIngested: 0,
           };
@@ -1236,8 +654,6 @@ await describe("beginVoiceCorpus", async () => {
           return {
             ok: true,
             userId: user.id,
-            conversationCount: 0,
-            unlocked: false,
             pulled: 3,
             ownPostsIngested: 0,
           };
@@ -1334,8 +750,6 @@ await describe("beginVoiceCorpus", async () => {
         ingest: async () => ({
           ok: true,
           userId: user.id,
-          conversationCount: 5,
-          unlocked: false,
           pulled: 5,
           ownPostsIngested: 0,
         }),
@@ -1350,7 +764,6 @@ await describe("beginVoiceCorpus", async () => {
       user: getUserById(user.id)!,
       mode: "hourly",
       deps: {
-        foldLocal: async () => {},
         resolveUser: async (handle) => {
           resolvedHandle = handle;
           return { ok: true, id: "B", username: "b", protected: false };
@@ -1362,11 +775,6 @@ await describe("beginVoiceCorpus", async () => {
           newestId: "old-b",
           pages: 1,
           completed: true,
-        }),
-        generateCard: async () => ({
-          ok: false,
-          error: "skip",
-          message: "under bar",
         }),
       },
     });
@@ -1390,8 +798,6 @@ await describe("beginVoiceCorpus", async () => {
           return {
             ok: true,
             userId: user.id,
-            conversationCount: 0,
-            unlocked: false,
             pulled: 0,
             ownPostsIngested: 0,
           };

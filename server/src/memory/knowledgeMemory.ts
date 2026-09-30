@@ -24,7 +24,6 @@ import {
   utcDatePrefix,
   writeOwnedNoteAtomically,
 } from "./ownedMemoryNotes.js";
-import { enumerateMemoryNotes } from "./memoryLegacyMigration.js";
 
 export { safeThreadIdForFilename, utcDatePrefix };
 
@@ -197,45 +196,6 @@ export function parseInteractionNoteReply(
   };
   if (meta.ownerState === "owned" && meta.userId) parsed.userId = meta.userId;
   return parsed;
-}
-
-/**
- * Every interaction note for `userId` that still has a usable ## Reply.
- * Legacy notes already copied to canonical paths appear once.
- */
-export async function listInteractionMemoryReplies(opts?: {
-  knowledgeRoot?: string;
-  userId?: string;
-  /** Fold notes with no `userId:` frontmatter (pre-PR and hourly-discovered). */
-  includeUnowned?: boolean;
-}): Promise<MemoryReplyInput[]> {
-  const root = opts?.knowledgeRoot ?? defaultKnowledgeRoot();
-  let notes;
-  try {
-    notes = await enumerateMemoryNotes({
-      knowledgeRoot: root,
-      kind: "interaction",
-      migrate: true,
-    });
-  } catch {
-    return [];
-  }
-  const out: MemoryReplyInput[] = [];
-  for (const note of notes) {
-    const parsed = parseInteractionNoteReply(note.markdown);
-    if (!parsed) continue;
-    // Fold only the calling user's own notes. Notes without a userId (written
-    // before userId scoping, or by the hourly discover tick) fold only when
-    // the caller opts in — the single-user sidecar — so they cannot leak into
-    // any one user's corpus on a multi-user install. Conflicting owners never fold.
-    if (opts?.userId) {
-      if (note.meta?.ownerState === "conflict") continue;
-      if (parsed.userId && parsed.userId !== opts.userId) continue;
-      if (!parsed.userId && !opts.includeUnowned) continue;
-    }
-    out.push(parsed);
-  }
-  return out;
 }
 
 export function renderInteractionMarkdown(

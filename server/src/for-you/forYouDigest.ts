@@ -7,14 +7,12 @@ import { getUserById } from "../auth/authStore.js";
 import { getPlatformDb } from "../db.js";
 import { formatOutcomeSection } from "../memory/knowledgeMemory.js";
 import { listInteractionHistory } from "../desk/interactionStore.js";
-import { getVoiceProfile } from "../voice/voiceStore.js";
-import { parseVoiceCardJson, type VoiceCard } from "../voice/voiceLlm.js";
 import { isOwnPostRemixCopy } from "./forYouRemix.js";
 import {
   FOR_YOU_KINDS,
   listRecentSkippedSuggestions,
   secondPersonWhy,
-  type ForYouDraft,
+  type ForYouAction,
   type ForYouKind,
 } from "./forYouStore.js";
 import { withoutSkippedThemes } from "./forYouTheme.js";
@@ -62,7 +60,6 @@ export type DigestScout = {
 
 export type ForYouDigest = {
   agenda: string | null;
-  voice: VoiceCard | null;
   best: DigestPost[];
   worst: DigestPost[];
   recentOriginals: DigestPost[];
@@ -71,7 +68,7 @@ export type ForYouDigest = {
   memories: DigestMemory[];
   leftoverScout: DigestScout[];
   /** Operator veto from Skip / Not interested. Do not rewrite these. */
-  skipped: ForYouDraft[];
+  skipped: ForYouAction[];
 };
 
 export function countT24hSnapshots(userId: string): number {
@@ -107,10 +104,9 @@ function clip(text: string | null | undefined): string | null {
 
 function postRewritesOwnText(
   why: string,
-  draft: string,
   digest: ForYouDigest,
 ): boolean {
-  if (isOwnPostRemixCopy(why, draft)) return true;
+  if (isOwnPostRemixCopy(why)) return true;
   const blob = new Set(
     why
       .toLowerCase()
@@ -226,10 +222,6 @@ export async function buildForYouDigest(opts: {
   getScout?: () => Promise<{ threads?: DigestScout[] } | null>;
 }): Promise<ForYouDigest> {
   const user = getUserById(opts.userId);
-  const profile = getVoiceProfile(opts.userId);
-  const voice = profile?.cardJson
-    ? parseVoiceCardJson(profile.cardJson)
-    : null;
   const ranked = rankOwnPosts(opts.userId);
   const history = await listInteractionHistory({
     userId: opts.userId,
@@ -248,17 +240,15 @@ export async function buildForYouDigest(opts: {
   });
   const leftoverScout: DigestScout[] = [];
   const skippedRows = listRecentSkippedSuggestions(opts.userId);
-  const skipped: ForYouDraft[] = skippedRows.slice(0, 12).map((row) => ({
+  const skipped: ForYouAction[] = skippedRows.slice(0, 12).map((row) => ({
     kind: row.kind,
     why: row.why,
-    draft: clip(row.draft),
     targetId: row.targetId,
     targetUrl: row.targetUrl,
     targetAuthor: row.targetAuthor,
   }));
   return {
     agenda: user?.agenda?.trim() || null,
-    voice,
     ...ranked,
     memories,
     leftoverScout,
@@ -298,14 +288,10 @@ function asKind(value: unknown): ForYouKind | null {
   return FOR_YOU_KINDS.find((kind) => kind === value) ?? null;
 }
 
-/**
- * Keep 2–4 actions whose targets exist in the digest.
- * `post` needs a draft and no invented target. Others need a known target.
- */
 export function filterDigestActions(
   raw: unknown,
   digest: ForYouDigest,
-): ForYouDraft[] {
+): ForYouAction[] {
   const obj = objectValue(raw);
   const list = Array.isArray(obj?.actions) ? obj.actions : [];
   const { ids, urls, replyIds, replyUrls } = digestAllowlist(digest);
@@ -320,7 +306,7 @@ export function filterDigestActions(
   const ownUrls = new Set(
     ownPosts.flatMap((post) => (post.url ? [post.url] : [])),
   );
-  const out: ForYouDraft[] = [];
+  const out: ForYouAction[] = [];
   const seen = new Set<string>();
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
@@ -329,10 +315,6 @@ export function filterDigestActions(
     const why =
       typeof row.why === "string" ? secondPersonWhy(row.why.trim()) : "";
     if (!kind || !why) continue;
-    const draft =
-      typeof row.draft === "string" && row.draft.trim()
-        ? row.draft.trim().slice(0, 560)
-        : null;
     const targetId =
       typeof row.targetId === "string"
         ? row.targetId.trim()
@@ -352,12 +334,11 @@ export function filterDigestActions(
           ? row.target_author.trim()
           : "";
     if (kind === "post") {
-      if (!draft) continue;
-      if (postRewritesOwnText(why, draft, digest)) continue;
-      const key = `post:${draft}`;
+      if (postRewritesOwnText(why, digest)) continue;
+      const key = `post:${why.toLowerCase()}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ kind, why, draft });
+      out.push({ kind, why });
     } else {
       if (
         (kind === "quote" || kind === "repost") &&
@@ -375,11 +356,9 @@ export function filterDigestActions(
       const key = `${kind}:${targetId || targetUrl}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      if (kind === "quote" && !draft) continue;
       out.push({
         kind,
         why,
-        draft: kind === "quote" || kind === "reply" ? draft : null,
         targetId: knownId ? targetId : null,
         targetUrl: knownUrl ? targetUrl : knownId ? null : targetUrl || null,
         targetAuthor: targetAuthor || null,
@@ -389,14 +368,13 @@ export function filterDigestActions(
   return withoutSkippedThemes(out, digest.skipped).slice(0, 4);
 }
 
-/** Extra batches are originals only — three unique drafts that invite a reply. */
 export function filterExtraPosts(
   raw: unknown,
-  skipped: ForYouDraft[] = [],
-): ForYouDraft[] {
+  skipped: ForYouAction[] = [],
+): ForYouAction[] {
   const obj = objectValue(raw);
   const list = Array.isArray(obj?.actions) ? obj.actions : [];
-  const out: ForYouDraft[] = [];
+  const out: ForYouAction[] = [];
   const seen = new Set<string>();
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
@@ -404,16 +382,12 @@ export function filterExtraPosts(
     if (row.kind !== "post") continue;
     const why =
       typeof row.why === "string" ? secondPersonWhy(row.why.trim()) : "";
-    const draft =
-      typeof row.draft === "string" && row.draft.trim()
-        ? row.draft.trim().slice(0, 560)
-        : "";
-    if (!why || !draft) continue;
-    if (isOwnPostRemixCopy(why, draft)) continue;
-    const key = `post:${draft}`;
+    if (!why) continue;
+    if (isOwnPostRemixCopy(why)) continue;
+    const key = `post:${why.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ kind: "post", why, draft });
+    out.push({ kind: "post", why });
   }
   return withoutSkippedThemes(out, skipped).slice(0, 3);
 }

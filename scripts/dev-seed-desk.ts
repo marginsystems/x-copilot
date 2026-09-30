@@ -375,37 +375,33 @@ async function seedThreads(nowMs: number): Promise<void> {
 }
 
 function seedApproach(nowMs: number, tenantId: string): void {
-  const rows: Array<{ kind: string; why: string; draft: string | null; author: string | null }> = [
+  const rows: Array<{ kind: string; why: string; author: string | null }> = [
     {
       kind: "post",
-      why: "Your posts on retention got 3x your median views this week. Write another original while it is warm.",
-      draft: "Retention is a lagging metric. The leading one is how many users hit the second session in 48 hours.",
+      why: "Retention is on your agenda. Write an original on which early signal you trust most.",
       author: null,
     },
     {
       kind: "reply",
       why: "Maya replied to you twice this week. A third reply keeps the thread alive.",
-      draft: "That is fair. What did you change first, the onboarding copy or the trigger email?",
       author: "maya_builds",
     },
     {
       kind: "quote",
       why: "Devon posted a chart that fits your agenda. A quote with one opinion would travel.",
-      draft: "The second bar is the story. Everything before it is setup.",
       author: "devon_ships",
     },
     {
       kind: "repost",
       why: "Priya's launch note is squarely on topic and still fresh.",
-      draft: null,
       author: "priya_writes",
     },
   ];
   const stmt = getPlatformDb().prepare(
     `INSERT INTO for_you_suggestions
-       (id, user_id, tenant_id, kind, status, why, draft, target_id, target_url, target_author,
+       (id, user_id, tenant_id, kind, status, why, target_id, target_url, target_author,
         created_at, expires_at, acted_at)
-     VALUES (?, ?, ?, ?, 'suggested', ?, ?, ?, ?, ?, ?, ?, NULL)`,
+     VALUES (?, ?, ?, ?, 'suggested', ?, ?, ?, ?, ?, ?, NULL)`,
   );
   rows.forEach((row, i) => {
     const targetId = row.author ? `1960${100000 + i}` : null;
@@ -415,7 +411,6 @@ function seedApproach(nowMs: number, tenantId: string): void {
       tenantId,
       row.kind,
       row.why,
-      row.draft,
       targetId,
       row.author && targetId ? `https://x.com/${row.author}/status/${targetId}` : null,
       row.author,

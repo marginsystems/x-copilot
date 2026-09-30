@@ -19,8 +19,6 @@ import {
   startOfUtcDayIso,
   upsertOwnPost,
 } from "../desk/ownPostStore.js";
-import { foldLocalVoiceSources } from "./voiceLocal.js";
-import { generateVoiceCard } from "./voiceLlm.js";
 import {
   pullOwnReplies,
   resolveXUser,
@@ -33,17 +31,10 @@ import type { XProfile } from "../circle/xProfiles.js";
 import {
   ensureVoiceProfile,
   getVoiceProfile,
-  listVoiceReplies,
   nowIso,
   resetUserVoiceCorpus,
-  saveVoiceCard,
-  setVoiceProfileStatus,
-  stampVoiceCardAttempt,
   updateVoiceProfilePull,
   upsertVoiceReplies,
-  voiceCardIsStarter,
-  voiceCardStale,
-  voiceUnlocked,
 } from "./voiceStore.js";
 import { xApiGet } from "../x-api/xApi.js";
 import type { ParsedPostCreate } from "../x-api/xActivity.js";
@@ -57,8 +48,6 @@ export type IngestMode = "initial" | "hourly";
 export type UserIngestResult = {
   ok: boolean;
   userId: string;
-  conversationCount: number;
-  unlocked: boolean;
   pulled: number;
   ownPostsIngested: number;
   error?: string;
@@ -344,11 +333,6 @@ async function confirmRecentOwnPostsRun(opts: {
   };
 }
 
-/**
- * Memories first, then one official timeline page. `initial` aims at
- * 100 public posts. `hourly` only reads since the stored cursor.
- * Never bills the user pool.
- */
 export async function runUserIngest(opts: {
   user: AuthUser;
   mode: IngestMode;
@@ -356,20 +340,14 @@ export async function runUserIngest(opts: {
   deps?: {
     resolveUser?: typeof resolveXUser;
     pullReplies?: typeof pullOwnReplies;
-    generateCard?: typeof generateVoiceCard;
-    foldLocal?: typeof foldLocalVoiceSources;
   };
 }): Promise<UserIngestResult> {
   const user = opts.user;
   const tenantId = ensureUserTenant(user.id);
   const profile = ensureVoiceProfile(user.id, tenantId);
-  const priorStatus = profile.status;
   const handle = opts.handle ?? resolveIngestHandle(user);
   const resolveUser = opts.deps?.resolveUser ?? resolveXUser;
   const pullReplies = opts.deps?.pullReplies ?? pullOwnReplies;
-  const generateCard = opts.deps?.generateCard ?? generateVoiceCard;
-  const foldLocal = opts.deps?.foldLocal ?? foldLocalVoiceSources;
-  setVoiceProfileStatus(user.id, "learning");
 
   const fail = (
     error: string,
@@ -381,17 +359,11 @@ export async function runUserIngest(opts: {
       xUsername: current?.xUsername ?? null,
       sinceId: current?.sinceId ?? null,
       lastPullAt: nowIso(),
+      lastError: message,
     });
-    setVoiceProfileStatus(
-      user.id,
-      priorStatus === "ready" ? "ready" : "empty",
-      message,
-    );
     return {
       ok: false,
       userId: user.id,
-      conversationCount: getVoiceProfile(user.id)?.conversationCount ?? 0,
-      unlocked: false,
       pulled: 0,
       ownPostsIngested: 0,
       error,
@@ -399,196 +371,80 @@ export async function runUserIngest(opts: {
     };
   };
 
-  try {
-    await foldLocal(user.id);
-    let updated = getVoiceProfile(user.id);
-    let pulled = 0;
-    let ownPostsIngested = 0;
-
-    if (handle) {
-      const resolved = await resolveUser(handle, { get: ingestGet });
-      if (!resolved.ok) {
-        return fail(resolved.error, resolved.message);
-      }
-      if (resolved.protected) {
-        return fail(
-          "account_protected",
-          `@${handle} is protected. Voice only reads public posts — there is no workaround, and we will not scrape.`,
-        );
-      }
-      const sinceId = opts.mode === "hourly" ? profile.sinceId : null;
-      const pull = await pullReplies({
-        xUserId: resolved.id,
-        sinceId,
-        targetReplies:
-          sinceId === null ? VOICE_TARGET_POSTS : 40,
-        deps: { get: ingestGet },
-      });
-      if (!pull.ok) {
-        return fail(pull.error, pull.message);
-      }
-      pulled = pull.replies.length;
-      upsertVoiceReplies(user.id, pull.replies);
-      recordPulledCircle({
-        userId: user.id,
-        replies: pull.replies,
-        profiles: pull.profiles,
-        handle: resolved.username,
-      });
-      await foldLocal(user.id);
-      ownPostsIngested = foldRepliesIntoOwnPosts({
-        userId: user.id,
-        replies: pull.replies,
-        xUserId: resolved.id,
-        handle: resolved.username,
-      });
-      updateVoiceProfilePull({
-        userId: user.id,
-        xUsername: resolved.username,
-        xUserId: resolved.id,
-        sinceId: pull.completed
-          ? (pull.newestId ?? profile.sinceId)
-          : profile.sinceId,
-        lastPullAt: nowIso(),
-      });
-    } else {
-      updateVoiceProfilePull({
-        userId: user.id,
-        xUsername: null,
-        lastPullAt: nowIso(),
-      });
-    }
-
-    updated = getVoiceProfile(user.id);
-    const conversations = updated?.conversationCount ?? 0;
-    const posts = updated?.replyCount ?? 0;
-    const unlocked = voiceUnlocked(posts);
-    const hadCard = Boolean(updated?.cardJson);
-    const hadStarterCard = voiceCardIsStarter(updated?.cardJson ?? null);
-    // The corpus moved this pull: the stored count grew (duplicate re-pulls
-    // keep the cursor and do not add rows, so they must not trigger a rewrite).
-    const corpusGrew = posts > profile.replyCount;
-    if (
-      posts > 0 &&
-      (!hadCard || (unlocked && hadStarterCard)) &&
-      ((unlocked && hadStarterCard) ||
-        voiceCardStale(updated?.cardAttemptAt ?? null))
-    ) {
-      stampVoiceCardAttempt(user.id);
-      const starter = !unlocked;
-      const cardResult = await generateCard({
-        handle: handle || "you",
-        replies: listVoiceReplies(user.id, 120),
-        starter,
-      });
-      if (cardResult.ok) {
-        saveVoiceCard({
-          userId: user.id,
-          cardJson: cardResult.cardJson,
-          model: cardResult.model,
-          starter,
-        });
-      } else {
-        setVoiceProfileStatus(
-          user.id,
-          priorStatus === "ready" ? "ready" : "empty",
-          cardResult.message,
-        );
-      }
-    } else if (
-      unlocked &&
-      hadCard &&
-      !hadStarterCard &&
-      opts.mode === "hourly" &&
-      corpusGrew &&
-      voiceCardStale(updated?.cardAttemptAt ?? null)
-    ) {
-      // Hourly rewrite so the card tracks the growing corpus. The >24h
-      // staleness gate caps this at once per UTC day; the attempt stamp is
-      // recorded up front so a failed generation is not retried next hour.
-      stampVoiceCardAttempt(user.id);
-      const cardResult = await generateCard({
-        handle: handle || "you",
-        replies: listVoiceReplies(user.id, 120),
-      });
-      if (cardResult.ok) {
-        saveVoiceCard({
-          userId: user.id,
-          cardJson: cardResult.cardJson,
-          model: cardResult.model,
-        });
-      } else {
-        setVoiceProfileStatus(user.id, "ready");
-      }
-    } else if (
-      !unlocked &&
-      hadStarterCard &&
-      opts.mode === "hourly" &&
-      corpusGrew &&
-      voiceCardStale(updated?.cardAttemptAt ?? null)
-    ) {
-      stampVoiceCardAttempt(user.id);
-      const cardResult = await generateCard({
-        handle: handle || "you",
-        replies: listVoiceReplies(user.id, 120),
-        starter: true,
-      });
-      if (cardResult.ok) {
-        saveVoiceCard({
-          userId: user.id,
-          cardJson: cardResult.cardJson,
-          model: cardResult.model,
-          starter: true,
-        });
-      } else {
-        setVoiceProfileStatus(user.id, "empty");
-      }
-    } else {
-      setVoiceProfileStatus(
-        user.id,
-        priorStatus === "ready" || (hadCard && !hadStarterCard)
-          ? "ready"
-          : "empty",
-      );
-    }
-
-    updated = getVoiceProfile(user.id);
-    return {
-      ok: true,
+  if (!handle) {
+    updateVoiceProfilePull({
       userId: user.id,
-      conversationCount: updated?.conversationCount ?? conversations,
-      unlocked: voiceUnlocked(updated?.replyCount ?? posts),
-      pulled,
-      ownPostsIngested,
-    };
-  } finally {
-    const current = getVoiceProfile(user.id);
-    if (current && current.status === "learning") {
-      setVoiceProfileStatus(
-        user.id,
-        priorStatus === "ready" ? "ready" : "empty",
-      );
-    }
+      xUsername: null,
+      lastPullAt: nowIso(),
+    });
+    return { ok: true, userId: user.id, pulled: 0, ownPostsIngested: 0 };
   }
+
+  const resolved = await resolveUser(handle, { get: ingestGet });
+  if (!resolved.ok) {
+    return fail(resolved.error, resolved.message);
+  }
+  if (resolved.protected) {
+    return fail(
+      "account_protected",
+      `@${handle} is protected. x-copilot only reads public posts — there is no workaround, and we will not scrape.`,
+    );
+  }
+  const sinceId = opts.mode === "hourly" ? profile.sinceId : null;
+  const pull = await pullReplies({
+    xUserId: resolved.id,
+    sinceId,
+    targetReplies: sinceId === null ? VOICE_TARGET_POSTS : 40,
+    deps: { get: ingestGet },
+  });
+  if (!pull.ok) {
+    return fail(pull.error, pull.message);
+  }
+  upsertVoiceReplies(user.id, pull.replies);
+  recordPulledCircle({
+    userId: user.id,
+    replies: pull.replies,
+    profiles: pull.profiles,
+    handle: resolved.username,
+  });
+  const ownPostsIngested = foldRepliesIntoOwnPosts({
+    userId: user.id,
+    replies: pull.replies,
+    xUserId: resolved.id,
+    handle: resolved.username,
+  });
+  updateVoiceProfilePull({
+    userId: user.id,
+    xUsername: resolved.username,
+    xUserId: resolved.id,
+    sinceId: pull.completed
+      ? (pull.newestId ?? profile.sinceId)
+      : profile.sinceId,
+    lastPullAt: nowIso(),
+  });
+  return {
+    ok: true,
+    userId: user.id,
+    pulled: pull.replies.length,
+    ownPostsIngested,
+  };
 }
 
 export async function ingestUsersHourly(opts?: {
   users?: AuthUser[];
   limit?: number;
-}): Promise<{ ran: number; unlocked: number; pulled: number }> {
+}): Promise<{ ran: number; pulled: number }> {
   const users = (opts?.users ?? listIngestUsers()).slice(
     0,
     Math.min(opts?.limit ?? 20, 40),
   );
   let ran = 0;
-  let unlocked = 0;
   let pulled = 0;
   for (const user of users) {
     try {
       const result = await runUserIngest({ user, mode: "hourly" });
       ran += 1;
       pulled += result.pulled;
-      if (result.unlocked) unlocked += 1;
       if (!result.ok) {
         console.warn(
           `[ingest] hourly soft-fail user=${user.id}: ${result.error ?? "unknown"}`,
@@ -605,5 +461,5 @@ export async function ingestUsersHourly(opts?: {
       });
     }
   }
-  return { ran, unlocked, pulled };
+  return { ran, pulled };
 }

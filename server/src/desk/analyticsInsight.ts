@@ -12,7 +12,7 @@ import {
 } from "../platform/deepseek.js";
 import { getPlatformDb } from "../db.js";
 import { analyticsSummary } from "./ownPostStore.js";
-import { extractJsonObject, type ChatFn } from "../voice/voiceLlm.js";
+import { extractJsonObject, type ChatFn } from "../platform/llmJson.js";
 
 export type AnalyticsInsight = {
   headline: string;

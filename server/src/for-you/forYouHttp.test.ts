@@ -29,7 +29,7 @@ import {
 } from "./forYouStore.ts";
 import { patchOwnPostSnapshot, upsertOwnPost } from "../desk/ownPostStore.ts";
 import { explicitEventKey, listScoutEvidence } from "../scout/scoutEvidence.ts";
-import type { ChatFn } from "../voice/voiceLlm.ts";
+import type { ChatFn } from "../platform/llmJson.ts";
 
 await describe("GET /api/for-you", async () => {
   let dir: string;
@@ -83,9 +83,9 @@ await describe("GET /api/for-you", async () => {
       });
     }
     updateUserAgenda(user.id, "Find builders shipping AI tools");
-    let drafts = 0;
+    let llmCalls = 0;
     const chat: ChatFn = async () => {
-      drafts += 1;
+      llmCalls += 1;
       return extraChat();
     };
     const { token } = createSession(user.id);
@@ -125,7 +125,7 @@ await describe("GET /api/for-you", async () => {
     assert.equal(objectValue(json.extra).batchSize, 3);
     assert.equal(objectValue(json.extra).used, 0);
     assert.equal(objectValue(json.extra).limit, 10);
-    assert.equal(drafts, 0);
+    assert.equal(llmCalls, 0);
   });
 });
 
@@ -183,17 +183,14 @@ const extraChat: ChatFn = async () => ({
       {
         kind: "post",
         why: "open weights just dropped",
-        draft: "Which agent shipped first?",
       },
       {
         kind: "post",
         why: "quiet launch window",
-        draft: "Is the other side just slow?",
       },
       {
         kind: "post",
         why: "builders are shipping tonight",
-        draft: "I'll take the under — prove me wrong.",
       },
     ],
   }),
@@ -229,7 +226,7 @@ await describe("POST /api/for-you/done", async () => {
     const [card] = insertSuggestions({
       userId: user.id,
       tenantId: "local",
-      drafts: [{ kind: "quote", why: "quote the win", draft: "sharper" }],
+      actions: [{ kind: "quote", why: "quote the win" }],
     });
     assert.ok(card);
     const { token } = createSession(user.id);
@@ -253,7 +250,7 @@ await describe("POST /api/for-you/done", async () => {
     const [card] = insertSuggestions({
       userId: user.id,
       tenantId: "local",
-      drafts: [{ kind: "quote", why: "quote the win", draft: "sharper" }],
+      actions: [{ kind: "quote", why: "quote the win" }],
     });
     assert.ok(card);
     recordDeskReplyMarked({ userId: user.id, source: "organic" });
@@ -281,7 +278,7 @@ await describe("POST /api/for-you/done", async () => {
     const [card] = insertSuggestions({
       userId: user.id,
       tenantId: "local",
-      drafts: [{ kind: "reply", why: "reply to the win", draft: "sharper" }],
+      actions: [{ kind: "reply", why: "reply to the win" }],
     });
     assert.ok(card);
     recordDeskReplyMarked({ userId: user.id, source: "organic" });
@@ -327,11 +324,10 @@ await describe("POST /api/for-you/skip", async () => {
     const [card] = insertSuggestions({
       userId: user.id,
       tenantId: "local",
-      drafts: [
+      actions: [
         {
           kind: "post",
           why: "Hiring thread is live. Take a side.",
-          draft: "Who is actually hiring this week?",
         },
       ],
     });
@@ -346,8 +342,9 @@ await describe("POST /api/for-you/skip", async () => {
     });
     assert.equal(out.status, 200);
     const replacement = objectValue(out.json.replacement);
-    assert.ok(replacement?.draft);
-    assert.notEqual(replacement.draft, card.draft);
+    assert.ok(replacement?.why);
+    assert.notEqual(replacement.why, card.why);
+    assert.equal(Object.hasOwn(replacement, "draft"), false);
     const live = listActiveSuggestions(user.id);
     assert.equal(live.some((row) => row.id === card.id), false);
     assert.equal(live.some((row) => row.kind === "post"), true);
@@ -365,12 +362,12 @@ await describe("POST /api/for-you/skip", async () => {
     const [card] = insertSuggestions({
       userId: user.id,
       tenantId: "local",
-      drafts: [{ kind: "post", why: "A live launch", draft: "Take a side." }],
+      actions: [{ kind: "post", why: "A live launch" }],
     });
     assert.ok(card);
-    let drafts = 0;
+    let llmCalls = 0;
     const chat: ChatFn = async () => {
-      drafts += 1;
+      llmCalls += 1;
       return extraChat();
     };
     const { token } = createSession(user.id);
@@ -385,7 +382,7 @@ await describe("POST /api/for-you/skip", async () => {
     assert.equal(getSuggestion(card.id, user.id)?.status, "dismissed");
     assert.deepEqual(out.json.suggestions, []);
     assert.equal(out.json.replacement, null);
-    assert.equal(drafts, 0);
+    assert.equal(llmCalls, 0);
   });
 
   await it("marks a reply skipped when evidence capture fails", async () => {
@@ -398,11 +395,10 @@ await describe("POST /api/for-you/skip", async () => {
     const [card] = insertSuggestions({
       userId: user.id,
       tenantId: "local",
-      drafts: [
+      actions: [
         {
           kind: "reply",
           why: "A live thread",
-          draft: "Take a side.",
           targetId: "thread-1",
           targetAuthor: "@thread-author",
         },
@@ -412,11 +408,10 @@ await describe("POST /api/for-you/skip", async () => {
     const [sibling] = insertSuggestions({
       userId: user.id,
       tenantId: "local",
-      drafts: [
+      actions: [
         {
           kind: "reply",
           why: "Same live thread",
-          draft: "Take the other side.",
           targetId: "thread-1",
           targetAuthor: "@thread-author",
         },
@@ -463,7 +458,7 @@ await describe("POST /api/for-you/skip", async () => {
     const [card] = insertSuggestions({
       userId: owner.id,
       tenantId: "local",
-      drafts: [{ kind: "post", why: "Owner only", draft: "Private card." }],
+      actions: [{ kind: "post", why: "Owner only" }],
     });
     assert.ok(card);
     const { token } = createSession(other.id);

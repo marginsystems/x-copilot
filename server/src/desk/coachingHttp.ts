@@ -18,7 +18,7 @@ import { getDeskBeats } from "./deskBeats.js";
 import { send } from "../http/httpJson.js";
 import { getOrRefreshNextAction } from "./nextActionLlm.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
-import type { ChatFn } from "../voice/voiceLlm.js";
+import type { ChatFn } from "../platform/llmJson.js";
 
 export async function tryHandleCoaching(
   req: IncomingMessage,

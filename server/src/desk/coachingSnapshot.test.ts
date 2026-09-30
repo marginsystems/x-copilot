@@ -21,9 +21,29 @@ import { markInteracted } from "./interactionStore.ts";
 import { upsertOwnPost } from "./ownPostStore.ts";
 import { seedUser } from "../platform/platformDb.testHelpers.ts";
 import type { ParsedPostCreate } from "../x-api/xActivity.ts";
-import { recordDeskPost } from "../x-api/xPostLimits.ts";
 
 const NOW_MS = Date.parse("2026-08-27T12:00:00.000Z");
+
+function recordDeskPost(opts: {
+  userId: string;
+  tweetId: string;
+  inReplyToId: string;
+  atIso: string;
+}): void {
+  getPlatformDb()
+    .prepare(
+      `INSERT INTO x_desk_posts
+         (id, user_id, tweet_id, in_reply_to_id, thread_id, created_at)
+       VALUES (?, ?, ?, ?, NULL, ?)`,
+    )
+    .run(
+      `desk-${opts.tweetId}`,
+      opts.userId,
+      opts.tweetId,
+      opts.inReplyToId,
+      opts.atIso,
+    );
+}
 
 await describe("originalsTodayCount", async () => {
   await it("takes the strongest of own_posts, desk originals, and confirmed OG cards", () => {
@@ -60,7 +80,7 @@ await describe("buildCoachingSnapshot", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: NOW_MS,
-      drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
+      actions: [{ kind: "post", why: "ship the recap" }],
     });
     assert.ok(card);
     markSuggestion({
@@ -97,7 +117,7 @@ await describe("buildCoachingSnapshot", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: NOW_MS,
-      drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
+      actions: [{ kind: "post", why: "ship the recap" }],
     });
     assert.ok(card);
     markSuggestion({
@@ -164,7 +184,7 @@ await describe("buildCoachingSnapshot", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: NOW_MS,
-      drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
+      actions: [{ kind: "post", why: "ship the recap" }],
     });
     assert.ok(card);
     markSuggestion({

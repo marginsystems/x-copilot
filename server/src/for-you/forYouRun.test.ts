@@ -18,7 +18,7 @@ import {
   listActiveSuggestions,
 } from "./forYouStore.ts";
 import { runForYouDigestForUser } from "./forYouRun.ts";
-import type { ChatFn } from "../voice/voiceLlm.ts";
+import type { ChatFn } from "../platform/llmJson.ts";
 
 function post(
   partial: Partial<ParsedPostCreate> & { postId: string },
@@ -76,11 +76,10 @@ const chat: ChatFn = async () => ({
   ok: true,
   content: JSON.stringify({
     actions: [
-      { kind: "post", why: "hiring thread is live", draft: "Who is hiring this week?" },
+      { kind: "post", why: "hiring thread is live" },
       {
         kind: "post",
         why: "shipping thread is live",
-        draft: "What breaks when you ship without a review loop?",
       },
     ],
   }),
@@ -148,15 +147,14 @@ await describe("runForYouDigestForUser", async () => {
         actions:
           calls++ === 0
             ? [
-                { kind: "post", why: "top post did 400 views", draft: "Ship a recap." },
-                { kind: "post", why: "hiring thread is live", draft: "Who is hiring this week?" },
+                { kind: "post", why: "top post did 400 views" },
+                { kind: "post", why: "hiring thread is live" },
               ]
             : [
-                { kind: "post", why: "hiring thread is live", draft: "Who is hiring this week?" },
+                { kind: "post", why: "hiring thread is live" },
                 {
                   kind: "post",
                   why: "shipping thread is live",
-                  draft: "What breaks when you ship without a review loop?",
                 },
               ],
       }),

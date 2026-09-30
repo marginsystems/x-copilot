@@ -469,7 +469,7 @@ async function main(): Promise<void> {
     try {
       const ingest = await ingestUsersHourly();
       console.log(
-        `[stats-worker] ingest ran=${ingest.ran} pulled=${ingest.pulled} unlocked=${ingest.unlocked}`,
+        `[stats-worker] ingest ran=${ingest.ran} pulled=${ingest.pulled}`,
       );
     } catch (err) {
       console.warn("[stats-worker] ingest soft-fail:", err);

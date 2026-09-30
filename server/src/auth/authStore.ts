@@ -1,11 +1,10 @@
 /**
  * Users in the platform SQLite DB.
  */
-import { stringRow, isRecord, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
+import { stringRow, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
 import { getPlatformDb } from "../db.js";
 import { parseXHandle } from "./xHandle.js";
 import { getXOauthUsername, hasXWriteCreds } from "./xIdentityStore.js";
-import { VOICE_UNLOCK_MIN_POSTS } from "../voice/voiceStore.js";
 
 export type AuthUser = {
   id: string;
@@ -61,14 +60,6 @@ export function setUserXUsername(
     .run(handle, userId);
   if (result.changes === 0) return null;
   return getUserById(userId);
-}
-
-/** Number of platform users — the single-user sidecar folds unowned notes. */
-export function countPlatformUsers(): number {
-  const row = readUserCountRowOrUndefined(getPlatformDb()
-    .prepare(`SELECT COUNT(*) AS n FROM users`)
-    .get());
-  return Number(row?.n ?? 0);
 }
 
 /** The sole platform user's id when exactly one platform user exists
@@ -144,9 +135,6 @@ export function updateUserAgenda(
   return getUserById(userId);
 }
 
-/** Desk users the hourly ingest serves: handle users, plus memory-only users
- *  past the unlock bar without a card. One query, ordered least-recently-pulled
- *  first so the per-tick budget rotates instead of starving users past #20. */
 export function listIngestUsers(): AuthUser[] {
   const rows = getPlatformDb()
     .prepare(
@@ -158,25 +146,10 @@ export function listIngestUsers(): AuthUser[] {
          ON oa.user_id = u.id AND oa.provider = 'x' AND oa.username IS NOT NULL
        LEFT JOIN voice_profiles vp ON vp.user_id = u.id
        WHERE oa.user_id IS NOT NULL
-          OR (vp.reply_count >= ? AND vp.card_json IS NULL)
        ORDER BY (vp.last_pull_at IS NULL) DESC, vp.last_pull_at ASC`,
     )
-    .all(VOICE_UNLOCK_MIN_POSTS).map(readUserRow);
+    .all().map(readUserRow);
   return rows.map(mapUser);
-}
-
-function readUserCountRow(value: unknown) {
-  if (!(
-    isRecord(value) &&
-    ("n" in value && typeof value.n === "number")
-  )) throw new TypeError("Invalid database row");
-  return {
-    n: value.n,
-  };
-}
-
-function readUserCountRowOrUndefined(value: unknown) {
-  return value === undefined ? undefined : readUserCountRow(value);
 }
 
 function readUserRow(value: unknown): UserRow {

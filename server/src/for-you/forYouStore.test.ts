@@ -46,8 +46,8 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [
-        { kind: "post", why: "hiring thread is live", draft: "Ship the recap." },
+      actions: [
+        { kind: "post", why: "hiring thread is live" },
       ],
     });
     assert.equal(listActiveSuggestions("u1", now + 1000).length, 1);
@@ -78,10 +78,10 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [
-        { kind: "quote", why: "quote your winner", draft: "Again.", targetId: "own-1" },
+      actions: [
+        { kind: "quote", why: "quote your winner", targetId: "own-1" },
         { kind: "repost", why: "repost your winner", targetId: "own-1" },
-        { kind: "reply", why: "reply to your thread", draft: "More.", targetId: "own-1" },
+        { kind: "reply", why: "reply to your thread", targetId: "own-1" },
         {
           kind: "repost",
           why: "Your 8.7k-view Claude refusal is your best shape—double down.",
@@ -118,11 +118,10 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [
+      actions: [
         {
           kind: "quote",
           why: "quote your winner",
-          draft: "Again.",
           targetUrl: "https://x.com/desk/status/own-url-1",
         },
         {
@@ -149,14 +148,14 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [
+      actions: [
         {
           kind: "reply",
           why: "reply",
           targetId: "99",
           targetUrl: "https://x.com/a/status/99",
         },
-        { kind: "post", why: "original", draft: "Ship it." },
+        { kind: "post", why: "original" },
       ],
     });
     await markInteracted({
@@ -176,7 +175,7 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: morning,
-      drafts: [{ kind: "post", why: "first", draft: "A" }],
+      actions: [{ kind: "post", why: "first" }],
     });
     assert.equal(first.length, 1);
     assert.equal(hasForYouRunToday("u1", morning + 3600_000), true);
@@ -186,7 +185,7 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: later,
-      drafts: [{ kind: "post", why: "second", draft: "B" }],
+      actions: [{ kind: "post", why: "second" }],
     });
     const active = listActiveSuggestions("u1", later + 1000);
     assert.equal(active.length, 1);
@@ -199,7 +198,7 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [
+      actions: [
         { kind: "reply", why: "open thread", targetId: "99", targetUrl: "https://x.com/a/status/99" },
       ],
     });
@@ -217,13 +216,13 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [{ kind: "post", why: "x", draft: "Y" }],
+      actions: [{ kind: "post", why: "x" }],
     });
     const [dismissedRow] = insertSuggestions({
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [{ kind: "quote", why: "z", targetId: "100" }],
+      actions: [{ kind: "quote", why: "z", targetId: "100" }],
     });
     assert.ok(skippedRow && dismissedRow);
     assert.equal(
@@ -253,16 +252,14 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [
+      actions: [
         {
           kind: "post",
           why: "Your 8.7k-view Claude refusal reply is your best shape.",
-          draft: "Refusal is a feature, not a bug.",
         },
         {
           kind: "post",
           why: "Your 8.7k Claude refusal still leads. Write the next original.",
-          draft: "Your prompts are the real problem.",
         },
         {
           kind: "quote",
@@ -287,11 +284,10 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now + 3000,
-      drafts: [
+      actions: [
         {
           kind: "post",
           why: "Your 8.7k Claude refusal still leads.",
-          draft: "Limits are your creativity.",
         },
       ],
     });
@@ -305,13 +301,13 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [{ kind: "post", why: "same launch thesis", draft: "Seed." }],
+      actions: [{ kind: "post", why: "same launch thesis" }],
     });
     const [sibling] = insertSuggestions({
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [{ kind: "post", why: "same launch thesis", draft: "Sibling." }],
+      actions: [{ kind: "post", why: "same launch thesis" }],
     });
     assert.ok(seed && sibling);
     getPlatformDb().exec(`
@@ -337,20 +333,20 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [{ kind: "post", why: "extra", draft: "Paid original." }],
+      actions: [{ kind: "post", why: "extra" }],
       origin: "extra",
     });
     insertSuggestions({
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [{ kind: "post", why: "daily", draft: "Daily card." }],
+      actions: [{ kind: "post", why: "daily" }],
     });
     assert.equal(expireOpenSuggestions("u1", now + 5000), 1);
     const active = listActiveSuggestions("u1", now + 6000);
     assert.equal(active.length, 1);
     assert.equal(active[0]?.origin, "extra");
-    assert.equal(active[0]?.draft, "Paid original.");
+    assert.equal(active[0]?.why, "extra");
   });
 
   await it("counts done OG cards today and ignores quotes, skips, and yesterday", () => {
@@ -360,13 +356,13 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: day,
-      drafts: [{ kind: "post", why: "ship the recap", draft: "Shipped." }],
+      actions: [{ kind: "post", why: "ship the recap" }],
     });
     const [quote] = insertSuggestions({
       userId: "u1",
       tenantId: "local",
       nowMs: day,
-      drafts: [
+      actions: [
         {
           kind: "quote",
           why: "quote that rant",
@@ -379,7 +375,7 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: day,
-      drafts: [{ kind: "post", why: "skip me", draft: "Nope." }],
+      actions: [{ kind: "post", why: "skip me" }],
     });
     assert.ok(og && quote && skip);
     markSuggestion({ id: og.id, userId: "u1", status: "done", nowMs: day });
@@ -403,7 +399,7 @@ await describe("forYouStore", async () => {
     const [row] = insertSuggestions({
       userId: "u1",
       tenantId: "local",
-      drafts: [{ kind: "post", why: "best 24h", draft: "Ship it." }],
+      actions: [{ kind: "post", why: "best 24h" }],
     });
     assert.ok(row);
     assert.equal(getSuggestion(row.id, "u1")?.why, "best 24h");
@@ -439,7 +435,7 @@ await describe("forYouStore", async () => {
       read?.why,
       "Your hiring thread is live",
     );
-    assert.equal(read?.draft, "I shipped it.");
+    assert.equal(Object.hasOwn(read ?? {}, "draft"), false);
   });
 
   await it("returns a second-person why from insertSuggestions / replaceDailySuggestions", () => {
@@ -448,11 +444,10 @@ await describe("forYouStore", async () => {
       userId: "u1",
       tenantId: "local",
       nowMs: now,
-      drafts: [
+      actions: [
         {
           kind: "post",
           why: "My hiring thread is live",
-          draft: "I shipped it.",
         },
       ],
     });
@@ -463,7 +458,7 @@ await describe("forYouStore", async () => {
       userId: "u2",
       tenantId: "local",
       nowMs: now + 1000,
-      drafts: [{ kind: "post", why: "I should take the hiring thread", draft: "Ship it." }],
+      actions: [{ kind: "post", why: "I should take the hiring thread" }],
     });
     assert.ok(replaced);
     assert.equal(replaced.why, "You should take the hiring thread");
