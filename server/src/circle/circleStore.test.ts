@@ -101,6 +101,25 @@ await describe("circleStore", async () => {
       { postId: "p1", authorKey: "bob", kind: "reply", at: "2026-09-01T00:00:00.000Z" },
     ]);
     assert.deepEqual(listCircleLinks("someone-else"), []);
+    assert.deepEqual(listCircleLinks(userId, 1).map((link) => link.postId), ["p3"]);
+  });
+
+  await it("never stores author keys the circle would drop", () => {
+    const userId = seedUser("u-circle-bad-keys");
+    assert.equal(
+      recordCircleLinks(userId, [
+        { postId: "p1", authorKey: "@unknown", kind: "reply", at: "2026-09-01T00:00:00.000Z" },
+        { postId: "p2", authorKey: "123456789", kind: "reply", at: "2026-09-01T00:00:00.000Z" },
+      ]),
+      0,
+    );
+    assert.equal(
+      recordCircleLinks(userId, [
+        { postId: "p1", authorKey: "alice", kind: "reply", at: "2026-09-01T00:00:00.000Z" },
+      ]),
+      1,
+    );
+    assert.deepEqual(listCircleLinks(userId).map((link) => link.authorKey), ["alice"]);
   });
 
   await it("derives a reply link from an own post only when the target is someone else", () => {
