@@ -6,6 +6,7 @@ import {
   DIAL_VIEW_HEIGHT,
   DIAL_VIEW_WIDTH,
   arcLabelPoint,
+  hubTouchesBox,
   needleTouchesBox,
   sweptNeedleTouchesBox,
   valueTextBox,
@@ -32,6 +33,15 @@ await describe("gaugeLayout", () => {
     const overlapping = { left: 40, right: 60, top: DIAL_CY - 5, bottom: DIAL_CY + 8 };
     assert.equal(sweptNeedleTouchesBox(overlapping), true);
     assert.equal(needleTouchesBox(-90, { left: 45, right: 55, top: 10, bottom: 30 }), true);
+  }).catch(assert.fail);
+
+  it("detects only actual hub circle and box intersections", () => {
+    const offCenter = { left: 47.4, right: 48.5, top: 41, bottom: 43 };
+    const aboveHub = { left: 45, right: 55, top: 10, bottom: 11 };
+    assert.equal(hubTouchesBox(offCenter), true);
+    assert.equal(hubTouchesBox(aboveHub), false);
+    assert.equal(needleTouchesBox(-90, offCenter), true);
+    assert.equal(needleTouchesBox(-90, aboveHub), false);
   }).catch(assert.fail);
 
   it("keeps the value text inside the view box and clear of the arc-end labels", () => {

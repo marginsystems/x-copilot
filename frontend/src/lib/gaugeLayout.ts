@@ -62,11 +62,11 @@ export function needleTouchesBox(deg: number, box: Box): boolean {
 }
 
 export function hubTouchesBox(box: Box): boolean {
-  return (
-    DIAL_CY + DIAL_HUB_RADIUS >= box.top &&
-    DIAL_CX >= box.left &&
-    DIAL_CX <= box.right
-  );
+  const nearestX = Math.max(box.left, Math.min(DIAL_CX, box.right));
+  const nearestY = Math.max(box.top, Math.min(DIAL_CY, box.bottom));
+  const dx = DIAL_CX - nearestX;
+  const dy = DIAL_CY - nearestY;
+  return dx * dx + dy * dy <= DIAL_HUB_RADIUS * DIAL_HUB_RADIUS;
 }
 
 export function sweptNeedleTouchesBox(box: Box, stepDeg = 1): boolean {
