@@ -14,7 +14,7 @@ import { deferred } from "./support/deferred";
 const user: AuthSessionUser = {
   id: "owner", email: null, displayName: null, avatarUrl: null,
   onboardingCompleted: true, agenda: null, xUsername: "owner",
-  xLinked: true, xCanPost: true, isAdmin: false,
+  xLinked: true, isAdmin: false,
 };
 const suggestion: ForYouSuggestion = {
   id: "suggestion", kind: "reply", why: "Relevant conversation",

@@ -21,7 +21,6 @@ import {
   upsertOauthUser,
 } from "./oauthAccountStore.ts";
 import {
-  saveXWriteCreds,
   userNeedsXHandle,
 } from "./xIdentityStore.ts";
 import {
@@ -517,21 +516,5 @@ await describe("authStore", async () => {
       JSON.stringify(providers).includes("xid-providers"),
       false,
     );
-  });
-
-  await it("exposes xCanPost only after X write tokens are saved", () => {
-    const user = upsertOauthUser({
-      provider: "x",
-      providerUserId: "xid-write",
-      username: "writer",
-      email: "writer@example.com",
-      emailVerified: true,
-    });
-    assert.equal(toPublicUser(user).xCanPost, false);
-    assert.equal(
-      saveXWriteCreds(user.id, "xid-write", { token: "at", secret: "as" }),
-      true,
-    );
-    assert.equal(toPublicUser(user).xCanPost, true);
   });
 });

@@ -4,7 +4,7 @@
 import { stringRow, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
 import { getPlatformDb } from "../db.js";
 import { parseXHandle } from "./xHandle.js";
-import { getXOauthUsername, hasXWriteCreds } from "./xIdentityStore.js";
+import { getXOauthUsername } from "./xIdentityStore.js";
 
 export type AuthUser = {
   id: string;
@@ -44,7 +44,6 @@ export function toPublicUser(user: AuthUser) {
     agenda: user.agenda,
     xUsername,
     xLinked: Boolean(xUsername),
-    xCanPost: hasXWriteCreds(user.id),
   };
 }
 

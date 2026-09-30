@@ -443,7 +443,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
             surface: "reply" as const,
             author: lockedSuggestion.targetAuthor,
             url: lockedSuggestion.targetUrl,
-            text: lockedSuggestion.why ?? null,
+            text: null,
           }
         : null;
     const scoutLock = phase === "scout_reply" ? lockedScout : null;

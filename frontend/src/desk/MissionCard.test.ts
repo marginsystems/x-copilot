@@ -443,6 +443,21 @@ await describe("Gate cards", async () => {
     assert.doesNotMatch(html, /row-detail|caret|aria-expanded|textarea/);
   });
 
+  await it("marks quote, repost and untargeted reply rows with I posted on X instead of Next", () => {
+    const rows: ForYouSuggestion[] = [
+      { ...suggestedPost, id: "suggested-quote", kind: "quote", targetId: "1950000000000000001", targetUrl: "https://x.com/a/status/1950000000000000001", targetAuthor: "@a" },
+      { ...suggestedPost, id: "suggested-repost", kind: "repost", targetId: "1950000000000000002", targetUrl: "https://x.com/b/status/1950000000000000002", targetAuthor: "@b" },
+      { ...suggestedPost, id: "suggested-url-reply", kind: "reply", targetId: null, targetUrl: "https://x.com/c/status/1950000000000000003", targetAuthor: "@c" },
+    ];
+    for (const suggestion of rows) {
+      const html = renderToStaticMarkup(
+        MissionCard(missionProps({ phase: "organic_reply", suggestion })),
+      );
+      assert.match(html, />I posted on X</, suggestion.kind);
+      assert.doesNotMatch(html, />Next</, suggestion.kind);
+    }
+  });
+
   await it("no longer paints usage or wait gates: the feed is open", () => {
     for (const surface of ["usage", "wait"] as const) {
       const html = renderToStaticMarkup(

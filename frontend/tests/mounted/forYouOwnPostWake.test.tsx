@@ -13,7 +13,7 @@ import { DEFAULT_SETTINGS } from "../../src/lib/settings";
 const user: AuthSessionUser = {
   id: "owner", email: null, displayName: null, avatarUrl: null,
   onboardingCompleted: true, agenda: null, xUsername: "owner",
-  xLinked: true, xCanPost: true, isAdmin: false,
+  xLinked: true, isAdmin: false,
 };
 
 class FakeEventSource extends EventTarget {

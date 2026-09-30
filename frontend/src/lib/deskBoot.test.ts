@@ -39,7 +39,6 @@ const user = {
   agenda: "Ship in public",
   xUsername: "ada",
   xLinked: true,
-  xCanPost: true,
   isAdmin: false,
 };
 

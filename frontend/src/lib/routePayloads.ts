@@ -50,7 +50,6 @@ export function parseMail(v: unknown): { digestEmailOptIn: boolean; digestEmailA
 export function parseAccount(v: unknown): AccountPayload | null {
   return envelope(v) && v.ok === true && object(v.user) &&
     fields(v.user, "displayName email avatarUrl xUsername", nullableString) &&
-    optional(v.user, "xCanPost", boolean) &&
     (v.mail === undefined || parseMail(v.mail) !== null) &&
     rows(v.providers, (p) => object(p) && (p.provider === "google" || p.provider === "x") &&
       fields(p, "username email", nullableString)) && rows(v.sessions, session) ? v as AccountPayload : null;

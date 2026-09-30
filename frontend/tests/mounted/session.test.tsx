@@ -9,7 +9,7 @@ import type { AuthSessionUser } from "../../src/auth/types";
 import { deferred } from "./support/deferred";
 import { OTHER_OWNER_HINT, OWNER_HINT, clearOwnerCookie, setOwnerCookie } from "./support/ownerHint";
 
-const owner = (id: string): AuthSessionUser => ({ id, email: null, displayName: id, avatarUrl: null, onboardingCompleted: true, agenda: null, xUsername: null, xLinked: true, xCanPost: true, isAdmin: false });
+const owner = (id: string): AuthSessionUser => ({ id, email: null, displayName: id, avatarUrl: null, onboardingCompleted: true, agenda: null, xUsername: null, xLinked: true, isAdmin: false });
 const payload = (id: string): DeskBootPayload => ({ ok: true, user: owner(id), authRequired: true, ownerHint: OWNER_HINT, desk: null });
 function useHarness() {
   const [agenda, setAgenda] = useState("");

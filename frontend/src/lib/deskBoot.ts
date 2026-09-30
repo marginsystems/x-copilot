@@ -155,7 +155,6 @@ export function parseAuthSessionUser(raw: unknown): AuthSessionUser | null {
         ? raw.xUsername.replace(/^@+/, "")
         : null,
     xLinked: Boolean(raw.xLinked),
-    xCanPost: Boolean(raw.xCanPost),
     isAdmin: Boolean(raw.isAdmin),
   };
 }

@@ -26,14 +26,13 @@ await describe("CHANGELOG", () => {
     }
   }).catch(assert.fail);
 
-  it("opens with the /learn note", () => {
-    assert.equal(CHANGELOG[0]?.title, "What a like is worth");
+  it("opens with the note that we don't write your replies", () => {
+    assert.equal(CHANGELOG[0]?.title, "We don't write your replies");
     assert.equal(
       CHANGELOG[0]?.href,
-      "https://github.com/marginsystems/x-copilot/pull/506",
+      "https://github.com/marginsystems/x-copilot/pull/1053",
     );
-    assert.match(CHANGELOG[0]!.body, /P\(action\)/);
-    assert.match(CHANGELOG[0]!.body, /\/learn/);
+    assert.match(CHANGELOG[0]!.body, /write every word yourself/);
   }).catch(assert.fail);
 
 });
