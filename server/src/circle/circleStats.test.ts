@@ -63,6 +63,28 @@ await describe("buildCircle", async () => {
     assert.equal(circle.members[0]?.lastAt, "2026-09-06T00:00:00.000Z");
   });
 
+  await it("attributes a shared reply post id to its timeline author when they differ", () => {
+    const circle = buildCircle({
+      selfHandle: null,
+      history: [row("@bob", "t1", "2026-09-01T00:00:00.000Z", "r1")],
+      links: [link("alice", "r1", "reply", "2026-09-01T00:00:00.000Z")],
+      profiles: [],
+    });
+    assert.deepEqual(circle.members.map((member) => [member.handle, member.replies]), [["alice", 1]]);
+    assert.deepEqual(circle.totals, { replies: 1, quotes: 0, people: 1 });
+  });
+
+  await it("counts a reply link when its history author is invalid", () => {
+    const circle = buildCircle({
+      selfHandle: null,
+      history: [row("@unknown", "t1", "2026-09-01T00:00:00.000Z", "r1")],
+      links: [link("alice", "r1", "reply", "2026-09-01T00:00:00.000Z")],
+      profiles: [],
+    });
+    assert.deepEqual(circle.members.map((member) => [member.handle, member.replies]), [["alice", 1]]);
+    assert.deepEqual(circle.totals, { replies: 1, quotes: 0, people: 1 });
+  });
+
   await it("counts a quoted post as a quote even when a desk row points at it", () => {
     const circle = buildCircle({
       selfHandle: null,

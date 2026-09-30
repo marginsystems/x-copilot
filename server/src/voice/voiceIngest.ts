@@ -9,6 +9,12 @@
  * Initial onboarding is one page of 100. That is the spend cap.
  */
 import { objectValue } from "../platform/unknownValue.js";
+import {
+  parseXUsers,
+  toXProfile,
+  type XProfile,
+  type XUserRecord,
+} from "../circle/xProfiles.js";
 import { classifyPostKind } from "../x-api/xActivity.js";
 import { xApiGet, type XApiGetResult } from "../x-api/xApi.js";
 import type { VoiceReplyInput } from "./voiceStore.js";
@@ -82,6 +88,54 @@ function repliedToId(tweet: RawTweet): string | null {
   return null;
 }
 
+function quotedId(tweet: RawTweet): string | null {
+  if (!Array.isArray(tweet.referenced_tweets)) return null;
+  for (const ref of tweet.referenced_tweets) {
+    const r = objectValue(ref);
+    if (r.type === "quoted" && typeof r.id === "string") return r.id;
+  }
+  return null;
+}
+
+export type CircleTarget = { authorKey: string; kind: "reply" | "quote" };
+
+export type PulledPost = VoiceReplyInput & {
+  inReplyToUserId?: string | null;
+  circleTarget?: CircleTarget | null;
+};
+
+function includedTweetAuthors(includes: Record<string, unknown>): Map<string, string> {
+  const authors = new Map<string, string>();
+  if (!Array.isArray(includes.tweets)) return authors;
+  for (const item of includes.tweets) {
+    const tweet = objectValue(item);
+    if (typeof tweet.id === "string" && typeof tweet.author_id === "string") {
+      authors.set(tweet.id, tweet.author_id);
+    }
+  }
+  return authors;
+}
+
+function circleTargetFor(
+  tweet: RawTweet,
+  ownXUserId: string,
+  users: ReadonlyMap<string, XUserRecord>,
+  tweetAuthors: ReadonlyMap<string, string>,
+): CircleTarget | null {
+  const quoted = quotedId(tweet);
+  const quotedAuthorId = quoted ? tweetAuthors.get(quoted) : undefined;
+  const quotedUser = quotedAuthorId && quotedAuthorId !== ownXUserId
+    ? users.get(quotedAuthorId)
+    : undefined;
+  if (quotedUser) return { authorKey: quotedUser.authorKey, kind: "quote" };
+  const replyUserId =
+    typeof tweet.in_reply_to_user_id === "string" ? tweet.in_reply_to_user_id : null;
+  const replyUser = replyUserId && replyUserId !== ownXUserId
+    ? users.get(replyUserId)
+    : undefined;
+  return replyUser ? { authorKey: replyUser.authorKey, kind: "reply" } : null;
+}
+
 function isRetweet(tweet: RawTweet): boolean {
   if (!Array.isArray(tweet.referenced_tweets)) return false;
   return tweet.referenced_tweets.some((ref) => {
@@ -96,11 +150,23 @@ function isRetweet(tweet: RawTweet): boolean {
  */
 export function parseUserTweetsPage(
   json: unknown,
-  _ownXUserId: string,
-): { replies: VoiceReplyInput[]; nextToken: string | null; newestId: string | null } {
+  ownXUserId: string,
+  fetchedAt: string = new Date().toISOString(),
+): {
+  replies: PulledPost[];
+  profiles: XProfile[];
+  nextToken: string | null;
+  newestId: string | null;
+} {
   const root = objectValue(json);
   const meta = objectValue(root.meta);
-  const replies: VoiceReplyInput[] = [];
+  const includes = objectValue(root.includes);
+  const includedUsers = parseXUsers(includes.users, fetchedAt);
+  const users = new Map(
+    includedUsers.flatMap((user) => (user.id ? [[user.id, user] as const] : [])),
+  );
+  const tweetAuthors = includedTweetAuthors(includes);
+  const replies: PulledPost[] = [];
   if (Array.isArray(root?.data)) {
     for (const item of root.data) {
       const tweet = objectValue(item);
@@ -127,11 +193,19 @@ export function parseUserTweetsPage(
           referenced_tweets: tweet.referenced_tweets,
           in_reply_to_tweet_id: inReplyToId,
         }),
+        inReplyToUserId:
+          typeof tweet.in_reply_to_user_id === "string"
+            ? tweet.in_reply_to_user_id
+            : null,
+        circleTarget: circleTargetFor(tweet, ownXUserId, users, tweetAuthors),
       });
     }
   }
   return {
     replies,
+    profiles: includedUsers
+      .filter((user) => user.id !== ownXUserId)
+      .map(toXProfile),
     nextToken:
       typeof meta.next_token === "string" ? meta.next_token : null,
     newestId:
@@ -142,7 +216,8 @@ export function parseUserTweetsPage(
 export type PullRepliesResult =
   | {
       ok: true;
-      replies: VoiceReplyInput[];
+      replies: PulledPost[];
+      profiles: XProfile[];
       newestId: string | null;
       pages: number;
       /** True when the pull ran to completion: target reached or the
@@ -166,7 +241,8 @@ export async function pullOwnReplies(opts: {
   const get = opts.deps?.get ?? xApiGet;
   const target = opts.targetReplies ?? VOICE_TARGET_POSTS;
   const maxResults = String(Math.min(100, Math.max(5, target)));
-  const replies: VoiceReplyInput[] = [];
+  const replies: PulledPost[] = [];
+  const profiles = new Map<string, XProfile>();
   let paginationToken: string | undefined;
   let newestId: string | null = null;
   let pages = 0;
@@ -180,6 +256,9 @@ export async function pullOwnReplies(opts: {
         exclude: "retweets",
         "tweet.fields":
           "conversation_id,created_at,in_reply_to_user_id,referenced_tweets",
+        expansions:
+          "in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id",
+        "user.fields": "username,name,profile_image_url",
         since_id: opts.sinceId ?? undefined,
         pagination_token: paginationToken,
       },
@@ -198,6 +277,7 @@ export async function pullOwnReplies(opts: {
     pages += 1;
     const page = parseUserTweetsPage(result.json, opts.xUserId);
     replies.push(...page.replies);
+    for (const profile of page.profiles) profiles.set(profile.authorKey, profile);
     if (!newestId && page.newestId) newestId = page.newestId;
     if (!page.nextToken) {
       completed = true;
@@ -210,6 +290,7 @@ export async function pullOwnReplies(opts: {
   return {
     ok: true,
     replies: replies.slice(0, target),
+    profiles: [...profiles.values()],
     newestId,
     pages,
     completed,
