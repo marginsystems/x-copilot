@@ -29,10 +29,13 @@ await describe("gaugeLayout", () => {
     }
   }).catch(assert.fail);
 
-  it("detects a real collision so the check is not vacuous", () => {
-    const overlapping = { left: 40, right: 60, top: DIAL_CY - 5, bottom: DIAL_CY + 8 };
+  it("detects a mid-sweep collision that endpoint checks miss", () => {
+    const overlapping = { left: 48, right: 52, top: 18, bottom: 22 };
+    assert.equal(needleTouchesBox(GAUGE_START_DEG, overlapping), false);
+    assert.equal(needleTouchesBox(GAUGE_END_DEG, overlapping), false);
+    assert.equal(hubTouchesBox(overlapping), false);
     assert.equal(sweptNeedleTouchesBox(overlapping), true);
-    assert.equal(needleTouchesBox(-90, { left: 45, right: 55, top: 10, bottom: 30 }), true);
+    assert.equal(needleTouchesBox(-90, overlapping), true);
   }).catch(assert.fail);
 
   it("detects only actual hub circle and box intersections", () => {
