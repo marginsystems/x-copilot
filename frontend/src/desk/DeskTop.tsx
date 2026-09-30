@@ -45,7 +45,7 @@ export function DeskTop({
   return (
     <div className={open ? "desk-top" : "desk-top is-collapsed"}>
       <div className="desk-top-bar">
-        {open ? <h2 className="desk-top-bar-title">Cockpit</h2> : null}
+        <h2 className="desk-top-bar-title">Cockpit</h2>
         {barStatus ? (
           <div className="desk-top-bar-copy">
             <p className="status" role="status">
@@ -63,9 +63,12 @@ export function DeskTop({
             onToggle();
           }}
         >
-          <ToggleIcon open={open} />
+          <ToggleIcon />
           <span className="desk-top-toggle-label">
-            {open ? "Hide cockpit" : "Show cockpit"}
+            <span>{open ? "Hide cockpit" : "Show cockpit"}</span>
+            <span className="desk-top-toggle-sizer" aria-hidden="true">
+              Show cockpit
+            </span>
           </span>
         </button>
       </div>
@@ -114,7 +117,7 @@ export function DeskTop({
   );
 }
 
-function ToggleIcon({ open }: { open: boolean }) {
+function ToggleIcon() {
   return (
     <svg
       className="desk-top-toggle-icon"
@@ -128,7 +131,7 @@ function ToggleIcon({ open }: { open: boolean }) {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d={open ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+      <path d="M6 9l6 6 6-6" />
     </svg>
   );
 }
