@@ -20,7 +20,7 @@ type CircleState =
   | { phase: "error" }
   | { phase: "ready"; payload: CircleSharePayload; images: CircleImages; src: string };
 
-const CLOSEST_SHOWN = 8;
+const CLOSEST_SHOWN = 10;
 
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
