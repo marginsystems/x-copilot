@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPlatformDb, resetPlatformDbForTests, defaultMigrationsDir } from "../db.ts";
@@ -10,7 +10,6 @@ import {
   completeOnboarding,
   getUserById,
   setUserXUsername,
-  toPublicUser,
   updateUserAgenda,
 } from "./authStore.ts";
 import {
@@ -33,6 +32,7 @@ import {
   touchSessionMeta,
 } from "./sessionStore.ts";
 import { toPublicSession } from "./sessionView.ts";
+import { expectRecord } from "../http/http.testHelpers.ts";
 
 await describe("authStore", async () => {
   let dir: string;
@@ -515,6 +515,41 @@ await describe("authStore", async () => {
     assert.equal(
       JSON.stringify(providers).includes("xid-providers"),
       false,
+    );
+  });
+
+  await it("clears stored X write tokens and keeps the linked account", () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "xid-tokens",
+      username: "tokenholder",
+      email: "tokens@example.com",
+      emailVerified: true,
+    });
+    const db = getPlatformDb();
+    db.prepare(
+      `UPDATE oauth_accounts
+          SET access_token = 'at', access_token_secret = 'as', write_granted_at = '2026-09-01T00:00:00.000Z'
+        WHERE user_id = ?`,
+    ).run(user.id);
+    db.exec(
+      readFileSync(join(defaultMigrationsDir(), "035_clear_x_write_tokens.sql"), "utf8"),
+    );
+    assert.deepEqual(
+      { ...expectRecord(
+        db
+          .prepare(
+            `SELECT access_token, access_token_secret, write_granted_at, username
+               FROM oauth_accounts WHERE user_id = ?`,
+          )
+          .get(user.id),
+      ) },
+      {
+        access_token: null,
+        access_token_secret: null,
+        write_granted_at: null,
+        username: "tokenholder",
+      },
     );
   });
 });
