@@ -67,10 +67,9 @@ export function formatScaleLabel(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-function edgeAndMidLabels(max: number): Array<{ fraction: number; text: string }> {
+function edgeLabels(max: number): Array<{ fraction: number; text: string }> {
   return [
     { fraction: 0, text: "0" },
-    { fraction: 0.5, text: formatScaleLabel(max / 2) },
     { fraction: 1, text: formatScaleLabel(max) },
   ];
 }
@@ -108,7 +107,7 @@ export function deskGaugeSpecs(g: DeskInstruments): DeskGaugeSpec[] {
       zones: [],
       majorSegments: 2,
       minorPerSegment: 4,
-      tickLabels: edgeAndMidLabels(rateMax),
+      tickLabels: edgeLabels(rateMax),
       showFill: true,
       delta: g.repliesPerHourDelta,
       note: "Last 500 marks on this desk, as a real hourly rate.",
@@ -124,7 +123,7 @@ export function deskGaugeSpecs(g: DeskInstruments): DeskGaugeSpec[] {
       zones: [],
       majorSegments: 2,
       minorPerSegment: 4,
-      tickLabels: edgeAndMidLabels(dayMax),
+      tickLabels: edgeLabels(dayMax),
       showFill: true,
       delta: g.repliesUtcDayDelta,
       note: "Marks this UTC day.",
@@ -140,7 +139,7 @@ export function deskGaugeSpecs(g: DeskInstruments): DeskGaugeSpec[] {
       zones: [],
       majorSegments: 2,
       minorPerSegment: 4,
-      tickLabels: edgeAndMidLabels(cap),
+      tickLabels: edgeLabels(cap),
       showFill: true,
       delta: g.originalsTodayDelta,
       note: "Originals this UTC day. Not quotes, not replies.",
@@ -157,7 +156,7 @@ export function deskGaugeSpecs(g: DeskInstruments): DeskGaugeSpec[] {
       tone: BAND_TONE[g.postsBand],
       majorSegments: 2,
       minorPerSegment: 4,
-      tickLabels: edgeAndMidLabels(cap),
+      tickLabels: edgeLabels(cap),
       showFill: true,
       delta: g.postsTodayDelta,
       note: "Cap comes from level and streak. Streak is a UTC day with an original, reply, or quote — on or off the desk. Likes and follows do not count.",

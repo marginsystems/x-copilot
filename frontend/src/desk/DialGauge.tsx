@@ -21,7 +21,7 @@ const R_TRACK = 34;
 const R_TICK_OUT = 29.5;
 const R_TICK_MAJOR_IN = 24.5;
 const R_TICK_MINOR_IN = 27.5;
-const R_LABEL = 18.5;
+const LABEL_DROP = 8;
 const NEEDLE_LEN = 25;
 const NEEDLE_TAIL = 5;
 
@@ -107,7 +107,8 @@ export function DialGauge({ spec }: { spec: DeskGaugeSpec }) {
           );
         })}
         {spec.tickLabels.map((label) => {
-          const at = polarPoint(CX, CY, R_LABEL, fractionToAngle(label.fraction));
+          const end = polarPoint(CX, CY, R_TRACK, fractionToAngle(label.fraction));
+          const at = { x: end.x, y: end.y + LABEL_DROP };
           return (
             <text
               key={label.fraction}
