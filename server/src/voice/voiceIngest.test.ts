@@ -190,8 +190,46 @@ await describe("pullOwnReplies", async () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.since_id, "555");
     assert.equal(calls[0]?.max_results, "100");
-    assert.equal(calls[0]?.expansions, "in_reply_to_user_id,referenced_tweets.id.author_id");
+    assert.equal(
+      calls[0]?.expansions,
+      "in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id",
+    );
     assert.equal(calls[0]?.["user.fields"], "username,name,profile_image_url");
+  });
+
+  await it("resolves quote targets from the referenced tweets returned by the pull", async () => {
+    const get: XApiGetFn = async (opts) => {
+      assert.equal(
+        opts.query?.expansions,
+        "in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id",
+      );
+      return {
+        ok: true,
+        status: 200,
+        json: {
+          data: [
+            {
+              id: "q1",
+              text: "quote take",
+              referenced_tweets: [{ type: "quoted", id: "p9" }],
+            },
+          ],
+          includes: {
+            tweets: [{ id: "p9", author_id: "88" }],
+            users: [{ id: "88", username: "bob", name: "Bob" }],
+          },
+          meta: { newest_id: "q1" },
+        },
+      };
+    };
+    const result = await pullOwnReplies({ xUserId: OWN_ID, deps: { get } });
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.deepEqual(result.replies[0]?.circleTarget, {
+        authorKey: "bob",
+        kind: "quote",
+      });
+    }
   });
 
   await it("asks X for five tweets when the confirm target is five", async () => {

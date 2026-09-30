@@ -33,6 +33,7 @@ import {
 import { VOICE_TARGET_REPLIES } from "./voiceIngest.ts";
 import { beginVoiceCorpus, confirmRecentOwnPosts, runUserIngest } from "./userIngest.ts";
 import { getXProfiles, listCircleLinks } from "../circle/circleStore.ts";
+import { listConfirmedOwnRepliesPage } from "../desk/ownPostStore.ts";
 
 await describe("runUserIngest", async () => {
   let dir: string;
@@ -175,6 +176,78 @@ await describe("runUserIngest", async () => {
       .prepare(`SELECT in_reply_to_user_id FROM own_posts WHERE user_id = ? AND id = ?`)
       .get(user.id, "r1"));
     assert.equal(row.in_reply_to_user_id, "77");
+  });
+
+  await it("updates reply targets when a pull re-ingests an existing own post", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    const ingestReply = (inReplyToUserId: string | null) =>
+      runUserIngest({
+        user,
+        mode: "initial",
+        deps: {
+          foldLocal: async () => {},
+          resolveUser: async () => ({
+            ok: true,
+            id: "99",
+            username: "me",
+            protected: false,
+          }),
+          pullReplies: async () => ({
+            ok: true,
+            replies: [
+              {
+                id: "existing-reply",
+                text: "self-thread reply",
+                inReplyToId: "parent-post",
+                inReplyToUserId,
+                postedAt: "2026-08-16T10:00:00.000Z",
+                source: "api" as const,
+                kind: "reply" as const,
+              },
+            ],
+            profiles: [],
+            newestId: "existing-reply",
+            pages: 1,
+            completed: true,
+          }),
+          generateCard: async () => ({
+            ok: false as const,
+            error: "skip",
+            message: "under bar",
+          }),
+        },
+      });
+
+    await ingestReply(null);
+    assert.equal(
+      listConfirmedOwnRepliesPage({
+        userId: user.id,
+        limit: 10,
+        excludeSelfReplies: true,
+      }).length,
+      1,
+    );
+
+    await ingestReply("99");
+    const row = expectRecord(getPlatformDb()
+      .prepare(
+        `SELECT in_reply_to_user_id FROM own_posts WHERE user_id = ? AND id = ?`,
+      )
+      .get(user.id, "existing-reply"));
+    assert.equal(row.in_reply_to_user_id, "99");
+    assert.deepEqual(
+      listConfirmedOwnRepliesPage({
+        userId: user.id,
+        limit: 10,
+        excludeSelfReplies: true,
+      }),
+      [],
+    );
   });
 
   await it("hourly pull uses the stored since_id", async () => {

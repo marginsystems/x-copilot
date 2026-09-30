@@ -119,9 +119,8 @@ await describe("caption and intent", () => {
     );
   }).catch(assert.fail);
 
-  it("uses the shown member count when server totals exceed the cap", () => {
-    const parsed = response(70);
-    parsed.totals.people = 180;
+  it("uses the pictured member count when the response total exceeds 64", () => {
+    const parsed = parseCircleResponse(response(70));
     const payload = circleSharePayload(parsed)!;
     assert.equal(payload.members.length, 64);
     assert.equal(circleCountsLine(payload), "638 replies · 13 quotes · 64 people");
@@ -248,7 +247,10 @@ await describe("drawCircleShareImage", () => {
   }
 
   it("clips loaded avatars and paints initials for missing ones", () => {
-    const payload = circleSharePayload(response(64))!;
+    const payload = {
+      ...circleSharePayload(response(64))!,
+      generatedAt: "2026-09-30T23:30:00Z",
+    };
     const images = new Map<string, CanvasImageSource | null>();
     const selfImg: CanvasImageSource = { width: 1, height: 1, close() {} };
     const firstImg: CanvasImageSource = { width: 2, height: 2, close() {} };
@@ -256,7 +258,14 @@ await describe("drawCircleShareImage", () => {
     images.set(payload.members[0]!.avatarUrl!, firstImg);
     images.set(payload.members[1]!.avatarUrl!, null);
     const rec = recordCtx();
-    drawCircleShareImage(rec.ctx, payload, images);
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = "Pacific/Auckland";
+    try {
+      drawCircleShareImage(rec.ctx, payload, images);
+    } finally {
+      if (previousTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimezone;
+    }
     assert.equal(rec.drawn.length, 2);
     assert.ok(rec.drawn.includes(selfImg));
     assert.ok(rec.drawn.includes(firstImg));

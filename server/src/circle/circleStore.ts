@@ -4,6 +4,7 @@ import { getXOauthUsername } from "../auth/xIdentityStore.js";
 import { parseXHandle } from "../auth/xHandle.js";
 import { normalizeAuthorKey } from "../desk/interactionCooldown.js";
 import type { ParsedPostCreate } from "../x-api/xActivity.js";
+import { isCircleAuthorKey } from "./circleStats.js";
 import type { XProfile } from "./xProfiles.js";
 
 export type CircleLinkKind = "reply" | "quote";
@@ -101,7 +102,7 @@ export function recordCircleLinks(
   const selfKey = selfHandle ? normalizeAuthorKey(selfHandle) : "";
   const rows = links.filter((link) => {
     const key = normalizeAuthorKey(link.authorKey);
-    return key && key !== selfKey && link.postId && (link.kind === "reply" || link.kind === "quote");
+    return isCircleAuthorKey(key, selfKey) && link.postId && (link.kind === "reply" || link.kind === "quote");
   });
   if (rows.length === 0) return 0;
   const db = getPlatformDb();
@@ -128,13 +129,15 @@ function parseLinkRow(row: unknown): CircleLink | null {
   return { postId: post_id, authorKey: author_key, kind, at };
 }
 
-export function listCircleLinks(userId: string): CircleLink[] {
+export const CIRCLE_LINKS_READ_MAX = 5000;
+
+export function listCircleLinks(userId: string, limit = CIRCLE_LINKS_READ_MAX): CircleLink[] {
   return getPlatformDb()
     .prepare(
       `SELECT post_id, author_key, kind, at FROM circle_links
-       WHERE user_id = ? ORDER BY at DESC, post_id DESC`,
+       WHERE user_id = ? ORDER BY at DESC, post_id DESC LIMIT ?`,
     )
-    .all(userId)
+    .all(userId, limit)
     .flatMap((row) => {
       const link = parseLinkRow(row);
       return link ? [link] : [];

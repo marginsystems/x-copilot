@@ -12,6 +12,9 @@ import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { markInteracted } from "../desk/interactionStore.ts";
+import { ensureUserTenant } from "../billing/billingStore.ts";
+import { recordUsageEvent } from "../billing/usageMeter.ts";
+import { runWithRequestContext } from "../http/requestContext.ts";
 import type { xApiGet } from "../x-api/xApi.ts";
 import {
   hydrateCircleProfiles,
@@ -148,6 +151,92 @@ await describe("circleHttp", async () => {
       staleCircleHandles([{ ...member, handle: "Alice" }], profiles, nowMs + 60_000),
       [],
     );
+  });
+
+  await it("GET /api/circle fills missing PFPs once per hydrate interval", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-circle-hydrate",
+      email: "h@example.com",
+      emailVerified: true,
+      displayName: "Hydrate Me",
+    });
+    await markInteracted({ threadId: "t1", author: "@alice", userId: user.id, replyId: "r1" });
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    process.env.X_API_BEARER_TOKEN = "test-bearer";
+    const originalFetch = globalThis.fetch;
+    const usersBy: URL[] = [];
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/users/by")) usersBy.push(url);
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: "1",
+              username: "alice",
+              name: "Alice A",
+              profile_image_url: "https://pbs.twimg.com/profile_images/1/a_normal.jpg",
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+    try {
+      const first = await call("/api/circle", cookie);
+      assert.equal(first.status, 200);
+      assert.ok(Array.isArray(first.json.members));
+      assert.equal(
+        expectRecord(first.json.members[0]).avatarUrl,
+        "https://pbs.twimg.com/profile_images/1/a_400x400.jpg",
+      );
+      getPlatformDb().prepare(`DELETE FROM x_profiles`).run();
+      const second = await call("/api/circle", cookie);
+      assert.equal(second.status, 200);
+      assert.ok(Array.isArray(second.json.members));
+      assert.equal(expectRecord(second.json.members[0]).avatarUrl, null);
+      assert.equal(usersBy.length, 1);
+      assert.equal(usersBy[0]?.searchParams.get("usernames"), "alice");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  await it("GET /api/circle skips the PFP lookup without burning the window when credits are exhausted", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-circle-broke",
+      email: "broke@example.com",
+      emailVerified: true,
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const agedAt = new Date(Date.now() - 8 * 24 * 60 * 60_000).toISOString();
+    getPlatformDb().prepare(`UPDATE users SET created_at = ? WHERE id = ?`).run(agedAt, user.id);
+    recordUsageEvent({ tenantId, path: "/2/tweets/search/recent", status: 200, postsRead: 1500 });
+    await markInteracted({ threadId: "t1", author: "@alice", userId: user.id, replyId: "r1" });
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    process.env.X_API_BEARER_TOKEN = "test-bearer";
+    const originalFetch = globalThis.fetch;
+    let usersBy = 0;
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+      if (new URL(String(input)).pathname.endsWith("/users/by")) usersBy += 1;
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const broke = await runWithRequestContext({ tenantId, userId: user.id }, () =>
+        call("/api/circle", cookie),
+      );
+      assert.equal(broke.status, 200);
+      assert.equal(usersBy, 0);
+      const funded = await call("/api/circle", cookie);
+      assert.equal(funded.status, 200);
+      assert.equal(usersBy, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   await it("a failed users/by call writes nothing", async () => {
