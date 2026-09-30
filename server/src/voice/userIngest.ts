@@ -25,8 +25,11 @@ import {
   pullOwnReplies,
   resolveXUser,
   VOICE_TARGET_POSTS,
+  type PulledPost,
   type XApiGetFn,
 } from "./voiceIngest.js";
+import { recordCircleLinks, upsertXProfiles } from "../circle/circleStore.js";
+import type { XProfile } from "../circle/xProfiles.js";
 import {
   ensureVoiceProfile,
   getVoiceProfile,
@@ -41,7 +44,6 @@ import {
   voiceCardIsStarter,
   voiceCardStale,
   voiceUnlocked,
-  type VoiceReplyInput,
 } from "./voiceStore.js";
 import { xApiGet } from "../x-api/xApi.js";
 import type { ParsedPostCreate } from "../x-api/xActivity.js";
@@ -167,8 +169,37 @@ export async function beginVoiceCorpus(opts: {
   return result;
 }
 
+function recordPulledCircle(opts: {
+  userId: string;
+  replies: readonly PulledPost[];
+  profiles: readonly XProfile[];
+  handle: string;
+}): void {
+  try {
+    upsertXProfiles(opts.profiles);
+    recordCircleLinks(
+      opts.userId,
+      opts.replies.flatMap((reply) =>
+        reply.circleTarget
+          ? [
+              {
+                postId: reply.id,
+                authorKey: reply.circleTarget.authorKey,
+                kind: reply.circleTarget.kind,
+                at: reply.postedAt ?? nowIso(),
+              },
+            ]
+          : [],
+      ),
+      opts.handle,
+    );
+  } catch (err) {
+    console.warn(`[ingest] circle record soft-fail userId=${opts.userId}`, err);
+  }
+}
+
 function replyToOwnPost(
-  reply: VoiceReplyInput,
+  reply: PulledPost,
   opts: { xUserId: string; handle: string },
 ): ParsedPostCreate {
   return {
@@ -180,7 +211,7 @@ function replyToOwnPost(
     postedAt: reply.postedAt ?? nowIso(),
     postedAtFallback: !reply.postedAt,
     inReplyToId: reply.inReplyToId ?? null,
-    inReplyToUserId: null,
+    inReplyToUserId: reply.inReplyToUserId ?? null,
     conversationId: reply.conversationId ?? null,
     authorUsername: opts.handle,
     metrics: {},
@@ -189,7 +220,7 @@ function replyToOwnPost(
 
 function foldRepliesIntoOwnPosts(opts: {
   userId: string;
-  replies: VoiceReplyInput[];
+  replies: PulledPost[];
   xUserId: string;
   handle: string;
 }): number {
@@ -296,6 +327,12 @@ async function confirmRecentOwnPostsRun(opts: {
     deps: { get },
   });
   if (!pull.ok) return { ok: false, ingested: 0 };
+  recordPulledCircle({
+    userId: opts.userId,
+    replies: pull.replies,
+    profiles: pull.profiles,
+    handle: resolved.username,
+  });
   return {
     ok: true,
     ingested: foldRepliesIntoOwnPosts({
@@ -392,6 +429,12 @@ export async function runUserIngest(opts: {
       }
       pulled = pull.replies.length;
       upsertVoiceReplies(user.id, pull.replies);
+      recordPulledCircle({
+        userId: user.id,
+        replies: pull.replies,
+        profiles: pull.profiles,
+        handle: resolved.username,
+      });
       await foldLocal(user.id);
       ownPostsIngested = foldRepliesIntoOwnPosts({
         userId: user.id,

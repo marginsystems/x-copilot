@@ -7,13 +7,35 @@ import {
   seedUser,
   type TempPlatformDb,
 } from "../platform/platformDb.testHelpers.ts";
+import type { ParsedPostCreate } from "../x-api/xActivity.ts";
 import {
+  circleLinkFromOwnPost,
   circleSelfHandle,
   getXProfiles,
   listCircleLinks,
   recordCircleLinks,
+  recordOwnPostCircleLink,
   upsertXProfiles,
 } from "./circleStore.ts";
+
+function ownPost(partial: Partial<ParsedPostCreate>): ParsedPostCreate {
+  return {
+    eventUuid: "evt-1",
+    xUserId: "99",
+    postId: "p1",
+    kind: "reply",
+    text: "hi",
+    postedAt: "2026-09-01T00:00:00.000Z",
+    postedAtFallback: false,
+    inReplyToId: "t1",
+    inReplyToUserId: "77",
+    inReplyToUsername: "Alice",
+    conversationId: "t1",
+    authorUsername: "me",
+    metrics: {},
+    ...partial,
+  };
+}
 
 await describe("circleStore", async () => {
   let temp: TempPlatformDb;
@@ -79,5 +101,20 @@ await describe("circleStore", async () => {
       { postId: "p1", authorKey: "bob", kind: "reply", at: "2026-09-01T00:00:00.000Z" },
     ]);
     assert.deepEqual(listCircleLinks("someone-else"), []);
+  });
+
+  await it("derives a reply link from an own post only when the target is someone else", () => {
+    assert.deepEqual(circleLinkFromOwnPost(ownPost({})), {
+      postId: "p1",
+      authorKey: "alice",
+      kind: "reply",
+      at: "2026-09-01T00:00:00.000Z",
+    });
+    assert.equal(circleLinkFromOwnPost(ownPost({ inReplyToUserId: "99" })), null);
+    assert.equal(circleLinkFromOwnPost(ownPost({ inReplyToUsername: null })), null);
+    assert.equal(circleLinkFromOwnPost(ownPost({ kind: "original" })), null);
+    const userId = seedUser("u-own-post");
+    recordOwnPostCircleLink(userId, ownPost({}));
+    assert.deepEqual(listCircleLinks(userId).map((l) => l.authorKey), ["alice"]);
   });
 });

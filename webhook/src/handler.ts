@@ -40,6 +40,7 @@ import {
   type OwnReplyMemoryOpts,
 } from "../../server/src/desk/ownReplyMark.js";
 import { allowRate, clientIp } from "../../server/src/auth/authGuard.js";
+import { recordOwnPostCircleLink } from "../../server/src/circle/circleStore.js";
 
 let testMemoryOpts: OwnReplyMemoryOpts = {};
 
@@ -234,6 +235,7 @@ async function handleActivityPost(
   rememberActivityEvent(parsed.eventUuid, parsed.postedAt);
   rememberActivityEvent(postEventKey, parsed.postedAt);
   upsertOwnPost({ parsed, userId, tenantId });
+  recordOwnPostCircleLink(userId, parsed);
   wakeDesk(parsed, userId).catch((err) => {
     console.warn("[xaa] desk wake soft-fail", err);
   });

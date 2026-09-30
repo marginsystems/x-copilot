@@ -32,6 +32,7 @@ import {
 } from "./voiceStore.ts";
 import { VOICE_TARGET_REPLIES } from "./voiceIngest.ts";
 import { beginVoiceCorpus, confirmRecentOwnPosts, runUserIngest } from "./userIngest.ts";
+import { getXProfiles, listCircleLinks } from "../circle/circleStore.ts";
 
 await describe("runUserIngest", async () => {
   let dir: string;
@@ -83,6 +84,7 @@ await describe("runUserIngest", async () => {
                 source: "api",
               },
             ],
+            profiles: [],
             newestId: "r1",
             pages: 1,
             completed: true,
@@ -101,6 +103,78 @@ await describe("runUserIngest", async () => {
     const profile = getVoiceProfile(user.id);
     assert.equal(profile?.sinceId, "r1");
     assert.equal(profile?.xUserId, "99");
+  });
+
+  await it("records circle profiles and links from the pull, skipping self", async () => {
+    const user = upsertOauthUser({
+      provider: "x",
+      providerUserId: "99",
+      emailVerified: false,
+      username: "me",
+    });
+    await runUserIngest({
+      user,
+      mode: "initial",
+      deps: {
+        foldLocal: async () => 0,
+        resolveUser: async () => ({ ok: true, id: "99", username: "me", protected: false }),
+        pullReplies: async () => ({
+          ok: true,
+          replies: [
+            {
+              id: "r1",
+              text: "reply to alice",
+              inReplyToId: "p1",
+              inReplyToUserId: "77",
+              postedAt: "2026-08-16T10:00:00.000Z",
+              source: "api",
+              kind: "reply",
+              circleTarget: { authorKey: "alice", kind: "reply" },
+            },
+            {
+              id: "q1",
+              text: "quoting bob",
+              postedAt: "2026-08-16T11:00:00.000Z",
+              source: "api",
+              kind: "quote",
+              circleTarget: { authorKey: "bob", kind: "quote" },
+            },
+            {
+              id: "s1",
+              text: "self thread",
+              inReplyToId: "r0",
+              inReplyToUserId: "99",
+              postedAt: "2026-08-16T12:00:00.000Z",
+              source: "api",
+              kind: "reply",
+              circleTarget: { authorKey: "me", kind: "reply" },
+            },
+          ],
+          profiles: [
+            {
+              authorKey: "alice",
+              handle: "Alice",
+              name: "Alice A",
+              avatarUrl: "https://pbs.twimg.com/a_400x400.jpg",
+              updatedAt: "2026-08-16T12:00:00.000Z",
+            },
+          ],
+          newestId: "s1",
+          pages: 1,
+          completed: true,
+        }),
+        generateCard: async () => ({ ok: false, error: "skip", message: "under bar" }),
+      },
+    });
+    assert.deepEqual(listCircleLinks(user.id), [
+      { postId: "q1", authorKey: "bob", kind: "quote", at: "2026-08-16T11:00:00.000Z" },
+      { postId: "r1", authorKey: "alice", kind: "reply", at: "2026-08-16T10:00:00.000Z" },
+    ]);
+    assert.equal(getXProfiles(["alice"]).get("alice")?.name, "Alice A");
+    const row = expectRecord(getPlatformDb()
+      .prepare(`SELECT in_reply_to_user_id FROM own_posts WHERE user_id = ? AND id = ?`)
+      .get(user.id, "r1"));
+    assert.equal(row.in_reply_to_user_id, "77");
   });
 
   await it("hourly pull uses the stored since_id", async () => {
@@ -133,6 +207,7 @@ await describe("runUserIngest", async () => {
               source: "api",
             },
           ],
+          profiles: [],
           newestId: "r1",
           pages: 1,
           completed: true,
@@ -161,6 +236,7 @@ await describe("runUserIngest", async () => {
           return {
             ok: true,
             replies: [],
+            profiles: [],
             newestId: "r1",
             pages: 1,
             completed: true,
@@ -200,6 +276,7 @@ await describe("runUserIngest", async () => {
           return {
             ok: true,
             replies: [],
+            profiles: [],
             newestId: "r1",
             pages: 1,
             completed: true,
@@ -244,6 +321,7 @@ await describe("runUserIngest", async () => {
             postedAt: "2026-08-16T10:00:00.000Z",
             source: "api" as const,
           })),
+          profiles: [],
           newestId: "starter-11",
           pages: 1,
           completed: true,
@@ -321,6 +399,7 @@ await describe("runUserIngest", async () => {
         pullReplies: async () => ({
           ok: true,
           replies: [{ id: "post-100", text: "the hundredth post" }],
+          profiles: [],
           newestId: "post-100",
           pages: 1,
           completed: true,
@@ -383,6 +462,7 @@ await describe("runUserIngest", async () => {
         pullReplies: async () => ({
           ok: true,
           replies,
+          profiles: [],
           newestId: "r99",
           pages: 1,
           completed: true,
@@ -462,6 +542,7 @@ await describe("runUserIngest", async () => {
           return {
             ok: true,
             replies: [],
+            profiles: [],
             newestId: "r0",
             pages: 1,
             completed: true,
@@ -477,6 +558,7 @@ await describe("runUserIngest", async () => {
         pullReplies: async () => ({
           ok: true,
           replies,
+          profiles: [],
           newestId: "r99",
           pages: 1,
           completed: true,
@@ -558,6 +640,7 @@ await describe("runUserIngest", async () => {
           postedAt: "2026-08-24T10:00:00.000Z",
           source: "api" as const,
         })),
+        profiles: [],
         newestId: opts.replies[0]?.id ?? "seed-99",
         pages: 1,
         completed: true,
@@ -693,6 +776,7 @@ await describe("runUserIngest", async () => {
             postedAt: "2026-08-10T10:00:00.000Z",
             source: "api" as const,
           })),
+          profiles: [],
           newestId: "seed-99",
           pages: 1,
           completed: false,
@@ -839,6 +923,7 @@ await describe("runUserIngest", async () => {
           conversationId: "c1",
           source: "api" as const,
         })),
+        profiles: [],
         newestId: replies[0]?.id ?? "r1",
         pages: 1,
         completed: true,
@@ -964,6 +1049,7 @@ await describe("beginVoiceCorpus", async () => {
               source: "api",
             },
           ],
+          profiles: [],
           newestId: "1",
           pages: 1,
           completed: true,
@@ -1199,6 +1285,7 @@ await describe("beginVoiceCorpus", async () => {
         pullReplies: async () => ({
           ok: true,
           replies: [],
+          profiles: [],
           newestId: "old-b",
           pages: 1,
           completed: true,
@@ -1293,6 +1380,7 @@ await describe("confirmRecentOwnPosts", async () => {
                 source: "api",
               },
             ],
+            profiles: [],
             newestId: "q1",
             pages: 1,
             completed: true,

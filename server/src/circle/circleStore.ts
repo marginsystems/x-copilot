@@ -3,6 +3,7 @@ import { getPlatformDb } from "../db.js";
 import { getXOauthUsername } from "../auth/xIdentityStore.js";
 import { parseXHandle } from "../auth/xHandle.js";
 import { normalizeAuthorKey } from "../desk/interactionCooldown.js";
+import type { ParsedPostCreate } from "../x-api/xActivity.js";
 import type { XProfile } from "./xProfiles.js";
 
 export type CircleLinkKind = "reply" | "quote";
@@ -72,6 +73,24 @@ export function getXProfiles(authorKeys: readonly string[]): Map<string, XProfil
     }
   }
   return out;
+}
+
+export function circleLinkFromOwnPost(parsed: ParsedPostCreate): CircleLink | null {
+  if (parsed.kind !== "reply" || !parsed.inReplyToUsername) return null;
+  if (parsed.inReplyToUserId && parsed.inReplyToUserId === parsed.xUserId) return null;
+  const authorKey = normalizeAuthorKey(parsed.inReplyToUsername);
+  if (!authorKey) return null;
+  return { postId: parsed.postId, authorKey, kind: "reply", at: parsed.postedAt };
+}
+
+export function recordOwnPostCircleLink(userId: string, parsed: ParsedPostCreate): void {
+  const link = circleLinkFromOwnPost(parsed);
+  if (!link) return;
+  try {
+    recordCircleLinks(userId, [link]);
+  } catch (err) {
+    console.warn(`[circle] own-post link soft-fail userId=${userId}`, err);
+  }
 }
 
 export function recordCircleLinks(
