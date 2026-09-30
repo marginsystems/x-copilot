@@ -294,6 +294,7 @@ export function formatCircleDate(iso: string): string | null {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   }).format(new Date(t));
 }
 
@@ -302,11 +303,11 @@ function plural(n: number, one: string, many: string): string {
 }
 
 export function circleCountsLine(payload: CircleSharePayload): string {
-  const { replies, quotes, people } = payload.totals;
+  const { replies, quotes } = payload.totals;
   return [
     plural(replies, "reply", "replies"),
     plural(quotes, "quote", "quotes"),
-    plural(Math.max(people, payload.members.length), "person", "people"),
+    plural(payload.members.length, "person", "people"),
   ].join(" · ");
 }
 
