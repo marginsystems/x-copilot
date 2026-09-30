@@ -86,15 +86,9 @@ export function parseQuoteTargets(
   json: unknown,
   posts: readonly PendingQuotePost[],
   fetchedAt: string,
-): { links: CircleLink[]; profiles: XProfile[]; checkedPostIds: string[] } {
+): { links: CircleLink[]; profiles: XProfile[] } {
   const root = objectValue(json);
   const includes = objectValue(root.includes);
-  const unavailable = new Set(
-    (Array.isArray(root.errors) ? root.errors : []).flatMap((error) => {
-      const resourceId = objectValue(error).resource_id;
-      return typeof resourceId === "string" ? [resourceId] : [];
-    }),
-  );
   const users = new Map(
     parseXUsers(includes.users, fetchedAt).flatMap((user) =>
       user.id ? [[user.id, user] as const] : [],
@@ -115,32 +109,16 @@ export function parseQuoteTargets(
   }
   const links: CircleLink[] = [];
   const profiles = new Map<string, XProfile>();
-  const checkedPostIds: string[] = [];
   for (const post of posts) {
     const quoted = post.quotedPostId ?? quotedByPost.get(post.postId);
-    if (!quoted) {
-      if (unavailable.has(quoteLookupId(post))) checkedPostIds.push(post.postId);
-      continue;
-    }
-    const authorId = tweetAuthors.get(quoted);
-    if (!authorId) {
-      if (unavailable.has(quoted)) checkedPostIds.push(post.postId);
-      continue;
-    }
-    if (authorId === post.xUserId) {
-      checkedPostIds.push(post.postId);
-      continue;
-    }
+    const authorId = quoted ? tweetAuthors.get(quoted) : undefined;
+    if (!authorId || authorId === post.xUserId) continue;
     const user = users.get(authorId);
-    if (!user) {
-      checkedPostIds.push(post.postId);
-      continue;
-    }
+    if (!user) continue;
     links.push({ postId: post.postId, authorKey: user.authorKey, kind: "quote", at: post.postedAt });
     profiles.set(user.authorKey, toXProfile(user));
-    checkedPostIds.push(post.postId);
   }
-  return { links, profiles: [...profiles.values()], checkedPostIds };
+  return { links, profiles: [...profiles.values()] };
 }
 
 export async function resolveQuoteTargets(opts: {
@@ -173,11 +151,11 @@ export async function resolveQuoteTargets(opts: {
       result.failed = true;
       break;
     }
-    const { links, profiles, checkedPostIds } = parseQuoteTargets(response.json, batch, fetchedAt);
+    const { links, profiles } = parseQuoteTargets(response.json, batch, fetchedAt);
     upsertXProfiles(profiles);
     result.linked += recordCircleLinks(opts.userId, links);
-    markQuotePostsChecked(opts.userId, checkedPostIds, fetchedAt);
-    result.checked += checkedPostIds.length;
+    markQuotePostsChecked(opts.userId, batch.map((post) => post.postId), fetchedAt);
+    result.checked += batch.length;
   }
   return result;
 }

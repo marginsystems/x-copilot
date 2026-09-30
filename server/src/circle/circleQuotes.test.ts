@@ -161,14 +161,15 @@ await describe("circleQuotes", async () => {
     assert.deepEqual(listPendingQuotePosts(userId, 10), []);
   });
 
-  await it("leaves an unresolved quote pending when the lookup has no target data", async () => {
+  await it("checks a quote once when a successful lookup has no target data", async () => {
     const tenantId = ensureUserTenant(userId);
     upsertOwnPost({ parsed: quotePost({ quotedPostId: "missing" }), userId, tenantId });
+    upsertOwnPost({ parsed: quotePost({ postId: "q2", eventUuid: "evt-q2" }), userId, tenantId });
     const fetchTweets: typeof xApiGet = () =>
       Promise.resolve({ ok: true, status: 200, json: {} });
     const result = await resolveQuoteTargets({ userId, nowMs: 0, fetchTweets });
-    assert.deepEqual(result, { checked: 0, linked: 0, failed: false });
-    assert.deepEqual(listPendingQuotePosts(userId, 10).map((post) => post.postId), ["q1"]);
+    assert.deepEqual(result, { checked: 2, linked: 0, failed: false });
+    assert.deepEqual(listPendingQuotePosts(userId, 10), []);
   });
 
   await it("permanently checks self-quotes and targets without included users", async () => {
