@@ -17,6 +17,10 @@
   --gain: #7dba8a;
   --gain-dim: #2f4a36;
   --ink: #161310;
+  --gauge-track: #332d27;
+  --gauge-tick: #7d746a;
+  --gauge-bezel: #4d453c;
+  --gauge-warn: #d9a441;
   --on-accent: #161310;
   --radius: 4px;
   --font-head: "Space Grotesk", "Segoe UI", sans-serif;
@@ -40,6 +44,10 @@
   --gain: #2d6a3c;
   --gain-dim: #cfe3d4;
   --ink: #fffaf4;
+  --gauge-track: #ddd4c8;
+  --gauge-tick: #6b6259;
+  --gauge-bezel: #b8ad9f;
+  --gauge-warn: #9a6700;
   --on-accent: #ffffff;
 }
 

@@ -92,6 +92,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .dial-needle,
+  .dial-fill {
+    transition: none;
+  }
+
   .desk-circle-preview.is-skeleton,
   .desk-circle-skeleton-row {
     animation: none;
