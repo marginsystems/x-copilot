@@ -11,13 +11,13 @@ import { expectRecord, testRequest, testResponse } from "../http/http.testHelper
 import { ownerHintForSession } from "./sessionCookie.ts";
 import {
   completeXLogin,
-  enlargeXAvatarUrl,
   fetchXAccessToken,
   fetchXProfileAvatar,
   fetchXRequestToken,
   handleXCallback,
   X_OAUTH_COOKIE,
 } from "./xAuth.ts";
+import { enlargeXAvatarUrl } from "../x-api/xAvatar.ts";
 
 await describe("xAuth", async () => {
   let dir: string;

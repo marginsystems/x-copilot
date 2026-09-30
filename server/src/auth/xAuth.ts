@@ -34,6 +34,7 @@ import {
 import { beginVoiceCorpus } from "../voice/userIngest.js";
 import { X_API_BASE, getXApiCredsFromEnv } from "../x-api/xApi.js";
 import { parseXHandle } from "./xHandle.js";
+import { enlargeXAvatarUrl } from "../x-api/xAvatar.js";
 
 export const X_OAUTH_COOKIE = "xc_x_oauth";
 const REQUEST_TOKEN_URL = "https://api.twitter.com/oauth/request_token";
@@ -45,13 +46,6 @@ export type XOauthProfile = {
   username: string;
   avatarUrl?: string | null;
 };
-
-/** X v2 returns `_normal`; the menu card wants a larger crop. */
-export function enlargeXAvatarUrl(url: string): string {
-  return url.replace(/_normal(\.[a-zA-Z0-9]+)?$/, (_m, ext: string | undefined) =>
-    ext ? `_400x400${ext}` : "_400x400",
-  );
-}
 
 export async function fetchXProfileAvatar(
   username: string,
