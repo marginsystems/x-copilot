@@ -428,10 +428,7 @@ export function createBubbleMap(
         body.y = clamp(y - drag.offsetY, body.r, box.height - body.r);
         body.vx = 0;
         body.vy = 0;
-        if (reduced()) {
-          stepBodies(bodies, box, { dragged: drag.index });
-          scheduleDraw();
-        } else wake();
+        wake();
       }
       return;
     }

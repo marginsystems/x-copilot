@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { packBubbles } from "../lib/bubbleLayout.ts";
+import { packBubbles, stepBodies } from "../lib/bubbleLayout.ts";
 import { memberScore } from "../lib/circleLeaderboard.ts";
 import type { CircleSharePayload } from "../lib/circleShare.ts";
 import { createBubbleMap } from "./bubbleMapEngine.ts";
@@ -30,6 +30,7 @@ function payload(count: number): CircleSharePayload {
 
 function fakeElement() {
   const listeners = new Map<string, Listener>();
+  const arcs: Array<[number, number, number]> = [];
   const element = {
     className: "",
     hidden: false,
@@ -42,6 +43,7 @@ function fakeElement() {
     height: 0,
     textContent: "",
     listeners,
+    arcs,
     setAttribute() {},
     appendChild() {},
     replaceChildren() {},
@@ -56,20 +58,38 @@ function fakeElement() {
     releasePointerCapture() {},
     hasPointerCapture: () => true,
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
-    getContext: () => new Proxy({}, { get: () => () => undefined, set: () => true }),
+    getContext: () =>
+      new Proxy(
+        { arc: (x: number, y: number, r: number) => arcs.push([x, y, r]) },
+        {
+          get: (target, key) => (key in target ? target[key as keyof typeof target] : () => undefined),
+          set: () => true,
+        },
+      ),
   };
   return element;
 }
 
 const saved: Record<string, unknown> = {};
 let opened: unknown[][] = [];
+let frames = new Map<number, (time: number) => void>();
+let nextFrame = 1;
 
 beforeEach(() => {
   opened = [];
   const g = globalThis as Record<string, unknown>;
-  for (const key of ["document", "window", "getComputedStyle", "requestAnimationFrame", "cancelAnimationFrame"]) {
+  for (const key of [
+    "document",
+    "window",
+    "getComputedStyle",
+    "matchMedia",
+    "requestAnimationFrame",
+    "cancelAnimationFrame",
+  ]) {
     saved[key] = g[key];
   }
+  frames = new Map();
+  nextFrame = 1;
   g.document = {
     createElement: () => fakeElement(),
     addEventListener() {},
@@ -85,8 +105,13 @@ beforeEach(() => {
     },
   };
   g.getComputedStyle = () => ({ getPropertyValue: () => "" });
-  g.requestAnimationFrame = () => 1;
-  g.cancelAnimationFrame = () => undefined;
+  g.matchMedia = () => ({ matches: false, addEventListener() {} });
+  g.requestAnimationFrame = (callback: (time: number) => void) => {
+    const id = nextFrame++;
+    frames.set(id, callback);
+    return id;
+  };
+  g.cancelAnimationFrame = (id: number) => frames.delete(id);
 });
 
 afterEach(() => {
@@ -97,7 +122,11 @@ afterEach(() => {
   }
 });
 
-function setup(count: number) {
+function setup(count: number, reducedMotion = false) {
+  (globalThis as Record<string, unknown>).matchMedia = () => ({
+    matches: reducedMotion,
+    addEventListener() {},
+  });
   const canvas = fakeElement();
   const host = fakeElement();
   const hovers: Array<string | null> = [];
@@ -110,7 +139,14 @@ function setup(count: number) {
   const bodies = packBubbles(scores, BOX);
   const fire = (type: string, x: number, y: number) =>
     canvas.listeners.get(type)?.({ pointerId: 1, pointerType: "mouse", button: 0, clientX: x, clientY: y });
-  return { engine, bodies, fire, hovers };
+  return { engine, bodies, fire, hovers, canvas };
+}
+
+function runFrame(time: number): void {
+  const next = frames.entries().next().value as [number, (time: number) => void] | undefined;
+  if (!next) throw new Error("No animation frame was scheduled");
+  frames.delete(next[0]);
+  next[1](time);
 }
 
 await describe("bubbleMapEngine", () => {
@@ -129,6 +165,28 @@ await describe("bubbleMapEngine", () => {
     fire("pointermove", target.x + 30, target.y + 30);
     fire("pointerup", target.x + 30, target.y + 30);
     assert.deepEqual(opened, []);
+  }).catch(assert.fail);
+
+  it("coalesces reduced-motion drag physics into an animation frame", () => {
+    const { bodies, fire, canvas } = setup(12, true);
+    const data = payload(12);
+    const expected = packBubbles(data.members.map((m) => Math.max(1, memberScore(m))), BOX);
+    const target = bodies[5]!;
+    fire("pointerdown", target.x, target.y);
+    fire("pointermove", target.x + 30, target.y + 30);
+    fire("pointermove", target.x + 40, target.y + 40);
+    fire("pointermove", target.x + 50, target.y + 50);
+    expected[5]!.x = Math.min(target.x + 50, BOX.width - target.r);
+    expected[5]!.y = Math.min(target.y + 50, BOX.height - target.r);
+    stepBodies(expected, BOX, { dragged: 5 });
+    const initialFrameTime = performance.now();
+    runFrame(initialFrameTime + 17);
+    runFrame(initialFrameTime + 17);
+    const visible = canvas.arcs
+      .slice(-expected.length * 2 - 1, -1)
+      .filter((_, index) => index % 2 === 0);
+    const order = expected.map((_, i) => i).sort((a, b) => expected[b]!.r - expected[a]!.r);
+    assert.deepEqual(visible, order.map((i) => [expected[i]!.x, expected[i]!.y, expected[i]!.r]));
   }).catch(assert.fail);
 
   it("survives new data mid-drag with fewer bodies", () => {
