@@ -257,7 +257,7 @@ test("a paced Scout card gates Open on X in place and keeps the card usable", ()
   expect(gated?.classList.contains("is-paced")).toBe(true);
   expect(gated?.getAttribute("aria-disabled")).toBe("true");
   expect(gated?.disabled).toBe(false);
-  expect(gated?.dataset.tip).toContain("0:34 left");
+  expect(gated?.dataset.tip).toContain("Next reply in 0:34.");
   expect(gated?.querySelector(".row-open-label")?.textContent).toBe("Open on X");
   expect(gated?.querySelector(".row-open-ring")).not.toBeNull();
   expect(gated?.getAttribute("aria-label")).toContain("0:34 left");
