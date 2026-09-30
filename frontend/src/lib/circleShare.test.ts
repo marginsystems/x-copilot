@@ -118,6 +118,14 @@ await describe("caption and intent", () => {
       "638 replies · 13 quotes · 64 people",
     );
   }).catch(assert.fail);
+
+  it("uses the shown member count when server totals exceed the cap", () => {
+    const parsed = response(70);
+    parsed.totals.people = 180;
+    const payload = circleSharePayload(parsed)!;
+    assert.equal(payload.members.length, 64);
+    assert.equal(circleCountsLine(payload), "638 replies · 13 quotes · 64 people");
+  }).catch(assert.fail);
 });
 
 await describe("circleRings", () => {
@@ -274,6 +282,16 @@ await describe("drawCircleShareImage", () => {
     assert.equal(rec.drawn.length, 0);
     assert.ok(rec.texts.includes("MM"));
     assert.ok(rec.texts.includes("Me Myself"));
+  }).catch(assert.fail);
+
+  it("renders matching header and people counts when server totals exceed the cap", () => {
+    const parsed = response(70);
+    parsed.totals.people = 180;
+    const payload = circleSharePayload(parsed)!;
+    const rec = recordCtx();
+    drawCircleShareImage(rec.ctx, payload, new Map());
+    assert.ok(rec.texts.includes("THE 64 PEOPLE I TALK WITH MOST"));
+    assert.ok(rec.texts.includes("638 replies · 13 quotes · 64 people"));
   }).catch(assert.fail);
 });
 

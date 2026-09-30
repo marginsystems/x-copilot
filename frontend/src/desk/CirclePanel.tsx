@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import {
   CIRCLE_MIN_MEMBERS,
+  CIRCLE_SHARE_HEIGHT,
+  CIRCLE_SHARE_WIDTH,
   circleSharePayload,
   circleShareIntentUrl,
   downloadCircleSharePng,
@@ -15,6 +17,7 @@ type CircleImages = Awaited<ReturnType<typeof loadCircleImages>>;
 type CircleState =
   | { phase: "loading" }
   | { phase: "empty" }
+  | { phase: "error" }
   | { phase: "ready"; payload: CircleSharePayload; images: CircleImages; src: string };
 
 const CLOSEST_SHOWN = 8;
@@ -42,7 +45,7 @@ export function CirclePanel({ refreshKey }: { refreshKey: string }) {
       url = URL.createObjectURL(blob);
       setState({ phase: "ready", payload, images, src: url });
     })().catch(() => {
-      if (!dead) setState((prev) => (prev.phase === "ready" ? prev : { phase: "empty" }));
+      if (!dead) setState((prev) => (prev.phase === "ready" ? prev : { phase: "error" }));
     });
     return () => {
       dead = true;
@@ -69,6 +72,14 @@ export function CirclePanel({ refreshKey }: { refreshKey: string }) {
     );
   }
 
+  if (state.phase === "error") {
+    return (
+      <div className="desk-circle">
+        <p className="desk-circle-empty">Could not load your circle. Refresh the desk to try again.</p>
+      </div>
+    );
+  }
+
   const { payload, images, src } = state;
   const closest = payload.members.slice(0, CLOSEST_SHOWN);
 
@@ -76,6 +87,8 @@ export function CirclePanel({ refreshKey }: { refreshKey: string }) {
     <div className="desk-circle">
       <img
         className="desk-circle-preview"
+        width={CIRCLE_SHARE_WIDTH}
+        height={CIRCLE_SHARE_HEIGHT}
         src={src}
         alt={`X Circle card with ${payload.members.length} people`}
       />
@@ -83,7 +96,7 @@ export function CirclePanel({ refreshKey }: { refreshKey: string }) {
         <div className="desk-circle-head">
           <span className="desk-circle-label">Closest</span>
           <span className="desk-circle-count">
-            {plural(payload.totals.people, "person", "people")}
+            {plural(payload.members.length, "person", "people")}
           </span>
         </div>
         <ol className="desk-circle-list">

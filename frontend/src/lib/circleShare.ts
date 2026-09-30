@@ -120,13 +120,11 @@ export function parseCircleResponse(json: unknown): CircleResponse | null {
 }
 
 export async function fetchCircle(): Promise<CircleResponse | null> {
-  try {
-    const res = await apiFetch("/api/circle");
-    if (!res.ok) return null;
-    return parseCircleResponse(await res.json());
-  } catch {
-    return null;
-  }
+  const res = await apiFetch("/api/circle");
+  if (!res.ok) throw new Error("Circle request failed");
+  const parsed = parseCircleResponse(await res.json());
+  if (!parsed) throw new Error("Invalid circle response");
+  return parsed;
 }
 
 export function circleRefreshKey(
@@ -310,11 +308,11 @@ function plural(n: number, one: string, many: string): string {
 }
 
 export function circleCountsLine(payload: CircleSharePayload): string {
-  const { replies, quotes, people } = payload.totals;
+  const { replies, quotes } = payload.totals;
   return [
     plural(replies, "reply", "replies"),
     plural(quotes, "quote", "quotes"),
-    plural(Math.max(people, payload.members.length), "person", "people"),
+    plural(payload.members.length, "person", "people"),
   ].join(" · ");
 }
 
