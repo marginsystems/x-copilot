@@ -3,20 +3,18 @@ import assert from "node:assert/strict";
 import {
   APPROACH_TAB_LABEL,
   parseForYouExtra,
-  forYouComposeSeed,
   forYouKindClass,
   forYouKindLabel,
   forYouKindShort,
   forYouOpenUrl,
-  forYouUsesDeskCompose,
   parseForYouProgress,
   parseForYouSuggestion,
-  FYP_ACTION_COPY,
+  FYP_COMPOSE_TIP,
   FYP_INSPIRATION_TIP,
   FYP_NEXT_TIP,
   FYP_OPEN_TIP,
   FYP_WAIT_COPY,
-  X_FOR_YOU_URL,
+  X_COMPOSE_URL,
   X_INSPIRATION_URL,
   type ForYouSuggestion,
 } from "./forYou.ts";
@@ -25,7 +23,6 @@ const base: ForYouSuggestion = {
   id: "s1",
   kind: "post",
   why: "900 views",
-  draft: "Ship a recap.",
   targetId: null,
   targetUrl: null,
   targetAuthor: null,
@@ -45,30 +42,7 @@ await describe("forYou helpers", async () => {
     });
     assert.equal(row?.kind, "quote");
     assert.equal(row?.targetId, "10");
-  }).catch(assert.fail);
-
-  it("only post and quote cards with a numeric target use the desk compose path", () => {
-    assert.equal(forYouUsesDeskCompose(base), true);
-    assert.equal(
-      forYouUsesDeskCompose({ ...base, kind: "quote", targetId: "10" }),
-      true,
-    );
-    assert.equal(
-      forYouUsesDeskCompose({
-        ...base,
-        kind: "quote",
-        targetId: null,
-        targetUrl: "https://x.com/a/status/10",
-      }),
-      false,
-    );
-    assert.equal(forYouUsesDeskCompose({ ...base, kind: "reply" }), false);
-    assert.equal(forYouUsesDeskCompose({ ...base, kind: "repost" }), false);
-    assert.equal(forYouComposeSeed(base), "900 views\n\nShip a recap.");
-    assert.equal(
-      forYouComposeSeed({ ...base, draft: null }),
-      "900 views",
-    );
+    assert.equal(Object.hasOwn(row!, "draft"), false);
   }).catch(assert.fail);
 
   await it("labels kinds and picks an Open on X url", () => {
@@ -82,7 +56,6 @@ await describe("forYou helpers", async () => {
       forYouOpenUrl({
         ...base,
         kind: "reply",
-        draft: "hey",
         targetId: "77",
         targetUrl: "https://x.com/a/status/77",
       }),
@@ -90,34 +63,36 @@ await describe("forYou helpers", async () => {
     );
   });
 
-  await it("opens post rows on For You without the digest draft or target", () => {
+  await it("opens post rows on a blank X compose with no prefilled text or target", () => {
     for (const row of [
       base,
-      { ...base, draft: null },
       { ...base, targetUrl: "https://x.com/a/status/77", targetId: "77" },
       { ...base, targetId: "77" },
     ]) {
       const url = forYouOpenUrl(row);
-      assert.equal(url, X_FOR_YOU_URL);
-      assert.ok(!decodeURIComponent(url!).includes(base.draft!));
+      assert.equal(url, X_COMPOSE_URL);
+      assert.equal(new URL(url!).search, "");
     }
   });
 
-  it("keeps the draft fallback for a quote without a target", () => {
-    const compose = forYouOpenUrl({ ...base, kind: "quote" });
-    assert.ok(compose?.includes("intent/tweet"));
-    assert.ok(compose?.includes("Ship"));
+  it("opens a quote or repost target by status id and never builds a compose from text", () => {
     assert.equal(
-      forYouOpenUrl({ ...base, kind: "quote", draft: null }),
-      null,
+      forYouOpenUrl({ ...base, kind: "quote", targetId: "10" }),
+      "https://x.com/i/status/10",
     );
+    assert.equal(
+      forYouOpenUrl({ ...base, kind: "repost", targetId: "11" }),
+      "https://x.com/i/status/11",
+    );
+    assert.equal(forYouOpenUrl({ ...base, kind: "quote" }), null);
+    assert.equal(forYouOpenUrl({ ...base, kind: "quote", targetId: "abc" }), null);
   }).catch(assert.fail);
 
-  await it("opens a reply intent with the draft when only a numeric target id is present", () => {
+  await it("opens an empty reply intent when only a numeric target id is present", () => {
     const url = new URL(forYouOpenUrl({ ...base, kind: "reply", targetId: "77" })!);
     assert.equal(url.origin + url.pathname, "https://x.com/intent/tweet");
     assert.equal(url.searchParams.get("in_reply_to"), "77");
-    assert.equal(url.searchParams.get("text"), base.draft);
+    assert.equal(url.searchParams.has("text"), false);
   });
 
   it("rejects non-http(s) targetUrl schemes and falls back", () => {
@@ -126,7 +101,7 @@ await describe("forYou helpers", async () => {
       "data:text/html,x",
       "vbscript:msgbox(1)",
     ]) {
-      const url = forYouOpenUrl({ ...base, kind: "quote", targetUrl: bad });
+      const url = forYouOpenUrl({ ...base, kind: "quote", targetId: "9", targetUrl: bad });
       assert.ok(url);
       assert.ok(/^https?:\/\//i.test(url!), `got unsafe url ${url}`);
       assert.ok(!url?.includes(bad));
@@ -152,6 +127,7 @@ await describe("forYou helpers", async () => {
 
   it("names the For You row buttons", () => {
     assert.match(FYP_OPEN_TIP, /For You page/);
+    assert.match(FYP_COMPOSE_TIP, /You write it/);
     assert.match(FYP_INSPIRATION_TIP, /Inspiration/);
     assert.match(FYP_NEXT_TIP, /next Approach card/);
     assert.equal(
@@ -160,12 +136,9 @@ await describe("forYou helpers", async () => {
     );
   }).catch(assert.fail);
 
-  it("keeps the collapsed wait short and names the expanded action", () => {
+  it("keeps the wait short", () => {
     assert.equal(FYP_WAIT_COPY.includes("Like"), false);
     assert.match(FYP_WAIT_COPY, /Open For You or Inspiration/);
-    assert.match(FYP_ACTION_COPY, /Reply, original, or quote/);
-    assert.match(FYP_ACTION_COPY, /For You or Inspiration/);
-    assert.match(FYP_ACTION_COPY, /Likes do not count/);
   }).catch(assert.fail);
 
   it("parses extra usage from GET /api/for-you", () => {

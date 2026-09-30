@@ -1,21 +1,5 @@
-/**
- * Voice profile persistence: the user's own public posts, the learned
- * style card, and the UTC-day suggest ledger. Their writing only — other
- * people's feeds are never stored here.
- */
-import { objectValue, isRecord, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
-import { randomUUID } from "node:crypto";
+import { isRecord, hasStrings, hasNullableStrings } from "../platform/unknownValue.js";
 import { getPlatformDb } from "../db.js";
-import { startOfUtcDayIso } from "../desk/ownPostStore.js";
-import { PLAN_DAILY_SUGGESTS, type PlanKey } from "../billing/plans.js";
-
-/** Suggest unlocks after this many of their public posts in the corpus. */
-export const VOICE_UNLOCK_MIN_POSTS = 100;
-
-/** @deprecated Use VOICE_UNLOCK_MIN_POSTS. */
-export const VOICE_UNLOCK_MIN_CONVERSATIONS = VOICE_UNLOCK_MIN_POSTS;
-
-export type VoiceProfileStatus = "empty" | "learning" | "ready";
 
 export type VoiceReplyInput = {
   id: string;
@@ -27,56 +11,17 @@ export type VoiceReplyInput = {
   kind?: "original" | "reply" | "quote" | "repost";
 };
 
-export type VoiceReplyRow = {
-  id: string;
-  text: string;
-  conversationId: string | null;
-  postedAt: string | null;
-  source: string;
-};
-
 export type VoiceProfileRow = {
   userId: string;
   tenantId: string;
   xUsername: string | null;
   xUserId: string | null;
-  status: VoiceProfileStatus;
   replyCount: number;
   conversationCount: number;
-  cardJson: string | null;
-  cardModel: string | null;
-  cardUpdatedAt: string | null;
-  cardAttemptAt: string | null;
   sinceId: string | null;
   lastPullAt: string | null;
   lastError: string | null;
 };
-
-export function voiceUnlocked(postCount: number): boolean {
-  return postCount >= VOICE_UNLOCK_MIN_POSTS;
-}
-
-export function voiceCardIsStarter(cardJson: string | null): boolean {
-  if (!cardJson) return false;
-  try {
-    return objectValue(JSON.parse(cardJson)).starter === true;
-  } catch {
-    return false;
-  }
-}
-
-/** Hourly ingest rewrites the card at most this often (also once per UTC day). */
-export const VOICE_CARD_REFRESH_MS = 24 * 60 * 60 * 1000;
-
-export function voiceCardStale(
-  cardUpdatedAt: string | null,
-  nowMs: number = Date.now(),
-): boolean {
-  if (!cardUpdatedAt) return true;
-  const t = Date.parse(cardUpdatedAt);
-  if (!Number.isFinite(t)) return true;
-  return nowMs - t >= VOICE_CARD_REFRESH_MS;
-}
 
 export function nowIso(): string {
   return new Date().toISOString();
@@ -102,27 +47,19 @@ export function ensureVoiceProfile(
 export function getVoiceProfile(userId: string): VoiceProfileRow | null {
   const row = readVoiceProfileRowOrUndefined(getPlatformDb()
     .prepare(
-      `SELECT user_id, tenant_id, x_username, x_user_id, status, reply_count,
-              conversation_count, card_json, card_model, card_updated_at,
-              card_attempt_at, since_id, last_pull_at, last_error
+      `SELECT user_id, tenant_id, x_username, x_user_id, reply_count,
+              conversation_count, since_id, last_pull_at, last_error
        FROM voice_profiles WHERE user_id = ?`,
     )
     .get(userId));
   if (!row) return null;
-  const status: VoiceProfileStatus =
-    row.status === "ready" || row.status === "learning" ? row.status : "empty";
   return {
     userId: row.user_id,
     tenantId: row.tenant_id,
     xUsername: row.x_username,
     xUserId: row.x_user_id,
-    status,
     replyCount: Number(row.reply_count) || 0,
     conversationCount: Number(row.conversation_count) || 0,
-    cardJson: row.card_json,
-    cardModel: row.card_model,
-    cardUpdatedAt: row.card_updated_at,
-    cardAttemptAt: row.card_attempt_at,
     sinceId: row.since_id,
     lastPullAt: row.last_pull_at,
     lastError: row.last_error,
@@ -188,68 +125,6 @@ export function countDistinctConversations(userId: string): number {
   return Number(row?.n ?? 0);
 }
 
-export function listVoiceReplies(
-  userId: string,
-  limit = 100,
-): VoiceReplyRow[] {
-  const rows = getPlatformDb()
-    .prepare(
-      `SELECT id, text, conversation_id, posted_at, source
-       FROM voice_replies WHERE user_id = ?
-       ORDER BY posted_at DESC, id DESC LIMIT ?`,
-    )
-    .all(userId, Math.min(Math.max(limit, 1), 200)).map(readVoiceReplyRow);
-  return rows.map((r) => ({
-    id: r.id,
-    text: r.text,
-    conversationId: r.conversation_id,
-    postedAt: r.posted_at,
-    source: r.source,
-  }));
-}
-
-/**
- * Fold the user's own posts the desk already detected (Activity API own_posts)
- * into the voice corpus — free, local-only, keeps the card current between API
- * pulls. Originals, replies, and quotes all count; retweets do not.
- */
-export function foldDeskReplies(userId: string): number {
-  const rows = getPlatformDb()
-    .prepare(
-      `SELECT id, text, conversation_id, in_reply_to_id, posted_at
-       FROM own_posts
-       WHERE user_id = ? AND kind != 'repost' AND text IS NOT NULL AND text != ''`,
-    )
-    .all(userId).map(readDeskReplyRow);
-  if (!rows.length) return 0;
-  return upsertVoiceReplies(
-    userId,
-    rows.map((r) => ({
-      id: r.id,
-      text: r.text,
-      conversationId: r.conversation_id,
-      inReplyToId: r.in_reply_to_id,
-      postedAt: r.posted_at,
-      source: "desk" as const,
-    })),
-  );
-}
-
-/** Fold replies already sitting in interacted memories (no X API). */
-export function foldMemoryReplies(
-  userId: string,
-  replies: VoiceReplyInput[],
-): number {
-  if (!replies.length) return 0;
-  return upsertVoiceReplies(
-    userId,
-    replies.map((r) => ({
-      ...r,
-      source: "memory",
-    })),
-  );
-}
-
 /**
  * Drop the user's whole voice corpus (own replies + folded own_posts) and
  * reset the profile, so switching the public X handle starts the corpus fresh
@@ -276,13 +151,8 @@ export function resetUserVoiceCorpus(
       `UPDATE voice_profiles SET
          x_username = NULL,
          x_user_id = NULL,
-         status = 'empty',
          reply_count = 0,
          conversation_count = 0,
-         card_json = NULL,
-         card_model = NULL,
-         card_updated_at = NULL,
-         card_attempt_at = NULL,
          since_id = NULL,
          last_error = NULL,
          updated_at = ?
@@ -291,40 +161,13 @@ export function resetUserVoiceCorpus(
   })();
 }
 
-/** Recompute stored reply/conversation counts without touching pull cursors. */
-export function refreshVoiceCounts(userId: string): void {
-  getPlatformDb()
-    .prepare(
-      `UPDATE voice_profiles SET reply_count = ?, conversation_count = ?, updated_at = ?
-       WHERE user_id = ?`,
-    )
-    .run(
-      countVoiceReplies(userId),
-      countDistinctConversations(userId),
-      nowIso(),
-      userId,
-    );
-}
-
-export function setVoiceProfileStatus(
-  userId: string,
-  status: VoiceProfileStatus,
-  lastError?: string | null,
-): void {
-  getPlatformDb()
-    .prepare(
-      `UPDATE voice_profiles SET status = ?, last_error = ?, updated_at = ?
-       WHERE user_id = ?`,
-    )
-    .run(status, lastError ?? null, nowIso(), userId);
-}
-
 export function updateVoiceProfilePull(input: {
   userId: string;
   xUsername: string | null;
   xUserId?: string | null;
   sinceId?: string | null;
   lastPullAt?: string | null;
+  lastError?: string | null;
 }): void {
   const replyCount = countVoiceReplies(input.userId);
   const conversationCount = countDistinctConversations(input.userId);
@@ -337,7 +180,7 @@ export function updateVoiceProfilePull(input: {
          reply_count = ?,
          conversation_count = ?,
          last_pull_at = COALESCE(?, last_pull_at),
-         last_error = NULL,
+         last_error = ?,
          updated_at = ?
        WHERE user_id = ?`,
     )
@@ -348,126 +191,17 @@ export function updateVoiceProfilePull(input: {
       replyCount,
       conversationCount,
       input.lastPullAt ?? null,
+      input.lastError ?? null,
       nowIso(),
       input.userId,
     );
 }
 
-export function saveVoiceCard(input: {
-  userId: string;
-  cardJson: string;
-  model: string;
-  starter?: boolean;
-}): void {
-  const at = nowIso();
-  getPlatformDb()
-    .prepare(
-      `UPDATE voice_profiles SET
-         card_json = ?, card_model = ?, card_updated_at = ?, card_attempt_at = ?,
-         status = ?, last_error = NULL, updated_at = ?
-       WHERE user_id = ?`,
-    )
-    .run(
-      input.cardJson,
-      input.model,
-      at,
-      at,
-      input.starter ? "empty" : "ready",
-      at,
-      input.userId,
-    );
-}
-
-/**
- * Stamp the last card rewrite attempt (success or failure) so the hourly
- * refresh gate caps generation at once per UTC day even when the LLM fails.
- * `card_updated_at` still records only successful writes.
- */
-export function stampVoiceCardAttempt(userId: string): void {
-  const at = nowIso();
-  getPlatformDb()
-    .prepare(
-      `UPDATE voice_profiles SET card_attempt_at = ?, updated_at = ?
-       WHERE user_id = ?`,
-    )
-    .run(at, at, userId);
-}
-
-// --- Daily suggest cap (UTC day, generations only — verifies are free) ---
-
-export function suggestLimitForPlan(plan: PlanKey): number {
-  return PLAN_DAILY_SUGGESTS[plan];
-}
-
-export function countSuggestsToday(userId: string, now = new Date()): number {
-  const row = readVoiceCountRow(getPlatformDb()
-    .prepare(
-      `SELECT COUNT(*) AS n FROM voice_suggests WHERE user_id = ? AND at >= ?`,
-    )
-    .get(userId, startOfUtcDayIso(now)));
-  return Number(row?.n ?? 0);
-}
-
-export function recordSuggest(
-  userId: string,
-  threadId?: string,
-  at = new Date().toISOString(),
-): string {
-  const id = randomUUID();
-  getPlatformDb()
-    .prepare(
-      `INSERT INTO voice_suggests (id, user_id, thread_id, at) VALUES (?, ?, ?, ?)`,
-    )
-    .run(id, userId, threadId ?? null, at);
-  return id;
-}
-
-/**
- * Atomically reserve a daily suggest slot: the count and the insert run in a
- * single transaction, so concurrent suggests cannot both pass the cap check
- * before either one records. Returns the reserved row id, or null when the
- * day's cap is already reached.
- */
-export function reserveSuggestSlot(
-  userId: string,
-  limit: number,
-  threadId?: string,
-  now = new Date(),
-): string | null {
-  return getPlatformDb().transaction(() => {
-    if (countSuggestsToday(userId, now) >= limit) return null;
-    return recordSuggest(userId, threadId, now.toISOString());
-  })();
-}
-
-export function removeSuggestRecord(id: string): void {
-  getPlatformDb().prepare(`DELETE FROM voice_suggests WHERE id = ?`).run(id);
-}
-
-export type SuggestUsage = {
-  used: number;
-  limit: number;
-  remaining: number;
-  canSuggest: boolean;
-  planKey: PlanKey;
-};
-
-export function getSuggestUsage(
-  userId: string,
-  planKey: PlanKey,
-  now = new Date(),
-): SuggestUsage {
-  const used = countSuggestsToday(userId, now);
-  const limit = suggestLimitForPlan(planKey);
-  const remaining = Math.max(0, limit - used);
-  return { used, limit, remaining, canSuggest: remaining > 0, planKey };
-}
-
 function readVoiceProfileRow(value: unknown) {
   if (!(
     isRecord(value) &&
-    hasStrings(value, "user_id", "tenant_id", "status") &&
-    hasNullableStrings(value, "x_username", "x_user_id", "card_json", "card_model", "card_updated_at", "card_attempt_at", "since_id", "last_pull_at", "last_error") &&
+    hasStrings(value, "user_id", "tenant_id") &&
+    hasNullableStrings(value, "x_username", "x_user_id", "since_id", "last_pull_at", "last_error") &&
     ("reply_count" in value && typeof value.reply_count === "number") &&
     ("conversation_count" in value && typeof value.conversation_count === "number")
   )) throw new TypeError("Invalid database row");
@@ -476,13 +210,8 @@ function readVoiceProfileRow(value: unknown) {
     tenant_id: value.tenant_id,
     x_username: value.x_username,
     x_user_id: value.x_user_id,
-    status: value.status,
     reply_count: value.reply_count,
     conversation_count: value.conversation_count,
-    card_json: value.card_json,
-    card_model: value.card_model,
-    card_updated_at: value.card_updated_at,
-    card_attempt_at: value.card_attempt_at,
     since_id: value.since_id,
     last_pull_at: value.last_pull_at,
     last_error: value.last_error,
@@ -501,20 +230,4 @@ function readVoiceCountRow(value: unknown) {
   return {
     n: value.n,
   };
-}
-
-function readVoiceReplyRow(value: unknown) {
-  if (!(
-    hasStrings(value, "id", "text", "source") &&
-    hasNullableStrings(value, "conversation_id", "posted_at")
-  )) throw new TypeError("Invalid database row");
-  return value;
-}
-
-function readDeskReplyRow(value: unknown) {
-  if (!(
-    hasStrings(value, "id", "text") &&
-    hasNullableStrings(value, "conversation_id", "in_reply_to_id", "posted_at")
-  )) throw new TypeError("Invalid database row");
-  return value;
 }

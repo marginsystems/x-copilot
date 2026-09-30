@@ -13,7 +13,7 @@ import { DEFAULT_SETTINGS } from "../../src/lib/settings";
 const user: AuthSessionUser = {
   id: "owner", email: null, displayName: null, avatarUrl: null,
   onboardingCompleted: true, agenda: null, xUsername: "owner",
-  xLinked: true, xCanPost: true, isAdmin: false,
+  xLinked: true, isAdmin: false,
 };
 
 class FakeEventSource extends EventTarget {
@@ -74,7 +74,7 @@ function setup(nowMs: number) {
       curatedThreads: [], forYouSuggestions: [], coaching,
       interactedIds: history.interactedIds, interactedRetainedHistory: history.interactedRetainedHistory,
       dismissedHistory: [], dismissThread: null, searching: false,
-      setExpandedId: vi.fn(), actForYou: vi.fn(), onSkip: vi.fn(), onDismiss: vi.fn(),
+      actForYou: vi.fn(), onSkip: vi.fn(), onDismiss: vi.fn(),
       onRefreshCoaching, onHydrateInteracted: vi.fn(), onPollInteracted: vi.fn(),
     });
   }, { wrapper });

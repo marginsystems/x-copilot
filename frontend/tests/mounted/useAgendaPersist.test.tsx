@@ -16,7 +16,6 @@ const owner = (id: string): AuthSessionUser => ({
   agenda: null,
   xUsername: null,
   xLinked: true,
-  xCanPost: true,
   isAdmin: false,
 });
 const draft = (label: string) => `${label} `.repeat(25);

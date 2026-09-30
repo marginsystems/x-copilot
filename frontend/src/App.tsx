@@ -3,7 +3,7 @@ import {
   loadSettings,
   type AppSettings,
 } from "./lib/settings";
-import { apiFetch, isLocalHostname } from "./lib/apiBase";
+import { isLocalHostname } from "./lib/apiBase";
 import { applyTheme, nextTheme, readTheme, type Theme } from "./lib/theme";
 import { UserMenu } from "./UserMenu";
 import { BootScreen, Landing } from "./Landing";
@@ -19,13 +19,7 @@ import {
   readOnboardingComplete,
 } from "./lib/onboarding";
 import { OnboardingPreviewBar } from "./OnboardingPreview";
-import { VoiceCardPanel } from "./VoiceCard";
 import { useDeskHistory } from "./desk/useDeskHistory";
-import {
-  parseVoiceState,
-  voiceNeedsXLink,
-  type VoiceState,
-} from "./lib/voice";
 import type { ThreadCard, ThreadsTab } from "./desk/types";
 import { ensureActivitySubscribe } from "./desk/watch";
 import { DismissModal } from "./desk/DismissModal";
@@ -76,7 +70,6 @@ function SessionApp() {
   );
   const [status, setStatus] = useState("");
   const [threads, setThreads] = useState<ThreadCard[]>([]);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   /** Short mutex for skip/dismiss/settings — not Scout-in-flight. */
   const [actionBusy, setActionBusy] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
@@ -103,7 +96,6 @@ function SessionApp() {
     onLoggedOut: () => closeMenu(),
     onOnboardingFinished: () => {
       ensureActivitySubscribe();
-      hydrateVoice({ skipDaily: true }).catch((err) => setStatus(err instanceof Error ? err.message : String(err)));
     },
   });
   const verifiedOwnerId = authUser?.id ?? null;
@@ -181,9 +173,7 @@ function SessionApp() {
     confirmCheckout,
     onSubscribe,
     onManageBilling,
-  } = useBilling({
-    onUtcDay: () => { hydrateVoice().catch((err) => setStatus(err instanceof Error ? err.message : String(err))); },
-  });
+  } = useBilling();
   const {
     adminTenants,
     adminBusy,
@@ -202,8 +192,6 @@ function SessionApp() {
   const localUi = isLocalHostname(
     typeof window !== "undefined" ? window.location.hostname : "localhost",
   );
-  const [voice, setVoice] = useState<VoiceState | null>(null);
-  const voiceError: string | null = voice?.lastError ?? null;
   const {
     settingsDraft,
     setSettingsDraft,
@@ -250,7 +238,6 @@ function SessionApp() {
     hydrateCoaching,
     hydrateActivityStats,
     loadBilling,
-    hydrateVoice,
     loadUsage,
     loadAdmin,
     hydrateScoutFamiliarity,
@@ -280,7 +267,6 @@ function SessionApp() {
     setActionBusy,
     setStatus,
     setThreads,
-    setExpandedId,
     setSkippedHistory,
     setDismissedHistory,
     skippedIdsRef,
@@ -290,18 +276,6 @@ function SessionApp() {
     onActionSucceeded: () => { hydrateScoutFamiliarity().catch((err) => setStatus(err instanceof Error ? err.message : String(err))); },
   });
   const curatedThreads = threads.filter((t) => keepInCurated(t));
-
-  async function hydrateVoice(_opts?: { skipDaily?: boolean }) {
-    try {
-      const res = await apiFetch("/api/voice");
-      if (!res.ok) return;
-      const parsed = parseVoiceState(await res.json());
-      if (!parsed) return;
-      setVoice(parsed);
-    } catch {
-      // Sidecar may be offline on first paint — voice stays hidden.
-    }
-  }
 
   useEffect(() => {
     applyTheme(theme);
@@ -339,11 +313,6 @@ function SessionApp() {
 
   function openAnalytics() {
     goToView("analytics");
-    closeMenu();
-  }
-
-  function openVoice() {
-    goToView("voice");
     closeMenu();
   }
 
@@ -470,8 +439,7 @@ function SessionApp() {
             }}
             onX={startXLogin}
             onAnalytics={openAnalytics}
-            onVoice={openVoice}
-            needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xLinked) : false}
+            needsXLink={authUser ? !authUser.xLinked : false}
             onUsage={openUsage}
             onAccount={openAccount}
             onSettings={openSettings}
@@ -524,7 +492,7 @@ function SessionApp() {
             <LinkXGate
               kicker="Set up your desk"
               title="Link X to take off"
-              lede="Voice reads the account you log into. Sign in with X — you cannot type a handle. If you already signed in with X, you are linked."
+              lede="The desk watches the account you log into. Sign in with X — you cannot type a handle. If you already signed in with X, you are linked."
             />
           ) : null}
         </>
@@ -603,33 +571,6 @@ function SessionApp() {
         />
       ) : null}
 
-      {view === "voice" ? (
-        <section className="panel settings-pane">
-          <div className="settings-head">
-            <h2>Voice</h2>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => goToView("dashboard")}
-            >
-              Back
-            </button>
-          </div>
-          <p className="status settings-lede">
-            {authUser && voiceNeedsXLink(voice, authUser.xLinked)
-              ? "Link X first — Voice reads your latest public posts at setup and hourly. Scout takeoffs are what spend credits."
-              : `Suggest reply uses this card. We ingest your latest public posts at setup and hourly — you cannot refresh it by hand. Unlock is ${voice?.unlockAt ?? 100} posts. Scout takeoffs are what spend credits.`}
-          </p>
-          <VoiceCardPanel
-            voice={voice}
-            busy={false}
-            error={voiceError}
-            needsXLink={authUser ? voiceNeedsXLink(voice, authUser.xLinked) : false}
-            onLinkX={startXLogin}
-          />
-        </section>
-      ) : null}
-
       {view === "usage" ? (
         <UsagePage
           usageWindow={usageWindow}
@@ -654,8 +595,7 @@ function SessionApp() {
       {view === "usage" ||
       view === "admin" ||
       view === "analytics" ||
-      view === "account" ||
-      view === "voice" ? null : view === "settings" ? (
+      view === "account" ? null : view === "settings" ? (
         <SettingsForm
           authUser={authUser}
           draft={settingsDraft}
@@ -671,13 +611,6 @@ function SessionApp() {
         />
       ) : (
         <DeskView
-          toast={{
-            voice,
-            xLinked: authUser?.xLinked,
-            hasSession: Boolean(authUser),
-            onOpenSettings: openVoice,
-            onLinkX: startXLogin,
-          }}
           top={{
             open: deskTopOpen,
             onToggle: onToggleDeskTop,
@@ -712,22 +645,17 @@ function SessionApp() {
             scoutLine,
             actionBusy: actionBusy || provisional,
             writesEnabled: !provisional,
-            expandedId,
-            setExpandedId,
             interactedIds,
-            voice,
             agenda,
             agendaReady,
             deskBootReady,
             authUser: paintUser,
             dismissThread,
-            setVoice,
             actForYou: async (id, action) => {
               const succeeded = await actForYou(id, action);
               hydrateCoaching().catch((err) => setStatus(err instanceof Error ? err.message : String(err)));
               return succeeded;
             },
-            onOpenVoice: openVoice,
             onOpenSettings: openSettings,
             onLinkX: startXLogin,
             onSkip,

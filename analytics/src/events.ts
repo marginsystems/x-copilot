@@ -10,8 +10,6 @@ export const ANALYTICS_EVENT_NAMES = [
   "scout.takeoff",
   "scout.failed",
   "mark.interacted",
-  "voice.suggest",
-  "desk.post",
 ] as const;
 
 export type AnalyticsEventName = (typeof ANALYTICS_EVENT_NAMES)[number];
@@ -35,8 +33,6 @@ const SLACK_LABEL: Record<AnalyticsEventName, string> = {
   "scout.takeoff": "takeoff",
   "scout.failed": "scout failed",
   "mark.interacted": "mark",
-  "voice.suggest": "suggest",
-  "desk.post": "desk post",
 };
 
 const MAX_FIELD = 200;

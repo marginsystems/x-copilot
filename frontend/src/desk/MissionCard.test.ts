@@ -7,8 +7,10 @@ import { pickApproachScout } from "./approachScout";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
 import { ForYouFeedRow } from "./ForYouFeedRow";
 import {
+  FYP_COMPOSE_TIP,
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
+  X_COMPOSE_URL,
   type ForYouSuggestion,
 } from "../lib/forYou";
 import { approachCollectingCopy, SCOUT_DETECTED_COPY } from "../lib/phaseWhy";
@@ -55,20 +57,13 @@ function missionProps(
     suggestionDetected: false,
     forYou: null,
     actionBusy: false,
-    expandedId: null,
-    setExpandedId() {},
     interactedIds: new Set(),
-    voice: null,
-    agenda: "Builders",
-    authUser: null,
-    setVoice() {},
     exitingIds: new Set(),
     onScoutSkip() {},
     onScoutDismiss() {},
     onSuggestionPosted() {},
     onSuggestionSkip() {},
     onSuggestionDismiss() {},
-    onOpenVoice() {},
     onLinkX() {},
     ...overrides,
   };
@@ -78,7 +73,6 @@ const suggestedReply: ForYouSuggestion = {
   id: "suggested-reply",
   kind: "reply",
   why: "A suggested reply",
-  draft: null,
   targetId: null,
   targetUrl: null,
   targetAuthor: null,
@@ -89,6 +83,35 @@ const detectedSuggestedReply: ForYouSuggestion = {
   targetId: "123456",
   targetUrl: "https://x.com/target/status/123456",
   targetAuthor: "@target",
+};
+const suggestedPost: ForYouSuggestion = {
+  id: "suggested-post",
+  kind: "post",
+  why: "Share an update",
+  targetId: null,
+  targetUrl: null,
+  targetAuthor: null,
+};
+const suggestedQuote: ForYouSuggestion = {
+  ...suggestedPost,
+  id: "suggested-quote",
+  kind: "quote",
+  why: "Quote a useful post",
+  targetId: "234567",
+  targetUrl: "https://x.com/target/status/234567",
+};
+const suggestedRepost: ForYouSuggestion = {
+  ...suggestedPost,
+  id: "suggested-repost",
+  kind: "repost",
+  why: "Repost a useful post",
+  targetId: "345678",
+  targetUrl: "https://x.com/target/status/345678",
+};
+const urlOnlySuggestedReply: ForYouSuggestion = {
+  ...suggestedReply,
+  id: "url-only-suggested-reply",
+  targetUrl: "https://x.com/target/status/456789",
 };
 const detectedActivity = {
   id: "196504221778",
@@ -313,9 +336,7 @@ await describe("Reply pace", async () => {
             targetId: "2097589069966721139",
             targetUrl: "https://x.com/vijaychoudhary/status/2097589069966721139",
             targetAuthor: "@vijaychoudhary",
-            draft: "Usage metrics evaporate overnight.",
           },
-          expandedId: `suggest:${suggestedReply.id}`,
         }),
       ),
     );
@@ -330,9 +351,7 @@ await describe("Reply pace", async () => {
             ...suggestedReply,
             targetId: "2097589069966721139",
             targetUrl: null,
-            draft: "Usage metrics evaporate overnight.",
           },
-          expandedId: `suggest:${suggestedReply.id}`,
         }),
       ),
     );
@@ -416,16 +435,7 @@ await describe("Gate cards", async () => {
         missionProps({
           phase: "organic_reply",
           actionBusy: true,
-          suggestion: {
-            id: "suggested-post",
-            kind: "post",
-            why: "Share an update",
-            draft: "A desk post.",
-            targetId: null,
-            targetUrl: null,
-            targetAuthor: null,
-          },
-          expandedId: "suggest:suggested-post",
+          suggestion: suggestedPost,
         }),
       ),
     );
@@ -433,10 +443,61 @@ await describe("Gate cards", async () => {
     assert.doesNotMatch(html, />I posted on X</);
     const openLink = html.match(/<a\b[^>]*href="([^"]*)"[^>]*><span class="row-open-label">Open on X<\/span>/);
     assert.ok(openLink);
-    assert.equal(openLink[1], "https://x.com/home");
-    assert.ok(!decodeURIComponent(openLink[1]).includes("A desk post."));
+    assert.equal(openLink[1], X_COMPOSE_URL);
     assert.doesNotMatch(html, /<button[^>]*>(?:<span[^>]*>)?Open on X</);
-    assert.match(html, /Opens your real X For You page\./);
+    assert.match(html, escapeRe(FYP_COMPOSE_TIP));
+  });
+
+  await it("marks a Suggested post from the card without any desk compose", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: suggestedPost,
+        }),
+      ),
+    );
+
+    assert.match(html, />I posted on X</);
+    assert.match(html, />Skip</);
+    assert.match(html, />Not interested</);
+    assert.doesNotMatch(html, /row-detail|caret|aria-expanded|textarea/);
+  });
+
+  await it("marks Suggested quote and repost rows without showing Next", () => {
+    for (const suggestion of [suggestedQuote, suggestedRepost]) {
+      const html = renderToStaticMarkup(
+        MissionCard(missionProps({ phase: "organic_reply", suggestion })),
+      );
+      assert.match(html, />I posted on X</);
+      assert.doesNotMatch(html, />Next</);
+    }
+  });
+
+  await it("detects a Suggested reply using its target URL when targetId is missing", () => {
+    const waiting = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: urlOnlySuggestedReply,
+        }),
+      ),
+    );
+    assert.match(waiting, escapeRe(FYP_DETECTING_COPY));
+    assert.match(waiting, /<button[^>]*disabled=""[^>]*>Next/);
+    assert.doesNotMatch(waiting, /I posted on X/);
+
+    const detected = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: urlOnlySuggestedReply,
+          suggestionDetected: true,
+        }),
+      ),
+    );
+    assert.match(detected, />Next</);
+    assert.doesNotMatch(detected, /I posted on X/);
   });
 
   await it("no longer paints usage or wait gates: the feed is open", () => {
@@ -476,46 +537,28 @@ await describe("Approach flight frame", async () => {
     assert.match(html, />Skip</);
     assert.match(html, />Not interested</);
     assert.doesNotMatch(html, /I posted on X/);
+  });
 
-    const expanded = renderToStaticMarkup(
+  await it("keeps Open and enabled Next after a Suggested reply is detected", () => {
+    const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
           phase: "organic_reply",
           suggestion: detectedSuggestedReply,
-          expandedId: `suggest:${detectedSuggestedReply.id}`,
+          suggestionDetected: true,
         }),
       ),
     );
-    assert.match(expanded, />Skip</);
-    assert.match(expanded, />Not interested</);
-  });
-
-  await it("keeps Open and enabled Next after a Suggested reply is detected", () => {
-    for (const expandedId of [
-      null,
-      `suggest:${detectedSuggestedReply.id}`,
-    ]) {
-      const html = renderToStaticMarkup(
-        MissionCard(
-          missionProps({
-            phase: "organic_reply",
-            suggestion: detectedSuggestedReply,
-            suggestionDetected: true,
-            expandedId,
-          }),
-        ),
-      );
-      assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
-      assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
-      assert.match(html, /chip-interacted/);
-      assert.match(html, /Open on X/);
-      assert.match(html, />Next</);
-      assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
-      assert.doesNotMatch(html, /Open original/);
-      assert.doesNotMatch(html, />Skip</);
-      assert.doesNotMatch(html, /I posted on X/);
-      assert.doesNotMatch(html, /Not interested/);
-    }
+    assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
+    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
+    assert.match(html, /chip-interacted/);
+    assert.match(html, /Open on X/);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
+    assert.doesNotMatch(html, /Open original/);
+    assert.doesNotMatch(html, />Skip</);
+    assert.doesNotMatch(html, /I posted on X/);
+    assert.doesNotMatch(html, /Not interested/);
   });
 
   await it("fills the shared frame with the first locked scout thread", () => {
@@ -526,26 +569,25 @@ await describe("Approach flight frame", async () => {
         missionProps({
           phase: "scout_reply",
           scout: lead,
-          expandedId: lead.id,
         }),
       ),
     );
     assert.match(html, /class="mission-card approach-frame"/);
-    assert.match(html, /class="thread-row open"/);
+    assert.match(html, /class="thread-row"/);
     assert.match(html, /A real landed summary/);
     assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
     assert.match(html, /Open on X/);
     assert.match(html, />Skip</);
     assert.match(html, /Not interested/);
-    assert.match(html, /Suggest reply — locked/);
+    assert.doesNotMatch(html, /row-detail|caret|aria-expanded/);
     assert.match(html, escapeRe(FYP_DETECTING_COPY));
     assert.match(html, /for-you-status/);
     assert.match(html, /approach-panel-loader-mark/);
     assert.doesNotMatch(html, /I posted on X/);
   });
 
-  await it("keeps Open, Skip, and Not interested on a collapsed Scout", () => {
-    const lead = thread("collapsed-lead", 42);
+  await it("keeps Open, Skip, and Not interested on an undetected Scout", () => {
+    const lead = thread("undetected-lead", 42);
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -563,28 +605,25 @@ await describe("Approach flight frame", async () => {
 
   await it("keeps Open and enabled Next on a detected retained Scout", () => {
     const lead = thread("detected-lead", 42);
-    for (const expandedId of [null, lead.id]) {
-      const html = renderToStaticMarkup(
-        MissionCard(
-          missionProps({
-            phase: "scout_reply",
-            scout: lead,
-            scoutDetected: true,
-            expandedId,
-            onScoutNext() {},
-          }),
-        ),
-      );
-      assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
-      assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
-      assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
-      assert.match(html, /chip-interacted/);
-      assert.match(html, /Open on X/);
-      assert.match(html, />Next</);
-      assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
-      assert.doesNotMatch(html, />Skip</);
-      assert.doesNotMatch(html, /I posted on X/);
-    }
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "scout_reply",
+          scout: lead,
+          scoutDetected: true,
+          onScoutNext() {},
+        }),
+      ),
+    );
+    assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
+    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
+    assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
+    assert.match(html, /chip-interacted/);
+    assert.match(html, /Open on X/);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
+    assert.doesNotMatch(html, />Skip</);
+    assert.doesNotMatch(html, /I posted on X/);
   });
 
   await it("keeps an empty Scout lock in the collecting row and shows Next with stock", () => {
@@ -769,9 +808,9 @@ await describe("Approach flight frame", async () => {
     assert.equal(html.split(FYP_DETECTED_COPY).length - 1, 1);
     assert.match(html, /196504221778/);
     assert.match(html, /href="https:\/\/x\.com\/desk\/status\/196504221778"/);
-    assert.match(html, /The detected post text\./);
+    assert.doesNotMatch(html, /The detected post text\./);
     assert.match(html, /aria-label="Open detected post 196504221778 on X"/);
-    assert.match(html, /class="caret"/);
+    assert.doesNotMatch(html, /caret|row-detail/);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, />Open For You</);
     assert.doesNotMatch(html, />Open Inspiration</);
@@ -801,48 +840,29 @@ await describe("Approach flight frame", async () => {
 });
 
 await describe("ForYouFeedRow", async () => {
-  await it("keeps detected status and fallback text without activity detail", () => {
+  await it("keeps detected status without activity detail", () => {
     const html = renderToStaticMarkup(
       createElement(ForYouFeedRow, {
         detected: true,
         activity: null,
-        expandable: true,
-      }),
-    );
-    assert.match(html, escapeRe(FYP_DETECTED_COPY));
-    assert.match(html, /Post text unavailable\./);
-    assert.match(html, /class="caret"/);
-  });
-
-  await it("lets a detected wait collapse while keeping its status visible", () => {
-    const html = renderToStaticMarkup(
-      createElement(ForYouFeedRow, {
-        status: FYP_DETECTED_COPY,
-        detected: true,
-        activity: null,
-        defaultOpen: false,
-        expandable: true,
         onNext() {},
       }),
     );
     assert.match(html, escapeRe(FYP_DETECTED_COPY));
-    assert.match(html, /class="caret"/);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
-    assert.doesNotMatch(html, /thread-row for-you-row next-action-row kind-reply open/);
+    assert.doesNotMatch(html, /Post text unavailable|caret|row-detail/);
   });
 
-  await it("lets an undetected wait collapse its details", () => {
+  await it("shows an undetected wait as one flat row", () => {
     const html = renderToStaticMarkup(
       createElement(ForYouFeedRow, {
         status: FYP_DETECTING_COPY,
         detected: false,
-        defaultOpen: false,
-        expandable: true,
         onNext() {},
       }),
     );
-    assert.match(html, /class="caret"/);
-    assert.doesNotMatch(html, /thread-row for-you-row next-action-row kind-reply open/);
+    assert.match(html, /^<article class="thread-row for-you-row next-action-row kind-reply">/);
+    assert.doesNotMatch(html, /caret|row-detail|aria-expanded/);
   });
 });

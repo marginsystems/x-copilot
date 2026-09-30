@@ -64,7 +64,6 @@ export type ForYouSuggestion = {
   kind: ForYouKind;
   status: ForYouStatus;
   why: string;
-  draft: string | null;
   targetId: string | null;
   targetUrl: string | null;
   targetAuthor: string | null;
@@ -74,10 +73,9 @@ export type ForYouSuggestion = {
   origin: "daily" | "extra";
 };
 
-export type ForYouDraft = {
+export type ForYouAction = {
   kind: ForYouKind;
   why: string;
-  draft?: string | null;
   targetId?: string | null;
   targetUrl?: string | null;
   targetAuthor?: string | null;
@@ -102,7 +100,6 @@ function mapRow(row: Record<string, unknown>): ForYouSuggestion | null {
     kind,
     status,
     why: secondPersonWhy(String(row.why ?? "")),
-    draft: typeof row.draft === "string" ? row.draft : null,
     targetId: typeof row.target_id === "string" ? row.target_id : null,
     targetUrl: typeof row.target_url === "string" ? row.target_url : null,
     targetAuthor: typeof row.target_author === "string" ? row.target_author : null,
@@ -169,7 +166,7 @@ export function listRecentSkippedSuggestions(
 export function insertSuggestions(opts: {
   userId: string;
   tenantId: string;
-  drafts: ForYouDraft[];
+  actions: ForYouAction[];
   nowMs?: number;
   origin?: "daily" | "extra";
 }): ForYouSuggestion[] {
@@ -177,32 +174,31 @@ export function insertSuggestions(opts: {
   const createdAt = new Date(nowMs).toISOString();
   const expiresAt = new Date(nowMs + SUGGESTION_TTL_MS).toISOString();
   const origin = opts.origin ?? "daily";
-  const drafts = withoutSkippedThemes(
-    opts.drafts,
+  const actions = withoutSkippedThemes(
+    opts.actions,
     listRecentSkippedSuggestions(opts.userId, nowMs),
-  ).filter((draft) => !isOwnPostRemixCopy(draft.why, draft.draft));
+  ).filter((action) => !isOwnPostRemixCopy(action.why));
   const db = getPlatformDb();
   const insert = db.prepare(
     `INSERT INTO for_you_suggestions (
-       id, user_id, tenant_id, kind, status, why, draft,
+       id, user_id, tenant_id, kind, status, why,
        target_id, target_url, target_author, created_at, expires_at, acted_at, origin
-     ) VALUES (?, ?, ?, ?, 'suggested', ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+     ) VALUES (?, ?, ?, ?, 'suggested', ?, ?, ?, ?, ?, ?, NULL, ?)`,
   );
   const out: ForYouSuggestion[] = [];
   const tx = db.transaction(() => {
-    for (const draft of drafts) {
+    for (const action of actions) {
       const id = randomUUID();
-      const why = secondPersonWhy(draft.why.trim());
+      const why = secondPersonWhy(action.why.trim());
       insert.run(
         id,
         opts.userId,
         opts.tenantId,
-        draft.kind,
+        action.kind,
         why,
-        draft.draft?.trim() || null,
-        draft.targetId?.trim() || null,
-        draft.targetUrl?.trim() || null,
-        draft.targetAuthor?.trim() || null,
+        action.targetId?.trim() || null,
+        action.targetUrl?.trim() || null,
+        action.targetAuthor?.trim() || null,
         createdAt,
         expiresAt,
         origin,
@@ -211,13 +207,12 @@ export function insertSuggestions(opts: {
         id,
         userId: opts.userId,
         tenantId: opts.tenantId,
-        kind: draft.kind,
+        kind: action.kind,
         status: "suggested",
         why,
-        draft: draft.draft?.trim() || null,
-        targetId: draft.targetId?.trim() || null,
-        targetUrl: draft.targetUrl?.trim() || null,
-        targetAuthor: draft.targetAuthor?.trim() || null,
+        targetId: action.targetId?.trim() || null,
+        targetUrl: action.targetUrl?.trim() || null,
+        targetAuthor: action.targetAuthor?.trim() || null,
         createdAt,
         expiresAt,
         actedAt: null,
@@ -232,7 +227,7 @@ export function insertSuggestions(opts: {
 export function replaceDailySuggestions(opts: {
   userId: string;
   tenantId: string;
-  drafts: ForYouDraft[];
+  actions: ForYouAction[];
   nowMs?: number;
 }): ForYouSuggestion[] {
   const nowMs = opts.nowMs ?? Date.now();
@@ -303,7 +298,7 @@ export function listActiveSuggestions(
   const active = rows
     .map(mapRow)
     .filter((row): row is ForYouSuggestion => Boolean(row))
-    .filter((row) => !isOwnPostRemixCopy(row.why, row.draft))
+    .filter((row) => !isOwnPostRemixCopy(row.why))
     .filter(
       (row) =>
         row.kind === "post" ||

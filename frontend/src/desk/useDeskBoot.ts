@@ -48,7 +48,6 @@ type UseDeskBootOpts = {
   hydrateCoaching: (opts?: CoachingFetchOptions) => Promise<void>;
   hydrateActivityStats: () => Promise<void>;
   loadBilling: () => Promise<void>;
-  hydrateVoice: () => Promise<void>;
   loadUsage: () => Promise<void>;
   loadAdmin: () => Promise<void>;
   /** Optional post-paint familiarity refresh when boot predates the field. */
@@ -130,7 +129,6 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
       hydrateCoaching,
       hydrateActivityStats,
       loadBilling,
-      hydrateVoice,
       loadUsage,
       loadAdmin,
       hydrateScoutFamiliarity,
@@ -173,10 +171,7 @@ export function useDeskBoot(opts: UseDeskBootOpts) {
         hydrateCoaching(coachingOpts).catch(() => undefined);
         hydrateActivityStats().catch(() => undefined);
         loadBilling().catch(() => undefined);
-        if (user) {
-          ensureActivitySubscribe();
-          hydrateVoice().catch(() => undefined);
-        }
+        if (user) ensureActivitySubscribe();
         if (viewFromPath(window.location.pathname) === "usage" || checkout) {
           loadUsage().catch(() => undefined);
         }

@@ -125,7 +125,7 @@ function setupSkipDismiss() {
   const hook = renderHook(() => ({
     session: useSession(),
     actions: useSkipDismiss({
-      setActionBusy: vi.fn(), setStatus, setThreads: vi.fn(), setExpandedId: vi.fn(),
+      setActionBusy: vi.fn(), setStatus, setThreads: vi.fn(),
       setSkippedHistory: vi.fn(), setDismissedHistory: vi.fn(),
       skippedIdsRef: { current: new Set<string>() }, dismissedIdsRef: { current: new Set<string>() },
       blockedConversationsRef: { current: new Set<string>() }, historyStaleRef: { current: false },

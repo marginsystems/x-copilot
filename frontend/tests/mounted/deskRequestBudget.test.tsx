@@ -47,7 +47,7 @@ function mountDesk() {
         if (desk.coaching !== undefined) coaching.applyCoaching(desk.coaching);
       },
       confirmCheckout: noop, hydrateCoaching: coaching.hydrateCoaching,
-      hydrateActivityStats: noop, loadBilling: noop, hydrateVoice: noop,
+      hydrateActivityStats: noop, loadBilling: noop,
       loadUsage: noop, loadAdmin: noop, hydrateScoutFamiliarity: noop,
     });
     return coaching.coaching;

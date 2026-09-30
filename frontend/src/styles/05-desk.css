@@ -590,15 +590,6 @@ button.primary.scout-run.desk-top-takeoff {
   font-size: 8px;
 }
 
-.row-head.static {
-  cursor: default;
-  text-align: left;
-}
-
-.row-detail.compact {
-  padding-top: 0;
-}
-
 @media (min-width: 1100px) {
   .desk-top {
     min-height: 0;

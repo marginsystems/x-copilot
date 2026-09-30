@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import type { ThreadsTab } from "../../src/desk/types";
-import type { VoiceState } from "../../src/lib/voice";
 
 vi.mock("../../src/desk/useApproachTask", () => ({
   // ready:false keeps the Approach loading branch; cardInput/actions are unread.
@@ -14,8 +13,6 @@ import { ThreadsTabs } from "../../src/desk/ThreadsTabs";
 
 function Harness({ total = 0, page = 1, onPage = async (_page: number) => {} }: { total?: number; page?: number; onPage?: (page: number) => Promise<void> }) {
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [, setVoice] = useState<VoiceState | null>(null);
   return (
     <ThreadsTabs
       threadsTab={threadsTab}
@@ -33,18 +30,13 @@ function Harness({ total = 0, page = 1, onPage = async (_page: number) => {} }: 
       searching={false}
       actionBusy={false}
       writesEnabled
-      expandedId={expandedId}
-      setExpandedId={setExpandedId}
       interactedIds={new Set()}
-      voice={null}
       agenda=""
       agendaReady
       deskBootReady
       authUser={null}
       dismissThread={null}
-      setVoice={setVoice}
       actForYou={async () => false}
-      onOpenVoice={vi.fn()}
       onOpenSettings={vi.fn()}
       onLinkX={vi.fn()}
       onSkip={vi.fn()}

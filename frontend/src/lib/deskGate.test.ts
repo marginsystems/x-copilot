@@ -26,7 +26,6 @@ await describe("showDeskXGate", () => {
   it("blocks the desk when X is missing", () => {
     assert.equal(showDeskXGate(base), true);
     assert.equal(showDeskXGate({ ...base, view: "settings" }), true);
-    assert.equal(showDeskXGate({ ...base, view: "voice" }), true);
     assert.equal(showDeskXGate({ ...base, view: "analytics" }), true);
   }).catch(assert.fail);
 

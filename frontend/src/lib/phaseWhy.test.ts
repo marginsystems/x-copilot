@@ -27,7 +27,6 @@ const post: ForYouSuggestion = {
   id: "s1",
   kind: "post",
   why: "900 views",
-  draft: "Ship a recap.",
   targetId: null,
   targetUrl: null,
   targetAuthor: null,
@@ -36,7 +35,6 @@ const reply: ForYouSuggestion = {
   id: "s2",
   kind: "reply",
   why: "A useful thread",
-  draft: "A useful reply",
   targetId: "123",
   targetUrl: "https://x.com/target/status/123",
   targetAuthor: "@target",
@@ -106,7 +104,7 @@ await describe("phaseWhy", () => {
   it("keeps compose copy on an original card", () => {
     assert.equal(
       phaseWhy("organic_reply", coaching("reply", "Mark a reply."), post),
-      "Compose an original. Mark it here.",
+      "Write an original on X. Mark it here.",
     );
   }).catch(assert.fail);
 

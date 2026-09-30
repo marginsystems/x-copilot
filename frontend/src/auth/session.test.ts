@@ -15,7 +15,6 @@ const owner = (id: string): AuthSessionUser => ({
   agenda: null,
   xUsername: null,
   xLinked: true,
-  xCanPost: true,
   isAdmin: false,
 });
 

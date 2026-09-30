@@ -36,7 +36,6 @@ function suggestion(userId: string, id: string): ForYouSuggestion {
     kind: "post",
     status: "suggested",
     why: "Your top post reached 400 views",
-    draft: "Share the lesson.",
     targetId: null,
     targetUrl: null,
     targetAuthor: null,

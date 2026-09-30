@@ -1,7 +1,6 @@
-import type { Dispatch, KeyboardEvent, SetStateAction } from "react";
+import type { KeyboardEvent } from "react";
 import type { AuthSessionUser } from "../auth/types";
 import { APPROACH_TAB_LABEL, type ForYouSuggestion } from "../lib/forYou";
-import type { VoiceState } from "../lib/voice";
 import {
   DismissedRow,
   ExpiredRow,
@@ -43,21 +42,16 @@ type ThreadsTabsProps = {
   scoutLine?: string | null;
   actionBusy: boolean;
   writesEnabled: boolean;
-  expandedId: string | null;
-  setExpandedId: Dispatch<SetStateAction<string | null>>;
   interactedIds: Set<string>;
-  voice: VoiceState | null;
   agenda: string;
   agendaReady: boolean;
   deskBootReady: boolean;
   authUser: AuthSessionUser | null;
   dismissThread: ThreadCard | null;
-  setVoice: Dispatch<SetStateAction<VoiceState | null>>;
   actForYou: (
     id: string,
     action: "done" | "skip" | "dismiss",
   ) => Promise<boolean | "gone">;
-  onOpenVoice: () => void;
   onOpenSettings: () => void;
   onLinkX: () => void;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
@@ -164,18 +158,13 @@ export function ThreadsTabs({
   scoutLine,
   actionBusy,
   writesEnabled,
-  expandedId,
-  setExpandedId,
   interactedIds,
-  voice,
   agenda,
   agendaReady,
   deskBootReady,
   authUser,
   dismissThread,
-  setVoice,
   actForYou,
-  onOpenVoice,
   onOpenSettings,
   onLinkX,
   onSkip,
@@ -200,7 +189,6 @@ export function ThreadsTabs({
     searching,
     scoutStage,
     scoutLine,
-    setExpandedId,
     actForYou,
     onSkip,
     onDismiss,
@@ -284,13 +272,7 @@ export function ThreadsTabs({
               clock={task.clock}
               onOpenSettings={onOpenSettings}
               actionBusy={actionBusy}
-              expandedId={expandedId}
-              setExpandedId={setExpandedId}
               interactedIds={interactedIds}
-              voice={voice}
-              agenda={agenda}
-              authUser={authUser}
-              setVoice={setVoice}
               exitingIds={task.exitingIds}
               onScoutSkip={task.onScoutSkip}
               onScoutDismiss={task.onScoutDismiss}
@@ -299,7 +281,6 @@ export function ThreadsTabs({
               onSuggestionSkip={task.onSuggestionSkip}
               onSuggestionDismiss={task.onSuggestionDismiss}
               onForYouNext={task.onForYouNext}
-              onOpenVoice={onOpenVoice}
               onLinkX={onLinkX}
             />
           )

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DESK_ROW_EXPAND_MS } from "../lib/deskRow";
+import { DESK_ROW_EXIT_MS } from "../lib/deskRow";
 
 export function useDeskRowExit(): {
   exitingIds: Set<string>;
@@ -61,7 +61,7 @@ export function useDeskRowExit(): {
       if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
         fire();
       } else {
-        timers.current.set(id, window.setTimeout(fire, DESK_ROW_EXPAND_MS));
+        timers.current.set(id, window.setTimeout(fire, DESK_ROW_EXIT_MS));
       }
     },
     [],

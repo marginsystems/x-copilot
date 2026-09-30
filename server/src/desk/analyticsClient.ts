@@ -13,8 +13,6 @@ export const ANALYTICS_EVENT_NAMES = [
   "scout.takeoff",
   "scout.failed",
   "mark.interacted",
-  "voice.suggest",
-  "desk.post",
 ] as const;
 
 export type AnalyticsEventName = (typeof ANALYTICS_EVENT_NAMES)[number];

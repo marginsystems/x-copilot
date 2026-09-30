@@ -11,7 +11,7 @@ import {
 import { getPlatformDb } from "../db.js";
 import type { CoachingSnapshot } from "./coachingSnapshot.js";
 import { DAILY_MISSION_DEFS } from "./dailyMissions.js";
-import { extractJsonObject, type ChatFn } from "../voice/voiceLlm.js";
+import { extractJsonObject, type ChatFn } from "../platform/llmJson.js";
 
 /** Bump when the grounded next-action prompt changes so stale copy refreshes. */
 export const NEXT_ACTION_PROMPT_REV = 5;

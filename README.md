@@ -4,17 +4,17 @@ Independent research + triage desk for posting on X. **Not affiliated with, endo
 
 **Live:** [xcopilot.dev](https://xcopilot.dev)
 
-Official X API search → DeepSeek triage in a Vite dashboard. Scout finds cool threads worth a human reply. Suggest can draft in your Voice; you rewrite it before Copy / Open on X or posting from the desk. No auto-engage.
+Official X API search → DeepSeek triage in a Vite dashboard. Scout finds cool threads worth a human reply and Approach picks your next moves. x-copilot never writes your posts or replies: you open X and write every word yourself. No auto-engage.
 
 **Status:** Stream 1 — agenda → DeepSeek Chat queries → recent search (official X API) → triaged thread cards.
 
 ## Idea
 
-1. Paste an **agenda** (who/what to engage, voice, avoid list).
+1. Paste an **agenda** (who/what to engage, topics, avoid list).
 2. **DeepSeek Chat** expands the agenda into 2–4 short X search queries (one LLM call).
 3. Sidecar runs those queries via the official X API **recent search** (`GET /2/tweets/search/recent`, app-only bearer).
 4. A second DeepSeek call **triages** the results (summary + bait risk + engage hint).
-5. Review cool thread cards. Suggest can offer a Voice-matched draft you must rewrite; then Copy / Open on X, or post from the desk. No auto-engage.
+5. Review cool thread cards, then Open on X and write your reply yourself. No drafts, no auto-engage.
 
 ## Thread triage
 
@@ -80,7 +80,7 @@ Ownership folders under `server/src/`:
 | `billing/` | Stripe, quotas, plans |
 | `scout/` | collect, cache, gate, run |
 | `for-you/` | digest, remix, theme, mail |
-| `voice/` | suggest, ingest, post |
+| `voice/` | own-post ingest |
 | `desk/` | history, interactions, beats |
 | `x-api/` | search, tweets, GraphQL parse |
 | `http/` | boot composition, JSON, CORS, request context |
@@ -147,7 +147,7 @@ OK via api_bearer_probe
 
 If you see HTTP **402**, buy credits. HTTP **401** usually means the bearer was URL-decoded or rotated — paste it again as shown in the console.
 
-Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only — no mass automation. Desk posting is a click you make after rewriting a suggestion, using your official X login. You are responsible for complying with X’s terms and applicable law.
+Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only — no mass automation. x-copilot never posts for you and never writes your replies; you open X and post yourself. You are responsible for complying with X’s terms and applicable law.
 
 ## Repo layout
 
@@ -206,7 +206,7 @@ Sign-in: hamburger menu → **Continue with Google** or **Continue with X**. New
 ## Stream 1 definition of done
 
 - Agenda → Scout → triaged cool thread cards
-- Human-in-the-loop posting (rewrite a Suggest draft, then Open on X or post from the desk)
+- Human-in-the-loop engagement: x-copilot finds threads and picks next moves but never writes your replies; you open X and write them yourself
 - README documents official X API setup + Pay Per Use credits
 
 ## License

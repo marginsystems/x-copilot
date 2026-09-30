@@ -9,8 +9,8 @@ import {
   listEligibleForYouUsers,
   MIN_T24H_SNAPSHOTS,
 } from "./forYouDigest.js";
-import { draftForYouActions } from "./forYouLlm.js";
-import type { ChatFn } from "../voice/voiceLlm.js";
+import { pickForYouActions } from "./forYouLlm.js";
+import type { ChatFn } from "../platform/llmJson.js";
 import {
   hasForYouRunToday,
   recordForYouRun,
@@ -48,7 +48,7 @@ export async function runForYouDigestForUser(opts: {
   if (digest.leftoverScout.length === 0 && !digest.agenda) {
     return { wrote: 0, reason: "empty" };
   }
-  const result = await draftForYouActions({
+  const result = await pickForYouActions({
     digest,
     chat: opts.chat,
   });
@@ -59,7 +59,7 @@ export async function runForYouDigestForUser(opts: {
     }
     return { wrote: 0, reason: "llm_error" };
   }
-  if (result.drafts.length < 2) {
+  if (result.actions.length < 2) {
     recordForYouRun(opts.userId, nowMs);
     return { wrote: 0, reason: "empty" };
   }
@@ -67,7 +67,7 @@ export async function runForYouDigestForUser(opts: {
   const rows = replaceDailySuggestions({
     userId: opts.userId,
     tenantId,
-    drafts: result.drafts,
+    actions: result.actions,
     nowMs,
   });
   try {
