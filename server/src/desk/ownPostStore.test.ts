@@ -239,6 +239,16 @@ await describe("ownPostStore", async () => {
       userId: userWithoutSubscription,
       tenantId,
     });
+    upsertOwnPost({
+      parsed: post({
+        postId: "unlinked-self-reply-by-x-id",
+        kind: "reply",
+        inReplyToId: "missing-parent",
+        inReplyToUserId: null,
+      }),
+      userId: userWithoutSubscription,
+      tenantId,
+    });
     assert.equal(
       listConfirmedOwnRepliesPage({
         userId: userWithoutSubscription,

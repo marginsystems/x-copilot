@@ -87,7 +87,77 @@ await describe("parseUserTweetsPage", async () => {
   await it("tolerates an empty timeline", () => {
     const page = parseUserTweetsPage({ meta: { result_count: 0 } }, OWN_ID);
     assert.deepEqual(page.replies, []);
+    assert.deepEqual(page.profiles, []);
     assert.equal(page.nextToken, null);
+  });
+
+  await it("resolves reply and quote targets and profiles from includes", () => {
+    const page = parseUserTweetsPage(
+      {
+        data: [
+          tweet("1", { reply: true, toUser: "77" }),
+          {
+            id: "2",
+            text: "quote take",
+            created_at: "2026-08-10T12:00:00.000Z",
+            referenced_tweets: [{ type: "quoted", id: "p9" }],
+          },
+          tweet("3", { reply: true, toUser: OWN_ID }),
+          tweet("4", { reply: true, toUser: "404" }),
+          {
+            id: "5",
+            text: "quoting myself",
+            referenced_tweets: [{ type: "quoted", id: "own-1" }],
+          },
+          tweet("6"),
+        ],
+        includes: {
+          users: [
+            {
+              id: "77",
+              username: "Alice",
+              name: "Alice A",
+              profile_image_url: "https://pbs.twimg.com/profile_images/7/a_normal.jpg",
+            },
+            { id: "88", username: "bob", name: "Bob" },
+            { id: OWN_ID, username: "me", name: "Me" },
+          ],
+          tweets: [
+            { id: "p9", author_id: "88", text: "original" },
+            { id: "own-1", author_id: OWN_ID, text: "mine" },
+          ],
+        },
+      },
+      OWN_ID,
+      "2026-09-30T00:00:00.000Z",
+    );
+    assert.deepEqual(
+      page.replies.map((r) => [r.id, r.inReplyToUserId, r.circleTarget]),
+      [
+        ["1", "77", { authorKey: "alice", kind: "reply" }],
+        ["2", null, { authorKey: "bob", kind: "quote" }],
+        ["3", OWN_ID, null],
+        ["4", "404", null],
+        ["5", null, null],
+        ["6", null, null],
+      ],
+    );
+    assert.deepEqual(page.profiles, [
+      {
+        authorKey: "alice",
+        handle: "Alice",
+        name: "Alice A",
+        avatarUrl: "https://pbs.twimg.com/profile_images/7/a_400x400.jpg",
+        updatedAt: "2026-09-30T00:00:00.000Z",
+      },
+      {
+        authorKey: "bob",
+        handle: "bob",
+        name: "Bob",
+        avatarUrl: null,
+        updatedAt: "2026-09-30T00:00:00.000Z",
+      },
+    ]);
   });
 });
 
@@ -120,6 +190,54 @@ await describe("pullOwnReplies", async () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.since_id, "555");
     assert.equal(calls[0]?.max_results, "100");
+    assert.equal(
+      calls[0]?.expansions,
+      "in_reply_to_user_id,referenced_tweets.id",
+    );
+    assert.equal(
+      calls[0]?.["tweet.fields"],
+      "author_id,conversation_id,created_at,in_reply_to_user_id,referenced_tweets",
+    );
+    assert.equal(calls[0]?.["user.fields"], "username,name,profile_image_url");
+  });
+
+  await it("resolves quote targets from the referenced tweets returned by the pull", async () => {
+    const get: XApiGetFn = async (opts) => {
+      assert.equal(
+        opts.query?.expansions,
+        "in_reply_to_user_id,referenced_tweets.id",
+      );
+      assert.equal(
+        opts.query?.["tweet.fields"],
+        "author_id,conversation_id,created_at,in_reply_to_user_id,referenced_tweets",
+      );
+      return {
+        ok: true,
+        status: 200,
+        json: {
+          data: [
+            {
+              id: "q1",
+              text: "quote take",
+              referenced_tweets: [{ type: "quoted", id: "p9" }],
+            },
+          ],
+          includes: {
+            tweets: [{ id: "p9", author_id: "88" }],
+            users: [{ id: "88", username: "bob", name: "Bob" }],
+          },
+          meta: { newest_id: "q1" },
+        },
+      };
+    };
+    const result = await pullOwnReplies({ xUserId: OWN_ID, deps: { get } });
+    assert.ok(result.ok);
+    if (result.ok) {
+      assert.deepEqual(result.replies[0]?.circleTarget, {
+        authorKey: "bob",
+        kind: "quote",
+      });
+    }
   });
 
   await it("asks X for five tweets when the confirm target is five", async () => {

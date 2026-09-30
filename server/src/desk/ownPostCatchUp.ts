@@ -22,6 +22,7 @@ import {
 import { publishDeskEvent } from "./deskEvents.js";
 import { rememberActivityEvent, upsertOwnPost } from "./ownPostStore.js";
 import { markOwnReplyInteracted, type OwnReplyMemoryOpts } from "./ownReplyMark.js";
+import { recordOwnPostCircleLink } from "../circle/circleStore.js";
 
 export const OWN_POST_CATCH_UP_PATH = "/api/desk/own-posts/catch-up";
 export const OWN_POST_CATCH_UP_MAX_RESULTS = 5;
@@ -94,6 +95,7 @@ export async function catchUpOwnPosts(
   for (const parsed of catchUpPostsFromUserTweets(read.json, xUserId)) {
     if (used >= gate.limit) return { ok: true, stored, hold: "daily_cap" };
     if (!upsertOwnPost({ parsed, userId, tenantId: gate.tenantId })) continue;
+    recordOwnPostCircleLink(userId, parsed);
     rememberActivityEvent(`post.create:${parsed.postId}`, parsed.postedAt);
     used += 1;
     stored += 1;

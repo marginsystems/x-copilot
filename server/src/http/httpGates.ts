@@ -11,16 +11,22 @@ import { getRequestContext, getRequestTenantId } from "./requestContext.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { xLinkRequiredResponse } from "../auth/xLinkGate.js";
 
-export function sendCreditsExhausted(
+export function requestCreditsExhausted(
   req: IncomingMessage,
-  res: ServerResponse,
-): boolean {
+): ReturnType<typeof creditsExhaustedResponse> {
   const ctx = getRequestContext();
-  const exhausted = creditsExhaustedResponse({
+  return creditsExhaustedResponse({
     userId: ctx?.userId,
     tenantId: ctx?.tenantId ?? getRequestTenantId(),
     email: getSessionUser(req)?.email,
   });
+}
+
+export function sendCreditsExhausted(
+  req: IncomingMessage,
+  res: ServerResponse,
+): boolean {
+  const exhausted = requestCreditsExhausted(req);
   if (!exhausted) return false;
   send(req, res, 402, exhausted);
   return true;
