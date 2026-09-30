@@ -97,6 +97,10 @@ const KINDS: readonly ThreadKindValue[] = [
   "timely_take", "fact_add", "sharp_opinion", "lived_answer", "hollow_ask", "other",
 ];
 
+const TANK_KINDS: readonly ThreadKindValue[] = [
+  "timely_take", "fact_add", "sharp_opinion", "lived_answer",
+];
+
 function svgAvatar(handle: string): string {
   return `${WEB_ORIGIN}/__dev/avatar/${encodeURIComponent(handle)}.svg`;
 }
@@ -220,7 +224,7 @@ function seedHistory(nowMs: number, tenantId: string): {
     for (let n = 0; n < perDay; n += 1) {
       const ageMs = day * DAY_MS + rand() * (day === 0 ? nowMs % DAY_MS : DAY_MS);
       const atMs = Math.round(nowMs - ageMs);
-      if (atMs > nowMs - 5 * 60_000) continue;
+      if (atMs > nowMs - 3 * HOUR_MS) continue;
       seq += 1;
       const author = rand() < 0.62 ? pick(weighted) : pick(OTHER_HANDLES);
       const threadId = `1900${String(100000 + seq)}`;
@@ -352,24 +356,25 @@ function seedEvidence(nowMs: number): void {
 }
 
 async function seedThreads(nowMs: number): Promise<void> {
-  const threads: ThreadCard[] = Array.from({ length: 16 }, (_, i) => {
-    const [handle] = pick(CIRCLE_PEOPLE);
+  const threads: ThreadCard[] = Array.from({ length: 7 }, (_, i) => {
+    const handle = `lead_${String(i + 1).padStart(2, "0")}`;
     const id = `1950${String(100000 + i)}`;
     const topic = pick(THREAD_TOPICS);
     return {
       id,
-      author: rand() < 0.5 ? handle : pick(OTHER_HANDLES),
+      author: handle,
       text: `Honest question for people who run ${topic}: what did you stop doing that actually made the numbers better? We removed three steps and nothing broke.`,
       url: `https://x.com/${handle}/status/${id}`,
       surface: "reply",
-      createdAt: new Date(nowMs - between(8, 150) * 60_000).toISOString(),
+      createdAt: new Date(nowMs - between(8, 90) * 60_000).toISOString(),
       summary: `Asks what to stop doing in ${topic}`,
       views: between(900, 42000),
       score: Math.round(60 + rand() * 38),
       baitScore: between(2, 30),
       engage: i < 5 ? "priority" : "consider",
-      threadKind: pick(KINDS),
-      reason: "Fresh conversation from an author in your circle with room for a lived answer.",
+      threadKind: pick(TANK_KINDS),
+      onAgenda: true,
+      reason: "Fresh conversation from an author you have not replied to with room for a lived answer.",
     };
   });
   await saveScoutCache(
