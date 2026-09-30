@@ -21,6 +21,7 @@ import {
   ownPostKindFromCard,
   shouldImportDiscoveredReply,
 } from "./replyDiscover.ts";
+import { classifyPostKind } from "../x-api/xActivity.ts";
 import {
   defaultMigrationsDir,
   getPlatformDb,
@@ -88,6 +89,18 @@ await describe("ownPostKindFromCard", async () => {
     );
     assert.equal(ownPostKindFromCard(card({ id: "2" })), "original");
     assert.equal(ownPostKindFromCard(card({ id: "3", isQuote: true })), "quote");
+  });
+
+  await it("classifies a quote-reply as a quote, the same as the webhook classifier", () => {
+    const fromCard = ownPostKindFromCard(
+      card({ id: "4", isQuote: true, isReply: true, inReplyToId: "p" }),
+    );
+    const fromApi = classifyPostKind({
+      in_reply_to_tweet_id: "p",
+      referenced_tweets: [{ type: "replied_to" }, { type: "quoted" }],
+    });
+    assert.equal(fromCard, "quote");
+    assert.equal(fromApi, fromCard);
   });
 });
 

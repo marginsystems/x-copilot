@@ -7,7 +7,7 @@ import {
   seedUser,
   type TempPlatformDb,
 } from "../platform/platformDb.testHelpers.ts";
-import type { ParsedPostCreate } from "../x-api/xActivity.ts";
+import { parsePostCreateEvent, type ParsedPostCreate } from "../x-api/xActivity.ts";
 import {
   circleLinkFromOwnPost,
   circleSelfHandle,
@@ -132,6 +132,23 @@ await describe("circleStore", async () => {
     assert.equal(circleLinkFromOwnPost(ownPost({ inReplyToUserId: "99" })), null);
     assert.equal(circleLinkFromOwnPost(ownPost({ inReplyToUsername: null })), null);
     assert.equal(circleLinkFromOwnPost(ownPost({ kind: "original" })), null);
+    const quoteReply = parsePostCreateEvent({
+      event_type: "post.create",
+      filter: { user_id: "99" },
+      payload: {
+        id: "p2",
+        text: "look",
+        in_reply_to_user_id: "77",
+        referenced_tweets: [
+          { type: "replied_to", id: "t1" },
+          { type: "quoted", id: "t9" },
+        ],
+      },
+      includes: { users: [{ id: "77", username: "Alice" }] },
+    });
+    assert.equal(quoteReply?.kind, "quote");
+    assert.equal(quoteReply?.inReplyToUsername, "Alice");
+    assert.equal(quoteReply && circleLinkFromOwnPost(quoteReply), null);
     const userId = seedUser("u-own-post");
     recordOwnPostCircleLink(userId, ownPost({}));
     assert.deepEqual(listCircleLinks(userId).map((l) => l.authorKey), ["alice"]);

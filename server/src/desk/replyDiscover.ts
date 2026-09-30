@@ -146,8 +146,8 @@ export function buildOwnPostsQuery(screenName: string): string {
 }
 
 export function ownPostKindFromCard(card: ThreadCard): OwnPostKind {
-  if (card.isReply || card.inReplyToId) return "reply";
   if (card.isQuote) return "quote";
+  if (card.isReply || card.inReplyToId) return "reply";
   return "original";
 }
 
