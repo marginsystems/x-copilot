@@ -79,6 +79,27 @@
 
 .desk-top-toggle-icon {
   flex: none;
+  transform: rotate(180deg);
+  transition: transform 420ms var(--ease-out);
+}
+
+.desk-top.is-collapsed .desk-top-toggle-icon {
+  transform: rotate(0deg);
+}
+
+.desk-top-toggle-label {
+  display: inline-grid;
+}
+
+.desk-top-toggle-label > span {
+  grid-area: 1 / 1;
+  text-align: center;
+}
+
+.desk-top-toggle-sizer {
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
 }
 
 .desk-top-body {
@@ -96,11 +117,22 @@
   min-height: 0;
   overflow: hidden;
   opacity: 1;
-  transition: opacity 280ms var(--ease-out);
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    opacity 280ms var(--ease-out),
+    transform 420ms var(--ease-out),
+    visibility 0s linear 0s;
 }
 
 .desk-top.is-collapsed .desk-top-body-inner {
   opacity: 0;
+  transform: translateY(-8px);
+  visibility: hidden;
+  transition:
+    opacity 280ms var(--ease-out),
+    transform 420ms var(--ease-out),
+    visibility 0s linear 420ms;
 }
 
 .desk-top-toggle:hover {
@@ -567,62 +599,6 @@ button.primary.scout-run.desk-top-takeoff {
     max-height: 220px;
   }
 }
-
-/* Minimized agenda: takeoff, tabs, and + share one row. */
-@media (min-width: 720px) {
-  .desk:has(.desk-top.is-collapsed) {
-    display: grid;
-    grid-template-columns: auto minmax(0, 10rem) minmax(0, 1fr) auto;
-    grid-template-rows: auto minmax(0, 1fr);
-    align-items: center;
-    column-gap: 8px;
-    row-gap: 8px;
-  }
-
-  .desk:has(.desk-top.is-collapsed) .desk-top,
-  .desk:has(.desk-top.is-collapsed) .desk-top-bar {
-    display: contents;
-  }
-
-  .desk:has(.desk-top.is-collapsed) .desk-top-body {
-    display: none;
-  }
-
-  .desk:has(.desk-top.is-collapsed) .desk-top-takeoff {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .desk:has(.desk-top.is-collapsed) .desk-top-bar-copy {
-    grid-column: 2;
-    grid-row: 1;
-    min-width: 0;
-  }
-
-  .desk:has(.desk-top.is-collapsed) .desk-top-toggle {
-    grid-column: 4;
-    grid-row: 1;
-  }
-
-  .desk:has(.desk-top.is-collapsed) .threads-pane-head {
-    grid-column: 3;
-    grid-row: 1;
-    min-width: 0;
-    padding: 0;
-  }
-
-  .desk:has(.desk-top.is-collapsed) .threads-pane-title .section-label {
-    display: none;
-  }
-
-  .desk:has(.desk-top.is-collapsed) .threads-scroll {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    min-height: 0;
-    align-self: stretch;
-  }
-}
-
 
 .scout-familiarity {
   min-width: 0;

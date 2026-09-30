@@ -55,6 +55,8 @@
   .learn-page tbody tr,
   .desk-top-body,
   .desk-top-body-inner,
+  .desk-top.is-collapsed .desk-top-body-inner,
+  .desk-top-toggle-icon,
   .desk-meter-fill,
   .row-open-ring-fill {
     transition: none;

@@ -9,9 +9,17 @@ export const COLLECT_COUNT_PER_QUERY = 20;
 export const COLLECT_QUERY_DELAY_MS = 500;
 export const SCOUT_MIN_LIKES = 5;
 
+const ARTICLE_EXCLUSION_OPERATOR = '-url:"x.com/i/article"';
+const HOISTED_OPERATOR_SOURCE =
+  '(?:(?:-?min_likes:\\d+|-has:(?:media|hashtags))\\b|-url:"x\\.com/i/article"(?=\\s|$))';
+
 export type ScoutSearchFilters = Pick<
   ScoutFilters,
-  "dropNativeMedia" | "dropHashtags" | "filterByMinViews" | "minViews"
+  | "dropNativeMedia"
+  | "dropHashtags"
+  | "dropArticles"
+  | "filterByMinViews"
+  | "minViews"
 >;
 
 /** Avoid billing retweets and reply leaves. Scout aims at original posts. */
@@ -25,10 +33,10 @@ export function withScoutSearchExclusions(
   q = q.replace(/(^|\s)(-?)min_faves:/gi, "$1$2min_likes:");
   if (!q) return "-is:retweet -is:reply";
   if (/(?:^|\s)OR(?:\s|$)/.test(q)) {
-    const operators =
-      q.match(/(?:^|\s)(-?min_likes:\d+|-has:(?:media|hashtags))\b/gi) ?? [];
+    const hoisted = new RegExp(`(?:^|\\s)${HOISTED_OPERATOR_SOURCE}`, "gi");
+    const operators = q.match(hoisted) ?? [];
     q = q
-      .replace(/(?:^|\s)(-?min_likes:\d+|-has:(?:media|hashtags))\b/gi, " ")
+      .replace(hoisted, " ")
       .replace(/\s+/g, " ")
       .trim();
     q = `(${q})${operators.map((operator) => ` ${operator.trim()}`).join("")}`;
@@ -40,6 +48,12 @@ export function withScoutSearchExclusions(
   }
   if (filters.dropHashtags !== false && !/(?:^|\s)-has:hashtags\b/i.test(q)) {
     q = `${q} -has:hashtags`;
+  }
+  if (
+    filters.dropArticles !== false &&
+    !/(?:^|\s)-url:"x\.com\/i\/article"(?=\s|$)/i.test(q)
+  ) {
+    q = `${q} ${ARTICLE_EXCLUSION_OPERATOR}`;
   }
   if (
     filters.filterByMinViews !== false &&
