@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { ensureDeskPreviewEnvFile } from "./dev-seed-env.js";
 import { getPlatformDb, resetPlatformDbForTests } from "../server/src/db.js";
 import { createSession } from "../server/src/auth/sessionStore.js";
 import { ensureUserTenant } from "../server/src/billing/billingStore.js";
@@ -110,22 +111,6 @@ function resetPreviewFiles(): void {
   mkdirSync(previewDir, { recursive: true });
   for (const suffix of ["", "-wal", "-shm"]) rmSync(`${dbPath}${suffix}`, { force: true });
   rmSync(resolve(root, "data", "gamification", `${PREVIEW_USER_ID}.json`), { force: true });
-}
-
-function ensureEnvFile(): void {
-  const envPath = resolve(root, ".env");
-  if (existsSync(envPath)) return;
-  writeFileSync(
-    envPath,
-    [
-      "PORT=8787",
-      "PLATFORM_DB_PATH=data/desk-preview/platform.sqlite",
-      "DESK_EVENTS_SECRET=desk-preview",
-      "AUTH_REQUIRED=1",
-      "",
-    ].join("\n"),
-  );
-  console.log("wrote .env for the preview server (gitignored)");
 }
 
 function seedUser(nowIso: string): void {
@@ -445,7 +430,7 @@ function seedApproach(nowMs: number, tenantId: string): void {
 
 async function main(): Promise<void> {
   resetPreviewFiles();
-  ensureEnvFile();
+  ensureDeskPreviewEnvFile(root);
   const nowMs = Date.now();
   getPlatformDb();
   seedUser(new Date(nowMs).toISOString());
