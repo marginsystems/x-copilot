@@ -134,6 +134,9 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
   const points = buildPoints(series, innerH, padL, padT, barW, gap);
   const labelStep = bucket === "week" ? 1 : Math.max(1, Math.ceil(n / 7));
   const [active, setActive] = useState<string | null>(null);
+  const latestPeriod = [...points]
+    .reverse()
+    .find((pt) => pt.p.views > 0 || pt.p.interactions > 0)?.p.period;
 
   const lineD = points
     .map((pt, i) => `${i === 0 ? "M" : "L"} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`)
@@ -151,6 +154,21 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
       role="img"
       aria-label="Flight path of originals, quotes, replies, and 24h views, refreshed live while pending"
     >
+      {!compact
+        ? [1, 2, 3].map((n) => {
+            const y = padT + (innerH * n) / 4;
+            return (
+              <line
+                key={`g-${n}`}
+                className="activity-chart-grid"
+                x1={padL}
+                y1={y}
+                x2={padL + innerW}
+                y2={y}
+              />
+            );
+          })
+        : null}
       <line
         className="activity-chart-axis"
         x1={padL}
@@ -217,6 +235,14 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
                 r={7}
               />
             ) : null}
+          {!compact && pt.p.period === latestPeriod ? (
+            <circle
+              className="activity-chart-dot-latest"
+              cx={pt.x}
+              cy={pt.y}
+              r={6}
+            />
+          ) : null}
           <circle
             className={
               [
@@ -268,6 +294,11 @@ export function ActivityChart({ series, bucket, compact = false }: Props) {
               width={barW + gap}
               height={innerH}
               aria-label={`${formatPeriodTip(pt.p.period, bucket)}: ${activityChartTipDetail(pt.p.interactions, pt.lineViews, pt.held, pt.kinds)}`}
+              tabIndex={0}
+              onFocus={() => setActive(pt.p.period)}
+              onBlur={() =>
+                setActive((cur) => (cur === pt.p.period ? null : cur))
+              }
               onPointerEnter={(ev) => {
                 if (ev.pointerType === "mouse") setActive(pt.p.period);
               }}

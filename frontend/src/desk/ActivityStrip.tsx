@@ -3,6 +3,11 @@ import { ActivityChart } from "../ActivityChart";
 import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import type { GamificationStats } from "../lib/gamification";
 import { flightSharePayload } from "../lib/flightShare";
+import {
+  levelBarPercent,
+  levelXpLabel,
+  postsViewsLabel,
+} from "../lib/flightStats";
 import { FlightShareModal } from "./FlightShareModal";
 
 type ActivityStripProps = {
@@ -49,35 +54,51 @@ export function ActivityStrip({
             </span>
           </div>
         </div>
-        <div
-          className="threads-activity-toggle"
-          role="group"
-          aria-label="Activity bucket"
-        >
-          <button
-            type="button"
-            className={
-              activityBucket === "day"
-                ? "threads-tab active"
-                : "threads-tab"
-            }
-            aria-pressed={activityBucket === "day"}
-            onClick={() => onActivityBucket("day")}
+        <div className="threads-activity-controls">
+          <span className="activity-chart-legend" aria-label="Post kinds">
+            <span className="activity-chart-legend-item">
+              <span className="activity-chart-swatch is-original" />
+              Original
+            </span>
+            <span className="activity-chart-legend-item">
+              <span className="activity-chart-swatch is-quote" />
+              Quote
+            </span>
+            <span className="activity-chart-legend-item">
+              <span className="activity-chart-swatch is-reply" />
+              Reply
+            </span>
+          </span>
+          <div
+            className="threads-activity-toggle"
+            role="group"
+            aria-label="Activity bucket"
           >
-            Day
-          </button>
-          <button
-            type="button"
-            className={
-              activityBucket === "week"
-                ? "threads-tab active"
-                : "threads-tab"
-            }
-            aria-pressed={activityBucket === "week"}
-            onClick={() => onActivityBucket("week")}
-          >
-            Week
-          </button>
+            <button
+              type="button"
+              className={
+                activityBucket === "day"
+                  ? "threads-tab active"
+                  : "threads-tab"
+              }
+              aria-pressed={activityBucket === "day"}
+              onClick={() => onActivityBucket("day")}
+            >
+              Day
+            </button>
+            <button
+              type="button"
+              className={
+                activityBucket === "week"
+                  ? "threads-tab active"
+                  : "threads-tab"
+              }
+              aria-pressed={activityBucket === "week"}
+              onClick={() => onActivityBucket("week")}
+            >
+              Week
+            </button>
+          </div>
         </div>
       </div>
       <div className="threads-activity-meta">
@@ -85,8 +106,10 @@ export function ActivityStrip({
           className="chip chip-muted"
           title={`${activityStats.totals.originals} original · ${activityStats.totals.quotes} quote · ${activityStats.totals.replies} reply`}
         >
-          {activityStats.totals.interactions} posts ·{" "}
-          {activityStats.totals.views} views
+          {postsViewsLabel(
+            activityStats.totals.interactions,
+            activityStats.totals.views,
+          )}
         </span>
         <span
           className="chip"
@@ -99,48 +122,22 @@ export function ActivityStrip({
         </span>
         <span
           className="chip threads-activity-level"
-          title="XP from marks (+1) and 24h engagement bonuses"
+          title={
+            gamification.nextGoal
+              ? `Next: ${gamification.nextGoal.title} — ${gamification.nextGoal.detail}. XP from marks (+1) and 24h engagement bonuses`
+              : "XP from marks (+1) and 24h engagement bonuses"
+          }
         >
-          Lv {gamification.level} · {gamification.lifetimeXp} XP
-          <span
-            className="threads-activity-xp-bar"
-            aria-hidden="true"
-          >
+          Lv {gamification.level}
+          <span className="threads-activity-xp-bar" aria-hidden="true">
             <span
               className="threads-activity-xp-fill"
-              style={{
-                width: `${Math.min(
-                  100,
-                  (gamification.xpIntoLevel / gamification.xpToNext) *
-                    100,
-                )}%`,
-              }}
+              style={{ width: `${levelBarPercent(gamification)}%` }}
             />
           </span>
-        </span>
-        <span className="activity-chart-legend" aria-label="Post kinds">
-          <span className="activity-chart-legend-item">
-            <span className="activity-chart-swatch is-original" />
-            Original
-          </span>
-          <span className="activity-chart-legend-item">
-            <span className="activity-chart-swatch is-quote" />
-            Quote
-          </span>
-          <span className="activity-chart-legend-item">
-            <span className="activity-chart-swatch is-reply" />
-            Reply
-          </span>
+          {levelXpLabel(gamification)}
         </span>
       </div>
-      <p
-        className="threads-activity-next"
-        aria-hidden={!gamification.nextGoal}
-      >
-        {gamification.nextGoal
-          ? `Next: ${gamification.nextGoal.title} — ${gamification.nextGoal.detail}`
-          : "\u00a0"}
-      </p>
       <div className="threads-activity-chart">
         {activityStats.totals.interactions === 0 ? (
           <p className="threads-activity-empty">

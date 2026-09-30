@@ -218,6 +218,7 @@ button.desk-circle-thumb:focus-visible {
 
 .desk-circle-score {
   display: none;
+  min-width: 3.4em;
   font-size: 0.72rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -314,6 +315,10 @@ button.desk-circle-thumb:focus-visible {
 }
 
 @media (min-width: 560px) {
+  .desk-circle-who a {
+    flex: 0 0 auto;
+  }
+
   .desk-circle-body {
     grid-template-rows: 240px 30px;
   }
@@ -346,7 +351,7 @@ button.desk-circle-thumb:focus-visible {
   }
 
   .desk-circle-list li {
-    grid-template-columns: 1.2em 20px minmax(0, 1fr) minmax(40px, 84px) 4.6em;
+    grid-template-columns: 1.2em 20px minmax(max-content, 1fr) minmax(24px, 72px) auto;
   }
 
   .desk-circle-score {
@@ -357,5 +362,25 @@ button.desk-circle-thumb:focus-visible {
 @container (min-width: 380px) {
   .desk-circle-name {
     display: block;
+  }
+}
+
+@media (min-width: 1100px) and (max-width: 1399.98px) {
+  .desk-circle-head {
+    column-gap: 8px;
+  }
+
+  .desk-circle-count {
+    font-size: 0.7rem;
+  }
+
+  .desk-circle-thumb {
+    height: auto;
+    width: 148px;
+    align-self: start;
+  }
+
+  .desk-circle-list li {
+    gap: 6px;
   }
 }

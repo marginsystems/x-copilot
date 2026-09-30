@@ -48,6 +48,12 @@
   color: var(--accent);
 }
 
+.threads-activity,
+.desk-circle,
+.cockpit-familiarity .scout-familiarity {
+  border-radius: var(--radius);
+}
+
 .desk-instruments {
   height: 100%;
   min-width: 0;
@@ -211,7 +217,7 @@
   border-radius: 999px;
   padding: 0 6px;
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   line-height: 16px;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
@@ -244,20 +250,63 @@
 }
 
 .threads-activity-head {
-  min-height: 26px;
   flex-wrap: nowrap;
+  min-height: 28px;
+}
+
+.threads-activity-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.threads-activity-controls .activity-chart-legend {
+  flex-wrap: nowrap;
+  gap: 10px;
+  font-family: var(--font-head);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .threads-activity-meta {
+  flex: 0 0 24px;
+  flex-wrap: nowrap;
   min-height: 24px;
-  max-height: 48px;
+  gap: 6px;
   overflow: hidden;
 }
 
-.threads-activity-next {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.threads-activity-meta .chip {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  color: var(--text);
   white-space: nowrap;
+  opacity: 1;
+}
+
+.threads-activity-meta .chip-muted {
+  color: var(--muted);
+}
+
+.threads-activity-xp-bar {
+  width: 56px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--gauge-track);
+}
+
+.threads-activity-xp-fill {
+  border-radius: 3px;
 }
 
 .threads-activity-toggle {
@@ -267,25 +316,40 @@
   overflow: hidden;
 }
 
+.threads-activity-toggle .threads-tab,
+.threads-tab {
+  min-height: 26px;
+}
+
 .threads-activity-toggle .threads-tab {
   border: none;
   border-radius: 0;
-  color: var(--text);
   padding: 4px 12px;
 }
 
-.threads-activity-toggle .threads-tab.active {
-  background: var(--accent);
-  color: var(--on-accent);
+.activity-chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+  opacity: 0.8;
 }
 
-.threads-activity-toggle .threads-tab:not(.active):hover {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+.activity-chart-dot-latest {
+  fill: color-mix(in srgb, var(--accent) 28%, transparent);
+  stroke: var(--accent);
+  stroke-width: 1;
+}
+
+.activity-chart-hit:focus-visible {
+  outline: none;
+  fill: color-mix(in srgb, var(--accent) 14%, transparent);
+  stroke: var(--accent);
+  stroke-width: 1;
 }
 
 .cockpit-familiarity {
-  flex: 0 0 34px;
-  height: 34px;
+  flex: 0 0 36px;
+  height: 36px;
   min-width: 0;
 }
 
@@ -306,12 +370,37 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
 }
 
 .cockpit-familiarity .scout-familiarity-meter {
-  flex: 0 0 96px;
-  width: 96px;
+  flex: 1 1 96px;
+  min-width: 64px;
+  max-width: 200px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--gauge-track);
+}
+
+.cockpit-familiarity .scout-familiarity-fill {
+  border-radius: 3px;
+}
+
+.cockpit-familiarity .scout-familiarity-coverage {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 12px;
+  color: var(--text);
+}
+
+.cockpit-familiarity .scout-familiarity-score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cockpit-familiarity .scout-familiarity-stat {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .cockpit-familiarity .scout-familiarity p {
@@ -362,7 +451,7 @@
 @media (width < 768px) {
   .cockpit {
     --cockpit-gauges-h: 428px;
-    grid-template-rows: var(--cockpit-gauges-h) 496px 360px;
+    grid-template-rows: var(--cockpit-gauges-h) 478px 380px;
   }
 
   .desk-gauges {
@@ -385,8 +474,12 @@
   }
 
   .cockpit-familiarity .scout-familiarity-meter {
-    flex-basis: 56px;
-    width: 56px;
+    flex: 1 1 56px;
+    max-width: none;
+  }
+
+  .cockpit-familiarity .scout-familiarity-stat {
+    display: none;
   }
 
   .cockpit-familiarity .scout-familiarity-coverage {
@@ -396,7 +489,50 @@
     text-overflow: ellipsis;
   }
 
-  .threads-activity-meta .activity-chart-legend {
+  .threads-activity-head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .threads-activity-controls {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .threads-activity-meta {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .desk-top-toggle,
+  .threads-tab,
+  .threads-activity-toggle .threads-tab,
+  .desk-circle-actions > a,
+  .desk-circle-actions > button {
+    min-height: 44px;
+  }
+
+  .threads-activity-share-slot,
+  .threads-activity-share {
+    flex-basis: 44px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .threads-tabs {
+    row-gap: 6px;
+  }
+}
+
+@media (min-width: 1100px) and (max-width: 1399.98px) {
+  .cockpit {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 4fr);
+  }
+
+  .cockpit-familiarity .scout-familiarity-last,
+  .cockpit-familiarity .scout-familiarity-list {
     display: none;
   }
 }

@@ -87,10 +87,10 @@ test("a collapsed cockpit mounts nothing until it is first opened", async () => 
   render(<Harness initialOpen={false} />);
   expect(screen.queryByRole("region", { name: "Circle" })).toBeNull();
   expect(fetchMock).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "Expand desk panel" }));
+  await user.click(screen.getByRole("button", { name: "Show cockpit" }));
   expect(screen.getByRole("region", { name: "Circle" })).toBeTruthy();
   expect(screen.getByRole("region", { name: "Instruments" })).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: "Minimize desk panel" }));
-  expect(screen.getByRole("button", { name: "Expand desk panel" }).getAttribute("aria-expanded")).toBe("false");
+  await user.click(screen.getByRole("button", { name: "Hide cockpit" }));
+  expect(screen.getByRole("button", { name: "Show cockpit" }).getAttribute("aria-expanded")).toBe("false");
   expect(screen.getByRole("region", { name: "Circle", hidden: true })).toBeTruthy();
 });

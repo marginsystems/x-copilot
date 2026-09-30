@@ -1,6 +1,23 @@
 import { formatPctDelta, type InstrumentDelta } from "../lib/deskInstruments";
 import { gaugeValueText, deltaSpoken, type DeskGaugeSpec } from "../lib/deskGaugeSpecs";
 import {
+  DIAL_CX as CX,
+  DIAL_CY as CY,
+  DIAL_HUB_RADIUS,
+  DIAL_NEEDLE_LEN as NEEDLE_LEN,
+  DIAL_NEEDLE_TAIL as NEEDLE_TAIL,
+  DIAL_R_BEZEL as R_BEZEL,
+  DIAL_R_TICK_MAJOR_IN as R_TICK_MAJOR_IN,
+  DIAL_R_TICK_MINOR_IN as R_TICK_MINOR_IN,
+  DIAL_R_TICK_OUT as R_TICK_OUT,
+  DIAL_R_TRACK as R_TRACK,
+  DIAL_R_ZONE as R_ZONE,
+  DIAL_VALUE_BASELINE,
+  DIAL_VIEW_HEIGHT,
+  DIAL_VIEW_WIDTH,
+  arcLabelPoint,
+} from "../lib/gaugeLayout";
+import {
   GAUGE_END_DEG,
   GAUGE_START_DEG,
   arcPath,
@@ -12,18 +29,6 @@ import {
   toneAt,
   zoneFractions,
 } from "../lib/gaugeGeometry";
-
-const CX = 50;
-const CY = 46;
-const R_BEZEL = 45;
-const R_ZONE = 40;
-const R_TRACK = 34;
-const R_TICK_OUT = 29.5;
-const R_TICK_MAJOR_IN = 24.5;
-const R_TICK_MINOR_IN = 27.5;
-const LABEL_DROP = 8;
-const NEEDLE_LEN = 25;
-const NEEDLE_TAIL = 5;
 
 export function DialGauge({ spec }: { spec: DeskGaugeSpec }) {
   const value = spec.value;
@@ -57,7 +62,7 @@ export function DialGauge({ spec }: { spec: DeskGaugeSpec }) {
       aria-valuetext={has ? gaugeValueText(spec) : `no reading, ${spec.unit}`}
       title={spec.note}
     >
-      <svg className="dial-svg" viewBox="0 0 100 84" aria-hidden="true">
+      <svg className="dial-svg" viewBox={`0 0 ${DIAL_VIEW_WIDTH} ${DIAL_VIEW_HEIGHT}`} aria-hidden="true">
         <path
           className="dial-bezel"
           d={arcPath(CX, CY, R_BEZEL, GAUGE_START_DEG - 4, GAUGE_END_DEG + 4)}
@@ -107,8 +112,7 @@ export function DialGauge({ spec }: { spec: DeskGaugeSpec }) {
           );
         })}
         {spec.tickLabels.map((label) => {
-          const end = polarPoint(CX, CY, R_TRACK, fractionToAngle(label.fraction));
-          const at = { x: end.x, y: end.y + LABEL_DROP };
+          const at = arcLabelPoint(fractionToAngle(label.fraction));
           return (
             <text
               key={label.fraction}
@@ -136,11 +140,11 @@ export function DialGauge({ spec }: { spec: DeskGaugeSpec }) {
             y2={CY}
           />
         </g>
-        <circle className="dial-hub" cx={CX} cy={CY} r={3} />
+        <circle className="dial-hub" cx={CX} cy={CY} r={DIAL_HUB_RADIUS} />
         <text
           className="dial-value"
           x={CX}
-          y={74}
+          y={DIAL_VALUE_BASELINE}
           textAnchor="middle"
         >
           {spec.valueText}
