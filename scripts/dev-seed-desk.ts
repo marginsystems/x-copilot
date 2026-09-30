@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { ensureDeskPreviewEnvFile } from "./dev-seed-env.js";
+import { ensureDeskPreviewEnv } from "./dev-seed-desk-env.ts";
 import { getPlatformDb, resetPlatformDbForTests } from "../server/src/db.js";
 import { createSession } from "../server/src/auth/sessionStore.js";
 import { ensureUserTenant } from "../server/src/billing/billingStore.js";
@@ -429,8 +429,10 @@ function seedApproach(nowMs: number, tenantId: string): void {
 }
 
 async function main(): Promise<void> {
+  if (ensureDeskPreviewEnv(root, dbPath)) {
+    console.log("wrote .env for the preview server (gitignored)");
+  }
   resetPreviewFiles();
-  ensureDeskPreviewEnvFile(root);
   const nowMs = Date.now();
   getPlatformDb();
   seedUser(new Date(nowMs).toISOString());
