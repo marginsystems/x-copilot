@@ -47,6 +47,9 @@ export function buildCircle(input: {
   const quotePostIds = new Set(
     input.links.filter((link) => link.kind === "quote").map((link) => link.postId),
   );
+  const historyReplyIds = new Set(
+    input.history.flatMap((row) => (row.replyId ? [row.replyId] : [])),
+  );
 
   const tally = (rawAuthor: string, at: string): Tally | null => {
     const key = normalizeAuthorKey(rawAuthor);
@@ -81,6 +84,7 @@ export function buildCircle(input: {
   }
 
   for (const link of input.links) {
+    if (link.kind === "reply" && historyReplyIds.has(link.postId)) continue;
     const entry = tally(link.authorKey, link.at);
     if (!entry) continue;
     if (link.kind === "quote") entry.quotePosts.add(link.postId);
