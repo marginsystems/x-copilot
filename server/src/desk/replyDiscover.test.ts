@@ -352,22 +352,25 @@ await describe("discoverOwnReplies", async () => {
     assert.equal(store.value, NOW + 3 * HOUR);
   });
 
-  await it("checkpoints at the oldest returned post when the window was not fully read", async () => {
+  await it("keeps the checkpoint and the window start when the window was truncated", async () => {
     const starts: (string | undefined)[] = [];
     const store = memoryCheckpoints();
-    const oldest = "2026-08-02T09:00:00.000Z";
+    store.value = NOW - 12 * HOUR;
     await runDiscover(
-      async () => ({
-        ...okPage([
-          card({ id: "n1", createdAt: "2026-08-02T11:00:00.000Z" }),
-          card({ id: "n2", createdAt: oldest }),
-        ]),
-        bottomCursor: "more",
-      }),
+      async (opts) => {
+        starts.push(opts.startTime);
+        return {
+          ...okPage([
+            card({ id: "n1", createdAt: "2026-08-02T11:00:00.000Z" }),
+            card({ id: "n2", createdAt: "2026-08-02T09:00:00.000Z" }),
+          ]),
+          bottomCursor: "more",
+        };
+      },
       store,
       NOW,
     );
-    assert.equal(store.value, Date.parse(oldest));
+    assert.equal(store.value, NOW - 12 * HOUR);
     await runDiscover(
       async (opts) => {
         starts.push(opts.startTime);
@@ -376,24 +379,8 @@ await describe("discoverOwnReplies", async () => {
       store,
       NOW + HOUR,
     );
-    assert.equal(
-      starts[0],
-      new Date(Date.parse(oldest) - 10 * 60 * 1000).toISOString(),
-    );
-  });
-
-  await it("does not advance a truncated window without any parseable createdAt", async () => {
-    const store = memoryCheckpoints();
-    store.value = NOW - HOUR;
-    await runDiscover(
-      async () => ({
-        ...okPage([card({ id: "n1" })]),
-        bottomCursor: "more",
-      }),
-      store,
-      NOW,
-    );
-    assert.equal(store.value, NOW - HOUR);
+    assert.equal(starts[1], starts[0]);
+    assert.equal(store.value, NOW + HOUR);
   });
 
   await it("does not advance the checkpoint when the import stage throws", async () => {
