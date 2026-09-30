@@ -192,7 +192,11 @@ await describe("pullOwnReplies", async () => {
     assert.equal(calls[0]?.max_results, "100");
     assert.equal(
       calls[0]?.expansions,
-      "in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id",
+      "in_reply_to_user_id,referenced_tweets.id",
+    );
+    assert.equal(
+      calls[0]?.["tweet.fields"],
+      "author_id,conversation_id,created_at,in_reply_to_user_id,referenced_tweets",
     );
     assert.equal(calls[0]?.["user.fields"], "username,name,profile_image_url");
   });
@@ -201,7 +205,11 @@ await describe("pullOwnReplies", async () => {
     const get: XApiGetFn = async (opts) => {
       assert.equal(
         opts.query?.expansions,
-        "in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id",
+        "in_reply_to_user_id,referenced_tweets.id",
+      );
+      assert.equal(
+        opts.query?.["tweet.fields"],
+        "author_id,conversation_id,created_at,in_reply_to_user_id,referenced_tweets",
       );
       return {
         ok: true,
