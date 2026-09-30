@@ -272,6 +272,7 @@ export function upsertOwnPost(input: {
      ON CONFLICT(id) DO UPDATE SET
        text = excluded.text,
        kind = excluded.kind,
+       in_reply_to_user_id = excluded.in_reply_to_user_id,
        url = excluded.url,
        posted_at = CASE
          WHEN own_posts.posted_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'
