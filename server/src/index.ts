@@ -30,6 +30,7 @@ import { tryHandleMemory } from "./memory/memoryHttp.js";
 import { tryHandleUsage } from "./billing/usageHttp.js";
 import { tryHandleHistory } from "./desk/historyHttp.js";
 import { tryHandleInteracted } from "./desk/interactedHttp.js";
+import { tryHandleCircle } from "./circle/circleHttp.js";
 import {
   tryHandleOwnPostCatchUp,
   tryHandleOwnPostCatchUpBeforeAuth,
@@ -184,6 +185,9 @@ async function handleRequest(
         return;
       }
       if (await tryHandleInteracted(req, res, url)) {
+        return;
+      }
+      if (await tryHandleCircle(req, res, url)) {
         return;
       }
       if (await tryHandleOwnPostCatchUp(req, res, url)) {
