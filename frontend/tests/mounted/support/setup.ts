@@ -3,6 +3,7 @@ import { afterEach, beforeEach, vi } from "vitest";
 import { clearOwnerCookie } from "./ownerHint";
 
 beforeEach(() => {
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
   // Mounted tests must explicitly supply their network fixtures.
   vi.stubGlobal("fetch", vi.fn(() => {
     throw new Error("Unexpected fetch: install a test fixture before mounting");

@@ -10,7 +10,7 @@ await describe("reduced motion", () => {
     assert.match(css, /\.dial-needle,\s*\.dial-fill\s*\{\s*transition:\s*none;/);
     assert.match(
       css,
-      /\.desk-circle-thumb\.is-skeleton,\s*\.desk-circle-skeleton-row::before\s*\{\s*animation:\s*none;/,
+      /\.desk-circle-map\.is-skeleton \.desk-circle-canvas,\s*\.desk-circle-skeleton-row::before\s*\{\s*animation:\s*none;/,
     );
   }).catch(assert.fail);
 

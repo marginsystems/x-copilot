@@ -1,18 +1,15 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { circleStatLine, emptyCircleLine, ghostRing } from "../lib/circleLeaderboard";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { bubbleMapLabel, circleStatLine, emptyCircleLine } from "../lib/circleLeaderboard";
 import {
   CIRCLE_MIN_MEMBERS,
-  CIRCLE_SHARE_HEIGHT,
-  CIRCLE_SHARE_WIDTH,
   circleSharePayload,
   circleShareIntentUrl,
   downloadCircleSharePng,
   fetchCircle,
   loadCircleImages,
-  renderCircleShareBlob,
   type CircleSharePayload,
 } from "../lib/circleShare";
-import { CircleCardModal } from "./CircleCardModal";
+import { CircleBubbleMap, type BubbleMapHandle } from "./CircleBubbleMap";
 import { CircleLeaderboard } from "./CircleLeaderboard";
 
 type CircleImages = Awaited<ReturnType<typeof loadCircleImages>>;
@@ -21,17 +18,21 @@ type CircleState =
   | { phase: "loading" }
   | { phase: "empty"; people: number }
   | { phase: "error" }
-  | { phase: "ready"; payload: CircleSharePayload; images: CircleImages; src: string };
+  | { phase: "ready"; payload: CircleSharePayload; images: CircleImages };
 
 const CLOSEST_SHOWN = 10;
+const SHARE_HINT =
+  "X cannot attach images from a link. Download the card, then add it to your post.";
 
 export function CirclePanel({ refreshKey }: { refreshKey: string }) {
   const [state, setState] = useState<CircleState>({ phase: "loading" });
-  const [cardOpen, setCardOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const mapRef = useRef<BubbleMapHandle>(null);
+  const listRef = useRef<HTMLOListElement>(null);
+  const linkedRowRef = useRef<Element | null>(null);
 
   useEffect(() => {
     let dead = false;
-    let url: string | null = null;
     void (async () => {
       const response = await fetchCircle();
       const payload = circleSharePayload(response);
@@ -41,134 +42,130 @@ export function CirclePanel({ refreshKey }: { refreshKey: string }) {
         return;
       }
       const images = await loadCircleImages(payload);
-      const blob = await renderCircleShareBlob(payload, images);
       if (dead) return;
-      url = URL.createObjectURL(blob);
-      setState({ phase: "ready", payload, images, src: url });
+      setState({ phase: "ready", payload, images });
     })().catch(() => {
       if (!dead) setState((prev) => (prev.phase === "ready" ? prev : { phase: "error" }));
     });
     return () => {
       dead = true;
-      if (url) URL.revokeObjectURL(url);
     };
   }, [refreshKey]);
 
-  if (state.phase === "loading") {
-    return (
-      <CircleFrame busy>
-        <div className="desk-circle-body is-loading">
-          <span className="desk-circle-thumb is-skeleton" aria-hidden="true" />
-          <div className="desk-circle-list is-skeleton" aria-hidden="true">
-            {Array.from({ length: CLOSEST_SHOWN }, (_, i) => (
-              <span key={i} className="desk-circle-skeleton-row" />
-            ))}
-          </div>
-          <p className="status desk-circle-status">Drawing your circle…</p>
-        </div>
-      </CircleFrame>
-    );
-  }
+  const isExpanded = expanded && state.phase === "ready";
 
-  if (state.phase === "empty") {
-    return (
-      <CircleFrame>
-        <div className="desk-circle-body is-empty">
-          <GhostRing />
-          <p className="desk-circle-empty desk-circle-message">
-            {emptyCircleLine(state.people, CIRCLE_MIN_MEMBERS)}
-          </p>
-        </div>
-      </CircleFrame>
-    );
-  }
+  useEffect(() => {
+    if (!isExpanded) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) setExpanded(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isExpanded]);
 
-  if (state.phase === "error") {
-    return (
-      <CircleFrame>
-        <div className="desk-circle-body is-empty">
-          <GhostRing />
-          <p className="desk-circle-empty desk-circle-message">
-            Could not load your circle. Refresh the desk to try again.
-          </p>
-        </div>
-      </CircleFrame>
-    );
-  }
+  const linkRow = useCallback((handle: string | null) => {
+    linkedRowRef.current?.classList.remove("is-linked");
+    linkedRowRef.current = handle
+      ? (listRef.current?.querySelector(`li[data-handle="${handle}"]`) ?? null)
+      : null;
+    linkedRowRef.current?.classList.add("is-linked");
+  }, []);
 
-  const { payload, images, src } = state;
-  const closest = payload.members.slice(0, CLOSEST_SHOWN);
+  const hoverBubble = useCallback((handle: string | null) => {
+    mapRef.current?.highlight(handle);
+  }, []);
+
+  const toggleExpanded = useCallback(() => setExpanded((prev) => !prev), []);
+
+  const ready = state.phase === "ready";
+  const loading = state.phase === "loading";
+  const payload = ready ? state.payload : null;
+  const bodyClass = [
+    "desk-circle-body",
+    loading ? "is-loading" : "",
+    !ready && !loading ? "is-empty" : "",
+    isExpanded ? "is-expanded" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <CircleFrame
-      stat={circleStatLine({
-        people: payload.members.length,
-        replies: payload.totals.replies,
-        quotes: payload.totals.quotes,
-      })}
-      legend
+      busy={loading}
+      legend={ready && !isExpanded}
+      stat={
+        payload
+          ? circleStatLine({
+              people: payload.members.length,
+              replies: payload.totals.replies,
+              quotes: payload.totals.quotes,
+            })
+          : undefined
+      }
     >
-      <div className="desk-circle-body">
-        <button
-          type="button"
-          className="desk-circle-thumb"
-          aria-label="Open the X Circle card at full size"
-          aria-haspopup="dialog"
-          onClick={() => setCardOpen(true)}
-        >
-          <img
-            width={CIRCLE_SHARE_WIDTH}
-            height={CIRCLE_SHARE_HEIGHT}
-            src={src}
-            alt={`X Circle card with ${payload.members.length} people`}
-          />
-        </button>
-        <CircleLeaderboard members={closest} />
-        <div className="row desk-circle-actions">
-          <a
-            className="primary"
-            href={circleShareIntentUrl(payload)}
-            target="_blank"
-            rel="noreferrer"
-            title="X cannot attach images from a link. Download the card, then add it to your post."
-          >
-            Post on X
-          </a>
-          <button
-            type="button"
-            className="ghost"
-            title="X cannot attach images from a link. Download the card, then add it to your post."
-            onClick={() => {
-              downloadCircleSharePng(payload, images).catch(() => undefined);
-            }}
-          >
-            Download PNG
-          </button>
-        </div>
-      </div>
-      {cardOpen ? (
-        <CircleCardModal
+      <div className={bodyClass}>
+        <CircleBubbleMap
+          ref={mapRef}
           payload={payload}
-          images={images}
-          src={src}
-          onClose={() => setCardOpen(false)}
+          images={ready ? state.images : null}
+          label={payload ? bubbleMapLabel(payload.members, payload.members.length) : null}
+          mode={ready ? "ready" : loading ? "loading" : "ghost"}
+          expanded={isExpanded}
+          onToggleExpanded={toggleExpanded}
+          onHover={linkRow}
         />
-      ) : null}
+        {ready ? (
+          <CircleLeaderboard
+            members={state.payload.members.slice(0, CLOSEST_SHOWN)}
+            listRef={listRef}
+            onHover={hoverBubble}
+          />
+        ) : null}
+        {ready ? (
+          <div className="row desk-circle-actions">
+            <a
+              className="primary"
+              href={circleShareIntentUrl(state.payload)}
+              target="_blank"
+              rel="noreferrer"
+              title={SHARE_HINT}
+            >
+              Post on X
+            </a>
+            <button
+              type="button"
+              className="ghost"
+              title={SHARE_HINT}
+              onClick={() => {
+                downloadCircleSharePng(state.payload, state.images).catch(() => undefined);
+              }}
+            >
+              Download PNG
+            </button>
+          </div>
+        ) : null}
+        {loading ? (
+          <>
+            <div className="desk-circle-list is-skeleton" aria-hidden="true">
+              {Array.from({ length: CLOSEST_SHOWN }, (_, i) => (
+                <span key={i} className="desk-circle-skeleton-row" />
+              ))}
+            </div>
+            <p className="status desk-circle-status">Drawing your circle…</p>
+          </>
+        ) : null}
+        {state.phase === "empty" ? (
+          <p className="desk-circle-empty desk-circle-message">
+            {emptyCircleLine(state.people, CIRCLE_MIN_MEMBERS)}
+          </p>
+        ) : null}
+        {state.phase === "error" ? (
+          <p className="desk-circle-empty desk-circle-message">
+            Could not load your circle. Refresh the desk to try again.
+          </p>
+        ) : null}
+      </div>
     </CircleFrame>
-  );
-}
-
-function GhostRing() {
-  return (
-    <svg
-      className="desk-circle-thumb is-ghost"
-      viewBox="0 0 100 125"
-      aria-hidden="true"
-    >
-      {ghostRing().map((disc) => (
-        <circle key={`${disc.x}-${disc.y}`} cx={disc.x} cy={disc.y} r={disc.r} />
-      ))}
-    </svg>
   );
 }
 

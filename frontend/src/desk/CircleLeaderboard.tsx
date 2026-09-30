@@ -1,21 +1,37 @@
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import {
   barShares,
-  formatMemberCounts,
+  formatQuotes,
+  formatReplies,
   memberInitial,
   memberScore,
 } from "../lib/circleLeaderboard";
 import type { CircleMember } from "../lib/circleShare";
 
-export function CircleLeaderboard({ members }: { members: readonly CircleMember[] }) {
+export function CircleLeaderboard({
+  members,
+  listRef,
+  onHover,
+}: {
+  members: readonly CircleMember[];
+  listRef: RefObject<HTMLOListElement>;
+  onHover: (handle: string | null) => void;
+}) {
   const top = members.reduce((best, m) => Math.max(best, memberScore(m)), 0);
   return (
-    <ol className="desk-circle-list" aria-label="Closest">
+    <ol ref={listRef} className="desk-circle-list" aria-label="Closest">
       {members.map((m, i) => {
         const shares = barShares(m, top);
-        const counts = formatMemberCounts(m);
         return (
-          <li key={m.handle} className={i === 0 ? "is-first" : undefined}>
+          <li
+            key={m.handle}
+            data-handle={m.handle}
+            className={i === 0 ? "is-first" : undefined}
+            onPointerEnter={() => onHover(m.handle)}
+            onPointerLeave={() => onHover(null)}
+            onFocus={() => onHover(m.handle)}
+            onBlur={() => onHover(null)}
+          >
             <span className="desk-circle-rank" aria-hidden="true">
               {i + 1}
             </span>
@@ -31,11 +47,12 @@ export function CircleLeaderboard({ members }: { members: readonly CircleMember[
               <span className="desk-circle-bar-quotes" style={{ width: `${shares.quotePct}%` }} />
             </span>
             <span
-              className="desk-circle-score"
+              className="desk-circle-replies"
               title={`${m.replies} replies, ${m.quotes} quotes`}
             >
-              {counts}
+              {formatReplies(m)}
             </span>
+            <span className="desk-circle-quotes">{formatQuotes(m)}</span>
           </li>
         );
       })}

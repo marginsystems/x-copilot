@@ -4,8 +4,11 @@ import {
   barShares,
   circleStatLine,
   emptyCircleLine,
-  formatMemberCounts,
-  ghostRing,
+  formatQuotes,
+  formatReplies,
+  GHOST_SCORES,
+  bubbleMapLabel,
+  memberDetail,
   memberInitial,
   memberScore,
 } from "./circleLeaderboard.ts";
@@ -33,11 +36,33 @@ await describe("circleLeaderboard", () => {
     assert.deepEqual(barShares({ replies: 0, quotes: 0 }, 9), { replyPct: 0, quotePct: 0 });
   }).catch(assert.fail);
 
-  it("formats compact counts and hides zeros", () => {
-    assert.equal(formatMemberCounts({ replies: 15, quotes: 2 }), "15 · 2q");
-    assert.equal(formatMemberCounts({ replies: 13, quotes: 0 }), "13");
-    assert.equal(formatMemberCounts({ replies: 0, quotes: 3 }), "3q");
-    assert.equal(formatMemberCounts({ replies: 0, quotes: 0 }), "");
+  it("formats reply and quote cells separately and leaves zeros empty", () => {
+    assert.equal(formatReplies({ replies: 15, quotes: 2 }), "15");
+    assert.equal(formatQuotes({ replies: 15, quotes: 2 }), "2q");
+    assert.equal(formatQuotes({ replies: 13, quotes: 0 }), "");
+    assert.equal(formatReplies({ replies: 0, quotes: 3 }), "");
+    assert.equal(formatQuotes({ replies: 0, quotes: 3 }), "3q");
+  }).catch(assert.fail);
+
+  it("words the tooltip detail and hides zero counts", () => {
+    assert.equal(memberDetail({ replies: 13, quotes: 6 }), "13 replies · 6 quotes");
+    assert.equal(memberDetail({ replies: 1, quotes: 1 }), "1 reply · 1 quote");
+    assert.equal(memberDetail({ replies: 8, quotes: 0 }), "8 replies");
+    assert.equal(memberDetail({ replies: 0, quotes: 3 }), "3 quotes");
+    assert.equal(memberDetail({ replies: 0, quotes: 0 }), "");
+  }).catch(assert.fail);
+
+  it("summarises the top people in the map label", () => {
+    const members = [
+      { handle: "a", replies: 13, quotes: 6 },
+      { handle: "b", replies: 8, quotes: 0 },
+      { handle: "c", replies: 0, quotes: 2 },
+      { handle: "d", replies: 1, quotes: 0 },
+    ];
+    assert.equal(
+      bubbleMapLabel(members, 12),
+      "Bubble map of your X Circle, 12 people. Closest: @a (13 replies · 6 quotes), @b (8 replies), @c (2 quotes).",
+    );
   }).catch(assert.fail);
 
   it("builds the stat line from real totals and drops zero counts", () => {
@@ -53,13 +78,10 @@ await describe("circleLeaderboard", () => {
     assert.equal(memberInitial("", null), "?");
   }).catch(assert.fail);
 
-  it("draws a stable ghost ring inside the card box", () => {
-    const discs = ghostRing();
-    assert.equal(discs.length, 36);
-    assert.deepEqual(ghostRing(), discs);
-    for (const d of discs) {
-      assert.ok(d.x - d.r >= 0 && d.x + d.r <= 100);
-      assert.ok(d.y - d.r >= 0 && d.y + d.r <= 125);
+  it("keeps ghost scores descending and positive", () => {
+    assert.ok(GHOST_SCORES.length >= 10);
+    for (let i = 1; i < GHOST_SCORES.length; i++) {
+      assert.ok(GHOST_SCORES[i]! > 0 && GHOST_SCORES[i]! <= GHOST_SCORES[i - 1]!);
     }
   }).catch(assert.fail);
 

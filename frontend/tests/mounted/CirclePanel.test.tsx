@@ -2,14 +2,12 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { CirclePanel } from "../../src/desk/CirclePanel";
-import { renderCircleShareBlob } from "../../src/lib/circleShare";
 
 vi.mock("../../src/lib/circleShare", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/lib/circleShare")>();
   return {
     ...actual,
     loadCircleImages: vi.fn().mockResolvedValue(new Map()),
-    renderCircleShareBlob: vi.fn().mockResolvedValue(new Blob(["card"], { type: "image/png" })),
   };
 });
 
@@ -45,26 +43,15 @@ test("keeps a genuine under-minimum response in the empty state", async () => {
   expect(await screen.findByText("Reply to more people to draw your circle (2 of 3).")).toBeTruthy();
 });
 
-test("reports render failures and reserves preview dimensions before the blob resolves", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi
-      .fn()
-      .mockResolvedValueOnce(Response.json(circleResponse(70)))
-      .mockResolvedValueOnce(Response.json(circleResponse(70))),
-  );
-  vi.stubGlobal("URL", {
-    createObjectURL: vi.fn(() => "blob:circle"),
-    revokeObjectURL: vi.fn(),
-  });
-  vi.mocked(renderCircleShareBlob).mockRejectedValueOnce(new Error("canvas failed"));
-  const { rerender } = render(<CirclePanel refreshKey="" />);
-  expect(await screen.findByText("Could not load your circle. Refresh the desk to try again.")).toBeTruthy();
-  vi.mocked(renderCircleShareBlob).mockResolvedValueOnce(new Blob(["card"], { type: "image/png" }));
-  rerender(<CirclePanel refreshKey="new-reply" />);
-  const preview = await screen.findByRole("img", { name: "X Circle card with 64 people" });
-  expect(preview.getAttribute("width")).toBe("1080");
-  expect(preview.getAttribute("height")).toBe("1350");
+test("mounts one bubble map canvas from the skeleton through the loaded circle", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(circleResponse(70))));
+  const { container } = render(<CirclePanel refreshKey="" />);
+  const canvas = container.querySelector("canvas");
+  expect(canvas).toBeTruthy();
+  expect(canvas!.getAttribute("aria-hidden")).toBe("true");
+  const map = await screen.findByRole("img", { name: /Bubble map of your X Circle, 64 people\. Closest: @friend_0/ });
+  expect(map).toBe(canvas);
+  expect(container.querySelectorAll("canvas")).toHaveLength(1);
   expect(screen.getByText("64 people · 700 replies")).toBeTruthy();
 });
 
@@ -75,42 +62,58 @@ test("ranks ten people with avatars, initial fallbacks, bars and no zero counts"
   payload.members[2] = { ...payload.members[2]!, replies: 8, quotes: 0 };
   payload.totals = { replies: 843, quotes: 12, people: 12 };
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(payload)));
-  vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:circle"), revokeObjectURL: vi.fn() });
   const { container } = render(<CirclePanel refreshKey="" />);
   const list = await screen.findByRole("list", { name: "Closest" });
   const rows = within(list).getAllByRole("listitem");
   expect(rows).toHaveLength(10);
   expect(screen.getByText("12 people · 843 replies · 12 quotes")).toBeTruthy();
-  expect(rows[0]!.textContent).toContain("15 · 2q");
-  expect(rows[1]!.textContent).toContain("3q");
-  expect(rows[1]!.textContent).not.toContain("0");
-  expect(rows[2]!.textContent).toContain("8");
-  expect(rows[2]!.textContent).not.toContain("q");
+  const cells = (row: HTMLElement) => [
+    row.querySelector(".desk-circle-replies")?.textContent,
+    row.querySelector(".desk-circle-quotes")?.textContent,
+  ];
+  expect(cells(rows[0]!)).toEqual(["15", "2q"]);
+  expect(cells(rows[1]!)).toEqual(["", "3q"]);
+  expect(cells(rows[2]!)).toEqual(["8", ""]);
+  expect(rows[2]!.querySelector(".desk-circle-quotes")).toBeTruthy();
   expect(rows[0]!.querySelector("img.desk-circle-avatar")).toBeTruthy();
   expect(rows[1]!.querySelector(".desk-circle-avatar.is-initial")?.textContent).toBe("F");
   const bars = container.querySelectorAll<HTMLElement>(".desk-circle-bar-replies");
   expect(bars[0]!.style.width).toBe("78.94736842105263%");
 });
 
-test("opens the full-size card from the thumbnail and closes it with Escape", async () => {
+test("expands the map over the list and collapses with the button or Escape", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(circleResponse(6))));
-  vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:circle"), revokeObjectURL: vi.fn() });
   const user = userEvent.setup();
-  render(<CirclePanel refreshKey="" />);
-  const thumb = await screen.findByRole("button", { name: "Open the X Circle card at full size" });
-  await user.click(thumb);
-  const dialog = await screen.findByRole("dialog", { name: "Your X Circle card" });
-  expect(within(dialog).getByRole("link", { name: "Post on X" })).toBeTruthy();
-  expect(within(dialog).getByRole("button", { name: "Download PNG" })).toBeTruthy();
-  expect(within(dialog).getByRole("img", { name: /Full size X Circle card with 6 people/ })).toBeTruthy();
+  const { container } = render(<CirclePanel refreshKey="" />);
+  const expand = await screen.findByRole("button", { name: "Expand the circle map" });
+  const canvas = container.querySelector("canvas");
+  const body = container.querySelector(".desk-circle-body")!;
+  expect(body.classList.contains("is-expanded")).toBe(false);
+  await user.click(expand);
+  expect(body.classList.contains("is-expanded")).toBe(true);
+  expect(container.querySelector("canvas")).toBe(canvas);
+  const collapse = screen.getByRole("button", { name: "Collapse the circle map" });
+  expect(collapse.getAttribute("aria-pressed")).toBe("true");
   await user.keyboard("{Escape}");
+  expect(body.classList.contains("is-expanded")).toBe(false);
+  await user.click(screen.getByRole("button", { name: "Expand the circle map" }));
+  await user.click(screen.getByRole("button", { name: "Collapse the circle map" }));
+  expect(body.classList.contains("is-expanded")).toBe(false);
+  expect(container.querySelector("canvas")).toBe(canvas);
+});
+
+test("keeps the share actions and no longer opens a card dialog", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(circleResponse(6))));
+  render(<CirclePanel refreshKey="" />);
+  expect(await screen.findByRole("link", { name: "Post on X" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Download PNG" })).toBeTruthy();
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
-test("keeps the frame with a ghost ring and progress while the circle is too small", async () => {
+test("keeps the frame with a ghost map and progress while the circle is too small", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(circleResponse(1))));
   const { container } = render(<CirclePanel refreshKey="" />);
   expect(await screen.findByText("Reply to more people to draw your circle (1 of 3).")).toBeTruthy();
-  expect(container.querySelectorAll(".desk-circle-thumb.is-ghost circle")).toHaveLength(36);
+  expect(container.querySelector(".desk-circle-map.is-ghost canvas")).toBeTruthy();
   expect(screen.getByRole("region", { name: "Circle" })).toBeTruthy();
 });

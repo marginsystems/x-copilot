@@ -2,13 +2,7 @@ export type LeaderboardCounts = { replies: number; quotes: number };
 
 export type BarShares = { replyPct: number; quotePct: number };
 
-export type GhostDisc = { x: number; y: number; r: number };
-
-export const GHOST_RING_LAYERS: ReadonlyArray<{ count: number; radius: number; disc: number }> = [
-  { count: 6, radius: 17, disc: 5.5 },
-  { count: 12, radius: 31, disc: 4.5 },
-  { count: 18, radius: 43, disc: 3.5 },
-];
+export const GHOST_SCORES: readonly number[] = [18, 15, 13, 11, 9, 8, 7, 6, 5, 4, 3, 3, 2, 2];
 
 function whole(n: number): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
@@ -26,13 +20,14 @@ export function barShares(member: LeaderboardCounts, topScore: number): BarShare
   return { replyPct, quotePct };
 }
 
-export function formatMemberCounts(member: LeaderboardCounts): string {
+export function formatReplies(member: LeaderboardCounts): string {
   const replies = whole(member.replies);
+  return replies > 0 ? String(replies) : "";
+}
+
+export function formatQuotes(member: LeaderboardCounts): string {
   const quotes = whole(member.quotes);
-  const parts: string[] = [];
-  if (replies > 0) parts.push(String(replies));
-  if (quotes > 0) parts.push(`${quotes}q`);
-  return parts.join(" · ");
+  return quotes > 0 ? `${quotes}q` : "";
 }
 
 function plural(n: number, one: string, many: string): string {
@@ -60,18 +55,24 @@ export function memberInitial(handle: string, name: string | null): string {
   return first ? first.toUpperCase() : "?";
 }
 
-export function ghostRing(): GhostDisc[] {
-  return GHOST_RING_LAYERS.flatMap((layer, index) =>
-    Array.from({ length: layer.count }, (_, i) => {
-      const deg = (i / layer.count) * 360 + (index % 2 === 0 ? 0 : 180 / layer.count) - 90;
-      const rad = (deg * Math.PI) / 180;
-      return {
-        x: Math.round((50 + layer.radius * Math.cos(rad)) * 100) / 100,
-        y: Math.round((62.5 + layer.radius * Math.sin(rad)) * 100) / 100,
-        r: layer.disc,
-      };
-    }),
-  );
+export function memberDetail(member: LeaderboardCounts): string {
+  const replies = whole(member.replies);
+  const quotes = whole(member.quotes);
+  const parts: string[] = [];
+  if (replies > 0) parts.push(plural(replies, "reply", "replies"));
+  if (quotes > 0) parts.push(plural(quotes, "quote", "quotes"));
+  return parts.join(" · ");
+}
+
+export function bubbleMapLabel(
+  members: readonly (LeaderboardCounts & { handle: string })[],
+  people: number,
+): string {
+  const closest = members
+    .slice(0, 3)
+    .map((m) => `@${m.handle} (${memberDetail(m) || "no activity"})`)
+    .join(", ");
+  return `Bubble map of your X Circle, ${plural(whole(people), "person", "people")}. Closest: ${closest}.`;
 }
 
 export function emptyCircleLine(people: number, needed: number): string {
